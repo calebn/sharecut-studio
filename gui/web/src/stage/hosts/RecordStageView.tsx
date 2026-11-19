@@ -12,6 +12,9 @@ import {
 import { HostBody } from "./HostBody";
 import type { HostState, LoadFailure } from "./hostModels";
 
+/** A screen-reader-only note; a new key makes the live region speak it again. */
+export type SrNote = { key: string; text: string };
+
 export type RecordNotice = {
   text: string;
   action?: { label: string; onClick: () => void };
@@ -40,7 +43,7 @@ export type RecordStageViewProps = {
   onRename?: EndedSessionCardProps["onRename"];
   hasClips?: boolean;
   notices: readonly RecordNotice[];
-  srNotes: readonly string[];
+  srNotes: readonly SrNote[];
   storage?: ReactNode;
   toast?: ReactNode;
   more?: ReactNode;
@@ -224,8 +227,8 @@ export function RecordStageView({
                 ) : null}
               </p>
             ))}
-            {srNotes.map((text) => (
-              <p key={text} className="sr-only">
+            {srNotes.map(({ key, text }) => (
+              <p key={key} className="sr-only">
                 {text}
               </p>
             ))}

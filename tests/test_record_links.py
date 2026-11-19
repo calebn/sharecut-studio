@@ -1242,3 +1242,22 @@ def test_a_share_row_without_an_id_does_not_break_the_invite_sheet(
     by_token = {row["token"]: row for row in presented}
     assert set(by_token) == {room["guest"]["token"], room["producer"]["token"]}
     assert all(row["invite_closed"] is True for row in by_token.values())
+
+
+def test_gui_409_marks_a_mint_whose_room_listings_both_fail_as_unverified(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    ShareService(ws).create_record_room()
+
+    def listing_fails(self, session_id):
+        raise RuntimeError("listing boom")
+
+    monkeypatch.setattr(ShareService, "_live_other_record_rooms", listing_fails)
+    resp = TestClient(create_app()).post("/api/shares/record", json={"path": str(ws.path)})
+    assert resp.status_code == 409
+    assert resp.headers["x-sharecut-error-code"] == "record_stale_links"
+    detail = resp.json()["detail"]
+    assert detail["unverified"] is True
+    assert detail["stale_session_ids"] == []
+    assert detail["room"]["session_id"] in detail["message"]

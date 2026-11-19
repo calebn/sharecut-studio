@@ -947,11 +947,11 @@ Product follow-up: [ROADMAP.md](../ROADMAP.md). Provider product details are mai
 
 ### Guest WebSocket (shipped)
 
-Guests with `view` connect to `WS /api/review/{token}/daw/ws` on the host (and the same path on the public relay). Record guests with `monitor` connect to `WS /api/rec/{token}/ws`. The relay multiplexes guest sockets over the host tunnel with:
+Guests with `view` connect to `WS /api/review/{token}/daw/ws` on the host (and the same path on the public relay). Record guests with `monitor` connect to `WS /api/rec/{token}/ws`. A producer link may add `?observe=1` to look at the room before joining (see [recording-session.md](recording-session.md#looking-in-on-a-room-observe1)); the query rides `ws_open.query` unchanged. The relay multiplexes guest sockets over the host tunnel with:
 
 | Frame | Direction | Fields |
 |-------|-----------|--------|
-| `ws_open` | relay → host | `id`, `path` (`api/review/daw/ws` or `api/rec/ws`), `query` (the guest socket's raw query string, e.g. `client_id` and `name`), `share_token` |
+| `ws_open` | relay → host | `id`, `path` (`api/review/daw/ws` or `api/rec/ws`), `query` (the guest socket's raw query string, e.g. `client_id`, `name` and a producer's `observe=1`; the relay does not read it), `share_token` |
 | `ws_data` | both | `id`, `text` (JSON text frame) |
 | `ws_close` | both | `id`, `code`, `reason` |
 

@@ -332,6 +332,7 @@ export const Empty: Story = {
 };
 
 export const Loading: Story = {
+  tags: ["storybook-only"],
   parameters: { episode: { state: { project: null, editSurface: "lanes" } } },
   play: async ({ canvasElement }) => {
     await expect(
@@ -342,7 +343,12 @@ export const Loading: Story = {
 
 export const LoadError: Story = {
   args: {
-    loadFailure: { message: "The server did not answer.", onRetry: fn() },
+    loadFailure: {
+      source: "shell",
+      cause: { audience: "host", kind: "not-answering" },
+      name: "Rosa and Maya",
+      onRetry: fn(),
+    },
   },
   // On a phone with the Script collapsed the cover is still the stage body.
   parameters: {

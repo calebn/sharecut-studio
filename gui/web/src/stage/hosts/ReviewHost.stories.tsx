@@ -66,7 +66,12 @@ const phone = {
   globals: { viewport: { value: "mobile360", isRotated: false } },
 } as const;
 
-const FAILURE = { message: "The server did not answer.", onRetry: fn() };
+const FAILURE = {
+  source: "shell",
+  cause: { audience: "host", kind: "not-answering" },
+  name: "Rosa and Maya",
+  onRetry: fn(),
+} as const;
 
 export const Default: Story = {
   play: async ({ canvasElement }) => {
@@ -86,9 +91,16 @@ const queuePlay: Story["play"] = async ({ canvasElement }) => {
   await expect(canvasElement.querySelector(".rv-stage")).not.toBeNull();
 };
 
-export const Queue: Story = { play: queuePlay };
+export const Queue: Story = {
+  tags: ["storybook-only"],
+  play: queuePlay,
+};
 
-export const QueuePhone: Story = { ...phone, play: queuePlay };
+export const QueuePhone: Story = {
+  ...phone,
+  tags: ["storybook-only"],
+  play: queuePlay,
+};
 
 const running = (state: object) => ({
   episode: { state: { stage: "review", ...state } },
@@ -130,6 +142,7 @@ export const CommentThreadPhone: Story = {
 };
 
 export const FindMore: Story = {
+  tags: ["storybook-only"],
   parameters: running({
     pipelineJob: pipelineJobSnapshot({ id: "find", current: 2, total: 5 }),
   }),
@@ -141,6 +154,7 @@ export const FindMore: Story = {
 };
 
 export const FindMoreBusy: Story = {
+  tags: ["storybook-only"],
   parameters: running({
     pipelineJob: pipelineJobSnapshot({ id: "bounce", kind: "export" }),
   }),
@@ -163,9 +177,16 @@ const unsureWordsPlay: Story["play"] = async ({ canvasElement }) => {
   await expect(within(group).getAllByRole("button").length).toBeGreaterThan(0);
 };
 
-export const UnsureWords: Story = { play: unsureWordsPlay };
+export const UnsureWords: Story = {
+  tags: ["storybook-only"],
+  play: unsureWordsPlay,
+};
 
-export const UnsureWordsPhone: Story = { ...phone, play: unsureWordsPlay };
+export const UnsureWordsPhone: Story = {
+  ...phone,
+  tags: ["storybook-only"],
+  play: unsureWordsPlay,
+};
 
 const composingPlay: Story["play"] = async ({ canvasElement }) => {
   const canvas = within(canvasElement);
@@ -243,16 +264,19 @@ export const LoadError: Story = {
 };
 
 export const LoadRetrying: Story = {
-  args: {
-    loadFailure: { ...FAILURE, message: "Trying again…", recovering: true },
-  },
+  args: { loadFailure: { ...FAILURE, trying: true } },
   parameters: { episode: { state: { stage: "review", project: null } } },
   play: async ({ canvasElement }) => {
-    const retry = await within(canvasElement).findByRole("button", {
-      name: "Try again",
-    });
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Try again" }),
+    );
+    const retry = await canvas.findByRole("button", { name: "Trying…" });
     await expect(retry).toHaveAttribute("aria-busy", "true");
     await expect(retry).toHaveAttribute("aria-disabled", "true");
+    await expect(
+      await within(await canvas.findByRole("alert")).findByRole("status"),
+    ).toHaveTextContent("Trying again…");
   },
 };
 
@@ -598,7 +622,14 @@ export const GuestCommenterSelection: Story = {
 export const GuestRegionFailure: Story = {
   ...wideGuest("commenter"),
   tags: ["wide-only"],
-  args: { guestShare: true, loadFailure: FAILURE },
+  args: {
+    guestShare: true,
+    loadFailure: {
+      ...FAILURE,
+      cause: { audience: "guest", failure: { kind: "server" } },
+      name: "",
+    },
+  },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(

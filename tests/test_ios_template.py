@@ -8,6 +8,7 @@ import plistlib
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +38,15 @@ def test_every_binary_module_becomes_a_framework_after_the_build() -> None:
     assert "install_python ../../ios-payload/Python.xcframework app_packages" in TEMPLATE
     assert TEMPLATE.count("postBuildScripts:") == 1
     assert "ENABLE_USER_SCRIPT_SANDBOXING: NO" in TEMPLATE
+
+
+def test_nested_framework_plists_are_fixed_and_resigned_after_install_python() -> None:
+    install = TEMPLATE.index("install_python ../../ios-payload")
+    fix = TEMPLATE.index('python3 -I "$FW_TOOL" fix "$CODESIGNING_FOLDER_PATH"')
+    assert install < fix < TEMPLATE.index("/usr/bin/codesign --force --sign", fix)
+    assert "scripts/ios/framework_plists.py" in TEMPLATE
+    assert "while IFS= read -r FW; do" in TEMPLATE
+    assert "--preserve-metadata=identifier" not in TEMPLATE
 
 
 def test_the_plist_lets_files_show_projects_and_loopback_work() -> None:
@@ -162,3 +172,208 @@ def test_the_privacy_manifest_declares_the_required_reason_apis_the_binaries_cal
             },
         ],
     }
+
+
+def phase_script() -> str:
+    start = TEMPLATE.index("      - script: |\n          set -e\n")
+    end = TEMPLATE.index("        name: Process Python libraries")
+    lines = TEMPLATE[start:end].splitlines()[1:]
+    return "\n".join(line[10:] for line in lines) + "\n"
+
+
+def run_phase(
+    tmp_path: Path,
+    plists: dict[str, dict[str, object]],
+    valid: set[str],
+    shell: str = "bash",
+):
+    gen = tmp_path / "gui/desktop/src-tauri/gen/apple"
+    gen.mkdir(parents=True)
+    build = tmp_path / "gui/desktop/src-tauri/ios-payload/Python.xcframework/build"
+    build.mkdir(parents=True)
+    (build / "utils.sh").write_text("install_python() { :; }\n", encoding="utf-8")
+    tool = tmp_path / "scripts/ios"
+    tool.mkdir(parents=True)
+    (tool / "framework_plists.py").symlink_to(ROOT / "scripts/ios/framework_plists.py")
+    app = tmp_path / "ShareCut.app"
+    app.mkdir()
+    (app / "Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": "studio.sharecut.app"}))
+    for name, plist in plists.items():
+        folder = app / "Frameworks" / f"{name}.framework"
+        folder.mkdir(parents=True)
+        (folder / name).write_bytes(b"x")
+        (folder / "Info.plist").write_bytes(plistlib.dumps(plist))
+    log = tmp_path / "codesign.log"
+    stub = tmp_path / "codesign"
+    stub.write_text(
+        '#!/bin/sh\necho "$@" >> "$LOG"\n'
+        'if [ "$1" = --verify ]; then\n'
+        '  case "$3" in *"$VALID") exit 0;; esac\n  exit 1\nfi\n',
+        encoding="utf-8",
+    )
+    stub.chmod(0o755)
+    shim = tmp_path / "bin"
+    shim.mkdir()
+    (shim / "python3").write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n', encoding="utf-8")
+    (shim / "python3").chmod(0o755)
+    script = phase_script().replace("/usr/bin/codesign", str(stub))
+    env = {
+        "PATH": f"{shim}:/usr/bin:/bin",
+        "PROJECT_DIR": str(gen),
+        "CODESIGNING_FOLDER_PATH": str(app),
+        "EXPANDED_CODE_SIGN_IDENTITY": "ID",
+        "LOG": str(log),
+        "VALID": "|".join(valid) or "none-valid",
+    }
+    result = subprocess.run(
+        [shell, "-c", script], env=env, capture_output=True, text=True, check=False
+    )
+    calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+    return result, calls, app
+
+
+def appl(name: str) -> dict[str, object]:
+    return {
+        "CFBundleExecutable": name,
+        "CFBundleIdentifier": f"studio.sharecut.app.{name.replace('_', '-')}",
+        "CFBundlePackageType": "APPL",
+    }
+
+
+def test_the_phase_verifies_generated_frameworks_and_resigns_only_stale_ones(
+    tmp_path: Path,
+) -> None:
+    python: dict[str, object] = {
+        "CFBundleExecutable": "Python",
+        "CFBundleIdentifier": "org.python.python",
+        "CFBundlePackageType": "FMWK",
+    }
+    result, calls, app = run_phase(
+        tmp_path,
+        {"mod_a": appl("mod_a"), "mod_b": appl("mod_b"), "Python": python},
+        valid={"mod_b.framework"},
+    )
+    assert result.returncode == 0, result.stderr
+    target_a = f"{app}/Frameworks/mod_a.framework"
+    target_b = f"{app}/Frameworks/mod_b.framework"
+    assert [c for c in calls if "--verify" in c] == [
+        f"--verify --strict {target_a}",
+        f"--verify --strict {target_b}",
+    ]
+    forced = [c for c in calls if "--force" in c]
+    assert len(forced) == 1 and forced[0].endswith(f"--generate-entitlement-der {target_a}")
+    assert "--preserve-metadata=entitlements,flags" in forced[0]
+    assert not any("Python.framework" in c for c in calls)
+
+
+def test_a_failing_fix_aborts_the_phase_before_any_codesign(tmp_path: Path) -> None:
+    bad = appl("bad!name")
+    result, calls, _ = run_phase(tmp_path, {"bad!name": bad, "mod_a": appl("mod_a")}, valid=set())
+    assert result.returncode != 0
+    assert calls == []
+
+
+def test_the_phase_runs_with_errexit() -> None:
+    assert phase_script().startswith("set -e\n")
+
+
+def app_target_block() -> str:
+    return TEMPLATE[TEMPLATE.index("targets:\n  {{app.name}}_iOS:\n") :]
+
+
+def test_the_app_target_has_exactly_one_settings_mapping_with_a_base_block() -> None:
+    block = app_target_block()
+    assert block.count("\n    settings:\n") == 1
+    assert block.count("\n      base:\n") == 1
+    assert TEMPLATE.count("\n  {{app.name}}_iOS:\n") == 1
+    assert TEMPLATE.count("targets:\n") == 1
+    assert [line for line in TEMPLATE.splitlines() if line.startswith("settings:")] == []
+
+
+def test_the_app_target_base_settings_are_exactly_these_keys_in_order() -> None:
+    block = app_target_block()
+    start = block.index("    settings:\n      base:\n") + len("    settings:\n      base:\n")
+    end = block.index("      groups: [app]\n", start)
+    keys = [line.split(":", 1)[0].strip() for line in block[start:end].splitlines()]
+    assert keys == [
+        "ENABLE_BITCODE",
+        "ENABLE_USER_SCRIPT_SANDBOXING",
+        "ARCHS",
+        "VALID_ARCHS",
+        "LIBRARY_SEARCH_PATHS[arch=x86_64]",
+        "LIBRARY_SEARCH_PATHS[arch=arm64]",
+        "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES",
+        "EXCLUDED_ARCHS[sdk=iphoneos*]",
+        "OTHER_LDFLAGS",
+    ]
+    assert block[start:end].count("        ENABLE_BITCODE: false\n") == 1
+    assert "        ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true\n" in block[start:end]
+    assert "        EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64\n" in block[start:end]
+
+
+def test_the_template_sets_no_dead_strip_override() -> None:
+    for name in ("DEAD_CODE_STRIPPING", "STRIP_STYLE"):
+        assert name not in TEMPLATE
+    assert TEMPLATE.count("groups: [app]") == 2
+
+
+def test_the_app_exports_its_native_ffmpeg_symbols_from_the_target_base_block() -> None:
+    targets = TEMPLATE[TEMPLATE.index("\ntargets:") :]
+    assert targets.count("\n    settings:\n") == 1
+    base = targets[
+        targets.index("    settings:\n      base:\n") : targets.index("      groups: [app]")
+    ]
+    assert base.count('OTHER_LDFLAGS: ["$(inherited)", "-Wl,-export_dynamic"]') == 1
+    assert TEMPLATE.count("OTHER_LDFLAGS") == 1
+    assert TEMPLATE.count("-Wl,") == 1
+
+
+def test_minimum_os_is_one_value_everywhere() -> None:
+    from scripts.ios import bundle_checks, framework_plists
+
+    assert (
+        framework_plists.FRAMEWORK_MINIMUM_OS
+        == bundle_checks.MINIMUM_OS
+        == OVERLAY["bundle"]["iOS"]["minimumSystemVersion"]
+        == "17.0"
+    )
+
+
+def test_a_framework_outside_the_app_prefix_is_rewritten_and_resigned(tmp_path: Path) -> None:
+    foreign = appl("mod_a")
+    foreign["CFBundleIdentifier"] = "com.other.vendor.mod-a"
+    result, calls, app = run_phase(tmp_path, {"mod_a": foreign}, valid=set())
+    assert result.returncode == 0, result.stderr
+    assert (
+        plistlib.loads((app / "Frameworks/mod_a.framework/Info.plist").read_bytes())[
+            "CFBundlePackageType"
+        ]
+        == "FMWK"
+    )
+    forced = [c for c in calls if "--force" in c]
+    assert len(forced) == 1 and forced[0].endswith(f"{app}/Frameworks/mod_a.framework")
+
+
+def test_the_phase_signs_a_framework_whose_name_has_a_space_by_its_exact_path(
+    tmp_path: Path,
+) -> None:
+    spaced = appl("my mod")
+    spaced["CFBundleIdentifier"] = "studio.sharecut.app.my-mod"
+    result, calls, app = run_phase(tmp_path, {"my mod": spaced}, valid=set(), shell="/bin/sh")
+    assert result.returncode == 0, result.stderr
+    target = f"{app}/Frameworks/my mod.framework"
+    assert [c for c in calls if "--verify" in c] == [f"--verify --strict {target}"]
+    forced = [c for c in calls if "--force" in c]
+    assert len(forced) == 1 and forced[0].endswith(f"--generate-entitlement-der {target}")
+
+
+def test_the_phase_runs_under_posix_sh(tmp_path: Path) -> None:
+    result, calls, _ = run_phase(tmp_path, {"mod_a": appl("mod_a")}, valid=set(), shell="/bin/sh")
+    assert result.returncode == 0, result.stderr
+    assert len([c for c in calls if "--force" in c]) == 1
+
+
+def test_phase_with_no_python_modules_calls_codesign_nothing(tmp_path: Path) -> None:
+    result, calls, _ = run_phase(tmp_path, {}, valid=set(), shell="/bin/sh")
+    assert result.returncode == 0, result.stderr
+    assert calls == []

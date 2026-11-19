@@ -72,6 +72,7 @@ type TileBodyProps = {
   speaking?: boolean;
   saving?: RoomSaving | null;
   isMe?: boolean;
+  you?: boolean;
   onPress?: () => void;
   badges?: ReactNode;
   glyphs?: ReactNode;
@@ -83,6 +84,7 @@ function TileBody({
   speaking,
   saving,
   isMe,
+  you,
   onPress,
   badges,
   glyphs,
@@ -114,6 +116,12 @@ function TileBody({
         </span>
       ) : null}
       {badges}
+      {you && onPress ? (
+        <span className="sys-room-devices" aria-hidden="true">
+          <SystemIcon name="sliders-horizontal" size={14} />
+          {ROOM_TILE_TEXT.devices}
+        </span>
+      ) : null}
       {onPress ? (
         <button
           type="button"
@@ -131,7 +139,14 @@ function TileBody({
       </div>
       <div className="sys-room-foot">
         <div className="sys-room-who">
-          <span className="sys-room-name">{person.name}</span>
+          <div className="sys-room-line">
+            <span className="sys-room-name">{person.name}</span>
+            {you ? (
+              <span className="sys-room-you" aria-hidden="true">
+                ({ROOM_TILE_TEXT.you})
+              </span>
+            ) : null}
+          </div>
           {isMe ? (
             <span className="sys-room-meter" aria-hidden="true">
               <span className="sys-room-meter-fill" style={levelStyle} />
@@ -163,6 +178,7 @@ function LiveTile(props: LiveProps) {
       speaking={speaking}
       saving={props.saving}
       isMe={props.isMe}
+      you={props.you}
       onPress={props.onPress}
       badges={
         props.alert || clips ? (
@@ -184,6 +200,13 @@ function LiveTile(props: LiveProps) {
         <>
           {props.muted ? (
             <SystemIcon name="mic-off" size={16} title="Muted" />
+          ) : null}
+          {props.notWearingHeadphones ? (
+            <SystemIcon
+              name="headphone-off"
+              size={16}
+              title="Not wearing headphones"
+            />
           ) : null}
           {props.listener ? (
             <>

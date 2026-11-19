@@ -1,5 +1,5 @@
 import type { StateCreator } from "zustand";
-import { cssViewportWidth } from "../hooks/useViewportClass";
+import { cssViewportWidth, readShell } from "../hooks/useViewportClass";
 import type { HistoryEntryId } from "../types/project";
 import {
   readLaneHeightPref,
@@ -7,6 +7,7 @@ import {
   writeLaneHeightPref,
 } from "../utils/laneHeightPref";
 import { plainError } from "../utils/plainError";
+import { initialPointerKind } from "../utils/pointerCapability";
 import { readSnapPref, writeSnapPref } from "../utils/snapPref";
 import {
   fixedLineOffsetPx,
@@ -36,6 +37,7 @@ import {
 import { composerPatch, initialSession } from "./composerSession";
 import { joinJobCopy } from "./jobCopy";
 import { inspectKeyOf } from "./selection";
+import { transcriptSelectionFollowPatch } from "./selectionSlice";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import type {
   AnnouncedJobKind,
@@ -49,7 +51,6 @@ import type {
   LaneHeightMode,
   LayerVisibility,
   MergedEdits,
-  PointerKind,
   RangeDraft,
   ShellBreakpoint,
   ToastAction,
@@ -338,6 +339,7 @@ type UiSlice = Pick<
   | "composer"
   | "listenLoadFailed"
   | "transcriptFollowPlayhead"
+  | "timelineFollowPlayhead"
   | "transcriptInlineEditRequest"
   | "setTranscriptInlineEditRequest"
   | "transcriptInlineEditFailure"
@@ -363,6 +365,7 @@ type UiSlice = Pick<
   | "setScrollLeft"
   | "selectFromInspector"
   | "setTranscriptFollowPlayhead"
+  | "setTimelineFollowPlayhead"
   | "toggleTranscriptFollowPlayhead"
   | "setTranscriptInlineEditFailure"
   | "setChapterAddPending"
@@ -420,6 +423,7 @@ export function uiProjectInitial() {
     highlightStaleRender: false,
     renderPreviewBusy: false,
     chapterAddPending: false,
+    timelineFollowPlayhead: true,
     joinMutationInFlight: false,
     joinDraft: null,
     rippleTrim: null,
@@ -492,14 +496,12 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
                 ...s.feedbackToast,
                 undo: null,
                 action: null,
-                lapsed: s.feedbackToast.kind
-                  ? {
-                      entries: s.feedbackToast.merged?.entries ?? [
-                        s.feedbackToast.undo,
-                      ],
-                      at: Date.now(),
-                    }
-                  : null,
+                lapsed: {
+                  entries: s.feedbackToast.merged?.entries ?? [
+                    s.feedbackToast.undo,
+                  ],
+                  at: Date.now(),
+                },
               },
             }
           : {},
@@ -675,9 +677,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       }
     },
     scrollLeft: 0,
-    // The desktop estimate (shellBreakpoint starts at desktop) until the
-    // timeline measures, so first-render readers never see 0.
-    timelineViewportWidth: estimateTimelineViewportWidth("desktop"),
+    // The shell's estimate until the timeline measures, so first-render
+    // readers never see 0.
+    timelineViewportWidth: estimateTimelineViewportWidth(readShell()),
     setTimelineViewportWidth: (px) => {
       // A hidden or zero-width scrollport measures 0: keep the shell estimate.
       const timelineViewportWidth =
@@ -696,7 +698,13 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ rangeArmed: true, rangeDraft, agentRangeScope: null }),
     setRangeDraft: (rangeDraft) => set({ rangeDraft }),
     setAgentRangeScope: (agentRangeScope) => set({ agentRangeScope }),
-    setRangeBusy: (rangeBusy) => set({ rangeBusy }),
+    setRangeBusy: (rangeBusy) =>
+      set((s) => ({
+        rangeBusy,
+        ...(rangeBusy
+          ? {}
+          : transcriptSelectionFollowPatch({ ...s, rangeBusy }, s.project)),
+      })),
     inspectorKey: null as string | null,
     setInspectorOpen: (open) =>
       set((s) => ({
@@ -715,10 +723,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
     showCutAwayUtterances: false,
     timelineFocused: true,
-    shellBreakpoint: "desktop" as ShellBreakpoint,
-    // Capability baseline; usePointerType() corrects this from matchMedia
-    // before first paint and keeps it live from pointer events.
-    pointerKind: "fine" as PointerKind,
+    shellBreakpoint: readShell(),
+    // The capability baseline, so the first render has nothing to correct;
+    // usePointerType() keeps it live from pointer events.
+    pointerKind: initialPointerKind(),
     snapEnabled: readSnapPref(),
     laneHeightMode: lanePref.mode,
     laneHeightPx: lanePref.px,
@@ -760,6 +768,12 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     },
     setTranscriptFollowPlayhead: (transcriptFollowPlayhead) =>
       set({ transcriptFollowPlayhead }),
+    setTimelineFollowPlayhead: (timelineFollowPlayhead) =>
+      set((s) =>
+        s.timelineFollowPlayhead === timelineFollowPlayhead
+          ? s
+          : { timelineFollowPlayhead },
+      ),
     toggleTranscriptFollowPlayhead: () =>
       set((s) => ({ transcriptFollowPlayhead: !s.transcriptFollowPlayhead })),
     setTranscriptInlineEditRequest: (transcriptInlineEditRequest) =>

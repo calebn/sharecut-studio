@@ -118,6 +118,113 @@ describe("RecordDock", () => {
     expect(onDone).toHaveBeenCalledOnce();
   });
 
+  describe("a Leave with a warning", () => {
+    afterEach(() => vi.useRealTimers());
+    const warning = "Leaving stops recording here.";
+
+    it("leaves on one press and shows the warning at rest", () => {
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning }}
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      expect(leave).not.toHaveAttribute("aria-disabled");
+      expect(leave).toHaveAttribute("title", warning);
+      expect(leave).toHaveAccessibleDescription(warning);
+      const note = document.getElementById(
+        leave.getAttribute("aria-describedby") ?? "",
+      );
+      expect(note).toHaveAttribute("data-shown");
+      act(() => leave.click());
+      expect(onLeave).toHaveBeenCalledOnce();
+    });
+
+    it("reveals the warning on the first press and leaves on the second when asked to confirm", () => {
+      vi.useFakeTimers();
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning, leaveConfirm: true }}
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      const note = document.getElementById(
+        leave.getAttribute("aria-describedby") ?? "",
+      );
+      expect(leave).not.toHaveAttribute("aria-disabled");
+      expect(leave).toHaveAccessibleDescription(warning);
+      expect(note).not.toHaveAttribute("data-shown");
+      act(() => leave.click());
+      expect(onLeave).not.toHaveBeenCalled();
+      expect(note).toHaveAttribute("data-shown");
+      act(() => leave.click());
+      expect(onLeave).toHaveBeenCalledOnce();
+    });
+
+    it("asks again once the warning has gone away", () => {
+      vi.useFakeTimers();
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning, leaveConfirm: true }}
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      act(() => leave.click());
+      act(() => {
+        vi.advanceTimersByTime(6000);
+      });
+      act(() => leave.click());
+      expect(onLeave).not.toHaveBeenCalled();
+    });
+
+    it("keeps the confirm window open until 5 s after the first press", () => {
+      vi.useFakeTimers();
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning, leaveConfirm: true }}
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      act(() => leave.click());
+      act(() => {
+        vi.advanceTimersByTime(4900);
+      });
+      act(() => leave.click());
+      expect(onLeave).toHaveBeenCalledOnce();
+    });
+
+    it("closes the confirm window once 5 s have passed", () => {
+      vi.useFakeTimers();
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning, leaveConfirm: true }}
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      act(() => leave.click());
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      act(() => leave.click());
+      expect(onLeave).not.toHaveBeenCalled();
+    });
+  });
+
   describe("a held Leave", () => {
     afterEach(() => vi.useRealTimers());
 
@@ -219,5 +326,86 @@ describe("RecordDock", () => {
     expect(names()).toEqual(["Mute", "Comment", "Comments", "More"]);
     expect(screen.queryByRole("button", { name: "Record" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Pause take" })).toBeNull();
+  });
+
+  describe("labelled phone dock", () => {
+    const visibleWords = () =>
+      [...document.querySelectorAll(".sys-dock-label")].map(
+        (label) => label.textContent,
+      );
+
+    it("prints Mute, Comment and Leave under their discs, names unchanged", () => {
+      render(<RecordDock seat="guest" labelled notes={false} />);
+      expect(visibleWords()).toEqual(["Mute", "Comment", "Leave"]);
+      expect(names()).toEqual(["Mute", "Comment", "Leave room"]);
+      for (const label of document.querySelectorAll(".sys-dock-label")) {
+        expect(label).toHaveAttribute("aria-hidden", "true");
+        expect(label.closest("button")).not.toBeNull();
+      }
+      expect(document.querySelector(".sys-dock")).toHaveAttribute(
+        "data-labelled",
+      );
+    });
+
+    it("says Unmute when muted", () => {
+      render(<RecordDock seat="guest" muted labelled notes={false} />);
+      expect(visibleWords()).toEqual(["Unmute", "Comment", "Leave"]);
+    });
+
+    it("a producer's dock is Comment and Leave", () => {
+      render(<RecordDock seat="producer" labelled notes={false} />);
+      expect(visibleWords()).toEqual(["Comment", "Leave"]);
+    });
+
+    it("a held Leave keeps its word and its reason", () => {
+      render(
+        <RecordDock
+          seat="guest"
+          labelled
+          notes={false}
+          dock={{
+            kind: "controls",
+            leaveHeld: "You can leave after this take.",
+          }}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      expect(leave).toHaveAttribute("aria-disabled", "true");
+      expect(leave).toHaveTextContent("Leave");
+    });
+
+    it("has no Comments toggle in controls, status or done mode", () => {
+      const { rerender } = render(<RecordDock seat="guest" notes={false} />);
+      const toggle = () => screen.queryByRole("button", { name: /^Comments/ });
+      expect(toggle()).toBeNull();
+      rerender(
+        <RecordDock
+          seat="guest"
+          notes={false}
+          dock={{ kind: "status", text: "Saving" }}
+        />,
+      );
+      expect(toggle()).toBeNull();
+      rerender(
+        <RecordDock
+          seat="guest"
+          notes={false}
+          dock={{ kind: "done", text: "Saved to project." }}
+        />,
+      );
+      expect(toggle()).toBeNull();
+      expect(screen.getByRole("button", { name: "Done" })).toBeVisible();
+    });
+  });
+
+  it("an unlabelled dock keeps its Comments toggle and prints no words", () => {
+    render(<RecordDock seat="host" record={record} />);
+    expect(
+      screen.getByRole("button", { name: "Comments" }),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".sys-dock-label")).toBeNull();
+    expect(document.querySelector(".sys-dock")).not.toHaveAttribute(
+      "data-labelled",
+    );
   });
 });

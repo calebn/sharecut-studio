@@ -4,7 +4,6 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 from collections.abc import Callable, Mapping, Sequence, Set
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import asdict, dataclass
@@ -44,6 +43,7 @@ from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.owned_stage import OwnedStage, owned_stage_supported
+from podcast_mcp.util.process import SubprocessError
 from podcast_mcp.util.progress import CancelledProgress, raise_if_cancel_requested
 from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.tracks import stem_path
@@ -877,14 +877,14 @@ def export_variant_bundle(
                 )
             except (CodedValueError, CancelledProgress):
                 raise
-            except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as exc:
+            except (ValueError, OSError, RuntimeError, SubprocessError) as exc:
                 raise _variant_error(
                     "The mastered or encoded variant output is incomplete or invalid. No variant was published.",
                     "export_variant_unmeasured",
                 ) from exc
         except (CodedValueError, CancelledProgress):
             raise
-        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        except (OSError, ValueError, RuntimeError, SubprocessError) as exc:
             raise _variant_error(
                 "The mastered or encoded output is incomplete or unsafe. No variant was published.",
                 "export_variant_unmeasured",

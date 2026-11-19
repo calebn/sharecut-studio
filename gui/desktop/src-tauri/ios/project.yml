@@ -98,6 +98,7 @@ targets:
         LIBRARY_SEARCH_PATHS[arch=arm64]: $(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
         ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
+        OTHER_LDFLAGS: ["$(inherited)", "-Wl,-export_dynamic"]
       groups: [app]
     dependencies:
       - framework: {{ lib-output-file-name }}
@@ -155,8 +156,18 @@ targets:
       - script: |
           set -e
           if [ -z "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then export EXPANDED_CODE_SIGN_IDENTITY=-; fi
-          source "$PROJECT_DIR/../../ios-payload/Python.xcframework/build/utils.sh"
+          . "$PROJECT_DIR/../../ios-payload/Python.xcframework/build/utils.sh"
           install_python ../../ios-payload/Python.xcframework app_packages
+          FW_TOOL="$PROJECT_DIR/../../../../../scripts/ios/framework_plists.py"
+          TOUCHED=$(python3 -I "$FW_TOOL" fix "$CODESIGNING_FOLDER_PATH")
+          PREFIXED=$(python3 -I "$FW_TOOL" list "$CODESIGNING_FOLDER_PATH")
+          SIGN=$(printf '%s\n%s\n' "$TOUCHED" "$PREFIXED" | sort -u)
+          while IFS= read -r FW; do
+            [ -n "$FW" ] || continue
+            /usr/bin/codesign --verify --strict "$CODESIGNING_FOLDER_PATH/$FW" 2>/dev/null || /usr/bin/codesign --force --sign "$EXPANDED_CODE_SIGN_IDENTITY" ${OTHER_CODE_SIGN_FLAGS:-} -o runtime --timestamp=none --preserve-metadata=entitlements,flags --generate-entitlement-der "$CODESIGNING_FOLDER_PATH/$FW"
+          done <<EOF
+          $SIGN
+          EOF
         name: Process Python libraries
     {{~#if ios-post-compile-scripts}}
     postCompileScripts:

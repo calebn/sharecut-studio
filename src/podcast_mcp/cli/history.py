@@ -43,9 +43,7 @@ def history_goto(
     except _MOVE_ERRORS as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(
-        f"Goto → [{status['cursor']}] {status['current_label']} ({status['total']} snapshots)"
-    )
+    typer.echo(f"Goto → [{status.cursor}] {status.current_label} ({status.total} snapshots)")
 
 
 @history_app.command("diff")

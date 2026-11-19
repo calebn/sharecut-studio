@@ -83,3 +83,56 @@ def test_failed_windows_open_preserves_cached_missing_path_error(monkeypatch, si
     assert str(caught.value) == f"[Errno {error}] native file open failed"
     assert events == ["CreateFileW", "get_last_error", ("WinError", error)]
     assert closed == [], "invalid handles are never transferred to the cleanup owner"
+
+
+def _scope_api(monkeypatch, denials):
+    opened = []
+
+    class Api:
+        def open_file(self, path):
+            opened.append(path)
+            if denials:
+                denials.pop()
+                error = PermissionError(13, "Permission denied")
+                error.winerror = 5
+                raise error
+            return len(opened)
+
+        def verify_handle(self, *_args, **_kwargs):
+            return None
+
+        def close(self, _handle):
+            return None
+
+    monkeypatch.setattr(windows, "_WindowsAPI", Api)
+    monkeypatch.setattr(windows, "_open_chain", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(windows, "_verify_chain", lambda *_args: None)
+    return opened
+
+
+def test_registry_scope_retries_an_access_denied_sidecar_open_before_the_first_yield(monkeypatch):
+    opened = _scope_api(monkeypatch, denials=[1, 2])
+
+    with windows.registry_scope(Path("Z:/private"), ("registry.db",), create=False) as verify:
+        verify()
+
+    assert len(opened) == 6
+
+
+def test_registry_scope_raises_the_original_error_when_the_denial_persists(monkeypatch):
+    ticks = iter(range(1000))
+    real_retry = windows.retry_access_denied
+    monkeypatch.setattr(
+        windows,
+        "retry_access_denied",
+        lambda step: real_retry(
+            step, monotonic=lambda: float(next(ticks)), sleep=lambda _seconds: None
+        ),
+    )
+    _scope_api(monkeypatch, denials=list(range(10_000)))
+
+    with pytest.raises(PermissionError) as caught:
+        with windows.registry_scope(Path("Z:/private"), ("registry.db",), create=False):
+            pytest.fail("a persistent denial must not reach the body")
+
+    assert "terminal_reason=deadline" in caught.value.__notes__[0]

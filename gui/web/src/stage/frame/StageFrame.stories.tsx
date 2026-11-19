@@ -146,7 +146,7 @@ export const Loading: Story = {
     // The Player waits too: Play says why it cannot start yet.
     await expect(
       within(canvasElement).getByRole("button", { name: "Play" }),
-    ).toHaveAccessibleDescription("Loading project…");
+    ).toHaveAccessibleDescription("Loading…");
     await expect(
       canvasElement.querySelector("[aria-busy='true']"),
     ).not.toBeNull();

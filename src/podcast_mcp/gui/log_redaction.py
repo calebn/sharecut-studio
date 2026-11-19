@@ -9,32 +9,130 @@ rewrites the line before any handler formats it.
 from __future__ import annotations
 
 import logging
+import re
+from collections.abc import Mapping
 from typing import Any
+from urllib.parse import unquote
 
 from podcast_mcp.util.redact import redact_share_paths
 
-UVICORN_LOGGERS = ("uvicorn.access", "uvicorn.error")
+_SPACE = re.compile(r"\s")
+UVICORN_LOGGERS = ("uvicorn.access", "uvicorn.error", "uvicorn.asgi")
+
+
+def _decoded(text: str) -> str:
+    for _ in range(3):
+        text = unquote(text)
+    return text
+
+
+def _is_route(text: str) -> bool:
+    decoded = _decoded(text)
+    return redact_share_paths(decoded) != decoded
+
+
+def _query_end(text: str, run: str, mark: int) -> int:
+    quote = max(run.rfind("'"), run.rfind('"'))
+    ends = r"\s"
+    if quote >= 0 and _is_route(run[quote + 1 :]):
+        ends = re.escape(run[quote]) + "|" + ends
+    found = re.compile(ends).search(text, mark)
+    return found.start() if found else len(text)
+
+
+def _cut(text: str) -> str:
+    kept: list[str] = []
+    position = 0
+    cut = False
+    while (mark := text.find("?", position)) >= 0:
+        start = max((m.end() for m in _SPACE.finditer(text, position, mark)), default=position)
+        if not _is_route(text[start:mark]):
+            kept.append(text[position : mark + 1])
+            position = mark + 1
+            continue
+        cut = True
+        kept.append(text[position:mark])
+        position = _query_end(text, text[start:mark], mark)
+    if not cut:
+        return text
+    kept.append(text[position:])
+    return "".join(kept)
+
+
+def _redact_route(text: str) -> str:
+    return redact_share_paths(_cut(text))
+
+
+def _text(value: object) -> str | None:
+    try:
+        return _decoded(_cut(str(value)))
+    except Exception:
+        return None
+
+
+def _without_query(value: Any) -> Any:
+    if isinstance(value, Mapping) and "query_string" in value:
+        return {**value, "query_string": b""}
+    return value
 
 
 def _scrub(value: Any) -> Any:
-    """The redacted text of ``value``; a route that carries a token also loses its query.
-
-    The query of a guest WebSocket holds the guest's name and client id.
-    """
-    if not isinstance(value, str):
+    """``value`` with every token route masked and, in its own text, the query of each such route dropped."""
+    if isinstance(value, str):
+        plain = _cut(str.__str__(value))
+        decoded = _decoded(plain)
+        from_decoded = _redact_route(decoded)
+        from_plain = _redact_route(plain)
+        if from_decoded != decoded and _decoded(from_plain) != from_decoded:
+            return from_decoded
+        if from_plain != plain:
+            return from_plain
+        return plain
+    text = _text(value)
+    if text is None or redact_share_paths(text) == text:
         return value
-    path, separator, _query = value.partition("?")
-    redacted_path = redact_share_paths(path)
-    if separator and redacted_path != path:
-        return redacted_path
-    return redact_share_paths(value)
+    return _redact_route(_text(_without_query(value)) or text)
+
+
+def _changed(new: Any, old: Any) -> bool:
+    if isinstance(old, str):
+        return new != str.__str__(old)
+    return new is not old
+
+
+def _fail_closed(record: logging.LogRecord) -> None:
+    try:
+        text = record.getMessage()
+    except Exception:
+        msg = record.msg
+        if type(msg) is str and (redacted := _redact_route(msg)) != msg:
+            record.msg = redacted
+            record.args = ()
+        return
+    redacted = _redact_route(text)
+    if redacted != text:
+        record.msg = redacted
+        record.args = ()
 
 
 class ShareTokenFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        record.msg = _scrub(record.msg)
-        if isinstance(record.args, tuple):
-            record.args = tuple(_scrub(arg) for arg in record.args)
+        try:
+            msg = _scrub(record.msg)
+            args = record.args
+            if isinstance(args, tuple):
+                scrubbed_args = tuple(_scrub(arg) for arg in args)
+                if any(new is not old for new, old in zip(scrubbed_args, args, strict=True)):
+                    args = scrubbed_args
+            elif isinstance(args, Mapping):
+                scrubbed = {key: _scrub(arg) for key, arg in args.items()}
+                if any(_changed(scrubbed[key], arg) for key, arg in args.items()):
+                    args = _without_query(scrubbed)
+        except Exception:
+            _fail_closed(record)
+            return True
+        record.msg = msg
+        record.args = args
         return True
 
 

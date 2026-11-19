@@ -9,7 +9,7 @@ export function transportAvailability(
   state: Readonly<Pick<DawState, "project" | "isPlaying" | "playStartSec">>,
 ): TransportAvailability {
   if (state.project === null) {
-    const reason = "Loading project…";
+    const reason = "Loading…";
     return { togglePlay: reason, stop: reason };
   }
   if (state.project.tracks.length > 0 || state.isPlaying) {

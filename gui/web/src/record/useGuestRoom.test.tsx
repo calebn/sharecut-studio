@@ -13,7 +13,7 @@ import {
 } from "./keeper/store";
 import { MIC_SAVED_DEVICE_MISSING_COPY } from "./micPermission";
 import { OPFS_UNAVAILABLE_COPY, UPLOAD_SINK_ERROR_COPY } from "./types";
-import { useGuestRoom } from "./useGuestRoom";
+import { requestedRecordMode, useGuestRoom } from "./useGuestRoom";
 
 vi.mock("./encodeRoomTone", () => ({
   encodeRoomToneWav: (
@@ -95,6 +95,8 @@ const snapshotOf = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+let joinedAs: Partial<typeof guest> = {};
+
 class FakeSocket {
   static OPEN = 1;
   readyState = FakeSocket.OPEN;
@@ -119,7 +121,10 @@ class FakeSocket {
         return;
       }
       this.emit({ type: "Echo", participant_id: "p_g", lease: "lease-1" });
-      this.emit({ type: "Snapshot", snapshot: snapshotOf() });
+      this.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({ participants: [{ ...guest, ...joinedAs }] }),
+      });
     });
   }
 
@@ -177,6 +182,7 @@ describe("useGuestRoom", () => {
   }
 
   beforeEach(() => {
+    joinedAs = {};
     sockets = [];
     socketUrls = [];
     stubSocket();
@@ -445,22 +451,97 @@ describe("useGuestRoom", () => {
     expect(MIC_SAVED_DEVICE_MISSING_COPY).toBeTruthy();
   });
 
-  it("sends headphones and name once the participant is known", async () => {
+  it("sends the headphones choice once and the name once the participant is known", async () => {
     stubFetch(guestBootstrap);
     const { result } = renderHook(() => useGuestRoom("guest-tok"));
     await waitFor(() => expect(result.current.me).not.toBeNull());
+    expect(result.current.headphones).toBe("unset");
+    expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
+    act(() => result.current.setHeadphones("off"));
+    await act(async () => undefined);
+    expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
+    act(() => result.current.setHeadphones("on"));
     await waitFor(() =>
       expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(1),
     );
-    act(() => result.current.setHeadphonesOk(true));
-    await waitFor(() =>
-      expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(2),
-    );
+    expect(sockets[0]?.commands("HeadphonesAck")[0]).toMatchObject({
+      payload: { ok: true },
+    });
     act(() => result.current.setName("Bea"));
     await waitFor(() =>
       expect(sockets[0]?.commands("UpdateName")).toHaveLength(1),
     );
     expect(localStorage.getItem("sharecut.recordName")).toBeNull();
+  });
+
+  it("sends a no only when the room does not already hold it", async () => {
+    joinedAs = { headphones_ack: true };
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    act(() => result.current.setHeadphones("off"));
+    await waitFor(() =>
+      expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(1),
+    );
+    expect(sockets[0]?.commands("HeadphonesAck")[0]).toMatchObject({
+      payload: { ok: false },
+    });
+  });
+
+  it.each([
+    [true, "on"],
+    [false, "off"],
+  ] as const)(
+    "seeds the choice from a consented guest's ack %s without sending",
+    async (ack, choice) => {
+      joinedAs = { consented: true, headphones_ack: ack };
+      stubFetch(guestBootstrap);
+      const { result } = renderHook(() => useGuestRoom("guest-tok"));
+      await waitFor(() => expect(result.current.headphones).toBe(choice));
+      await act(async () => undefined);
+      expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
+    },
+  );
+
+  it("resends an answer pressed while the socket was down", async () => {
+    joinedAs = { consented: true, headphones_ack: false };
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.headphones).toBe("off"));
+    act(() => {
+      sockets[0]?.onclose?.({ code: 1006 });
+    });
+    act(() => result.current.setHeadphones("on"));
+    await waitFor(() => expect(sockets).toHaveLength(2));
+    await waitFor(() =>
+      expect(sockets[1]?.commands("HeadphonesAck")).toEqual([
+        expect.objectContaining({ payload: { ok: true } }),
+      ]),
+    );
+    expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
+  });
+
+  it("keeps a press made before the first snapshot over the seed", async () => {
+    joinedAs = { consented: true, headphones_ack: false };
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    act(() => result.current.setHeadphones("on"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    expect(result.current.headphones).toBe("on");
+    await waitFor(() =>
+      expect(sockets[0]?.commands("HeadphonesAck")).toEqual([
+        expect.objectContaining({ payload: { ok: true } }),
+      ]),
+    );
+  });
+
+  it("leaves the choice unset for a guest who has not consented", async () => {
+    joinedAs = { consented: null, headphones_ack: true };
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    expect(result.current.headphones).toBe("unset");
+    expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
   });
 
   it("prefills the name this device joined another room with", () => {
@@ -726,6 +807,23 @@ describe("useGuestRoom", () => {
       expect(result.current.sinkError).toBeNull();
     });
 
+    it("reads the device as unreadable while its storage cannot be opened, and not otherwise", async () => {
+      const opening = deferred<MemorySink>();
+      vi.mocked(createOpfsSink).mockReturnValueOnce(opening.promise);
+      stubFetch(guestBootstrap);
+      const { result } = renderHook(() => useGuestRoom("guest-tok"));
+      await waitFor(() => expect(createOpfsSink).toHaveBeenCalledTimes(1));
+      expect(result.current.localUnreadable).toBe(false);
+      await act(async () => opening.reject(new Error("quota")));
+      await waitFor(() =>
+        expect(result.current.sinkError).toBe(UPLOAD_SINK_ERROR_COPY),
+      );
+      expect(result.current.localUnreadable).toBe(true);
+      act(() => result.current.retryStorage());
+      await waitFor(() => expect(result.current.sink).not.toBeNull());
+      expect(result.current.localUnreadable).toBe(false);
+    });
+
     it.each(["resolve", "reject"])(
       "retires an old storage initialization after retry on late %s",
       async (settlement) => {
@@ -870,21 +968,124 @@ describe("useGuestRoom", () => {
   });
 
   describe("producer", () => {
-    it("is listen-only: no mic, no sink, no socket until joined", async () => {
+    it("is listen-only: no mic, no sink, one silent look at the room until joined", async () => {
       stubFetch(producerBootstrap);
       const { result } = renderHook(() => useGuestRoom("prod-tok"));
       await waitFor(() => expect(result.current.producer).toBe(true));
-      expect(sockets).toHaveLength(0);
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      const looking = new URL(socketUrls[0]);
+      expect(looking.searchParams.get("observe")).toBe("1");
+      expect(looking.searchParams.has("name")).toBe(false);
+      expect(sockets[0]?.sent).toEqual([]);
+      expect(result.current.socketMode).toBe("watch");
       expect(createOpfsSink).not.toHaveBeenCalled();
       expect(getUserMedia).not.toHaveBeenCalled();
       expect(result.current.view).toBe("lobby");
       act(() => result.current.setName("Rosa"));
       expect(localStorage.getItem("sharecut.recordName")).toBeNull();
       act(() => result.current.setProducerJoined(true));
-      await waitFor(() => expect(sockets).toHaveLength(1));
+      await waitFor(() => expect(sockets[0]?.commands("Join")).toHaveLength(1));
+      expect(sockets).toHaveLength(1);
+      expect(result.current.socketMode).toBe("join");
       expect(localStorage.getItem("sharecut.recordName")).toBe("Rosa");
       expect(result.current.uploadTransport).toBeNull();
       expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
+    });
+
+    it("ends the look on Not now and looks again when the sheet comes back", async () => {
+      stubFetch(producerBootstrap);
+      const { result } = renderHook(() => useGuestRoom("prod-tok"));
+      await waitFor(() => expect(result.current.socketMode).toBe("watch"));
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      act(() => result.current.setProducerDismissed(true));
+      expect(result.current.socketMode).toBe("off");
+      expect(sockets[0]?.closed).toBe(true);
+      act(() => result.current.setProducerDismissed(false));
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      expect(new URL(socketUrls[1]).searchParams.get("observe")).toBe("1");
+    });
+  });
+
+  describe("the M key", () => {
+    const press = () => {
+      const event = new KeyboardEvent("keydown", {
+        key: "m",
+        bubbles: true,
+        cancelable: true,
+      });
+      act(() => {
+        window.dispatchEvent(event);
+      });
+      return event;
+    };
+    const recording = (participants: unknown[]) =>
+      snapshotOf({
+        state: "recording",
+        take_index: 0,
+        recording_ms: 1000,
+        participants: participants as (typeof guest)[],
+      });
+
+    it("is left alone on a producer page that has not joined", async () => {
+      stubFetch(producerBootstrap);
+      renderHook(() => useGuestRoom("prod-tok"));
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      act(() =>
+        sockets[0]?.emit({
+          type: "Snapshot",
+          snapshot: recording([{ ...guest, consented: true }]),
+        }),
+      );
+      expect(press().defaultPrevented).toBe(false);
+      expect(sockets[0]?.commands("Comment")).toHaveLength(0);
+    });
+
+    it("drops a marker once the producer is in the room", async () => {
+      stubFetch(producerBootstrap);
+      const { result } = renderHook(() => useGuestRoom("prod-tok"));
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      act(() => result.current.setProducerJoined(true));
+      await waitFor(() => expect(sockets[0]?.commands("Join")).toHaveLength(1));
+      act(() => {
+        sockets[0]?.emit({ type: "Echo", participant_id: "p_g", lease: "l" });
+        sockets[0]?.emit({
+          type: "Snapshot",
+          snapshot: recording([
+            { ...guest, role: "producer", consented: null },
+          ]),
+        });
+      });
+      await waitFor(() => expect(result.current.me).not.toBeNull());
+      expect(press().defaultPrevented).toBe(true);
+      expect(sockets[0]?.commands("Comment")).toHaveLength(1);
+    });
+  });
+
+  describe("requestedRecordMode", () => {
+    const base = {
+      bootstrapped: true,
+      producer: false,
+      producerJoined: false,
+      producerDismissed: false,
+      left: false,
+    };
+    it.each([
+      ["a guest", {}, "join"],
+      ["a producer before the press", { producer: true }, "watch"],
+      [
+        "a producer who pressed Join to listen",
+        { producer: true, producerJoined: true },
+        "join",
+      ],
+      [
+        "a producer who pressed Not now",
+        { producer: true, producerDismissed: true },
+        "off",
+      ],
+      ["a page that was left", { left: true }, "off"],
+      ["a page with no room code yet", { bootstrapped: false }, "off"],
+    ] as const)("is %s", (_who, patch, mode) => {
+      expect(requestedRecordMode({ ...base, ...patch })).toBe(mode);
     });
   });
 

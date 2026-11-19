@@ -1,7 +1,8 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../test/a11y";
 import { notesNaming } from "../test/readableText";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { JoinSheet, type JoinSheetProps } from "./JoinSheet";
@@ -23,6 +24,7 @@ function Harness(props: Partial<JoinSheetProps>) {
       onJoin={vi.fn()}
       onDecline={vi.fn()}
       {...props}
+      lookingIn={props.lookingIn ?? 0}
       name={name}
       onNameChange={setName}
     />
@@ -32,7 +34,7 @@ function Harness(props: Partial<JoinSheetProps>) {
 const READY = {
   name: "Jon",
   mic: { status: "ready", input: "MacBook Mic", level: 0.3 },
-  headphones: true,
+  headphones: "on",
 } as const;
 
 const touchScreen = () =>
@@ -145,7 +147,7 @@ describe("JoinSheet guest", () => {
     render(
       <Harness
         {...READY}
-        headphones={false}
+        headphones="off"
         onHeadphonesChange={onHeadphonesChange}
       />,
     );
@@ -154,7 +156,7 @@ describe("JoinSheet guest", () => {
     });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(toggle);
-    expect(onHeadphonesChange).toHaveBeenCalledWith(true);
+    expect(onHeadphonesChange).toHaveBeenCalledWith("on");
   });
 
   it("says too loud and low space in the mic row's status region", () => {
@@ -191,6 +193,29 @@ describe("JoinSheet guest", () => {
     expect(
       screen.getByText("Rosa is listening and won't be recorded"),
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      0,
+      "Rosa is listening and won't be recorded",
+      "Someone with the producer link is looking in",
+    ],
+    [
+      1,
+      "Rosa is listening and won't be recorded. Someone with the producer link is looking in. They can see the room but can't hear it.",
+      null,
+    ],
+    [
+      2,
+      "Rosa is listening and won't be recorded. 2 people with the producer link are looking in. They can see the room but can't hear it.",
+      null,
+    ],
+  ])("words Details for %i looking in", async (lookingIn, text, absent) => {
+    render(<Harness {...READY} lookingIn={lookingIn} />);
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByText(text)).toBeInTheDocument();
+    if (absent) expect(screen.queryByText(new RegExp(absent))).toBeNull();
   });
 
   it("holds the primary in place with a busy state while joining", async () => {
@@ -611,6 +636,87 @@ describe("JoinSheet producer", () => {
     expect(onJoin).toHaveBeenCalledOnce();
   });
 
+  it("says the room can see someone is looking in, as part of the dialog's description", async () => {
+    const SEEN = "The room can see that someone is looking in.";
+    const { rerender } = render(
+      <Harness seat="producer" name="Rosa" seenByRoom />,
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAccessibleDescription(
+      `You'll listen and comment. You won't be recorded. ${SEEN}`,
+    );
+    expect(screen.getByText(SEEN)).toBeVisible();
+    await expectNoA11yViolations(document.body);
+    rerender(<Harness seat="producer" name="Rosa" />);
+    expect(screen.queryByText(SEEN)).toBeNull();
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      "You'll listen and comment. You won't be recorded.",
+    );
+  });
+
+  it("speaks the sentence once when it appears after the sheet opened, and not again", () => {
+    const SEEN = "The room can see that someone is looking in.";
+    const { rerender } = render(<Harness seat="producer" name="Rosa" />);
+    const status = () =>
+      document.querySelector('[aria-live="polite"]') as HTMLElement;
+    expect(status()).toBeEmptyDOMElement();
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(status()).toHaveTextContent(SEEN);
+    expect(screen.getAllByText(SEEN)).toHaveLength(2);
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(status()).toHaveTextContent(SEEN);
+  });
+
+  it("speaks the sentence once per open sheet, empties the region when it goes, and never refills it", async () => {
+    const SEEN = "The room can see that someone is looking in.";
+    const { rerender } = render(<Harness seat="producer" name="Rosa" />);
+    const region = document.querySelector(
+      '[aria-live="polite"]',
+    ) as HTMLElement;
+    expect(region).toBeEmptyDOMElement();
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(region).toHaveTextContent(SEEN);
+    rerender(<Harness seat="producer" name="Rosa" />);
+    expect(region).toBeEmptyDOMElement();
+    expect(screen.queryAllByText(SEEN)).toHaveLength(0);
+    let changes = 0;
+    const watch = new MutationObserver((records) => {
+      changes += records.length;
+    });
+    watch.observe(region, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(screen.getAllByText(SEEN)).toHaveLength(1);
+    rerender(<Harness seat="producer" name="Rosa" />);
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    await Promise.resolve();
+    watch.disconnect();
+    expect(changes).toBe(0);
+    expect(region).toBeEmptyDOMElement();
+  });
+
+  it("leaves the status empty when the sentence was there at open, so it is read once, as the description", () => {
+    const SEEN = "The room can see that someone is looking in.";
+    render(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(
+      document.querySelector('[aria-live="polite"]'),
+    ).toBeEmptyDOMElement();
+    expect(screen.getAllByText(SEEN)).toHaveLength(1);
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      `You'll listen and comment. You won't be recorded. ${SEEN}`,
+    );
+  });
+
+  it("never says it on the guest seat", () => {
+    render(<Harness seenByRoom />);
+    expect(
+      screen.queryByText("The room can see that someone is looking in."),
+    ).toBeNull();
+  });
+
   it("waits for a name", () => {
     render(<Harness seat="producer" />);
     expect(primary("Join to listen")).toBeDisabled();
@@ -656,5 +762,165 @@ describe("JoinSheet producer", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+const NOT_WEARING = "I'm not wearing headphones";
+const NOTE =
+  "Others may hear their own echo and be heard in your recording. Keep your volume low.";
+
+function PhoneHarness({ onChange }: { onChange?: (choice: string) => void }) {
+  const [headphones, setHeadphones] = useState<"unset" | "on" | "off">("unset");
+  return (
+    <Harness
+      {...READY}
+      headphones={headphones}
+      headphonesRule="choice"
+      onHeadphonesChange={(choice) => {
+        setHeadphones(choice);
+        onChange?.(choice);
+      }}
+    />
+  );
+}
+
+describe("JoinSheet headphones on a phone", () => {
+  it("offers two unpressed answers and holds Join until one is pressed", async () => {
+    const { baseElement } = render(<PhoneHarness />);
+    const group = screen.getByRole("group", { name: "Wearing headphones" });
+    expect(within(group).getAllByRole("button")).toHaveLength(2);
+    expect(
+      within(group).getByRole("button", { name: "I'm wearing headphones" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(
+      within(group).getByRole("button", { name: NOT_WEARING }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(group.querySelector(".lucide-check")).toBeNull();
+    expect(
+      within(group)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["Wearing", "Not wearing"]);
+    const join = primary("Join and record");
+    expect(join).toBeDisabled();
+    expect(join).toHaveAccessibleDescription(
+      "Say if you're wearing headphones first",
+    );
+    expect(screen.queryByText(NOTE)).toBeNull();
+    await expectNoA11yViolations(baseElement);
+  });
+
+  it("joins without headphones after the answer, with the warning shown", async () => {
+    const onChange = vi.fn();
+    render(<PhoneHarness onChange={onChange} />);
+    await userEvent.click(primary(NOT_WEARING));
+    expect(onChange).toHaveBeenCalledWith("off");
+    expect(primary(NOT_WEARING)).toHaveAttribute("aria-pressed", "true");
+    expect(primary(NOT_WEARING).querySelector(".lucide-check")).not.toBeNull();
+    expect(
+      primary("I'm wearing headphones").querySelector(".lucide-check"),
+    ).toBeNull();
+    expect(screen.getByText(NOTE)).toBeVisible();
+    expect(primary("Join and record")).toBeEnabled();
+  });
+
+  it("marks only the pressed answer and announces the warning through the group", async () => {
+    const { baseElement } = render(<PhoneHarness />);
+    const group = screen.getByRole("group", { name: "Wearing headphones" });
+    const status = group.nextElementSibling as HTMLElement;
+    expect(status).toHaveAttribute("role", "status");
+    expect(group).toHaveAttribute("aria-describedby", status.id);
+    await userEvent.click(primary(NOT_WEARING));
+    expect(status).toHaveTextContent(NOTE);
+    expect(group).toHaveAccessibleDescription(NOTE);
+    expect(primary("I'm wearing headphones")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    await expectNoA11yViolations(baseElement);
+    await userEvent.click(primary("I'm wearing headphones"));
+    expect(primary("I'm wearing headphones")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(primary(NOT_WEARING)).toHaveAttribute("aria-pressed", "false");
+    expect(
+      primary("I'm wearing headphones").querySelector(".lucide-check"),
+    ).not.toBeNull();
+    expect(primary(NOT_WEARING).querySelector(".lucide-check")).toBeNull();
+    expect(status).toBeEmptyDOMElement();
+  });
+
+  it("drops the warning when the guest says they are wearing them", async () => {
+    render(<PhoneHarness />);
+    await userEvent.click(primary(NOT_WEARING));
+    await userEvent.click(primary("I'm wearing headphones"));
+    expect(screen.queryByText(NOTE)).toBeNull();
+    expect(primary("Join and record")).toBeEnabled();
+  });
+
+  describe("scrolling the warning into view", () => {
+    const original = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollIntoView",
+    );
+    const scrollIntoView = vi.fn();
+
+    beforeEach(() => {
+      scrollIntoView.mockClear();
+      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+        configurable: true,
+        value: scrollIntoView,
+      });
+    });
+
+    afterEach(() => {
+      if (original) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "scrollIntoView",
+          original,
+        );
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+      }
+    });
+
+    it("scrolls the warning into view when the guest chooses not wearing", async () => {
+      render(<PhoneHarness />);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      await userEvent.click(primary(NOT_WEARING));
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+      expect(scrollIntoView.mock.contexts[0]).toBe(
+        screen.getByText(NOTE).closest('[role="status"]'),
+      );
+    });
+
+    it("scrolls the warning into view when the sheet opens with not wearing chosen", () => {
+      render(<Harness {...READY} headphones="off" headphonesRule="choice" />);
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView.mock.contexts[0]).toBe(
+        screen.getByText(NOTE).closest('[role="status"]'),
+      );
+    });
+
+    it("does not scroll when the guest says they are wearing headphones", async () => {
+      render(<PhoneHarness />);
+      await userEvent.click(primary("I'm wearing headphones"));
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    });
+  });
+
+  it("keeps one toggle and the gate on a laptop", () => {
+    render(<Harness {...READY} headphones="unset" />);
+    expect(screen.queryByRole("button", { name: NOT_WEARING })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "I'm wearing headphones" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(primary("Join and record")).toBeDisabled();
+    expect(primary("Join and record")).toHaveAccessibleDescription(
+      "Put on headphones first",
+    );
   });
 });

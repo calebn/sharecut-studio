@@ -47,7 +47,10 @@ vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   loadProxyManifest: vi.fn(),
 }));
-vi.mock("../audio/chunkCache", () => ({ cachedFetchArrayBuffer: vi.fn() }));
+vi.mock("../audio/chunkCache", () => ({
+  cachedFetchArrayBuffer: vi.fn(),
+  pruneLinkAudio: vi.fn(async () => undefined),
+}));
 
 const handlers = new Map<string, MediaSessionActionHandler | null>();
 const playbackStateWrites: string[] = [];

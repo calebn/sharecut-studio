@@ -104,7 +104,7 @@ function ReviewHostAdapter({
       <LoadFailureCover
         stage="review"
         failure={{
-          message: "Try again in a moment.",
+          source: "detail",
           onRetry: detail.retry,
           recovering: detail.recovering,
         }}

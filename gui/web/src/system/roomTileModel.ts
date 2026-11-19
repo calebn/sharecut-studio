@@ -24,6 +24,7 @@ export type RoomTileProps =
       level?: number;
       speaking?: boolean;
       muted?: boolean;
+      notWearingHeadphones?: boolean;
       connection?: RoomConnection;
       /** Listeners show an ear glyph and no level ring. */
       listener?: boolean;
@@ -31,6 +32,8 @@ export type RoomTileProps =
       alert?: boolean;
       /** The self tile adds a meter bar under the name. */
       isMe?: boolean;
+      /** The guest page's own tile: "(you)" after the name and a Devices cue. The host studio's does not set it. */
+      you?: boolean;
       /** The self tile only: pressing it opens the Device sheet. */
       onPress?: () => void;
       saving?: RoomSaving | null;
@@ -109,6 +112,7 @@ export function roomTileLabel(props: RoomTileProps): string {
   if (props.presence === "placeholder") return ROOM_TILE_TEXT.invite;
   const parts: (string | null)[] = [
     props.person.name,
+    props.presence === "live" && props.you ? ROOM_TILE_TEXT.you : null,
     props.host ? ROOM_TILE_TEXT.host : null,
   ];
   if (props.presence !== "live") {
@@ -121,6 +125,9 @@ export function roomTileLabel(props: RoomTileProps): string {
   if (props.saving) parts.push(savingText(props.saving));
   if (props.listener) parts.push("listening");
   if (props.muted) parts.push("muted");
+  if (props.notWearingHeadphones) {
+    parts.push(ROOM_TILE_TEXT.notWearingHeadphones);
+  }
   if (speaking) parts.push("speaking");
   if (props.connection === "weak") parts.push(ROOM_TILE_TEXT.weak);
   if (clips) parts.push(`${clips} ${clips === 1 ? "clip" : "clips"}`);

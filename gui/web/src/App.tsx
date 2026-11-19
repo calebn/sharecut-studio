@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { loadReviewBootstrap } from "./api";
+import { flushSync } from "react-dom";
+import { isLinkEnded, loadReviewBootstrap, markLinkEnded } from "./api";
+import { forgetLinkAudio } from "./audio/chunkCache";
 import {
   classifyBootstrapFailure,
   type GuestLoadFailure,
@@ -8,6 +10,7 @@ import {
 import { ApiError } from "./utils/apiError";
 import { readNotServed } from "./utils/notServed";
 import "./styles/daw.css";
+import "./stage/edit/script/registerTranscriptSelectionFollower";
 import { FeatureProvider } from "./extensions/FeatureProvider";
 import {
   useFeaturesReady,
@@ -16,18 +19,27 @@ import {
 } from "./extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_ROUTES } from "./extensions/features";
 import { AskDialog } from "./feedback/AskDialog";
+import { useBackOnline } from "./hooks/useBackOnline";
+import { useDeadLinkWatch } from "./hooks/useDeadLinkWatch";
 import { ModelsProvider } from "./models";
+import { RoomLoadBoundary } from "./record/RoomLoadBoundary";
 import {
   clearOfflineSnapshot,
   loadOfflineSnapshot,
+  retireOfflineSnapshot,
 } from "./services/offlineQueue/offlineStore";
 import { isShareProjectKey, shareProjectKey } from "./shareMode";
 import { parseShareRoute } from "./shareRoute";
 import { GuestLoadingScreen } from "./stage/frame/GuestLoadingScreen";
+import { ReviewLoadingScreen } from "./stage/frame/ReviewLoadingScreen";
 import { StageLoading } from "./stage/frame/StageLoading";
 import { GuestPageCover, NotServedCover } from "./stage/frame/StatusCovers";
 import { HomeScreen } from "./stages/home/HomeScreen";
+import { composerPatch, initialSession } from "./state/composerSession";
+import { useDawStore } from "./state/dawStore";
+import { cleanShareName } from "./state/shareName";
 import { DawProvider } from "./state/store";
+import { collectUnsent, type UnsentText } from "./state/unsentText";
 import type { ProjectView } from "./types/project";
 import { ErrorScreen } from "./ui";
 import { peekOpenStage } from "./utils/openIntent";
@@ -62,7 +74,7 @@ function shareRouteFromLocation(): {
 }
 
 type BootstrapError =
-  | { failure: GuestLoadFailure }
+  | { failure: GuestLoadFailure; unsent?: UnsentText[] }
   | { message: string; hint?: string };
 type GuestAccess = {
   key: string;
@@ -70,6 +82,8 @@ type GuestAccess = {
   capabilities: string[] | null;
   transcriptWords: boolean;
   author: string | null;
+  /** The episode's name, when the link's answer or its saved copy gave one. */
+  name: string | null;
 };
 type CachedGuestProject = { key: string; project: ProjectView };
 type BootstrapRequest = {
@@ -134,6 +148,8 @@ function settleBootstrap(
 ): BootstrapObservation {
   const token = request.reviewToken;
   if (standing === "gone" || token === null) return state;
+  // An ended link stays ended: no answer, even a late 200, reopens it.
+  if (isLinkEnded(token)) return state;
   const open = state.guest?.key === shareProjectKey(token);
   if (standing === "replaced") {
     const gone =
@@ -178,6 +194,9 @@ function admitBootstrap(
         error: null,
       };
   if (!request.featuresReady) return retained;
+  if (request.reviewToken && isLinkEnded(request.reviewToken)) {
+    return { ...retained, status: "settled" };
+  }
   if (
     (request.reviewToken || request.recordToken) &&
     !request.shareRoutesEnabled
@@ -209,7 +228,7 @@ function admitBootstrap(
   };
 }
 
-function AppInner() {
+function AppInner({ bootName }: { bootName: string | null }) {
   const shareRoute = shareRouteFromLocation();
   const reviewToken = shareRoute?.kind === "review" ? shareRoute.token : null;
   const recordToken = shareRoute?.kind === "record" ? shareRoute.token : null;
@@ -238,6 +257,9 @@ function AppInner() {
   const shareCapabilities = guest?.capabilities ?? null;
   const shareTranscriptWords = guest?.transcriptWords ?? false;
   const shareAuthor = guest?.author ?? null;
+  // The page's own name stands in until the link's answer or its saved copy has one,
+  // and stays when neither carries a name.
+  const shareName = guest?.name ?? (reviewToken ? bootName : null);
   const shareBootstrapping = current.status === "pending";
   // A hung features call is not a dead button: asking again replaces it.
   const retry = () => {
@@ -246,7 +268,7 @@ function AppInner() {
   };
   const projectLoading = () =>
     reviewToken || shareKey || isShareProjectKey(projectPath ?? "") ? (
-      <GuestLoadingScreen label="Loading project…" onRetry={retry} />
+      <ReviewLoadingScreen name={shareName} onRetry={retry} />
     ) : (
       <StageLoading
         stage={
@@ -257,6 +279,15 @@ function AppInner() {
         onRetry={() => window.location.reload()}
       />
     );
+
+  useBackOnline(
+    error !== null &&
+      "failure" in error &&
+      error.failure.kind === "offline" &&
+      !shareBootstrapping,
+    attempt,
+    retry,
+  );
 
   const autoRetryMs =
     error && "failure" in error
@@ -333,6 +364,7 @@ function AppInner() {
       request;
     if (!featuresReady || !shareRoutesEnabled || !reviewToken || recordToken)
       return;
+    if (isLinkEnded(reviewToken)) return;
     const tracker = attempts.current;
     const generation = tracker.generation;
     const controller = new AbortController();
@@ -367,21 +399,27 @@ function AppInner() {
             capabilities: caps,
             transcriptWords: bootstrap.reads_transcript_words,
             author: bootstrap.author ?? null,
+            name: cleanShareName(bootstrap.meta?.name),
           },
         };
       } catch (e: unknown) {
         // Abandoned on purpose (the episode opened elsewhere, or the link or
         // page went away): there is nothing to show or to save.
         if (controller.signal.aborted || standing() !== "newest") return;
-        const failure = classifyBootstrapFailure(e);
+        const failure = classifyBootstrapFailure(e, navigator.onLine !== false);
         if (failure.kind === "bad-link") {
           if (e instanceof ApiError && e.code === "share_not_found") {
             void clearOfflineSnapshot(reviewToken).catch(() => undefined);
+            void forgetLinkAudio(reviewToken);
           }
           outcome = { kind: "error", error: { failure } };
           return;
         }
-        const saved = await loadOfflineSnapshot(reviewToken);
+        // A saved copy that cannot be read is no saved copy: the guest still
+        // gets the cover for the failure, never the host's Home.
+        const saved = await loadOfflineSnapshot(reviewToken).catch(
+          () => undefined,
+        );
         if (standing() !== "newest") return;
         const cachedProject = saved?.project as ProjectView | undefined;
         if (cachedProject && typeof cachedProject === "object") {
@@ -394,6 +432,7 @@ function AppInner() {
               capabilities: null,
               transcriptWords: false,
               author: null,
+              name: cleanShareName(cachedProject.meta?.name),
             },
             cached: { key, project: cachedProject },
           };
@@ -421,29 +460,69 @@ function AppInner() {
     })();
   }, [request]);
 
+  // The host turned the link off while the episode is open: one confirmed
+  // answer replaces the studio with the cover, and what the guest had typed
+  // and not sent goes with it, collected just before the studio unmounts.
+  const endSession = (token: string) => {
+    if (attempts.current.newest?.reviewToken !== token) return;
+    markLinkEnded(token);
+    abortAll(attempts.current.flight);
+    // Collecting what was typed and unmounting the studio is one step: a key
+    // pressed between the two would land in a field that is about to go.
+    // This runs in a promise callback, never during a render.
+    const unsent = collectUnsent();
+    flushSync(() => {
+      const store = useDawStore.getState();
+      store.setIsPlaying(false);
+      useDawStore.setState(composerPatch(initialSession));
+      setBootstrap((state) =>
+        state.guest?.key === shareProjectKey(token)
+          ? {
+              ...state,
+              status: "settled",
+              guest: null,
+              cached: null,
+              error: { failure: { kind: "bad-link" }, unsent },
+            }
+          : state,
+      );
+    });
+    void retireOfflineSnapshot(token);
+    // Started after the cover is on screen and never waited for.
+    void forgetLinkAudio(token);
+  };
+  useDeadLinkWatch(shareKey ? reviewToken : null, endSession);
+
   if (recordToken && !error) {
     return (
-      <Suspense
-        fallback={
-          <GuestLoadingScreen
-            label="Joining the room…"
-            onRetry={() => window.location.reload()}
-          />
-        }
-      >
-        <GuestRoomApp token={recordToken} />
-      </Suspense>
+      <RoomLoadBoundary>
+        <Suspense
+          fallback={
+            <GuestLoadingScreen
+              label="Joining the room…"
+              onRetry={() => window.location.reload()}
+            />
+          }
+        >
+          <GuestRoomApp token={recordToken} />
+        </Suspense>
+      </RoomLoadBoundary>
     );
   }
   if (reviewToken && (!featuresReady || (shareBootstrapping && !error))) {
-    return <GuestLoadingScreen label="Loading project…" onRetry={retry} />;
+    return <ReviewLoadingScreen name={shareName} onRetry={retry} />;
   }
   if (!featuresReady) {
     return projectLoading();
   }
   if (error && "failure" in error) {
     return (
-      <GuestPageCover failure={error.failure} trying={trying} onRetry={retry} />
+      <GuestPageCover
+        failure={error.failure}
+        trying={trying}
+        onRetry={retry}
+        unsent={error.unsent}
+      />
     );
   }
   if (error) {
@@ -463,6 +542,7 @@ function AppInner() {
         shareCapabilities={shareCapabilities}
         shareTranscriptWords={shareTranscriptWords}
         shareAuthor={shareAuthor}
+        shareName={shareName}
       >
         <Suspense fallback={projectLoading()}>
           <DawApp guestShare />
@@ -489,7 +569,7 @@ function isGuestLocation(): boolean {
   return shareRouteFromLocation() !== null || isShareProjectKey(project ?? "");
 }
 
-export default function App() {
+export default function App({ bootName = null }: { bootName?: string | null }) {
   const notServed = readNotServed();
   if (notServed) {
     return (
@@ -501,7 +581,7 @@ export default function App() {
       </main>
     );
   }
-  const inner = <AppInner />;
+  const inner = <AppInner bootName={bootName} />;
   return (
     <FeatureProvider>
       {isGuestLocation() ? inner : <ModelsProvider>{inner}</ModelsProvider>}

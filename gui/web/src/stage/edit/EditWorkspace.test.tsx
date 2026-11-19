@@ -191,16 +191,30 @@ describe("EditWorkspace states", () => {
     ).not.toBeNull();
   });
 
+  const shellFailure = (
+    onRetry: () => void,
+    extra: { trying?: boolean } = {},
+  ) => ({
+    source: "shell" as const,
+    cause: { audience: "host", kind: "not-answering" } as const,
+    name: "Rosa",
+    onRetry,
+    ...extra,
+  });
+
   it("says the project could not load in the stage body, even with the Script collapsed", async () => {
     useDawStore.setState({ project: null, scriptCollapsed: true });
     const onRetry = vi.fn();
-    render(<EditWorkspace loadFailure={{ message: "No answer.", onRetry }} />);
+    render(<EditWorkspace loadFailure={shellFailure(onRetry)} />);
     const alert = screen.getByRole("alert");
     expect(
       within(alert).getByRole("heading", {
         name: "Could not load the project",
       }),
     ).toBeInTheDocument();
+    expect(alert).toHaveTextContent(
+      "ShareCut isn't answering. Check that it is still running on this computer.",
+    );
     await userEvent.click(
       within(alert).getByRole("button", { name: "Try again" }),
     );
@@ -209,11 +223,7 @@ describe("EditWorkspace states", () => {
 
   it("covers a loaded project whose transcript and history failed, with the Script collapsed", () => {
     useDawStore.setState({ scriptCollapsed: true });
-    render(
-      <EditWorkspace
-        loadFailure={{ message: "No answer.", onRetry: vi.fn() }}
-      />,
-    );
+    render(<EditWorkspace loadFailure={shellFailure(vi.fn())} />);
     expect(
       within(screen.getByRole("alert")).getByRole("button", {
         name: "Try again",
@@ -222,20 +232,24 @@ describe("EditWorkspace states", () => {
     expect(screen.queryByRole("group", { name: "Tracks" })).toBeNull();
   });
 
-  it("keeps the same Try again button, focused, while the retry runs", () => {
+  it("keeps the same Try again button, focused, and the sentence while the retry runs", async () => {
     useDawStore.setState({ project: null });
-    const failure = { message: "No answer.", onRetry: vi.fn() };
+    const failure = shellFailure(vi.fn());
     const { rerender } = render(<EditWorkspace loadFailure={failure} />);
     const retry = screen.getByRole("button", { name: "Try again" });
+    const before = screen
+      .getByRole("alert")
+      .querySelector(".sys-cover-text")?.textContent;
     retry.focus();
-    rerender(
-      <EditWorkspace
-        loadFailure={{ ...failure, message: "Trying again…", recovering: true }}
-      />,
-    );
-    expect(screen.getByRole("button", { name: "Try again" })).toBe(retry);
+    await userEvent.click(retry);
+    rerender(<EditWorkspace loadFailure={{ ...failure, trying: true }} />);
+    expect(screen.getByRole("button", { name: "Trying…" })).toBe(retry);
     expect(retry).toHaveFocus();
     expect(retry).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("Trying again…");
+    expect(
+      screen.getByRole("alert").querySelector(".sys-cover-text")?.textContent,
+    ).toBe(before);
   });
 
   it("hides the plus menu from a link that cannot add audio", () => {

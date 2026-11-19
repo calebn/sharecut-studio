@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { markLinkEnded } from "./api";
 import { resetFeaturesCache } from "./extensions/features";
 import { urlOf } from "./test/urlOf";
 
@@ -17,6 +18,12 @@ vi.mock("./dawApp", () => ({
 const offline = vi.hoisted(() => ({
   load: vi.fn(),
   clear: vi.fn(),
+}));
+
+const audio = vi.hoisted(() => ({ forget: vi.fn() }));
+vi.mock("./audio/chunkCache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./audio/chunkCache")>()),
+  forgetLinkAudio: audio.forget,
 }));
 
 vi.mock("./services/offlineQueue/offlineStore", async (importOriginal) => ({
@@ -32,6 +39,7 @@ describe("App review route", () => {
     offline.load.mockReset();
     offline.clear.mockReset();
     offline.clear.mockResolvedValue(undefined);
+    audio.forget.mockReset().mockResolvedValue(undefined);
     resetFeaturesCache();
     window.history.pushState({}, "", "/r/no-view");
   });
@@ -79,6 +87,8 @@ describe("App review route", () => {
         name: "This link doesn't open anything",
       }),
     ).toHaveTextContent("Ask the person who sent it for a new link.");
+    expect(offline.clear).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
     expect(
       fetchMock.mock.calls.some((call) =>
         urlOf(call[0] as RequestInfo | URL).endsWith("/audio"),
@@ -153,10 +163,13 @@ describe("App review route", () => {
       await screen.findByText("This link doesn't open anything"),
     ).toBeInTheDocument();
     expect(offline.clear).toHaveBeenCalledWith("revoked");
+    expect(audio.forget).toHaveBeenCalledExactlyOnceWith("revoked");
     expect(screen.queryByText("Stale episode")).not.toBeInTheDocument();
   });
 
-  function stubBootstrapFailure(response: () => Response) {
+  function stubBootstrapFailure(
+    response: (url: string) => Response | Promise<Response>,
+  ) {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -169,7 +182,7 @@ describe("App review route", () => {
             { status: 200 },
           );
         }
-        return response();
+        return response(urlOf(input));
       }),
     );
   }
@@ -194,6 +207,7 @@ describe("App review route", () => {
       await screen.findByText("This link doesn't open anything"),
     ).toBeInTheDocument();
     expect(offline.clear).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
   });
 
   it("shows the cover even when clearing the snapshot never settles", async () => {
@@ -210,6 +224,23 @@ describe("App review route", () => {
     expect(
       await screen.findByText("This link doesn't open anything"),
     ).toBeInTheDocument();
+  });
+
+  it("shows the cover when forgetting the audio never settles", async () => {
+    window.history.pushState({}, "", "/r/hung-audio");
+    audio.forget.mockReturnValue(new Promise(() => {}));
+    stubBootstrapFailure(
+      () =>
+        new Response(JSON.stringify({ detail: "x" }), {
+          status: 404,
+          headers: { "X-Sharecut-Error-Code": "share_not_found" },
+        }),
+    );
+    render(<App />);
+    expect(
+      await screen.findByText("This link doesn't open anything"),
+    ).toBeInTheDocument();
+    expect(audio.forget).toHaveBeenCalledExactlyOnceWith("hung-audio");
   });
 
   it("shows the cover when clearing the snapshot rejects", async () => {
@@ -243,6 +274,7 @@ describe("App review route", () => {
       screen.queryByText("This link doesn't open anything"),
     ).not.toBeInTheDocument();
     expect(offline.clear).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
   });
 
   it("shows a Try now cover for an unreachable host with no saved copy", async () => {
@@ -280,6 +312,9 @@ describe("App review route", () => {
     expect(
       screen.getByText("This page tries again every 30 seconds."),
     ).toBeVisible();
+    // The cover focuses its title in a passive effect, which runs after the
+    // heading is found: flush it once, as React does, before asserting.
+    await act(async () => {});
     expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
     expect(screen.getByRole("main")).not.toHaveAttribute("tabindex");
     reachable = true;
@@ -306,6 +341,7 @@ describe("App review route", () => {
           name: "The host's computer is asleep",
         }),
       ).toBeInTheDocument();
+      expect(audio.forget).not.toHaveBeenCalled();
       const before = calls;
       fireEvent.click(screen.getByRole("button", { name: "Try now" }));
       await vi.waitFor(() => expect(calls).toBeGreaterThan(before));
@@ -330,7 +366,11 @@ describe("App review route", () => {
         level: 1,
         name: "This link did not load",
       });
+      // The cover focuses its title in a passive effect, which runs after the
+      // heading is found: flush it once, as React does, before asserting.
+      await act(async () => {});
       expect(title).toHaveFocus();
+      expect(audio.forget).not.toHaveBeenCalled();
       expect(screen.getByRole("main")).not.toHaveAttribute("tabindex");
       expect(screen.getByText(sentence)).toBeVisible();
       const before = calls;
@@ -400,6 +440,7 @@ describe("App review route", () => {
       await screen.findByRole("heading", { name: "This link did not load" });
       expect(screen.getByText(sentence)).toBeVisible();
       expect(document.body).not.toHaveTextContent("SENTINEL-1");
+      expect(audio.forget).not.toHaveBeenCalled();
     },
   );
 
@@ -412,6 +453,7 @@ describe("App review route", () => {
       render(<App />);
       await screen.findByRole("heading", { name: "This link did not load" });
       expect(screen.queryByRole("button")).toBeNull();
+      expect(audio.forget).not.toHaveBeenCalled();
     },
   );
 
@@ -436,6 +478,8 @@ describe("App review route", () => {
       ),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+    expect(offline.clear).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
     const before = calls;
     await act(async () => {
       await vi.advanceTimersByTimeAsync(31_000);
@@ -467,6 +511,8 @@ describe("App review route", () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       render(<App />);
       await screen.findByRole("heading", { name: "This link did not load" });
+      expect(offline.clear).not.toHaveBeenCalled();
+      expect(audio.forget).not.toHaveBeenCalled();
       const before = calls;
       await act(async () => {
         await vi.advanceTimersByTimeAsync(delay - 1_000);
@@ -576,6 +622,310 @@ describe("App review route", () => {
     });
   });
 
+  describe("a guest whose device reports no connection", () => {
+    let deviceOnline = true;
+    let hostUp = false;
+    let hostStatus: number | null = null;
+
+    const comesBack = () => {
+      deviceOnline = true;
+      act(() => void window.dispatchEvent(new Event("online")));
+    };
+
+    let projectUrls: string[] = [];
+    let gate: Promise<void> | null = null;
+    const holdAttempts = () => {
+      let release: () => void = () => {};
+      gate = new Promise<void>((resolve) => {
+        release = () => {
+          gate = null;
+          resolve();
+        };
+      });
+      return release;
+    };
+
+    beforeEach(() => {
+      deviceOnline = false;
+      hostUp = false;
+      hostStatus = null;
+      projectUrls = [];
+      gate = null;
+      vi.spyOn(navigator, "onLine", "get").mockImplementation(
+        () => deviceOnline,
+      );
+      offline.load.mockResolvedValue(undefined);
+      stubBootstrapFailure(async (url) => {
+        projectUrls.push(url);
+        if (gate) await gate;
+        if (hostUp) {
+          return new Response(
+            JSON.stringify({
+              capabilities: ["view"],
+              meta: { name: "Episode" },
+            }),
+            { status: 200 },
+          );
+        }
+        if (hostStatus !== null) {
+          return new Response("{}", { status: hostStatus });
+        }
+        throw new TypeError("Failed to fetch");
+      });
+      window.history.pushState({}, "", "/r/nolink");
+    });
+
+    const offlineCover = () =>
+      screen.findByRole("heading", { name: "You're offline" });
+    const asleepCover = () =>
+      screen.findByRole("heading", { name: "The host's computer is asleep" });
+
+    it("is told so, with the page's words, when the first load fails", async () => {
+      render(<App />);
+      const cover = await offlineCover();
+      // The cover focuses its title in a passive effect, which runs after the
+      // heading is found: flush it once, as React does, before asserting.
+      await act(async () => {});
+      expect(cover).toHaveFocus();
+      expect(
+        screen.getByText(
+          "This page opens the episode by itself when your connection is back.",
+        ),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "Try now" })).toBeVisible();
+      expect(screen.queryByText(/asleep/)).toBeNull();
+    });
+
+    it("is told the host is asleep when the browser says the device is online", async () => {
+      deviceOnline = true;
+      render(<App />);
+      await asleepCover();
+      expect(screen.queryByText("You're offline")).toBeNull();
+    });
+
+    it("opens the episode by itself when the connection is back, without a press", async () => {
+      render(<App />);
+      await offlineCover();
+      const before = projectUrls.length;
+      hostUp = true;
+      comesBack();
+      expect(
+        await screen.findByText("Cached guest studio"),
+      ).toBeInTheDocument();
+      expect(projectUrls.length).toBe(before + 1);
+    });
+
+    it("says the host is asleep, never offline, when the connection is back and the host is down", async () => {
+      render(<App />);
+      await offlineCover();
+      hostStatus = 503;
+      comesBack();
+      await asleepCover();
+      expect(screen.queryByText("You're offline")).toBeNull();
+    });
+
+    it("tries again once the saved-copy read finishes when the connection came back during it", async () => {
+      let finishRead: (value: undefined) => void = () => {};
+      offline.load.mockReturnValue(
+        new Promise<undefined>((resolve) => {
+          finishRead = resolve;
+        }),
+      );
+      render(<App />);
+      await vi.waitFor(() => expect(offline.load).toHaveBeenCalled());
+      hostUp = true;
+      comesBack();
+      const before = projectUrls.length;
+      await act(async () => finishRead(undefined));
+      expect(
+        await screen.findByText("Cached guest studio"),
+      ).toBeInTheDocument();
+      expect(projectUrls.length).toBe(before + 1);
+    });
+
+    it("starts one attempt for two events that arrive while it runs", async () => {
+      render(<App />);
+      await offlineCover();
+      const before = projectUrls.length;
+      comesBack();
+      comesBack();
+      await asleepCover().catch(() => undefined);
+      await vi.waitFor(() => expect(projectUrls.length).toBe(before + 1));
+    });
+
+    it("moves from asleep to offline only when a retry fails with the device offline, never on the offline event", async () => {
+      deviceOnline = true;
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      render(<App />);
+      await asleepCover();
+      deviceOnline = false;
+      act(() => void window.dispatchEvent(new Event("offline")));
+      expect(screen.queryByText("You're offline")).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(31_000);
+      });
+      expect(await offlineCover()).toBeInTheDocument();
+    });
+
+    it("moves from offline to asleep when the 30 second retry fails with the device online", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      render(<App />);
+      await offlineCover();
+      deviceOnline = true;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(31_000);
+      });
+      expect(await asleepCover()).toBeInTheDocument();
+    });
+
+    it("answers Try now on the offline cover with Still offline.", async () => {
+      render(<App />);
+      await offlineCover();
+      fireEvent.click(screen.getByRole("button", { name: "Try now" }));
+      expect(await screen.findByText("Still offline.")).toBeInTheDocument();
+    });
+
+    const settle = () => act(async () => {});
+
+    it("starts no attempt when the connection returns on the asleep cover", async () => {
+      deviceOnline = true;
+      render(<App />);
+      await asleepCover();
+      const before = projectUrls.length;
+      comesBack();
+      await settle();
+      expect(projectUrls.length).toBe(before);
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+        "The host's computer is asleep",
+      );
+    });
+
+    it("reads an event that came during an attempt as asleep when the attempt then fails with the browser online, and the 30 second retry still runs", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      render(<App />);
+      await offlineCover();
+      const before = projectUrls.length;
+      const release = holdAttempts();
+      fireEvent.click(screen.getByRole("button", { name: "Try now" }));
+      await vi.waitFor(() => expect(projectUrls.length).toBe(before + 1));
+      comesBack();
+      release();
+      await asleepCover();
+      expect(projectUrls.length).toBe(before + 1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(31_000);
+      });
+      await vi.waitFor(() => expect(projectUrls.length).toBe(before + 2));
+    });
+
+    it("keeps the offline cover and starts nothing extra when an attempt that met an online event fails offline again, and the next event retries once", async () => {
+      render(<App />);
+      await offlineCover();
+      const before = projectUrls.length;
+      const release = holdAttempts();
+      fireEvent.click(screen.getByRole("button", { name: "Try now" }));
+      await vi.waitFor(() => expect(projectUrls.length).toBe(before + 1));
+      act(() => void window.dispatchEvent(new Event("online")));
+      release();
+      await settle();
+      await vi.waitFor(() =>
+        expect(screen.getByText("Still offline.")).toBeInTheDocument(),
+      );
+      expect(projectUrls.length).toBe(before + 1);
+      hostUp = true;
+      comesBack();
+      expect(
+        await screen.findByText("Cached guest studio"),
+      ).toBeInTheDocument();
+      expect(projectUrls.length).toBe(before + 2);
+    });
+
+    it("starts no bootstrap on a later online event once the episode is open", async () => {
+      render(<App />);
+      await offlineCover();
+      hostUp = true;
+      fireEvent.click(screen.getByRole("button", { name: "Try now" }));
+      await screen.findByText("Cached guest studio");
+      const before = projectUrls.length;
+      comesBack();
+      comesBack();
+      await settle();
+      expect(projectUrls.length).toBe(before);
+    });
+
+    it("starts nothing for the old link when the link changed while the offline cover was up", async () => {
+      const { rerender } = render(<App />);
+      await offlineCover();
+      window.history.pushState({}, "", "/r/other");
+      rerender(<App />);
+      await vi.waitFor(() =>
+        expect(projectUrls.some((u) => u.includes("/other/"))).toBe(true),
+      );
+      await settle();
+      hostUp = true;
+      const before = projectUrls.length;
+      comesBack();
+      await screen.findByText("Cached guest studio");
+      expect(
+        projectUrls.slice(before).every((u) => u.includes("/other/")),
+      ).toBe(true);
+    });
+
+    it("starts nothing when the link was ended while the offline cover was up", async () => {
+      window.history.pushState({}, "", "/r/ended-offline-link");
+      render(<App />);
+      await offlineCover();
+      markLinkEnded("ended-offline-link");
+      const before = projectUrls.length;
+      comesBack();
+      await settle();
+      expect(projectUrls.length).toBe(before);
+    });
+
+    it("sends one request when the 30 second timer and the online event come in the same moment", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      render(<App />);
+      await offlineCover();
+      const before = projectUrls.length;
+      deviceOnline = true;
+      await act(async () => {
+        window.dispatchEvent(new Event("online"));
+        await vi.advanceTimersByTimeAsync(31_000);
+      });
+      await settle();
+      expect(projectUrls.length).toBe(before + 1);
+    });
+
+    it("sends one request when Try now and the online event come in the same moment", async () => {
+      render(<App />);
+      await offlineCover();
+      const before = projectUrls.length;
+      deviceOnline = true;
+      act(() => {
+        fireEvent.click(screen.getByRole("button", { name: "Try now" }));
+        window.dispatchEvent(new Event("online"));
+      });
+      await settle();
+      await vi.waitFor(() =>
+        expect(projectUrls.length).toBeGreaterThan(before),
+      );
+      await settle();
+      expect(projectUrls.length).toBe(before + 1);
+    });
+
+    it("opens the saved copy instead of the cover", async () => {
+      offline.load.mockResolvedValue({
+        project: { meta: { name: "Stale episode" } },
+        saved_at: 1,
+      });
+      render(<App />);
+      expect(
+        await screen.findByText("Cached guest studio"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("You're offline")).toBeNull();
+    });
+  });
+
   it.each([
     ["a coded project_not_found 404", 404, "project_not_found"],
     ["a 5xx", 503, null],
@@ -619,7 +969,9 @@ describe("App loading screens before the features answer", () => {
     stall();
     const { container } = render(<App />);
     expect(container.querySelector("main.guest-loading")).not.toBeNull();
-    expect(screen.getByRole("status")).toHaveTextContent("Loading project…");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading the episode…",
+    );
     expect(container.querySelector(".loading-screen")).toBeNull();
   });
 

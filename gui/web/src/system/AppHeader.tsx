@@ -1,4 +1,12 @@
-import { type ReactNode, type RefObject, useId, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { useLongPress } from "../hooks/useLongPress";
 import type { ThemePreference } from "../hooks/useTheme";
 import {
@@ -22,6 +30,7 @@ import { SaveIndicator, type SaveIndicatorProps } from "./SaveIndicator";
 import { StageBar, type StageBarProps } from "./StageBar";
 import { StageMenu } from "./StageMenu";
 import { SystemIcon } from "./SystemIcon";
+import { useActingKeyDown } from "./useCoachTip";
 import { VerbButton } from "./VerbButton";
 import { type NewVersionUpdate, VersionLine } from "./VersionLine";
 
@@ -48,16 +57,22 @@ export type AppHeaderProps = {
    * stays, and the menu holds only what the right side held. Default true.
    */
   stagesInMenu?: boolean;
-  /** A guest: the title gets a second line with the version and a Role chip. */
+  /** A guest: the title gets a second line with the version and a Role chip. A saved copy has no role to show. */
   guest?: {
     version: string;
     /** True: the link plays whatever version is current. False: pinned. Omitted: not known yet. */
     followsLatest?: boolean;
     /** A following link's host published: shows the New version pill. */
     update?: NewVersionUpdate;
-    role: LinkRole;
+    role?: LinkRole;
     compact?: boolean;
-    hint?: { text: string; shown: boolean; onDismiss: () => void };
+    hint?: {
+      text: string;
+      shown: boolean;
+      onDismiss: () => void;
+      /** Called once when the automatic hint appears, so the sentence can be said. */
+      onShown?: () => void;
+    };
   };
   /** Theme row at the bottom of the Project menu. */
   appearance?: {
@@ -68,6 +83,9 @@ export type AppHeaderProps = {
   loading?: boolean;
   canUndo?: boolean;
   canRedo?: boolean;
+  /** Why Undo or Redo is off, as the disabled button's title. */
+  undoReason?: string;
+  redoReason?: string;
   onUndo?: () => void;
   undoHint?: CoachHint;
   onRedo?: () => void;
@@ -88,7 +106,13 @@ const MAX_AVATARS = 3;
 
 type RoleHintMode = "automatic" | "closed" | "manual";
 
-function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
+function RoleHint({
+  guest,
+  role,
+}: {
+  guest: NonNullable<AppHeaderProps["guest"]>;
+  role: LinkRole;
+}) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const outsideRef = useRef<HTMLSpanElement>(null);
   const panelId = useId();
@@ -97,8 +121,7 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
     eligible ? "automatic" : "closed",
   );
   if (!eligible && mode === "automatic") setMode("closed");
-  const label =
-    ROLES.find((role) => role.id === guest.role)?.label ?? guest.role;
+  const label = ROLES.find((entry) => entry.id === role)?.label ?? role;
 
   const dismissAutomatic = () => {
     if (mode !== "automatic") return;
@@ -115,25 +138,48 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
     enabled: mode === "automatic",
     capture: true,
   });
+  // The next key closes it and still does its job. Enter and Space on the X or
+  // the Role button are those controls' own clicks, which close it themselves.
+  useActingKeyDown(mode === "automatic", (event) => {
+    const inside =
+      event.target instanceof Node &&
+      (outsideRef.current?.contains(event.target) ?? false);
+    if (event.key === "Escape") {
+      dismissAutomatic();
+      // The X is about to unmount: keep focus on the control that stays.
+      if (inside) triggerRef.current?.focus({ preventScroll: true });
+    } else if (!inside) {
+      dismissAutomatic();
+    }
+  });
+  const announced = useRef(false);
+  const announce = useEffectEvent(() => guest.hint?.onShown?.());
+  useEffect(() => {
+    if (mode !== "automatic" || announced.current) return;
+    // Once per mount, though development runs this effect twice.
+    announced.current = true;
+    announce();
+  }, [mode]);
 
-  const chip = <RoleChip access={guest.role} compact={guest.compact} />;
+  const chip = <RoleChip access={role} compact={guest.compact} />;
   if (!guest.hint) return chip;
 
   return (
     <>
-      <span ref={outsideRef}>
+      <span ref={outsideRef} className="sys-role-hint">
         <CoachTip
           edge
           text={guest.hint.text}
           shown={mode === "automatic"}
           onDismiss={dismissAutomaticFromTip}
+          onPress={dismissAutomatic}
         >
           <span aria-hidden="true" />
         </CoachTip>
         <button
           ref={triggerRef}
           type="button"
-          className="sys-icon-btn"
+          className="sys-role-trigger"
           aria-label={`Explain ${label} role`}
           aria-haspopup="dialog"
           aria-expanded={mode === "manual"}
@@ -353,6 +399,8 @@ export function AppHeader({
   loading = false,
   canUndo = true,
   canRedo = true,
+  undoReason,
+  redoReason,
   onUndo,
   undoHint,
   onRedo,
@@ -399,7 +447,7 @@ export function AppHeader({
         <div className="sys-header-left">
           {guest ? (
             <div className="sys-header-guest">
-              <span className="sys-header-title" aria-hidden="true">
+              <span className="sys-header-title" dir="auto" aria-hidden="true">
                 {title}
               </span>
               <span className="sys-header-sub">
@@ -408,7 +456,9 @@ export function AppHeader({
                   followsLatest={guest.followsLatest}
                   update={guest.update}
                 />
-                <RoleHint key={guest.role} guest={guest} />
+                {guest.role ? (
+                  <RoleHint key={guest.role} guest={guest} role={guest.role} />
+                ) : null}
               </span>
             </div>
           ) : (
@@ -449,12 +499,14 @@ export function AppHeader({
                   <VerbButton
                     verb="undo"
                     disabled={loading || !canUndo}
+                    {...(loading || canUndo ? {} : { title: undoReason })}
                     onClick={onUndo}
                   />
                 </CoachTip>
                 <VerbButton
                   verb="redo"
                   disabled={loading || !canRedo}
+                  {...(loading || canRedo ? {} : { title: redoReason })}
                   onClick={onRedo}
                 />
               </span>

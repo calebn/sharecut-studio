@@ -49,7 +49,7 @@ const readyProject = () => minimalProject({ tracks: [sampleTrack()] });
 for (const id of ["transport.togglePlay", "transport.stop"]) {
   describe(id, () => {
     for (const [state, project, reason] of [
-      ["loading", null, "Loading project…"],
+      ["loading", null, "Loading…"],
       ["empty", minimalProject(), "Import audio to play."],
     ] as const) {
       it(`rejects a ${state} project through command and pointer dispatch, then recovers`, async () => {
@@ -88,7 +88,7 @@ it("keeps loading and empty Space inert, then Space and K control imported track
   expect(useDawStore.getState().isPlaying).toBe(false);
   expect(
     screen.getByRole("button", { name: "Play" }),
-  ).toHaveAccessibleDescription("Loading project…");
+  ).toHaveAccessibleDescription("Loading…");
   act(() => useDawStore.getState().setProject(minimalProject()));
   await act(async () => {
     fireEvent.keyDown(timeline, { key: " ", code: "Space" });
@@ -121,7 +121,7 @@ it("keeps focused Play inert while loading and empty, then activates without edi
   render(<TransportHost />);
   const play = screen.getByRole("button", { name: "Play" });
   play.focus();
-  expect(play).toHaveAccessibleDescription("Loading project…");
+  expect(play).toHaveAccessibleDescription("Loading…");
   await user.keyboard(" ");
   expect(useDawStore.getState().isPlaying).toBe(false);
   act(() => useDawStore.getState().setProject(minimalProject()));
@@ -239,7 +239,7 @@ it("preserves the existing no-project refusal even with retained transport state
   for (const id of ["transport.togglePlay", "transport.stop"]) {
     expect(await executePointerCommand(id)).toEqual({
       status: "disabled",
-      reason: "Loading project…",
+      reason: "Loading…",
     });
   }
   expect(useDawStore.getState().isPlaying).toBe(true);

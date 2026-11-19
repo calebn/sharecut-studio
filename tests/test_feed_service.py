@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 import wave
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from feed_helpers import StubShow, complete_show
 from podcast_mcp.export.names import sanitize_export_stem
@@ -15,12 +18,14 @@ from podcast_mcp.feed.model import (
     ShowSummary,
     UnsetEdit,
 )
+from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import ChapterMarker, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import FeedService
+from podcast_mcp.services.document import FeedFieldPinResult, FeedService
 from podcast_mcp.services.document import feed as feed_service
 from podcast_mcp.services.document.feed import describe_fields
 from podcast_mcp.services.document_sync import DocumentSyncService, submit_host_document_command
+from podcast_mcp.services.document_sync.handlers.feed import clear_feed_field, set_feed_field
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -382,3 +387,168 @@ def test_a_host_clear_sees_a_pin_set_after_the_service_opened(episode: Path) -> 
 
     assert load_project(episode).feed.pins == {}
     assert view.item["item.intro"].source.kind != "pinned"
+
+
+# The pin and clear replies: the exact reply text at every edge.
+NON_ASCII = "café — 日本 \U0001f399"
+NON_ASCII_ESCAPED = "caf\\u00e9 \\u2014 \\u65e5\\u672c \\ud83c\\udf99"
+PIN_RESULT = {"key": "item.intro", "pinned": True}
+CLEAR_RESULT = {"key": "item.intro", "pinned": False}
+PIN_RESULT_TEXT = '{"key": "item.intro", "pinned": true}'
+CLEAR_RESULT_TEXT = '{"key": "item.intro", "pinned": false}'
+
+
+def _wire_result(reply: dict) -> dict:
+    result = reply["command"]["payload"]["result"]
+    assert type(result) is dict
+    return result
+
+
+def test_service_set_and_clear_field_return_the_pin_result_model(episode: Path) -> None:
+    service = _service(episode)
+
+    pinned = service.set_field("item.intro", NON_ASCII, "person")
+    cleared = service.clear_field("item.intro")
+
+    assert type(pinned) is FeedFieldPinResult and pinned.model_dump() == PIN_RESULT
+    assert list(pinned.model_dump()) == ["key", "pinned"] and pinned.pinned is True
+    assert type(cleared) is FeedFieldPinResult and cleared.model_dump() == CLEAR_RESULT
+    assert list(cleared.model_dump()) == ["key", "pinned"] and cleared.pinned is False
+
+
+def test_service_clear_of_a_key_with_no_pin_still_returns_the_same_result(episode: Path) -> None:
+    cleared = _service(episode).clear_field("item.intro")
+
+    assert type(cleared) is FeedFieldPinResult
+    assert json.dumps(cleared.model_dump()) == CLEAR_RESULT_TEXT
+
+
+def test_a_blank_set_unsets_and_replies_pinned_false_through_the_service_and_the_doc_plane(
+    episode: Path,
+) -> None:
+    service = _service(episode)
+    service.set_field("item.intro", "A walk.", "person")
+
+    blank = service.set_field("item.intro", "  ", "person")
+
+    assert type(blank) is FeedFieldPinResult and blank.model_dump() == CLEAR_RESULT
+    assert "item.intro" not in load_project(episode).feed.pins
+    submit_host_document_command(episode, "SetFeedField", {"key": "item.intro", "value": "A walk."})
+    wired = submit_host_document_command(
+        episode, "SetFeedField", {"key": "item.intro", "value": ""}
+    )
+    assert json.dumps(_wire_result(wired)) == CLEAR_RESULT_TEXT
+
+
+def test_feed_field_pin_result_is_frozen_strict_and_bool_only() -> None:
+    result = FeedFieldPinResult(key="item.intro", pinned=True)
+
+    with pytest.raises(ValidationError):
+        result.pinned = False  # type: ignore[misc]
+    with pytest.raises(ValidationError):
+        FeedFieldPinResult(key="item.intro", pinned=True, value="x")  # type: ignore[call-arg]
+    with pytest.raises(ValidationError):
+        FeedFieldPinResult(key="item.intro", pinned="maybe")  # type: ignore[arg-type]
+    assert result.model_dump() == PIN_RESULT
+
+
+def test_service_results_serialize_to_the_same_json_text(episode: Path) -> None:
+    service = _service(episode)
+
+    assert (
+        json.dumps(service.set_field("item.intro", NON_ASCII, "agent").model_dump())
+        == PIN_RESULT_TEXT
+    )
+    assert load_project(episode).feed.pins["item.intro"].value == NON_ASCII
+    assert json.dumps(service.clear_field("item.intro").model_dump()) == CLEAR_RESULT_TEXT
+
+
+def test_host_submit_reply_carries_the_pin_and_clear_results_byte_for_byte(episode: Path) -> None:
+    pinned = submit_host_document_command(
+        episode, "SetFeedField", {"key": "item.intro", "value": NON_ASCII, "by": "agent"}
+    )
+    cleared = submit_host_document_command(episode, "ClearFeedField", {"key": "item.intro"})
+
+    assert json.dumps(_wire_result(pinned)) == PIN_RESULT_TEXT
+    assert json.dumps(_wire_result(cleared)) == CLEAR_RESULT_TEXT
+    assert list(pinned["command"]["payload"]) == ["key", "value", "by", "result"]
+    assert pinned["command"]["payload"]["value"] == NON_ASCII
+    assert list(cleared["command"]["payload"]) == ["key", "result"]
+
+
+def test_journal_rows_store_the_pin_and_clear_results_with_the_non_ascii_value(
+    episode: Path,
+) -> None:
+    submit_host_document_command(episode, "SetFeedField", {"key": "item.intro", "value": NON_ASCII})
+    submit_host_document_command(episode, "ClearFeedField", {"key": "item.intro"})
+
+    rows = DocumentSyncService.open(episode).store.commands_after(0)
+
+    assert [r["type"] for r in rows] == ["SetFeedField", "ClearFeedField"]
+    assert json.dumps(rows[0]["payload"]["result"]) == PIN_RESULT_TEXT
+    assert json.dumps(rows[1]["payload"]["result"]) == CLEAR_RESULT_TEXT
+    assert rows[0]["payload"]["value"] == NON_ASCII
+    assert json.dumps(rows[0]["payload"]["value"]) == f'"{NON_ASCII_ESCAPED}"'
+
+
+def test_host_http_command_reply_text_pins_the_pin_and_clear_results(episode: Path) -> None:
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+
+    def post(kind: str, payload: dict, seq: int):
+        return client.post(
+            "/api/document/command",
+            params={"path": str(episode)},
+            json={
+                "type": kind,
+                "payload": payload,
+                "client_id": "host-tab",
+                "role": "agent",
+                "client_seq": seq,
+            },
+        )
+
+    pinned = post("SetFeedField", {"key": "item.intro", "value": NON_ASCII}, 1)
+    cleared = post("ClearFeedField", {"key": "item.intro"}, 2)
+
+    assert pinned.status_code == 200, pinned.text
+    assert cleared.status_code == 200, cleared.text
+    # The HTTP body is compact UTF-8 JSON: the non-ASCII value is not \u-escaped here.
+    assert (
+        '"type":"SetFeedField","payload":{"key":"item.intro","value":"'
+        + NON_ASCII
+        + '","by":"person","result":{"key":"item.intro","pinned":true}},"causation_id"'
+    ) in pinned.text
+    assert (
+        '"type":"ClearFeedField","payload":{"key":"item.intro",'
+        '"result":{"key":"item.intro","pinned":false}},"causation_id"'
+    ) in cleared.text
+
+
+def test_a_non_ascii_person_key_is_escaped_in_the_reply_and_the_journal(episode: Path) -> None:
+    key = "item.person[Zoë Müller].role"
+    project = load_project(episode)
+    project.tracks = [
+        Track(id="guest", label="Guest", role=TrackRole.DIALOGUE, speaker="Zoë Müller")
+    ]
+    save_project(project, episode)
+    pinned = submit_host_document_command(episode, "SetFeedField", {"key": key, "value": "host"})
+    cleared = submit_host_document_command(episode, "ClearFeedField", {"key": key})
+
+    escaped = '{"key": "item.person[Zo\\u00eb M\\u00fcller].role", "pinned": %s}'
+    assert json.dumps(_wire_result(pinned)) == escaped % "true"
+    assert json.dumps(_wire_result(cleared)) == escaped % "false"
+    assert _wire_result(pinned)["key"] == key
+
+    rows = DocumentSyncService.open(episode).store.commands_after(0)
+    assert json.dumps(rows[0]["payload"]["result"]) == escaped % "true"
+    assert json.dumps(rows[1]["payload"]["result"]) == escaped % "false"
+
+
+def test_the_document_handlers_return_plain_dicts_not_the_model(episode: Path) -> None:
+    ws = ProjectWorkspace.open(episode)
+
+    pinned = set_feed_field(ws, {"key": "item.intro", "value": NON_ASCII})
+    cleared = clear_feed_field(ws, {"key": "item.intro"})
+
+    assert type(pinned) is dict and pinned == PIN_RESULT
+    assert type(cleared) is dict and cleared == CLEAR_RESULT

@@ -29,6 +29,7 @@ from podcast_mcp.feed.writer import FeedWrite, write_feed
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.models.feed import FieldValue, Pin, PinAuthor
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document.feed_results import FeedFieldPinResult
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressTask, resolve_progress_task
 from podcast_mcp.util.project_state import render_lock
@@ -261,17 +262,17 @@ class FeedService:
 
         self.ws.mutate("before minting the episode id", "after minting the episode id", stamp)
 
-    def set_field(self, key: str, value: FieldValue, by: PinAuthor) -> dict[str, Any]:
-        def pin(project: EpisodeProject) -> dict[str, Any]:
+    def set_field(self, key: str, value: FieldValue, by: PinAuthor) -> FeedFieldPinResult:
+        def pin(project: EpisodeProject) -> FeedFieldPinResult:
             project.feed.pins = self._pins_after(project, SetEdit(key=key, value=value), by)
-            return {"key": key, "pinned": key in project.feed.pins}
+            return FeedFieldPinResult(key=key, pinned=key in project.feed.pins)
 
         return self.ws.mutate("before set listing field", "after set listing field", pin)
 
-    def clear_field(self, key: str) -> dict[str, Any]:
-        def clear(project: EpisodeProject) -> dict[str, Any]:
+    def clear_field(self, key: str) -> FeedFieldPinResult:
+        def clear(project: EpisodeProject) -> FeedFieldPinResult:
             project.feed.pins = cleared_pins(self._inputs(project), project.feed.pins, key)
-            return {"key": key, "pinned": False}
+            return FeedFieldPinResult(key=key, pinned=False)
 
         return self.ws.mutate("before clear listing field", "after clear listing field", clear)
 

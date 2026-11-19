@@ -544,6 +544,16 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes: "\\: timeline focused",
     breaksFollow: true,
   },
+  "view.followPlayhead": {
+    id: "view.followPlayhead",
+    category: "view",
+    label: "Back to playhead",
+    keywords: ["follow", "catch", "scroll", "reveal"],
+    when: "editStage",
+    notes:
+      "Follow the playhead again during playback and bring it into view in the timeline (no default key)",
+    breaksFollow: true,
+  },
   "view.waveformZoomIn": {
     id: "view.waveformZoomIn",
     category: "view",
@@ -603,6 +613,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     variants: ["Undo replacements", "Undo timing"],
     keywords: ["revert", "go back"],
     when: "canUndo",
+    announcesGate: true,
   },
   "history.redo": {
     id: "history.redo",
@@ -610,6 +621,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Redo",
     keywords: ["repeat"],
     when: "canRedo",
+    announcesGate: true,
   },
   "ui.toggleCommandPalette": {
     id: "ui.toggleCommandPalette",
@@ -956,10 +968,10 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "transcript.editWordInline",
     category: "edit",
     label: "Edit focused transcript word",
-    when: "hostProjectLoaded",
+    when: "canFixText",
     paletteRunnable: false,
     notes:
-      "F2 or a double-tap: Fix text on the selected timed word; hydrated host only",
+      "F2 or a double-tap: Fix text on the selected timed word; host or Editor, words hydrated",
   },
   "transcript.findReplace": {
     id: "transcript.findReplace",
@@ -967,7 +979,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Find and replace transcript",
     shortLabel: "Find and replace",
     keywords: ["search", "spelling"],
-    when: "hostProjectLoaded",
+    when: "canFixText",
     breaksFollow: true,
     notes:
       "Finds, counts and highlights a phrase even when another speaker's turn sits between its words; only the phrase's own words are highlighted, selected and replaced. Replace changes the current match alone and Replace all changes every match, each as one undo step",

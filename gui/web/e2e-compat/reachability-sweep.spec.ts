@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import {
   openEnvelopePoint,
@@ -441,6 +442,48 @@ test("phone shells keep every control a finger can use at 360, 390 and 767 wide"
   page,
 }) => {
   expect(await sweep(page, PHONES), "controls a finger cannot use").toBe("");
+});
+
+/**
+ * Phones where the Audio error pill and Retry are drawn beside Play, the clock
+ * and the hear menu's chevron: 100% text on each phone, 150% text on the two
+ * narrow ones, and 200% text on the widest only. A 360 or 390 px phone at 200%
+ * text folds to Play, the clock and the chevron, and Retry is in the expanded
+ * Player (tap the time).
+ */
+const RETRY_CELLS: readonly Cell[] = [
+  ...PHONES.filter((phone) => phone.rootPx === 16),
+  { name: "phone 360, 150% text", width: 360, height: 780, rootPx: 24 },
+  { name: "phone 390, 150% text", width: 390, height: 844, rootPx: 24 },
+  { name: "phone max 767, 200% text", width: 767, height: 1000, rootPx: 32 },
+];
+
+test("phone shells keep the Audio error pill and Retry a finger can use at 360, 390 and 767 wide at 100% text, at 360 and 390 at 150% text and at 767 at 200% text", async ({
+  page,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    // The fixture has clips and no mix, so a premix file that cannot be played
+    // is what the audio element fails to load: the Player's real error state.
+    const artifacts = path.join(path.dirname(projectPath), "artifacts");
+    fs.mkdirSync(artifacts, { recursive: true });
+    fs.writeFileSync(path.join(artifacts, "premix.wav"), "not audio");
+    const reports: string[] = [];
+    for (const cell of RETRY_CELLS) {
+      await arrive(page, cell, (p) => openHostShare(p, projectPath));
+      await expect(page.locator(".sys-pill--danger")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+      await settle(page);
+      const failures = await reachFailures(page, {
+        scope: ".stage-frame-player",
+        dense: DENSE,
+        sizeExempt: SIZE_EXEMPT,
+      });
+      if (failures.length > 0) {
+        reports.push(`${cell.name}\n${describeReach(failures)}`);
+      }
+    }
+    expect(reports.join("\n\n"), "controls a finger cannot use").toBe("");
+  });
 });
 
 test("loaded tablet Player stays reachable at 200% text", async ({ page }) => {

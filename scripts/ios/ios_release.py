@@ -24,13 +24,15 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from scripts.ios import bundle_checks as checks
-from scripts.ios import private_paths
+from scripts.ios import private_paths, provisioning
 from scripts.ios.build_payload import PayloadError, rustup_toolchain_bin
 from scripts.ios.release_classify import Failure
 from scripts.ios.release_deliver import plan_deliver
 from scripts.ios.release_inputs import (
     KEY_SECRETS,
     TEAM_SECRETS,
+    AscKey,
+    BuildInputs,
     Checkout,
     InputError,
     InputProblem,
@@ -57,7 +59,7 @@ from scripts.ios.release_record import (
     recorded_numbers,
 )
 from scripts.ios.release_run import capture, spawn
-from scripts.ios.release_secrets import Redactor
+from scripts.ios.release_secrets import Redactor, Secret
 
 IOS_TARGET = "aarch64-apple-ios"
 
@@ -138,14 +140,32 @@ def toolchain() -> tuple[str, InputProblem | None]:
         return os.environ.get("PATH", ""), InputProblem("rust toolchain", "rustup", str(error))
 
 
+def key_secrets(key: AscKey | None) -> list[Secret]:
+    return [key.key_id, key.issuer, key.key_path] if key is not None else []
+
+
+def build_redactor(inputs: BuildInputs, root: Path) -> Redactor:
+    team = [inputs.team] if inputs.team is not None else []
+    profile = [inputs.provisioning.profile] if inputs.provisioning is not None else []
+    return Redactor([*team, *profile, *key_secrets(inputs.key)], machine_directories(root))
+
+
+def installed_profiles(signing: Signing) -> tuple[list[provisioning.ProfileFacts], int]:
+    """Only a signed build looks; the rehearsal never does."""
+    if signing is not Signing.APP_STORE:
+        return [], 0
+    return provisioning.discover([Path.home() / name for name in provisioning.PROFILE_DIRECTORIES])
+
+
 def build(session: Session, unsigned: bool) -> int:
     layout = session.layout
     signing = Signing.NONE if unsigned else Signing.APP_STORE
-    needs = TEAM_SECRETS if signing is Signing.APP_STORE else ()
+    needs = (*TEAM_SECRETS, *KEY_SECRETS) if signing is Signing.APP_STORE else ()
     values, file_problems = private_values(os.environ, layout.root, Path.home(), needs)
     path, toolchain_problem = toolchain()
     commit, dirty = git_state(layout.root)
     version, _ = marketing_version(layout.root)
+    profiles, unreadable_profiles = installed_profiles(signing)
     inputs = resolve_build_inputs(
         environ=os.environ,
         values=values,
@@ -156,9 +176,10 @@ def build(session: Session, unsigned: bool) -> int:
         checkout=Checkout(commit, dirty),
         recorded=recorded_numbers(layout.release_root, version or ""),
         toolchain_problem=toolchain_problem,
+        profiles=profiles,
+        unreadable_profiles=unreadable_profiles,
     )
-    if inputs.team is not None:
-        session.redactor = Redactor([inputs.team], machine_directories(layout.root))
+    session.redactor = build_redactor(inputs, layout.root)
     steps = plan_build(inputs, layout, os.environ, path)
     session.say(
         f"ios_release build {inputs.marketing_version} ({inputs.build_number}) "
@@ -219,9 +240,7 @@ def deliver(
     version, version_problems = marketing_version(layout.root)
     if key is None or identity is None or file_problems or problems or version_problems:
         raise InputError([*file_problems, *key_problems, *problems, *version_problems])
-    session.redactor = Redactor(
-        [key.key_id, key.issuer, key.key_path], machine_directories(layout.root)
-    )
+    session.redactor = Redactor(key_secrets(key), machine_directories(layout.root))
     path, _ = toolchain()
     expect = checks.PlistExpectation(
         identity.bundle_identifier, identity.name, version or "", record.build_number

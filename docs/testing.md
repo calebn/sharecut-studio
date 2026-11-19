@@ -816,23 +816,11 @@ the `changes` job did not succeed. `fail-fast: true` cancels the other suites
 once one fails, because a rerun repeats the whole set anyway. Local wrappers
 still run sequentially within one checkout.
 
-CI uploads one `playwright-reports-<name>` artifact per matrix job
-(`playwright-reports-main-1of4` ... `playwright-reports-main-4of4` and
-`playwright-reports-compat-chromium` and `playwright-reports-compat-webkit`, or
-`playwright-reports-main-smoke` on a PR) on successful and failed runs. Each holds
-`<name>.json` with per-test durations, retries and errors. The matrix sets
-`PLAYWRIGHT_JSON_OUTPUT_FILE` for each job. Download them all with
-`gh run download <run-id> --pattern 'playwright-reports-*'` and sum durations
-per spec file across the shard reports. Compare successful runs at the same
-test scope, and separate browser execution from dependency install and
-server/build setup. A local timing run can use
-`PLAYWRIGHT_JSON_OUTPUT_FILE=/tmp/main.json npm run test:e2e -- --reporter=json`,
-and `npm run test:e2e -- --shard=2/4` reproduces one CI shard.
-Playwright uploads native `trace.zip` and `error-context.md` files as separate
-`playwright-test-results-<name>` artifacts whenever either file exists. This
-also retains diagnostics from a failed attempt when a retry passes. The upload
-keeps the matrix suffix and seven-day retention. It excludes Playwright run
-metadata from clean jobs.
+### Browser result publication
+
+CI publishes bounded browser results while raw diagnostics stay on the runner.
+See [Browser result publication](testing-ci.md#browser-result-publication) for the
+retained fields, failure gates, and private-review limits.
 
 ## What to test where
 
@@ -1067,8 +1055,8 @@ size; nothing is added.
   across layers, but layers below views may not import them. The import reader is
   `test/importGraph.ts`.
 - `state/setProjectGovernance.test.ts` allows `setProject(` calls only in
-  `document/` and `state/projectSlice.ts`. Two calls in two other files are
-  allowlisted by file and call count.
+  `document/` and `state/projectSlice.ts`; its allowlist is empty, so no other
+  file may call it.
 - `state/readmeRuleGovernance.test.ts` checks the three rules in
   `gui/web/README.md`. Files outside `api/` import the `api.ts` facade, not
   an `api/*` adapter (26 allowlisted file and adapter pairs in 24 files).

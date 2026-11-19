@@ -1,7 +1,7 @@
 import type { PointerKind } from "../state/types";
 import type { PersonData } from "./Person";
 import type { RoomPhase } from "./roomPhase";
-import type { RoomRole } from "./roomViewModel";
+import { lookingInLine, type RoomRole } from "./roomViewModel";
 import type { StatusRowState } from "./StatusRow";
 
 /** Where the microphone is, from the first look to a working input. */
@@ -71,10 +71,17 @@ export type JoinRow = {
 
 export type JoinNote = { tone: "warning"; text: string };
 
+/** `required`: headphones must be on to join. `choice`: either answer joins. */
+export type HeadphonesRule = "required" | "choice";
+
+/** What the guest said about headphones; `unset` until they press. */
+export type HeadphonesChoice = "unset" | "on" | "off";
+
 type JoinGuestInput = {
   name: string;
   mic: JoinMic;
-  headphones: boolean;
+  headphones: HeadphonesChoice;
+  headphonesRule: HeadphonesRule;
   /** The device is short on space. */
   lowStorage?: boolean;
   /** Lines the caller adds to the mic row, such as a missing saved input. */
@@ -96,6 +103,7 @@ export type JoinGuestModel = {
   rows: JoinRow[];
   /** The mic row's lines under the meter: the caller's, too loud, low space. */
   micNotes: JoinNote[];
+  headphonesNote: JoinNote | null;
   /** The first row still to do, so a ready sheet has none. */
   next: JoinStep | null;
   ready: boolean;
@@ -116,7 +124,14 @@ export const JOIN_TEXT = {
   producerSlow: "Still connecting to the room. Choose Not now to stop trying.",
   decline: "Not now",
   producerLine: "You'll listen and comment. You won't be recorded.",
+  producerSeen: "The room can see that someone is looking in.",
   headphones: "I'm wearing headphones",
+  notWearingHeadphones: "I'm not wearing headphones",
+  wearingShort: "Wearing",
+  notWearingShort: "Not wearing",
+  headphonesGroup: "Wearing headphones",
+  noHeadphonesNote:
+    "Others may hear their own echo and be heard in your recording. Keep your volume low.",
   tooLoud: "Too loud. Move back a little.",
   defaultInput: "Default",
   inputLocked: "Can't change while a take is running.",
@@ -130,6 +145,9 @@ const REASON: Record<JoinStep, string> = {
   mic: "Allow your microphone first",
   headphones: "Put on headphones first",
 };
+
+export const HEADPHONES_CHOICE_REASON =
+  "Say if you're wearing headphones first";
 
 const MIC_REASON: Record<Exclude<JoinMic["status"], "ready">, string> = {
   idle: REASON.mic,
@@ -166,13 +184,20 @@ export function joinHeadline(here: { person: PersonData }[]): string {
 /** "Rosa is listening and won't be recorded", for the Details disclosure. */
 export function listenersLine(
   here: { person: PersonData; role: RoomRole }[],
+  lookingIn = 0,
 ): string | null {
   const names = here
     .filter((entry) => entry.role === "producer")
     .map((entry) => firstName(entry.person.name))
     .filter((name) => name !== "");
-  if (names.length === 0) return null;
-  return `${nameList(names)} ${names.length === 1 ? "is" : "are"} listening and won't be recorded`;
+  const listening =
+    names.length === 0
+      ? null
+      : `${nameList(names)} ${names.length === 1 ? "is" : "are"} listening and won't be recorded`;
+  const looking = lookingInLine(lookingIn);
+  if (looking === null) return listening;
+  const cannotHear = `${looking}. They can see the room but can't hear it.`;
+  return listening === null ? cannotHear : `${listening}. ${cannotHear}`;
 }
 
 /** The host's first name, or "the host" when the room has not named one. */
@@ -290,12 +315,25 @@ function storageRow(blocker: JoinBlocker): JoinRow {
   };
 }
 
-export function headphonesRow(on: boolean): JoinRow {
+export function headphonesRow(
+  choice: HeadphonesChoice,
+  rule: HeadphonesRule,
+): JoinRow {
+  const answered = choice === "on" || (rule === "choice" && choice === "off");
   return {
     key: "headphones",
-    state: on ? "done" : "queued",
+    state: answered ? "done" : "queued",
     title: "Headphones",
   };
+}
+
+export function headphonesNoteFor(
+  choice: HeadphonesChoice,
+  rule: HeadphonesRule,
+): JoinNote | null {
+  return rule === "choice" && choice === "off"
+    ? { tone: "warning", text: JOIN_TEXT.noHeadphonesNote }
+    : null;
 }
 
 function primaryFor(
@@ -321,7 +359,7 @@ export function joinGuestModel(input: JoinGuestInput): JoinGuestModel {
     ...(input.blocker ? [storageRow(input.blocker)] : []),
     nameRow(input.name),
     micRow(input.mic),
-    headphonesRow(input.headphones),
+    headphonesRow(input.headphones, input.headphonesRule),
   ];
   const next = rows.find((row) => row.state !== "done")?.key ?? null;
   const reason =
@@ -337,7 +375,9 @@ export function joinGuestModel(input: JoinGuestInput): JoinGuestModel {
               input.mic.status === "ready" &&
               input.mic.switching
             ? JOIN_TEXT.switching
-            : REASON[next];
+            : next === "headphones" && input.headphonesRule === "choice"
+              ? HEADPHONES_CHOICE_REASON
+              : REASON[next];
   const micNotes = micNoteList(input.mic, input.micNotes);
   if (input.lowStorage) {
     micNotes.push({ tone: "warning", text: JOIN_TEXT.lowStorage });
@@ -345,6 +385,7 @@ export function joinGuestModel(input: JoinGuestInput): JoinGuestModel {
   return {
     rows,
     micNotes,
+    headphonesNote: headphonesNoteFor(input.headphones, input.headphonesRule),
     next,
     ready: next === null,
     primary: primaryFor(JOIN_TEXT.guestPrimary, reason, Boolean(input.joining)),

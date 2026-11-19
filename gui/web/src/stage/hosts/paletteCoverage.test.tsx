@@ -505,6 +505,12 @@ describe("palette coverage of the removed menus", () => {
     },
   );
 
+  it("lists view.followPlayhead on the Edit stage", () => {
+    useDawStore.setState({ stage: "edit" });
+    const rows = paletteCommands(buildCommandContext());
+    expect(rows.map((row) => row.id)).toContain("view.followPlayhead");
+  });
+
   it("covers a command once per surface at most", () => {
     const seen = new Set<string>();
     for (const e of REMOVED_SURFACES) {

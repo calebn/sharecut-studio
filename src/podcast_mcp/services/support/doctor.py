@@ -25,6 +25,9 @@ from podcast_mcp.engines.models.word_aligner import (
 from podcast_mcp.engines.whisper_device import describe_placement
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import (
+    IN_PROCESS_FFMPEG,
+    IN_PROCESS_FFPROBE,
+    IN_PROCESS_NOT_LINKED,
     FFmpegPairResolutionError,
     resolve_ffmpeg_pair,
 )
@@ -321,6 +324,15 @@ def ffmpeg_probe_info() -> dict[str, Any]:
 
     try:
         pair = resolve_ffmpeg_pair()
+        if pair.is_in_process:
+            linked = pair.is_available()
+            info = {
+                "ok": linked,
+                "version": "in-process FFmpeg" if linked else IN_PROCESS_NOT_LINKED,
+                "path": IN_PROCESS_FFMPEG,
+                "source": "in_process",
+            }
+            return {"ffmpeg": info, "ffprobe": {**info, "path": IN_PROCESS_FFPROBE}}
         ffmpeg, ffprobe = pair.ffmpeg, pair.ffprobe
         engine = FFmpegEngine(ffmpeg, ffprobe)
         ok, ffmpeg_ver = engine.check_available()

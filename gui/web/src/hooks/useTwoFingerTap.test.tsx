@@ -151,9 +151,7 @@ describe("useTwoFingerTap", () => {
     rerender(<Harness />);
     twoFingerTap(getByTestId("tap-target"));
     await act(async () => {});
-    expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Undo failed: No project",
-    );
+    expect(useDawStore.getState().statusAnnouncement).toBe("No project");
 
     mockedExecute.mockRejectedValueOnce(new Error("network"));
     twoFingerTap(getByTestId("tap-target"));

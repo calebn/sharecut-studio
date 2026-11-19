@@ -7,6 +7,7 @@ from typing import Literal
 from podcast_mcp.models.episode import EpisodeProject
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import apply_editable_snapshot
+from podcast_mcp.project.history.author import current_history_author
 from podcast_mcp.project.store import (
     ProjectStore,
     history_index_path,
@@ -16,7 +17,7 @@ from podcast_mcp.project.store import (
     snapshots_equal,
 )
 from podcast_mcp.util.atomic_json import write_json_atomic, write_text_atomic
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.project_state import project_commit_lock
 
 EDITABLE_FIELDS: tuple[str, ...] = tuple(ProjectStateSnapshot.model_fields.keys())
@@ -25,8 +26,12 @@ EDITABLE_FIELDS: tuple[str, ...] = tuple(ProjectStateSnapshot.model_fields.keys(
 def apply_snapshot_to_project(
     project: EpisodeProject,
     snapshot: ProjectStateSnapshot,
+    *,
+    keep_review_versions: bool = False,
 ) -> None:
-    apply_editable_snapshot(project, snapshot.model_dump())
+    apply_editable_snapshot(
+        project, snapshot.model_dump(), keep_review_versions=keep_review_versions
+    )
 
 
 def write_snapshot(project: EpisodeProject, snapshot: ProjectStateSnapshot, entry_id: str) -> str:
@@ -130,20 +135,31 @@ class HistoryManager:
             )
 
     def apply_undo(
-        self, project: EpisodeProject, *, expected_head_id: str | None = None
+        self,
+        project: EpisodeProject,
+        *,
+        expected_head_id: str | None = None,
+        guest: str | None = None,
     ) -> HistoryStatus:
         """Step back one entry in memory and the history index; with ``expected_head_id``, only
-        while that entry is the head. Does not commit: ``ProjectWorkspace.undo`` or the caller does."""
+        while that entry is the head. A ``guest`` (their ``share:<id>``) may take back only a
+        step they wrote (``nothing_of_yours_to_undo``). Does not commit:
+        ``ProjectWorkspace.undo`` or the caller does."""
         with project_commit_lock(project):
-            return self._undo_locked(project, expected_head_id)
+            return self._undo_locked(project, expected_head_id, guest)
 
     def apply_redo(
-        self, project: EpisodeProject, *, expected_head_id: str | None = None
+        self,
+        project: EpisodeProject,
+        *,
+        expected_head_id: str | None = None,
+        guest: str | None = None,
     ) -> HistoryStatus:
         """Step forward one entry in memory and the history index; with ``expected_head_id``, only
-        while that entry is the head. Does not commit."""
+        while that entry is the head. A ``guest`` may bring back only a step they undid
+        (``nothing_of_yours_to_redo``). Does not commit."""
         with project_commit_lock(project):
-            return self._redo_locked(project, expected_head_id)
+            return self._redo_locked(project, expected_head_id, guest)
 
     def apply_goto(self, project: EpisodeProject, index: int) -> HistoryStatus:
         """Move the cursor to ``index`` in memory and the history index. Does not commit."""
@@ -179,6 +195,7 @@ class HistoryManager:
             snapshot_file=rel,
             operation=operation,
             params=params,
+            author=current_history_author(),
         )
 
         if history.cursor < len(history.entries) - 1:
@@ -190,28 +207,43 @@ class HistoryManager:
         self._save_index(project)
         return entry
 
-    def _undo_locked(self, project: EpisodeProject, expected_head_id: str | None) -> HistoryStatus:
+    def _undo_locked(
+        self, project: EpisodeProject, expected_head_id: str | None, guest: str | None
+    ) -> HistoryStatus:
         history = self._load_index(project)
         if not _behind_render_only(history, expected_head_id):
             _require_head(history, "undo", expected_head_id)
-        history.cursor = history.undo_origin()
-        if not history.can_undo():
-            raise ValueError("Nothing to undo")
-        history.cursor -= 1
+        origin = history.undo_origin()
+        if origin <= 0:
+            raise CodedValueError("Nothing to undo", code="nothing_to_undo")
+        taken_back = history.entries[origin]
+        if guest is not None and taken_back.author != guest:
+            raise CodedValueError("Nothing of yours to undo", code="nothing_of_yours_to_undo")
+        taken_back.undone_by = guest or current_history_author()
+        history.cursor = origin - 1
         entry = history.entries[history.cursor]
-        apply_snapshot_to_project(project, self._read_snapshot(project, entry))
+        apply_snapshot_to_project(
+            project, self._read_snapshot(project, entry), keep_review_versions=True
+        )
         project.history = history
         self._save_index(project)
         return self.status(project)
 
-    def _redo_locked(self, project: EpisodeProject, expected_head_id: str | None) -> HistoryStatus:
+    def _redo_locked(
+        self, project: EpisodeProject, expected_head_id: str | None, guest: str | None
+    ) -> HistoryStatus:
         history = self._load_index(project)
         _require_head(history, "redo", expected_head_id)
         if not history.can_redo():
-            raise ValueError("Nothing to redo")
+            raise CodedValueError("Nothing to redo", code="nothing_to_redo")
+        target = history.redo_target()
+        if guest is not None and (target is None or target.undone_by != guest):
+            raise CodedValueError("Nothing of yours to redo", code="nothing_of_yours_to_redo")
         history.cursor += 1
         entry = history.entries[history.cursor]
-        apply_snapshot_to_project(project, self._read_snapshot(project, entry))
+        apply_snapshot_to_project(
+            project, self._read_snapshot(project, entry), keep_review_versions=True
+        )
         project.history = history
         self._save_index(project)
         return self.status(project)
@@ -222,10 +254,23 @@ class HistoryManager:
             raise ValueError(f"History index out of range: {index}")
         history.cursor = index
         entry = history.entries[history.cursor]
-        apply_snapshot_to_project(project, self._read_snapshot(project, entry))
+        apply_snapshot_to_project(
+            project, self._read_snapshot(project, entry), keep_review_versions=True
+        )
         project.history = history
         self._save_index(project)
         return self.status(project)
+
+    def entry_moved(
+        self, project: EpisodeProject, action: Literal["undo", "redo", "goto"]
+    ) -> HistoryEntry | None:
+        """The entry the next ``action`` takes back or brings back; a goto names none."""
+        history = self._load_index(project)
+        if action == "undo":
+            return history.undo_target()
+        if action == "redo" and history.can_redo():
+            return history.entries[history.cursor + 1]
+        return None
 
     def tip_entry_index(self, project: EpisodeProject, operation: str) -> int | None:
         """Index of the newest ``operation`` entry when the cursor sits at the tip and only

@@ -9,8 +9,12 @@ import {
   type DeviceTone,
   deviceSheetModel,
 } from "./deviceSheetModel";
-import { HeadphonesToggle } from "./HeadphonesToggle";
-import type { JoinMicAction } from "./joinSheetModel";
+import { HeadphonesControl } from "./HeadphonesControl";
+import type {
+  HeadphonesChoice,
+  HeadphonesRule,
+  JoinMicAction,
+} from "./joinSheetModel";
 import { MicRow } from "./MicRow";
 import { OutputRow } from "./OutputRow";
 import { Sheet } from "./Sheet";
@@ -27,9 +31,10 @@ export type DeviceSheetProps = {
   onMicAction?: (action: JoinMicAction) => void;
   /** The input picked in the mic row; `mic.devices` fills the list. */
   onInputChange?: (inputId: string) => void;
-  headphones?: boolean;
-  /** Absent for a seat that has no headphone check, and the toggle is not drawn. */
-  onHeadphonesChange?: (on: boolean) => void;
+  headphones?: HeadphonesChoice;
+  headphonesRule?: HeadphonesRule;
+  /** Absent for a seat that has no headphone check, and the control is not drawn. */
+  onHeadphonesChange?: (choice: HeadphonesChoice) => void;
   /** Absent, or `supported` false, and the speaker row is not drawn. */
   output?: DeviceOutput;
   onOutputChange?: (outputId: string) => void;
@@ -46,7 +51,7 @@ export type DeviceSheetProps = {
 
 /**
  * Change the microphone from inside the room: input menu, level meter with a
- * clip tick, the headphone toggle, a speaker menu where the browser can route
+ * clip tick, the headphones control, a speaker menu where the browser can route
  * audio, and a one-minute room tone for someone who joined after the
  * countdown. Every control applies as it changes; there is no Apply.
  * Presentational: the caller owns the mic, the meter and the room tone.
@@ -57,7 +62,8 @@ export function DeviceSheet({
   micNotes,
   onMicAction,
   onInputChange,
-  headphones = false,
+  headphones = "unset",
+  headphonesRule = "required",
   onHeadphonesChange,
   output,
   onOutputChange,
@@ -73,6 +79,7 @@ export function DeviceSheet({
     mic,
     micNotes,
     headphones,
+    headphonesRule,
     tone,
     output,
   });
@@ -119,8 +126,10 @@ export function DeviceSheet({
         </SheetRow>
         {onHeadphonesChange ? (
           <SheetRow row={model.headphones}>
-            <HeadphonesToggle
-              pressed={headphones}
+            <HeadphonesControl
+              rule={headphonesRule}
+              choice={headphones}
+              note={model.headphonesNote}
               onChange={onHeadphonesChange}
             />
           </SheetRow>

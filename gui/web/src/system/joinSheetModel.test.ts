@@ -19,7 +19,8 @@ const ROSA = { name: "Rosa Diaz", colorIndex: 4 };
 const ready = {
   name: "Jon",
   mic: { status: "ready", input: "MacBook Mic", level: 0.3 },
-  headphones: true,
+  headphones: "on",
+  headphonesRule: "required",
 } as const;
 
 describe("joinHeadline", () => {
@@ -63,6 +64,31 @@ describe("listenersLine", () => {
   });
 });
 
+describe("listenersLine with people looking in", () => {
+  const here = [
+    { person: MAYA, role: "host" as const },
+    { person: ROSA, role: "producer" as const },
+  ];
+
+  it("is unchanged with nobody looking in", () => {
+    expect(listenersLine(here, 0)).toBe(
+      "Rosa is listening and won't be recorded",
+    );
+  });
+
+  it("adds the one who is looking in and says they cannot hear", () => {
+    expect(listenersLine(here, 1)).toBe(
+      "Rosa is listening and won't be recorded. Someone with the producer link is looking in. They can see the room but can't hear it.",
+    );
+  });
+
+  it("counts several, and stands alone with no listener", () => {
+    expect(listenersLine([{ person: MAYA, role: "host" }], 2)).toBe(
+      "2 people with the producer link are looking in. They can see the room but can't hear it.",
+    );
+  });
+});
+
 describe("consentLine", () => {
   it("names the host's project, or the host when unnamed", () => {
     expect(consentLine("Maya Okafor")).toContain("saves to Maya's project");
@@ -100,7 +126,8 @@ describe("joinGuestModel", () => {
     const model = joinGuestModel({
       name: "",
       mic: { status: "idle" },
-      headphones: false,
+      headphones: "off",
+      headphonesRule: "required",
     });
     expect(model.next).toBe("name");
     expect(model.primary.reason).toBe("Add your name first");
@@ -111,10 +138,10 @@ describe("joinGuestModel", () => {
       "Add your name first",
     );
     expect(
-      joinGuestModel({ ...ready, mic: { status: "idle" }, headphones: false })
+      joinGuestModel({ ...ready, mic: { status: "idle" }, headphones: "off" })
         .primary.reason,
     ).toBe("Allow your microphone first");
-    expect(joinGuestModel({ ...ready, headphones: false }).primary.reason).toBe(
+    expect(joinGuestModel({ ...ready, headphones: "off" }).primary.reason).toBe(
       "Put on headphones first",
     );
   });
@@ -242,7 +269,8 @@ describe("joinGuestModel blocker and notes", () => {
     const model = joinGuestModel({
       name: "",
       mic: { status: "idle" },
-      headphones: false,
+      headphones: "off",
+      headphonesRule: "required",
       blocker: { text: "Storage is off.", action: { label: "Retry" } },
     });
     expect(model.rows.map((row) => row.key)).toEqual([
@@ -310,7 +338,8 @@ describe("joinGuestModel while the input switches", () => {
   it("holds Join until the picked input opens", () => {
     const model = joinGuestModel({
       name: "Maya",
-      headphones: true,
+      headphones: "on",
+      headphonesRule: "required",
       mic: { status: "ready", input: "Headset", level: 0, switching: true },
     });
     expect(model.ready).toBe(false);
@@ -358,4 +387,61 @@ describe("micRow while the browser asks", () => {
       },
     });
   });
+});
+
+describe("joinGuestModel headphones rule", () => {
+  const base = {
+    name: "Jon",
+    mic: { status: "ready", input: "MacBook Mic", level: 0.3 },
+  } as const;
+
+  it("asks a phone guest to answer before Join, with no note", () => {
+    const model = joinGuestModel({
+      ...base,
+      headphones: "unset",
+      headphonesRule: "choice",
+    });
+    expect(model.next).toBe("headphones");
+    expect(model.ready).toBe(false);
+    expect(model.primary.reason).toBe("Say if you're wearing headphones first");
+    expect(model.headphonesNote).toBeNull();
+  });
+
+  it("lets a phone guest join without headphones and says what that costs", () => {
+    const model = joinGuestModel({
+      ...base,
+      headphones: "off",
+      headphonesRule: "choice",
+    });
+    expect(model.ready).toBe(true);
+    expect(model.next).toBeNull();
+    expect(model.headphonesNote).toEqual({
+      tone: "warning",
+      text: "Others may hear their own echo and be heard in your recording. Keep your volume low.",
+    });
+  });
+
+  it("gives a phone guest wearing headphones no note", () => {
+    const model = joinGuestModel({
+      ...base,
+      headphones: "on",
+      headphonesRule: "choice",
+    });
+    expect(model.ready).toBe(true);
+    expect(model.headphonesNote).toBeNull();
+  });
+
+  it.each(["unset", "off"] as const)(
+    "keeps the gate on a laptop that says %s",
+    (headphones) => {
+      const model = joinGuestModel({
+        ...base,
+        headphones,
+        headphonesRule: "required",
+      });
+      expect(model.ready).toBe(false);
+      expect(model.primary.reason).toBe("Put on headphones first");
+      expect(model.headphonesNote).toBeNull();
+    },
+  );
 });

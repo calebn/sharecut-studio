@@ -14,6 +14,7 @@ from typing import Any
 from podcast_mcp.util.registry_backup_posix import Identity
 from podcast_mcp.util.registry_cleanup import cleanup
 from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError, RegistryPrivacyReason
+from podcast_mcp.util.sqlite_wal import retry_access_denied
 
 logger = logging.getLogger(__name__)
 
@@ -429,7 +430,9 @@ class _WindowsAPI:
             error = _native_ctypes.get_last_error()
             if error in (2, 3):
                 raise FileNotFoundError(error, "registry file is absent", str(path))
-            raise _native_ctypes.WinError(error)
+            failure = _native_ctypes.WinError(error)
+            failure.add_note(f"opening registry file {path}")
+            raise failure
         return handle
 
 
@@ -558,7 +561,7 @@ def registry_scope(
     handles = _open_chain(api, path, create=create)
     allow_missing_main = create
 
-    def verify() -> None:
+    def check() -> None:
         _verify_chain(api, path, handles)
         for name in names:
             child = path / name
@@ -572,6 +575,9 @@ def registry_scope(
                 api.verify_handle(handle, private=True, directory=False, path=child)
             finally:
                 cleanup([partial(api.close, handle)])
+
+    def verify() -> None:
+        retry_access_denied(check)
 
     try:
         verify()

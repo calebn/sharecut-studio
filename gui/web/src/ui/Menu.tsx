@@ -29,6 +29,22 @@ function pressedOnScrollbar(panel: HTMLElement, event: MouseEvent): boolean {
   );
 }
 
+/**
+ * Where the panel is placed from: the trigger's box, or, when the trigger has
+ * none a person can see (hidden, or visually hidden to 1 px), the box of the
+ * nearest ancestor that has one, so a menu opened by another gesture still
+ * opens beside what the person was using.
+ */
+function anchorBox(trigger: HTMLElement): DOMRect {
+  const own = trigger.getBoundingClientRect();
+  if (own.width > 2 && own.height > 2) return own;
+  for (let el = trigger.parentElement; el; el = el.parentElement) {
+    const box = el.getBoundingClientRect();
+    if (box.width > 2 && box.height > 2) return box;
+  }
+  return own;
+}
+
 function layoutOpenMenuPanel(trigger: HTMLElement, panel: HTMLElement): void {
   if (panel.dataset.menuMode === "fallback") {
     const rowSize = getComputedStyle(trigger).getPropertyValue(
@@ -46,16 +62,11 @@ function layoutOpenMenuPanel(trigger: HTMLElement, panel: HTMLElement): void {
     width: panel.offsetWidth,
     height: panel.scrollHeight + panel.offsetHeight - panel.clientHeight,
   };
-  const placed = placeAnchored(
-    trigger.getBoundingClientRect(),
-    natural,
-    viewport,
-    {
-      margin: tokenPx(panel, "--menu-edge-margin"),
-      gap: tokenPx(panel, "--menu-anchor-gap"),
-      align: "end",
-    },
-  );
+  const placed = placeAnchored(anchorBox(trigger), natural, viewport, {
+    margin: tokenPx(panel, "--menu-edge-margin"),
+    gap: tokenPx(panel, "--menu-anchor-gap"),
+    align: "end",
+  });
   const rootPx =
     Number.parseFloat(
       getComputedStyle(ownerDocument.documentElement).fontSize,

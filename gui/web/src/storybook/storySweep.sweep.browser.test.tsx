@@ -3,7 +3,6 @@ import axe from "axe-core";
 import { storyNameFromExport } from "storybook/internal/csf";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
-import { STORYBOOK_ONLY } from "./storybookOnlyStories";
 
 const PHONE = 360;
 const WIDE = 1280;
@@ -216,7 +215,7 @@ for (const theme of THEMES) {
   describe(`stories in ${theme}`, () => {
     for (const [index, base] of stories.entries()) {
       if (!inShard(index)) continue;
-      if (STORYBOOK_ONLY.includes(base.id)) continue;
+      if (base.tags.includes("storybook-only")) continue;
       it(`${base.title} / ${base.storyName}`, async () => {
         const errors: string[] = [];
         const onError = (event: ErrorEvent) => errors.push(event.message);

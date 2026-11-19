@@ -20,6 +20,7 @@ import { DeviceSheet } from "../system/DeviceSheet";
 import { JoinSheet } from "../system/JoinSheet";
 import type { JoinMicAction } from "../system/joinSheetModel";
 import { RoomView } from "../system/RoomView";
+import { lookingInCount } from "../system/roomViewModel";
 import { SKELETON_RETRY_MS } from "../system/Skeleton";
 import { TakesTray } from "../system/TakesTray";
 import { dbToFraction } from "../ui/metering";
@@ -33,13 +34,16 @@ import {
   guestRoomPhase,
   guestTakes,
   guestViewerWidth,
+  hostGoneMidTake,
   joinHere,
   joinMic,
   ownSaving,
   tookPart,
+  uploadAcknowledged,
   uploadInFlight,
 } from "./guestRoomModel";
 import { guestTabTitle } from "./guestTabTitle";
+import { headphonesRule, readHeadphonesEnv } from "./headphonesRule";
 import {
   COMMENTS_CLOSED_REASON,
   COMMENTS_NOT_IN_ROOM_REASON,
@@ -63,6 +67,7 @@ import {
 } from "./types";
 import { useGuestRoom } from "./useGuestRoom";
 import { useGuestRoomTone } from "./useGuestRoomTone";
+import { useHostGoneWait } from "./useHostGoneWait";
 import { useInputPeakDb } from "./useInputPeakDb";
 import { useLateRoomTone } from "./useLateRoomTone";
 import { useMutedSpeech } from "./useMutedSpeech";
@@ -121,8 +126,8 @@ function GuestRoomSession({
 }) {
   const [rejoinOpen, setRejoinOpen] = useState(false);
   const [joining, setJoining] = useState(false);
-  const [producerDismissed, setProducerDismissed] = useState(false);
   const [deviceOpen, setDeviceOpen] = useState(false);
+  const [headphonesGate] = useState(() => headphonesRule(readHeadphonesEnv()));
   const room = useGuestRoom(token, { rejoining: rejoinOpen });
   const {
     bootstrap,
@@ -153,12 +158,16 @@ function GuestRoomSession({
     name,
     setName,
     shareName,
-    headphonesOk,
-    setHeadphonesOk,
+    headphones,
+    setHeadphones,
     deviceId,
     setDeviceId,
     producerJoined,
     setProducerJoined,
+    producerDismissed,
+    setProducerDismissed,
+    socketMode,
+    counted,
     resumeUpload,
   } = room;
 
@@ -278,6 +287,7 @@ function GuestRoomSession({
   const join = () => {
     meterRef.current.resume();
     if (producer) {
+      clearError();
       setProducerJoined(true);
       return;
     }
@@ -336,7 +346,12 @@ function GuestRoomSession({
       keeperError: keeper.error,
       micLost: micNeedsAttention,
       sinkError: sheetOpen || producer ? null : sinkError,
-      uploadError: producer || recoverable ? null : upload.error,
+      uploadError:
+        producer ||
+        recoverable ||
+        uploadAcknowledged(upload, room.localSegments)
+          ? null
+          : upload.error,
       savingUnverified:
         !producer &&
         state === "stopped" &&
@@ -384,13 +399,19 @@ function GuestRoomSession({
   }
 
   const meId = me?.participant_id;
+  const watchers = lookingInCount(snapshot?.watchers);
+  const ownLook = producerOutside && watchers > 0 ? 1 : 0;
+  const lookingIn = watchers - ownLook;
+  const seenByRoom =
+    producer && socketMode === "watch" && connected && counted && ownLook > 0;
   const people = roomPeople(snapshot, {
-    youId: meId,
+    youId: meId ?? null,
     youLevel: level,
     youSpeaking: level > SPEAKING_FRACTION && !me?.muted,
     dropped: !connected,
     clipped,
     peerLevels: monitor.levels,
+    seesHeadphones: producer,
     saving:
       meId && state === "stopped" && !producer
         ? {
@@ -398,6 +419,10 @@ function GuestRoomSession({
           }
         : undefined,
   });
+
+  const hostGoneLong = useHostGoneWait(
+    !producer && hostGoneMidTake(people, phase, connected),
+  );
 
   const cover = guestCoverProps(room, { onRetry, phase });
   useDocumentTitle(
@@ -427,6 +452,7 @@ function GuestRoomSession({
   if (!bootstrap) {
     return (
       <RoomView
+        lookingIn={0}
         loading
         focusTitle={retried}
         page
@@ -480,6 +506,7 @@ function GuestRoomSession({
         seat={producer ? "producer" : "guest"}
         title={episodeName || "Recording"}
         people={people}
+        lookingIn={lookingIn}
         phase={phase}
         viewerWidth={viewerWidth}
         alerts={alerts}
@@ -502,10 +529,16 @@ function GuestRoomSession({
         }
         onComment={liveComments.postMarker}
         device={{
+          hostGoneLong,
           uploading: uploadInFlight(
             producer ? null : upload,
             room.localSegments,
           ),
+          verifying:
+            !producer &&
+            upload.fileAck &&
+            room.localSegments === null &&
+            !room.localUnreadable,
           finishing: !room.captureSettled,
           capturingTone: roomTone.status === "capturing",
         }}
@@ -528,12 +561,15 @@ function GuestRoomSession({
           seat={producer ? "producer" : "guest"}
           here={joinHere(snapshot, me)}
           host={host}
+          lookingIn={lookingIn}
+          seenByRoom={seenByRoom}
           name={name}
           onNameChange={setName}
           mic={joinMic(sheetMic.input, sheetMic.options)}
           micNotes={micNotes}
-          headphones={headphonesOk}
-          onHeadphonesChange={setHeadphonesOk}
+          headphones={headphones}
+          headphonesRule={headphonesGate}
+          onHeadphonesChange={setHeadphones}
           lowStorage={headroom.status === "low"}
           blocker={storageBlocker}
           onBlockerAction={retryStorage}
@@ -556,8 +592,9 @@ function GuestRoomSession({
           micNotes={micNotes}
           onMicAction={micAction}
           onInputChange={setDeviceId}
-          headphones={headphonesOk}
-          onHeadphonesChange={setHeadphonesOk}
+          headphones={headphones}
+          headphonesRule={headphonesGate}
+          onHeadphonesChange={setHeadphones}
           output={output}
           onOutputChange={output.onChange}
           onOutputRefresh={output.refresh}
@@ -582,9 +619,11 @@ function GuestRoomSession({
         ) : null}
         {monitor.hearing && connected ? <p>{HEARING_COPY}</p> : null}
         {keeperActions.notice ? <p>{keeperActions.notice}</p> : null}
-        {announcement ? <p>{announcement}</p> : null}
+        {announcement.text ? (
+          <p key={`roster-${announcement.seq}`}>{announcement.text}</p>
+        ) : null}
         {toneAnnouncement ? (
-          <p key={toneAnnouncement.seq}>{toneAnnouncement.text}</p>
+          <p key={`tone-${toneAnnouncement.seq}`}>{toneAnnouncement.text}</p>
         ) : null}
       </div>
       <SaveAnnouncer lines={saveLines} />

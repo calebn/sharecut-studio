@@ -1,4 +1,7 @@
 import {
+  type HeadphonesChoice,
+  type HeadphonesRule,
+  headphonesNoteFor,
   headphonesRow,
   type JoinMic,
   type JoinNote,
@@ -80,6 +83,7 @@ export type DeviceSheetModel = {
   control: JoinMic;
   micNotes: JoinNote[];
   headphones: JoinRow;
+  headphonesNote: JoinNote | null;
   /** Null when the browser cannot pick a speaker: there is no row at all. */
   output: {
     row: Omit<JoinRow, "key">;
@@ -136,7 +140,8 @@ function outputOf(output?: DeviceOutput): DeviceSheetModel["output"] {
 export function deviceSheetModel(input: {
   mic: DeviceMic;
   micNotes?: string[];
-  headphones: boolean;
+  headphones: HeadphonesChoice;
+  headphonesRule: HeadphonesRule;
   tone: DeviceTone;
   output?: DeviceOutput;
 }): DeviceSheetModel {
@@ -147,7 +152,8 @@ export function deviceSheetModel(input: {
     mic: deviceMicRow(mic),
     control,
     micNotes: micNoteList(control, input.micNotes),
-    headphones: headphonesRow(input.headphones),
+    headphones: headphonesRow(input.headphones, input.headphonesRule),
+    headphonesNote: headphonesNoteFor(input.headphones, input.headphonesRule),
     output: outputOf(input.output),
     toneRow: {
       state: TONE_ROW[tone.state],

@@ -8,6 +8,7 @@ import {
   patchClipFade,
   patchClipGain,
   patchClipsMove,
+  patchPendingEdit,
   patchProjectName,
   patchTrackMeta,
   patchTrackMix,
@@ -24,6 +25,12 @@ type Draft =
       curves: ClipFadeCurves;
     }
   | { kind: "gain"; clipId: string; gainDb: number }
+  /**
+   * One saved bound of a pending edit, keyed per edge so a save of the other
+   * edge never replaces it. A save that sends no baseline (the overlay drag)
+   * holds both bounds.
+   */
+  | { kind: "pendingRange"; editId: string; start?: number; end?: number }
   /** A held control's local preview, a function of the latest project (not a copy of one). */
   | {
       kind: "preview";
@@ -148,6 +155,26 @@ export function beginDocumentDraft(
     typeof payload.name === "string"
   ) {
     entries.push(["project:name", { kind: "name", name: payload.name.trim() }]);
+  } else if (
+    type === DocumentCommand.UpdatePendingEdit &&
+    typeof payload.id === "string" &&
+    payload.snap === false &&
+    payload.track_ids == null
+  ) {
+    const expected = record(payload.expected);
+    const bounds: { start?: number; end?: number } = {};
+    for (const key of ["start", "end"] as const) {
+      const value = payload[key];
+      if (value === undefined || value === expected?.[key]) continue;
+      if (typeof value !== "number" || !Number.isFinite(value)) return;
+      bounds[key] = value;
+    }
+    for (const key of ["start", "end"] as const)
+      if (bounds[key] !== undefined)
+        entries.push([
+          `pendingRange:${payload.id}:${key}`,
+          { kind: "pendingRange", editId: payload.id, [key]: bounds[key] },
+        ]);
   } else if (typeof track === "string") {
     if (
       type === DocumentCommand.ReorderTrack &&
@@ -287,6 +314,14 @@ export function overlayDocumentDrafts(
         ...drafts.filter((d) => d.kind === "preview"),
       ]
     : drafts.filter((d) => d.kind !== "preview");
+  const ranges = new Map<string, { start?: number; end?: number }>();
+  for (const draft of ordered)
+    if (draft.kind === "pendingRange")
+      ranges.set(draft.editId, {
+        ...ranges.get(draft.editId),
+        ...(draft.start !== undefined ? { start: draft.start } : {}),
+        ...(draft.end !== undefined ? { end: draft.end } : {}),
+      });
   for (const draft of ordered) {
     switch (draft.kind) {
       case "move":
@@ -304,6 +339,19 @@ export function overlayDocumentDrafts(
       case "gain":
         result = patchClipGain(result, draft.clipId, draft.gainDb);
         break;
+      case "pendingRange": {
+        const range = ranges.get(draft.editId);
+        if (range) {
+          ranges.delete(draft.editId);
+          result = patchPendingEdit(
+            result,
+            draft.editId,
+            range.start,
+            range.end,
+          );
+        }
+        break;
+      }
       case "preview":
         result = draft.apply(result);
         break;

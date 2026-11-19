@@ -338,6 +338,7 @@ class EditService(CutMutatingService):
                     hold.edit_id,
                     refused.cuts.get(hold.edit_id) or self._edit_label(hold.edit_id),
                     refused.reason_for(hold),
+                    hold.reason,
                 )
                 for hold in refused.held
                 if hold.edit_id not in listed
@@ -360,7 +361,9 @@ class EditService(CutMutatingService):
         stale = set(unplayed_pending_ids(project, selected))
         if not selected or stale != selected:
             return False
-        held_out.extend(HeldEdit(i, self._edit_label(i), STALE_REASON) for i in sorted(stale))
+        held_out.extend(
+            HeldEdit(i, self._edit_label(i), STALE_REASON, "stale") for i in sorted(stale)
+        )
         return True
 
     def _edit_label(self, edit_id: str) -> str:

@@ -156,7 +156,8 @@ def test_completed_extraction_failure_keeps_safe_specific_or_generic_guidance(
     error = ScopeChangedAtApproval(holds, {})
     assert error.code == "cut_scope_changed"
     assert error.guest_message() == (
-        "This edit needs another review. Ask the host to review it in the editor before applying it."
+        "That edit was not applied because the edit would start or end inside a word or a breath, "
+        "and that could be heard. Nothing was changed."
     )
     assert "/private" not in str(error)
     assert "secret.wav" not in str(error)

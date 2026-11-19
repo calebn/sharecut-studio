@@ -72,6 +72,10 @@ function without<T>(set: ReadonlySet<T>, drop: readonly T[]) {
   return new Set([...set].filter((v) => !drop.includes(v)));
 }
 
+function speakerAfterRestore(s: ReviewSession, owner: string | undefined) {
+  return owner && s.speaker && owner !== s.speaker ? null : s.speaker;
+}
+
 function observe(s: ReviewSession, open: readonly ReviewEntry[]) {
   const openIds = new Set(open.map((e) => e.item.id));
   const hits = [...s.decided.values()];
@@ -87,7 +91,7 @@ function observe(s: ReviewSession, open: readonly ReviewEntry[]) {
     return {
       ...base,
       // A restored row from someone the filter hides ends the filter, so it is not selected out of sight.
-      speaker: owner && s.speaker && owner !== s.speaker ? null : s.speaker,
+      speaker: speakerAfterRestore(s, owner),
       selectedId: idOf(first),
       looksRight: without(s.looksRight, back.map(idOf)),
     };
@@ -145,10 +149,14 @@ export function reviewSession(
       const decided = new Map(s.decided);
       for (const id of hit) decided.delete(id);
       const follow = a.from === undefined || a.from === s.selectedId;
+      const owner = follow
+        ? s.decided.get(hit[0])?.entry.item.speaker?.id
+        : undefined;
       return {
         ...s,
         decided,
         selectedId: follow ? hit[0] : s.selectedId,
+        speaker: follow ? speakerAfterRestore(s, owner) : s.speaker,
         looksRight: without(s.looksRight, [...hit, ...hold]),
       };
     }

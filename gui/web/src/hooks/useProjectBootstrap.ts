@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import { loadDocumentState } from "../api/project";
+import { loadDocumentState, UnusableAnswerError } from "../api/project";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import {
   activateDocumentScope,
   isCurrentDocumentScope,
   resetDocumentAuthority,
 } from "../document/authorityState";
-import { useDawStore } from "../state/dawStore";
 import {
-  errorMessage,
-  isAbortError,
-  isServerTimeoutError,
-} from "../utils/apiError";
+  autoRetryMsOf,
+  classifyShellFailure,
+  type ShellFailure,
+} from "../shellLoadFailure";
+import { useDawStore } from "../state/dawStore";
+import { isAbortError, isServerTimeoutError } from "../utils/apiError";
+import { isShareProjectKey } from "../utils/can";
 
 interface BootstrapOwner {
   projectPath: string;
@@ -21,7 +23,7 @@ interface BootstrapOwner {
 
 interface BootstrapRead {
   owner: BootstrapOwner;
-  error: string | null;
+  failure: ShellFailure | null;
   retrying: boolean;
 }
 
@@ -43,34 +45,45 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
 /**
  * Fetch shell ProjectView then detail hydrate. Does not call store.hydrate()
  * (that clears waveform caches).
+ *
+ * A failure is kept as a closed `ShellFailure` chosen when it happens, never
+ * as text: what the server said cannot reach a screen through this hook. A
+ * guest's failure that promises a retry (asleep, offline, busy, rate-limited)
+ * is retried here, on the page's own clock; a host's never is.
  */
 export function useProjectBootstrap(
   projectPath: string,
   enabled = true,
 ): {
-  error: string | null;
-  /** Try again was pressed and the load has not settled yet. */
+  /** Why the load failed; it stays through a retry and clears when the load succeeds. */
+  failure: ShellFailure | null;
+  /** An attempt is in flight while a failure is showing: a press, the page's own retry, or the connection coming back. */
   retrying: boolean;
+  /** Which attempt this is, for `useBackOnline`. */
+  attempt: number;
+  /** Try again now: the cover's button, the loading screen's Retry, the connection back. */
   retry: () => void;
 } {
   const [read, setRead] = useState<BootstrapRead>(() => ({
     owner: { projectPath, enabled, attempt: 0 },
-    error: null,
+    failure: null,
     retrying: false,
   }));
   const { owner } = read;
   if (owner.projectPath !== projectPath || owner.enabled !== enabled) {
     setRead({
       owner: { projectPath, enabled, attempt: 0 },
-      error: null,
+      failure: null,
       retrying: false,
     });
   }
   const retry = useCallback(() => {
     setRead((current) => ({
+      ...current,
       owner: { ...current.owner, attempt: current.owner.attempt + 1 },
-      error: null,
-      retrying: true,
+      // The failure stays on screen through the press: a press from the
+      // loading screen, when nothing has failed, shows no failure at all.
+      retrying: current.failure !== null,
     }));
   }, []);
 
@@ -101,9 +114,15 @@ export function useProjectBootstrap(
             ac.signal,
           );
           if (cancelled || !isCurrentDocumentScope(scope)) return;
-          applyDocumentSnapshot(shell, { scope });
+          try {
+            applyDocumentSnapshot(shell, { scope });
+          } catch {
+            throw new UnusableAnswerError("The document could not be applied");
+          }
           setRead((current) =>
-            current.owner === owner ? { ...current, retrying: false } : current,
+            current.owner === owner
+              ? { ...current, failure: null, retrying: false }
+              : current,
           );
           return;
         } catch (e: unknown) {
@@ -123,12 +142,27 @@ export function useProjectBootstrap(
             }
             continue;
           }
+          const failure = classifyShellFailure(
+            e,
+            isShareProjectKey(projectPath) ? "guest" : "host",
+            navigator.onLine !== false,
+          );
           setRead((current) =>
             current.owner === owner
-              ? { ...current, retrying: false, error: errorMessage(e) }
+              ? { ...current, failure, retrying: false }
               : current,
           );
-          return;
+          const wait = autoRetryMsOf(failure);
+          if (wait === null) return;
+          try {
+            await delay(wait, ac.signal);
+          } catch {
+            return;
+          }
+          setRead((current) =>
+            current.owner === owner ? { ...current, retrying: true } : current,
+          );
+          continue;
         }
       }
     })();
@@ -138,5 +172,10 @@ export function useProjectBootstrap(
     };
   }, [owner]);
 
-  return { error: read.error, retrying: read.retrying, retry };
+  return {
+    failure: read.failure,
+    retrying: read.retrying,
+    attempt: owner.attempt,
+    retry,
+  };
 }

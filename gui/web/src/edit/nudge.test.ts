@@ -1,18 +1,22 @@
 import { describe, expect, it } from "vitest";
+import { patchPendingEdit } from "../document/projectPatch";
 import {
   clipRow,
   minimalProject,
   pendingEditView,
   sampleTrack,
 } from "../test/fixtures";
-import type { ProjectView } from "../types/project";
+import type { PendingEditView, ProjectView } from "../types/project";
 import { dbToLinear } from "../utils/audio";
 import {
   type NudgeField,
   nudgeAxis,
   nudgeStep,
+  previewsAsDraft,
   sameNudgeBase,
   withNudge,
+  withNudgeIfUnchanged,
+  withNudgeReverted,
 } from "./nudge";
 import { softBoundaries } from "./nudgeBoundaries";
 
@@ -413,5 +417,84 @@ describe("sameNudgeBase on a fade", () => {
         field,
       ),
     ).toBe(false);
+  });
+});
+
+describe("a pending edge as a draft preview", () => {
+  const retimed = (
+    id: string,
+    over: Partial<PendingEditView>,
+  ): ProjectView => ({
+    ...project,
+    pending_edits: project.pending_edits.map((e) =>
+      e.id === id ? { ...e, ...over } : e,
+    ),
+  });
+
+  it("previews as a draft, and trim still does not", () => {
+    expect(previewsAsDraft(pendingEnd)).toBe(true);
+    expect(previewsAsDraft(trimIn)).toBe(false);
+  });
+
+  it("has the same base until the edit's range or placement changes or the edit goes", () => {
+    expect(sameNudgeBase(project, project, pendingEnd)).toBe(true);
+    expect(
+      sameNudgeBase(retimed("p2", { source_end: 29 }), project, pendingEnd),
+    ).toBe(true);
+    for (const over of [
+      { source_start: 19 },
+      { source_end: 24 },
+      { source_start_timeline: 19 },
+      { source_end_timeline: 24 },
+      { timeline_start: 19 },
+      { timeline_end: 24 },
+    ])
+      expect(sameNudgeBase(retimed("p1", over), project, pendingEnd)).toBe(
+        false,
+      );
+    expect(
+      sameNudgeBase(
+        { ...project, pending_edits: [project.pending_edits[1]] },
+        project,
+        pendingEnd,
+      ),
+    ).toBe(false);
+  });
+
+  it("applies over an unchanged base and leaves a changed one as it is", () => {
+    expect(withNudgeIfUnchanged(project, project, pendingEnd, 24.1)).toEqual(
+      withNudge(project, pendingEnd, 24.1),
+    );
+    const peer = retimed("p1", { source_start: 19, source_start_timeline: 19 });
+    expect(withNudgeIfUnchanged(peer, project, pendingEnd, 24.1)).toBe(peer);
+  });
+
+  it("puts back only the nudged edge, keeping every other change", () => {
+    const moved = withNudge(project, pendingEnd, 24.05);
+    expect(withNudgeReverted(moved, project, pendingEnd)).toEqual(project);
+    const other = withNudge(moved, { ...pendingEnd, edge: "start" }, 20.5);
+    const back = withNudgeReverted(other, project, pendingEnd).pending_edits[0];
+    expect([back.source_start, back.source_end, back.timeline_spans]).toEqual([
+      20.5,
+      23.95,
+      [{ start: 20.5, end: 23.95 }],
+    ]);
+    const gone = { ...project, pending_edits: [project.pending_edits[1]] };
+    expect(withNudgeReverted(gone, project, pendingEnd)).toBe(gone);
+    expect(withNudgeReverted(moved, gone, pendingEnd)).toBe(moved);
+  });
+});
+
+describe("the pending preview and the saved-range patch agree", () => {
+  const start: NudgeField = { ...pendingEnd, edge: "start" };
+  it.each([
+    [pendingEnd, 24.05, undefined, 24.05],
+    [pendingEnd, 23.5, undefined, 23.5],
+    [start, 20.5, 20.5, undefined],
+    [start, 19.5, 19.5, undefined],
+  ])("%j at %d", (field, value, from, to) => {
+    expect(patchPendingEdit(project, "p1", from, to)).toEqual(
+      withNudge(project, field, value),
+    );
   });
 });

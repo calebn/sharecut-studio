@@ -457,14 +457,91 @@
   min-inline-size: 0;
 }
 
+/* The title is as wide as its own text, not as the sub line under it, so its box does not change when "Shared link" becomes the version label. Its line is the same height in every font, so the column keeps its height, and the name its place, before the web font has loaded. */
+.sys-header-guest > .sys-header-title {
+  align-self: flex-start;
+  max-inline-size: 100%;
+  line-height: 1.125rem;
+}
+
+/* The line under the name is one Status pill tall, with or without a role chip, a version pill or only "Loading…", so the two lines fit the bar. What in it is pressed grows its press area (below), not the line. */
 .sys-header-sub {
+  --press-target: var(--control-height);
+
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-inline-size: 0;
+  block-size: var(--pill-height);
   white-space: nowrap;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-ui);
+  line-height: 1rem;
+}
+
+@media (pointer: coarse) {
+  .sys-header-sub {
+    --press-target: var(--touch-min);
+  }
+}
+
+@container sys-app-header (max-width: 40rem) {
+  .sys-header-sub {
+    --press-target: var(--touch-min);
+  }
+}
+
+/* A small control in that line presses like a full-size one. Its press area reaches up over the name, which is not pressable, and at most a hairline down, never under the bar (the line ends at least a hairline above the bar's inner edge). The role button grows to both sides; the version buttons only toward the line's start, so they never reach the role button beside them. */
+.sys-role-trigger::after,
+.sys-version-pill::after,
+button.sys-version-line::after {
+  content: "";
+  position: absolute;
+  inset-block: calc(100% - var(--press-target) + 1px) -1px;
+}
+
+.sys-role-trigger::after {
+  inset-inline: min(0rem, calc((100% - var(--press-target)) / 2));
+}
+
+.sys-version-pill::after,
+button.sys-version-line::after {
+  inset-inline: min(0rem, calc(100% - var(--press-target))) 0;
+}
+
+.sys-role-hint {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* A press on the sentence closes the hint, so on touch the bubble is a press target at least 44 px tall: the X is taken out of the height sum by the margin that cancels the bubble's block padding, so the height is the taller of text plus padding and 44 px, and larger text keeps its padding above and below. The bubble sits closer to the bar so two lines end above the first line of text at the default size. */
+@media (pointer: coarse) {
+  .sys-role-hint .sys-coach-close {
+    margin-block: calc(-1 * var(--space-1));
+  }
+
+  .sys-role-hint .sys-coach-tip--below {
+    inset-block-start: calc(100% + var(--space-1));
+  }
+}
+
+.sys-role-trigger {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sys-role-trigger:hover .sys-role {
+  background: var(--color-hover);
+  color: var(--color-text-primary);
 }
 
 .sys-header-sub .sys-mono {
@@ -484,7 +561,6 @@
   align-items: center;
   min-inline-size: 0;
   max-inline-size: 100%;
-  overflow: hidden;
 }
 
 .sys-version-line {
@@ -494,7 +570,6 @@
   max-inline-size: 100%;
   gap: var(--space-1);
   min-inline-size: 0;
-  overflow: hidden;
   padding: 0;
   border: 0;
   background: none;
@@ -503,6 +578,8 @@
 }
 
 button.sys-version-line {
+  position: relative;
+  block-size: var(--pill-height);
   cursor: pointer;
 }
 
@@ -532,8 +609,9 @@ button.sys-version-line {
   align-items: center;
   max-inline-size: 100%;
   gap: var(--space-1);
+  position: relative;
   min-inline-size: 0;
-  block-size: var(--control-height-compact);
+  block-size: var(--pill-height);
   padding-inline: var(--space-3);
   border: 0;
   border-radius: var(--radius-xl);
@@ -560,18 +638,6 @@ button.sys-version-line {
 @container sys-app-header (max-width: 40rem) {
   .sys-version-pill-action {
     display: none;
-  }
-
-  .sys-version-pill,
-  button.sys-version-line {
-    min-block-size: 2.75rem;
-  }
-}
-
-@media (pointer: coarse) {
-  .sys-version-pill,
-  button.sys-version-line {
-    min-block-size: var(--touch-min);
   }
 }
 
@@ -681,6 +747,26 @@ button.sys-version-line {
 
   .sys-header-left .sys-save-count {
     display: inline;
+  }
+}
+
+/* What waits for data keeps its place from the first frame on a touch screen: the Listen strip is a touch target once it can seek, and the guest's own avatar joins the header's right side when presence answers. */
+@media (pointer: coarse) {
+  .sys-listen-dock-strip .sys-overview {
+    min-block-size: var(--touch-min);
+  }
+
+  .sys-app-header:has(.sys-header-guest) .sys-header-people-slot {
+    min-inline-size: var(--touch-min);
+  }
+}
+
+/* The loading screen's header has no Stage bar, and `data-shell` does not exist
+   while a guest loads, so the rule above that lets a narrow desktop window grow
+   the bar would apply. It is as tall here as the studio's guest bar on a phone. */
+@container sys-app-header (max-width: 40rem) {
+  .sys-app-header-host .sys-app-header.sys-app-header--loading {
+    block-size: var(--app-header-height-phone);
   }
 }
 
@@ -951,10 +1037,9 @@ button.sys-version-line {
   pointer-events: none;
 }
 
-/* At 40 rem and under the Player drops the skip buttons (design system 2,
-   Frame 4) and the "/ total" (the button's name still carries it). Each Status
-   pill is its glyph, text kept for assistive tech (also up to 50 rem, below).
-   Touch targets are sized for a phone. */
+/* At 40 rem and under the Player is one row: the skip buttons and the "/ total"
+   go (the button's name still carries it) and each Status pill is its glyph,
+   text kept for assistive tech. Touch targets are sized for a phone. */
 @container sys-player (max-width: 40rem) {
   .sys-player {
     grid-template-columns: auto 1fr auto;
@@ -1021,17 +1106,13 @@ button.sys-version-line {
   }
 }
 
-/* Under 50 rem the Status pill is its glyph and the text stays for assistive
-   tech: the right-hand controls and the pill's text do not fit the side column
-   of a wide phone. Between 40 and 50 rem the skip buttons are still shown, and
-   the A and B toggles slid under them; at 40 rem and under the rule above
-   already hides the skip buttons and this rule repeats the glyph-only pill. */
 @container sys-player (max-width: 50rem) {
-  /* During an audio error the Comment button gives its room (the status text
-     already has, under 60 rem) to the error pill and Retry: with all of them,
-     the right-hand controls outgrow the side column and slide under Play. The
-     A and B toggles stay, since switching what you hear can clear the error. */
-  .sys-player-host[data-state="error"] .sys-player-right > .sys-icon-btn {
+  /* In an Audio error a host's Comment gives its room to the error pill and
+     Retry, which otherwise outgrow the side column and slide under Play. A guest
+     has no A or B and may comment, so its Comment stays. */
+  .sys-player-host[data-state="error"]
+    .sys-player-right
+    > .sys-icon-btn:not(.sys-player-comment--guest) {
     display: none;
   }
 
@@ -1056,6 +1137,171 @@ button.sys-version-line {
   }
 }
 
+/* useBarFit steps `data-fit` up from 0 until the bar fits, and each level gives
+   up one more thing: 1 the 40 rem layout (the "/ total" goes), 2 the Following
+   detail, 3 the Status pills' text, 4 the skip buttons, 5 the cuts, 6 the hear
+   chevron (above 22 rem outside a short frame, where A and B open the same
+   menu), 7 the other pills, the rate and the status, 8 Comment, Retry and the
+   Audio error pill. Pills are hidden visually and keep their names; the skip
+   buttons, Stop following, Comment and Retry are `display: none`, so they take no
+   focus. The hear chevron is the exception: at levels 6 to 8 above 22 rem
+   outside a short frame it is a 1 px clipped box, not `display: none`, so Tab
+   still reaches it and Enter opens the Hear menu, with no visible focus ring. A
+   known limit. */
+.sys-player-host > .sys-player .sys-player-pill > svg,
+.sys-player-host > .sys-player .sys-pill-x {
+  flex: none;
+}
+
+.sys-player-host > .sys-player .sys-player-following .sys-player-pill-text {
+  max-inline-size: 18ch;
+}
+
+.sys-player-host > .sys-player .sys-player-solo .sys-player-pill-text {
+  max-inline-size: 13ch;
+}
+
+.sys-player-host > .sys-player .sys-player-pill-detail {
+  max-inline-size: 16ch;
+}
+
+.sys-player-host > .sys-player .sys-player-pill-text,
+.sys-player-host > .sys-player .sys-player-pill-detail {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sys-player-host > .sys-player .sys-player-status {
+  min-inline-size: 0;
+}
+
+.sys-player-host > .sys-player .sys-player-status .pill {
+  max-inline-size: 100%;
+}
+
+/* Level 1: the layout of a bar of 40 rem and under. */
+.sys-player-host[data-fit]:not([data-fit="0"]) > .sys-player {
+  grid-template-columns: auto 1fr auto;
+  padding-inline: var(--space-3);
+}
+
+.sys-player-host[data-fit]:not([data-fit="0"]) .sys-player-center {
+  justify-content: center;
+}
+
+.sys-player-host[data-fit]:not([data-fit="0"])
+  .sys-player-time
+  .sys-player-total {
+  display: none;
+}
+
+/* Level 2: the Following detail goes. */
+.sys-player-host:is(
+    [data-fit="2"],
+    [data-fit="3"],
+    [data-fit="4"],
+    [data-fit="5"],
+    [data-fit="6"],
+    [data-fit="7"],
+    [data-fit="8"]
+  )
+  .sys-player-pill-detail {
+  display: none;
+}
+
+.sys-player-host:is(
+    [data-fit="3"],
+    [data-fit="4"],
+    [data-fit="5"],
+    [data-fit="6"],
+    [data-fit="7"],
+    [data-fit="8"]
+  )
+  .sys-player-pill-text,
+.sys-player-host:is(
+    [data-fit="5"],
+    [data-fit="6"],
+    [data-fit="7"],
+    [data-fit="8"]
+  )
+  .sys-player-cuts,
+.sys-player-host:is([data-fit="7"], [data-fit="8"])
+  :is(
+    .sys-player-following,
+    .sys-player-solo,
+    .sys-player-mix,
+    .sys-player-rate,
+    .sys-player-status
+  ) {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  min-inline-size: 0;
+  min-block-size: 0;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Level 4: the skip buttons go whole. */
+.sys-player-host:is(
+    [data-fit="4"],
+    [data-fit="5"],
+    [data-fit="6"],
+    [data-fit="7"],
+    [data-fit="8"]
+  )
+  .sys-player-skip {
+  display: none;
+}
+
+/* Level 6: A and B are not drawn at 22 rem and under or in a short frame, so
+   there the chevron is the only hear menu and stays. */
+@container sys-player (width > 22rem) {
+  html:not([data-frame-short])
+    .sys-player-host:is([data-fit="6"], [data-fit="7"], [data-fit="8"])
+    .sys-player-hear-more {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    min-inline-size: 0;
+    min-block-size: 0;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+.sys-player-host:is([data-fit="7"], [data-fit="8"]) .sys-pill-x {
+  display: none;
+}
+
+/* Level 8: Play, the clock and the hear chevron are the one row. The expanded
+   Player holds Comment and Retry. */
+.sys-player-host[data-fit="8"]
+  .sys-player-right
+  > :is(.sys-player-comment, .sys-player-retry) {
+  display: none;
+}
+
+.sys-player-host[data-fit="8"] .sys-player-right > .sys-pill--danger {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  min-inline-size: 0;
+  min-block-size: 0;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* A 360 px phone is short of room for Play, the clock and the four controls at
    the usual spacing: tighter gaps and a smaller clock keep every 44 px target
    clear of the next. */
@@ -1073,10 +1319,67 @@ button.sys-version-line {
   }
 }
 
-/* Under 14 rem (a phone at 200% text) the gap and the clock size of the rule
-   above are set here too, unscoped, so they reach the expanded Player (that
-   rule is scoped to the host); Play, the clock and the hear menu are the one row: the A and B toggles,
-   Comment and the status chips are in the expanded Player, as in a folded frame. */
+/* At 22 rem and under the pills, the cuts and the rate are hidden visually; A
+   and B, a host's Comment and Stop following are removed. */
+@container sys-player (max-width: 22rem) {
+  .sys-player-host > .sys-player .sys-player-ab,
+  .sys-player-host
+    > .sys-player
+    .sys-player-comment:not(.sys-player-comment--guest),
+  .sys-player-host > .sys-player .sys-pill-x {
+    display: none;
+  }
+
+  .sys-player-host
+    > .sys-player
+    :is(
+      .sys-player-following,
+      .sys-player-solo,
+      .sys-player-mix,
+      .sys-player-status,
+      .sys-player-cuts,
+      .sys-player-rate
+    ) {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    min-inline-size: 0;
+    min-block-size: 0;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .sys-player-host > .sys-player {
+    padding-inline: var(--space-1);
+  }
+
+  .sys-player-host > .sys-player .sys-player-now {
+    font-size: var(--font-size-ui);
+  }
+}
+
+@container sys-player (max-width: 22rem) {
+  .sys-player-host[data-state="error"] > .sys-player {
+    gap: 0;
+    padding-inline: 0;
+  }
+
+  .sys-player-host[data-state="error"] > .sys-player .sys-player-right {
+    gap: 0;
+  }
+}
+
+@container sys-player (width > 14rem) and (width <= 16rem) {
+  .sys-player-host[data-state="error"] .sys-player-now {
+    font-size: var(--font-size-micro);
+  }
+}
+
+/* Not scoped to the bar, so the expanded Player gets them too: at 14 rem and
+   under its A and B are in the Hear menu. */
 @container sys-player (max-width: 14rem) {
   .sys-player-now {
     font-size: var(--font-size-ui);
@@ -1087,8 +1390,11 @@ button.sys-version-line {
     padding-inline: var(--space-1);
   }
 
-  .sys-player-ab,
-  .sys-player-right > :not(.sys-player-hear) {
+  .sys-player-host > .sys-player .sys-player-now {
+    font-size: var(--font-size-micro);
+  }
+
+  .sys-player-ab {
     display: none;
   }
 }
@@ -1097,19 +1403,47 @@ button.sys-version-line {
    the tab bar and the lanes' floor, so a phone held sideways at large text, or a
    small phone at 200% text) keeps the Player as one touch-height row: Play, the
    clock and the hear menu, plus, for a guest on the phone shell, an icon-only
-   Comment. The skip buttons, the cuts, the A and B toggles, Comment for a host
-   or off the phone and the status chips give way. */
+   Comment. The skip buttons, A and B, Stop following and Comment for a host or
+   off the phone are removed; the pills, the cuts, the rate and the status are
+   hidden visually and keep their names. The Audio error pill and Retry stay
+   until level 8. */
 html[data-frame-short] .sys-player {
   min-block-size: var(--touch-min);
 }
 
-html[data-frame-short] .sys-player-skip,
-html[data-frame-short] .sys-player-ab,
-html[data-frame-short] .sys-player-left > :not(.sys-player-time),
 html[data-frame-short]
-  .sys-player-right
-  > :not(.sys-player-hear, .sys-player-comment--guest) {
+  .sys-player-host
+  > .sys-player
+  :is(
+    .sys-player-skip,
+    .sys-player-ab,
+    .sys-pill-x,
+    .sys-player-comment:not(.sys-player-comment--guest)
+  ) {
   display: none;
+}
+
+html[data-frame-short]
+  .sys-player-host
+  > .sys-player
+  :is(
+    .sys-player-following,
+    .sys-player-solo,
+    .sys-player-mix,
+    .sys-player-status,
+    .sys-player-cuts,
+    .sys-player-rate
+  ) {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  min-inline-size: 0;
+  min-block-size: 0;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 html[data-frame-short]:not([data-shell="phone"]) .sys-player-comment--guest {
@@ -1782,7 +2116,7 @@ html:not([data-shell="phone"])
 /* Cover */
 
 .sys-cover {
-  --sys-cover-top: 30dvh;
+  --sys-cover-top: clamp(0rem, 100dvh - 23rem, 30dvh);
   container: sys-cover / inline-size;
   background: var(--color-bg-canvas);
   color: var(--color-text-primary);
@@ -1836,12 +2170,16 @@ html:not([data-shell="phone"])
   margin: 0;
   font-size: var(--font-size-card-title);
   line-height: 1.2;
+  text-wrap: balance;
 }
 
 .sys-cover-text {
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
+  text-wrap: balance;
+  /* A long name has no spaces to break at; wrap it rather than widen the cover. */
+  overflow-wrap: anywhere;
 }
 
 .sys-cover-actions {
@@ -1985,6 +2323,15 @@ html:not([data-shell="phone"])
   block-size: 15rem;
 }
 
+.sys-skeleton-blocks--guest.sys-skeleton-blocks--headed {
+  padding-block-start: var(--space-4);
+}
+
+.sys-skeleton-blocks--guest.sys-skeleton-blocks--headed
+  .sys-skeleton-block--player {
+  grid-row: 1;
+}
+
 .sys-skeleton-blocks--guest .sys-skeleton-block--queue {
   grid-column: 1;
 }
@@ -2007,6 +2354,16 @@ html:not([data-shell="phone"])
 
 .sys-skeleton-blocks--guest[data-shell="phone"] .sys-skeleton-block--queue {
   display: none;
+}
+
+/* The grey block that stands in for the name in the loading header: it has the title's line box, so nothing moves when the name arrives, and draws the height of the name's capitals inside it, clear of the bar's top edge. */
+.sys-header-guest > .sys-skeleton-block--title {
+  box-sizing: border-box;
+  inline-size: 8rem;
+  block-size: 1.125rem;
+  border-block: 0.25rem solid transparent;
+  border-radius: var(--radius-sm);
+  background-clip: padding-box;
 }
 
 .sys-skeleton-slow {

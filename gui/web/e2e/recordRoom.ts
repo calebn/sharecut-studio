@@ -65,6 +65,7 @@ export type HostRecordTake = {
 
 export type HostRecordSnapshot = {
   state?: string;
+  watchers?: number;
   session_id: string;
   take_index: number;
   recording_ms: number;
@@ -72,6 +73,7 @@ export type HostRecordSnapshot = {
     participant_id: string;
     display_name: string;
     connected?: boolean;
+    headphones_ack?: boolean;
   }>;
   comments?: Array<{
     id: string;
@@ -217,11 +219,14 @@ export async function expectNoRoomAlert(
   }).toPass();
 }
 
-/** Open the Comments rail (closed by default for a guest) and return its section. */
+/**
+ * Open the Comments rail or sheet (closed by default for a guest) and return its
+ * section. On a phone the peek, named from its latest comment, is the door.
+ */
 export async function openRoomComments(page: Page): Promise<Locator> {
   const comments = page.getByRole("region", { name: "Comments", exact: true });
   if (!(await comments.isVisible())) {
-    await page.getByRole("button", { name: "Comments", exact: true }).click();
+    await page.getByRole("button", { name: /^Comments/ }).click();
   }
   await expect(comments).toBeVisible();
   return comments;

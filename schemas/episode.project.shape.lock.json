@@ -1,5 +1,5 @@
 {
-  "project_version": "2.2",
+  "project_version": "2.3",
   "schemas": {
     "serialization": {
       "$defs": {
@@ -1181,7 +1181,7 @@
               "$ref": "#/$defs/TranscriptsSection"
             },
             "version": {
-              "default": "2.2",
+              "default": "2.3",
               "type": "string"
             }
           },
@@ -1363,6 +1363,17 @@
         },
         "HistoryEntry": {
           "properties": {
+            "author": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "created_at": {
               "type": "string"
             },
@@ -1397,6 +1408,17 @@
             },
             "snapshot_file": {
               "type": "string"
+            },
+            "undone_by": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             }
           },
           "required": [
@@ -5344,7 +5366,7 @@
               "$ref": "#/$defs/TranscriptsSection"
             },
             "version": {
-              "default": "2.2",
+              "default": "2.3",
               "type": "string"
             }
           },
@@ -5526,6 +5548,17 @@
         },
         "HistoryEntry": {
           "properties": {
+            "author": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "created_at": {
               "type": "string"
             },
@@ -5560,6 +5593,17 @@
             },
             "snapshot_file": {
               "type": "string"
+            },
+            "undone_by": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             }
           },
           "required": [

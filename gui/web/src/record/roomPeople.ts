@@ -5,7 +5,8 @@ import type { RecordParticipant, RecordSnapshot } from "./types";
 export const HOST_PARTICIPANT_ID = "p_host";
 
 type RoomPeopleOptions = {
-  youId?: string;
+  /** The viewer's own participant id; null when the viewer is nobody in the room yet. */
+  youId: string | null;
   youLevel?: number;
   youSpeaking?: boolean;
   dropped?: boolean;
@@ -15,6 +16,7 @@ type RoomPeopleOptions = {
   peerLevels?: Record<string, number>;
   /** Other people's clip counts in the take, from their uploaded segments. */
   peerClipped?: Record<string, number>;
+  seesHeadphones?: boolean;
 };
 
 const SPEAKING_FRACTION = 0.2;
@@ -37,12 +39,12 @@ function presenceOf(person: RecordParticipant, you: boolean) {
 
 export function roomPeople(
   snapshot: RecordSnapshot | null,
-  options: RoomPeopleOptions = {},
+  options: RoomPeopleOptions,
 ): RoomPerson[] {
   if (!snapshot) {
     return [];
   }
-  const youId = options.youId ?? HOST_PARTICIPANT_ID;
+  const { youId } = options;
   const people: RoomPerson[] = [];
   snapshot.participants.forEach((participant, index) => {
     if (participant.removed) {
@@ -57,6 +59,15 @@ export function roomPeople(
       muted: participant.muted,
       saving: options.saving?.[participant.participant_id] ?? null,
     };
+    if (
+      entry.presence === "live" &&
+      (you || options.seesHeadphones) &&
+      participant.role === "guest" &&
+      participant.consented === true &&
+      !participant.headphones_ack
+    ) {
+      entry.notWearingHeadphones = true;
+    }
     if (you) {
       entry.you = true;
       entry.level = options.youLevel;

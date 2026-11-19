@@ -27,22 +27,27 @@ describe("roomPeople", () => {
   it("shows a guest's level and clip count to the host", () => {
     const snap = recordSnapshot({ participants: [host, guest] });
     const [, bo] = roomPeople(snap, {
+      youId: "p_host",
       peerLevels: { p_g: 0.6 },
       peerClipped: { p_g: 3 },
     });
     expect(bo.level).toBe(0.6);
     expect(bo.speaking).toBe(true);
     expect(bo.clipped).toBe(3);
-    const [, quiet] = roomPeople(snap, { peerClipped: { p_g: 0 } });
+    const [, quiet] = roomPeople(snap, {
+      youId: "p_host",
+      peerClipped: { p_g: 0 },
+    });
     expect(quiet.clipped).toBeUndefined();
   });
 
   it("is empty without a snapshot", () => {
-    expect(roomPeople(null)).toEqual([]);
+    expect(roomPeople(null, { youId: null })).toEqual([]);
   });
 
   it("marks the host as you and carries their meter", () => {
     const people = roomPeople(recordSnapshot({ participants: [host, guest] }), {
+      youId: "p_host",
       youLevel: 0.4,
       youSpeaking: true,
       clipped: 2,
@@ -89,7 +94,7 @@ describe("roomPeople", () => {
           }),
         ],
       }),
-      { dropped: true },
+      { youId: "p_host", dropped: true },
     );
     expect(people.map((p) => p.presence)).toEqual([
       "live",
@@ -114,12 +119,14 @@ describe("roomPeople", () => {
           }),
         ],
       }),
+      { youId: "p_host" },
     );
     expect(people[1]?.presence).toBe("live");
   });
 
   it("passes saving progress by participant", () => {
     const people = roomPeople(recordSnapshot({ participants: [host, guest] }), {
+      youId: "p_host",
       saving: { p_g: { done: 1, total: 2 } },
     });
     expect(people[1]?.saving).toEqual({ done: 1, total: 2 });

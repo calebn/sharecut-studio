@@ -10,6 +10,7 @@ import {
   chunkIndexForSource,
   episodeEndSec,
   isQueuedMoveOverlay,
+  manifestChunkRefs,
   offsetInChunk,
   type ProxyManifest,
   parseProxyManifest,
@@ -922,6 +923,42 @@ describe("proxy audio identity", () => {
       },
     ];
     expect(isQueuedMoveOverlay(m, moved, queue, ["host", "guest"])).toBe(true);
+  });
+});
+
+describe("manifestChunkRefs", () => {
+  it("names every chunk of every track and occurrence artifact, with the URL the manifest gave", () => {
+    const art = "b".repeat(64);
+    const descriptor = (hash: string, urls: string[]) => ({
+      hash,
+      chunk_sec: 60,
+      overlap_ms: 200,
+      chunk_count: urls.length,
+      duration_sec: 60 * urls.length,
+      urls,
+    });
+    const refs = manifestChunkRefs({
+      ...manifest(),
+      tracks: { host: descriptor("a".repeat(64), ["h0", "h1"]) },
+      artifacts: { [art]: descriptor(art, ["x0"]) },
+    });
+    expect(refs).toEqual([
+      {
+        kind: "track",
+        artifactId: "host",
+        hash: "a".repeat(64),
+        index: 0,
+        url: "h0",
+      },
+      {
+        kind: "track",
+        artifactId: "host",
+        hash: "a".repeat(64),
+        index: 1,
+        url: "h1",
+      },
+      { kind: "artifact", artifactId: art, hash: art, index: 0, url: "x0" },
+    ]);
   });
 });
 

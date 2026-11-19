@@ -30,7 +30,7 @@ A pin stores the value and a digest of the automatic value it replaced. A read c
 - Setting empty or blank text is an unset on every surface. Unsetting a known key that holds no pin changes nothing and writes nothing. Unsetting or setting a key that names nothing, or an `item.person[Name]` key for someone who is not a speaker, is refused with `feed_field_unknown`, so a typo is never silent.
 - Show notes are composed live from the intro, the chapters, the credits and a transcript link. Setting `item.notes` pins the whole text. Unset returns to the composition.
 
-Episode pins are saved through two document commands, `SetFeedField` and `ClearFeedField`, so each edit is one history step, journals for open Studio tabs and undoes with `history_undo` or `podcast undo` like a chapter edit. An Editor share link can submit them too, for `item.*` keys only; see [Guests](#guests).
+Episode pins are saved through two document commands, `SetFeedField` and `ClearFeedField` (a host or agent reply carries `FeedFieldPinResult`, `key` and `pinned`; an Editor guest reply carries no result), so each edit is one history step, journals for open Studio tabs and undoes with `history_undo` or `podcast undo` like a chapter edit. An Editor share link can submit them too, for `item.*` keys only; see [Guests](#guests).
 
 ## Fields
 

@@ -11,7 +11,6 @@ why when none passes.
 from __future__ import annotations
 
 import logging
-import subprocess
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -20,6 +19,7 @@ from podcast_mcp.edits.cut_speech import UnconfirmedCutSpeech
 from podcast_mcp.edits.ripple import plan_trim
 from podcast_mcp.models import CutIntent, EditMode, EpisodeProject
 from podcast_mcp.util.batch_scope import batch_scope
+from podcast_mcp.util.process import SubprocessError
 
 log = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ def check_suggested_trim(
                     return CheckedTrim(landed, "passes", abs(landed - source_sec) * 1000)
                 if not first_reasons:
                     first_reasons = reasons
-    except (OSError, ValueError, subprocess.SubprocessError):
+    except (OSError, ValueError, SubprocessError):
         log.warning("could not check the suggested trim of %s", clip_id, exc_info=True)
         return CheckedTrim(source_sec, "unchecked")
     if not tried:

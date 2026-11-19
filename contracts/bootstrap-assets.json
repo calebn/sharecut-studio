@@ -14,11 +14,11 @@
     },
     "whisper-large-v3-turbo": {
       "kind": "huggingface",
-      "repo": "Systran/faster-whisper-large-v3-turbo",
-      "revision": "main",
+      "repo": "dropbox-dash/faster-whisper-large-v3-turbo",
+      "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
       "license": "MIT",
       "cdn_prefix": "models/whisper-large-v3-turbo",
-      "notes": "Product default; pin revision + per-file sha256 in funnel mirror before consumer SLA."
+      "notes": "Pinned mirror planning entry. Runtime downloads use the engine's separate repository/cache identity. CDN publication is not verified here."
     },
     "rnnoise": {
       "kind": "http",
@@ -26,7 +26,7 @@
       "sha256": "70bb6685eb0c2a1d18e2918dca3fbfbd39317010b1802eb1b6ea73a92f3fdec0",
       "size_bytes": 297646,
       "revision_note": "Commit-pinned (GregorR/rnnoise-models 3eee541a, same bytes as master at pin time). Change url, sha256 and size_bytes together after re-fetching and hashing.",
-      "license": "BSD-style (RNNoise)",
+      "license": "Upstream states models are not subject to copyright; tools/ and README.md are excepted (GregorR/rnnoise-models README.md).",
       "cdn_prefix": "models/rnnoise",
       "filename": "somnolent-hogwash.rnnn"
     },

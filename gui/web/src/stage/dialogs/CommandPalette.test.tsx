@@ -237,6 +237,21 @@ describe("CommandPalette", () => {
     await new Promise((r) => setTimeout(r, 20));
   }
 
+  it("tells a command that throws instead of leaving the rejection unhandled", async () => {
+    registerCommand("view.fit", async () => {
+      throw new Error("server is down");
+    });
+    renderPalette();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("option", { name: "Fit session width \\" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Fit session width failed: server is down",
+      ),
+    );
+  });
+
   it("shows the refusal a command returns even when it announced something else", async () => {
     await runFit(async () => {
       useDawStore.getState().announceStatus("first");

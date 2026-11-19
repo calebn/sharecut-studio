@@ -1,61 +1,17 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
-import { withShareableProject } from "./shareableProject";
-import { createReviewShare, openHostShare } from "./shareNavigation";
-import { withBrowserPages } from "./twoBrowserPages";
-
-const SIZES = [
-  { name: "phone", width: 390, height: 844, touch: true },
-  { name: "desktop", width: 1280, height: 800, touch: false },
-] as const;
+import { expect, test } from "@playwright/test";
+import { fontsReady } from "./fontsReady";
+import {
+  expectCoverInWindow,
+  failBootstrap,
+  press,
+  SHORT_WINDOW,
+  SIZES,
+  withGuestLink,
+} from "./guestLink";
 
 const ASLEEP_TITLE = "The host's computer is asleep";
 const FAILED_TITLE = "This link did not load";
 const TRACE_TEXT = "internal-trace-7c41e9";
-
-async function press(button: Locator, touch: boolean) {
-  if (touch) {
-    await button.tap();
-  } else {
-    await button.click();
-  }
-}
-
-/** Every review request for the episode itself fails the way `fail` says. */
-async function failBootstrap(
-  page: Page,
-  token: string,
-  fail:
-    | "abort"
-    | { status: number; headers?: Record<string, string>; body: string },
-) {
-  await page.route(`**/api/review/${token}/project`, (route) =>
-    fail === "abort" ? route.abort("connectionrefused") : route.fulfill(fail),
-  );
-}
-
-async function withGuestLink(
-  browser: Parameters<typeof withBrowserPages>[0],
-  size: (typeof SIZES)[number],
-  run: (guest: Page, token: string) => Promise<void>,
-) {
-  await withShareableProject(async (projectPath) => {
-    await withBrowserPages(
-      browser,
-      [
-        {},
-        {
-          viewport: { width: size.width, height: size.height },
-          hasTouch: size.touch,
-        },
-      ],
-      async ([host, guest]) => {
-        await openHostShare(host!, projectPath);
-        const token = await createReviewShare(host!, projectPath, "commenter");
-        await run(guest!, token);
-      },
-    );
-  });
-}
 
 for (const size of SIZES) {
   test.describe(`a review link that cannot load at ${size.width}x${size.height}`, () => {
@@ -112,6 +68,7 @@ for (const size of SIZES) {
         const main = guest.getByRole("main");
         const button = main.getByRole("button", { name: "Try now" });
         await expect(button).toBeVisible();
+        await fontsReady(guest);
         const rest = await button.boundingBox();
 
         holding = true;
@@ -140,6 +97,7 @@ for (const size of SIZES) {
         await guest.clock.runFor(4_500);
         const retry = guest.getByRole("button", { name: "Retry" });
         await expect(retry).toBeVisible();
+        await fontsReady(guest);
         const rest = await retry.boundingBox();
         await press(retry, size.touch);
         const busy = guest.getByRole("button", { name: "Trying…" });
@@ -160,6 +118,7 @@ for (const size of SIZES) {
         const main = guest.getByRole("main");
         const button = main.getByRole("button", { name: "Try now" });
         await expect(button).toBeVisible();
+        await fontsReady(guest);
         await press(button, size.touch);
         const status = main.getByRole("status").getByText("Still asleep.");
         await expect(status).toBeVisible();
@@ -290,3 +249,41 @@ for (const size of SIZES) {
     });
   });
 }
+
+test.describe("where the cover's body starts", () => {
+  test(`keeps the whole asleep cover in view in a short window, ${SHORT_WINDOW.width}x${SHORT_WINDOW.height}`, async ({
+    browser,
+  }) => {
+    await withGuestLink(browser, SHORT_WINDOW, async (guest, token) => {
+      await failBootstrap(guest, token, "abort");
+      await guest.goto(`/r/${token}`);
+      const main = guest.getByRole("main");
+      const button = main.getByRole("button", { name: "Try now" });
+      await expect(button).toBeVisible();
+      await fontsReady(guest);
+      await expectCoverInWindow(guest);
+      await press(button, SHORT_WINDOW.touch);
+      await expect(main.getByRole("status")).toHaveText("Still asleep.");
+      await expectCoverInWindow(guest);
+    });
+  });
+
+  for (const [size, titleTop] of [
+    [{ name: "phone", width: 390, height: 844, touch: true }, 397.1875],
+    [{ name: "small phone", width: 320, height: 568, touch: true }, 314.390625],
+  ] as const) {
+    test(`leaves the title where it was at ${size.width}x${size.height}`, async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        await failBootstrap(guest, token, "abort");
+        await guest.goto(`/r/${token}`);
+        const title = guest.getByRole("heading", { name: ASLEEP_TITLE });
+        await expect(title).toBeVisible();
+        await fontsReady(guest);
+        const box = await title.boundingBox();
+        expect(box!.y).toBeCloseTo(titleTop, 1);
+      });
+    });
+  }
+});

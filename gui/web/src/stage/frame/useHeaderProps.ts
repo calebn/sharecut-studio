@@ -5,6 +5,8 @@ import { useReviewPeaks } from "../../hooks/useReviewPeaks";
 import { useReviewVersion } from "../../hooks/useReviewVersion";
 import { type ThemePreference, useTheme } from "../../hooks/useTheme";
 import { useDawStore } from "../../state/dawStore";
+import { useReadsSavedCopy } from "../../state/savedCopy";
+import { useShareName } from "../../state/shareName";
 import { stageRoleOf } from "../../state/stageRoutes";
 import { useDaw } from "../../state/useDaw";
 import type { AppHeaderProps } from "../../system/AppHeader";
@@ -36,8 +38,9 @@ export function useHeaderProps(): Omit<
   AppHeaderProps,
   "peopleSlot" | "menuPeople"
 > {
-  const { title, guestMode, shell } = useDaw((s) => ({
-    title: s.project?.meta.name ?? null,
+  const shareName = useShareName();
+  const { name, guestMode, shell } = useDaw((s) => ({
+    name: s.project?.meta.name ?? null,
     guestMode: s.guestMode,
     shell: s.shellBreakpoint,
   }));
@@ -48,9 +51,14 @@ export function useHeaderProps(): Omit<
   const history = useHistoryControls();
   const stages = useStageBarProps();
   const { preference, setPreference } = useTheme();
+  const savedCopy = useReadsSavedCopy();
   const role = stageRoleOf(guestMode);
+  const host = isHostRole(role);
   const [dismissed, setDismissed] = useState<readonly string[]>([]);
-  const guest: AppHeaderProps["guest"] = isHostRole(role)
+  // The saved copy opens read-only whatever the link allows, so no role is
+  // known to name or to explain.
+  const showRole = !savedCopy;
+  const guest: AppHeaderProps["guest"] = host
     ? undefined
     : {
         version: version?.label ?? "Shared link",
@@ -62,16 +70,23 @@ export function useHeaderProps(): Omit<
               onListen: reloadPage,
             }
           : undefined,
-        role,
+        role: showRole ? role : undefined,
         compact: shell === "phone",
-        hint: {
-          text: ROLE_HINT_TEXT[role],
-          shown: !dismissed.includes(role) && !roleHintSeen(role),
-          onDismiss: () => {
-            markRoleHintSeen(role);
-            setDismissed((current) => [...current, role]);
-          },
-        },
+        hint: showRole
+          ? {
+              text: ROLE_HINT_TEXT[role],
+              shown: !dismissed.includes(role) && !roleHintSeen(role),
+              onDismiss: () => {
+                markRoleHintSeen(role);
+                setDismissed((current) => [...current, role]);
+              },
+              // The frame's one polite live region says it; a toast would repeat the bubble.
+              onShown: () =>
+                useDawStore
+                  .getState()
+                  .announceStatus(ROLE_HINT_TEXT[role], { toast: false }),
+            }
+          : undefined,
       };
   const onMenuCommand = useCallback((command: string) => {
     if (command === "help") {
@@ -86,18 +101,20 @@ export function useHeaderProps(): Omit<
     [],
   );
   return {
-    title: title ?? "Project",
-    loading: title === null,
+    title: name ?? shareName ?? (host ? "Project" : "Episode"),
+    loading: name === null,
     save: save ?? undefined,
     stages,
     guest,
     canUndo: history.history?.canUndo ?? false,
     canRedo: history.history?.canRedo ?? false,
+    undoReason: history.history?.undoReason,
+    redoReason: history.history?.redoReason,
     onUndo: history.onUndo,
     onRedo: history.onRedo,
     onInvite: () => runPointerCommand("share.manage"),
     onPalette: () => runPointerCommand("ui.toggleCommandPalette"),
-    onRename: isHostRole(role) ? onRename : undefined,
+    onRename: host ? onRename : undefined,
     onHistory: history.history ? onHistory : undefined,
     appearance: {
       value: preference,

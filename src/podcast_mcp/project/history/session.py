@@ -20,6 +20,7 @@ from podcast_mcp.engines.reconciliation_state import (
 )
 from podcast_mcp.engines.render_invalidations import record_after_audio_mutation
 from podcast_mcp.models import EpisodeProject, ProjectStateSnapshot, RenderSection
+from podcast_mcp.project.history.author import SYSTEM_AUTHOR, history_author
 from podcast_mcp.project.history.manager import (
     HistoryManager,
     apply_snapshot_to_project,
@@ -110,7 +111,10 @@ def _run_mutation_locked(
     pre_mutate = _PreMutateState.capture(project)
     with project_commit_lock(project):
         checkpoint = take_history_checkpoint(store, project)
-        with rolled_back_on_failure(project, checkpoint, on_failure=on_failure):
+        with (
+            rolled_back_on_failure(project, checkpoint, on_failure=on_failure),
+            history_author(SYSTEM_AUTHOR),
+        ):
             mgr.record(project, label_before, snapshot=pre_mutate.editable)
     checkpoint.own_indexes.append(project.history.model_dump(mode="json"))
     # Memory follows the file: the mutated state is kept only if the commit replaced it.

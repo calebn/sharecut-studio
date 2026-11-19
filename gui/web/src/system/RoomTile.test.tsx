@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../test/a11y";
 import { SRC_ROOT } from "../test/sourceFiles";
 import { ListenerAvatar, ListenerRow, RoomTile } from "./RoomTile";
 import {
@@ -43,6 +44,19 @@ describe("RoomTile states in words", () => {
     );
     expect(roomTileLabel(live({ speaking: true }))).toContain("speaking");
     expect(roomTileLabel(live({ clipped: 1 }))).toContain("1 clip");
+  });
+
+  it("names a guest who is not wearing headphones, and draws the glyph", () => {
+    const props = live({ notWearingHeadphones: true });
+    expect(roomTileLabel(props)).toBe("Maya Okafor, not wearing headphones");
+    expect(
+      roomTileLabel(live({ muted: true, notWearingHeadphones: true })),
+    ).toBe("Maya Okafor, muted, not wearing headphones");
+    render(<RoomTile {...props} />);
+    expect(
+      within(screen.getByRole("group")).getByTitle("Not wearing headphones"),
+    ).toBeInTheDocument();
+    expect(roomTileLabel(live({}))).toBe("Maya Okafor");
   });
 
   it("names the host after the name, live or away", () => {
@@ -161,6 +175,47 @@ describe("RoomTile states in words", () => {
     render(<RoomTile presence="placeholder" onInvite={onInvite} />);
     await userEvent.click(screen.getByRole("button", { name: "Invite" }));
     expect(onInvite).toHaveBeenCalledOnce();
+  });
+});
+
+describe("your own tile", () => {
+  it("reads (you) and leads to Devices through one button", async () => {
+    const onPress = vi.fn();
+    render(<RoomTile {...live({ you: true, onPress })} />);
+    const tile = screen.getByRole("group", { name: /^Maya Okafor, you/ });
+    expect(within(tile).getByText("(you)")).toBeInTheDocument();
+    expect(within(tile).getByText("Devices")).toBeInTheDocument();
+    const buttons = within(tile).getAllByRole("button");
+    expect(buttons.map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Devices",
+    ]);
+    await userEvent.click(buttons[0]);
+    expect(onPress).toHaveBeenCalledOnce();
+  });
+
+  it("hides the (you) and the Devices cue from assistive tech, the group name and button say them", () => {
+    render(<RoomTile {...live({ you: true, onPress: vi.fn() })} />);
+    expect(screen.getByText("(you)")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("Devices")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("without a handler says (you) and shows no Devices cue", () => {
+    render(<RoomTile {...live({ you: true })} />);
+    expect(screen.getByText("(you)")).toBeInTheDocument();
+    expect(screen.queryByText("Devices")).toBeNull();
+  });
+
+  it("another person's tile has neither", () => {
+    render(<RoomTile {...live({ onPress: vi.fn() })} />);
+    expect(screen.queryByText("(you)")).toBeNull();
+    expect(screen.queryByText("Devices")).toBeNull();
+  });
+
+  it("is axe clean", async () => {
+    const { container } = render(
+      <RoomTile {...live({ you: true, onPress: vi.fn() })} />,
+    );
+    await expectNoA11yViolations(container);
   });
 });
 

@@ -149,6 +149,29 @@ export const GuestLeaveHeld: Story = {
   },
 };
 
+export const GuestLeaveAfterHostGone: Story = {
+  args: {
+    seat: "guest",
+    record: undefined,
+    dock: {
+      kind: "controls",
+      leaveWarning:
+        "Leaving stops recording on this device. Keep this page open so it can reach the host.",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const leave = within(canvasElement).getByRole("button", {
+      name: "Leave room",
+    });
+    await expect(leave).not.toHaveAttribute("aria-disabled");
+    await expect(
+      within(canvasElement).getByText(
+        /^Leaving stops recording on this device/,
+      ),
+    ).toBeVisible();
+  },
+};
+
 export const RecordProducer: Story = {
   args: { seat: "producer", record: undefined, notesOpen: true },
   play: async ({ canvasElement }) => {
@@ -157,5 +180,24 @@ export const RecordProducer: Story = {
       "Comments",
       "Leave room",
     ]);
+  },
+};
+
+export const GuestPhoneLabelled: Story = {
+  args: { seat: "guest", record: undefined, labelled: true, notes: false },
+  play: async ({ canvasElement }) => {
+    await expect(buttonNames(canvasElement)).toEqual([
+      "Mute",
+      "Comment",
+      "Leave room",
+    ]);
+    await expect(within(canvasElement).getByText("Leave")).toBeVisible();
+  },
+};
+
+export const ProducerPhoneLabelled: Story = {
+  args: { seat: "producer", record: undefined, labelled: true, notes: false },
+  play: async ({ canvasElement }) => {
+    await expect(buttonNames(canvasElement)).toEqual(["Comment", "Leave room"]);
   },
 };

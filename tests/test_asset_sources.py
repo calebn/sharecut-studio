@@ -542,3 +542,10 @@ def test_public_request_bounds_timeout(monkeypatch, timeout):
     with pytest.raises(PublicRequestError, match="invalid_request"):
         with public_request("https://cdn.example/file", method="HEAD", timeout=timeout):
             pytest.fail("invalid timeout must fail")
+
+
+def test_rnnoise_manifest_attributes_upstream_copyright_statement() -> None:
+    assert asset_entry("rnnoise")["license"] == (
+        "Upstream states models are not subject to copyright; "
+        "tools/ and README.md are excepted (GregorR/rnnoise-models README.md)."
+    )

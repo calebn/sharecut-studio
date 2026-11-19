@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import math
-import subprocess
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass, replace
@@ -46,7 +45,6 @@ from podcast_mcp.edits.decisions import (
     _near,
     _near_on_timeline,
     _source_extents,
-    _speaker_name,
     edit_timeline_range,
     pre_pad_fade_out_ms,
     reject_edits,
@@ -62,6 +60,7 @@ from podcast_mcp.edits.source_removals import (
     ScopeChangedAtApproval,
     cut_label,
     record_suggested_cut_speech,
+    speakers_by_track,
 )
 from podcast_mcp.edits.suggested_actions import SuggestedActionsResult, record_sound_action
 from podcast_mcp.edits.tighten_reasons import (
@@ -133,6 +132,7 @@ from podcast_mcp.project.merge import adopt_project_state
 from podcast_mcp.util.batch_scope import batch_scope, frozen_state, unscoped
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import subtract_intervals
+from podcast_mcp.util.process import SubprocessError
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -214,7 +214,7 @@ def _completed_holds(
         verdict_cache.mark_unstable()
         effects = ()
         unavailable = dict.fromkeys(ids, "late_mpeg_audio")
-    except (OSError, ValueError, subprocess.SubprocessError):
+    except (OSError, ValueError, SubprocessError):
         verdict_cache.mark_unstable()
         effects = ()
         unavailable = dict.fromkeys(ids, "audio_unavailable")
@@ -289,7 +289,7 @@ def apply_trim(
         project, plan, application_intent=application_intent, defaults=defaults
     )
     if held:
-        raise ScopeChangedAtApproval(held, {})
+        raise ScopeChangedAtApproval.for_project(project, held, removal=plan.removal)
     adopt_project_state(project, candidate)
     return report
 
@@ -349,12 +349,12 @@ def apply_timeline_cut(
         mode="ripple" if request.mode is EditMode.RIPPLE else "mute",
     )
     if held:
-        raise ScopeChangedAtApproval(held, {})
+        raise ScopeChangedAtApproval.for_project(project, held, removal=request.removal)
     receipts = cut_effects.complete_effect_receipts(
         project, candidate, operation_ids=ids, removal=request.removal, clip_ids=request.clip_ids
     )
     if receipts:
-        raise ScopeChangedAtApproval(receipts, {})
+        raise ScopeChangedAtApproval.for_project(project, receipts, removal=request.removal)
     adopt_project_state(project, candidate)
     return report
 
@@ -1243,6 +1243,7 @@ def approve_edits(
                 edit_id,
                 cut_label(project, next(e for e in project.edit_decisions if e.id == edit_id)),
                 STALE_REASON,
+                "stale",
             )
             for edit_id in unplayed
         )
@@ -1421,19 +1422,21 @@ def approve_edits(
                 edit_id,
                 labels.get(edit_id, ""),
                 "it sits right beside a held cut, so it waits with it",
+                "waits_with_held",
             )
             for edit_id in demoted
         )
     if held:
         error = ScopeChangedAtApproval(
             held,
-            {tid: _speaker_name(project, tid) for h in held for tid in h.peers},
+            speakers_by_track(project),
             {h.edit_id: labels[h.edit_id] for h in held if h.edit_id in labels},
         )
         if held_out is None or leaned_on:
             raise error
         held_out.extend(
-            HeldEdit(h.edit_id, labels.get(h.edit_id, ""), error.reason_for(h)) for h in held
+            HeldEdit(h.edit_id, labels.get(h.edit_id, ""), error.reason_for(h), h.reason)
+            for h in held
         )
     for edit in sorted(splits, key=lambda e: e.start, reverse=True):
         at_time = float(edit.start)
@@ -1460,7 +1463,9 @@ def approve_edits(
         published, project, [e for e in published.edit_decisions if e.id in applied_ids]
     )
     if receipts:
-        raise ScopeChangedAtApproval(receipts, {})
+        raise ScopeChangedAtApproval.for_project(
+            published, receipts, [e for e in published.edit_decisions if e.id in applied_ids]
+        )
     project_merge.adopt_project_state(published, project)
     return before - len(project.edit_decisions)
 
@@ -1652,7 +1657,9 @@ def apply_prefix_edits(
         published, project, [e for e in published.edit_decisions if e.id in id_set]
     )
     if receipts:
-        raise ScopeChangedAtApproval(receipts, {})
+        raise ScopeChangedAtApproval.for_project(
+            published, receipts, [e for e in published.edit_decisions if e.id in id_set]
+        )
     project_merge.adopt_project_state(published, project)
     return before - len(project.edit_decisions)
 
@@ -1770,10 +1777,10 @@ def _range_candidate(
         ),
     )
     if held:
-        raise ScopeChangedAtApproval(held, {})
+        raise ScopeChangedAtApproval.for_project(published, held, edits)
     receipts = cut_effects.complete_effect_receipts(published, project, edits)
     if receipts:
-        raise ScopeChangedAtApproval(receipts, {})
+        raise ScopeChangedAtApproval.for_project(published, receipts, edits)
     return project
 
 

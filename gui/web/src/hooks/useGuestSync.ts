@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { loadProjectMeta } from "../api";
+import { loadProjectMeta, reportLinkDoubt } from "../api";
 import { loadDocumentState } from "../api/project";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import {
@@ -41,6 +41,7 @@ import {
   guestProgressToJob,
 } from "../utils/guestProgress";
 import { useStableCallback } from "../utils/useStableCallback";
+import { isTerminalWsClose } from "../utils/wsClose";
 
 function guestWsUrl(token: string, clientId: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -271,7 +272,10 @@ export function useGuestSync(
             ? "guest:presence"
             : undefined,
       },
-      onClose: () => {
+      onClose: (event) => {
+        // The server closes with 4403 when the link was turned off; the page
+        // only asks for one confirming check, it never ends on this alone.
+        if (isTerminalWsClose(event.code)) reportLinkDoubt(token);
         sessionSnapshot = null;
         sessionResyncing = false;
         wsOpenRef.current = false;

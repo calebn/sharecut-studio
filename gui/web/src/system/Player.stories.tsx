@@ -62,7 +62,7 @@ const meta: Meta<typeof Player> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Bar form: 56 px on every device. Time and cuts on the left, back 15 s, Play and forward 15 s in the center, then A/B, Comment and the Status pills (following, solo, mix, audio error) on the right. A/B is the segmented control: A is the original, B the edit. Play is ink-filled, not accent. Below a 40rem container the skip buttons and the bar's total hide (the expanded form keeps its total) and each Status pill shows its glyph only; the text stays for assistive tech. The expanded form adds a 64 px Overview strip, a 64 px Play and the chapter list; on phone a host shows it in a Sheet.\n\n**Motion.** The expanded form rises with `--motion-panel` and the Play icon swaps with `--motion-toggle` in the animation pass. The loading ring is static here.",
+          "Bar form: one row, 56 px at default text. Time and cuts on the left, back 15 s, Play and forward 15 s in the center, then A/B, Comment and the Status pills (following, solo, mix, audio error) on the right. A/B is the segmented control: A is the original, B the edit. Play is ink-filled, not accent. The status text and a name or detail inside a pill are cut short with an ellipsis. Fixed container rules act first: at 60rem and under the status beside an Audio error is hidden visually; at 50rem and under a Status pill is its glyph, the Following detail goes and, in an Audio error, a host's Comment goes; at 40rem and under the skip buttons and the \"/ total\" go; at 22rem and under A and B, a host's Comment and Stop following go and the pills, the cuts and the rate are hidden visually; at 14rem and under the clock is smaller. On top of them the bar measures itself and, only as far as it takes to avoid an overlap, drops the \"/ total\", the Following detail, the Status pills' text, the skip buttons, the cuts, the hear menu's chevron and then the other pills (Following, Solo, Updating mix, the rate) and the status, in that order, so a bar with fewer pills keeps more. Pills, cuts and the rate hidden visually keep their name for assistive tech; the skip buttons, Stop following, A and B and a host's Comment leave the bar whole and are in the expanded form or the hear menu. Play and the clock are never given up. Where A and B are not drawn (22rem and under, or in a short frame) the hear menu's chevron stays at every level. In a short frame the bar is one touch-height row: the skip buttons, A and B, Stop following and a host's Comment are removed, and the pills, the cuts, the rate and the status are hidden visually and keep their names. At 22rem and under the bar draws only that chevron, an Audio error with Retry and a guest's Comment beside Play and the clock; in an Audio error a 360 or 390 px phone at 200% text also loses the Comment and Retry, and the Audio error pill is hidden visually and keeps its name, and Retry is in the expanded form. The expanded form adds a 4rem Overview strip, a 4rem Play and the chapter list; on phone a host shows it in a Sheet.\n\n**Motion.** The expanded form rises with `--motion-panel` and the Play icon swaps with `--motion-toggle` in the animation pass. The loading ring is static here.",
       },
     },
   },
@@ -259,6 +259,17 @@ export const ExpandedGuest: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("button", { name: "A" })).toBeNull();
     await expect(canvas.getByRole("button", { name: "Comment" })).toBeVisible();
+  },
+};
+
+/** The bar gives the Playback rate up on a narrow phone; the expanded Player always shows it. */
+export const ExpandedRate: Story = {
+  args: { form: "expanded", rate: 1.5 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("status", { name: "Playback speed 1.5×" }),
+    ).toBeVisible();
   },
 };
 

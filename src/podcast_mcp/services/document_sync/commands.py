@@ -143,3 +143,10 @@ INTERACTIVE_COMMAND = TrustedCommandContext(boundary_intent=CutIntent.HUMAN_BOUN
 def command_context_for_role(role: ClientRole) -> TrustedCommandContext:
     """Only the host's own viewer role stamps a human cut; every other actor is programmatic."""
     return INTERACTIVE_COMMAND if role == "viewer" else PROGRAMMATIC_COMMAND
+
+
+def command_context_for_share(capabilities: list[str] | None) -> TrustedCommandContext:
+    """An Editor share's hand edits are human like the host's; a Commenter's stay programmatic."""
+    from podcast_mcp.services.document_sync.capabilities import edit_commands_allowed
+
+    return INTERACTIVE_COMMAND if edit_commands_allowed(capabilities) else PROGRAMMATIC_COMMAND

@@ -18,7 +18,9 @@ This inventory separates navigation, local drafts and browser preferences from
 saved episode edits. A selected range, ruler seek, zoom or panel resize does not
 create document History. A changed episode gesture saves through the existing
 document command and workspace mutation; one Undo restores that logical change.
-History snapshot counts are not logical action counts.
+History snapshot counts are not logical action counts. On a review link an
+Editor's Undo and Redo move only the Editor's own step; the controls and keys
+read one answer ([history.md](history.md#whose-step-a-guest-can-move)).
 
 The checks below name executable coverage. A test file is not a claim that every
 input, interruption or device combination passed. The interaction campaign uses

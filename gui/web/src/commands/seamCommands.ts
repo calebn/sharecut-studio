@@ -226,7 +226,7 @@ export async function restoreSeam(seam: CutSeam): Promise<ExecuteResult> {
   if (current?.kind !== "cut") {
     return { status: "disabled", reason: "Nothing was cut here" };
   }
-  const plan = keepPlan(current);
+  const plan = keepPlan(current, store.guestMode ? "guest" : "host");
   if (plan.kind === "disabled") {
     return { status: "disabled", reason: plan.reason };
   }

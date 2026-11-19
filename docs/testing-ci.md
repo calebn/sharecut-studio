@@ -84,7 +84,7 @@ and `frontend-suite` (the planner's `quick` scope). On pull requests the
 | `pytest` | The required check. Needs `changes`, `pytest-quality` and `pytest-shard`, and fails unless the plan, quality and every planned shard succeeded (a `quick` plan, a push, accepts skipped shards). On full runs it combines the shard coverage and enforces the 95% floor. |
 | `pytest-python-floor` | Advisory (not a required repository merge check): Python 3.11, the `requires-python` floor, runs `tests/test_wav_util.py` and `tests/test_bleed_gate_channels.py`, which pin the EXTENSIBLE-WAV reads that 3.11's stdlib `wave` rejects (#1183). The `pytest-shard` jobs use 3.14; a local 3.11 venv reproduces the gap. |
 | `frontend-suite` → `frontend` | The workload runs in `gui/web`: `npm ci`, `npm audit --omit=dev --audit-level=high` (advisory, `continue-on-error`, failures noted in the job summary; see [§ Dependency updates and audit](testing.md#dependency-updates-and-audit)), `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; all `.stories.ts` and `.stories.tsx` modules are discovered, rendered with Storybook preview annotations, played, and axe-checked including body portals by `gui/web/src/test/allStories.test.tsx`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in `gui/web/src/test/storyGovernance.test.ts`; browser storage only through the helpers, in `gui/web/src/utils/storageGuard.test.ts`), `npm run build` (Vite module-ID guard rejects story/Storybook inputs in every app build) |
-| `frontend-e2e-suites` → `frontend-e2e` | On dispatch, which promotion uses (the planner's `e2e` output; skipped on push to `develop`), six matrix jobs build ShareCut Studio inside the Playwright container image (see [§ Browser installation](#browser-installation)) and run only their declared browser engine: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. The main Chromium suite also runs `e2e/record-timeline-layering.spec.ts`, which checks recording and paused bands above an existing chapter marker at 1280px desktop and 360px and 390px phone widths in light and dark themes. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest Following pill (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs one `main-smoke` job (the `SMOKE_SPECS` in `scripts/ci_plan.py`); a release-please pull request runs the four main shards and `compat-webkit-1of3` through `compat-webkit-3of3`. Failed-spec traces upload as `playwright-test-results-<name>` (`main-1of4` through `main-4of4`, `compat-chromium`, or `compat-webkit`; `main-smoke` on a PR). Every job uploads timing JSON as `playwright-reports-<name>` with the same suffixes. Touch-peek screenshots upload as `playwright-touch-peek-<name>` with the same suffixes. All three artifact types are kept for 7 days. The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home call `openHome` from `e2e/home.ts` (it loads `/?home=1` and, unless a spec is about the Setup card, dismisses that card first). |
+| `frontend-e2e-suites` → `frontend-e2e` | On dispatch, which promotion uses (the planner's `e2e` output; skipped on push to `develop`), six matrix jobs build ShareCut Studio inside the Playwright container image (see [§ Browser installation](#browser-installation)) and run only their declared browser engine: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. The main Chromium suite also runs `e2e/record-timeline-layering.spec.ts`, which checks recording and paused bands above an existing chapter marker at 1280px desktop and 360px and 390px phone widths in light and dark themes. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest Following pill (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs one `main-smoke` job (the `SMOKE_SPECS` in `scripts/ci_plan.py`); a release-please pull request runs the four main shards and `compat-webkit-1of3` through `compat-webkit-3of3`. Each job uploads only its bounded ordinal/status/retry/timing/global-error JSON as `playwright-public-<name>` with seven-day retention. Raw reports, traces and screenshots stay on the runner and are not uploaded. The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home call `openHome` from `e2e/home.ts` (it loads `/?home=1` and, unless a spec is about the Setup card, dismisses that card first). |
 
 The [release refresh and final validation policy](#release-refreshes-and-final-validation) describes the advisory selector jobs and the mandatory full release receipt.
 
@@ -148,8 +148,8 @@ A and AA tags, including contrast and label-content-name-mismatch.
 `src/storybook/storySweep.sweep.browser.test.tsx` (`npm run test:stories`,
 Vitest browser mode, sharded 4 ways in `storybook.yml`) checks each story in both
 themes and its supported phone and desktop widths. The few stories that need the
-Storybook runtime (`src/storybook/storybookOnlyStories.ts`) stay in
-`e2e-storybook/coverage.spec.ts`. These checks do not certify the live
+Storybook runtime carry the `storybook-only` tag, which the sweep skips, and run
+in `e2e-storybook/coverage.spec.ts` instead. These checks do not certify the live
 palette, which also needs browser verification against the current catalog.
 
 Storybook specs open story frames through `storyUrl()` in
@@ -402,11 +402,11 @@ with axe before the collected results are asserted.
 | 767x375 phone envelope controls stay in reach and preserve saved points | `gui/web/e2e-compat/envelope-short-phone.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Invite touch affordances work in the compatibility browser | `gui/web/e2e-compat/touch-affordances.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | clip Inspector touch affordances work in the compatibility browser | `gui/web/e2e-compat/touch-affordances.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a phone held sideways keeps two whole compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a phone held sideways keeps at least two whole compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone in portrait keeps Undo and Redo in the header, the corner controls on one row and four whole lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a 360px phone keeps the range toggle, Zoom, Undo and Redo whole and in reach, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| an iPad Air 1180 wide in landscape keeps Select range in the corner and the add-track button | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| an iPad Pro 11 1194 wide in landscape keeps Select range in the corner and the add-track button (#1674) | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Keep decides one queue item at a thumb-sized target, then one Undo brings it back | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the phone timeline shows Undo and Redo | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 932x430: the edited lane stays beside the card and Time and Remove are in reach | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 932x430: Time, Level and Remove are visible with the lane, and with the keyboard up | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 932x430: Level and Remove run from inside the sheet | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -430,8 +430,9 @@ with axe before the collected results are asserted.
 | the corner controls leave their targets clear | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a native guest Mute center tap stays at scrollTop zero while acknowledgment is pending | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | phone shells keep every control a finger can use at 360, 390 and 767 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| tablet and desktop shells keep every control a finger can use across 768 to 1195 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| phone shells keep the Audio error pill and Retry a finger can use at 360, 390 and 767 wide at 100% text, at 360 and 390 at 150% text and at 767 at 200% text | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | loaded tablet Player stays reachable at 200% text | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| tablet and desktop shells keep every control a finger can use across 768 to 1195 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone held sideways and an iPad keep every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a track with an envelope and an effect chain keeps every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending-edit and transcript-word Inspector bodies keep every control reachable | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -441,10 +442,10 @@ with axe before the collected results are asserted.
 | a zero-start agent range arriving at the short-tablet column stays reachable | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a tablet track sheet owns the agent range controls | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | agent range arrival and removal keep the short-tablet column reachable | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Keep decides one queue item at a thumb-sized target, then one Undo brings it back | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| an iPad Air 1180 wide in landscape keeps Select range in the corner and the add-track button | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a long press then a drag selects a word range, and the sheet clears it with no step buttons | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a finger that moves before the hold scrolls and selects nothing | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the phone timeline shows Undo and Redo | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| an iPad Pro 11 1194 wide in landscape keeps Select range in the corner and the add-track button (#1674) | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | native Tab keeps every Stage bar indicator inside its clip | `gui/web/e2e-compat/phone-navigation-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Smooth all joins in the track bar More menu stays inside a 390 and a 393 wide phone viewport in both detents and works | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an app toast stays topmost and tappable over the Project menu opened after it | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -654,8 +655,8 @@ Record rooms and E2E flags come from shared helpers: `gui/web/e2e/recordRoom.ts`
 (`openHostRecordRoom`, `ensureHostRecordCommand`, `clickHostTransport`,
 `joinAsGuest`, which names the guest only after its socket
 has joined (`fillGuestDisplayName`) and returns once the room's roster lists
-that name (#764), `joinAsProducer`, whose socket opens only on Join so it
-registers the typed name; both type the name through `fillDisplayNameField`),
+that name (#764), `joinAsProducer`, whose page looks in as soon as it loads and
+sends the typed name with Join; both type the name through `fillDisplayNameField`),
 `gui/web/e2e/keeperContexts.ts` (`RECORDER_CONTEXT`,
 `keeperContextSource`) and `gui/web/e2e/keeperOpfs.ts` for keeper OPFS inspection,
 `gui/web/e2e/wavPeak.ts` (landed and bounced WAV peaks, via `landedTrackPeak`
@@ -693,23 +694,77 @@ Apple's Safari browser. To exercise an installed branded Chrome locally, set
 `E2E_BRANDED_CHROME=1`; CI intentionally uses the reproducible bundled
 Chromium engine.
 
-Playwright traces and JSON reports from these runs can contain guest
-record-share tokens (`/rec/<token>` URLs and `/api/shares/record` responses).
-CI uploads timing reports on every run and native `trace.zip` and
-`error-context.md` files when they exist. A separate touch-peek artifact retains
-only these screenshot basename patterns under `gui/web/test-results/**/`:
+### Browser result publication
 
-- `stow-portrait-360-2-mid-drag-*.png`
-- `restored-focus-portrait-360-*.png`
-- `stow-landscape-636-2-mid-drag-*.png`
-- `restored-focus-landscape-636-*.png`
-- `pending-card-portrait-390-32-*.png`
-- `pending-card-landscape-636-32-*.png`
+Browser diagnostics can contain invitation addresses, project paths and other
+private values.
 
-Keep the seven-day retention and treat these artifacts as sensitive. Do not
-widen the upload to all of `gui/web/test-results/`, all PNGs, audio, project files,
-storage state, raw media, or private files. Other capture files require a
-sanitization plan.
+CI captures each complete browser command's console and GitHub file-command output
+in a private runner directory. The ordinary command, test selection, retries and
+fixture teardown remain unchanged, and its exit status still gates the job.
+Raw reports, traces, `error-context.md`, screenshots and videos stay on that runner;
+they are not uploaded or printed into annotations or job summaries.
+
+`scripts/browser_public_report.py` projects the raw Playwright JSON into
+`gui/web/playwright-public/<name>.json`. CI uploads only that exact file as
+`playwright-public-<name>` with seven-day retention. The projection retains one
+ordinal per logical test, enumerated final/expected/attempt statuses, retry
+numbers, durations and a count of global errors. It drops titles, paths,
+project names, errors, logs, attachments, configuration and metadata. Ordinals
+identify only their position within that report, not stable case identities
+across heads, shards or runs. Bind execution to the workflow's head/run metadata;
+do not infer a named case's result from an ordinal without separate authorized
+source/collection evidence.
+
+Uploads and summaries require the projection step to succeed. The existing
+test-area summary reads only the projection. It still counts
+logical tests and sums all retry durations, which can overlap and are not job
+wall time. Browser summaries also display `Global browser errors: N`, including
+zero, without rendering error messages. The total is separate from logical-test
+statuses and never changes the browser command's exit result. Invalid totals
+are reported as unavailable rather than echoed. Missing or malformed raw reports fail projection and leave no public
+file; neither stale results nor raw parse errors are published. A projection
+failure cannot turn an unsuccessful browser command into a successful check.
+Storybook browser commands use the same private console boundary and projected
+summary. Its static Pages build/deployment policy is unchanged.
+
+This boundary prevents publication rather than preventing Playwright from
+creating diagnostics. Do not upload the private directory or broaden the
+artifact path. Raw diagnostics require a separately authorized private review
+route. Unit checks use fabricated marker strings and child commands only; they
+do not open an authenticated page or reproduce a disclosure.
+
+This is not evidence that any existing artifact exposed data. Do not broaden
+publication without a reviewed privacy design.
+
+#### Synthetic publication validation
+
+The temporary `browser-diagnostics-synthetic` workflow validates this boundary
+only on a `synchronize` event for draft PR #4006 from its same-repository
+`chore/browser-diagnostics-privacy-20261119` branch. It checks out the exact
+event head, separately from GitHub's synthetic merge SHA. All normal draft
+guards remain in place. It has only `contents: read`, with no browser, guest,
+server, media, package installation or live invitation data.
+
+Four fabricated cases exercise success, failure with retry data, malformed
+JSON and stale JSON. The helper pins the reviewed capture, projector and summary
+bytes; changing a boundary requires updating and reviewing that explicit digest.
+The failure/retry fixture includes two fabricated global errors, whose total
+must appear in the exact bounded summary without copying their messages. Expected synthetic
+failures use `continue-on-error` only so a final assertion can check the
+original step `outcome`; it rejects unexpected outcomes. A green synthetic
+job therefore does not reclassify the failed child as a passed browser test.
+The exact projection is validated before summary/upload, and summary content
+is checked before publication. Invalid inputs must remove old public output
+and skip both consumers. Only the two valid, bounded JSON files are eligible
+for one-day artifact retention. Raw canaries remain private runner files.
+
+Local tests execute the commands but do not emulate GitHub's step engine or
+artifact service. Hosted qualification still requires the four actual job
+outcomes, expected skipped consumers, bounded uploaded file manifests and
+synthetic-only log/annotation/summary inspection. This job does not exercise
+application teardown or real cancellation and does not qualify guest runs,
+backlog features or a merge. It has no dispatch or ready-for-review trigger.
 
 The path-filtered `.github/workflows/deploy-config.yml` validates `deploy/` with real `caddy` and `docker compose` (see [§ Deploy config validation](testing.md#deploy-config-validation)).
 

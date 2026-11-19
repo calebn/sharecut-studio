@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import {
+  clipRow,
+  minimalProject,
+  pendingEditView,
+  sampleTrack,
+} from "../test/fixtures";
 import { resetDocumentAuthority } from "./authorityState";
 import {
   beginDocumentDraft,
@@ -223,5 +228,204 @@ describe("pending document display drafts", () => {
     expect(before.meta.name).not.toBe("Finale");
     finishDocumentDraft("rename");
     expect(overlayDocumentDrafts(before)).toBe(before);
+  });
+});
+
+describe("a queued pending-edit range draft", () => {
+  const saved = pendingEditView({
+    id: "p1",
+    track_id: "a",
+    track_ids: ["a"],
+    source_start: 20,
+    source_end: 24,
+    source_start_timeline: 20,
+    source_end_timeline: 24,
+    timeline_start: 20,
+    timeline_end: 24,
+    timeline_spans: [{ start: 20, end: 24 }],
+  });
+  const base = minimalProject({
+    tracks: [sampleTrack({ id: "a" })],
+    pending_edits: [saved],
+  });
+  const range = (p: typeof base) => {
+    const e = p.pending_edits[0];
+    return [e.source_start, e.source_end, e.timeline_end];
+  };
+  const expected = {
+    track_id: "a",
+    type: "remove",
+    timebase: "source",
+    start: 20,
+    end: 24,
+  };
+  const save = (id: string, payload: Record<string, unknown>) =>
+    beginDocumentDraft(id, "UpdatePendingEdit", {
+      id: "p1",
+      start: 20,
+      end: 24,
+      snap: false,
+      ...payload,
+    });
+
+  it("shows the saved range over a snapshot that does not hold it yet, until its command finishes", () => {
+    save("c1", { end: 25, expected });
+    expect(range(overlayDocumentDrafts(base))).toEqual([20, 25, 25]);
+    finishDocumentDraft("c1");
+    expect(overlayDocumentDrafts(base)).toBe(base);
+  });
+
+  it("collapses a second save of the same edit, and finishing the older command keeps the newer", () => {
+    save("c1", { end: 25, expected });
+    save("c2", { end: 26, expected });
+    expect(range(overlayDocumentDrafts(base))).toEqual([20, 26, 26]);
+    finishDocumentDraft("c1");
+    expect(range(overlayDocumentDrafts(base))).toEqual([20, 26, 26]);
+    finishDocumentDraft("c2");
+    expect(overlayDocumentDrafts(base)).toBe(base);
+  });
+
+  it("holds both bounds when the save carries no baseline", () => {
+    save("c1", { start: 19, end: 25 });
+    expect(range(overlayDocumentDrafts(base))).toEqual([19, 25, 25]);
+  });
+
+  it("holds only the bound that differs from the baseline, so a peer retime of the other stands", () => {
+    save("c1", { start: 20, end: 25, expected });
+    const peer = {
+      ...base,
+      pending_edits: [
+        {
+          ...saved,
+          source_start: 18,
+          source_start_timeline: 18,
+          timeline_start: 18,
+          timeline_spans: [{ start: 18, end: 24 }],
+        },
+      ],
+    };
+    const shown = overlayDocumentDrafts(peer).pending_edits[0];
+    expect([shown.source_start, shown.source_end]).toEqual([18, 25]);
+  });
+
+  it("registers nothing for a snapped save, a split save, an unchanged range or a bad value", () => {
+    save("snap", { snap: true, end: 25 });
+    save("split", { track_ids: ["a", "b"], end: 25 });
+    save("same", { expected });
+    save("nan", { end: Number.NaN });
+    save("inf", { start: Number.POSITIVE_INFINITY });
+    save("text", { end: "25" });
+    beginDocumentDraft("noid", "UpdatePendingEdit", {
+      start: 20,
+      end: 25,
+      snap: false,
+    });
+    expect(overlayDocumentDrafts(base)).toBe(base);
+  });
+
+  it("does not let a replay replace a newer save of the same edit", () => {
+    save("newer", { end: 26, expected });
+    beginDocumentDraft(
+      "older",
+      "UpdatePendingEdit",
+      { id: "p1", start: 20, end: 25, snap: false, expected },
+      true,
+    );
+    expect(range(overlayDocumentDrafts(base))).toEqual([20, 26, 26]);
+  });
+
+  it("lays a held start-edge preview over an end-edge draft", () => {
+    save("c1", { end: 25, expected });
+    const owner = Symbol("start");
+    setPreviewDraft("start", owner, (p) => ({
+      ...p,
+      pending_edits: p.pending_edits.map((e) => ({
+        ...e,
+        source_start: 21,
+      })),
+    }));
+    const shown = overlayDocumentDrafts(base).pending_edits[0];
+    expect([shown.source_start, shown.source_end]).toEqual([21, 25]);
+    expect(
+      overlayDocumentDrafts(base, false).pending_edits[0].source_start,
+    ).toBe(20);
+    clearPreviewDraft("start", owner);
+  });
+
+  it("holds both bounds of two queued saves on alternating edges until each command finishes", () => {
+    save("c1", { end: 25, expected });
+    save("c2", {
+      start: 19,
+      end: 25,
+      expected: { ...expected, end: 25 },
+    });
+    expect(range(overlayDocumentDrafts(base))).toEqual([19, 25, 25]);
+    finishDocumentDraft("c1");
+    expect(range(overlayDocumentDrafts(base))).toEqual([19, 24, 24]);
+    finishDocumentDraft("c2");
+    expect(overlayDocumentDrafts(base)).toBe(base);
+  });
+
+  it("drops a failed first save's bound and keeps the second save's", () => {
+    save("c1", { end: 25, expected });
+    save("c2", { start: 19, expected: { ...expected, end: 25 } });
+    finishDocumentDraft("c1");
+    expect(range(overlayDocumentDrafts(base))).toEqual([19, 24, 24]);
+  });
+
+  it("keeps a replayed older save of one edge beside a newer save of the other", () => {
+    save("newer", { start: 19, expected });
+    beginDocumentDraft(
+      "older",
+      "UpdatePendingEdit",
+      { id: "p1", start: 20, end: 25, snap: false, expected },
+      true,
+    );
+    expect(range(overlayDocumentDrafts(base))).toEqual([19, 25, 25]);
+  });
+
+  it.each([
+    [
+      "start, end, start",
+      [
+        ["start", 21],
+        ["end", 30],
+        ["start", 26],
+      ],
+      [26, 30],
+    ],
+    [
+      "end, start, end",
+      [
+        ["end", 30],
+        ["start", 26],
+        ["end", 27],
+      ],
+      [26, 27],
+    ],
+    [
+      "a final range that is inverted",
+      [
+        ["end", 30],
+        ["start", 26],
+        ["end", 25],
+      ],
+      [20, 24],
+    ],
+  ] as const)(
+    "judges the combined range whatever order the saves queued: %s",
+    (_name, steps, want) => {
+      steps.forEach(([edge, value], i) => {
+        save(`c${i}`, { [edge]: value, expected });
+      });
+      const shown = overlayDocumentDrafts(base).pending_edits[0];
+      expect([shown.source_start, shown.source_end]).toEqual(want);
+    },
+  );
+
+  it("is cleared by a scope change", () => {
+    save("c1", { end: 25, expected });
+    resetDocumentAuthority("/tmp/other.json");
+    expect(overlayDocumentDrafts(base)).toBe(base);
   });
 });

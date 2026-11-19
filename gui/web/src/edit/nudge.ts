@@ -10,6 +10,7 @@
 import { setClipFade, setEnvelope, updatePendingEdit } from "../api";
 import { clipFadeBaseline, pendingEditBaseline } from "../api/documentEdits";
 import { ENVELOPE_UPDATING, envelopeSettling } from "../commands/envelopes";
+import { patchPendingEdge } from "../document/projectPatch";
 import {
   pendingEdgePlacement,
   pendingEdgePreview,
@@ -379,35 +380,7 @@ export function withNudge(
       const axis = nudgeAxis(project, field);
       const at = axis?.at(value);
       if (at == null) return project;
-      const start = field.edge === "start";
-      return {
-        ...project,
-        pending_edits: project.pending_edits.map((e) => {
-          if (e.id !== field.editId) return e;
-          const spans = e.timeline_spans.map((s, i, all) =>
-            start && i === 0
-              ? { ...s, start: at }
-              : !start && i === all.length - 1
-                ? { ...s, end: at }
-                : s,
-          );
-          return start
-            ? {
-                ...e,
-                source_start: value,
-                source_start_timeline: at,
-                timeline_start: at,
-                timeline_spans: spans,
-              }
-            : {
-                ...e,
-                source_end: value,
-                source_end_timeline: at,
-                timeline_end: at,
-                timeline_spans: spans,
-              };
-        }),
-      };
+      return patchPendingEdge(project, field.editId, field.edge, value, at);
     }
     case "envelope-time":
     case "envelope-level": {
@@ -540,6 +513,20 @@ export function sameNudgeBase(
         ? sameEnvelopePoints(now.points, was.points)
         : now === was;
     }
+    case "pending": {
+      const now = pendingEdit(project, field.editId);
+      const was = pendingEdit(origin, field.editId);
+      return (
+        !!now &&
+        !!was &&
+        now.source_start === was.source_start &&
+        now.source_end === was.source_end &&
+        now.source_start_timeline === was.source_start_timeline &&
+        now.source_end_timeline === was.source_end_timeline &&
+        now.timeline_start === was.timeline_start &&
+        now.timeline_end === was.timeline_end
+      );
+    }
     default:
       return true;
   }
@@ -600,6 +587,23 @@ export function withNudgeReverted(
             ),
       };
     }
+    case "pending": {
+      const was = pendingEdit(origin, field.editId);
+      if (!was || !pendingEdit(project, field.editId)) return project;
+      const start = field.edge === "start";
+      const source = start ? was.source_start : was.source_end;
+      const timeline = start
+        ? was.source_start_timeline
+        : was.source_end_timeline;
+      if (source == null || timeline == null) return project;
+      return patchPendingEdge(
+        project,
+        field.editId,
+        field.edge,
+        source,
+        timeline,
+      );
+    }
     default:
       return project;
   }
@@ -607,12 +611,13 @@ export function withNudgeReverted(
 
 /**
  * Previews that live as a local draft over the latest project. A pending-edit
- * nudge still sets the project: its save registers no draft to hold the value
- * while a queued save waits, and trim is held by `heldTrim`.
+ * nudge is one: its save registers a `pendingRange` draft that holds the value
+ * while a queued save waits. Trim is held by `heldTrim`.
  */
 export function previewsAsDraft(field: NudgeField): boolean {
   return (
     field.kind === "fade" ||
+    field.kind === "pending" ||
     field.kind === "envelope-level" ||
     field.kind === "envelope-time"
   );

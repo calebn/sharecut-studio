@@ -4,6 +4,7 @@ import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "./liveProject";
+import { seekTo } from "./playback";
 import { switchE2eProject } from "./shareableProject";
 import {
   goToStage,
@@ -44,17 +45,6 @@ async function clipCount(page: Page): Promise<number> {
     (sum, clips) => sum + clips.length,
     0,
   );
-}
-
-/** Playhead to `sec` (whole seconds): Home, then one-second nudges. */
-async function seekTo(page: Page, sec: number): Promise<void> {
-  await page.evaluate(() => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-  });
-  await page.keyboard.press("Home");
-  for (let i = 0; i < sec; i++) await page.keyboard.press("ArrowRight");
 }
 
 async function openEdit(page: Page): Promise<void> {

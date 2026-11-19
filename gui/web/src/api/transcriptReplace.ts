@@ -1,3 +1,4 @@
+import { isShareProjectKey } from "../shareMode";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import { submitDocumentCommand } from "./documentEdits";
 import { apiFetch, isHostProjectKey } from "./http";
@@ -25,8 +26,8 @@ export interface TranscriptReplacementPreview {
   preview_token: string;
 }
 
-function requireHost(projectPath: string) {
-  if (!isHostProjectKey(projectPath))
+function requireHostOrShare(projectPath: string) {
+  if (!isHostProjectKey(projectPath) && !isShareProjectKey(projectPath))
     throw new Error("Find and replace is only available to the host.");
 }
 
@@ -34,14 +35,21 @@ export async function previewTranscriptReplacement(
   projectPath: string,
   options: TranscriptReplacementOptions,
 ): Promise<TranscriptReplacementPreview> {
-  requireHost(projectPath);
+  requireHostOrShare(projectPath);
   const response = await apiFetch(
-    "",
-    { host: "/api/transcript/replacement-preview" },
+    projectPath,
+    {
+      host: "/api/transcript/replacement-preview",
+      guest: "/daw/transcript/replacement-preview",
+    },
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: projectPath, ...options }),
+      body: JSON.stringify(
+        isHostProjectKey(projectPath)
+          ? { path: projectPath, ...options }
+          : options,
+      ),
     },
   );
   return response.json() as Promise<TranscriptReplacementPreview>;
@@ -53,7 +61,7 @@ export async function replaceTranscriptMatches(
   previewToken: string,
   only?: number,
 ) {
-  requireHost(projectPath);
+  requireHostOrShare(projectPath);
   return submitDocumentCommand(
     projectPath,
     DocumentCommand.ReplaceTranscriptMatches,

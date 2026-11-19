@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
+import { hostList } from "./guestLink";
 import { createRecordRoom } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare } from "./shareNavigation";
@@ -12,16 +13,6 @@ import {
 
 // Matches TUNNEL_STATUS_POLL_MS in src/stage/hosts/useTunnelStatus.ts.
 const TUNNEL_POLL_MS = 5_000;
-
-type Row = {
-  token: string;
-  url: string | null;
-  docs_role: string | null;
-  mcp_url: string | null;
-  follow_latest?: boolean;
-  usable: boolean;
-  session_id?: string | null;
-};
 
 test.use({
   viewport: { width: 1280, height: 900 },
@@ -55,14 +46,6 @@ async function openListen(page: Page, projectPath: string): Promise<Locator> {
   return region;
 }
 
-async function rows(page: Page, projectPath: string): Promise<Row[]> {
-  const res = await page.request.get(
-    `/api/shares?path=${encodeURIComponent(projectPath)}`,
-  );
-  expect(res.ok(), await res.text()).toBeTruthy();
-  return ((await res.json()) as { shares: Row[] }).shares;
-}
-
 const clipboard = (page: Page) =>
   page.evaluate(() => navigator.clipboard.readText());
 
@@ -91,7 +74,7 @@ test.describe("Invite sheet", () => {
       await expect(
         sheet.getByRole("button", { name: /^Commenter/ }),
       ).toHaveAttribute("aria-pressed", "true");
-      expect(await rows(page, projectPath)).toEqual([]);
+      expect(await hostList(page, projectPath)).toEqual([]);
 
       await sheet
         .getByRole("button", { name: "Copy new Commenter link" })
@@ -99,7 +82,7 @@ test.describe("Invite sheet", () => {
       await expect(
         sheet.getByRole("button", { name: "Copied Commenter link" }),
       ).toBeVisible();
-      const made = (await rows(page, projectPath)).find(
+      const made = (await hostList(page, projectPath)).find(
         (r) => r.docs_role === "commenter",
       );
       expect(made?.mcp_url).toBeNull();
@@ -135,7 +118,7 @@ test.describe("Invite sheet", () => {
           .getByRole("button", { name: "Copy Editor link" })
           .or(sheet.getByRole("button", { name: "Copied Editor link" })),
       ).toBeVisible();
-      const made = (await rows(page, projectPath)).find(
+      const made = (await hostList(page, projectPath)).find(
         (r) => r.docs_role === "editor",
       );
       expect(made?.mcp_url).toBeTruthy();
@@ -247,7 +230,7 @@ test.describe("Invite sheet", () => {
             : "The mix preview is out of date. Refresh it before creating a review link.",
         );
         await expect(sheet).not.toContainText("premix.wav");
-        expect(await rows(page, projectPath)).toEqual([]);
+        expect(await hostList(page, projectPath)).toEqual([]);
 
         refuse = false;
         await sheet.getByRole("button", { name: "Refresh mix" }).click();
@@ -256,7 +239,7 @@ test.describe("Invite sheet", () => {
             .getByRole("button", { name: "Copy Commenter link" })
             .or(sheet.getByRole("button", { name: "Copied Commenter link" })),
         ).toBeVisible({ timeout: 60_000 });
-        expect(await rows(page, projectPath)).toHaveLength(1);
+        expect(await hostList(page, projectPath)).toHaveLength(1);
         await expect(
           sheet.getByRole("button", { name: "Refresh mix" }),
         ).toBeHidden();
@@ -305,16 +288,16 @@ test.describe("Invite sheet", () => {
       await expect(
         sheet.getByText("Producer link", { exact: true }),
       ).toBeVisible();
-      const room = (await rows(page, projectPath)).find(
+      const room = (await hostList(page, projectPath)).find(
         (r) => r.session_id && r.docs_role === null,
       );
       expect(room).toBeTruthy();
 
       await sheet.getByRole("button", { name: "End room" }).click();
       await expect(sheet.getByText("No record rooms yet.")).toBeVisible();
-      expect((await rows(page, projectPath)).filter((r) => r.usable)).toEqual(
-        [],
-      );
+      expect(
+        (await hostList(page, projectPath)).filter((r) => r.usable),
+      ).toEqual([]);
     });
   });
 
@@ -360,12 +343,12 @@ test.describe("Listen link on Deliver", () => {
   }) => {
     await withShareableProject(async (projectPath) => {
       const region = await openListen(page, projectPath);
-      expect(await rows(page, projectPath)).toEqual([]);
+      expect(await hostList(page, projectPath)).toEqual([]);
       await region.getByRole("button", { name: /^Copy .*link/ }).click();
       await expect(
         region.getByRole("button", { name: /^Copied .*link/ }),
       ).toBeVisible();
-      const [made] = await rows(page, projectPath);
+      const [made] = await hostList(page, projectPath);
       expect(made.docs_role).toBe("viewer");
       expect(made.mcp_url).toBeNull();
       expect(made.follow_latest).toBe(false);
@@ -374,7 +357,7 @@ test.describe("Listen link on Deliver", () => {
       await page.evaluate(() => navigator.clipboard.writeText("elsewhere"));
       await region.getByRole("button", { name: /^Copy .*link/ }).click();
       expect(await clipboard(page)).toBe(made.url);
-      expect(await rows(page, projectPath)).toHaveLength(1);
+      expect(await hostList(page, projectPath)).toHaveLength(1);
       await expectPageAxeClean(page, ".dv-stage");
     });
   });

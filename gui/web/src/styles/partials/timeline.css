@@ -1270,3 +1270,51 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   position: absolute;
   inset: 0;
 }
+
+/* Kept clear of the edit corner, header column and playhead. The doubled
+   selector beats .ui-control's transparent fill and border. */
+.ui-control.timeline-follow-pill {
+  position: absolute;
+  inset-block-start: calc(
+    var(--ruler-height) +
+    var(--marker-lane-height, 0rem) +
+    var(--space-3)
+  );
+  inset-inline-end: calc(
+    var(--timeline-scrollbar-inline, 0rem) +
+    var(--space-4)
+  );
+  z-index: var(--z-timeline-chrome);
+  gap: var(--space-1);
+  min-block-size: 2rem;
+  padding-inline: var(--space-4);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-overlay);
+  box-shadow: var(--shadow-floating);
+  color: var(--color-text-on-overlay);
+  font-size: var(--font-size-small);
+}
+
+@media (pointer: coarse) {
+  .ui-control.timeline-follow-pill {
+    min-block-size: var(--touch-min);
+  }
+}
+
+.timeline-scroll:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.timeline-scroll:focus-visible {
+  outline: none;
+}
+
+.timeline-area:has(.timeline-scroll:focus-visible)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-timeline-popover);
+  border: var(--focus-ring-width) solid var(--color-accent);
+  pointer-events: none;
+}

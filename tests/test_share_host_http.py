@@ -340,7 +340,11 @@ class Served:
 
 @pytest.fixture
 def served(
-    minimal_project: Path, sample_wav: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    minimal_project: Path,
+    sample_wav: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bare_uvicorn_loggers: None,
 ) -> Iterator[Served]:
     home = tmp_path / "home"
     home.mkdir()

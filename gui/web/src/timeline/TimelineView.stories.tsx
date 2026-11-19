@@ -84,6 +84,7 @@ export const ClipSelected: Story = {
 };
 
 export const Loading: Story = {
+  tags: ["storybook-only"],
   parameters: { episode: { state: { project: null } } },
 };
 

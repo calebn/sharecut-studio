@@ -7,6 +7,7 @@ from enum import StrEnum
 from typing import Any
 
 from podcast_mcp.edits.review_gate import ShareSource
+from podcast_mcp.project.history.author import SHARE_AUTHOR_PREFIX
 from podcast_mcp.util.coded_error import CodedValueError
 
 CAP_VIEW = "view"
@@ -209,7 +210,7 @@ class GuestWords(StrEnum):
         return value if isinstance(value, cls) else cls.NONE
 
 
-SHARE_ACTOR_PREFIX = "share:"
+SHARE_ACTOR_PREFIX = SHARE_AUTHOR_PREFIX
 
 
 def share_id_of(share: Mapping[str, Any]) -> str:

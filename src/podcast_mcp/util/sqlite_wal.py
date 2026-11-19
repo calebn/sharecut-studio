@@ -29,6 +29,54 @@ def _transient_readonly(connection: sqlite3.Connection, exc: sqlite3.Operational
     return bool(path) and os.access(path, os.W_OK)
 
 
+WINDOWS_ACCESS_DENIED = 5
+
+
+def transient_access_denied(exc: BaseException) -> bool:
+    """True for ``ERROR_ACCESS_DENIED`` (WinError 5) from opening a file on Windows.
+
+    Windows answers it for a file another process has marked for deletion, such as the
+    ``-wal`` and ``-shm`` sidecars SQLite removes when its last connection closes; it clears
+    once the delete completes.
+    """
+    return (
+        isinstance(exc, PermissionError) and getattr(exc, "winerror", None) == WINDOWS_ACCESS_DENIED
+    )
+
+
+def retry_access_denied(
+    step: Callable[[], None],
+    *,
+    timeout_sec: float = 10.0,
+    retry_sec: float = 0.05,
+    monotonic: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    """Run *step* until it stops failing with a transient access-denied, for up to *timeout_sec*.
+
+    *step* must be safe to repeat; any other error is raised at once, and the last
+    access-denied at the deadline is raised with a note describing the terminal attempt.
+    """
+    started = monotonic()
+    deadline = started + timeout_sec
+    attempts = 0
+    while True:
+        attempts += 1
+        try:
+            step()
+            return
+        except PermissionError as exc:
+            now = monotonic()
+            if not transient_access_denied(exc) or now >= deadline:
+                if transient_access_denied(exc):
+                    exc.add_note(
+                        f"access-denied retry failed: attempts={attempts} "
+                        f"elapsed_sec={now - started:.6f} terminal_reason=deadline"
+                    )
+                raise
+            sleep(retry_sec)
+
+
 def switch_to_wal(connection: sqlite3.Connection) -> None:
     """Make *connection*'s database WAL; a no-op when it already is."""
     journal_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()

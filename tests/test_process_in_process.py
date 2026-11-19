@@ -1,0 +1,685 @@
+"""The in-process spawn path of ``util/process.py``: a fake backend stands in for a Kit adapter."""
+
+from __future__ import annotations
+
+import contextlib
+import errno
+import gc
+import io
+import os
+import resource
+import shutil
+import subprocess
+import threading
+import time
+import types
+from dataclasses import replace
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.source_proxy_audio import _is_in_process_tool
+from podcast_mcp.util import process
+from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.host_platform import IOS, MACOS
+from podcast_mcp.util.process import IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, Streams
+from process_child_contract import CASES, run_case
+
+ROW = replace(IOS, media_tools="in_process")
+MIB = 1 << 20
+
+
+class FakeBackend:
+    """Records every call and plays the behaviour named by ``argv[1]`` (default: succeed)."""
+
+    def __init__(self, **params: Any) -> None:
+        self.calls: list[list[str]] = []
+        self.cancels: list[threading.Event] = []
+        self.params = params
+
+    def run(self, argv: list[str], streams: Streams, cancel: threading.Event) -> int:
+        self.calls.append(argv)
+        self.cancels.append(cancel)
+        p = self.params
+        behaviour = argv[1] if len(argv) > 1 else "ok"
+        if behaviour == "echo":
+            while data := os.read(streams.stdin.fileno(), 65536):
+                streams.stdout.write(data)
+                streams.stdout.flush()
+            return 0
+        if behaviour == "lines":
+            for i in range(p["n"]):
+                streams.stdout.write(b"line %d\n" % i)
+            streams.stdout.flush()
+            return 0
+        if behaviour == "stderr_exit":
+            streams.stdout.write(p["out"])
+            streams.stdout.flush()
+            streams.stderr.write(p["err"])
+            streams.stderr.flush()
+            return p["code"]
+        if behaviour == "wait_stdin":
+            streams.stdin.read()
+            return p["code"]
+        if behaviour == "block":
+            cancel.wait()
+            return -9
+        if behaviour == "cancel_zero":
+            cancel.wait()
+            return 0
+        if behaviour == "pcm_short":
+            streams.stdout.write(b"\0" * 400)
+            streams.stdout.flush()
+            cancel.wait()
+            return 0
+        if behaviour == "ignore_kill":
+            threading.Event().wait(30)
+            return 0
+        if behaviour == "stuck_read":
+            streams.stdin.read()
+            return 0
+        if behaviour == "stuck_write":
+            streams.stdout.write(b"x" * (8 * MIB))
+            return 0
+        if behaviour == "none":
+            return None
+        if behaviour == "flood":
+            chunk = b"x" * (p["err_bytes"] // p["lines"])
+            for i in range(p["lines"]):
+                streams.stdout.write(b"frame=%d\n" % i)
+                streams.stdout.flush()
+                streams.stderr.write(chunk)
+                streams.stderr.flush()
+            return 0
+        if behaviour == "boom":
+            raise RuntimeError("backend bug")
+        for stream, text in ((streams.stdout, b"out"), (streams.stderr, b"err")):
+            if stream is not None:
+                stream.write(text)
+                stream.flush()
+        return p.get("code", 0)
+
+
+@pytest.fixture
+def backend(host, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(subprocess, "Popen", lambda *_a, **_k: pytest.fail("spawned"))
+    monkeypatch.setattr(shutil, "which", lambda *_a, **_k: pytest.fail("which"))
+    host(ROW)
+    fake = FakeBackend()
+    with process.using_in_process_backend(fake):
+        yield fake
+
+
+def _contract_child(behaviour: str, *, cwd: Any = None, env: Any = None, **params: Any):
+    return process.InProcessChild(
+        [IN_PROCESS_FFMPEG, behaviour],
+        FakeBackend(**params),
+        stdin=process.PIPE,
+        stdout=process.PIPE,
+        stderr=process.PIPE,
+    )
+
+
+@pytest.mark.parametrize("name", [n for n in CASES if n != "argv_cwd_env"])
+def test_the_in_process_child_meets_the_child_contract(name: str, tmp_path: Path) -> None:
+    run_case(name, _contract_child, tmp_path)
+
+
+def test_run_captures_bytes_and_text_and_feeds_input(backend: FakeBackend) -> None:
+    done = process.run([IN_PROCESS_FFMPEG, "-y"], capture_output=True)
+    assert (done.returncode, done.stdout, done.stderr) == (0, b"out", b"err")
+    assert backend.calls == [[IN_PROCESS_FFMPEG, "-y"]]
+    done = process.run([IN_PROCESS_FFPROBE], capture_output=True, text=True)
+    assert (done.stdout, done.stderr) == ("out", "err")
+    echoed = process.run([IN_PROCESS_FFMPEG, "echo"], input=b"abc", stdout=process.PIPE)
+    assert echoed.stdout == b"abc"
+
+
+def test_check_raises_with_the_captured_stderr_and_timeout_kills(backend: FakeBackend) -> None:
+    backend.params = {"code": 3}
+    with pytest.raises(process.CalledProcessError) as raised:
+        process.run([IN_PROCESS_FFMPEG], check=True, capture_output=True)
+    assert (raised.value.returncode, raised.value.stderr) == (3, b"err")
+    assert process.run([IN_PROCESS_FFMPEG], capture_output=True).returncode == 3
+    with pytest.raises(process.TimeoutExpired):
+        process.run([IN_PROCESS_FFMPEG, "block"], capture_output=True, timeout=0.2)
+    assert backend.cancels[-1].is_set()
+
+
+def test_stderr_goes_to_a_file_handle_and_devnull_gives_the_backend_none(
+    backend: FakeBackend, tmp_path: Path
+) -> None:
+    with (tmp_path / "errors").open("wb") as errors:
+        process.run([IN_PROCESS_FFMPEG], stdout=process.DEVNULL, stderr=errors)
+    assert (tmp_path / "errors").read_bytes() == b"err"
+
+
+def test_popen_streams_stdout_lines_and_reads_chunks(backend: FakeBackend) -> None:
+    backend.params = {"n": 3}
+    with process.popen([IN_PROCESS_FFPROBE, "lines"], stdout=process.PIPE) as child:
+        assert list(child.stdout) == [b"line 0\n", b"line 1\n", b"line 2\n"]
+        assert child.wait() == 0
+    assert child.pid is None
+
+
+def test_popen_stdin_is_written_then_closed(backend: FakeBackend) -> None:
+    backend.params = {"code": 5}
+    child = process.popen([IN_PROCESS_FFMPEG, "wait_stdin"], stdin=process.PIPE)
+    child.stdin.write(b"pcm")
+    child.stdin.close()
+    assert child.wait(5) == 5
+
+
+def test_kill_is_cooperative_and_a_backend_that_ignores_it_is_abandoned(
+    backend: FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.1)
+    child = process.popen([IN_PROCESS_FFMPEG, "ignore_kill"], stdout=process.PIPE)
+    child.kill()
+    child.kill()
+    assert child.wait(5) == -9
+    assert child.stdout.read() == b""
+
+
+@pytest.mark.parametrize("behaviour", ["stuck_read", "stuck_write"])
+def test_a_backend_stuck_in_a_pipe_call_is_abandoned_and_the_reader_sees_eof(
+    backend: FakeBackend, monkeypatch: pytest.MonkeyPatch, behaviour: str
+) -> None:
+    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.2)
+    child = process.popen([IN_PROCESS_FFMPEG, behaviour], stdin=process.PIPE, stdout=process.PIPE)
+    threading.Event().wait(0.3)
+    started = time.monotonic()
+    child.kill()
+    waited: list[int] = []
+    waiter = threading.Thread(target=lambda: waited.append(child.wait()), daemon=True)
+    waiter.start()
+    waiter.join(0.2 + 2)
+    assert waited == [-9], "wait() hung on a backend stuck in a pipe call"
+    assert time.monotonic() - started < 0.2 + 2
+    drained: list[bytes] = []
+    reader = threading.Thread(target=lambda: drained.append(child.stdout.read()), daemon=True)
+    reader.start()
+    reader.join(5)
+    assert drained, "the reader never saw EOF"
+    child.stdin.close()
+
+
+def test_an_abandoned_child_gives_eof_with_no_descriptor_left_to_open(
+    backend: FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.1)
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    outcome: dict[str, Any] = {}
+
+    def scenario() -> None:
+        with process.popen(
+            [IN_PROCESS_FFMPEG, "ignore_kill"], stdin=process.PIPE, stdout=process.PIPE
+        ) as child:
+            probe = os.open(os.devnull, os.O_RDONLY)
+            os.close(probe)
+            resource.setrlimit(resource.RLIMIT_NOFILE, (probe, hard))
+            try:
+                with pytest.raises(OSError) as exhausted:
+                    os.open(os.devnull, os.O_RDONLY)
+                assert exhausted.value.errno == errno.EMFILE
+                child.kill()
+                outcome["code"] = child.wait()
+            finally:
+                resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
+            outcome["eof"] = child.stdout.read()
+
+    runner = threading.Thread(target=scenario, daemon=True)
+    runner.start()
+    runner.join(10)
+    assert not runner.is_alive(), "the with-exit hung after the kill"
+    assert outcome == {"code": -9, "eof": b""}
+
+
+def _open_fds() -> set[str]:
+    return set(os.listdir("/proc/self/fd"))
+
+
+@pytest.mark.skipif(not Path("/proc/self/fd").is_dir(), reason="needs /proc/self/fd")
+def test_a_failed_thread_start_closes_every_owned_descriptor(
+    backend: FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_start = threading.Thread.start
+
+    def start(self: threading.Thread) -> None:
+        if self.name == "in-process-child":
+            raise RuntimeError("can't start new thread")
+        real_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", start)
+    before = _open_fds()
+    for _ in range(5):
+        with pytest.raises(RuntimeError):
+            process.popen(
+                [IN_PROCESS_FFMPEG], stdin=process.PIPE, stdout=process.PIPE, stderr=process.PIPE
+            )
+    gc.collect()
+    assert _open_fds() - before == set()
+
+
+def test_a_kill_whose_grace_timer_cannot_start_abandons_at_once(
+    backend: FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_start(self: threading.Timer) -> None:
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(threading.Timer, "start", no_start)
+    outcome: dict[str, Any] = {}
+
+    def run_with_timeout() -> None:
+        with pytest.raises(subprocess.TimeoutExpired):
+            process.run([IN_PROCESS_FFMPEG, "ignore_kill"], capture_output=True, timeout=0.2)
+        outcome["timeout"] = True
+
+    def with_exit() -> None:
+        with process.popen([IN_PROCESS_FFMPEG, "ignore_kill"], stdout=process.PIPE) as child:
+            pass
+        outcome["code"] = child.returncode
+
+    for target in (run_with_timeout, with_exit):
+        runner = threading.Thread(target=target, daemon=True)
+        runner.start()
+        runner.join(10)
+        assert not runner.is_alive(), f"{target.__name__} hung"
+    assert outcome == {"timeout": True, "code": -9}
+
+
+def test_kill_with_a_failing_grace_timer_ends_with_sigkill(
+    backend: FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_start(self: threading.Timer) -> None:
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(threading.Timer, "start", no_start)
+    child = process.popen([IN_PROCESS_FFMPEG, "ignore_kill"], stdout=process.PIPE)
+    child.kill()
+    assert child.wait(5) == -9
+    assert child.stdout.read() == b""
+
+
+def test_a_backend_returning_a_non_int_fails_with_code_one(backend: FakeBackend) -> None:
+    done = process.run([IN_PROCESS_FFMPEG, "none"], capture_output=True)
+    assert done.returncode == 1
+    with pytest.raises(subprocess.CalledProcessError):
+        process.run([IN_PROCESS_FFMPEG, "none"], capture_output=True, check=True)
+
+
+def test_a_kill_before_the_backend_finishes_reports_sigkill_whatever_it_returns(
+    backend: FakeBackend,
+) -> None:
+    child = process.popen([IN_PROCESS_FFMPEG, "cancel_zero"], stdout=process.PIPE)
+    child.kill()
+    assert child.wait(5) == -9
+    assert child.poll() == -9
+
+
+def test_a_kill_after_completion_keeps_the_real_return_code(backend: FakeBackend) -> None:
+    backend.params = {"code": 3}
+    child = process.popen([IN_PROCESS_FFMPEG], stdout=process.PIPE)
+    assert child.wait(5) == 3
+    child.kill()
+    assert child.wait() == 3
+
+
+def test_the_pcm_watchdog_raises_on_a_killed_in_process_child(backend: FakeBackend) -> None:
+    reads = FFmpegEngine._read_pcm_f32(
+        [IN_PROCESS_FFMPEG, "pcm_short"], 1, chunk_frames=1000, timeout_sec=0.3, max_frames=1000
+    )
+    with pytest.raises(RuntimeError, match=r"exit -9.*watchdog"):
+        list(reads)
+
+
+def test_a_backend_that_raises_ends_the_child_with_a_failure(backend: FakeBackend) -> None:
+    done = process.run([IN_PROCESS_FFMPEG, "boom"], capture_output=True)
+    assert done.returncode == 1
+
+
+def test_silence_without_patching_run_reaches_the_backend_and_never_popen(
+    backend: FakeBackend, tmp_path: Path
+) -> None:
+    FFmpegEngine().silence(tmp_path / "s.wav", 1.0)
+    (argv,) = backend.calls
+    assert argv[0] == IN_PROCESS_FFMPEG
+    assert argv[-1] == str(tmp_path / "s.wav")
+
+
+def test_only_the_exact_sentinel_is_dispatched(backend: FakeBackend) -> None:
+    for argv in (
+        [IN_PROCESS_FFMPEG + "x"],
+        ["./" + IN_PROCESS_FFMPEG],
+        [" " + IN_PROCESS_FFMPEG],
+        ["/bin/sh", "-c", "true"],
+    ):
+        with pytest.raises(process.SpawnUnavailableError):
+            process.run(argv)
+    assert backend.calls == []
+
+
+def test_the_in_process_branch_skips_niceness(backend: FakeBackend) -> None:
+    with process.low_priority(5):
+        assert process.run([IN_PROCESS_FFMPEG], capture_output=True).returncode == 0
+
+
+def test_a_second_backend_is_refused(backend: FakeBackend) -> None:
+    with pytest.raises(RuntimeError), process.using_in_process_backend(FakeBackend()):
+        pass
+
+
+def test_a_sentinel_on_a_desktop_row_never_reaches_popen(
+    host, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    planted = tmp_path / IN_PROCESS_FFMPEG
+    planted.write_text("#!/bin/sh\ntouch pwned\n")
+    planted.chmod(0o755)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(subprocess, "Popen", lambda *_a, **_k: pytest.fail("spawned"))
+    host(MACOS)
+    for ready in (False, True):
+        with pytest.raises(process.SpawnUnavailableError) as refused:
+            if ready:
+                with process.using_in_process_backend(FakeBackend()):
+                    process.run([IN_PROCESS_FFMPEG])
+            else:
+                process.popen([IN_PROCESS_FFPROBE])
+        assert refused.value.errno == errno.ENOSYS
+    assert not (tmp_path / "pwned").exists()
+
+
+def test_no_backend_or_a_foreign_argv_fails_before_any_pipe(
+    host, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(subprocess, "Popen", lambda *_a, **_k: pytest.fail("spawned"))
+    monkeypatch.setattr(os, "pipe", lambda: pytest.fail("pipe"))
+    host(ROW)
+    for call in (process.run, process.popen):
+        with pytest.raises(process.SpawnUnavailableError):
+            call([IN_PROCESS_FFMPEG], stdout=process.PIPE)
+    with process.using_in_process_backend(FakeBackend()):
+        with pytest.raises(process.SpawnUnavailableError):
+            process.run(["/bin/sh", "-c", "true"])
+
+
+def test_a_sentinel_free_argv_reaches_popen_unchanged_with_a_backend_installed(
+    host, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[tuple[Any, dict[str, Any]]] = []
+
+    class Recorder:
+        def __init__(self, cmd: Any, **kwargs: Any) -> None:
+            seen.append((cmd, kwargs))
+
+    monkeypatch.setattr(subprocess, "Popen", Recorder)
+    host(MACOS)
+    with process.using_in_process_backend(FakeBackend()):
+        process.popen(["tool", "a"], stdout=process.PIPE)
+    assert seen == [
+        (
+            ["tool", "a"],
+            {
+                "stdin": None,
+                "stdout": process.PIPE,
+                "stderr": None,
+                "text": None,
+                "cwd": None,
+                "env": None,
+                "start_new_session": False,
+                "shell": False,
+            },
+        )
+    ]
+
+
+def test_the_proxy_identity_recognises_only_the_sentinels() -> None:
+    assert _is_in_process_tool(IN_PROCESS_FFMPEG)
+    assert _is_in_process_tool(IN_PROCESS_FFPROBE)
+    assert not _is_in_process_tool("/usr/bin/ffmpeg")
+    assert not _is_in_process_tool(IN_PROCESS_FFMPEG + "/")
+
+
+def test_the_proxy_identity_binds_the_sentinels_and_never_resolves_them(
+    backend: FakeBackend, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs
+    from test_source_proxy_audio import _project
+
+    project, _track, clip, _plan = _project(tmp_path, monkeypatch)
+    captured = SourceProxyInputs.capture_occurrence(
+        project, clip.id, FFmpegEngine(), defaults=load_defaults()
+    )
+    assert captured.identity_payload["binaries"] == [IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE]
+
+
+def test_the_proxy_identity_of_a_desktop_pair_is_content_hashed(
+    backend: FakeBackend, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs
+    from test_source_proxy_audio import _project
+
+    monkeypatch.undo()
+    tools = []
+    for name in ("ffmpeg", "ffprobe"):
+        tool = tmp_path / name
+        tool.write_bytes(name.encode())
+        tools.append(str(tool))
+    engine = FFmpegEngine()
+    engine.ffmpeg, engine.ffprobe = tools
+    project, _track, clip, _plan = _project(tmp_path, monkeypatch)
+    captured = SourceProxyInputs.capture_occurrence(
+        project, clip.id, engine, defaults=load_defaults()
+    )
+    binaries = captured.identity_payload["binaries"]
+    assert binaries == [sha256_file(Path(tool)) for tool in tools]
+    assert not {IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE} & set(binaries)
+
+
+def test_the_backend_contract_hands_argv_streams_and_event_and_the_int_becomes_returncode(
+    backend: FakeBackend,
+) -> None:
+    backend.params = {"code": 7}
+    done = process.run([IN_PROCESS_FFMPEG, "x"], capture_output=True)
+    assert done.returncode == 7
+    (argv,) = backend.calls
+    assert argv == [IN_PROCESS_FFMPEG, "x"] and isinstance(argv, list)
+    (cancel,) = backend.cancels
+    assert isinstance(cancel, threading.Event)
+
+
+def test_the_public_shape_of_the_backend_seam() -> None:
+    import inspect
+
+    assert Streams._fields == ("stdin", "stdout", "stderr")
+    assert list(inspect.signature(process.InProcessBackend.run).parameters) == [
+        "self",
+        "argv",
+        "streams",
+        "cancel",
+    ]
+    assert inspect.isgeneratorfunction(process.using_in_process_backend.__wrapped__)
+    assert process._in_process_backend is None
+
+
+def test_the_installed_backend_is_cleared_on_exit_and_a_streams_triple_reaches_run(
+    host,
+) -> None:
+    seen: list[Streams] = []
+
+    class Spy:
+        def run(self, argv: list[str], streams: Streams, cancel: threading.Event) -> int:
+            seen.append(streams)
+            return 0
+
+    host(ROW)
+    with process.using_in_process_backend(Spy()):
+        assert process.run([IN_PROCESS_FFMPEG], capture_output=True).returncode == 0
+    assert process._in_process_backend is None
+    assert isinstance(seen[0], Streams)
+
+
+class _ProbeRaw(io.FileIO):
+    """A raw stdin end that reports when a write is inside it and counts its closes."""
+
+    def __init__(self, fd: int, mode: str = "wb", *, gate: threading.Event | None = None) -> None:
+        super().__init__(fd, mode)
+        self.in_write = threading.Event()
+        self.gate = gate
+        self.closes = 0
+
+    def write(self, data: Any, /) -> int | None:
+        self.in_write.set()
+        if self.gate is not None:
+            assert self.gate.wait(10), "test never released the write"
+        return super().write(data)
+
+    def close(self) -> None:
+        self.closes += 1
+        super().close()
+
+
+def _close_with_a_write_in_flight(
+    monkeypatch: pytest.MonkeyPatch, writer: Any, raw: _ProbeRaw
+) -> tuple[threading.Thread, threading.Thread]:
+    """Run ``close()`` so that a write enters the raw write right after the close's own flush.
+
+    Returns the closer thread and the writer thread; the writer is inside the raw write when
+    this returns.
+    """
+    real_flush = process._CallerStdin.flush
+    first = threading.Event()
+
+    def write_forever() -> None:
+        with contextlib.suppress(BaseException):
+            writer.write(b"x" * (1 << 20))
+
+    writer_thread = threading.Thread(target=write_forever, daemon=True)
+
+    def flush(self: Any) -> None:
+        real_flush(self)
+        if not first.is_set():
+            first.set()
+            writer_thread.start()
+            assert raw.in_write.wait(10)
+
+    monkeypatch.setattr(process._CallerStdin, "flush", flush)
+    closer = threading.Thread(target=writer.close, daemon=True)
+    closer.start()
+    assert first.wait(10) and raw.in_write.wait(10)
+    return closer, writer_thread
+
+
+def test_a_close_never_frees_the_descriptor_while_a_write_is_in_flight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    read_fd, write_fd = os.pipe()
+    gate = threading.Event()
+    raw = _ProbeRaw(write_fd, gate=gate)
+    writer = process._CallerStdin(raw)
+    closer, writer_thread = _close_with_a_write_in_flight(monkeypatch, writer, raw)
+    sentinel = -1
+    try:
+        closer.join(10)
+        assert not closer.is_alive(), "close waited for a write in flight"
+        assert not raw.closed and raw.closes == 0
+        os.fstat(write_fd)  # the number is still allocated: it cannot be reused
+        sentinel = os.open(os.devnull, os.O_RDONLY)
+        assert sentinel != write_fd
+        assert writer.closed
+        with pytest.raises(ValueError):
+            writer.write(b"late")
+    finally:
+        gate.set()
+        writer_thread.join(10)
+        closer.join(10)
+        if sentinel >= 0:
+            os.close(sentinel)
+        os.close(read_fd)
+    assert not writer_thread.is_alive()
+    assert raw.closed and raw.closes == 1
+    with pytest.raises(OSError):
+        os.fstat(write_fd)
+
+
+def test_the_descriptor_is_freed_exactly_once_however_close_and_release_interleave(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    read_fd, write_fd = os.pipe()
+    gate = threading.Event()
+    raw = _ProbeRaw(write_fd, gate=gate)
+    writer = process._CallerStdin(raw)
+    closer, writer_thread = _close_with_a_write_in_flight(monkeypatch, writer, raw)
+    null_fd = os.open(os.devnull, os.O_RDWR)
+    try:
+        closer.join(10)
+        writer.close()  # a second close while the write is still in flight
+        writer.release(null_fd)  # a release after the close does nothing
+        assert raw.closes == 0
+    finally:
+        gate.set()
+        writer_thread.join(10)
+        os.close(read_fd)
+    writer.close()
+    writer.close()
+    assert raw.closes == 1
+    # The number is free again and may be reused: a later release must not touch its new owner.
+    sentinel_path = tmp_path / "sentinel"
+    sentinel_path.write_bytes(b"x")
+    sentinel = os.open(sentinel_path, os.O_RDONLY)
+    try:
+        writer.release(null_fd)
+        assert os.read(sentinel, 1) == b"x"
+    finally:
+        os.close(sentinel)
+        os.close(null_fd)
+
+
+def test_a_writer_blocked_on_a_full_pipe_cannot_stall_the_abandon(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.1)
+    never = threading.Event()
+    held: list[int] = []
+    probes: list[_ProbeRaw] = []
+
+    def make_raw(fd: int, mode: str) -> _ProbeRaw:
+        probes.append(_ProbeRaw(fd, mode))
+        return probes[0]
+
+    monkeypatch.setattr(
+        process, "io", types.SimpleNamespace(FileIO=make_raw, RawIOBase=io.RawIOBase)
+    )
+
+    class Ignores:
+        def run(self, argv: list[str], streams: Any, cancel: threading.Event) -> int:
+            held.append(os.dup(streams.stdin.fileno()))  # a native dup keeps the pipe open
+            never.wait(30)
+            return 0
+
+    child = process.InProcessChild([IN_PROCESS_FFMPEG, "x"], Ignores(), stdin=process.PIPE)
+    raw = probes[0]
+    # A real pipe nobody reads: the write blocks inside write(2) until the pipe breaks.
+    closer, writer_thread = _close_with_a_write_in_flight(monkeypatch, child.stdin, raw)
+    try:
+        closer.join(10)
+        assert not closer.is_alive()
+        waited: list[int] = []
+        waiter = threading.Thread(
+            target=lambda: (child.kill(), waited.append(child.wait(10))), daemon=True
+        )
+        waiter.start()
+        waiter.join(5)
+        assert not waiter.is_alive(), "kill/wait hung behind a writer blocked on a full pipe"
+        assert waited == [-9]
+    finally:
+        never.set()
+        for fd in held:
+            os.close(fd)
+        writer_thread.join(10)
+    assert not writer_thread.is_alive()
+    assert raw.closed and raw.closes == 1

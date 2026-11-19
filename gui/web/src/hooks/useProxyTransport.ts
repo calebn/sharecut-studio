@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { loadProxyManifest } from "../api";
-import { cachedFetchArrayBuffer } from "../audio/chunkCache";
+import { cachedFetchArrayBuffer, pruneLinkAudio } from "../audio/chunkCache";
 import { bindPlaybackClock } from "../audio/playbackClock";
 import { bindPlaybackMeterSource } from "../audio/playbackMeterSource";
 import { leavePlaybackSession } from "../audio/playbackSession";
@@ -16,6 +16,7 @@ import {
   chunkRefKey,
   type ImmutableChunkRef,
   isQueuedMoveOverlay,
+  manifestChunkRefs,
   type ProxyManifest,
   parseProxyManifest,
   projectProxyBasis,
@@ -233,7 +234,7 @@ export function useProxyTransport(): boolean {
       if (!Ctx) throw new Error("Web Audio unavailable");
       engineRef.current = new ProxyEngine(
         new Ctx(),
-        (ref) => cachedFetchArrayBuffer(projectPath, ref.url),
+        (ref) => cachedFetchArrayBuffer(projectPath, ref),
         {
           onFailure: (error, ref) => handleFailure(error, ref),
           onEnded: (endSec) => handleEnded(endSec),
@@ -342,11 +343,15 @@ export function useProxyTransport(): boolean {
           state.setAudioError(null);
         ownedErrorRef.current = null;
         const token = shareTokenFromKey(projectPath);
-        if (token && !cachedFallback)
+        if (token && !cachedFallback) {
           void mergeOfflineSnapshot(token, {
             project: displayed,
             manifest,
           }).catch(() => undefined);
+          // Only a manifest the server just gave is the newest: one read from
+          // the saved copy can be older than the audio the device holds.
+          void pruneLinkAudio(token, manifestChunkRefs(manifest));
+        }
       } catch (error) {
         if (current()) block(error);
       }

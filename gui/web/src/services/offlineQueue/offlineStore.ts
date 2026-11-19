@@ -1,5 +1,6 @@
 /** Minimal IndexedDB helpers for offline snapshot + command queue. */
 
+import { isLinkEnded } from "../../utils/linkEnded";
 import { chainQueuedEnvelopeBaseline } from "./queuedEnvelopeBaseline";
 
 const DB_NAME = "podcast-daw-offline";
@@ -490,11 +491,47 @@ function updateHostQueue<Result>(
   );
 }
 
-export async function saveOfflineSnapshot(
+/** Snapshot writes that have begun, per link, so ending the link can wait for them. */
+const snapshotWrites = new Map<string, Set<Promise<unknown>>>();
+
+function trackSnapshotWrite<T>(token: string, write: Promise<T>): Promise<T> {
+  const open = snapshotWrites.get(token) ?? new Set<Promise<unknown>>();
+  snapshotWrites.set(token, open);
+  const settled = write.then(
+    () => undefined,
+    () => undefined,
+  );
+  open.add(settled);
+  void settled.then(() => {
+    open.delete(settled);
+    if (open.size === 0) snapshotWrites.delete(token);
+  });
+  return write;
+}
+
+export function saveOfflineSnapshot(
   token: string,
   snapshot: OfflineSnapshot,
 ): Promise<void> {
-  await idbSet(snapKey(token), snapshot);
+  // A link that ended keeps no saved copy: nothing may bring it back.
+  if (isLinkEnded(token)) return Promise.resolve();
+  return trackSnapshotWrite(token, idbSet(snapKey(token), snapshot));
+}
+
+/**
+ * The link ended: let the writes that had already begun finish, then delete the
+ * saved copy. Never rejects; a failed delete leaves a copy that the dead-link
+ * answer clears on the next open.
+ */
+export async function retireOfflineSnapshot(token: string): Promise<void> {
+  try {
+    while (snapshotWrites.has(token)) {
+      await Promise.all([...(snapshotWrites.get(token) ?? [])]);
+    }
+    await clearOfflineSnapshot(token);
+  } catch {
+    // Nothing more can be done for a store that will not answer.
+  }
 }
 
 export async function loadOfflineSnapshot(
@@ -527,12 +564,18 @@ export async function mergeOfflineSnapshot(
   token: string,
   patch: Partial<OfflineSnapshot>,
 ): Promise<void> {
-  const prev = (await loadOfflineSnapshot(token)) ?? { saved_at: 0 };
-  await saveOfflineSnapshot(token, {
-    ...prev,
-    ...patch,
-    saved_at: Date.now(),
-  });
+  if (isLinkEnded(token)) return;
+  await trackSnapshotWrite(
+    token,
+    (async () => {
+      const prev = (await loadOfflineSnapshot(token)) ?? { saved_at: 0 };
+      await saveOfflineSnapshot(token, {
+        ...prev,
+        ...patch,
+        saved_at: Date.now(),
+      });
+    })(),
+  );
 }
 
 export async function loadCommandQueue(

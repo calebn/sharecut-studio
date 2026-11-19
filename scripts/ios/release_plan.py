@@ -22,7 +22,16 @@ from scripts.ios import bundle_checks as checks
 from scripts.ios import private_paths
 from scripts.ios.private_file import write_private
 from scripts.ios.release_classify import AppleAnswer, Failure, signing_hint
-from scripts.ios.release_inputs import PLACEHOLDER_TEAM, BuildInputs, Identity, Signing
+from scripts.ios.release_inputs import (
+    ISSUER_NAME,
+    KEY_ID_NAME,
+    KEY_PATH_NAME,
+    PLACEHOLDER_TEAM,
+    BuildInputs,
+    Identity,
+    Provisioning,
+    Signing,
+)
 from scripts.ios.release_record import ReleaseRecord, sha256_file, write_record
 from scripts.ios.release_run import Command, Part, PrivateFile, SpawnResult, ToolFailed, capture
 from scripts.ios.release_secrets import Secret
@@ -160,20 +169,28 @@ def overlay_argument(identity: Identity, build_number: str) -> str:
     return json.dumps(ios_overlay(identity, build_number), separators=(",", ":"))
 
 
-def export_options_parts(team: Secret) -> tuple[Part, ...]:
-    marker = "@@TEAM@@"
-    document = plistlib.dumps(
-        {
-            "method": "app-store-connect",
-            "signingStyle": "automatic",
-            "teamID": marker,
-            "uploadSymbols": False,
-            "destination": "export",
-            "manageAppVersionAndBuildNumber": False,
-        }
-    ).decode()
-    head, _, tail = document.partition(marker)
-    return (head, team, tail)
+def export_options_parts(
+    team: Secret, provisioning: Provisioning | None, bundle_identifier: str
+) -> tuple[Part, ...]:
+    """The ExportOptions.plist text with the team (and, for manual signing, the profile name)
+    left as secrets to be revealed only when the file is written."""
+    team_marker, profile_marker = "@@TEAM@@", "@@PROFILE@@"
+    options: dict[str, object] = {
+        "method": "app-store-connect",
+        "signingStyle": "automatic",
+        "teamID": team_marker,
+        "uploadSymbols": False,
+        "destination": "export",
+        "manageAppVersionAndBuildNumber": False,
+    }
+    secrets = {team_marker: team}
+    if provisioning is not None:
+        options["signingStyle"] = "manual"
+        options["signingCertificate"] = provisioning.certificate
+        options["provisioningProfiles"] = {bundle_identifier: profile_marker}
+        secrets[profile_marker] = provisioning.profile
+    pieces = re.split(f"({'|'.join(secrets)})", plistlib.dumps(options).decode())
+    return tuple(secrets.get(piece, piece) for piece in pieces)
 
 
 def tool_outcome(result: SpawnResult, _: Workspace) -> Outcome:
@@ -251,6 +268,13 @@ def plan_build(
     )
     shim = layout.release_root / f"{inputs.build_number}.partial" / "xcodebuild-shim"
     archive_env = env
+    if signed and inputs.key is not None:
+        archive_env = {
+            **env,
+            KEY_ID_NAME: inputs.key.key_id,
+            ISSUER_NAME: inputs.key.issuer,
+            KEY_PATH_NAME: inputs.key.key_path,
+        }
     if not signed:
         steps.append(Local("record xcodebuild arguments", lambda ws: write_shim(shim)))
         archive_env = {**env, "PATH": f"{shim}:{path}"}
@@ -282,8 +306,22 @@ def plan_build(
     if not signed:
         steps.append(Local("xcodebuild arguments", lambda ws: keep_shim_log(ws, shim)))
     export_dir = layout.tauri / "gen" / "apple" / "build" / "export"
-    if signed and inputs.team is not None:
+    if signed and inputs.team is not None and inputs.key is not None:
+        key = inputs.key
         options = layout.tauri / "gen" / "apple" / "build" / "ExportOptions.release.plist"
+        key_flags: tuple[Part, ...] = (
+            ()
+            if inputs.provisioning is not None
+            else (
+                "-allowProvisioningUpdates",
+                "-authenticationKeyPath",
+                key.key_path,
+                "-authenticationKeyID",
+                key.key_id,
+                "-authenticationKeyIssuerID",
+                key.issuer,
+            )
+        )
         steps.append(
             Run(
                 "export",
@@ -291,7 +329,7 @@ def plan_build(
                     (
                         "xcodebuild",
                         "-exportArchive",
-                        "-allowProvisioningUpdates",
+                        *key_flags,
                         "-archivePath",
                         str(layout.archive),
                         "-exportPath",
@@ -301,7 +339,14 @@ def plan_build(
                     ),
                     layout.desktop,
                     bare,
-                    (PrivateFile(options, export_options_parts(inputs.team)),),
+                    (
+                        PrivateFile(
+                            options,
+                            export_options_parts(
+                                inputs.team, inputs.provisioning, inputs.identity.bundle_identifier
+                            ),
+                        ),
+                    ),
                 ),
                 True,
                 tool_outcome,
@@ -410,6 +455,7 @@ def artifact_checks(
         Local("path scan", lambda ws: scan_check(ws, layout.root)),
         Local("info plist", lambda ws: plist_check(ws, expect)),
         Local("bundle layout", lambda ws: checks.check_layout(unpack(ws))),
+        Local("ffmpeg framework", lambda ws: checks.check_ffmpeg_framework(unpack(ws))),
         Local("privacy", privacy_check),
     ]
     if signed:

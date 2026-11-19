@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
+import type { HeadphonesChoice } from "../system/joinSheetModel";
 import { readRecordName, writeRecordName } from "../utils/recordNamePref";
 import { readLocal, removeLocal, writeLocal } from "../utils/storage";
 import { tookAnyTake } from "./guestRoomModel";
@@ -29,10 +30,31 @@ import { useRecordLiveComments } from "./useRecordLiveComments";
 import {
   isRecordAccessEnded,
   RECORD_INVITE_CLOSED,
+  type RecordSocketMode,
   useRecordSync,
 } from "./useRecordSync";
 import { useRoomToneCapture } from "./useRoomToneCapture";
 import { usePastTakeClipping, useTakeClipping } from "./useTakeClipping";
+
+/**
+ * A guest, or a producer who pressed Join to listen, is in the room. A producer
+ * only looks until then, and Not now ends the look.
+ */
+export function requestedRecordMode(room: {
+  bootstrapped: boolean;
+  producer: boolean;
+  producerJoined: boolean;
+  producerDismissed: boolean;
+  left: boolean;
+}): RecordSocketMode {
+  if (!room.bootstrapped || room.left) {
+    return "off";
+  }
+  if (!room.producer || room.producerJoined) {
+    return "join";
+  }
+  return room.producerDismissed ? "off" : "watch";
+}
 
 function storageKey(token: string, suffix: string): string {
   return `record:${token}:${suffix}`;
@@ -57,11 +79,13 @@ export function useGuestRoom(
     setNameTyped(true);
     setName(value);
   }, []);
-  const [headphonesOk, setHeadphonesOk] = useState(false);
+  const [headphones, setHeadphones] = useState<HeadphonesChoice>("unset");
+  const [seededFor, setSeededFor] = useState<string | null>(null);
   const [deviceId, setDeviceId] = useState(
     () => readLocal(storageKey(token, "mic")) || "",
   );
   const [producerJoined, setProducerJoined] = useState(false);
+  const [producerDismissed, setProducerDismissed] = useState(false);
   const [left, setLeft] = useState(false);
   const leave = useCallback(() => setLeft(true), []);
 
@@ -89,12 +113,24 @@ export function useGuestRoom(
   const syncName =
     (nameTyped || producerJoined || heldAsJoined ? name.trim() : "") ||
     (producer ? "Producer" : "Guest");
-  const { snapshot, me, send, error, clearError, connected, lease } =
-    useRecordSync(
-      token,
-      syncName,
-      !!bootstrap && (!producer || producerJoined) && !left,
-    );
+  const requestedMode = requestedRecordMode({
+    bootstrapped: !!bootstrap,
+    producer,
+    producerJoined,
+    producerDismissed,
+    left,
+  });
+  const {
+    snapshot,
+    me,
+    send,
+    error,
+    clearError,
+    connected,
+    lease,
+    counted,
+    socketMode,
+  } = useRecordSync(token, syncName, requestedMode);
   const accessEnded = isRecordAccessEnded(error);
   const inviteClosed = error === RECORD_INVITE_CLOSED;
   const joinedName = (producer ? producerJoined : me?.consented === true)
@@ -109,7 +145,7 @@ export function useGuestRoom(
     me,
     connected,
     send,
-    captureKeys: true,
+    captureKeys: !!me,
   });
 
   const micEnabled =
@@ -347,11 +383,21 @@ export function useGuestRoom(
     removeLocal(storageKey(token, "name"));
   }, [token]);
 
-  useEffect(() => {
-    if (meId && !producer) {
-      send("HeadphonesAck", { ok: headphonesOk });
+  if (meId && meId !== seededFor) {
+    setSeededFor(meId);
+    if (me?.consented === true && headphones === "unset") {
+      setHeadphones(me.headphones_ack ? "on" : "off");
     }
-  }, [headphonesOk, meId, producer, send]);
+  }
+  const ackedOn = me?.headphones_ack;
+  useEffect(() => {
+    if (connected && meId && !producer && headphones !== "unset") {
+      const on = headphones === "on";
+      if (on !== ackedOn) {
+        send("HeadphonesAck", { ok: on });
+      }
+    }
+  }, [ackedOn, connected, headphones, meId, producer, send]);
 
   const view = useMemo(() => {
     if (error === "room_full") {
@@ -399,7 +445,8 @@ export function useGuestRoom(
     localRecording: localKeeper.found,
     localSegments: localKeeper.segments,
     recordedHere: recordedThisPage || tookAnyTake(snapshot, me),
-    localUnreadable: localKeeper.failed,
+    localUnreadable:
+      localKeeper.failed || (sink === null && sinkError !== null),
     roomTone,
     liveComments,
     captureSettled,
@@ -407,12 +454,16 @@ export function useGuestRoom(
     name,
     setName: typeName,
     shareName,
-    headphonesOk,
-    setHeadphonesOk,
+    headphones,
+    setHeadphones,
     deviceId,
     setDeviceId,
     producerJoined,
     setProducerJoined,
+    producerDismissed,
+    setProducerDismissed,
+    socketMode,
+    counted,
     resumeUpload,
     left,
     leave,

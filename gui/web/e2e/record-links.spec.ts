@@ -131,4 +131,41 @@ test.describe("record links", () => {
       });
     });
   });
+
+  test("a guest whose room code fails to load gets a cover with Reload, not a blank page", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
+        await host.goto(`/?project=${encodeURIComponent(projectPath)}`);
+        const room = await createRecordRoom(host, projectPath);
+
+        await guest.route("**/assets/GuestRoomApp-*.js", (route) =>
+          route.abort("failed"),
+        );
+        await openRecordLink(guest, room.guest.token);
+        await expect(
+          guest.getByRole("heading", {
+            level: 1,
+            name: "Couldn't reach the room",
+          }),
+        ).toBeVisible();
+        await expect(guest).toHaveTitle(
+          "Couldn't reach the room | ShareCut Studio",
+        );
+        await expect(
+          guest.getByRole("button", { name: "Reload" }),
+        ).toBeVisible();
+        await expectReadingSurfaceAxeClean(guest);
+
+        await guest.unroute("**/assets/GuestRoomApp-*.js");
+        await guest.getByRole("button", { name: "Reload" }).click();
+        await expect(guest.getByRole("dialog")).toBeVisible();
+        await expect(joinNameField(guest)).toBeVisible();
+        await expect(guest).toHaveTitle(/^Join the room \| /);
+      });
+    });
+  });
 });

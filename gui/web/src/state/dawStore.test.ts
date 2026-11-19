@@ -371,6 +371,22 @@ describe("dawStore listen-first transport", () => {
     expect(s.playUntilSec).toBe(3);
   });
 
+  it("beginAudition leaves a followed editor alone and clears a source preview", () => {
+    useDawStore.setState({ followingClientId: "remote-editor" });
+    useDawStore.getState().beginSourcePreview({
+      ownerId: "word",
+      startSec: 1,
+      endSec: 3,
+      media: { kind: "rendered", url: "u" },
+    });
+    const gen = useDawStore.getState().sourcePreviewGeneration;
+    useDawStore.getState().beginAudition({ playheadSec: 1, untilSec: 3 });
+    const s = useDawStore.getState();
+    expect(s.followingClientId).toBe("remote-editor");
+    expect(s.sourcePreview).toBeNull();
+    expect(s.sourcePreviewGeneration).toBe(gen + 1);
+  });
+
   it("a transport seek during an audition clears the stop bound and keeps playing", async () => {
     registerDawCommands();
     useDawStore.setState({
@@ -1170,5 +1186,37 @@ describe("remote selection before its target is here", () => {
       .getState()
       .hydrate("share:tok", twoTrackProject(), "comment", ["view", "comment"]);
     expect(useDawStore.getState().selection).toBeNull();
+  });
+});
+
+describe("dawStore timeline follow flag", () => {
+  const { setTimelineFollowPlayhead } = useDawStore.getState();
+
+  afterEach(() => setTimelineFollowPlayhead(true));
+
+  it("defaults true and flips with its setter", () => {
+    expect(useDawStore.getInitialState().timelineFollowPlayhead).toBe(true);
+    setTimelineFollowPlayhead(false);
+    expect(useDawStore.getState().timelineFollowPlayhead).toBe(false);
+    setTimelineFollowPlayhead(true);
+    expect(useDawStore.getState().timelineFollowPlayhead).toBe(true);
+  });
+
+  it("does not notify subscribers when the setter repeats the current value", () => {
+    setTimelineFollowPlayhead(true);
+    const listener = vi.fn();
+    const off = useDawStore.subscribe(listener);
+    setTimelineFollowPlayhead(true);
+    off();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("is on again after a project switch, not after a reload of the same project", () => {
+    useDawStore.getState().hydrate("/tmp/a.json", minimalProject());
+    setTimelineFollowPlayhead(false);
+    useDawStore.getState().hydrate("/tmp/a.json", minimalProject());
+    expect(useDawStore.getState().timelineFollowPlayhead).toBe(false);
+    useDawStore.getState().hydrate("/tmp/b.json", minimalProject());
+    expect(useDawStore.getState().timelineFollowPlayhead).toBe(true);
   });
 });

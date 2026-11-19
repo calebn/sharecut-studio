@@ -140,7 +140,7 @@ def _assert_parked_recovered(ws, original, tmp_path):
 def test_guarded_history_undo_recovers_original_parked_snapshot(tmp_path):
     ws, original = _approved_parked(tmp_path)
     result = HistoryService(ws).undo(expected_head_id=HistoryService(ws).status().head_id)
-    assert result["can_redo"] is True
+    assert result.can_redo is True
     _assert_parked_recovered(ws, original, tmp_path)
 
 

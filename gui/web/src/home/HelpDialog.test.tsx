@@ -18,6 +18,7 @@ import {
 } from "../api";
 import { expectNoA11yViolations } from "../test/a11y";
 import { waitForDialogFocus } from "../test/dialogFocus";
+import { ApiError } from "../utils/apiError";
 import { HelpDialog } from "./HelpDialog";
 import { CREATE_LABEL, REPORT_TITLE } from "./HelpDialogView";
 
@@ -161,14 +162,46 @@ describe("HelpDialog", () => {
     expect(await screen.findByText(/Saved to/)).toBeInTheDocument();
   });
 
-  it("shows an error when bundle creation fails", async () => {
-    const user = userEvent.setup();
-    metaMock.mockRejectedValue(new Error("offline"));
-    createMock.mockRejectedValue(new Error("disk full"));
-    await renderOpenHelp();
-    await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
-    expect(await screen.findByText("disk full")).toBeInTheDocument();
-  });
+  it.each([
+    [
+      "a failed write",
+      () =>
+        new ApiError("disk full at /secret/path", "bundle_write_failed", 400),
+      "ShareCut couldn't save the diagnostics. Check that this computer has free space, then try again.",
+    ],
+    [
+      "a failed build",
+      () => new ApiError("Traceback /secret/path", "bundle_build_failed", 500),
+      "ShareCut couldn't export the diagnostics. Try again.",
+    ],
+    [
+      "a refusal",
+      () => new ApiError("Project not found: /secret/path", null, 403),
+      "ShareCut couldn't export the diagnostics. Try again.",
+    ],
+    [
+      "a thrown error",
+      () => new Error("disk full at /secret/path"),
+      "ShareCut couldn't export the diagnostics. Try again.",
+    ],
+    [
+      "no answer",
+      () => new ApiError("The server didn't answer.", "network_error", null),
+      "ShareCut isn't answering. Check that it is still running on this computer.",
+    ],
+  ])(
+    "says one fixed sentence when the export fails: %s",
+    async (_name, failure, sentence) => {
+      const user = userEvent.setup();
+      metaMock.mockRejectedValue(new Error("offline"));
+      createMock.mockRejectedValue(failure());
+      await renderOpenHelp();
+      await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
+      expect(await screen.findByText(sentence)).toBeInTheDocument();
+      expect(document.body.textContent).not.toContain("/secret/path");
+      expect(document.body.textContent).not.toContain("disk full");
+    },
+  );
 
   it("submits one bundle once and resets publication for a new bundle", async () => {
     const user = userEvent.setup();
