@@ -143,6 +143,7 @@ class Pipes:
 class Shim:
     def __init__(self, cdll: ctypes.CDLL) -> None:
         self.cdll = native_ffmpeg.load_library(cdll)
+        self.foreign_inheritable: set[int] = set()
         c = self.cdll
         c.sc_ffmpeg_start.restype = ctypes.c_int64
         c.sc_ffmpeg_start.argtypes = [
@@ -217,7 +218,9 @@ class Shim:
 
 @pytest.fixture(scope="module")
 def shim(built: Path) -> Shim:
+    foreign = set(inheritable("/dev/null"))
     instance = Shim(ctypes.CDLL(str(built)))
+    instance.foreign_inheritable = foreign
     code, out, _ = instance.run(["ffmpeg", "echo"])
     assert code == 0 and out.startswith(b"tool=0\n")
     return instance
@@ -714,7 +717,7 @@ def test_the_persistent_stream_descriptors_never_leak_into_children(shim: Shim) 
         shim.release()
         assert shim.wait(session) == 0
     assert list(fd_links().values()).count("/dev/null") >= 3
-    assert inheritable("/dev/null") == []
+    assert set(inheritable("/dev/null")) - shim.foreign_inheritable == set()
 
 
 def test_writes_after_non_owner_exit_go_to_discard(shim: Shim) -> None:
