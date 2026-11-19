@@ -363,7 +363,10 @@ void     sc_ffmpeg_cancel(int64_t session);
   worker thread alone: real ffmpeg runs demux and mux I/O on its own scheduler threads, so a read
   blocked there is not woken by the kick. The kick is sent once per cancel and is lost if it lands
   just before the tool enters the blocking call, and a tool blocked in something other than a
-  pipe read or write is not woken. The backstop is the bridge closing the caller's pipe ends,
+  pipe read or write is not woken. On the Simulator, ffmpeg on a blocked `pipe:0` or a long
+  lavfi job returned from `wait` about 1 s after cancel, but ffprobe on `pipe:0` that is never
+  written did not return until the caller closed its write end, because ffprobe sets no libav
+  interrupt callback and retries the read. The backstop is the bridge closing the caller's pipe ends,
   which Python does at `KILL_GRACE_SEC` at the latest. A write the tool makes through the
   discard stream never blocks. A caller's
   reader of a pipe sees EOF only when the native's dups are closed (when the tool returns) and the
