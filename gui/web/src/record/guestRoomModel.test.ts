@@ -967,7 +967,9 @@ describe("guestCovers", () => {
     });
     expect(
       guestCovers({ ...coverSource, accessEnded: true, stake: "finishing" }),
-    ).toMatchObject({ children: "Finishing your full-quality recording… Keep this page open." });
+    ).toMatchObject({
+      children: "Finishing your full-quality recording… Keep this page open.",
+    });
     const cover = guestCovers({
       ...coverSource,
       accessEnded: true,

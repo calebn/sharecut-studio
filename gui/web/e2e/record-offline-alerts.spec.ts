@@ -25,15 +25,33 @@ test.use({
   launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] },
 });
 
+// Samples TICKS times, one poll interval apart, and fails if any sample saw the
+// unwanted alert; the poll condition is the sample count, not a sleep.
+async function sampleAbsent(seen: () => Promise<number>) {
+  let samples = 0;
+  let bad = 0;
+  await expect
+    .poll(
+      async () => {
+        bad += await seen();
+        samples += 1;
+        return samples;
+      },
+      { intervals: [TICK_MS], timeout: TICKS * TICK_MS + 30_000 },
+    )
+    .toBeGreaterThanOrEqual(TICKS);
+  expect(bad).toBe(0);
+}
+
 async function expectOnlyConnectionAlert(page: Page) {
   await expectRoomAlert(page, CONNECTION_LOST);
-  for (let tick = 0; tick < TICKS; tick += 1) {
-    await page.waitForTimeout(TICK_MS);
-    await expect(roomAlertSlot(page).getByText(SAVING_STOPPED)).toHaveCount(0);
-    await expect(
-      roomAlertSlot(page).getByRole("button", { name: /^\d+ more alerts?$/ }),
-    ).toHaveCount(0);
-  }
+  await sampleAbsent(
+    async () =>
+      (await roomAlertSlot(page).getByText(SAVING_STOPPED).count()) +
+      (await roomAlertSlot(page)
+        .getByRole("button", { name: /^\d+ more alerts?$/ })
+        .count()),
+  );
 }
 
 async function failUploads(page: Page) {
@@ -99,12 +117,9 @@ test("a saved guest sees no alert when the connection drops", async ({
     await ensureHostRecordCommand(host, projectPath, "Stop", "stopped");
     await expect(roomPill(guest)).toHaveText("Saved", { timeout: 60_000 });
     await guestNet.drop();
-    for (let tick = 0; tick < TICKS; tick += 1) {
-      await guest.waitForTimeout(TICK_MS);
-      await expect(roomAlertSlot(guest).getByText(SAVING_STOPPED)).toHaveCount(
-        0,
-      );
-    }
+    await sampleAbsent(() =>
+      roomAlertSlot(guest).getByText(SAVING_STOPPED).count(),
+    );
     await expect(roomPill(guest)).toHaveText("Saved");
   });
 });
