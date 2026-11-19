@@ -7,20 +7,18 @@ import {
 import { isShareProjectKey, shareTokenFromKey } from "../../../shareMode";
 import { useDawStore } from "../../../state/dawStore";
 import type { FindHit } from "../../../system/scriptPieces";
-import { ApiError } from "../../../utils/apiError";
+import { ApiError, CUT_SCOPE_CHANGED_CODE } from "../../../utils/apiError";
 import { cutAllMessage, cutKey, matchCutOf } from "./findCut";
 import type { ScriptModel } from "./scriptModel";
 
-function cutAllFailure(error: unknown): unknown {
+function cutAllFailure(error: unknown, projectPath: string | null): unknown {
   if (!(error instanceof ApiError)) return error;
-  if (error.code === "cut_scope_changed") {
+  if (error.code === CUT_SCOPE_CHANGED_CODE) {
+    if (projectPath !== null && isShareProjectKey(projectPath))
+      return new Error(error.message);
     if (/need audio review/.test(error.message))
       return new Error(
         "Some of these matches are held for an audio check. Nothing was cut.",
-      );
-    if (/needs another review/.test(error.message))
-      return new Error(
-        "Nothing was cut. The host has to review this edit first.",
       );
     return new Error("Nothing was cut. The edit was not applied.");
   }
@@ -90,7 +88,7 @@ export async function cutHits(
     }
     const result = await submitRangeEdit("cut", plan.targets).catch(
       (error: unknown) => {
-        throw cutAllFailure(error);
+        throw cutAllFailure(error, projectPath);
       },
     );
     if (useDawStore.getState().projectEpoch !== epoch) return;

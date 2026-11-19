@@ -21,7 +21,11 @@ from podcast_mcp.edits.clip_fades import ClipFadeChangedError
 from podcast_mcp.edits.clip_gain import ClipGainChangedError
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.decisions import PendingEditChangedError
-from podcast_mcp.edits.edit_log import RestoreResult
+from podcast_mcp.edits.edit_log import (
+    GUEST_LOCAL_RESTORE_MESSAGE,
+    LOCAL_RESTORE_REQUIRES_HISTORY,
+    RestoreResult,
+)
 from podcast_mcp.edits.range_target import RangeChangedError
 from podcast_mcp.edits.source_removals import PLAIN_HOLD_REASONS, plain_label
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
@@ -249,12 +253,23 @@ class RestoreConflictsAsk(TypedDict, total=False):
     restore_conflicts: list[dict[str, Any]]
 
 
-def _restore_conflicts(command: DocumentCommand, result: Mapping[str, Any]) -> RestoreConflictsAsk:
+def _restore_conflicts(
+    command: DocumentCommand, result: Mapping[str, Any], audience: str
+) -> RestoreConflictsAsk:
     """The conflicts of a refused Restore at the top of the reply, which a guest's
-    sanitized ``command`` no longer carries."""
-    if command.type == "RestoreAppliedEdit" and result.get("status") == "conflict":
-        return {"restore_conflicts": result["conflicts"]}
-    return {}
+    sanitized ``command`` no longer carries. A guest has no History to send them to, so a
+    cut that only History can undo reads in the guest's own words."""
+    if command.type != "RestoreAppliedEdit" or result.get("status") != "conflict":
+        return {}
+    conflicts = result["conflicts"]
+    if audience == "guest":
+        conflicts = [
+            {**row, "message": GUEST_LOCAL_RESTORE_MESSAGE}
+            if row.get("code") == LOCAL_RESTORE_REQUIRES_HISTORY
+            else row
+            for row in conflicts
+        ]
+    return {"restore_conflicts": conflicts}
 
 
 class _ReviewHeld(TypedDict):
@@ -787,7 +802,7 @@ class DocumentSyncService:
                     "server_seq": seq,
                 },
                 "server_seq": seq,
-                **_restore_conflicts(command, planned_result),
+                **_restore_conflicts(command, planned_result, audience),
             }
             if command.payload.get("dry_run"):
                 reply["dry_run"] = True
@@ -908,7 +923,7 @@ class DocumentSyncService:
         # guest) gets the confirmation to show, beside the sanitized event.
         confirmation = result_payload.get("needs_confirmation")
         asks = {"needs_confirmation": confirmation} if confirmation is not None else {}
-        asks.update(_restore_conflicts(command, result_payload))
+        asks.update(_restore_conflicts(command, result_payload, audience))
         asks.update(_review_reply_facts(command.type, result_payload, audience))
         asks.update(
             _split_reply_facts(command.type, result_payload, command.payload.get("track_ids"))

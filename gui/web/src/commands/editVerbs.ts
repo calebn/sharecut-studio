@@ -1022,7 +1022,10 @@ export function barModelOf(
         return { id, disabledReason: EDITING_OFF_REASON };
       if (id === "keep" && facts.kind === "seam") {
         const seam = currentSeam();
-        const plan = seam?.kind === "cut" ? keepPlan(seam) : null;
+        const plan =
+          seam?.kind === "cut"
+            ? keepPlan(seam, s.guestMode ? "guest" : "host")
+            : null;
         return plan?.kind === "disabled"
           ? { id, disabledReason: plan.reason }
           : item;
