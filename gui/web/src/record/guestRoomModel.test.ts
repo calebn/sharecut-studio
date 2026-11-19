@@ -749,7 +749,9 @@ describe("guestCovers", () => {
       primary: { label: "Save my recording" },
       secondary: { label: "Try saving again" },
     });
-    expect(cover?.children).toEqual(expect.not.stringContaining("safe on this device"));
+    expect(cover?.children).toEqual(
+      expect.not.stringContaining("safe on this device"),
+    );
   });
 
   it("keeps Save and Recover on a closed invite while a local take is unsent", () => {
@@ -884,7 +886,9 @@ describe("guestCovers", () => {
         primary: { label: "Save my recording" },
         secondary: { label: "Try saving again" },
       });
-      expect(cover?.children).toEqual(expect.not.stringContaining("safe on this device"));
+      expect(cover?.children).toEqual(
+        expect.not.stringContaining("safe on this device"),
+      );
     }
   });
 

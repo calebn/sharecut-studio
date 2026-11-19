@@ -1376,7 +1376,7 @@ button's description at all times, and a press shows it. A failed save releases 
 and so does a saving line with no upload behind it. The device scan gives up after 5
 seconds, is tried once more after 2 seconds, and a second failure (or a device storage
 that cannot be opened at all) reads as unreadable, which turns the saving line into
-"Saving stopped." and releases Leave, so the hold lasts about 12 seconds at the most. Once the
+"Saving stopped." and releases Leave. Once the
 file ACK lands the dock reads "Saved to project. You can close this page." with
 **Done**, which leaves the room and closes the page where the browser allows, and is held
 for the same reasons. Leave closes this page's room connection, which
