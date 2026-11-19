@@ -149,6 +149,30 @@ describe("a words selection when one of its own words changes", () => {
     expect(now()).toBeNull();
   });
 
+  it.each([
+    ["first", 6, 6],
+    ["last", 8, 8],
+  ])(
+    "clears when the %s end was already cut and is retimed",
+    (_end, cut, moved) => {
+      useDawStore.getState().hydrate(PATH, snapshot({ cutAway: [cut] }));
+      useDawStore.getState().setSelection(PICK);
+      useDawStore
+        .getState()
+        .setProject(snapshot({ cutAway: [cut], retime: { [moved]: 0.1 } }));
+      expect(now()).toBeNull();
+    },
+  );
+
+  it("clears when a retimed word lands on the start of an equal-text word", () => {
+    const dup = wordAt(7, 0, 9.9, { start: 3.6, end: 3.9 });
+    start(snapshot({ extra: [dup] }));
+    useDawStore
+      .getState()
+      .setProject(snapshot({ extra: [dup], retime: { 7: 0.1 } }));
+    expect(now()).toBeNull();
+  });
+
   it("clears when a retime moves a word to another recording", () => {
     start(snapshot());
     useDawStore.getState().setProject(

@@ -1,4 +1,9 @@
-import type { SelectionModel } from "./selectionFollow";
+import {
+  endWaits,
+  type SelectionEnd,
+  type SelectionModel,
+  selectionEndOf,
+} from "./selectionFollow";
 
 const SAME = 1e-6;
 
@@ -22,10 +27,12 @@ const startOf = (model: SelectionModel, at: number) =>
 /**
  * Whether the words `from..to` were retimed in place: the Script holds the
  * same words under the same numbers, recording and text, and only the source
- * start of words inside the run differs. Nothing outside the run may change at
- * all, and a retimed word must not now sit nearer to its old start than an
- * equal-text word of the same recording does, so no neighbour can be taken for
- * it. False when nothing in the run was retimed.
+ * start of words inside the run differs. Only each word's track, recording,
+ * number and text, its cut state, and its start are compared; an end or a
+ * timeline place is not. A retimed word must not now sit at or nearer to its
+ * old start than an equal-text word of the same recording does, on either
+ * side, so no neighbour can be taken for it. False when nothing in the run was
+ * retimed.
  */
 export function retimedInPlace(
   before: SelectionModel,
@@ -69,7 +76,30 @@ function nearerRival(
       model.words[other]?.text !== text
     )
       continue;
-    if (Math.abs(startOf(model, other) - oldStart) < distance) return true;
+    if (Math.abs(startOf(model, other) - oldStart) <= distance) return true;
   }
   return false;
+}
+
+const liveAt = (model: SelectionModel, at: number) =>
+  !model.cut?.[at] && model.wordStarts[at] != null;
+
+/**
+ * A retime keeps the run only while both ends are live words before and after
+ * and neither sits in a line drawn as bars or has a held copy: otherwise the
+ * follow decides, and it waits or clears.
+ */
+export function retimeKeeps(
+  before: SelectionModel,
+  after: SelectionModel,
+  anchor: SelectionEnd,
+  head: SelectionEnd,
+): boolean {
+  for (const end of [anchor, head]) {
+    if (!liveAt(before, end.index)) return false;
+    if (endWaits(after, end)) return false;
+    const now = selectionEndOf(after, end.index);
+    if (!now || endWaits(after, now)) return false;
+  }
+  return retimedInPlace(before, after, anchor.index, head.index);
 }

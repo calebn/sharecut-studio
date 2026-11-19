@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SelectionModel } from "./selectionFollow";
-import { retimedInPlace } from "./selectionRetime";
+import { type SelectionModel, selectionEndOf } from "./selectionFollow";
+import { retimedInPlace, retimeKeeps } from "./selectionRetime";
 
 type Word = {
   text: string;
@@ -119,6 +119,27 @@ describe("retimedInPlace", () => {
     ).toBe(false);
   });
 
+  it("is true when only the end or timeline place of a word outside the run changed", () => {
+    const next = edited({ 1: { start: 1.2 } });
+    const timed = (shift: number): SelectionModel => ({
+      ...next,
+      times: next.times.map((_, at) => ({ start: at + shift, end: at + 1 })),
+    });
+    const was = { ...before, times: timed(0).times };
+    expect(retimedInPlace(was, timed(0.5), 1, 2)).toBe(true);
+  });
+
+  it("is false when a start outside the run is not a number", () => {
+    expect(
+      retimedInPlace(
+        before,
+        edited({ 1: { start: 1.2 }, 3: { start: Number.NaN } }),
+        1,
+        2,
+      ),
+    ).toBe(false);
+  });
+
   it("is false when a start is not a number", () => {
     expect(
       retimedInPlace(before, edited({ 1: { start: Number.NaN } }), 1, 2),
@@ -152,7 +173,7 @@ describe("retimedInPlace", () => {
       expect(retimedInPlace(was, now, 1, 1)).toBe(true);
     });
 
-    it("is true when the twin is exactly as far from the old start as the new one", () => {
+    it("is false when the twin is exactly as far from the old start as the new one", () => {
       const was = model([
         { text: "b", start: 1 },
         { text: "b", start: -1 },
@@ -160,6 +181,42 @@ describe("retimedInPlace", () => {
       const now = model([
         { text: "b", start: 3 },
         { text: "b", start: -1 },
+      ]);
+      expect(retimedInPlace(was, now, 0, 0)).toBe(false);
+    });
+
+    it("is false when the word is retimed onto the start of a twin below it", () => {
+      const was = model([
+        { text: "b", start: 1.4 },
+        { text: "b", start: 2.0 },
+      ]);
+      const now = model([
+        { text: "b", start: 1.4 },
+        { text: "b", start: 1.4 },
+      ]);
+      expect(retimedInPlace(was, now, 1, 1)).toBe(false);
+    });
+
+    it("is false when the word is retimed onto the start of a twin above it", () => {
+      const was = model([
+        { text: "b", start: 1.4 },
+        { text: "b", start: 2.0 },
+      ]);
+      const now = model([
+        { text: "b", start: 2.0 },
+        { text: "b", start: 2.0 },
+      ]);
+      expect(retimedInPlace(was, now, 0, 0)).toBe(false);
+    });
+
+    it("is true when the twin is just beyond the distance the word moved", () => {
+      const was = model([
+        { text: "b", start: 1 },
+        { text: "b", start: 2 },
+      ]);
+      const now = model([
+        { text: "b", start: 1.5 },
+        { text: "b", start: 2 },
       ]);
       expect(retimedInPlace(was, now, 0, 0)).toBe(true);
     });
@@ -199,5 +256,100 @@ describe("retimedInPlace", () => {
       ]);
       expect(retimedInPlace(was, now, 1, 1)).toBe(true);
     });
+  });
+});
+
+describe("retimeKeeps", () => {
+  const was = model(BASE);
+  const moved = (over: Record<number, Partial<Word>>) =>
+    model(BASE.map((w, at) => ({ ...w, ...over[at] })));
+  const ends = (m: SelectionModel, from: number, to: number) => ({
+    anchor: selectionEndOf(m, from)!,
+    head: selectionEndOf(m, to)!,
+  });
+  const keeps = (now: SelectionModel, from = 1, to = 2) => {
+    const { anchor, head } = ends(was, from, to);
+    return retimeKeeps(was, now, anchor, head);
+  };
+
+  it("keeps a run whose word moved in place", () => {
+    expect(keeps(moved({ 1: { start: 1.2 } }))).toBe(true);
+  });
+
+  it("does not keep when nothing moved", () => {
+    expect(keeps(moved({}))).toBe(false);
+  });
+
+  it("does not keep a run whose end was cut before and after", () => {
+    const cutBefore = model(BASE.map((w, at) => ({ ...w, cut: at === 1 })));
+    const cutAfter = model(
+      BASE.map((w, at) => ({
+        ...w,
+        cut: at === 1,
+        start: at === 1 ? 1.2 : w.start,
+      })),
+    );
+    const { anchor, head } = ends(cutBefore, 1, 2);
+    expect(retimeKeeps(cutBefore, cutAfter, anchor, head)).toBe(false);
+    const headCut = model(BASE.map((w, at) => ({ ...w, cut: at === 2 })));
+    const headCutAfter = model(
+      BASE.map((w, at) => ({
+        ...w,
+        cut: at === 2,
+        start: at === 1 ? 1.2 : w.start,
+      })),
+    );
+    const pair = ends(headCut, 1, 2);
+    expect(retimeKeeps(headCut, headCutAfter, pair.anchor, pair.head)).toBe(
+      false,
+    );
+  });
+
+  it("does not keep a run with a held end", () => {
+    const now = moved({ 1: { start: 1.2 } });
+    const held = {
+      ...now,
+      wordStarts: now.wordStarts.map((s, at) => (at === 2 ? null : s)),
+    };
+    expect(keeps(held)).toBe(false);
+  });
+
+  it("does not keep a run whose line is drawn as bars", () => {
+    const now = moved({ 1: { start: 1.2 } });
+    const barred: SelectionModel = {
+      ...now,
+      turns: [{ words: [] }],
+      spans: [{ trackId: "a", sourceId: null, start: 0, end: 5 }],
+    };
+    expect(keeps(barred)).toBe(false);
+  });
+
+  it("does not keep a run whose end was held before it was retimed", () => {
+    const held = {
+      ...was,
+      wordStarts: was.wordStarts.map((s, at) => (at === 2 ? null : s)),
+    };
+    const { anchor, head } = ends(held, 1, 2);
+    expect(retimeKeeps(held, moved({ 1: { start: 1.2 } }), anchor, head)).toBe(
+      false,
+    );
+  });
+
+  it("does not keep a run when only the old start of an end sits in a barred line", () => {
+    const barred: SelectionModel = {
+      ...moved({ 1: { start: 1.2 } }),
+      turns: [{ words: [] }],
+      spans: [{ trackId: "a", sourceId: null, start: 0.9, end: 1.05 }],
+    };
+    expect(keeps(barred)).toBe(false);
+  });
+
+  it("does not keep a run when only the new start of an end sits in a barred line", () => {
+    const barred: SelectionModel = {
+      ...moved({ 1: { start: 1.2 } }),
+      turns: [{ words: [] }],
+      spans: [{ trackId: "a", sourceId: null, start: 1.1, end: 1.3 }],
+    };
+    expect(keeps(barred)).toBe(false);
   });
 });
