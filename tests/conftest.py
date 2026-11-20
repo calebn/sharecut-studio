@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import json
 import logging
 import os
 import shutil
@@ -33,7 +34,7 @@ from podcast_mcp.util import pinned_media
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.host_platform import WINDOWS, HostPlatform, using
 from process_caches import reset_isolated_caches
-from sentinel_home import passthrough_env, stray_files
+from sentinel_home import TOOLCHAIN_CACHES, passthrough_env, stray_files
 
 _REPO_PIPELINE_DEFAULTS = repo_root() / ".agents" / "defaults" / "pipeline.yaml"
 
@@ -176,7 +177,42 @@ def _serial_transcription(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("podcast_mcp.engines.transcribe.transcribe_worker_count", lambda *_: 1)
 
 
-REAL_HOME = Path.home().resolve()
+_ORIGINAL_ENV_KEY = "SHARECUT_TEST_ORIGINAL_ENV"
+_MANAGED_ENV = (
+    "HOME",
+    "USERPROFILE",
+    "PODCAST_SHARE_REGISTRY",
+    "PODCAST_SHARE_IDENTITY",
+    "PODCAST_RELAY_CONFIG",
+    "PODCAST_CONFIG_DIR",
+    "PODCAST_WORKSPACE_ROOT",
+    "PODCAST_MCP_CACHE",
+    *TOOLCHAIN_CACHES,
+)
+
+
+def _original_environment() -> dict[str, str]:
+    """The environment before the session redirect.
+
+    An xdist worker imports this module with the controller's redirected environment, so the
+    first import leaves the real values of the variables it changes in one variable for the
+    workers to read back.
+    """
+    environment = dict(os.environ)
+    saved = os.environ.get(_ORIGINAL_ENV_KEY)
+    if saved is not None:
+        for name, value in json.loads(saved).items():
+            if value is None:
+                environment.pop(name, None)
+            else:
+                environment[name] = value
+    return environment
+
+
+_ORIGINAL_ENV = _original_environment()
+REAL_HOME = Path(
+    _ORIGINAL_ENV.get("USERPROFILE" if os.name == "nt" else "HOME") or Path.home()
+).resolve()
 
 
 def _outside_real_home(value: str | None) -> bool:
@@ -185,12 +221,12 @@ def _outside_real_home(value: str | None) -> bool:
     return not Path(value).expanduser().resolve().is_relative_to(REAL_HOME)
 
 
-_JOB_IDENTITY = _outside_real_home(os.environ.get("PODCAST_SHARE_IDENTITY"))
+_JOB_IDENTITY = _outside_real_home(_ORIGINAL_ENV.get("PODCAST_SHARE_IDENTITY"))
 
 
 def _default_env(patch_env: pytest.MonkeyPatch, name: str, value: str) -> None:
     """Set ``name`` unless the job that runs the suite chose a value outside the real home."""
-    if not _outside_real_home(os.environ.get(name)):
+    if not _outside_real_home(_ORIGINAL_ENV.get(name)):
         patch_env.setenv(name, value)
 
 
@@ -205,8 +241,11 @@ def _enter_session_home() -> tuple[Path, pytest.MonkeyPatch]:
     state = root / "state"
     home.mkdir()
     state.mkdir()
-    keep = passthrough_env(REAL_HOME, dict(os.environ))
+    keep = passthrough_env(REAL_HOME, _ORIGINAL_ENV)
     patch_env = pytest.MonkeyPatch()
+    if _ORIGINAL_ENV_KEY not in os.environ:
+        original = {name: _ORIGINAL_ENV.get(name) for name in _MANAGED_ENV}
+        patch_env.setenv(_ORIGINAL_ENV_KEY, json.dumps(original))
     # Defaults for fixtures wider than one test, which run before the per-test isolation.
     _default_env(patch_env, "PODCAST_SHARE_REGISTRY", str(state / "share_registry.sqlite"))
     _default_env(patch_env, "PODCAST_SHARE_IDENTITY", str(state / "share_identity.sqlite"))
@@ -230,8 +269,8 @@ def _enter_session_home() -> tuple[Path, pytest.MonkeyPatch]:
 _SESSION_HOME, _SESSION_ENV = _enter_session_home()
 
 
-_CHECKOUT_ARTIFACTS = repo_root() / "artifacts"
-_CHECKOUT_HAD_ARTIFACTS = _CHECKOUT_ARTIFACTS.exists()
+_WATCHED_ARTIFACTS = {repo_root() / "artifacts", Path.cwd() / "artifacts"}
+_ARTIFACTS_AT_IMPORT = {path for path in _WATCHED_ARTIFACTS if path.exists()}
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -240,8 +279,9 @@ def _sentinel_home() -> Iterator[Path]:
     yield _SESSION_HOME
     stray = stray_files(_SESSION_HOME)
     assert not stray, f"tests wrote outside their temp roots, under the session home: {stray}"
-    assert _CHECKOUT_HAD_ARTIFACTS or not _CHECKOUT_ARTIFACTS.exists(), (
-        f"a test opened a project whose workspace is the working directory: {_CHECKOUT_ARTIFACTS}"
+    created = sorted(str(p) for p in _WATCHED_ARTIFACTS - _ARTIFACTS_AT_IMPORT if p.exists())
+    assert not created, (
+        f"a test opened a project whose workspace is the working directory: {created}"
     )
 
 
