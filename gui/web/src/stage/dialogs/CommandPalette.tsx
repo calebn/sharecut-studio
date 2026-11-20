@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { listRecentProjects, type RecentProject } from "../../api";
 import { COMMANDS } from "../../commands/catalog";
 import { buildCommandContext } from "../../commands/context";
@@ -45,6 +45,8 @@ export function CommandPalette({ scope }: { scope?: "home" }) {
     followingClientId,
     project,
     projectPath,
+    guestMode,
+    shellBreakpoint,
   } = useDaw((s) => ({
     // The roster only feeds People rows, so a closed palette ignores presence frames.
     sessionClients: s.chrome.commandPaletteOpen
@@ -54,7 +56,10 @@ export function CommandPalette({ scope }: { scope?: "home" }) {
     followingClientId: s.followingClientId,
     project: s.project,
     projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shellBreakpoint: s.shellBreakpoint,
   }));
+  const stage = useDawStore((s) => s.stage);
   const { others } = useLivePresenceClients(sessionClients, localClientId);
   const [recent, setRecent] = useState<string[]>([]);
   const [projects, setProjects] = useState<RecentProject[]>([]);
@@ -86,15 +91,12 @@ export function CommandPalette({ scope }: { scope?: "home" }) {
     return () => controller.abort();
   }, [commandPaletteOpen, hostLink]);
 
-  const entries = useMemo(() => {
-    if (!commandPaletteOpen) {
-      return [];
-    }
+  let entries: PaletteEntry[] = [];
+  if (commandPaletteOpen) {
     const names = disambiguatedNames(others);
-    const state = useDawStore.getState();
-    const caps = followCapsOf(state.guestMode, state.shellBreakpoint);
-    const duration = state.project?.timeline_duration_sec ?? Number.NaN;
-    return paletteEntries(buildCommandContext(), {
+    const caps = followCapsOf(guestMode, shellBreakpoint);
+    const duration = project?.timeline_duration_sec ?? Number.NaN;
+    entries = paletteEntries(buildCommandContext(), {
       chapters: project?.chapters ?? [],
       projects,
       projectPath,
@@ -103,17 +105,10 @@ export function CommandPalette({ scope }: { scope?: "home" }) {
         name: names.get(c.client_id) ?? c.client_id,
         role: c.role,
         following: c.client_id === followingClientId,
-        goTo: planGoTo(c, caps, duration, state.stage)?.moves ?? false,
+        goTo: planGoTo(c, caps, duration, stage)?.moves ?? false,
       })),
     });
-  }, [
-    commandPaletteOpen,
-    others,
-    project,
-    projects,
-    projectPath,
-    followingClientId,
-  ]);
+  }
 
   return (
     <CommandPaletteView

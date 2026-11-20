@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { dismissSetupCard, expectHome } from "./home";
+import { registerPaletteReconnectSmoke } from "./paletteReconnectSmoke";
 import { switchE2eProject } from "./shareableProject";
 
 test("loading / with a pinned project opens it and never unpins it (#533)", async ({
@@ -32,3 +33,5 @@ test("loading / with a pinned project opens it and never unpins it (#533)", asyn
     .toBe(served);
   expect(closes).toEqual([]);
 });
+
+registerPaletteReconnectSmoke();
