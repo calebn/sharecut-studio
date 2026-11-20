@@ -32,6 +32,7 @@ const LOW_WATER_CTX_SEC = 45;
 /** A failing extension is retried until this much scheduled sound is left, then reported. */
 const RETRY_GIVE_UP_SEC = 5;
 const RETRY_BACKOFF_MAX_SEC = 4;
+const LATE_EXTENSION_GRACE_CTX_SEC = 1;
 /** Time constant for a live gain change (reaches ~99% in 5x this). */
 const GAIN_GLIDE_SEC = 0.01;
 /** Decoded audio kept behind the playhead, so a short skip back during continuous play needs no fetch or decode. */
@@ -82,11 +83,8 @@ interface ExtendRetry {
 
 interface Horizon {
   readonly generation: number;
-  /** An extension is fetching; a sentinel wake must not start another. */
-  busy: boolean;
+  pendingUntilTimelineSec: number | null;
   retry: ExtendRetry | null;
-  /** Where a failing or hung extension is reported; null when it started after the sound ran out. */
-  giveUpSec: number | null;
   /**
    * Timeline seconds, exclusive. Every slice that starts before it has exactly
    * one source in this generation; no slice that starts at or after it has one.
@@ -566,9 +564,8 @@ export class ProxyEngine {
     this.horizon = {
       generation,
       throughSec: windowEnd,
-      busy: false,
+      pendingUntilTimelineSec: null,
       retry: null,
-      giveUpSec: null,
     };
     this.pruneBuffers(this.currentTimeSec() - SKIP_BACK_KEEP_SEC, windowEnd);
     this.arm();
@@ -643,20 +640,18 @@ export class ProxyEngine {
         slice.whenTimelineSec + slice.durationSec > t,
     );
     const decoded = new Map<string, AudioBuffer>();
-    const giveUpSec = this.giveUpPointSec(horizon);
-    horizon.giveUpSec = t < giveUpSec ? giveUpSec : null;
-    horizon.busy = true;
+    horizon.pendingUntilTimelineSec = this.extensionDeadlineSec(horizon, t);
     this.arm();
     try {
       await this.decodeInto(decoded, slices, generation);
     } catch (error) {
-      horizon.busy = false;
+      horizon.pendingUntilTimelineSec = null;
       if (!this.playing || generation !== this.scheduleGeneration) return;
       if (!(error instanceof ChunkFetchError)) throw error;
       this.retryLater(horizon, error, to);
       return;
     }
-    horizon.busy = false;
+    horizon.pendingUntilTimelineSec = null;
     if (!this.playing || generation !== this.scheduleGeneration) return;
     horizon.retry = null;
     this.place(slices, decoded, this.currentTimeSec());
@@ -671,8 +666,8 @@ export class ProxyEngine {
     batchEndSec: number,
   ): void {
     const t = this.currentTimeSec();
-    const giveUpSec = horizon.giveUpSec;
-    if (giveUpSec === null || t >= giveUpSec) {
+    const giveUpSec = this.giveUpPointSec(horizon);
+    if (t >= giveUpSec) {
       this.fail(horizon.generation, error, null);
       return;
     }
@@ -692,17 +687,27 @@ export class ProxyEngine {
     return horizon.throughSec - RETRY_GIVE_UP_SEC * this.playbackRate;
   }
 
+  private extensionDeadlineSec(horizon: Horizon, t: number): number {
+    const giveUpSec = this.giveUpPointSec(horizon);
+    if (t < giveUpSec) return giveUpSec;
+    const until = this.snapshot?.playUntilSec;
+    if (until != null && Number.isFinite(until)) return this.stopSec;
+    return Math.max(
+      horizon.throughSec,
+      t + LATE_EXTENSION_GRACE_CTX_SEC * this.playbackRate,
+    );
+  }
+
   private wakeTimelineSec(): number {
     const horizon = this.horizon;
     const stopSec = this.stopSec;
     if (!horizon) return stopSec;
-    const due = horizon.busy
-      ? (horizon.giveUpSec ?? Number.POSITIVE_INFINITY)
-      : horizon.retry
-        ? horizon.retry.wakeSec
-        : horizon.throughSec >= stopSec
-          ? stopSec
-          : horizon.throughSec - LOW_WATER_CTX_SEC * this.playbackRate;
+    const due =
+      horizon.pendingUntilTimelineSec ??
+      horizon.retry?.wakeSec ??
+      (horizon.throughSec >= stopSec
+        ? stopSec
+        : horizon.throughSec - LOW_WATER_CTX_SEC * this.playbackRate);
     return Math.min(stopSec, due);
   }
 
@@ -768,9 +773,8 @@ export class ProxyEngine {
       return;
     }
     if (
-      horizon.giveUpSec !== null &&
-      t >= horizon.giveUpSec &&
-      (horizon.busy || horizon.retry)
+      horizon.pendingUntilTimelineSec !== null ||
+      (horizon.retry !== null && t >= this.giveUpPointSec(horizon))
     ) {
       this.fail(
         horizon.generation,
