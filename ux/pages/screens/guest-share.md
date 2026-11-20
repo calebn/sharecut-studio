@@ -165,8 +165,11 @@ a Viewer or Commenter also has no Edit or Deliver rows, no lane, zoom, mute,
 solo or Script rows (the link has no timeline), and no Select a range, which
 would arm a range nothing visible follows. A Viewer has no Add comment or
 Comment on range either. An Editor keeps Select a range and the Edit rows. A row
-that depends on state stays, greyed with its reason: Play range, Cut, Mute and
-Comment on range say "Choose a range" until one is selected.
+that depends on state stays, greyed with its reason: a range row says "Choose a
+range" until one is selected. A Viewer lists Play range only. A Commenter lists
+Play range, Cut, Mute and Comment on range, and chooses the range by selecting
+words in the Review Script. A Viewer has no way to choose one, so its Play range
+stays greyed.
 
 **Q.** On a tablet or desktop Review page, an unshifted Q with no field focused
 and no dialog open focuses the comment field of a Commenter or Editor link and
