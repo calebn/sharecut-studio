@@ -488,6 +488,43 @@ still stop guest playback. These failures retain proxy ownership and show an aud
 
 Revoke deletes the object when no other active shares reference that version.
 
+### Verify the guest CORS fallback
+
+Use a disposable project, object-store bucket, and bucket-admin key. Open the guest link through the relay's public origin. A direct loopback GUI request deliberately returns local proxy URLs and does not exercise the object-store path.
+
+1. Set `public_base_url` to the exact origin guests open. Configure `object_store` with a test bucket and test-only upload credentials. Start the host, relay, and tunnel as described in [Quick start](#quick-start-local-compose). Create a Viewer or Commenter link.
+2. Allow the exact public origin in the bucket's CORS configuration. `podcast relay bucket-setup` does this for an HTTPS relay, and `podcast relay bucket-check` confirms it. It refuses loopback origins. For local Compose, configure the disposable bucket through its admin S3 API.
+3. Open the guest link. In the browser's Network panel, inspect `GET /api/review/<token>/daw/proxy/manifest`. Record a track's `hash`, its project basis, its first signed URL, and the corresponding local chunk URL shape. The response has no `object_store_cors` warning. In the guest page console, `await fetch("<signed-url>", { mode: "cors" })` resolves. Record the signed object's digest while CORS is allowed; after fallback, digest the local URL in that same console:
+
+   ```js
+   async function sha256(url) {
+     const response = await fetch(url, { mode: "cors", cache: "no-store" });
+     if (!response.ok) throw new Error(`HTTP ${response.status}`);
+     const bytes = await response.arrayBuffer();
+     const digest = await crypto.subtle.digest("SHA-256", bytes);
+     return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+   }
+   const signedHash = await sha256("<signed-url>");
+   ```
+4. Replace the disposable bucket's entire CORS configuration with a rule for a different origin. An extra rule cannot override the existing allow rule. For example, use this admin command with `STORE_ENDPOINT`, `STORE_REGION`, and `TEST_BUCKET` set to the disposable store:
+
+   ```bash
+   AWS_ACCESS_KEY_ID="$PODCAST_OBJECT_STORE_ADMIN_ACCESS_KEY_ID" \
+   AWS_SECRET_ACCESS_KEY="$PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY" \
+   aws s3api put-bucket-cors \
+     --endpoint-url "$STORE_ENDPOINT" \
+     --region "$STORE_REGION" \
+     --bucket "$TEST_BUCKET" \
+     --cors-configuration '{"CORSRules":[{"AllowedOrigins":["https://wrong.example.test"],"AllowedMethods":["GET","HEAD"],"AllowedHeaders":["Range","*"],"ExposeHeaders":["Content-Range","Content-Length","Accept-Ranges"]}]}'
+   ```
+
+5. Restart the GUI host to clear its in-memory CORS probe cache. Wait for the tunnel to reconnect, then reload the same guest link. The manifest reports `object_store_cors.status: "blocked"`. Its local chunk URL keeps the same track hash and project basis.
+6. Fetch the recorded signed URL again from the guest page console. The browser rejects it with a CORS `TypeError`. A request with the same `Origin` still returns HTTP 200 or 206 without `Access-Control-Allow-Origin`.
+7. Click Play. Confirm the player clock advances and the Network panel shows a 200 response for `/api/review/<token>/daw/proxy/<track>/<hash>/<chunk>`. In the guest page console, run `await sha256("<local-chunk-url>")`. It must equal `signedHash`. The local URL is same-origin and includes the guest token, so use the active guest page rather than an unauthenticated shell request.
+8. Revoke the link from the host. Request the recorded local chunk URL again. It must return 404 and no media bytes.
+
+Keep the admin key out of `relay.yaml`. Delete the temporary project, bucket, admin key, and downloaded media after the check. Run any browser driver through `npm run test:e2e` so its owned projects and port are cleaned up. Do not pass developer object-store credentials through the E2E environment. The default direct-loopback E2E page skips the store probe by design.
+
 ### Security notes
 
 - Guests never receive absolute host paths (`project_path`, `workspace_dir`, `media_path` stripped; history reduced to the opaque `head_id` a guest undo must send). A clip row (`list_clips`, `guest_list_clips`) carries `recording_key`, a per-install HMAC identity that two clips share when they play the same resolved recording. It does not disclose or permit confirmation of a guessed file path without the host-local registry secret. Session-plane snapshots do not store host `wav` paths; guest WS still drops leftover path fields. Episode JSON persists `workspace_dir` as `"."` and workspace-relative media paths only.
