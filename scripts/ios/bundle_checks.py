@@ -193,7 +193,6 @@ class NativeFramework:
     manifest: Path
     exports: frozenset[str]
     size_budget: int
-    embedded_flag: str
 
 
 def check_ffmpeg_framework(app: Path, runner: NmRunner = xcrun_nm) -> CheckReport:
@@ -203,7 +202,6 @@ def check_ffmpeg_framework(app: Path, runner: NmRunner = xcrun_nm) -> CheckRepor
         FFMPEG_PRIVACY_MANIFEST,
         FFMPEG_EXPORTS,
         FFMPEG_SIZE_BUDGET,
-        "FFMPEG_EMBEDDED",
     )
     return check_native_framework(app, framework, FFMPEG_EMBEDDED, runner)
 
@@ -215,7 +213,6 @@ def check_whisper_framework(app: Path, runner: NmRunner = xcrun_nm) -> CheckRepo
         WHISPER_PRIVACY_MANIFEST,
         WHISPER_EXPORTS,
         WHISPER_SIZE_BUDGET,
-        "WHISPER_EMBEDDED",
     )
     return check_native_framework(app, framework, WHISPER_EMBEDDED, runner)
 
@@ -233,7 +230,7 @@ def check_native_framework(
                 label,
                 (
                     f"{binary_path.parent.as_posix()} is in the bundle but "
-                    f"{framework.embedded_flag} is False",
+                    f"{framework.label.upper()}_EMBEDDED is False",
                 ),
             )
         return CheckReport(label, facts={"status": "not embedded"})

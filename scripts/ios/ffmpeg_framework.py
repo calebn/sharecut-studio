@@ -67,7 +67,6 @@ SPECS = {
         {"device": "ios-whisper-device", "sim": "ios-whisper-sim"},
     ),
 }
-# How the xcframework index names each slice's platform variant
 VARIANTS = {"device": None, "sim": "simulator"}
 SDKS = {"iphoneos": "device", "iphonesimulator": "sim"}
 

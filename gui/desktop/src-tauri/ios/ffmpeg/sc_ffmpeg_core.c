@@ -2,18 +2,6 @@
 #define _GNU_SOURCE
 #include "sc_ffmpeg_core.h"
 
-#include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <setjmp.h>
-#include <signal.h>
-#include <stdatomic.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
 #define SC_LOG_NAME "sc_ffmpeg"
 #include "../native/sc_session_core.inc"
 
