@@ -85,13 +85,15 @@ def test_contract_pins_the_patch_by_sha256() -> None:
         assert patch["applies_to"] == "whisper"
 
 
-def test_patch_touches_only_the_two_example_files() -> None:
+def test_patch_touches_only_the_known_files() -> None:
     text = (PATCH_DIR / "whisper-cli-hooks.patch").read_text(encoding="utf-8")
     assert re.findall(r"^\+\+\+ b/(\S+)", text, re.M) == [
         "examples/cli/cli.cpp",
         "examples/common-whisper.cpp",
+        "ggml/src/ggml.c",
     ]
     assert "sc_whisper_aborted()" in text and "-    ggml_backend_load_all();" in text
+    assert "&& !TARGET_OS_IPHONE)" in text
 
 
 def test_cli_sources_are_the_ones_cli_includes() -> None:
