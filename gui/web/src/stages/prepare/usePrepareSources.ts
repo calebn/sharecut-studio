@@ -6,6 +6,7 @@ import {
   setTrackMetaCommand,
   startSplitSpeakersJob,
 } from "../../api";
+import { playSpan } from "../../commands/playSpan";
 import {
   executePointerCommand,
   runPointerCommand,
@@ -227,9 +228,14 @@ export function usePrepareSources(input: {
       (row) => row.track_id === id,
     );
     const start = first?.timeline_start ?? first?.start ?? 0;
-    soloBefore.current = store.soloTracks;
-    store.setSoloMap({ [id]: true });
-    store.beginAudition({ playheadSec: start, untilSec: start + HEAR_SEC });
+    const preview = playSpan(start, start + HEAR_SEC, 0, () => {
+      soloBefore.current = store.soloTracks;
+      store.setSoloMap({ [id]: true });
+    });
+    if (preview.status === "disabled") {
+      store.announceStatus(preview.reason, { tone: "error" });
+      return;
+    }
     setPlayingId(id);
   }, []);
 
