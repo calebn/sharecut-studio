@@ -94,14 +94,15 @@ for (const viewport of VIEWPORTS) {
         await shot(page, viewport.name, theme, "setup-downloading", true);
       });
 
-      test("a failed Get ready says why on the Setup card and Choose… opens the Models sheet", async ({
+      test("a pinned-model failure gives the Setup card and Models sheet an in-app retry", async ({
         page,
       }) => {
         await prepare(page, theme, false);
         const failure = {
-          kind: "http",
-          status: 404,
-          plain: "The download server doesn't have the speech model.",
+          kind: "pin_mismatch",
+          status: null,
+          plain:
+            "Unexpected model version. Run: podcast bootstrap --component whisper --upgrade",
         };
         const mock = await mockBootstrap(page, {
           events: () =>
@@ -130,7 +131,9 @@ for (const viewport of VIEWPORTS) {
         await expect(
           setup.getByText("The download didn't finish."),
         ).toBeVisible();
-        await expect(setup.getByText(failure.plain)).toBeVisible();
+        const guidance = "The downloaded model is not the expected version.";
+        await expect(setup.getByText(guidance)).toBeVisible();
+        await expect(setup).not.toContainText("podcast bootstrap");
         await expect(
           setup.getByRole("button", { name: "Try again" }),
         ).toBeEnabled();
@@ -138,9 +141,15 @@ for (const viewport of VIEWPORTS) {
         await expectReadingSurfaceAxeClean(page);
         await shot(page, viewport.name, theme, "setup-failed", true);
         await setup.getByRole("button", { name: "Choose…" }).click();
+        const dialog = page.getByRole("dialog", { name: "Models" });
+        await expect(dialog).toBeVisible();
+        await expect(row(dialog, "Transcription")).toContainText(guidance);
+        await expect(dialog).not.toContainText("podcast bootstrap");
         await expect(
-          page.getByRole("dialog", { name: "Models" }),
-        ).toBeVisible();
+          row(dialog, "Transcription").getByRole("button", {
+            name: "Try again Transcription",
+          }),
+        ).toBeEnabled();
       });
 
       test("Models opens from Home with the skip flag and shows every state", async ({
