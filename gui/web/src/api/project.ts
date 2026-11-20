@@ -198,7 +198,7 @@ export type RecentProject = {
   stage: "record" | "prepare" | "review" | "edit" | "deliver";
   /** `state` is a status-pill state; the Home adapter checks it. */
   chip: { text: string; state: string };
-  /** Whole-episode peaks, 0 to 1; empty until the server has a cache. */
+  /** Whole-episode peaks, 0 to 1; empty until the episode's waveforms are ready. */
   peaks: number[];
   folder_missing: boolean;
 };

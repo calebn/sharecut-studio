@@ -15,8 +15,6 @@ import threading
 import weakref
 from pathlib import Path
 
-import numpy as np
-
 from podcast_mcp.engines.asr_silence import peak_envelope
 from podcast_mcp.services.collaboration.review_versions import get_version, review_artifacts_dir
 from podcast_mcp.services.collaboration.share import open_share_workspace
@@ -29,29 +27,13 @@ from podcast_mcp.util.coded_error import (
     CodedPermissionError,
     CodedValueError,
 )
+from podcast_mcp.util.peak_bins import bin_peaks
 
 log = logging.getLogger(__name__)
 
 PEAK_COUNT = 512
 PEAKS_SIDECAR = "peaks.json"
 PEAKS_DECODE_TIMEOUT_SEC = 60.0
-
-
-def bin_peaks(envelope: np.ndarray, count: int = PEAK_COUNT) -> list[float]:
-    """Max-pool ``envelope`` into ``count`` columns, scale so the loudest is 1, round to 2 dp.
-
-    ``[]`` for an empty or silent envelope.
-    """
-    n = int(envelope.size)
-    if n == 0:
-        return []
-    starts = (np.arange(count) * n) // count
-    stops = np.maximum(((np.arange(count) + 1) * n) // count, starts + 1)
-    cols = np.array([envelope[a:b].max() for a, b in zip(starts, stops, strict=True)])
-    top = float(cols.max())
-    if not np.isfinite(top) or top <= 0.0:
-        return []
-    return [round(float(v), 2) for v in np.clip(cols / top, 0.0, 1.0)]
 
 
 _LOCKS: weakref.WeakValueDictionary[str, threading.Lock] = weakref.WeakValueDictionary()
@@ -121,7 +103,7 @@ def episode_peaks(project, version_id: str) -> list[float]:
         except Exception:
             log.warning("review peaks: cannot decode frozen mix for %s", version_id, exc_info=True)
             return []
-        peaks = bin_peaks(envelope)
+        peaks = bin_peaks(envelope, PEAK_COUNT)
         try:
             write_json_atomic(sidecar, peaks, compact=True)
         except (OSError, ValueError):
