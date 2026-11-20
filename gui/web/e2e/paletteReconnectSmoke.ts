@@ -452,7 +452,29 @@ export function registerPaletteReconnectSmoke() {
                   `.avatar-header .avatar-face[data-person=${JSON.stringify(leaderId)}]`,
                 );
                 await expect(face).toHaveCount(1);
-                const menu = await openPeopleMenu(follower, face);
+                let menu: Locator;
+                if (await face.isVisible()) {
+                  menu = await openPeopleMenu(follower, face);
+                } else {
+                  const leaderCardLabel = await face.getAttribute("aria-label");
+                  if (!leaderCardLabel)
+                    throw new Error("identified leader avatar has no label");
+                  const more = follower.locator(
+                    ".avatar-header .avatar-phone-root .avatar-more",
+                  );
+                  await expect(more).toBeVisible();
+                  await more.click();
+                  const people = follower.getByRole("menu", {
+                    name: "More people",
+                    exact: true,
+                  });
+                  await expect(people).toBeVisible();
+                  menu = people.getByRole("group", {
+                    name: leaderCardLabel,
+                    exact: true,
+                  });
+                  await expect(menu).toBeVisible();
+                }
                 await menu
                   .getByRole("menuitem", { name: "Follow", exact: true })
                   .click();
