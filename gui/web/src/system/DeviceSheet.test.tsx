@@ -68,6 +68,20 @@ describe("DeviceSheet", () => {
     expect(screen.getByRole("button", { name: /^Input:/ })).toBeEnabled();
   });
 
+  it("shows the slow prompt's Retry in the Microphone row", async () => {
+    const onMicAction = vi.fn();
+    render(sheet({ mic: { status: "prompting", slow: true }, onMicAction }));
+    expect(
+      screen.getByText(
+        "Still waiting. Check your browser's permission prompt.",
+      ),
+    ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry microphone" }),
+    );
+    expect(onMicAction).toHaveBeenCalledWith("retry");
+  });
+
   it("toggles headphones, and omits the toggle without a handler", async () => {
     const onHeadphonesChange = vi.fn();
     const { rerender } = render(sheet({ onHeadphonesChange }));

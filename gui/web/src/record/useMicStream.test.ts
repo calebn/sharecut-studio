@@ -1046,4 +1046,56 @@ describe("microphone acquisition ownership", () => {
       expect(current.track.stop).not.toHaveBeenCalled();
     },
   );
+
+  it("does not open the default input after a restart cancelled a saved-input request", async () => {
+    const stale = deferred<MediaStream>();
+    const fresh = microphone();
+    const gum = vi
+      .fn()
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce(fresh.stream);
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        getUserMedia: gum,
+        enumerateDevices: vi.fn(async () => []),
+      },
+    });
+    const { result } = renderHook(() => useMicStream(true, "saved"));
+    await waitFor(() => expect(gum).toHaveBeenCalledTimes(1));
+    act(() => result.current.restart());
+    await waitFor(() => expect(gum).toHaveBeenCalledTimes(2));
+    await act(async () =>
+      stale.reject(
+        Object.assign(new Error("missing"), { name: "OverconstrainedError" }),
+      ),
+    );
+    expect(gum).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(result.current.stream).toBe(fresh.stream));
+  });
+
+  it("restarts a hung request even though one is in flight, and stops the old stream", async () => {
+    const hung = deferred<MediaStream>();
+    const old = microphone();
+    const fresh = microphone();
+    const gum = vi
+      .fn()
+      .mockReturnValueOnce(hung.promise)
+      .mockResolvedValueOnce(fresh.stream);
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        getUserMedia: gum,
+        enumerateDevices: vi.fn(async () => []),
+      },
+    });
+    const { result } = renderHook(() => useMicStream(true, ""));
+    await waitFor(() => expect(gum).toHaveBeenCalledTimes(1));
+    act(() => result.current.retry());
+    expect(gum).toHaveBeenCalledTimes(1);
+    act(() => result.current.restart());
+    await waitFor(() => expect(result.current.stream).toBe(fresh.stream));
+    expect(gum).toHaveBeenCalledTimes(2);
+    await act(async () => hung.resolve(old.stream));
+    expect(old.track.stop).toHaveBeenCalledOnce();
+    expect(result.current.stream).toBe(fresh.stream);
+  });
 });

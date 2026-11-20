@@ -1,8 +1,9 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { flushSync } from "react-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { keeperAudioConstraints } from "./keeper/constraints";
+import { MIC_PROMPT_SLOW_MS } from "./micPermission";
 import { useMicPermission } from "./useMicPermission";
 
 function stubGum(
@@ -447,5 +448,199 @@ describe("useMicPermission", () => {
     const { result } = renderHook(() => useMicPermission(true, ""));
     expect(result.current.status).toBe("idle");
     expect(gum).not.toHaveBeenCalled();
+  });
+});
+
+describe("useMicPermission slow prompt", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  type Call = {
+    resolve: (stream: unknown) => void;
+    reject: (error: Error) => void;
+  };
+
+  function hungGum(): { gum: ReturnType<typeof vi.fn>; calls: Call[] } {
+    const calls: Call[] = [];
+    const gum = vi.fn(
+      () =>
+        new Promise((resolve, reject) => {
+          calls.push({ resolve, reject });
+        }),
+    );
+    vi.stubGlobal("navigator", {
+      mediaDevices: { getUserMedia: gum, enumerateDevices: async () => [] },
+    });
+    return { gum, calls };
+  }
+
+  const streamOf = (track: {
+    stop: () => void;
+    getSettings: () => object;
+  }) => ({
+    getTracks: () => [track],
+    getAudioTracks: () => [track],
+  });
+
+  const advance = (ms: number) =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+
+  it("turns slow at 10 s and not a millisecond before, still prompting", async () => {
+    hungGum();
+    const { result } = renderHook(() => useMicPermission(true, ""));
+    act(() => result.current.request());
+    await advance(MIC_PROMPT_SLOW_MS - 1);
+    expect(result.current).toMatchObject({
+      status: "prompting",
+      promptSlow: false,
+    });
+    await advance(1);
+    expect(result.current).toMatchObject({
+      status: "prompting",
+      promptSlow: true,
+    });
+  });
+
+  it("is never slow before a request", async () => {
+    hungGum();
+    const { result } = renderHook(() => useMicPermission(true, ""));
+    await advance(MIC_PROMPT_SLOW_MS * 3);
+    expect(result.current).toMatchObject({ status: "idle", promptSlow: false });
+  });
+
+  it("asks again on Retry while slow, drops the first request and restarts the clock", async () => {
+    const { gum, calls } = hungGum();
+    const { result } = renderHook(() => useMicPermission(true, ""));
+    act(() => result.current.request());
+    await advance(MIC_PROMPT_SLOW_MS);
+    expect(result.current.promptSlow).toBe(true);
+    act(() => result.current.retry());
+    await advance(0);
+    expect(gum).toHaveBeenCalledTimes(2);
+    expect(result.current).toMatchObject({
+      status: "prompting",
+      promptSlow: false,
+    });
+    await advance(MIC_PROMPT_SLOW_MS - 1);
+    expect(result.current.promptSlow).toBe(false);
+    await advance(1);
+    expect(result.current.promptSlow).toBe(true);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("asks only once for two Retry clicks in the same moment", async () => {
+    const { gum } = hungGum();
+    const { result } = renderHook(() => useMicPermission(true, ""));
+    act(() => result.current.request());
+    await advance(MIC_PROMPT_SLOW_MS);
+    act(() => {
+      result.current.retry();
+      result.current.retry();
+    });
+    await advance(0);
+    expect(gum).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not ask again on Retry before the note shows", async () => {
+    const { gum } = hungGum();
+    const { result } = renderHook(() => useMicPermission(true, ""));
+    act(() => result.current.request());
+    await advance(MIC_PROMPT_SLOW_MS - 1);
+    act(() => result.current.retry());
+    await advance(0);
+    expect(gum).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops the first request's stream when it answers after Retry and follows the second", async () => {
+    const { calls } = hungGum();
+    const first = { ...dryTrack, stop: vi.fn() };
+    const second = { ...dryTrack, stop: vi.fn() };
+    const { result } = renderHook(() => useMicPermission(true, ""));
+    act(() => result.current.request());
+    await advance(MIC_PROMPT_SLOW_MS);
+    act(() => result.current.retry());
+    await advance(0);
+    await act(async () => calls[0].resolve(streamOf(first)));
+    expect(first.stop).toHaveBeenCalledTimes(1);
+    expect(result.current.stream).toBeNull();
+    expect(result.current.status).toBe("prompting");
+    await act(async () => calls[1].resolve(streamOf(second)));
+    expect(result.current).toMatchObject({
+      status: "granted",
+      promptSlow: false,
+    });
+    expect(second.stop).not.toHaveBeenCalled();
+  });
+
+  it("grants late without a Retry and leaves no note", async () => {
+    const { calls } = hungGum();
+    const { result } = renderHook(() => useMicPermission(true, ""));
+    act(() => result.current.request());
+    await advance(MIC_PROMPT_SLOW_MS + 5000);
+    expect(result.current.promptSlow).toBe(true);
+    await act(async () => calls[0].resolve(streamOf(dryTrack)));
+    expect(result.current).toMatchObject({
+      status: "granted",
+      promptSlow: false,
+    });
+    await advance(MIC_PROMPT_SLOW_MS * 2);
+    expect(result.current.promptSlow).toBe(false);
+  });
+
+  it.each([
+    ["NotAllowedError", "denied"],
+    ["NotFoundError", "unavailable"],
+    ["NotReadableError", "error"],
+  ] as const)(
+    "never shows the note once the browser says %s",
+    async (name, status) => {
+      const { calls } = hungGum();
+      const { result } = renderHook(() => useMicPermission(true, ""));
+      act(() => result.current.request());
+      await advance(MIC_PROMPT_SLOW_MS + 1);
+      expect(result.current.promptSlow).toBe(true);
+      await act(async () =>
+        calls[0].reject(Object.assign(new Error("x"), { name })),
+      );
+      expect(result.current).toMatchObject({ status, promptSlow: false });
+      await advance(MIC_PROMPT_SLOW_MS * 2);
+      expect(result.current.promptSlow).toBe(false);
+    },
+  );
+
+  it("clears the note when the mic is switched off while slow", async () => {
+    hungGum();
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useMicPermission(enabled, ""),
+      { initialProps: { enabled: true } },
+    );
+    act(() => result.current.request());
+    await advance(MIC_PROMPT_SLOW_MS);
+    expect(result.current.promptSlow).toBe(true);
+    rerender({ enabled: false });
+    expect(result.current).toMatchObject({ status: "idle", promptSlow: false });
+  });
+
+  it("leaves no timer behind when it is disabled or unmounted while pending", async () => {
+    hungGum();
+    const { result, rerender, unmount } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useMicPermission(enabled, ""),
+      { initialProps: { enabled: true } },
+    );
+    act(() => result.current.request());
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    rerender({ enabled: false });
+    expect(vi.getTimerCount()).toBe(0);
+    rerender({ enabled: true });
+    act(() => result.current.request());
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
