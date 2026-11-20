@@ -5,12 +5,14 @@ import { closeOverlay, openOverlay } from "../../ui/modalGate";
 import { useViewAnchor, type ViewAnchorAvailability } from "./useViewAnchor";
 
 let setHidden: (hidden: boolean) => void = () => {};
+let setOpenState: (open: boolean) => void = () => {};
 
 function Harness() {
   const [open, setOpen] = useState(true);
   const [hidden, hide] = useState(false);
   useEffect(() => {
     setHidden = hide;
+    setOpenState = setOpen;
   }, []);
   const panel = useRef<HTMLDivElement>(null);
   const availability: ViewAnchorAvailability = hidden
@@ -261,5 +263,110 @@ describe("the View anchor's focus return", () => {
     screen.getByRole("button", { name: "Prosody" }).focus();
     act(() => setHidden(true));
     expect(document.activeElement).toBe(find);
+  });
+
+  it("does not start watching when the preferred control is the fallback", () => {
+    const observe = vi.spyOn(MutationObserver.prototype, "observe");
+    appendFind();
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    expect(observe).not.toHaveBeenCalled();
+    observe.mockRestore();
+  });
+
+  it("stops watching when the anchor reopens still unavailable", async () => {
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    const pane = document.querySelector<HTMLElement>("#pane");
+    act(() => setOpenState(true));
+    act(() => {
+      appendFind();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(document.activeElement).toBe(pane);
+  });
+
+  it("clears the give-up timer when it stops", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const view = render(<Harness />);
+    const before = vi.getTimerCount();
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    expect(vi.getTimerCount()).toBe(before + 1);
+    view.unmount();
+    expect(vi.getTimerCount()).toBe(before);
+  });
+
+  it("does not move focus from a frame that was pending when it stopped", async () => {
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    const pane = document.querySelector<HTMLElement>("#pane");
+    act(() => {
+      appendFind();
+    });
+    await Promise.resolve();
+    act(() => {
+      pane?.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true }));
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(document.activeElement).toBe(pane);
+  });
+
+  it("leaves focus alone when it left the fallback between the control drawing and the frame", async () => {
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    act(() => {
+      appendFind();
+    });
+    await Promise.resolve();
+    (document.activeElement as HTMLElement | null)?.blur();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("leaves focus alone when the control was disabled between drawing and the frame", async () => {
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    const pane = document.querySelector<HTMLElement>("#pane");
+    let find: HTMLElement | undefined;
+    act(() => {
+      find = appendFind();
+    });
+    await Promise.resolve();
+    find?.setAttribute("aria-disabled", "true");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(document.activeElement).toBe(pane);
+  });
+
+  it("waits while the control draws hidden and moves focus once it shows", async () => {
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    let find: HTMLElement | undefined;
+    act(() => {
+      find = appendFind();
+      find.hidden = true;
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(document.activeElement).toBe(document.querySelector("#pane"));
+    act(() => {
+      if (find) find.hidden = false;
+    });
+    await waitFor(() => expect(document.activeElement).toBe(find));
   });
 });
