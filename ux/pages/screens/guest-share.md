@@ -156,12 +156,12 @@ so a tab closed with it up sees it again after the next edit. The browser
 remembers the dismissal under a digest of the link, never the link itself.
 
 **"Someone left."** When another person's presence leaves the page, the status
-region says "Someone left" to every role. It is skipped while a role or reminder
+region says "Someone left" to the host and to an Editor on the Edit timeline (the other roles do not mount the announcer). It is skipped while a role or reminder
 bubble is up, and it is never queued.
 
 **The guest palette.** On a guest link the command palette lists only what the
 role can run: the host-only, Project and Record rows are gone for every guest;
-a Viewer or Commenter also has no Edit or Deliver rows, no lane, zoom, mute,
+a Viewer or Commenter also has no Go to Edit or Go to Deliver rows, no lane, zoom, mute,
 solo or Script rows (the link has no timeline), and no Select a range, which
 would arm a range nothing visible follows. A Viewer has no Add comment or
 Comment on range either. An Editor keeps Select a range and the Edit rows. A row
@@ -179,8 +179,8 @@ does Q for a Viewer, on a phone or on the Edit stage.
 **Escape and the toast.** While a toast is up and focus is not in a field,
 Escape closes the newest toast and nothing else the Escape would not already
 close (a selection and Follow end first). With focus on the toast's Dismiss
-button, Escape closes it. A dismissed Undo toast loses only its button; Undo in
-the header still takes the step back.
+button, Escape closes it. A dismissed Undo toast loses its button; for an edit, Undo in
+the header still takes the step back, but for the host's Stop sharing and End room the toast is the only Undo.
 
 **Comment field on a phone:** on the phone layout (767 px and narrower) a Viewer or Commenter link uses the Listen layout: a Viewer link has no Comment button, no selection bar and no text field, and on a Commenter link no text field is on screen until the guest taps **Comment** in the Listen dock, which pins the time, pauses an episode that is playing, and opens the composer above the dock; **Post** or **Close** plays on if Comment paused it and nothing touched playback since, and returns focus to the Comment button. The transcript selection bar's Comment on a Commenter link also pauses an episode that is playing and opens the composer, but pins the selected range, replacing the time of text kept by Close; only on this layout does opening the composer pause. An Editor link on a phone keeps the Player bar and the always-present comment field, docked at the foot of the Review panel (inline in the card when the layout is 30rem tall or less; the keyboard does not count); the bar's Comment button, visible without a menu (also on a short landscape phone), opens the composer and leaves playback running. A landscape phone wider than 767 px uses the tablet shell. On a tablet, a desktop and for the host the field stays at the top of the card.
 

@@ -291,7 +291,7 @@ skips `edit.clearSelection`). A clip fade Scrub field's Escape stops
 propagation only while a drag or typed edit is open, so cancelling it
 leaves the sheet open. Idle Escape on a fade field still dismisses the sheet. A host move that detaches a focused
 action without a blur (a modal-covered or stowed host) resumes the toast timer.
-Escape dismisses the newest toast after a selection and Follow have taken theirs (and not from a text field); a dismissed Undo toast loses only its button, since Undo in the header and History still reverse the step. The toast region is appended to the page body after the app, so it stays outside the tree an open sheet makes inert and its Undo stays reachable.
+Escape dismisses the newest toast after a selection and Follow have taken theirs (and not from a text field); a dismissed Undo toast loses its button: for an edit, Undo in the header and History still reverse the step, but for the host's Stop sharing and End room the toast is the only Undo. The toast region is appended to the page body after the app, so it stays outside the tree an open sheet makes inert and its Undo stays reachable.
 Ordinary body scrolling exposes feedback when a full native label and the card
 cannot fit together. The single Toast pauses its remaining visible lifetime
 while clipped and preserves it through host movement. Compact half and full
