@@ -1381,7 +1381,7 @@ alternate local sink path.
 enabled while a take runs; the `M` key adds a marker), Mute and Leave, and alerts in one
 slot: "Your mic stopped." (**Reconnect mic**), "No sound is reaching the recorder."
 (**Check mic**), "This device couldn't save the recording.", "Saving stopped."
-(**Resume saving**, **Save a copy**; never raised from an upload error once the server has every segment this device holds, or, when the device could not be read, every segment its last upload pass saw once the take has stopped and capture has settled; a take still finishing keeps it), "We found part of your recording."
+(**Resume saving**, **Save a copy**; never raised from an upload error once the server has every segment this device holds, or, when the device could not be read, every segment its last upload pass saw, which counts only once the take has stopped and capture has settled, so a take still finishing keeps the alert), "We found part of your recording."
 (**Finish saving**), "Lost connection to the room. You're still recording on this
 device." (this page's connection dropped mid-take; while it shows, "Saving stopped." is not
 shown, and it comes back once the connection does if the upload still fails; nothing is raised
