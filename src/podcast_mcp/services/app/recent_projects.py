@@ -8,15 +8,16 @@ or corrupt file reads as empty, an entry whose path JSON cannot carry (a lone
 surrogate) is skipped on read and dropped at the next write, and a failed write never
 fails the open or create that triggered it. Project state stays in the project file.
 
-:func:`recent_project_cards` turns each entry into the card Home draws from a cheap
-read of the project file (JSON only, no model validation, no media). The parsed summary
-is cached per file by its revision stamp plus ctime, so a list that has not changed since
-the last read parses nothing; only the job state, the delivered date and the pyramid file
-stamp are looked up per request. A summary miss also loads the project with full validation
-once, to plan the card's ``peaks`` from the waveform pyramids on disk (see
-:mod:`recent_peaks`); a pyramid that is not ready leaves ``peaks`` empty and never builds one. The list is read-modify-written under a process lock only: two
-processes that record at once can drop each other's entry, but the file is never left half
-written.
+:func:`recent_project_cards` turns each entry into the card Home draws. The parsed summary is
+cached per file by its revision stamp plus ctime, so a list that has not changed since the last
+read parses nothing; only the job state, the delivered date and the pyramid file stamp are looked
+up per request. A summary miss reads the project file as JSON and also validates the project
+with ``load_project`` once, to plan the card's ``peaks`` from the waveform pyramids on disk (see
+:mod:`recent_peaks`). Each list probes every media file the plan needs (ffprobe) unless its
+(path, size, mtime) was probed before, and stats its pyramid files. It never decodes audio and
+never builds a pyramid: a pyramid that is not ready leaves ``peaks`` empty. The list is
+read-modify-written under a process lock only: two processes that record at once can drop each
+other's entry, but the file is never left half written.
 
 A path is stored absolute, except on a host whose home is an app container (iOS), where the
 container's absolute path changes on every reinstall or update: a project under that home is
@@ -75,6 +76,7 @@ _LOCK = threading.Lock()
 _RESERVE_LOCK = threading.Lock()
 _SUMMARIES: dict[str, tuple[tuple[int, int, int, int, int], _Summary | None]] = {}
 _PEAKS: dict[str, tuple[recent_peaks.PeakPlan, recent_peaks.PyramidStamp, list[float]]] = {}
+_PEAK_FAULTS: set[str] = set()
 _SUMMARIES_LOCK = threading.Lock()
 
 
@@ -346,6 +348,13 @@ def _prune_summaries(entries: list[RecentEntry]) -> None:
             del _SUMMARIES[stale]
         for stale in [k for k in _PEAKS if k not in keep]:
             del _PEAKS[stale]
+        _PEAK_FAULTS.intersection_update(keep)
+        plans = [
+            summary.peak_plan
+            for _, summary in _SUMMARIES.values()
+            if summary is not None and summary.peak_plan is not None
+        ]
+    recent_peaks.prune_media_keys(plans)
 
 
 def _peaks_for(project_file: Path, plan: recent_peaks.PeakPlan | None) -> list[float]:
@@ -356,19 +365,29 @@ def _peaks_for(project_file: Path, plan: recent_peaks.PeakPlan | None) -> list[f
         stamp, ready = recent_peaks.pyramid_stamp(plan)
         with _SUMMARIES_LOCK:
             cached = _PEAKS.get(key)
-        if cached is not None and cached[0] is plan and cached[1] == stamp:
-            return list(cached[2])
+            if cached is not None and cached[0] is plan and cached[1] == stamp:
+                _PEAK_FAULTS.discard(key)
+                return list(cached[2])
         peaks: list[float] = []
         if ready is not None:
             try:
                 peaks = recent_peaks.fold_peaks(plan, ready)
-            except Exception:  # a corrupt pyramid leaves this card flat until it is rebuilt
+            except Exception:
                 log.warning("Cannot fold peaks for %s", project_file, exc_info=True)
         with _SUMMARIES_LOCK:
             _PEAKS[key] = (plan, stamp, peaks)
+            _PEAK_FAULTS.discard(key)
         return list(peaks)
-    except Exception:  # peaks are decoration: never change the rest of the card
-        log.warning("Cannot read recent peaks for %s", project_file, exc_info=True)
+    except Exception:
+        with _SUMMARIES_LOCK:
+            repeated = key in _PEAK_FAULTS
+            _PEAK_FAULTS.add(key)
+        log.log(
+            logging.DEBUG if repeated else logging.WARNING,
+            "Cannot read recent peaks for %s",
+            project_file,
+            exc_info=True,
+        )
         return []
 
 
