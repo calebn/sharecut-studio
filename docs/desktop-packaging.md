@@ -456,7 +456,7 @@ void     sc_ffmpeg_cancel(int64_t session);
   closes its dups when the session ends; the caller owns and closes its own fds and native never
   closes them. A dup shares the file offset, so a caller reading a tempfile stderr back must
   `seek(0)` first. Streams need a real `fileno()`.
-- **Errors.** A negative `start`, a `wait` outside 0..255 or an unknown tool is exit code `1` with
+- **Errors.** A `start` that returns 0 or less, a `wait` outside 0..255 or an unknown tool is exit code `1` with
   one line on stderr. A native error is never reported as success, and the backend never starts
   a program.
 - **Linking.** The app target's existing `settings: base:` block in
@@ -499,7 +499,7 @@ void     sc_whisper_cancel(int64_t session);
 - **Sessions.** `start` returns an id >= 1 or `-errno`; `wait` returns an exit code in 0..255 or
   `-errno`; `cancel` is called once by Python when the caller cancels. The fd, cancel and
   error contract is the same as FFmpeg's (File descriptors, Sessions and Errors above): `-1`
-  means no fd, a negative `start`, a `wait` outside 0..255 or an unknown tool is exit code `1`
+  means no fd, a `start` that returns 0 or less, a `wait` outside 0..255 or an unknown tool is exit code `1`
   with one `whisper: <reason>` line on stderr, and a native error is never reported as success.
 
 <a id="ios-release"></a>
