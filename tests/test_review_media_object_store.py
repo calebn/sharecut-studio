@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.config.runtime import RuntimeConfigError
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import load_project, save_project
+from podcast_mcp.models import TimelineComment, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.review_versions import get_version
@@ -516,3 +516,60 @@ def test_presign_and_delete_client_variants(
     # Active share blocks delete
     ShareService(ws).create(review_version_id=ver["id"], capabilities=["play"])
     assert delete_object_store_object_if_unused(ws, ver["id"], object_store=fake) is False
+
+
+def _history_state(ws: ProjectWorkspace) -> tuple[int, str]:
+    status = ws.history().status(load_project(ws.path))
+    return status.total, status.head_id
+
+
+def _after_an_earlier_edit(ws: ProjectWorkspace) -> None:
+    ws.mutate(
+        "before an earlier edit",
+        "after an earlier edit",
+        lambda p: p.review.comments.append(
+            TimelineComment(
+                id="c1", body="x", author="a", created_at="2026-01-01T00:00:00Z", timeline_start=1.0
+            )
+        ),
+    )
+
+
+def test_encoding_the_review_mp3_writes_no_history_step(minimal_project, sample_wav):
+    from podcast_mcp.services.media.review_media import ensure_version_mp3
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="legacy-encode")
+    (Path(ws.project.workspace_dir) / ver["mp3_relpath"]).unlink()
+
+    def forget_mp3(p):
+        get_version(p, ver["id"]).mp3_relpath = None
+
+    ws.mutate("before", "after", forget_mp3)
+    _after_an_earlier_edit(ws)
+    before = _history_state(ws)
+
+    ensure_version_mp3(ws, ver["id"])
+
+    assert get_version(load_project(minimal_project), ver["id"]).mp3_relpath
+    assert _history_state(ws) == before
+
+
+def test_uploading_and_clearing_the_object_store_key_write_no_history_step(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.services.media.review_media import delete_object_store_object_if_unused
+
+    fake = _FakeObjectStore()
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="store")
+    _after_an_earlier_edit(ws)
+    before = _history_state(ws)
+
+    key = upload_review_version_to_object_store(ws, ver["id"], object_store=fake)
+    assert get_version(load_project(minimal_project), ver["id"]).object_store_key == key
+    assert _history_state(ws) == before
+
+    assert delete_object_store_object_if_unused(ws, ver["id"], object_store=fake) is True
+    assert get_version(load_project(minimal_project), ver["id"]).object_store_key is None
+    assert _history_state(ws) == before

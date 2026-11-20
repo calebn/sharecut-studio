@@ -2,9 +2,22 @@ import type { PipelineJobSnapshot } from "../types/pipeline";
 
 export const PROJECT_WRITE_FAILED_CODE = "project_write_failed";
 export const TRANSCRIPT_REFINE_REQUIRED_CODE = "transcript_refine_required";
+export const CUT_SCOPE_CHANGED_CODE = "cut_scope_changed";
 
 export const TRANSCRIPT_REFINE_REFUSAL =
   "This is blocked until transcript refinement is done. A host can review the transcript or waive it with a reason.";
+
+/** The server refused an undo or redo because history moved past `expectedHeadId`. */
+export const HISTORY_STALE_CODE = "history_stale";
+
+/** An Undo or Redo the server declined in plain words; nothing changed and nothing needs attention. */
+export const HISTORY_REFUSAL_CODES: ReadonlySet<string | null> = new Set([
+  HISTORY_STALE_CODE,
+  "nothing_to_undo",
+  "nothing_to_redo",
+  "nothing_of_yours_to_undo",
+  "nothing_of_yours_to_redo",
+]);
 
 const MODEL_NEEDED_CODE = "model_needed";
 

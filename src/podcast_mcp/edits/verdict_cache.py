@@ -29,8 +29,9 @@ from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterator, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass
+from functools import cache
 from itertools import accumulate
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from podcast_mcp import settings
 from podcast_mcp.edits import cut_policy
@@ -49,6 +50,14 @@ from podcast_mcp.edits.cut_placement import (
 from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.cut_speech import SourceExtent, _chosen_on_timeline
 from podcast_mcp.edits.tighten_reasons import is_pause_reason
+from podcast_mcp.engines.clips_ops import (
+    MuteIndex,
+    clip_index,
+    clips_for_track,
+    crossfade_ms_at_join,
+    join_render_fields,
+    previous_clip,
+)
 from podcast_mcp.models import ClipJoinMode, FadeCurve
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.fingerprint import file_stamp
@@ -271,7 +280,7 @@ def _payload(
     """What the key hashes; ``None`` when any input is unreadable or a clip fade over
     ``LONG_FADE_NO_CACHE_SEC``, on any track, runs into the window (never cached).
 
-    A ramp outside the window does not refuse the key. The render shortens a fade to half its
+    A ramp outside the window is not refused. The render shortens a fade to half its
     clip (``engines.audio.fade_duration``), so a ramp in the window can depend on a clip end
     outside it; ``_heard`` hashes the clip's length when that can happen.
     """
@@ -285,6 +294,8 @@ def _payload(
     heard = []
     elsewhere = []
     downstream = []
+    folds: list[_JoinFold] = []
+    mutes = cache(lambda: MuteIndex(project))
     near = _words_near(project)
     for c in project.clips:
         if any(ms > LONG_FADE_NO_CACHE_SEC * 1000 for ms in _ramps_in_window(c, lo, hi)):
@@ -292,6 +303,7 @@ def _payload(
         in_window = c.timeline_start < hi and c.timeline_end > lo
         if in_window:
             heard.append(_heard(c, lo, hi))
+            folds.extend(_join_folds(project, c, mutes))
         if in_window or c.timeline_end >= lo:
             # The check assesses every ramp, so one outside the window (the far end of a clip
             # straddling its edge, or a whole clip past it) still moves the verdict.
@@ -316,6 +328,7 @@ def _payload(
     heard.sort(key=repr)
     elsewhere.sort(key=repr)
     downstream.sort(key=repr)
+    folds.sort(key=repr)
     track_ids = [t.id for t in project.tracks]
     pairs: set[tuple[str, str | None]] = {(str(h[0]), h[1]) for h in heard}
     pairs |= {(str(e[0]), cast("str | None", e[1])) for e in elsewhere}
@@ -344,6 +357,7 @@ def _payload(
         "heard": heard,
         "elsewhere": elsewhere,
         "downstream": downstream,
+        "joins": folds,
         "tracks": [t.model_dump(mode="json") for t in project.tracks],
         "sources": [s.model_dump(mode="json") for s in project.sources],
         "chains": [c.model_dump(mode="json") for c in project.processing_chains],
@@ -485,6 +499,38 @@ def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
     if closes and clip.fade_out_curve is not FadeCurve.LINEAR:
         heard.append(["fade_out_curve", clip.fade_out_curve.value])
     return heard
+
+
+class _JoinFold(NamedTuple):
+    side: str
+    ms: int
+    borrow: float
+
+
+def _join_folds(
+    project: EpisodeProject, clip: Any, mutes: Callable[[], MuteIndex]
+) -> list[_JoinFold]:
+    """The overlap and borrow of each crossfade join of ``clip``, whichever side its neighbour is on.
+
+    The render blends a join by the neighbour's fade and borrows from both recordings, bounded by
+    the neighbour's length and by mutes on other clips; none of that is in ``_heard`` when the
+    neighbour lies outside the window. ``mutes`` returns the one ``MuteIndex`` of a ``_payload``
+    call, built when a crossfade join first needs it.
+    """
+    ordered = clips_for_track(project, clip.track_id)
+    at = clip_index(ordered, clip.id)
+    sides: tuple[tuple[str, Any, Any], ...] = (("in", previous_clip(ordered, clip.id), clip),)
+    if at + 1 < len(ordered):
+        sides += (("out", clip, ordered[at + 1]),)
+    folds: list[_JoinFold] = []
+    for side, left, right in sides:
+        if left is None or right.join_in_mode != ClipJoinMode.CROSSFADE:
+            continue
+        ms = crossfade_ms_at_join(left, right)
+        if ms > 0:
+            fields = join_render_fields(left, right, project, mutes())
+            folds.append(_JoinFold(side, ms, fields.get("join_borrow_sec", 0.0)))
+    return folds
 
 
 def _words_near(project: EpisodeProject) -> Callable[[str, str | None, float, float], Any]:

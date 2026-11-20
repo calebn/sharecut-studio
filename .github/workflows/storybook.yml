@@ -72,13 +72,15 @@ jobs:
         working-directory: gui/web
 
       - name: Sweep every story for axe violations and overflow
-        run: npm run test:stories
+        run: bash ../../scripts/private_browser_command.sh npm run test:stories
         env:
           VITE_STORY_SHARD: ${{ matrix.shard }}/4
         working-directory: gui/web
 
   build:
     needs: image
+    env:
+      BROWSER_CAPTURE_RECEIPT: ${{ github.workspace }}/.storybook-browser-capture.txt
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-24.04
     container:
@@ -86,6 +88,10 @@ jobs:
       options: --init --ipc=host
     steps:
       - uses: actions/checkout@v7
+
+      - name: Initialize browser result publication
+        run: |
+          rm -f -- "$BROWSER_CAPTURE_RECEIPT" gui/web/playwright-public/stories.json
 
       - uses: actions/setup-python@v7
         with:
@@ -103,24 +109,37 @@ jobs:
 
       - name: Build Storybook and run the render smoke
         if: github.event_name == 'pull_request'
-        run: npm run test:e2e:storybook -- coverage.spec.ts docs-theme.spec.ts
+        run: bash ../../scripts/private_browser_command.sh npm run test:e2e:storybook -- coverage.spec.ts docs-theme.spec.ts
+        env:
+          BROWSER_RAW_REPORT: playwright-report/stories.json
         working-directory: gui/web
 
       - name: Verify Prepare text layout (Vitest browser)
         if: github.event_name != 'pull_request'
-        run: npm run test:layout
+        run: bash ../../scripts/private_browser_command.sh npm run test:layout
         working-directory: gui/web
 
       - name: Build Storybook and verify browser geometry
         if: github.event_name != 'pull_request'
-        run: npm run test:e2e:storybook
+        run: bash ../../scripts/private_browser_command.sh npm run test:e2e:storybook
+        env:
+          BROWSER_RAW_REPORT: playwright-report/stories.json
         working-directory: gui/web
 
-      - name: Summarize Storybook tests
+      - name: Project public Storybook results
+        id: browser-public-projection
         if: always()
+        run: >-
+          python3 scripts/browser_public_report.py
+          --report gui/web/playwright-report/stories.json
+          --output gui/web/playwright-public/stories.json
+          --capture-receipt "$BROWSER_CAPTURE_RECEIPT"
+
+      - name: Summarize Storybook tests
+        if: ${{ always() && steps.browser-public-projection.outcome == 'success' }}
         continue-on-error: true
         working-directory: .
-        run: python3 scripts/test_area_summary.py playwright --area stories --report gui/web/playwright-report/stories.json
+        run: python3 scripts/test_area_summary.py playwright --area stories --report gui/web/playwright-public/stories.json
 
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && contains(fromJSON('["push","workflow_dispatch"]'), github.event_name)

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import math
-import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
@@ -25,6 +24,7 @@ from podcast_mcp.util.dsp import (
     high_band_energy_fraction,
     voicing_probes,
 )
+from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import track_audio_path
 
@@ -701,7 +701,7 @@ def _read_evidence(
 ) -> np.ndarray:
     try:
         return read(start, duration)
-    except (OSError, ValueError, subprocess.CalledProcessError):
+    except (OSError, ValueError, CalledProcessError):
         return np.empty(0)
 
 

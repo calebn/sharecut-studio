@@ -67,11 +67,38 @@ def test_host_route_intent_follows_the_actor_role(pending_project, role, intent)
     assert _stored_intent(pending_project) is intent
 
 
-def test_guest_editor_never_stamps_human_intent(pending_project, published_share):
+def test_guest_editor_stamps_human_intent(pending_project, published_share):
     _, _, share = published_share(capabilities=capabilities_for_role("editor"))
     client = TestClient(create_app())
     response = client.post(
         f"/api/review/{share['token']}/daw/document/command", json=_retime("viewer")
     )
     assert response.status_code == 200, response.text
-    assert _stored_intent(pending_project) is CutIntent.PROGRAMMATIC
+    assert _stored_intent(pending_project) is CutIntent.HUMAN_BOUNDARIES
+
+
+def test_guest_commenter_stays_programmatic(pending_project, published_share):
+    _, _, share = published_share(capabilities=capabilities_for_role("commenter"))
+    client = TestClient(create_app())
+    url = f"/api/review/{share['token']}/daw/document/command"
+    suggested = client.post(
+        url,
+        json={
+            "type": "SuggestPendingEdit",
+            "payload": {"track_id": "host", "start": 1.0, "end": 3.0},
+            "client_id": "commenter-client",
+            "client_seq": 1,
+            "role": "guest",
+        },
+    )
+    assert suggested.status_code == 200, suggested.text
+    own = next(e for e in load_project(pending_project).edit_decisions if e.id != "pending")
+    retimed = {
+        **_retime("guest"),
+        "payload": {"id": own.id, "start": 1.5, "end": 3.0, "snap": False},
+    }
+    response = client.post(url, json=retimed)
+    assert response.status_code == 200, response.text
+    stored = next(e for e in load_project(pending_project).edit_decisions if e.id == own.id)
+    assert stored.start == 1.5
+    assert stored.boundary_intent is CutIntent.PROGRAMMATIC

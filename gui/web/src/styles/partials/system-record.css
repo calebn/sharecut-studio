@@ -1507,6 +1507,15 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   font-size: var(--font-size-body);
 }
 
+.sys-join-listen > svg {
+  flex: none;
+}
+
+.sys-join-seen {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
 .sys-join-details {
   color: var(--color-text-secondary);
   font-size: var(--font-size-ui);

@@ -75,7 +75,7 @@ class LockContention:
 
 
 class ProjectBusyError(Timeout):
-    """``project_commit_lock`` timed out waiting for another process's commit (#488).
+    """A cross-process project lock timed out: the commit lock (#488) or a record room guard.
 
     A ``filelock.Timeout`` subclass, so every existing ``except Timeout`` keeps working.
     Fixed text that never names the lock path; every adapter's single busy-error choke
@@ -157,12 +157,20 @@ def play_cache_lock_path(play_cache_dir: Path) -> Path:
 
 
 def record_land_lock_path(workspace_dir: Path, session_id: str) -> Path:
-    """Cross-process land/discard lock for one record room; stores nothing.
+    """Cross-process land/discard lock for one record room; the file holds no data.
 
     Per session, like the in-process lock, so overlapping rooms in one workspace do not
     block each other.
     """
     return record_artifacts_dir(workspace_dir) / f"land-{session_id}.lock"
+
+
+def record_room_lock_path(workspace_dir: Path) -> Path:
+    """Cross-process lock for minting, restoring and revoking record rooms; the file holds no data.
+
+    Per workspace, since a mint replaces whichever room is live there.
+    """
+    return record_artifacts_dir(workspace_dir) / "room.lock"
 
 
 def project_state_lock(project: EpisodeProject) -> RLock:

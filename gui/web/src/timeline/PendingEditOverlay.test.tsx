@@ -1883,7 +1883,7 @@ describe("single pending review feedback", () => {
   function reviewReply(count: number, historyHead: string | null) {
     return {
       history_head_id: historyHead,
-      command: { payload: { result: { count } } },
+      review_result: { count },
       snapshot: {
         server_seq: 1,
         project: minimalProject({ pending_edits: [] }),
@@ -2080,7 +2080,8 @@ describe("overlay Cut and Keep", () => {
       .mockReset()
       .mockResolvedValue({
         history_head_id: "h",
-        command: { payload: { result: { count: 1, summary: "Applied" } } },
+        review_result: { count: 1 },
+        command: { payload: { result: { summary: "Applied" } } },
         snapshot: {
           server_seq: 1,
           project: minimalProject({ pending_edits: [] }),

@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  canIngestMedia,
-  isShareProjectKey,
-  rangeEditMode,
-} from "../../../shareMode";
+import { fixTextAvailability } from "../../../commands/fixTextAvailability";
+import { canIngestMedia, rangeEditMode } from "../../../shareMode";
 import { FindBar, type FindBarHandle } from "../../../stages/edit/FindBar";
 import { SpeakerPopover } from "../../../stages/edit/SpeakerPopover";
 import { useDawStore } from "../../../state/dawStore";
@@ -58,7 +55,7 @@ export function ScriptHost({
   const loading = useDawStore(selectTranscriptLoading);
   const showCut = useDawStore((s) => s.showCutAwayUtterances);
 
-  const hostEditable = !isShareProjectKey(projectPath);
+  const mayFix = useDawStore((s) => fixTextAvailability(s).ok);
   const mode = rangeEditMode(projectPath, capabilities);
   const { model, texts, silent, unsure, hasWords } = useScriptModel();
   const mayIngest = canIngestMedia(projectPath, guestMode, capabilities);
@@ -127,7 +124,7 @@ export function ScriptHost({
     model,
     texts,
     pane,
-    hostEditable && loading !== true && ready,
+    mayFix && loading !== true && ready,
     say,
     jump,
   );
@@ -146,7 +143,7 @@ export function ScriptHost({
 
   const phone =
     (layoutProp ?? (breakpoint === "phone" ? "phone" : "desktop")) === "phone";
-  const mayReplace = hostEditable && ready && loading !== true;
+  const mayReplace = mayFix && ready && loading !== true;
   const mayCut = mode === "edit" && ready && loading !== true;
 
   return (

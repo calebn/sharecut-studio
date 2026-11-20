@@ -15,7 +15,7 @@ from podcast_mcp.models.project_format import (
 )
 from podcast_mcp.project.store import WriteGrantKind, write_grant
 
-NEWER = ["99.0", "2.3", "2.2.0"]
+NEWER = ["99.0", "2.4", "2.3.0"]
 UNSUPPORTED = ["two", None, "2.1.5"]
 COMMAND = {
     "client_id": "c",
@@ -123,7 +123,7 @@ def test_a_healthy_shell_read_is_unchanged(minimal_project):
 
 def test_an_integer_version_is_capped_like_a_text_one(minimal_project):
     digits = "7" * 4000
-    minimal_project.write_text(minimal_project.read_text().replace('"2.2"', digits, 1))
+    minimal_project.write_text(minimal_project.read_text().replace('"2.3"', digits, 1))
     with TestClient(create_app(served_project=minimal_project), raise_server_exceptions=False) as c:
         response = c.get("/api/document/state", params={"path": str(minimal_project)})
     assert response.status_code == 400

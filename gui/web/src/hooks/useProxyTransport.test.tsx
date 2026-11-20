@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadProxyManifest } from "../api";
 import { loadDocumentState } from "../api/project";
-import { cachedFetchArrayBuffer } from "../audio/chunkCache";
+import { cachedFetchArrayBuffer, pruneLinkAudio } from "../audio/chunkCache";
 import { playbackPositionSec } from "../audio/playbackClock";
 import { playbackMeterSource } from "../audio/playbackMeterSource";
 import { leavePlaybackSession } from "../audio/playbackSession";
@@ -66,7 +66,10 @@ vi.mock("../api/project", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api/project")>()),
   loadDocumentState: vi.fn(),
 }));
-vi.mock("../audio/chunkCache", () => ({ cachedFetchArrayBuffer: vi.fn() }));
+vi.mock("../audio/chunkCache", () => ({
+  cachedFetchArrayBuffer: vi.fn(),
+  pruneLinkAudio: vi.fn(async () => undefined),
+}));
 
 function manifestFor(project = useDawStore.getState().project!): ProxyManifest {
   return hostProxyManifest(project);
@@ -679,17 +682,45 @@ describe("useProxyTransport", () => {
     renderHook(() => useProxyTransport());
     await ready();
     const fetch = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[1];
-    await fetch?.({
+    const chunk = {
       kind: "artifact",
       artifactId: "b".repeat(64),
       hash: "b".repeat(64),
       index: 2,
       url: "copied-url",
-    });
+    } as const;
+    await fetch?.(chunk);
     expect(cachedFetchArrayBuffer).toHaveBeenCalledExactlyOnceWith(
       useDawStore.getState().projectPath,
-      "copied-url",
+      chunk,
     );
+  });
+
+  it("prunes the link's audio to the chunks a live manifest names", async () => {
+    renderHook(() => useProxyTransport());
+    await ready();
+    await vi.waitFor(() => expect(pruneLinkAudio).toHaveBeenCalledOnce());
+    expect(pruneLinkAudio).toHaveBeenCalledWith("tok", [
+      {
+        kind: "track",
+        artifactId: "host",
+        hash: "a".repeat(16),
+        index: 0,
+        url: "u0",
+      },
+    ]);
+  });
+
+  it("does not prune the link's audio for a manifest read from the saved copy", async () => {
+    vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
+    vi.mocked(loadOfflineSnapshot).mockResolvedValue({
+      manifest: manifestFor(),
+      saved_at: 1,
+    });
+    renderHook(() => useProxyTransport());
+    await ready();
+    await act(async () => {});
+    expect(pruneLinkAudio).not.toHaveBeenCalled();
   });
 
   it("keeps an unchanged basis through object refreshes without a manifest or engine loop", async () => {

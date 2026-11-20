@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { COMMANDS } from "../commands/catalog";
 import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { execute } from "../commands/execute";
+import { announceFailure } from "../commands/refusal";
 import { useDawStore } from "../state/dawStore";
 import {
   keymapHandoff,
@@ -127,6 +128,13 @@ export function useDawKeymapListener(): void {
           }
           const gate = evaluateWhen(def.when, ctx);
           if (!gate.ok) {
+            if (def.announcesGate && ctx.hasProject && !e.repeat) {
+              e.preventDefault();
+              useDawStore
+                .getState()
+                .announceStatus(gate.reason, { tone: "error" });
+              return;
+            }
             continue;
           }
           e.preventDefault();
@@ -150,10 +158,16 @@ export function useDawKeymapListener(): void {
             }
             return;
           }
-          const result = await execute(cmd.id, argsFromKeyEvent(e, cmd.id), {
-            ctx,
-            skipWhen: true,
-          });
+          let result: Awaited<ReturnType<typeof execute>>;
+          try {
+            result = await execute(cmd.id, argsFromKeyEvent(e, cmd.id), {
+              ctx,
+              skipWhen: true,
+            });
+          } catch (error) {
+            announceFailure(def.label, error);
+            return;
+          }
           if (
             result.status === "disabled" &&
             !result.told &&

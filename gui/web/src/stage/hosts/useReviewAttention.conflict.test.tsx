@@ -194,6 +194,21 @@ describe("the live guest conflict row", () => {
     });
   });
 
+  describe("Hear on a project without tracks", () => {
+    it("says why it cannot play", async () => {
+      render(<Queue />);
+      await settle();
+      useDawStore.setState({
+        project: minimalProject({ timeline_duration_sec: 900 }),
+      });
+      await click(/^Hear your cut/);
+      expect(audition.playTimelineRange).not.toHaveBeenCalled();
+      expect(announce).toHaveBeenCalledWith("Import audio to play.", {
+        tone: "error",
+      });
+    });
+  });
+
   describe("Hear without a project", () => {
     it("does not move the playhead and says to open the project", async () => {
       render(<Queue />);

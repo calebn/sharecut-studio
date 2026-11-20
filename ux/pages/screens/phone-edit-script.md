@@ -9,6 +9,10 @@
 | **Empty / loading** | No transcript yet, with **Transcribe this episode** when the episode has source audio (opens Prepare and starts the run) · **Transcribing** (no percent) while a run makes the transcript; Fix text, speaker rename and Replace wait for it (Find still opens, without Cut all) · low-confidence chips when present |
 | **Out of scope** | The Review queue and Prepare (their own stages) |
 
+Cut previews belong to their own recording. A cut does not hide an equal-index
+word from another recording, even when its text is identical. Find excludes cut
+previews and does not join a phrase across an applied cut.
+
 An applied cut seam shares the Timeline selection and highlight. Tapping it again closes the join and keeps the applied selection.
 
 From Review, **Open in Edit** opens Script and reveals the exact unsure word,
@@ -58,8 +62,8 @@ an unrelated take does not shorten the preview. Releasing saves the previewed
 offset after a fresh check that the join still matches.
 
 Keyboard word actions: Enter on a focused timed word seeks through its native
-button action. F2 opens inline correction for a hydrated host project and does
-nothing on guest shares or while a correction is saving. Enter in the inline
+button action. F2 opens inline correction for a hydrated host project or an Editor link and does
+nothing on a Commenter or Viewer link or while a correction is saving. Enter in the inline
 editor saves and returns focus to the word while the field still owns focus.
 Tab saves a change and moves focus and selection to the next unsure word.
 Unchanged Tab keeps the existing close-to-current-word behavior. Escape cancels

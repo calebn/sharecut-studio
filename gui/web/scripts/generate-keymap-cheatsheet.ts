@@ -50,6 +50,7 @@ const WHEN_HINTS: Record<string, string> = {
   canEditEnvelopes: "Host or shared edit mode",
   canComment: "Host or a link that can comment",
   canManageProjects: "Host project management",
+  canFixText: "Host or an editor link, words loaded",
   hostProjectLoaded: "Loaded host project",
   following: "While following another client",
 };

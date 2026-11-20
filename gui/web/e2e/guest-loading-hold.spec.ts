@@ -1,76 +1,36 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import { postDocumentCommand } from "./documentCommand";
 import { fontsReady } from "./fontsReady";
 import {
+  blankEpisodeName,
   episodeName,
   holdChunk,
   holdFirstProject,
   SIZES,
+  seeEveryHint,
   withGuestLink,
 } from "./guestLink";
 import {
+  ALL,
+  HEADER_HEIGHT,
   headerBoxes,
   installProbes,
+  landed,
   lateArrivals,
+  NOT_WIDTH,
+  near,
   type Rect,
   readProbes,
+  SHIFT_BUDGET,
   type ShiftEntry,
   shiftSum,
+  shot,
+  status,
 } from "./guestLoadingProbes";
 import { createRecordRoom } from "./recordRoom";
 
-const HEADER_HEIGHT = { phone: 45, desktop: 49 } as const;
-const SHIFT_BUDGET = 0.002;
 const LANDINGS = 5;
-const SHOTS = process.env.GUEST_LOADING_SHOTS;
-
-const ALL = ["x", "y", "w", "h"] as const;
-const NOT_WIDTH = ["x", "y", "h"] as const;
-
-const near = (
-  got: Rect | null,
-  want: Rect | null,
-  tolerance = 1,
-  keys: readonly (keyof Rect)[] = ALL,
-  state = "",
-) => {
-  expect.soft(got, "the title has a box").not.toBeNull();
-  expect.soft(want, "the title has a box to compare with").not.toBeNull();
-  if (!got || !want) return;
-  for (const key of keys)
-    expect
-      .soft(
-        Math.abs(got[key] - want[key]),
-        `${state} ${key}: ${JSON.stringify(got)} against ${JSON.stringify(want)}`,
-      )
-      .toBeLessThanOrEqual(tolerance);
-};
-
-/** The screen reader's line, not the "Still loading…" row that has a status role too. */
-const status = (page: Page) =>
-  page.locator("main.guest-loading > [role=status]");
-
-async function shot(page: Page, name: string) {
-  if (!SHOTS) return;
-  mkdirSync(SHOTS, { recursive: true });
-  await page.screenshot({ path: join(SHOTS, `${name}.png`) });
-}
-
-async function landed(page: Page, name: string) {
-  await expect(page.locator(".stage-frame--guest")).toBeVisible();
-  await expect(page.locator(".sys-app-header-host")).not.toHaveAttribute(
-    "aria-busy",
-    "true",
-  );
-  await expect(page.locator(".sys-header-title")).toHaveText(name);
-  await expect(page.locator(".sys-header-sub")).not.toContainText(
-    "Shared link",
-  );
-  await fontsReady(page);
-}
 
 for (const size of SIZES) {
   const height = HEADER_HEIGHT[size.name];
@@ -84,27 +44,37 @@ for (const size of SIZES) {
           await guest.emulateMedia({ colorScheme: theme });
           await installProbes(guest);
           await holdFirstProject(guest, token, 2500);
+          let projectAnswered = false;
+          guest.on("response", (response) => {
+            if (response.url().endsWith(`/api/review/${token}/project`))
+              projectAnswered = true;
+          });
           const studio = await holdChunk(guest, "dawApp");
           await guest.goto(`/r/${token}`, { waitUntil: "commit" });
 
-          let unnamed: Awaited<ReturnType<typeof headerBoxes>>;
-          await test.step("while /project is held: the unnamed loading frame", async () => {
+          let written: Awaited<ReturnType<typeof headerBoxes>>;
+          await test.step("while /project is held: the name the page wrote, in the title's place", async () => {
             await expect(
               guest.locator(".sys-skeleton-block--player"),
             ).toBeVisible();
             await shot(guest, `${size.name}-${theme}-1s`);
             await expect
               .soft(status(guest))
-              .toHaveText("Loading the episode…", { timeout: 3000 });
-            unnamed = await headerBoxes(guest);
-            expect.soft(unnamed.host).toEqual({
+              .toHaveText(`Loading ${name}…`, { timeout: 1000 });
+            expect
+              .soft(projectAnswered, "/project had not answered yet")
+              .toBe(false);
+            await fontsReady(guest);
+            written = await headerBoxes(guest);
+            expect.soft(written.host).toEqual({
               x: 0,
               y: 0,
               w: size.width,
               h: height,
             });
-            expect.soft(unnamed.block).not.toBeNull();
-            expect.soft(unnamed.title).toBeNull();
+            expect.soft(written.block).toBeNull();
+            expect.soft(written.title).not.toBeNull();
+            await expect(guest.locator(".sys-header-title")).toHaveText(name);
           });
 
           let named: Awaited<ReturnType<typeof headerBoxes>>;
@@ -134,6 +104,7 @@ for (const size of SIZES) {
             const first = await headerBoxes(guest);
             expect.soft(first.host).toEqual(named.host);
             near(first.title, named.title);
+            near(named.title, written.title);
             await landed(guest, name);
             await shot(guest, `${size.name}-${theme}-landed`);
             const last = await headerBoxes(guest);
@@ -144,7 +115,7 @@ for (const size of SIZES) {
               h: height,
             });
             near(last.title, named.title);
-            const boxes = JSON.stringify({ unnamed, named, first, last });
+            const boxes = JSON.stringify({ written, named, first, last });
             test.info().annotations.push({ type: "boxes", description: boxes });
           });
 
@@ -168,6 +139,73 @@ for (const size of SIZES) {
               .not.toContain(0);
           });
         });
+      });
+
+      test(`an episode with no name keeps the unnamed loading screen, in the bar the named one has (${theme})`, async ({
+        browser,
+      }) => {
+        await withGuestLink(
+          browser,
+          size,
+          async (guest, token, host, projectPath) => {
+            blankEpisodeName(projectPath);
+            expect(await episodeName(guest, token), "the name is blank").toBe(
+              "",
+            );
+            await guest.emulateMedia({ colorScheme: theme });
+            await holdFirstProject(guest, token, 1500);
+            const studio = await holdChunk(guest, "dawApp");
+            await guest.goto(`/r/${token}`, { waitUntil: "commit" });
+
+            let unnamed: Awaited<ReturnType<typeof headerBoxes>>;
+            await test.step("while /project is held: no name, a grey block where it goes", async () => {
+              await expect(
+                guest.locator(".sys-skeleton-block--player"),
+              ).toBeVisible();
+              await expect(status(guest)).toHaveText("Loading the episode…");
+              await expect(
+                guest.locator(".sys-skeleton-block--title"),
+              ).toBeVisible();
+              await fontsReady(guest);
+              unnamed = await headerBoxes(guest);
+              expect(unnamed.host).toEqual({
+                x: 0,
+                y: 0,
+                w: size.width,
+                h: height,
+              });
+              expect(unnamed.block).not.toBeNull();
+              expect(unnamed.title).toBeNull();
+              await expect(guest.locator(".sys-header-title")).toHaveCount(0);
+              const text = await guest
+                .locator("main.guest-loading")
+                .innerText();
+              expect(text.toLowerCase()).not.toContain("project");
+              await expectReadingSurfaceAxeClean(guest);
+            });
+            studio.release();
+            await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+
+            await test.step("named: the same bar, the same box", async () => {
+              const name = "Pilot episode";
+              await postDocumentCommand(
+                host,
+                "name-writer",
+                "RenameProject",
+                { name },
+                projectPath,
+              );
+              await holdFirstProject(guest, token, 1500);
+              const second = await holdChunk(guest, "dawApp");
+              await guest.goto(`/r/${token}`, { waitUntil: "commit" });
+              await expect(status(guest)).toHaveText(`Loading ${name}…`);
+              await fontsReady(guest);
+              const named = await headerBoxes(guest);
+              expect(named.host).toEqual(unnamed.host);
+              second.release();
+            });
+          },
+        );
       });
 
       test(`the landing moves nothing (${theme}): layout shift under ${SHIFT_BUDGET} in each of ${LANDINGS} landings`, async ({
@@ -236,13 +274,8 @@ for (const size of SIZES) {
         await holdFirstProject(guest, token, 2000);
         const studio = await holdChunk(guest, "dawApp");
         await guest.goto(`/r/${token}`, { waitUntil: "commit" });
-        await expect(status(guest)).toHaveText("Loading the episode…");
-        const unnamedText = await guest
-          .locator("main.guest-loading")
-          .innerText();
-        expect(unnamedText.toLowerCase()).not.toContain("project");
         await expect(status(guest)).toHaveText(`Loading ${name}…`, {
-          timeout: 8000,
+          timeout: 1000,
         });
         const namedText = await guest.locator("main.guest-loading").innerText();
         expect(namedText.toLowerCase()).not.toContain("project");
@@ -251,7 +284,7 @@ for (const size of SIZES) {
       });
     });
 
-    test("axe finds nothing on the unnamed and the named loading screen", async ({
+    test("axe finds nothing on the loading screen, with the name the page gave", async ({
       browser,
     }) => {
       await withGuestLink(browser, size, async (guest, token) => {
@@ -262,9 +295,8 @@ for (const size of SIZES) {
         await expect(
           guest.locator(".sys-skeleton-block--player"),
         ).toBeVisible();
-        await expectReadingSurfaceAxeClean(guest);
         await expect(status(guest)).toHaveText(`Loading ${name}…`, {
-          timeout: 8000,
+          timeout: 1000,
         });
         await expectReadingSurfaceAxeClean(guest);
         studio.release();
@@ -299,9 +331,7 @@ for (const size of SIZES) {
         await expect(hint).toBeHidden();
         const dismissed = await headerBoxes(guest);
         states["landed, hint dismissed"] = dismissed.title;
-        await guest.addInitScript(() => {
-          localStorage.setItem("sharecut.roleHintSeen.commenter", "1");
-        });
+        await seeEveryHint(guest);
         const returning = await open();
         await expect(guest.getByRole("note")).toHaveCount(0);
         states["loading, returning"] = returning.loading.title;
@@ -315,7 +345,7 @@ for (const size of SIZES) {
       });
     });
 
-    test("an Editor link keeps Undo, Redo and the save mark centred while only the guest column sits at the bar's top", async ({
+    test("an Editor link keeps the guest column, Undo, Redo and the save mark centred in the bar", async ({
       browser,
     }) => {
       await withGuestLink(
@@ -323,9 +353,7 @@ for (const size of SIZES) {
         size,
         async (guest, token) => {
           const name = await episodeName(guest, token);
-          await guest.addInitScript(() => {
-            localStorage.setItem("sharecut.roleHintSeen.editor", "1");
-          });
+          await seeEveryHint(guest);
           await guest.goto(`/r/${token}`);
           await landed(guest, name);
           await expect(
@@ -336,12 +364,15 @@ for (const size of SIZES) {
               const r = el?.getBoundingClientRect();
               return r ? { y: r.y, h: r.height } : null;
             };
+            const bar = document.querySelector(".sys-app-header");
             const cell = document.querySelector(".sys-header-left");
             const buttons = cell?.querySelectorAll(
               ".sys-header-history button",
             );
             return {
+              bar: box(bar),
               cell: box(cell),
+              column: box(cell?.querySelector(".sys-header-guest")),
               title: box(cell?.querySelector(".sys-header-title")),
               undo: box(buttons?.[0]),
               redo: box(buttons?.[1]),
@@ -350,11 +381,18 @@ for (const size of SIZES) {
           });
           const middle = (b: { y: number; h: number } | null) =>
             (b?.y ?? 0) + (b?.h ?? 0) / 2;
-          expect(boxes.title?.y).toBeCloseTo(0, 0);
-          for (const control of [boxes.undo, boxes.redo, boxes.save]) {
+          // 42 px: the name's 18 px line and the 24 px line under it.
+          expect(boxes.column?.h).toBeCloseTo(42, 0);
+          expect(boxes.title?.h).toBeCloseTo(18, 0);
+          for (const control of [
+            boxes.column,
+            boxes.undo,
+            boxes.redo,
+            boxes.save,
+          ]) {
             expect(control).not.toBeNull();
             expect(
-              Math.abs(middle(control) - middle(boxes.cell)),
+              Math.abs(middle(control) - middle(boxes.bar)),
             ).toBeLessThanOrEqual(0.5);
           }
         },

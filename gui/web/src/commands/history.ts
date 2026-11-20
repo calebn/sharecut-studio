@@ -1,4 +1,4 @@
-import { HISTORY_STALE_CODE, redoHistory, undoHistory } from "../api";
+import { redoHistory, undoHistory } from "../api";
 import {
   type DocumentScope,
   documentScope,
@@ -6,7 +6,6 @@ import {
   ownCommandHead,
   retireOwnCommandHead,
 } from "../document/authorityState";
-import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import {
   documentActivityBusy,
@@ -15,8 +14,14 @@ import {
   savesLandedMark,
 } from "../state/documentSendOrder";
 import { type HistoryEntryId, parseHistoryEntryId } from "../types/project";
-import { ApiError, errorMessage } from "../utils/apiError";
+import {
+  ApiError,
+  errorMessage,
+  HISTORY_REFUSAL_CODES,
+  HISTORY_STALE_CODE,
+} from "../utils/apiError";
 import { execute, registerCommand } from "./execute";
+import { historyRoleRefusal } from "./historyAvailability";
 import { flushPendingMix } from "./trackMix";
 import type { ExecuteResult } from "./types";
 import { queueMove, runsAfterSaveCopy } from "./undoWait";
@@ -29,11 +34,6 @@ const STALE_COPY = {
 const FAILED_COPY = {
   undo: "Undo did not run.",
   redo: "Redo did not run.",
-} as const;
-
-const NEEDS_EDITOR = {
-  undo: "Undo needs Editor access",
-  redo: "Redo needs Editor access",
 } as const;
 
 const NO_HEAD = "Open a project first.";
@@ -80,12 +80,9 @@ function moveHistory(
   projectPath: string,
   args: Record<string, unknown>,
 ): Promise<ExecuteResult> {
-  const daw = useDawStore.getState();
-  if (!canApplyPass12(daw.projectPath, daw.guestMode, daw.shareCapabilities)) {
-    return Promise.resolve({
-      status: "disabled",
-      reason: NEEDS_EDITOR[action],
-    });
+  const roleRefusal = historyRoleRefusal(useDawStore.getState(), action);
+  if (roleRefusal !== null) {
+    return Promise.resolve({ status: "disabled", reason: roleRefusal });
   }
   const explicit = parseHistoryEntryId(args.expectedHeadId);
   const scope = documentScope();
@@ -123,20 +120,20 @@ function moveHistory(
   const run = async (): Promise<ExecuteResult> => {
     let landed: HistoryEntryId | null = null;
     try {
-      const refuse = (): ExecuteResult => {
-        queued?.drop(STALE_COPY[action]);
+      const refuse = (reason: string = STALE_COPY[action]): ExecuteResult => {
+        queued?.drop(reason);
         const standing = useDawStore.getState().feedbackToast;
         useDawStore
           .getState()
           .announceStatus(
-            STALE_COPY[action],
+            reason,
             queued && standing?.undo && standing.undo !== explicit
               ? { toast: false, tone: "error" }
               : { tone: "error" },
           );
         return {
           status: "disabled",
-          reason: STALE_COPY[action],
+          reason,
           told: true,
         };
       };
@@ -166,8 +163,8 @@ function moveHistory(
           { expectedHeadId, scope },
         );
       } catch (e) {
-        if (e instanceof ApiError && e.code === HISTORY_STALE_CODE) {
-          return refuse();
+        if (e instanceof ApiError && HISTORY_REFUSAL_CODES.has(e.code)) {
+          return e.code === HISTORY_STALE_CODE ? refuse() : refuse(e.message);
         }
         throw e;
       }
@@ -176,6 +173,15 @@ function moveHistory(
         useDawStore.getState().dismissFeedbackToast(waitingToast);
       if (landed !== null) {
         retireOwnCommandHead(observation);
+        const toast = useDawStore.getState().feedbackToast;
+        if (
+          action === "undo" &&
+          toast &&
+          (toast.undo === expectedHeadId ||
+            toast.merged?.entries.includes(expectedHeadId) ||
+            toast.lapsed?.entries.includes(expectedHeadId))
+        )
+          useDawStore.getState().dismissFeedbackToast(toast.id);
       }
       return { status: "ok" };
     } finally {
@@ -204,24 +210,23 @@ const HISTORY_LABEL = { undo: "Undo", redo: "Redo" } as const;
 
 /**
  * Runs Undo or Redo from a control or gesture. A failure is announced
- * ("Undo failed: …"), never dropped. `dispatch` is `execute` (keyboard-style
+ * ("Undo failed: …"), never dropped. A refusal that is already a sentence is
+ * announced as it is, the same words the key press speaks. `dispatch` is `execute` (keyboard-style
  * gates) unless the caller passes the pointer bridge.
  */
 export function runHistoryAction(
   action: keyof typeof HISTORY_LABEL,
   dispatch: (id: string) => Promise<ExecuteResult> = (id) => execute(id),
 ): void {
+  const announce = (message: string) =>
+    useDawStore.getState().announceStatus(message, { tone: "error" });
   const report = (reason: string) =>
-    useDawStore
-      .getState()
-      .announceStatus(`${HISTORY_LABEL[action]} failed: ${reason}`, {
-        tone: "error",
-      });
+    announce(`${HISTORY_LABEL[action]} failed: ${reason}`);
   void dispatch(`history.${action}`)
     .then((result) => {
       if (result.status === "ok") return;
       if (result.status === "disabled") {
-        if (!result.told && result.reason.trim()) report(result.reason);
+        if (!result.told && result.reason.trim()) announce(result.reason);
         return;
       }
       report("unavailable");

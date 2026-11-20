@@ -23,9 +23,9 @@ from podcast_mcp.config.defaults import bin_cache_dir
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
-from podcast_mcp.util.process import TimeoutExpired, run
+from podcast_mcp.util.process import IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, TimeoutExpired, run
 
-SelectionSource = Literal["explicit", "bundle", "homebrew", "path", "cache"]
+SelectionSource = Literal["explicit", "bundle", "homebrew", "path", "cache", "in_process"]
 
 
 @dataclass(frozen=True)
@@ -37,8 +37,46 @@ class FFmpegPair:
     version: tuple[int, int, int]
     source: SelectionSource
 
+    @property
+    def is_in_process(self) -> bool:
+        return self.source == "in_process"
+
     def is_available(self) -> bool:
+        if self.is_in_process:
+            return in_process_problem() is None
         return all(shutil.which(command) is not None for command in (self.ffmpeg, self.ffprobe))
+
+
+IN_PROCESS_VERSION = (0, 0, 0)
+IN_PROCESS_BUILD_ID = "in-process:unlinked"
+IN_PROCESS_NOT_LINKED = "ShareCut's in-process FFmpeg is not linked in this build."
+IN_PROCESS_NOT_INSTALLED = (
+    "ShareCut's in-process FFmpeg is linked but its backend is not installed."
+)
+IN_PROCESS_PAIR = FFmpegPair(
+    IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, IN_PROCESS_VERSION, "in_process"
+)
+
+
+def _in_process_linked() -> bool:
+    from podcast_mcp.util import native_ffmpeg
+
+    return native_ffmpeg.is_available()
+
+
+def _in_process_installed() -> bool:
+    from podcast_mcp.util import native_ffmpeg
+
+    return native_ffmpeg.is_installed()
+
+
+def in_process_problem() -> str | None:
+    """Why the in-process pair cannot run now: not linked, linked but not installed, or ``None``."""
+    if not _in_process_linked():
+        return IN_PROCESS_NOT_LINKED
+    if not _in_process_installed():
+        return IN_PROCESS_NOT_INSTALLED
+    return None
 
 
 class FFmpegPairResolutionError(RuntimeError):
@@ -267,6 +305,8 @@ def resolve_ffmpeg_pair(
 ) -> FFmpegPair:
     if host_platform.current().media_tools == "unavailable":
         raise FFmpegPairResolutionError(host_platform.MEDIA_UNAVAILABLE)
+    if host_platform.current().media_tools == "in_process":
+        return IN_PROCESS_PAIR
     with _PAIR_CACHE.lock:
         key = _admission_cache_key(ffmpeg, ffprobe)
         if not force_refresh:

@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { loadRecordParticipant } from "../services/offlineQueue/offlineStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { seedPendingKeeper } from "../test/keepers";
 import { stubMatchMedia } from "../test/matchMedia";
@@ -110,6 +111,7 @@ class FakeSocket {
   onmessage: ((ev: { data: string }) => void) | null = null;
   onclose: ((ev: { code: number }) => void) | null = null;
   sent: string[] = [];
+  url = "";
   reply: "join" | "full" | "declined" | "invalid" | "silent" = "join";
   holdConsent = false;
 
@@ -202,8 +204,9 @@ function stubWebSocket(
 ) {
   const ctor = Object.assign(
     // `function`, not an arrow: Vitest >= 4 requires a constructible mock for `new`.
-    vi.fn(function () {
+    vi.fn(function (url: string) {
       const ws = new FakeSocket();
+      ws.url = url;
       ws.reply = reply;
       sockets.push(ws);
       queueMicrotask(() => ws.onopen?.());
@@ -722,7 +725,9 @@ describe("GuestRoomApp", () => {
     await waitFor(() => {
       expect(document.title).toBe("Join to listen | Shot of Truth");
     });
-    expect(sockets).toHaveLength(0);
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    expect(new URL(sockets[0].url).searchParams.get("observe")).toBe("1");
+    expect(sockets[0].sent).toEqual([]);
     expect(closeGuardSpy).toHaveBeenLastCalledWith(false, "guest", false);
     await expectNoA11yViolations(container);
   });
@@ -781,10 +786,13 @@ describe("GuestRoomApp", () => {
   it("lets a producer who closed the sheet open it again", async () => {
     stubBootstrap(producerBootstrap);
     render(<GuestRoomApp token="prod-tok" />);
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    const close = vi.fn();
+    sockets[0].close = close;
     await userEvent.click(
       await screen.findByRole("button", { name: "Not now" }),
     );
-    expect(sockets).toHaveLength(0);
+    expect(close).toHaveBeenCalled();
     expect(
       screen.getByRole("region", { name: "Not in the room" }),
     ).toBeVisible();
@@ -805,6 +813,332 @@ describe("GuestRoomApp", () => {
     expect(
       screen.getByRole("button", { name: "Join to listen" }),
     ).toBeInTheDocument();
+    await waitFor(() => expect(sockets).toHaveLength(2));
+    expect(new URL(sockets[1].url).searchParams.get("observe")).toBe("1");
+  });
+
+  describe("a producer looking in before the press", () => {
+    const hana = {
+      participant_id: "p_host",
+      role: "host" as const,
+      display_name: "Hana",
+      connected: true,
+      consented: true,
+      muted: false,
+      headphones_ack: true,
+    };
+    const ava = { ...guestSnap.participants[0], consented: true };
+    const look = (patch: Record<string, unknown> = {}) =>
+      act(() =>
+        sockets[0].onmessage?.(
+          snapshotMessage(
+            {
+              state: "recording",
+              take_index: 0,
+              recording_ms: 5000,
+              participants: [hana, ava],
+              server_time_ns: 100,
+              ...patch,
+            },
+            true,
+          ),
+        ),
+      );
+    const SEEN = "The room can see that someone is looking in.";
+    const rowText = () =>
+      document.querySelector(".sys-room-looking-in")?.textContent ?? null;
+
+    const refuseJoinOnTheRetrySocket = async () => {
+      await enterName("Pat");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => {
+        expect(
+          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      act(() => sockets[0].onclose?.({ code: 1006 }));
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => {
+        expect(
+          sockets[1].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      act(() =>
+        sockets[1].onmessage?.({
+          data: JSON.stringify({
+            plane: "record",
+            type: "Error",
+            code: "invalid_state",
+          }),
+        }),
+      );
+    };
+
+    async function lookIn() {
+      stubBootstrap(producerBootstrap);
+      stubWebSocket(sockets, "silent");
+      render(<GuestRoomApp token="prod-tok" />);
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      await screen.findByRole("button", { name: "Join to listen" });
+    }
+
+    it("shows who is there, the live pill and the real tiles behind the sheet", async () => {
+      await lookIn();
+      look({ watchers: 1 });
+      expect(
+        await screen.findByRole("heading", { name: "Hana and Ava are here" }),
+      ).toBeVisible();
+      expect(document.querySelector(".sys-pill-text")?.textContent).toBe(
+        "0:05 · Take 1",
+      );
+      expect(sockets[0].sent).toEqual([]);
+      expect(document.title).toBe("Join to listen | Shot of Truth");
+      expect(screen.queryByText("You")).toBeNull();
+    });
+
+    it("tells the producer the room can see them only once the server has counted them", async () => {
+      await lookIn();
+      expect(
+        screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeNull();
+      look({ server_time_ns: 100 });
+      expect(
+        screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeNull();
+      look({ watchers: 0, server_time_ns: 101 });
+      expect(
+        screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeNull();
+      look({ watchers: 1, server_time_ns: 102 });
+      const sentence = screen.getByText(SEEN, { selector: ".sys-join-seen" });
+      expect(sentence).toBeVisible();
+      const dialog = screen.getByRole("dialog");
+      expect(dialog.getAttribute("aria-describedby")?.split(" ")).toContain(
+        sentence.id,
+      );
+    });
+
+    it("keeps the sheet and no room when a look is refused for a producer who holds a lease, and joins with it", async () => {
+      vi.mocked(loadRecordParticipant).mockResolvedValue({
+        participant_id: "p_prod",
+        lease: "kept",
+      });
+      await lookIn();
+      look({ watchers: 1 });
+      await screen.findByRole("heading", { name: "Hana and Ava are here" });
+      act(() => sockets[0].onclose?.({ code: 4403 }));
+      expect(
+        screen.queryByRole("heading", { name: "This session has ended" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("heading", { name: "Hana and Ava are here" }),
+      ).toBeNull();
+      await enterName("Pat");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      expect(
+        new URL(sockets[1].url, "http://x").searchParams.has("observe"),
+      ).toBe(false);
+      await waitFor(() => expect(sockets[1].sent.length).toBeGreaterThan(0));
+      expect(sockets[1].sent.join("")).toContain('"lease":"kept"');
+      act(() => sockets[1].onclose?.({ code: 4403 }));
+      expect(
+        await screen.findByRole("heading", { name: "This session has ended" }),
+      ).toBeInTheDocument();
+    });
+
+    afterEach(() => {
+      vi.mocked(loadRecordParticipant).mockResolvedValue(undefined);
+    });
+
+    it("shows the invite link closed cover when a look is refused with that error and no lease", async () => {
+      await lookIn();
+      act(() => {
+        sockets[0].onmessage?.({
+          data: JSON.stringify({
+            plane: "record",
+            type: "Error",
+            code: "invite_closed",
+          }),
+        });
+        sockets[0].onclose?.({ code: 4403 });
+      });
+      expect(
+        await screen.findByRole("heading", { name: "Invite link closed" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Thanks for recording/)).toBeNull();
+    });
+
+    it("shows the ended cover when a look is refused for a producer without a lease", async () => {
+      await lookIn();
+      act(() => sockets[0].onclose?.({ code: 4403 }));
+      expect(
+        await screen.findByRole("heading", { name: "This session has ended" }),
+      ).toBeInTheDocument();
+    });
+
+    it("does not tell a lone producer that someone is looking in", async () => {
+      await lookIn();
+      look({ watchers: 1, server_time_ns: 101 });
+      expect(
+        screen.getByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeVisible();
+      expect(rowText()).toBeNull();
+      expect(
+        document.querySelector('[aria-live="polite"].sr-only'),
+      ).not.toHaveTextContent("looking in");
+    });
+
+    it("counts only the others when more than one is looking in", async () => {
+      await lookIn();
+      look({ watchers: 3, server_time_ns: 101 });
+      expect(rowText()).toBe("2 people with the producer link are looking in");
+      look({ watchers: 2, server_time_ns: 102 });
+      expect(rowText()).toBe("Someone with the producer link is looking in");
+    });
+
+    it("ends the look on Not now: no pill, no people, no row", async () => {
+      await lookIn();
+      const close = vi.fn();
+      sockets[0].close = close;
+      look({ watchers: 2, server_time_ns: 101 });
+      expect(rowText()).not.toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+      await screen.findByRole("region", { name: "Not in the room" });
+      expect(close).toHaveBeenCalled();
+      expect(document.querySelector(".sys-pill-text")).toBeNull();
+      expect(screen.queryByText("Hana")).toBeNull();
+      expect(rowText()).toBeNull();
+    });
+
+    it("drops the room and the sentence when the look's socket closes, and shows neither on the next socket until it is counted", async () => {
+      await lookIn();
+      look({ watchers: 1, server_time_ns: 101 });
+      expect(
+        screen.getByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeVisible();
+      expect(document.querySelector(".sys-pill-text")).not.toBeNull();
+      act(() => sockets[0].onclose?.({ code: 4429 }));
+      expect(
+        screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeNull();
+      expect(document.querySelector(".sys-pill-text")).toBeNull();
+      expect(rowText()).toBeNull();
+    });
+
+    it("says nothing about the room seeing the page when a failed Join leaves it on a socket that was never counted", async () => {
+      await lookIn();
+      look({ watchers: 1, server_time_ns: 101 });
+      expect(
+        screen.getByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeVisible();
+      await refuseJoinOnTheRetrySocket();
+      await screen.findByRole("button", { name: "Join to listen" });
+      expect(
+        screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeNull();
+    });
+
+    it("drops the room it showed and looks again when a failed Join leaves the page on a socket that is not looking", async () => {
+      await lookIn();
+      look({ watchers: 1, server_time_ns: 101 });
+      await screen.findByRole("heading", { name: "Hana and Ava are here" });
+      await refuseJoinOnTheRetrySocket();
+      await screen.findByRole("button", { name: "Join to listen" });
+      expect(document.querySelector(".sys-pill-text")).toBeNull();
+      expect(
+        screen.queryByRole("heading", { name: "Hana and Ava are here" }),
+      ).toBeNull();
+      await waitFor(() => expect(sockets).toHaveLength(3));
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "That isn't possible in the room's current state.",
+      );
+      expect(
+        new URL(sockets[2].url, "http://x").searchParams.get("observe"),
+      ).toBe("1");
+    });
+
+    it("leaves no alert in the room when the press that follows the restart succeeds", async () => {
+      await lookIn();
+      look({ watchers: 1, server_time_ns: 101 });
+      await screen.findByRole("heading", { name: "Hana and Ava are here" });
+      await refuseJoinOnTheRetrySocket();
+      await waitFor(() => expect(sockets).toHaveLength(3));
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => {
+        expect(
+          sockets[2].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      act(() => sockets[2].onmessage?.(producerEcho));
+      act(() =>
+        sockets[2].onmessage?.(
+          producerSnapshot({ state: "recording", server_time_ns: 100 }),
+        ),
+      );
+      await waitFor(() => {
+        expect(
+          screen.queryByRole("button", { name: /Join to listen/ }),
+        ).toBeNull();
+      });
+      expect(
+        screen.queryByText("That isn't possible in the room's current state."),
+      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
+    });
+
+    it("keeps the count right when the Echo and the snapshot that lists the producer follow one another", async () => {
+      await lookIn();
+      look({ watchers: 2, server_time_ns: 101 });
+      expect(rowText()).toBe("Someone with the producer link is looking in");
+      await enterName("Pat");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => {
+        expect(
+          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      expect(rowText()).toBe("Someone with the producer link is looking in");
+      act(() => {
+        sockets[0].onmessage?.(producerEcho);
+        sockets[0].onmessage?.(
+          producerSnapshot({
+            state: "recording",
+            take_index: 0,
+            watchers: 1,
+            server_time_ns: 102,
+          }),
+        );
+      });
+      expect(rowText()).toBe("Someone with the producer link is looking in");
+    });
+
+    it("joins on the same socket and stops saying it is looking in", async () => {
+      await lookIn();
+      look({ watchers: 1, server_time_ns: 101 });
+      await enterName("Pat");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => {
+        expect(
+          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      expect(sockets).toHaveLength(1);
+      expect(
+        screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeNull();
+      expect(rowText()).toBeNull();
+    });
   });
 
   const producerSnapshot = (patch: Record<string, unknown> = {}) => ({
@@ -935,8 +1269,10 @@ describe("GuestRoomApp", () => {
       await screen.findByRole("button", { name: "Join to listen" }),
     );
     await waitFor(() => expect(sockets).toHaveLength(1));
-    sockets[0].close = vi.fn();
+    const close = vi.fn();
+    sockets[0].close = close;
     await screen.findByRole("button", { name: /Joining/ });
+    return close;
   }
   const sendError = (code: string) =>
     act(() =>
@@ -948,23 +1284,71 @@ describe("GuestRoomApp", () => {
   it.each(["invalid_state", "rate_limited", "something_new"])(
     "returns the sheet with the reason when Join fails with %s, and a second press tries again",
     async (code) => {
-      await pressJoinToListen();
+      const close = await pressJoinToListen();
       await sendError(code);
       const again = await screen.findByRole("button", {
         name: "Join to listen",
       });
       expect(again).toBeEnabled();
       expect(screen.getByRole("alert")).toBeVisible();
-      expect(sockets[0].close).toHaveBeenCalled();
+      expect(close).not.toHaveBeenCalled();
       await userEvent.click(again);
-      await waitFor(() => expect(sockets).toHaveLength(2));
       await waitFor(() => {
-        expect(sockets[1].sent.some((raw) => raw.includes('"Join"'))).toBe(
-          true,
-        );
+        expect(
+          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(2);
       });
+      expect(sockets).toHaveLength(1);
     },
   );
+
+  const REFUSED = "That isn't possible in the room's current state.";
+
+  it("leaves no alert in the room after a second press succeeds", async () => {
+    await pressJoinToListen();
+    await sendError("invalid_state");
+    expect(screen.getByRole("alert")).toHaveTextContent(REFUSED);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Join to listen" }),
+    );
+    await waitFor(() => {
+      expect(
+        sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+      ).toHaveLength(2);
+    });
+    act(() => sockets[0].onmessage?.(producerEcho));
+    act(() =>
+      sockets[0].onmessage?.(
+        producerSnapshot({ state: "recording", server_time_ns: 100 }),
+      ),
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: /Join to listen/ }),
+      ).toBeNull();
+    });
+    expect(screen.queryByText(REFUSED)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
+  });
+
+  it("shows the new reason when a second press is refused too", async () => {
+    await pressJoinToListen();
+    await sendError("invalid_state");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Join to listen" }),
+    );
+    await waitFor(() => {
+      expect(
+        sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+      ).toHaveLength(2);
+    });
+    await sendError("rate_limited");
+    await screen.findByRole("button", { name: "Join to listen" });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      recordSyncErrorCopy("rate_limited") ?? "",
+    );
+    expect(screen.queryByText(REFUSED)).toBeNull();
+  });
 
   it("does not hang on a second tab's lease_in_use: Not now still cancels", async () => {
     await pressJoinToListen();

@@ -6,7 +6,7 @@ import {
 } from "./notesRailModel";
 import type { PersonData } from "./Person";
 import type { RecordFace } from "./RecordButton";
-import type { DockSeat, RecordDockMode } from "./RecordDock";
+import type { DockSeat, LeaveExit, RecordDockMode } from "./RecordDock";
 import type { RoomAlertInput } from "./roomAlertModel";
 import { type RoomPhase, savingPercent } from "./roomPhase";
 import {
@@ -57,7 +57,9 @@ export type RoomViewInput = {
 };
 
 export type DeviceWork = {
+  hostGoneLong?: boolean;
   uploading?: boolean;
+  verifying?: boolean;
   /** The keeper is still writing the take. */
   finishing?: boolean;
   capturingTone?: boolean;
@@ -96,6 +98,10 @@ type RoomViewModel = {
 };
 
 const LEAVE_DURING_TAKE_REASON = "You can leave after this take.";
+const LEAVE_WARNING =
+  "Leaving stops recording on this device. Keep this page open so it can reach the host.";
+const LEAVE_WARNING_SHORT =
+  "Leaving stops recording here. Keep this page open to send it.";
 const LEAVE_WHILE_SAVING_REASON = "Your recording is still saving";
 const LEAVE_WHILE_FINISHING_REASON = "Your recording is still finishing";
 const LEAVE_DURING_TONE_REASON = "Finish or cancel the room tone first";
@@ -161,10 +167,19 @@ export function tileProps(entry: RoomPerson): RoomTileProps {
 
 /**
  * Host-offline is the guest's alert: the host has left, or their connection
- * dropped while they are on air. Only a guest's view shows it; a producer's
- * room has no recording of its own to fall back on.
+ * dropped while they are on air. Only a guest's view shows it, and only while a
+ * take is live, paused or reconnecting: outside a take nothing is being
+ * recorded here, and the host's tile already reads Left. A producer's room has
+ * no recording of its own to fall back on.
  */
-function hostOffline(people: RoomPerson[]): RoomAlertInput[] {
+function hostOffline(people: RoomPerson[], phase: RoomPhase): RoomAlertInput[] {
+  if (
+    phase.kind !== "live" &&
+    phase.kind !== "paused" &&
+    phase.kind !== "reconnecting"
+  ) {
+    return [];
+  }
   const host = people.find((person) => person.role === "host");
   if (!host) return [];
   const dropped =
@@ -209,28 +224,40 @@ function savingLine(phase: Extract<RoomPhase, { kind: "saving" }>): string {
     : `Saving · ${percent}% · keep this page open`;
 }
 
-function guestLeaveHeld(
+function guestExit(
   phase: RoomPhase,
   device: DeviceWork,
-): string | undefined {
-  if (
+  viewerWidth: ViewerWidth,
+): LeaveExit {
+  const onAir =
     phase.kind === "live" ||
     phase.kind === "paused" ||
-    phase.kind === "reconnecting"
+    phase.kind === "reconnecting";
+  if (onAir && !device.hostGoneLong) {
+    return { leaveHeld: LEAVE_DURING_TAKE_REASON };
+  }
+  if (device.finishing && !onAir) {
+    return { leaveHeld: LEAVE_WHILE_FINISHING_REASON };
+  }
+  if (
+    (device.uploading || device.verifying) &&
+    phase.kind === "saving" &&
+    !phase.failed
   ) {
-    return LEAVE_DURING_TAKE_REASON;
+    return { leaveHeld: LEAVE_WHILE_SAVING_REASON };
   }
-  if (device.finishing) return LEAVE_WHILE_FINISHING_REASON;
-  if (device.uploading && phase.kind === "saving" && !phase.failed) {
-    return LEAVE_WHILE_SAVING_REASON;
-  }
-  return device.capturingTone ? LEAVE_DURING_TONE_REASON : undefined;
+  if (device.capturingTone) return { leaveHeld: LEAVE_DURING_TONE_REASON };
+  if (!onAir) return {};
+  return isPhoneWidth(viewerWidth)
+    ? { leaveWarning: LEAVE_WARNING_SHORT, leaveConfirm: true }
+    : { leaveWarning: LEAVE_WARNING };
 }
 
 function roomDock(
   role: RoomRole,
   phase: RoomPhase,
   device: DeviceWork,
+  viewerWidth: ViewerWidth,
 ): RecordDockMode {
   const saving = phase.kind === "saving" && !phase.failed ? phase : null;
   if (role !== "guest") {
@@ -238,13 +265,13 @@ function roomDock(
       ? { kind: "status", text: savingLine(saving) }
       : { kind: "controls" };
   }
-  const leaveHeld = guestLeaveHeld(phase, device);
+  const exit = guestExit(phase, device, viewerWidth);
   if (saving) {
-    return { kind: "status", text: savingLine(saving), leaveHeld };
+    return { kind: "status", text: savingLine(saving), ...exit };
   }
   return phase.kind === "saved"
-    ? { kind: "done", text: SAVED_DOCK_LINE, leaveHeld }
-    : { kind: "controls", leaveHeld };
+    ? { kind: "done", text: SAVED_DOCK_LINE, ...exit }
+    : { kind: "controls", ...exit };
 }
 
 /** The producer link holds a handful of sockets; a count past this is not one the server sent. */
@@ -322,7 +349,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
       : null;
   const columns = gridColumns(viewerWidth, tiles.length);
 
-  const derived = role === "guest" ? hostOffline(people) : [];
+  const derived = role === "guest" ? hostOffline(people, phase) : [];
   return {
     tiles,
     columns,
@@ -341,7 +368,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
       role === "host" && input.canRecord === true
         ? hostRecord(people, phase)
         : null,
-    dock: roomDock(role, phase, input.device ?? {}),
+    dock: roomDock(role, phase, input.device ?? {}, viewerWidth),
     alerts: [...derived, ...(input.alerts ?? [])],
   };
 }

@@ -47,6 +47,27 @@ describe("useResizeObserver", () => {
     expect(onResize.mock.calls[0][0][0].target).toBe(box);
   });
 
+  it("observes every element a getter returns, and none when it returns null", () => {
+    function ListHarness({ list }: { list: boolean }) {
+      const ref = useRef<HTMLDivElement>(null);
+      useResizeObserver(
+        () =>
+          list ? Array.from(ref.current?.querySelectorAll("i") ?? []) : null,
+        () => undefined,
+      );
+      return (
+        <div ref={ref}>
+          <i />
+          <i />
+        </div>
+      );
+    }
+    const { rerender } = render(<ListHarness list />);
+    expect(FakeResizeObserver.all.at(-1)?.targets).toHaveLength(2);
+    rerender(<ListHarness list={false} />);
+    expect(FakeResizeObserver.all.at(-1)?.disconnected).toBe(true);
+  });
+
   it("keeps one observer across re-renders and calls the latest callback", () => {
     const first = vi.fn();
     const { rerender } = render(<Harness onResize={first} />);

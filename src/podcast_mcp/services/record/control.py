@@ -28,7 +28,9 @@ class RecordControlService:
         ``land_first_possible`` (the mint preflight: true when a land can save a finished recording, nothing is still
         saving and the room's session was not already accepted or skipped). ``unlanded_saving`` counts takes,
         ``unlanded_stalled`` counts recordings."""
-        return with_unsaved_takes(self.workspace.project, self._svc.snapshot())
+        # The looking-in count lives in the GUI process only: another process would report a false 0.
+        snap = {key: value for key, value in self._svc.snapshot().items() if key != "watchers"}
+        return with_unsaved_takes(self.workspace.project, snap)
 
     def roster(self) -> list[dict[str, Any]]:
         return list(self._svc.snapshot().get("participants") or [])
@@ -97,4 +99,5 @@ class RecordControlService:
         return self._svc.submit(cmd)
 
     def _host(self, command_type: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        return self.submit_host(command_type, payload)
+        snap = self.submit_host(command_type, payload)
+        return {key: value for key, value in snap.items() if key != "watchers"}

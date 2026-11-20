@@ -6,10 +6,11 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { StrictMode, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ScriptDivider } from "../stage/edit/ScriptDivider";
 import { expectNoA11yViolations } from "../test/a11y";
+import { systemCss } from "../test/systemCss";
 import { AppHeader, type AppHeaderProps } from "./AppHeader";
 import { ROLES } from "./linkRoles";
 import { ScrubField } from "./ScrubField";
@@ -130,6 +131,36 @@ describe("AppHeader as a guest", () => {
     expect(screen.getByRole("img", { name: /^Commenter: / }).textContent).toBe(
       text,
     );
+  });
+
+  it.each([false, true])(
+    "shows no Role chip, and keeps the version, when the role is not known (compact %s)",
+    (compact) => {
+      setup({ guest: { version: "Rough cut", compact } });
+      for (const { label } of ROLES) {
+        expect(
+          screen.queryByRole("img", { name: new RegExp(`^${label}: `) }),
+        ).toBeNull();
+      }
+      expect(screen.queryByRole("button", { name: /role/ })).toBeNull();
+      expect(screen.getByText("Rough cut")).toBeInTheDocument();
+    },
+  );
+
+  it("still shows the New version pill, and no Undo or Redo, when the role is not known", () => {
+    setup({
+      guest: {
+        version: "Rough cut",
+        followsLatest: true,
+        update: { id: "v2", label: "Intro fix", onListen: vi.fn() },
+      },
+    });
+    expect(
+      screen.getByRole("button", { name: /New version: Intro fix/ }),
+    ).toBeInTheDocument();
+    for (const name of GUEST_EDIT_CONTROLS) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
   });
 
   it("shows the hint once and dismisses it", async () => {
@@ -634,6 +665,27 @@ describe("AppHeader as a guest", () => {
     },
   );
 
+  it("says an automatic hint once even where development runs effects twice", () => {
+    const onShown = vi.fn();
+    const hint = {
+      text: "You can comment.",
+      shown: true,
+      onDismiss: vi.fn(),
+      onShown,
+    };
+    render(
+      <StrictMode>
+        <AppHeader
+          title="Episode 14"
+          save={SAVE}
+          guest={{ version: "v3", role: "commenter", hint }}
+        />
+      </StrictMode>,
+    );
+    expect(screen.getByRole("note")).toBeVisible();
+    expect(onShown).toHaveBeenCalledTimes(1);
+  });
+
   it("starts a fresh hint lifetime when the guest role changes", () => {
     const hint = { text: "Role details.", shown: true, onDismiss: vi.fn() };
     const { again } = setup({
@@ -661,6 +713,192 @@ describe("AppHeader as a guest", () => {
       },
     });
     expect(screen.getByRole("note")).toBeVisible();
+  });
+});
+
+describe("AppHeader first-visit role hint: a press and a key", () => {
+  const TEXT = "You can comment and suggest cuts. The host decides.";
+
+  function hintHeader(
+    extra: Partial<NonNullable<AppHeaderProps["guest"]>["hint"]> = {},
+  ) {
+    const onDismiss = vi.fn();
+    const reached = vi.fn();
+    const view = render(
+      <>
+        <button type="button" onKeyDown={reached}>
+          Outside
+        </button>
+        <AppHeader
+          title="Episode"
+          guest={{
+            version: "v3",
+            role: "commenter",
+            hint: { text: TEXT, shown: true, onDismiss, ...extra },
+          }}
+        />
+      </>,
+    );
+    const trigger = screen.getByRole("button", {
+      name: "Explain Commenter role",
+    });
+    return { ...view, onDismiss, reached, trigger };
+  }
+
+  it("closes on a click on its sentence, once, moves no focus and opens no dialog", async () => {
+    const { onDismiss, trigger } = hintHeader();
+    await userEvent.click(screen.getByText(TEXT));
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(trigger).not.toHaveFocus();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("stays up on a pointer or mouse press alone and closes on the click", () => {
+    const { onDismiss } = hintHeader();
+    const sentence = screen.getByText(TEXT);
+    fireEvent.pointerDown(sentence);
+    fireEvent.mouseDown(sentence);
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(screen.getByRole("note")).toBeVisible();
+    fireEvent.click(sentence);
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it("closes on a click on the bubble's own padding", () => {
+    const { onDismiss } = hintHeader();
+    fireEvent.click(screen.getByRole("note"));
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("still closes through the X once, and hands focus to the Role button", async () => {
+    const { onDismiss, trigger } = hintHeader();
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("closes on a letter key pressed outside, without stopping it", () => {
+    const { onDismiss, reached } = hintHeader();
+    const notPrevented = fireEvent.keyDown(screen.getByText("Outside"), {
+      key: "l",
+    });
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(notPrevented).toBe(true);
+    expect(reached).toHaveBeenCalledOnce();
+  });
+
+  it("closes on Escape pressed outside", () => {
+    const { onDismiss } = hintHeader();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("closes on Escape with focus on the X and hands focus to the Role button", async () => {
+    const { onDismiss, trigger } = hintHeader();
+    screen.getByRole("button", { name: "Dismiss hint" }).focus();
+    await userEvent.keyboard("{Escape}");
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it.each(["Shift", "Control", "Alt", "Meta", "Tab"])(
+    "stays up on a %s press on its own",
+    (key) => {
+      const { onDismiss } = hintHeader();
+      fireEvent.keyDown(document.body, { key });
+      expect(onDismiss).not.toHaveBeenCalled();
+      expect(screen.getByRole("note")).toBeVisible();
+    },
+  );
+
+  it.each([
+    ["Enter", "{Enter}"],
+    ["Space", " "],
+  ])(
+    "closes on %s on the Role button without opening the dialog, and the next opens it",
+    async (_name, key) => {
+      const { onDismiss, trigger } = hintHeader();
+      trigger.focus();
+      await userEvent.keyboard(key);
+      expect(onDismiss).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("note")).toBeNull();
+      expect(screen.queryByRole("dialog")).toBeNull();
+      await userEvent.keyboard(key);
+      expect(screen.getByRole("dialog")).toHaveTextContent(TEXT);
+    },
+  );
+
+  it.each([
+    ["Enter", "{Enter}"],
+    ["Space", " "],
+  ])(
+    "closes on %s on the X, once, with focus on the Role button",
+    async (_name, key) => {
+      const { onDismiss, trigger } = hintHeader();
+      screen.getByRole("button", { name: "Dismiss hint" }).focus();
+      await userEvent.keyboard(key);
+      expect(onDismiss).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("note")).toBeNull();
+      expect(trigger).toHaveFocus();
+    },
+  );
+
+  it("a hint that never showed dismisses on no key", () => {
+    const { onDismiss } = hintHeader({ shown: false });
+    fireEvent.keyDown(document.body, { key: "l" });
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it("a key after the dismissal does not dismiss again", async () => {
+    const { onDismiss } = hintHeader();
+    await userEvent.click(screen.getByText(TEXT));
+    fireEvent.keyDown(document.body, { key: "l" });
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+});
+
+describe("AppHeader first-visit role hint: said once", () => {
+  const TEXT = "You can comment and suggest cuts. The host decides.";
+  const guestOf = (
+    hint: NonNullable<AppHeaderProps["guest"]>["hint"],
+  ): AppHeaderProps["guest"] => ({ version: "v3", role: "commenter", hint });
+
+  it("reports itself once when its bubble appears", () => {
+    const onShown = vi.fn();
+    const hint = { text: TEXT, shown: true, onDismiss: vi.fn(), onShown };
+    const { again } = setup({ guest: guestOf(hint) });
+    expect(onShown).toHaveBeenCalledOnce();
+    again({ guest: guestOf({ ...hint }) });
+    expect(onShown).toHaveBeenCalledOnce();
+  });
+
+  it("does not report a hint that never shows", () => {
+    const onShown = vi.fn();
+    setup({
+      guest: guestOf({ text: TEXT, shown: false, onDismiss: vi.fn(), onShown }),
+    });
+    expect(onShown).not.toHaveBeenCalled();
+  });
+
+  it("does not report again on its dismissal or when the explanation opens", async () => {
+    const onShown = vi.fn();
+    const hint = { text: TEXT, shown: true, onDismiss: vi.fn(), onShown };
+    const { again } = setup({ guest: guestOf(hint) });
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
+    again({ guest: guestOf({ ...hint, shown: false }) });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Explain Commenter role" }),
+    );
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(onShown).toHaveBeenCalledOnce();
   });
 });
 
@@ -942,6 +1180,33 @@ describe("AppHeader rename", () => {
   });
 });
 
+describe("AppHeader disabled Undo and Redo", () => {
+  it("describe why they are off and keep the key hint when they are on", () => {
+    setup({
+      canUndo: false,
+      canRedo: false,
+      undoReason: "There is nothing of yours to undo.",
+      redoReason: "There is nothing of yours to redo.",
+    });
+    const undo = screen.getByRole("button", { name: "Undo" });
+    const redo = screen.getByRole("button", { name: "Redo" });
+    expect(undo).toBeDisabled();
+    expect(undo).toHaveAttribute("title", "There is nothing of yours to undo.");
+    expect(redo).toHaveAttribute("title", "There is nothing of yours to redo.");
+  });
+
+  it("keep the key hint as the title while they are on", () => {
+    setup({ canUndo: true, canRedo: true, undoReason: "unused" });
+    expect(screen.getByRole("button", { name: "Undo" })).not.toHaveAttribute(
+      "title",
+      "unused",
+    );
+    expect(
+      screen.getByRole("button", { name: "Undo" }).getAttribute("title"),
+    ).toMatch(/^Undo/);
+  });
+});
+
 describe("AppHeader undo hint", () => {
   const HINT = {
     text: "Two-finger tap to undo",
@@ -962,5 +1227,56 @@ describe("AppHeader undo hint", () => {
   it("has no accessibility violations while shown", async () => {
     const { container } = setup({ undoHint: HINT });
     await expectNoA11yViolations(container);
+  });
+});
+
+describe("the guest header's second line, in the styles", () => {
+  const css = systemCss().replace(/\s+/g, " ");
+
+  it("lets the role button, the New version pill and the folded line press over 44 px without growing the line", () => {
+    const group = css.match(/(\.sys-role-trigger::after,[^{]*)\{([^}]*)\}/);
+    expect(group?.[1]).toContain(".sys-role-trigger::after");
+    expect(group?.[1]).toContain(".sys-version-pill::after");
+    expect(group?.[1]).toContain("button.sys-version-line::after");
+    expect(group?.[2]).toContain("position: absolute");
+    // Up over the name, which is not pressable, and a hairline down: never under the bar.
+    expect(group?.[2]).toContain(
+      "inset-block: calc(100% - var(--press-target) + 1px) -1px",
+    );
+    // The role button grows to both sides, the version buttons toward the line's start.
+    expect(css).toMatch(
+      /\.sys-role-trigger::after \{ inset-inline: min\(0rem, calc\(\(100% - var\(--press-target\)\) \/ 2\)\); \}/,
+    );
+    expect(css).toMatch(
+      /\.sys-version-pill::after,\s*button\.sys-version-line::after \{ inset-inline: min\(0rem, calc\(100% - var\(--press-target\)\)\) 0; \}/,
+    );
+    expect(css).toMatch(
+      /\.sys-header-sub \{ --press-target: var\(--control-height\);/,
+    );
+    expect(css).toMatch(
+      /@container sys-app-header \(max-width: 40rem\) \{ \.sys-header-sub \{ --press-target: var\(--touch-min\); \} \}/,
+    );
+    expect(css).toMatch(
+      /@media \(pointer: coarse\) \{ \.sys-header-sub \{ --press-target: var\(--touch-min\); \} \}/,
+    );
+  });
+
+  it("keeps the pill and the folded line as tall as the line, whatever the pointer", () => {
+    expect(css).toMatch(
+      /\.sys-version-pill \{[^}]*block-size: var\(--pill-height\)/,
+    );
+    expect(css).toMatch(
+      /button\.sys-version-line \{[^}]*block-size: var\(--pill-height\)/,
+    );
+    expect(css).not.toMatch(
+      /\.sys-version-pill,\s*button\.sys-version-line \{ min-block-size/,
+    );
+  });
+
+  it("gives the role button no box of its own beyond its chip", () => {
+    const rule = css.match(/\.sys-role-trigger \{([^}]*)\}/)?.[1];
+    expect(rule).toContain("padding: 0");
+    expect(rule).toContain("font-weight: 500");
+    expect(rule).not.toContain("min-block-size");
   });
 });

@@ -1032,6 +1032,30 @@
       }
     },
     {
+      "id": "daw.view.followPlayhead",
+      "label": "Back to playhead",
+      "effect": "view",
+      "service": "ShareCut Studio command bus",
+      "industry_standard_key": false,
+      "gates": [
+        "editStage"
+      ],
+      "surfaces": {
+        "command": "view.followPlayhead",
+        "gui": [
+          "timeline.followPill"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "pill and palette only"
+      },
+      "tooltip": "Follow the playhead again during playback",
+      "presence": {
+        "cursor": "none",
+        "follow": "look"
+      }
+    },
+    {
       "id": "daw.stage.record",
       "label": "Go to Record",
       "effect": "view",
@@ -3114,7 +3138,7 @@
       "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
-        "hostProjectLoaded"
+        "canFixText"
       ],
       "surfaces": {
         "command": "transcript.editWordInline",
@@ -3582,7 +3606,7 @@
       "service": "TranscriptService.replace_transcript_matches",
       "industry_standard_key": false,
       "gates": [
-        "hostProjectLoaded"
+        "canFixText"
       ],
       "surfaces": {
         "command": "transcript.findReplace",

@@ -1,0 +1,79 @@
+name: browser-diagnostics-synthetic
+
+on:
+  pull_request:
+    types: [synchronize]
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-publication:
+    if: >-
+      github.event_name == 'pull_request' && github.event.action == 'synchronize' &&
+      github.repository == 'calebn/sharecut-studio' &&
+      github.event.pull_request.number == 4006 && github.event.pull_request.draft == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'chore/browser-diagnostics-privacy-20261119'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [success, failure-retry, malformed, stale]
+    env:
+      SYNTHETIC_MODE: ${{ matrix.mode }}
+      BROWSER_RAW_REPORT: playwright-report/synthetic.json
+      BROWSER_CAPTURE_RECEIPT: ${{ github.workspace }}/.synthetic-capture.txt
+      SYNTHETIC_PUBLIC_REPORT: ${{ github.workspace }}/synthetic-public/result.json
+      SYNTHETIC_SUMMARY: ${{ github.workspace }}/synthetic-summary.md
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Verify immutable boundary and prepare fabricated data
+        id: prepared
+        run: python3 scripts/browser_public_synthetic.py prepare --mode "$SYNTHETIC_MODE"
+
+      - name: Capture fabricated child outcome
+        id: capture
+        continue-on-error: true
+        run: bash scripts/private_browser_command.sh python3 scripts/browser_public_synthetic.py produce --mode "$SYNTHETIC_MODE"
+
+      - name: Project and validate bounded synthetic results
+        id: projection
+        if: ${{ always() && steps.prepared.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          python3 scripts/browser_public_report.py --report "$BROWSER_RAW_REPORT" --output "$SYNTHETIC_PUBLIC_REPORT" --capture-receipt "$BROWSER_CAPTURE_RECEIPT"
+          python3 scripts/browser_public_synthetic.py public --mode "$SYNTHETIC_MODE"
+
+      - name: Publish validated synthetic summary
+        id: summary
+        if: ${{ always() && steps.projection.outcome == 'success' }}
+        run: |
+          python3 scripts/test_area_summary.py playwright --area main-e2e --report "$SYNTHETIC_PUBLIC_REPORT" --output "$SYNTHETIC_SUMMARY"
+          python3 scripts/browser_public_synthetic.py summary --mode "$SYNTHETIC_MODE"
+          cat "$SYNTHETIC_SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload only the validated synthetic projection
+        id: upload
+        if: ${{ always() && steps.projection.outcome == 'success' && steps.summary.outcome == 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: synthetic-public-${{ matrix.mode }}
+          path: synthetic-public/result.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Require exact synthetic outcomes
+        if: ${{ always() && steps.prepared.outcome == 'success' }}
+        env:
+          CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+          PROJECTION_OUTCOME: ${{ steps.projection.outcome }}
+          SUMMARY_OUTCOME: ${{ steps.summary.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+        run: python3 scripts/browser_public_synthetic.py outcomes --mode "$SYNTHETIC_MODE"

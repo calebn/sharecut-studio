@@ -68,6 +68,8 @@ export type JoinSheetProps = {
   /** The input picked in the mic row; `mic.devices` fills the list. */
   onInputChange?: (inputId: string) => void;
   joining?: boolean;
+  /** Producer only: this page is looking in and the room has been told, so the sheet says so. */
+  seenByRoom?: boolean;
   onJoin: () => void;
   /**
    * A producer's reason the join has not gone through; shown under the line
@@ -216,10 +218,21 @@ export function JoinSheet({
   onMicAction,
   onInputChange,
   joining = false,
+  seenByRoom = false,
   notice,
   onJoin,
   onDecline,
 }: JoinSheetProps) {
+  const producerLineId = useId();
+  const producerSeenId = useId();
+  const [seenPhase, setSeenPhase] = useState<"waiting" | "speaking" | "done">(
+    seenByRoom ? "done" : "waiting",
+  );
+  if (seenByRoom && seenPhase === "waiting") {
+    setSeenPhase("speaking");
+  } else if (!seenByRoom && seenPhase === "speaking") {
+    setSeenPhase("done");
+  }
   const nameRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
@@ -350,6 +363,13 @@ export function JoinSheet({
       panelClassName="sys-join-dialog"
       initialFocusRef={initialFocusRef}
       scrimDismisses={false}
+      descriptionId={
+        guest
+          ? undefined
+          : seenByRoom
+            ? `${producerLineId} ${producerSeenId}`
+            : producerLineId
+      }
       onClose={onDecline}
       footer={
         <Footer
@@ -410,9 +430,21 @@ export function JoinSheet({
         ) : (
           <>
             <SheetRow row={producerModel.row}>{nameField}</SheetRow>
-            <p className="sys-join-line sys-join-listen">
+            <p id={producerLineId} className="sys-join-line sys-join-listen">
               <SystemIcon name="headphones" size={24} />
               {JOIN_TEXT.producerLine}
+            </p>
+            {seenByRoom ? (
+              <p
+                id={producerSeenId}
+                className="sys-join-line sys-join-listen sys-join-seen"
+              >
+                <SystemIcon name="eye" size={24} />
+                {JOIN_TEXT.producerSeen}
+              </p>
+            ) : null}
+            <p className="sr-only" aria-live="polite">
+              {seenByRoom && seenPhase !== "done" ? JOIN_TEXT.producerSeen : ""}
             </p>
             {notice ? (
               <p role="alert" className="sys-join-reason">

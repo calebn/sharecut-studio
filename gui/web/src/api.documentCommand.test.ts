@@ -1022,7 +1022,7 @@ describe("host document command queue", () => {
             JSON.stringify({
               ok: true,
               history_head_id: "a1b2c3d4e5f6",
-              command: { payload: { result: { count: 1 } } },
+              review_result: { count: 1 },
             }),
             { status: 200 },
           ),
@@ -1046,15 +1046,9 @@ describe("host document command queue", () => {
           JSON.stringify({
             ok: true,
             history_head_id: "a1b2c3d4e5f6",
-            command: {
-              payload: {
-                result: {
-                  count: 2,
-                  held: [
-                    { id: "e2", label: "Dani's cut at 1:02", reason: "x" },
-                  ],
-                },
-              },
+            review_result: {
+              count: 2,
+              held: [{ id: "e2", label: "Dani's cut at 1:02", reason: "x" }],
             },
           }),
           { status: 200 },
@@ -1091,7 +1085,7 @@ describe("host document command queue", () => {
             new Response(
               JSON.stringify({
                 history_head_id: head,
-                command: { payload: { result: { count } } },
+                review_result: { count },
               }),
               { status: 200 },
             ),
@@ -1111,6 +1105,133 @@ describe("host document command queue", () => {
     },
   );
 
+  it("reads a guest's stripped Reject reply by its top-level count", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              ok: true,
+              history_head_id: "a1b2c3d4e5f6",
+              command: { type: "RejectEdits" },
+              review_result: { count: 1, held: [] },
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+    const { rejectEdits } = await import("./api");
+    await expect(rejectEdits("/tmp/episode.sharecut", ["a"])).resolves.toEqual({
+      queued: false,
+      count: 1,
+      historyHead: "a1b2c3d4e5f6",
+      held: [],
+    });
+  });
+
+  it("reads a guest's held Approve row from the top-level reply", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              ok: true,
+              history_head_id: null,
+              command: { type: "ApproveEdits" },
+              review_result: {
+                count: 0,
+                held: [
+                  {
+                    id: "e2",
+                    label: "Reference's cut at 0:02.5",
+                    reason: "the full recording is not available right now",
+                  },
+                ],
+              },
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+    const { approveEdits } = await import("./api");
+    await expect(
+      approveEdits("/tmp/episode.sharecut", ["e2"], true),
+    ).resolves.toEqual({
+      queued: false,
+      count: 0,
+      historyHead: null,
+      held: [
+        {
+          id: "e2",
+          label: "Reference's cut at 0:02.5",
+          reason: "the full recording is not available right now",
+        },
+      ],
+    });
+  });
+
+  it("keeps a held Approve row whose reason is empty or missing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              ok: true,
+              history_head_id: null,
+              command: { type: "ApproveEdits" },
+              review_result: {
+                count: 0,
+                held: [
+                  { id: "e2", label: "Ana's cut at 0:02.5", reason: "" },
+                  { id: "e3", label: "That edit" },
+                ],
+              },
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+    const { approveEdits } = await import("./api");
+    await expect(
+      approveEdits("/tmp/episode.sharecut", ["e2", "e3"], true),
+    ).resolves.toEqual({
+      queued: false,
+      count: 0,
+      historyHead: null,
+      held: [
+        {
+          id: "e2",
+          label: "Ana's cut at 0:02.5",
+          reason: "it could not be applied",
+        },
+        { id: "e3", label: "That edit", reason: "it could not be applied" },
+      ],
+    });
+  });
+
+  it("refuses a reply that carries only the command echo", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              history_head_id: "a1b2c3d4e5f6",
+              command: { type: "RejectEdits" },
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+    const { rejectEdits } = await import("./api");
+    await expect(rejectEdits("/tmp/episode.sharecut", ["a"])).rejects.toThrow(
+      "The review reply is missing its affected edit count.",
+    );
+  });
+
   it.each([undefined, -1, 0.5, "1", null])(
     "refuses malformed settled review count %s",
     async (count) => {
@@ -1121,7 +1242,7 @@ describe("host document command queue", () => {
             new Response(
               JSON.stringify({
                 history_head_id: "a1b2c3d4e5f6",
-                command: { payload: { result: { count } } },
+                review_result: { count },
               }),
               { status: 200 },
             ),

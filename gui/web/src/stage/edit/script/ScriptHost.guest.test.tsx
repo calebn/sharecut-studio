@@ -99,7 +99,7 @@ describe("ScriptHost guest matrix", () => {
     expect(useDawStore.getState().selection).toBeNull();
   });
 
-  it("lets an edit-share guest select and rename speakers, but not fix text or replace", async () => {
+  it("lets an edit-share guest select, rename speakers, fix text and replace", async () => {
     seedScript({
       projectPath: "share:abc",
       guestMode: "edit",
@@ -110,11 +110,14 @@ describe("ScriptHost guest matrix", () => {
     await userEvent.click(word("back"));
     expect(useDawStore.getState().selection?.kind).toBe("transcriptRange");
     expect(speakers().length).toBeGreaterThan(0);
-    expect(await fixOpens()).toBe(false);
+    expect(await fixOpens()).toBe(true);
+    await userEvent.keyboard("{Escape}");
     await userEvent.click(
       screen.getByRole("button", { name: "Find in transcript" }),
     );
-    expect(screen.queryByRole("button", { name: "Show replace" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Show replace" }),
+    ).toBeInTheDocument();
   });
 
   it("passes no select when the share cannot change ranges, whatever the guest mode", async () => {

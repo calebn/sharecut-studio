@@ -745,6 +745,28 @@ it.each(["pending", "failed"])(
   },
 );
 
+it("says why a word Hear cannot play when the project has no tracks", async () => {
+  const request = deferred<DocumentSnapshot>();
+  wire.detail.mockReturnValueOnce(request.promise);
+  const view = renderHook(() => useReviewQueue());
+  const begin = vi.fn();
+  const announce = vi.fn();
+  publish(project(false), 2);
+  const loaded = project(true, false, true);
+  loaded.tracks = [];
+  await act(async () =>
+    request.resolve({ server_seq: 2, state_token: "test", project: loaded }),
+  );
+  useDawStore.setState({ beginAudition: begin, announceStatus: announce });
+  await act(async () => {
+    await view.result.current.stageProps.onHear("word:host::2", "A");
+  });
+  expect(begin).not.toHaveBeenCalled();
+  expect(announce).toHaveBeenCalledWith("Import audio to play.", {
+    tone: "error",
+  });
+});
+
 it.each(["pending", "failed"])(
   "does not use retained word coordinates for Hear or Open in Edit while %s",
   async (phase) => {

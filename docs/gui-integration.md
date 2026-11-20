@@ -322,7 +322,11 @@ through `SessionTimeline.map_word_spans`, the same helper export/doctor
 timebase QC uses, so a zero-length word at a kept clip's source end is
 mappable in both. Edit-boundary `cutaway_word_ids` ask the same helper and
 leave out a zero-length word it maps onto the left clip, so they cannot drift
-from the word views.
+from the word views. Each preview names the resolved transcript's source, so a
+clip alias for primary media emits a null source unless an explicit transcript
+exists for that alias. Clip source IDs still govern placement mapping. Script
+reconciles a preview with its utterance copy by track, transcript source, decoded
+word index, and exact text. Equal-index words in other recordings stay separate.
 When a word-free snapshot changes a candidate recording's clip mapping, the
 client discards retained word detail and fetches authoritative mapping again.
 The comparison covers complete placements, including overlapping words whose

@@ -1,5 +1,5 @@
 import { selectionSpan } from "../edit/editSelection";
-import { canApplyPass12, isShareProjectKey } from "../shareMode";
+import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
@@ -17,6 +17,7 @@ import {
   formatWaveformAmp,
 } from "../utils/zoom";
 import { registerCommand } from "./execute";
+import { fixTextAvailability } from "./fixTextAvailability";
 
 const ZOOM_TO_SELECTION_FILL = 0.9;
 const NO_PROJECT = { status: "disabled", reason: "No project" } as const;
@@ -37,10 +38,17 @@ export function announceWaveformAmp(): void {
   );
 }
 
+/** Zoom, fit and zoom to selection while playing would page the playhead away from what the person is looking at. */
+export function suspendTimelineFollow(): void {
+  const s = useDawStore.getState();
+  if (s.isPlaying) s.setTimelineFollowPlayhead(false);
+}
+
 export function registerViewCommands(): void {
   registerCommand("view.zoomIn", () => {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
+    suspendTimelineFollow();
     s.applyAnchoredZoom(s.zoomPxPerSec * discreteZoomFactor("in"));
     return { status: "ok" };
   });
@@ -48,6 +56,7 @@ export function registerViewCommands(): void {
   registerCommand("view.zoomOut", () => {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
+    suspendTimelineFollow();
     s.applyAnchoredZoom(s.zoomPxPerSec * discreteZoomFactor("out"));
     return { status: "ok" };
   });
@@ -55,6 +64,7 @@ export function registerViewCommands(): void {
   registerCommand("view.fit", () => {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
+    suspendTimelineFollow();
     s.fitToWindow(s.measureTimelineViewport());
     return { status: "ok" };
   });
@@ -78,7 +88,18 @@ export function registerViewCommands(): void {
       (viewport * ZOOM_TO_SELECTION_FILL) / len,
       s.project.timeline_duration_sec,
     );
+    suspendTimelineFollow();
     s.zoomToSpan(span.start, span.end, zoom);
+    return { status: "ok" };
+  });
+
+  registerCommand("view.followPlayhead", () => {
+    const s = useDawStore.getState();
+    if (!s.project) return NO_PROJECT;
+    s.setTimelineFollowPlayhead(true);
+    if (playheadScrollRegistry.scrollToPlayhead("timeline")) {
+      s.announceStatus("Following the playhead");
+    }
     return { status: "ok" };
   });
 
@@ -198,8 +219,8 @@ export function registerViewCommands(): void {
 export function registerTranscriptViewCommands(): void {
   registerCommand("transcript.findReplace", () => {
     const state = useDawStore.getState();
-    if (!state.project || isShareProjectKey(state.projectPath))
-      return { status: "disabled", reason: "Host project required" };
+    const available = fixTextAvailability(state);
+    if (!available.ok) return { status: "disabled", reason: available.reason };
     state.openStage("edit");
     state.setScriptCollapsed(false);
     useDawStore

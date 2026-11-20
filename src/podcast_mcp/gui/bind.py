@@ -109,6 +109,9 @@ def build_gui_server(
         log_level=log_level,
         access_log=access_log,
         ws_per_message_deflate=True,
+        # Pinned: the looking-in count of a dead tab drops after this keepalive (about 40 s).
+        ws_ping_interval=20.0,
+        ws_ping_timeout=20.0,
         timeout_graceful_shutdown=graceful_shutdown_sec,
     )
     log_redaction.install()

@@ -1,5 +1,6 @@
 import { type BrowserContext, expect, test } from "@playwright/test";
-import { createRecordRoom, markSharecutE2e } from "./recordRoom";
+import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
+import { createRecordRoom, joinAsGuest, markSharecutE2e } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { goToStage } from "./stageNav";
 
@@ -19,7 +20,7 @@ function withWatchers(value: unknown): void {
   }
 }
 
-/** Until a server sends `watchers`, the page is shown a snapshot that carries it. */
+/** Forces a count of 3, so the plural line shows without three observer sockets. */
 async function stubWatchers(context: BrowserContext): Promise<void> {
   await context.routeWebSocket(/.*/, (socket) => {
     const server = socket.connectToServer();
@@ -91,3 +92,80 @@ for (const size of SIZES) {
     });
   });
 }
+
+const ONE = "Someone with the producer link is looking in";
+
+test.use({ launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] } });
+
+test.describe("looking in, against the real server", () => {
+  test("a producer link's observe socket shows the line to the host and the guest and clears on close", async ({
+    browser,
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      const hostCtx = await browser.newContext();
+      const guestCtx = await browser.newContext();
+      const lookerCtx = await browser.newContext();
+      try {
+        const host = await hostCtx.newPage();
+        await markSharecutE2e(host);
+        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+        const room = await createRecordRoom(host, projectPath);
+        await goToStage(host, "record");
+        const guest = await guestCtx.newPage();
+        await markSharecutE2e(guest);
+        await joinAsGuest(guest, room.guest.token, "Ava");
+        await expect(
+          host.getByText("Ava", { exact: true }).first(),
+        ).toBeVisible();
+        await expect(
+          host.locator(".sys-room-looking-in", { hasText: ONE }),
+        ).toBeHidden();
+        await expect(
+          guest.locator(".sys-room-looking-in", { hasText: ONE }),
+        ).toBeHidden();
+
+        const looker = await lookerCtx.newPage();
+        await looker.goto("/api/health");
+        const opened = await looker.evaluate(
+          (token) =>
+            new Promise<string>((resolve) => {
+              const url = new URL(
+                `/api/rec/${encodeURIComponent(token)}/ws`,
+                window.location.href,
+              );
+              url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+              url.searchParams.set("client_id", "e2e-looker");
+              url.searchParams.set("observe", "1");
+              const socket = new WebSocket(url);
+              (window as unknown as { __looker: WebSocket }).__looker = socket;
+              socket.onmessage = () => resolve("frame");
+              socket.onclose = (event) => resolve(`closed ${event.code}`);
+            }),
+          room.producer.token,
+        );
+        expect(opened).toBe("frame");
+        await expect(
+          host.locator(".sys-room-looking-in", { hasText: ONE }),
+        ).toBeVisible();
+        await expect(
+          guest.locator(".sys-room-looking-in", { hasText: ONE }),
+        ).toBeVisible();
+
+        await looker.evaluate(() =>
+          (window as unknown as { __looker: WebSocket }).__looker.close(),
+        );
+        await expect(
+          host.locator(".sys-room-looking-in", { hasText: ONE }),
+        ).toBeHidden();
+        await expect(
+          guest.locator(".sys-room-looking-in", { hasText: ONE }),
+        ).toBeHidden();
+      } finally {
+        await hostCtx.close();
+        await guestCtx.close();
+        await lookerCtx.close();
+      }
+    });
+  });
+});

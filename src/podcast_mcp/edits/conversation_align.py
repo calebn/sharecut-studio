@@ -12,7 +12,6 @@ import itertools
 import logging
 import math
 import statistics
-import subprocess
 import wave
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterable, Sequence
@@ -76,6 +75,7 @@ from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import db_to_amplitude
 from podcast_mcp.util.hashing import short_digest
+from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.wer import normalize_token
 
@@ -821,7 +821,7 @@ def acoustic_clip_offset(
                 duration_sec=window_sec,
                 sample_rate=sample_rate,
             )
-        except (OSError, ValueError, subprocess.CalledProcessError):
+        except (OSError, ValueError, CalledProcessError):
             n_decode_error += 1
             continue
         if float(np.sqrt(np.mean(ref**2))) < min_rms or float(np.sqrt(np.mean(src**2))) < min_rms:
@@ -835,7 +835,7 @@ def acoustic_clip_offset(
                 reference=reference,
                 source=source,
             )
-        except (OSError, ValueError, subprocess.CalledProcessError):
+        except (OSError, ValueError, CalledProcessError):
             n_decode_error += 1
             continue
         if result.correlation_peak < min_peak:
@@ -1868,7 +1868,7 @@ def _bleed_latency_stage(
                 if hops >= 0
                 else envelope[-hops:]
             )
-    except (OSError, ValueError, wave.Error, subprocess.CalledProcessError) as exc:
+    except (OSError, ValueError, wave.Error, CalledProcessError) as exc:
         log.debug("align_tracks: bleed latency skipped: %s", exc)
         return None, {}
     solution = bleed_latency.measure_bleed_latency(
@@ -2037,7 +2037,7 @@ def _stepped_lanes(
             continue
         try:
             lanes[track.id] = _lane_media(project, track, sources, references[track.id])
-        except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
+        except (OSError, ValueError, RuntimeError, CalledProcessError) as exc:
             log.debug("align_tracks: bleed lag steps skipped for %s: %s", track.id, exc)
             lanes[track.id] = None
 

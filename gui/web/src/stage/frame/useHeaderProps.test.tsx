@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
@@ -87,5 +87,51 @@ describe("useHeaderProps title", () => {
     useDawStore.setState({ guestMode: null });
     const host = renderHook(() => useHeaderProps());
     expect(host.result.current.title).toBe("Project");
+  });
+});
+
+describe("useHeaderProps role hint", () => {
+  const SENTENCE = "You can comment and suggest cuts. The host decides.";
+
+  beforeEach(() => {
+    localStorage.clear();
+    useDawStore.getState().announceStatus("");
+  });
+
+  const asCommenter = (shareCapabilities: string[] | null) =>
+    useDawStore.setState({
+      projectPath: "share:tok",
+      guestMode: "comment",
+      shareCapabilities,
+    });
+
+  it("says the role's sentence once through the status region, with no toast", () => {
+    asCommenter(["view"]);
+    const { result } = renderHook(() => useHeaderProps());
+    const before = useDawStore.getState().statusAnnouncementSeq;
+    act(() => result.current.guest?.hint?.onShown?.());
+    const after = useDawStore.getState();
+    expect(after.statusAnnouncement).toBe(SENTENCE);
+    expect(after.statusAnnouncementSeq).toBe(before + 1);
+    expect(after.feedbackToast).toBeNull();
+  });
+
+  it("names no role, offers no hint and writes no flag while the guest reads the saved copy", () => {
+    asCommenter(null);
+    const { result } = renderHook(() => useHeaderProps());
+    expect(result.current.guest?.version).toBe("Shared link");
+    expect(result.current.guest?.role).toBeUndefined();
+    expect(result.current.guest?.hint).toBeUndefined();
+    expect(localStorage.length).toBe(0);
+  });
+
+  it("is shown for the link's role once the server has answered", () => {
+    asCommenter(null);
+    const { result } = renderHook(() => useHeaderProps());
+    expect(result.current.guest?.hint).toBeUndefined();
+    act(() => asCommenter(["view"]));
+    expect(result.current.guest?.role).toBe("commenter");
+    expect(result.current.guest?.hint?.shown).toBe(true);
+    expect(result.current.guest?.hint?.text).toBe(SENTENCE);
   });
 });

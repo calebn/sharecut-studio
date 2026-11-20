@@ -16,6 +16,7 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.media.media_store import (
+    _finalize_upload,
     gui_media_chunk_max_bytes,
     safe_audio_filename,
     unique_raw_path,
@@ -484,6 +485,26 @@ def test_write_complete_rejects_unreadable_audio(minimal_project):
     raw = root / "raw"
     if raw.is_dir():
         assert list(raw.glob("bad*.wav")) == []
+
+
+def test_finalize_upload_deletes_partial_and_reraises_unexpected_probe_failure(
+    tmp_path, monkeypatch
+):
+    import podcast_mcp.services.media.media_store as ms
+
+    dest = tmp_path / "partial.wav"
+    dest.write_bytes(b"partial")
+    boom = RuntimeError("probe exploded")
+
+    class ExplodingEngine:
+        def probe(self, *args, **kwargs):
+            raise boom
+
+    monkeypatch.setattr(ms, "FFmpegEngine", ExplodingEngine)
+    with pytest.raises(RuntimeError) as exc:
+        _finalize_upload(tmp_path, dest)
+    assert exc.value is boom
+    assert not dest.exists()
 
 
 @pytest.fixture

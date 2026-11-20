@@ -1,4 +1,5 @@
 import { useDawStore } from "../state/dawStore";
+import { errorMessage } from "../utils/apiError";
 import type { ExecuteResult } from "./types";
 
 export function announceRefusal(result: ExecuteResult): ExecuteResult {
@@ -10,6 +11,14 @@ export function announceRefusal(result: ExecuteResult): ExecuteResult {
     useDawStore.getState().announceStatus(result.reason, { tone: "error" });
   }
   return result;
+}
+
+export function announceFailure(label: string, error: unknown): void {
+  useDawStore
+    .getState()
+    .announceStatus(`${label} failed: ${errorMessage(error)}`, {
+      tone: "error",
+    });
 }
 
 export async function runAndAnnounceRefusal(

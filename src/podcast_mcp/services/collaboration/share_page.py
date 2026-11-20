@@ -15,6 +15,19 @@ log = logging.getLogger(__name__)
 
 _TITLE_RE = re.compile(r"<title>[^<]*</title>", re.IGNORECASE)
 _HEAD_OPEN_RE = re.compile(r"<head[^>]*>", re.IGNORECASE)
+_EMPTY_ROOT = '<div id="root"></div>'
+_BOOT_HEADER = (
+    '<main class="guest-loading" aria-busy="true">'
+    '<h1 class="sr-only">{name}</h1>'
+    '<p role="status" class="sr-only">Loading {name}\u2026</p>'
+    '<div class="sys-skeleton sys-skeleton--guest" aria-busy="true" data-phase="blank">'
+    '<header class="sys-app-header-host">'
+    '<div class="sys-app-header sys-app-header--loading">'
+    '<div class="sys-header-left"><div class="sys-header-guest">'
+    '<span class="sys-header-title" dir="auto" aria-hidden="true">{name}</span>'
+    '<span class="sys-header-sub" aria-hidden="true">Loading\u2026</span>'
+    "</div></div></div></header></div></main>"
+)
 
 
 def share_public_origin(request_base: str | None = None) -> str:
@@ -114,6 +127,20 @@ def inject_share_document_head(index_html: str, head_inner: str) -> str:
     return without_title[:idx] + "    " + head_inner + "\n  " + without_title[idx:]
 
 
+def inject_share_boot_header(index_html: str, name: str) -> str:
+    """Put the episode's name and "Loading…" into the page's empty root.
+
+    The markup is what the studio's review loading screen draws for a named link
+    (same classes, same words), so the guest sees the name before the script has
+    loaded and nothing moves when React's first commit replaces it. A page that
+    does not hold exactly one empty root, or a blank name, is returned as it came.
+    """
+    if not name.strip() or index_html.count(_EMPTY_ROOT) != 1:
+        return index_html
+    header = _BOOT_HEADER.format(name=html.escape(name, quote=True))
+    return index_html.replace(_EMPTY_ROOT, f'<div id="root">{header}</div>')
+
+
 def share_audio_url_for_preview(
     token: str,
     *,
@@ -157,6 +184,9 @@ def render_share_spa_html(
     audio_url: str | None = None
     audio_type = "audio/mpeg"
     image_url: str | None = None
+    # Set with the named title and nowhere else: "Podcast review" is also the title
+    # of a restricted link and of an episode with no name.
+    boot_name: str | None = None
 
     try:
         from podcast_mcp.services.collaboration.share import open_share_workspace
@@ -172,6 +202,7 @@ def render_share_spa_html(
             name = (ws.project.meta.name or "").strip()
             if name:
                 title = name
+                boot_name = name
             try:
                 ver = get_version(ws.project, str(row["review_version_id"]))
                 label = (ver.label or "").strip()
@@ -207,7 +238,8 @@ def render_share_spa_html(
         audio_type=audio_type,
         image_url=image_url,
     )
-    return inject_share_document_head(index_html, head)
+    page = inject_share_document_head(index_html, head)
+    return inject_share_boot_header(page, boot_name) if boot_name else page
 
 
 def render_record_spa_html(

@@ -176,12 +176,16 @@ iOS/Android app is not an `externalBin` port — in-process libav, same React UI
 Deferred path and interim constraints: [cross-platform-byok.md](cross-platform-byok.md).
 
 <a id="ios-app-3810"></a>
-**iOS app (#3810, stage 1).** `make ios-sim` builds the Simulator app and launches it; the
-Home screen says audio tools are not available on this device yet. The app is the `sharecut`
-lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar process.
+**iOS app (#3810, stage 1).** `make ios-sim` builds the Simulator app and launches it. It
+needs `make ios-ffmpeg-sim` first; with the FFmpeg framework linked and its backend installed at engine start the audio tools report
+installed (linked without the backend they read missing with their own sentence), and an app built without it shows the Audio tools card as missing, and its model rows
+read "ShareCut can't process audio on this device yet." Once linked, only the noise-reduction model (RNNoise, which runs through FFmpeg) can be offered: the word aligner and speaker model are ONNX models and the phone has no onnxruntime, so they stay unsupported with the same sentence, and so does Whisper ("can't transcribe"). The app is the `sharecut` lib (a `staticlib`) with Python.xcframework and FFmpeg.xcframework linked
+into it; there is no sidecar process.
 
 - **Build.** `scripts/ios/ios_sim.sh run` first ensures the payload (`build_payload.py --ensure`;
-  the generated Xcode project needs `ios-payload/` at init), then runs `tauri ios init`, then
+  the generated Xcode project needs `ios-payload/` at init), checks that
+  `ios-payload/FFmpeg.xcframework` has a Simulator slice (`ffmpeg_framework.py check --sdk
+  iphonesimulator`; run `make ios-ffmpeg-sim` once if it stops there), then runs `tauri ios init`, then
   `tauri ios build --target aarch64-sim --debug`; `launch` and `proof` take the product of this
   checkout's own generated Xcode project (`xcodebuild -showBuildSettings`), never the newest
   `sharecut-*` DerivedData folder, which can belong to another worktree. The overlay
@@ -221,6 +225,25 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   The two cached artifacts the script makes itself, the unpacked `Python.xcframework` and the
   cross-built wheel, each have a sha256 recorded beside them and are rebuilt when it no longer
   matches.
+- **FFmpeg framework.** `make ios-ffmpeg-device` and `make ios-ffmpeg-sim` run
+  `build_ffmpeg.sh` and then `scripts/ios/ffmpeg_framework.py assemble`, which builds
+  `src-tauri/ios-payload/FFmpeg.xcframework` (untracked) from whichever of
+  `ios-ffmpeg/out/{device,sim}/FFmpeg.framework` exist. It copies each framework to a staging
+  folder, adds the framework's own `PrivacyInfo.xcprivacy`
+  (`gui/desktop/src-tauri/ios/ffmpeg/PrivacyInfo.xcprivacy`; its categories and reason codes are
+  copied from the app manifest, not read from the framework's imports, and are unconfirmed like
+  `contracts/ios-privacy.json`), runs `xcodebuild -create-xcframework`
+  and swaps the result in with two renames, so an xcodebuild failure or a failed final rename keeps
+  the previous xcframework. An interruption between the renames leaves the payload without
+  `FFmpeg.xcframework` until `make ios-ffmpeg-device` or `make ios-ffmpeg-sim` runs again; the old
+  copy stays hidden as `.FFmpeg.xcframework.old.<pid>`. The assemble holds an exclusive `flock` on
+  `ios-payload/.FFmpeg.xcframework.lock`, so `make -j ios-ffmpeg` runs the two assembles one after
+  the other, never together. A device-only
+  assemble drops the Simulator slice until `make ios-ffmpeg-sim` runs again. `ffmpeg_framework.py
+  check --sdk iphoneos|iphonesimulator` finds the slice through the xcframework's `Info.plist`
+  (slice names are never guessed) and is what the template's "Check FFmpeg framework" pre-build
+  phase and `ios_sim.sh` call: a missing slice stops the build with the `make` target to run,
+  before the Rust build starts.
 - **Release build hygiene.** A release build of the Rust library carried 1364 strings naming
   the build machine's home directory (1303 cargo registry paths in tokio's panic locations, 61
   Swift build paths). The template's "Build Rust Code" phase evals `scripts/ios/private_paths.py
@@ -241,6 +264,18 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   still names the machine and is not part of the app or the `.ipa`; never ship it. With no
   signing identity the `install_python` phase signs the frameworks it makes ad hoc, because
   `codesign` refuses an empty identity.
+- **Nested framework plists (#3955).** BeeWare's `install_dylib` gives every module framework an
+  application Info.plist (`CFBundlePackageType` `APPL`, minimum OS 13.0, identifiers such as
+  `studio.sharecut.app.numpy.random.-pcg64`), so `altool` read each one as a second app and
+  rejected the upload. After `install_python`, the same phase runs `scripts/ios/framework_plists.py
+  fix`, which makes each such plist `FMWK`, repairs a malformed identifier (a segment starting
+  with `-` gets a `p`), aligns the minimum OS to 17.0 (only where it changed the packaging type), and the phase re-signs every framework `fix` rewrote plus each generated one, when its signature no longer verifies, so a failed earlier build cannot leave a stale seal.
+  `fix` creates a missing plist from the executable, validates every framework before writing anything (all or nothing), then writes each plist on its own, so a run that dies partway leaves some frameworks fixed and is repaired by rerunning (`fix` is idempotent; it also removes a stale `.Info.plist.*.tmp` left by a killed write, and `check_layout` reports one), refuses a symlinked framework or plist, and writes each plist atomically (temporary file, then rename).
+  A framework that already has a valid `FMWK` plist, `Python.framework` included, is untouched and keeps its `MinimumOSVersion` 13.0.
+  `list`, `fix` and `check` refuse a control character (any Unicode C* category, or a line or paragraph separator) in any component of a framework's path inside the app (a newline could split a line in the build phase loop). `check_layout` runs the same `check`, so the release build and the upload both fail on a
+  nested plist that is not `FMWK`, malformed, duplicated or equal to the app's identifier. The
+  phase needs `python3` on the build machine in every configuration.
+  `check_layout` flags a symlinked `Info.plist` wherever it sits, and also denies by default any other `Info.plist`: only the app root, `Frameworks/<name>.framework/`, and a compiled storyboard (`<name>.storyboardc/` at the app root or inside an `*.lproj` directory) may hold one.
 - **Store metadata and privacy.** The template's Info.plist sets `ITSAppUsesNonExemptEncryption`
   to `false`; the name under the icon is the build's `productName` (the release tool sets it from
   the profile's `short_name`) (owner declaration, 2026-11-14: the
@@ -283,7 +318,7 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   generous multiple of the worst measurement; a start that passes it shows the retryable failure.
   A recheck after returning to the foreground has 20 seconds (`RECHECK_DEADLINE`); the prototype's
   listener answered again about 5 seconds after the return.
-- **Not there yet.** Audio tools (FFmpeg), transcription, recording, Universal Links and CI signing. A signed build in TestFlight is the release tool below; a run on a device is the owner's. Home's Import audio and Record are refused while audio tools are unavailable, so a project cannot yet be made in the UI. Projects live in the app's Documents folder and show in the Files app. Recent entries are stored relative to it ([persistence.md](persistence.md)).
+- **Not there yet.** Transcription, recording, Universal Links and CI signing. Audio tools run in-process through `FFmpeg.framework`; in a build where that framework is not linked, status reports the tools `missing` and every model `unsupported` with one sentence. A signed build in TestFlight is the release tool below; a run on a device is the owner's. Home's Import audio and Record are refused while audio tools are unavailable, so a build without the framework cannot make a project in the UI. Projects live in the app's Documents folder and show in the Files app. Recent entries are stored relative to it ([persistence.md](persistence.md)).
 - **Request audit (debug builds only).** `podcast_mcp.gui.request_audit` appends one JSON line per
   HTTP response and WebSocket outcome to `Library/Logs/ShareCut/request-audit.jsonl`: the method,
   the path without its query string and with any share-link token replaced by `<share-token>`, the status and whether the query was empty. It never reads a
@@ -308,6 +343,132 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   of the proof reads the container from the Mac: Documents holds no registry, identity store or
   relay config and no sqlite file with an `active_shares` table, and the registry file is mode
   0600 in a 0700 directory. It is `partly_observed` until the engine has opened the registry.
+
+<a id="ios-native-ffmpeg-abi"></a>
+**iOS native FFmpeg ABI (#3974, stage 3 slice 6a).** `src/podcast_mcp/util/native_ffmpeg.py`
+holds `NativeFFmpegBackend`, the `InProcessBackend` that runs `in-process:ffmpeg` and
+`in-process:ffprobe` argv on four C functions the app exports. The portable session core
+(`gui/desktop/src-tauri/ios/ffmpeg/sc_ffmpeg_core.c`) and the FFmpeg glue are in tree; the iOS row uses the backend, `gui/embedded.py` installs it at engine start when the
+library is linked, and `bundle_checks.check_ffmpeg_framework` checks that the framework exports
+exactly the four functions.
+
+```c
+int      sc_ffmpeg_abi_version(void);   /* must return 1 */
+int64_t  sc_ffmpeg_start(int argc, const char* const* argv, int in_fd, int out_fd, int err_fd);
+int      sc_ffmpeg_wait(int64_t session);
+void     sc_ffmpeg_cancel(int64_t session);
+```
+
+- **Binding.** ctypes `CDLL(None)` is the standard loader; it only finds the symbols. Python
+  rebuilds each prototype with `CFUNCTYPE` from the function's address, and that is what releases
+  the GIL during a call, so a blocked `wait` does not stop the cancel watcher. The module loads
+  nothing at import. `is_available()` returns `False` on a
+  host whose `media_tools` is not `in_process` before any ctypes call; elsewhere it looks the four
+  names up in this process (`dlopen(NULL)`) and calls `sc_ffmpeg_abi_version` only. A missing
+  symbol or a version other than 1 is unavailable, and nothing is installed.
+- **argv.** `argv[0]` is the tool name, `ffmpeg` or `ffprobe` (Python maps the sentinel). The array
+  has `argc` strings and a NULL slot. Native copies every string before `start` returns.
+- **Sessions.** `start` returns an id >= 1 (never reused in a process) or `-errno`, and leaves no
+  dup behind on failure. It returns `-errno` from the `open`, `F_DUPFD` or `fdopen` that creates the
+  discard stream (typically `-EMFILE`) and retries on every start until that stream exists. At most
+  16 sessions wait in the queue: a further `start` returns `-EAGAIN`. `wait` returns an exit code
+  in 0..255 or `-errno` (`-ESRCH` for an unknown or already-waited id). `cancel` is idempotent and a no-op for an unknown id. It asks the session to
+  stop, closes the session's original dups of the caller's in, out and err fds, and returns
+  promptly. From that moment the session's stdout and stderr streams (`sc_out()`, `sc_err()`) are
+  redirected to a discard stream, so no new output reaches the caller. The streams the worker
+  already holds stay open until the tool returns. For a running session `cancel` also sends
+  `SIGUSR2` once to the worker thread, which unblocks `SIGUSR2` in its own signal mask at start.
+  The core installs a no-op `SIGUSR2` handler without `SA_RESTART` at the first `start`. The
+  handler is process-wide, so the host must not use `SIGUSR2` for anything else, and a host thread
+  that receives it sees `EINTR` from interruptible calls. The signal makes a `read(2)` or
+  `write(2)` blocked on a pipe on the worker thread fail with `EINTR`, and libav's retry loop
+  then checks the interrupt latch and returns. The kick is best effort only. It reaches the
+  worker thread alone: real ffmpeg runs demux and mux I/O on its own scheduler threads, so a read
+  blocked there is not woken by the kick. The kick is sent once per cancel and is lost if it lands
+  just before the tool enters the blocking call, and a tool blocked in something other than a
+  pipe read or write is not woken. On the Simulator, ffmpeg on a blocked `pipe:0` or a long
+  lavfi job returned from `wait` about 1 s after cancel, but ffprobe on `pipe:0` that is never
+  written did not return until the caller closed its write end, because ffprobe sets no libav
+  interrupt callback and retries the read. The backstop is the bridge closing the caller's write end
+  of the stdin pipe, which Python does at `KILL_GRACE_SEC` at the latest when the tool has not
+  returned (the stdout and stderr read ends stay open). The Simulator 1 s return was observed once,
+  at the probe stage, and is not a guarantee. The backstop releases only the caller's stdin pipe:
+  a demux or mux thread blocked on a stdout or stderr write is not covered by any path until the
+  caller reads or the native returns. A write the tool makes through the
+  discard stream never blocks. A caller's
+  reader of a pipe sees EOF only when the native's dups are closed (when the tool returns) and the
+  caller-side write end is released. `wait` does not release a caller's stdin writer: the caller
+  closes it (`communicate` and `__exit__` do), or, if the tool ignores the cancel, Python
+  releases it at `KILL_GRACE_SEC`. The release never waits on a caller's write or flush that is
+  blocked on a full pipe: such a call stays blocked until the native reads or returns. A caller's
+  `close` of the stdin writer likewise does not wait for a write in flight (after its own flush):
+  it points the descriptor at /dev/null and returns, and the descriptor number is freed only when
+  that write has returned, so a write never lands on a reused descriptor. A write started after the
+  close raises `ValueError`, or `BrokenPipeError` once Python has released the pipe at the grace
+  period (the broken flag is checked first). A
+  native that ignores `cancel` does not hang `run` or `wait` (Python reports `-9` after the grace)
+  but a stdout or stderr reader gets no EOF until its session ends (a stdin reader gets it at the grace). Limitations: two overlapping sessions must not be given
+  the same pipe, and a thread of a finished session must not call the tool's exit path later. There
+  are no callbacks. A NUL in argv is rejected only inside the backend (exit 1, where `subprocess`
+  raises `ValueError`): an accepted, fail-closed divergence.
+- **Argv policy.** For `ffmpeg` the core inserts `-nostdin` at `argv[1]`. A bare `-` is mapped by
+  position: after `-i` it is the input, after `-progress` the output, and as the last argument it
+  is the output for `ffmpeg` and the input for `ffprobe`. `pipe:N` / `fd:N` (N = 0, 1 or 2) in
+  those positions are rewritten the same way to a private dup numbered >= 3, never 0..2, and a `-`
+  anywhere else is rejected. The last argument is rewritten even right after `-metadata`.
+  Each other argument is normalised for scanning: backslashes and quotes are dropped, ASCII is
+  lower-cased, runs of `/` collapse to one and `/./` segments are removed. On that copy the core
+  rejects:
+  - `-stdin`, `-stdin:<spec>`, `-filter_script[:spec]`, `-filter_complex_script*` and every
+    `-/...` option except exactly `-/filter_complex`, whose file operand is scanned like any other
+    argument (the render engine emits it for long graphs).
+  - a `..` path component (leading, middle or trailing).
+  - the text `pattern_type`, `movie=`, `amovie=` or `format_opts`, which stops option strings
+    smuggled into a filtergraph.
+  - `dev/` or `proc/` at the start of the argument (after an optional `./` and one `/`) or after
+    one of `= : , ; [ ] ( ) |` or a space (one optional `/` may sit between that delimiter and
+    the directory, and `+` counts as a delimiter only before that `/`), and the text `dev/std`
+    or `proc/self`. `/dev/fd/3`, `proc/1/fd/1` and `amovie=dev/fd/3` are rejected; `/srv/x/dev/notes.wav` and
+    `/srv/me/mydev/fdr/a.wav` pass.
+  - `pipe:`, `fd:` or `file:` at the start of the argument or right after one of
+    `= , ; [ ] ( ) | : +` or `/`, but not after a space, `-` or `_` or inside a word (`Gold file: draft.wav`,
+    `Sub-file:2.wav`, `profile:1.wav` pass; `amovie=pipe:3`, `[f=wav]pipe:3`, `;file:x` and
+    `/pipe:3` do not; `./pipe:3` is a plain relative file and passes).
+
+  The token directly after exactly `-metadata` or `-metadata:<spec>` is scanned only up to its
+  first `=`, so titles and albums pass; a token with no `=` is scanned in full, and
+  `-metadatax` or `-metadata=v` exempt nothing. A stream that was not provided is rejected too.
+
+  This is hygiene against accidental fd and stdin use for argv built by the app's engines. It is
+  not a security boundary against free-form argv: `export` `extra_args` from MCP or the CLI is the
+  one free-form route, and the user's own agent controls it. `unix:` and `tcp:` URLs and global
+  options such as `-protocol_whitelist`, `-safe`, `-allowed_extensions` and `-report` are not
+  policed, so the glue must never widen ffmpeg's defaults. A blocking read on `fd:N` / `pipe:N` is
+  woken by the `SIGUSR2` kick of `cancel` (best effort, see Sessions); the bridge still closes the
+  writer. A rejected session
+  still returns a valid id; its `wait` returns `1` after one `sc_ffmpeg: ...` line on stderr and
+  the tool never runs. Cancelling a queued session makes `wait` return `255` and the tool never
+  runs. An exit code outside 0..255 becomes `1`, and `sc_tool_exit` codes are masked with `0xff`.
+  `start` returns `-EINVAL` for `argc < 1`, `argc > 4096`, a NULL entry or an `argv[0]` that is
+  not `ffmpeg` or `ffprobe`, and `-EBADF` for an fd below -1 (a closed fd >= 0 fails the dup with `-EBADF` too). The first `start` sets
+  `SIGPIPE` to ignored for the whole process and leaves it that way.
+- **File descriptors.** `-1` means none. Native `dup()`s each fd >= 0 before `start` returns and
+  closes its dups when the session ends; the caller owns and closes its own fds and native never
+  closes them. A dup shares the file offset, so a caller reading a tempfile stderr back must
+  `seek(0)` first. Streams need a real `fileno()`.
+- **Errors.** A negative `start`, a `wait` outside 0..255 or an unknown tool is exit code `1` with
+  one line on stderr. A native error is never reported as success, and the backend never starts
+  a program.
+- **Linking.** The app target's existing `settings: base:` block in
+  `gui/desktop/src-tauri/ios/project.yml` carries `OTHER_LDFLAGS: ["$(inherited)",
+  "-Wl,-export_dynamic"]` so the linker keeps the four symbols visible to `dlsym`. Do not add a
+  second `settings:` key to that target: YAML silently keeps only the last.
+- **FFmpeg framework.** The template links and embeds `ios-payload/FFmpeg.xcframework` with
+  `embed: true`, `codeSign: true` and `link: true`, exactly as it does Python, so one dependency
+  line serves the device and the Simulator and the framework is a load-time dependency of the
+  app. The four symbols are reached through `CDLL(None)`; whether that finds them in a linked
+  framework on a device is proved on a Mac. The framework is arm64 only, so the Simulator target
+  excludes `x86_64` (`EXCLUDED_ARCHS[sdk=iphonesimulator*]`, beside the existing device line).
 
 <a id="ios-release"></a>
 **iOS release (#3810, stage 2).** `scripts/ios/ios_release.py` builds a release `.ipa` for the
@@ -339,6 +500,22 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   `validate` and `upload` (a missing key id is one problem; the key path defaults from it and is
   checked once the id is there, in the same report as every other input). `build --unsigned` needs
   none of them and never reads the key.
+- **Manual export profile.** Two more optional names, accepted in the same private file and
+  overridden by the environment:
+  - `APPLE_PROVISIONING_PROFILE=` is the installed App Store profile's name (letters, digits,
+    space and `. _ -`); `APPLE_SIGNING_CERTIFICATE=` defaults to `Apple Distribution` and is
+    validated (up to 100 characters of letters, digits, space and `. , _ : ( ) ' -`).
+  - A signed `build` (never the rehearsal) reads `~/Library/MobileDevice/Provisioning Profiles`
+    and `~/Library/Developer/Xcode/UserData/Provisioning Profiles`, never Downloads. One valid
+    App Store profile for the team and bundle identifier, or the one named, switches the export
+    to manual signing with that profile and none of the API-key flags.
+  - It refuses, with counts and reasons and no profile names: several valid profiles unless
+    one is named (profiles are counted, so two sharing a name refuse too); profiles for this
+    app that are all unusable (expired, development, ad hoc, enterprise, wildcard, another
+    team), because automatic signing with the key cannot create a profile; every profile file
+    unreadable. A named profile never falls back: it must be installed once, and valid.
+  - With none for this app, the export stays automatic.
+  - The API key is still required and checked for a signed build, because the archive uses it.
 - **Identity and build number.** A three-key overlay (`identifier`, `productName` from
   `short_name`, `bundle.iOS.bundleVersion`) goes to both `tauri ios init` and `tauri ios build`.
   Tauri's `--build-number` is never used: it appends a fourth component to the version. The build
@@ -347,15 +524,18 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   version; a clock set into the future makes later numbers look older, and only a new marketing
   version fixes that. The marketing version is the repository's own, after
   `scripts/version_policy.py` agrees.
-- **What a build does.** Web build, payload for `iphoneos`, a fresh `gen/apple`, `tauri ios init`,
+- **What a build does.** Web build, the FFmpeg framework (`build_ffmpeg.sh device`, then
+  `ffmpeg_framework.py assemble`; FFmpeg is rebuilt from source each run, lame and opus are
+  reused, so this step is long), payload for `iphoneos`, a fresh `gen/apple`, `tauri ios init`,
   `tauri ios build --archive-only` (Tauri adds `-allowProvisioningUpdates` itself; `--no-sign`
   for the rehearsal). A signed archive gets `APPLE_API_KEY`, `APPLE_API_ISSUER` and
   `APPLE_API_KEY_PATH` in its environment, which Tauri turns into the `-authentication*` flags;
   without them Xcode needs a signed-in account and fails with "No Accounts". Then, signed, the
   tool's own `xcodebuild -exportArchive -allowProvisioningUpdates -authenticationKeyPath
   -authenticationKeyID -authenticationKeyIssuerID` with a private `ExportOptions.plist` (method `app-store-connect`,
-  automatic signing, `uploadSymbols` false because dSYMs carry build paths, and
-  `manageAppVersionAndBuildNumber` false so Xcode cannot rewrite the build number). The
+  automatic signing, or manual signing with an installed profile (see Manual export profile,
+  with none of the update or key flags); `uploadSymbols` false because dSYMs carry build paths,
+  and `manageAppVersionAndBuildNumber` false so Xcode cannot rewrite the build number). The
   archive and export directories are deleted once the IPA is collected. Child processes get an
   explicit environment allowlist (`PATH` with the rustup toolchain first, `HOME`, `USER`,
   `LOGNAME`, `TMPDIR`, a UTF-8 `LANG`, `DEVELOPER_DIR`, `CARGO_HOME`, `RUSTUP_HOME`,
@@ -431,9 +611,16 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   authentication refusal with no Apple code), and a structured error that also carries transport
   wording. What is stored of an answer, finished or not, is at most 5 messages of 200 characters
   each. `validate` and the app record lookup change nothing at Apple and keep
-  their looser reading: exit 0 with no error message is fine whatever the output, any other exit
+  their looser reading: for `validate`, exit 0 with no error message is fine whatever the output; for both, any other exit
   is a rejection, a duplicate or an authentication refusal by its wording, and only network
-  wording (the shorter `NETWORK` list) reads as unreachable. A rejection with no readable message
+  wording (the shorter `NETWORK` list) reads as unreachable. The lookup reads the top-level array
+  `altool --list-apps` prints (or an object whose only key is an `applications` array) and needs an entry
+  whose `bundleId` equals the bundle identifier exactly. A lookup that exits 0 but prints no
+  parsed list of apps (an error object such as Apple's 500, a list of anything but app objects, an object with keys besides `applications`, or unreadable output)
+  got no answer: it stops with exit 8 and the unreachable sentence and changes nothing. Only a
+  parsed list without the bundle identifier means no app record (exit 6). Real list-apps output begins
+  with a banner line and may include altool's own retry `ERROR` lines before the array; the
+  lookup reads past them. A rejection with no readable message
   prints "Apple rejected the build and gave no readable reason" and names the step log.
   `--retry-unknown-upload` goes past the block and is recorded on the new
   attempt (`retried_unknown_upload`). An unresolved attempt is never closed, so after a retry that
@@ -441,8 +628,9 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   upload, never allow one.
   An "already uploaded" answer from Apple is recorded as `apple_reports_duplicate`; check
   TestFlight, and run `build` again for a new number if the build is not there. Exit codes: 3
-  inputs, 4 signing, 5 a local check, 6 Apple rejected, 7 duplicate, 8 other tool failure, 9
-  another run holds the lock, 10 the guard refused (argparse keeps 2).
+  inputs, 4 signing, 5 a local check, 6 Apple rejected, 7 duplicate, 8 other tool failure or no
+  answer from Apple to the app record lookup, 9 another run holds the lock, 10 the guard refused
+  (argparse keeps 2).
 - **Secrets never print.** `Secret` cannot be printed, formatted, serialized or pickled; one
   function, `release_run.spawn`, reveals it, and an AST test fails on a second caller. Output is
   redacted line by line with carry-over across reads, for each secret and private directory as

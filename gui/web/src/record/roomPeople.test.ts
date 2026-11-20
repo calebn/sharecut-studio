@@ -24,16 +24,31 @@ const flagged = (
     .filter((person) => person.notWearingHeadphones)
     .map((person) => person.person.name);
 
+describe("roomPeople with no you", () => {
+  it("marks nobody as you when the viewer has no participant yet", () => {
+    const people = roomPeople(recordSnapshot({ participants: [host, maya] }), {
+      youId: null,
+    });
+    expect(people.map((person) => Boolean(person.you))).toEqual([false, false]);
+    expect(people.map((person) => person.connection)).toEqual([
+      undefined,
+      undefined,
+    ]);
+  });
+});
+
 describe("roomPeople not wearing headphones", () => {
   it("marks a consented guest who said no, for the host", () => {
-    expect(flagged([host, maya, bo], { seesHeadphones: true })).toEqual([
-      "Maya",
-    ]);
+    expect(
+      flagged([host, maya, bo], { youId: null, seesHeadphones: true }),
+    ).toEqual(["Maya"]);
   });
 
   it("clears when the guest says they are wearing them", () => {
     const wearing = { ...maya, headphones_ack: true };
-    expect(flagged([host, wearing], { seesHeadphones: true })).toEqual([]);
+    expect(
+      flagged([host, wearing], { youId: null, seesHeadphones: true }),
+    ).toEqual([]);
   });
 
   it("shows nobody else's answer to another guest", () => {
@@ -46,16 +61,18 @@ describe("roomPeople not wearing headphones", () => {
 
   it("puts no marker before the guest has consented", () => {
     const joining = { ...maya, consented: null };
-    expect(flagged([host, joining], { seesHeadphones: true })).toEqual([]);
+    expect(
+      flagged([host, joining], { youId: null, seesHeadphones: true }),
+    ).toEqual([]);
     expect(flagged([host, joining], { youId: "p_maya" })).toEqual([]);
   });
 
   it("puts no marker on a guest who left or declined", () => {
     const left = { ...maya, connected: false };
     const declined = { ...bo, headphones_ack: false, consented: false };
-    expect(flagged([host, left, declined], { seesHeadphones: true })).toEqual(
-      [],
-    );
+    expect(
+      flagged([host, left, declined], { youId: null, seesHeadphones: true }),
+    ).toEqual([]);
   });
 
   it("never marks the host or a producer", () => {
@@ -65,7 +82,9 @@ describe("roomPeople not wearing headphones", () => {
       display_name: "Rosa",
       headphones_ack: false,
     });
-    expect(flagged([host, producer], { seesHeadphones: true })).toEqual([]);
+    expect(
+      flagged([host, producer], { youId: null, seesHeadphones: true }),
+    ).toEqual([]);
     expect(flagged([host, producer], { youId: "p_host" })).toEqual([]);
   });
 });

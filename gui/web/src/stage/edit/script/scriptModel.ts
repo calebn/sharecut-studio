@@ -1,5 +1,5 @@
 import { transcriptWordPresenceAnchor } from "../../../presence/anchors";
-import type { PersonData } from "../../../system/Person";
+import type { PersonData } from "../../../system/personData";
 import type {
   ScriptMark,
   ScriptSelection,
@@ -66,6 +66,8 @@ export type ScriptModel = {
   timeOf: (index: number) => { start: number; end: number } | null;
   /** Whether the word is one an applied cut took out. */
   isCut: (index: number) => boolean;
+  /** Source seconds; a cut does not move it. */
+  starts: readonly number[];
 };
 
 /** The speaker palette has eight colours; a track takes one by its position. */
@@ -76,6 +78,12 @@ export function speakerColorIndex(trackPosition: number): number {
 /** Stable name for a word: the key the pane carries on `ScriptWord.key`. */
 export function wordKey(ref: ScriptWordRef): string {
   return `${ref.trackId}:${ref.sourceId ?? ""}:${ref.wordIndex ?? ""}`;
+}
+
+function cutWordKey(ref: ScriptWordRef, text: string): string {
+  const index = ref.wordIndex;
+  const transcriptWordIndex = index != null && index < 0 ? -1 - index : index;
+  return JSON.stringify([ref.trackId, ref.sourceId, transcriptWordIndex, text]);
 }
 
 const NO_TIME = null;
@@ -141,6 +149,7 @@ function markOf(
 type DraftWord = {
   ref: ScriptWordRef;
   text: string;
+  start: number;
   seek: number | null;
   end: number | null;
   mark?: ScriptMark;
@@ -171,6 +180,7 @@ function cutWordsOf(boundary: EditBoundaryView): DraftWord[] {
       wordIndex: word.word_index,
     },
     text: word.text,
+    start: word.start,
     seek: NO_TIME,
     end: NO_TIME,
     mark: { kind: "cut", id: boundary.id, seconds },
@@ -193,11 +203,6 @@ function cutWordsOf(boundary: EditBoundaryView): DraftWord[] {
 export function buildScriptModel(input: ScriptModelInput): ScriptModel {
   const pending = pendingByTrack(input.pending);
   const grouped = groupConsecutiveSpeakerTurns([...input.utterances]);
-  // A cut word the server still lists in its utterance (mappable false) is
-  // already shown at its join by the boundary, so the running text drops it.
-  // The boundary lists it as a preview at -1 - i, where i is the word's index
-  // in the utterance. Its source id can differ from the utterance's (null for
-  // the primary recording), so the match is track, index and text.
   const shownAtJoin = new Set<string>();
   // The utterance copies dropped below, by project word key, so a caller that
   // names one still finds its cut word at the join.
@@ -205,30 +210,34 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
   for (const boundary of input.boundaries) {
     if (!boundary.has_cutaway) continue;
     for (const word of boundary.cutaway_word_ids) {
-      const index =
-        word.word_index < 0 ? -1 - word.word_index : word.word_index;
-      shownAtJoin.add(`${word.track_id}:${index}:${word.text}`);
+      shownAtJoin.add(
+        cutWordKey(
+          {
+            trackId: word.track_id,
+            sourceId: word.source_id,
+            wordIndex: word.word_index,
+          },
+          word.text,
+        ),
+      );
     }
   }
   const drafts: DraftTurn[] = grouped.map((turn) => {
     const words: DraftWord[] = [];
     for (const utterance of turn.utterances) {
       for (const word of wordsForUtterance(utterance)) {
+        const ref = {
+          trackId: utterance.track_id,
+          sourceId: utterance.source_id ?? null,
+          wordIndex: word.word_index ?? null,
+        };
+        const cutKey = cutWordKey(ref, word.text);
         if (
           word.mappable === false &&
           word.word_index != null &&
-          shownAtJoin.has(
-            `${utterance.track_id}:${word.word_index}:${word.text}`,
-          )
+          shownAtJoin.has(cutKey)
         ) {
-          droppedAt.set(
-            wordKey({
-              trackId: utterance.track_id,
-              sourceId: utterance.source_id ?? null,
-              wordIndex: word.word_index,
-            }),
-            `${utterance.track_id}:${word.word_index}:${word.text}`,
-          );
+          droppedAt.set(wordKey(ref), cutKey);
           continue;
         }
         const mark = markOf(
@@ -236,12 +245,9 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
           suggestionFor(pending.get(utterance.track_id), word),
         );
         words.push({
-          ref: {
-            trackId: utterance.track_id,
-            sourceId: utterance.source_id ?? null,
-            wordIndex: word.word_index ?? null,
-          },
+          ref,
           text: word.text,
+          start: word.start,
           seek: wordSeek(word),
           end: word.timeline_end ?? NO_TIME,
           ...(mark ? { mark } : {}),
@@ -286,6 +292,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
   const times: Array<{ start: number; end: number } | null> = [];
   const cutAt: boolean[] = [];
   const seeks: Array<number | null> = [];
+  const starts: number[] = [];
   const first = new Map<string, number>();
   const last = new Map<string, number>();
   const seen = new Map<string, number>();
@@ -302,6 +309,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
       const index = refs.length;
       refs.push(word.ref);
       seeks.push(word.seek);
+      starts.push(word.start);
       cutAt.push(word.cut);
       times.push(
         word.seek != null && word.end != null
@@ -326,9 +334,9 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
         if (!first.has(base)) first.set(base, index);
         last.set(base, index);
         if (word.cut && word.ref.wordIndex < 0) {
-          const loose = `${word.ref.trackId}:${-1 - word.ref.wordIndex}:${word.text}`;
-          if (!cutFirst.has(loose)) cutFirst.set(loose, index);
-          cutLast.set(loose, index);
+          const cutKey = cutWordKey(word.ref, word.text);
+          if (!cutFirst.has(cutKey)) cutFirst.set(cutKey, index);
+          cutLast.set(cutKey, index);
         }
       }
       words.push({
@@ -366,11 +374,11 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
     if (turnEnd != null) previousEnd = turnEnd;
   }
 
-  for (const [key, loose] of droppedAt) {
-    const at = cutFirst.get(loose);
+  for (const [key, cutKey] of droppedAt) {
+    const at = cutFirst.get(cutKey);
     if (at === undefined) continue;
     first.set(key, at);
-    last.set(key, cutLast.get(loose) ?? at);
+    last.set(key, cutLast.get(cutKey) ?? at);
   }
 
   return {
@@ -383,6 +391,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
     seekSecOf: (index) => seeks[index] ?? NO_TIME,
     timeOf: (index) => times[index] ?? NO_TIME,
     isCut: (index) => cutAt[index] === true,
+    starts,
   };
 }
 

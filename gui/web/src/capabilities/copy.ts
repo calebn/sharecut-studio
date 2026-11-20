@@ -175,6 +175,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Fit session width",
     tooltip: "Fit session width",
   },
+  "daw.view.followPlayhead": {
+    label: "Back to playhead",
+    tooltip: "Follow the playhead again during playback",
+  },
   "daw.stage.record": {
     label: "Go to Record",
     tooltip: "Go to Record",
@@ -659,6 +663,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "trackHeaders.soloChip": "daw.track.clearSolo",
   trackMix: "daw.track.clearSolo",
   editCorner: "daw.range.arm",
+  "timeline.followPill": "daw.view.followPlayhead",
   stageBar: "daw.stage.deliver",
   editPlusMenu: "daw.edit.addChapter",
   stageHandoff: "daw.stage.handoff",

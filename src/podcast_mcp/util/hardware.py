@@ -19,7 +19,6 @@ import math
 import os
 import re
 import shutil
-import subprocess  # nosec B404
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
@@ -215,7 +214,7 @@ def _physical_cores() -> int | None:
                 check=True,
             ).stdout
             return int(out.strip()) or None
-    except (OSError, ValueError, subprocess.SubprocessError):
+    except (OSError, ValueError, process.SubprocessError):
         pass
     return None
 
@@ -274,7 +273,7 @@ def available_ram_bytes() -> int | None:
                 host = int(line.split()[1]) * 1024
                 room = _cgroup_headroom_bytes()
                 return host if room is None else min(host, room)
-    except (OSError, ValueError, AttributeError, subprocess.SubprocessError):
+    except (OSError, ValueError, AttributeError, process.SubprocessError):
         pass
     return None
 
@@ -352,7 +351,7 @@ def _ctranslate2_cuda_devices() -> int:
 
 
 def _nvidia_smi(
-    run: Callable[..., subprocess.CompletedProcess[Any]] | None = None,
+    run: Callable[..., process.CompletedProcess[Any]] | None = None,
 ) -> CudaDevice | None:
     exe = shutil.which("nvidia-smi")
     if exe is None:
@@ -367,7 +366,7 @@ def _nvidia_smi(
         ).stdout
         name, vram, driver = (part.strip() for part in out.splitlines()[0].split(","))
         return CudaDevice(name=name or None, vram_mb=int(float(vram)), driver=driver or None)
-    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+    except (OSError, ValueError, IndexError, process.SubprocessError):
         return None
 
 

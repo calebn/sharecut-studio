@@ -59,6 +59,7 @@ function join(
       comments,
       pending_edits: pending,
       timeline_duration_sec: 600,
+      tracks: [sampleTrack()],
     }),
     mode,
     CAPS[mode],

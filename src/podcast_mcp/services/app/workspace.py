@@ -9,6 +9,11 @@ from typing import Any, TypeVar
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, EpisodeProject, project_not_found
 from podcast_mcp.project.history import HistoryManager, HistoryStatus, run_mutation
+from podcast_mcp.project.history.author import (
+    SYSTEM_AUTHOR,
+    history_author,
+    share_history_author,
+)
 from podcast_mcp.project.history.rollback import (
     HistoryRollbackPolicy,
     RollbackOutcome,
@@ -59,20 +64,27 @@ def _read_in_place(project_path: Path | str) -> Path:
 
 
 class ProjectWorkspace:
-    def __init__(self, path: Path, project: EpisodeProject) -> None:
+    def __init__(
+        self, path: Path, project: EpisodeProject, *, share_author: str | None = None
+    ) -> None:
         self.path = path
         self.project = project
+        self.share_author = share_author
         self._store = ProjectStore(path)
         self._loaded_file_signature: FileRevision | None = None
         self._merge_base: dict[str, Any] | None = None
         self._transaction_depth = 0
 
     @classmethod
-    def open(cls, project_path: Path | str, *, adopt: bool = True) -> ProjectWorkspace:
+    def open(
+        cls, project_path: Path | str, *, adopt: bool = True, share_author: str | None = None
+    ) -> ProjectWorkspace:
         """Open the project at ``project_path``.
 
         ``adopt=False`` is for read-only callers: a workspace still holding the retired
         entry file is read where it is, not renamed to ``episode.sharecut``.
+        ``share_author`` is a guest's ``share:<id>``: every history step this workspace
+        writes is stamped with it, except a job's own ``system`` steps.
         """
         path = adopt_retired_entry_file(project_path) if adopt else _read_in_place(project_path)
         try:
@@ -80,7 +92,7 @@ class ProjectWorkspace:
         except FileNotFoundError as exc:
             raise project_not_found(path) from exc
         project = open_project(path)[1] if adopt else ProjectStore(path).load()
-        ws = cls(path, project)
+        ws = cls(path, project, share_author=share_author)
         signature = file_revision(path)
         if signature == before:
             ws._loaded_file_signature = signature
@@ -127,7 +139,7 @@ class ProjectWorkspace:
         taken before it, and read ``self.project`` from other threads only under
         ``project_state_lock``.
         """
-        with project_commit_lock(self.project):
+        with project_commit_lock(self.project), share_history_author(self.share_author):
             if self._transaction_depth == 0:
                 if force_reload_if is not None and force_reload_if():
                     self._adopt_saved_if_changed_locked(force=True)
@@ -233,7 +245,7 @@ class ProjectWorkspace:
         on ``self.project`` in place: re-fetch sub-objects after this call instead of
         keeping references taken before it.
         """
-        with project_state_lock(self.project):
+        with project_state_lock(self.project), share_history_author(self.share_author):
             if self._merge_base is None:
                 raise RuntimeError("save_merged() needs checkpoint() first")
             with project_commit_lock(self.project):
@@ -296,7 +308,8 @@ class ProjectWorkspace:
         adopted = merged_project(
             self._merge_base, project_merge_data(self.project), saved, advice=advice
         )
-        mgr.record(adopted, MERGED_HISTORY_LABEL)
+        with history_author(SYSTEM_AUTHOR):
+            mgr.record(adopted, MERGED_HISTORY_LABEL)
         return adopted
 
     def history(self) -> HistoryManager:
@@ -305,13 +318,17 @@ class ProjectWorkspace:
     def undo(self, *, expected_head_id: str | None = None) -> HistoryStatus:
         """Step back one history entry and commit it (``expected_head_id`` as ``apply_undo``)."""
         return self._move_history(
-            lambda mgr, project: mgr.apply_undo(project, expected_head_id=expected_head_id)
+            lambda mgr, project: mgr.apply_undo(
+                project, expected_head_id=expected_head_id, guest=self.share_author
+            )
         )
 
     def redo(self, *, expected_head_id: str | None = None) -> HistoryStatus:
         """Step forward one history entry and commit it."""
         return self._move_history(
-            lambda mgr, project: mgr.apply_redo(project, expected_head_id=expected_head_id)
+            lambda mgr, project: mgr.apply_redo(
+                project, expected_head_id=expected_head_id, guest=self.share_author
+            )
         )
 
     def goto(self, index: int) -> HistoryStatus:

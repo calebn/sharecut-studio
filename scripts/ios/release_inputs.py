@@ -11,12 +11,14 @@ import enum
 import os
 import re
 import stat
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from scripts import version_policy
+from scripts.ios.provisioning import ProfileFacts, concerns, facts_problems, safe_name
 from scripts.ios.release_secrets import Secret
 
 from podcast_mcp.config.distribution import (
@@ -35,7 +37,11 @@ TEAM_NAME, KEY_ID_NAME, ISSUER_NAME, KEY_PATH_NAME = (
 )
 TEAM_SECRETS = (TEAM_NAME,)
 KEY_SECRETS = (KEY_ID_NAME, ISSUER_NAME)
-SECRET_NAMES = (*TEAM_SECRETS, *KEY_SECRETS, KEY_PATH_NAME)
+PROFILE_NAME, CERTIFICATE_NAME = "APPLE_PROVISIONING_PROFILE", "APPLE_SIGNING_CERTIFICATE"
+SECRET_NAMES = (*TEAM_SECRETS, *KEY_SECRETS, KEY_PATH_NAME, PROFILE_NAME, CERTIFICATE_NAME)
+PROVISIONING_SOURCE = "private file, environment or installed profiles"
+DEFAULT_CERTIFICATE = "Apple Distribution"
+CERTIFICATE = re.compile(r"^[A-Za-z0-9 .,_:()'-]{1,100}$")
 PLACEHOLDER_TEAM = "AAAAAAAAAA"
 DEV_IDENTIFIER = "studio.sharecut.dev"
 TEN = re.compile(r"^[A-Z0-9]{10}$")
@@ -102,6 +108,13 @@ class BuildInputs:
     team: Secret | None
     checkout: Checkout
     key: AscKey | None
+    provisioning: Provisioning | None = None
+
+
+@dataclass(frozen=True)
+class Provisioning:
+    profile: Secret
+    certificate: str
 
 
 @dataclass(frozen=True)
@@ -227,6 +240,84 @@ def resolve_asc_key(
     return key, []
 
 
+def resolve_provisioning(
+    values: Mapping[str, str],
+    profiles: Sequence[ProfileFacts],
+    team: str,
+    bundle: str,
+    now: datetime,
+    unreadable: int = 0,
+) -> tuple[Provisioning | None, list[InputProblem]]:
+    """A named profile never falls back; unnamed, one usable profile is used and none for this app
+    keeps the automatic path. Anything else refuses with counts and reasons, never a name."""
+    certificate = values.get(CERTIFICATE_NAME) or DEFAULT_CERTIFICATE
+    if not CERTIFICATE.fullmatch(certificate):
+        return None, [
+            InputProblem(
+                CERTIFICATE_NAME, PROVISIONING_SOURCE, "has characters a certificate name never has"
+            )
+        ]
+    explicit = values.get(PROFILE_NAME, "")
+    if explicit:
+        return resolve_named(explicit, certificate, profiles, team, bundle, now)
+    candidates = [facts for facts in profiles if concerns(facts, bundle)]
+    if not candidates:
+        if profiles or not unreadable:
+            return None, []
+        why = (
+            f"{unreadable} profile file(s) could not be read (is `security` available?); "
+            "the build stops rather than guess, because automatic signing with the API key "
+            "cannot create a profile"
+        )
+        return None, [InputProblem("provisioning profile", PROVISIONING_SOURCE, why)]
+    usable = [f for f in candidates if not facts_problems(f, team, bundle, now)]
+    if len(usable) == 1:
+        return Provisioning(Secret(usable[0].name, "provisioning-profile"), certificate), []
+    if usable:
+        why = (
+            f"{len(usable)} valid App Store profiles are installed for {bundle}; keep one, or set "
+            f"{PROFILE_NAME} when their names differ"
+        )
+    else:
+        why = (
+            f"{len(candidates)} installed profile(s) for {bundle} cannot sign an App Store export: "
+            f"{reason_counts(candidates, team, bundle, now)}. The build stops instead of using "
+            "automatic signing, which cannot create a profile with the API key; install a valid "
+            f"App Store profile or set {PROFILE_NAME} to one"
+        )
+    return None, [InputProblem("provisioning profile", PROVISIONING_SOURCE, why)]
+
+
+def resolve_named(
+    explicit: str,
+    certificate: str,
+    profiles: Sequence[ProfileFacts],
+    team: str,
+    bundle: str,
+    now: datetime,
+) -> tuple[Provisioning | None, list[InputProblem]]:
+    named = [facts for facts in profiles if facts.name == explicit]
+    if not safe_name(explicit):
+        why = "has characters outside letters, digits, space and . _ -"
+    elif not named:
+        why = "names no installed profile"
+    elif len(named) > 1:
+        why = f"{len(named)} installed profiles carry that name; remove the extra ones"
+    elif reasons := facts_problems(named[0], team, bundle, now):
+        why = (
+            f"names a profile that cannot sign an App Store export for {bundle}: "
+            f"{', '.join(reasons)}"
+        )
+    else:
+        return Provisioning(Secret(explicit, "provisioning-profile"), certificate), []
+    return None, [InputProblem(PROFILE_NAME, PROVISIONING_SOURCE, why)]
+
+
+def reason_counts(profiles: Sequence[ProfileFacts], team: str, bundle: str, now: datetime) -> str:
+    counts = Counter(r for facts in profiles for r in facts_problems(facts, team, bundle, now))
+    return ", ".join(f"{count} {reason}" for reason, count in sorted(counts.items()))
+
+
 def key_file_problems(path: Path, checkout: Path) -> list[InputProblem]:
     """The key file is checked by its metadata only; the tool never opens it."""
     name, source = KEY_PATH_NAME, "private file or environment"
@@ -298,6 +389,8 @@ def resolve_build_inputs(
     recorded: Sequence[BuildNumber],
     toolchain_problem: InputProblem | None = None,
     home: Path | None = None,
+    profiles: Sequence[ProfileFacts] = (),
+    unreadable_profiles: int = 0,
 ) -> BuildInputs:
     problems = list(file_problems)
     identity, found = load_identity(environ)
@@ -306,11 +399,22 @@ def resolve_build_inputs(
     problems += found
     team: Secret | None = None
     key: AscKey | None = None
+    provisioning: Provisioning | None = None
     if signing is Signing.APP_STORE:
         team, found = resolve_team(values)
         problems += found
         key, found = resolve_asc_key(values, home or Path.home(), root)
         problems += found
+        if team is not None and identity is not None:
+            provisioning, found = resolve_provisioning(
+                values,
+                profiles,
+                values[TEAM_NAME],
+                identity.bundle_identifier,
+                now,
+                unreadable_profiles,
+            )
+            problems += found
         if checkout.dirty:
             problems.append(
                 InputProblem(
@@ -330,4 +434,4 @@ def resolve_build_inputs(
         )
     if problems or identity is None or version is None:
         raise InputError(problems)
-    return BuildInputs(identity, version, number, signing, team, checkout, key)
+    return BuildInputs(identity, version, number, signing, team, checkout, key, provisioning)

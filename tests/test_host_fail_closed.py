@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import errno
+import json
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -12,9 +13,9 @@ from host_session_helpers import LOOPBACK_PEER, exchange
 from podcast_mcp.engines.models.registry import MODELS
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.pipeline import bootstrap as boot
-from podcast_mcp.util import process
+from podcast_mcp.util import native_ffmpeg, process
 from podcast_mcp.util.binaries import FFmpegPairResolutionError, resolve_ffmpeg_pair
-from podcast_mcp.util.host_platform import IOS, MACOS, UNKNOWN, HostPlatform
+from podcast_mcp.util.host_platform import IOS, MACOS, UNKNOWN
 
 MEDIA_SENTENCE = "ShareCut can't process audio on this device yet."
 
@@ -66,18 +67,18 @@ def test_a_desktop_host_still_spawns(host) -> None:
 
 
 def test_a_host_without_media_tools_names_the_reason_in_one_sentence(host) -> None:
-    host(IOS)
+    host(UNKNOWN)
     with pytest.raises(FFmpegPairResolutionError) as refused:
         resolve_ffmpeg_pair(force_refresh=True)
     assert str(refused.value) == "ShareCut can't process audio on this device yet."
 
 
 def test_bootstrap_status_reports_unsupported_components_and_the_host(host) -> None:
-    host(IOS)
+    host(UNKNOWN)
     status = boot.component_status()
     assert status["ready"] is False
     assert status["host"] == {
-        "name": "ios",
+        "name": "unknown",
         "can_spawn_processes": False,
         "loopback_is_trusted": False,
         "media_tools": "unavailable",
@@ -91,11 +92,8 @@ def test_bootstrap_status_reports_unsupported_components_and_the_host(host) -> N
     }
 
 
-@pytest.mark.parametrize("row", [IOS, UNKNOWN], ids=lambda row: row.name)
-def test_a_host_that_cannot_process_audio_reports_every_model_unsupported(
-    row: HostPlatform, host
-) -> None:
-    host(row)
+def test_a_host_that_cannot_process_audio_reports_every_model_unsupported(host) -> None:
+    host(UNKNOWN)
     for status in (boot.component_status(), _route_status()):
         assert [m["id"] for m in status["models"]] == [spec.id for spec in MODELS]
         for model in status["models"]:
@@ -103,6 +101,60 @@ def test_a_host_that_cannot_process_audio_reports_every_model_unsupported(
             assert model["hint"] == MEDIA_SENTENCE, model["id"]
             assert "bootstrap" not in model, model["id"]
             assert "path" not in model, model["id"]
+
+
+def test_the_ios_row_without_a_linked_library_reports_tools_missing_and_models_unsupported(
+    host, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(native_ffmpeg, "is_available", lambda: False)
+    host(IOS)
+    assert IOS.media_tools == "in_process"
+    for status in (boot.component_status(), _route_status()):
+        assert status["ready"] is False
+        assert status["tools"]["ffmpeg"]["state"] == "missing"
+        assert status["tools"]["ffmpeg"]["source"] == "in_process"
+        for model in status["models"]:
+            assert model["state"] == "unsupported", model["id"]
+            assert model["hint"] == MEDIA_SENTENCE, model["id"]
+            assert "bootstrap" not in model, model["id"]
+
+
+TRANSCRIBE_SENTENCE = "ShareCut can't transcribe audio on this device yet."
+
+
+def test_the_ios_row_with_a_linked_library_offers_rnnoise_alone(
+    host, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The aligner and speaker models are ONNX (no onnxruntime on iOS); whisper needs
+    faster-whisper. Only RNNoise, which runs through FFmpeg, may be offered."""
+    monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    host(IOS)
+    for status in (boot.component_status(), _route_status()):
+        by_id = {m["id"]: m for m in status["models"]}
+        assert set(by_id) == {"whisper", "rnnoise", "word-aligner", "speaker-ecapa"}
+        assert by_id["rnnoise"]["state"] == "missing"
+        assert "bootstrap" in by_id["rnnoise"]
+        assert by_id["whisper"]["state"] == "unsupported"
+        assert by_id["whisper"]["hint"] == TRANSCRIBE_SENTENCE
+        for model_id in ("word-aligner", "speaker-ecapa"):
+            assert by_id[model_id]["state"] == "unsupported", model_id
+            assert by_id[model_id]["hint"] == MEDIA_SENTENCE, model_id
+            assert "bootstrap" not in by_id[model_id], model_id
+            assert "path" not in by_id[model_id], model_id
+
+
+def test_the_unsupported_fixture_matches_the_engine_answer(host) -> None:
+    """The fixture is the engine's answer on a host that cannot process audio."""
+    fixture = json.loads(
+        (Path(__file__).parent / "fixtures" / "bootstrap_status" / "unsupported.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    host(UNKNOWN)
+    status = boot.component_status()
+    assert fixture["host"] == status["host"]
+    assert fixture["tools"] == status["tools"]
+    assert fixture["models"] == status["models"]
 
 
 def test_a_host_that_can_process_audio_but_not_transcribe_blocks_whisper_alone(host) -> None:
@@ -114,9 +166,10 @@ def test_a_host_that_can_process_audio_but_not_transcribe_blocks_whisper_alone(h
     )
     assert {i: s for i, (s, _) in states.items() if i != "whisper"} == {
         "rnnoise": "missing",
-        "word-aligner": "missing",
-        "speaker-ecapa": "missing",
+        "word-aligner": "unsupported",
+        "speaker-ecapa": "unsupported",
     }
+    assert states["word-aligner"][1] == MEDIA_SENTENCE
 
 
 def test_a_desktop_host_reports_each_model_as_it_did_before(host) -> None:

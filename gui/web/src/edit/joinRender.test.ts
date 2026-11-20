@@ -70,6 +70,34 @@ describe("joinRender", () => {
   });
 });
 
+describe("joinRenderNote with a set length", () => {
+  const blend: ClipRow = {
+    ...clip,
+    join_in_mode: "crossfade",
+    join_render_mode: "crossfade",
+    join_crossfade_ms: 20,
+  };
+
+  it("keeps the plain note when the lengths agree, are absent or NaN", () => {
+    const plain = "Renders as a 20 ms crossfade overlap.";
+    expect(joinRenderNote(blend, 20)).toBe(plain);
+    expect(joinRenderNote(blend)).toBe(plain);
+    expect(joinRenderNote(blend, Number.NaN)).toBe(plain);
+  });
+
+  it("names the 10 ms steps when the set length is just above the overlap", () => {
+    expect(joinRenderNote(blend, 25)).toBe(
+      "Renders as a 20 ms crossfade overlap: the 25 ms you set plays as 20 ms because the overlap moves in 10 ms steps.",
+    );
+  });
+
+  it("names the room when the set length is well above the overlap", () => {
+    expect(joinRenderNote(blend, 60)).toBe(
+      "Renders as a 20 ms crossfade overlap: the 60 ms you set plays as 20 ms because the recordings leave less room than that.",
+    );
+  });
+});
+
 describe("join mode helpers", () => {
   it("finds clips whose next join is a cut", () => {
     const ids = clipIdsBeforeCut([

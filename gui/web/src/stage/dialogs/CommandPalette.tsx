@@ -1,9 +1,10 @@
 import { useEffect, useReducer, useState } from "react";
 import { listRecentProjects, type RecentProject } from "../../api";
+import { COMMANDS } from "../../commands/catalog";
 import { buildCommandContext } from "../../commands/context";
 import { execute } from "../../commands/execute";
 import { executePointerCommand } from "../../commands/pointer";
-import { runAndAnnounceRefusal } from "../../commands/refusal";
+import { announceFailure, runAndAnnounceRefusal } from "../../commands/refusal";
 import { bareKeyConflict } from "../../keymap/registry";
 import { clearKeymapOverride, setKeymapOverride } from "../../keymap/remaps";
 import { disambiguatedNames } from "../../presence/colors";
@@ -119,7 +120,14 @@ export function CommandPalette({ scope }: { scope?: "home" }) {
         setRecent(rememberPaletteRecent(entry.id));
         setCommandPaletteOpen(false);
         // Re-check the command's gate now: the row was built when the palette opened.
-        void runAndAnnounceRefusal(() => execute(entry.commandId, entry.args));
+        void runAndAnnounceRefusal(() =>
+          execute(entry.commandId, entry.args),
+        ).catch((error: unknown) =>
+          announceFailure(
+            COMMANDS[entry.commandId]?.label ?? entry.commandId,
+            error,
+          ),
+        );
       }}
       commands={
         commandPaletteOpen ? paletteCommands(buildCommandContext(), scope) : []
@@ -130,7 +138,9 @@ export function CommandPalette({ scope }: { scope?: "home" }) {
         setRecent(rememberPaletteRecent(id));
         // Close first: a command may open its own dialog, and dialogs never stack.
         setCommandPaletteOpen(false);
-        void runAndAnnounceRefusal(() => executePointerCommand(id));
+        void runAndAnnounceRefusal(() => executePointerCommand(id)).catch(
+          (error: unknown) => announceFailure(COMMANDS[id]?.label ?? id, error),
+        );
       }}
       onRemap={(id, trimmedKey) => {
         if (!trimmedKey) {

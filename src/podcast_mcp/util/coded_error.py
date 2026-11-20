@@ -33,7 +33,7 @@ GENERIC_GUEST_MESSAGE = "That didn't work; ask the host to check this episode."
 
 _GUEST_MESSAGES = {
     "clip_not_found": "That clip is unavailable. Ask the host to refresh the project.",
-    "cut_scope_changed": "This edit needs another review. Ask the host to review it in the editor before applying it.",
+    "cut_scope_changed": "That edit was not applied. Nothing was changed. Ask the host to look at it in the editor.",
     "empty_text": "Enter some text and try again.",
     "enrollment_past_end": "A voice sample is past the end of this recording. Choose a sample inside the audio.",
     "export_busy": "This project is busy with an export or render. Try again when it finishes.",
@@ -58,6 +58,10 @@ _GUEST_MESSAGES = {
     "move_others_connected": "Someone else has this episode open. Ask them to close it, then move it.",
     "move_room_open": "A recording room is open for this episode. End it before moving the episode.",
     "no_mix": "No mix is available yet. Ask the host to refresh it.",
+    "nothing_of_yours_to_redo": "There is nothing of yours to redo. Redo brings back only what you undid.",
+    "nothing_of_yours_to_undo": "There is nothing of yours to undo. The latest change is someone else's.",
+    "nothing_to_redo": "There is nothing to redo.",
+    "nothing_to_undo": "There is nothing to undo.",
     "pending_edit_changed": "This edit changed since you reviewed it. Review the updated edit before trying again.",
     "pending_preview_unavailable": "This preview isn't available right now. Ask the host to check the project.",
     "pipeline_attended": "The host set this project to attended runs; ask the host to start it.",
@@ -83,6 +87,7 @@ _GUEST_MESSAGES = {
     "record_consent_required": "Confirm your consent for this take before uploading.",
     "replacement_match_out_of_range": "That match changed. Preview again and retry.",
     "replacement_token_invalid": "Each replacement word needs a letter or number.",
+    "review_version_not_found": "This link's audio isn't available right now. Ask the host to check it.",
     "roll_needs_abutting_clips": "These clips need to touch before their join can be rolled. Move one clip to the other or trim an edge.",
     "share_capability_required": "This action isn't available on this link. Ask the host to update its access.",
     "speaker_backend_unavailable": "Speaker recognition isn't available on the host's computer. Ask the host to check it.",

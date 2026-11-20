@@ -1,0 +1,303 @@
+{
+  "version": "2.3",
+  "meta": {
+    "name": "Recording identity QA",
+    "workspace_dir": "/synthetic-fixture-workspace",
+    "created_at": "2026-01-01T00:00:00+00:00",
+    "schema_id": "podcast-mcp/episode/2",
+    "ingest_alignment": null,
+    "analysis_reads_first_audio_stream": true
+  },
+  "sources": [
+    {
+      "id": "primary",
+      "path": "raw/primary.wav",
+      "speaker": null,
+      "label": null,
+      "offset_sec": 0.0,
+      "duration_sec": 10.0,
+      "sample_rate": null,
+      "channels": null,
+      "clipping_regions": [],
+      "clipping_truncated": false
+    },
+    {
+      "id": "other",
+      "path": "raw/other.wav",
+      "speaker": null,
+      "label": null,
+      "offset_sec": 0.0,
+      "duration_sec": 10.0,
+      "sample_rate": null,
+      "channels": null,
+      "clipping_regions": [],
+      "clipping_truncated": false
+    }
+  ],
+  "timeline": {
+    "duration_sec": 5.0,
+    "tracks": [
+      {
+        "id": "host",
+        "label": "Host",
+        "role": "dialogue",
+        "speaker": null,
+        "media": {
+          "path": "raw/primary.wav",
+          "duration_sec": 10.0,
+          "sample_rate": null,
+          "channels": null
+        },
+        "room_tone": null,
+        "room_tone_origin": null,
+        "gate_fill": null,
+        "gain_db": 0.0,
+        "balance_basis": null,
+        "fader_db": 0.0,
+        "muted": false,
+        "transcript_gate": false,
+        "transcript_gate_scope": null,
+        "proxy": null,
+        "timeline_empty": false
+      }
+    ],
+    "clips": [
+      {
+        "id": "left",
+        "track_id": "host",
+        "source_start": 0.0,
+        "source_end": 1.0,
+        "timeline_start": 0.0,
+        "source_id": "primary",
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade",
+        "mute_regions": []
+      },
+      {
+        "id": "right",
+        "track_id": "host",
+        "source_start": 2.0,
+        "source_end": 3.0,
+        "timeline_start": 1.0,
+        "source_id": "primary",
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade",
+        "mute_regions": []
+      },
+      {
+        "id": "other",
+        "track_id": "host",
+        "source_start": 6.0,
+        "source_end": 7.0,
+        "timeline_start": 4.0,
+        "source_id": "other",
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade",
+        "mute_regions": []
+      }
+    ]
+  },
+  "editorial": {
+    "edit_decisions": [],
+    "edit_log": [],
+    "chapters": [],
+    "retained_bleed_alignments": [],
+    "sound_actions": [],
+    "speaker_splits": [],
+    "record_sessions": [],
+    "session_suggestions": []
+  },
+  "transcripts": {
+    "per_track": [
+      {
+        "track_id": "host",
+        "language": "en",
+        "asr_language": null,
+        "words": [
+          {
+            "text": "alpha",
+            "start": 0.2,
+            "end": 0.5,
+            "confidence": 1.0,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "trimmed_from": null,
+            "snapped_from": null,
+            "timing_edited": false,
+            "overlong": false,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "echo",
+            "start": 1.2,
+            "end": 1.5,
+            "confidence": 1.0,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "trimmed_from": null,
+            "snapped_from": null,
+            "timing_edited": false,
+            "overlong": false,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "omega",
+            "start": 2.2,
+            "end": 2.5,
+            "confidence": 1.0,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "trimmed_from": null,
+            "snapped_from": null,
+            "timing_edited": false,
+            "overlong": false,
+            "ignored": false,
+            "audibility_locked": false
+          }
+        ],
+        "archived_words": [],
+        "source_id": null,
+        "vocabulary_revision": null,
+        "audio_sha256": null,
+        "audio_size": null,
+        "audio_mtime_ns": null,
+        "silence_filter_fingerprint": null,
+        "word_aligner": null,
+        "alignment_score_method": null,
+        "user_edited": false
+      },
+      {
+        "track_id": "host",
+        "language": "en",
+        "asr_language": null,
+        "words": [
+          {
+            "text": "beta",
+            "start": 4.2,
+            "end": 4.5,
+            "confidence": 1.0,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "trimmed_from": null,
+            "snapped_from": null,
+            "timing_edited": false,
+            "overlong": false,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "echo",
+            "start": 4.6,
+            "end": 4.8999999999999995,
+            "confidence": 1.0,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "trimmed_from": null,
+            "snapped_from": null,
+            "timing_edited": false,
+            "overlong": false,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "delta",
+            "start": 6.2,
+            "end": 6.5,
+            "confidence": 1.0,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "trimmed_from": null,
+            "snapped_from": null,
+            "timing_edited": false,
+            "overlong": false,
+            "ignored": false,
+            "audibility_locked": false
+          }
+        ],
+        "archived_words": [],
+        "source_id": "other",
+        "vocabulary_revision": null,
+        "audio_sha256": null,
+        "audio_size": null,
+        "audio_mtime_ns": null,
+        "silence_filter_fingerprint": null,
+        "word_aligner": null,
+        "alignment_score_method": null,
+        "user_edited": false
+      }
+    ],
+    "combined": null
+  },
+  "mix": {
+    "processing_chains": [],
+    "automation_envelopes": []
+  },
+  "render": {
+    "proxy_manifests": [],
+    "last_completed_step": null,
+    "pipeline_runs": [],
+    "artifacts": {
+      "premix": null,
+      "mastered": null
+    },
+    "reconciliation_stale": false,
+    "last_reconciliation_hash": null,
+    "invalidations": []
+  },
+  "social": {
+    "clip_candidates": []
+  },
+  "feed": {
+    "show_id": null,
+    "guid": null,
+    "first_exported_at": null,
+    "pins": {}
+  },
+  "review": {
+    "comments": [],
+    "versions": [],
+    "active_version_id": null
+  },
+  "history": {
+    "cursor": -1,
+    "entries": []
+  },
+  "document_sync": {
+    "last_command": null
+  }
+}

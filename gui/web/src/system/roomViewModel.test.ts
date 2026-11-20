@@ -281,6 +281,43 @@ describe("roomViewModel alerts", () => {
     ]);
   });
 
+  it.each([
+    ["live", LIVE],
+    ["paused", { kind: "paused", take: 1, clockSec: 90 }],
+    ["reconnecting", { kind: "reconnecting", paused: false, clockSec: 43 }],
+  ] as const)(
+    "shows host-offline to a guest while the take is %s",
+    (_name, phase) => {
+      expect(
+        roomViewModel(base({ phase, people: [host({ presence: "left" })] }))
+          .alerts,
+      ).toEqual([{ kind: "host-offline", name: "Maya Okafor" }]);
+    },
+  );
+
+  it.each([
+    ["waiting", WAITING],
+    ["countdown", { kind: "countdown", secondsLeft: 3 }],
+    ["saving", { kind: "saving", savedPeople: 0, totalPeople: 1 }],
+    ["saved", { kind: "saved" }],
+  ] as const)(
+    "shows no host-offline to a guest outside a take (%s)",
+    (_name, phase) => {
+      expect(
+        roomViewModel(
+          base({
+            phase,
+            people: [host({ presence: "left" }), host({ connection: "lost" })],
+          }),
+        ).alerts,
+      ).toEqual([]);
+      expect(
+        roomViewModel(base({ phase, people: [host({ connection: "lost" })] }))
+          .alerts,
+      ).toEqual([]);
+    },
+  );
+
   it("never shows host-offline to the host", () => {
     const model = roomViewModel(
       base({ role: "host", people: [host({ you: true, presence: "left" })] }),
@@ -604,6 +641,88 @@ describe("roomViewModel dock", () => {
     });
   });
 
+  describe("once the host has been gone long enough", () => {
+    const device = { hostGoneLong: true };
+    const long =
+      "Leaving stops recording on this device. Keep this page open so it can reach the host.";
+    const short =
+      "Leaving stops recording here. Keep this page open to send it.";
+
+    it.each(onAir)(
+      "lets a guest leave on air and warns on a laptop (%j)",
+      (phase) => {
+        expect(
+          roomViewModel(base({ role: "guest", phase, device })).dock,
+        ).toEqual({ kind: "controls", leaveWarning: long });
+      },
+    );
+
+    it.each(["phone", "phone-landscape"] as const)(
+      "asks for a second press on a phone with the short warning (%s)",
+      (viewerWidth) => {
+        expect(
+          roomViewModel(
+            base({ role: "guest", phase: LIVE, device, viewerWidth }),
+          ).dock,
+        ).toEqual({
+          kind: "controls",
+          leaveWarning: short,
+          leaveConfirm: true,
+        });
+      },
+    );
+
+    it("lets Leave through while the keeper is still recording, which is what leaving ends", () => {
+      expect(
+        roomViewModel(
+          base({
+            role: "guest",
+            phase: LIVE,
+            device: { hostGoneLong: true, finishing: true },
+          }),
+        ).dock,
+      ).toEqual({ kind: "controls", leaveWarning: long });
+    });
+
+    it("still holds Leave while room tone records", () => {
+      expect(
+        roomViewModel(
+          base({
+            role: "guest",
+            phase: LIVE,
+            device: { hostGoneLong: true, capturingTone: true },
+          }),
+        ).dock,
+      ).toEqual({
+        kind: "controls",
+        leaveHeld: "Finish or cancel the room tone first",
+      });
+    });
+
+    it("says nothing outside a take", () => {
+      expect(
+        roomViewModel(base({ role: "guest", phase: WAITING, device })).dock,
+      ).toEqual({ kind: "controls" });
+    });
+
+    it("leaves a host's dock alone", () => {
+      expect(
+        roomViewModel(base({ role: "host", phase: LIVE, device })).dock,
+      ).toEqual({ kind: "controls" });
+    });
+  });
+
+  it("keeps holding a guest's Leave while the wait is not over", () => {
+    expect(
+      roomViewModel(
+        base({ role: "guest", phase: LIVE, device: { hostGoneLong: false } }),
+      ).dock,
+    ).toEqual({
+      kind: "controls",
+      leaveHeld: "You can leave after this take.",
+    });
+  });
+
   it("holds a guest's Leave while their recording uploads", () => {
     expect(
       roomViewModel(
@@ -623,6 +742,39 @@ describe("roomViewModel dock", () => {
       text: "Saving · 40% · keep this page open",
       leaveHeld: "Your recording is still saving",
     });
+  });
+
+  it("holds a guest's Leave while the server has the file and this device's count is not known yet", () => {
+    expect(
+      roomViewModel(
+        base({
+          role: "guest",
+          device: { verifying: true },
+          phase: { kind: "saving", savedPeople: 0, totalPeople: 1 },
+        }),
+      ).dock,
+    ).toEqual({
+      kind: "status",
+      text: "Saving · 0 of 1 · keep this page open",
+      leaveHeld: "Your recording is still saving",
+    });
+  });
+
+  it("lets Leave go once the saving has failed, even while the count is unknown", () => {
+    expect(
+      roomViewModel(
+        base({
+          role: "guest",
+          device: { verifying: true },
+          phase: {
+            kind: "saving",
+            savedPeople: 0,
+            totalPeople: 1,
+            failed: true,
+          },
+        }),
+      ).dock,
+    ).toEqual({ kind: "controls" });
   });
 
   it("keeps Leave free while a saving line has no upload behind it", () => {

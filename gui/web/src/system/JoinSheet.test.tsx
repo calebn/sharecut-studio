@@ -636,6 +636,87 @@ describe("JoinSheet producer", () => {
     expect(onJoin).toHaveBeenCalledOnce();
   });
 
+  it("says the room can see someone is looking in, as part of the dialog's description", async () => {
+    const SEEN = "The room can see that someone is looking in.";
+    const { rerender } = render(
+      <Harness seat="producer" name="Rosa" seenByRoom />,
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAccessibleDescription(
+      `You'll listen and comment. You won't be recorded. ${SEEN}`,
+    );
+    expect(screen.getByText(SEEN)).toBeVisible();
+    await expectNoA11yViolations(document.body);
+    rerender(<Harness seat="producer" name="Rosa" />);
+    expect(screen.queryByText(SEEN)).toBeNull();
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      "You'll listen and comment. You won't be recorded.",
+    );
+  });
+
+  it("speaks the sentence once when it appears after the sheet opened, and not again", () => {
+    const SEEN = "The room can see that someone is looking in.";
+    const { rerender } = render(<Harness seat="producer" name="Rosa" />);
+    const status = () =>
+      document.querySelector('[aria-live="polite"]') as HTMLElement;
+    expect(status()).toBeEmptyDOMElement();
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(status()).toHaveTextContent(SEEN);
+    expect(screen.getAllByText(SEEN)).toHaveLength(2);
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(status()).toHaveTextContent(SEEN);
+  });
+
+  it("speaks the sentence once per open sheet, empties the region when it goes, and never refills it", async () => {
+    const SEEN = "The room can see that someone is looking in.";
+    const { rerender } = render(<Harness seat="producer" name="Rosa" />);
+    const region = document.querySelector(
+      '[aria-live="polite"]',
+    ) as HTMLElement;
+    expect(region).toBeEmptyDOMElement();
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(region).toHaveTextContent(SEEN);
+    rerender(<Harness seat="producer" name="Rosa" />);
+    expect(region).toBeEmptyDOMElement();
+    expect(screen.queryAllByText(SEEN)).toHaveLength(0);
+    let changes = 0;
+    const watch = new MutationObserver((records) => {
+      changes += records.length;
+    });
+    watch.observe(region, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(screen.getAllByText(SEEN)).toHaveLength(1);
+    rerender(<Harness seat="producer" name="Rosa" />);
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    await Promise.resolve();
+    watch.disconnect();
+    expect(changes).toBe(0);
+    expect(region).toBeEmptyDOMElement();
+  });
+
+  it("leaves the status empty when the sentence was there at open, so it is read once, as the description", () => {
+    const SEEN = "The room can see that someone is looking in.";
+    render(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(
+      document.querySelector('[aria-live="polite"]'),
+    ).toBeEmptyDOMElement();
+    expect(screen.getAllByText(SEEN)).toHaveLength(1);
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      `You'll listen and comment. You won't be recorded. ${SEEN}`,
+    );
+  });
+
+  it("never says it on the guest seat", () => {
+    render(<Harness seenByRoom />);
+    expect(
+      screen.queryByText("The room can see that someone is looking in."),
+    ).toBeNull();
+  });
+
   it("waits for a name", () => {
     render(<Harness seat="producer" />);
     expect(primary("Join to listen")).toBeDisabled();

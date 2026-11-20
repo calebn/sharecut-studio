@@ -112,11 +112,15 @@ off. The sheet asks for a restorable revoke (`restorable: true`): the link dies 
 once and a toast offers Undo for the server's window (`restore_ms`), which calls
 the restore route ([Restorable revoke](#restorable-revoke)).
 
+## A link survives Undo and Redo
+
+A link names a review version, and the version list lives in the project file. History moves keep `review.versions` and the active choice (see [history.md](history.md#review-versions-are-not-history-steps)), so Undo and Redo never end a link. If a link's version cannot be found anyway (an older build's Undo that removed the version behind a link nobody has opened since, or a project file edited by hand), the link is refused with `review_version_not_found` (404 for a guest, "This link's audio isn't available right now. Ask the host to check it.") and is **not** revoked: the sidecar row stays `revoked: false` and the registry row stays active, so the link answers again once the version is back. `open_share_workspace` and the waveform tile route behave the same for every role.
+
 ## Restorable revoke
 
 A revoke called with `restorable_for` (seconds) is undoable until that window ends. The host
 REST routes opt in with `restorable: true` (see [REST surface](#rest-surface)); the CLI, MCP and
-internal revokes (mint-time room revoke, auto-revoke of a vanished version) never pass it. The window is
+internal revokes (mint-time room revoke) never pass it. The window is
 clamped to 30 s, below the 60 s finalize lease (a non-finite window closes at once or caps at
 30 s). Only review links park as single links; a record token parks only with its room through
 `revoke_room`, and `revoke(record_token, restorable_for=...)` is a final revoke.
@@ -401,7 +405,9 @@ old room pending, so restoring it answers `record_room_conflict`). Remint is ref
 take first. A successful remint revokes every guest and producer token of the
 earlier rooms (land rollbacks survive; an unlanded stopped take the server can see only warns, and
 `--land-first` lands it first); a revoke
-that fails raises `record_stale_links` with the new room and the old session ids. Re-invite
+that fails raises `record_stale_links` with the new room and the old session ids (when neither
+listing of the earlier rooms succeeds, it carries `unverified: true` and no ids; the next mint
+checks them again and ends that new room too). Re-invite
 (`--session-id`) requires a usable room that is the active one. A crash after the guest mint can leave a one-token room;
 the same revoke path still clears it. Prefix↔kind is enforced by
 `lookup_share(..., kind=)`. Recorded clients (`join`) upload full-quality recording chunks on

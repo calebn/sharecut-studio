@@ -195,6 +195,7 @@ export const StaleFile: Story = {
 };
 
 export const Writing: Story = {
+  tags: ["storybook-only"],
   args: { view: STALE, request: "writing" },
   play: async ({ canvasElement }) => {
     await expect(
