@@ -390,7 +390,7 @@ def test_ci_uploads_raw_playwright_reports_and_failure_diagnostics() -> None:
         "if-no-files-found": "ignore",
     }
     results = uploads["Upload Playwright traces, screenshots and error contexts"]
-    assert results["if"] == "failure() || cancelled()"
+    assert results["if"] == "always()"
     assert results["with"] == {
         "name": "playwright-test-results-${{ matrix.name }}",
         "path": "gui/web/test-results/",
