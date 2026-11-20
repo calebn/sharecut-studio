@@ -56,3 +56,10 @@ def stray_files(home: Path) -> list[str]:
         if path.is_file() or path.is_symlink():
             found.append(relative)
     return found
+
+
+def artifact_files(folder: Path) -> frozenset[str] | None:
+    """The files under ``folder`` (relative), or ``None`` when the folder does not exist."""
+    if not folder.exists():
+        return None
+    return frozenset(path.relative_to(folder).as_posix() for path in folder.rglob("*"))

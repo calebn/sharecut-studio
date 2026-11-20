@@ -310,7 +310,9 @@ def test_the_checkout_and_the_working_directory_are_both_watched_for_artifacts()
     import conftest
     from podcast_mcp.config.defaults import repo_root
 
-    assert {repo_root() / "artifacts", Path.cwd() / "artifacts"} <= conftest._WATCHED_ARTIFACTS
+    assert {repo_root() / "artifacts", Path.cwd() / "artifacts"} <= set(
+        conftest._ARTIFACTS_AT_IMPORT
+    )
 
 
 def test_a_cache_that_exists_keeps_its_real_place_and_a_missing_one_gets_a_session_folder(
@@ -371,3 +373,15 @@ def test_a_folder_that_only_starts_like_a_telemetry_folder_is_reported(tmp_path:
     (tmp_path / ".cache" / "MicrosoftX").mkdir(parents=True)
     (tmp_path / ".cache" / "MicrosoftX" / "f").write_bytes(b"x")
     assert stray_files(tmp_path) == [".cache/MicrosoftX/f"]
+
+
+def test_a_new_file_in_an_artifacts_folder_that_was_already_there_fails_the_session(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "proj" / "artifacts").mkdir(parents=True)
+    result = _run_session(
+        tmp_path,
+        "def test_writes():\n    (Path.cwd() / 'artifacts' / 'episode.sharecut.lock').write_bytes(b'')\n",
+    )
+    assert result.returncode != 0
+    assert "workspace is the working directory" in result.stdout + result.stderr

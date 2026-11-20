@@ -34,7 +34,7 @@ from podcast_mcp.util import pinned_media
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.host_platform import WINDOWS, HostPlatform, using
 from process_caches import reset_isolated_caches
-from sentinel_home import TOOLCHAIN_CACHES, passthrough_env, stray_files
+from sentinel_home import TOOLCHAIN_CACHES, artifact_files, passthrough_env, stray_files
 
 _REPO_PIPELINE_DEFAULTS = repo_root() / ".agents" / "defaults" / "pipeline.yaml"
 
@@ -273,7 +273,7 @@ _SESSION_HOME, _SESSION_ENV = _enter_session_home()
 
 
 _WATCHED_ARTIFACTS = {repo_root() / "artifacts", Path.cwd() / "artifacts"}
-_ARTIFACTS_AT_IMPORT = {path for path in _WATCHED_ARTIFACTS if path.exists()}
+_ARTIFACTS_AT_IMPORT = {path: artifact_files(path) for path in _WATCHED_ARTIFACTS}
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -282,7 +282,11 @@ def _sentinel_home() -> Iterator[Path]:
     yield _SESSION_HOME
     stray = stray_files(_SESSION_HOME)
     assert not stray, f"tests wrote outside their temp roots, under the session home: {stray}"
-    created = sorted(str(p) for p in _WATCHED_ARTIFACTS - _ARTIFACTS_AT_IMPORT if p.exists())
+    created = sorted(
+        str(path)
+        for path, before in _ARTIFACTS_AT_IMPORT.items()
+        if (now := artifact_files(path)) is not None and (before is None or now - before)
+    )
     assert not created, (
         f"a test opened a project whose workspace is the working directory: {created}"
     )
