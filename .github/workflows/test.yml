@@ -563,39 +563,6 @@ jobs:
           --output "gui/web/playwright-public/${{ matrix.name }}.json"
           --capture-receipt "$BROWSER_CAPTURE_RECEIPT"
 
-      - name: Project palette smoke phase
-        id: palette-phase
-        if: &palette-phase-condition >-
-          ${{ !cancelled()
-              && steps.browser-public-projection.outcome == 'success'
-              && github.event_name == 'pull_request'
-              && github.base_ref == 'develop'
-              && github.event.pull_request.number == 3940
-              && github.event.pull_request.head.repo.full_name == github.repository
-              && github.head_ref == 'fix/palette-live-context-3608'
-              && github.event.pull_request.draft == false
-              && matrix.name == 'main-smoke' }}
-        continue-on-error: true
-        run: >-
-          python3 scripts/browser_public_report.py --palette-phase
-          --report "gui/web/$PLAYWRIGHT_JSON_OUTPUT_FILE"
-          --output "${TMPDIR:?}/palette-phase.json"
-          --capture-receipt "$BROWSER_CAPTURE_RECEIPT"
-
-      - name: >-
-          Palette smoke phase
-          ${{ steps.palette-phase.outcome == 'success'
-              && steps.palette-phase.outputs.phase_id
-              && steps.palette-phase.outputs.state_id
-              && steps.palette-phase.outputs.phase_id || '0' }}
-          state
-          ${{ steps.palette-phase.outcome == 'success'
-              && steps.palette-phase.outputs.phase_id
-              && steps.palette-phase.outputs.state_id
-              && steps.palette-phase.outputs.state_id || '0' }}
-        if: *palette-phase-condition
-        run: "true"
-
       - name: Summarize Playwright tests
         if: ${{ always() && steps.browser-public-projection.outcome == 'success' }}
         continue-on-error: true
