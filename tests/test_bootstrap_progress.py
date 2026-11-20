@@ -1115,7 +1115,7 @@ def test_the_rnnoise_size_pin_failure_is_a_pin_mismatch(tmp_path: Path) -> None:
     model = tmp_path / "rnnoise.rnnn"
     model.write_bytes(b"short")
     with pytest.raises(AssetSourceError) as raised:
-        model_assets._verify_pinned_size(model, 297646)
+        model_assets.verify_pinned_size(model, 297646)
     failure = classify(
         raised.value,
         label="Noise reduction (RNNoise)",

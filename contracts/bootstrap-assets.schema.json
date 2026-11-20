@@ -11,7 +11,7 @@
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "required": ["kind", "cdn_prefix"],
+        "required": ["kind"],
         "properties": {
           "kind": { "type": "string" },
           "repo": { "type": "string" },
@@ -22,6 +22,7 @@
           "filename": { "type": "string" },
           "sha256": { "type": "string" },
           "size_bytes": { "type": "integer", "minimum": 1 },
+          "verified": { "type": "boolean" },
           "sha256_by_platform": {
             "type": "object",
             "additionalProperties": { "type": "string" }

@@ -38,11 +38,32 @@
       "url": "https://cdn.sharecut.studio/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx",
       "sha256": "1a310d0e6fe231c623a6bf2a3e115c6ac70df08cf19a91380663d60c01820a82",
       "notes": "ONNX export of the embedding_model at speechbrain/spkrec-ecapa-voxceleb 0f99f2d0, made by scripts/export_ecapa_onnx.py. Downloaded from the first-party CDN url above; the object at that path is immutable, so a re-export ships under a new filename plus a new pin."
+    },
+    "whisper-cpp-small-en-q5_1": {
+      "kind": "http",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en-q5_1.bin",
+      "sha256": "bfdff4894dcb76bbf647d56263ea2a96645423f1669176f4844a1bf8e478ad30",
+      "size_bytes": 190098681,
+      "verified": true,
+      "license": "MIT (ggerganov/whisper.cpp model conversions of OpenAI Whisper)",
+      "filename": "ggml-small.en-q5_1.bin",
+      "notes": "Upstream-only (not mirrored): the URL answers one 302 to the signed Hugging Face CDN host us.aws.cdn.hf.co. The URL tracks main, so the sha256 and size pin are the integrity check; change url, sha256 and size_bytes together after re-downloading and hashing."
+    },
+    "whisper-cpp-base-en-q5_1": {
+      "kind": "http",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin",
+      "sha256": "4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f",
+      "size_bytes": 59721011,
+      "verified": true,
+      "license": "MIT (ggerganov/whisper.cpp model conversions of OpenAI Whisper)",
+      "filename": "ggml-base.en-q5_1.bin",
+      "notes": "Upstream-only (not mirrored): the URL answers one 302 to the signed Hugging Face CDN host us.aws.cdn.hf.co. The URL tracks main, so the sha256 and size pin are the integrity check; change url, sha256 and size_bytes together after re-downloading and hashing."
     }
   },
   "fallback": {
     "whisper": "huggingface_hub / faster-whisper default download",
     "rnnoise": "commit-pinned GitHub raw URL from this file, sha256 and size verified",
-    "speaker-ecapa": "direct first-party CDN url, sha-pinned"
+    "speaker-ecapa": "direct first-party CDN url, sha-pinned",
+    "whisper-cpp": "direct Hugging Face resolve url from this file, sha256 and size verified; used on a whisper.cpp host only"
   }
 }

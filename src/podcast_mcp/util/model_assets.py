@@ -73,11 +73,11 @@ def bootstrap_rnnoise_model(*, force: bool = False, on_progress: OnProgress | No
     if not urls:
         raise AssetSourceError("rnnoise has no download source in contracts/bootstrap-assets.json")
     download_first_ok(urls, path, expected_sha256=expected, on_progress=on_progress)
-    _verify_pinned_size(path, meta.get("size_bytes"))
+    verify_pinned_size(path, meta.get("size_bytes"))
     return path
 
 
-def _verify_pinned_size(path: Path, size_bytes: object) -> None:
+def verify_pinned_size(path: Path, size_bytes: object) -> None:
     """Manifest-consistency tripwire: the sha256 check already implies the size."""
     if not isinstance(size_bytes, int) or isinstance(size_bytes, bool):
         return
