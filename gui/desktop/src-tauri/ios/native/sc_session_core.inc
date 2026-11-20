@@ -408,6 +408,8 @@ static void *worker_main(void *unused) {
         close_stream(out, 1);
         close_stream(err, 2);
         pthread_mutex_lock(&lock);
+        // exit code: 1 when sc_tool_exit ended the tool on a thread other than the worker or the tool returned outside
+        // 0..255 (even if cancelled); else 255 when cancelled while running and SC_CANCEL_FORCES_255 is set; else the tool's code.
         if (s->failed || code < 0 || code > 255) code = 1;
         else if (SC_CANCEL_FORCES_255 && s->interrupted) code = CANCELLED_CODE;
         s->code = code;
@@ -420,4 +422,57 @@ static void *worker_main(void *unused) {
         pthread_mutex_unlock(&lock);
     }
     return NULL;
+}
+
+/* Path-name checks shared by the argv policies of both cores. */
+// Strip escapes and quotes, lower-case ASCII, collapse runs of '/' and "/./" segments.
+static char *normalise_arg(const char *arg) {
+    size_t n = strlen(arg);
+    char *plain = malloc(n + 1);
+    if (!plain) return NULL;
+    char *w = plain;
+    for (const char *r = arg; *r; r++)
+        if (*r != '\\' && *r != '\'' && *r != '"') *w++ = (char)tolower((unsigned char)*r);
+    *w = '\0';
+    char *out = malloc(n + 1);
+    if (!out) {
+        free(plain);
+        return NULL;
+    }
+    w = out;
+    for (const char *r = plain; *r; r++) {
+        if (*r == '/' && w > out && w[-1] == '/') continue;
+        if (*r == '.' && r[1] == '/' && w > out && w[-1] == '/') {
+            r++;
+            continue;
+        }
+        *w++ = *r;
+    }
+    *w = '\0';
+    free(plain);
+    return out;
+}
+
+// "dev/" or "proc/" at the token start (after an optional "./" and one optional '/') or after
+// = : , ; [ ] ( ) | or space, with one optional '/' between the delimiter and the directory
+// (a '+' counts only before that '/').
+static int has_device_dir(const char *text) {
+    const char *head = text + (strncmp(text, "./", 2) == 0 ? 2 : 0);
+    head += *head == '/';
+    static const char *const dirs[] = {"dev/", "proc/"};
+    for (size_t i = 0; i < sizeof dirs / sizeof *dirs; i++) {
+        size_t len = strlen(dirs[i]);
+        if (strncmp(head, dirs[i], len) == 0) return 1;
+        for (const char *p = strstr(text, dirs[i]); p; p = strstr(p + 1, dirs[i]))
+            if (p > text && (strchr("=:,;[]()| ", p[-1]) ||
+                             (p[-1] == '/' && p - 1 > text && strchr("=:+,;[]()| ", p[-2]))))
+                return 1;
+    }
+    return 0;
+}
+
+static int has_dotdot_component(const char *text) {
+    for (const char *p = text; (p = strstr(p, "..")) != NULL; p++)
+        if ((p == text || p[-1] == '/') && (p[2] == '/' || p[2] == '\0')) return 1;
+    return 0;
 }

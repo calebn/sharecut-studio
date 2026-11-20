@@ -178,6 +178,17 @@ def test_empty_and_null_argv_are_einval(shim: Shim) -> None:
         ["--grammar", "g.gbnf"],
         ["-oved", "x"],
         ["-t"],
+        ["-f", "/dev/stdin"],
+        ["-f", "/dev/fd/0"],
+        ["-f", "/proc/self/fd/0"],
+        ["-f", "./dev/stdin"],
+        ["-f", "/DEV/stdin"],
+        ["-m", "/dev/stdin"],
+        ["-of", "/dev/stdout"],
+        ["-f", "a/../b.wav"],
+        ["-f", ".."],
+        ["-of", "../out"],
+        ["-m", "'/dev/stdin'"],
     ],
 )
 def test_unsupported_argv_exits_1_with_one_line(shim: Shim, tail: list[str]) -> None:
@@ -206,6 +217,8 @@ def test_unsupported_argv_exits_1_with_one_line(shim: Shim, tail: list[str]) -> 
             "-dash text",
         ],
         ["-l", "auto"],
+        ["-f", "rel/a.wav", "-m", "models/m.bin", "-of", "out/dir"],
+        ["-f", "/var/mobile/dev1/a..b.wav", "-of", "/tmp/devices/x"],
         [],
     ],
 )

@@ -21,7 +21,9 @@ Changes to the upstream sources
 The patch patches/whisper-cli-hooks.patch (gui/desktop/src-tauri/ios/whisper)
 adds an abort callback and an encoder-begin callback so a running transcription
 can be cancelled, removes the runtime scan for ggml backend libraries, removes
-an unused call to system(), and makes an unknown language exit with status 1.
+an unused call to system(), makes an unknown language exit with status 1, and
+compiles out of iOS builds the part of ggml.c (ggml_print_backtrace) that
+starts a debugger by fork and exec to print a backtrace.
 
 The MIT license of whisper.cpp
 

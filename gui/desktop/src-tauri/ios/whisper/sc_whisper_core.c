@@ -21,9 +21,20 @@ static int flag_arity(const char *arg) {
     return 0;
 }
 
-// -m, -f and -of name files: "-" would make the tool read stdin or write the process stdout, "@x" is a response file.
+// -m, -f and -of name files: "-" would make the tool read stdin or write the process stdout, "@x" is a response file,
+// and a dev/ or proc/ directory component (/dev/stdin, /dev/fd/0, /proc/self/fd/0) or a ".." component reaches fd 0 or
+// leaves the directory the caller chose; the same two checks the FFmpeg policy makes.
 static int names_a_file(const char *flag) {
     return strcmp(flag, "-m") == 0 || strcmp(flag, "-f") == 0 || strcmp(flag, "-of") == 0;
+}
+
+static int path_is_refused(const char *value) {
+    if (value[0] == '\0' || strcmp(value, "-") == 0 || value[0] == '@') return 1;
+    char *text = normalise_arg(value);
+    if (!text) return 1;
+    int found = has_dotdot_component(text) || has_device_dir(text);
+    free(text);
+    return found;
 }
 
 static void apply_policy(struct session *s) {
@@ -34,9 +45,8 @@ static void apply_policy(struct session *s) {
             s->reject = "argument is not one of the supported whisper-cli flags";
         } else if (arity == 2 && i + 1 >= s->argc) {
             s->reject = "flag is missing its value";
-        } else if (arity == 2 && names_a_file(arg) &&
-                   (s->argv[i + 1][0] == '\0' || strcmp(s->argv[i + 1], "-") == 0 || s->argv[i + 1][0] == '@')) {
-            s->reject = "file arguments must be paths";
+        } else if (arity == 2 && names_a_file(arg) && path_is_refused(s->argv[i + 1])) {
+            s->reject = "file arguments must be plain paths: no -, @, device or proc directories, or ..";
         }
         i += arity == 2 ? 2 : 1;
     }

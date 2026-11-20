@@ -144,7 +144,13 @@ SCRIPT_FRAGMENTS = [
     'compile_tool "$GLUE/sc_whisper_cli.cpp" -Dmain=sc_whisper_cli_main',
     'compile_plain "$GLUE/sc_whisper_core.c"',
     'compile_glue "$GLUE/sc_whisper_glue.cpp"',
-    "patch -p1 --dry-run --batch --quiet",
+    'rm -rf "$SRC/$WDIR" "$WSRC"',
+    'tar -xf "$SRC/$(pin sources.whisper.archive)" -C "$SRC"',
+    "patch -p1 --fuzz=0 --dry-run --batch --quiet",
+    "&& patch -p1 --fuzz=0 --batch --quiet",
+    'rm -rf "$BUILD/cmake"',
+    '${CMAKE_PLAT[@]+"${CMAKE_PLAT[@]}"}',
+    "-DNDEBUG -include sc_whisper_stdio.h -include sc_whisper_exit_map.h",
     '"--proto", "=https"',
     "sha256 mismatch for %s; the download was removed",
     "sha256 mismatch for patch %s",
@@ -164,6 +170,14 @@ SCRIPT_FRAGMENTS = [
 @pytest.mark.parametrize("fragment", SCRIPT_FRAGMENTS)
 def test_build_script_keeps_each_load_bearing_line(fragment: str) -> None:
     assert fragment in SCRIPT.read_text(encoding="utf-8")
+
+
+def test_build_script_never_reuses_an_extracted_tree_or_applies_a_patch_with_fuzz() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+    assert '[ -d "$SRC/$WDIR" ] ||' not in text
+    assert "patch -p1 --batch" not in text and "patch -p1 --dry-run" not in text
+    assert text.index('rm -rf "$SRC/$WDIR"') < text.index("tar -xf")
+    assert "${CMAKE_PLAT[@]}" not in text.replace('${CMAKE_PLAT[@]+"${CMAKE_PLAT[@]}"}', "")
 
 
 def test_build_script_never_links_libcxx_statically_or_loads_metal() -> None:

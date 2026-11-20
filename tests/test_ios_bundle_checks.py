@@ -689,6 +689,17 @@ def test_a_missing_or_symlinked_whisper_binary_is_a_problem(tmp_path: Path) -> N
     )
 
 
+def test_a_second_macho_inside_the_whisper_framework_fails(tmp_path: Path) -> None:
+    app = whisper_app(tmp_path)
+    extra = app / "Frameworks/Whisper.framework/Libs/libextra.dylib"
+    extra.parent.mkdir()
+    extra.write_bytes(MACHO + b"x")
+    report = checks.check_whisper_framework(app, fake_nm(WHISPER_NM))
+    assert report.problems == (
+        "Frameworks/Whisper.framework/Libs/libextra.dylib is a second Mach-O file in Whisper.framework",
+    )
+
+
 def test_a_whisper_binary_that_is_not_macho_fails(tmp_path: Path) -> None:
     app = make_app(tmp_path, {"Frameworks/Whisper.framework/Whisper": b"text"})
     report = checks.check_whisper_framework(app, fake_nm(WHISPER_NM))

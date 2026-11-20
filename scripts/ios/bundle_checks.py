@@ -253,8 +253,25 @@ def check_native_framework(
     problems += [
         f"{product} exports unexpected {name}" for name in sorted(exported - framework.exports)
     ]
+    problems += extra_macho_problems(app, binary_path)
     problems += framework_privacy_problems(app, framework.manifest)
     return CheckReport(label, tuple(problems), facts={"size": size, "exports": sorted(exported)})
+
+
+def extra_macho_problems(app: Path, binary_path: Path) -> list[str]:
+    """The export check reads one binary, so a second Mach-O in the framework folder (an unchecked
+    library that the app would load and sign) is a problem of its own."""
+    problems = []
+    for path in sorted((app / binary_path.parent).rglob("*")):
+        if path.is_symlink() or not path.is_file() or path == app / binary_path:
+            continue
+        relative = path.relative_to(app).as_posix()
+        try:
+            if is_macho(path):
+                problems.append(f"{relative} is a second Mach-O file in {binary_path.parent.name}")
+        except OSError as error:
+            problems.append(f"{relative} is unreadable: {error}")
+    return problems
 
 
 def framework_privacy_problems(app: Path, relative: Path) -> list[str]:

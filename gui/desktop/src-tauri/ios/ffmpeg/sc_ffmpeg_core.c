@@ -12,34 +12,6 @@ static int all_digits(const char *p) {
     return 1;
 }
 
-// Strip escapes and quotes, lower-case ASCII, collapse runs of '/' and "/./" segments.
-static char *normalise_arg(const char *arg) {
-    size_t n = strlen(arg);
-    char *plain = malloc(n + 1);
-    if (!plain) return NULL;
-    char *w = plain;
-    for (const char *r = arg; *r; r++)
-        if (*r != '\\' && *r != '\'' && *r != '"') *w++ = (char)tolower((unsigned char)*r);
-    *w = '\0';
-    char *out = malloc(n + 1);
-    if (!out) {
-        free(plain);
-        return NULL;
-    }
-    w = out;
-    for (const char *r = plain; *r; r++) {
-        if (*r == '/' && w > out && w[-1] == '/') continue;
-        if (*r == '.' && r[1] == '/' && w > out && w[-1] == '/') {
-            r++;
-            continue;
-        }
-        *w++ = *r;
-    }
-    *w = '\0';
-    free(plain);
-    return out;
-}
-
 // A protocol word matches at the token start or after one of = , ; [ ] ( ) | : + or / (not "./").
 static int has_protocol_word(const char *text, const char *word) {
     for (const char *p = strstr(text, word); p; p = strstr(p + 1, word)) {
@@ -47,30 +19,6 @@ static int has_protocol_word(const char *text, const char *word) {
         if (p[-1] == '/' && !(p - 1 == text + 1 && text[0] == '.')) return 1;
         if (p[-1] != '/' && strchr("=,;[]()|:+", p[-1])) return 1;
     }
-    return 0;
-}
-
-// "dev/" or "proc/" at the token start (after an optional "./" and one optional '/') or after
-// = : , ; [ ] ( ) | or space, with one optional '/' between the delimiter and the directory
-// (a '+' counts only before that '/').
-static int has_device_dir(const char *text) {
-    const char *head = text + (strncmp(text, "./", 2) == 0 ? 2 : 0);
-    head += *head == '/';
-    static const char *const dirs[] = {"dev/", "proc/"};
-    for (size_t i = 0; i < sizeof dirs / sizeof *dirs; i++) {
-        size_t len = strlen(dirs[i]);
-        if (strncmp(head, dirs[i], len) == 0) return 1;
-        for (const char *p = strstr(text, dirs[i]); p; p = strstr(p + 1, dirs[i]))
-            if (p > text && (strchr("=:,;[]()| ", p[-1]) ||
-                             (p[-1] == '/' && p - 1 > text && strchr("=:+,;[]()| ", p[-2]))))
-                return 1;
-    }
-    return 0;
-}
-
-static int has_dotdot_component(const char *text) {
-    for (const char *p = text; (p = strstr(p, "..")) != NULL; p++)
-        if ((p == text || p[-1] == '/') && (p[2] == '/' || p[2] == '\0')) return 1;
     return 0;
 }
 
