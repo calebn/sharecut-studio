@@ -647,7 +647,7 @@ test("an Editor's stalled document load recovers when its loading Retry requests
 
 diagnosticTest(
   "an Editor's comment survives a normal reload-derived save and Undo/Redo restores only that comment",
-  async ({ page, browser }, testInfo) => {
+  async ({ page, browser }) => {
     let workspaceDir = "";
     let projectPath = "";
     let guestContext: BrowserContext | undefined;
@@ -846,9 +846,7 @@ diagnosticTest(
       expect(after.certificate === before.certificate).toBe(false);
       expect(after.history === before.history).toBe(true);
       expect(after.index === before.index).toBe(true);
-      phase = "reopen-review";
       await goToStage(guest, "review");
-      phase = "check-restored-comment";
       await expect(comment).toHaveCount(1);
       phase = "undo-editor-comment";
       await guest.getByRole("button", { name: "Undo", exact: true }).click();
@@ -895,20 +893,11 @@ diagnosticTest(
           ...cleanupErrors,
         ]
       : cleanupErrors;
-    if (errors.length > 0) {
-      try {
-        testInfo.annotations.push({
-          type: "sharecut.case-15-failure.v1",
-          description: bodyFailed ? phase : "cleanup-only",
-        });
-      } catch {
-        // The original failure must survive a diagnostic collection error.
-      }
+    if (errors.length > 0)
       throw new AggregateError(
         errors,
         "Guest derived-save scenario or cleanup failed",
       );
-    }
     process.stdout.write("sharecut-3923-ui-derived-save: case completed\n");
   },
 );
