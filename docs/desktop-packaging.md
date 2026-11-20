@@ -519,7 +519,9 @@ void     sc_whisper_cancel(int64_t session);
   not exported from it. The two frameworks are loaded in the same process and each backend finds
   its own names through `CDLL(None)`.
 - **Ids and cancel.** Session ids are never reused in a process. `cancel` on a session that has
-  already finished is a harmless no-op, and so is a second `cancel` or one for an unknown id.
+  already finished is a harmless no-op, and so is one for an unknown id. A second `cancel` on a
+  session that is still running is harmless too: the latch is already set, and it only sends the
+  worker another `SIGUSR2`.
   Cancelling a queued session makes `wait` return `255` and the tool never runs.
 - **Threads.** `start` and `wait` for one session are called from one worker thread; `cancel`
   comes from another: Python's `run` forwards a cancel from its watcher thread. Calling `wait` twice for one id gives `-ESRCH` the second time.
