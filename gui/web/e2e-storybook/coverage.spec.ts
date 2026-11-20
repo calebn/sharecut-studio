@@ -7,6 +7,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { expectStoryAxeClean } from "../e2e/axe";
+import { isStorybookOnly, SHELL_TITLES } from "../src/test/storySweepPolicy";
 import { expectRootFit, expectShellFit } from "./shellFit";
 import { emit } from "./storyChannel";
 import { type StoryTheme, storyUrl } from "./storyUrl";
@@ -41,8 +42,6 @@ const widthsFor = (story: IndexEntry) =>
       ? [PHONE]
       : [PHONE, WIDE];
 
-/** Full-geometry stories: the shell fits the viewport; the others fit the root. */
-const SHELL_TITLES = ["Stages/Edit/Frame"];
 const ROOT_FIT_TITLES: string[] = [];
 
 base.describe.configure({ mode: "parallel" });
@@ -83,9 +82,7 @@ const STORYBOOK_ONLY_IDS = [
   "stages-edit-speakerpopover--open",
 ];
 
-const storybookOnly = stories.filter((story) =>
-  story.tags?.includes("storybook-only"),
-);
+const storybookOnly = stories.filter(isStorybookOnly);
 
 base(
   "exactly the stories the in-browser sweep cannot run carry storybook-only",

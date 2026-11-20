@@ -147,9 +147,10 @@ Storybook's accessibility addon and `e2e/axe.ts` apply the WCAG 2.0 and 2.1
 A and AA tags, including contrast and label-content-name-mismatch.
 `src/storybook/storySweep.sweep.browser.test.tsx` (`npm run test:stories`,
 Vitest browser mode, sharded 4 ways in `storybook.yml`) checks each story in both
-themes and its supported phone and desktop widths. The few stories that need the
-Storybook runtime carry the `storybook-only` tag, which the sweep skips, and run
-in `e2e-storybook/coverage.spec.ts` instead. These checks do not certify the live
+themes and its supported phone and desktop widths. The sweep excludes stories
+tagged `storybook-only` before assigning shards, so each shard counts only
+stories it runs. Tagged stories need the Storybook runtime and run in
+`e2e-storybook/coverage.spec.ts` instead. These checks do not certify the live
 palette, which also needs browser verification against the current catalog.
 
 Storybook specs open story frames through `storyUrl()` in
