@@ -912,10 +912,13 @@ there (an audition that reaches the end also clears its range), and Play again
 starts from 0. A snapshot that moves the end reschedules like a clip
 change. A chunk fetch that fails while the horizon extends is retried (after
 1 s, 2 s, then every 4 s) until 5 s of scheduled sound remain, and only then
-is the failure reported once. A fetch that never settles is reported at that same
-point, but only when the extension started before it. Play, seek, a rate
-change or an edit restarts the retry window. A failure in the first batch
-after a schedule or seek is reported at once, and so is a decode failure.
+is the failure reported once. An extension that remains pending is reported at
+the same point if it started before it. If the wake comes later during ordinary
+playback, the audio clock gives the extension until the scheduled edge or one
+audio-clock second after the wake, whichever is later. An audition that wakes
+late still ends at its playback bound. Play, seek, a rate change or an edit
+restarts the retry window. A failure in the first batch after a schedule or seek
+is reported at once, and so is a decode failure.
 `hostPlaybackMeterMonitor.ts` fetches
 processed PCM16 stems and validated raw PCM16 recordings through finite byte
 ranges checked against each asset's ETag. Compatible source sample grids share
