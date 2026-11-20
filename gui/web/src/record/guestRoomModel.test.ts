@@ -14,6 +14,7 @@ import {
   ownSaving,
   tookAnyTake,
   tookPart,
+  uploadAcknowledged,
   uploadInFlight,
 } from "./guestRoomModel";
 import { roomPeople } from "./roomPeople";
@@ -185,21 +186,79 @@ describe("guestRoomPhase", () => {
     );
   });
 
-  it("reads an acknowledged upload as stopped once the device scan failed twice", () => {
+  describe("an unreadable device scan", () => {
     const snapshot = recordSnapshot({
       state: "stopped",
       take_index: 0,
       participants: [host, me],
     });
-    const acknowledged = upload({ total: 1, fileAck: true, seenSegments: 1 });
-    expect(
+    const saw = upload({ total: 2, acked: 2, fileAck: true, seenSegments: 2 });
+    const settled = { unreadable: true, stopped: true, captureSettled: true };
+    const phaseOf = (
+      over: Partial<RecordUploadProgress>,
+      options: { captureSettled?: boolean } = {},
+    ) =>
       guestRoomPhase(snapshot, {
-        upload: acknowledged,
+        upload: upload({ ...saw, ...over }),
         localSegments: null,
         localUnreadable: true,
-      }),
-    ).toMatchObject({ kind: "saving", failed: true });
-    expect(ownSaving(acknowledged, null, true)).toBe("failed");
+        captureSettled: options.captureSettled ?? true,
+      });
+    const unsaved = [
+      ["the server has not acknowledged the file", { fileAck: false }],
+      ["the pass saw no segment", { seenSegments: 0 }],
+    ] as const;
+
+    it("reads an acknowledged, stopped, settled take as saved", () => {
+      expect(uploadAcknowledged(saw, null, settled)).toBe(true);
+      expect(phaseOf({})).toEqual({ kind: "saved" });
+      expect(ownSaving(saw, null, settled)).toBe("saved");
+    });
+
+    it.each(unsaved)("does not read a take as saved when %s", (_name, over) => {
+      const pass = upload({ ...saw, ...over });
+      expect(uploadAcknowledged(pass, null, settled)).toBe(false);
+      expect(phaseOf(over)).not.toEqual({ kind: "saved" });
+      expect(phaseOf(over)).not.toHaveProperty("failed");
+    });
+
+    it("reads a take whose capture is still finishing as saving, never saved or failed", () => {
+      const finishing = { ...settled, captureSettled: false };
+      expect(uploadAcknowledged(saw, null, finishing)).toBe(false);
+      expect(phaseOf({}, { captureSettled: false })).toEqual({
+        kind: "saving",
+        savedPeople: 0,
+        totalPeople: 1,
+      });
+      expect(ownSaving(saw, null, finishing)).toEqual({ done: 2, total: 2 });
+    });
+
+    it("does not read a take that is not stopped as saved", () => {
+      expect(
+        uploadAcknowledged(saw, null, { ...settled, stopped: false }),
+      ).toBe(false);
+    });
+
+    it("keeps the live copy of an unsaved guest, with no failure word", () => {
+      const pass = upload({ total: 1, fileAck: true, seenSegments: 0 });
+      expect(ownSaving(pass, null, settled)).toEqual({ done: 0, total: 1 });
+      expect(ownSaving(upload({ total: 1 }), null, settled)).toEqual({
+        done: 0,
+        total: 1,
+      });
+    });
+
+    it("forgets another take's acknowledgement", () => {
+      const fresh = upload({ total: 1, fileAck: false, seenSegments: 0 });
+      expect(uploadAcknowledged(fresh, null, settled)).toBe(false);
+      expect(ownSaving(fresh, null, settled)).toEqual({ done: 0, total: 1 });
+    });
+
+    it("still reads an upload error as a failed save", () => {
+      expect(
+        ownSaving(upload({ total: 2, error: "offline" }), null, settled),
+      ).toBe("failed");
+    });
   });
 
   it("reports a failed upload as a failed save, not as progress", () => {
@@ -1277,6 +1336,14 @@ describe("holdsJoinSheet", () => {
 
   it("lets go when the device cannot be read", () => {
     expect(holdsJoinSheet(input({ localUnreadable: true }))).toBe(false);
+    expect(
+      holdsJoinSheet(
+        input({
+          localUnreadable: true,
+          upload: { fileAck: true, seenSegments: 2 },
+        }),
+      ),
+    ).toBe(false);
   });
 
   it("does not hold for a guest who was not on the take, a live room or a consented guest", () => {
