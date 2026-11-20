@@ -820,8 +820,8 @@ still run sequentially within one checkout.
 
 CI prints failing test names and errors to the job log and uploads
 `playwright-reports-<name>` (raw JSON, every run) and
-`playwright-test-results-<name>` (traces, screenshots, `error-context.md`, failures
-only). Download them all with `gh run download <run-id> --pattern 'playwright-*'`,
+`playwright-test-results-<name>` (traces, screenshots, `error-context.md` of failed
+attempts, every run). Download them all with `gh run download <run-id> --pattern 'playwright-*'`,
 or from a cloud session see
 [Fetching diagnostics from a cloud session](testing-ci.md#fetching-diagnostics-from-a-cloud-session).
 Sum durations per spec file across shard reports to find slow specs. Compare
