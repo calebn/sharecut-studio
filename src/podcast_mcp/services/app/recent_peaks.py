@@ -3,10 +3,9 @@
 Nothing here decodes audio or queues a pyramid build: a pyramid that is not ready gives a flat
 card, and the card fills in once a build elsewhere finishes. The plan (which clip pieces play
 from which media) is made once per project file revision; the stamp of the pyramid files is
-read on every request. Each media file is probed once per request that needs its key, and the
-key is made from that one probe result. A successful probe is cached per (path, size, mtime). A
-failed probe caches no key: the card stays flat, and the same (path, size, mtime) is not probed
-again for 30 seconds, then is retried; a changed file is probed at once.
+read on every request. The key of a media file is made from one probe result, never from two.
+A successful probe is cached by (path, size, mtime_ns). A failed probe caches no key: the card
+stays flat, and the failure is retried after 30 seconds or when the file's stat changes.
 """
 
 from __future__ import annotations

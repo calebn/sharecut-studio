@@ -754,6 +754,26 @@ def test_a_media_file_that_changes_is_probed_at_once_after_a_failure(tmp_path, p
     assert len(probe.calls) == 2
 
 
+def test_a_media_file_with_a_new_size_and_the_same_mtime_is_probed_at_once_after_a_failure(
+    tmp_path, probe, clock
+):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    probe.fail()
+    probe.calls.clear()
+    _peaks(project)
+    assert len(probe.calls) == 1
+    media = project.parent / "raw" / "t.wav"
+    stat = media.stat()
+    media.write_bytes(b"a different size")
+    os.utime(media, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    assert media.stat().st_mtime_ns == stat.st_mtime_ns
+    assert media.stat().st_size != stat.st_size
+    clock.now += 1.0
+    recent.recent_project_cards()
+    assert len(probe.calls) == 2
+
+
 def test_a_media_file_with_a_new_mtime_is_probed_at_once_after_a_failure(tmp_path, probe, clock):
     project = _make(tmp_path)
     _layout(project, [_clip()])
