@@ -630,10 +630,7 @@ test("an Editor's stalled document load recovers when its loading Retry requests
         ).toHaveCount(0);
         await expect(guest.locator(".stage-frame--guest")).toBeVisible();
         await expect(retry).toHaveCount(0);
-        await guest.getByRole("tab", { name: "Edit", exact: true }).click();
-        await expect(
-          guest.getByRole("tab", { name: "Edit", exact: true }),
-        ).toHaveAttribute("aria-selected", "true");
+        await goToStage(guest, "edit");
         expect(new URL(guest.url()).pathname).toBe(`/r/${token}`);
       },
     );
