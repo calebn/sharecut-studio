@@ -105,11 +105,12 @@ describe("the View anchor's focus return", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5001);
     });
+    vi.useRealTimers();
     act(() => {
       appendFind();
     });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(50);
+      await new Promise((resolve) => setTimeout(resolve, 120));
     });
     expect(document.activeElement).toBe(pane);
   });
@@ -186,6 +187,23 @@ describe("the View anchor's focus return", () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
+    expect(document.activeElement).toBe(pane);
+  });
+
+  it("leaves focus alone when a modal opens between the control drawing and the frame", async () => {
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    const pane = document.querySelector<HTMLElement>("#pane");
+    act(() => {
+      appendFind();
+    });
+    await Promise.resolve();
+    const layer = openOverlay(true);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    closeOverlay(layer);
     expect(document.activeElement).toBe(pane);
   });
 
