@@ -7,7 +7,11 @@ export default defineConfig({
   workers: process.env.CI ? 4 : undefined,
   timeout: 30_000,
   reporter: process.env.CI
-    ? [["github"], ["list"], ["json", { outputFile: "playwright-report/stories.json" }]]
+    ? [
+        ["github"],
+        ["list"],
+        ["json", { outputFile: "playwright-report/stories.json" }],
+      ]
     : "list",
   use: {
     ...devices["Desktop Chrome"],
