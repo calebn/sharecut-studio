@@ -1305,8 +1305,9 @@ again and drops the first request: a late answer to the first request is stopped
 never used, and the page follows the second. A second click while the new request
 waits does nothing, and the note returns only after another 10 seconds. A blocked,
 missing or failing microphone never shows this note. Chromium serves the second
-request from the same prompt; whether Firefox and Safari show a second prompt is
-a manual check, not a test. The reusable peak meter hook shares one metering
+request; the fake-media end-to-end test proves only that a second request is made and that
+the first is dropped. Whether a real Chromium prompt, Firefox or Safari serve the second
+request from the same prompt or show a second one is a manual check, not a test. The reusable peak meter hook shares one metering
 `AudioContext`, one worklet module load, and one animation-frame scheduler across
 concurrent mic meters. Each mic keeps its own worklet node, peak hold, and clip
 latch; the context closes when the last meter leaves. The keeper capture graph
@@ -1453,7 +1454,10 @@ who changes their mind uses **Join recording** on the scrim. The microphone row 
 same sheet stops waiting silently: after 10 seconds without an answer it says "Still
 waiting. Check your browser's permission prompt." and offers **Retry**. Not decided here:
 a **Join and record** pressed before the page has reached the room still springs back
-without a word.
+without a word. Deviation: only the decline is held until this socket's first Echo. A
+Consent true sent before that Echo is not held, so a refused Join shows the `join_first`
+error ("Still joining the room. Try again in a moment.") and clears the spinner, and the
+guest presses again.
 
 ### Decision: Join again is offered only on the guest-left unsent cover
 
@@ -2265,7 +2269,7 @@ the written WAV within 1 ms), `keeper/takeClipping.test.ts`, `alertGates.test.ts
 | Leave / rejoin | B leaves at T+300 s, rejoins at T+340 s (same `participant_id`): two segments, two clips on **one** track, second clip starts at 340 s ± 1 frame; no trailing pad on segment 1. A new device with the same display name returns to the same track (name match); the host can correct it. |
 | Pause / Resume | Host pauses at recording 60 s (wall 60 s), resumes at wall 70 s: every participant has segment 1 ending at 60 s and segment 2 starting at recording **60 s ± 1 frame** (clips abut, no gap, no zeros); keeper bytes written during the pause = **0**; PAUSED indicator asserted on all clients; a guest joining during the pause consents and gets `join_offset_ms` = 60 s; a late `pause` (or reconnect) truncates/discards samples ≥ `pause_wall_ms` from the versioned pause log; a drop that intersects a pause does **not** resume the same segment. Guest cannot trigger pause. |
 | Takes | Stop then Start: take 2 lands after take 1 + `take_gap_ms` (2 s) **even if take 1 is still uploading**; a participant absent from take 2 has no clip there; tracks = union; no re-consent prompt shown to already-consented clients; deleting take 1 is refused while its manifest is non-terminal; a tombstone voids in-flight ACK and leaves take 2 at offset 0. |
-| Cap / decline | 5th guest (or 3rd producer) gets the full-room page and never calls `getUserMedia`; a client that declines consent (Not now) sees the declined scrim and cannot rejoin as a guest until the room waits for a take. Not now before the room connects closes the sheet at once, the host sees Declined after the Join echo, a lobby reconnect repeats it, a recording or paused reconnect does not, Join recording drops it, and a refused Join sends no Consent (`useGuestRoom.test.tsx`, `GuestRoomApp.test.tsx`, `e2e/record-join-edges.spec.ts`). |
+| Cap / decline | 5th guest (or 3rd producer) gets the full-room page and never calls `getUserMedia`; a client that declines consent (Not now) sees the declined scrim and cannot rejoin as a guest until the room waits for a take. Not now before the room connects closes the sheet at once, the host stage frees the declined guest's place rather than showing Declined, a lobby reconnect repeats it, a recording or paused reconnect does not, Join recording drops it, and a refused Join sends no Consent (`useGuestRoom.test.tsx`, `GuestRoomApp.test.tsx`, `e2e/record-join-edges.spec.ts`). |
 | Microphone prompt | A prompt unanswered for 10 s shows "Still waiting. Check your browser's permission prompt." with **Retry**: not at 9.999 s, not after a denied, missing or failing answer; **Retry** calls `getUserMedia` a second time, stops a first stream that answers late, and a double click asks once (`useMicPermission.test.ts`, `useMicStream.test.ts`, `GuestRoomApp.test.tsx`, `e2e/record-join-edges.spec.ts` on a laptop and a 360 x 740 phone with Retry at least 44 px tall). |
 | Producer transparency | With one producer present, every guest's roster shows the listener row containing the producer; the guest's consent Details names the producer who has joined (`JoinSheet.test.tsx`); producer joining mid-take fires the same join notification as a guest; a producer page that has not joined looks in, so the host and guests see the looking-in line, the producer sees the live room, which never names the producer who is looking, and the producer's sheet tells them the room can see that someone is looking in (`record-lobby.spec.ts`); roles cannot change during a take. |
 | Live comments | Guest adds a comment (`body` `"Marker"` or a typed comment) at host recording clock 123.4 s in take 1: after landing, `review.comments[]` has one `TimelineComment` at `123.4 s ± 0.25 s` (no lead, no `title`/`metadata`) created through `add_comment` under `ProjectWorkspace.mutate()` (undo removes it); host rewrote `recording_ms` from `pressed_wall_ms` + `pauses[]`; a comment during PAUSED lands at the pause point; before landing the host and producer lists contain it, the other guest's list contains a `Marker` but not a typed comment unless the host turned on `guests_see_notes` (host-enforced); deleting take 1 deletes its comments; a comment queued while a client was disconnected upserts once on reconnect (no duplicate); browser end-to-end in the Playwright US-1 scenario (`e2e/record-lobby.spec.ts`). |

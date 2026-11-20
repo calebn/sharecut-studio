@@ -38,6 +38,24 @@ vi.mock("./encodeRoomTone", () => ({
   encodeRoomToneWav: (...args: unknown[]) => encodeRoomTone(...args),
 }));
 
+const meterResume = vi.hoisted(() => vi.fn());
+vi.mock("./useInputPeakDb", async (importActual) => {
+  const actual = await importActual<typeof import("./useInputPeakDb")>();
+  return {
+    ...actual,
+    useInputPeakDb: (stream: MediaStream | null) => {
+      const meter = actual.useInputPeakDb(stream);
+      return {
+        ...meter,
+        resume: () => {
+          meterResume();
+          meter.resume();
+        },
+      };
+    },
+  };
+});
+
 vi.mock("./monitor/useRecordMonitor", () => ({
   useRecordMonitor: () => ({ hearing: false, remoteCount: 0, error: null }),
 }));
@@ -2409,6 +2427,37 @@ describe("GuestRoomApp", () => {
       expect(recordButton()).toBeNull();
     });
 
+    it("offers a guest who pressed Not now over a room that still holds Consent true nothing, and fetches no room tone status", async () => {
+      const puts: Put[] = [];
+      stubUploadFetch(puts);
+      render(<GuestRoomApp token="guest-tok" />);
+      await readyToJoin(getUserMedia);
+      sockets[0].holdConsent = true;
+      await userEvent.click(joinButton());
+      await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+      const statusReads = () =>
+        vi
+          .mocked(fetch)
+          .mock.calls.filter(([input]) => urlOf(input).includes("/upload"));
+      const before = statusReads().length;
+      act(() =>
+        sockets[0].onmessage?.(
+          snapshotMessage(
+            { room_tone: round(["p_other"]), countdown_left_ms: 0 },
+            true,
+          ),
+        ),
+      );
+      expect(
+        await screen.findByText("You're not being recorded."),
+      ).toBeVisible();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(recordButton()).toBeNull();
+      expect(statusReads()).toHaveLength(before);
+    });
+
     it("asks again after Stop when the guest joined during a take", async () => {
       stubUploadFetch([]);
       await joinRoom();
@@ -2950,12 +2999,26 @@ describe("GuestRoomApp", () => {
         await screen.findByRole("button", { name: "I'm wearing headphones" }),
       );
       await waitFor(() => expect(joinButton()).toBeEnabled());
+      sockets[0].holdConsent = true;
       await userEvent.click(joinButton());
       await waitFor(() =>
         expect(consentFrames(sockets[0])).toEqual([false, true]),
       );
+      expect(
+        await screen.findByRole("button", { name: "Joining…" }),
+      ).toBeVisible();
+      act(() =>
+        sockets[0].onmessage?.(snapshotMessage({ state: "lobby" }, true)),
+      );
       await screen.findByRole("button", { name: "Leave room" });
+      expect(screen.queryByRole("button", { name: "Joining…" })).toBeNull();
       expect(consentFrames(sockets[0])).toEqual([false, true]);
+      act(() =>
+        sockets[0].onmessage?.(snapshotMessage({ state: "lobby" }, null)),
+      );
+      expect(
+        await screen.findByRole("button", { name: "Join and record" }),
+      ).toBeEnabled();
     });
 
     it("clears the joining spinner when the socket drops before the room answers Consent", async () => {
@@ -3039,9 +3102,11 @@ describe("GuestRoomApp", () => {
         await vi.advanceTimersByTimeAsync(200);
       });
       expect(screen.getAllByText(STILL_WAITING).length).toBeGreaterThan(0);
+      meterResume.mockClear();
       await user.click(
         screen.getByRole("button", { name: "Retry microphone" }),
       );
+      expect(meterResume).toHaveBeenCalledTimes(1);
       expect(getUserMedia).toHaveBeenCalledTimes(2);
       expect(screen.queryByText(STILL_WAITING)).toBeNull();
       await act(async () =>
