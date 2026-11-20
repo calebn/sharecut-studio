@@ -444,7 +444,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Select a range",
     shortLabel: "Select range",
-    when: "hasProject",
+    when: "canArmRange",
   },
   "edit.cut": {
     id: "edit.cut",

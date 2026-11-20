@@ -341,6 +341,13 @@ export function evaluateWhen(
       return ctx.guestMode !== null && !ctx.allowedStages.includes("edit")
         ? { ok: false, reason: "This link has no timeline" }
         : { ok: true };
+    case "canArmRange":
+      if (!ctx.hasProject) {
+        return { ok: false, reason: "No project loaded" };
+      }
+      return ctx.guestMode !== null && !ctx.canApplyPass12
+        ? { ok: false, reason: "Needs Editor access" }
+        : { ok: true };
     case "canApplyPass12":
       if (!ctx.hasProject) {
         return { ok: false, reason: "No project loaded" };
@@ -513,6 +520,7 @@ export function gateNeverRuns(
     case "canApplyPass12":
     case "canUndo":
     case "canRedo":
+    case "canArmRange":
       return !ctx.canApplyPass12;
     case "canSuggestStructural":
       return !ctx.canSuggestStructural;

@@ -33,6 +33,7 @@ export type ContextPredicateId =
   | "editStageOrRangeSuggest"
   | "hasProject"
   | "timelineSurface"
+  | "canArmRange"
   | "canApplyPass12"
   | "canRefreshMix"
   | "canIngestMedia"
