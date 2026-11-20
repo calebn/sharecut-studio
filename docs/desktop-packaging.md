@@ -470,6 +470,38 @@ void     sc_ffmpeg_cancel(int64_t session);
   framework on a device is proved on a Mac. The framework is arm64 only, so the Simulator target
   excludes `x86_64` (`EXCLUDED_ARCHS[sdk=iphonesimulator*]`, beside the existing device line).
 
+<a id="ios-native-whisper-abi"></a>
+**iOS native whisper ABI (#4021, stage 3 slice 6c-1).** `src/podcast_mcp/util/native_whisper.py`
+holds `NativeWhisperBackend`, the `InProcessBackend` that runs `in-process:whisper-cli` argv on
+four C functions the app is to export. It shares its ctypes code with the FFmpeg backend
+(`src/podcast_mcp/util/native_abi.py`). Not linked yet: the C glue lands in 6c-2, so nothing
+installs this backend today and no build exports the four symbols.
+
+```c
+int      sc_whisper_abi_version(void);   /* must return 1 */
+int64_t  sc_whisper_start(int argc, const char* const* argv, int in_fd, int out_fd, int err_fd);
+int      sc_whisper_wait(int64_t session);
+void     sc_whisper_cancel(int64_t session);
+```
+
+- **Slot.** The backend has its own process-wide slot, `process.using_in_process_whisper_backend`,
+  separate from the FFmpeg one (`using_in_process_backend`). Installing one does not make the
+  other available. The sentinel `in-process:whisper-cli` goes to it, and raises
+  `SpawnUnavailableError` on a host whose `media_tools` is not `in_process` or with no backend
+  installed. A second install raises `RuntimeError`.
+- **Binding.** The same as for FFmpeg: nothing loads at import, `is_available()` returns `False`
+  before any ctypes call on a host whose `media_tools` is not `in_process`, and elsewhere it
+  looks the four names up with `CDLL(None)` and calls `sc_whisper_abi_version` only. A missing
+  symbol or a version other than 1 is unavailable.
+- **argv.** `argv[0]` is `whisper-cli` (Python maps the sentinel). The rest are whisper-cli flags
+  passed through unchanged, such as `-m`, `-f`, `-ojf`, `-of`, `-np`, `-l` and `-t`. The array
+  has `argc` strings and a NULL slot.
+- **Sessions.** `start` returns an id >= 1 or `-errno`; `wait` returns an exit code in 0..255 or
+  `-errno`; `cancel` is called once by Python when the caller cancels. The fd, cancel and
+  error contract is the same as FFmpeg's (File descriptors, Sessions and Errors above): `-1`
+  means no fd, a negative `start`, a `wait` outside 0..255 or an unknown tool is exit code `1`
+  with one `whisper: <reason>` line on stderr, and a native error is never reported as success.
+
 <a id="ios-release"></a>
 **iOS release (#3810, stage 2).** `scripts/ios/ios_release.py` builds a release `.ipa` for the
 owner's bundle identifier, checks it, validates it with App Store Connect and uploads it to
