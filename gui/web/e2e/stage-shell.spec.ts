@@ -681,8 +681,13 @@ diagnosticTest(
         certificate: `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`,
       };
     };
-    const messageOf = (error: unknown): string =>
-      error instanceof Error ? error.message : String(error);
+    const messageOf = (error: unknown): string => {
+      try {
+        return error instanceof Error ? error.message : String(error);
+      } catch {
+        return "unprintable error";
+      }
+    };
     let phase = "fixture-setup";
     let bodyFailed = false;
     let bodyError: unknown;
