@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from podcast_mcp.config.defaults import cache_dir, whisper_cache_dir, word_aligner_cache_dir
+from podcast_mcp.engines.models import whisper_cpp_models
 from podcast_mcp.engines.models.speaker_ecapa import (
     SPEAKER_ECAPA_BOOTSTRAP,
     SPEAKER_ECAPA_LABEL,
@@ -107,6 +108,14 @@ class ModelSpec:
 
 def _whisper_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
     model = resolve_whisper_model(requested=variant)
+    if whisper_cpp_models.on_whisper_cpp_host():
+        if whisper_cpp_models.is_installed(model):
+            return None
+        return ModelProblem(
+            f"Whisper model {model!r} is not downloaded — choose Get for Transcription in "
+            f"Models or run {whisper_bootstrap_command(model)}",
+            whisper_bootstrap_command(model),
+        )
     found = whisper_model_problem(model, memoize=memoize)
     if found is None:
         return None
@@ -196,6 +205,9 @@ def _speaker_ecapa_install(
 
 
 def _whisper_sizes(variant: str | None) -> tuple[str | None, int | None]:
+    if whisper_cpp_models.on_whisper_cpp_host():
+        chosen = whisper_cpp_models.coerce(variant or "")
+        return whisper_cpp_models.variant_for(chosen).size, whisper_cpp_models.size_bytes(chosen)
     for item in WHISPER_MODEL_CATALOG:
         if item["id"] == variant:
             return item["size"], WHISPER_SIZE_BYTES.get(item["id"])
@@ -210,7 +222,17 @@ def _rnnoise_sizes(variant: str | None) -> tuple[str | None, int | None]:
     return None, pinned if isinstance(pinned, int) else None
 
 
+def _whisper_location() -> Path:
+    return (
+        whisper_cpp_models.whisper_cpp_cache_dir()
+        if whisper_cpp_models.on_whisper_cpp_host()
+        else whisper_cache_dir()
+    )
+
+
 def _whisper_downloaded(variant: str | None) -> list[Path]:
+    if whisper_cpp_models.on_whisper_cpp_host():
+        return [whisper_cpp_models.variant_path(resolve_whisper_model(requested=variant))]
     model = validate_whisper_model(resolve_whisper_model(requested=variant))
     root = whisper_cache_dir()
     if root.is_symlink():
@@ -271,7 +293,7 @@ MODELS: tuple[ModelSpec, ...] = (
         problem=_whisper_problem,
         install=_whisper_install,
         install_without_preference=_whisper_install_without_preference,
-        location=whisper_cache_dir,
+        location=_whisper_location,
         downloaded=_whisper_downloaded,
         variant_sizes=_whisper_sizes,
     ),

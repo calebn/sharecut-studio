@@ -14,9 +14,11 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp import settings
-from podcast_mcp.config.defaults import cache_dir
 from podcast_mcp.engines.asr_options import normalize_language
 from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
+from podcast_mcp.engines.models import whisper_cpp_models
+from podcast_mcp.engines.models.whisper import resolve_whisper_model
+from podcast_mcp.engines.models.whisper_cpp_models import whisper_cpp_cache_dir
 from podcast_mcp.engines.transcribe import flag_anomalous_asr_durations
 from podcast_mcp.models import Transcript, TranscriptWord
 from podcast_mcp.util import host_platform, native_whisper
@@ -33,18 +35,12 @@ MAX_IOS_THREADS = 4
 _ENGLISH_ONLY_MODEL = re.compile(r"\.en(?:[-.]|$)")
 
 
-def whisper_cpp_cache_dir() -> Path:
-    d = cache_dir() / "whisper-cpp" / "models"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
 def default_model_name() -> str:
-    fallback = (
-        IOS_MODEL_NAME
-        if host_platform.current().transcription == "whisper_cpp"
-        else DESKTOP_MODEL_NAME
-    )
+    """The env name, else on a whisper.cpp host the selected variant's file, else the desktop file."""
+    if host_platform.current().transcription == "whisper_cpp":
+        fallback = whisper_cpp_models.variant_for(resolve_whisper_model()).filename
+    else:
+        fallback = DESKTOP_MODEL_NAME
     return settings.value("WHISPER_CPP_MODEL_NAME", fallback)
 
 

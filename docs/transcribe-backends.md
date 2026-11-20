@@ -75,4 +75,15 @@ The whisper.cpp adapter is benchmark-only and does not use the VAD / decode opti
 - `tests/test_wer.py` — WER unit tests
 - `tests/test_whisper_cpp.py` — parser unit test + optional slow integration
 
-Production pipeline still uses `TranscriptionEngine` (faster-whisper). Wiring whisper.cpp as a config-selectable backend is a follow-up after validating quality on real dialogue.
+Desktop pipelines still use `TranscriptionEngine` with faster-whisper; whisper.cpp stays a benchmark adapter there. On the iPhone host row (`transcription: whisper_cpp`) the engine picks whisper.cpp from the host row, in-process.
+
+## iPhone models
+
+On that host the `whisper` model row reports and installs whisper.cpp files instead of faster-whisper weights, under `<cache>/whisper-cpp/models/`:
+
+| Variant | File | Size | Note |
+|---|---|---|---|
+| `small.en-q5_1` (default) | `ggml-small.en-q5_1.bin` | 190,098,681 bytes | Recommended |
+| `base.en-q5_1` | `ggml-base.en-q5_1.bin` | 59,721,011 bytes | Less accurate; expect more errors on fast or overlapping speech |
+
+Both are English only and pinned by sha256 and size in `contracts/bootstrap-assets.json` (`whisper-cpp-small-en-q5_1`, `whisper-cpp-base-en-q5_1`), fetched straight from Hugging Face (one redirect to its CDN host). Installing a variant downloads only its file and saves it as the machine choice; removing one deletes only its file. With no saved choice the default follows what is on disk: `small.en-q5_1`, or `base.en-q5_1` when that is the only one installed. `GET /api/bootstrap/status` lists these two in `whisper_models` on that host.
