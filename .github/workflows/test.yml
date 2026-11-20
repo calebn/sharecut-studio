@@ -591,3 +591,102 @@ jobs:
           GUI: ${{ needs.changes.outputs.e2e }}
           SUITES: ${{ needs.frontend-e2e-suites.result }}
         run: *require-planned-suite
+
+  verify-3940-fixed-palette:
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'synchronize' &&
+      github.run_attempt == 1 &&
+      github.event.pull_request.number == 3940 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'fix/palette-live-context-3608' &&
+      github.event.pull_request.draft != true &&
+      needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ needs.changes.outputs.playwright-image }}
+      options: --init --ipc=host
+    timeout-minutes: 30
+    steps:
+      - name: Use runner temporary storage
+        run: |
+          umask 077
+          tmpdir="$(mktemp -d /var/tmp/sharecut-ci.XXXXXX)"
+          printf 'TMPDIR=%s\n' "$tmpdir" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install FFmpeg
+        uses: ./.github/actions/setup-ffmpeg
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: gui/web/package-lock.json
+
+      - name: Install GUI Python deps
+        uses: ./.github/actions/install-locked-python
+        with:
+          extras: gui
+
+      - name: Install frontend deps
+        timeout-minutes: 10
+        working-directory: gui/web
+        run: |
+          printf 'TMPDIR: %s\n' "$TMPDIR"
+          df -hT /tmp "$TMPDIR"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from podcast_mcp.util.registry_privacy import registry_privacy
+
+          with registry_privacy(Path(os.environ["TMPDIR"]), (), create=False) as verify:
+              verify()
+          PY
+          npm ci
+
+      - name: Checkout the fixed source
+        id: proof-fixed
+        uses: actions/checkout@v7
+        with:
+          ref: add4b0466ac529493d5eb8e9b62e3c7c61d7ffa2
+          path: pair-3940-head
+          persist-credentials: false
+
+      - name: Validate fixed source, harness and Python import
+        id: proof-source
+        env: &proof-3940-env
+          PROOF_EVENT_BASE: ${{ github.event.pull_request.base.sha }}
+          PROOF_HEAD_SHA: ${{ steps.proof-fixed.outputs.commit }}
+        run: python .github/verification/3940/run.py source
+
+      - name: Build the fixed app
+        id: proof-build
+        env: *proof-3940-env
+        run: python .github/verification/3940/run.py build
+
+      - name: Exercise fixed reconnect, live palette actions and navigation
+        id: proof-browser
+        env: *proof-3940-env
+        run: python .github/verification/3940/run.py browser
+
+      - name: Verify fixture, manifest and lease cleanup
+        id: proof-cleanup
+        if: ${{ !cancelled() && (steps.proof-browser.outcome == 'success' || steps.proof-browser.outcome == 'failure') }}
+        env: *proof-3940-env
+        run: python .github/verification/3940/run.py cleanup
+
+      - name: Validate the fixed browser verdict
+        if: ${{ steps.proof-browser.outcome == 'success' && steps.proof-cleanup.outcome == 'success' }}
+        env: *proof-3940-env
+        run: python .github/verification/3940/run.py verdict
