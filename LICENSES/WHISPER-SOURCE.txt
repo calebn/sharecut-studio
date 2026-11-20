@@ -9,7 +9,11 @@ The iOS app embeds one dynamic framework, Whisper.framework, that runs the
 whisper.cpp command line tool inside the app process. It is built from the
 source below, with the patch pinned in contracts/whisper-build.json in the
 application source repository. whisper.cpp and ggml are licensed under the MIT
-license, which is reproduced below and ships with the app.
+license, which is reproduced below. This notice must ship with the app; the release plan does not copy
+it into the bundle yet, which is a task for the legal review below.
+
+whisper.cpp's example sources also compile in two single-file libraries, miniaudio and stb_vorbis,
+under the licenses stated in their own file headers; those texts are not reproduced here yet.
 
   whisper.cpp v1.9.5   MIT
     https://github.com/ggml-org/whisper.cpp
