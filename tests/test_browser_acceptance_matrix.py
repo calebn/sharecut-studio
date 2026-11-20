@@ -346,9 +346,7 @@ def test_ci_runs_both_browser_suites_on_dispatch_on_every_passing_engine() -> No
     )
     steps = _frontend_e2e_steps()
     runner_steps = [
-        step
-        for step in steps
-        if str(step.get("run", "")).strip() == "${{ matrix.command }}"
+        step for step in steps if str(step.get("run", "")).strip() == "${{ matrix.command }}"
     ]
     assert len(runner_steps) == 1, f"expected one matrix command step, got {runner_steps}"
     runner = runner_steps[0]

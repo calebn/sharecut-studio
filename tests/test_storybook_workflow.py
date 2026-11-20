@@ -51,9 +51,7 @@ def test_storybook_pull_requests_run_only_the_render_smoke() -> None:
     smoke = steps["Build Storybook and run the render smoke"]
     full = steps["Build Storybook and verify browser geometry"]
     assert smoke["if"] == "github.event_name == 'pull_request'"
-    assert smoke["run"] == (
-        "npm run test:e2e:storybook -- coverage.spec.ts docs-theme.spec.ts"
-    )
+    assert smoke["run"] == ("npm run test:e2e:storybook -- coverage.spec.ts docs-theme.spec.ts")
     assert full["if"] == "github.event_name != 'pull_request'"
     assert full["run"] == "npm run test:e2e:storybook"
     for step in (smoke, full):
