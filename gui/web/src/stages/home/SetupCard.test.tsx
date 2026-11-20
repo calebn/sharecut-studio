@@ -32,6 +32,72 @@ describe("SetupCard on a device without audio tools", () => {
   });
 });
 
+describe("SetupCard after a failed download", () => {
+  const failedCard = (
+    props: Partial<React.ComponentProps<typeof SetupCard>> = {},
+  ) => (
+    <SetupCard
+      state="failed"
+      sizeLabel="about 2 GB"
+      detail="The download server doesn't have the speech model."
+      onGetReady={noop}
+      onChoose={noop}
+      onCancel={noop}
+      onRetry={noop}
+      onNotNow={noop}
+      {...props}
+    />
+  );
+
+  it("says why and offers Try again and Choose…", async () => {
+    const onRetry = vi.fn();
+    const onChoose = vi.fn();
+    const { container } = render(failedCard({ onRetry, onChoose }));
+    expect(screen.getByText("The download didn't finish.")).toBeVisible();
+    expect(
+      screen.getByText("The download server doesn't have the speech model."),
+    ).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(onChoose).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(container);
+  });
+
+  it("falls back to Get ready when a size change in the sheet clears the failure", () => {
+    const { rerender } = render(failedCard());
+    rerender(failedCard({ state: "needed", detail: undefined }));
+    expect(screen.getByRole("button", { name: "Get ready" })).toBeVisible();
+    expect(screen.queryByText("The download didn't finish.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Choose…" })).not.toBeNull();
+  });
+
+  it("moves focus to Try again when a cancel lands on a failed card", async () => {
+    function Harness() {
+      const [state, setState] = useState<"downloading" | "failed">(
+        "downloading",
+      );
+      return (
+        <SetupCard
+          state={state}
+          sizeLabel="about 2 GB"
+          detail="The download server doesn't have the speech model."
+          onGetReady={noop}
+          onChoose={noop}
+          onCancel={() => setState("failed")}
+          onRetry={noop}
+          onNotNow={noop}
+        />
+      );
+    }
+    render(<Harness />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Cancel the download" }),
+    );
+    expect(screen.getByRole("button", { name: "Try again" })).toHaveFocus();
+  });
+});
+
 describe("SetupCard checking", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
