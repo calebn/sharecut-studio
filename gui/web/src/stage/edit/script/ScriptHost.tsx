@@ -32,6 +32,7 @@ export type ScriptHostProps = {
   status?: Extract<ScriptStatus, { kind: "outOfDate" }>;
   /** The empty state's "Transcribe this episode". */
   onTranscribe?: () => void;
+  onFindTargetChange?: (target: HTMLButtonElement | null) => void;
 };
 
 /**
@@ -44,6 +45,7 @@ export function ScriptHost({
   layout: layoutProp,
   status: statusProp,
   onTranscribe,
+  onFindTargetChange,
 }: ScriptHostProps) {
   const projectPath = useDawStore((s) => s.projectPath);
   const projectEpoch = useDawStore((s) => s.projectEpoch);
@@ -216,6 +218,7 @@ export function ScriptHost({
         onSeekTurn={playback.onSeekTurn}
         onSpeaker={speaker.onSpeaker}
         onFind={find.openBar}
+        onFindTargetChange={onFindTargetChange}
         onNextUnsure={mode === "none" ? undefined : () => jump()}
         onPreviousUnsure={
           mode === "none" ? undefined : () => jump(undefined, "previous")

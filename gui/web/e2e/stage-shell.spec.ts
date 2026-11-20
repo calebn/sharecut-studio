@@ -108,6 +108,48 @@ async function expectNoHorizontalScroll(page: Page): Promise<void> {
 test.describe("Stage shell on desktop", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
+  for (const moveFocus of [false, true]) {
+    const outcome = moveFocus ? "respects a new focus target" : "focuses Find";
+    test(`slow Script hydration ${outcome}`, async ({ page }) => {
+      const detail = (url: URL) =>
+        url.pathname === "/api/document/state" &&
+        url.searchParams.get("phase") === "detail";
+      let releaseWords: () => void = () => undefined;
+      const wordsReady = new Promise<void>((resolve) => {
+        releaseWords = resolve;
+      });
+      await page.route(detail, async (route) => {
+        await wordsReady;
+        await route.continue();
+      });
+      try {
+        await page.clock.install();
+        await openProject(page);
+        const pane = page.locator(".edit-script");
+        const find = pane.getByRole("button", { name: "Find in transcript" });
+        const loading = pane.locator(".sys-skeleton");
+        await expect(loading).toBeVisible();
+        const popover = await openViewPopover(page);
+        await popover
+          .getByRole("button", { name: "Prosody", exact: true })
+          .focus();
+        await page.keyboard.press("Shift+T");
+        await expect(popover).toHaveCount(0);
+        await expect(pane).toBeFocused();
+        await expect(find).toHaveCount(0);
+
+        const editTab = stageTab(page, "edit");
+        if (moveFocus) await editTab.focus();
+        await page.clock.fastForward(5_100);
+        releaseWords();
+        await expect(find).toBeVisible();
+        await expect(moveFocus ? editTab : find).toBeFocused();
+      } finally {
+        releaseWords();
+      }
+    });
+  }
+
   for (const actor of ["Script focus", "frame folding"] as const) {
     test(`dismisses View when ${actor} hides its eye`, async ({ page }) => {
       await openProject(page);

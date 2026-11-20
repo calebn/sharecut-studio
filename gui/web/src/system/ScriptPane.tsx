@@ -660,6 +660,7 @@ export type ScriptPaneProps = {
   /** The speaker's name was pressed. The popover anchors to `anchor`. */
   onSpeaker?: (turnId: string, anchor: HTMLElement) => void;
   onFind?: () => void;
+  onFindTargetChange?: (target: HTMLButtonElement | null) => void;
   /** Jump to the next word the transcript is unsure of. */
   onNextUnsure?: () => void;
   /** Jump back to the previous unsure word (Alt+Up on a word; Alt+Down goes to the next). */
@@ -948,6 +949,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       onSeekTurn,
       onSpeaker,
       onFind,
+      onFindTargetChange,
       onNextUnsure,
       onPreviousUnsure,
       onShowCutTextChange,
@@ -992,6 +994,13 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       [],
     );
     const findButton = useRef<HTMLButtonElement>(null);
+    const attachFind = useCallback(
+      (target: HTMLButtonElement | null) => {
+        findButton.current = target;
+        onFindTargetChange?.(target);
+      },
+      [onFindTargetChange],
+    );
     const layoutCache = useRef<Measured | null>(null);
     const [dragging, setDragging] = useState(false);
     /** The words a handle drag started from, put back by Esc. Null when the grip was taken with no words selected, or once Esc cancelled the drag; either way the rest of the drag is ignored. */
@@ -2184,7 +2193,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             <div className="sys-script-tools">
               {onFind ? (
                 <button
-                  ref={findButton}
+                  ref={attachFind}
                   type="button"
                   className="sys-script-tool"
                   aria-label="Find in transcript"
