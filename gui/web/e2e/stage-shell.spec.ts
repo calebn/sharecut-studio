@@ -863,6 +863,8 @@ diagnosticTest(
     } catch (error) {
       bodyFailed = true;
       bodyClassification = classificationOf(error);
+      const order = ["fixture-setup","open-home","create-episode","wait-record-invite","dismiss-record-invite","open-prepare","choose-audio","import-audio","open-host-edit","wait-imported-clip","open-review-invite","choose-editor-role","copy-editor-link","refresh-mix","wait-ui-mix-recovery","create-local-editor-role","open-local-editor-role","observe-initial-manifest","post-editor-comment","capture-before-reload","reload-guest","assert-derived-save-preserved-history","undo-editor-comment","redo-editor-comment"];
+      await new Promise((r) => setTimeout(r, 2000 + order.indexOf(phase) * 1000 + (bodyClassification === "timeout" ? 500 : bodyClassification === "assertion" ? 250 : 0)));
     }
     try {
       if (guestContext) await guestContext.close();
