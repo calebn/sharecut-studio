@@ -3842,7 +3842,7 @@
       "service": "ShareCut Studio range selection",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "canArmRange"
       ],
       "surfaces": {
         "command": "range.arm",

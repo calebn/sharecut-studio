@@ -94,7 +94,6 @@ const VIEWER_ROWS = [
   ["edit.clearSelection", "Nothing selected"],
   ["edit.nextOccurrence", "No other matches to jump to"],
   ["range.play", "Choose a range"],
-  ["range.arm", "Nothing to select yet"],
   ["help.guides", null],
   ["presence.unfollow", "Not following"],
 ];
@@ -116,7 +115,6 @@ const COMMENTER_ROWS = [
   ["range.cut", "Choose a range"],
   ["range.mute", "Choose a range"],
   ["range.comment", "Choose a range"],
-  ["range.arm", "Nothing to select yet"],
   ["comment.draftAt", null],
   ["help.guides", null],
   ["presence.unfollow", "Not following"],
@@ -158,6 +156,14 @@ describe("a guest link's palette", () => {
       expect(editor.get(id)).toBe("Choose a range");
     }
     expect(editor.get("range.arm")).toBe("Nothing to select yet");
+  });
+
+  it("leaves Select a range off a Viewer or Commenter link, which has no range surface, and keeps it for an Editor and the host", () => {
+    for (const role of ["viewer", "commenter"] as const) {
+      expect(rows(role, "review").map(([id]) => id)).not.toContain("range.arm");
+    }
+    expect(rows("editor", "review").map(([id]) => id)).toContain("range.arm");
+    expect(rows("host", "edit").map(([id]) => id)).toContain("range.arm");
   });
 
   it("keeps an Editor on Review able to open Edit, with the Edit-only rows greyed, not removed", () => {
