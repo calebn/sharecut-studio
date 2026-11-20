@@ -16,7 +16,8 @@ import { useDocumentBusy } from "../../state/useDocumentBusy";
 import { latestSaveOutcome, type SaveState, saveStateOf } from "./saveState";
 
 export type SaveAttention =
-  { kind: "passive" } | { kind: "button"; activate: () => void };
+  | { kind: "passive" }
+  | { kind: "button"; activate: () => void };
 
 const FOCUS_FRAMES = 30;
 

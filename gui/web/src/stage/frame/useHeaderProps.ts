@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { isTypingTarget } from "../../keymap/typing";
 import { runPointerCommand } from "../../commands/pointer";
 import { useRenameProject } from "../../hooks/useRenameProject";
 import { useReviewPeaks } from "../../hooks/useReviewPeaks";
 import { useReviewVersion } from "../../hooks/useReviewVersion";
 import { type ThemePreference, useTheme } from "../../hooks/useTheme";
+import { isTypingTarget } from "../../keymap/typing";
 import { shareTokenFromKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useReadsSavedCopy } from "../../state/savedCopy";
