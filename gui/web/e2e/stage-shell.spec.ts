@@ -557,19 +557,22 @@ test.describe("Stage shell on a guest link", () => {
 test("an Editor's stalled document load recovers when its loading Retry requests the shell again", async ({
   browser,
 }) => {
-  assertDisposableE2eProject(e2eProjectPath);
-  const workspaceDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "sharecut-e2e-guest-retry-"),
-  );
+  const workspaceDir = await test.step("Retry phase 1", () => {
+    assertDisposableE2eProject(e2eProjectPath);
+    return fs.mkdtempSync(path.join(os.tmpdir(), "sharecut-e2e-guest-retry-"));
+  });
   let registered = false;
+  let phase = 2;
   try {
     registered = registerE2eCleanupWorkspace(workspaceDir);
     if (!registered) throw new Error("E2E cleanup registration is required");
+    phase = 3;
     await withTwoBrowserPages(
       browser,
       {},
       { viewport: { width: 1280, height: 800 } },
       async (host, guest) => {
+        phase = 4;
         await openHome(host);
         await createEpisodeFromHome(host, {
           name: "Guest Retry QA",
@@ -586,6 +589,7 @@ test("an Editor's stalled document load recovers when its loading Retry requests
         fs.mkdirSync(artifacts, { recursive: true });
         fs.writeFileSync(path.join(artifacts, "premix.wav"), silenceWav());
         const token = await createReviewShare(host, projectPath, "editor");
+        phase = 5;
         const shellPath = `/api/review/${token}/daw/document/state`;
         let held = true;
         let shellRequests = 0;
@@ -610,6 +614,7 @@ test("an Editor's stalled document load recovers when its loading Retry requests
           exact: true,
         });
         await expect(retry).toBeVisible();
+        phase = 6;
         const answer = guest.waitForResponse((response) => {
           const url = new URL(response.url());
           return (
@@ -624,23 +629,33 @@ test("an Editor's stalled document load recovers when its loading Retry requests
         expect(await response.json()).toMatchObject({
           project: { meta: { name: "Guest Retry QA" } },
         });
+        phase = 7;
         await expect.poll(() => shellRequests).toBe(2);
         await expect(
           guest.locator('.stage-host[aria-busy="true"]'),
         ).toHaveCount(0);
         await expect(guest.locator(".stage-frame--guest")).toBeVisible();
         await expect(retry).toHaveCount(0);
+        phase = 8;
         await goToStage(guest, "edit");
         expect(new URL(guest.url()).pathname).toBe(`/r/${token}`);
+        phase = 10;
       },
     );
+    await test.step("Retry body complete", () => {});
+  } catch (error) {
+    await test.step(`Retry phase ${phase}`, () => {
+      throw error;
+    });
   } finally {
-    try {
-      await switchE2eProject(e2eProjectPath);
-    } finally {
-      if (!registered)
-        fs.rmSync(workspaceDir, { recursive: true, force: true });
-    }
+    await test.step("Retry phase 9", async () => {
+      try {
+        await switchE2eProject(e2eProjectPath);
+      } finally {
+        if (!registered)
+          fs.rmSync(workspaceDir, { recursive: true, force: true });
+      }
+    });
   }
   process.stdout.write("sharecut-guest-retry-bootstrap: case completed\n");
 });
