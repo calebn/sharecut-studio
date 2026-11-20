@@ -521,7 +521,8 @@ void     sc_whisper_cancel(int64_t session);
 - **Ids and cancel.** Session ids are never reused in a process. `cancel` on a session that has
   already finished is a harmless no-op, and so is one for an unknown id. A second `cancel` on a
   session that is still running is harmless too: the latch is already set, and it only sends the
-  worker another `SIGUSR2`.
+  worker another `SIGUSR2`. A session rejected by the argv policy is the exception: cancelling it
+  sets no latch and sends no `SIGUSR2`, and it still reports `1`.
   Cancelling a queued session makes `wait` return `255` and the tool never runs.
 - **Threads.** `start` and `wait` for one session are called from one worker thread; `cancel`
   comes from another: Python's `run` forwards a cancel from its watcher thread. Calling `wait` twice for one id gives `-ESRCH` the second time.
