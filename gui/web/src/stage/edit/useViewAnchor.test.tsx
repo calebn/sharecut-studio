@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { useRef, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
-import { type ViewAnchorAvailability, useViewAnchor } from "./useViewAnchor";
+import { useViewAnchor, type ViewAnchorAvailability } from "./useViewAnchor";
 
 let setHidden: (hidden: boolean) => void = () => {};
 
