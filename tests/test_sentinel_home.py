@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
+
 from podcast_mcp.services.share_auth.store import default_identity_db_path, get_identity_store
 from podcast_mcp.util import host_platform
 from sentinel_home import (
@@ -112,7 +114,7 @@ def _run_session(tmp_path: Path, body: str, extra_env: dict[str, str] | None = N
     import sys
 
     project = tmp_path / "proj"
-    project.mkdir()
+    project.mkdir(exist_ok=True)
     here = Path(__file__).parent
     (project / "conftest.py").write_text(
         "import importlib.util\nimport sys\n"
@@ -128,7 +130,13 @@ def _run_session(tmp_path: Path, body: str, extra_env: dict[str, str] | None = N
     env = {
         k: v
         for k, v in os.environ.items()
-        if k not in {"PODCAST_SHARE_IDENTITY", "CARGO_HOME", "PODCAST_MCP_CACHE"}
+        if k
+        not in {
+            "PODCAST_SHARE_IDENTITY",
+            "CARGO_HOME",
+            "PODCAST_MCP_CACHE",
+            "SHARECUT_TEST_ORIGINAL_ENV",
+        }
     }
     env.update(extra_env or {})
     return subprocess.run(
@@ -211,3 +219,77 @@ def test_a_module_that_loads_defaults_at_import_leaves_the_real_home_alone(tmp_p
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert list(real.iterdir()) == []
+
+
+def test_a_worker_reads_the_real_home_back_from_the_first_import(tmp_path: Path) -> None:
+    import json
+
+    real = tmp_path / "realhome"
+    real.mkdir()
+    controller_state = tmp_path / "controller_state"
+    controller_state.mkdir()
+    preset = controller_state / "identity.sqlite"
+    result = _run_session(
+        tmp_path,
+        "def test_env():\n"
+        f"    assert Path(os.environ['PODCAST_SHARE_IDENTITY']).parent != Path({str(controller_state)!r})\n"
+        f"    assert not Path(os.environ['PODCAST_SHARE_REGISTRY']).is_relative_to(Path({str(controller_state)!r}))\n",
+        {
+            "HOME": str(tmp_path / "controller_home"),
+            "USERPROFILE": str(tmp_path / "controller_home"),
+            "PODCAST_SHARE_IDENTITY": str(preset),
+            "PODCAST_SHARE_REGISTRY": str(controller_state / "registry.sqlite"),
+            "SHARECUT_TEST_ORIGINAL_ENV": json.dumps(
+                {
+                    "HOME": str(real),
+                    "USERPROFILE": str(real),
+                    "PODCAST_SHARE_IDENTITY": None,
+                    "PODCAST_SHARE_REGISTRY": None,
+                }
+            ),
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_the_session_fails_when_a_test_creates_artifacts_in_the_working_directory(
+    tmp_path: Path,
+) -> None:
+    result = _run_session(
+        tmp_path,
+        "def test_writes():\n    (Path.cwd() / 'artifacts').mkdir()\n",
+    )
+    assert result.returncode != 0
+    assert "workspace is the working directory" in result.stdout + result.stderr
+
+
+def test_an_artifacts_folder_that_was_already_there_is_not_blamed_on_the_tests(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "proj"
+    (project / "artifacts").mkdir(parents=True)
+    result = _run_session(tmp_path, "def test_ok():\n    assert True\n")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_the_session_root_sits_outside_the_real_home_and_is_removed_at_exit(
+    tmp_path: Path,
+) -> None:
+    real = tmp_path / "realhome"
+    real.mkdir()
+    record = tmp_path / "home.txt"
+    result = _run_session(
+        tmp_path,
+        f"def test_record():\n    Path({str(record)!r}).write_text(os.environ['HOME'])\n",
+        {"HOME": str(real), "USERPROFILE": str(real)},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    home = Path(record.read_text())
+    assert not home.resolve().is_relative_to(real)
+    assert not home.parent.exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="creating a symlink needs a privilege on Windows")
+def test_a_symlink_in_the_session_home_is_reported(tmp_path: Path) -> None:
+    (tmp_path / "link").symlink_to(tmp_path / "missing")
+    assert stray_files(tmp_path) == ["link"]
