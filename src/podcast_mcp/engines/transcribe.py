@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import re
+import tempfile
 import threading
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
@@ -50,6 +51,7 @@ from podcast_mcp.models import (
     TranscriptKey,
     TranscriptWord,
 )
+from podcast_mcp.util import host_platform, native_whisper
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
@@ -502,6 +504,17 @@ def collect_punctuation_outlier_flags(project: EpisodeProject) -> list[dict[str,
     return flags
 
 
+def _transcription_backend() -> str:
+    host = host_platform.current()
+    if host.transcription != "whisper_cpp":
+        return "faster_whisper"
+    if not native_whisper.is_installed():
+        raise CodedValueError(
+            host_platform.TRANSCRIPTION_UNAVAILABLE, code="transcription_unavailable"
+        )
+    return "whisper_cpp"
+
+
 _RUN_STATE = ("silence_filter_skipped", "forced_alignment_jobs", "asr_loop_drops")
 
 
@@ -516,6 +529,7 @@ class TranscriptionEngine:
         cpu_threads: int | None = None,
     ) -> None:
         self.model_size = validate_whisper_model(model_size)
+        self.backend = _transcription_backend()
         # A fixed count keeps the CPU decode the same from run to run (#2632).
         self.cpu_threads = cpu_threads
         if device not in ("auto", "cpu", "cuda"):
@@ -626,6 +640,13 @@ class TranscriptionEngine:
         self._fall_back_to_cpu(f"the GPU run failed ({exc})", exc)
         return True
 
+    def _cache_model_key(self) -> str:
+        if self.backend == "whisper_cpp":
+            from podcast_mcp.engines.whisper_cpp import default_model_name
+
+            return default_model_name()
+        return self.model_size
+
     def cache_path(
         self,
         project: EpisodeProject,
@@ -639,7 +660,8 @@ class TranscriptionEngine:
         audio_key = (audio_sha256 or sha256_file(audio_path))[:16]
         inputs = json.dumps(
             {
-                "model": self.model_size,
+                "backend": self.backend,
+                "model": self._cache_model_key(),
                 "language": language,
                 "initial_prompt": initial_prompt,
                 "decode": self.options.decode_key(),
@@ -862,6 +884,11 @@ class TranscriptionEngine:
         can loop on a short filler ("Uh, uh, uh, ..."), hence the penalised retry.
         """
 
+        if self.backend == "whisper_cpp":
+            return self._transcribe_samples_whisper_cpp(
+                samples, language=language, initial_prompt=initial_prompt
+            )
+
         def decode(**extra: object) -> tuple[str, bool]:
             raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
             segments, _ = self._get_model().transcribe(
@@ -886,6 +913,61 @@ class TranscriptionEngine:
             return text
 
         return self._with_cpu_fallback(run)
+
+    def _transcribe_samples_whisper_cpp(
+        self, samples: np.ndarray, *, language: str | None, initial_prompt: str | None
+    ) -> str:
+        from podcast_mcp.engines.whisper_cpp import transcribe_file_whisper_cpp, write_wav_16k_mono
+
+        raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
+        with tempfile.TemporaryDirectory(prefix="whisper-cpp-samples-") as tmp:
+            wav = Path(tmp) / "samples.wav"
+            write_wav_16k_mono([samples.astype(np.float32, copy=False)], wav)
+            heard = transcribe_file_whisper_cpp(
+                wav, language=language, initial_prompt=initial_prompt
+            )
+        raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
+        return " ".join(w.text for w in heard.words).strip()
+
+    def _transcribe_file_whisper_cpp(
+        self,
+        audio_path: Path,
+        language: str | None,
+        *,
+        initial_prompt: str | None,
+        max_word_sec: float,
+        progress_label: str | None,
+        progress_task_id: str,
+    ) -> Transcript:
+        from podcast_mcp.engines.ffmpeg import FFmpegEngine
+        from podcast_mcp.engines.whisper_cpp import (
+            WHISPER_SAMPLE_RATE,
+            transcribe_file_whisper_cpp,
+            write_wav_16k_mono,
+        )
+
+        label = progress_label or audio_path.name
+        with (
+            resolve_progress_task(progress_task_id, f"Transcribing {label}", total=None),
+            tempfile.TemporaryDirectory(prefix="whisper-cpp-audio-") as tmp,
+        ):
+            raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
+            wav = Path(tmp) / "audio.wav"
+            write_wav_16k_mono(
+                FFmpegEngine().stream_mono_f32(audio_path, sample_rate=WHISPER_SAMPLE_RATE), wav
+            )
+            raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
+            transcript = transcribe_file_whisper_cpp(
+                wav,
+                language=language,
+                initial_prompt=initial_prompt,
+                max_word_sec=max_word_sec,
+            )
+            raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
+        transcript.asr_language = normalize_language(language)
+        self._loop_drop = guard_transcript(transcript)
+        flag_anomalous_asr_durations(transcript.words, max_word_sec=max_word_sec)
+        return transcript
 
     def transcribe_file(
         self,
@@ -921,6 +1003,15 @@ class TranscriptionEngine:
         progress_label: str | None,
         progress_task_id: str,
     ) -> Transcript:
+        if self.backend == "whisper_cpp":
+            return self._transcribe_file_whisper_cpp(
+                audio_path,
+                language,
+                initial_prompt=initial_prompt,
+                max_word_sec=max_word_sec,
+                progress_label=progress_label,
+                progress_task_id=progress_task_id,
+            )
         model = self._get_model()
         kwargs: dict = {
             "language": language,
