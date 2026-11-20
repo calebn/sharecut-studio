@@ -480,8 +480,9 @@ holds `NativeWhisperBackend`, the `InProcessBackend` that runs `in-process:whisp
 four C functions the app is to export. It shares its ctypes code with the FFmpeg backend
 (`src/podcast_mcp/util/native_abi.py`). The Python seam is what 6c-1 added. The C glue, the build
 and the framework are slice 6c-2 (#4024; see [Building and embedding
-Whisper.framework](#ios-native-whisper-framework)); a build that has not run `make ios-whisper-*`
-exports no `sc_whisper_` symbol, and the backend is then unavailable.
+Whisper.framework](#ios-native-whisper-framework)). A bare Python or host build that does not load
+`Whisper.framework` exports no `sc_whisper_` symbol, and the backend is then unavailable. An iOS
+build does not get that far: its pre-build check fails when the framework slice is missing.
 
 ```c
 int      sc_whisper_abi_version(void);   /* must return 1 */
@@ -502,6 +503,9 @@ void     sc_whisper_cancel(int64_t session);
 - **argv.** `argv[0]` is `whisper-cli` (Python maps the sentinel). The rest are whisper-cli flags
   passed through unchanged, such as `-m`, `-f`, `-ojf`, `-of`, `-np`, `-l` and `-t`. The array
   has `argc` strings and a NULL slot.
+  The core accepts only those flags (no positional argument), and refuses `-`, an empty string,
+  `@...`, a `dev` or `proc` directory component and a `..` component as the value of `-m`, `-f`
+  or `-of`, so no accepted argv reads fd 0; a refused argv is exit `1` with one `sc_whisper:` line.
 - **Sessions.** `start` returns an id >= 1 or `-errno`; `wait` returns an exit code in 0..255 or
   `-errno`; `cancel` is called once by Python when the caller cancels. The fd, cancel and
   error contract is the same as FFmpeg's (File descriptors, Sessions and Errors above): `-1`
@@ -566,6 +570,7 @@ above and nothing else.
   `Frameworks/Whisper.framework/Whisper` must be a Mach-O file of at most 12 MiB (a budget to be
   measured), export exactly the four `sc_whisper_` symbols, and have
   `Frameworks/Whisper.framework/PrivacyInfo.xcprivacy` as a property list dictionary.
+  A second Mach-O file anywhere inside either native framework folder fails the same check.
   `WHISPER_EMBEDDED` in `scripts/ios/bundle_checks.py` turns the requirement off, and then a
   `Whisper.framework` in the bundle fails.
 - **Not proved here.** The iOS compile, `xcrun nm` over the slices, loading both frameworks in the

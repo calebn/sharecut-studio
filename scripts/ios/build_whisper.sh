@@ -96,12 +96,12 @@ for patch in contract["patches"]:
 PY
 )
 
-[ -d "$SRC/$WDIR" ] || tar -xf "$SRC/$(pin sources.whisper.archive)" -C "$SRC"
-
-rm -rf "$WSRC"
+# a fresh extraction every run, so a stale or edited tree is never built after the pin changes
+rm -rf "$SRC/$WDIR" "$WSRC"
+tar -xf "$SRC/$(pin sources.whisper.archive)" -C "$SRC"
 cp -Rp "$SRC/$WDIR" "$WSRC"
 for patch in $PATCHES; do
-  (cd "$WSRC" && patch -p1 --dry-run --batch --quiet < "$ROOT/$patch" && patch -p1 --batch --quiet < "$ROOT/$patch")
+  (cd "$WSRC" && patch -p1 --fuzz=0 --dry-run --batch --quiet < "$ROOT/$patch" && patch -p1 --fuzz=0 --batch --quiet < "$ROOT/$patch")
 done
 
 MAPS="-ffile-prefix-map=$ROOT=/repo -ffile-prefix-map=$SYSROOT=/sdk -ffile-prefix-map=$SRC=/src -ffile-prefix-map=$WSRC=/src/$WDIR -ffile-prefix-map=$BUILD=/build -ffile-prefix-map=$OUT=/out -fdebug-prefix-map=$ROOT=/repo -fdebug-prefix-map=$WSRC=/src/$WDIR"
@@ -109,8 +109,10 @@ VIS="-fvisibility=hidden -ffunction-sections -fdata-sections"
 FORCE="-include sc_whisper_exit_map.h -I$GLUE"
 
 # the forced exit map goes on the library build only: CMake's own probes would not link against sc_tool_exit
+# a fresh build tree every run, so a stale .a is never linked
+rm -rf "$BUILD/cmake"
 mkdir -p "$BUILD/cmake"
-cmake -S "$WSRC" -B "$BUILD/cmake" "${CMAKE_PLAT[@]}" $(pin cmake_configure) \
+cmake -S "$WSRC" -B "$BUILD/cmake" ${CMAKE_PLAT[@]+"${CMAKE_PLAT[@]}"} $(pin cmake_configure) \
   "-DCMAKE_C_COMPILER=${CC%% *}" "-DCMAKE_CXX_COMPILER=${CXX%% *}" \
   "-DCMAKE_C_FLAGS=-fPIC $LIB_DEFS $VIS $MAPS $FORCE" "-DCMAKE_CXX_FLAGS=-fPIC $LIB_DEFS $VIS -fvisibility-inlines-hidden $MAPS $FORCE" \
   > "$BUILD/cmake-configure.log" 2>&1
@@ -129,8 +131,9 @@ compile_glue() {
   $CXX $CXXF $INC -c "$1" -o "$WORK/$(basename "$1").o"
   OBJS+=("$WORK/$(basename "$1").o")
 }
+# -DNDEBUG on the cli sources: a failing assert there (stb_vorbis, miniaudio) would call libSystem abort() and end the app
 compile_tool() {
-  $CXX $CXXF $INC -include sc_whisper_stdio.h -include sc_whisper_exit_map.h "${@:2}" -c "$1" -o "$WORK/$(basename "$1").o"
+  $CXX $CXXF $INC -DNDEBUG -include sc_whisper_stdio.h -include sc_whisper_exit_map.h "${@:2}" -c "$1" -o "$WORK/$(basename "$1").o"
   OBJS+=("$WORK/$(basename "$1").o")
 }
 compile_plain "$GLUE/sc_whisper_core.c"

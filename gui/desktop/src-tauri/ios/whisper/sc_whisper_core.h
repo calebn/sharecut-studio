@@ -25,7 +25,10 @@ void sc_tool_exit(int code) __attribute__((noreturn));
    any other thread. */
 
 /* sc_glue_run runs on the single worker thread. argv is NULL-terminated and owned by the core.
-   The core clamps the return value: outside 0..255 becomes 1; a cancelled session returns 255. */
+   The session's exit code is 1 when the value is outside 0..255 or when sc_tool_exit ended
+   the tool on a thread other than the worker; otherwise 255 when sc_whisper_cancel reached the session while it
+   was running, whatever the tool returned; otherwise the value. A session cancelled while still queued
+   never runs and reports 255. */
 int sc_glue_run(int tool, int argc, char **argv);
 
 /* sc_glue_reset runs with the core lock held: keep it quick. sc_glue_interrupt may run with or
