@@ -385,3 +385,39 @@ def test_a_new_file_in_an_artifacts_folder_that_was_already_there_fails_the_sess
     )
     assert result.returncode != 0
     assert "workspace is the working directory" in result.stdout + result.stderr
+
+
+def test_the_first_import_records_the_original_value_of_every_managed_variable(
+    tmp_path: Path,
+) -> None:
+    real = tmp_path / "realhome"
+    real_hf = real / ".cache" / "huggingface"
+    real_hf.mkdir(parents=True)
+    result = _run_session(
+        tmp_path,
+        "import json\\nimport sys\\n\\n\\n"
+        "def test_snapshot():\\n"
+        "    real = sys.modules['real_conftest']\\n"
+        "    saved = json.loads(os.environ[real._ORIGINAL_ENV_KEY])\\n"
+        "    assert set(saved) == set(real._MANAGED_ENV)\\n"
+        f"    assert saved['HF_HOME'] == {str(real_hf)!r}\\n"
+        f"    assert saved['HOME'] == {str(real)!r}\\n",
+        {"HOME": str(real), "USERPROFILE": str(real), "HF_HOME": str(real_hf)},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_the_checkout_is_watched_even_when_the_working_directory_is_elsewhere(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.config.defaults import repo_root
+
+    result = _run_session(
+        tmp_path,
+        "import sys\\n\\n\\n"
+        "def test_watched():\\n"
+        "    real = sys.modules['real_conftest']\\n"
+        f"    assert Path({str(repo_root() / 'artifacts')!r}) in real._ARTIFACTS_AT_IMPORT\\n"
+        "    assert Path.cwd() / 'artifacts' in real._ARTIFACTS_AT_IMPORT\\n",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
