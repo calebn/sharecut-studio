@@ -1,4 +1,4 @@
-.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e profile-seek-trim test-desktop ios-sim ios-sim-proof ios-testflight ios-release-rehearsal ios-ffmpeg ios-ffmpeg-device ios-ffmpeg-sim desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export generated-check docs-sync docs-sync-table docs-sync-replay decisions-index golden-ear
+.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e profile-seek-trim test-desktop ios-sim ios-sim-proof ios-testflight ios-release-rehearsal ios-ffmpeg ios-ffmpeg-device ios-ffmpeg-sim ios-whisper ios-whisper-device ios-whisper-sim desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export generated-check docs-sync docs-sync-table docs-sync-replay decisions-index golden-ear
 
 BASE ?= $(shell python3 scripts/branches.py base)
 
@@ -99,6 +99,16 @@ ios-ffmpeg-sim:
 	uv run python scripts/ios/ffmpeg_framework.py assemble
 
 ios-ffmpeg: ios-ffmpeg-device ios-ffmpeg-sim
+
+ios-whisper-device:
+	./scripts/ios/build_whisper.sh device
+	uv run python scripts/ios/ffmpeg_framework.py --framework whisper assemble
+
+ios-whisper-sim:
+	./scripts/ios/build_whisper.sh sim
+	uv run python scripts/ios/ffmpeg_framework.py --framework whisper assemble
+
+ios-whisper: ios-whisper-device ios-whisper-sim
 
 # Optional full installer build (needs platform WebView deps). Not CI.
 # macOS signs+notarizes when APPLE_* env vars are set (see docs/desktop-packaging.md).

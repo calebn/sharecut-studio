@@ -319,6 +319,8 @@ def test_the_signed_plan_archives_only_exports_and_may_touch_apple() -> None:
         "desktop dependencies",
         "ffmpeg build",
         "ffmpeg xcframework",
+        "whisper build",
+        "whisper xcframework",
         "device payload",
         "reset generated project",
         "xcode project",
@@ -329,6 +331,7 @@ def test_the_signed_plan_archives_only_exports_and_may_touch_apple() -> None:
         "info plist",
         "bundle layout",
         "ffmpeg framework",
+        "whisper framework",
         "privacy",
         "signature",
         "record",
@@ -389,6 +392,46 @@ def test_the_ffmpeg_step_runs_the_real_check_against_the_unpacked_app(
     report = step.action(release_plan.Workspace(out=tmp_path, build_number="1.2.3"))
     assert report is not None
     assert report.problems == ("Frameworks/FFmpeg.framework/FFmpeg is missing",)
+
+
+def test_the_whisper_framework_is_built_and_assembled_after_ffmpeg_and_before_the_payload() -> None:
+    for signing in (Signing.APP_STORE, Signing.NONE):
+        plan = release_plan.plan_build(build_inputs(signing), LAYOUT, NOISY, "/rustup:/usr/bin")
+        names = [step.name for step in plan]
+        assert names.index("ffmpeg xcframework") < names.index("whisper build")
+        assert names.index("whisper build") + 1 == names.index("whisper xcframework")
+        assert names.index("whisper xcframework") < names.index("device payload")
+        steps = steps_by_name(plan)
+        build, assemble = steps["whisper build"], steps["whisper xcframework"]
+        assert build.command.argv == ("./scripts/ios/build_whisper.sh", "device")
+        assert assemble.command.argv == (
+            "uv",
+            "run",
+            "python",
+            "scripts/ios/ffmpeg_framework.py",
+            "--framework",
+            "whisper",
+            "assemble",
+        )
+        for step in (build, assemble):
+            assert not step.contacts_apple
+            assert step.command.cwd == LAYOUT.root
+            assert "APPLE_API_KEY" not in step.command.env
+            assert "APPLE_DEVELOPMENT_TEAM" not in step.command.env
+
+
+def test_the_whisper_step_runs_the_real_check_against_the_unpacked_app(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(release_plan, "unpack", lambda ws: tmp_path)
+    step = next(
+        s
+        for s in release_plan.artifact_checks(None, LAYOUT, False)
+        if s.name == "whisper framework"
+    )
+    report = step.action(release_plan.Workspace(out=tmp_path, build_number="1.2.3"))
+    assert report is not None
+    assert report.problems == ("Frameworks/Whisper.framework/Whisper is missing",)
 
 
 KEY_NAMES = ("APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH")
@@ -1355,6 +1398,7 @@ def test_validate_and_upload_plans_differ_by_the_guard_and_the_upload(tmp_path: 
         "info plist",
         "bundle layout",
         "ffmpeg framework",
+        "whisper framework",
         "privacy",
         "signature",
         "app record",
@@ -1545,7 +1589,7 @@ def test_validate_and_upload_dry_runs_show_the_plan_and_the_token(
     assert ios_release.main(["validate", "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert KEY_ID not in out and ISSUER not in out and "--api-key <key-id>" in out
-    assert "upload --confirm" not in out.split("dry run")[0] and " 9 validate" in out
+    assert "upload --confirm" not in out.split("dry run")[0] and "\n10 validate" in out
     assert ios_release.main(["upload", "--dry-run", "--confirm", record.token()]) == 0
     out = capsys.readouterr().out
     assert " upload guard" in out and "--upload-app" in out
@@ -1834,6 +1878,9 @@ def fake_apple(
     monkeypatch.setattr(checks, "check_layout", lambda app: checks.CheckReport("bundle layout"))
     monkeypatch.setattr(
         checks, "check_ffmpeg_framework", lambda app: checks.CheckReport("ffmpeg framework")
+    )
+    monkeypatch.setattr(
+        checks, "check_whisper_framework", lambda app: checks.CheckReport("whisper framework")
     )
 
     ran: list[Command] = []

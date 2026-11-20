@@ -1,4 +1,4 @@
-"""``scripts/ios/ffmpeg_framework.py`` builds and checks the app's FFmpeg.xcframework.
+"""``scripts/ios/ffmpeg_framework.py`` builds and checks the app's FFmpeg and Whisper xcframeworks.
 
 The cloud runs everything except Apple's tool: a fake runner stands in for ``xcodebuild``
 and writes the folder layout that ``-create-xcframework`` writes.
@@ -144,7 +144,7 @@ def test_a_failed_xcodebuild_keeps_the_previous_xcframework_and_leaves_no_stagin
         tool.assemble(root, failing)
     assert (xcframework(root) / "Info.plist").read_bytes() == before
     assert sorted(p.name for p in xcframework(root).parent.iterdir()) == [
-        ".FFmpeg.xcframework.lock",
+        ".native-frameworks.lock",
         "FFmpeg.xcframework",
     ]
 
@@ -159,7 +159,7 @@ def test_a_second_assemble_replaces_the_first_and_leaves_no_staging(tmp_path: Pa
     tool.assemble(root, FakeXcodebuild())
     assert (xcframework(root) / "ios-arm64-simulator/FFmpeg.framework/FFmpeg").is_file()
     assert sorted(p.name for p in xcframework(root).parent.iterdir()) == [
-        ".FFmpeg.xcframework.lock",
+        ".native-frameworks.lock",
         "FFmpeg.xcframework",
     ]
 
@@ -381,3 +381,191 @@ def test_two_assembles_never_overlap(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert overlaps == []
     assert results == {"first": ["device", "sim"], "second": ["device", "sim"]}
     assert (xcframework(root) / "Info.plist").is_file()
+
+
+WHISPER_MANIFEST_SOURCE = ROOT / "gui/desktop/src-tauri/ios/whisper/PrivacyInfo.xcprivacy"
+
+
+def whisper_checkout(tmp_path: Path, slices: Sequence[str] = ("device", "sim")) -> Path:
+    root = tmp_path / "checkout"
+    manifest = root / "gui/desktop/src-tauri/ios/whisper/PrivacyInfo.xcprivacy"
+    manifest.parent.mkdir(parents=True)
+    shutil.copy(WHISPER_MANIFEST_SOURCE, manifest)
+    for name in slices:
+        binary = root / f"gui/desktop/src-tauri/ios-whisper/out/{name}/Whisper.framework/Whisper"
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(f"whisper-{name}".encode())
+        (binary.parent / "Info.plist").write_bytes(plistlib.dumps({"CFBundleName": "Whisper"}))
+    (root / "gui/desktop/src-tauri/ios-payload").mkdir(parents=True)
+    return root
+
+
+class FakeWhisperXcodebuild(FakeXcodebuild):
+    def __call__(self, argv: Sequence[str]) -> None:
+        super().__call__(argv)
+        output = Path(argv[argv.index("-output") + 1])
+        for identifier in [p.name for p in output.iterdir() if p.is_dir()]:
+            shutil.move(
+                output / identifier / "FFmpeg.framework", output / identifier / "Whisper.framework"
+            )
+        index = plistlib.loads((output / "Info.plist").read_bytes())
+        for entry in index["AvailableLibraries"]:
+            entry["LibraryPath"] = "Whisper.framework"
+        (output / "Info.plist").write_bytes(plistlib.dumps(index))
+
+
+def whisper_xcframework(root: Path) -> Path:
+    return root / "gui/desktop/src-tauri/ios-payload/Whisper.xcframework"
+
+
+def test_the_default_framework_is_ffmpeg(tmp_path: Path) -> None:
+    root = checkout(tmp_path)
+    tool.assemble(root, FakeXcodebuild())
+    assert xcframework(root).is_dir()
+    assert not whisper_xcframework(root).exists()
+
+
+def test_assemble_whisper_builds_one_xcframework_from_the_whisper_slices(tmp_path: Path) -> None:
+    root = whisper_checkout(tmp_path)
+    runner = FakeWhisperXcodebuild()
+    assert tool.assemble(root, runner, framework="whisper") == ["device", "sim"]
+    assert len(runner.calls) == 1
+    assert runner.calls[0][-1].endswith("Whisper.xcframework")
+    out = whisper_xcframework(root)
+    assert (out / "ios-arm64/Whisper.framework/Whisper").read_bytes() == b"whisper-device"
+    assert (out / "ios-arm64-simulator/Whisper.framework/Whisper").read_bytes() == b"whisper-sim"
+    assert not xcframework(root).exists()
+
+
+def test_assemble_whisper_ships_the_whisper_manifest_not_the_ffmpeg_one(tmp_path: Path) -> None:
+    root = whisper_checkout(tmp_path)
+    tool.assemble(root, FakeWhisperXcodebuild(), framework="whisper")
+    for identifier in ("ios-arm64", "ios-arm64-simulator"):
+        shipped = whisper_xcframework(root) / identifier / "Whisper.framework/PrivacyInfo.xcprivacy"
+        assert shipped.read_bytes() == WHISPER_MANIFEST_SOURCE.read_bytes()
+    assert WHISPER_MANIFEST_SOURCE.read_bytes() != MANIFEST_SOURCE.read_bytes()
+    assert not list((root / "gui/desktop/src-tauri/ios-whisper/out").rglob("PrivacyInfo.xcprivacy"))
+
+
+def test_assemble_whisper_ignores_ffmpeg_slices_and_says_which_target_to_run(
+    tmp_path: Path,
+) -> None:
+    root = checkout(tmp_path)
+    runner = FakeWhisperXcodebuild()
+    with pytest.raises(tool.FrameworkError, match=r"Whisper\.framework.*make ios-whisper-device"):
+        tool.assemble(root, runner, framework="whisper")
+    assert runner.calls == []
+
+
+def test_assemble_whisper_without_its_manifest_source_fails_before_xcodebuild(
+    tmp_path: Path,
+) -> None:
+    root = whisper_checkout(tmp_path)
+    (root / "gui/desktop/src-tauri/ios/whisper/PrivacyInfo.xcprivacy").unlink()
+    runner = FakeWhisperXcodebuild()
+    with pytest.raises(tool.FrameworkError, match=r"ios/whisper/PrivacyInfo\.xcprivacy"):
+        tool.assemble(root, runner, framework="whisper")
+    assert runner.calls == []
+
+
+def test_a_whisper_assemble_beside_an_ffmpeg_one_shares_one_lock_and_keeps_both(
+    tmp_path: Path,
+) -> None:
+    root = checkout(tmp_path)
+    other = whisper_checkout(tmp_path / "w")
+    shutil.copytree(
+        other / "gui/desktop/src-tauri", root / "gui/desktop/src-tauri", dirs_exist_ok=True
+    )
+    tool.assemble(root, FakeXcodebuild())
+    tool.assemble(root, FakeWhisperXcodebuild(), framework="whisper")
+    assert sorted(p.name for p in xcframework(root).parent.iterdir()) == [
+        ".native-frameworks.lock",
+        "FFmpeg.xcframework",
+        "Whisper.xcframework",
+    ]
+
+
+def test_the_whisper_check_passes_per_sdk_and_names_the_whisper_target(tmp_path: Path) -> None:
+    root = whisper_checkout(tmp_path, ("sim",))
+    tool.assemble(root, FakeWhisperXcodebuild(), framework="whisper")
+    assert tool.check(root, "iphonesimulator", "whisper") is None
+    problem = tool.check(root, "iphoneos", "whisper")
+    assert problem is not None
+    assert "Whisper.xcframework has no Whisper.framework for iphoneos" in problem
+    assert "make ios-whisper-device" in problem
+
+
+def test_the_ffmpeg_check_does_not_pass_on_a_whisper_xcframework(tmp_path: Path) -> None:
+    root = whisper_checkout(tmp_path)
+    tool.assemble(root, FakeWhisperXcodebuild(), framework="whisper")
+    problem = tool.check(root, "iphoneos")
+    assert problem is not None and "make ios-ffmpeg-device" in problem
+    assert tool.check(root, "iphoneos", "whisper") is None
+
+
+def test_the_whisper_check_fails_for_a_half_made_slice_or_unreadable_index(
+    tmp_path: Path,
+) -> None:
+    root = whisper_checkout(tmp_path)
+    tool.assemble(root, FakeWhisperXcodebuild(), framework="whisper")
+    (whisper_xcframework(root) / "ios-arm64/Whisper.framework/Whisper").unlink()
+    assert tool.check(root, "iphoneos", "whisper") is not None
+    (whisper_xcframework(root) / "Info.plist").write_bytes(b"<plist><dict>")
+    assert tool.check(root, "iphonesimulator", "whisper") is not None
+
+
+def test_an_unknown_framework_is_refused() -> None:
+    with pytest.raises(tool.FrameworkError, match="unknown framework mp3"):
+        tool.check(ROOT, "iphoneos", "mp3")
+    with pytest.raises(tool.FrameworkError, match="unknown framework mp3"):
+        tool.assemble(ROOT, framework="mp3")
+
+
+def test_the_command_line_takes_framework_before_the_command(tmp_path: Path) -> None:
+    root = whisper_checkout(tmp_path, ())
+    copy = root / "scripts/ios/ffmpeg_framework.py"
+    copy.parent.mkdir(parents=True)
+    shutil.copy(SCRIPT, copy)
+
+    def run(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-I", str(copy), *args], capture_output=True, text=True, check=False
+        )
+
+    whisper = run("--framework", "whisper", "check", "--sdk", "iphonesimulator")
+    assert whisper.returncode == 1
+    assert "make ios-whisper-sim" in whisper.stderr and whisper.stdout == ""
+    default = run("check", "--sdk", "iphonesimulator")
+    assert default.returncode == 1 and "make ios-ffmpeg-sim" in default.stderr
+    assert run("--framework", "bogus", "check", "--sdk", "iphoneos").returncode == 2
+
+
+@pytest.mark.parametrize(
+    ("target", "argument"), [("ios-whisper-device", "device"), ("ios-whisper-sim", "sim")]
+)
+def test_each_whisper_make_target_builds_the_framework_then_assembles_it(
+    target: str, argument: str
+) -> None:
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    recipe = (
+        rf"^{target}:\n\t\./scripts/ios/build_whisper\.sh {argument}\n"
+        r"\tuv run python scripts/ios/ffmpeg_framework\.py --framework whisper assemble\n"
+    )
+    assert re.search(recipe, makefile, re.M)
+    assert re.search(r"^ios-whisper: ios-whisper-device ios-whisper-sim$", makefile, re.M)
+    phony = makefile.splitlines()[0]
+    assert all(name in phony.split() for name in (target, "ios-whisper"))
+
+
+def test_the_whisper_build_output_is_ignored_by_git() -> None:
+    ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+    for folder in ("src", "build", "out"):
+        assert f"gui/desktop/src-tauri/ios-whisper/{folder}/" in ignored
+
+
+def test_the_whisper_manifest_source_is_a_valid_manifest_without_tracking() -> None:
+    manifest = plistlib.loads(WHISPER_MANIFEST_SOURCE.read_bytes())
+    assert manifest["NSPrivacyTracking"] is False
+    assert manifest["NSPrivacyCollectedDataTypes"] == []
+    assert manifest["NSPrivacyAccessedAPITypes"]
+    assert all(e["NSPrivacyAccessedAPITypeReasons"] for e in manifest["NSPrivacyAccessedAPITypes"])

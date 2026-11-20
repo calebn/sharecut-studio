@@ -117,6 +117,10 @@ targets:
         embed: true
         codeSign: true
         link: true
+      - framework: ../../ios-payload/Whisper.xcframework
+        embed: true
+        codeSign: true
+        link: true
       - sdk: CoreGraphics.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework
@@ -150,6 +154,12 @@ targets:
           # A missing or half-built FFmpeg.framework fails here, before the Rust build spends minutes.
           python3 -I "$PROJECT_DIR/../../../../../scripts/ios/ffmpeg_framework.py" check --sdk "${PLATFORM_NAME:?}"
         name: Check FFmpeg framework
+        basedOnDependencyAnalysis: false
+      - script: |
+          set -eu
+          # A missing or half-built Whisper.framework fails here, before the Rust build spends minutes.
+          python3 -I "$PROJECT_DIR/../../../../../scripts/ios/ffmpeg_framework.py" --framework whisper check --sdk "${PLATFORM_NAME:?}"
+        name: Check Whisper framework
         basedOnDependencyAnalysis: false
       - script: |
           # A release build keeps the build machine's paths out of the Rust library.

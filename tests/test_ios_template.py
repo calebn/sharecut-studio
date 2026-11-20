@@ -84,6 +84,63 @@ def test_the_ffmpeg_guard_fails_the_build_and_names_the_make_target(tmp_path: Pa
     assert "make ios-ffmpeg-sim" in result.stderr
 
 
+def test_whisper_xcframework_is_linked_embedded_and_signed_after_ffmpeg() -> None:
+    entry = (
+        "      - framework: ../../ios-payload/Whisper.xcframework\n"
+        "        embed: true\n"
+        "        codeSign: true\n"
+        "        link: true\n"
+    )
+    assert TEMPLATE.count(entry) == 1
+    assert TEMPLATE.index(entry) > TEMPLATE.index("FFmpeg.xcframework\n")
+    assert TEMPLATE.index(entry) < TEMPLATE.index("      - sdk: CoreGraphics.framework")
+
+
+def whisper_guard() -> str:
+    start = TEMPLATE.index("      - script: |\n          set -eu\n", TEMPLATE.index("Check FFmpeg"))
+    end = TEMPLATE.index("        name: Check Whisper framework\n")
+    return TEMPLATE[start:end]
+
+
+def test_the_whisper_guard_runs_after_the_ffmpeg_guard_and_before_the_rust_build() -> None:
+    ffmpeg = TEMPLATE.index("        name: Check FFmpeg framework\n")
+    whisper = TEMPLATE.index("        name: Check Whisper framework\n")
+    rust = TEMPLATE.index("        name: Build Rust Code\n")
+    assert ffmpeg < whisper < rust
+    assert "        basedOnDependencyAnalysis: false\n" in TEMPLATE[whisper:rust]
+    assert TEMPLATE.count("Check Whisper framework") == 1
+
+
+def test_the_whisper_guard_asks_the_checker_about_the_whisper_framework_and_sdk() -> None:
+    script = whisper_guard()
+    assert (
+        'python3 -I "$PROJECT_DIR/../../../../../scripts/ios/ffmpeg_framework.py" '
+        '--framework whisper check --sdk "${PLATFORM_NAME:?}"'
+    ) in script
+    assert "build_payload.py" not in script
+
+
+def test_the_whisper_guard_fails_the_build_and_names_the_make_target(tmp_path: Path) -> None:
+    root = tmp_path / "checkout"
+    tool = root / "scripts/ios/ffmpeg_framework.py"
+    tool.parent.mkdir(parents=True)
+    shutil.copy(ROOT / "scripts/ios/ffmpeg_framework.py", tool)
+    (root / "gui/desktop/src-tauri/ios-payload").mkdir(parents=True)
+    project = root / "gui/desktop/src-tauri/gen/apple"
+    project.mkdir(parents=True)
+    lines = whisper_guard().splitlines()[1:]
+    script = "\n".join(line[10:] for line in lines) + "\n"
+    result = subprocess.run(
+        ["bash", "-c", script],
+        env={**os.environ, "PROJECT_DIR": str(project), "PLATFORM_NAME": "iphoneos"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "make ios-whisper-device" in result.stderr
+
+
 def test_the_payload_folder_is_a_bundle_resource_outside_gen() -> None:
     assert (
         "      - path: ../../ios-payload/app_packages\n"
@@ -206,6 +263,35 @@ def test_the_simulator_script_checks_the_ffmpeg_framework_before_the_xcode_proje
     assert ensure < check[0] < init
     assert steps[check[0]].endswith("ffmpeg_framework.py check --sdk iphonesimulator")
     assert "build_payload.py" not in steps[check[0]]
+
+
+def test_the_simulator_script_checks_the_whisper_framework_before_the_xcode_project(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "checkout"
+    script = root / "scripts/ios/ios_sim.sh"
+    script.parent.mkdir(parents=True)
+    shutil.copy(ROOT / "scripts/ios/ios_sim.sh", script)
+    for module in ("gui/web", "gui/desktop"):
+        (root / module / "node_modules").mkdir(parents=True)
+    calls = tmp_path / "calls.log"
+    fakes = tmp_path / "fakes"
+    fakes.mkdir()
+    for tool in ("uv", "npm"):
+        shim = fakes / tool
+        shim.write_text(f'#!/bin/sh\necho "{tool} $*" >> {calls}\necho "{fakes}"\n')
+        shim.chmod(0o755)
+    env = {**os.environ, "PATH": f"{fakes}{os.pathsep}{os.environ['PATH']}"}
+    subprocess.run(["bash", str(script), "build"], env=env, check=True, capture_output=True)
+    steps = calls.read_text().splitlines()
+    ensure = next(i for i, s in enumerate(steps) if "build_payload.py --ensure" in s)
+    check = [i for i, s in enumerate(steps) if "--framework whisper check" in s]
+    init = next(i for i, s in enumerate(steps) if "ios init" in s)
+    assert len(check) == 1
+    assert ensure < check[0] < init
+    assert steps[check[0]].endswith(
+        "ffmpeg_framework.py --framework whisper check --sdk iphonesimulator"
+    )
 
 
 def test_a_release_build_keeps_builder_paths_out_of_the_rust_library() -> None:

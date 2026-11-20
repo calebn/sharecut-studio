@@ -230,7 +230,8 @@ def plan_build(
                     tool_outcome,
                 )
             )
-    # The project's pre-build guard needs FFmpeg.xcframework, so it is built before the archive.
+    # The project's pre-build guards need FFmpeg.xcframework and Whisper.xcframework, so both are
+    # built before the archive.
     steps.append(
         Run(
             "ffmpeg build",
@@ -244,6 +245,34 @@ def plan_build(
             "ffmpeg xcframework",
             Command(
                 ("uv", "run", "python", "scripts/ios/ffmpeg_framework.py", "assemble"),
+                layout.root,
+                bare,
+            ),
+            False,
+            tool_outcome,
+        )
+    )
+    steps.append(
+        Run(
+            "whisper build",
+            Command(("./scripts/ios/build_whisper.sh", "device"), layout.root, bare),
+            False,
+            tool_outcome,
+        )
+    )
+    steps.append(
+        Run(
+            "whisper xcframework",
+            Command(
+                (
+                    "uv",
+                    "run",
+                    "python",
+                    "scripts/ios/ffmpeg_framework.py",
+                    "--framework",
+                    "whisper",
+                    "assemble",
+                ),
                 layout.root,
                 bare,
             ),
@@ -477,6 +506,7 @@ def artifact_checks(
         Local("info plist", lambda ws: plist_check(ws, expect)),
         Local("bundle layout", lambda ws: checks.check_layout(unpack(ws))),
         Local("ffmpeg framework", lambda ws: checks.check_ffmpeg_framework(unpack(ws))),
+        Local("whisper framework", lambda ws: checks.check_whisper_framework(unpack(ws))),
         Local("privacy", privacy_check),
     ]
     if signed:

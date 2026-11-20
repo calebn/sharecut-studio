@@ -584,3 +584,189 @@ def test_a_privacy_manifest_with_a_hostile_encoding_is_one_problem_not_a_traceba
     (app / FFMPEG_PRIVACY).write_bytes(body)
     report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
     assert report.problems == (f"{FFMPEG_PRIVACY} is not a property list",)
+
+
+WHISPER_NM = "_sc_whisper_abi_version\n_sc_whisper_start\n_sc_whisper_wait\n_sc_whisper_cancel\n"
+WHISPER_PRIVACY = "Frameworks/Whisper.framework/PrivacyInfo.xcprivacy"
+WHISPER_SOURCE_MANIFEST = SCRIPTS.parent / "gui/desktop/src-tauri/ios/whisper/PrivacyInfo.xcprivacy"
+
+
+def whisper_app(tmp_path: Path, body: bytes = b"") -> Path:
+    return make_app(
+        tmp_path,
+        {
+            "Frameworks/Whisper.framework/Whisper": MACHO + body,
+            WHISPER_PRIVACY: plistlib.dumps({"NSPrivacyTracking": False}),
+        },
+    )
+
+
+def test_the_whisper_framework_is_embedded_and_checked_apart_from_ffmpeg() -> None:
+    assert checks.WHISPER_EMBEDDED is True
+    assert {
+        "sc_whisper_abi_version",
+        "sc_whisper_start",
+        "sc_whisper_wait",
+        "sc_whisper_cancel",
+    } == checks.WHISPER_EXPORTS
+    assert checks.WHISPER_EXPORTS.isdisjoint(checks.FFMPEG_EXPORTS)
+    assert Path("Frameworks/Whisper.framework/Whisper") == checks.WHISPER_BINARY
+
+
+def test_a_whisper_framework_with_the_four_exports_and_a_manifest_passes(tmp_path: Path) -> None:
+    report = checks.check_whisper_framework(whisper_app(tmp_path), fake_nm(WHISPER_NM))
+    assert report.ok and report.name == "whisper framework"
+    assert report.facts["exports"] == sorted(checks.WHISPER_EXPORTS)
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        (WHISPER_NM.replace("_sc_whisper_wait\n", ""), "Whisper does not export sc_whisper_wait"),
+        (WHISPER_NM + "_sc_whisper_extra\n", "Whisper exports unexpected sc_whisper_extra"),
+        (WHISPER_NM + "_whisper_init\n", "Whisper exports unexpected whisper_init"),
+        (WHISPER_NM + "_ggml_init\n", "Whisper exports unexpected ggml_init"),
+        (WHISPER_NM + "_sc_ffmpeg_start\n", "Whisper exports unexpected sc_ffmpeg_start"),
+        ("", "Whisper does not export sc_whisper_abi_version"),
+    ],
+)
+def test_the_whisper_export_set_must_be_exactly_the_four_symbols(
+    tmp_path: Path, text: str, message: str
+) -> None:
+    report = checks.check_whisper_framework(whisper_app(tmp_path), fake_nm(text))
+    assert any(message in problem for problem in report.problems)
+
+
+def test_the_whisper_framework_must_not_export_the_ffmpeg_symbols_it_replaces(
+    tmp_path: Path,
+) -> None:
+    report = checks.check_whisper_framework(whisper_app(tmp_path), fake_nm(FFMPEG_NM))
+    assert len(report.problems) == 8
+
+
+def test_each_framework_check_ignores_the_other_frameworks_files(tmp_path: Path) -> None:
+    app = make_app(
+        tmp_path,
+        {
+            "Frameworks/FFmpeg.framework/FFmpeg": MACHO,
+            FFMPEG_PRIVACY: plistlib.dumps({"NSPrivacyTracking": False}),
+            "Frameworks/Whisper.framework/Whisper": MACHO,
+            WHISPER_PRIVACY: plistlib.dumps({"NSPrivacyTracking": False}),
+        },
+    )
+    assert checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM)).ok
+    assert checks.check_whisper_framework(app, fake_nm(WHISPER_NM)).ok
+    assert not checks.check_ffmpeg_framework(app, fake_nm(WHISPER_NM)).ok
+
+
+def test_a_missing_whisper_manifest_is_named(tmp_path: Path) -> None:
+    app = whisper_app(tmp_path)
+    (app / WHISPER_PRIVACY).unlink()
+    report = checks.check_whisper_framework(app, fake_nm(WHISPER_NM))
+    assert report.problems == (f"{WHISPER_PRIVACY} is missing",)
+
+
+@pytest.mark.parametrize("body", [b"not a plist", plistlib.dumps(["a list"]), b"bplist00\x00"])
+def test_a_whisper_manifest_that_is_not_a_property_list_dict_is_one_problem(
+    tmp_path: Path, body: bytes
+) -> None:
+    app = whisper_app(tmp_path)
+    (app / WHISPER_PRIVACY).write_bytes(body)
+    report = checks.check_whisper_framework(app, fake_nm(WHISPER_NM))
+    assert report.problems == (f"{WHISPER_PRIVACY} is not a property list",)
+
+
+def test_a_missing_or_symlinked_whisper_binary_is_a_problem(tmp_path: Path) -> None:
+    empty = make_app(tmp_path / "a", {"ShareCut": MACHO})
+    assert checks.check_whisper_framework(empty, fake_nm(WHISPER_NM)).problems == (
+        "Frameworks/Whisper.framework/Whisper is missing",
+    )
+    linked = make_app(tmp_path / "b", {"ShareCut": MACHO})
+    (linked / "Frameworks/Whisper.framework").mkdir(parents=True)
+    (linked / checks.WHISPER_BINARY).symlink_to("real")
+    assert checks.check_whisper_framework(linked, fake_nm(WHISPER_NM)).problems == (
+        "Frameworks/Whisper.framework/Whisper is missing",
+    )
+
+
+def test_a_whisper_binary_that_is_not_macho_fails(tmp_path: Path) -> None:
+    app = make_app(tmp_path, {"Frameworks/Whisper.framework/Whisper": b"text"})
+    report = checks.check_whisper_framework(app, fake_nm(WHISPER_NM))
+    assert any("Whisper is not a Mach-O file" in line for line in report.problems)
+
+
+def test_an_unreadable_whisper_binary_is_a_problem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unreadable(path: Path) -> bool:
+        raise PermissionError(errno.EACCES, "denied")
+
+    monkeypatch.setattr(checks, "is_macho", unreadable)
+    report = checks.check_whisper_framework(whisper_app(tmp_path), fake_nm(WHISPER_NM))
+    assert len(report.problems) == 1 and "is unreadable" in report.problems[0]
+
+
+def test_the_whisper_size_budget_is_its_own_12_mib(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert checks.WHISPER_SIZE_BUDGET == 12 * 1024 * 1024
+    monkeypatch.setattr(checks, "WHISPER_SIZE_BUDGET", 64)
+    small = checks.check_whisper_framework(
+        whisper_app(tmp_path / "a", b"\0" * 48), fake_nm(WHISPER_NM)
+    )
+    big = checks.check_whisper_framework(
+        whisper_app(tmp_path / "b", b"\0" * 49), fake_nm(WHISPER_NM)
+    )
+    assert small.ok
+    assert any("Whisper is 65 bytes, over the 64 byte budget" in line for line in big.problems)
+
+
+def test_whisper_not_embedded_passes_when_absent_and_fails_when_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "WHISPER_EMBEDDED", False)
+    report = checks.check_whisper_framework(make_app(tmp_path / "a", {"x": b""}), fake_nm(""))
+    assert report.ok and report.facts == {"status": "not embedded"}
+    present = checks.check_whisper_framework(whisper_app(tmp_path / "b"), fake_nm(WHISPER_NM))
+    assert any("is in the bundle but WHISPER_EMBEDDED is False" in p for p in present.problems)
+
+
+def test_the_whisper_check_defaults_to_xcrun() -> None:
+    parameter = inspect.signature(checks.check_whisper_framework).parameters["runner"]
+    assert parameter.default is checks.xcrun_nm
+    assert inspect.signature(checks.check_native_framework).parameters["runner"].default is (
+        checks.xcrun_nm
+    )
+
+
+def test_the_whisper_manifest_source_is_a_tracking_free_dict_with_listed_reasons() -> None:
+    manifest = plistlib.loads(WHISPER_SOURCE_MANIFEST.read_bytes())
+    assert manifest["NSPrivacyTracking"] is False
+    assert manifest["NSPrivacyCollectedDataTypes"] == []
+    declared = checks.declared_categories(manifest)
+    assert declared
+    for category, reasons in declared.items():
+        assert reasons
+        assert set(reasons) <= set(CONTRACT[category]["reasons"])
+
+
+def test_the_contract_and_the_whisper_manifest_say_the_reason_codes_are_unconfirmed() -> None:
+    raw = json.loads(checks.PRIVACY_CONTRACT.read_text())
+    entry = raw["frameworks"]["whisper"]
+    assert entry["confirmed_against_apple"] is False
+    assert "unconfirmed" in entry["note"]
+    assert (SCRIPTS.parent / entry["manifest"]) == WHISPER_SOURCE_MANIFEST
+    assert "unconfirmed" in WHISPER_SOURCE_MANIFEST.read_text(encoding="utf-8")
+
+
+def test_the_whisper_framework_is_privacy_checked_through_its_imports(tmp_path: Path) -> None:
+    app = make_app(
+        tmp_path,
+        {"ShareCut": MACHO, "Frameworks/Whisper.framework/Whisper": MACHO},
+    )
+    imports = checks.imported_symbols(app, fake_nm("_stat\n"))
+    assert "Frameworks/Whisper.framework/Whisper" in imports
+    used = checks.used_categories(imports, CONTRACT)
+    assert (
+        "Frameworks/Whisper.framework/Whisper" in used["NSPrivacyAccessedAPICategoryFileTimestamp"]
+    )
