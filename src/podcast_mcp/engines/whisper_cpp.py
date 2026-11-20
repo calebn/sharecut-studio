@@ -8,7 +8,7 @@ import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 import numpy as np
 
@@ -21,6 +21,7 @@ from podcast_mcp.engines.models.whisper_cpp_models import whisper_cpp_cache_dir
 from podcast_mcp.engines.transcribe import flag_anomalous_asr_durations
 from podcast_mcp.models import Transcript, TranscriptWord
 from podcast_mcp.util import host_platform, native_whisper
+from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.hardware import cpu_budget
 from podcast_mcp.util.process import IN_PROCESS_WHISPER, run
@@ -218,7 +219,9 @@ def parse_whisper_cpp_json(
 def write_wav_16k_mono(chunks: Iterable[np.ndarray], path: Path) -> int:
     """Write mono float32 ``chunks`` (already 16 kHz) as 16-bit PCM WAV; the sample count."""
     frames = 0
-    with path.open("wb") as fh:
+
+    def write(fh: IO[bytes]) -> None:
+        nonlocal frames
         fh.write(b"\0" * WAV_HEADER_BYTES)
         for chunk in chunks:
             pcm = (np.clip(chunk, -1.0, 1.0) * 32767.0).astype("<i2")
@@ -226,6 +229,8 @@ def write_wav_16k_mono(chunks: Iterable[np.ndarray], path: Path) -> int:
             frames += len(pcm)
         fh.seek(0)
         fh.write(pcm_wav_header(frames * PCM_SAMPLE_WIDTH_BYTES, WHISPER_SAMPLE_RATE, 1))
+
+    atomic_write(path, write)
     return frames
 
 

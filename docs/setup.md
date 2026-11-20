@@ -751,7 +751,7 @@ read pipeline settings.
 | `PODCAST_BOOTSTRAP_CDN_BASE` |  | Public HTTPS mirror base for bootstrap assets. |
 | `WHISPER_CPP_BIN` |  | whisper-cli executable. |
 | `WHISPER_CPP_MODEL` |  | whisper.cpp model file. |
-| `WHISPER_CPP_MODEL_NAME` | `ggml-base.en.bin` (iPhone host: the selected variant's file, `ggml-small.en-q5_1.bin` by default) | whisper.cpp model name inside its cache. |
+| `WHISPER_CPP_MODEL_NAME` | `ggml-base.en.bin` | whisper.cpp model name inside its cache. |
 
 **Behavior flags**
 
