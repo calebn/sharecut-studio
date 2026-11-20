@@ -22,7 +22,6 @@ export type MicStreamState = {
    */
   staleDeviceId: string | null;
   retry: () => void;
-  /** Asks the browser again even though a request is still waiting; the old request is dropped. */
   restart: () => void;
 };
 

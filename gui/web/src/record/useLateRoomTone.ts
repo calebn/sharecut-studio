@@ -111,7 +111,6 @@ export function useLateRoomTone({
   snapshot: RecordSnapshot | null;
   me: RecordParticipant | undefined | null;
   producer: boolean;
-  /** The guest chose Not now; the room may still hold an earlier Consent true. */
   declined?: boolean;
   transport: RecordUploadTransport | null;
   roomTone: RoomToneControls;
