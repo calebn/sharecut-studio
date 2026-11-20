@@ -166,13 +166,14 @@ describe("FeedbackToast", () => {
     return { dialog, close };
   }
 
-  it("sits before the stage body in the page, so Tab reaches Dismiss early", () => {
+  it("is appended to the page body, outside the stage body a sheet makes inert", () => {
     const body = document.createElement("main");
     body.id = STAGE_BODY_ID;
     document.body.append(body);
     render(<FeedbackToast />);
     const region = screen.getByRole("region", { name: "Status messages" });
-    expect(region.nextElementSibling).toBe(body);
+    expect(region.parentElement).toBe(document.body);
+    expect(body.contains(region)).toBe(false);
   });
 
   it("stays inside a host it is given", () => {

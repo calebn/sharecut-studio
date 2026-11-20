@@ -3,6 +3,7 @@ import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import { postDocumentCommand } from "./documentCommand";
+import { expectFeedback } from "./feedback";
 import { seeEveryHint, withSharedProject } from "./guestLink";
 import { afterFrames } from "./guestLoadingProbes";
 import {
@@ -10,12 +11,12 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import { goToStage, openProjectDialog } from "./stageNav";
 
 /**
  * The three link roles on real links, at a desktop and a phone window: the
  * palette lists only what the role can run, `q` lands in the comment field,
- * the Editor is told once that an edit is everyone's, the toast answers Esc
- * and Tab, and the page keeps its landmarks.
+ * the Editor is told once that an edit is everyone's, the toast answers Esc, and the page keeps its landmarks.
  */
 
 const DESKTOP = { viewport: { width: 1280, height: 800 } };
@@ -615,9 +616,7 @@ test("with storage blocked the stakes sentence shows once in the session and not
   );
 });
 
-test("the toast answers Esc, is early in the Tab order, and clears itself", async ({
-  browser,
-}) => {
+test("the toast answers Esc and clears itself", async ({ browser }) => {
   await withSharedProject(
     browser,
     [DESKTOP],
@@ -635,44 +634,36 @@ test("the toast answers Esc, is early in the Tab order, and clears itself", asyn
       await guest!.keyboard.press("Escape");
       await expect(guest!.locator(".ui-toast")).toHaveCount(0);
 
-      await cutWord(guest!, "moody");
-      await guest!.evaluate(() =>
-        (document.activeElement as HTMLElement | null)?.blur(),
-      );
-      const stops: string[] = [];
-      for (let i = 0; i < 30; i += 1) {
-        await guest!.keyboard.press("Tab");
-        const here = await guest!.evaluate(() => {
-          const el = document.activeElement;
-          return {
-            inMain: el?.closest("main") != null,
-            dismiss:
-              el?.closest(".ui-toast-region--app") != null &&
-              el?.textContent === "Dismiss",
-          };
-        });
-        stops.push(JSON.stringify(here));
-        if (here.dismiss) break;
-        expect(
-          here.inMain,
-          `Tab reached the page body first: ${stops.join(" ")}`,
-        ).toBe(false);
-      }
-      expect(stops.at(-1)).toContain('"dismiss":true');
-      await guest!.keyboard.press("Escape");
-      await expect(guest!.locator(".ui-toast")).toHaveCount(0);
-      await guest!.keyboard.press("Tab");
-      const reached = await guest!.evaluate(
-        () => document.activeElement !== document.body,
-      );
-      expect(reached).toBe(true);
-
       await cutWordAt(guest!, 40);
       await expect(guest!.locator(".ui-toast")).toHaveCount(0, {
         timeout: 12_000,
       });
     },
   );
+});
+
+test("a host's Undo toast stays clickable while the Share sheet is open", async ({
+  browser,
+}) => {
+  await withSharedProject(browser, [], ["viewer"], async ([host], links) => {
+    await goToStage(host!, "edit");
+    await openProjectDialog(host!, "share");
+    const sheet = host!.getByRole("dialog", { name: "Invite" });
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole("button", { name: "More for Viewer link" }).click();
+    await host!.getByRole("menuitem", { name: "Stop sharing" }).click();
+    await expectFeedback(host!, "Link stopped.");
+    await expect(sheet).toBeVisible();
+    await host!
+      .locator(".ui-toast-region--app .ui-toast")
+      .getByRole("button", { name: "Undo" })
+      .click();
+    await expectFeedback(host!, "Link restored.");
+    const res = await host!.request.get(
+      `/api/review/${links.viewer}/daw/proxy/manifest`,
+    );
+    expect(res.status()).toBe(200);
+  });
 });
 
 async function stageHeldCut(host: Page, projectPath: string): Promise<void> {
