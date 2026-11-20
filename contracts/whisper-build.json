@@ -1,0 +1,52 @@
+{
+  "version": "1.9.5",
+  "tag": "v1.9.5",
+  "commit": "d1be6fde11ac6e0407606b4e42fe72d34add8037",
+  "minos": "17.0",
+  "sources": {
+    "whisper": {
+      "url": "https://codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v1.9.5",
+      "sha256": "274a712f9b1a78a61874aa0f1d643d3b4332e009a3db905af394ee04111ee197",
+      "archive": "whisper.cpp-1.9.5.tar.gz",
+      "directory": "whisper.cpp-1.9.5"
+    }
+  },
+  "cmake_configure": [
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
+    "-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY",
+    "-DBUILD_SHARED_LIBS=OFF",
+    "-DWHISPER_BUILD_EXAMPLES=OFF",
+    "-DWHISPER_BUILD_TESTS=OFF",
+    "-DWHISPER_BUILD_SERVER=OFF",
+    "-DWHISPER_CURL=OFF",
+    "-DWHISPER_SDL2=OFF",
+    "-DWHISPER_COREML=OFF",
+    "-DWHISPER_OPENVINO=OFF",
+    "-DGGML_BACKEND_DL=OFF",
+    "-DGGML_METAL=OFF",
+    "-DGGML_OPENMP=OFF",
+    "-DGGML_ACCELERATE=ON",
+    "-DGGML_NATIVE=OFF"
+  ],
+  "cli_sources": [
+    "examples/common.cpp",
+    "examples/common-whisper.cpp",
+    "examples/grammar-parser.cpp"
+  ],
+  "exports": [
+    "sc_whisper_abi_version",
+    "sc_whisper_start",
+    "sc_whisper_wait",
+    "sc_whisper_cancel"
+  ],
+  "patches": [
+    {
+      "name": "whisper-cli-hooks",
+      "path": "gui/desktop/src-tauri/ios/whisper/patches/whisper-cli-hooks.patch",
+      "sha256": "7f9915c97bbc94ed58bb7aa2895c23162a2be8961de8066f50fd62b8063285e3",
+      "applies_to": "whisper",
+      "platform": "ios"
+    }
+  ]
+}
