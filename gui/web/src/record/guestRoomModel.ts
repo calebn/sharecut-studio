@@ -220,8 +220,7 @@ function countAcknowledged(
  * Whether the server's acknowledgement covers everything this device holds. It
  * counts only for the segments its pass saw, and the pass already forgets an
  * acknowledgement given for another take. An unknown device count covers
- * nothing, except when the scan is unreadable, the take is stopped and capture
- * has settled: then the segments the pass saw are all the device holds.
+ * nothing.
  */
 export function uploadAcknowledged(
   upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments">,
