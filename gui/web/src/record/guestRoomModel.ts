@@ -328,6 +328,7 @@ export function joinMic(
     inputLocked?: boolean;
     switching?: boolean;
     detail?: string;
+    slow?: boolean;
   },
 ): JoinMic {
   const switching =
@@ -359,7 +360,9 @@ export function joinMic(
     return ready;
   }
   if (mic.status === "prompting") {
-    return { status: "prompting" };
+    return options.slow
+      ? { status: "prompting", slow: true }
+      : { status: "prompting" };
   }
   if (mic.status === "denied") {
     return { status: "denied" };

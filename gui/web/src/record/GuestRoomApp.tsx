@@ -156,6 +156,9 @@ function GuestRoomSession({
     me,
     send,
     connected,
+    consented,
+    declineHere,
+    clearDecline,
     error,
     clearError,
     mic,
@@ -200,7 +203,6 @@ function GuestRoomSession({
   const slow = useAfter(bootstrap ? null : SKELETON_RETRY_MS);
   const state = snapshot?.state;
   const onAir = state === "recording" || state === "paused";
-  const consented = me?.consented ?? null;
   const producerOutside = producer && !me;
   const recorded = !producer && consented === true;
   const host = guestHostName(snapshot);
@@ -233,6 +235,7 @@ function GuestRoomSession({
       // failed one stays "finalizing" until reload, so it must not hold the lock.
       inputLocked: onAir || (keeper.finalizing && keeper.error === null),
       detail: lostDetail,
+      slow: mic.promptSlow,
     },
   );
   const level = dbToFraction(meter.levelDb, -60);
@@ -248,6 +251,7 @@ function GuestRoomSession({
     snapshot,
     me,
     producer,
+    declined: consented === false,
     transport: uploadTransport,
     roomTone,
   });
@@ -271,13 +275,18 @@ function GuestRoomSession({
     meterRef.current = meter;
   }, [mic, meter]);
 
-  const [joinObservation, setJoinObservation] = useState({ consented, error });
+  const [joinObservation, setJoinObservation] = useState({
+    consented,
+    error,
+    connected,
+  });
   if (
     joinObservation.consented !== consented ||
-    joinObservation.error !== error
+    joinObservation.error !== error ||
+    joinObservation.connected !== connected
   ) {
-    setJoinObservation({ consented, error });
-    if (consented !== null || error) {
+    setJoinObservation({ consented, error, connected });
+    if (consented !== null || error || !connected) {
       setJoining(false);
     }
     if (error && producerOutside) {
@@ -322,6 +331,7 @@ function GuestRoomSession({
       setProducerJoined(true);
       return;
     }
+    clearDecline();
     shareName();
     setJoining(true);
     if (send("Consent", { accepted: true }) === false) {
@@ -336,12 +346,15 @@ function GuestRoomSession({
       return;
     }
     setRejoinOpen(false);
-    send("Consent", { accepted: false });
+    declineHere();
   };
   // The mic was released on Not now, and a stream opens only inside a click:
   // commit the reopened state first so this same click can ask for it.
   const rejoin = () => {
-    flushSync(() => setRejoinOpen(true));
+    flushSync(() => {
+      setRejoinOpen(true);
+      clearDecline();
+    });
     micRef.current.request();
     meterRef.current.resume();
   };
@@ -526,6 +539,7 @@ function GuestRoomSession({
     } else {
       // A blocked mic shows "How to allow" and tells the guest to
       // retry once the site is unblocked, so both ask again.
+      meterRef.current.resume();
       mic.retry();
     }
   };

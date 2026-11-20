@@ -35,6 +35,7 @@ import {
   joinHeadline,
   joinProducerModel,
   listenersLine,
+  MIC_ROW_TITLE,
 } from "./joinSheetModel";
 import { MicRow } from "./MicRow";
 import { PersonAvatar, type PersonData } from "./Person";
@@ -165,6 +166,9 @@ function SlowJoinNote() {
 
 function micStatusLine(row: JoinRow): string {
   if (row.state === "running") return row.detail ?? "";
+  if (row.state === "needs-you" && row.title === MIC_ROW_TITLE) {
+    return row.detail ?? "";
+  }
   if (row.state === "needs-you" || row.state === "failed") {
     return [row.title, row.detail]
       .filter((part): part is string => Boolean(part))
