@@ -280,7 +280,7 @@ for (const job of jobs) {
 
 def test_contract_inventory_is_explicit_and_unknown_additions_run_full() -> None:
     present = {path.name for path in (ROOT / "contracts").glob("*.json")}
-    assert set(native.NATIVE_CONTRACTS) - present <= {"whisper-build.json"}
+    assert set(native.NATIVE_CONTRACTS) - present == set()
     assert present <= set(native.NATIVE_CONTRACTS)
     assert {name for name, consumers in native.NATIVE_CONTRACTS.items() if consumers} == {
         "bootstrap-assets.json",
