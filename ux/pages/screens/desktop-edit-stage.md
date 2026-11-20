@@ -39,4 +39,6 @@ In the desktop transcript, Shift-click extends a range from the original word on
 
 If Script focus hides the View button while its popover has keyboard focus, the popover closes and focus returns to **Find in transcript**. While the words load, focus goes to the Script pane. When Find appears, it takes focus if the reader has left focus on the pane without pressing another key or clicking. An episode with no transcript leaves focus on the pane.
 
+When another session cuts transcript words, Find keeps the highlight on the same match if those words survive. If the current match is gone, Find shows the remaining count. Choose the next or previous match before using **Replace**.
+
 The old layout presets (Restore layout, Maximize timeline, Maximize transcript, Review layout) and their `Mod+1` to `Mod+4` keys were removed; those keys now go to stages. Every stage keeps the header, Player bar and banner rows in place (geometry guard: `stage/frame/StageFrame.test.tsx`).

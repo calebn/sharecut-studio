@@ -5,6 +5,11 @@ import {
   replyHistoryHead,
 } from "../../../api";
 import { makeRangeTarget } from "../../../edit/rangeSelection";
+import {
+  findSelectionEnd,
+  sameSelectionWord,
+  selectionEndOf,
+} from "../../../edit/selectionFollow";
 import type { FindBarHandle } from "../../../stages/edit/FindBar";
 import {
   findCountText,
@@ -16,6 +21,8 @@ import type { FindHit } from "../../../system/scriptPieces";
 import { useStableCallback } from "../../../utils/useStableCallback";
 import { cutHits } from "./cutHits";
 import type { ScriptModel } from "./scriptModel";
+import { selectionModelOf } from "./scriptSelectionModel";
+import { selectTranscriptLoading } from "./useScriptStatus";
 
 export type ScriptFindState = {
   query: string;
@@ -49,6 +56,34 @@ export type ScriptFind = ScriptFindState & {
   replaceAll: () => Promise<number>;
 };
 
+type CurrentHit = { model: ScriptModel; hit: FindHit };
+
+function findCurrent(
+  remembered: CurrentHit | null,
+  model: ScriptModel,
+  matches: readonly FindHit[],
+): number {
+  if (!remembered || matches.length === 0) return -1;
+  const indices = remembered.hit.indices;
+  if (remembered.model === model)
+    return matches.findIndex((hit) => hit.indices[0] === indices[0]);
+
+  const before = selectionModelOf(remembered.model);
+  const after = selectionModelOf(model);
+  const first = selectionEndOf(before, indices[0]);
+  if (!first) return -1;
+  const followed = findSelectionEnd(after, first);
+  if (followed.kind !== "at") return -1;
+  return matches.findIndex(
+    (hit) =>
+      hit.indices[0] === followed.index &&
+      hit.indices.length === indices.length &&
+      hit.indices.every((index, at) =>
+        sameSelectionWord(before, indices[at]!, after, index),
+      ),
+  );
+}
+
 /**
  * Find over the whole transcript (the model's turns, not the window), the
  * hits the pane highlights, and the host's Replace and Replace all through the
@@ -62,26 +97,34 @@ export function useScriptFind(
   say: (message: string) => void,
 ): ScriptFind {
   const open = useDawStore((s) => s.chrome.transcriptFindReplaceOpen);
+  const loading = useDawStore(selectTranscriptLoading);
   const [state, setState] = useState<ScriptFindState>({
     query: "",
     caseSensitive: false,
     replaceOpen: false,
     replaceText: "",
   });
-  const [at, setAt] = useState(0);
+  const [selected, setSelected] = useState<CurrentHit | null>(null);
   const [stepped, setStepped] = useState(0);
   const { query, caseSensitive, replaceText } = state;
   const matches = useMemo(
     () => (open ? findMatches(model.turns, query, caseSensitive) : []),
     [open, model.turns, query, caseSensitive],
   );
-  const current =
-    matches.length === 0 || at < 0 ? -1 : Math.min(at, matches.length - 1);
+  const current = useMemo(
+    () => findCurrent(selected, model, matches),
+    [selected, model, matches],
+  );
+  useEffect(() => {
+    if (!open || loading || !selected || selected.model === model) return;
+    const hit = matches[current];
+    setSelected(hit ? { model, hit } : null);
+  }, [current, loading, matches, model, open, selected]);
 
   const replaceBusy = useRef(false);
   const go = (list: readonly FindHit[], to: number) => {
-    setAt(to);
     const hit = list[to];
+    setSelected(hit ? { model, hit } : null);
     if (hit) scrollTo(hit.indices[0], "center");
   };
   const edit = (patch: Partial<ScriptFindState>) => {
@@ -195,6 +238,7 @@ export function useScriptFind(
         (match.source_id ?? null) === where.first.sourceId &&
         match.start_word_index === where.first.wordIndex &&
         match.end_word_index === where.last.wordIndex &&
+        match.start === model.starts[where.from] &&
         match.before === shown,
     );
     if (only < 0) {

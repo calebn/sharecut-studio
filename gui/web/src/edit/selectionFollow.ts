@@ -62,16 +62,12 @@ export function selectionEndOf(
   model: SelectionModel,
   index: number,
 ): SelectionEnd | null {
-  const ref = model.refs[index];
-  const word = model.words[index];
-  if (!ref || !word) return null;
+  const word = sourceWordOf(model, index);
+  if (!word) return null;
   const end = {
+    ...word,
     index,
-    trackId: ref.trackId,
-    sourceId: ref.sourceId,
-    start: word.start,
-    text: word.text,
-    ref,
+    ref: model.refs[index],
     time: model.times[index],
   };
   let copies = 0;
@@ -101,9 +97,19 @@ const sameTime = (a: Time | undefined, b: Time | undefined) =>
     Math.abs(a.start - b.start) < SAME &&
     Math.abs(a.end - b.end) < SAME);
 
+type SourceWord = Pick<SelectionEnd, "trackId" | "sourceId" | "start" | "text">;
+
+function sourceWordOf(model: SelectionModel, index: number): SourceWord | null {
+  const ref = model.refs[index];
+  const word = model.words[index];
+  return ref && word
+    ? { trackId: ref.trackId, sourceId: ref.sourceId, ...word }
+    : null;
+}
+
 function matches(
   model: SelectionModel,
-  end: Omit<SelectionEnd, "copies">,
+  end: SourceWord,
   index: number,
 ): boolean {
   const ref = model.refs[index];
@@ -125,7 +131,10 @@ function matches(
  * match more than once: then only the copy that still has the numbers and
  * times the store holds can be proven to be the one picked.
  */
-function findEnd(model: SelectionModel, end: SelectionEnd): Found {
+export function findSelectionEnd(
+  model: SelectionModel,
+  end: SelectionEnd,
+): Found {
   const live: number[] = [];
   let held = false;
   for (let index = 0; index < model.words.length; index++) {
@@ -156,7 +165,17 @@ function findEnd(model: SelectionModel, end: SelectionEnd): Found {
 
 /** Whether this end sits in a line drawn as bars, or has a held copy: not countable yet. */
 export function endWaits(model: SelectionModel, end: SelectionEnd): boolean {
-  return findEnd(model, end).kind === "wait";
+  return findSelectionEnd(model, end).kind === "wait";
+}
+
+export function sameSelectionWord(
+  before: SelectionModel,
+  oldIndex: number,
+  after: SelectionModel,
+  newIndex: number,
+): boolean {
+  const word = sourceWordOf(before, oldIndex);
+  return word !== null && matches(after, word, newIndex);
 }
 
 /** The store holds numbers and times, not window positions: those decide. */
@@ -180,8 +199,8 @@ export function followSelection(
   remembered: RememberedSelection,
   model: SelectionModel,
 ): SelectionFollow {
-  const anchor = findEnd(model, remembered.anchor);
-  const head = findEnd(model, remembered.head);
+  const anchor = findSelectionEnd(model, remembered.anchor);
+  const head = findSelectionEnd(model, remembered.head);
   if (anchor.kind === "gone" || head.kind === "gone") return { kind: "clear" };
   if (anchor.kind === "wait" || head.kind === "wait") return { kind: "wait" };
   return holds(model, remembered.anchor, anchor.index) &&

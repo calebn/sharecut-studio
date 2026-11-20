@@ -519,6 +519,8 @@ Equal word counts preserve each word's source timing and audibility flags. Diffe
 
 **Replace** and **Replace all** are each one undoable history action. **Replace** sends the current match's position in the preview as `only`, and the server applies just that match after checking the same preview token; a match that moved or no longer exists is refused with `replacement_match_out_of_range` and nothing changes. The server checks the complete source-keyed candidate set, exact words, timing, and flags under the project transaction before applying anything. A stale preview changes nothing and asks for a new preview. Queued commands keep their preview token and are checked again at replay; the form reports pending delivery. **Undo replacements** appears next to the result and is disabled after a newer view arrives; History remains available to review and undo changes.
 
+When another session edits the transcript, Find keeps the current match if it can still identify the same words in the same recording. If the edit removes the match, Find shows the remaining count with no current match. Use **Next match** or **Previous match** to choose one before replacing it.
+
 Replacement tokens must each contain a letter or number; attach punctuation to the adjacent word. When word counts differ, an explicit audibility lock anywhere in the original phrase is preserved on every replacement word.
 
 ### Wordbar source timing
