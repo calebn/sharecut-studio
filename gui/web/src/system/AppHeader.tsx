@@ -432,7 +432,9 @@ export function AppHeader({
   // Inviting is the host's: a link of any role cannot share the project.
   const canInvite = !guest;
   const host = useRef<HTMLElement>(null);
-  const rightGivesWay = useNarrowHeader(host) || compact;
+  const narrow = useNarrowHeader(host);
+  const editorOnPhone = guest?.role === "editor" && guest.compact === true;
+  const rightGivesWay = narrow || compact || editorOnPhone;
   // What the right side holds moves into the Stage menu while it gives way, so
   // a link with no Project menu (a Viewer or Commenter) keeps Follow and search.
   const extras = rightGivesWay ? (
@@ -449,6 +451,14 @@ export function AppHeader({
         </MenuItem>
       ) : null}
       {guest && appearance ? <AppearanceSection {...appearance} /> : null}
+      {narrow && guest && canEdit ? (
+        <MenuItem
+          onSelect={() => onRedo?.()}
+          disabledReason={canRedo ? undefined : (redoReason ?? "")}
+        >
+          <Row icon="redo-2">Redo</Row>
+        </MenuItem>
+      ) : null}
     </>
   ) : undefined;
   return (
@@ -520,6 +530,7 @@ export function AppHeader({
                 </CoachTip>
                 <VerbButton
                   verb="redo"
+                  className={guest ? "sys-header-redo" : undefined}
                   disabled={loading || !canRedo}
                   {...(loading || canRedo ? {} : { title: redoReason })}
                   onClick={onRedo}

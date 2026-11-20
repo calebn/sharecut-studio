@@ -1,6 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
 import { expectSurfaceAxeClean } from "./axe";
-import { postDocumentCommand } from "./documentCommand";
 import { fontsReady } from "./fontsReady";
 import {
   episodeName,
@@ -42,8 +41,58 @@ const [PHONE, DESKTOP] = SIZES;
 const TOUCH_MIN = 44;
 const LANDINGS = 5;
 const THEMES = ["light", "dark"] as const;
-/** Short enough to fit the room an Editor's name has beside Undo and Redo on the narrowest phone. */
-const SHORT_NAME = "Pilot";
+
+async function crowdedParts(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const host = document.querySelector(".sys-app-header-host")!;
+    const parts = [
+      host.querySelector(".sys-header-title"),
+      host.querySelector(".sys-version"),
+      host.querySelector(".sys-save"),
+      ...host.querySelectorAll("button"),
+    ].filter((el): el is Element => {
+      if (!el || el.closest(".sys-coach-tip")) return false;
+      const b = el.getBoundingClientRect();
+      return b.width > 1 && b.height > 1;
+    });
+    const text = (el: Element) =>
+      el.textContent?.trim().slice(0, 24) || el.getAttribute("aria-label");
+    const found: string[] = [];
+    for (const [i, a] of parts.entries())
+      for (const b of parts.slice(i + 1)) {
+        if (a.contains(b) || b.contains(a)) continue;
+        const p = a.getBoundingClientRect();
+        const q = b.getBoundingClientRect();
+        const w = Math.min(p.right, q.right) - Math.max(p.left, q.left);
+        const h = Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top);
+        if (w > 0.5 && h > 0.5)
+          found.push(
+            `"${text(a)}" and "${text(b)}" overlap by ${w.toFixed(1)} x ${h.toFixed(1)} px`,
+          );
+      }
+    const cut = [".sys-header-title", ".sys-version .sys-mono"].flatMap(
+      (selector) => {
+        const el = host.querySelector<HTMLElement>(selector);
+        if (!el || el.scrollWidth <= el.clientWidth + 0.5) return [];
+        const style = getComputedStyle(el);
+        return style.overflow === "hidden" && style.textOverflow === "ellipsis"
+          ? []
+          : [`${selector} is cut without an ellipsis`];
+      },
+    );
+    return [...found, ...cut];
+  });
+}
+
+async function nameBox(page: Page) {
+  return page.evaluate(() => {
+    const el = document.querySelector<HTMLElement>(
+      ".sys-app-header-host .sys-header-title",
+    )!;
+    const b = el.getBoundingClientRect();
+    return { w: b.width, cut: el.scrollWidth > el.clientWidth + 0.5 };
+  });
+}
 
 const loadedFontFaces = (page: Page) =>
   page.evaluate(() =>
@@ -160,28 +209,18 @@ test(`at ${at(DESKTOP)} the role button answers a press over 32 x 32 px inside t
 });
 
 for (const size of [PHONE, NARROW_PHONE]) {
-  test(`at ${at(size)} a short name and the bar keep their boxes from the written page to the loading header to the studio`, async ({
+  test(`at ${at(size)} the name and the bar keep their boxes from the written page to the loading header to the studio`, async ({
     browser,
   }) => {
     test.setTimeout(120_000);
-    await withGuestLinks(browser, async (links, host, projectPath) => {
-      await postDocumentCommand(
-        host,
-        "name-writer",
-        "RenameProject",
-        { name: SHORT_NAME },
-        projectPath,
-      );
+    await withGuestLinks(browser, async (links, host) => {
+      const name = await episodeName(host, links.commenter);
       for (const role of ["commenter", "editor"] as const) {
         await withGuestPage(
           browser,
           size,
           async (guest) => {
-            const run = await headerAcrossLanding(
-              guest,
-              links[role],
-              SHORT_NAME,
-            );
+            const run = await headerAcrossLanding(guest, links[role], name);
             const where = `${role} at ${at(size)}`;
             expect
               .soft(run.written.host, `${where}: the written page's bar`)
@@ -256,7 +295,7 @@ test(`at ${at(PHONE)} the name's top and height do not depend on which font has 
 });
 
 for (const size of [PHONE, NARROW_PHONE]) {
-  test(`at ${at(size)} an Editor link's landing keeps the bar's height in each of ${LANDINGS} landings, and ${size === PHONE ? `moves under ${SHIFT_BUDGET}` : "what shifts is printed"}`, async ({
+  test(`at ${at(size)} an Editor link's landing keeps the bar's height in each of ${LANDINGS} landings, and moves under ${SHIFT_BUDGET}`, async ({
     browser,
   }) => {
     test.setTimeout(120_000);
@@ -280,11 +319,9 @@ for (const size of [PHONE, NARROW_PHONE]) {
               `landing ${run + 1}: the bar after, against ${loading?.h} while loading`,
             )
             .toBe(loading?.h);
-          if (size === PHONE)
-            expect(
-              shiftSum(probes),
-              JSON.stringify(probes.shifts),
-            ).toBeLessThan(SHIFT_BUDGET);
+          expect(shiftSum(probes), JSON.stringify(probes.shifts)).toBeLessThan(
+            SHIFT_BUDGET,
+          );
           runs.push({
             sum: shiftSum(probes),
             sources: probes.shifts.flatMap((entry) =>
@@ -322,46 +359,7 @@ test(`at ${at(PHONE)} and ${at(NARROW_PHONE)} at 200% text nothing in the header
           expect
             .soft(reachingPast(inventory), `${where}: what reaches the rule`)
             .toEqual([]);
-          const crowded = await guest.evaluate(() => {
-            const host = document.querySelector(".sys-app-header-host")!;
-            const parts = [
-              host.querySelector(".sys-header-title"),
-              host.querySelector(".sys-version"),
-              host.querySelector(".sys-save"),
-              ...host.querySelectorAll("button"),
-            ].filter((el): el is Element => {
-              if (!el || el.closest(".sys-coach-tip")) return false;
-              const b = el.getBoundingClientRect();
-              return b.width > 1 && b.height > 1;
-            });
-            const text = (el: Element) =>
-              el.textContent?.trim().slice(0, 24) ||
-              el.getAttribute("aria-label");
-            const found: string[] = [];
-            for (const [i, a] of parts.entries())
-              for (const b of parts.slice(i + 1)) {
-                const p = a.getBoundingClientRect();
-                const q = b.getBoundingClientRect();
-                const w = Math.min(p.right, q.right) - Math.max(p.left, q.left);
-                const h = Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top);
-                if (w > 0.5 && h > 0.5)
-                  found.push(
-                    `"${text(a)}" and "${text(b)}" overlap by ${w.toFixed(1)} x ${h.toFixed(1)} px`,
-                  );
-              }
-            const cut = [".sys-header-title", ".sys-version .sys-mono"].flatMap(
-              (selector) => {
-                const el = host.querySelector<HTMLElement>(selector);
-                if (!el || el.scrollWidth <= el.clientWidth + 0.5) return [];
-                const style = getComputedStyle(el);
-                return style.overflow === "hidden" &&
-                  style.textOverflow === "ellipsis"
-                  ? []
-                  : [`${selector} is cut without an ellipsis`];
-              },
-            );
-            return [...found, ...cut];
-          });
+          const crowded = await crowdedParts(guest);
           expect.soft(crowded, `${where}: overlaps and cut text`).toEqual([]);
         },
         { visit: "returning" },
@@ -375,6 +373,7 @@ test(`at ${at(PHONE)} and ${at(NARROW_PHONE)} at 200% text nothing in the header
 for (const [size, role] of [
   [PHONE, "commenter"],
   [NARROW_PHONE, "commenter"],
+  [PHONE, "editor"],
   [NARROW_PHONE, "editor"],
 ] as const) {
   test(`at ${at(size)} a new version's pill and the line it folds into sit in the bar and press over their own area, for ${role === "editor" ? "an Editor" : "a Commenter"} link`, async ({
@@ -433,6 +432,213 @@ for (const [size, role] of [
             }),
             "the folded line",
           );
+        },
+        { visit: "returning" },
+      );
+    });
+  });
+}
+
+const NAME_FLOOR = 107;
+const SUBPIXEL = 0.5;
+const LARGE_TEXT = [24, 32] as const;
+const TALLEST_BAR = 185;
+
+for (const size of [PHONE, NARROW_PHONE]) {
+  test(`at ${at(size)} an Editor's name shows in full, at least 107 px wide`, async ({
+    browser,
+  }) => {
+    await withGuestLinks(browser, async (links, host) => {
+      const name = await episodeName(host, links.editor);
+      await withGuestPage(
+        browser,
+        size,
+        async (guest) => {
+          await openLanded(guest, links.editor, name);
+          const box = await nameBox(guest);
+          expect(box.cut, "the name is cut").toBe(false);
+          expect(box.w).toBeGreaterThanOrEqual(NAME_FLOOR - SUBPIXEL);
+        },
+        { visit: "returning" },
+      );
+    });
+  });
+}
+
+for (const size of [PHONE, NARROW_PHONE]) {
+  for (const px of LARGE_TEXT) {
+    for (const update of [false, true]) {
+      test(`at ${at(size)} and ${px} px text an Editor's header ${update ? "with the New version pill " : ""}keeps a name of ${NAME_FLOOR} px, overlaps nothing, stays under ${TALLEST_BAR + 1} px and answers every press`, async ({
+        browser,
+      }) => {
+        test.setTimeout(120_000);
+        await withGuestLinks(browser, async (links, host) => {
+          const name = await episodeName(host, links.editor);
+          await withGuestPage(
+            browser,
+            size,
+            async (guest) => {
+              await openLanded(guest, links.editor, name);
+              if (update) {
+                await guest.route(
+                  `**/api/review/${links.editor}/project`,
+                  async (route) => {
+                    const answer = await route.fetch();
+                    const body = await answer.json();
+                    body.review_version = {
+                      ...body.review_version,
+                      id: "a-version-the-page-did-not-open-on",
+                      label: "Intro fix",
+                    };
+                    body.link_follows_latest = true;
+                    await route.fulfill({ response: answer, json: body });
+                  },
+                );
+                await guest.evaluate(() =>
+                  window.dispatchEvent(new Event("focus")),
+                );
+                await expect(
+                  guest.getByRole("button", {
+                    name: /^New version: Intro fix/,
+                  }),
+                ).toBeVisible({ timeout: 15_000 });
+              }
+              await setRootFontSize(guest, px);
+              await afterFrames(guest);
+              const where = `Editor at ${at(size)}, root ${px} px${update ? ", pill" : ""}`;
+              expect
+                .soft((await nameBox(guest)).w, `${where}: the name's width`)
+                .toBeGreaterThanOrEqual(NAME_FLOOR - SUBPIXEL);
+              expect
+                .soft(
+                  await crowdedParts(guest),
+                  `${where}: overlaps and cut text`,
+                )
+                .toEqual([]);
+              const inventory = await headerInventory(guest);
+              expect
+                .soft(inventory.bar.h, `${where}: the bar's height`)
+                .toBeLessThanOrEqual(TALLEST_BAR);
+              expect
+                .soft(
+                  reachingPast(inventory),
+                  `${where}: what reaches the rule`,
+                )
+                .toEqual([]);
+              const report = await pressTargets(guest, TOUCH_MIN);
+              expect
+                .soft(targetProblems(report), `${where}: the press targets`)
+                .toEqual([]);
+            },
+            { visit: "returning" },
+          );
+        });
+      });
+    }
+  }
+}
+
+for (const size of [PHONE, NARROW_PHONE]) {
+  test(`at ${at(size)} every press area in an Editor's header is at least ${TOUCH_MIN} px wide, the version control's with the New version pill included`, async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000);
+    await withGuestLinks(browser, async (links, host) => {
+      const name = await episodeName(host, links.editor);
+      await withGuestPage(
+        browser,
+        size,
+        async (guest) => {
+          await openLanded(guest, links.editor, name);
+          await guest.route(
+            `**/api/review/${links.editor}/project`,
+            async (route) => {
+              const answer = await route.fetch();
+              const body = await answer.json();
+              body.review_version = {
+                ...body.review_version,
+                id: "a-version-the-page-did-not-open-on",
+                label: "Intro fix",
+              };
+              body.link_follows_latest = true;
+              await route.fulfill({ response: answer, json: body });
+            },
+          );
+          await guest.evaluate(() => window.dispatchEvent(new Event("focus")));
+          const pill = guest.getByRole("button", {
+            name: /^New version: Intro fix/,
+          });
+          await expect(pill).toBeVisible({ timeout: 15_000 });
+          await afterFrames(guest);
+          const report = await pressTargets(guest, TOUCH_MIN);
+          expect
+            .soft(
+              report.controls.map((control) => control.name),
+              "the version control is among the buttons found",
+            )
+            .toContainEqual(expect.stringMatching(/^New version: Intro fix/));
+          expect
+            .soft(
+              report.controls
+                .filter((control) => control.area.w < TOUCH_MIN - 0.5)
+                .map((control) => `${control.name}: ${control.area.w}`),
+              "the press areas under the touch minimum",
+            )
+            .toEqual([]);
+        },
+        { visit: "returning" },
+      );
+    });
+  });
+}
+
+for (const size of [PHONE, NARROW_PHONE]) {
+  test(`at ${at(size)} the rows the fold reserves for the Edit stage are within 1 px of the rows the stage measures`, async ({
+    browser,
+  }) => {
+    await withGuestLinks(browser, async (links, host) => {
+      const name = await episodeName(host, links.editor);
+      await withGuestPage(
+        browser,
+        size,
+        async (guest) => {
+          await openLanded(guest, links.editor, name);
+          const heights = await guest.evaluate(() => {
+            const root = document.documentElement;
+            const folded = "frameShort" in root.dataset;
+            if (folded) delete root.dataset.frameShort;
+            const frame = document.querySelector<HTMLElement>(
+              ".stage-frame--guest",
+            )!;
+            const token = (name: string) => {
+              const probe = document.createElement("div");
+              probe.style.cssText = `position:absolute;visibility:hidden;inline-size:0;block-size:var(${name})`;
+              frame.appendChild(probe);
+              const h = probe.getBoundingClientRect().height;
+              probe.remove();
+              return h;
+            };
+            const height = (selector: string) =>
+              frame.querySelector(selector)?.getBoundingClientRect().height ??
+              0;
+            const out = {
+              reservedRows: token("--phone-edit-rows-height"),
+              rows: height(".phone-edit-bar") + height(".edit-dock"),
+              reservedCorner: token("--phone-edit-corner-height"),
+              corner: height(".edit-workspace .edit-corner"),
+            };
+            if (folded) root.dataset.frameShort = "";
+            return out;
+          });
+          expect(heights.rows).toBeGreaterThan(0);
+          expect(
+            Math.abs(heights.reservedRows - heights.rows),
+            JSON.stringify(heights),
+          ).toBeLessThanOrEqual(1);
+          expect(
+            Math.abs(heights.reservedCorner - heights.corner),
+            JSON.stringify(heights),
+          ).toBeLessThanOrEqual(1);
         },
         { visit: "returning" },
       );

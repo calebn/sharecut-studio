@@ -119,7 +119,17 @@ async function dismissHint(page: Page): Promise<void> {
 }
 
 async function openPalette(page: Page): Promise<PaletteRow[]> {
-  await press(page, "Palette");
+  await expect(
+    page.getByRole("button", { name: /^(Palette|More|Stage menu)/ }).first(),
+  ).toBeVisible();
+  if (await page.getByRole("button", { name: "Palette" }).count())
+    await press(page, "Palette");
+  else {
+    await press(page, /^(More|Stage menu)/);
+    await page
+      .getByRole("menuitem", { name: "Search commands and people" })
+      .tap();
+  }
   await expect(
     page.getByRole("combobox", { name: "Search commands" }),
   ).toBeVisible();
@@ -395,7 +405,8 @@ for (const [sizeName, size] of [
         await recordSpoken(guest!);
         await openGuestShare(guest!, links.editor);
         await expect(bubble(guest!)).toContainText(FIRST_VISIT.editor);
-        await expect(PEOPLE(guest!)).not.toHaveCount(0);
+        if (sizeName === "desktop")
+          await expect(PEOPLE(guest!)).not.toHaveCount(0);
         await afterFrames(guest!);
         const spoken = await spokenSoFar(guest!);
         expect(

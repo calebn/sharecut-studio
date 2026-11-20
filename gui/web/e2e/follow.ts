@@ -7,6 +7,7 @@ import {
 import { clickHTMLElement } from "./domClick";
 import { e2eProjectPath } from "./env";
 import { openHostShare } from "./shareNavigation";
+import { openHeaderMore } from "./stageNav";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
 const FOLLOW_PILL_TRANSITION_TIMEOUT_MS = 1_000;
@@ -126,4 +127,33 @@ export async function followUntilPillVisible(follower: Page): Promise<void> {
     }
   }
   throw new Error("no Follow peer showed a pill");
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export async function moreMenuPerson(
+  page: Page,
+  name: string,
+): Promise<Locator> {
+  const menu = await openHeaderMore(page);
+  const card = menu
+    .getByRole("group", { name: new RegExp(`^${escapeRegExp(name)}(,|$)`) })
+    .first();
+  await expect(card).toBeVisible();
+  return card;
+}
+
+export async function expectFollowing(page: Page, name: string): Promise<void> {
+  if ((await followPill(page).count()) > 0) {
+    await expect(followPill(page)).toContainText(`Following ${name}`);
+    return;
+  }
+  const card = await moreMenuPerson(page, name);
+  await expect(
+    card.getByRole("menuitem", { name: "Stop following", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(card).toBeHidden();
 }

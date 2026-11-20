@@ -1,4 +1,5 @@
 import {
+  act,
   createEvent,
   fireEvent,
   render,
@@ -7,9 +8,10 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode, useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ScriptDivider } from "../stage/edit/ScriptDivider";
 import { expectNoA11yViolations } from "../test/a11y";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { systemCss } from "../test/systemCss";
 import { AppHeader, type AppHeaderProps } from "./AppHeader";
 import { ROLES } from "./linkRoles";
@@ -1457,7 +1459,7 @@ describe("the guest header's second line, in the styles", () => {
     );
     // The role button grows to both sides, the version buttons toward the line's start.
     expect(css).toMatch(
-      /\.sys-role-trigger::after \{ inset-inline: min\(0rem, calc\(\(100% - var\(--press-target\)\) \/ 2\)\); \}/,
+      /\.sys-role-trigger::after \{ inset-inline: max\( calc\(1px - var\(--space-3\)\), min\(0rem, calc\(\(100% - var\(--press-target\)\) \/ 2\)\) \); \}/,
     );
     expect(css).toMatch(
       /\.sys-version-pill::after,\s*button\.sys-version-line::after \{ inset-inline: min\(0rem, calc\(100% - var\(--press-target\)\)\) 0; \}/,
@@ -1490,5 +1492,186 @@ describe("the guest header's second line, in the styles", () => {
     expect(rule).toContain("padding: 0");
     expect(rule).toContain("font-weight: 500");
     expect(rule).not.toContain("min-block-size");
+  });
+});
+
+describe("AppHeader as an Editor on a phone", () => {
+  const editor = {
+    version: "Rough cut",
+    role: "editor",
+    compact: true,
+  } as const;
+
+  it("folds the right side into More, whatever the header's width", async () => {
+    const user = userEvent.setup();
+    const onPalette = vi.fn();
+    render(
+      <AppHeader
+        title="Episode"
+        guest={editor}
+        onPalette={onPalette}
+        appearance={{ value: "system", onChange: () => undefined }}
+        menuPeople={<div role="menuitem">Maya · Follow</div>}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Palette" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Appearance" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "More" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Maya · Follow" }),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("menuitem", { name: "Search commands and people" }),
+    );
+    expect(onPalette).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["viewer", "commenter"] as const)(
+    "leaves a %s link's right side on the bar while the header has room",
+    (role) => {
+      render(
+        <AppHeader
+          title="Episode"
+          guest={{ version: "Rough cut", role, compact: true }}
+          onPalette={() => undefined}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Palette" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "More" })).toBeNull();
+    },
+  );
+
+  it("keeps its right side on the bar off the phone", () => {
+    render(
+      <AppHeader
+        title="Episode"
+        guest={{ version: "Rough cut", role: "editor" }}
+        onPalette={() => undefined}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Palette" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "More" })).toBeNull();
+  });
+
+  it("lists no Redo row while the header has room", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppHeader title="Episode" guest={editor} onRedo={() => undefined} />,
+    );
+    await user.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.queryByRole("menuitem", { name: "Redo" })).toBeNull();
+  });
+});
+
+describe("AppHeader at 20 rem and under", () => {
+  const editor = {
+    version: "Rough cut",
+    role: "editor",
+    compact: true,
+  } as const;
+
+  beforeEach(() => {
+    stubResizeObserver();
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((el, pseudo) =>
+      el === document.documentElement
+        ? ({ ["fontSize"]: "16px" } as CSSStyleDeclaration)
+        : real(el, pseudo),
+    );
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  function shrink(width: number) {
+    const host = document.querySelector(".sys-app-header-host") as HTMLElement;
+    act(() =>
+      FakeResizeObserver.of(host).fire(host, {
+        contentRect: { width } as DOMRectReadOnly,
+      }),
+    );
+  }
+
+  it("moves Redo into the menu, with the reason it is off", async () => {
+    const user = userEvent.setup();
+    const onRedo = vi.fn();
+    render(
+      <AppHeader
+        title="Episode"
+        guest={editor}
+        canRedo={false}
+        redoReason="Nothing to redo"
+        onRedo={onRedo}
+      />,
+    );
+    shrink(320);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    const row = screen.getByRole("menuitem", { name: /^Redo/ });
+    expect(row).toHaveAttribute("aria-disabled", "true");
+    expect(row).toHaveTextContent("Nothing to redo");
+    await user.click(row);
+    expect(onRedo).not.toHaveBeenCalled();
+  });
+
+  it("runs Redo from its menu row when there is something to redo", async () => {
+    const user = userEvent.setup();
+    const onRedo = vi.fn();
+    render(<AppHeader title="Episode" guest={editor} onRedo={onRedo} />);
+    shrink(320);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(screen.getByRole("menuitem", { name: /^Redo/ }));
+    expect(onRedo).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives a Viewer no Redo row", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        title="Episode"
+        guest={{ version: "Rough cut", role: "viewer", compact: true }}
+        onPalette={() => undefined}
+      />,
+    );
+    shrink(320);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.queryByRole("menuitem", { name: /^Redo/ })).toBeNull();
+  });
+});
+
+describe("the Editor's phone header, in the styles", () => {
+  const css = systemCss().replace(/\s+/g, " ");
+
+  it("holds the name at 6.75 rem, so the line wraps instead of crushing it", () => {
+    expect(css).toMatch(
+      /\.sys-header-guest \{[^}]*min-inline-size: min\(6\.75rem, 40cqi\);/,
+    );
+    expect(css).not.toMatch(
+      /html\[data-frame-short\] \.sys-header-left > \.sys-header-guest/,
+    );
+    expect(css).toMatch(
+      /\.sys-header-left > \.sys-header-guest \{ flex: 1 1 6rem; \}/,
+    );
+  });
+
+  it("drops the stage's word and Redo from a guest's bar at 20 rem and under", () => {
+    const block = css.match(
+      /@container sys-app-header \(max-width: 20rem\) \{(?:(?!\} @container).)*?\.sys-header-guest ~ \.sys-header-history \.sys-header-redo[^{]*\{ display: none; \}/,
+    );
+    expect(block).not.toBeNull();
+    expect(css).toMatch(
+      /\.sys-header-guest ~ \.sys-header-short \.sys-header-stage-label[^{]*\{ display: none; \}/,
+    );
+  });
+
+  it("keeps the version control at least a touch target wide", () => {
+    for (const selector of [".sys-version-pill", "button.sys-version-line"]) {
+      const rule = css.match(
+        new RegExp(`(?:^|\\} )${selector.replace(".", "\\.")} \\{([^}]*)\\}`),
+      )?.[1];
+      expect(rule, selector).toContain("min-inline-size: var(--touch-min)");
+    }
   });
 });

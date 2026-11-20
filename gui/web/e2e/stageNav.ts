@@ -267,6 +267,19 @@ export function projectMenuButton(page: Page): Locator {
   return page.locator(".sys-header-project");
 }
 
+export async function openHeaderMore(page: Page): Promise<Locator> {
+  const menu = page.getByRole("menu", { name: /^(More|Stages)$/ });
+  if (await menu.isVisible()) {
+    return menu;
+  }
+  await page
+    .locator(".stage-frame-header")
+    .getByRole("button", { name: /^(More|Stage menu)/ })
+    .click({ timeout: 10_000 });
+  await expect(menu).toBeVisible();
+  return menu;
+}
+
 /** Open the Project menu (the header's title button) and return it. */
 export async function openProjectMenu(page: Page): Promise<Locator> {
   const menu = page.getByRole("menu", { name: "Project menu" });
@@ -349,8 +362,23 @@ export async function openProjectDialog(
       return;
     case "palette": {
       const search = page.getByRole("button", { name: /^Palette\b/ });
-      if (await search.isVisible()) {
-        await search.click();
+      // A resize reaches the header a render later: give the direct button a
+      // moment to settle before reading it as absent.
+      const direct = await search
+        .waitFor({ state: "visible", timeout: 3_000 })
+        .then(
+          () => true,
+          () => false,
+        );
+      if (direct) {
+        await search.click({ timeout: 10_000 });
+        return;
+      }
+      if (!(await projectMenuButton(page).isVisible())) {
+        const more = await openHeaderMore(page);
+        await more
+          .getByRole("menuitem", { name: "Search commands and people" })
+          .click({ timeout: 10_000 });
         return;
       }
       // A folded or narrow header gives its right side to the Project menu.

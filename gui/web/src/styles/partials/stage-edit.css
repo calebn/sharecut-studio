@@ -193,6 +193,27 @@
   }
 }
 
+@container app not (min-width: 22rem) {
+  .stage-frame > * {
+    --phone-edit-rows-height: calc(
+      var(--phone-edit-bar-stacked-height) +
+      var(--action-dock-height)
+    );
+  }
+}
+
+@container app (max-width: 20rem) {
+  .stage-frame > * {
+    --phone-edit-corner-height: calc(
+      2 *
+      var(--touch-min) +
+      3 *
+      var(--space-1) +
+      0.125rem
+    );
+  }
+}
+
 .edit-corner-btn {
   min-inline-size: var(--control-height);
   min-block-size: var(--control-height);

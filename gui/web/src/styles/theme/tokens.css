@@ -281,6 +281,24 @@
   --action-bar-height: 2.5rem;
   --action-bar-height-touch: 2.75rem;
   --action-dock-height: 4rem;
+  --phone-edit-bar-stacked-height: calc(
+    var(--touch-min) +
+    2 *
+    var(--space-0) +
+    0.125rem +
+    var(--touch-min) +
+    2 *
+    var(--space-1) +
+    var(--space-3) +
+    1px
+  );
+  --phone-edit-rows-height: var(--action-dock-height);
+  --phone-edit-corner-height: calc(
+    var(--touch-min) +
+    2 *
+    var(--space-1) +
+    0.125rem
+  );
   --tab-bar-height: 3.5rem;
   --stage-tab-width: 6rem;
   --stage-tab-width-tablet: 5.5rem;
