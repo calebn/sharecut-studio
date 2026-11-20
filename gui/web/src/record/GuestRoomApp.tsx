@@ -30,6 +30,7 @@ import { GuestCovers } from "./GuestCovers";
 import {
   guestCoverProps,
   guestHostName,
+  deviceScan,
   guestRoomAlerts,
   guestRoomPhase,
   guestTakes,
@@ -375,11 +376,11 @@ function GuestRoomSession({
   // A partial take's upload error only explains Finish saving; one action is enough.
   const recoverable = !producer && upload.recoverable && state === "stopped";
   const inTake = !producer && tookPart(snapshot, me);
-  const scan = {
-    unreadable: room.localUnreadable,
-    stopped: state === "stopped",
-    captureSettled: room.captureSettled,
-  };
+  const scan = deviceScan(
+    room.localUnreadable,
+    state === "stopped",
+    room.captureSettled,
+  );
   const saved =
     !producer && uploadAcknowledged(upload, room.localSegments, scan);
   const phase = guestRoomPhase(snapshot, {
