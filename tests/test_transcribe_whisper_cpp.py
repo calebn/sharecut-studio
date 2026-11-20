@@ -53,6 +53,8 @@ def test_the_backend_is_part_of_the_cache_key(
     monkeypatch.setattr(native_whisper, "is_installed", lambda: True)
     phone = TranscriptionEngine(model_size="base.en", defaults=load_defaults())
     assert phone.backend == "whisper_cpp"
+    monkeypatch.setenv("WHISPER_CPP_MODEL_NAME", "base.en")
+    assert phone._cache_model_key() == desktop._cache_model_key()
     assert phone.cache_path(project, "host", audio) != desktop_cache
 
 
