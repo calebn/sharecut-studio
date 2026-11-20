@@ -727,15 +727,16 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   structured error with no Apple shape (a bare HTTP status, a system error domain, an
   authentication refusal with no Apple code), and a structured error that also carries transport
   wording. What is stored of an answer, finished or not, is at most 5 messages of 200 characters
-  each. `validate` and the app record lookup change nothing at Apple and keep
-  their looser reading: for `validate`, exit 0 with no error message is fine whatever the output; for both, any other exit
-  is a rejection, a duplicate or an authentication refusal by its wording, and only network
-  wording (the shorter `NETWORK` list) reads as unreachable. The lookup reads the top-level array
-  `altool --list-apps` prints (or an object whose only key is an `applications` array) and needs an entry
-  whose `bundleId` equals the bundle identifier exactly. A lookup that exits 0 but prints no
-  parsed list of apps (an error object such as Apple's 500, a list of anything but app objects, an object with keys besides `applications`, or unreadable output)
-  got no answer: it stops with exit 8 and the unreachable sentence and changes nothing. Only a
-  parsed list without the bundle identifier means no app record (exit 6). Real list-apps output begins
+  each. `validate` accepts exit 0 with no error message. For a failed validation, it
+  uses the wording to distinguish a rejection, a duplicate, an authentication refusal,
+  and a network failure. A nonzero app record lookup always stops with exit 6, even
+  when its message says Apple could not be reached. On exit 0, the lookup reads the
+  top-level array from `altool --list-apps` or an object whose only key is
+  `applications`. Every entry needs a nonempty string `bundleId`, and the bundle
+  identifier must match exactly. Only a valid list without that identifier means the
+  app record is missing (exit 6). With no valid list, the lookup stops with exit 8.
+  It names a refused key or Apple server error when it recognizes one, and otherwise
+  says Apple could not be reached. Real list-apps output begins
   with a banner line and may include altool's own retry `ERROR` lines before the array; the
   lookup reads past them. A rejection with no readable message
   prints "Apple rejected the build and gave no readable reason" and names the step log.

@@ -25,6 +25,7 @@ from scripts.ios.release_classify import (
     classify_altool,
     classify_upload,
     sentence,
+    unanswered_lookup_sentence,
 )
 from scripts.ios.release_inputs import AscKey
 from scripts.ios.release_plan import (
@@ -97,7 +98,7 @@ def lookup_outcome(result: SpawnResult, bundle_identifier: str) -> Outcome:
                 "App Store Connect has no app record for this bundle identifier. Create the app in App Store Connect first.",
             )
         case Lookup.UNANSWERED:
-            return Failure.TOOL, sentence(AppleAnswer(Verdict.UNREACHABLE, ()))
+            return Failure.TOOL, unanswered_lookup_sentence(result.output)
     return OK
 
 
