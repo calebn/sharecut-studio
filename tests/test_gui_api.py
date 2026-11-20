@@ -2191,6 +2191,7 @@ def test_api_pipeline_status_idle() -> None:
         "job": None,
         "jobs": [],
         "running_count": 0,
+        "setup_queue": {"waiting": False, "waiting_for": [], "position": None, "parked": False},
     }
 
 

@@ -49,6 +49,7 @@ class PipelineRunRequest(BaseModel):
     # Re-time words); honoured only with force_transcribe or retime_words, even in Batch mode.
     # Never persisted.
     overwrite_edited: bool = False
+    queue_if_models_missing: bool = False
 
 
 class PipelineRetryRequest(BaseModel):

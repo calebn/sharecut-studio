@@ -99,7 +99,7 @@ def test_run_gate_follows_the_selected_steps() -> None:
         ensure_word_aligner_for_run(EXPLICIT, only_step="transcribe_tracks")
 
 
-def test_run_route_answers_409_before_any_job_starts(
+def test_run_route_queues_a_plain_run_and_starts_no_job(
     minimal_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config_store().put(minimal_project, config=EXPLICIT)
@@ -109,7 +109,32 @@ def test_run_route_answers_409_before_any_job_starts(
     )
     client = TestClient(create_app())
     res = client.post(
-        "/api/pipeline/run", json={"path": str(minimal_project), "use_working_set": True}
+        "/api/pipeline/run",
+        json={
+            "path": str(minimal_project),
+            "use_working_set": True,
+            "queue_if_models_missing": True,
+        },
+    )
+    assert res.status_code == 202
+    body = res.json()
+    assert body["queued"] is True
+    assert body["waiting_for"][0]["id"] == "word-aligner"
+    assert client.get("/api/pipeline/status").json()["running"] is False
+
+
+def test_run_route_answers_409_for_a_confirmed_retranscribe_before_any_job_starts(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_store().put(minimal_project, config=EXPLICIT)
+    monkeypatch.setattr(
+        "podcast_mcp.services.jobs.manager.JobManager.start",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("must not start")),
+    )
+    client = TestClient(create_app())
+    res = client.post(
+        "/api/pipeline/run",
+        json={"path": str(minimal_project), "use_working_set": True, "force_transcribe": True},
     )
     assert res.status_code == 409
     assert res.headers["X-Sharecut-Error-Code"] == "model_needed"

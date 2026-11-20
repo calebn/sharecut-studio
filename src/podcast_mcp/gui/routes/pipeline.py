@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
@@ -30,6 +30,7 @@ from podcast_mcp.gui.schemas import (
 )
 from podcast_mcp.pipeline import STEP_NAMES
 from podcast_mcp.services.jobs import JobManager, JobSlotBusyError
+from podcast_mcp.services.jobs.setup_queue import QueuedRun
 from podcast_mcp.services.pipeline import (
     build_config_payload,
     config_store,
@@ -116,11 +117,11 @@ def pipeline_retry(
     return {"job": job.snapshot()}
 
 
-@router.post("/api/pipeline/run", dependencies=_HOST_GATE)
+@router.post("/api/pipeline/run", dependencies=_HOST_GATE, response_model=None)
 def pipeline_run(
     req: PipelineRunRequest,
     request: Request,
-) -> dict[str, Any]:
+) -> dict[str, Any] | JSONResponse:
     jobs = _jobs(request)
     project_path = resolve_project(req.path, request)
     check_steps(req.from_step, req.only_step, req.skip_steps)
@@ -166,8 +167,21 @@ def pipeline_run(
         retime_words=req.retime_words,
         persist=persist if req.use_working_set else None,
         busy_error=owner_busy_error,
+        queue_on_missing=req.queue_if_models_missing
+        and not (req.force_transcribe or req.retime_words),
     )
+    if isinstance(job, QueuedRun):
+        return JSONResponse(job.payload(), status_code=202)
     return {"job": job.snapshot()}
+
+
+@router.delete("/api/pipeline/queue", dependencies=_HOST_GATE)
+def pipeline_queue_cancel(
+    request: Request,
+    path: str = Query(...),
+) -> dict[str, Any]:
+    """Take a project off the setup queue; ``cancelled`` is false when it was not waiting."""
+    return {"cancelled": _jobs(request).cancel_setup_queue(path)}
 
 
 @router.post("/api/pipeline/cancel", dependencies=_HOST_GATE)

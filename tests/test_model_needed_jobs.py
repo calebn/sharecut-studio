@@ -1068,3 +1068,73 @@ def test_pipeline_worker_creation_failure_does_not_leave_a_queued_slot(
     manager.wait(original, timeout=5)
     assert original.error_code == "model_needed"
     assert len(calls) == 1
+
+
+def test_a_queued_run_that_loses_its_model_after_the_start_goes_back_to_waiting(
+    empty_project, pipeline_worker, monkeypatch
+):
+    from podcast_mcp.services.jobs.setup_queue import SetupQueue
+
+    def gone(*_args, **_kwargs):
+        raise _missing_model()
+
+    manager, calls, entered = pipeline_worker
+    _FakeRunner.before_first_failure = lambda _persist: monkeypatch.setattr(
+        "podcast_mcp.engines.models.registry.require_model", gone
+    )
+    manager.enqueue_for_setup(
+        empty_project,
+        config=None,
+        from_step=None,
+        only_step=None,
+        skip_steps=None,
+        unattended=True,
+        waiting_for=[_missing_model().payload()],
+        drain=False,
+    )
+    job = manager.drain_setup_queue()
+    assert job is not None
+    assert entered.wait(5)
+    manager.wait(job, timeout=5)
+    for thread in threading.enumerate():
+        if thread.name.startswith("pipeline-job-"):
+            thread.join(5)
+    assert job.error_code == "model_needed"
+    assert SetupQueue().standing(empty_project)["waiting"] is True
+    assert len(calls) == 1
+
+
+def test_retry_claims_the_queue_entry_like_a_manual_start(
+    empty_project, pipeline_worker, monkeypatch
+):
+    from podcast_mcp.services.jobs.setup_queue import SetupQueue
+
+    manager, _, entered = pipeline_worker
+    original = manager.start(empty_project)
+    assert entered.wait(5), manager.status()
+    _wait_terminal(manager, original)
+    for thread in threading.enumerate():
+        if thread.name.startswith(("pipeline-job-", "setup-queue-drain")):
+            thread.join(5)
+    manager.enqueue_for_setup(
+        empty_project,
+        config=None,
+        from_step=None,
+        only_step=None,
+        skip_steps=None,
+        unattended=True,
+        waiting_for=[_missing_model().payload()],
+        drain=False,
+    )
+    assert SetupQueue().standing(empty_project)["waiting"] is True
+    seen: list[int] = []
+    real = JobManager._run_job
+
+    def spy(self, job):
+        seen.append(len(SetupQueue().entries()))
+        return real(self, job)
+
+    monkeypatch.setattr(JobManager, "_run_job", spy)
+    successor = manager.retry_pipeline(Path(empty_project), original.id)
+    _wait_terminal(manager, successor)
+    assert seen == [0]

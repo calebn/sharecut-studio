@@ -16,6 +16,7 @@ from podcast_mcp.export.names import BOUNCES_DIRNAME
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.project.history.author import SYSTEM_AUTHOR, history_author
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.jobs import setup_queue
 from podcast_mcp.services.jobs.catalog import JobCatalog
 from podcast_mcp.services.jobs.events import LIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES
 from podcast_mcp.services.jobs.job import (
@@ -30,6 +31,7 @@ from podcast_mcp.services.jobs.reporter import (
     JobProgressReporter,
     SsePublishReporter,
 )
+from podcast_mcp.services.jobs.setup_queue import QueuedRun, SetupQueue
 from podcast_mcp.services.media import (
     BounceRequest,
     BounceService,
@@ -57,6 +59,35 @@ SLOT_BUSY = "Another job is still running. Try again when it finishes."
 MIX_STILL_UPDATING = "The mix is still updating. Try again when it finishes."
 
 
+def _project_presence(path: Path) -> str:
+    """``gone`` only when its folder's parent is reachable and the file is not there."""
+    try:
+        path.stat()
+    except FileNotFoundError:
+        try:
+            return "gone" if path.parent.parent.exists() else "unknown"
+        except OSError:
+            return "unknown"
+    except OSError:
+        return "unknown"
+    return "present"
+
+
+def _model_missing(payload: dict[str, Any]) -> bool:
+    from podcast_mcp.engines.models.registry import require_model
+
+    try:
+        variant = payload.get("model") if payload.get("id") == "whisper" else None
+        require_model(payload["id"], variant)
+    except Exception:
+        return True
+    return False
+
+
+class _EntryGone(Exception):
+    """The queue entry was cancelled or replaced while its models were being checked."""
+
+
 class JobManager:
     """Start and wait on jobs while the catalog owns their shared state."""
 
@@ -67,6 +98,12 @@ class JobManager:
         self._host_tool_lock = threading.Lock()
         self._host_tool_calls: set[object] = set()
         self._removing_model = False
+        self._setup_queue = SetupQueue()
+        self._drain_state = threading.Lock()
+        self._draining = False
+        self._drain_again = False
+        self._parked = setup_queue.PARKED
+        self._failures = setup_queue.FAILURES
 
     @property
     def _job(self) -> Job | None:
@@ -111,7 +148,9 @@ class JobManager:
         self._catalog.set_served_project(project_path)
 
     def status(self, project_path: str | None = None) -> dict[str, Any]:
-        return self._catalog.status(project_path)
+        snapshot = self._catalog.status(project_path)
+        snapshot["setup_queue"] = self._setup_queue.standing(project_path)
+        return snapshot
 
     def export_running(self, project_path: Path) -> bool:
         """Whether a deliverables export of *project_path* is queued or writing right now."""
@@ -177,7 +216,234 @@ class JobManager:
             skip_steps=skip_steps,
             unattended=unattended,
             config=config,
+            take_queued=from_step is None and only_step is None,
         )
+
+    def enqueue_for_setup(
+        self,
+        project_path: Path,
+        *,
+        config: dict[str, Any] | None,
+        from_step: str | None,
+        only_step: str | None,
+        skip_steps: list[str] | None,
+        unattended: bool,
+        waiting_for: list[dict[str, Any]],
+        drain: bool = True,
+    ) -> QueuedRun:
+        """Queue a run whose models are missing; it starts on its own once they are installed.
+
+        The run's config is resolved now (the working set is process memory) and never
+        overwrites an edited transcript, so what starts later is what was asked for now.
+        """
+        from podcast_mcp.services.pipeline import merge_pipeline_config
+        from podcast_mcp.services.pipeline.config import run_defaults_for
+
+        snapshot = (
+            merge_pipeline_config(config) if config is not None else run_defaults_for(project_path)
+        )
+        snapshot = copy.deepcopy(snapshot)
+        transcribe = snapshot.setdefault("transcribe", {})
+        if isinstance(transcribe, dict):
+            transcribe["overwrite_edited"] = False
+        request = {
+            "from_step": from_step,
+            "only_step": only_step,
+            "skip_steps": list(skip_steps) if skip_steps is not None else None,
+            "unattended": unattended,
+            "config": snapshot,
+        }
+        queued = self._setup_queue.enqueue(project_path, request=request, waiting_for=waiting_for)
+        with self._drain_state:
+            self._failures.pop(str(Path(project_path).expanduser().resolve()), None)
+        if drain:
+            threading.Thread(
+                target=self.drain_setup_queue_quietly,
+                daemon=True,
+                name="setup-queue-drain",
+            ).start()
+        return queued
+
+    def cancel_setup_queue(self, project_path: Path | str) -> bool:
+        return self._setup_queue.cancel(project_path)
+
+    def drain_setup_queue(self, *, retry_parked: bool = False) -> Job | None:
+        """Start the first queued run whose models are installed; one episode at a time.
+
+        Call it holding no lock. A call that arrives while another drain runs asks that one to
+        look again and returns at once. An entry whose run ended ``model_needed`` is parked and
+        left alone until a drain with ``retry_parked`` (a download finished) or a new request
+        for that episode.
+        """
+        with self._drain_state:
+            if retry_parked:
+                self._parked.clear()
+            if self._draining:
+                self._drain_again = True
+                return None
+            self._draining = True
+        first: Job | None = None
+        try:
+            while True:
+                with self._drain_state:
+                    self._drain_again = False
+                    parked = dict(self._parked)
+                started = self._drain_once(parked)
+                first = first or started
+                with self._drain_state:
+                    if not self._drain_again:
+                        self._draining = False
+                        return first
+        except BaseException:
+            with self._drain_state:
+                self._draining = False
+            raise
+
+    def _park(self, entry: dict[str, Any], token: str | None = None) -> None:
+        with self._drain_state:
+            self._parked[entry["project_path"]] = (token or entry["token"], None)
+
+    def _park_after_failure(
+        self, entry: dict[str, Any], token: str, missing: dict[str, Any] | None
+    ) -> None:
+        """Hold an entry whose run ended ``model_needed``: until that model is seen installed,
+        or, when it already is, after one more try, until a download finishes."""
+        path = entry["project_path"]
+        waiting = missing is not None and _model_missing(missing)
+        with self._drain_state:
+            failures = self._failures.get(path, 0) + 1
+            self._failures[path] = failures
+            if waiting:
+                self._parked[path] = (token, missing)
+            elif failures >= 2:
+                self._parked[path] = (token, None)
+
+    def _setup_validator(self, entry: dict[str, Any]) -> Callable[[], None]:
+        request = entry["request"]
+        config = request.get("config")
+        from_step = request.get("from_step")
+        only_step = request.get("only_step")
+        skip_steps = request.get("skip_steps")
+
+        def validate() -> None:
+            from podcast_mcp.services.pipeline import (
+                ensure_track_effect_models_for_run,
+                ensure_whisper_cached_for_run,
+                ensure_word_aligner_for_run,
+            )
+
+            ensure_whisper_cached_for_run(
+                config=config,
+                from_step=from_step,
+                only_step=only_step,
+                skip_steps=skip_steps,
+                resolved=True,
+            )
+            ensure_word_aligner_for_run(
+                config,
+                from_step=from_step,
+                only_step=only_step,
+                skip_steps=skip_steps,
+                resolved=True,
+            )
+            ensure_track_effect_models_for_run(entry["project_path"])
+            if not self._setup_queue.holds(entry["project_path"], entry["token"]):
+                raise _EntryGone
+
+        return validate
+
+    def _drain_once(self, parked: dict[str, tuple[str, dict[str, Any] | None]]) -> Job | None:
+        for entry in self._setup_queue.entries():
+            path = Path(entry["project_path"])
+            if SetupQueue.is_moving(path):
+                continue
+            try:
+                mark = parked.get(entry["project_path"])
+                if mark is not None and mark[0] == entry["token"]:
+                    if mark[1] is None or _model_missing(mark[1]):
+                        continue
+                    with self._drain_state:
+                        self._parked.pop(entry["project_path"], None)
+                presence = _project_presence(path)
+                if presence == "gone":
+                    self._setup_queue.remove(path, unless_moving=True)
+                    continue
+                if presence == "unknown":
+                    continue
+                request = entry["request"]
+                try:
+                    return self._spawn(
+                        path,
+                        kind="pipeline",
+                        from_step=request.get("from_step"),
+                        only_step=request.get("only_step"),
+                        skip_steps=request.get("skip_steps"),
+                        unattended=bool(request.get("unattended")),
+                        config=request.get("config"),
+                        validate=self._setup_validator(entry),
+                        setup_entry=entry,
+                    )
+                except JobSlotBusyError:
+                    return None
+                except ModelMissing as exc:
+                    self._setup_queue.update_waiting(path, entry["token"], [exc.payload()])
+                except _EntryGone:
+                    pass
+            except OSError:
+                logger.exception("Cannot look at the queued run for %s", path)
+            except Exception:
+                logger.exception("Cannot start the queued run for %s", path)
+        return None
+
+    def drain_setup_queue_quietly(self, *, retry_parked: bool = False) -> None:
+        try:
+            self.drain_setup_queue(retry_parked=retry_parked)
+        except Exception:
+            logger.exception("Draining the setup queue failed")
+
+    def _after_job(self, job: Job) -> None:
+        entry = job._setup_entry
+        if entry is not None and job.status == "ok":
+            with self._drain_state:
+                self._failures.pop(entry["project_path"], None)
+        if entry is not None and job.status == "error" and job.error_code == "model_needed":
+            try:
+                token = self._setup_queue.requeue(
+                    entry,
+                    waiting_for=[job.error_model] if job.error_model else entry["waiting_for"],
+                    generation=job._setup_generation,
+                )
+            except OSError:
+                logger.exception("Cannot put %s back in the setup queue", entry["project_path"])
+            else:
+                if token is not None:
+                    self._park_after_failure(entry, token, job.error_model)
+        self.drain_setup_queue_quietly()
+
+    def _discard_unstarted(self, job: Job) -> None:
+        """Drop a run that never started because its episode is moving: no job is left behind."""
+        with job._lock:
+            job.status = "cancelled"
+            job.finished_at = time.monotonic()
+        with self._catalog._lock:
+            if self._catalog._job is job:
+                self._catalog._job = None
+        job.publish({"type": "done", "job": job.snapshot()})
+        self.drain_setup_queue_quietly()
+
+    def _abandon_unstarted(self, job: Job, *, status: str, message: str, drain: bool) -> None:
+        with job._lock:
+            job.status = status
+            job.message = message
+            if status == "error":
+                job.error = message
+            job.finished_at = time.monotonic()
+        with self._catalog._lock:
+            if self._catalog._job is job:
+                self._catalog._archive_job(job)
+        job.publish({"type": "done", "job": job.snapshot()})
+        if drain:
+            self.drain_setup_queue_quietly()
 
     def start_render_preview(self, project_path: Path) -> Job:
         """Rebuild stems/premix via ``PipelineService.render_preview``."""
@@ -493,6 +759,7 @@ class JobManager:
         finally:
             reporter.close()
         job.publish({"type": "done", "job": job.snapshot()})
+        self.drain_setup_queue_quietly(retry_parked=True)
 
     def retry_pipeline(self, project_path: Path, job_id: str) -> Job:
         original = self.get_job(job_id)
@@ -566,6 +833,7 @@ class JobManager:
                 retry_source=state,
                 retry_of=original.id,
                 validate=validate,
+                take_queued=state.from_step is None and state.only_step is None,
             )
             with original._lock:
                 original._retry_successor_id = successor.id
@@ -585,6 +853,8 @@ class JobManager:
         validate: Callable[[], None] | None = None,
         retry_source: PipelineRunIntent | None = None,
         retry_of: str | None = None,
+        setup_entry: dict[str, Any] | None = None,
+        take_queued: bool = False,
     ) -> Job:
         with self._catalog._lock:
             if self._catalog._job is not None and self._catalog._job.status in LIVE_JOB_STATUSES:
@@ -608,9 +878,24 @@ class JobManager:
                 unattended=unattended,
                 config=copy.deepcopy(config),
                 _retry_source=retry_source,
+                _setup_entry=setup_entry,
                 retry_of=retry_of,
             )
             self._catalog._job = job
+
+        taken: tuple[dict[str, Any], int] | None = None
+        if take_queued:
+            try:
+                taken = self._setup_queue.take(project_path)
+            except OSError as exc:
+                logger.warning(
+                    "Cannot clear the setup queue entry for %s", project_path, exc_info=True
+                )
+                self._release_slot(job, current)
+                raise CodedValueError(
+                    "The queued run could not be cleared, so nothing started. Try again.",
+                    code="setup_queue_unavailable",
+                ) from exc
 
         thread = threading.Thread(
             target=self._run_job,
@@ -621,20 +906,55 @@ class JobManager:
         try:
             thread.start()
         except Exception:
-            with job._lock:
-                job.status = "error"
-                job.finished_at = time.monotonic()
-            with self._catalog._lock:
-                if self._catalog._job is job:
-                    self._catalog._job = current
+            self._release_slot(job, current)
+            if taken is not None:
+                try:
+                    self._setup_queue.restore(*taken)
+                except OSError:
+                    logger.warning("Cannot restore the setup queue entry", exc_info=True)
+                self.drain_setup_queue_quietly()
             raise
         return job
+
+    def _release_slot(self, job: Job, previous: Job | None) -> None:
+        with job._lock:
+            job.status = "error"
+            job.finished_at = time.monotonic()
+        with self._catalog._lock:
+            if self._catalog._job is job:
+                self._catalog._job = previous
 
     def _run_job(self, job: Job) -> None:
         with history_author(SYSTEM_AUTHOR):
             self._run_job_as_system(job)
 
     def _run_job_as_system(self, job: Job) -> None:
+        entry = job._setup_entry
+        if entry is not None:
+            try:
+                generation = self._setup_queue.claim(entry["project_path"], entry["token"])
+            except OSError:
+                logger.exception("Cannot claim the setup queue entry of job %s", job.id)
+                self._park(entry)
+                self._abandon_unstarted(
+                    job,
+                    status="error",
+                    message="The queued run could not start: the setup queue could not be updated.",
+                    drain=False,
+                )
+                return
+            if generation == setup_queue.CLAIM_MOVING:
+                self._discard_unstarted(job)
+                return
+            if generation is None:
+                self._abandon_unstarted(
+                    job,
+                    status="cancelled",
+                    message="The queued run was cancelled or replaced before it started.",
+                    drain=True,
+                )
+                return
+            job._setup_generation = generation
         with job._lock:
             job.status = "running"
             job.started_at = time.monotonic()
@@ -697,6 +1017,7 @@ class JobManager:
             if self._catalog._job is job and job.status in TERMINAL_JOB_STATUSES:
                 self._catalog._archive_job(job)
         job.publish({"type": "done", "job": job.snapshot()})
+        self._after_job(job)
 
     def _execute_job(
         self,

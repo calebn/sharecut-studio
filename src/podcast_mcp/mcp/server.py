@@ -126,6 +126,8 @@ from podcast_mcp.mcp.tools.pipeline import (  # noqa: E402, F401
     export_audio_tool,
     pipeline_analyze_tool,
     pipeline_get_config_tool,
+    pipeline_queue_cancel,
+    pipeline_queue_status,
     pipeline_run,
     pipeline_set_config_tool,
     render_final,

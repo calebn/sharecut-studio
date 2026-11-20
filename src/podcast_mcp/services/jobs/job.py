@@ -292,6 +292,8 @@ class Job:
         default=None, repr=False
     )
     _retry_source: PipelineRunIntent | None = field(default=None, repr=False)
+    _setup_entry: dict[str, Any] | None = field(default=None, repr=False)
+    _setup_generation: int = field(default=0, repr=False)
     _retry_successor_id: str | None = field(default=None, repr=False)
     _retry_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock)

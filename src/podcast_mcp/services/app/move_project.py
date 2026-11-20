@@ -12,6 +12,7 @@ import contextlib
 import errno
 import logging
 import os
+import threading
 import time
 from collections.abc import Callable
 from contextlib import ExitStack
@@ -174,25 +175,44 @@ def move_episode_folder(
         raise MoveRefused("This episode is already in that folder.", code="move_dest_exists")
     if _device_of(source) != _device_of(dest_root):
         raise MoveRefused("That folder is on a different drive.", code="move_cross_volume")
-    ws = ProjectWorkspace.open(source_file)
-    _refuse_if_busy(source_file, ws, jobs=jobs, caller_client_id=caller_client_id)
+    from podcast_mcp.services.jobs.setup_queue import SetupQueue
 
-    with ExitStack() as held:
-        deadline = time.monotonic() + LOCK_WAIT_SEC
-        try:
-            with render_cancel_scope(lambda: time.monotonic() > deadline):
-                held.enter_context(render_lock(ws.project, timeout=LOCK_WAIT_SEC))
-                held.enter_context(project_commit_lock(ws.project, timeout=LOCK_WAIT_SEC))
-        except (Timeout, CancelledProgress):
-            raise MoveRefused("This project is busy; try again.", code="project_busy") from None
-        return _move_locked(source_file, dest_root, serve=serve)
+    ws = ProjectWorkspace.open(source_file)
+    try:
+        with SetupQueue().moving(source_file) as move:
+            _refuse_if_busy(source_file, ws, jobs=jobs, caller_client_id=caller_client_id)
+            with ExitStack() as held:
+                deadline = time.monotonic() + LOCK_WAIT_SEC
+                try:
+                    with render_cancel_scope(lambda: time.monotonic() > deadline):
+                        held.enter_context(render_lock(ws.project, timeout=LOCK_WAIT_SEC))
+                        held.enter_context(project_commit_lock(ws.project, timeout=LOCK_WAIT_SEC))
+                except (Timeout, CancelledProgress):
+                    raise MoveRefused(
+                        "This project is busy; try again.", code="project_busy"
+                    ) from None
+                return _move_locked(source_file, dest_root, serve=serve, move=move)
+    finally:
+        drain = getattr(jobs, "drain_setup_queue_quietly", None)
+        if drain is not None:
+            threading.Thread(target=drain, daemon=True, name="setup-queue-drain").start()
 
 
 def _move_locked(
-    source_file: Path, dest_root: Path, *, serve: Callable[[Path], None]
+    source_file: Path, dest_root: Path, *, serve: Callable[[Path], None], move: Any
 ) -> MoveResult:
     source = source_file.parent
     target = _reserve(dest_root, source.name)
+    target_file = target / EPISODE_PROJECT_FILENAME
+    try:
+        move.follow(target_file)
+    except OSError as exc:
+        log.warning("Cannot move the setup queue entry of %s", source_file, exc_info=True)
+        with contextlib.suppress(OSError):
+            os.rmdir(target)
+        raise MoveRefused(
+            "The move didn't finish, so the episode stays where it was.", code="move_failed"
+        ) from exc
     try:
         _rename(source, target)
     except BaseException:
@@ -200,7 +220,6 @@ def _move_locked(
         with contextlib.suppress(OSError):
             os.rmdir(target)
         raise
-    target_file = target / EPISODE_PROJECT_FILENAME
     try:
         release_workspace(source)
         _repoint(source, target, target_file, serve)

@@ -318,6 +318,7 @@ export interface PipelineRunRequest {
   force_transcribe?: boolean;
   retime_words?: boolean;
   overwrite_edited?: boolean;
+  queue_if_models_missing?: boolean;
 }
 
 export interface ProjectView {

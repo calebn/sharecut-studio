@@ -53,6 +53,7 @@ from podcast_mcp.project.io import (
     require_episode_project_file,
 )
 from podcast_mcp.services.app import recent_peaks
+from podcast_mcp.services.jobs.setup_queue import SetupQueue
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.coded_error import CodedError
@@ -206,6 +207,7 @@ def _stage_chip(
     failed: bool,
     pending: int,
     delivered_on: datetime | None,
+    waiting: bool = False,
 ) -> tuple[str, dict[str, str]]:
     """The stage a card opens on and its chip: the Home rule, decided here.
 
@@ -218,6 +220,8 @@ def _stage_chip(
     if running:
         text = "Processing" if percent is None else f"Processing {percent}%"
         return "prepare", {"text": text, "state": "running"}
+    if waiting:
+        return "prepare", {"text": "Waiting for setup", "state": "queued"}
     if failed:
         return "prepare", {"text": "Needs attention", "state": "failed"}
     if tracks == 0:
@@ -406,7 +410,7 @@ def _clean(text: str) -> str:
     return _LONE_SURROGATE.sub("\ufffd", text)
 
 
-def _card(entry: RecentEntry, jobs: Any) -> dict[str, Any]:
+def _card(entry: RecentEntry, jobs: Any, waiting: set[str]) -> dict[str, Any]:
     project_file = Path(entry.path)
     base: dict[str, Any] = {
         "path": entry.path,
@@ -438,6 +442,7 @@ def _card(entry: RecentEntry, jobs: Any) -> dict[str, Any]:
             failed=summary.failed,
             pending=summary.pending,
             delivered_on=_delivered_on(summary.mastered, project_file),
+            waiting=str(project_file.resolve()) in waiting,
         )
     except Exception:  # one card must never fail the list
         log.exception("Cannot build the recent card for %s", entry.path)
@@ -457,7 +462,8 @@ def recent_project_cards(jobs: Any = None) -> list[dict[str, Any]]:
     """Card data for Home, newest first. *jobs* is the host job manager when one is running."""
     entries = read_recent()
     _prune_summaries(entries)
-    return [_card(entry, jobs) for entry in entries]
+    waiting = SetupQueue().waiting_paths()
+    return [_card(entry, jobs, waiting) for entry in entries]
 
 
 def default_workspace_dir(name: str) -> Path:

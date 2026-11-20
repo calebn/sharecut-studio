@@ -590,7 +590,7 @@ def test_owner_routes_keep_their_behaviour(world) -> None:
     cancel = world.client.post("/api/pipeline/cancel", json={"job_id": job.id})
 
     assert status.status_code == 200
-    assert set(status.json()) == {"running", "job", "jobs", "running_count"}
+    assert set(status.json()) == {"running", "job", "jobs", "running_count", "setup_queue"}
     for res in (events_missing, cancel_missing):
         assert res.status_code == 404
         assert res.json() == {"detail": "No pipeline job"}

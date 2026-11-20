@@ -299,6 +299,26 @@ def ensure_word_aligner_for_run(
         ).forced_alignment.require()
 
 
+def ensure_track_effect_models_for_run(project_path: Path | str) -> None:
+    """Raise ``ModelMissing`` when a track's effect chain needs RNNoise and it is not installed.
+
+    The queue's one model check, with the two above: Studio's queued runs and its drain use it
+    so an episode that would start and then fail ``model_needed`` waits instead.
+    """
+    from podcast_mcp.engines.models.registry import require_model
+    from podcast_mcp.models import load_project
+
+    try:
+        project = load_project(Path(project_path))
+    except Exception:
+        return
+    for chain in project.processing_chains:
+        for effect in chain.effects:
+            if effect.effect == "arnndn" and not effect.bypass and not effect.params.get("model"):
+                require_model("rnnoise")
+                return
+
+
 def _transcribes(
     from_step: str | None, only_step: str | None, skip_steps: list[str] | None
 ) -> bool:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 from mcp.server import MCPServer
@@ -10,6 +11,7 @@ from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline import (
     PipelineService,
+    ensure_track_effect_models_for_run,
     ensure_whisper_cached_for_run,
     ensure_word_aligner_for_run,
     format_export_qc_lines,
@@ -44,6 +46,7 @@ def pipeline_run(
     use_working_set: bool = True,
     force_transcribe: bool = False,
     retime_words: bool = False,
+    queue_if_models_missing: bool = False,
 ) -> str:
     """Run the production pipeline. Optional skip_steps (step names) / config (object) override yaml.
 
@@ -63,6 +66,12 @@ def pipeline_run(
     ``unattended``; run attended, or the user confirms with Studio Re-transcribe.
     Returns ``Completed through <step>``; when this run exported, the next lines are
     the export QC verdict (same as CLI ``pipeline run``).
+    A missing model refuses with ``model_needed``; ask the user before ``model_download``.
+    ``queue_if_models_missing=true`` (inside Studio only) instead queues the run, returns at once
+    with ``{"queued": true, "waiting_for": [...]}``. Studio starts it when it next checks: after
+    a download in Studio, when a run ends, or when it restarts. Queueing needs no consent and
+    downloads nothing. The queued run keeps the
+    config and Whisper size it was queued with; ``pipeline_queue_cancel`` takes it back.
     """
     from podcast_mcp.services.pipeline import (
         config_store,
@@ -96,12 +105,35 @@ def pipeline_run(
 
     jobs = studio_job_manager()
     if jobs is not None:
-        ensure_whisper_cached_for_run(
-            config=run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
-        )
-        ensure_word_aligner_for_run(
-            run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
-        )
+        try:
+            ensure_whisper_cached_for_run(
+                config=run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
+            )
+            ensure_word_aligner_for_run(
+                run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
+            )
+            if queue_if_models_missing and not (force_transcribe or retime_words):
+                ensure_track_effect_models_for_run(ws.path)
+        except ModelMissing as exc:
+            if not queue_if_models_missing or force_transcribe or retime_words:
+                raise
+            queued = jobs.enqueue_for_setup(
+                ws.path,
+                config=run_config,
+                from_step=from_step,
+                only_step=only_step,
+                skip_steps=skip_steps,
+                unattended=run_unattended,
+                waiting_for=[exc.payload()],
+            )
+            return to_json(
+                {
+                    **queued.payload(),
+                    "message": f"Queued: waiting for setup ({exc.label}). "
+                    "Studio starts the run when it next checks: after a download in Studio, "
+                    "when a run ends, or when it restarts.",
+                }
+            )
         job = jobs.start(
             ws.path,
             from_step=from_step,
@@ -128,6 +160,48 @@ def pipeline_run(
         cancel_check=current_cancel_check(),
     )
     return _run_message(result.last_step, result.job_result(), _stale_notices(ws))
+
+
+def pipeline_queue_cancel(project_path: str) -> str:
+    """Take a queued run off the setup queue (see ``pipeline_run`` ``queue_if_models_missing``).
+
+    Needs ShareCut Studio (this server reached through Studio's own MCP endpoint), the process
+    that starts queued runs; elsewhere it refuses. Returns ``{"cancelled": true}`` when the
+    project was waiting for a model download and is not any more, ``{"cancelled": false}`` when
+    nothing was queued. A queued run that has already started is not stopped by this tool, but
+    it will not put itself back in the queue.
+    """
+    from podcast_mcp.services.jobs import studio_job_manager
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    jobs = studio_job_manager()
+    if jobs is None:
+        raise CodedValueError(
+            "pipeline_queue_cancel needs ShareCut Studio, which starts the queued runs.",
+            code="studio_required",
+        )
+    return to_json({"cancelled": jobs.cancel_setup_queue(_queued_path(project_path))})
+
+
+def _queued_path(project_path: str) -> Path:
+    try:
+        return ProjectWorkspace.open(project_path, adopt=False).path
+    except Exception:
+        return Path(project_path)
+
+
+def pipeline_queue_status(project_path: str) -> str:
+    """Whether a project waits on the setup queue, for which models, and its place in line.
+
+    Returns ``{"waiting", "waiting_for", "position", "parked"}`` (``position`` is queue order, not
+    start order; ``parked`` means Studio will not retry it until a download finishes in Studio, a
+    new request or a restart; it reads false outside the Studio process), the same ``setup_queue`` object
+    Studio's
+    ``GET /api/pipeline/status`` carries. It reads the queue file, so it needs no Studio.
+    """
+    from podcast_mcp.services.jobs.setup_queue import SetupQueue
+
+    return to_json(SetupQueue().standing(_queued_path(project_path)))
 
 
 def pipeline_get_config_tool(project_path: str) -> str:
@@ -272,6 +346,8 @@ def register(mcp: MCPServer) -> None:
     """Register pipeline and render tools on the MCP server."""
     for fn in (
         pipeline_run,
+        pipeline_queue_cancel,
+        pipeline_queue_status,
         pipeline_get_config_tool,
         pipeline_set_config_tool,
         pipeline_analyze_tool,

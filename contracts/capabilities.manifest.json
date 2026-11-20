@@ -2834,6 +2834,8 @@
       "surfaces": {
         "mcp": [
           "pipeline_run",
+          "pipeline_queue_cancel",
+          "pipeline_queue_status",
           "pipeline_get_config_tool",
           "pipeline_set_config_tool",
           "pipeline_analyze_tool",

@@ -479,6 +479,26 @@ def test_running_job_and_failed_run_land_on_prepare(tmp_path):
     )
 
 
+def test_waiting_for_setup_follows_running_and_precedes_failed(tmp_path):
+    from podcast_mcp.services.jobs.setup_queue import SetupQueue
+
+    project = _make(tmp_path, "waiting")
+    _edit_project(project, _with_track)
+
+    def failed(data):
+        data["render"]["pipeline_runs"] = [{"id": "r", "steps": [{"step": "x", "status": "error"}]}]
+
+    _edit_project(project, failed)
+    SetupQueue().enqueue(project, request={}, waiting_for=[])
+    waiting = ("prepare", {"text": "Waiting for setup", "state": "queued"})
+    assert _chip(project) == waiting
+    assert _chip(project, _Jobs({"running": False})) == waiting
+    running = _Jobs({"running": True, "job": {"current": 1, "total": 4}})
+    assert _chip(project, running)[1]["text"] == "Processing 25%"
+    SetupQueue().remove(project)
+    assert _chip(project)[1]["text"] == "Needs attention"
+
+
 def test_job_table_fault_does_not_hide_the_list(tmp_path):
     class Boom:
         def status(self, project_path):

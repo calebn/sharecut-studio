@@ -10,6 +10,8 @@ description: >-
 
 **Whisper weights:** If `transcribe_tracks` will run and the selected model is not cached, `pipeline_run` / `podcast pipeline run` fail fast (no silent Hugging Face pull). Download first via `podcast bootstrap --component whisper --whisper-model …`, the Sharecut Studio first-run wizard, or the Pipeline tab picker.
 
+**Queueing a run while a model is missing:** `pipeline_run` refuses with `model_needed` by default, and downloading still needs the user's yes (`model_download`). Inside Studio you can pass `queue_if_models_missing=true` instead: it queues the run and returns at once with `{"queued": true, "waiting_for": [...], "position": N}`; Studio starts the run when it next checks (after a download in Studio, when a run ends, or on restart), with the config and Whisper size it was queued with, one episode at a time. `force_transcribe` and `retime_words` runs are never queued; they refuse. Queueing downloads nothing, so it needs no consent; still ask the user before `model_download`. `pipeline_queue_cancel(project_path)` (Studio only) takes a queued run back (`{"cancelled": true|false}`). `pipeline_queue_status(project_path)` (works without Studio) reads whether the episode waits, its position and the models it waits for. Outside Studio the flag is ignored and the run refuses. Studio's `POST /api/pipeline/run` takes the same opt-in as `queue_if_models_missing` (default false: 409). `podcast pipeline run` never queues: it exits nonzero and names `podcast bootstrap`.
+
 ## Full pipeline order
 
 Transcript hub: **podcast-transcript-workflow** — [docs/transcript-workflow.md](../../docs/transcript-workflow.md).

@@ -1,4 +1,4 @@
-"""The nine host pipeline routes sit behind the include-time host gate."""
+"""The ten host pipeline routes sit behind the include-time host gate."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ ROUTES = [
     ("GET", "/api/pipeline/status"),
     ("POST", "/api/pipeline/retry"),
     ("POST", "/api/pipeline/run"),
+    ("DELETE", "/api/pipeline/queue"),
     ("POST", "/api/pipeline/cancel"),
     ("POST", "/api/pipeline/render-preview"),
     ("GET", "/api/pipeline/events"),

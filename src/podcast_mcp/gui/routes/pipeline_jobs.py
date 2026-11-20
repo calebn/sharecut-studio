@@ -10,13 +10,16 @@ from fastapi import HTTPException
 
 from podcast_mcp.gui.routes.deps import bad_request_error, coded_exception_error, coded_http_error
 from podcast_mcp.services.jobs import Job, JobManager
+from podcast_mcp.services.jobs.setup_queue import QueuedRun
 from podcast_mcp.services.pipeline import (
     STEP_NAMES,
+    ensure_track_effect_models_for_run,
     ensure_whisper_cached_for_run,
     ensure_word_aligner_for_run,
     skip_steps_from_enabled,
     transcribe_run_config,
 )
+from podcast_mcp.util.model_missing import ModelMissing
 
 NO_PIPELINE_JOB = "No pipeline job"
 
@@ -81,8 +84,13 @@ def start_pipeline_job(
     retime_words: bool,
     persist: Callable[[], None] | None = None,
     busy_error: Callable[[RuntimeError], HTTPException] | None = None,
-) -> Job:
-    """``persist`` runs before the model checks; a guest passes none."""
+    queue_on_missing: bool = False,
+) -> Job | QueuedRun:
+    """``persist`` runs before the model checks; a guest passes none.
+
+    A missing model refuses with ``model_needed``, unless ``queue_on_missing`` queues the run
+    for the host to start when the model arrives.
+    """
     try:
         run_config = transcribe_run_config(
             config,
@@ -96,16 +104,31 @@ def start_pipeline_job(
     if persist is not None:
         persist()
 
-    ensure_whisper_cached_for_run(
-        config=run_config,
-        from_step=from_step,
-        only_step=only_step,
-        skip_steps=skip_steps,
-        memoize=True,  # early 409 only; PipelineService.run re-hashes before its checkpoint
-    )
-    ensure_word_aligner_for_run(
-        run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
-    )
+    try:
+        ensure_whisper_cached_for_run(
+            config=run_config,
+            from_step=from_step,
+            only_step=only_step,
+            skip_steps=skip_steps,
+            memoize=True,  # early 409 only; PipelineService.run re-hashes before its checkpoint
+        )
+        ensure_word_aligner_for_run(
+            run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
+        )
+        if queue_on_missing:
+            ensure_track_effect_models_for_run(project_path)
+    except ModelMissing as exc:
+        if not queue_on_missing:
+            raise
+        return jobs.enqueue_for_setup(
+            project_path,
+            config=run_config,
+            from_step=from_step,
+            only_step=only_step,
+            skip_steps=skip_steps,
+            unattended=unattended,
+            waiting_for=[exc.payload()],
+        )
 
     try:
         return jobs.start(

@@ -118,10 +118,25 @@ def test_pipeline_service_run_skips_gate_for_ingest_only(
     PipelineService(ws).run(only_step="ingest_tracks")
 
 
-def test_gui_pipeline_run_409_when_weights_missing(
+def test_gui_pipeline_run_409_by_default_when_weights_missing(
     minimal_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.jobs.setup_queue import SetupQueue
+
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: tmp_path / "empty")
+    client = TestClient(create_app())
+    res = client.post("/api/pipeline/run", json={"path": str(minimal_project)})
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "model_needed"
+    assert SetupQueue().entries() == []
+
+
+def test_gui_pipeline_run_queues_when_weights_missing(
+    minimal_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.jobs.setup_queue import SetupQueue
     from podcast_mcp.services.pipeline.config import config_store
 
     monkeypatch.setattr(
@@ -134,10 +149,8 @@ def test_gui_pipeline_run_409_when_weights_missing(
         config={"transcribe": {"model": "small.en"}},
         enabled_steps=["ingest_tracks", "transcribe_tracks"],
     )
-    started = {"called": False}
 
     def boom(*_a, **_k):
-        started["called"] = True
         raise AssertionError("jobs.start must not run when weights are missing")
 
     monkeypatch.setattr(
@@ -147,7 +160,53 @@ def test_gui_pipeline_run_409_when_weights_missing(
     client = TestClient(create_app())
     res = client.post(
         "/api/pipeline/run",
-        json={"path": path, "use_working_set": True},
+        json={"path": path, "use_working_set": True, "queue_if_models_missing": True},
+    )
+    assert res.status_code == 202
+    body = res.json()
+    assert body["queued"] is True
+    assert body["position"] == 1
+    assert body["waiting_for"][0]["id"] == "whisper"
+    assert body["waiting_for"][0]["model"] == "small.en"
+    assert body["waiting_for"][0]["state"] == "missing"
+    (entry,) = SetupQueue().entries()
+    assert entry["request"]["config"]["transcribe"]["model"] == "small.en"
+    status = client.get("/api/pipeline/status")
+    assert status.status_code == 200
+    assert status.json()["running"] is False
+
+
+@pytest.mark.parametrize("flag", ["force_transcribe", "retime_words"])
+def test_gui_confirmed_retranscribe_still_answers_409_when_weights_missing(
+    minimal_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, flag: str
+) -> None:
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.jobs.setup_queue import SetupQueue
+    from podcast_mcp.services.pipeline.config import config_store
+
+    monkeypatch.setattr(
+        "podcast_mcp.config.defaults.whisper_cache_dir",
+        lambda: tmp_path / "empty",
+    )
+    path = str(minimal_project)
+    config_store().put(
+        Path(path),
+        config={"transcribe": {"model": "small.en"}},
+        enabled_steps=["ingest_tracks", "transcribe_tracks"],
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.services.jobs.manager.JobManager.start",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("must not start")),
+    )
+    client = TestClient(create_app())
+    res = client.post(
+        "/api/pipeline/run",
+        json={
+            "path": path,
+            "use_working_set": True,
+            "queue_if_models_missing": True,
+            flag: True,
+        },
     )
     assert res.status_code == 409
     assert res.headers["X-Sharecut-Error-Code"] == "model_needed"
@@ -159,10 +218,36 @@ def test_gui_pipeline_run_409_when_weights_missing(
         detail["model"]["command"]
         == "podcast bootstrap --component whisper --whisper-model small.en"
     )
-    assert started["called"] is False
-    status = client.get("/api/pipeline/status")
-    assert status.status_code == 200
-    assert status.json()["running"] is False
+    assert SetupQueue().entries() == []
+
+
+def test_start_pipeline_job_refuses_unless_the_caller_queues(
+    minimal_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.gui.routes.pipeline_jobs import start_pipeline_job
+    from podcast_mcp.services.jobs import JobManager
+    from podcast_mcp.util.model_missing import ModelMissing
+
+    monkeypatch.setattr(
+        "podcast_mcp.config.defaults.whisper_cache_dir",
+        lambda: tmp_path / "empty",
+    )
+    options = {
+        "config": {"transcribe": {"model": "small.en"}},
+        "from_step": None,
+        "only_step": None,
+        "skip_steps": None,
+        "unattended": True,
+        "force_transcribe": False,
+        "overwrite_edited": False,
+        "retime_words": False,
+    }
+    jobs = JobManager()
+    with pytest.raises(ModelMissing):
+        start_pipeline_job(jobs, minimal_project, **options)
+    queued = start_pipeline_job(jobs, minimal_project, queue_on_missing=True, **options)
+    assert queued.position == 1
+    assert queued.waiting_for[0]["model"] == "small.en"
 
 
 def test_gui_pipeline_run_409_on_pin_mismatch(
@@ -189,7 +274,7 @@ def test_gui_pipeline_run_409_on_pin_mismatch(
     client = TestClient(create_app())
     res = client.post(
         "/api/pipeline/run",
-        json={"path": path, "use_working_set": True},
+        json={"path": path, "use_working_set": True, "force_transcribe": True},
     )
     assert res.status_code == 409
     assert res.headers["X-Sharecut-Error-Code"] == "model_needed"

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
@@ -272,6 +273,11 @@ async def _gui_lifespan(app: FastAPI) -> AsyncIterator[None]:
             if port is not None:
                 host = getattr(app.state, "listen_host", None)
                 await asyncio.to_thread(handoff.listening, app, port=port, host=host)
+            threading.Thread(
+                target=app.state.jobs.drain_setup_queue_quietly,
+                daemon=True,
+                name="setup-queue-drain",
+            ).start()
             yield
     finally:
         await asyncio.to_thread(handoff.stopped, app)
