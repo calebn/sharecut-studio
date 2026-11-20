@@ -837,8 +837,8 @@ A cut is never cached when a clip fade over 1 s, on any track, runs into its win
 outside the window is not refused. Any crossfade join of a clip in the window, whichever side
 its neighbour is on, adds the overlap and the borrow to the key's `joins` (`crossfade_ms_at_join`,
 the larger of the shorter fade and half the longer, and the `join_borrow_sec` of `join_render_fields`);
-these carry the neighbour's length and other clips' mutes, which the window does not
-hash when the neighbour lies outside it. A join with no overlap adds nothing. The key also carries `base_profile`, the digest
+these account for the rendered neighbour's edge-piece length and for mutes that limit
+borrow, including on clips outside the window. A join with no overlap adds nothing. The key also carries `base_profile`, the digest
 (`cut_proof.BatchBase.stamp`) of the batch-base profile inputs of every dialogue track (its
 clips, mutes, fades and more). The stamp is computed once per batch, at its first check and before anything is
 applied, so a clip edit applied inside the batch does not move it, and neither does any edit to a

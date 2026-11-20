@@ -14,6 +14,8 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import cut_application, cut_policy, cut_safety, verdict_cache
 from podcast_mcp.edits.cut_application import approve_edits, precompute_verdicts
 from podcast_mcp.edits.cut_speech import LaneSourceExtent
+from podcast_mcp.engines.audio import sources
+from podcast_mcp.engines.timeline_render import placed_track_audio
 from podcast_mcp.models import (
     Clip,
     ClipJoinMode,
@@ -27,6 +29,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.models.clip_timing import ClipTiming, TimingStep
 from source_review_helpers import _cut
 
 SR = 16_000
@@ -841,3 +844,31 @@ def test_a_next_clip_past_the_window_that_sets_a_crossfade_borrow_changes_the_ke
     short = _out_join_key(project, 20.4)
     long = _out_join_key(project, 24.0)
     assert short != long
+
+
+def test_the_rendered_tail_of_a_timed_neighbour_changes_the_crossfade_key(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    _neighbour_key(project, 18.4, ClipJoinMode.CROSSFADE)
+    edit = project.edit_decisions[1]
+    left, right = project.clips[1:3]
+    left.timeline_start -= 0.125
+
+    def observe(step_at: float) -> tuple[float, str | None]:
+        left.timing = ClipTiming(steps=[TimingStep(at=step_at, delta_sec=0.125)])
+        placed = placed_track_audio(project, project.tracks[0], project.clips, grid=None)
+        borrow = next(leaf.reach_in for leaf in sources(placed.audio) if leaf.clip_id == right.id)
+        key = verdict_cache.verdict_key(
+            project, edit, **{**_KEY_ARGS, "span": (edit.start, edit.end)}
+        )
+        return borrow, key
+
+    long_borrow, long_key = observe(20.0)
+    short_borrow, short_key = observe(22.4)
+    assert long_borrow > short_borrow > 0
+    assert long_key is not None and short_key is not None
+    assert long_key != short_key
+
+    right.join_in_mode = ClipJoinMode.FADE
+    assert observe(20.0) == observe(22.4)
