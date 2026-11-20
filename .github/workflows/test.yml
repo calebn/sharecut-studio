@@ -551,24 +551,17 @@ jobs:
         run: VITE_SHARECUT_E2E=1 npm run build
 
       - name: Playwright ${{ matrix.name }}
-        id: browser-test
         working-directory: gui/web
         run: bash ../../scripts/private_browser_command.sh ${{ matrix.command }}
 
       - name: Project public browser results
         id: browser-public-projection
         if: always()
-        env:
-          SHARECUT_3907_SMOKE: ${{ github.repository == 'calebn/sharecut-studio' && github.event_name == 'pull_request' && github.event.number == 3907 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.base.sha == '7239e6818e4d924c34f1c61c4623e68a415fd82c' && matrix.name == 'main-smoke' && steps.browser-test.outcome == 'failure' }}
         run: >-
           python3 scripts/browser_public_report.py
           --report "gui/web/$PLAYWRIGHT_JSON_OUTPUT_FILE"
           --output "gui/web/playwright-public/${{ matrix.name }}.json"
           --capture-receipt "$BROWSER_CAPTURE_RECEIPT"
-
-      - name: Failed smoke case ${{ steps.browser-public-projection.outputs.case_ordinal || 'unknown' }}
-        if: ${{ always() && github.repository == 'calebn/sharecut-studio' && github.event_name == 'pull_request' && github.event.number == 3907 && github.event.pull_request.head.repo.full_name == github.repository && matrix.name == 'main-smoke' && steps.browser-test.outcome == 'failure' }}
-        run: ':'
 
       - name: Summarize Playwright tests
         if: ${{ always() && steps.browser-public-projection.outcome == 'success' }}
