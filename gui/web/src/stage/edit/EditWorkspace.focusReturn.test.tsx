@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject, sampleTrack } from "../../test/fixtures";
+import { minimalProject } from "../../test/fixtures";
 import { seedScript } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
 import { EditWorkspace } from "./EditWorkspace";
