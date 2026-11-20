@@ -836,6 +836,20 @@ describe("AppHeader first-visit role hint: a press and a key", () => {
     expect(screen.queryByRole("note")).toBeNull();
   });
 
+  it("opens the role's own explanation, not the reminder the bubble carries", async () => {
+    const { trigger } = hintHeader({
+      kind: "stakes",
+      text: "You changed the host's episode.",
+      explanation: "You can comment.",
+      shown: false,
+    });
+    await userEvent.click(trigger);
+    expect(
+      screen.getByRole("dialog", { name: "Commenter role" }),
+    ).toHaveTextContent("You can comment.");
+    expect(screen.queryByText("You changed the host's episode.")).toBeNull();
+  });
+
   it("stays up on Escape when the header says a nearer thing takes it", () => {
     const { onDismiss } = hintHeader({ escapeYields: () => true });
     fireEvent.keyDown(document.body, { key: "Escape" });

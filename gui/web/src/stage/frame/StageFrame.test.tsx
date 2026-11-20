@@ -403,6 +403,27 @@ describe("StageFrame roles", () => {
     useDawStore.setState({ shareCapabilities: null });
   });
 
+  it("explains the Editor's role in its dialog once the first-visit sentence is gone and no edit was made", async () => {
+    localStorage.setItem("sharecut.roleHintSeen.editor", "1");
+    useDawStore.setState({
+      projectPath: "share:alpha",
+      guestMode: "edit",
+      shareCapabilities: ["view", "play", "comment", "edit"],
+      stage: "edit",
+    });
+    mount();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Explain Editor role" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Editor role" }),
+    ).toHaveTextContent(
+      "You can edit and comment. The host decides what ships.",
+    );
+    localStorage.removeItem("sharecut.roleHintSeen.editor");
+    useDawStore.setState({ shareCapabilities: null });
+  });
+
   it("leaves the bubble up for the Escape that closes a toast, and closes it on the next", () => {
     localStorage.removeItem("sharecut.roleHintSeen.commenter");
     useDawStore.setState({ guestMode: "comment", stage: "review" });

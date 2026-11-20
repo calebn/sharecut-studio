@@ -104,6 +104,8 @@ export function useHeaderProps(): Omit<
           ? {
               kind: hintKind,
               text: hintText,
+              explanation:
+                hintRole === null ? undefined : ROLE_HINT_TEXT[hintRole],
               shown: hintShown,
               onDismiss: () => {
                 if (hintKind === "role") {
