@@ -46,6 +46,31 @@ export function frameFolds(sizes: FrameFitSizes): boolean {
   return covered && laneAreaHeight - cornerHeight < lanesMin;
 }
 
+export interface EditReserve {
+  rowsHeight: number;
+  cornerHeight: number;
+  lanes: boolean;
+}
+
+export function reserveEditRows(
+  sizes: FrameFitSizes,
+  reserve: EditReserve,
+): FrameFitSizes {
+  const { frameHeight, headerHeight, playerHeight, tabsHeight } = sizes;
+  const rowsHeight = reserve.rowsHeight;
+  return {
+    ...sizes,
+    rowsHeight,
+    laneAreaHeight: reserve.lanes
+      ? Math.max(
+          0,
+          frameHeight - headerHeight - playerHeight - tabsHeight - rowsHeight,
+        )
+      : 0,
+    cornerHeight: reserve.lanes ? reserve.cornerHeight : 0,
+  };
+}
+
 const FOLD_ATTRIBUTE = "frameShort";
 
 export function isFrameFolded(): boolean {
@@ -58,6 +83,7 @@ export function isFrameFolded(): boolean {
  * reads and the restore happen in one task, before any paint.
  */
 function measureFit(frame: HTMLElement): FrameFitSizes {
+  const { stage, editSurface } = useDawStore.getState();
   const root = document.documentElement;
   const folded = FOLD_ATTRIBUTE in root.dataset;
   if (folded) delete root.dataset[FOLD_ATTRIBUTE];
@@ -80,9 +106,20 @@ function measureFit(frame: HTMLElement): FrameFitSizes {
     ),
     cornerHeight: height(".edit-workspace .edit-corner"),
   };
+  const unmounted =
+    stage === "edit" &&
+    root.dataset.shell === "phone" &&
+    frame.querySelector(".edit-workspace") === null;
+  const reserve: EditReserve | null = unmounted
+    ? {
+        rowsHeight: tokenHeightPx(frame, "--phone-edit-rows-height"),
+        cornerHeight: tokenHeightPx(frame, "--phone-edit-corner-height"),
+        lanes: editSurface !== "text",
+      }
+    : null;
   if (tabs) tabs.style.alignSelf = tabsAlign;
   if (folded) root.dataset[FOLD_ATTRIBUTE] = "";
-  return sizes;
+  return reserve ? reserveEditRows(sizes, reserve) : sizes;
 }
 
 /**

@@ -15,7 +15,7 @@ import { useShortFrame } from "./useShortFrame";
  * hook asked for itself.
  */
 
-const FRAME = 380;
+let FRAME = 380;
 
 function Frame() {
   const ref = useRef<HTMLDivElement>(null);
@@ -88,6 +88,8 @@ function sizeOf(el: Element): number {
   if (el.hasAttribute("data-folded")) return FRAME;
   const style = (el as HTMLElement).style.blockSize;
   if (style.includes("--stage-stacked-lanes-min")) return 200;
+  if (style.includes("--phone-edit-rows-height")) return 60;
+  if (style.includes("--phone-edit-corner-height")) return 40;
   if (style.includes("--lane-height")) return 84;
   return 0;
 }
@@ -99,11 +101,13 @@ beforeEach(() => {
     },
   );
   useDawStore.setState({ stage: "review", editSurface: "lanes" });
+  FRAME = 380;
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
   delete document.documentElement.dataset.frameShort;
+  delete document.documentElement.dataset.shell;
 });
 
 describe("useShortFrame", () => {
@@ -156,6 +160,64 @@ describe("useShortFrame", () => {
 
     act(() => useDawStore.getState().setEditSurface("lanes"));
     expect(frame().dataset.folded).toBe("no");
+  });
+});
+
+function BareFrame() {
+  const ref = useRef<HTMLDivElement>(null);
+  const folded = useShortFrame(ref);
+  return (
+    <div ref={ref} data-folded={folded ? "yes" : "no"}>
+      <div className="stage-frame-header" />
+      <div className="stage-frame-player" />
+    </div>
+  );
+}
+
+describe("useShortFrame before the Edit rows mount", () => {
+  beforeEach(() => {
+    document.documentElement.dataset.shell = "phone";
+    useDawStore.setState({ stage: "edit", editSurface: "lanes" });
+  });
+
+  it("folds at the first measure when the reserved rows do not fit", () => {
+    const { container } = render(<BareFrame />);
+    expect((container.firstElementChild as HTMLElement).dataset.folded).toBe(
+      "yes",
+    );
+    expect("frameShort" in document.documentElement.dataset).toBe(true);
+  });
+
+  it("keeps a frame that holds the reserved rows whole", () => {
+    FRAME = 500;
+    const { container } = render(<BareFrame />);
+    expect((container.firstElementChild as HTMLElement).dataset.folded).toBe(
+      "no",
+    );
+  });
+
+  it("folds on the corner alone when the lanes it floats over would be left under their floor", () => {
+    FRAME = 420;
+    const { container } = render(<BareFrame />);
+    expect((container.firstElementChild as HTMLElement).dataset.folded).toBe(
+      "yes",
+    );
+  });
+
+  it("reserves nothing off the phone's shell", () => {
+    delete document.documentElement.dataset.shell;
+    const { container } = render(<BareFrame />);
+    expect((container.firstElementChild as HTMLElement).dataset.folded).toBe(
+      "no",
+    );
+  });
+
+  it("reserves nothing off the Edit stage", () => {
+    useDawStore.setState({ stage: "review" });
+    const { container } = render(<BareFrame />);
+    expect((container.firstElementChild as HTMLElement).dataset.folded).toBe(
+      "no",
+    );
   });
 });
 

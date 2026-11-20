@@ -143,7 +143,7 @@ export function useHeaderProps(): Omit<
     [],
   );
   return {
-    title: name ?? shareName ?? (host ? "Project" : "Episode"),
+    title: name?.trim() ? name : (shareName ?? (host ? "Project" : "Episode")),
     loading: name === null,
     save: save ?? undefined,
     stages,

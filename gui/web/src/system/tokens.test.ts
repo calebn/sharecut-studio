@@ -109,6 +109,12 @@ const STACKED_EDIT_TOKENS = [
   "--stage-stacked-script-floor",
 ];
 
+const PHONE_EDIT_TOKENS = [
+  "--phone-edit-bar-stacked-height",
+  "--phone-edit-rows-height",
+  "--phone-edit-corner-height",
+];
+
 describe("theme tokens.css", () => {
   const current = declarations("tokens.css");
 
@@ -144,8 +150,23 @@ describe("theme tokens.css", () => {
       ...Object.keys(STAGE_LAYOUT),
       ...SHEET_CLEARANCE_TOKENS,
       ...STACKED_EDIT_TOKENS,
+      ...PHONE_EDIT_TOKENS,
     ]);
     expect([...current.keys()].filter((name) => !known.has(name))).toEqual([]);
+  });
+
+  it("reserves the phone Edit rows from the dock and touch tokens, not from px", () => {
+    const value = (name: string) =>
+      (current.get(name)?.[0] ?? "")
+        .replace(/\s+/g, " ")
+        .replace(/\( | \)/g, (m) => m.trim());
+    expect(value("--phone-edit-rows-height")).toBe("var(--action-dock-height)");
+    expect(value("--phone-edit-corner-height")).toMatch(
+      /^calc\(var\(--touch-min\) \+ 2 \* var\(--space-1\) \+ 0.125rem\)$/,
+    );
+    expect(value("--phone-edit-bar-stacked-height")).toContain(
+      "var(--touch-min)",
+    );
   });
 
   it("keeps a ruler, a marker row and two lanes for the stacked Edit timeline", () => {

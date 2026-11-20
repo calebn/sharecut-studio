@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { type FrameFitSizes, frameFolds } from "./useShortFrame";
+import {
+  type FrameFitSizes,
+  frameFolds,
+  reserveEditRows,
+} from "./useShortFrame";
 
 const fits: FrameFitSizes = {
   frameHeight: 700,
@@ -80,5 +84,53 @@ describe("frameFolds on a frame with no Player", () => {
     };
     expect(frameFolds(record)).toBe(false);
     expect(frameFolds({ ...record, tabsHeight: 682 })).toBe(true);
+  });
+});
+
+describe("reserveEditRows", () => {
+  const unmounted = (frameHeight: number): FrameFitSizes => ({
+    frameHeight,
+    headerHeight: 45,
+    playerHeight: 56,
+    tabsHeight: 56,
+    rowsHeight: 0,
+    lanesMin: 192,
+    laneAreaHeight: 0,
+    cornerHeight: 0,
+  });
+  const small = { rowsHeight: 175, cornerHeight: 102, lanes: true };
+  const tall = { rowsHeight: 64, cornerHeight: 54, lanes: true };
+
+  it("folds the 320 x 568 Edit frame before its rows have mounted", () => {
+    expect(frameFolds(unmounted(568))).toBe(false);
+    expect(frameFolds(reserveEditRows(unmounted(568), small))).toBe(true);
+  });
+
+  it("keeps the 390 x 844 Edit frame whole before its rows have mounted", () => {
+    expect(frameFolds(reserveEditRows(unmounted(844), tall))).toBe(false);
+  });
+
+  it("gives the lanes what the rows and the other regions leave", () => {
+    const sizes = reserveEditRows(unmounted(568), small);
+    expect(sizes.rowsHeight).toBe(175);
+    expect(sizes.laneAreaHeight).toBe(568 - 45 - 56 - 56 - 175);
+    expect(sizes.cornerHeight).toBe(102);
+  });
+
+  it("reserves the rows alone on the Script surface, which has no lanes", () => {
+    const sizes = reserveEditRows(unmounted(568), { ...small, lanes: false });
+    expect(sizes.rowsHeight).toBe(175);
+    expect(sizes.laneAreaHeight).toBe(0);
+    expect(sizes.cornerHeight).toBe(0);
+  });
+
+  it("is the same fold as the measured rows give", () => {
+    const measured: FrameFitSizes = {
+      ...unmounted(568),
+      rowsHeight: 175,
+      laneAreaHeight: 568 - 45 - 56 - 56 - 175,
+      cornerHeight: 102,
+    };
+    expect(reserveEditRows(unmounted(568), small)).toEqual(measured);
   });
 });

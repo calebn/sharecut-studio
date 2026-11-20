@@ -411,6 +411,10 @@
   min-inline-size: 0;
 }
 
+.sys-header-right:empty {
+  display: none;
+}
+
 .sys-header-project {
   display: inline-flex;
   align-items: center;
@@ -454,7 +458,7 @@
 .sys-header-guest {
   display: flex;
   flex-direction: column;
-  min-inline-size: 0;
+  min-inline-size: min(6.75rem, 40cqi);
 }
 
 /* The title is as wide as its own text, not as the sub line under it, so its box does not change when "Shared link" becomes the version label. Its line is the same height in every font, so the column keeps its height, and the name its place, before the web font has loaded. */
@@ -501,7 +505,10 @@ button.sys-version-line::after {
 }
 
 .sys-role-trigger::after {
-  inset-inline: min(0rem, calc((100% - var(--press-target)) / 2));
+  inset-inline: max(
+    calc(1px - var(--space-3)),
+    min(0rem, calc((100% - var(--press-target)) / 2))
+  );
 }
 
 .sys-version-pill::after,
@@ -579,6 +586,7 @@ button.sys-version-line::after {
 
 button.sys-version-line {
   position: relative;
+  min-inline-size: var(--touch-min);
   block-size: var(--pill-height);
   cursor: pointer;
 }
@@ -610,7 +618,7 @@ button.sys-version-line {
   max-inline-size: 100%;
   gap: var(--space-1);
   position: relative;
-  min-inline-size: 0;
+  min-inline-size: var(--touch-min);
   block-size: var(--pill-height);
   padding-inline: var(--space-3);
   border: 0;
@@ -810,6 +818,14 @@ button.sys-version-line {
   }
 
   .sys-header-right {
+    display: none;
+  }
+
+  .sys-header-guest ~ .sys-header-short .sys-header-stage-label {
+    display: none;
+  }
+
+  .sys-header-guest ~ .sys-header-history .sys-header-redo {
     display: none;
   }
 }
@@ -1664,13 +1680,6 @@ html[data-frame-short]:not([data-shell="phone"]) .sys-header-stage-button {
 
 html[data-frame-short] .sys-header-right {
   display: none;
-}
-
-@container sys-app-header (max-width: 20rem) {
-  html[data-frame-short] .sys-header-left > .sys-header-menu,
-  html[data-frame-short] .sys-header-left > .sys-header-guest {
-    flex: 1 1 0;
-  }
 }
 
 html[data-frame-short] .sys-header-project {

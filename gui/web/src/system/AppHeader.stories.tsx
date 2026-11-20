@@ -414,6 +414,64 @@ export const GuestEditor: Story = {
   },
 };
 
+export const GuestEditorPhone: Story = {
+  render: () => (
+    <div style={{ maxInlineSize: 390 }}>
+      <Header
+        guest={{
+          version: "Rough cut · 25 Oct",
+          followsLatest: true,
+          role: "editor",
+          compact: true,
+          update: {
+            id: "v2",
+            label: "Intro fix",
+            onListen: fn(),
+          },
+        }}
+        people={people.slice(0, 2)}
+        onPalette={fn()}
+        stageIds={["edit", "review"]}
+        withStages={false}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "More" })).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Palette" })).toBeNull();
+    await expect(canvas.getByRole("button", { name: "Undo" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Redo" })).toBeVisible();
+  },
+};
+
+export const GuestEditorNarrow: Story = {
+  render: () => (
+    <div style={{ maxInlineSize: 320 }}>
+      <Header
+        guest={{
+          version: "Rough cut · 25 Oct",
+          followsLatest: true,
+          role: "editor",
+          compact: true,
+        }}
+        people={people.slice(0, 2)}
+        onPalette={fn()}
+        onRedo={fn()}
+        stageIds={["edit", "review"]}
+        compact
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: /^Stage menu, / }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Undo" })).toBeVisible();
+  },
+};
+
 export const GuestSavedCopy: Story = {
   render: () => (
     <Header
