@@ -1,6 +1,6 @@
 # Transcription backends benchmark
 
-Podcast MCP transcribes with **faster-whisper** (CTranslate2) by default. This branch adds a **whisper.cpp** subprocess adapter for comparison and optional future use.
+Podcast MCP transcribes with **faster-whisper** (CTranslate2) by default. A **whisper.cpp** adapter also exists: a subprocess adapter on a desktop (for comparison; benchmark-only there), and the in-process transcription engine on an iPhone host (see [iPhone models](#iphone-models) for the model files).
 
 ## Setup (whisper.cpp)
 
@@ -65,7 +65,7 @@ Cross-backend agreement (mean symmetric WER): **93%** overall (rehana 33%, vicky
 
 ## Silence hallucinations
 
-The whisper.cpp adapter is benchmark-only and does not use the VAD / decode options of `transcribe.vad` / `transcribe.decode` (faster-whisper only, #521); whisper-cli's VAD needs a separate ggml VAD model. With the shipped defaults (VAD on, temperatures `[0, 0.2, 0.4]`) the faster-whisper ASR cache key changes, and only input-keyed `{track}_{audio}_{inputs}.json` caches are read. The legacy unkeyed cache fallback is removed. The first ASR after upgrading therefore re-runs Whisper once per track.
+On any host the whisper.cpp adapter (benchmark-only on a desktop, the pipeline's engine on an iPhone) does not use the VAD / decode options of `transcribe.vad` / `transcribe.decode` (faster-whisper only, #521); whisper-cli's VAD needs a separate ggml VAD model. With the shipped defaults (VAD on, temperatures `[0, 0.2, 0.4]`) the faster-whisper ASR cache key changes, and only input-keyed `{track}_{audio}_{inputs}.json` caches are read. The legacy unkeyed cache fallback is removed. The first ASR after upgrading therefore re-runs Whisper once per track.
 
 ## Code
 
@@ -87,3 +87,5 @@ On that host the `whisper` model row reports and installs whisper.cpp files inst
 | `base.en-q5_1` | `ggml-base.en-q5_1.bin` | 59,721,011 bytes | Less accurate; expect more errors on fast or overlapping speech |
 
 Both are English only and pinned by sha256 and size in `contracts/bootstrap-assets.json` (`whisper-cpp-small-en-q5_1`, `whisper-cpp-base-en-q5_1`), fetched straight from Hugging Face (one redirect to its CDN host). Installing a variant downloads only its file and saves it as the machine choice; removing one deletes only its file. With no saved choice the default follows what is on disk: `small.en-q5_1`, or `base.en-q5_1` when that is the only one installed. `GET /api/bootstrap/status` lists these two in `whisper_models` on that host.
+
+A step whose model names one of these variants reads that variant's file; any other model name reads the machine choice. `WHISPER_CPP_MODEL` (a file path) replaces the file in both cases, and the transcript cache key follows the file name plus that path, so changing either starts a new transcript instead of reusing an old one.
