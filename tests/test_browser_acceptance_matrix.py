@@ -348,8 +348,7 @@ def test_ci_runs_both_browser_suites_on_dispatch_on_every_passing_engine() -> No
     runner_steps = [
         step
         for step in steps
-        if str(step.get("run", "")).strip()
-        == "bash ../../scripts/private_browser_command.sh ${{ matrix.command }}"
+        if str(step.get("run", "")).strip() == "${{ matrix.command }}"
     ]
     assert len(runner_steps) == 1, f"expected one matrix command step, got {runner_steps}"
     runner = runner_steps[0]
@@ -374,42 +373,38 @@ def test_ci_runs_both_browser_suites_on_dispatch_on_every_passing_engine() -> No
     )
 
 
-def test_ci_publishes_only_projected_browser_counts_and_timings() -> None:
-    steps = _frontend_e2e_steps()
-    uploads = [step for step in steps if step.get("uses") == "actions/upload-artifact@v7"]
-    assert len(uploads) == 1
-    upload = uploads[0]
-    assert upload["name"] == "Upload public browser results"
-    assert upload["if"] == "${{ always() && steps.browser-public-projection.outcome == 'success' }}"
-    assert upload["with"] == {
-        "name": "playwright-public-${{ matrix.name }}",
-        "path": "gui/web/playwright-public/${{ matrix.name }}.json",
+def test_ci_uploads_raw_playwright_reports_and_failure_diagnostics() -> None:
+    uploads = {
+        step["name"]: step
+        for step in _frontend_e2e_steps()
+        if step.get("uses") == "actions/upload-artifact@v7"
+    }
+    assert set(uploads) == {
+        "Upload Playwright JSON reports",
+        "Upload Playwright traces, screenshots and error contexts",
+    }
+    reports = uploads["Upload Playwright JSON reports"]
+    assert reports["if"] == "always()"
+    assert reports["with"] == {
+        "name": "playwright-reports-${{ matrix.name }}",
+        "path": "gui/web/playwright-report/",
         "retention-days": 7,
         "if-no-files-found": "ignore",
     }
-    projection = next(
-        step for step in steps if step.get("name") == "Project public browser results"
-    )
-    assert projection["if"] == "always()"
-    assert projection["id"] == "browser-public-projection"
-    assert projection.get("continue-on-error") is not True
-    assert "scripts/browser_public_report.py" in projection["run"]
+    results = uploads["Upload Playwright traces, screenshots and error contexts"]
+    assert results["if"] == "failure() || cancelled()"
+    assert results["with"] == {
+        "name": "playwright-test-results-${{ matrix.name }}",
+        "path": "gui/web/test-results/",
+        "retention-days": 7,
+        "if-no-files-found": "ignore",
+    }
 
 
-def test_ci_does_not_publish_browser_screenshots_or_private_raw_files(tmp_path: Path) -> None:
-    upload = next(
-        step for step in _frontend_e2e_steps() if step.get("uses") == "actions/upload-artifact@v7"
-    )
-    public = tmp_path / "gui/web/playwright-public/main-smoke.json"
-    public.parent.mkdir(parents=True)
-    public.touch()
-    for name in ("trace.zip", "error-context.md", "touch-peek.png", "raw.json", "private.txt"):
-        (public.parent / name).touch()
-    raw = tmp_path / "gui/web/playwright-report/main-smoke.json"
-    raw.parent.mkdir(parents=True)
-    raw.touch()
-    selected = upload["with"]["path"].replace("${{ matrix.name }}", "main-smoke")
-    assert list(tmp_path.glob(selected)) == [public]
+def test_ci_runs_browser_commands_directly_with_the_job_log_visible() -> None:
+    steps = _frontend_e2e_steps()
+    assert not any("private_browser_command" in str(step.get("run", "")) for step in steps)
+    assert not any("browser_public_report" in str(step.get("run", "")) for step in steps)
 
 
 def test_release_pull_requests_run_every_webkit_compat_spec_in_complete_shards() -> None:

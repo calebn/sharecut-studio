@@ -31,7 +31,7 @@ export default defineConfig({
   timeout: 90_000,
   expect: { timeout: 15_000 },
   reporter: process.env.CI
-    ? [["github"], ["json", { outputFile: "playwright-report/main.json" }]]
+    ? [["github"], ["list"], ["json", { outputFile: "playwright-report/main.json" }]]
     : "list",
   use: {
     ...devices["Desktop Chrome"],
@@ -48,6 +48,7 @@ export default defineConfig({
       ],
     },
     trace: "retain-on-failure",
+    screenshot: "only-on-failure",
   },
   webServer: {
     command:

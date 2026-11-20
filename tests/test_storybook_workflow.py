@@ -10,7 +10,6 @@ from github_yaml import load_github_yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = REPO_ROOT / ".github/workflows/storybook.yml"
 PACKAGE = REPO_ROOT / "gui/web/package.json"
-PRIVATE_BROWSER_COMMAND = "bash ../../scripts/private_browser_command.sh"
 DEPLOYS_ONLY_FROM_MAIN = (
     "github.ref == 'refs/heads/main' && "
     """contains(fromJSON('["push","workflow_dispatch"]'), github.event_name)"""
@@ -53,10 +52,10 @@ def test_storybook_pull_requests_run_only_the_render_smoke() -> None:
     full = steps["Build Storybook and verify browser geometry"]
     assert smoke["if"] == "github.event_name == 'pull_request'"
     assert smoke["run"] == (
-        f"{PRIVATE_BROWSER_COMMAND} npm run test:e2e:storybook -- coverage.spec.ts docs-theme.spec.ts"
+        "npm run test:e2e:storybook -- coverage.spec.ts docs-theme.spec.ts"
     )
     assert full["if"] == "github.event_name != 'pull_request'"
-    assert full["run"] == f"{PRIVATE_BROWSER_COMMAND} npm run test:e2e:storybook"
+    assert full["run"] == "npm run test:e2e:storybook"
     for step in (smoke, full):
         assert step["working-directory"] == "gui/web"
         assert step.get("continue-on-error", False) is False
@@ -65,7 +64,7 @@ def test_storybook_pull_requests_run_only_the_render_smoke() -> None:
         for step in workflow["jobs"]["sweep"]["steps"]
         if step.get("name") == "Sweep every story for axe violations and overflow"
     )
-    assert sweep["run"] == f"{PRIVATE_BROWSER_COMMAND} npm run test:stories"
+    assert sweep["run"] == "npm run test:stories"
     assert sweep["working-directory"] == "gui/web"
     assert sweep.get("continue-on-error", False) is False
 
@@ -75,7 +74,7 @@ def _assert_layout_wiring(workflow_path: Path, package_path: Path) -> None:
     layout = [
         step
         for step in workflow["jobs"]["build"]["steps"]
-        if step.get("run") == f"{PRIVATE_BROWSER_COMMAND} npm run test:layout"
+        if step.get("run") == "npm run test:layout"
     ]
     assert len(layout) == 1, "the build must run the layout suite exactly once"
     assert layout[0].get("if") == "github.event_name != 'pull_request'"
@@ -96,7 +95,7 @@ def test_storybook_layout_runs_only_outside_prs_with_separate_suite_filters() ->
     [
         "unchanged",
         "missing-layout",
-        "unwrapped-layout",
+        "wrong-layout-command",
         "ignored-layout-failure",
         "unguarded-layout",
         "pr-layout",
@@ -114,8 +113,8 @@ def test_layout_wiring_controls_use_isolated_copies(tmp_path: Path, mutation: st
     match mutation:
         case "missing-layout":
             steps.remove(layout)
-        case "unwrapped-layout":
-            layout["run"] = "npm run test:layout"
+        case "wrong-layout-command":
+            layout["run"] = "npm run test:stories"
         case "ignored-layout-failure":
             layout["continue-on-error"] = True
         case "unguarded-layout":
