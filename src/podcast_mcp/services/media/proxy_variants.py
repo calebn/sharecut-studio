@@ -13,7 +13,12 @@ from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import proxy_render_hash, track_render_hash
 from podcast_mcp.engines.session_timeline import origin_resolver
-from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs, render_source_proxy_inputs
+from podcast_mcp.engines.source_proxy_audio import (
+    SourceProxyInputs,
+    SourceProxySelection,
+    capture_source_proxy_inputs,
+    render_source_proxy_inputs,
+)
 from podcast_mcp.models.episode import (
     EpisodeProject,
     ProxyClipBasis,
@@ -208,21 +213,20 @@ def capture_manifest_inputs(
         )
     else:
         selection = select_manifest(project)
+    captured = capture_source_proxy_inputs(
+        project,
+        SourceProxySelection(
+            legacy=selection.legacy,
+            occurrences=selection.restored,
+            recordings=tuple(dict.fromkeys(selection.recordings.values())),
+        ),
+        engine,
+        defaults=defaults,
+    )
     return ManifestInputs(
-        legacy={
-            tid: SourceProxyInputs.capture_legacy(project, tid, engine, defaults=defaults)
-            for tid in selection.legacy
-        },
-        occurrences={
-            clip_id: SourceProxyInputs.capture_occurrence(
-                project, clip_id, engine, defaults=defaults
-            )
-            for clip_id in selection.restored
-        },
-        recordings={
-            key: SourceProxyInputs.capture_recording(project, *key, engine, defaults=defaults)
-            for key in dict.fromkeys(selection.recordings.values())
-        },
+        legacy=captured.legacy,
+        occurrences=captured.occurrences,
+        recordings=captured.recordings,
         clip_keys=dict(selection.recordings),
     )
 

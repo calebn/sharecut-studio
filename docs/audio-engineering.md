@@ -1363,10 +1363,13 @@ source gate, and eligible gate fill. An affected secondary recording is selected
 before inactive-choice or unity-gate shortcuts. Empty choices retain the legacy
 primary-source path. Existing proxy manifests and chunk routing remain unchanged.
 
-`SourceProxyInputs.capture_legacy` seals a track's primary baseline without
-inventing a clip. `capture_occurrence` seals the selected occurrence and its
-effective preparation. Both expose a content-based input identity and retain
-separate project, file, and logical-reference guards. `render_source_proxy_inputs`
+`capture_source_proxy_inputs` seals ordered legacy, occurrence, and recording
+selections from one private project snapshot per nonempty operation. An empty
+selection takes no snapshot. Its legacy selection seals a track's primary
+baseline without inventing a clip. `SourceProxyInputs.capture_occurrence` adapts
+one selected occurrence through that batch. The sealed inputs expose a
+content-based input identity and retain separate project, file, and
+logical-reference guards. `render_source_proxy_inputs`
 consumes that exact capture, including its FX recipe, eligible fill, and source
 gate. Default legacy callers retain their existing render command and behavior.
 
@@ -1706,8 +1709,9 @@ owner absence.
 
 ## Occurrence proxy publication
 
-`SourceProxyInputs.capture_legacy` and `capture_occurrence` share source,
-processing, fill, gate, dependency capture and validation. An occurrence binds
+`capture_source_proxy_inputs` and its scalar occurrence adapter share source,
+processing, fill, gate, dependency capture and validation. Each input validates
+against the supplied current project after preparation. An occurrence binds
 its selected recording before unity, inactive-choice or other shortcut checks.
 The legacy selector requires no manufactured clip or replacement track media.
 
