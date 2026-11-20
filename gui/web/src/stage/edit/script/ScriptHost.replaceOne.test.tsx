@@ -21,18 +21,18 @@ vi.mock("../../../api", async (original) => ({
 const row = (
   track: string,
   sourceId: string | null,
-  start: number,
+  wordIndex: number,
+  sourceStart: number,
   before = "Maya",
-  end = start,
 ) => ({
   track_id: track,
   source_id: sourceId,
-  start_word_index: start,
-  end_word_index: end,
+  start_word_index: wordIndex,
+  end_word_index: wordIndex,
   before,
   after: "",
-  start: 0,
-  end: 0,
+  start: sourceStart,
+  end: sourceStart + 0.4,
   retimes_words: false,
 });
 
@@ -67,7 +67,7 @@ beforeEach(() => {
   preview.mockReset();
   replace.mockReset();
   preview.mockResolvedValue({
-    matches: [row("guest", null, 0), row("host", null, 0)],
+    matches: [row("guest", null, 0, 14), row("host", null, 0, 10)],
     count: 2,
     skipped_words: 0,
     preview_token: "tok-1",
@@ -179,7 +179,7 @@ describe("ScriptHost single Replace", () => {
 
   it("stays clear of a replacement that holds the query when no hit follows", async () => {
     preview.mockResolvedValue({
-      matches: [row("host", null, 0, "cat")],
+      matches: [row("host", null, 0, 10, "cat")],
       count: 1,
       skipped_words: 0,
       preview_token: "tok-1",
@@ -214,7 +214,7 @@ describe("ScriptHost single Replace", () => {
 
   it("steps back to the last hit when no hit is current", async () => {
     preview.mockResolvedValue({
-      matches: [row("host", null, 0, "cat")],
+      matches: [row("host", null, 0, 10, "cat")],
       count: 1,
       skipped_words: 0,
       preview_token: "tok-1",
@@ -249,7 +249,7 @@ describe("ScriptHost single Replace", () => {
 
   it("lands on the hit before the replaced span when none follows", async () => {
     preview.mockResolvedValue({
-      matches: [row("host", null, 2, "cat")],
+      matches: [row("host", null, 2, 12, "cat")],
       count: 1,
       skipped_words: 0,
       preview_token: "tok-1",
@@ -293,7 +293,7 @@ describe("ScriptHost single Replace", () => {
       utterances: [scriptUtterance("host", "Maya", [scriptWord("Ada", 0, 10)])],
     });
     preview.mockResolvedValue({
-      matches: [row("host", null, 0, "Ada")],
+      matches: [row("host", null, 0, 10, "Ada")],
       count: 1,
       skipped_words: 0,
       preview_token: "tok-1",
@@ -309,7 +309,10 @@ describe("ScriptHost single Replace", () => {
 
   it("refuses a preview match whose text is not the hit's text", async () => {
     preview.mockResolvedValue({
-      matches: [row("guest", null, 0, "Maya Rao"), row("host", null, 0, "Rao")],
+      matches: [
+        row("guest", null, 0, 14, "Maya Rao"),
+        row("host", null, 0, 10, "Rao"),
+      ],
       count: 2,
       skipped_words: 0,
       preview_token: "tok-1",
@@ -386,13 +389,21 @@ describe("ScriptHost single Replace", () => {
         scriptUtterance("host", "Maya", [scriptWord("Maya", 0, 10)], {
           source_id: "a",
         }),
-        scriptUtterance("host", "Maya", [scriptWord("Maya", 0, 14)], {
-          source_id: "b",
-        }),
+        scriptUtterance(
+          "host",
+          "Maya",
+          [
+            scriptWord("Maya", 0, 10, {
+              timeline_start: 14,
+              timeline_end: 14.4,
+            }),
+          ],
+          { source_id: "b" },
+        ),
       ],
     });
     preview.mockResolvedValue({
-      matches: [row("host", "b", 0), row("host", "a", 0)],
+      matches: [row("host", "b", 0, 10), row("host", "a", 0, 10)],
       count: 2,
       skipped_words: 0,
       preview_token: "tok-1",
