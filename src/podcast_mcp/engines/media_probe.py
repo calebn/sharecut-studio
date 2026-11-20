@@ -59,10 +59,14 @@ def audio_start_sec(path: Path) -> float:
     return info.audio_start_sec
 
 
+def several_audio_streams(info: AudioProbe | None) -> bool:
+    """True when the probe found more than one audio stream; an absent probe found none."""
+    return info is not None and info.audio_stream_count > 1
+
+
 def has_several_audio_streams(path: Path) -> bool:
     """True when ``path`` holds more than one audio stream; unprobeable media holds none."""
-    info = probe_media(path)
-    return info is not None and info.audio_stream_count > 1
+    return several_audio_streams(probe_media(path))
 
 
 def probe_first_audio_duration_sec(path: Path) -> float | None:

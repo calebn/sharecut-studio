@@ -3,8 +3,10 @@
 Nothing here decodes audio or queues a pyramid build: a pyramid that is not ready gives a flat
 card, and the card fills in once a build elsewhere finishes. The plan (which clip pieces play
 from which media) is made once per project file revision; the stamp of the pyramid files is
-read on every request. A media key is cached per (path, size, mtime) only when its probe
-succeeded: media that cannot be probed is probed again on every request.
+read on every request. Each media file is probed once per request that needs its key, and the
+key is made from that one probe result. A successful probe is cached per (path, size, mtime). A
+failed probe caches no key: the card stays flat, and the same (path, size, mtime) is not probed
+again for 30 seconds, then is retried; a changed file is probed at once.
 """
 
 from __future__ import annotations
@@ -12,13 +14,15 @@ from __future__ import annotations
 import logging
 import math
 import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
 from podcast_mcp.engines.media_probe import probe_media
-from podcast_mcp.engines.waveform_media import MediaEntry, current_key, resolve_media_refs
+from podcast_mcp.engines.waveform_media import MediaEntry, key_from_probe, resolve_media_refs
 from podcast_mcp.engines.waveform_pyramid import (
     PyramidMeta,
     pyramid_path,
@@ -27,6 +31,7 @@ from podcast_mcp.engines.waveform_pyramid import (
     ref_slug,
 )
 from podcast_mcp.models import load_project
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.peak_bins import bin_peaks
 
 log = logging.getLogger(__name__)
@@ -37,8 +42,12 @@ PyramidStamp = tuple[tuple[str, int | None, int | None], ...]
 
 _MediaStat = tuple[str, int, int]
 
+PROBE_RETRY_SEC = 30.0
+
 _MEDIA_KEYS: dict[Path, tuple[_MediaStat, str]] = {}
+_FAILED_PROBES: dict[Path, tuple[_MediaStat, float]] = {}
 _MEDIA_KEYS_LOCK = threading.Lock()
+_clock: Callable[[], float] = time.monotonic
 
 
 @dataclass(frozen=True)
@@ -89,22 +98,34 @@ def _plan(project_file: Path) -> PeakPlan | None:
 def prune_media_keys(plans: list[PeakPlan]) -> None:
     keep = {entry.abs_path for plan in plans for _, entry in plan.refs}
     with _MEDIA_KEYS_LOCK:
-        for stale in [path for path in _MEDIA_KEYS if path not in keep]:
-            del _MEDIA_KEYS[stale]
+        for cache in (_MEDIA_KEYS, _FAILED_PROBES):
+            for stale in [path for path in cache if path not in keep]:
+                del cache[stale]
 
 
-def _media_key(entry: MediaEntry) -> str:
-    """The pyramid key of the media, cached per (path, size, mtime_ns) once its probe succeeded."""
-    st = entry.abs_path.stat()
-    stat: _MediaStat = (entry.rel_path, st.st_size, st.st_mtime_ns)
+def _media_key(entry: MediaEntry) -> str | None:
+    """The pyramid key of the media from one probe, or None when that probe failed.
+
+    A successful probe is cached per (path, size, mtime_ns). A failed probe caches no key and
+    is not repeated for the same (path, size, mtime_ns) for PROBE_RETRY_SEC.
+    """
+    stamp = file_stamp(entry.abs_path)
+    stat: _MediaStat = (entry.rel_path, *stamp.content)
     with _MEDIA_KEYS_LOCK:
         cached = _MEDIA_KEYS.get(entry.abs_path)
+        failed = _FAILED_PROBES.get(entry.abs_path)
     if cached is not None and cached[0] == stat:
         return cached[1]
-    key = current_key(entry)
-    if probe_media(entry.abs_path) is not None:
-        with _MEDIA_KEYS_LOCK:
-            _MEDIA_KEYS[entry.abs_path] = (stat, key)
+    if failed is not None and failed[0] == stat and _clock() - failed[1] < PROBE_RETRY_SEC:
+        return None
+    info = probe_media(entry.abs_path)
+    with _MEDIA_KEYS_LOCK:
+        if info is None:
+            _FAILED_PROBES[entry.abs_path] = (stat, _clock())
+            return None
+        key = key_from_probe(entry, stamp, info)
+        _MEDIA_KEYS[entry.abs_path] = (stat, key)
+        _FAILED_PROBES.pop(entry.abs_path, None)
     return key
 
 
@@ -114,7 +135,12 @@ def pyramid_stamp(plan: PeakPlan) -> tuple[PyramidStamp, list[tuple[str, Path]] 
     ready: list[tuple[str, Path]] = []
     for ref, entry in plan.refs:
         kind, _, ref_id = ref.partition(":")
-        out = pyramid_path(plan.artifacts_dir / "peaks", ref_slug(kind, ref_id), _media_key(entry))
+        slug = ref_slug(kind, ref_id)
+        key = _media_key(entry)
+        if key is None:
+            stamp.append((f"{slug}.unprobed", None, None))
+            continue
+        out = pyramid_path(plan.artifacts_dir / "peaks", slug, key)
         try:
             st = out.stat()
         except OSError:
