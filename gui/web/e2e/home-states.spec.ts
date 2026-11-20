@@ -1,14 +1,5 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
-import { registerE2eCleanupWorkspace } from "./cleanupManifest";
-import {
-  createEpisodeFromHome,
-  dismissSetupCard,
-  homeRecordTile,
-  openHome,
-} from "./home";
+import { dismissSetupCard, expectHome, homeRecordTile, openHome } from "./home";
 import { expectNoHorizontalScroll, mockBootstrap } from "./modelsMock";
 import { setRootFontSize } from "./rootFontSize";
 
@@ -155,20 +146,20 @@ test.describe("Home at a large root font", () => {
 test("a Recent card named Recording does not make Home's Record tile ambiguous", async ({
   page,
 }) => {
-  const workspaceDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "sharecut-e2e-home-record-"),
-  );
-  if (!registerE2eCleanupWorkspace(workspaceDir)) {
-    throw new Error("E2E workspace cleanup registration unavailable");
-  }
   await mockBootstrap(page);
   await mockRecents(page, [
     { ...RECENT, path: `${EPISODE}.recording`, name: "Recording identity QA" },
   ]);
+  await page.route("**/api/project/create", (route) =>
+    route.fulfill({ status: 500, body: "{}" }),
+  );
   await dismissSetupCard(page);
   await page.goto("/?home=1");
   await expect(
     page.getByRole("button", { name: "Recording identity QA" }),
   ).toBeVisible();
-  await createEpisodeFromHome(page, { name: "Record proof QA", workspaceDir });
+  await expectHome(page);
+  const created = page.waitForRequest("**/api/project/create");
+  await homeRecordTile(page).click();
+  await created;
 });
