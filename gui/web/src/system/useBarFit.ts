@@ -136,6 +136,7 @@ interface FitProps {
   following?: { name: string; detail?: string };
   hearMenu?: unknown;
   onComment?: unknown;
+  history?: unknown;
 }
 
 /**
@@ -156,6 +157,7 @@ export function barFitKey(props: FitProps): string {
     props.following?.detail,
     props.hearMenu ? "hear" : "",
     props.onComment ? "comment" : "",
+    props.history ? "history" : "",
   ].join("|");
 }
 

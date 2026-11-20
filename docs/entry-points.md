@@ -66,6 +66,10 @@ Repo automation skills such as `sharecut-poteto` and the upstream UI design skil
 
 ## Matrix
 
+Phone Editor links offer the same Undo and Redo commands in the Player and
+History. The tap targets, shortcuts and command palette use the existing
+history actions for the Editor's own steps.
+
 Live browsable matrix: [docs.sharecut.studio/#/capabilities](https://docs.sharecut.studio/#/capabilities)
 (auto-generated from the manifest via `make schema-export`). High-level product view:
 

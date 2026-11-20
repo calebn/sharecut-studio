@@ -17,6 +17,7 @@ import {
   ToggleButton,
 } from "../ui";
 import { SKIP_SEC } from "../utils/time";
+import { HistoryButtons, type HistoryButtonsProps } from "./HistoryButtons";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
 import { PlayerChapters } from "./PlayerChapters";
 import { SystemIcon } from "./SystemIcon";
@@ -86,6 +87,8 @@ export type PlayerProps = {
    */
   hearMenu?: { mode: HearMode; onMode: (mode: HearMode) => void };
   onComment?: () => void;
+  /** Phone Editor history actions. Both travel with the Player. */
+  history?: HistoryButtonsProps;
   /** Dock only: opens the Chapters sheet. Absent when there are no chapters. */
   onChapters?: () => void;
   /** Dock only: explains the status where its text has no room (a folded frame). */
@@ -543,11 +546,18 @@ export function Player(props: PlayerProps) {
   useBarFit(barHostRef, form === "bar", barFitKey(props));
   if (form === "dock") return <Dock {...props} statusId={statusId} />;
   if (form === "bar") {
+    const sideStatus = (
+      <>
+        <StatusLine status={props.status} id={statusId} />
+        <StatePills {...props} />
+      </>
+    );
     return (
       <div
         role="group"
         aria-label="Player"
         className="sys-player-host"
+        data-history={props.history ? "" : undefined}
         data-state={state}
         ref={barHostRef}
       >
@@ -577,6 +587,10 @@ export function Player(props: PlayerProps) {
                 hearMenu={props.hearMenu}
               />
             )}
+            {props.history ? sideStatus : null}
+            {props.history ? (
+              <HistoryButtons {...props.history} placement="player" />
+            ) : null}
             {onComment ? (
               <VerbButton
                 verb="comment"
@@ -584,8 +598,7 @@ export function Player(props: PlayerProps) {
                 onClick={onComment}
               />
             ) : null}
-            <StatusLine status={props.status} id={statusId} />
-            <StatePills {...props} />
+            {props.history ? null : sideStatus}
           </div>
         </div>
       </div>
@@ -649,6 +662,9 @@ export function Player(props: PlayerProps) {
             hearMenu={props.hearMenu}
           />
         )}
+        {props.history ? (
+          <HistoryButtons {...props.history} placement="player" />
+        ) : null}
         {onComment ? <VerbButton verb="comment" onClick={onComment} /> : null}
       </div>
       <PlayerChapters

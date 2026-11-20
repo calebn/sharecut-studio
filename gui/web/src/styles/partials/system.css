@@ -821,12 +821,31 @@ button.sys-version-line {
     display: none;
   }
 
-  .sys-header-guest ~ .sys-header-short .sys-header-stage-label {
+  .sys-app-header:not([data-player-history])
+    .sys-header-guest
+    ~ .sys-header-short
+    .sys-header-stage-label {
     display: none;
   }
 
   .sys-header-guest ~ .sys-header-history .sys-header-redo {
     display: none;
+  }
+}
+
+@container sys-app-header (max-width: 19rem) {
+  .sys-app-header[data-player-history]
+    .sys-header-guest
+    ~ .sys-header-short
+    .sys-header-stage-label {
+    display: none;
+  }
+}
+
+@container sys-app-header (max-width: 14rem) {
+  .sys-app-header[data-player-history]
+    .sys-header-short:has(.header-tools-button) {
+    flex-basis: 100%;
   }
 }
 
@@ -1471,6 +1490,63 @@ html[data-frame-short][data-shell="phone"] .sys-player-comment--guest {
   min-block-size: var(--touch-min);
 }
 
+.sys-player-history {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.sys-player-host[data-history] > .sys-player {
+  --player-history-target: min(var(--touch-min), 14cqi);
+  grid-template-columns: auto minmax(var(--player-history-target), 1fr) auto;
+  gap: var(--space-1);
+  padding-inline: var(--space-1);
+}
+
+.sys-player-host[data-history] .sys-player-right {
+  gap: var(--space-1);
+}
+
+@container sys-player (width > 22rem) {
+  .sys-player-host[data-history] .sys-player-right {
+    min-inline-size: calc(
+      3 *
+      var(--player-history-target) +
+      var(--space-1) +
+      var(--control-height)
+    );
+  }
+}
+
+.sys-player-host[data-history] .sys-player-time {
+  min-inline-size: var(--player-history-target);
+}
+
+.sys-player-host[data-history] > .sys-player .sys-play .sys-play-btn,
+.sys-player-host[data-history]
+  > .sys-player
+  :is(.sys-player-history .sys-icon-btn, .sys-player-comment--guest) {
+  inline-size: var(--player-history-target);
+  min-inline-size: var(--player-history-target);
+  padding: 0;
+}
+
+.sys-player-host[data-history] > .sys-player .sys-play .sys-play-btn {
+  block-size: var(--player-history-target);
+  min-block-size: var(--player-history-target);
+}
+
+.sys-player-host[data-history] > .sys-player .sys-play-ring {
+  inline-size: calc(var(--player-history-target) + var(--space-1));
+  block-size: calc(var(--player-history-target) + var(--space-1));
+}
+
+.sys-player-host[data-history][data-fit="8"]
+  > .sys-player
+  .sys-player-comment--guest {
+  display: inline-flex;
+}
+
 /* The Listen dock (phone guest Review): the scrubber, the readout and the
    transport in one block of --player-dock-height that never expands. The strip is inset from
    both screen edges so a system back swipe never starts a seek. Its own class,
@@ -1818,6 +1894,15 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   display: flex;
   justify-content: center;
   gap: var(--space-5);
+}
+
+.sys-player-actions:has(> .sys-player-history) {
+  flex-wrap: wrap;
+}
+
+.sys-player:has(.sys-player-history .sys-coach-tip--above),
+.sys-player-actions:has(> .sys-player-history .sys-coach-tip--above) {
+  position: relative;
 }
 
 .sys-player-chapters {
@@ -6059,11 +6144,14 @@ button.sys-script-speaker {
   max-inline-size: calc(100% - var(--space-5));
 }
 
-/* The Undo tip hangs below the stage's own control bar, not over its switch, slider or Mix. */
 .sys-coach--edge .sys-coach-tip--end {
-  inset-block-start: calc(100% + var(--touch-min) + var(--space-4));
   inset-inline: auto var(--space-3);
   max-inline-size: min(15rem, calc(100% - var(--space-5)));
+}
+
+/* The header Undo tip clears the stage's own control bar. */
+.sys-coach--edge .sys-coach-tip--end.sys-coach-tip--below {
+  inset-block-start: calc(100% + var(--touch-min) + var(--space-4));
 }
 
 .sys-app-header-host:has(.sys-coach--edge) {

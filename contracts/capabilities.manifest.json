@@ -1425,6 +1425,7 @@
         "command": "history.undo",
         "gui": [
           "historyPanel",
+          "phoneEditorPlayer.undo",
           "transcript.findReplace",
           "transcript.wordbar"
         ],
@@ -1457,7 +1458,8 @@
       "surfaces": {
         "command": "history.redo",
         "gui": [
-          "historyPanel"
+          "historyPanel",
+          "phoneEditorPlayer.redo"
         ],
         "keyboard": "Mod+Shift+Z",
         "mcp": [

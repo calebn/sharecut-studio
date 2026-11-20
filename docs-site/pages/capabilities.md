@@ -87,8 +87,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Snap to cut points | view | `view.toggleSnap` | — (Toggle in the corner for touch; Alt inverts it for one drag on a keyboard) | — | `editCorner` | — | — | — | — | none · none |
 | Increase track height | view | `view.trackHeightIncrease` | `Alt+=` | — | — | — | — | — | — | none · none |
 | Decrease track height | view | `view.trackHeightDecrease` | `Alt+-` | — | — | — | — | — | — | none · none |
-| Undo | project | `history.undo` | `Mod+Z` | `two-finger-tap` | `historyPanel`, `transcript.findReplace`, `transcript.wordbar` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
-| Redo | project | `history.redo` | `Mod+Shift+Z` | — | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
+| Undo | project | `history.undo` | `Mod+Z` | `two-finger-tap` | `historyPanel`, `phoneEditorPlayer.undo`, `transcript.findReplace`, `transcript.wordbar` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
+| Redo | project | `history.redo` | `Mod+Shift+Z` | — | `historyPanel`, `phoneEditorPlayer.redo` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
 | Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | — | `home.help` | — | — | — | — | none · none |
 | Refresh mix | project | `render.refreshMix` | — (Mod+B belongs to the browser (bookmarks, bold); Refresh mix is in the palette and the mix ring) | — | `deliverShare` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
 | Export full mix | project | `export.bounce` | — (Palette only: exports the whole episode's audible tracks in place (export/bounces/); the action bar's Export button does the same for the whole episode with nothing selected, and for the selected tracks or a range) | — | `actionBar` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |

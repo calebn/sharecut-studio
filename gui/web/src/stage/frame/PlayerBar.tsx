@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { HistoryButtonsProps } from "../../system/HistoryButtons";
 import { Player } from "../../system/Player";
 import { usePlayerProps } from "./usePlayerProps";
 
@@ -9,13 +10,15 @@ import { usePlayerProps } from "./usePlayerProps";
  */
 export function PlayerBar({
   placement = "bar",
+  history,
 }: {
   placement?: "bar" | "dock";
+  history?: HistoryButtonsProps;
 }) {
   const [expanded, setExpanded] = useState(false);
   const form = placement === "dock" ? "dock" : expanded ? "expanded" : "bar";
   const props = usePlayerProps(form, (next) =>
     setExpanded(next === "expanded"),
   );
-  return <Player {...props} />;
+  return <Player {...props} history={history} />;
 }

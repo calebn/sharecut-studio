@@ -323,6 +323,33 @@ describe("StageFrame roles", () => {
         screen.queryByRole("button", { name: /Expand player/ }),
       ).toBeNull();
     });
+
+    it("moves the Editor's Undo and Redo together into the Player", async () => {
+      stubViewportShell("phone");
+      useDawStore
+        .getState()
+        .hydrate("share:phone-editor-history", minimalProject(), null);
+      useDawStore.setState({ guestMode: "edit", shareCapabilities: ["edit"] });
+      mount();
+      const header = screen.getAllByRole("banner")[0]!;
+      const player = screen.getByRole("group", { name: "Player" });
+      for (const name of ["Undo", "Redo"]) {
+        expect(within(header).queryByRole("button", { name })).toBeNull();
+        expect(within(player).getByRole("button", { name })).toBeDisabled();
+      }
+      expect(
+        within(player).getByRole("button", { name: "Undo" }),
+      ).toHaveAttribute("title", "There is nothing of yours to undo.");
+      expect(
+        within(player).getByRole("button", { name: "Redo" }),
+      ).toHaveAttribute("title", "There is nothing of yours to redo.");
+      await userEvent.click(
+        within(player).getByRole("button", { name: /Expand player/ }),
+      );
+      for (const name of ["Undo", "Redo"]) {
+        expect(screen.getByRole("button", { name })).toBeDisabled();
+      }
+    });
   });
 
   it("explains a guest's role once, until it is dismissed in this browser", async () => {
