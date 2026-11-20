@@ -23,7 +23,7 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 
 from podcast_mcp.cli import context as cli_context
-from podcast_mcp.models import EPISODE_PROJECT_FILENAME, EpisodeProject, save_project
+from podcast_mcp.models import EPISODE_PROJECT_FILENAME, EpisodeProject, load_project, save_project
 from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME
 from podcast_mcp.services.app import (
     DIRECT_ENV_VAR,
@@ -262,7 +262,7 @@ def test_only_settings_the_caller_set_must_match_and_values_stay_local() -> None
 
 
 def test_waiting_for_the_project_stops_when_the_command_is_cancelled(project: Path) -> None:
-    episode = EpisodeProject.model_validate_json(project.read_text(encoding="utf-8"))
+    episode = load_project(project)
     holding, release = threading.Event(), threading.Event()
 
     def hold() -> None:

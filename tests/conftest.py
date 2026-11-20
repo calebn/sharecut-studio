@@ -230,12 +230,19 @@ def _enter_session_home() -> tuple[Path, pytest.MonkeyPatch]:
 _SESSION_HOME, _SESSION_ENV = _enter_session_home()
 
 
+_CHECKOUT_ARTIFACTS = repo_root() / "artifacts"
+_CHECKOUT_HAD_ARTIFACTS = _CHECKOUT_ARTIFACTS.exists()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _sentinel_home() -> Iterator[Path]:
-    """Fail the session if a test leaves ShareCut files in the session home."""
+    """Fail the session if a test leaves ShareCut files in the session home or the checkout."""
     yield _SESSION_HOME
     stray = stray_files(_SESSION_HOME)
     assert not stray, f"tests wrote outside their temp roots, under the session home: {stray}"
+    assert _CHECKOUT_HAD_ARTIFACTS or not _CHECKOUT_ARTIFACTS.exists(), (
+        f"a test opened a project whose workspace is the working directory: {_CHECKOUT_ARTIFACTS}"
+    )
 
 
 @pytest.fixture(autouse=True)
