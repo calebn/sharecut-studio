@@ -105,6 +105,18 @@ async function openFind() {
   );
 }
 
+function updateWords(words: ReturnType<typeof scriptWord>[], loading = false) {
+  act(() =>
+    useDawStore.setState(({ project }) => ({
+      project: project && {
+        ...project,
+        meta: { ...project.meta, hydration: { transcript_words: !loading } },
+        transcript: { utterances: [scriptUtterance("host", "Maya", words)] },
+      },
+    })),
+  );
+}
+
 beforeEach(() => {
   resetQueuedCutsForTests();
   preview.mockReset();
@@ -174,6 +186,33 @@ describe("ScriptHost Find", () => {
       screen.getByRole("button", { name: "Previous match" }),
     );
     expect(bar()).toHaveTextContent("2 of 2");
+  });
+
+  it("keeps the same current hit when an earlier hit is cut", async () => {
+    seedScript({
+      utterances: [
+        scriptUtterance("host", "Maya", [
+          scriptWord("go", 0, 1),
+          scriptWord("go", 1, 2),
+          scriptWord("go", 2, 3),
+        ]),
+      ],
+    });
+    await openFind();
+    await userEvent.type(findField(), "go");
+    await userEvent.keyboard("{Enter}");
+    expect(bar()).toHaveTextContent("2 of 3");
+
+    updateWords([], true);
+    updateWords([
+      scriptWord("go", 0, 2, { timeline_start: 1, timeline_end: 1.4 }),
+      scriptWord("go", 1, 3, { timeline_start: 2, timeline_end: 2.4 }),
+    ]);
+
+    expect(bar()).toHaveTextContent("1 of 2");
+    expect(
+      screen.getAllByRole("button", { name: /^go/ })[0],
+    ).toHaveAccessibleName("go (current match)");
   });
 
   it("says the same count again when Enter steps onto the only hit", async () => {
@@ -333,6 +372,47 @@ describe("ScriptHost Find", () => {
     );
     expect(screen.getByRole("button", { name: "Replace" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Replace all" })).toBeVisible();
+  });
+
+  it("refuses Replace when a fresh preview puts another occurrence at the old index", async () => {
+    seedScript({
+      utterances: [
+        scriptUtterance("host", "Maya", [
+          scriptWord("go", 0, 1),
+          scriptWord("go", 1, 2),
+        ]),
+      ],
+    });
+    preview.mockResolvedValue({
+      matches: [
+        {
+          track_id: "host",
+          source_id: null,
+          start_word_index: 0,
+          end_word_index: 0,
+          before: "go",
+          after: "stay",
+          start: 2,
+          end: 2.4,
+          retimes_words: false,
+        },
+      ],
+      count: 1,
+      skipped_words: 0,
+      preview_token: "after-cut",
+    });
+    await openFind();
+    await userEvent.type(findField(), "go");
+    await userEvent.click(screen.getByRole("button", { name: "Show replace" }));
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Replace with" }),
+      "stay",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Replace" }));
+    expect(
+      await screen.findByText("That match changed. Find it again."),
+    ).toBeVisible();
+    expect(replace).not.toHaveBeenCalled();
   });
 
   const twoSpeakersSayUm = () =>
