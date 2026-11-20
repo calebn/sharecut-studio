@@ -132,7 +132,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload Storybook traces, screenshots and error contexts
-        if: failure() || cancelled()
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: playwright-test-results-stories

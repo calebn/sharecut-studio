@@ -709,8 +709,8 @@ Every matrix job uploads, with seven-day retention:
 - `playwright-reports-<name>`: the raw `playwright-report/` JSON, always. The
   `Summarize Playwright tests` step reads the same JSON.
 - `playwright-test-results-<name>`: all of `gui/web/test-results/` (traces,
-  failure screenshots, `error-context.md`), on failure or cancellation. This also
-  keeps the artifacts of a failed attempt when a retry passes.
+  failure screenshots, `error-context.md`), on every run. Playwright keeps the
+  artifacts of failed attempts only, so this also keeps them when a retry passes.
 
 Storybook uses the same shape, as `playwright-reports-stories` and
 `playwright-test-results-stories`. Its static Pages artifact and deployment
