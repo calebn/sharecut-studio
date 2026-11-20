@@ -571,7 +571,8 @@ def test_each_whisper_make_target_builds_the_framework_then_assembles_it(
         r"\tuv run python scripts/ios/ffmpeg_framework\.py --framework whisper assemble\n"
     )
     assert re.search(recipe, makefile, re.M)
-    assert re.search(r"^ios-whisper: ios-whisper-device ios-whisper-sim$", makefile, re.M)
+    both = r"^ios-whisper:\n\t\$\(MAKE\) ios-whisper-device\n\t\$\(MAKE\) ios-whisper-sim\n"
+    assert re.search(both, makefile, re.M)
     phony = makefile.splitlines()[0]
     assert all(name in phony.split() for name in (target, "ios-whisper"))
 

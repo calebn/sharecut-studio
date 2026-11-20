@@ -143,7 +143,7 @@ for source in $(pin cli_sources); do compile_tool "$WSRC/$source"; done
 
 exports_check() {
   local listed
-  listed=$("$@" | awk '{print $NF}' | sed 's/^_//' | grep '^sc_' | LC_ALL=C sort | tr '\n' ' ')
+  listed=$("$@" | awk '{print $NF}' | sed 's/^_//' | { grep '^sc_' || true; } | LC_ALL=C sort | tr '\n' ' ')
   local expected
   expected=$(pin exports | LC_ALL=C sort | tr '\n' ' ')
   [ "$listed" = "$expected" ] || { echo "exported sc_ symbols are: $listed; expected: $expected" >&2; exit 1; }

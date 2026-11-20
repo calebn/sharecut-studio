@@ -108,7 +108,9 @@ ios-whisper-sim:
 	./scripts/ios/build_whisper.sh sim
 	uv run python scripts/ios/ffmpeg_framework.py --framework whisper assemble
 
-ios-whisper: ios-whisper-device ios-whisper-sim
+ios-whisper:
+	$(MAKE) ios-whisper-device
+	$(MAKE) ios-whisper-sim
 
 # Optional full installer build (needs platform WebView deps). Not CI.
 # macOS signs+notarizes when APPLE_* env vars are set (see docs/desktop-packaging.md).
