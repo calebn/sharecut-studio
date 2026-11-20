@@ -579,6 +579,120 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  independent-editor-parity:
+    name: Independent Editor parity
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.run_attempt == '1' &&
+      github.event.pull_request.number == 3923 &&
+      github.repository == 'calebn/sharecut-studio' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'refactor/3867-manifest-capture-snapshot' &&
+      github.event.pull_request.base.ref == 'develop' &&
+      github.event.pull_request.draft != true &&
+      needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ needs.changes.outputs.playwright-image }}
+      options: --init --ipc=host
+    timeout-minutes: 40
+    steps:
+      - name: Use runner temporary storage
+        run: |
+          umask 077
+          tmpdir="$(mktemp -d /var/tmp/sharecut-ci.XXXXXX)"
+          printf 'TMPDIR=%s\n' "$tmpdir" >> "$GITHUB_ENV"
+
+      - name: Checkout the workflow source
+        id: pair-workflow
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Require exact workflow checkout output
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+          CHECKOUT_SHA: ${{ steps.pair-workflow.outputs.commit }}
+        run: test -n "$EXPECTED_SHA" && test "$CHECKOUT_SHA" = "$EXPECTED_SHA"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install FFmpeg
+        uses: ./.github/actions/setup-ffmpeg
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: gui/web/package-lock.json
+
+      - name: Install GUI Python deps
+        uses: ./.github/actions/install-locked-python
+        with:
+          extras: gui
+
+      - name: Install frontend deps
+        timeout-minutes: 10
+        working-directory: gui/web
+        run: |
+          printf 'TMPDIR: %s\n' "$TMPDIR"
+          df -hT /tmp "$TMPDIR"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from podcast_mcp.util.registry_privacy import registry_privacy
+          with registry_privacy(Path(os.environ["TMPDIR"]), (), create=False) as verify:
+              verify()
+          PY
+          npm ci
+
+      - name: Checkout the control app
+        id: pair-control
+        uses: actions/checkout@v7
+        with:
+          ref: 513a773213b0be201a29f4a78f9495bbbd637b62
+          path: pair-3923-control
+          persist-credentials: false
+
+      - name: Checkout the fixed app
+        id: pair-candidate
+        uses: actions/checkout@v7
+        with:
+          ref: ab1e209490f35e0fed5ebe79493c40bbc83ea535
+          path: pair-3923-candidate
+          persist-credentials: false
+
+      - name: Checkout the shared synthetic fixture
+        id: pair-fixture
+        uses: actions/checkout@v7
+        with:
+          ref: 5eed071928d78b6bcef35e251fdae79c09dbfd58
+          path: pair-3923-fixture
+          persist-credentials: false
+
+      - name: Validate sources and prepare the shared fixture
+        id: pair-prepare
+        env: &pair-3923-env
+          PAIR_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PAIR_WORKFLOW_SHA: ${{ steps.pair-workflow.outputs.commit }}
+          PAIR_CONTROL_SHA: ${{ steps.pair-control.outputs.commit }}
+          PAIR_CANDIDATE_SHA: ${{ steps.pair-candidate.outputs.commit }}
+          PAIR_FIXTURE_SHA: ${{ steps.pair-fixture.outputs.commit }}
+        run: python .github/verification/3923/run.py prepare
+
+      - name: Verify Editor parity on the control
+        env: *pair-3923-env
+        run: python .github/verification/3923/run.py control
+
+      - name: Verify Editor parity on the candidate
+        if: ${{ !cancelled() && steps.pair-prepare.outcome == 'success' }}
+        env: *pair-3923-env
+        run: python .github/verification/3923/run.py candidate
+
   frontend-e2e:
     runs-on: ubuntu-24.04
     needs: [changes, frontend-e2e-suites]
