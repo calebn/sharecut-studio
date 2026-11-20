@@ -29,6 +29,13 @@ FFMPEG_PRIVACY_MANIFEST = Path("Frameworks") / "FFmpeg.framework" / "PrivacyInfo
 FFMPEG_EXPORTS = frozenset(
     {"sc_ffmpeg_abi_version", "sc_ffmpeg_start", "sc_ffmpeg_wait", "sc_ffmpeg_cancel"}
 )
+WHISPER_EMBEDDED = True
+WHISPER_SIZE_BUDGET = 12 * 1024 * 1024
+WHISPER_BINARY = Path("Frameworks") / "Whisper.framework" / "Whisper"
+WHISPER_PRIVACY_MANIFEST = Path("Frameworks") / "Whisper.framework" / "PrivacyInfo.xcprivacy"
+WHISPER_EXPORTS = frozenset(
+    {"sc_whisper_abi_version", "sc_whisper_start", "sc_whisper_wait", "sc_whisper_cancel"}
+)
 NmRunner = Callable[[Path, list[str]], str]
 MACHO_MAGICS = (b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xfe\xed\xfa\xcf", b"\xbe\xba\xfe\xca")
 
@@ -177,45 +184,87 @@ def exported_symbols(binary: Path, runner: NmRunner = xcrun_nm) -> frozenset[str
     )
 
 
+@dataclass(frozen=True)
+class NativeFramework:
+    """One framework the app embeds: where it sits in the bundle and what it may export."""
+
+    label: str
+    binary: Path
+    manifest: Path
+    exports: frozenset[str]
+    size_budget: int
+    embedded_flag: str
+
+
 def check_ffmpeg_framework(app: Path, runner: NmRunner = xcrun_nm) -> CheckReport:
-    if not FFMPEG_EMBEDDED:
-        framework = app / FFMPEG_BINARY.parent
-        if framework.exists() or framework.is_symlink():
+    framework = NativeFramework(
+        "ffmpeg",
+        FFMPEG_BINARY,
+        FFMPEG_PRIVACY_MANIFEST,
+        FFMPEG_EXPORTS,
+        FFMPEG_SIZE_BUDGET,
+        "FFMPEG_EMBEDDED",
+    )
+    return check_native_framework(app, framework, FFMPEG_EMBEDDED, runner)
+
+
+def check_whisper_framework(app: Path, runner: NmRunner = xcrun_nm) -> CheckReport:
+    framework = NativeFramework(
+        "whisper",
+        WHISPER_BINARY,
+        WHISPER_PRIVACY_MANIFEST,
+        WHISPER_EXPORTS,
+        WHISPER_SIZE_BUDGET,
+        "WHISPER_EMBEDDED",
+    )
+    return check_native_framework(app, framework, WHISPER_EMBEDDED, runner)
+
+
+def check_native_framework(
+    app: Path, framework: NativeFramework, embedded: bool, runner: NmRunner = xcrun_nm
+) -> CheckReport:
+    label = f"{framework.label} framework"
+    binary_path = framework.binary
+    product = binary_path.name
+    if not embedded:
+        folder = app / binary_path.parent
+        if folder.exists() or folder.is_symlink():
             return CheckReport(
-                "ffmpeg framework",
+                label,
                 (
-                    f"{FFMPEG_BINARY.parent.as_posix()} is in the bundle but FFMPEG_EMBEDDED is False",
+                    f"{binary_path.parent.as_posix()} is in the bundle but "
+                    f"{framework.embedded_flag} is False",
                 ),
             )
-        return CheckReport("ffmpeg framework", facts={"status": "not embedded"})
-    binary = app / FFMPEG_BINARY
+        return CheckReport(label, facts={"status": "not embedded"})
+    binary = app / binary_path
     if binary.is_symlink() or not binary.is_file():
-        return CheckReport("ffmpeg framework", (f"{FFMPEG_BINARY.as_posix()} is missing",))
+        return CheckReport(label, (f"{binary_path.as_posix()} is missing",))
     problems: list[str] = []
     try:
         if not is_macho(binary):
-            problems.append(f"{FFMPEG_BINARY.as_posix()} is not a Mach-O file")
+            problems.append(f"{binary_path.as_posix()} is not a Mach-O file")
         size = binary.stat().st_size
     except OSError as error:
-        return CheckReport(
-            "ffmpeg framework", (f"{FFMPEG_BINARY.as_posix()} is unreadable: {error}",)
-        )
-    if size > FFMPEG_SIZE_BUDGET:
-        problems.append(f"FFmpeg is {size} bytes, over the {FFMPEG_SIZE_BUDGET} byte budget")
+        return CheckReport(label, (f"{binary_path.as_posix()} is unreadable: {error}",))
+    if size > framework.size_budget:
+        problems.append(f"{product} is {size} bytes, over the {framework.size_budget} byte budget")
     exported = set(exported_symbols(binary, runner))
-    problems += [f"FFmpeg does not export {name}" for name in sorted(FFMPEG_EXPORTS - exported)]
-    problems += [f"FFmpeg exports unexpected {name}" for name in sorted(exported - FFMPEG_EXPORTS)]
-    problems += ffmpeg_privacy_problems(app)
-    return CheckReport(
-        "ffmpeg framework", tuple(problems), facts={"size": size, "exports": sorted(exported)}
-    )
+    problems += [
+        f"{product} does not export {name}" for name in sorted(framework.exports - exported)
+    ]
+    problems += [
+        f"{product} exports unexpected {name}" for name in sorted(exported - framework.exports)
+    ]
+    problems += framework_privacy_problems(app, framework.manifest)
+    return CheckReport(label, tuple(problems), facts={"size": size, "exports": sorted(exported)})
 
 
-def ffmpeg_privacy_problems(app: Path) -> list[str]:
+def framework_privacy_problems(app: Path, relative: Path) -> list[str]:
     """A third-party framework ships its own privacy manifest, so the one at the bundle root does
     not cover it."""
-    manifest = app / FFMPEG_PRIVACY_MANIFEST
-    name = FFMPEG_PRIVACY_MANIFEST.as_posix()
+    manifest = app / relative
+    name = relative.as_posix()
     if manifest.is_symlink() or not manifest.is_file():
         return [f"{name} is missing"]
     try:

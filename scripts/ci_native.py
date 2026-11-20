@@ -142,6 +142,7 @@ NATIVE_CONTRACTS: dict[str, frozenset[NativeFamily]] = {
     "route-inventory.json": PYTHON_NATIVE,
     "timeline-zoom.json": PYTHON_NATIVE,
     "trim-edge-limits.json": PYTHON_NATIVE,
+    "whisper-build.json": PYTHON_NATIVE,
     **dict.fromkeys(
         (
             "bootstrap-assets.schema.json",

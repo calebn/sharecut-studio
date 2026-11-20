@@ -3,6 +3,13 @@
   "source": "https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api",
   "confirmed_against_apple": false,
   "note": "Written from memory on 2026-11-14: Apple's page returned only its title when fetched, so neither the symbol lists nor the reason codes were read from it. The symbols are the C and Objective-C entry points the page names; the reasons are the codes it is remembered to list. Treat both as unconfirmed until a person reads the page or App Store Connect validation accepts the manifest. Not visible to the symbol check: Objective-C selectors and NSURL...Key constants (file timestamp, disk space), which only show up when Apple processes the upload.",
+  "frameworks": {
+    "whisper": {
+      "manifest": "gui/desktop/src-tauri/ios/whisper/PrivacyInfo.xcprivacy",
+      "confirmed_against_apple": false,
+      "note": "The Whisper.framework manifest declares FileTimestamp (C617.1) and SystemBootTime (35F9.1), chosen from memory like every reason code in this file, before the framework was ever built. They are unconfirmed: compare them with `xcrun nm -u` over the built binary, which may import symbols this table does not list, and read Apple's page before relying on them."
+    }
+  },
   "categories": {
     "NSPrivacyAccessedAPICategoryFileTimestamp": {
       "symbols": ["_stat", "_fstat", "_lstat", "_fstatat", "_getattrlist", "_fgetattrlist", "_getattrlistat"],

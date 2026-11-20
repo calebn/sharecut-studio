@@ -237,13 +237,14 @@ into it; there is no sidecar process.
   the previous xcframework. An interruption between the renames leaves the payload without
   `FFmpeg.xcframework` until `make ios-ffmpeg-device` or `make ios-ffmpeg-sim` runs again; the old
   copy stays hidden as `.FFmpeg.xcframework.old.<pid>`. The assemble holds an exclusive `flock` on
-  `ios-payload/.FFmpeg.xcframework.lock`, so `make -j ios-ffmpeg` runs the two assembles one after
-  the other, never together. A device-only
+  `ios-payload/.native-frameworks.lock`, shared with the Whisper assemble, so `make -j ios-ffmpeg`
+  runs the two assembles one after the other, never together. A device-only
   assemble drops the Simulator slice until `make ios-ffmpeg-sim` runs again. `ffmpeg_framework.py
   check --sdk iphoneos|iphonesimulator` finds the slice through the xcframework's `Info.plist`
   (slice names are never guessed) and is what the template's "Check FFmpeg framework" pre-build
   phase and `ios_sim.sh` call: a missing slice stops the build with the `make` target to run,
   before the Rust build starts.
+- **Whisper framework.** See [Building and embedding Whisper.framework](#ios-native-whisper-framework).
 - **Release build hygiene.** A release build of the Rust library carried 1364 strings naming
   the build machine's home directory (1303 cargo registry paths in tokio's panic locations, 61
   Swift build paths). The template's "Build Rust Code" phase evals `scripts/ios/private_paths.py
@@ -350,7 +351,8 @@ holds `NativeFFmpegBackend`, the `InProcessBackend` that runs `in-process:ffmpeg
 `in-process:ffprobe` argv on four C functions the app exports. The portable session core
 (`gui/desktop/src-tauri/ios/ffmpeg/sc_ffmpeg_core.c`) and the FFmpeg glue are in tree; the iOS row uses the backend, `gui/embedded.py` installs it at engine start when the
 library is linked, and `bundle_checks.check_ffmpeg_framework` checks that the framework exports
-exactly the four functions.
+exactly the four functions. The Whisper backend has its own framework and its own check (see
+[iOS native whisper ABI](#ios-native-whisper-abi)).
 
 ```c
 int      sc_ffmpeg_abi_version(void);   /* must return 1 */
@@ -469,13 +471,17 @@ void     sc_ffmpeg_cancel(int64_t session);
   app. The four symbols are reached through `CDLL(None)`; whether that finds them in a linked
   framework on a device is proved on a Mac. The framework is arm64 only, so the Simulator target
   excludes `x86_64` (`EXCLUDED_ARCHS[sdk=iphonesimulator*]`, beside the existing device line).
+  `ios-payload/Whisper.xcframework` is linked, embedded and signed the same way, on the line after
+  FFmpeg's.
 
 <a id="ios-native-whisper-abi"></a>
 **iOS native whisper ABI (#4021, stage 3 slice 6c-1).** `src/podcast_mcp/util/native_whisper.py`
 holds `NativeWhisperBackend`, the `InProcessBackend` that runs `in-process:whisper-cli` argv on
 four C functions the app is to export. It shares its ctypes code with the FFmpeg backend
-(`src/podcast_mcp/util/native_abi.py`). Not linked yet: the C glue lands in 6c-2, so nothing
-installs this backend today and no build exports the four symbols.
+(`src/podcast_mcp/util/native_abi.py`). The Python seam is what 6c-1 added. The C glue, the build
+and the framework are slice 6c-2 (#4024; see [Building and embedding
+Whisper.framework](#ios-native-whisper-framework)); a build that has not run `make ios-whisper-*`
+exports no `sc_whisper_` symbol, and the backend is then unavailable.
 
 ```c
 int      sc_whisper_abi_version(void);   /* must return 1 */
@@ -501,6 +507,70 @@ void     sc_whisper_cancel(int64_t session);
   error contract is the same as FFmpeg's (File descriptors, Sessions and Errors above): `-1`
   means no fd, a `start` that returns 0 or less, a `wait` outside 0..255 or an unknown tool is exit code `1`
   with one `whisper: <reason>` line on stderr, and a native error is never reported as success.
+- **Which framework.** The four symbols come from `Whisper.framework`
+  (`studio.sharecut.whisper`), a separate framework from `FFmpeg.framework`. It exports exactly
+  those four names and nothing else (`bundle_checks.check_whisper_framework` fails on a missing or
+  an extra export, so no `whisper_*` or `ggml_*` symbol is visible), and FFmpeg's four symbols are
+  not exported from it. The two frameworks are loaded in the same process and each backend finds
+  its own names through `CDLL(None)`.
+- **Ids and cancel.** Session ids are never reused in a process. `cancel` on a session that has
+  already finished is a harmless no-op, and so is a second `cancel` or one for an unknown id.
+  Cancelling a queued session makes `wait` return `255` and the tool never runs.
+- **Threads.** `start` and `wait` for one session are called from one worker thread; `cancel`
+  comes from another: Python's `run` forwards a cancel from its watcher thread. Calling `wait` twice for one id gives `-ESRCH` the second time.
+- **Cancel deadline.** After `cancel` the native tool must return from `wait` within
+  `KILL_GRACE_SEC` (5 s). Python reports `-9` at that deadline and detaches the session, but the
+  native worker is still running the tool: the single worker stays busy and the next session
+  waits in the queue behind it. A tool that cannot be interrupted inside that time therefore
+  delays every later session, not only its own.
+- **Capacity.** At most 16 sessions wait in the queue; a further `start` returns `-EAGAIN`, which
+  Python reports as exit `1` with `whisper: sc_whisper_start failed: ...`.
+- **argv[0].** `start` returns `-EINVAL` unless `argv[0]` is exactly `whisper-cli` (as for `argc <
+  1`, `argc > 4096` or a NULL entry); Python's sentinel mapping always supplies it.
+- **NUL bytes.** A NUL byte in any argv string never reaches native code. `run` raises
+  `ValueError` before `start`, and the in-process child turns that into exit code `1` with a
+  log line and no `whisper:` line on the caller's stderr (a divergence from `subprocess`, which
+  raises, and fail-closed).
+
+<a id="ios-native-whisper-framework"></a>
+**Building and embedding Whisper.framework (#4024, stage 3 slice 6c-2).** whisper.cpp is built
+from a pinned source archive by `scripts/ios/build_whisper.sh device|sim` (pin and checksums in
+`contracts/whisper-build.json`, notice in `LICENSES/WHISPER-SOURCE.txt`; the C sources are under
+`gui/desktop/src-tauri/ios/whisper/`). The script writes
+`gui/desktop/src-tauri/ios-whisper/out/{device,sim}/Whisper.framework` (untracked; its `src/`
+and `build/` folders are untracked too), for arm64 and iOS 17.0 or later, with the four exports
+above and nothing else.
+
+- **Make targets.** `make ios-whisper-device` and `make ios-whisper-sim` build one slice and then
+  run `scripts/ios/ffmpeg_framework.py --framework whisper assemble`, which writes
+  `ios-payload/Whisper.xcframework` from whichever slices exist, the same way as for FFmpeg
+  (staging folder, `xcodebuild -create-xcframework`, a swap that keeps the previous xcframework on
+  failure). `make ios-whisper` builds both. Without `--framework` the script means FFmpeg, so
+  every FFmpeg command is unchanged. The one assemble lock, `ios-payload/.native-frameworks.lock`,
+  covers both frameworks.
+- **Privacy manifest.** Each slice gets
+  `gui/desktop/src-tauri/ios/whisper/PrivacyInfo.xcprivacy` as its own
+  `PrivacyInfo.xcprivacy`. Its two categories (file timestamp `C617.1`, system boot time
+  `35F9.1`) and their reason codes are unconfirmed: they were not read from Apple's page or from
+  the built binary's imports, which is said in the manifest and in `contracts/ios-privacy.json`.
+  Compare them with `xcrun nm -u` over the built framework before relying on them.
+- **Embedding.** The template links, embeds and signs `ios-payload/Whisper.xcframework`
+  (`link: true`, because `CDLL(None)` sees only what is loaded at launch). Its pre-build phase
+  "Check Whisper framework" runs `ffmpeg_framework.py --framework whisper check --sdk
+  "$PLATFORM_NAME"` right after FFmpeg's guard, and `ios_sim.sh build` runs the same check before
+  `tauri ios init`; a missing slice stops the build and names `make ios-whisper-device` or
+  `make ios-whisper-sim`.
+- **Release.** The release plan builds and assembles Whisper (`build_whisper.sh device`, then
+  `ffmpeg_framework.py --framework whisper assemble`) after FFmpeg and before the device payload,
+  and the IPA checks include a "whisper framework" step beside the FFmpeg one:
+  `Frameworks/Whisper.framework/Whisper` must be a Mach-O file of at most 12 MiB (a budget to be
+  measured), export exactly the four `sc_whisper_` symbols, and have
+  `Frameworks/Whisper.framework/PrivacyInfo.xcprivacy` as a property list dictionary.
+  `WHISPER_EMBEDDED` in `scripts/ios/bundle_checks.py` turns the requirement off, and then a
+  `Whisper.framework` in the bundle fails.
+- **Not proved here.** The iOS compile, `xcrun nm` over the slices, loading both frameworks in the
+  Simulator, cancel latency inside the 5 s grace, memory on a device and App Store validation
+  need a Mac and an owner key.
 
 <a id="ios-release"></a>
 **iOS release (#3810, stage 2).** `scripts/ios/ios_release.py` builds a release `.ipa` for the
@@ -558,7 +628,8 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   `scripts/version_policy.py` agrees.
 - **What a build does.** Web build, the FFmpeg framework (`build_ffmpeg.sh device`, then
   `ffmpeg_framework.py assemble`; FFmpeg is rebuilt from source each run, lame and opus are
-  reused, so this step is long), payload for `iphoneos`, a fresh `gen/apple`, `tauri ios init`,
+  reused, so this step is long), the Whisper framework (`build_whisper.sh device`, then
+  `ffmpeg_framework.py --framework whisper assemble`), payload for `iphoneos`, a fresh `gen/apple`, `tauri ios init`,
   `tauri ios build --archive-only` (Tauri adds `-allowProvisioningUpdates` itself; `--no-sign`
   for the rehearsal). A signed archive gets `APPLE_API_KEY`, `APPLE_API_ISSUER` and
   `APPLE_API_KEY_PATH` in its environment, which Tauri turns into the `-authentication*` flags;

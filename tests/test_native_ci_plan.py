@@ -279,9 +279,9 @@ for (const job of jobs) {
 
 
 def test_contract_inventory_is_explicit_and_unknown_additions_run_full() -> None:
-    assert set(native.NATIVE_CONTRACTS) == {
-        path.name for path in (ROOT / "contracts").glob("*.json")
-    }
+    present = {path.name for path in (ROOT / "contracts").glob("*.json")}
+    assert set(native.NATIVE_CONTRACTS) - present <= {"whisper-build.json"}
+    assert present <= set(native.NATIVE_CONTRACTS)
     assert {name for name, consumers in native.NATIVE_CONTRACTS.items() if consumers} == {
         "bootstrap-assets.json",
         "edit-surface.json",
@@ -295,6 +295,7 @@ def test_contract_inventory_is_explicit_and_unknown_additions_run_full() -> None
         "route-inventory.json",
         "timeline-zoom.json",
         "trim-edge-limits.json",
+        "whisper-build.json",
     }
     excluded = set(native.DESKTOP_PR_EXCLUSIONS)
     consumers = {
@@ -584,3 +585,37 @@ def test_variant_storage_paths_select_windows_refusal_job():
         "tests/test_export_variant_integrity.py",
     ):
         assert native.NativeFamily.LOCK in cp.plan("pull_request", [path]).native.required
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "gui/desktop/src-tauri/ios/whisper/sc_whisper_core.c",
+        "gui/desktop/src-tauri/ios/whisper/PrivacyInfo.xcprivacy",
+        "gui/desktop/src-tauri/ios-whisper/out/device/Whisper.framework/Whisper",
+    ],
+)
+def test_the_whisper_native_sources_select_only_the_cargo_family_and_no_browser_suite(
+    path: str,
+) -> None:
+    assert native.select_native([path]).required == frozenset((native.NativeFamily.CARGO,))
+    assert cp.scope_of(path) is cp.Scope.OTHER
+
+
+def test_the_whisper_build_contract_is_a_python_native_input() -> None:
+    assert native.NATIVE_CONTRACTS["whisper-build.json"] == native.PYTHON_NATIVE
+    required = native.select_native(["contracts/whisper-build.json"]).required
+    assert required == native.PYTHON_NATIVE
+    assert "!contracts/whisper-build.json" not in native.DESKTOP_PR_PATHS
+
+
+def test_the_whisper_build_script_runs_the_python_native_family() -> None:
+    required = native.select_native(["scripts/ios/build_whisper.sh"]).required
+    assert required == native.PYTHON_NATIVE
+
+
+def test_the_whisper_licence_notice_keeps_the_conservative_full_native_run() -> None:
+    required = native.select_native(["LICENSES/WHISPER-SOURCE.txt"]).required
+    assert required == native.select_native(["LICENSES/FFMPEG-SOURCE.txt"]).required
+    assert required >= native.PYTHON_NATIVE
+    assert cp.scope_of("LICENSES/WHISPER-SOURCE.txt") is cp.Scope.OTHER
