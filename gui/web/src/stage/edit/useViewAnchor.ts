@@ -26,9 +26,16 @@ export function useViewAnchor(
     preferred: (() => HTMLElement | null) | undefined;
     cancel: () => void;
   } | null>(null);
+  const upgrade = useRef<(() => void) | null>(null);
 
   useLayoutEffect(() => {
+    if (availability.kind === "available") {
+      upgrade.current?.();
+      upgrade.current = null;
+    }
     if (open && availability.kind === "unavailable") {
+      upgrade.current?.();
+      upgrade.current = null;
       const panel = panelRef.current;
       const active = document.activeElement;
       if (
@@ -65,15 +72,26 @@ export function useViewAnchor(
       pending.cancel();
       if (ownsFocus && isValidFocusTarget(destination)) {
         destination.focus();
-        if (preferred && destination !== preferred())
-          upgradeFocus(destination, preferred);
+        upgrade.current?.();
+        upgrade.current =
+          preferred && destination !== preferred()
+            ? upgradeFocus(destination, preferred)
+            : null;
       }
     } else {
       recovery.current?.cancel();
+      upgrade.current?.();
+      upgrade.current = null;
     }
   });
 
-  useLayoutEffect(() => () => recovery.current?.cancel(), []);
+  useLayoutEffect(
+    () => () => {
+      recovery.current?.cancel();
+      upgrade.current?.();
+    },
+    [],
+  );
 }
 
 const UPGRADE_WINDOW_MS = 5000;
@@ -81,10 +99,11 @@ const UPGRADE_WINDOW_MS = 5000;
 function upgradeFocus(
   fallback: HTMLElement,
   preferred: () => HTMLElement | null,
-) {
+): () => void {
   const doc = fallback.ownerDocument;
   const stop = () => {
     observer.disconnect();
+    unsubscribe();
     window.clearTimeout(timer);
     doc.removeEventListener("focusin", onFocusIn);
     doc.removeEventListener("pointerdown", stop, true);
@@ -99,11 +118,14 @@ function upgradeFocus(
     target.focus();
   });
   const timer = window.setTimeout(stop, UPGRADE_WINDOW_MS);
+  const unsubscribe = subscribeModalOpen(stop);
   doc.addEventListener("focusin", onFocusIn);
   doc.addEventListener("pointerdown", stop, true);
   observer.observe(doc.body, {
     childList: true,
     subtree: true,
     attributes: true,
+    attributeFilter: ["hidden", "class", "style"],
   });
+  return stop;
 }

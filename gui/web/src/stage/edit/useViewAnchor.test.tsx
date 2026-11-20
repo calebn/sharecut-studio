@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { closeOverlay, openOverlay } from "../../ui/modalGate";
 import { useViewAnchor, type ViewAnchorAvailability } from "./useViewAnchor";
 
 let setHidden: (hidden: boolean) => void = () => {};
@@ -111,6 +112,48 @@ describe("the View anchor's focus return", () => {
       await vi.advanceTimersByTimeAsync(50);
     });
     expect(document.activeElement).toBe(pane);
+  });
+
+  it("leaves focus on the fallback once the eye is available again", async () => {
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    const pane = document.querySelector<HTMLElement>("#pane");
+    act(() => setHidden(false));
+    act(() => {
+      appendFind();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(document.activeElement).toBe(pane);
+  });
+
+  it("leaves focus alone when a modal opens during the wait", async () => {
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    const pane = document.querySelector<HTMLElement>("#pane");
+    const layer = openOverlay(true);
+    act(() => {
+      appendFind();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    closeOverlay(layer);
+    expect(document.activeElement).toBe(pane);
+  });
+
+  it("stops watching when the hook unmounts", () => {
+    const disconnect = vi.spyOn(MutationObserver.prototype, "disconnect");
+    const view = render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    expect(disconnect).not.toHaveBeenCalled();
+    view.unmount();
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    disconnect.mockRestore();
   });
 
   it("returns straight to the preferred control when it is already drawn", () => {
