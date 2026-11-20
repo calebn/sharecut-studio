@@ -367,5 +367,5 @@ def test_a_held_cut_names_whose_cut_it_was_and_where_for_a_guest(episode):
     assert raised.value.guest_message() == (
         "Guest's cut at 0:10.1 was not applied because the edit would start or end inside a "
         "word or a breath, and that could be heard. Nothing was changed. "
-        "Move the edges off the word or breath and try again."
+        "Try a slightly different range."
     )

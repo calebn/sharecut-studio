@@ -954,7 +954,7 @@ def test_guest_mcp_commenter_suggests_a_ripple_and_the_editor_confirms_it(
         assert reply["result"]["structuredContent"]["error_code"] == "cut_scope_changed"
         assert reply["result"]["content"][0]["text"] == (
             "Host's cut at 0:08.0 was not applied because Guest is speaking there and would be "
-            "cut off. Nothing was changed. Try again in a moment, or leave a comment for the host."
+            "cut off. Nothing was changed. Leave a comment for the host."
         )
         assert _geometry(episode) == before
 

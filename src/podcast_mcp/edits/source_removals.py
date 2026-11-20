@@ -69,13 +69,11 @@ _RETRY_LATER = "Try again in a moment, or leave a comment for the host."
 _SELECT_AGAIN = "Select it again to try another cut."
 DEFAULT_NEXT_STEP = "Leave a comment for the host."
 HOLD_NEXT_STEPS: Mapping[str, str] = {
-    "acoustic_edge": "Move the edges off the word or breath and try again.",
+    "acoustic_edge": "Try a slightly different range.",
     "source_geometry": _SELECT_AGAIN,
     "operation_scope": _SELECT_AGAIN,
     "scope_unavailable": _RETRY_LATER,
     "media_extent_unavailable": _RETRY_LATER,
-    "speaker_bleed": _RETRY_LATER,
-    "peer_speech": _RETRY_LATER,
 }
 _UNNAMED_EDIT = "That edit"
 PEER_SPEECH_PLAIN = "someone else is speaking there and would be cut off"

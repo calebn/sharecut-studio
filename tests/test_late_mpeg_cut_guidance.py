@@ -158,7 +158,7 @@ def test_completed_extraction_failure_keeps_safe_specific_or_generic_guidance(
     assert error.guest_message() == (
         "That edit was not applied because the edit would start or end inside a word or a breath, "
         "and that could be heard. Nothing was changed. "
-        "Move the edges off the word or breath and try again."
+        "Try a slightly different range."
     )
     assert "/private" not in str(error)
     assert "secret.wav" not in str(error)
