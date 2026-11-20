@@ -170,7 +170,9 @@ test("an Editor's Cut lands on the host's episode and Undo on the toast takes it
       await word(guest!, "uncle").first().click();
       await pressCut(guest!, "EditSelectedRange");
 
-      await expectFeedback(guest!, 'Cut "uncle" · 0.3 s · 1 more');
+      await expectFeedback(guest!, 'Cut "uncle" · 0.3 s · 1 more', {
+        superseded: true,
+      });
       await expect(cutMark(guest!, "0.3 s")).toHaveCount(1);
       await expect(attention(guest!)).toHaveCount(0);
       await expect(cutMark(host!, "0.3 s")).toHaveCount(1);
@@ -208,7 +210,9 @@ test("an Editor's Cut on a phone lands on the host's episode and Undo on the toa
       await bar(guest!).getByRole("button", { name: "Cut", exact: true }).tap();
       expect((await sent).status()).toBe(200);
 
-      await expectFeedback(guest!, 'Cut "uncle" · 0.3 s · 1 more');
+      await expectFeedback(guest!, 'Cut "uncle" · 0.3 s · 1 more', {
+        superseded: true,
+      });
       await expect(attention(guest!)).toHaveCount(0);
       await expect(cutMark(host!, "0.3 s")).toHaveCount(1);
       expect(await spans(host!, projectPath, "reference")).toEqual([
@@ -252,6 +256,7 @@ test("an Editor's Mute lands on the host's episode, and Undo and Redo take back 
       await expectFeedback(
         guest!,
         "Range mute applied. Use Undo to restore it.",
+        { superseded: true },
       );
       await expect(attention(guest!)).toHaveCount(0);
       expect(await mutes(host!, projectPath, "reference")).toEqual([
@@ -296,7 +301,7 @@ test("an Editor approves a Commenter's suggested cut and the host sees it cut", 
       await card.getByRole("button", { name: "Cut", exact: true }).click();
       expect((await approved).status()).toBe(200);
 
-      await expectFeedback(editor!, "Cut");
+      await expectFeedback(editor!, "Cut", { superseded: true });
       await expect(editor!.getByRole("alert")).toHaveCount(0);
       await expect(editor!.getByText(COUNT_ERROR)).toHaveCount(0);
       await expect(attention(editor!)).toHaveCount(0);
@@ -327,7 +332,7 @@ test("an Editor keeps a Commenter's suggestion without a false error and the hos
       await card.getByRole("button", { name: "Keep", exact: true }).click();
       expect((await rejected).status()).toBe(200);
 
-      await expectFeedback(editor!, "Kept");
+      await expectFeedback(editor!, "Kept", { superseded: true });
       await expect(editor!.getByRole("alert")).toHaveCount(0);
       await expect(editor!.getByText(COUNT_ERROR)).toHaveCount(0);
       await expect(attention(editor!)).toHaveCount(0);
@@ -414,7 +419,7 @@ test("an Editor fixes a word and replaces one match, the host sees both, and Und
       await field.press("Enter");
       expect((await fixed).status()).toBe(200);
 
-      await expectFeedback(guest!, "Text fixed: Uncle");
+      await expectFeedback(guest!, "Text fixed: Uncle", { superseded: true });
       await expect(word(guest!, /^Uncle/)).toHaveCount(1);
       await expect(word(host!, /^Uncle/)).toHaveCount(1);
       await expect(attention(guest!)).toHaveCount(0);
@@ -569,7 +574,7 @@ test("an Editor's Approve of a ripple cut over the other speaker's words applies
         "needs_confirmation",
       );
 
-      await expectFeedback(guest!, "Cut 0.9 s");
+      await expectFeedback(guest!, "Cut 0.9 s", { superseded: true });
       await expect(guest!.getByRole("dialog")).toHaveCount(0);
       await expect(guest!.getByRole("alert")).toHaveCount(0);
       await expect(attention(guest!)).toHaveCount(0);
