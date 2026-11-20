@@ -673,6 +673,28 @@ describe("HomeScreen", () => {
       expect(takeAutoRun(EP)).toBe(true);
     });
 
+    it("Import is enabled and starts an episode while models are missing", async () => {
+      const user = userEvent.setup();
+      const file = new File(["x"], "Rosa.wav", { type: "audio/wav" });
+      pickFiles.mockResolvedValue([file]);
+      create.mockResolvedValue({ project_path: EP, name: "Rosa" });
+      ingestInto.mockResolvedValue({ added: 1 });
+      loadCfg.mockResolvedValue(freshConfig());
+      render(<HomeScreen />, false);
+      await screen.findByRole("button", { name: "Get ready" });
+      const importButton = screen.getByRole("button", {
+        name: /^Import audio/,
+      });
+      expect(importButton).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Get ready" })).not.toHaveClass(
+        "primary",
+      );
+      await user.click(importButton);
+      await waitFor(() => expect(assign).toHaveBeenCalled());
+      expect(ingestInto).toHaveBeenCalledWith(EP, [file]);
+      expect(takeOpenStage(EP)).toBe("prepare");
+    });
+
     it("Import keeps this browser's Off for the new episode", async () => {
       const user = userEvent.setup();
       writeSoundScanStart(false);
