@@ -22,6 +22,8 @@ export type MicStreamState = {
    */
   staleDeviceId: string | null;
   retry: () => void;
+  /** Asks the browser again even though a request is still waiting; the old request is dropped. */
+  restart: () => void;
 };
 
 function stopTracks(stream: MediaStream | null): void {
@@ -68,6 +70,12 @@ export function useMicStream(
     }
     acquiringRef.current = true;
     setRetryKey((key) => key + 1);
+  }, [enabled]);
+
+  const restart = useCallback(() => {
+    if (enabled) {
+      setRetryKey((key) => key + 1);
+    }
   }, [enabled]);
 
   useEffect(() => {
@@ -142,6 +150,9 @@ export function useMicStream(
           );
         } catch (err) {
           const name = err instanceof Error ? err.name : "";
+          if (cancelled) {
+            return;
+          }
           if (!selectedMicMissing(name, requested)) {
             throw err;
           }
@@ -244,5 +255,6 @@ export function useMicStream(
     lost,
     staleDeviceId: isLatchedFallback(fellBackFrom, deviceId) ? deviceId : null,
     retry,
+    restart,
   };
 }

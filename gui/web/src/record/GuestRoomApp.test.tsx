@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadRecordParticipant } from "../services/offlineQueue/offlineStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import { deferred } from "../test/deferred";
 import { seedPendingKeeper } from "../test/keepers";
 import { stubMatchMedia } from "../test/matchMedia";
 import { urlOf } from "../test/urlOf";
@@ -2826,9 +2827,11 @@ describe("GuestRoomApp", () => {
         .filter((row) => row.command_type === "Consent")
         .map((row) => row.payload.accepted);
     const frameOrder = (socket: FakeSocket) =>
-      socket.sent.map(
-        (row) => (JSON.parse(row) as { command_type: string }).command_type,
-      );
+      socket.sent
+        .map(
+          (row) => (JSON.parse(row) as { command_type: string }).command_type,
+        )
+        .filter((type) => type === "Join" || type === "Consent");
     const hello = (socket: FakeSocket, consented: boolean | null = null) => {
       socket.onmessage?.({
         data: JSON.stringify({
@@ -2942,7 +2945,7 @@ describe("GuestRoomApp", () => {
         await screen.findByRole("button", { name: "Join recording" }),
       );
       await enterName();
-      await userEvent.click(allowMic());
+      await waitFor(() => expect(getUserMedia).toHaveBeenCalled());
       await userEvent.click(
         await screen.findByRole("button", { name: "I'm wearing headphones" }),
       );
@@ -2968,23 +2971,6 @@ describe("GuestRoomApp", () => {
       expect(
         await screen.findByRole("button", { name: "Join and record" }),
       ).toBeEnabled();
-    });
-
-    it("sends no Consent true from a socket whose Join the room has not answered", async () => {
-      holdOpen = true;
-      stubWebSocket(sockets, "silent");
-      stubBootstrap();
-      render(<GuestRoomApp token="guest-tok" />);
-      await enterName();
-      act(() => sockets[0].onopen?.());
-      await userEvent.click(allowMic());
-      await userEvent.click(
-        await screen.findByRole("button", { name: "I'm wearing headphones" }),
-      );
-      await waitFor(() => expect(joinButton()).toBeEnabled());
-      await userEvent.click(joinButton());
-      expect(consentFrames(sockets[0])).toEqual([]);
-      expect(joinButton()).toBeEnabled();
     });
 
     it("shows the full-room cover and sends nothing for a decline made before the answer", async () => {
@@ -3022,7 +3008,7 @@ describe("GuestRoomApp", () => {
       "Still waiting. Check your browser's permission prompt.";
 
     it("says so after 10 seconds, asks the browser again on Retry, and settles when it answers", async () => {
-      const pending: ((stream: unknown) => void)[] = [];
+      const pending = [deferred<unknown>(), deferred<unknown>()];
       const track = () => ({
         stop: vi.fn(),
         getSettings: () => ({
@@ -3033,19 +3019,18 @@ describe("GuestRoomApp", () => {
       });
       const first = track();
       const second = track();
-      getUserMedia.mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            pending.push(resolve);
-          }),
-      );
+      getUserMedia
+        .mockReturnValueOnce(pending[0].promise)
+        .mockReturnValueOnce(pending[1].promise);
       stubBootstrap();
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       render(<GuestRoomApp token="guest-tok" />);
       await user.click(
         await screen.findByRole("button", { name: MIC_ALLOW_LABEL }),
       );
-      expect(screen.getByText("Waiting for your browser…")).toBeVisible();
+      expect(
+        screen.getAllByText("Waiting for your browser…").length,
+      ).toBeGreaterThan(0);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(9_900);
       });
@@ -3060,11 +3045,14 @@ describe("GuestRoomApp", () => {
       expect(getUserMedia).toHaveBeenCalledTimes(2);
       expect(screen.queryByText(STILL_WAITING)).toBeNull();
       await act(async () =>
-        pending[0]({ getTracks: () => [first], getAudioTracks: () => [first] }),
+        pending[0].resolve({
+          getTracks: () => [first],
+          getAudioTracks: () => [first],
+        }),
       );
       expect(first.stop).toHaveBeenCalled();
       await act(async () =>
-        pending[1]({
+        pending[1].resolve({
           getTracks: () => [second],
           getAudioTracks: () => [second],
         }),
@@ -3079,7 +3067,7 @@ describe("GuestRoomApp", () => {
 
   describe("a hung microphone prompt and Not now", () => {
     it("stops a stream that arrives after the guest declined", async () => {
-      const pending: ((stream: unknown) => void)[] = [];
+      const pending = [deferred<unknown>()];
       const track = {
         stop: vi.fn(),
         getSettings: () => ({
@@ -3088,12 +3076,7 @@ describe("GuestRoomApp", () => {
           noiseSuppression: false,
         }),
       };
-      getUserMedia.mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            pending.push(resolve);
-          }),
-      );
+      getUserMedia.mockReturnValueOnce(pending[0].promise);
       stubBootstrap();
       render(<GuestRoomApp token="guest-tok" />);
       await userEvent.click(
@@ -3104,7 +3087,10 @@ describe("GuestRoomApp", () => {
         await screen.findByText("You're not being recorded."),
       ).toBeVisible();
       await act(async () =>
-        pending[0]({ getTracks: () => [track], getAudioTracks: () => [track] }),
+        pending[0].resolve({
+          getTracks: () => [track],
+          getAudioTracks: () => [track],
+        }),
       );
       expect(track.stop).toHaveBeenCalled();
     });

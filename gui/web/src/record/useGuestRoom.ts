@@ -98,6 +98,9 @@ export function useGuestRoom(
   const [producerDismissed, setProducerDismissed] = useState(false);
   const [left, setLeft] = useState(false);
   const leave = useCallback(() => setLeft(true), []);
+  const [declineIntent, setDeclineIntent] = useState(false);
+  const declineHere = useCallback(() => setDeclineIntent(true), []);
+  const clearDecline = useCallback(() => setDeclineIntent(false), []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -138,14 +141,17 @@ export function useGuestRoom(
     error,
     clearError,
     connected,
+    echoed,
     lease,
     counted,
     socketMode,
   } = useRecordSync(token, syncName, requestedMode);
+  const roomConsent = me?.consented ?? null;
+  const consented = declineIntent ? false : roomConsent;
   const { leaseFresh, leaseStillFresh } = useLeaseFreshWhileLeft(token, left);
   const accessEnded = isRecordAccessEnded(error);
   const inviteClosed = error === RECORD_INVITE_CLOSED;
-  const joinedName = (producer ? producerJoined : me?.consented === true)
+  const joinedName = (producer ? producerJoined : consented === true)
     ? name.trim()
     : "";
   useEffect(() => {
@@ -165,7 +171,7 @@ export function useGuestRoom(
     !accessEnded &&
     error !== "room_full" &&
     !left &&
-    (me?.consented !== false || rejoining);
+    (consented !== false || rejoining);
   const mic = useMicPermission(micEnabled, deviceId);
   const staleMic = mic.staleDeviceId !== null;
   useEffect(() => {
@@ -233,14 +239,14 @@ export function useGuestRoom(
     !!bootstrap?.build.capture &&
     !producer &&
     !accessEnded &&
-    me?.consented === true;
+    consented === true;
   const keeper = useKeeperCapture({
     enabled: captureEnabled && sink !== null,
     role: "guest",
     snapshot,
     participantId: me?.participant_id ?? null,
     muted: me?.muted ?? false,
-    consented: me?.consented ?? null,
+    consented,
     stream: mic.stream,
     sink,
     reportSegments: (takeIndex, segments) =>
@@ -259,7 +265,7 @@ export function useGuestRoom(
     localId: me?.participant_id ?? null,
     role: producer ? "producer" : "guest",
     snapshot,
-    localStream: producer || me?.consented !== true ? null : mic.stream,
+    localStream: producer || consented !== true ? null : mic.stream,
     muted: me?.muted ?? false,
     send: (payload) => send("Signal", payload),
   });
@@ -295,7 +301,7 @@ export function useGuestRoom(
       !!bootstrap?.build.upload &&
       !producer &&
       !accessEnded &&
-      (me?.consented === true || snapshot?.state === "stopped"),
+      (consented === true || snapshot?.state === "stopped"),
     roomState: snapshot?.state,
     captureSettled,
     sessionId: snapshot?.session_id ?? null,
@@ -304,7 +310,7 @@ export function useGuestRoom(
     transport: uploadTransport,
     sink,
     retryNonce: uploadRetryNonce,
-    captureExpected: me?.consented === true,
+    captureExpected: consented === true,
   });
   const takeClipping = useTakeClipping({
     sink,
@@ -377,9 +383,9 @@ export function useGuestRoom(
       !producer &&
       !accessEnded &&
       !!me?.participant_id &&
-      me.consented !== false &&
+      consented !== false &&
       (snapshot?.state === "lobby" || snapshot?.state === "stopped"),
-    canUpload: !accessEnded && me?.consented === true,
+    canUpload: !accessEnded && consented === true,
     stream: mic.stream,
     sessionId: snapshot?.session_id ?? null,
     participantId: me?.participant_id ?? null,
@@ -390,8 +396,8 @@ export function useGuestRoom(
   const meId = me?.participant_id;
   const myName = me?.display_name;
 
-  const nameShared = nameTyped || producerJoined || me?.consented === true;
-  const roomHoldsJoined = me?.consented === true;
+  const nameShared = nameTyped || producerJoined || consented === true;
+  const roomHoldsJoined = consented === true;
   useEffect(() => {
     setHeldAsJoined(roomHoldsJoined);
   }, [roomHoldsJoined]);
@@ -429,11 +435,24 @@ export function useGuestRoom(
     }
   }, [ackedOn, connected, headphones, meId, producer, send]);
 
+  useEffect(() => {
+    if (
+      producer ||
+      !declineIntent ||
+      !connected ||
+      !echoed ||
+      roomConsent === false
+    ) {
+      return;
+    }
+    send("Consent", { accepted: false });
+  }, [producer, declineIntent, connected, echoed, roomConsent, send]);
+
   const view = useMemo(() => {
     if (error === "room_full") {
       return "full" as const;
     }
-    if (me?.consented === false && snapshot && snapshot.state !== "lobby") {
+    if (consented === false && snapshot && snapshot.state !== "lobby") {
       return "declined" as const;
     }
     if (!producer && me?.consented !== true) {
@@ -443,7 +462,7 @@ export function useGuestRoom(
       return "room" as const;
     }
     return "lobby" as const;
-  }, [error, me, producer, snapshot]);
+  }, [consented, error, me, producer, snapshot]);
 
   return {
     bootstrap,
@@ -454,6 +473,9 @@ export function useGuestRoom(
     me,
     send,
     connected,
+    consented,
+    declineHere,
+    clearDecline,
     error,
     clearError,
     accessEnded,

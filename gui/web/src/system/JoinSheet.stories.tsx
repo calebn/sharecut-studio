@@ -173,6 +173,25 @@ export const GuestPrompting: Story = {
   },
 };
 
+export const GuestPromptSlow: Story = {
+  args: { mic: { status: "prompting", slow: true } },
+  play: async ({ args, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(rowState("mic")).toBe("needs-you");
+    await expect(
+      dialog.getAllByText(
+        "Still waiting. Check your browser's permission prompt.",
+      )[0],
+    ).toBeVisible();
+    await expect(dialog.getByText("Answer your browser first")).toBeVisible();
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Retry microphone" }),
+    );
+    await expect(args.onMicAction).toHaveBeenCalledWith("retry");
+  },
+};
+
 export const GuestDenied: Story = {
   args: { mic: { status: "denied" } },
   play: async ({ args, viewMode }) => {

@@ -125,6 +125,7 @@ export function useRecordSync(
   const [snapshot, setSnapshot] = useState<RecordSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  const [echoed, setEchoed] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
   const [lease, setLease] = useState<string | null>(null);
   const [counted, setCounted] = useState(false);
@@ -258,6 +259,7 @@ export function useRecordSync(
         phaseRef.current = "open";
         joinSentRef.current = false;
         setConnected(true);
+        setEchoed(false);
         if (keepErrorOnOpenRef.current) {
           keepErrorOnOpenRef.current = false;
         } else {
@@ -318,6 +320,7 @@ export function useRecordSync(
           }
           if (msg.type === "Echo" && msg.participant_id && msg.lease) {
             joined = true;
+            setEchoed(true);
             seatSocketRef.current = false;
             ctx.markHealthy();
             startHeartbeat();
@@ -348,6 +351,7 @@ export function useRecordSync(
         phaseRef.current = "backoff";
         setCounted(false);
         setConnected(false);
+        setEchoed(false);
         sendRef.current = null;
         stopHeartbeat();
         if (!joined && modeRef.current === "watch") {
@@ -372,6 +376,7 @@ export function useRecordSync(
       phaseRef.current = "idle";
       setCounted(false);
       setConnected(false);
+      setEchoed(false);
       sendRef.current = null;
       if (!joined && modeRef.current === "off") {
         setSnapshot(null);
@@ -410,6 +415,7 @@ export function useRecordSync(
     error,
     clearError,
     connected,
+    echoed,
     lease,
     counted,
     socketMode: mode,

@@ -163,6 +163,23 @@ export const Denied: Story = {
   },
 };
 
+export const PromptSlow: Story = {
+  args: { mic: { status: "prompting", slow: true } },
+  play: async ({ args, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(
+      dialog.getAllByText(
+        "Still waiting. Check your browser's permission prompt.",
+      )[0],
+    ).toBeVisible();
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Retry microphone" }),
+    );
+    await expect(args.onMicAction).toHaveBeenCalledWith("retry");
+  },
+};
+
 export const InputLost: Story = {
   args: { mic: { status: "lost", detail: "Microphone disconnected." } },
   play: async ({ args, viewMode }) => {

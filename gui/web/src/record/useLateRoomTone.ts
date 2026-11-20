@@ -104,18 +104,21 @@ export function useLateRoomTone({
   snapshot,
   me,
   producer,
+  declined = false,
   transport,
   roomTone,
 }: {
   snapshot: RecordSnapshot | null;
   me: RecordParticipant | undefined | null;
   producer: boolean;
+  /** The guest chose Not now; the room may still hold an earlier Consent true. */
+  declined?: boolean;
   transport: RecordUploadTransport | null;
   roomTone: RoomToneControls;
 }): RoomAlertInput | null {
   const participantId = me?.participant_id ?? null;
   const key = roomToneMarkKey(snapshot?.session_id, participantId);
-  const consented = me?.consented === true;
+  const consented = me?.consented === true && !declined;
   const [resolution] = useState(createRoomToneResolution);
   const resolved = useSyncExternalStore(
     resolution.subscribe,
@@ -160,6 +163,7 @@ export function useLateRoomTone({
   if (
     producer ||
     status === "capturing" ||
+    declined ||
     !lateRoomToneDue(snapshot, me) ||
     running ||
     !roomTone.captureReady ||

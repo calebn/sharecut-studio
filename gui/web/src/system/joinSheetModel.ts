@@ -7,7 +7,11 @@ import type { StatusRowState } from "./StatusRow";
 /** Where the microphone is, from the first look to a working input. */
 export type JoinMic =
   | { status: "idle" }
-  | { status: "prompting" }
+  | {
+      status: "prompting";
+      /** The browser has not answered for a while, so the row offers Retry. */
+      slow?: boolean;
+    }
   | { status: "denied" }
   | {
       status: "lost";
@@ -137,6 +141,7 @@ export const JOIN_TEXT = {
   inputLocked: "Can't change while a take is running.",
   switching: "Wait for your microphone first",
   lowStorage: "Low space on this device. Close other tabs.",
+  micStillWaiting: "Still waiting. Check your browser's permission prompt.",
 } as const;
 
 const REASON: Record<JoinStep, string> = {
@@ -243,13 +248,15 @@ function nameRow(name: string): JoinRow {
   };
 }
 
+export const MIC_ROW_TITLE = "Microphone";
+
 export function micRow(mic: JoinMic): JoinRow {
   switch (mic.status) {
     case "idle":
       return {
         key: "mic",
         state: "queued",
-        title: "Microphone",
+        title: MIC_ROW_TITLE,
         action: {
           label: "Allow microphone",
           name: "Allow microphone",
@@ -257,10 +264,19 @@ export function micRow(mic: JoinMic): JoinRow {
         },
       };
     case "prompting":
+      if (mic.slow) {
+        return {
+          key: "mic",
+          state: "needs-you",
+          title: MIC_ROW_TITLE,
+          detail: JOIN_TEXT.micStillWaiting,
+          action: { label: "Retry", name: "Retry microphone", kind: "retry" },
+        };
+      }
       return {
         key: "mic",
         state: "running",
-        title: "Microphone",
+        title: MIC_ROW_TITLE,
         detail: "Waiting for your browser…",
         action: {
           label: "Allow microphone",
@@ -292,7 +308,7 @@ export function micRow(mic: JoinMic): JoinRow {
       return {
         key: "mic",
         state: mic.switching ? "running" : "done",
-        title: "Microphone",
+        title: MIC_ROW_TITLE,
         detail: mic.input,
       };
   }
