@@ -125,15 +125,14 @@ function upgradeFocus(
     frame = window.requestAnimationFrame(() => {
       frame = 0;
       const target = preferred();
+      stop();
       if (
         modalOpen() ||
         doc.activeElement !== fallback ||
         !isValidFocusTarget(target)
       ) {
-        stop();
         return;
       }
-      stop();
       target.focus();
     });
   });
