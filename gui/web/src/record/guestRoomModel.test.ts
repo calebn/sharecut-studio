@@ -253,6 +253,16 @@ describe("guestRoomPhase", () => {
       expect(ownSaving(saw, null, finishing)).toEqual({ done: 2, total: 2 });
     });
 
+    it("reads a single-segment take as saved", () => {
+      const single = upload({
+        total: 1,
+        acked: 1,
+        fileAck: true,
+        seenSegments: 1,
+      });
+      expect(uploadAcknowledged(single, null, settled)).toBe(true);
+    });
+
     it("does not read a take that is not stopped as saved", () => {
       expect(
         uploadAcknowledged(saw, null, { ...settled, stopped: false }),
