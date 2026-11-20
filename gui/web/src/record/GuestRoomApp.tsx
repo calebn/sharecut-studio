@@ -28,9 +28,9 @@ import { clippingGate } from "./alertGates";
 import { deviceMic, deviceTone, useSheetMic } from "./deviceSheet";
 import { GuestCovers } from "./GuestCovers";
 import {
+  deviceScan,
   guestCoverProps,
   guestHostName,
-  deviceScan,
   guestRoomAlerts,
   guestRoomPhase,
   guestTakes,
