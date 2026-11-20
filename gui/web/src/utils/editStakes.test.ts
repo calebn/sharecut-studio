@@ -12,8 +12,7 @@ import {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  localStorage.removeItem("sharecut.editStakesSeen.alpha");
-  localStorage.removeItem("sharecut.editStakesSeen.beta");
+  localStorage.clear();
   resetEditStakesForTests();
 });
 
@@ -28,7 +27,19 @@ describe("the edit reminder's memory", () => {
     expect(editStakesSeen("alpha")).toBe(false);
     markEditStakesSeen("alpha");
     expect(editStakesSeen("alpha")).toBe(true);
-    expect(localStorage.getItem("sharecut.editStakesSeen.alpha")).toBe("1");
+    expect(localStorage.getItem("sharecut.editStakesSeen.11419wyk0bk")).toBe(
+      "1",
+    );
+  });
+
+  it("never writes the link token into storage", () => {
+    markEditStakesSeen("SECRETTOKEN");
+    expect(Object.keys(localStorage)).toEqual([
+      "sharecut.editStakesSeen.1p96ziuetts",
+    ]);
+    expect(
+      Object.keys(localStorage).filter((k) => k.includes("SECRETTOKEN")),
+    ).toEqual([]);
   });
 
   it("keeps each link independent", () => {

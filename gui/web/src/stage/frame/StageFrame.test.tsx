@@ -386,11 +386,13 @@ describe("StageFrame roles", () => {
     expect(useDawStore.getState().feedbackToast).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
     expect(screen.queryByRole("note")).toBeNull();
-    expect(localStorage.getItem("sharecut.editStakesSeen.alpha")).toBe("1");
+    expect(localStorage.getItem("sharecut.editStakesSeen.11419wyk0bk")).toBe(
+      "1",
+    );
     act(() => raiseEditStakes("alpha"));
     expect(screen.queryByRole("note")).toBeNull();
     localStorage.removeItem("sharecut.roleHintSeen.editor");
-    localStorage.removeItem("sharecut.editStakesSeen.alpha");
+    localStorage.removeItem("sharecut.editStakesSeen.11419wyk0bk");
     useDawStore.setState({ shareCapabilities: null });
   });
 

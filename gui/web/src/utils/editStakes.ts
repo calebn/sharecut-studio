@@ -9,20 +9,43 @@ import { readLocal, writeLocal } from "./storage";
 export const EDIT_STAKES_TEXT =
   "You changed the host's episode, and everyone sees it. Undo takes back only your own step.";
 
-const key = (token: string) => `sharecut.editStakesSeen.${token}`;
+/** cyrb53: a sync, deterministic digest, so the link token never reaches storage. */
+function digest(token: string): string {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < token.length; i++) {
+    const c = token.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 =
+    Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^
+    Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 =
+    Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^
+    Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+export const editStakesKey = (token: string) =>
+  `sharecut.editStakesSeen.${digest(token)}`;
 
 /** Blocked storage costs a reload, never a repeat in the same session. */
 const seenHere = new Set<string>();
 
 /** A page with no link token has nobody to remind. */
 export function editStakesSeen(token: string | null): boolean {
-  return token === null || seenHere.has(token) || readLocal(key(token)) === "1";
+  return (
+    token === null ||
+    seenHere.has(token) ||
+    readLocal(editStakesKey(token)) === "1"
+  );
 }
 
 export function markEditStakesSeen(token: string | null): void {
   if (token === null) return;
   seenHere.add(token);
-  writeLocal(key(token), "1");
+  writeLocal(editStakesKey(token), "1");
 }
 
 let up = false;
