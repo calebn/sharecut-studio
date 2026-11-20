@@ -118,11 +118,15 @@ A press on the hint itself, on its sentence or its padding, closes it and
 records it as seen. It moves no focus. It closes when the press ends, so
 nothing under the hint is pressed.
 
-The next key press anywhere closes the hint and still does its own job (`L`
-plays, a typed character lands). Escape closes it too, except while a toast is up and focus is not in a field: that Escape closes the toast and leaves the hint. Shift, Control, Alt
-and Meta alone do not, and neither does Tab, so Tab still reaches the Dismiss
-button. Enter or Space on Dismiss closes the hint and focuses the role button.
-On the role button they only dismiss it, and the next press opens the dialog.
+A key pressed while focus is outside the tip and the Role button closes the
+hint and still does its own job (`L` plays, a typed character lands). With
+focus on the role button or the Dismiss button, a letter or arrow key leaves it
+up. Shift, Control, Alt and Meta alone do not close it, and neither does Tab, so
+Tab still reaches the Dismiss button. Escape closes it from either place, except
+while a toast is up and focus is not in a field: that Escape closes the toast
+and leaves the hint. Enter or Space on Dismiss closes the hint and focuses the
+role button. On the role button they only dismiss it, and the next press opens
+the dialog.
 
 The sentence is said once, through the page's status region, when the hint
 appears. It is not said again on a re-render, on dismissal or when the dialog
@@ -141,6 +145,39 @@ reloaded.
 
 In a private window, or with browser storage blocked, nothing can remember the
 dismissal, so the hint returns on the next load.
+
+**The Editor's reminder.** After an edit an Editor link applies (never one that
+was held, refused or only queued, and not Undo or Redo) the same bubble carries
+"You changed the host's episode, and everyone sees it. Undo takes back only your
+own step." It waits behind the first-visit sentence and is spoken once, after the
+edit's own status line, through the page's status region. It is raised after
+each applied edit until it has been dismissed once for that link in that browser,
+so a tab closed with it up sees it again after the next edit. The browser
+remembers the dismissal under a digest of the link, never the link itself.
+
+**"Someone left."** When another person's presence leaves the page, the status
+region says "Someone left" to every role. It is skipped while a role or reminder
+bubble is up, and it is never queued.
+
+**The guest palette.** On a guest link the command palette lists only what the
+role can run: the host-only, Project and Record rows are gone for every guest;
+a Viewer or Commenter also has no Edit or Deliver rows, no lane, zoom, mute,
+solo or Script rows (the link has no timeline), and no Select a range, which
+would arm a range nothing visible follows. A Viewer has no Add comment or
+Comment on range either. An Editor keeps Select a range and the Edit rows. A row
+that depends on state stays, greyed with its reason: Play range, Cut, Mute and
+Comment on range say "Choose a range" until one is selected.
+
+**Q.** On a tablet or desktop Review page, an unshifted Q with no field focused
+and no dialog open focuses the comment field of a Commenter or Editor link and
+types the letter. Shift, Control, Command and Alt with Q do nothing; neither
+does Q for a Viewer, on a phone or on the Edit stage.
+
+**Escape and the toast.** While a toast is up and focus is not in a field,
+Escape closes the newest toast and nothing else the Escape would not already
+close (a selection and Follow end first). With focus on the toast's Dismiss
+button, Escape closes it. A dismissed Undo toast loses only its button; Undo in
+the header still takes the step back.
 
 **Comment field on a phone:** on the phone layout (767 px and narrower) a Viewer or Commenter link uses the Listen layout: a Viewer link has no Comment button, no selection bar and no text field, and on a Commenter link no text field is on screen until the guest taps **Comment** in the Listen dock, which pins the time, pauses an episode that is playing, and opens the composer above the dock; **Post** or **Close** plays on if Comment paused it and nothing touched playback since, and returns focus to the Comment button. The transcript selection bar's Comment on a Commenter link also pauses an episode that is playing and opens the composer, but pins the selected range, replacing the time of text kept by Close; only on this layout does opening the composer pause. An Editor link on a phone keeps the Player bar and the always-present comment field, docked at the foot of the Review panel (inline in the card when the layout is 30rem tall or less; the keyboard does not count); the bar's Comment button, visible without a menu (also on a short landscape phone), opens the composer and leaves playback running. A landscape phone wider than 767 px uses the tablet shell. On a tablet, a desktop and for the host the field stays at the top of the card.
 
