@@ -7,12 +7,13 @@ export default defineConfig({
   workers: process.env.CI ? 4 : undefined,
   timeout: 30_000,
   reporter: process.env.CI
-    ? [["github"], ["json", { outputFile: "playwright-report/stories.json" }]]
+    ? [["github"], ["list"], ["json", { outputFile: "playwright-report/stories.json" }]]
     : "list",
   use: {
     ...devices["Desktop Chrome"],
     baseURL: "http://127.0.0.1:6010",
     trace: "retain-on-failure",
+    screenshot: "only-on-failure",
   },
   webServer: {
     command:

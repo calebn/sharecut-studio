@@ -50,5 +50,22 @@ description: Use for Sharecut repository contributor work, issue implementation,
    owners copy workspace `.cursor/rules/pstack-models.mdc` to that path before
    spawning Task. Do not duplicate that copy in this companion.
 
+## Reading CI failures from a cloud session
+
+CI publishes full diagnostics (see
+[Browser result publication](../../../docs/testing-ci.md#browser-result-publication)).
+GraphQL is blocked in cloud sessions, so use the REST routes. Verified through the proxy.
+
+```sh
+R=calebn/sharecut-studio
+gh api "repos/$R/actions/runs?branch=<branch>&per_page=5" --jq '.workflow_runs[]|{id,name,conclusion}'
+gh api repos/$R/actions/runs/<run>/jobs --jq '.jobs[]|select(.conclusion=="failure")|{id,name}'
+gh api repos/$R/actions/jobs/<id>/logs > job.log          # failing test names and errors
+gh api repos/$R/actions/runs/<run>/artifacts --jq '.artifacts[]|{id,name}'
+gh api repos/$R/actions/artifacts/<artifact>/zip > a.zip  # playwright-reports-*, playwright-test-results-*
+```
+
+Unzip each artifact into its own new directory. Artifacts expire after seven days.
+
 The native workflow does not grant permission to merge. Follow the user's current
 grant and the repository gates before merge.

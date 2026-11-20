@@ -818,9 +818,17 @@ still run sequentially within one checkout.
 
 ### Browser result publication
 
-CI publishes bounded browser results while raw diagnostics stay on the runner.
-See [Browser result publication](testing-ci.md#browser-result-publication) for the
-retained fields, failure gates, and private-review limits.
+CI prints failing test names and errors to the job log and uploads
+`playwright-reports-<name>` (raw JSON, every run) and
+`playwright-test-results-<name>` (traces, screenshots, `error-context.md`, failures
+only). Download them all with `gh run download <run-id> --pattern 'playwright-*'`,
+or from a cloud session see
+[Fetching diagnostics from a cloud session](testing-ci.md#fetching-diagnostics-from-a-cloud-session).
+Sum durations per spec file across shard reports to find slow specs. Compare
+successful runs at the same test scope, and separate browser execution from
+dependency install and server/build setup. A local timing run can use
+`PLAYWRIGHT_JSON_OUTPUT_FILE=/tmp/main.json npm run test:e2e -- --reporter=json`,
+and `npm run test:e2e -- --shard=2/4` reproduces one CI shard.
 
 ## What to test where
 

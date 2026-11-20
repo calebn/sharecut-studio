@@ -495,8 +495,6 @@ jobs:
       matrix: ${{ fromJSON(needs.changes.outputs.e2e-matrix) }}
     env:
       PLAYWRIGHT_JSON_OUTPUT_FILE: playwright-report/${{ matrix.name }}.json
-      BROWSER_RAW_REPORT: playwright-report/${{ matrix.name }}.json
-      BROWSER_CAPTURE_RECEIPT: ${{ github.workspace }}/.browser-capture-${{ matrix.name }}.txt
       TEST_AREA: ${{ startsWith(matrix.name, 'main-') && 'main-e2e' || 'compat-e2e' }}
     steps:
       - name: Use runner temporary storage
@@ -506,10 +504,6 @@ jobs:
           printf 'TMPDIR=%s\n' "$tmpdir" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v7
-
-      - name: Initialize browser result publication
-        run: |
-          rm -f -- "$BROWSER_CAPTURE_RECEIPT" "gui/web/playwright-public/${{ matrix.name }}.json"
 
       - uses: actions/setup-python@v7
         with:
@@ -552,30 +546,30 @@ jobs:
 
       - name: Playwright ${{ matrix.name }}
         working-directory: gui/web
-        run: bash ../../scripts/private_browser_command.sh ${{ matrix.command }}
-
-      - name: Project public browser results
-        id: browser-public-projection
-        if: always()
-        run: >-
-          python3 scripts/browser_public_report.py
-          --report "gui/web/$PLAYWRIGHT_JSON_OUTPUT_FILE"
-          --output "gui/web/playwright-public/${{ matrix.name }}.json"
-          --capture-receipt "$BROWSER_CAPTURE_RECEIPT"
+        run: ${{ matrix.command }}
 
       - name: Summarize Playwright tests
-        if: ${{ always() && steps.browser-public-projection.outcome == 'success' }}
+        if: always()
         continue-on-error: true
         run: >-
           python3 scripts/test_area_summary.py playwright --area "$TEST_AREA"
-          --label "${{ matrix.name }}" --report "gui/web/playwright-public/${{ matrix.name }}.json"
+          --label "${{ matrix.name }}" --report "gui/web/$PLAYWRIGHT_JSON_OUTPUT_FILE"
 
-      - name: Upload public browser results
-        if: ${{ always() && steps.browser-public-projection.outcome == 'success' }}
+      - name: Upload Playwright JSON reports
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-public-${{ matrix.name }}
-          path: gui/web/playwright-public/${{ matrix.name }}.json
+          name: playwright-reports-${{ matrix.name }}
+          path: gui/web/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload Playwright traces, screenshots and error contexts
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-test-results-${{ matrix.name }}
+          path: gui/web/test-results/
           retention-days: 7
           if-no-files-found: ignore
 

@@ -27,7 +27,6 @@ class TestAreaSummary:
     summed_duration_ms: float
     duration_basis: str
     missing_duration_count: int
-    global_error_count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -147,20 +146,6 @@ def parse_playwright(path: Path, area: str, label: str | None) -> TestAreaSummar
     if not isinstance(report, dict) or not isinstance(report.get("suites"), list):
         raise UnrecognizedReport
 
-    if "global_error_count" in report:
-        global_errors = report["global_error_count"]
-        if (
-            isinstance(global_errors, bool)
-            or not isinstance(global_errors, int)
-            or not 0 <= global_errors <= 2**53
-        ):
-            raise UnrecognizedReport
-    else:
-        errors = report.get("errors", [])
-        if not isinstance(errors, list):
-            raise UnrecognizedReport
-        global_errors = len(errors)
-
     statuses: dict[str, int] = {}
     duration_ms = 0.0
     missing_durations = 0
@@ -213,7 +198,6 @@ def parse_playwright(path: Path, area: str, label: str | None) -> TestAreaSummar
         duration_ms,
         "Playwright attempt durations",
         missing_durations,
-        global_errors,
     )
 
 
@@ -232,12 +216,9 @@ def _display_area(summary: Summary) -> str:
 
 def render(summary: Summary) -> str:
     partial = ""
-    global_errors = ""
     if isinstance(summary, UnavailableSummary):
         row = f"| {_display_area(summary)} | N/A | N/A | unavailable: {summary.reason} |"
     else:
-        if summary.global_error_count is not None:
-            global_errors = f"Global browser errors: {summary.global_error_count}.\n\n"
         duration = f"{summary.summed_duration_ms / 1000:.1f} s"
         missing = ""
         if summary.missing_duration_count:
@@ -257,7 +238,6 @@ def render(summary: Summary) -> str:
         "| Area | Logical tests | Final statuses | Summed test duration |\n"
         "| --- | ---: | --- | --- |\n"
         f"{row}\n\n"
-        f"{global_errors}"
         f"{partial}"
         "Summed test and retry durations can overlap when tests run in parallel. "
         "They are not job wall time. Missing report data is shown as unavailable.\n"

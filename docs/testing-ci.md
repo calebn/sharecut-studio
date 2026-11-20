@@ -84,7 +84,7 @@ and `frontend-suite` (the planner's `quick` scope). On pull requests the
 | `pytest` | The required check. Needs `changes`, `pytest-quality` and `pytest-shard`, and fails unless the plan, quality and every planned shard succeeded (a `quick` plan, a push, accepts skipped shards). On full runs it combines the shard coverage and enforces the 95% floor. |
 | `pytest-python-floor` | Advisory (not a required repository merge check): Python 3.11, the `requires-python` floor, runs `tests/test_wav_util.py` and `tests/test_bleed_gate_channels.py`, which pin the EXTENSIBLE-WAV reads that 3.11's stdlib `wave` rejects (#1183). The `pytest-shard` jobs use 3.14; a local 3.11 venv reproduces the gap. |
 | `frontend-suite` → `frontend` | The workload runs in `gui/web`: `npm ci`, `npm audit --omit=dev --audit-level=high` (advisory, `continue-on-error`, failures noted in the job summary; see [§ Dependency updates and audit](testing.md#dependency-updates-and-audit)), `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; all `.stories.ts` and `.stories.tsx` modules are discovered, rendered with Storybook preview annotations, played, and axe-checked including body portals by `gui/web/src/test/allStories.test.tsx`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in `gui/web/src/test/storyGovernance.test.ts`; browser storage only through the helpers, in `gui/web/src/utils/storageGuard.test.ts`), `npm run build` (Vite module-ID guard rejects story/Storybook inputs in every app build) |
-| `frontend-e2e-suites` → `frontend-e2e` | On dispatch, which promotion uses (the planner's `e2e` output; skipped on push to `develop`), six matrix jobs build ShareCut Studio inside the Playwright container image (see [§ Browser installation](#browser-installation)) and run only their declared browser engine: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. The main Chromium suite also runs `e2e/record-timeline-layering.spec.ts`, which checks recording and paused bands above an existing chapter marker at 1280px desktop and 360px and 390px phone widths in light and dark themes. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest Following pill (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs one `main-smoke` job (the `SMOKE_SPECS` in `scripts/ci_plan.py`); a release-please pull request runs the four main shards and `compat-webkit-1of3` through `compat-webkit-3of3`. Each job uploads only its bounded ordinal/status/retry/timing/global-error JSON as `playwright-public-<name>` with seven-day retention. Raw reports, traces and screenshots stay on the runner and are not uploaded. The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home call `openHome` from `e2e/home.ts` (it loads `/?home=1` and, unless a spec is about the Setup card, dismisses that card first). |
+| `frontend-e2e-suites` → `frontend-e2e` | On dispatch, which promotion uses (the planner's `e2e` output; skipped on push to `develop`), six matrix jobs build ShareCut Studio inside the Playwright container image (see [§ Browser installation](#browser-installation)) and run only their declared browser engine: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. The main Chromium suite also runs `e2e/record-timeline-layering.spec.ts`, which checks recording and paused bands above an existing chapter marker at 1280px desktop and 360px and 390px phone widths in light and dark themes. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest Following pill (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs one `main-smoke` job (the `SMOKE_SPECS` in `scripts/ci_plan.py`); a release-please pull request runs the four main shards and `compat-webkit-1of3` through `compat-webkit-3of3`. Each job uploads its raw Playwright JSON as `playwright-reports-<name>` and, on failure, its traces, screenshots and error contexts as `playwright-test-results-<name>`, with seven-day retention (see [Browser result publication](#browser-result-publication)). The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home call `openHome` from `e2e/home.ts` (it loads `/?home=1` and, unless a spec is about the Setup card, dismisses that card first). |
 
 The [release refresh and final validation policy](#release-refreshes-and-final-validation) describes the advisory selector jobs and the mandatory full release receipt.
 
@@ -696,75 +696,43 @@ Chromium engine.
 
 ### Browser result publication
 
-Browser diagnostics can contain invitation addresses, project paths and other
-private values.
+CI publishes full browser diagnostics. The repository is public, the browser jobs
+hold no secrets and a read-only `GITHUB_TOKEN`, the E2E runtime environment strips
+the relay and object-store variables, and every fixture, invitation and token is
+synthetic and minted per run. There is no private data to withhold, and a failure
+that cannot be read is a failure that cannot be fixed.
 
-CI captures each complete browser command's console and GitHub file-command output
-in a private runner directory. The ordinary command, test selection, retries and
-fixture teardown remain unchanged, and its exit status still gates the job.
-Raw reports, traces, `error-context.md`, screenshots and videos stay on that runner;
-they are not uploaded or printed into annotations or job summaries.
+Each browser command runs directly. Playwright's `github`, `list` and `json`
+reporters print failing test names, error messages and annotations to the job log.
+Every matrix job uploads, with seven-day retention:
 
-`scripts/browser_public_report.py` projects the raw Playwright JSON into
-`gui/web/playwright-public/<name>.json`. CI uploads only that exact file as
-`playwright-public-<name>` with seven-day retention. The projection retains one
-ordinal per logical test, enumerated final/expected/attempt statuses, retry
-numbers, durations and a count of global errors. It drops titles, paths,
-project names, errors, logs, attachments, configuration and metadata. Ordinals
-identify only their position within that report, not stable case identities
-across heads, shards or runs. Bind execution to the workflow's head/run metadata;
-do not infer a named case's result from an ordinal without separate authorized
-source/collection evidence.
+- `playwright-reports-<name>`: the raw `playwright-report/` JSON, always. The
+  `Summarize Playwright tests` step reads the same JSON.
+- `playwright-test-results-<name>`: all of `gui/web/test-results/` (traces,
+  failure screenshots, `error-context.md`), on failure or cancellation. This also
+  keeps the artifacts of a failed attempt when a retry passes.
 
-Uploads and summaries require the projection step to succeed. The existing
-test-area summary reads only the projection. It still counts
-logical tests and sums all retry durations, which can overlap and are not job
-wall time. Browser summaries also display `Global browser errors: N`, including
-zero, without rendering error messages. The total is separate from logical-test
-statuses and never changes the browser command's exit result. Invalid totals
-are reported as unavailable rather than echoed. Missing or malformed raw reports fail projection and leave no public
-file; neither stale results nor raw parse errors are published. A projection
-failure cannot turn an unsuccessful browser command into a successful check.
-Storybook browser commands use the same private console boundary and projected
-summary. Its static Pages build/deployment policy is unchanged.
+Storybook uses the same shape, as `playwright-reports-stories` and
+`playwright-test-results-stories`. Its static Pages artifact and deployment
+conditions are unchanged.
 
-This boundary prevents publication rather than preventing Playwright from
-creating diagnostics. Do not upload the private directory or broaden the
-artifact path. Raw diagnostics require a separately authorized private review
-route. Unit checks use fabricated marker strings and child commands only; they
-do not open an authenticated page or reproduce a disclosure.
+#### Fetching diagnostics from a cloud session
 
-This is not evidence that any existing artifact exposed data. Do not broaden
-publication without a reviewed privacy design.
+A cloud session has no GraphQL, so use the REST routes through `gh api`. These
+return the failing jobs, their logs and the artifacts. Replace `<run>`, `<id>`
+and `<artifact>` from the previous call's output.
 
-#### Synthetic publication validation
+```sh
+gh api repos/calebn/sharecut-studio/actions/runs/<run>/jobs --jq '.jobs[] | select(.conclusion=="failure") | {id,name}'
+gh api repos/calebn/sharecut-studio/actions/jobs/<id>/logs > job.log   # follows the redirect
+gh api repos/calebn/sharecut-studio/actions/runs/<run>/artifacts --jq '.artifacts[] | {id,name}'
+gh api repos/calebn/sharecut-studio/actions/artifacts/<artifact>/zip > a.zip && unzip -q a.zip -d a
+```
 
-The temporary `browser-diagnostics-synthetic` workflow validates this boundary
-only on a `synchronize` event for draft PR #4006 from its same-repository
-`chore/browser-diagnostics-privacy-20261119` branch. It checks out the exact
-event head, separately from GitHub's synthetic merge SHA. All normal draft
-guards remain in place. It has only `contents: read`, with no browser, guest,
-server, media, package installation or live invitation data.
-
-Four fabricated cases exercise success, failure with retry data, malformed
-JSON and stale JSON. The helper pins the reviewed capture, projector and summary
-bytes; changing a boundary requires updating and reviewing that explicit digest.
-The failure/retry fixture includes two fabricated global errors, whose total
-must appear in the exact bounded summary without copying their messages. Expected synthetic
-failures use `continue-on-error` only so a final assertion can check the
-original step `outcome`; it rejects unexpected outcomes. A green synthetic
-job therefore does not reclassify the failed child as a passed browser test.
-The exact projection is validated before summary/upload, and summary content
-is checked before publication. Invalid inputs must remove old public output
-and skip both consumers. Only the two valid, bounded JSON files are eligible
-for one-day artifact retention. Raw canaries remain private runner files.
-
-Local tests execute the commands but do not emulate GitHub's step engine or
-artifact service. Hosted qualification still requires the four actual job
-outcomes, expected skipped consumers, bounded uploaded file manifests and
-synthetic-only log/annotation/summary inspection. This job does not exercise
-application teardown or real cancellation and does not qualify guest runs,
-backlog features or a merge. It has no dispatch or ready-for-review trigger.
+Find `<run>` for a branch with
+`gh api 'repos/calebn/sharecut-studio/actions/runs?branch=<branch>&per_page=5'`.
+Search `job.log` for the failing test name. Open the JSON report for the full
+error and `trace.zip` with `npx playwright show-trace`.
 
 The path-filtered `.github/workflows/deploy-config.yml` validates `deploy/` with real `caddy` and `docker compose` (see [§ Deploy config validation](testing.md#deploy-config-validation)).
 
