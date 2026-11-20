@@ -1,10 +1,13 @@
-import { expect, type Page, type Route, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import { fontsReady } from "./fontsReady";
 import {
+  deviceOnLine,
   expectCoverInWindow,
   failBootstrap,
+  holdFirstRequest,
   lastLineWordCount,
+  loseConnectionOnLoad,
   press,
   SHORT_WINDOW,
   SIZES,
@@ -51,45 +54,6 @@ async function swallowOnlineEvent(page: Page) {
       true,
     );
   });
-}
-
-type Answer = "offline" | "refused" | "through";
-
-/** Holds the episode request the page makes on load, so the device can lose its connection while it is out. */
-async function holdFirstRequest(page: Page, token: string) {
-  let answer: Answer = "offline";
-  let asked = 0;
-  let release: (route: Route) => void = () => {};
-  const first = new Promise<Route>((resolve) => {
-    release = resolve;
-  });
-  await page.route(`**/api/review/${token}/project`, async (route) => {
-    asked += 1;
-    if (asked === 1) return release(route);
-    if (answer === "through") return route.continue();
-    return route.abort(
-      answer === "offline" ? "internetdisconnected" : "connectionrefused",
-    );
-  });
-  return {
-    first,
-    asked: () => asked,
-    answerWith: (next: Answer) => {
-      answer = next;
-    },
-  };
-}
-
-const deviceOnLine = (page: Page) => page.evaluate(() => navigator.onLine);
-
-async function loseConnectionOnLoad(page: Page, token: string) {
-  const held = await holdFirstRequest(page, token);
-  await page.goto(`/r/${token}`);
-  const route = await held.first;
-  await page.context().setOffline(true);
-  await expect.poll(() => deviceOnLine(page)).toBe(false);
-  await route.abort("internetdisconnected");
-  return held;
 }
 
 /**

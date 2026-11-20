@@ -312,6 +312,174 @@ describe("Record stage", () => {
     );
   });
 
+  it.each([
+    [1, "Someone with the producer link is looking in"],
+    [3, "3 people with the producer link are looking in"],
+  ])(
+    "shows %i looking in on the host page, and nothing for none",
+    async (watchers, text) => {
+      setRoom({ participants: [hostPerson(), avaGuest()] });
+      mount();
+      await waitFor(() => expect(record()).toBeEnabled());
+      expect(document.querySelector(".sys-room-looking-in")).toBeNull();
+      act(() =>
+        setRoom({
+          participants: [hostPerson(), avaGuest()],
+          watchers,
+          server_time_ns: 5,
+        }),
+      );
+      await waitFor(() =>
+        expect(
+          document.querySelector(".sys-room-looking-in"),
+        ).toHaveTextContent(text),
+      );
+      act(() =>
+        setRoom({
+          participants: [hostPerson(), avaGuest()],
+          watchers: 0,
+          server_time_ns: 6,
+        }),
+      );
+      await waitFor(() =>
+        expect(document.querySelector(".sys-room-looking-in")).toBeNull(),
+      );
+    },
+  );
+
+  it.each([-1, 2.5, 100, "2"])(
+    "shows no looking-in line for a count that is not a count: %s",
+    async (bad) => {
+      setRoom({ participants: [hostPerson(), avaGuest()] });
+      mount();
+      await waitFor(() => expect(record()).toBeEnabled());
+      act(() =>
+        setRoom({
+          participants: [hostPerson(), avaGuest()],
+          watchers: bad as unknown as number,
+          server_time_ns: 5,
+        }),
+      );
+      expect(document.querySelector(".sys-room-looking-in")).toBeNull();
+    },
+  );
+
+  it("announces the first looking-in arrival to the host once, politely, in the lobby only", async () => {
+    setRoom({ participants: [hostPerson(), avaGuest()], watchers: 0 });
+    mount();
+    await waitFor(() => expect(record()).toBeEnabled());
+    const line = "Someone with the producer link is looking in";
+    const polite = () =>
+      [...document.querySelectorAll("[aria-live='polite'] .sr-only")].map(
+        (el) => el.textContent,
+      );
+    expect(polite()).not.toContain(line);
+    act(() =>
+      setRoom({
+        participants: [hostPerson(), avaGuest()],
+        state: "recording",
+        take_index: 0,
+        watchers: 1,
+        server_time_ns: 5,
+      }),
+    );
+    expect(polite()).not.toContain(line);
+    act(() =>
+      setRoom({
+        participants: [hostPerson(), avaGuest()],
+        state: "lobby",
+        take_index: 0,
+        watchers: 0,
+        server_time_ns: 6,
+      }),
+    );
+    act(() =>
+      setRoom({
+        participants: [hostPerson(), avaGuest()],
+        state: "lobby",
+        take_index: 0,
+        watchers: 1,
+        server_time_ns: 7,
+      }),
+    );
+    expect(polite()).toContain(line);
+  });
+
+  it("announces the first arrival in each room to the host and drops the note when nobody is looking in", async () => {
+    setRoom({ participants: [hostPerson(), avaGuest()], watchers: 0 });
+    mount();
+    await waitFor(() => expect(record()).toBeEnabled());
+    const line = "Someone with the producer link is looking in";
+    const polite = () =>
+      [...document.querySelectorAll("[aria-live='polite'] .sr-only")].map(
+        (el) => el.textContent,
+      );
+    const room = (session_id: string, watchers: number, ns: number) =>
+      act(() =>
+        setRoom({
+          participants: [hostPerson(), avaGuest()],
+          session_id,
+          watchers,
+          server_time_ns: ns,
+        }),
+      );
+    room("room1", 1, 5);
+    expect(polite()).toContain(line);
+    room("room1", 0, 6);
+    expect(polite()).not.toContain(line);
+    room("room2", 0, 7);
+    expect(polite()).not.toContain(line);
+    room("room2", 1, 8);
+    expect(polite()).toContain(line);
+  });
+
+  it("changes the polite region again for a second room that opens at one, straight after a first", async () => {
+    setRoom({ participants: [hostPerson(), avaGuest()], watchers: 0 });
+    mount();
+    await waitFor(() => expect(record()).toBeEnabled());
+    const region = document.querySelector(
+      ".stage-host-record-notices",
+    ) as Element;
+    const room = (session_id: string, watchers: number, ns: number) =>
+      act(() =>
+        setRoom({
+          participants: [hostPerson(), avaGuest()],
+          session_id,
+          watchers,
+          server_time_ns: ns,
+        }),
+      );
+    room("room1", 0, 4);
+    room("room1", 1, 5);
+    const added: string[] = [];
+    const watch = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node.textContent?.includes("looking in")) {
+            added.push(node.textContent);
+          }
+        }
+      }
+    });
+    watch.observe(region, { childList: true, subtree: true });
+    room("room2", 1, 6);
+    await Promise.resolve();
+    watch.disconnect();
+    expect(added).toEqual(["Someone with the producer link is looking in"]);
+    added.length = 0;
+    const again = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes)
+          added.push(node.textContent ?? "");
+      }
+    });
+    again.observe(region, { childList: true, subtree: true });
+    room("room2", 3, 7);
+    await Promise.resolve();
+    again.disconnect();
+    expect(added).toEqual([]);
+  });
+
   it("does not make a host alone in the room wait for a guest", async () => {
     setRoom({ participants: [hostPerson()] });
     const { baseElement } = mount();

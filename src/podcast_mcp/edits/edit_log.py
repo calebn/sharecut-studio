@@ -38,6 +38,10 @@ LOCAL_RESTORE_MESSAGE = (
     "History Undo also undoes the other edits in that action. "
     "You may need to undo later actions first."
 )
+GUEST_LOCAL_RESTORE_MESSAGE = (
+    "This cut can't be put back on its own. "
+    "Undo takes back your own latest change; for anything else, ask the host."
+)
 
 
 def _new_log_id() -> str:

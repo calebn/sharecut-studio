@@ -11,6 +11,8 @@ import {
   LINK_DOUBT_MESSAGE,
   PROJECT_NOT_FOUND_CODE,
   PROJECT_UNREADABLE_CODE,
+  PROJECT_VERSION_NEWER_CODE,
+  PROJECT_VERSION_UNSUPPORTED_CODE,
 } from "./utils/apiError";
 import { NOT_SERVED_TITLE } from "./utils/notServed";
 
@@ -22,6 +24,8 @@ export type HostLoadKind =
   | "busy"
   | "elsewhere"
   | "not-answering"
+  | "newer"
+  | "unsupported"
   | "other";
 
 /**
@@ -56,8 +60,8 @@ export type ShellCover = {
 /** The server's own codes for an episode that cannot be opened, on a route a guest reads. */
 const UNOPENABLE_CODES = new Set([
   PROJECT_UNREADABLE_CODE,
-  "project_version_newer",
-  "project_version_unsupported",
+  PROJECT_VERSION_NEWER_CODE,
+  PROJECT_VERSION_UNSUPPORTED_CODE,
 ]);
 
 const PROJECT_BUSY_CODE = "project_busy";
@@ -96,6 +100,10 @@ function classifyHost(error: unknown): HostLoadKind {
         return "damaged";
       case PROJECT_NOT_FOUND_CODE:
         return "missing";
+      case PROJECT_VERSION_NEWER_CODE:
+        return "newer";
+      case PROJECT_VERSION_UNSUPPORTED_CODE:
+        return "unsupported";
       case PROJECT_BUSY_CODE:
         return "busy";
       case PROJECT_PATH_NOT_ALLOWED_CODE:
@@ -173,9 +181,26 @@ const HOST_WORDS: Record<HostLoadKind, HostWords> = {
     stillFailing: "Still not answering.",
     changed: "ShareCut isn't answering.",
   },
+  newer: {
+    sentence: (episode) =>
+      `A newer version of ShareCut saved ${episode}. Update ShareCut, then open it again.`,
+    retry: null,
+    home: true,
+    lead: "home",
+    changed: "A newer version of ShareCut saved the episode.",
+  },
+  unsupported: {
+    sentence: (episode) =>
+      `ShareCut can't open ${episode} because its file is in a format this version doesn't read. Open it with the version of ShareCut that saved it, or restore the file from a backup.`,
+    retry: TRY_AGAIN,
+    home: true,
+    lead: "home",
+    stillFailing: "Still can't open it.",
+    changed: "This version can't read the file.",
+  },
   other: {
     sentence: (episode) =>
-      `ShareCut couldn't open ${episode}. If a newer version of ShareCut saved it, update ShareCut first.`,
+      `ShareCut couldn't open ${episode}. Try again. If it keeps happening, open Help and choose Report a problem.`,
     retry: TRY_AGAIN,
     home: true,
     lead: "retry",

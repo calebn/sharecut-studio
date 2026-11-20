@@ -739,6 +739,36 @@ describe("InspectorSheet takeover", () => {
     expect(dialog.querySelector(".command-palette-footer")).toBeNull();
   });
 
+  it("describes why a disabled Undo or Redo is off", () => {
+    render(
+      <InspectorSheet
+        form="takeover"
+        icon="sliders-horizontal"
+        name="Maya"
+        label="Inspector"
+        onRename={vi.fn()}
+        sections={sections}
+        history={{
+          canUndo: false,
+          canRedo: false,
+          undoReason: "There is nothing of yours to undo.",
+          redoReason: "There is nothing of yours to redo.",
+          onUndo: vi.fn(),
+          onRedo: vi.fn(),
+        }}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /^Undo/ })).toHaveAttribute(
+      "title",
+      "There is nothing of yours to undo.",
+    );
+    expect(screen.getByRole("button", { name: /^Redo/ })).toHaveAttribute(
+      "title",
+      "There is nothing of yours to redo.",
+    );
+  });
+
   it("leaves Undo and Redo out where history is not the person's to run", () => {
     render(
       <InspectorSheet

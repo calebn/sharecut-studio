@@ -1,4 +1,4 @@
-import type { PersonData } from "../../../system/Person";
+import type { PersonData } from "../../../system/personData";
 import type {
   CombinedUtterance,
   EditBoundaryView,

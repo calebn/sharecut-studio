@@ -1,24 +1,28 @@
 import { type RefObject, useEffectEvent, useLayoutEffect, useRef } from "react";
 
-/** What to observe: an element, a ref to one, or a getter read after each commit. */
+/** What to observe: an element, a ref to one, or a getter (of one element or a list) read after each commit. */
 export type ResizeObserverTarget =
   | Element
   | RefObject<Element | null>
-  | (() => Element | null | undefined)
+  | (() => Element | readonly Element[] | null | undefined)
   | null
   | undefined;
 
-function resolveTarget(target: ResizeObserverTarget): Element | null {
+function resolveTarget(target: ResizeObserverTarget): Element[] {
   if (target == null) {
-    return null;
+    return [];
   }
   if (typeof target === "function") {
-    return target() ?? null;
+    const got = target();
+    if (got == null) {
+      return [];
+    }
+    return got instanceof Element ? [got] : [...got];
   }
   if (target instanceof Element) {
-    return target;
+    return [target];
   }
-  return target.current;
+  return target.current ? [target.current] : [];
 }
 
 function resolveTargets(
@@ -27,9 +31,10 @@ function resolveTargets(
   const list = Array.isArray(targets) ? targets : [targets];
   const out: Element[] = [];
   for (const t of list as readonly ResizeObserverTarget[]) {
-    const el = resolveTarget(t);
-    if (el && !out.includes(el)) {
-      out.push(el);
+    for (const el of resolveTarget(t)) {
+      if (!out.includes(el)) {
+        out.push(el);
+      }
     }
   }
   return out;

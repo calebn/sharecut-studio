@@ -19,6 +19,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
+
 import podcast_mcp
 from podcast_mcp import settings
 from podcast_mcp.config.defaults import cache_dir, whisper_cache_dir
@@ -111,6 +113,20 @@ How to report
 2. Otherwise attach this zip to a support request (Help → Open support).
 3. Do not attach episode audio or project JSON.
 """
+
+
+NOT_OPENED_STATEMENT = (
+    "The episode could not be opened, so this report has no project counts. "
+    "Job messages and log tails are sanitized, as in every report."
+)
+
+
+@dataclass(frozen=True)
+class UnopenedEpisode:
+    """An episode the host asked about that could not be opened: why, and where its folder is."""
+
+    code: str
+    workspace: Path
 
 
 @dataclass(frozen=True)
@@ -259,6 +275,37 @@ def _disk_free_bytes(path: Path) -> int | None:
         return None
 
 
+_NAMES_CACHE: tuple[int, frozenset[str]] | None = None
+
+
+def _model_field_names() -> frozenset[str]:
+    """The field names and aliases of every pydantic model this package defines.
+
+    ``sanitize`` keeps these in a validation error's location and masks the rest, which are
+    keys of the document. Read from the models loaded now (a model nobody imported cannot be in
+    a log), and kept until another model is defined.
+    """
+    global _NAMES_CACHE
+    models: list[type[BaseModel]] = []
+    pending = [BaseModel]
+    while pending:
+        for sub in pending.pop().__subclasses__():
+            pending.append(sub)
+            if sub.__module__.split(".")[0] == "podcast_mcp":
+                models.append(sub)
+    if _NAMES_CACHE is not None and _NAMES_CACHE[0] == len(models):
+        return _NAMES_CACHE[1]
+    names: set[str] = set()
+    for model in models:
+        for name, field in model.model_fields.items():
+            names.add(name)
+            for alias in (field.alias, field.validation_alias, field.serialization_alias):
+                if isinstance(alias, str):
+                    names.add(alias)
+    _NAMES_CACHE = (len(models), frozenset(names))
+    return _NAMES_CACHE[1]
+
+
 def _redact_kwargs(*, home: Path, workspace: Path | None) -> dict[str, Any]:
     extra: list[tuple[Path, str]] = []
     for path, token in (
@@ -273,7 +320,12 @@ def _redact_kwargs(*, home: Path, workspace: Path | None) -> dict[str, Any]:
     raw = settings.text("PODCAST_MCP_CACHE")
     if raw:
         extra.append((Path(raw).expanduser(), "<cache>"))
-    return {"home": home, "workspace": workspace, "extra": extra}
+    return {
+        "home": home,
+        "workspace": workspace,
+        "extra": extra,
+        "field_names": _model_field_names(),
+    }
 
 
 def _gui_dist_present() -> bool:
@@ -426,11 +478,15 @@ def _build_report_json(
     home: Path,
     workspace: Path | None,
     job_snapshots: list[dict[str, Any]] | None,
+    unopened: UnopenedEpisode | None = None,
 ) -> dict[str, Any]:
     doctor = run_doctor_checks(project)
     model = resolve_whisper_model()
     disk_target = workspace if workspace is not None else Path.home()
-    return {
+    disk_free = _disk_free_bytes(disk_target)
+    if disk_free is None and unopened is not None:
+        disk_free = _disk_free_bytes(Path.home())
+    report = {
         "app_version": podcast_mcp.__version__,
         "python": python_runtime_info(),
         "os": {
@@ -448,7 +504,7 @@ def _build_report_json(
         "gui_dist_present": _gui_dist_present(),
         "doctor": doctor.to_json(),
         "bootstrap": component_status(),
-        "disk_free_bytes": _disk_free_bytes(disk_target),
+        "disk_free_bytes": disk_free,
         "project": _project_counts(project),
         "jobs": _sanitize_job_snapshots(
             job_snapshots,
@@ -458,6 +514,9 @@ def _build_report_json(
         "env": collect_env_flags(),
         "created_at": datetime.now(UTC).isoformat(),
     }
+    if unopened is not None:
+        report["episode_not_opened"] = {"code": unopened.code, "statement": NOT_OPENED_STATEMENT}
+    return report
 
 
 class DiagnosticsService:
@@ -470,11 +529,14 @@ class DiagnosticsService:
         out_dir: Path,
         include_logs: bool = True,
         job_snapshots: list[dict[str, Any]] | None = None,
+        unopened: UnopenedEpisode | None = None,
     ) -> BundleReport:
         home = Path.home()
         workspace: Path | None = None
         if project is not None and project.workspace_dir:
             workspace = Path(project.workspace_dir)
+        elif unopened is not None:
+            workspace = unopened.workspace
         out_dir = out_dir.expanduser()
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -490,6 +552,7 @@ class DiagnosticsService:
                 home=home,
                 workspace=workspace,
                 job_snapshots=job_snapshots,
+                unopened=unopened,
             )
             report_text = sanitize(
                 json.dumps(payload, indent=2, default=str),
@@ -499,7 +562,10 @@ class DiagnosticsService:
 
             task.set_phase("redacting", "Redacting logs…")
             logs = _collect_logs(include_logs=include_logs, home=home, workspace=workspace)
-            README = sanitize(_README, **_redact_kwargs(home=home, workspace=workspace))
+            README = sanitize(
+                _README + (f"\n{NOT_OPENED_STATEMENT}\n" if unopened is not None else ""),
+                **_redact_kwargs(home=home, workspace=workspace),
+            )
             tokens = sorted(get_share_registry().known_tokens())
             report_text = _mask_share_tokens(report_text, tokens)
             logs = {name: _mask_share_tokens(body, tokens) for name, body in logs.items()}

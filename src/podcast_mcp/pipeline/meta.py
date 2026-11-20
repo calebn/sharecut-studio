@@ -340,7 +340,10 @@ _STEP_DEFS: dict[str, StepMeta] = {
         id="export_deliverables",
         group="mix",
         title="Export deliverables",
-        summary="WAV/MP3 (and configured formats), SRT, markdown, chapters.",
+        summary=(
+            "WAV (unless export.wav is false), plus export.formats when set, "
+            "which replaces the MP3 default (e.g. M4A, FLAC), then SRT, markdown, chapters."
+        ),
         depends_on=("master_loudness",),
         requires_components=("ffmpeg",),
         param_sections=("export", "performance"),

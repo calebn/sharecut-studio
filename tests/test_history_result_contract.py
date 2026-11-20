@@ -594,3 +594,19 @@ def test_document_plane_wire_json_escapes_non_ascii(unicode_project, rerender):
     )
     assert "\\u2014" in text
     assert "\u2014" not in text
+
+
+def test_guest_step_is_on_the_wire_only_when_true():
+    status = {
+        "cursor": 0,
+        "total": 1,
+        "can_undo": False,
+        "can_redo": True,
+        "current_label": None,
+        "head_id": "root",
+    }
+    assert "guest_step" not in HistoryMoveResult.model_validate(status).model_dump()
+    assert HistoryMoveResult.model_validate({**status, "guest_step": True}).model_dump() == {
+        **status,
+        "guest_step": True,
+    }

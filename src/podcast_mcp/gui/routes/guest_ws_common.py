@@ -43,8 +43,10 @@ class GuestWsGuard:
         malformed_limit: int = GUEST_MALFORMED_LIMIT,
         send_gate: Callable[[], bool] | None = None,
         revoked_reason: str = "share revoked or expired",
+        invalid_frame: Callable[[], dict[str, Any] | None] | None = None,
     ) -> None:
         self.websocket = websocket
+        self._invalid_frame = invalid_frame
         self._still_valid = still_valid
         self._send_gate = send_gate
         self._revoked_reason = revoked_reason
@@ -73,6 +75,17 @@ class GuestWsGuard:
     async def close(self, code: int, reason: str) -> None:
         await self._writer.close(code, reason)
 
+    async def close_invalid(self, reason: str) -> None:
+        """Close 4403 after a failed check; a socket that gets a frame for its cause gets it first."""
+        try:
+            if self._invalid_frame is not None:
+                frame = await run_in_threadpool(self._invalid_frame)
+                if frame is not None:
+                    await self.send_json(frame)
+        except Exception:
+            log.exception("closing frame failed")
+        await self.close(4403, reason)
+
     async def wait_closed(self) -> None:
         await self._writer.wait_closed()
 
@@ -80,7 +93,7 @@ class GuestWsGuard:
         while True:
             await asyncio.sleep(self.interval)
             if not await self._validate(force=True):
-                await self.close(4403, self._revoked_reason)
+                await self.close_invalid(self._revoked_reason)
                 return
 
     async def _validate(self, *, force: bool = False) -> bool:
@@ -194,6 +207,7 @@ class GuestWsConnection:
         still_valid: Callable[[], bool],
         *,
         send_gate: Callable[[], bool] | None = None,
+        invalid_frame: Callable[[], dict[str, Any] | None] | None = None,
     ) -> GuestWsGuard:
         """Accept, build the ``GuestWsGuard`` and start its periodic recheck."""
         await self.websocket.accept()
@@ -203,6 +217,7 @@ class GuestWsConnection:
             interval=GUEST_SHARE_RECHECK_S,
             on_frame=GUEST_SHARE_RECHECK_ON_FRAME_S,
             send_gate=send_gate,
+            invalid_frame=invalid_frame,
         )
         self.spawn(guard.recheck_loop())
         return guard

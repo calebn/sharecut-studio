@@ -359,3 +359,12 @@ def test_an_empty_query_raises_no_transcript_match(episode):
     with pytest.raises(ValueError) as caught:
         mcp_timeline.ripple_delete_text_tool(str(episode), "")
     assert caught.value.code == "no_transcript_match"
+
+
+def test_a_held_cut_names_whose_cut_it_was_and_where_for_a_guest(episode):
+    with pytest.raises(ScopeChangedAtApproval) as raised:
+        mcp_timeline.ripple_delete_text_tool(str(episode), "plan")
+    assert raised.value.guest_message() == (
+        "Guest's cut at 0:10.1 was not applied because the edit would start or end inside a "
+        "word or a breath, and that could be heard. Nothing was changed."
+    )

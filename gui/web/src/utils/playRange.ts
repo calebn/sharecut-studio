@@ -12,33 +12,19 @@ export function paddedAuditionWindow(
   return { start: s, end: e };
 }
 
-export type BeginAudition = (opts: {
-  playheadSec: number;
-  untilSec: number;
-}) => void;
+type BeginAudition = (opts: { playheadSec: number; untilSec: number }) => void;
 
 /** Play a timeline range with optional padding (seconds). */
 export function playTimelineRange(opts: {
   start: number;
   end: number;
   padSec?: number;
-  beginAudition?: BeginAudition;
-  setPlayheadSec: (sec: number) => void;
-  setPlayUntilSec: (sec: number | null) => void;
-  setIsPlaying: (playing: boolean) => void;
+  beginAudition: BeginAudition;
 }): void {
   const { start, end } = paddedAuditionWindow(
     opts.start,
     opts.end,
     opts.padSec,
   );
-  if (opts.beginAudition) {
-    opts.beginAudition({ playheadSec: start, untilSec: end });
-    return;
-  }
-  opts.setPlayheadSec(start);
-  // setIsPlaying(true) clears playUntilSec (local transport ownership) — set
-  // the auto-stop bound after starting playback.
-  opts.setIsPlaying(true);
-  opts.setPlayUntilSec(end);
+  opts.beginAudition({ playheadSec: start, untilSec: end });
 }

@@ -76,6 +76,7 @@ from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.binaries import (
     FFmpegPair,
     FFmpegPairResolutionError,
+    in_process_problem,
     resolve_ffmpeg,
     resolve_ffmpeg_pair,
 )
@@ -84,6 +85,8 @@ from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import (
     DEVNULL,
+    IN_PROCESS_FFMPEG,
+    IN_PROCESS_FFPROBE,
     PIPE,
     CalledProcessError,
     TimeoutExpired,
@@ -579,6 +582,10 @@ def _read_audio_extent(ffprobe: str, path: str, *, untrusted: bool) -> tuple[flo
         proc.wait()
 
 
+def _is_in_process_tool(command: str) -> bool:
+    return command in (IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE)
+
+
 @functools.lru_cache(maxsize=1024)
 def _cached_audio_extent(
     ffprobe: str, binary_revision: FileRevision, path: str, revision: FileRevision, untrusted: bool
@@ -841,6 +848,9 @@ class FFmpegEngine:
             pair = resolve_ffmpeg_pair(self.ffmpeg, self.ffprobe, force_refresh=True)
         except FFmpegPairResolutionError as exc:
             return False, str(exc)
+        if pair.is_in_process:
+            problem = in_process_problem()
+            return (True, "in-process FFmpeg") if problem is None else (False, problem)
         return True, "FFmpeg/FFprobe " + ".".join(map(str, pair.version))
 
     def audio_start_sec(self, path: Path) -> float:
@@ -947,6 +957,9 @@ class FFmpegEngine:
         """a:0's first packet pts and the end of its last packet, or None when the scan fails."""
         try:
             resolved = path.resolve()
+            if _is_in_process_tool(self.ffprobe):
+                # No file identifies the installed backend, so its answer is never cached.
+                return _read_audio_extent(self.ffprobe, str(resolved), untrusted=untrusted)
             binary = Path(self.ffprobe).resolve()
             return _cached_audio_extent(
                 str(binary),
@@ -2766,9 +2779,7 @@ class FFmpegEngine:
 
     def _has_filter(self, name: str) -> bool:
         names = self._listed_names("-filters")
-        if names is None:
-            names = self._listed_names_cache["-filters"] = set()
-        return name in names
+        return names is not None and name in names
 
     def annotate_time_marks(
         self,

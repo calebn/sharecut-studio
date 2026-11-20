@@ -13,19 +13,132 @@ import pytest
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.engines import audio_audit
-from podcast_mcp.engines.audibility_reuse import audibility_run_scope
+from podcast_mcp.engines.audibility_reuse import audibility_run_scope, shared_rows
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     build_reconciliation_caches,
     compute_word_audibility_map,
 )
+from podcast_mcp.engines.lane_words import lane_transcripts
 from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
-from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
+from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole, Transcript, TranscriptWord
 from podcast_mcp.models.episode import SourceRecording
 from test_transcript_reconcile import _echo_stem_project, _voice, _write_stem
 
 DEFAULTS = load_defaults()
 POLICY = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
+
+
+@pytest.fixture
+def placed_word_project(tmp_path: Path) -> EpisodeProject:
+    project = EpisodeProject.create("cache-contract", tmp_path)
+    project.timeline.tracks.append(Track(id="speaker", label="Speaker"))
+    project.timeline.clips.append(
+        Clip(id="clip", track_id="speaker", source_start=0, source_end=1, timeline_start=0)
+    )
+    project.transcripts = [
+        Transcript(
+            track_id="speaker",
+            words=[TranscriptWord(text="hello", start=0, end=0.5, confidence=1)],
+        )
+    ]
+    return project
+
+
+@pytest.mark.parametrize(
+    ("section", "option", "initial", "changed"),
+    [
+        ("room_tone", "extract_bed", True, False),
+        ("tighten", "filler_words", ["um", "uh"], ["um", "new filler"]),
+    ],
+)
+def test_shared_rows_snapshot_nested_defaults(
+    placed_word_project: EpisodeProject, section: str, option: str, initial: Any, changed: Any
+) -> None:
+    project = placed_word_project
+    lanes = lane_transcripts(project, "speaker")
+    assert len(lanes) == 1 and lanes[0].placed
+    defaults = load_defaults()
+    defaults[section][option] = copy.deepcopy(initial)
+    original = copy.deepcopy(defaults)
+    defaults["_pipeline_cancel_check"] = threading.Event().is_set
+    produced: list[Any] = []
+
+    def read(config: dict[str, Any]) -> list[dict[str, Any]]:
+        def build() -> list[dict[str, Any]]:
+            value = copy.deepcopy(config[section][option])
+            produced.append(value)
+            return [
+                {
+                    "track_id": "speaker",
+                    "source_id": None,
+                    "word_index": 0,
+                    "text": "hello",
+                    "suppressed": False,
+                    "contract_value": value,
+                }
+            ]
+
+        return shared_rows(
+            project, lanes, identity=("fixed-audio",), policy=POLICY, defaults=config, build=build
+        )
+
+    with audibility_run_scope():
+        before = read(defaults)
+        equal = read({**copy.deepcopy(original), "_pipeline_persist": lambda: None})
+        assert equal == before
+        assert produced == [original[section][option]]
+
+        if isinstance(changed, list):
+            defaults[section][option][:] = changed
+        else:
+            defaults[section][option] = changed
+        after = read(defaults)
+        assert after[0]["contract_value"] == changed
+        assert produced == [original[section][option], changed]
+
+        restored = read(original)
+        assert restored == before
+        assert produced == [original[section][option], changed]
+
+
+@pytest.mark.parametrize("error", [TypeError, ValueError])
+def test_shared_rows_ambiguous_defaults_build_fresh(
+    placed_word_project: EpisodeProject, error: type[Exception]
+) -> None:
+    class Ambiguous:
+        def __eq__(self, other: object) -> bool:
+            raise error("ambiguous")
+
+    project = placed_word_project
+    lanes = lane_transcripts(project, "speaker")
+    produced: list[int] = []
+
+    def build() -> list[dict[str, Any]]:
+        produced.append(len(produced))
+        return [
+            {
+                "track_id": "speaker",
+                "source_id": None,
+                "word_index": 0,
+                "text": "hello",
+                "suppressed": False,
+                "contract_value": produced[-1],
+            }
+        ]
+
+    with audibility_run_scope():
+        for expected in range(2):
+            rows = shared_rows(
+                project,
+                lanes,
+                identity=("fixed-audio",),
+                policy=POLICY,
+                defaults={**load_defaults(), "odd": Ambiguous()},
+                build=build,
+            )
+            assert rows[0]["contract_value"] == expected
+    assert produced == [0, 1]
 
 
 @pytest.fixture

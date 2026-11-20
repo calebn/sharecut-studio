@@ -414,6 +414,20 @@ export const GuestEditor: Story = {
   },
 };
 
+export const GuestSavedCopy: Story = {
+  render: () => (
+    <Header
+      guest={{ version: "v3", compact: true }}
+      people={people.slice(0, 2)}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("button", { name: /role/ })).toBeNull();
+    await expect(canvas.queryByRole("button", { name: "Undo" })).toBeNull();
+  },
+};
+
 export const GuestViewer: Story = {
   render: () => (
     <Header guest={{ version: "v3", role: "viewer" }} withStages={false} />

@@ -11,6 +11,11 @@ Propose short highlight clips from combined transcripts and export WAV + JSON si
 
 The Deliver stage saves a clip's title and approval with the host-only `update_social_clip_details` document command (one undo step): a title is trimmed, capped at 200 characters and refused if it holds control characters, an empty title clears it, and approving or unapproving sets `approved` and `review_required` together. It is not an MCP tool.
 
+The exported-files listing marks saved clip audio current when a candidate's
+`exported_path` names that file using the workspace-relative path recorded by the
+export writer. This flag reflects the saved reference, not whether the audio
+matches later edits. An older or unreferenced clip remains listed and downloadable.
+
 Titles/captions truncate at word boundaries. Platform presets: `.agents/defaults/pipeline.yaml` → `social_clips.platforms`. The merged config type (`EffectiveConfig`) lives in `podcast_mcp.config.defaults`.
 
 ## Timebase

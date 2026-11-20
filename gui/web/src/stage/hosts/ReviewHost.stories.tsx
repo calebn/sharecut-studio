@@ -91,9 +91,16 @@ const queuePlay: Story["play"] = async ({ canvasElement }) => {
   await expect(canvasElement.querySelector(".rv-stage")).not.toBeNull();
 };
 
-export const Queue: Story = { play: queuePlay };
+export const Queue: Story = {
+  tags: ["storybook-only"],
+  play: queuePlay,
+};
 
-export const QueuePhone: Story = { ...phone, play: queuePlay };
+export const QueuePhone: Story = {
+  ...phone,
+  tags: ["storybook-only"],
+  play: queuePlay,
+};
 
 const running = (state: object) => ({
   episode: { state: { stage: "review", ...state } },
@@ -135,6 +142,7 @@ export const CommentThreadPhone: Story = {
 };
 
 export const FindMore: Story = {
+  tags: ["storybook-only"],
   parameters: running({
     pipelineJob: pipelineJobSnapshot({ id: "find", current: 2, total: 5 }),
   }),
@@ -146,6 +154,7 @@ export const FindMore: Story = {
 };
 
 export const FindMoreBusy: Story = {
+  tags: ["storybook-only"],
   parameters: running({
     pipelineJob: pipelineJobSnapshot({ id: "bounce", kind: "export" }),
   }),
@@ -168,9 +177,16 @@ const unsureWordsPlay: Story["play"] = async ({ canvasElement }) => {
   await expect(within(group).getAllByRole("button").length).toBeGreaterThan(0);
 };
 
-export const UnsureWords: Story = { play: unsureWordsPlay };
+export const UnsureWords: Story = {
+  tags: ["storybook-only"],
+  play: unsureWordsPlay,
+};
 
-export const UnsureWordsPhone: Story = { ...phone, play: unsureWordsPlay };
+export const UnsureWordsPhone: Story = {
+  ...phone,
+  tags: ["storybook-only"],
+  play: unsureWordsPlay,
+};
 
 const composingPlay: Story["play"] = async ({ canvasElement }) => {
   const canvas = within(canvasElement);

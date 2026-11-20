@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { isLinkEnded, loadReviewBootstrap, markLinkEnded } from "./api";
+import { forgetLinkAudio } from "./audio/chunkCache";
 import {
   classifyBootstrapFailure,
   type GuestLoadFailure,
@@ -9,6 +10,7 @@ import {
 import { ApiError } from "./utils/apiError";
 import { readNotServed } from "./utils/notServed";
 import "./styles/daw.css";
+import "./stage/edit/script/registerTranscriptSelectionFollower";
 import { FeatureProvider } from "./extensions/FeatureProvider";
 import {
   useFeaturesReady,
@@ -20,6 +22,7 @@ import { AskDialog } from "./feedback/AskDialog";
 import { useBackOnline } from "./hooks/useBackOnline";
 import { useDeadLinkWatch } from "./hooks/useDeadLinkWatch";
 import { ModelsProvider } from "./models";
+import { RoomLoadBoundary } from "./record/RoomLoadBoundary";
 import {
   clearOfflineSnapshot,
   loadOfflineSnapshot,
@@ -225,7 +228,7 @@ function admitBootstrap(
   };
 }
 
-function AppInner() {
+function AppInner({ bootName }: { bootName: string | null }) {
   const shareRoute = shareRouteFromLocation();
   const reviewToken = shareRoute?.kind === "review" ? shareRoute.token : null;
   const recordToken = shareRoute?.kind === "record" ? shareRoute.token : null;
@@ -254,7 +257,9 @@ function AppInner() {
   const shareCapabilities = guest?.capabilities ?? null;
   const shareTranscriptWords = guest?.transcriptWords ?? false;
   const shareAuthor = guest?.author ?? null;
-  const shareName = guest?.name ?? null;
+  // The page's own name stands in until the link's answer or its saved copy has one,
+  // and stays when neither carries a name.
+  const shareName = guest?.name ?? (reviewToken ? bootName : null);
   const shareBootstrapping = current.status === "pending";
   // A hung features call is not a dead button: asking again replaces it.
   const retry = () => {
@@ -405,6 +410,7 @@ function AppInner() {
         if (failure.kind === "bad-link") {
           if (e instanceof ApiError && e.code === "share_not_found") {
             void clearOfflineSnapshot(reviewToken).catch(() => undefined);
+            void forgetLinkAudio(reviewToken);
           }
           outcome = { kind: "error", error: { failure } };
           return;
@@ -482,21 +488,25 @@ function AppInner() {
       );
     });
     void retireOfflineSnapshot(token);
+    // Started after the cover is on screen and never waited for.
+    void forgetLinkAudio(token);
   };
   useDeadLinkWatch(shareKey ? reviewToken : null, endSession);
 
   if (recordToken && !error) {
     return (
-      <Suspense
-        fallback={
-          <GuestLoadingScreen
-            label="Joining the room…"
-            onRetry={() => window.location.reload()}
-          />
-        }
-      >
-        <GuestRoomApp token={recordToken} />
-      </Suspense>
+      <RoomLoadBoundary>
+        <Suspense
+          fallback={
+            <GuestLoadingScreen
+              label="Joining the room…"
+              onRetry={() => window.location.reload()}
+            />
+          }
+        >
+          <GuestRoomApp token={recordToken} />
+        </Suspense>
+      </RoomLoadBoundary>
     );
   }
   if (reviewToken && (!featuresReady || (shareBootstrapping && !error))) {
@@ -559,7 +569,7 @@ function isGuestLocation(): boolean {
   return shareRouteFromLocation() !== null || isShareProjectKey(project ?? "");
 }
 
-export default function App() {
+export default function App({ bootName = null }: { bootName?: string | null }) {
   const notServed = readNotServed();
   if (notServed) {
     return (
@@ -571,7 +581,7 @@ export default function App() {
       </main>
     );
   }
-  const inner = <AppInner />;
+  const inner = <AppInner bootName={bootName} />;
   return (
     <FeatureProvider>
       {isGuestLocation() ? inner : <ModelsProvider>{inner}</ModelsProvider>}

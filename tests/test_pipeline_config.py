@@ -11,6 +11,7 @@ from podcast_mcp.pipeline.meta import (
     expand_enable,
     ordered_step_metas,
     param_fields_payload,
+    step_meta,
     step_noop_reason,
 )
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, PipelineRunner
@@ -1580,3 +1581,9 @@ def test_param_field_types_follow_the_yaml_value() -> None:
             assert value is None or isinstance(value, bool), field.path
         if field.type == "integer":
             assert isinstance(value, int) and not isinstance(value, bool), field.path
+
+
+def test_export_deliverables_summary_mentions_the_wav_switch_and_format_replacement() -> None:
+    summary = step_meta("export_deliverables").summary
+    for phrase in ("export.wav", "export.formats", "replaces"):
+        assert phrase in summary

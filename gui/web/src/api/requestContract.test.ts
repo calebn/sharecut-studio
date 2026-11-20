@@ -251,10 +251,13 @@ describe("proxy chunks", () => {
         return Promise.resolve(new Response(new Uint8Array([1, 2])));
       },
     );
-    const buf = await cachedFetchArrayBuffer(
-      "share:tok",
-      "/api/review/tok/daw/proxy/t/h/0",
-    );
+    const buf = await cachedFetchArrayBuffer("share:tok", {
+      kind: "track",
+      artifactId: "t",
+      hash: "h",
+      index: 0,
+      url: "/api/review/tok/daw/proxy/t/h/0",
+    });
     expect(buf.byteLength).toBe(2);
     expect(seen).toEqual([
       { url: "/api/review/tok/daw/proxy/t/h/0", method: "GET", token: null },

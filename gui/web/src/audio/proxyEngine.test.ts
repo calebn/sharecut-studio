@@ -937,44 +937,48 @@ function soundingAt(
   }).length;
 }
 
-function episode(durationSec: number, chunkSec = 60) {
+const hashOf = (id: string) => id.padEnd(16, "0");
+
+function episode(durationSec: number, chunkSec = 60, trackIds = ["host"]) {
   const chunkCount = Math.ceil(durationSec / chunkSec);
+  const tracks: Record<string, ProxyManifest["tracks"][string]> = {};
+  const clipsByTrack: Record<string, ClipRow[]> = {};
+  for (const id of trackIds) {
+    tracks[id] = {
+      hash: hashOf(id),
+      chunk_sec: chunkSec,
+      overlap_ms: 200,
+      chunk_count: chunkCount,
+      duration_sec: durationSec,
+      urls: Array.from({ length: chunkCount }, (_, i) => `${id}/c${i}`),
+    };
+    clipsByTrack[id] = [
+      {
+        id: `clip-${id}`,
+        track_id: id,
+        source_start: 0,
+        source_end: durationSec,
+        timeline_start: 0,
+        timeline_end: durationSec,
+        fade_in_ms: 0,
+        fade_out_ms: 0,
+        join_in_mode: "fade",
+        source_id: null,
+        source_duration_sec: null,
+        recording_key: null,
+      },
+    ];
+  }
   return {
     manifest: {
       revision: "long",
       project_basis: { history_head_id: "root", render_hashes: {}, clips: {} },
-      tracks: {
-        host: {
-          hash: "a".repeat(16),
-          chunk_sec: chunkSec,
-          overlap_ms: 200,
-          chunk_count: chunkCount,
-          duration_sec: durationSec,
-          urls: Array.from({ length: chunkCount }, (_, i) => `c${i}`),
-        },
-      },
+      tracks,
       artifacts: {},
       occurrences: {},
     } as ProxyManifest,
-    clipsByTrack: {
-      host: [
-        {
-          id: "c",
-          track_id: "host",
-          source_start: 0,
-          source_end: durationSec,
-          timeline_start: 0,
-          timeline_end: durationSec,
-          fade_in_ms: 0,
-          fade_out_ms: 0,
-          join_in_mode: "fade" as const,
-          source_id: null,
-          source_duration_sec: null,
-          recording_key: null,
-        },
-      ],
-    },
-    tracks: [{ id: "host", gain_db: 0, muted: false }],
+    clipsByTrack,
+    tracks: trackIds.map((id) => ({ id, gain_db: 0, muted: false })),
     durationSec,
   };
 }
@@ -1064,6 +1068,97 @@ describe("playing a timeline longer than the first window", () => {
     engine.dispose();
   });
 
+  describe("with a manifest that lags the clips", () => {
+    function lagBehind(snapshot: ReturnType<typeof episode>): void {
+      (snapshot.manifest as { tracks: ProxyManifest["tracks"] }).tracks = {};
+    }
+
+    it("reports the failure on play and still suspends and leaves the session", async () => {
+      const handle = makeCtx();
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        engineEvents({ onFailure: failure }),
+      );
+      const snapshot = episode(400);
+      lagBehind(snapshot);
+      engine.setSnapshot(snapshot);
+      vi.mocked(leavePlaybackSession).mockClear();
+      engine.play(0);
+      await flush();
+      expect(failure).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "Missing proxy descriptor for occurrence",
+        }),
+        null,
+      );
+      expect(handle.suspend).toHaveBeenCalled();
+      expect(leavePlaybackSession).toHaveBeenCalled();
+      engine.dispose();
+    });
+
+    it("pauses without throwing and suspends", async () => {
+      const handle = makeCtx();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        engineEvents(),
+      );
+      const snapshot = episode(400);
+      engine.setSnapshot(snapshot);
+      engine.play(0);
+      await flush();
+      lagBehind(snapshot);
+      vi.mocked(leavePlaybackSession).mockClear();
+      expect(() => engine.pause()).not.toThrow();
+      expect(handle.suspend).toHaveBeenCalled();
+      expect(leavePlaybackSession).toHaveBeenCalled();
+      engine.dispose();
+    });
+
+    it("disposes without throwing and closes the context", async () => {
+      const handle = makeCtx();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        engineEvents(),
+      );
+      const snapshot = episode(400);
+      engine.setSnapshot(snapshot);
+      engine.play(0);
+      await flush();
+      lagBehind(snapshot);
+      expect(() => engine.dispose()).not.toThrow();
+      expect(handle.close).toHaveBeenCalledOnce();
+    });
+
+    it("keeps pumping without throwing", async () => {
+      const handle = makeCtx();
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        engineEvents({ onFailure: failure }),
+      );
+      const snapshot = episode(400);
+      engine.setSnapshot(snapshot);
+      engine.play(0);
+      await flush();
+      lagBehind(snapshot);
+      const unhandled = vi.fn();
+      process.on("unhandledRejection", unhandled);
+      try {
+        await expect(advanceTo(handle, 10)).resolves.toBeUndefined();
+        await flush();
+      } finally {
+        process.off("unhandledRejection", unhandled);
+      }
+      expect(unhandled).not.toHaveBeenCalled();
+      engine.dispose();
+    });
+  });
+
   describe("while an extension is still fetching", () => {
     async function playUntilExtensionPending(rate = 1) {
       const handle = makeCtx();
@@ -1143,25 +1238,360 @@ describe("playing a timeline longer than the first window", () => {
       engine.dispose();
     });
 
-    it("stops everything once and wakes nothing when the extension's fetch fails", async () => {
+    it("retries the extension's failed fetch and stops everything once when the sound is nearly out", async () => {
       const { handle, engine, gate, failure, onEnded } =
         await playUntilExtensionPending();
       const error = new TypeError("Failed to fetch");
       expect(soundingAt(handle.created, 75.5, 1)).toBe(1);
       gate.reject(error);
       await flush();
+      expect(failure).not.toHaveBeenCalled();
+      expect(soundingAt(handle.created, 75.5, 1)).toBe(1);
+      for (let ctxSec = 76; ctxSec <= 130; ctxSec += 1) {
+        await advanceTo(handle, ctxSec);
+      }
       expect(failure).toHaveBeenCalledExactlyOnceWith(
         error,
         expect.objectContaining({ index: 2 }),
       );
-      expect(soundingAt(handle.created, 75.5, 1)).toBe(0);
+      expect(soundingAt(handle.created, 120.5, 1)).toBe(0);
       const created = handle.created.length;
       await advanceTo(handle, 200);
       expect(handle.created).toHaveLength(created);
-      expect(engine.currentTimeSec()).toBe(75);
+      expect(engine.currentTimeSec()).toBe(115);
       expect(onEnded).not.toHaveBeenCalled();
       engine.dispose();
     });
+
+    it("reports once at the give-up point when the extension's fetch never settles", async () => {
+      const { handle, engine, failure, onEnded } =
+        await playUntilExtensionPending();
+      for (let ctxSec = 76; ctxSec <= 114; ctxSec += 1) {
+        await advanceTo(handle, ctxSec);
+      }
+      expect(failure).not.toHaveBeenCalled();
+      await advanceTo(handle, 115);
+      expect(failure).toHaveBeenCalledExactlyOnceWith(expect.any(Error), null);
+      await advanceTo(handle, 200);
+      expect(failure).toHaveBeenCalledTimes(1);
+      expect(engine.currentTimeSec()).toBe(115);
+      expect(onEnded).not.toHaveBeenCalled();
+      engine.dispose();
+    });
+
+    it.each([
+      ["pause", (engine: ProxyEngine) => engine.pause()],
+      ["seek", (engine: ProxyEngine) => engine.seek(300)],
+      ["rate change", (engine: ProxyEngine) => engine.setPlaybackRate(2)],
+    ])(
+      "leaves nothing late after a %s while the extension's fetch hangs",
+      async (_name, interrupt) => {
+        const { handle, engine, failure } = await playUntilExtensionPending();
+        interrupt(engine);
+        await flush();
+        const reports = failure.mock.calls.length;
+        for (let ctxSec = 76; ctxSec <= 140; ctxSec += 1) {
+          await advanceTo(handle, ctxSec);
+        }
+        expect(failure).toHaveBeenCalledTimes(reports);
+        engine.dispose();
+      },
+    );
+  });
+
+  describe("when a chunk fetch fails during an extension", () => {
+    const RETRY_GIVE_UP_SEC = 5;
+    const FIRST_WINDOW_END_SEC = 120;
+    const FLAKY_CHUNK_INDEX = 2;
+    const SEEK_FAIL_FROM_INDEX = 5;
+    const FIRST_CHUNK_INDEX = 0;
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    async function playWithFlakyChunk(failures: number) {
+      vi.useFakeTimers();
+      const handle = makeCtx();
+      let attempts = 0;
+      const fetchChunk = vi.fn(async (ref: ImmutableChunkRef) => {
+        if (ref.index === FLAKY_CHUNK_INDEX) {
+          attempts += 1;
+          if (attempts <= failures) throw new TypeError("Failed to fetch");
+        }
+        return new ArrayBuffer(64);
+      });
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        fetchChunk,
+        engineEvents({ onFailure: failure }),
+      );
+      engine.setSnapshot(episode(400));
+      engine.play(0);
+      await flush();
+      for (let ctxSec = 1; ctxSec <= 75; ctxSec += 1) {
+        await advanceTo(handle, ctxSec);
+      }
+      return { handle, engine, fetchChunk, failure };
+    }
+
+    async function tick(handle: ReturnType<typeof makeCtx>, ctxSec: number) {
+      await vi.advanceTimersByTimeAsync(1000);
+      await advanceTo(handle, ctxSec);
+    }
+
+    it("keeps playing and places the retried slice on time after two failed attempts", async () => {
+      const { handle, engine, failure } = await playWithFlakyChunk(2);
+      for (let ctxSec = 76; ctxSec <= 190; ctxSec += 1) {
+        await tick(handle, ctxSec);
+        expect(failure).not.toHaveBeenCalled();
+        expect(
+          soundingAt(handle.created, ctxSec + 0.5, 1),
+          `sources sounding at ctx ${ctxSec + 0.5} s`,
+        ).toBe(1);
+      }
+      expect(handle.suspend).not.toHaveBeenCalled();
+      expect(engine.currentTimeSec()).toBe(190);
+      const retried = handle.created
+        .map(({ start }) => start.mock.calls[0])
+        .filter(([when]) => when === FIRST_WINDOW_END_SEC);
+      expect(retried).toHaveLength(1);
+      expect(retried[0][2]).toBe(60);
+      engine.dispose();
+    });
+
+    it("reports a chunk that keeps failing once, near the end of the scheduled sound", async () => {
+      const { handle, engine, failure } = await playWithFlakyChunk(
+        Number.POSITIVE_INFINITY,
+      );
+      let reportedAtCtxSec: number | null = null;
+      for (let ctxSec = 76; ctxSec <= 140; ctxSec += 1) {
+        await tick(handle, ctxSec);
+        if (reportedAtCtxSec === null && failure.mock.calls.length > 0)
+          reportedAtCtxSec = ctxSec;
+      }
+      expect(failure).toHaveBeenCalledExactlyOnceWith(
+        expect.any(TypeError),
+        expect.objectContaining({ index: FLAKY_CHUNK_INDEX }),
+      );
+      expect(reportedAtCtxSec).toBeGreaterThanOrEqual(
+        FIRST_WINDOW_END_SEC - RETRY_GIVE_UP_SEC,
+      );
+      expect(reportedAtCtxSec).toBeLessThanOrEqual(FIRST_WINDOW_END_SEC);
+      expect(engine.currentTimeSec()).toBeGreaterThanOrEqual(
+        FIRST_WINDOW_END_SEC - RETRY_GIVE_UP_SEC,
+      );
+      expect(engine.currentTimeSec()).toBeLessThanOrEqual(FIRST_WINDOW_END_SEC);
+      expect(soundingAt(handle.created, 120.5, 1)).toBe(0);
+      engine.dispose();
+    });
+
+    const STEP_SEC = 0.25;
+
+    /** Plays at `rate` with the flaky chunk always failing, stepping the audio clock finely enough to see each attempt. */
+    async function playWithDeadChunk(rate: number, untilTimelineSec: number) {
+      vi.useFakeTimers();
+      const handle = makeCtx();
+      const attempts: Array<{ timelineSec: number }> = [];
+      const requested: number[] = [];
+      let engine: ProxyEngine | null = null;
+      const fetchChunk = vi.fn(async (ref: ImmutableChunkRef) => {
+        if (ref.index === FLAKY_CHUNK_INDEX) {
+          attempts.push({ timelineSec: engine?.currentTimeSec() ?? 0 });
+          throw new TypeError("Failed to fetch");
+        }
+        requested.push(ref.index);
+        return new ArrayBuffer(64);
+      });
+      let failedAtTimelineSec: number | null = null;
+      const failure = vi.fn(() => {
+        failedAtTimelineSec = engine?.currentTimeSec() ?? null;
+      });
+      engine = new ProxyEngine(
+        handle.ctx,
+        fetchChunk,
+        engineEvents({ onFailure: failure }),
+      );
+      engine.setSnapshot(episode(400));
+      engine.setPlaybackRate(rate);
+      engine.play(0);
+      await flush();
+      for (
+        let ctxSec = STEP_SEC;
+        engine.currentTimeSec() < untilTimelineSec &&
+        failedAtTimelineSec === null;
+        ctxSec += STEP_SEC
+      ) {
+        await vi.advanceTimersByTimeAsync(STEP_SEC * 1000);
+        await advanceTo(handle, ctxSec);
+      }
+      return { engine, attempts, requested, failedAtTimelineSec };
+    }
+
+    function gapsOf(attempts: Array<{ timelineSec: number }>): number[] {
+      return attempts
+        .slice(1)
+        .map((a, i) => a.timelineSec - attempts[i].timelineSec);
+    }
+
+    it("retries after 1 s, 2 s, then every 4 s while plenty of sound is left", async () => {
+      const { engine, attempts, failedAtTimelineSec } = await playWithDeadChunk(
+        1,
+        FIRST_WINDOW_END_SEC - 2 * RETRY_GIVE_UP_SEC,
+      );
+      expect(failedAtTimelineSec).toBeNull();
+      expect(gapsOf(attempts).slice(0, 4)).toEqual([1, 2, 4, 4]);
+      engine.dispose();
+    });
+
+    it.each([0.5, 2])(
+      "scales the backoff and the give-up point with the playback rate (%s x)",
+      async (rate) => {
+        const { engine, attempts, failedAtTimelineSec } =
+          await playWithDeadChunk(rate, FIRST_WINDOW_END_SEC);
+        const gaps = gapsOf(attempts);
+        expect(gaps.slice(0, 4)).toEqual([1, 2, 4, 4].map((s) => s * rate));
+        expect(failedAtTimelineSec).toBe(
+          FIRST_WINDOW_END_SEC - RETRY_GIVE_UP_SEC * rate,
+        );
+        engine.dispose();
+      },
+    );
+
+    it("asks a retry for the same chunks as the first attempt", async () => {
+      const { engine, attempts, requested } = await playWithDeadChunk(
+        1,
+        FIRST_WINDOW_END_SEC - 2 * RETRY_GIVE_UP_SEC,
+      );
+      expect(attempts.length).toBeGreaterThan(2);
+      // The first attempt's batch is chunks 0-3; a retry must neither widen it
+      // nor shrink it so far that a chunk already fetched is asked for again.
+      expect([...requested].sort()).toEqual([0, 1, 3]);
+      engine.dispose();
+    });
+
+    it("reports a chunk that fails to decode at once, without retrying", async () => {
+      vi.useFakeTimers();
+      const handle = makeCtx();
+      const decodeError = new EvalError("Unable to decode audio data");
+      handle.decode.mockImplementation(async (ab: ArrayBuffer) => {
+        if (ab.byteLength === 99) throw decodeError;
+        return {
+          length: 48000,
+          duration: 1,
+          numberOfChannels: 1,
+          sampleRate: 48000,
+        } as AudioBuffer;
+      });
+      const fetchChunk = vi.fn(
+        async (ref: ImmutableChunkRef) =>
+          new ArrayBuffer(ref.index === FLAKY_CHUNK_INDEX ? 99 : 64),
+      );
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        fetchChunk,
+        engineEvents({ onFailure: failure }),
+      );
+      engine.setSnapshot(episode(400));
+      engine.play(0);
+      await flush();
+      for (let ctxSec = 1; ctxSec <= 80; ctxSec += 1) {
+        await advanceTo(handle, ctxSec);
+      }
+      await tick(handle, 81);
+      expect(failure).toHaveBeenCalledExactlyOnceWith(
+        decodeError,
+        expect.objectContaining({ index: FLAKY_CHUNK_INDEX }),
+      );
+      expect(
+        fetchChunk.mock.calls.filter(
+          ([ref]) => ref.index === FLAKY_CHUNK_INDEX,
+        ),
+      ).toHaveLength(1);
+      engine.dispose();
+    });
+
+    it("reports a failing first schedule at once", async () => {
+      vi.useFakeTimers();
+      const handle = makeCtx();
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => {
+          throw new TypeError("Failed to fetch");
+        },
+        engineEvents({ onFailure: failure }),
+      );
+      engine.setSnapshot(episode(400));
+      engine.play(0);
+      await flush();
+      expect(failure).toHaveBeenCalledExactlyOnceWith(
+        expect.any(TypeError),
+        expect.objectContaining({ index: FIRST_CHUNK_INDEX }),
+      );
+      expect(handle.created).toHaveLength(0);
+      engine.dispose();
+    });
+
+    it("reports a failing seek schedule at once", async () => {
+      vi.useFakeTimers();
+      const handle = makeCtx();
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async (ref) => {
+          if (ref.index >= SEEK_FAIL_FROM_INDEX)
+            throw new TypeError("Failed to fetch");
+          return new ArrayBuffer(64);
+        },
+        engineEvents({ onFailure: failure }),
+      );
+      engine.setSnapshot(episode(400));
+      engine.play(0);
+      await flush();
+      expect(failure).not.toHaveBeenCalled();
+      engine.seek(300);
+      await flush();
+      expect(failure).toHaveBeenCalledExactlyOnceWith(
+        expect.any(TypeError),
+        expect.objectContaining({ index: SEEK_FAIL_FROM_INDEX }),
+      );
+      engine.dispose();
+    });
+
+    it.each([
+      ["pause", (engine: ProxyEngine) => engine.pause()],
+      ["seek", (engine: ProxyEngine) => engine.seek(300)],
+    ])(
+      "leaves nothing late after a %s while the retry waits",
+      async (_name, interrupt) => {
+        const { handle, engine, fetchChunk, failure } =
+          await playWithFlakyChunk(Number.POSITIVE_INFINITY);
+        await tick(handle, 76);
+        interrupt(engine);
+        await flush();
+        const reports = failure.mock.calls.length;
+        const sources = handle.created.length;
+        const slowFetches = () =>
+          fetchChunk.mock.calls.filter(
+            ([ref]) => ref.index === FLAKY_CHUNK_INDEX,
+          ).length;
+        const fetches = slowFetches();
+        for (let ctxSec = 77; ctxSec <= 140; ctxSec += 1) {
+          await tick(handle, ctxSec);
+        }
+        expect(failure).toHaveBeenCalledTimes(reports);
+        expect(slowFetches()).toBe(fetches);
+        expect(
+          handle.created
+            .slice(sources)
+            .filter(({ start }) => start.mock.calls[0][0] === 120),
+        ).toHaveLength(0);
+        engine.dispose();
+      },
+    );
   });
 
   it("after a late wake fetches nothing that already ended and resumes in sync", async () => {
@@ -1528,5 +1958,411 @@ describe("playing a timeline longer than the first window", () => {
       expect(() => engine.play(0)).not.toThrow();
       await settle();
     });
+  });
+});
+
+describe("the decoded audio the engine holds", () => {
+  const CHUNK_SEC = 60;
+  const CHUNK_BYTES = 48000 * CHUNK_SEC * 4;
+  const TRACK_IDS = ["host", "guest", "cohost", "solo"];
+  /** Per track: the retained window plus one chunk of slack. */
+  const CHUNKS_PER_TRACK = 5;
+  const BOUND = TRACK_IDS.length * CHUNKS_PER_TRACK * CHUNK_BYTES;
+
+  function rig(durationSec: number, trackIds = TRACK_IDS) {
+    const handle = makeCtx();
+    const fetched: string[] = [];
+    const fetchChunk = vi.fn(async (ref: ImmutableChunkRef) => {
+      fetched.push(ref.url);
+      return new ArrayBuffer(48000 * CHUNK_SEC);
+    });
+    const events = engineEvents();
+    const engine = new ProxyEngine(handle.ctx, fetchChunk, events);
+    const held = () => ({
+      buffers: Reflect.get(engine, "buffers") as Map<string, AudioBuffer>,
+      lru: Reflect.get(engine, "lru") as string[],
+      bytes: Reflect.get(engine, "decodedBytes") as number,
+    });
+    // The largest total seen at any decode, including the chunk about to land.
+    let peak = 0;
+    const decodeImpl = handle.decode.getMockImplementation();
+    handle.decode.mockImplementation(async (ab: ArrayBuffer) => {
+      peak = Math.max(peak, held().bytes + ab.byteLength * 4);
+      return decodeImpl?.(ab) as Promise<AudioBuffer>;
+    });
+    engine.setSnapshot(episode(durationSec, CHUNK_SEC, trackIds));
+    return {
+      handle,
+      engine,
+      events,
+      fetchChunk,
+      fetched,
+      held,
+      peak: () => Math.max(peak, held().bytes),
+    };
+  }
+
+  type Held = ReturnType<ReturnType<typeof rig>["held"]>;
+
+  function expectConsistent(held: Held) {
+    let sum = 0;
+    for (const buf of held.buffers.values())
+      sum += buf.length * buf.numberOfChannels * 4;
+    expect(held.bytes).toBe(sum);
+    expect(new Set(held.lru)).toEqual(new Set(held.buffers.keys()));
+    expect(held.lru).toHaveLength(held.buffers.size);
+  }
+
+  const chunkIndexes = (held: Map<string, AudioBuffer>, trackId: string) =>
+    [...held.keys()]
+      .map((key) => JSON.parse(key) as [string, string | null, string, number])
+      .filter(([, , hash]) => hash === hashOf(trackId))
+      .map(([, , , index]) => index)
+      .sort((a, b) => a - b);
+
+  /** Plays on in 10 s steps until the horizon runs at least `ahead` s past the playhead, as it does just after an extension. */
+  async function listenUntilAhead(
+    r: ReturnType<typeof rig>,
+    fromCtx: number,
+    toCtx: number,
+    ahead: number,
+  ): Promise<number> {
+    for (let ctxSec = fromCtx; ctxSec <= toCtx; ctxSec += 10) {
+      await advanceTo(r.handle, ctxSec);
+      const horizon = Reflect.get(r.engine, "horizon") as {
+        throughSec: number;
+      } | null;
+      if (
+        ctxSec >= toCtx - 200 &&
+        horizon &&
+        horizon.throughSec - ctxSec >= ahead
+      )
+        return ctxSec;
+    }
+    throw new Error("the horizon never ran far enough ahead");
+  }
+
+  it("holds a bounded window while a two-hour four-track episode plays to the end", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    for (let ctxSec = 30; ctxSec < 7200; ctxSec += 30) {
+      await advanceTo(r.handle, ctxSec);
+      const held = r.held();
+      expect(held.bytes, `at ${ctxSec} s`).toBeLessThanOrEqual(BOUND);
+      expectConsistent(held);
+      expect(soundingAt(r.handle.created, ctxSec + 0.5, 1)).toBe(
+        TRACK_IDS.length,
+      );
+      const back = Math.floor((ctxSec - 15) / CHUNK_SEC);
+      for (const id of TRACK_IDS)
+        expect(chunkIndexes(held.buffers, id)).toContain(back);
+    }
+    expect(r.peak()).toBeLessThanOrEqual(BOUND);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("skips back 15 s after a long listen without a fetch or a decode", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    const at = await listenUntilAhead(r, 10, 3000, 105);
+    const fetches = r.fetchChunk.mock.calls.length;
+    const decodes = r.handle.decode.mock.calls.length;
+    const sources = r.handle.created.length;
+    r.engine.seek(at - 15);
+    await flush();
+    expect(r.fetchChunk.mock.calls.length).toBe(fetches);
+    expect(r.handle.decode.mock.calls.length).toBe(decodes);
+    expect(r.handle.created.length).toBeGreaterThan(sources);
+    expect(soundingAt(r.handle.created, at + 0.5, 1)).toBe(TRACK_IDS.length);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  /** Plays on from 50 s, where every extension lands 5 s into a chunk, until one has landed after 300 s. */
+  async function playUntilExtendedEarlyInChunk(r: ReturnType<typeof rig>) {
+    r.engine.play(50);
+    await flush();
+    let through = 0;
+    for (let ctxSec = 1; ctxSec < 3000; ctxSec += 1) {
+      await advanceTo(r.handle, ctxSec);
+      const horizon = Reflect.get(r.engine, "horizon") as {
+        throughSec: number;
+      } | null;
+      if (!horizon || horizon.throughSec === through) continue;
+      through = horizon.throughSec;
+      const timelineSec = r.engine.currentTimeSec();
+      if (timelineSec > 300 && timelineSec % CHUNK_SEC === 5)
+        return timelineSec;
+    }
+    throw new Error("no extension landed early in a chunk");
+  }
+
+  it("skips back 15 s across a chunk boundary after a long listen without a fetch or a decode", async () => {
+    const r = rig(7200);
+    const at = await playUntilExtendedEarlyInChunk(r);
+    const back = Math.floor((at - 15) / CHUNK_SEC);
+    expect(back).toBeLessThan(Math.floor(at / CHUNK_SEC));
+    for (const id of TRACK_IDS)
+      expect(chunkIndexes(r.held().buffers, id)).toContain(back);
+    const fetches = r.fetchChunk.mock.calls.length;
+    const decodes = r.handle.decode.mock.calls.length;
+    r.engine.seek(at - 15);
+    await flush();
+    expect(r.fetchChunk.mock.calls.length).toBe(fetches);
+    expect(r.handle.decode.mock.calls.length).toBe(decodes);
+    expect(
+      soundingAt(r.handle.created, r.handle.ctx.currentTime + 0.5, 1),
+    ).toBe(TRACK_IDS.length);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("releases the chunks the playhead left behind when it pauses between wakes", async () => {
+    const r = rig(7200, ["host"]);
+    const at = await playUntilExtendedEarlyInChunk(r);
+    const behind = Math.floor(at / CHUNK_SEC) - 1;
+    r.handle.setTime(r.handle.ctx.currentTime + 70);
+    await flush();
+    expect(chunkIndexes(r.held().buffers, "host")).toContain(behind);
+    const t = r.engine.pause();
+    expect(t).toBe(at + 70);
+    expect(chunkIndexes(r.held().buffers, "host")).not.toContain(behind);
+    expectConsistent(r.held());
+    r.engine.dispose();
+  });
+
+  it("releases the chunks the playhead left behind while an extension was fetching", async () => {
+    const r = rig(7200, ["host"]);
+    const gate = deferred<ArrayBuffer>();
+    r.fetchChunk.mockImplementation(async (ref: ImmutableChunkRef) => {
+      r.fetched.push(ref.url);
+      return ref.url === "host/c4"
+        ? gate.promise
+        : new ArrayBuffer(48000 * CHUNK_SEC);
+    });
+    r.engine.play(50);
+    await flush();
+    await advanceTo(r.handle, 75);
+    expect(r.fetched).toContain("host/c4");
+    expect(chunkIndexes(r.held().buffers, "host")).toContain(1);
+    r.handle.setTime(145);
+    gate.resolve(new ArrayBuffer(48000 * CHUNK_SEC));
+    await flush();
+    expect(chunkIndexes(r.held().buffers, "host")).toContain(4);
+    expect(chunkIndexes(r.held().buffers, "host")).not.toContain(1);
+    expectConsistent(r.held());
+    r.engine.dispose();
+  });
+
+  it("still plays a seek back beyond the margin, fetching what it needs", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    const at = await listenUntilAhead(r, 10, 3000, 105);
+    const fetches = r.fetchChunk.mock.calls.length;
+    r.engine.seek(at - 600);
+    await flush();
+    expect(r.fetchChunk.mock.calls.length).toBeGreaterThan(fetches);
+    expect(soundingAt(r.handle.created, at + 0.5, 1)).toBe(TRACK_IDS.length);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("holds the same bound across far forward and far back seeks", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    let ctxSec = 0;
+    for (const target of [100, 6000, 3000, 20, 7000]) {
+      ctxSec += 1;
+      r.handle.setTime(ctxSec);
+      r.engine.seek(target);
+      await flush();
+      expect(soundingAt(r.handle.created, ctxSec + 0.5, 1)).toBe(
+        TRACK_IDS.length,
+      );
+      expect(r.held().bytes).toBeLessThanOrEqual(BOUND);
+      expectConsistent(r.held());
+    }
+    expect(r.peak()).toBeLessThanOrEqual(BOUND);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("decodes only the window from the play position", async () => {
+    const r = rig(7200, ["host"]);
+    r.engine.play(1000);
+    await flush();
+    // 1000 s is in chunk 16 (960 to 1020); the window ends at 1120, in chunk 18.
+    expect(r.fetched.sort()).toEqual(["host/c16", "host/c17", "host/c18"]);
+    expect(soundingAt(r.handle.created, 0.5, 1)).toBe(1);
+    r.engine.dispose();
+  });
+
+  it("plays the slice that straddles the target of a seek into the middle of a chunk", async () => {
+    const r = rig(7200, ["host"]);
+    r.engine.play(1010);
+    await flush();
+    expect(r.fetched).toContain("host/c16");
+    expect(soundingAt(r.handle.created, 0.5, 1)).toBe(1);
+    expect(r.handle.created[0].start.mock.calls[0][1]).toBeGreaterThan(49);
+    r.engine.dispose();
+  });
+
+  it("keeps the margin window while paused and resumes from it without a fetch", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    const at = await listenUntilAhead(r, 10, 3000, 105);
+    const t = r.engine.pause();
+    const held = r.held();
+    // 30 s back and 120 s ahead span at most four chunks per track.
+    expect(held.bytes).toBeLessThanOrEqual(TRACK_IDS.length * 4 * CHUNK_BYTES);
+    expectConsistent(held);
+    for (const id of TRACK_IDS)
+      expect(chunkIndexes(held.buffers, id)).toContain(
+        Math.floor((t - 15) / CHUNK_SEC),
+      );
+    const fetches = r.fetchChunk.mock.calls.length;
+    r.handle.setTime(at + 5);
+    r.engine.play(t - 15);
+    await flush();
+    expect(r.fetchChunk.mock.calls.length).toBe(fetches);
+    expect(soundingAt(r.handle.created, at + 5.5, 1)).toBe(TRACK_IDS.length);
+    r.engine.dispose();
+  });
+
+  it("keeps sounding while chunks behind the margin are released", async () => {
+    const r = rig(7200, ["host"]);
+    r.engine.play(0);
+    await flush();
+    for (let ctxSec = 1; ctxSec <= 200; ctxSec += 1) {
+      await advanceTo(r.handle, ctxSec);
+      expect(soundingAt(r.handle.created, ctxSec + 0.5, 1)).toBe(1);
+    }
+    expect(chunkIndexes(r.held().buffers, "host")).not.toContain(0);
+    expect(
+      r.handle.created.every(({ stop }) => stop.mock.calls.length === 0),
+    ).toBe(true);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("holds every chunk a live source is playing from", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    for (let ctxSec = 30; ctxSec < 1500; ctxSec += 30) {
+      await advanceTo(r.handle, ctxSec);
+      const buffers = new Set(r.held().buffers.values());
+      for (const source of r.handle.created) {
+        if (source.stop.mock.calls.length > 0) continue;
+        const [when, , duration] = source.start.mock.calls[0];
+        if (when <= ctxSec && ctxSec < when + duration)
+          expect(buffers.has(source.buffer as AudioBuffer)).toBe(true);
+      }
+    }
+    r.engine.dispose();
+  });
+
+  async function playUntilChunkInFlight(url: string) {
+    const r = rig(1200, ["host"]);
+    const gate = deferred<ArrayBuffer>();
+    r.fetchChunk.mockImplementation(async (ref: ImmutableChunkRef) => {
+      r.fetched.push(ref.url);
+      return ref.url === url
+        ? gate.promise
+        : new ArrayBuffer(48000 * CHUNK_SEC);
+    });
+    r.engine.play(0);
+    await flush();
+    await advanceTo(r.handle, 80);
+    expect(r.fetched).toContain(url);
+    return { r, gate };
+  }
+
+  it("keeps the chunks of an extension that was still fetching when it lands", async () => {
+    const { r, gate } = await playUntilChunkInFlight("host/c3");
+    gate.resolve(new ArrayBuffer(48000 * CHUNK_SEC));
+    await flush();
+    expect(chunkIndexes(r.held().buffers, "host")).toContain(3);
+    await advanceTo(r.handle, 100);
+    expect(soundingAt(r.handle.created, 100.5, 1)).toBe(1);
+    expectConsistent(r.held());
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("does not keep a chunk whose decode lands after a seek", async () => {
+    const { r, gate } = await playUntilChunkInFlight("host/c3");
+    r.engine.seek(900);
+    await flush();
+    gate.resolve(new ArrayBuffer(48000 * CHUNK_SEC));
+    await flush();
+    expect(chunkIndexes(r.held().buffers, "host")).not.toContain(3);
+    expectConsistent(r.held());
+    expect(soundingAt(r.handle.created, 80.5, 1)).toBe(1);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("fetches only the chunk it is missing when a skip back crosses a chunk boundary soon after play", async () => {
+    const r = rig(7200, ["host"]);
+    r.engine.play(965);
+    await flush();
+    r.fetched.length = 0;
+    r.engine.seek(950);
+    await flush();
+    expect(r.fetched).toEqual(["host/c15"]);
+    r.engine.dispose();
+  });
+
+  it("holds the bound at playback rate 2", async () => {
+    const r = rig(7200);
+    r.engine.setPlaybackRate(2);
+    r.engine.play(0);
+    await flush();
+    for (let ctxSec = 30; ctxSec < 1800; ctxSec += 30) {
+      await advanceTo(r.handle, ctxSec);
+      expect(r.held().bytes, `at ${ctxSec} s`).toBeLessThanOrEqual(BOUND);
+      expectConsistent(r.held());
+    }
+    expect(r.peak()).toBeLessThanOrEqual(BOUND);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("counts every channel of a decoded buffer", async () => {
+    const r = rig(600, ["host"]);
+    r.handle.decode.mockImplementation(
+      async (ab: ArrayBuffer) =>
+        ({
+          length: ab.byteLength,
+          duration: 1,
+          numberOfChannels: 2,
+          sampleRate: 48000,
+        }) as AudioBuffer,
+    );
+    r.engine.play(0);
+    await flush();
+    const held = r.held();
+    expect(held.buffers.size).toBeGreaterThan(0);
+    expect(held.bytes).toBe(held.buffers.size * 48000 * CHUNK_SEC * 2 * 4);
+    r.engine.dispose();
+  });
+
+  it("releases everything when disposed", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    await advanceTo(r.handle, 500);
+    expect(r.held().buffers.size).toBeGreaterThan(0);
+    r.engine.dispose();
+    expect(r.held().buffers.size).toBe(0);
+    expect(r.held().lru).toEqual([]);
+    expect(r.held().bytes).toBe(0);
   });
 });

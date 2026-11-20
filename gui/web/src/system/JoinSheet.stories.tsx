@@ -57,6 +57,7 @@ function Join({ phase, roomWidth = "desktop", ...args }: StoryArgs) {
   return (
     <div style={{ blockSize: "44rem", inlineSize: "100%" }}>
       <RoomView
+        lookingIn={0}
         seat={args.seat}
         title="Episode 14: the one about the mic"
         people={IN_ROOM}
@@ -86,6 +87,7 @@ const meta: Meta<StoryArgs> = {
     seat: "guest",
     here: IN_ROOM.map(({ person, role }) => ({ person, role })),
     host: "Maya Okafor",
+    lookingIn: 0,
     name: "Jon",
     mic: { status: "idle" },
     headphones: "off",
@@ -212,6 +214,18 @@ export const GuestReady: Story = {
     await expect(join).toBeEnabled();
     await userEvent.click(join);
     await expect(args.onJoin).toHaveBeenCalledTimes(1);
+  },
+};
+
+export const GuestLookingIn: Story = {
+  args: { mic: MIC_READY, headphones: "on", lookingIn: 1 },
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await userEvent.click(dialog.getByRole("button", { name: "Details" }));
+    await expect(
+      dialog.getByText(/Someone with the producer link is looking in/),
+    ).toBeVisible();
   },
 };
 
@@ -444,6 +458,17 @@ export const Producer: Story = {
       dialog.getByRole("button", { name: "Join to listen" }),
     );
     await expect(args.onJoin).toHaveBeenCalledTimes(1);
+  },
+};
+
+export const ProducerSeenByRoom: Story = {
+  args: { seat: "producer", name: "Rosa Diaz", seenByRoom: true },
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(
+      dialog.getByText("The room can see that someone is looking in."),
+    ).toBeVisible();
   },
 };
 

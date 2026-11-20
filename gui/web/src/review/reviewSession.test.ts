@@ -173,6 +173,74 @@ describe("revert", () => {
   });
 });
 
+describe("revert with a speaker filter", () => {
+  const host = { id: "host", label: "Host" };
+  const guest = { id: "guest", label: "Guest" };
+  const open = [
+    entry("a", 1, { speaker: host }),
+    entry("b", 2, { speaker: guest }),
+    entry("c", 3, { speaker: host }),
+    entry("d", 4, { speaker: guest }),
+  ];
+  const decidedThenChip = (ids: string[], chip: string | null) => {
+    const s = decide(start(), ids, open);
+    return reviewSession(s, { type: "speaker", speaker: chip });
+  };
+
+  it("does not leave the restored row hidden by the chip", () => {
+    const s = decidedThenChip(["a"], "guest");
+    const next = reviewSession(s, { type: "revert", ids: ["a"] });
+    expect(next.selectedId).toBe("a");
+    expect(next.speaker).toBeNull();
+  });
+
+  it("keeps the speaker when the restored row is inside it", () => {
+    const s = decidedThenChip(["b"], "guest");
+    const next = reviewSession(s, { type: "revert", ids: ["b"] });
+    expect(next.selectedId).toBe("b");
+    expect(next.speaker).toBe("guest");
+  });
+
+  it("leaves the speaker and the selection when the selection moved on", () => {
+    const s = decidedThenChip(["a"], "guest");
+    const next = reviewSession(s, { type: "revert", ids: ["a"], from: "zzz" });
+    expect(next.selectedId).toBe(s.selectedId);
+    expect(next.speaker).toBe("guest");
+  });
+
+  it("follows and clears the speaker when from is the selection", () => {
+    const s = decidedThenChip(["a"], "guest");
+    const next = reviewSession(s, {
+      type: "revert",
+      ids: ["a"],
+      from: s.selectedId,
+    });
+    expect(next.selectedId).toBe("a");
+    expect(next.speaker).toBeNull();
+  });
+
+  it("keeps the speaker and follows when the restored row has no speaker", () => {
+    const rows = [entry("n", 1), entry("b", 2, { speaker: guest })];
+    const s = reviewSession(decide(start("n"), ["n"], rows), {
+      type: "speaker",
+      speaker: "guest",
+    });
+    const next = reviewSession(s, { type: "revert", ids: ["n"] });
+    expect(next.selectedId).toBe("n");
+    expect(next.speaker).toBe("guest");
+  });
+
+  it("takes the owner from the first restored row of several", () => {
+    const first = decidedThenChip(["a", "b"], "guest");
+    const keeps = reviewSession(first, { type: "revert", ids: ["b", "a"] });
+    expect(keeps.selectedId).toBe("b");
+    expect(keeps.speaker).toBe("guest");
+    const clears = reviewSession(first, { type: "revert", ids: ["a", "b"] });
+    expect(clears.selectedId).toBe("a");
+    expect(clears.speaker).toBeNull();
+  });
+});
+
 describe("mergeOpen", () => {
   it("lists decided entries that are not open after the open ones, in decide order", () => {
     let s = decide(start(), ["c", "a"]);

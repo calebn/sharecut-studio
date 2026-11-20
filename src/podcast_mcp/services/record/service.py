@@ -9,7 +9,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
+from typing import Any, TypedDict
 
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.project.store import ProjectStore
@@ -97,9 +97,30 @@ class _Conn:
     last_beat: float
 
 
+WATCHERS_PER_ROOM = 4
+"""Producer-link looks per room. A joined producer's reconnect needs socket slots too."""
+
 _CONNECTIONS: dict[str, _Conn] = {}
 _HOST_CONNS: dict[str, dict[str, tuple[float, int]]] = {}
+_WATCHERS: dict[tuple[str, str], set[str]] = {}
 _CONN_LOCK = threading.Lock()
+
+
+def watcher_count(hub_key: str, session_id: str) -> int:
+    """Sockets looking in on this room now. Process-local presence, never saved."""
+    with _CONN_LOCK:
+        return len(_WATCHERS.get((hub_key, session_id), ()))
+
+
+def _discard_watcher(hub_key: str, session_id: str, connection_id: str) -> bool:
+    with _CONN_LOCK:
+        ids = _WATCHERS.get((hub_key, session_id))
+        if ids is None or connection_id not in ids:
+            return False
+        ids.discard(connection_id)
+        if not ids:
+            _WATCHERS.pop((hub_key, session_id), None)
+        return True
 
 
 def _now_pair() -> tuple[float, int]:
@@ -114,6 +135,7 @@ def reset_record_runtime_for_tests() -> None:
     with _CONN_LOCK:
         _CONNECTIONS.clear()
         _HOST_CONNS.clear()
+        _WATCHERS.clear()
     _SID_CACHE.clear()
     for kind, variant in (
         ("sync", "record_"),
@@ -235,6 +257,41 @@ def clear_connections_for_hub(hub_key: str) -> None:
         for key in [item for item in _CONNECTIONS if item.startswith(prefix)]:
             _CONNECTIONS.pop(key, None)
         _HOST_CONNS.pop(hub_key, None)
+        for room in [item for item in _WATCHERS if item[0] == hub_key]:
+            _WATCHERS.pop(room, None)
+
+
+class ObserverFrame(TypedDict):
+    """The one frame shape a looking-in socket receives."""
+
+    plane: str
+    type: str
+    snapshot: dict[str, Any]
+
+
+def observer_view(event: dict[str, Any]) -> ObserverFrame | None:
+    """What a producer link sees while only looking in: the room's state, nothing else.
+
+    Only ``Applied`` and ``Snapshot`` pass, each as a bare ``Snapshot`` frame through the
+    guest filter with no notes, so no target, lease key, comment or Signal gets out.
+    """
+    if event.get("type") not in ("Applied", "Snapshot"):
+        return None
+    snapshot = event.get("snapshot")
+    if not isinstance(snapshot, dict):
+        return None
+    guest = filter_record_event_for_guest(
+        {"plane": "record", "type": "Snapshot", "snapshot": snapshot},
+        participant_id="",
+        role="guest",
+    )
+    if guest is None:
+        return None
+    return {
+        "plane": "record",
+        "type": "Snapshot",
+        "snapshot": {**guest["snapshot"], "comments": []},
+    }
 
 
 def filter_record_event_for_guest(
@@ -542,6 +599,7 @@ class RecordSessionService:
         out["countdown_left_ms"] = room_tone_countdown_left_ms(snap, now_wall_ms=now_ms)
         out["start_blockers"] = start_blockers(snap)
         out["server_time_ns"] = now_ns
+        out["watchers"] = watcher_count(self._hub_key, snap.session_id)
         out["timeline_start_sec"] = None
         if snap.state in ("recording", "paused"):
             tombstoned = RecordUploadService(self.project).tombstoned_takes(self.session_id)
@@ -565,6 +623,49 @@ class RecordSessionService:
         ]
         return drop_absolute_path_strings(out)
 
+    def _publish_snapshot(self) -> int:
+        """Publish the room's snapshot; return its ``server_time_ns`` stamp."""
+        snap = self.snapshot()
+        get_hub().publish(self._hub_key, {"plane": "record", "type": "Snapshot", "snapshot": snap})
+        return int(snap["server_time_ns"])
+
+    def is_current_room(self) -> bool:
+        return self._model().session_id == self.session_id
+
+    def is_watching(self, connection_id: str) -> bool:
+        with _CONN_LOCK:
+            return connection_id in _WATCHERS.get((self._hub_key, self.session_id), ())
+
+    def watch(self, connection_id: str, share_id: str) -> int | None:
+        """Count this socket as looking in and tell the room.
+
+        Returns the ``server_time_ns`` of the snapshot that counts it (frames stamped
+        earlier do not), or None when the room is over, the link's invite is closed
+        (the same rule Join applies) or the looks are full. A failed publish leaves
+        no count behind.
+        """
+        with self._authority_lock:
+            if self._model().session_id != self.session_id:
+                return None
+            if self.invite_closed(share_id) is not None:
+                return None
+            key = (self._hub_key, self.session_id)
+            with _CONN_LOCK:
+                ids = _WATCHERS.get(key, set())
+                if len(ids) >= WATCHERS_PER_ROOM and connection_id not in ids:
+                    return None
+                _WATCHERS[key] = ids | {connection_id}
+            try:
+                return self._publish_snapshot()
+            except BaseException:
+                _discard_watcher(self._hub_key, self.session_id, connection_id)
+                raise
+
+    def unwatch(self, connection_id: str) -> None:
+        with self._authority_lock:
+            if _discard_watcher(self._hub_key, self.session_id, connection_id):
+                self._publish_snapshot()
+
     def join(
         self,
         *,
@@ -577,9 +678,11 @@ class RecordSessionService:
         connection_id: str,
         capabilities: list[str] | None = None,
         client_seq: int | None = None,
+        watching_connection_id: str | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         with self._authority_lock:
             return self._join_locked(
+                watching_connection_id=watching_connection_id,
                 share_id=share_id,
                 role=role,
                 display_name=display_name,
@@ -603,8 +706,14 @@ class RecordSessionService:
         connection_id: str,
         capabilities: list[str] | None,
         client_seq: int | None,
+        watching_connection_id: str | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Keep lease validation and Join atomic with host removal."""
+        """Keep lease validation and Join atomic with host removal.
+
+        ``watching_connection_id`` is the looking-in socket that is joining: it leaves the
+        count before the Join is applied, so the ``Applied`` that lists the person carries
+        the lower count.
+        """
         if role == "host":
             pid = HOST_PARTICIPANT_ID
             lease_out = ""
@@ -631,6 +740,7 @@ class RecordSessionService:
                 self._hub_key, self._model(), now_wall_ms=now_wall_ms
             )
         claim_connection(pid, connection_id, hub_key=self._hub_key)
+        stopped_watching = False
         # Per-connection id so a tab reload (stable guest client_id, seq 1)
         # is not collapsed as the original Join.
         cmd = RecordCommand.parse(
@@ -648,6 +758,10 @@ class RecordSessionService:
         # Lease stays on the Echo only — never persist it on the snapshot.
         cmd.payload.pop("lease", None)
         try:
+            if watching_connection_id is not None:
+                stopped_watching = _discard_watcher(
+                    self._hub_key, self.session_id, watching_connection_id
+                )
             snap = self.submit(
                 cmd,
                 capabilities=capabilities,
@@ -657,11 +771,21 @@ class RecordSessionService:
             last, beat = _release_connection(pid, connection_id, hub_key=self._hub_key)
             if last and beat is not None:
                 _persist_host_offline_since(self._store, beat)
+            if stopped_watching and watching_connection_id is not None:
+                self._resume_watching(watching_connection_id)
             raise
         echo: dict[str, Any] = {"participant_id": pid}
         if role != "host":
             echo["lease"] = lease_out
         return echo, snap
+
+    def _resume_watching(self, connection_id: str) -> None:
+        """A refused Join leaves the person looking in: put the count back and say so."""
+        if self._model().session_id != self.session_id:
+            return
+        with _CONN_LOCK:
+            _WATCHERS.setdefault((self._hub_key, self.session_id), set()).add(connection_id)
+        self._publish_snapshot()
 
     def submit(
         self,

@@ -243,6 +243,7 @@ export function applyDocumentSnapshot(
           : previous;
       next = projectFromDocumentSnapshot(previous, {
         project: applyProjectionDelta(basis, delta),
+        history: snap.history,
       });
     } catch {
       return invalidate(seq, scope);

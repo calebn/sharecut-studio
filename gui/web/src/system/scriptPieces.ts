@@ -1,5 +1,5 @@
 import { TRANSCRIPT_SUSPECT_HALLUCINATION_TIP } from "../transcript/transcriptModeCopy";
-import type { PersonData } from "./Person";
+import type { PersonData } from "./personData";
 import { formatSeconds } from "./seconds";
 
 /**

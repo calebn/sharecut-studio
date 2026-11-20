@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import traceback
 
 import pytest
 from fastapi.testclient import TestClient
@@ -54,3 +55,28 @@ def test_load_project_raises_unreadable_for_a_wrong_shaped_project(minimal_proje
     minimal_project.write_text(json.dumps(data))
     with pytest.raises(ProjectUnreadableError):
         load_project(minimal_project)
+
+
+def _damaged_deep(project_file, marker):
+    data = json.loads(project_file.read_text())
+    data["transcripts"]["per_track"] = [
+        {"track_id": "t", "words": [{"text": "ok", "start": marker, "end": [marker]}]}
+    ]
+    data["meta"]["name"] = {"deep": marker}
+    project_file.write_text(json.dumps(data))
+
+
+def test_a_validation_error_of_the_project_file_holds_no_input_value(minimal_project):
+    marker = "ZQDEEP7731"
+    _damaged_deep(minimal_project, marker)
+    with pytest.raises(ProjectUnreadableError) as caught:
+        load_project(minimal_project)
+    # The error is not chained to pydantic's: its text prints the file's own keys.
+    assert caught.value.__cause__ is None
+    text = "".join(traceback.format_exception_only(caught.value))
+    assert marker not in text
+    assert "input_value=" not in text
+    assert "validation error" not in text
+    assert caught.value.__suppress_context__
+    assert "unexpected contents at " in str(caught.value)
+    assert marker not in str(caught.value)

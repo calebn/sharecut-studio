@@ -1,7 +1,11 @@
+import type { RefObject } from "react";
 import { rosterDisplayName } from "../presence/colors";
 import { useDawStore } from "../state/dawStore";
+import { SystemIcon } from "../system/SystemIcon";
 import type { TrackView } from "../types/project";
 import { Avatar } from "../ui/Avatar";
+import { CommandButton } from "../ui/CommandButton";
+import { isPlayheadOffscreen } from "../utils/timelineFollow";
 import { followTarget } from "./followTarget";
 import { useTimelineMetrics } from "./timelineMetrics";
 
@@ -58,5 +62,44 @@ export function FollowPlayheadChip() {
         size="sm"
       />
     </span>
+  );
+}
+
+/**
+ * It unmounts on activation, so focus moves to the scroller first and a
+ * keyboard user is not dropped.
+ */
+export function TimelineFollowPill({
+  timeViewportPx,
+  scrollRef,
+}: {
+  timeViewportPx: number;
+  scrollRef: RefObject<HTMLElement | null>;
+}) {
+  const show = useDawStore(
+    (s) =>
+      !s.timelineFollowPlayhead &&
+      !s.followingClientId &&
+      isPlayheadOffscreen({
+        playheadSec: s.playheadSec,
+        zoomPxPerSec: s.zoomPxPerSec,
+        viewportPx: timeViewportPx,
+        scrollPx: s.scrollLeft,
+      }),
+  );
+  if (!show) {
+    return null;
+  }
+  return (
+    <CommandButton
+      bare
+      commandId="view.followPlayhead"
+      className="timeline-follow-pill"
+      aria-label="Back to playhead in timeline"
+      onClick={() => scrollRef.current?.focus({ preventScroll: true })}
+    >
+      <SystemIcon name="locate-fixed" size={14} />
+      Back to playhead
+    </CommandButton>
   );
 }

@@ -55,6 +55,7 @@ function Devices(args: DeviceSheetProps) {
   return (
     <div style={{ blockSize: "44rem", inlineSize: "100%" }}>
       <RoomView
+        lookingIn={0}
         seat="guest"
         title="Episode 14: the one about the mic"
         people={IN_ROOM}

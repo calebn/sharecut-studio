@@ -869,8 +869,6 @@ def test_resolve_share_exception(monkeypatch, tmp_path: Path):
 
 @requires_safe_failed_cleanup
 def test_lookup_missing_workspace(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    from podcast_mcp.services.collaboration.share import _mark_share_revoked
-
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Inact")
 
@@ -882,11 +880,6 @@ def test_lookup_missing_workspace(minimal_project, sample_wav, tmp_workspace, mo
     )
     looked = lookup_share(row3["token"])
     assert looked["token"] == row3["token"]
-
-    # _mark without workspace
-    _mark_share_revoked(row3["token"], ws=None)
-    with pytest.raises(KeyError):
-        lookup_share(row3["token"])
 
 
 def test_touch_missing_token_and_bad_last_used(registry: SqliteShareRegistry):

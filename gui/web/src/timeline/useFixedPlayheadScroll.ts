@@ -7,6 +7,7 @@ import {
   useRef,
 } from "react";
 import { seekTransport } from "../commands/seek";
+import { suspendTimelineFollow } from "../commands/view";
 import {
   isProgrammaticScroll,
   withProgrammaticScroll,
@@ -17,6 +18,7 @@ import {
   timelineViewportRegistry,
   type VisualPan,
 } from "../state/timelineViewportRegistry";
+import { clamp } from "../utils/math";
 import {
   domToLogicalScrollLeft,
   fixedLineOffsetPx,
@@ -63,7 +65,7 @@ function isRecordingVisualPan(
 
 type WriteScroll = (el: HTMLElement, logical: number, lead: number) => void;
 
-type ScrollBinding = Readonly<{
+export type ScrollBinding = Readonly<{
   scrollRef: RefObject<HTMLDivElement | null>;
   fixedPlayhead: boolean;
   timeViewportPx: number;
@@ -91,6 +93,20 @@ function requestedScrollLeft(state: ReturnType<typeof useDawStore.getState>) {
   return state.scrollLeft;
 }
 
+/**
+ * A scroll event whose position is the stored scroll held inside the new
+ * scroll range is the browser clamping after a resize or a canvas change, not
+ * a person's scroll.
+ */
+function isBrowserClamp(
+  dom: number,
+  el: Pick<HTMLElement, "scrollWidth" | "clientWidth">,
+): boolean {
+  const max = Math.max(0, el.scrollWidth - el.clientWidth);
+  const held = clamp(useDawStore.getState().scrollLeft, 0, max);
+  return Math.abs(dom - held) <= SCROLL_SYNC_EPS_PX;
+}
+
 type ScrollResult = Readonly<{
   leadPx: number;
   endLeadPx: number;
@@ -112,6 +128,9 @@ export function useFixedPlayheadScroll({
   const setScrollLeft = useDawStore((s) => s.setScrollLeft);
   const stopFollow = useDawStore((s) => s.stopFollow);
   const applyAnchoredZoom = useDawStore((s) => s.applyAnchoredZoom);
+  const setTimelineFollowPlayhead = useDawStore(
+    (s) => s.setTimelineFollowPlayhead,
+  );
   // A scrub seeks the audio like any seek, but the view is already where the
   // person put it, so the recenter skips this revision.
   const scrubRevisionRef = useRef(-1);
@@ -199,6 +218,9 @@ export function useFixedPlayheadScroll({
       if (followingClientId) {
         stopFollow("local");
       }
+      if (!fixedPlayhead && !isBrowserClamp(dom, el)) {
+        setTimelineFollowPlayhead(false);
+      }
       if (fixedPlayhead) {
         // A scroll moves the time by exactly what it moved the content: the
         // playhead stays where it sits in the view.
@@ -256,6 +278,7 @@ export function useFixedPlayheadScroll({
   };
 
   const applyZoomAt = (nextZoom: number, clientX: number) => {
+    if (!fixedPlayhead) suspendTimelineFollow();
     anchoringZoom.current = true;
     noteZoomPointerClientX(clientX);
     applyAnchoredZoom(nextZoom, clientX);

@@ -996,6 +996,53 @@ describe("Menu", () => {
     }
   });
 
+  it("places the panel beside the nearest box when the trigger has none", async () => {
+    const user = userEvent.setup();
+    const innerHeight = vi.spyOn(window, "innerHeight", "get");
+    innerHeight.mockReturnValue(800);
+    const wrapperBox = {
+      left: 20,
+      right: 90,
+      top: 660,
+      bottom: 700,
+      width: 70,
+      height: 40,
+    } as unknown as DOMRect;
+    const rect = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(function rect(this: Element) {
+        if (this.getAttribute("data-anchor") !== null) return wrapperBox;
+        return {
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: 0,
+          height: 0,
+        } as unknown as DOMRect;
+      });
+    try {
+      render(
+        <span data-anchor>
+          <Fixture />
+        </span>,
+      );
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      const panel = screen.getByRole("menu", { name: "Test menu" });
+      const rootPx = Number.parseFloat(
+        getComputedStyle(document.documentElement).fontSize,
+      );
+      // Placed from the wrapper's bottom (700), not from the viewport's corner.
+      const room = (800 - 0.5 * rootPx - 700 - 0.25 * rootPx) / rootPx;
+      expect(panel.style.getPropertyValue("--menu-available-height")).toBe(
+        `${room}rem`,
+      );
+    } finally {
+      rect.mockRestore();
+      innerHeight.mockRestore();
+    }
+  });
+
   it("shows the panel as a popover and keeps it inside the viewport", async () => {
     const user = userEvent.setup();
     const innerWidth = vi.spyOn(window, "innerWidth", "get");

@@ -55,6 +55,8 @@ describe("the studio's own load-failure cover, for a host", () => {
     ["busy", ["Try again"]],
     ["elsewhere", ["All projects"]],
     ["not-answering", ["Try again"]],
+    ["newer", ["All projects"]],
+    ["unsupported", ["All projects", "Try again"]],
     ["other", ["Try again", "All projects"]],
   ] as const)(
     "a %s episode has its title, its one sentence and its buttons in order",

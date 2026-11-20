@@ -19,6 +19,7 @@ import pytest
 from podcast_mcp.config.defaults import repo_root
 from podcast_mcp.engines import timeline_render
 from podcast_mcp.models import EpisodeProject, Track, load_project, save_project
+from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.review_shares import create_share
@@ -802,3 +803,70 @@ def bare_uvicorn_loggers() -> Iterator[None]:
     strip()
     for target, found in removed:
         target.addFilter(found)
+
+
+@pytest.fixture
+def save_comment() -> Callable[[Path], None]:
+    """Save a comment the way the remote-MCP share path does (``CommentService.add``)."""
+    from podcast_mcp.services.document import CommentService
+    from podcast_mcp.services.document.comment import run_comment_mutation_with_file_revisions
+
+    def save(project_path: Path) -> None:
+        external = ProjectWorkspace.open(project_path)
+        run_comment_mutation_with_file_revisions(
+            external,
+            lambda: CommentService(external).add(body="note", author="guest", timeline_start=1.0),
+        )
+
+    return save
+
+
+@pytest.fixture
+def save_web_comment() -> Callable[[Path], None]:
+    """Save a comment the way the host GUI does: an ``AddComment`` through ``DocumentSyncService``.
+
+    That path also writes ``project.document_sync.last_command``.
+    """
+    from podcast_mcp.services.document_sync import DocumentSyncService
+    from podcast_mcp.services.document_sync.commands import DocumentCommand
+
+    def save(project_path: Path) -> None:
+        DocumentSyncService.open(project_path).submit(
+            DocumentCommand(
+                type="AddComment",
+                payload={"body": "note", "author": "guest", "timeline_start": 1.0},
+                client_id="guest",
+                role="viewer",
+                client_seq=1,
+            )
+        )
+
+    return save
+
+
+@pytest.fixture
+def save_audible_edit() -> Callable[[Path, str], None]:
+    def save(project_path: Path, edit: str) -> None:
+        external = ProjectWorkspace.open(project_path)
+        with write_grant(WriteGrantKind.DISPATCHER), external.transaction():
+            project = external.project
+            if edit == "clip_move":
+                project.clips[0].timeline_start += 2
+            elif edit == "mute":
+                project.tracks[0].muted = True
+            elif edit == "gain":
+                project.tracks[0].gain_db = -9
+            elif edit == "source_change":
+                source = project.workspace_path() / "raw/host.wav"
+                stat = source.stat()
+                data = bytearray(source.read_bytes())
+                data[-1] ^= 1
+                source.write_bytes(data)
+                os.utime(source, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+            elif edit == "clip_source_unset":
+                project.clips[0].source_id = None
+            else:
+                raise ValueError(edit)
+            external.save()
+
+    return save

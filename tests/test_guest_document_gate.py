@@ -617,6 +617,97 @@ def test_host_undoes_each_editor_mcp_change(minimal_project, change):
     assert saved_state(minimal_project) == before
 
 
+def links_with_a_legacy_publish_step(minimal_project, sample_wav) -> dict[str, str]:
+    """Viewer, Commenter and Editor links, over a history an older build wrote: the
+    publish of the review version they serve is the step at the head."""
+    from podcast_mcp.project.history import HistoryManager
+    from podcast_mcp.project.store import ProjectStore, snapshot_from_project
+
+    ws = ProjectWorkspace.open(minimal_project)
+    artifacts = Path(ws.project.workspace_dir) / "artifacts"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / "premix.wav").write_bytes(sample_wav.read_bytes())
+    version = ReviewService(ws).publish(label="gate")
+    project = load_project(minimal_project)
+    published = snapshot_from_project(project)
+    unpublished = published.model_copy(update={"review": {"comments": []}})
+    mgr = HistoryManager(ProjectStore(minimal_project))
+    mgr.record(project, "before publish review version", force=True, snapshot=unpublished)
+    mgr.record(project, "after publish review version", force=True, snapshot=published)
+    save_project(project, minimal_project)
+    return {
+        role: ShareService(ws).create(
+            review_version_id=version["id"], capabilities=capabilities_for_role(role)
+        )["token"]
+        for role in ("viewer", "commenter", "editor")
+    }
+
+
+def share_list_state(minimal_project) -> list[tuple[str, bool]]:
+    rows = ShareService(ProjectWorkspace.open(minimal_project)).list()
+    return sorted((row["id"], bool(row.get("revoked"))) for row in rows)
+
+
+def assert_every_link_answers(client: TestClient, tokens: dict[str, str]) -> None:
+    for role, token in tokens.items():
+        response = client.get(f"/api/review/{token}/daw/project")
+        assert response.status_code == 200, (role, response.text)
+
+
+@pytest.mark.parametrize("actor", ["editor", "host"])
+def test_undo_and_redo_never_end_a_link(minimal_project, sample_wav, actor):
+    tokens = links_with_a_legacy_publish_step(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    assert_every_link_answers(client, tokens)
+    seq = itertools.count(1)
+    if actor == "editor":
+        wrote = client.post(
+            f"/api/review/{tokens['editor']}/daw/document/command",
+            json={
+                "type": "AddChapter",
+                "payload": {"title": "Mine", "time": 1.0},
+                "client_id": "editor-tab",
+                "client_seq": next(seq),
+                "role": "guest",
+            },
+        )
+        assert wrote.status_code == 200, wrote.text
+    listed = share_list_state(minimal_project)
+
+    def move(command_type: str) -> None:
+        payload = history_move(minimal_project)
+        if actor == "host":
+            DocumentSyncService.open(minimal_project).submit(
+                DocumentCommand(
+                    type=command_type,
+                    payload=payload,
+                    client_id="host",
+                    client_seq=None,
+                    role="viewer",
+                ),
+                range_policy="apply",
+            )
+            return
+        response = client.post(
+            f"/api/review/{tokens['editor']}/daw/document/command",
+            json={
+                "type": command_type,
+                "payload": payload,
+                "client_id": "editor-tab",
+                "client_seq": next(seq),
+                "role": "guest",
+            },
+        )
+        assert response.status_code == 200, response.text
+
+    move("UndoHistory")
+    assert_every_link_answers(client, tokens)
+    assert share_list_state(minimal_project) == listed
+    move("RedoHistory")
+    assert_every_link_answers(client, tokens)
+    assert share_list_state(minimal_project) == listed
+
+
 @pytest.mark.parametrize(
     ("caps", "outcome"),
     [
@@ -647,6 +738,23 @@ def test_guest_mcp_range_cut_follows_the_share(
         assert proposal.reason == "guest:suggest"
         assert proposal.boundary_intent == "programmatic"
         assert project.clips == before
+
+
+def test_guest_mcp_redo_with_nothing_to_redo_is_a_coded_refusal(
+    minimal_project, sample_wav, monkeypatch
+):
+    token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
+
+    out = _mcp_call(
+        token,
+        "guest_submit_document_command",
+        {"type": "RedoHistory", "payload": history_move(minimal_project)},
+    )
+
+    result = out["result"]
+    assert result["isError"] is True
+    assert result.get("structuredContent", {}).get("error_code") == "nothing_to_redo"
+    assert result["structuredContent"]["error"] == "There is nothing to redo."
 
 
 @pytest.fixture

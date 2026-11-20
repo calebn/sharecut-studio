@@ -207,10 +207,17 @@ class ExportFilesService:
         Audio, chapters and the feed are judged against the project here. Transcripts reuse ``TranscriptService.exported`` for ``current``. Chapters are current
         when the file equals a fresh render. The feed is current when the listing's own check
         says so. Canonical audio retains its existing currentness behavior; named variants
-        compare their admitted source digest with current source evidence.
+        compare their admitted source digest with current source evidence. Saved clips are
+        current when candidate metadata references their writer-relative path.
         """
         project = self.ws.project
         found = self._found()
+        clip_references = {
+            clip.exported_path for clip in project.social_clip_candidates if clip.exported_path
+        }
+        clip_directory = (project.export_dir() / CLIPS_DIRNAME).relative_to(
+            project.workspace_path()
+        )
         transcript_files = [entry for entry in found if entry.kind == "transcript"]
         has_variants = any(entry.source_digest is not None for entry in found)
         config = (
@@ -244,12 +251,13 @@ class ExportFilesService:
                 if feed_current is None:
                     feed_current = FeedService(self.ws).read().file != "stale"
                 current = feed_current
+            elif found_entry.source_digest is not None:
+                current = source_digest == found_entry.source_digest
+            elif found_entry.kind == "audio" and found_entry.id.startswith(f"{CLIPS_DIRNAME}/"):
+                filename = found_entry.id[len(CLIPS_DIRNAME) + 1 :]
+                current = str(clip_directory / filename) in clip_references
             else:
-                current = (
-                    source_digest == found_entry.source_digest
-                    if found_entry.source_digest is not None
-                    else True
-                )
+                current = True
             entry = ExportedFile(
                 id=found_entry.id,
                 name=name,

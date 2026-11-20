@@ -7,6 +7,7 @@ import {
   test,
 } from "@playwright/test";
 import { expectFeedback } from "./feedback";
+import { hostList } from "./guestLink";
 import { createRecordRoom } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare, openGuestShare } from "./shareNavigation";
@@ -33,15 +34,8 @@ async function guestStatus(page: Page, token: string): Promise<number> {
   return res.status();
 }
 
-type Row = { token: string; usable: boolean; session_id?: string | null };
-
-async function usable(page: Page, projectPath: string): Promise<Row[]> {
-  const res = await page.request.get(
-    `/api/shares?path=${encodeURIComponent(projectPath)}`,
-  );
-  expect(res.ok(), await res.text()).toBeTruthy();
-  const { shares } = (await res.json()) as { shares: Row[] };
-  return shares.filter((row) => row.usable);
+async function usable(page: Page, projectPath: string) {
+  return (await hostList(page, projectPath)).filter((row) => row.usable);
 }
 
 async function openInvite(page: Page, projectPath: string): Promise<Locator> {

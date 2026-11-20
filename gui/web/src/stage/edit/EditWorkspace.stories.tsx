@@ -332,6 +332,7 @@ export const Empty: Story = {
 };
 
 export const Loading: Story = {
+  tags: ["storybook-only"],
   parameters: { episode: { state: { project: null, editSurface: "lanes" } } },
   play: async ({ canvasElement }) => {
     await expect(

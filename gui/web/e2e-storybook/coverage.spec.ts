@@ -7,8 +7,8 @@ import {
   type Page,
 } from "@playwright/test";
 import { expectStoryAxeClean } from "../e2e/axe";
-import { STORYBOOK_ONLY } from "../src/storybook/storybookOnlyStories";
 import { expectRootFit, expectShellFit } from "./shellFit";
+import { emit } from "./storyChannel";
 import { type StoryTheme, storyUrl } from "./storyUrl";
 
 interface IndexEntry {
@@ -26,10 +26,12 @@ const THEMES: StoryTheme[] = ["light", "dark"];
 /**
  * Each worker opens Storybook once and moves between stories through the
  * preview channel, as the Storybook UI does, so a story costs a render and an
- * axe run rather than a page load. A story is checked at every width on that
- * live page. A story tagged `wide-only` cannot render at the phone width, so it
- * is checked at 1280 only and must say why in `parameters.wideOnlyReason`. A story named for a phone width is checked at
- * 360 only, and never carries `wide-only`.
+ * axe run rather than a page load. Only stories tagged `storybook-only` run
+ * here; the in-browser sweep skips them because they need the Storybook
+ * runtime. A story is checked at every width on that live page. A story tagged
+ * `wide-only` cannot render at the phone width, so it is checked at 1280 only
+ * and must say why in `parameters.wideOnlyReason`. A story named for a phone
+ * width is checked at 360 only, and never carries `wide-only`.
  */
 const isPhoneStory = (story: IndexEntry) => /\bphone\b/i.test(story.name);
 const widthsFor = (story: IndexEntry) =>
@@ -67,10 +69,32 @@ base("the geometry title sets name existing stories", () => {
   ).toEqual([]);
 });
 
-base("every storybook-only story id names a real story", () => {
-  const ids = new Set(stories.map((story) => story.id));
-  expect(STORYBOOK_ONLY.filter((id) => !ids.has(id))).toEqual([]);
-});
+const STORYBOOK_ONLY_IDS = [
+  "stages-edit-workspace--loading",
+  "stages-edit-trackcolumn--loading",
+  "templates-timeline--loading",
+  "stages-deliver-podcast-listing--writing",
+  "stages-review-host--find-more",
+  "stages-review-host--find-more-busy",
+  "stages-review-host--queue",
+  "stages-review-host--queue-phone",
+  "stages-review-host--unsure-words",
+  "stages-review-host--unsure-words-phone",
+  "stages-edit-speakerpopover--open",
+];
+
+const storybookOnly = stories.filter((story) =>
+  story.tags?.includes("storybook-only"),
+);
+
+base(
+  "exactly the stories the in-browser sweep cannot run carry storybook-only",
+  () => {
+    expect(storybookOnly.map((story) => story.id).sort()).toEqual(
+      [...STORYBOOK_ONLY_IDS].sort(),
+    );
+  },
+);
 
 base("no phone-named story is tagged wide-only", () => {
   expect(
@@ -84,9 +108,7 @@ base("no phone-named story is tagged wide-only", () => {
 
 const STORYBOOK_URL = "http://127.0.0.1:6010";
 
-type Channel = { emit: (event: string, payload: unknown) => void };
 type PreviewWindow = {
-  __STORYBOOK_ADDONS_CHANNEL__: Channel;
   __STORYBOOK_PREVIEW__?: {
     currentRender?: {
       id?: string;
@@ -111,16 +133,6 @@ const test = base.extend<object, { storybook: Page }>({
     { scope: "worker" },
   ],
 });
-
-const emit = (page: Page, event: string, payload: unknown) =>
-  page.evaluate(
-    ({ event, payload }) =>
-      (window as unknown as PreviewWindow).__STORYBOOK_ADDONS_CHANNEL__.emit(
-        event,
-        payload,
-      ),
-    { event, payload },
-  );
 
 const renderSettled = (page: Page, id?: string) =>
   page.waitForFunction(
@@ -147,8 +159,7 @@ async function settle(page: Page) {
 }
 
 for (const theme of THEMES) {
-  for (const story of stories) {
-    if (!STORYBOOK_ONLY.includes(story.id)) continue;
+  for (const story of storybookOnly) {
     test(`${story.title} / ${story.name} in ${theme}`, async ({
       storybook: page,
     }) => {

@@ -1,0 +1,39 @@
+{
+  "cases": [
+    {
+      "label": "a plain name",
+      "name": "Pilot episode",
+      "markup": "<main class=\"guest-loading\" aria-busy=\"true\"><h1 class=\"sr-only\">Pilot episode</h1><p role=\"status\" class=\"sr-only\">Loading Pilot episode…</p><div class=\"sys-skeleton sys-skeleton--guest\" aria-busy=\"true\" data-phase=\"blank\"><header class=\"sys-app-header-host\"><div class=\"sys-app-header sys-app-header--loading\"><div class=\"sys-header-left\"><div class=\"sys-header-guest\"><span class=\"sys-header-title\" dir=\"auto\" aria-hidden=\"true\">Pilot episode</span><span class=\"sys-header-sub\" aria-hidden=\"true\">Loading…</span></div></div></div></header></div></main>"
+    },
+    {
+      "label": "markup characters and both quotes",
+      "name": "A <B> & \"C\" 'D'",
+      "markup": "<main class=\"guest-loading\" aria-busy=\"true\"><h1 class=\"sr-only\">A &lt;B&gt; &amp; &quot;C&quot; &#x27;D&#x27;</h1><p role=\"status\" class=\"sr-only\">Loading A &lt;B&gt; &amp; &quot;C&quot; &#x27;D&#x27;…</p><div class=\"sys-skeleton sys-skeleton--guest\" aria-busy=\"true\" data-phase=\"blank\"><header class=\"sys-app-header-host\"><div class=\"sys-app-header sys-app-header--loading\"><div class=\"sys-header-left\"><div class=\"sys-header-guest\"><span class=\"sys-header-title\" dir=\"auto\" aria-hidden=\"true\">A &lt;B&gt; &amp; &quot;C&quot; &#x27;D&#x27;</span><span class=\"sys-header-sub\" aria-hidden=\"true\">Loading…</span></div></div></div></header></div></main>"
+    },
+    {
+      "label": "300 unbroken characters",
+      "name": "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+      "markup": "<main class=\"guest-loading\" aria-busy=\"true\"><h1 class=\"sr-only\">WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW</h1><p role=\"status\" class=\"sr-only\">Loading WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW…</p><div class=\"sys-skeleton sys-skeleton--guest\" aria-busy=\"true\" data-phase=\"blank\"><header class=\"sys-app-header-host\"><div class=\"sys-app-header sys-app-header--loading\"><div class=\"sys-header-left\"><div class=\"sys-header-guest\"><span class=\"sys-header-title\" dir=\"auto\" aria-hidden=\"true\">WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW</span><span class=\"sys-header-sub\" aria-hidden=\"true\">Loading…</span></div></div></div></header></div></main>"
+    },
+    {
+      "label": "an Arabic name",
+      "name": "الحلقة الأولى",
+      "markup": "<main class=\"guest-loading\" aria-busy=\"true\"><h1 class=\"sr-only\">الحلقة الأولى</h1><p role=\"status\" class=\"sr-only\">Loading الحلقة الأولى…</p><div class=\"sys-skeleton sys-skeleton--guest\" aria-busy=\"true\" data-phase=\"blank\"><header class=\"sys-app-header-host\"><div class=\"sys-app-header sys-app-header--loading\"><div class=\"sys-header-left\"><div class=\"sys-header-guest\"><span class=\"sys-header-title\" dir=\"auto\" aria-hidden=\"true\">الحلقة الأولى</span><span class=\"sys-header-sub\" aria-hidden=\"true\">Loading…</span></div></div></div></header></div></main>"
+    },
+    {
+      "label": "a Hebrew name",
+      "name": "פרק ראשון",
+      "markup": "<main class=\"guest-loading\" aria-busy=\"true\"><h1 class=\"sr-only\">פרק ראשון</h1><p role=\"status\" class=\"sr-only\">Loading פרק ראשון…</p><div class=\"sys-skeleton sys-skeleton--guest\" aria-busy=\"true\" data-phase=\"blank\"><header class=\"sys-app-header-host\"><div class=\"sys-app-header sys-app-header--loading\"><div class=\"sys-header-left\"><div class=\"sys-header-guest\"><span class=\"sys-header-title\" dir=\"auto\" aria-hidden=\"true\">פרק ראשון</span><span class=\"sys-header-sub\" aria-hidden=\"true\">Loading…</span></div></div></div></header></div></main>"
+    },
+    {
+      "label": "a newline inside",
+      "name": "First line\nSecond line",
+      "markup": "<main class=\"guest-loading\" aria-busy=\"true\"><h1 class=\"sr-only\">First line\nSecond line</h1><p role=\"status\" class=\"sr-only\">Loading First line\nSecond line…</p><div class=\"sys-skeleton sys-skeleton--guest\" aria-busy=\"true\" data-phase=\"blank\"><header class=\"sys-app-header-host\"><div class=\"sys-app-header sys-app-header--loading\"><div class=\"sys-header-left\"><div class=\"sys-header-guest\"><span class=\"sys-header-title\" dir=\"auto\" aria-hidden=\"true\">First line\nSecond line</span><span class=\"sys-header-sub\" aria-hidden=\"true\">Loading…</span></div></div></div></header></div></main>"
+    },
+    {
+      "label": "the name Podcast review",
+      "name": "Podcast review",
+      "markup": "<main class=\"guest-loading\" aria-busy=\"true\"><h1 class=\"sr-only\">Podcast review</h1><p role=\"status\" class=\"sr-only\">Loading Podcast review…</p><div class=\"sys-skeleton sys-skeleton--guest\" aria-busy=\"true\" data-phase=\"blank\"><header class=\"sys-app-header-host\"><div class=\"sys-app-header sys-app-header--loading\"><div class=\"sys-header-left\"><div class=\"sys-header-guest\"><span class=\"sys-header-title\" dir=\"auto\" aria-hidden=\"true\">Podcast review</span><span class=\"sys-header-sub\" aria-hidden=\"true\">Loading…</span></div></div></div></header></div></main>"
+    }
+  ]
+}

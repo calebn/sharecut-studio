@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Literal
 
 Kernel = Literal["darwin", "linux", "nt", "other"]
-MediaTools = Literal["executables", "unavailable"]
+MediaTools = Literal["executables", "unavailable", "in_process"]
 Transcription = Literal["faster_whisper", "unavailable"]
 FileDialog = Literal["osascript", "powershell", "zenity"]
 RevealTool = Literal["open", "explorer", "xdg-open"]
@@ -144,7 +144,7 @@ IOS = HostPlatform(
     system_label="iOS",
     can_spawn_processes=False,
     loopback_is_trusted=False,
-    media_tools="unavailable",
+    media_tools="in_process",
     transcription="unavailable",
     file_dialog=None,
     reveal_tool=None,

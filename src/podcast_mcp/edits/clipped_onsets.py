@@ -66,7 +66,6 @@ from __future__ import annotations
 
 import itertools
 import logging
-import subprocess
 import wave
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
@@ -97,6 +96,7 @@ from podcast_mcp.engines.ungated_audio import raw_timeline_samples
 from podcast_mcp.models import EpisodeProject, TimelineComment, TrackRole, TranscriptWord
 from podcast_mcp.util.dsp import bool_runs, bridge_short_dips
 from podcast_mcp.util.hashing import short_digest
+from podcast_mcp.util.process import CalledProcessError
 
 log = logging.getLogger(__name__)
 
@@ -594,7 +594,7 @@ def flag_clipped_word_starts(project: EpisodeProject, defaults: EffectiveConfig)
     if len(lane_ids) >= 2:
         try:
             levels = timeline_levels(project, lane_ids)
-        except (OSError, ValueError, wave.Error, subprocess.CalledProcessError) as exc:
+        except (OSError, ValueError, wave.Error, CalledProcessError) as exc:
             log.debug("clipped word starts skipped: %s", exc)
             return OnsetReport()
         leads = copy_leads(levels, copy_paths(levels), tolerance_sec=tolerance)

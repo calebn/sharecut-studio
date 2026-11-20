@@ -21,6 +21,7 @@ the server. A history command waiting behind older queued edits is refused
 until those edits are sent. Undo and Redo are unavailable offline. On a share
 link only the host and an Editor can Undo or Redo: a Viewer or Commenter gets a
 disabled command ("Undo needs Editor access") and nothing is sent to the server.
+An Editor's Undo and Redo move only their own step ([Whose step a guest can move](#whose-step-a-guest-can-move)).
 
 The browser may retain a history command briefly in its IndexedDB queue to
 reserve its place relative to other edits. History commands are never replayed.
@@ -80,9 +81,15 @@ episode/
 Each snapshot stores a **full copy** of editable v2 sections (not diffs), so undo/redo and arbitrary cursor jumps are O(1):
 
 - `sources`, `timeline` (tracks + clips), `editorial`, `transcripts` (per_track + combined)
-- `mix`, `social`, `feed` (podcast listing pins, guid and first export time; see [podcast-feed.md](podcast-feed.md)), `review` (timeline comments), `render_last_completed_step`
+- `mix`, `social`, `feed` (podcast listing pins, guid and first export time; see [podcast-feed.md](podcast-feed.md)), `review` (timeline comments; the review versions travel in each snapshot but a history move does not restore them), `render_last_completed_step`
 
 Undo/redo restores the snapshot and **`ProjectStore.commit()`** writes `episode.sharecut`.
+
+### Review versions are not history steps
+
+A published review version is made once, like the feed's guid, and is not undoable state. Undo, Redo and go-to-step restore `review.comments` from the snapshot but keep the project's own `review.versions` and `review.active_version_id` (`apply_editable_snapshot(..., keep_review_versions=True)`), and never read the snapshot's `versions`. `snapshots_equal` ignores both fields, like `render_last_completed_step`, so a change that touches only review versions records no step, whoever makes it, once the history has an entry (when it is empty, the first such change records the episode's starting entry, which Undo cannot move below): publishing, choosing the active version, encoding the review mp3, uploading it to the object store and clearing the key all run through `ProjectWorkspace.mutate` with the same checkpoint, rollback and commit and no `before` / `after` entry, so making a share link adds no step and the next edit's Undo is one press. A mutation that changes a version and anything else is an edit and records a step. Histories an older build wrote may hold `before` / `after publish review version` entries; moving onto one changes no review data. Only the failed-commit restore and `apply_auto` put the snapshot's whole review section back.
+
+An Undo or Redo with nothing to move to raises `CodedValueError` with code `nothing_to_undo` or `nothing_to_redo` (host route 400, MCP `error_code`, guest 400 with "There is nothing to undo." / "There is nothing to redo."; a guest whose latest step is someone else's gets `nothing_of_yours_to_undo` / `nothing_of_yours_to_redo`, below), and a refused Undo leaves the in-memory cursor where it was.
 
 Snapshot files and the project store's transcript cache are written atomically (a temp file in the same directory, then a replace), so a crash leaves the old file or the new one and never a truncated one.
 
@@ -111,7 +118,7 @@ next commit rewrites it from the project's history, and its snapshots stay behin
 harmless orphans. The warning names the reason: a current entry that holds other state (a
 commit that never landed), a current snapshot that is missing or unreadable (damage or an
 out-of-band delete), or no current entry. Snapshots are compared in their saved JSON form
-(`project.store.snapshots_equal`), excluding `render_last_completed_step`.
+(`project.store.snapshots_equal`), excluding `render_last_completed_step` and the review versions with the active choice.
 The pipeline cursor is saved and restored with each snapshot, but advancing it
 alone does not create an undo action or invalidate an otherwise matching index.
 
@@ -255,6 +262,25 @@ labels and params (they can embed local paths) but keep the opaque `head_id`
 A guest editor's Mod+Z or two-finger tap sends it like the host's, so a guest cannot
 revert an agent edit it never received. A guest command reply carries
 `history_head_id` too.
+
+## Whose step a guest can move
+
+Every `HistoryEntry` records its `author` (project format 2.3): `host` (the app's own person and the CLI), `agent` (an MCP tool call), `system` (a job's own steps, including the `after merging concurrent edits` entry) or `share:<registry id>` (a guest, stamped by the guest's workspace itself, so no guest route passes it). `undone_by` records who took the step back. Both are `null` on a step an older build wrote, which is never a guest's. The value rides a ContextVar read once where an entry is built (`project/history/author.py`).
+
+A guest's Undo takes back only the step they wrote, and their Redo brings back only a step they undid. The rule is pure on `ProjectHistory` (`undo_target`, `redo_target`, `step_owners`):
+
+- Undo judges the latest entry that is not a `render_preview` (the automatic mix that lands after an edit never blocks). It must be the guest's own. A host edit, another guest's step, a comment or suggestion decision by someone else, a pipeline step, a merge entry and a pre-2.3 entry all block, because a whole-snapshot stack cannot skip a step without removing it too.
+- Redo judges the first entry after the cursor that is not a `render_preview`. Its `undone_by` must be the guest's own `share:<id>`. When the host undid a guest's edit, the guest cannot redo it.
+- A refusal is `CodedValueError` code `nothing_of_yours_to_undo` ("There is nothing of yours to undo. The latest change is someone else's.", HTTP 400, guest MCP the same text) or `nothing_of_yours_to_redo` ("There is nothing of yours to redo. Redo brings back only what you undid."). It runs after the stale-head and `nothing_to_*` checks and before anything is applied, so the project file and `history/index.json` are untouched. The host, host MCP and CLI pass no guest and behave as before.
+- A guest's own `before <label>` entry records `system`. It is a snapshot of whatever was saved before the guest's edit, so a second Undo cannot take back an unrecorded host change.
+- `goto` stays host only.
+- Restore (`RestoreAppliedEdit`) of a record with no typed `inverse` (the Edit bar's Cut or Mute) is refused for a guest with the `local_restore_requires_history` conflict, and the guest's `restore_conflicts[].message` reads "This cut can't be put back on its own. Undo takes back your own latest change; for anything else, ask the host." (`edit_log.GUEST_LOCAL_RESTORE_MESSAGE`). The host's message is unchanged. A record that carries an inverse, such as a host-approved word cut, restores for an Editor.
+
+The guest view adds only two booleans derived from ownership, `can_undo` and `can_redo`, true for that viewer under this rule. The hub event holds the internal owners (`_history_owners`, read under the project lock), and `sanitize_guest_document_event(viewer=...)` turns them into the viewer's flags on the guest's hello, state read, command reply (including an idempotent retry), socket frames and project view. A guest's MCP command reply carries the same two flags (`guest_submit_document_command` passes the share's author as the viewer), as does `guest_get_project`. No author id, label or path leaves the server, and the shared guest delta stays the same for every guest.
+
+The host's Undo and Redo keep their mechanics and may take back a guest's edit or comment. `HistoryMoveResult.guest_step` is present only when true, so a move of the host's own step returns the same JSON as before. It is true when the entry moved has a `share:` author, the document reply carries it to the host's tab, and the page announces "Undid a guest's change." or "Redid a guest's change.". A guest's own reply and views never carry it.
+
+In the web app one selector, `commands/historyAvailability.ts`, answers Undo and Redo for every role: Viewer and Commenter get "needs Editor access", an Editor and the host get the flag, and Undo also counts a save in flight, so the host's Undo is enabled while an edit saves. A key Undo or Redo with nothing to move to is not sent and is announced ("Nothing to undo"), except on Home with no project open, where it stays silent. A palette or menu Undo that fails with a network or server error is announced as "Undo failed: ..." and never left unhandled. The keys, palette rows, two-finger tap, header, Inspector sheet and History tab read it, so they agree on the same information. A flag is only as fresh as the last frame the tab received, and a stale flag is corrected by the server's sentence when the press is sent. A press the selector turns away is not sent and says why. For a guest the flag path says "There is nothing of yours to undo." or "There is nothing of yours to redo.", because a false flag cannot tell an empty history from someone else's step on top. The longer sentences ("The latest change is someone else's.", "Redo brings back only what you undid.") come only from a press the server refused. The disabled header and Inspector sheet buttons carry the same reason as their title. The five history refusal codes (`history_stale`, `nothing_to_undo`, `nothing_to_redo` and the two above) are told once and never filed as a conflict in Needs attention.
 
 **Toast Undo.** A document command's reply carries `history_head_id`: the entry the
 command left at the head, read in the same locked step as its apply. It is null when
@@ -453,7 +479,7 @@ A record-room land (`RecordLandingService.land`, `podcast record land`, the uplo
 
 ## Individual Restore and whole-action Undo
 
-Individual Restore supports records that carry a typed `AppliedEditRecord.inverse`. `UnmuteSource`, written by the source MUTE apply path, subtracts the recorded mute spans without inserting media or shifting timeline time. `ReinsertClips`, written by every auto-applied ripple cut (`_write_ripple_delete` and the approve and prefix removals, one record per removed span), reopens the span and puts the recorded clip pieces back. It locates the seam by source clocks and requires the left clip to still end at `pre`, the right to start at `post` and the two to be adjacent apart from exactly the recorded replace-gap pad, whose placement can be off the seam (`offset_from_seam`). Otherwise the record is `blocked`, naming `blocked_by` the applied edits whose removed material holds the missing edge. Track punches, parked recordings, take replacements, `ripple_delete_clips` and exact ranges have no inverse and require History Undo. `AppliedEditRecord` source and seam clocks remain editorial display data. They cannot identify the removed recordings or clip occurrences.
+Individual Restore supports records that carry a typed `AppliedEditRecord.inverse`. `UnmuteSource`, written by the source MUTE apply path, subtracts the recorded mute spans without inserting media or shifting timeline time. `ReinsertClips`, written by every auto-applied ripple cut (`_write_ripple_delete` and the approve and prefix removals, one record per removed span), reopens the span and puts the recorded clip pieces back. It locates the seam by source clocks and requires the left clip to still end at `pre`, the right to start at `post` and the two to be adjacent apart from exactly the recorded replace-gap pad, whose placement can be off the seam (`offset_from_seam`). Otherwise the record is `blocked`, naming `blocked_by` the applied edits whose removed material holds the missing edge. Track punches, parked recordings, take replacements, `ripple_delete_clips` and exact ranges, which is what the bar's Cut makes, have no inverse and require History Undo. So Restore works for approved cuts and source mutes, not for a cut made with the bar's Cut. `AppliedEditRecord` source and seam clocks remain editorial display data. They cannot identify the removed recordings or clip occurrences.
 
 `EditService.revert_applied(ids, dry_run)` plans every id under the workspace transaction before recording history. The inverse validates its own spans when the record is built: finite, nonnegative, strictly ordered. A blocked or unknown id returns a `RestoreResult` conflict as data, and `dry_run` returns `planned`. Neither writes the saved project, mute regions, archives, history entries, transcript caches, or render artifacts. Opening a document session can still initialize its normal journal and lock files before Restore runs. A record with no inverse returns a `local_restore_requires_history` conflict with this message through the service, HTTP, MCP, and CLI `--json` results.
 

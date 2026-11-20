@@ -37,7 +37,7 @@ const meta: Meta<typeof LoadFailureCover> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The Status cover at region size for the studio's first read of the episode failing after the studio has opened. One fixed sentence per kind of failure, never the server's words: a guest reads the review-link covers' sentences for the same cause, a host a sentence for an episode that can't be found, can't be read, is in use, is open elsewhere, isn't answering or couldn't be opened. A press on Try again is answered on the button and in a status line; the sentence does not change.",
+          "The Status cover at region size for the studio's first read of the episode failing after the studio has opened. One fixed sentence per kind of failure, never the server's words: a guest reads the review-link covers' sentences for the same cause, a host a sentence for an episode that can't be found, can't be read, is in use, is open elsewhere, isn't answering, was saved by a newer version, is in a format this version doesn't read or couldn't be opened. A press on Try again is answered on the button and in a status line; the sentence does not change.",
       },
     },
   },
@@ -129,6 +129,14 @@ export const HostElsewhere: Story = {
 };
 export const HostNotAnswering: Story = {
   args: { failure: host("not-answering") },
+  ...title("Could not load the project"),
+};
+export const HostNewer: Story = {
+  args: { failure: host("newer") },
+  ...title("Could not load the project"),
+};
+export const HostUnsupported: Story = {
+  args: { failure: host("unsupported") },
   ...title("Could not load the project"),
 };
 export const HostOther: Story = {

@@ -111,6 +111,7 @@ flowchart TD
    An Editor link also opens **Deliver**, which shows the **Podcast listing** alone (no export, bounce or sharing). The Editor edits the episode's values (title, intro, notes, the episode's own hosting address) and the show's plain values (name, description, author, category), and writes the feed file; each value an Editor sets carries a quiet **Guest** mark. The show itself, the show's hosting address template and local artwork stay with the host ("Only the host can change this."), and artwork and hosting addresses must be https addresses (a bad one is refused in plain words before it is sent). A note at the top reads "You can edit this listing. The show and the hosting template stay with the host." A Commenter or Viewer link has no Deliver stage.
 2. The Review tab in the phone's bottom Stage bar carries the count of cuts waiting for review plus open comments (a cut over an unsure word is the host's and is not counted for an Editor) and opens the Review queue (an Editor link has no Listen layout).
 3. Listen-first: hear after (Suggested; skip the pending band) or before from the Action bar, then Cut or Keep (Approve or Reject on the sheet and card for a split, an exact range or a suggestion with no accept action). Ask lives in the pending inspector thread.
+4. An Editor also edits the episode by hand: **Cut** and **Mute** on a selected word or range, **Fix text** and **Find and replace**, and **Keep** on the seam of an approved cut. Each applies on the host's episode, the toast offers Undo for the Editor's own step, and a hold from the server is told in one plain sentence, not as a Needs attention conflict.
 
 ---
 
@@ -174,6 +175,8 @@ can require all of its guests to reconnect.
 | Host's review folder is not private to the host's account (another owner, or writable by group or others) | Guest request fails with "The host's review files need attention; ask the host to check them." No path, command or `internal error`. The host sees the folder and fix in the CLI or the owner tools |
 | Host's share registry is not private to the host's account (a loose file mode, a foreign owner, an ACL, or a symlink), or its file or directory identity changes during access | Guest request fails with "The host's sharing setup needs attention; ask the host to check it." No path, command or `internal error`. The host sees the exact path and fix in the CLI, Share, or the owner tools |
 | Host's review audio is gone (the frozen mix is missing or was deleted) | Audio request fails with "This review's audio isn't available right now; ask the host to republish." Never a path or any part of a folder name. The host sees the missing file's path in the owner tools |
+| The link's review version is missing from the project (the link is kept, not turned off) | Request fails with "This link's audio isn't available right now. Ask the host to check it." The link answers again once the version is back |
+| Undo or Redo with nothing to move to | The request fails with "There is nothing to undo." or "There is nothing to redo." Never `internal error` |
 | Host's project file moved or was deleted | Request fails with "This link isn't available right now; ask the host to check it." Never a path or any part of a folder name |
 | Any other deliberate refusal whose host message names a folder or file path | Request fails with "That didn't work; ask the host to check this episode." The guest never reads a path, or half of one |
 
@@ -383,13 +386,16 @@ flowchart TD
    until your full-quality recording finishes writing its final file, then
    clears. The guest's pill reads "Saving · N%" while the file uploads and "Saved"
    once the host holds the verified file; their own tile shows the same state. The
-   room asks the guest to keep the tab open (Leave is held while the upload moves
-   or the file finishes writing, and says why when pressed). Once the host holds
+   room asks the guest to keep the tab open (Leave is held while the upload moves,
+   while the host has the file but this device's copy has not been read yet, or
+   the file finishes writing, and says why when pressed). During a take Leave opens
+   after the host has been gone for 60 seconds, with a warning that leaving stops
+   recording on this device and asks the guest to keep the page open so it can reach the host. Once the host holds
    the file the dock reads "Saved to project. You can close this page." with
    **Done**, which leaves the room. A screen
    reader hears each segment start and finish politely, not each chunk; the guest
    room shows no chunk counts. For an incomplete or stalled take the alerts offer
-   **Resume saving** and **Save a copy** ("Saving stopped."), or **Finish saving**
+   **Resume saving** and **Save a copy** ("Saving stopped.", which a dropped connection mid-take does not raise while its own alert shows, and never raises for a saved guest), or **Finish saving**
    ("We found part of your recording."). The host's Record stage shows "Saving to
    project…" then "Saved to project" for every recorded participant and segment.
    Download produces one ZIP containing all
@@ -510,14 +516,14 @@ The host can correct a person's track before accepting a staged session. If Acce
 
 ```mermaid
 flowchart TD
-  open[Open producer record link] --> sheet[Join sheet: name]
+  open[Open producer record link] --> sheet[Join sheet over the live room: name]
   sheet --> wait[Join to listen; wait for host Start]
   wait --> rec[Listen to mix-minus of all recorded peers]
   rec --> note[Leave a live comment or Marker]
   note --> stop[Host Stop]
 ```
 
-1. Producer lands on the same room with the Join sheet (name, **Join to listen**: "You'll listen and comment. You won't be recorded."); they appear in the room's listening row once they press **Join to listen**.
+1. Producer lands on the same room with the Join sheet (name, **Join to listen**: "You'll listen and comment. You won't be recorded."). The sheet's title says who is there, and behind it the room is live, with its status pill and tiles. Once the room has counted the producer, the sheet says "The room can see that someone is looking in." under the listen line, and the host and the guests see "Someone with the producer link is looking in" while the producer looks (the producer's own page does not count itself). **Not now** ends the look and leaves no room behind the bar. If the host has removed someone who joined through this link, the server refuses a look that opens afterwards and closes one that is already open; a producer whose device holds a saved place sees no room behind the sheet, and **Join to listen** sends Join with that place, while one without a saved place sees the Invite link closed cover, whichever check closed the look; a revoked or reminted link shows the ended cover instead. They appear in the room's listening row once they press **Join to listen**, and the looking-in line drops them in the same moment (it goes if they were the only one looking).
 2. No `getUserMedia`, no consent, no room tone, no full-quality recording, no saving panel,
    no mic meter or clip alert.
 3. Host Start does not wait on the producer.

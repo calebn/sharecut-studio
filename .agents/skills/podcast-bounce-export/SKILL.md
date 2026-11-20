@@ -1,7 +1,7 @@
 ---
 name: podcast-bounce-export
 description: >-
-  Bounce selected or all stems (optional timeline range) to WAV/MP3 under
+  Bounce selected or all stems (optional timeline range) to WAV/MP3/M4A under
   export/bounces/ without mastering. Use to send a guest their track, mix a
   subset, or export a section. For full loudness-mastered deliverables use
   podcast-master-export.
@@ -31,14 +31,14 @@ bounce_audio_tool(
   track_ids=None | ["host", "guest"],
   start_s=None,   # timeline seconds
   end_s=None,
-  formats=["wav"] | ["wav", "mp3"],
+  formats=["wav"] | ["wav", "mp3"] | ["wav", "m4a"],
 )
 ```
 
 CLI twin:
 
 ```bash
-podcast pipeline bounce --project PATH [--tracks host,guest] [--start SEC] [--end SEC] [--formats wav,mp3]
+podcast pipeline bounce --project PATH [--tracks host,guest] [--start SEC] [--end SEC] [--formats wav,mp3,m4a]
 ```
 
 Outputs land in `{workspace}/export/bounces/`.

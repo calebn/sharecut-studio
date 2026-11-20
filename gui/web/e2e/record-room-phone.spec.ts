@@ -411,15 +411,22 @@ test.describe("record room on a phone", () => {
       await joinAsGuest(guest, room.guest.token, "Ava");
       await expect(page(guest).wordmark).toBeVisible();
       await expect(page(guest).symbol).toBeHidden();
-      await expect(
-        guest.getByRole("button", { name: "Comments", exact: true }),
-      ).toBeVisible();
+      const toggle = guest.getByRole("button", {
+        name: /^Comments(, \d+ unread)?$/,
+      });
+      await expect(toggle).toBeVisible();
       await expect(guest.locator(".sys-dock-label")).toHaveCount(0);
       const tileTop = (await box(guest.locator(".sys-room-tile").first())).y;
       const headerBottom =
         (await box(header(guest))).y + (await box(header(guest))).height;
       expect(tileTop - headerBottom).toBeGreaterThan(100);
       await expectOwnTile(guest, "Ava");
+      await expect(toggle).toHaveAttribute("aria-pressed", "false");
+      await toggle.click();
+      await expect(
+        guest.getByRole("complementary", { name: "Comments", exact: true }),
+      ).toBeVisible();
+      await expect(toggle).toHaveAttribute("aria-pressed", "true");
     });
   });
 });

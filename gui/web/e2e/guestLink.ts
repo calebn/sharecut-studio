@@ -1,7 +1,52 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import fs from "node:fs";
+import {
+  type BrowserContextOptions,
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+} from "@playwright/test";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare, openHostShare } from "./shareNavigation";
 import { withBrowserPages } from "./twoBrowserPages";
+
+/** The host turns a review link off, as the Share menu does. */
+export async function revokeLink(
+  host: Page,
+  token: string,
+  projectPath: string,
+) {
+  const ended = await host.request.post(`/api/shares/${token}/revoke`, {
+    data: { path: projectPath },
+  });
+  expect(ended.ok(), await ended.text()).toBeTruthy();
+}
+
+/** One link in the host's list, as `GET /api/shares` answers it. */
+type ShareRow = {
+  token: string;
+  url: string | null;
+  docs_role: string | null;
+  mcp_url: string | null;
+  follow_latest?: boolean;
+  usable: boolean;
+  session_id?: string | null;
+};
+
+/** The host's list of links for `projectPath`, every row, usable or not. */
+export async function hostList(
+  host: Page,
+  projectPath: string,
+): Promise<ShareRow[]> {
+  const res = await host.request.get(
+    `/api/shares?path=${encodeURIComponent(projectPath)}`,
+  );
+  expect(res.ok(), await res.text()).toBeTruthy();
+  return ((await res.json()) as { shares: ShareRow[] }).shares;
+}
+
+/** The title of the cover for a link that does not open anything. */
+export const DEAD_TITLE = "This link doesn't open anything";
 
 export type Size = {
   name: string;
@@ -14,6 +59,17 @@ export const SIZES = [
   { name: "phone", width: 390, height: 844, touch: true },
   { name: "desktop", width: 1280, height: 800, touch: false },
 ] as const;
+
+/** The narrowest phone the specs open (the app states no minimum): the header folds its right side at exactly this width (20 rem). */
+export const NARROW_PHONE = {
+  name: "narrow",
+  width: 320,
+  height: 568,
+  touch: true,
+} as const;
+
+export const ROLES = ["viewer", "commenter", "editor"] as const;
+type GuestRole = (typeof ROLES)[number];
 
 export async function press(button: Locator, touch: boolean) {
   if (touch) {
@@ -160,6 +216,46 @@ export async function episodeName(page: Page, token: string): Promise<string> {
   return ((await answer.json()) as { meta: { name: string } }).meta.name;
 }
 
+/**
+ * Gives the episode a blank name, the way the server's own tests do: in the
+ * project file. The rename command refuses a blank name, so no browser can ask
+ * for this one. The link's next read of the episode answers `meta.name` as "".
+ */
+export function blankEpisodeName(projectPath: string): void {
+  const data = JSON.parse(fs.readFileSync(projectPath, "utf8")) as {
+    meta: { name?: string };
+  };
+  data.meta.name = "";
+  fs.writeFileSync(projectPath, `${JSON.stringify(data, null, 2)}\n`);
+}
+
+/**
+ * A shared project with the host's own page open on it, the guest contexts
+ * asked for after it, and a link for each of `roles`. The host stays open so a
+ * guest finds a person in the header's people slot, as a real one does.
+ */
+export async function withSharedProject(
+  browser: Parameters<typeof withBrowserPages>[0],
+  guests: BrowserContextOptions[],
+  roles: readonly GuestRole[],
+  run: (
+    pages: Page[],
+    links: Record<GuestRole, string>,
+    projectPath: string,
+  ) => Promise<void>,
+) {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(browser, [{}, ...guests], async (pages) => {
+      const [host] = pages;
+      await openHostShare(host!, projectPath);
+      const links = {} as Record<GuestRole, string>;
+      for (const role of roles)
+        links[role] = await createReviewShare(host!, projectPath, role);
+      await run(pages, links, projectPath);
+    });
+  });
+}
+
 export async function withGuestLink(
   browser: Parameters<typeof withBrowserPages>[0],
   size: Size,
@@ -171,23 +267,34 @@ export async function withGuestLink(
   ) => Promise<void>,
   role: "commenter" | "editor" = "commenter",
 ) {
-  await withShareableProject(async (projectPath) => {
-    await withBrowserPages(
-      browser,
-      [
-        {},
-        {
-          viewport: { width: size.width, height: size.height },
-          hasTouch: size.touch,
-        },
-      ],
-      async ([host, guest]) => {
-        await openHostShare(host!, projectPath);
-        const token = await createReviewShare(host!, projectPath, role);
-        await run(guest!, token, host!, projectPath);
+  await withSharedProject(
+    browser,
+    [
+      {
+        viewport: { width: size.width, height: size.height },
+        hasTouch: size.touch,
       },
-    );
-  });
+    ],
+    [role],
+    async ([host, guest], links, projectPath) =>
+      run(guest!, links[role], host!, projectPath),
+  );
+}
+
+export async function withGuestLinks(
+  browser: Parameters<typeof withBrowserPages>[0],
+  run: (
+    links: Record<GuestRole, string>,
+    host: Page,
+    projectPath: string,
+  ) => Promise<void>,
+) {
+  await withSharedProject(
+    browser,
+    [],
+    ROLES,
+    async ([host], links, projectPath) => run(links, host!, projectPath),
+  );
 }
 
 /** A window too short for the cover's usual offset: a desktop at 200% zoom. */
@@ -266,3 +373,73 @@ export const focusWhenSeen = (page: Page) =>
   page.evaluate(
     () => (window as unknown as { __focusSeen: Promise<string> }).__focusSeen,
   );
+
+export async function seeEveryHint(page: Page) {
+  await page.addInitScript(() => {
+    for (const role of ["viewer", "commenter", "editor"])
+      localStorage.setItem(`sharecut.roleHintSeen.${role}`, "1");
+  });
+}
+
+/** A guest's own browser window of `size`: a first visit shows the role hint, a returning guest has seen it. */
+export async function withGuestPage(
+  browser: Parameters<typeof withBrowserPages>[0],
+  size: Size,
+  run: (guest: Page) => Promise<void>,
+  options: { visit?: "first" | "returning"; scale?: number } = {},
+) {
+  await withBrowserPages(
+    browser,
+    [
+      {
+        viewport: { width: size.width, height: size.height },
+        hasTouch: size.touch,
+        deviceScaleFactor: options.scale ?? 1,
+      },
+    ],
+    async ([guest]) => {
+      if (options.visit === "returning") await seeEveryHint(guest!);
+      await run(guest!);
+    },
+  );
+}
+
+type Answer = "offline" | "refused" | "through";
+
+/** Holds the episode request the page makes on load, so the device can lose its connection while it is out. */
+export async function holdFirstRequest(page: Page, token: string) {
+  let answer: Answer = "offline";
+  let asked = 0;
+  let release: (route: Route) => void = () => {};
+  const first = new Promise<Route>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**/api/review/${token}/project`, async (route) => {
+    asked += 1;
+    if (asked === 1) return release(route);
+    if (answer === "through") return route.continue();
+    return route.abort(
+      answer === "offline" ? "internetdisconnected" : "connectionrefused",
+    );
+  });
+  return {
+    first,
+    asked: () => asked,
+    answerWith: (next: Answer) => {
+      answer = next;
+    },
+  };
+}
+
+export const deviceOnLine = (page: Page) =>
+  page.evaluate(() => navigator.onLine);
+
+export async function loseConnectionOnLoad(page: Page, token: string) {
+  const held = await holdFirstRequest(page, token);
+  await page.goto(`/r/${token}`);
+  const route = await held.first;
+  await page.context().setOffline(true);
+  await expect.poll(() => deviceOnLine(page)).toBe(false);
+  await route.abort("internetdisconnected");
+  return held;
+}

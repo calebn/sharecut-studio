@@ -55,7 +55,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `F2` | Edit focused transcript word (`transcript.editWordInline`) | Loaded host project | F2: Fix text on the selected word |
+| `F2` | Edit focused transcript word (`transcript.editWordInline`) | Host or an editor link, words loaded | F2: Fix text on the selected word |
 | `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | Drops an armed range draft first, then closes the Inspector, then clears the selection and track targeting |
 | `Tab` | Next occurrence (`edit.nextOccurrence`) | afterCutActive | After a words cut, selects the next place the same words were said; Shift+Tab the previous |
 | `ArrowLeft` | Set clip fade (`edit.setClipFade`) | focusedFadeHandle | Left/Right 1 ms; Shift 10 ms. Release to save; Escape cancels. |
@@ -146,6 +146,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Toggle track mute | `track.muteToggle` | Project loaded | Mute (edit.mute) on a track: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? }) |
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
 | Clear solo | `track.clearSolo` | Project loaded | Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key) |
+| Back to playhead | `view.followPlayhead` | editStage | Follow the playhead again during playback and bring it into view in the timeline (no default key) |
 | Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in a field or on a focused Scrub field) | Toggle: fill the stage height, or a fixed track height |
 | Snap to cut points | `view.toggleSnap` | Project loaded | The Snap toggle in the Edit corner: moves, trims and the suggestion Start/End pull to nearby cut points. Alt inverts it for one gesture |
 | Export transcript… | `export.transcript` | Loaded host project | Go to Deliver and focus the Transcript Export → export/ |
@@ -170,7 +171,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Remove extracted room tone | `track.clearRoomTone` | editStageTrackInspector | Takes the cut room-tone bed off the inspector track (args { trackId? }); a recorded bed is never removed. ClearExtractedRoomToneBed, one undo step |
 | Reorder track | `track.reorder` | editStageIngest | Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen |
 | Adjust word timing | `transcript.adjustTiming` | Loaded host project | Source-clock boundaries for the selected transcript word |
-| Find and replace transcript | `transcript.findReplace` | Loaded host project | Finds, counts and highlights a phrase even when another speaker's turn sits between its words; only the phrase's own words are highlighted, selected and replaced. Replace changes the current match alone and Replace all changes every match, each as one undo step |
+| Find and replace transcript | `transcript.findReplace` | Host or an editor link, words loaded | Finds, counts and highlights a phrase even when another speaker's turn sits between its words; only the phrase's own words are highlighted, selected and replaced. Replace changes the current match alone and Replace all changes every match, each as one undo step |
 | Extend transcript range | `transcript.extendRange` | Project loaded | Args: { edge: 'start' \| 'end', by: 1 \| -1 }: moves one edge of the selected word range by one word; a selection change only (#1029) |
 | Ignore / restore transcript words | `transcript.ignoreWords` | Project loaded | Args: { trackId?, startWordIndex?, endWordIndex?, ignored? }: struck through and muted at render, no cut (#633); host-only |
 | Show cut away | `view.showCutAway` | Always (when not typing in a field or on a focused Scrub field) |  |

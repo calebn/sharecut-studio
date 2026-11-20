@@ -218,6 +218,7 @@ export const Speaker: Story = {
 const guestPlay = async (
   { canvasElement }: { canvasElement: HTMLElement },
   speakers: boolean,
+  fixes = false,
 ) => {
   const canvas = within(canvasElement);
   await expect(await word(canvas, /^Welcome/)).toBeVisible();
@@ -225,7 +226,11 @@ const guestPlay = async (
     canvas.queryAllByRole("button", { name: /, change speaker$/ }).length > 0,
   ).toBe(speakers);
   await userEvent.dblClick(await word(canvas, /^Welcome/));
-  await expect(canvas.queryByRole("textbox")).toBeNull();
+  if (fixes) {
+    await userEvent.keyboard("{F2}");
+    await canvas.findByRole("textbox");
+    await userEvent.keyboard("{Escape}");
+  } else await expect(canvas.queryByRole("textbox")).toBeNull();
 };
 
 export const GuestViewer: Story = {
@@ -261,15 +266,15 @@ export const GuestCommenter: Story = {
 export const EditShareGuest: Story = {
   parameters: { episode: { project: episode(), role: "editor" } },
   play: async (context) => {
-    await guestPlay(context, true);
+    await guestPlay(context, true, true);
     const canvas = within(context.canvasElement);
     await userEvent.click(
       await canvas.findByRole("button", { name: "Find in transcript" }),
     );
     await canvas.findByRole("searchbox", { name: "Find" });
     await expect(
-      canvas.queryByRole("button", { name: "Show replace" }),
-    ).toBeNull();
+      await canvas.findByRole("button", { name: "Show replace" }),
+    ).toBeInTheDocument();
   },
 };
 

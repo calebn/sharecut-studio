@@ -159,7 +159,9 @@ def speaker_split_tool(
 ) -> str:
     """Split a one-track recording of several speakers into a lane per speaker (dry_run by default).
 
-    Needs the speaker count (or one set with speaker_set_count_tool). ``enrollment`` maps
+    Needs the speaker count (or one set with speaker_set_count_tool). ``names`` go to
+    voices in the order they first speak, except that an enrolled name is seeded from its own
+    spans and the others take the remaining voices in that order. ``enrollment`` maps
     a speaker's name to [start, end] source-second spans of only that speaker, for some or
     all speakers; the rest are clustered. Every lane plays the same media, muted where the
     others talk. Flagged crosstalk plays on the likeliest speaker's lane (``owner``), on

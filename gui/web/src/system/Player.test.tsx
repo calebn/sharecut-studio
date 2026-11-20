@@ -84,15 +84,29 @@ describe("Player", () => {
     );
   });
 
+  it("shows the Playback rate in the expanded readout, where the bar may have dropped it", () => {
+    render(<Player {...base} form="expanded" rate={2} />);
+    const readout = document.querySelector(".sys-player-readout");
+    expect(readout).toContainElement(
+      screen.getByRole("status", { name: "Playback speed 2×" }),
+    );
+    expect(screen.getByText("2×").closest(".pill")).toHaveAttribute(
+      "title",
+      "Playback speed",
+    );
+  });
+
   it("shows no total duration when the episode has none yet", () => {
     render(<Player {...base} form="expanded" total="00:00.000" duration={0} />);
     expect(document.querySelector(".sys-player-total")).toBeNull();
   });
 
   it("does not hide the total duration label on a narrow Player", () => {
-    const css = systemCss();
+    // A rule starts after a brace, a semicolon or a comment, however its
+    // selector is wrapped.
+    const css = systemCss().replace(/\s+/g, " ");
     const hides = (sel: string) =>
-      new RegExp(`(^|\\n)\\s*${sel}\\s*\\{[^}]*display:\\s*none`);
+      new RegExp(`(^|[{};]|\\*/) ?${sel} ?\\{[^}]*display: ?none`);
     expect(css).toMatch(hides("\\.sys-player-time \\.sys-player-total"));
     expect(css).not.toMatch(hides("\\.sys-player-total"));
     expect(css).not.toMatch(
@@ -154,6 +168,25 @@ describe("Player", () => {
     expect(onRetry).toHaveBeenCalledTimes(2);
   });
 
+  it("gives each Status pill a tooltip, since a narrow bar shows only its glyph", () => {
+    const { rerender } = render(
+      <Player {...base} solo="Rosa" state="mix-updating" />,
+    );
+    expect(screen.getByText("Solo Rosa").closest(".pill")).toHaveAttribute(
+      "title",
+      "Solo Rosa",
+    );
+    expect(screen.getByText("Updating mix").closest(".pill")).toHaveAttribute(
+      "title",
+      "Updating mix",
+    );
+    rerender(<Player {...base} state="error" />);
+    expect(screen.getByText("Audio error").closest(".pill")).toHaveAttribute(
+      "title",
+      "Audio error",
+    );
+  });
+
   it("tells a chapter row's index, and collapses with a named icon button", async () => {
     const user = userEvent.setup();
     const onChapter = vi.fn();
@@ -184,16 +217,22 @@ describe("Player", () => {
     expect(onCollapse).toHaveBeenCalledOnce();
   });
 
-  it("names the skips and passes the signed seconds", async () => {
-    const user = userEvent.setup();
-    const onSkip = vi.fn();
-    render(<Player {...base} onSkip={onSkip} />);
-    await user.click(screen.getByRole("button", { name: "Back 15 seconds" }));
-    await user.click(
-      screen.getByRole("button", { name: "Forward 15 seconds" }),
-    );
-    expect(onSkip.mock.calls).toEqual([[-15], [15]]);
-  });
+  it.each([
+    ["bar", "bar"],
+    ["expanded form", "expanded"],
+  ] as const)(
+    "names the skips in the %s and passes the signed seconds",
+    async (_label, form) => {
+      const user = userEvent.setup();
+      const onSkip = vi.fn();
+      render(<Player {...base} form={form} onSkip={onSkip} />);
+      await user.click(screen.getByRole("button", { name: "Back 15 seconds" }));
+      await user.click(
+        screen.getByRole("button", { name: "Forward 15 seconds" }),
+      );
+      expect(onSkip.mock.calls).toEqual([[-15], [15]]);
+    },
+  );
 
   it("rings Play in the followed person's colour and leaves the naming to the header pill", () => {
     const { container } = render(
@@ -464,10 +503,9 @@ describe("Player", () => {
     expect(comment).toHaveClass("sys-player-comment");
     expect(comment).toHaveClass("sys-player-comment--guest");
     const css = systemCss();
-    const folded = css.match(
-      /html\[data-frame-short\]\s*\.sys-player-right\s*>\s*([^{]*)\{[^}]*display:\s*none/,
+    expect(css).toMatch(
+      /html\[data-frame-short\][^{]*\.sys-player-comment:not\(\.sys-player-comment--guest\)[^{]*\{[^}]*display:\s*none/,
     );
-    expect(folded?.[1]).toContain(".sys-player-comment--guest");
     expect(css).toMatch(
       /html\[data-frame-short\]:not\(\[data-shell="phone"\]\)\s*\.sys-player-comment--guest\s*\{[^}]*display:\s*none/,
     );

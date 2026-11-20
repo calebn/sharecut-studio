@@ -343,6 +343,25 @@ export function chunkRefKey(ref: ImmutableChunkRef): string {
   return JSON.stringify([ref.kind, ref.artifactId, ref.hash, ref.index]);
 }
 
+/** Every chunk the manifest names, of every track and occurrence artifact. */
+export function manifestChunkRefs(
+  manifest: ProxyManifest,
+): ImmutableChunkRef[] {
+  const refs: ImmutableChunkRef[] = [];
+  const name = (
+    kind: ImmutableChunkRef["kind"],
+    descriptors: Readonly<Record<string, ProxyArtifactManifest>>,
+  ) => {
+    for (const [artifactId, { hash, urls }] of Object.entries(descriptors))
+      urls.forEach((url, index) =>
+        refs.push({ kind, artifactId, hash, index, url }),
+      );
+  };
+  name("track", manifest.tracks);
+  name("artifact", manifest.artifacts);
+  return refs;
+}
+
 export function chunkIndexForSource(srcSec: number, chunkSec: number): number {
   return chunkSec <= 0 ? 0 : Math.max(0, Math.floor(srcSec / chunkSec));
 }
@@ -370,6 +389,7 @@ export function buildSchedule(
   windowEndSec: number,
   manifest: ProxyManifest,
   volumeByTrack: Readonly<Record<string, readonly VolumePoint[]>> = {},
+  onMissing: "throw" | "skip" = "throw",
 ): ScheduledSlice[] {
   const out: ScheduledSlice[] = [];
   const {
@@ -406,7 +426,10 @@ export function buildSchedule(
     const descriptor = binding
       ? manifest.artifacts[artifactId]
       : manifest.tracks[artifactId];
-    if (!descriptor) throw new Error("Missing proxy descriptor for occurrence");
+    if (!descriptor) {
+      if (onMissing === "skip") continue;
+      throw new Error("Missing proxy descriptor for occurrence");
+    }
     const envelope: ClipEnvelope = {
       // The render applies the envelope of the lane the clip sits on, not the
       // lane its audio came from.
@@ -464,8 +487,10 @@ export function buildSchedule(
       )
         continue;
       const url = descriptor.urls[index];
-      if (index >= descriptor.chunk_count || !url)
+      if (index >= descriptor.chunk_count || !url) {
+        if (onMissing === "skip") continue;
         throw new Error("Missing proxy chunk for occurrence");
+      }
       out.push({
         chunk: {
           kind: binding ? "artifact" : "track",

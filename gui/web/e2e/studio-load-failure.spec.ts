@@ -1,4 +1,6 @@
+import fs from "node:fs";
 import path from "node:path";
+import { inflateRawSync } from "node:zlib";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
@@ -22,7 +24,7 @@ import {
   removeRelocatedE2eProject,
 } from "./liveProject";
 import { switchE2eProject, withShareableProject } from "./shareableProject";
-import { waitForFrame } from "./stageNav";
+import { projectMenuButton, waitForFrame } from "./stageNav";
 
 /**
  * The studio's own load-failure cover: the first read of the episode fails
@@ -174,7 +176,7 @@ const HOST_NOT_ANSWERING = (): Expected => ({
 function hostAnswers(name: string): [string, FailedAnswer, Expected][] {
   const other: Expected = {
     title: HOST_TITLE,
-    sentence: `ShareCut couldn't open "${name}". If a newer version of ShareCut saved it, update ShareCut first.`,
+    sentence: `ShareCut couldn't open "${name}". Try again. If it keeps happening, open Help and choose Report a problem.`,
     buttons: ["Try again", "All projects"],
   };
   return [
@@ -278,7 +280,7 @@ for (const size of SIZES) {
       );
 
       shell.answerWith(MARKER_500);
-      await watchFocusWhenSeen(page, "update ShareCut first");
+      await watchFocusWhenSeen(page, "choose Report a problem");
       await cover.getByRole("button", { name: "Try again" }).focus();
       await pressOn(cover, "Try again", size);
       expect(await focusWhenSeen(page)).toBe("retry");
@@ -569,7 +571,7 @@ test.describe("a host whose computer is open on another episode", () => {
         await openHostWithoutProject(page, projectPath);
         const cover = await expectCover(page, {
           title: HOST_TITLE,
-          sentence: `ShareCut couldn't open "${hostName(projectPath)}". If a newer version of ShareCut saved it, update ShareCut first.`,
+          sentence: `ShareCut couldn't open "${hostName(projectPath)}". Try again. If it keeps happening, open Help and choose Report a problem.`,
           buttons: ["Try again", "All projects"],
         });
 
@@ -614,3 +616,182 @@ test.describe("a host whose computer is open on another episode", () => {
     });
   });
 });
+
+/** The members of a zip, read from its central directory (every member is stored or deflated). */
+function zipMembers(zip: Buffer): Record<string, string> {
+  const end = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  const count = zip.readUInt16LE(end + 10);
+  let at = zip.readUInt32LE(end + 16);
+  const members: Record<string, string> = {};
+  for (let i = 0; i < count; i += 1) {
+    const method = zip.readUInt16LE(at + 10);
+    const size = zip.readUInt32LE(at + 20);
+    const nameLength = zip.readUInt16LE(at + 28);
+    const extraLength = zip.readUInt16LE(at + 30);
+    const commentLength = zip.readUInt16LE(at + 32);
+    const local = zip.readUInt32LE(at + 42);
+    const name = zip.toString("utf8", at + 46, at + 46 + nameLength);
+    const start =
+      local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
+    const raw = zip.subarray(start, start + size);
+    members[name] = (method === 8 ? inflateRawSync(raw) : raw).toString("utf8");
+    at += 46 + nameLength + extraLength + commentLength;
+  }
+  return members;
+}
+
+type UnopenableState = "newer" | "unsupported" | "truncated" | "missing";
+
+const STATE_CODES: Record<UnopenableState, string> = {
+  newer: "project_version_newer",
+  unsupported: "project_version_unsupported",
+  truncated: "project_unreadable",
+  missing: "project_not_found",
+};
+
+function breakEpisode(projectPath: string, state: UnopenableState) {
+  assertDisposableE2eProject(projectPath);
+  if (state === "missing") {
+    const moved = `${path.dirname(projectPath)}-moved`;
+    fs.renameSync(path.dirname(projectPath), moved);
+    return () => fs.renameSync(moved, path.dirname(projectPath));
+  }
+  if (state === "truncated") {
+    fs.writeFileSync(
+      projectPath,
+      fs.readFileSync(projectPath).subarray(0, 150),
+    );
+    return () => {};
+  }
+  const document = JSON.parse(fs.readFileSync(projectPath, "utf8"));
+  document.version = state === "newer" ? "99.0" : "two";
+  fs.writeFileSync(projectPath, JSON.stringify(document));
+  return () => {};
+}
+
+async function exportReportFromHelp(page: Page, size: Size) {
+  await press(projectMenuButton(page), size.touch);
+  const menu = page.getByRole("menu", { name: "Project menu" });
+  await press(
+    menu.getByRole("menuitem", { name: "Help", exact: true }),
+    size.touch,
+  );
+  const dialog = page.getByRole("dialog", { name: "Help" });
+  await press(
+    dialog.getByRole("button", { name: "Report a problem" }),
+    size.touch,
+  );
+  const report = page.getByRole("dialog", { name: "Export diagnostics" });
+  await press(
+    report.getByRole("button", { name: "Export", exact: true }),
+    size.touch,
+  );
+  return report;
+}
+
+for (const size of SIZES) {
+  test.describe(`an episode that will not open, on real files, at ${size.width}x${size.height}`, () => {
+    test.use({
+      viewport: { width: size.width, height: size.height },
+      hasTouch: size.touch,
+    });
+
+    const COVERS: [UnopenableState, (name: string) => Expected][] = [
+      [
+        "newer",
+        (name) => ({
+          title: HOST_TITLE,
+          sentence: `A newer version of ShareCut saved "${name}". Update ShareCut, then open it again.`,
+          buttons: ["All projects"],
+        }),
+      ],
+      [
+        "unsupported",
+        (name) => ({
+          title: HOST_TITLE,
+          sentence: `ShareCut can't open "${name}" because its file is in a format this version doesn't read. Open it with the version of ShareCut that saved it, or restore the file from a backup.`,
+          buttons: ["All projects", "Try again"],
+        }),
+      ],
+    ];
+
+    for (const [state, expected] of COVERS) {
+      test(`a ${state} file reads its own sentence and none of the server's words`, async ({
+        page,
+      }) => {
+        test.setTimeout(120_000);
+        await withShareableProject(async (projectPath) => {
+          breakEpisode(projectPath, state);
+          await openHostWithoutProject(page, projectPath);
+          await expectCover(page, expected(hostName(projectPath)));
+          const text = await page.locator("body").innerText();
+          for (const word of [
+            "Internal Server Error",
+            "project format",
+            path.dirname(projectPath),
+          ]) {
+            expect(text).not.toContain(word);
+          }
+          await expectPageAxeClean(page, '[role="alert"]');
+        });
+      });
+    }
+
+    for (const state of [
+      "missing",
+      "truncated",
+      "newer",
+      "unsupported",
+    ] as const) {
+      test(`Help, Report a problem, Export makes a report for a ${state} episode`, async ({
+        page,
+      }) => {
+        test.setTimeout(120_000);
+        await withShareableProject(async (projectPath) => {
+          const restore = breakEpisode(projectPath, state);
+          try {
+            await openHostWithoutProject(page, projectPath);
+            await expect(page.getByRole("alert")).toBeVisible();
+            const report = await exportReportFromHelp(page, size);
+            await expect(report.getByText(/Saved to/)).toBeVisible();
+            await expect(report.getByRole("alert")).toHaveCount(0);
+            const text = await page.locator("body").innerText();
+            expect(text).not.toContain(path.dirname(projectPath));
+            expect(text).not.toContain("Internal Server Error");
+            const saved = (
+              await report.locator("code").first().innerText()
+            ).trim();
+            const zip = await page.request.get(
+              `/api/diagnostics/bundle/${path.basename(saved)}`,
+            );
+            expect(zip.status()).toBe(200);
+            const members = zipMembers(await zip.body());
+            const json = JSON.parse(members["report.json"] ?? "{}");
+            expect(json.project).toBeNull();
+            expect(json.episode_not_opened.code).toBe(STATE_CODES[state]);
+            expect(JSON.stringify(members)).not.toContain(
+              path.dirname(projectPath),
+            );
+          } finally {
+            restore();
+          }
+        });
+      });
+    }
+
+    test("the general sentence's pointer is true: Help, Report a problem and Export work from its cover", async ({
+      page,
+    }) => {
+      test.setTimeout(120_000);
+      await withShareableProject(async (projectPath) => {
+        await failShell(page, "host", MARKER_500);
+        await openHostWithoutProject(page, projectPath);
+        await expect(page.getByRole("alert")).toContainText(
+          "open Help and choose Report a problem",
+        );
+        const report = await exportReportFromHelp(page, size);
+        await expect(report.getByText(/Saved to/)).toBeVisible();
+      });
+    });
+  });
+}

@@ -9,17 +9,27 @@ from __future__ import annotations
 import json
 import plistlib
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from scripts.ios.framework_plists import PLIST_ERRORS, is_stale_temporary
+from scripts.ios.framework_plists import check as check_framework_plists
 from scripts.ios.release_run import capture
 
 ROOT = Path(__file__).resolve().parents[2]
 PRIVACY_CONTRACT = ROOT / "contracts" / "ios-privacy.json"
 MINIMUM_OS = "17.0"
 BUILD_NUMBER = re.compile(r"^(?:0|[1-9]\d*)(?:\.(?:0|[1-9]\d*)){2}$")
+FFMPEG_EMBEDDED = True
+FFMPEG_SIZE_BUDGET = 25 * 1024 * 1024
+FFMPEG_BINARY = Path("Frameworks") / "FFmpeg.framework" / "FFmpeg"
+FFMPEG_PRIVACY_MANIFEST = Path("Frameworks") / "FFmpeg.framework" / "PrivacyInfo.xcprivacy"
+FFMPEG_EXPORTS = frozenset(
+    {"sc_ffmpeg_abi_version", "sc_ffmpeg_start", "sc_ffmpeg_wait", "sc_ffmpeg_cancel"}
+)
+NmRunner = Callable[[Path, list[str]], str]
 MACHO_MAGICS = (b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xfe\xed\xfa\xcf", b"\xbe\xba\xfe\xca")
 
 
@@ -71,17 +81,35 @@ def is_macho(path: Path) -> bool:
 
 def check_layout(app: Path) -> CheckReport:
     """No static libraries, no loose shared object, and every Mach-O is the main executable or
-    inside a framework."""
+    inside a framework, and every nested framework carries a framework Info.plist."""
     problems: list[str] = []
     machos = 0
     for path in sorted(app.rglob("*")):
-        if path.is_symlink() or not path.is_file():
-            continue
         relative = path.relative_to(app)
         parts = relative.parts
         in_framework = (
-            parts[0] == "Frameworks" and len(parts) >= 3 and parts[1].endswith(".framework")
+            parts[0] == "Frameworks"
+            and len(parts) >= 3
+            and parts[1].casefold().endswith(".framework")
         )
+        in_storyboard = (
+            path.name == "Info.plist"
+            and parts[-2:-1] != ()
+            and parts[-2].casefold().endswith(".storyboardc")
+            and (len(parts) == 2 or (len(parts) == 3 and parts[0].casefold().endswith(".lproj")))
+        )
+        if path.name.casefold() == "info.plist" and not (
+            parts == ("Info.plist",)
+            or (in_framework and len(parts) == 3 and path.name == "Info.plist")
+            or in_storyboard
+        ):
+            problems.append(f"unexpected Info.plist {relative.as_posix()}")
+        if path.name == "Info.plist" and path.is_symlink():
+            problems.append(f"symlinked Info.plist {relative.as_posix()}")
+        if is_stale_temporary(path.name) and not path.is_dir():
+            problems.append(f"stale temporary file {relative.as_posix()}")
+        if path.is_symlink() or not path.is_file():
+            continue
         if path.suffix == ".a":
             problems.append(f"static library {relative}")
         elif path.suffix in {".so", ".dylib"} and not in_framework:
@@ -92,6 +120,7 @@ def check_layout(app: Path) -> CheckReport:
             machos += 1
             if not in_framework and len(parts) != 1:
                 problems.append(f"Mach-O outside the executable and Frameworks: {relative}")
+    problems += check_framework_plists(app)
     return CheckReport("bundle layout", tuple(problems), facts={"mach_o_files": machos})
 
 
@@ -127,14 +156,73 @@ def load_privacy_contract(path: Path = PRIVACY_CONTRACT) -> Mapping[str, Mapping
     return json.loads(path.read_text(encoding="utf-8"))["categories"]
 
 
-def imported_symbols(app: Path) -> dict[str, frozenset[str]]:
+def xcrun_nm(binary: Path, flags: list[str]) -> str:
+    return capture(["xcrun", "nm", *flags, str(binary)])
+
+
+def imported_symbols(app: Path, runner: NmRunner = xcrun_nm) -> dict[str, frozenset[str]]:
     """Undefined symbols of every Mach-O in the bundle, keyed by its bundle-relative path."""
     imports = {}
     for path in sorted(app.rglob("*")):
         if path.is_file() and not path.is_symlink() and is_macho(path):
-            output = capture(["xcrun", "nm", "-u", "-j", str(path)])
-            imports[path.relative_to(app).as_posix()] = frozenset(output.split())
+            imports[path.relative_to(app).as_posix()] = frozenset(
+                runner(path, ["-u", "-j"]).split()
+            )
     return imports
+
+
+def exported_symbols(binary: Path, runner: NmRunner = xcrun_nm) -> frozenset[str]:
+    return frozenset(
+        name.removeprefix("_") for name in runner(binary, ["-gU", "-j"]).split() if name
+    )
+
+
+def check_ffmpeg_framework(app: Path, runner: NmRunner = xcrun_nm) -> CheckReport:
+    if not FFMPEG_EMBEDDED:
+        framework = app / FFMPEG_BINARY.parent
+        if framework.exists() or framework.is_symlink():
+            return CheckReport(
+                "ffmpeg framework",
+                (
+                    f"{FFMPEG_BINARY.parent.as_posix()} is in the bundle but FFMPEG_EMBEDDED is False",
+                ),
+            )
+        return CheckReport("ffmpeg framework", facts={"status": "not embedded"})
+    binary = app / FFMPEG_BINARY
+    if binary.is_symlink() or not binary.is_file():
+        return CheckReport("ffmpeg framework", (f"{FFMPEG_BINARY.as_posix()} is missing",))
+    problems: list[str] = []
+    try:
+        if not is_macho(binary):
+            problems.append(f"{FFMPEG_BINARY.as_posix()} is not a Mach-O file")
+        size = binary.stat().st_size
+    except OSError as error:
+        return CheckReport(
+            "ffmpeg framework", (f"{FFMPEG_BINARY.as_posix()} is unreadable: {error}",)
+        )
+    if size > FFMPEG_SIZE_BUDGET:
+        problems.append(f"FFmpeg is {size} bytes, over the {FFMPEG_SIZE_BUDGET} byte budget")
+    exported = set(exported_symbols(binary, runner))
+    problems += [f"FFmpeg does not export {name}" for name in sorted(FFMPEG_EXPORTS - exported)]
+    problems += [f"FFmpeg exports unexpected {name}" for name in sorted(exported - FFMPEG_EXPORTS)]
+    problems += ffmpeg_privacy_problems(app)
+    return CheckReport(
+        "ffmpeg framework", tuple(problems), facts={"size": size, "exports": sorted(exported)}
+    )
+
+
+def ffmpeg_privacy_problems(app: Path) -> list[str]:
+    """A third-party framework ships its own privacy manifest, so the one at the bundle root does
+    not cover it."""
+    manifest = app / FFMPEG_PRIVACY_MANIFEST
+    name = FFMPEG_PRIVACY_MANIFEST.as_posix()
+    if manifest.is_symlink() or not manifest.is_file():
+        return [f"{name} is missing"]
+    try:
+        loaded = plistlib.loads(manifest.read_bytes())
+    except (ValueError, OSError, *PLIST_ERRORS):
+        return [f"{name} is not a property list"]
+    return [] if isinstance(loaded, dict) else [f"{name} is not a property list"]
 
 
 def used_categories(

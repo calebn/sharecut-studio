@@ -237,7 +237,11 @@ def export_audio_cmd(
     formats: str | None = typer.Option(
         None,
         "--formats",
-        help='JSON array of format specs, e.g. \'[{"ext":"flac","codec":"flac"}]\'',
+        help=(
+            "JSON array of format specs, e.g. "
+            '\'[{"ext":"flac","codec":"flac"}]\'. A bare {"ext":"m4a"} is the 128 kbps AAC '
+            "preset."
+        ),
     ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
@@ -273,7 +277,7 @@ def bounce_cmd(
     formats: str = typer.Option(
         "wav",
         "--formats",
-        help="Comma-separated extensions, e.g. wav,mp3",
+        help="Comma-separated extensions, e.g. wav,mp3,m4a",
     ),
 ) -> None:
     from podcast_mcp.services.media import BounceRequest, BounceService

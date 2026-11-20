@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Callable
+from typing import Literal
 
 from podcast_mcp.engines.history_stale import AudioStateBefore, mark_history_move_stale
 from podcast_mcp.models import EpisodeProject, HistoryEntry
+from podcast_mcp.project.history.author import is_guest_author
 from podcast_mcp.project.history.diff import diff_snapshots
 from podcast_mcp.project.history.summary import format_history_group_title, summarize_diff
 from podcast_mcp.project.merge import ConflictAdvice, ProjectMergeConflict
@@ -110,7 +112,9 @@ class HistoryService:
         anyway comes back whole (``HistoryManager.apply_undo``)."""
         return self._move(
             "undo",
-            lambda project: self._mgr.apply_undo(project, expected_head_id=expected_head_id),
+            lambda project: self._mgr.apply_undo(
+                project, expected_head_id=expected_head_id, guest=self.ws.share_author
+            ),
             rerender=rerender,
         )
 
@@ -120,7 +124,9 @@ class HistoryService:
         """Redo the next entry, guarded by ``expected_head_id`` like ``undo``."""
         return self._move(
             "redo",
-            lambda project: self._mgr.apply_redo(project, expected_head_id=expected_head_id),
+            lambda project: self._mgr.apply_redo(
+                project, expected_head_id=expected_head_id, guest=self.ws.share_author
+            ),
             rerender=rerender,
         )
 
@@ -132,7 +138,11 @@ class HistoryService:
         )
 
     def _move(
-        self, action: str, move: Callable[[EpisodeProject], object], *, rerender: bool
+        self,
+        action: Literal["undo", "redo", "goto"],
+        move: Callable[[EpisodeProject], object],
+        *,
+        rerender: bool,
     ) -> HistoryMoveResult | HistoryMoveRerenderedResult:
         """Commit a history move with its stale marks; optionally re-render the preview.
 
@@ -151,11 +161,13 @@ class HistoryService:
         """
         with self.ws.transaction() as project:
             before = AudioStateBefore.capture(project, defaults=self.ws.effective_config())
+            moved = self._mgr.entry_moved(project, action)
+            guest_step = moved is not None and is_guest_author(moved.author)
             move(project)
             mark_history_move_stale(project, before, defaults=self.ws.effective_config())
             self.ws.save()
         if not rerender:
-            return HistoryMoveResult(**self.status().model_dump())
+            return HistoryMoveResult(**self.status().model_dump(), guest_step=guest_step)
         # save() recorded the revision it wrote, so checkpoint() keeps this copy (equal to the
         # saved file) and uses that file, stale marks included, as the merge base.
         project = self.ws.checkpoint()
@@ -183,7 +195,9 @@ class HistoryService:
                 "preview rendered; check history_status before re-rendering the preview",
             )
         )
-        return HistoryMoveRerenderedResult(**self.status().model_dump(), preview=preview)
+        return HistoryMoveRerenderedResult(
+            **self.status().model_dump(), preview=preview, guest_step=guest_step
+        )
 
     def status(self) -> HistoryStatusResult:
         status = self._mgr.status(self.ws.project)

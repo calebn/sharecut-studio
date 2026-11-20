@@ -37,6 +37,7 @@ import {
 import { composerPatch, initialSession } from "./composerSession";
 import { joinJobCopy } from "./jobCopy";
 import { inspectKeyOf } from "./selection";
+import { transcriptSelectionFollowPatch } from "./selectionSlice";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import type {
   AnnouncedJobKind,
@@ -338,6 +339,7 @@ type UiSlice = Pick<
   | "composer"
   | "listenLoadFailed"
   | "transcriptFollowPlayhead"
+  | "timelineFollowPlayhead"
   | "transcriptInlineEditRequest"
   | "setTranscriptInlineEditRequest"
   | "transcriptInlineEditFailure"
@@ -363,6 +365,7 @@ type UiSlice = Pick<
   | "setScrollLeft"
   | "selectFromInspector"
   | "setTranscriptFollowPlayhead"
+  | "setTimelineFollowPlayhead"
   | "toggleTranscriptFollowPlayhead"
   | "setTranscriptInlineEditFailure"
   | "setChapterAddPending"
@@ -420,6 +423,7 @@ export function uiProjectInitial() {
     highlightStaleRender: false,
     renderPreviewBusy: false,
     chapterAddPending: false,
+    timelineFollowPlayhead: true,
     joinMutationInFlight: false,
     joinDraft: null,
     rippleTrim: null,
@@ -492,14 +496,12 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
                 ...s.feedbackToast,
                 undo: null,
                 action: null,
-                lapsed: s.feedbackToast.kind
-                  ? {
-                      entries: s.feedbackToast.merged?.entries ?? [
-                        s.feedbackToast.undo,
-                      ],
-                      at: Date.now(),
-                    }
-                  : null,
+                lapsed: {
+                  entries: s.feedbackToast.merged?.entries ?? [
+                    s.feedbackToast.undo,
+                  ],
+                  at: Date.now(),
+                },
               },
             }
           : {},
@@ -696,7 +698,13 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ rangeArmed: true, rangeDraft, agentRangeScope: null }),
     setRangeDraft: (rangeDraft) => set({ rangeDraft }),
     setAgentRangeScope: (agentRangeScope) => set({ agentRangeScope }),
-    setRangeBusy: (rangeBusy) => set({ rangeBusy }),
+    setRangeBusy: (rangeBusy) =>
+      set((s) => ({
+        rangeBusy,
+        ...(rangeBusy
+          ? {}
+          : transcriptSelectionFollowPatch({ ...s, rangeBusy }, s.project)),
+      })),
     inspectorKey: null as string | null,
     setInspectorOpen: (open) =>
       set((s) => ({
@@ -760,6 +768,12 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     },
     setTranscriptFollowPlayhead: (transcriptFollowPlayhead) =>
       set({ transcriptFollowPlayhead }),
+    setTimelineFollowPlayhead: (timelineFollowPlayhead) =>
+      set((s) =>
+        s.timelineFollowPlayhead === timelineFollowPlayhead
+          ? s
+          : { timelineFollowPlayhead },
+      ),
     toggleTranscriptFollowPlayhead: () =>
       set((s) => ({ transcriptFollowPlayhead: !s.transcriptFollowPlayhead })),
     setTranscriptInlineEditRequest: (transcriptInlineEditRequest) =>

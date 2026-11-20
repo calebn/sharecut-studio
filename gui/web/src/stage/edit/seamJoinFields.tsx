@@ -311,7 +311,7 @@ export function joinLengthRows(f: SeamJoinFields): Rows {
   const notes = [
     draft !== null && !right.join_crossfade_blocked
       ? `Draft overlap ${projectJoinDraft(left, right, draft).join_crossfade_ms ?? 0} ms.`
-      : joinRenderNote(right),
+      : joinRenderNote(right, range.saved),
     blocked && !crossfade ? `Crossfade is off here: ${blocked}.` : null,
   ].filter((line): line is string => !!line);
   const label = named(f, "Length");

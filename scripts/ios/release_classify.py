@@ -145,30 +145,40 @@ APPLE_API_CODE = re.compile(
 )
 
 
-OBJECT_LINE = re.compile(r"^\{", re.M)
+DOCUMENT_LINE = re.compile(r"^[\[{]", re.M)
 JSON_LOOKING = re.compile(r"\s*[\[\]{}\"]")
 MESSAGE_LINES = 5
 MESSAGE_WIDTH = 200
 
 
-def altool_document(text: str) -> dict[str, object] | None:
-    """The JSON object altool printed, or None. It starts at the first line that begins with ``{``
-    and the output from there to the end must parse as that one object, so a truncated object, text
-    after it, a second object or a nested ``{`` is no document. altool's stderr is merged into the
-    output, so lines before the object are tolerated when none of them looks like JSON. One parse
-    and a cap at the captured tail (which was cut at its head) keep the cost linear."""
+def locate_document(text: str) -> tuple[int, dict[str, object] | list[object]] | None:
+    """The offset and value of the JSON object or array altool printed, or None. It starts at the
+    first line that begins with ``{`` or ``[`` and the output from there to the end must parse as
+    that one value; lines before it are tolerated when none looks like JSON. One parse and a cap
+    at the captured tail (which was cut at its head) keep the cost linear."""
     if len(text) >= OUTPUT_LIMIT:
         return None
-    start = OBJECT_LINE.search(text)
+    start = DOCUMENT_LINE.search(text)
     if start is None or any(
         JSON_LOOKING.match(line) for line in text[: start.start()].splitlines()
     ):
         return None
     try:
-        document = json.loads(text[start.start() :])
+        value = json.loads(text[start.start() :])
     except (ValueError, RecursionError):
         return None
-    return document if isinstance(document, dict) else None
+    return (start.start(), value) if isinstance(value, dict | list) else None
+
+
+def altool_value(text: str) -> dict[str, object] | list[object] | None:
+    """The document altool printed: an object (validate, upload) or an array (list-apps)."""
+    located = locate_document(text)
+    return located[1] if located else None
+
+
+def altool_document(text: str) -> dict[str, object] | None:
+    value = altool_value(text)
+    return value if isinstance(value, dict) else None
 
 
 def product_errors(document: dict[str, object] | None) -> tuple[dict[str, object], ...]:
@@ -258,11 +268,29 @@ def classify_altool(exit_code: int, text: str) -> AppleAnswer:
     return AppleAnswer(Verdict.REJECTED, messages)
 
 
-def app_record_exists(text: str, bundle_identifier: str) -> bool:
-    applications = (altool_document(text) or {}).get("applications")
-    return isinstance(applications, list) and any(
-        bundle_identifier in json.dumps(entry) for entry in applications
-    )
+class Lookup(enum.Enum):
+    FOUND = "found"
+    MISSING = "missing"
+    UNANSWERED = "unanswered"
+
+
+def app_shaped(app: object) -> bool:
+    return isinstance(app, dict) and (app.get("type") == "apps" or "bundleId" in app)
+
+
+def app_record_lookup(text: str, bundle_identifier: str) -> Lookup:
+    """Only a parsed list of apps answers the lookup: an array, or an object whose only key is
+    ``applications``. Anything else is no answer, because Apple did not say the app is missing: an
+    error object, unreadable or oversize output, and a list of anything but app objects."""
+    value = altool_value(text)
+    if isinstance(value, dict):
+        apps = value["applications"] if value.keys() == {"applications"} else None
+    else:
+        apps = value
+    if not isinstance(apps, list) or not all(app_shaped(app) for app in apps):
+        return Lookup.UNANSWERED
+    found = any(app["bundleId"] == bundle_identifier for app in apps if "bundleId" in app)
+    return Lookup.FOUND if found else Lookup.MISSING
 
 
 SENTENCES = {

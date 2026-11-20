@@ -446,7 +446,7 @@ export function useReviewComments(guest: boolean) {
       <>
         <CommentCard
           comment={commentCardOf(c, resolved, duration)}
-          onSelect={() => void playComment(c)}
+          onSelect={() => playComment(c)}
           onResolve={
             !guest && resolved ? () => void resolve(c.id, false) : undefined
           }
@@ -499,7 +499,7 @@ export function useReviewComments(guest: boolean) {
       posted,
       onPlayComment: (id: string) => {
         const c = comments?.find((x) => x.id === commentIdOf(id));
-        if (c) void playComment(c);
+        if (c) playComment(c);
       },
       onReply: () => replyRef.current?.focus(),
     },

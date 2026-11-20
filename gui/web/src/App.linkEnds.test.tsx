@@ -1,12 +1,23 @@
 import {
   act,
+  configure,
   fireEvent,
+  getConfig,
   render,
   screen,
   waitFor,
 } from "@testing-library/react";
 import { useState } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import App from "./App";
 import { apiSend } from "./api/http";
 import { resetFeaturesCache } from "./extensions/features";
@@ -14,6 +25,24 @@ import { composerPatch, initialSession } from "./state/composerSession";
 import { useDawStore } from "./state/dawStore";
 import { useUnsentText } from "./state/unsentText";
 import { urlOf } from "./test/urlOf";
+
+/**
+ * Every wait here is for a state (the studio, the cover, the host's calls), so
+ * it may last longer than the one second Testing Library gives `waitFor` and
+ * `findBy*`, which a busy machine can overrun. The tests' own limit is twice
+ * the wait, so a wait that runs out reports what it was waiting for instead of
+ * the test being cut off first.
+ */
+const STATE_WAIT_MS = 5_000;
+const TEST_LIMIT_MS = 2 * STATE_WAIT_MS;
+const defaultWaitMs = getConfig().asyncUtilTimeout;
+// Vitest reads the limit when a test is defined, before any beforeAll runs.
+vi.setConfig({ testTimeout: TEST_LIMIT_MS });
+beforeAll(() => configure({ asyncUtilTimeout: STATE_WAIT_MS }));
+afterAll(() => {
+  configure({ asyncUtilTimeout: defaultWaitMs });
+  vi.resetConfig();
+});
 
 /** A studio stand-in: a reply field that registers its draft, and a button that makes the page's own kind of request. */
 function FakeStudio() {
@@ -58,6 +87,11 @@ const offline = vi.hoisted(() => ({
   load: vi.fn(),
   clear: vi.fn(),
   retire: vi.fn(),
+}));
+const audio = vi.hoisted(() => ({ forget: vi.fn() }));
+vi.mock("./audio/chunkCache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./audio/chunkCache")>()),
+  forgetLinkAudio: audio.forget,
 }));
 vi.mock("./services/offlineQueue/offlineStore", async (importOriginal) => ({
   ...(await importOriginal<
@@ -114,6 +148,9 @@ async function openEpisode(token: string) {
   window.history.pushState({}, "", `/r/${token}`);
   render(<App />);
   await screen.findByText("Guest studio");
+  // The studio is on screen a moment before the dead-link watch listens (it
+  // subscribes in a passive effect), and a doubt reported before that is dropped.
+  await act(async () => {});
 }
 
 beforeEach(() => {
@@ -121,6 +158,7 @@ beforeEach(() => {
   offline.load.mockReset().mockResolvedValue(undefined);
   offline.clear.mockReset().mockResolvedValue(undefined);
   offline.retire.mockReset().mockResolvedValue(undefined);
+  audio.forget.mockReset().mockResolvedValue(undefined);
   useDawStore.setState(composerPatch(initialSession));
   resetFeaturesCache();
 });
@@ -172,6 +210,7 @@ describe("a review link turned off while the episode is open", () => {
     expect(useDawStore.getState().isPlaying).toBe(false);
     expect(useDawStore.getState().composer).toEqual(initialSession);
     expect(offline.retire).toHaveBeenCalledExactlyOnceWith("ends-1");
+    expect(audio.forget).toHaveBeenCalledExactlyOnceWith("ends-1");
 
     const seen = spy.mock.calls.length;
     await act(async () => {
@@ -180,6 +219,26 @@ describe("a review link turned off while the episode is open", () => {
       );
     });
     expect(spy.mock.calls.length).toBe(seen);
+  });
+
+  it("gives up the audio only once the cover is on screen, and the cover never waits for it", async () => {
+    let coverWhenAsked: boolean | null = null;
+    audio.forget.mockImplementation(() => {
+      coverWhenAsked =
+        document.body.textContent?.includes(
+          "This link doesn't open anything",
+        ) ?? false;
+      return new Promise(() => {});
+    });
+    stubHost({ project: [OPEN, DEAD], meta: DEAD });
+    await openEpisode("ends-forget");
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await screen.findByRole("heading", {
+      name: "This link doesn't open anything",
+    });
+    expect(audio.forget).toHaveBeenCalledExactlyOnceWith("ends-forget");
+    expect(coverWhenAsked).toBe(true);
+    expect(offline.retire).toHaveBeenCalledExactlyOnceWith("ends-forget");
   });
 
   it("has no block and no button when nothing was typed", async () => {
@@ -211,6 +270,7 @@ describe("a review link turned off while the episode is open", () => {
       "still here",
     );
     expect(offline.retire).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -238,6 +298,7 @@ describe("a review link turned off while the episode is open", () => {
       await act(async () => {});
       expect(screen.getByText("Guest studio")).toBeInTheDocument();
       expect(offline.retire).not.toHaveBeenCalled();
+      expect(audio.forget).not.toHaveBeenCalled();
     },
   );
 

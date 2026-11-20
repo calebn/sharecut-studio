@@ -60,6 +60,7 @@ from podcast_mcp.gui.routes.deps import (
     page_credential_query,
     project_busy_exception_handler,
     project_unreadable_exception_handler,
+    project_version_exception_handler,
     require_host,
     untrusted_without_session,
 )
@@ -72,6 +73,10 @@ from podcast_mcp.gui.static_assets import (
 )
 from podcast_mcp.gui.validation_errors import format_validation_errors
 from podcast_mcp.models.episode import ProjectUnreadableError
+from podcast_mcp.models.project_format import (
+    ProjectVersionNewerError,
+    ProjectVersionUnsupportedError,
+)
 from podcast_mcp.project.io import adopt_retired_entry_file
 from podcast_mcp.services.collaboration import sweep_all_pending
 from podcast_mcp.services.document import cross_process_bridge
@@ -318,6 +323,8 @@ def create_app(
     app.add_exception_handler(Timeout, project_busy_exception_handler)
     app.add_exception_handler(TranscriptContextBusyError, project_busy_exception_handler)
     app.add_exception_handler(ProjectUnreadableError, project_unreadable_exception_handler)
+    app.add_exception_handler(ProjectVersionNewerError, project_version_exception_handler)
+    app.add_exception_handler(ProjectVersionUnsupportedError, project_version_exception_handler)
     app.add_exception_handler(GuardRefusal, guard_exception_handler)
     app.add_exception_handler(HostSetupError, host_setup_exception_handler)
     app.add_exception_handler(ModelMissing, model_missing_exception_handler)

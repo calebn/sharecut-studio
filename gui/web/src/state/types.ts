@@ -337,6 +337,7 @@ export interface DawState {
   /** The project's load failed, so the Listen middle shows the failure. */
   listenLoadFailed: boolean;
   transcriptFollowPlayhead: boolean;
+  timelineFollowPlayhead: boolean;
   transcriptInlineEditRequest: TranscriptInlineEditRequest | null;
   /** Late failure of an inline word fix; outlives a Script remount. */
   transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
@@ -479,6 +480,7 @@ export interface DawState {
     mods?: { shift?: boolean; mod?: boolean },
   ) => void;
   setTranscriptFollowPlayhead: (on: boolean) => void;
+  setTimelineFollowPlayhead: (on: boolean) => void;
   toggleTranscriptFollowPlayhead: () => void;
   setTranscriptInlineEditRequest: (
     request: TranscriptInlineEditRequest | null,

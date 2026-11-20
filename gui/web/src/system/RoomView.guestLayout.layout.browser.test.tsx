@@ -1,8 +1,9 @@
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { RoomView, type RoomViewProps } from "./RoomView";
+import type { RoomPhase } from "./roomPhase";
 import type { RoomPerson } from "./roomViewModel";
 
 let host: HTMLElement | undefined;
@@ -75,6 +76,7 @@ async function render(
       onLeave: noop,
       onMute: noop,
       onComment: noop,
+      lookingIn: 0,
       ...props,
     }),
   );
@@ -289,6 +291,591 @@ describe("the host studio's phone dock stays as develop had it", () => {
           "Comments to More",
         ).toBeCloseTo(narrow ? 16 : 24, 0);
       });
+    }
+  }
+});
+
+describe("the looking-in line on a portrait phone", () => {
+  const four = [...OTHERS.slice(0, 3), ME];
+  const LINE = "3 people with the producer link are looking in";
+
+  for (const width of [320, 390]) {
+    for (const seat of ["guest", "producer"] as const) {
+      it(`sits under the header and clears the tiles, own cue and dock at ${width}, ${seat}, four people`, async () => {
+        const room = await render(width, 844, {
+          seat,
+          phase: LIVE,
+          viewerWidth: "phone",
+          people: four,
+          lookingIn: 3,
+        });
+        const line = room.querySelector(".sys-room-looking-in") as Element;
+        const header = rect(room.querySelector("header") as Element);
+        const first = rect(room.querySelector(".sys-room-tile") as Element);
+        const dock = rect(room.querySelector(".sys-dock") as Element);
+        const cue = rect(room.querySelector(".sys-room-devices") as Element);
+        const box = rect(line);
+        expect(line.textContent).toBe(LINE);
+        expect(header.height).toBeCloseTo(44, 0);
+        expect(box.top).toBeGreaterThanOrEqual(header.bottom);
+        expect(box.bottom).toBeLessThanOrEqual(first.top);
+        expect(box.bottom).toBeLessThanOrEqual(cue.top);
+        expect(box.right).toBeLessThanOrEqual(width);
+        expect(dock.bottom).toBeLessThanOrEqual(844 + 0.5);
+        expect(dock.height).toBeCloseTo(101, 0);
+        for (const tile of room.querySelectorAll(".sys-room-tile")) {
+          expect(rect(tile).bottom).toBeLessThanOrEqual(dock.top + 0.5);
+        }
+      });
+    }
+
+    it(`moves the tiles down by its own height and one stage gap at ${width}`, async () => {
+      const top = async (lookingIn: number) => {
+        const room = await render(width, 844, {
+          seat: "guest",
+          phase: LIVE,
+          viewerWidth: "phone",
+          people: four,
+          lookingIn,
+        });
+        const line = room.querySelector(".sys-room-looking-in");
+        const stage = room.querySelector(".sys-room-view-stage") as Element;
+        return {
+          gap: Number.parseFloat(getComputedStyle(stage).rowGap),
+          tile: rect(room.querySelector(".sys-room-tile") as Element).top,
+          header: rect(room.querySelector("header") as Element).height,
+          dock: rect(room.querySelector(".sys-dock") as Element).height,
+          line: line ? rect(line).height : 0,
+        };
+      };
+      const without = await top(0);
+      root?.unmount();
+      host?.remove();
+      const withLine = await top(3);
+      expect(withLine.header).toBe(without.header);
+      expect(withLine.dock).toBe(without.dock);
+      // Its own height plus the one stage gap that separates it from the tiles.
+      expect(withLine.tile - without.tile).toBeCloseTo(
+        withLine.line + withLine.gap,
+        0,
+      );
+    });
+  }
+});
+
+describe("the Declined state", () => {
+  for (const [width, height, viewerWidth] of [
+    [390, 844, "phone"],
+    [1280, 800, "desktop"],
+  ] as const) {
+    for (const lookingIn of [0, 3]) {
+      it(`dims the tiles at 40% in flow at ${width}, looking in ${lookingIn}`, async () => {
+        const room = await render(width, height, {
+          seat: "guest",
+          phase: LIVE,
+          viewerWidth,
+          declined: { onJoin: noop },
+          people: [OTHERS[0] as RoomPerson, ME],
+          lookingIn,
+        });
+        const grid = room.querySelector(".sys-room-view-grid") as Element;
+        const style = getComputedStyle(grid);
+        expect(style.position).toBe("static");
+        expect(style.opacity).toBe("0.4");
+        const header = rect(room.querySelector("header") as Element);
+        for (const tile of room.querySelectorAll(".sys-room-tile")) {
+          expect(rect(tile).top).toBeGreaterThanOrEqual(header.bottom);
+          expect(rect(tile).bottom).toBeLessThanOrEqual(height);
+        }
+        expect(room.querySelector(".sys-room-looking-in")).toBeNull();
+        const line = room.querySelector(".sys-declined-looking-in");
+        if (lookingIn > 0) {
+          expect(getComputedStyle(line as Element).opacity).toBe("1");
+        } else {
+          expect(line).toBeNull();
+        }
+      });
+    }
+  }
+});
+
+describe("the looking-in line under the Declined bar", () => {
+  const PRODUCER_LISTENER: RoomPerson = {
+    role: "producer",
+    person: { name: "Pat", colorIndex: 4 },
+    presence: "live",
+    connection: "good",
+  };
+  const sizes = [
+    [320, 568, "phone"],
+    [320, 380, "phone"],
+    [667, 375, "phone-landscape"],
+    [768, 1024, "desktop"],
+    [1280, 380, "desktop"],
+  ] as const;
+  const overlap = (a: DOMRect, b: DOMRect) =>
+    a.left < b.right - 0.5 &&
+    b.left < a.right - 0.5 &&
+    a.top < b.bottom - 0.5 &&
+    b.top < a.bottom - 0.5;
+  const declinedRoom = (
+    seat: "guest" | "producer",
+    width: number,
+    height: number,
+    viewerWidth: "phone" | "phone-landscape" | "desktop",
+    lookingIn: number,
+    phase: RoomPhase = LIVE,
+  ) =>
+    render(width, height, {
+      seat,
+      phase,
+      viewerWidth,
+      declined: { onJoin: noop },
+      alerts: [{ kind: "mic-lost", onAction: noop }],
+      people: [...OTHERS, ME, PRODUCER_LISTENER],
+      defaultNotesOpen: viewerWidth === "desktop",
+      lookingIn,
+    });
+
+  for (const seat of ["guest", "producer"] as const) {
+    for (const [width, height, viewerWidth] of sizes) {
+      const name = `a ${seat} at ${width}x${height}`;
+
+      it(`keeps the body inert and out of the Tab order for ${name}`, async () => {
+        const room = await declinedRoom(seat, width, height, viewerWidth, 3);
+        const body = room.querySelector(".sys-room-view-body") as HTMLElement;
+        expect(body).toHaveAttribute("inert");
+        const button = room.querySelector(
+          ".sys-declined-bar button",
+        ) as HTMLElement;
+        button.focus();
+        for (let step = 0; step < 5; step += 1) {
+          await userEvent.tab();
+          expect(body.contains(document.activeElement)).toBe(false);
+        }
+        const stage = room.querySelector(".sys-room-view-stage") as Element;
+        const grid = rect(room.querySelector(".sys-room-view-grid") as Element);
+        const at = document.elementFromPoint(
+          grid.left + grid.width / 2,
+          Math.min(grid.top + grid.height / 2, height - 1),
+        );
+        expect(stage.contains(at), "the stage takes no pointer or wheel").toBe(
+          false,
+        );
+      });
+    }
+  }
+
+  const geometry = [
+    [568, 320, "phone-landscape", 200],
+    [414, 330, "phone-landscape", 175],
+    [320, 568, "phone", 100],
+    [390, 844, "phone", 100],
+    [667, 375, "phone-landscape", 100],
+    [768, 1024, "desktop", 100],
+    [1280, 800, "desktop", 100],
+  ] as const;
+  const boxesOf = (room: HTMLElement) => ({
+    header: rect(room.querySelector(".sys-room-view-header") as Element),
+    dock: rect(room.querySelector(".sys-dock") as Element),
+    bar: rect(room.querySelector(".sys-declined-bar") as Element),
+    tiles: [...room.querySelectorAll(".sys-room-tile")].map(rect),
+  });
+  const same = (a: DOMRect, b: DOMRect) =>
+    ["left", "top", "width", "height"].every(
+      (key) =>
+        Math.abs(
+          (a as unknown as Record<string, number>)[key] -
+            (b as unknown as Record<string, number>)[key],
+        ) <= 0.5,
+    );
+
+  for (const seat of ["guest", "producer"] as const) {
+    for (const [width, height, viewerWidth, percent] of geometry) {
+      it(`puts the line directly on top of the bar and leaves everything else where it was for a ${seat} at ${width}x${height}, ${percent}% text`, async () => {
+        document.documentElement.style.fontSize = `${percent}%`;
+        try {
+          const without = boxesOf(
+            await declinedRoom(seat, width, height, viewerWidth, 0),
+          );
+          root?.unmount();
+          host?.remove();
+          const room = await declinedRoom(seat, width, height, viewerWidth, 3);
+          const line = room.querySelector(
+            ".sys-declined-looking-in",
+          ) as Element;
+          expect(line.closest("[inert]")).toBeNull();
+          const box = rect(line);
+          const now = boxesOf(room);
+          // The line covers the bar's own top rule: its bottom is the bar's
+          // padding-box top, so no gap and no second rule shows between the
+          // line's text and the bar's.
+          const barEl = room.querySelector(".sys-declined-bar") as HTMLElement;
+          expect(barEl.clientTop).toBe(1);
+          expect(
+            Math.abs(box.bottom - (now.bar.top + barEl.clientTop)),
+          ).toBeLessThanOrEqual(0.5);
+          expect(box.top).toBeLessThan(now.bar.top);
+          expect(getComputedStyle(line).backgroundColor).toBe(
+            getComputedStyle(barEl).backgroundColor,
+          );
+          expect(box.right).toBeLessThanOrEqual(width + 0.5);
+          expect(same(now.header, without.header)).toBe(true);
+          expect(same(now.dock, without.dock)).toBe(true);
+          expect(same(now.bar, without.bar)).toBe(true);
+          expect(now.tiles).toHaveLength(without.tiles.length);
+          for (const [index, tile] of now.tiles.entries()) {
+            expect(same(tile, without.tiles[index] as DOMRect)).toBe(true);
+          }
+          const join = rect(
+            room.querySelector(".sys-declined-bar button") as Element,
+          );
+          const button = room.querySelector(
+            ".sys-declined-bar button",
+          ) as Element;
+          for (const [x, y] of [
+            [join.left + join.width / 2, join.top + join.height / 2],
+            [join.left + 6, join.top + 6],
+            [join.right - 6, join.top + 6],
+            [join.left + 6, join.bottom - 6],
+            [join.right - 6, join.bottom - 6],
+          ] as const) {
+            const hit = document.elementFromPoint(x, y);
+            expect(hit === button || button.contains(hit)).toBe(true);
+          }
+          const hit = document.elementFromPoint(box.right - 1, box.bottom - 1);
+          expect(hit === line || line.contains(hit)).toBe(true);
+        } finally {
+          document.documentElement.style.fontSize = "";
+        }
+      });
+    }
+  }
+
+  const WAITING: RoomPhase = { kind: "waiting", host: "Maya" };
+  const insideBar = (room: HTMLElement) =>
+    [
+      ".sys-declined-bar",
+      ".sys-declined-bar > svg",
+      ".sys-declined-text",
+      ".sys-declined-line",
+      ".sys-declined-reason",
+      ".sys-declined-bar button",
+    ].map((selector) => {
+      const el = room.querySelector(selector);
+      return el ? rect(el) : null;
+    });
+
+  for (const [width, height] of [
+    [414, 330],
+    [320, 400],
+  ] as const) {
+    for (const [label, seat, phase] of [
+      ["guest held", "guest", LIVE],
+      ["guest not held", "guest", WAITING],
+      ["producer", "producer", LIVE],
+    ] as const) {
+      for (const lookers of [1, 99]) {
+        it(`leaves the bar and everything in it as without the line for a ${label} at ${width}x${height}, 200% text, ${lookers} looking in`, async () => {
+          document.documentElement.style.fontSize = "200%";
+          try {
+            const without = insideBar(
+              await declinedRoom(
+                seat,
+                width,
+                height,
+                "phone-landscape",
+                0,
+                phase,
+              ),
+            );
+            root?.unmount();
+            host?.remove();
+            const room = await declinedRoom(
+              seat,
+              width,
+              height,
+              "phone-landscape",
+              lookers,
+              phase,
+            );
+            const now = insideBar(room);
+            for (const [index, box] of now.entries()) {
+              const was = without[index];
+              expect(box === null, `item ${index}`).toBe(was === null);
+              if (box && was)
+                expect(same(box, was), `item ${index}`).toBe(true);
+            }
+            const bar = rect(
+              room.querySelector(".sys-declined-bar") as Element,
+            );
+            const line = room.querySelector(
+              ".sys-declined-looking-in",
+            ) as Element;
+            const box = rect(line);
+            expect(Math.abs(box.bottom - (bar.top + 1))).toBeLessThanOrEqual(
+              0.5,
+            );
+            for (const selector of [
+              ".sys-declined-text",
+              ".sys-declined-bar button",
+              ".sys-declined-bar > svg",
+            ]) {
+              expect(
+                overlap(box, rect(room.querySelector(selector) as Element)),
+                selector,
+              ).toBe(false);
+            }
+            const button = room.querySelector(
+              ".sys-declined-bar button",
+            ) as Element;
+            const join = rect(button);
+            for (const [x, y] of [
+              [join.left + join.width / 2, join.top + join.height / 2],
+              [join.left + 6, join.top + 6],
+              [join.right - 6, join.top + 6],
+              [join.left + 6, join.bottom - 6],
+              [join.right - 6, join.bottom - 6],
+            ] as const) {
+              const hit = document.elementFromPoint(x, y);
+              expect(hit === button || button.contains(hit)).toBe(true);
+            }
+          } finally {
+            document.documentElement.style.fontSize = "";
+          }
+        });
+      }
+    }
+  }
+
+  for (const [width, height] of [
+    [390, 844],
+    [320, 568],
+  ] as const) {
+    it(`draws the held bar's focus ring inside the bar when the line is there at ${width}x${height}`, async () => {
+      const bareRoom = await declinedRoom("guest", width, height, "phone", 0);
+      const bare = bareRoom.querySelector(".sys-declined-bar") as HTMLElement;
+      expect(document.activeElement).toBe(bare);
+      const was = getComputedStyle(bare);
+      const bareRing = {
+        style: was.outlineStyle,
+        width: was.outlineWidth,
+        offset: was.outlineOffset,
+      };
+      // With no line the bar keeps the shared focus ring: the token's width,
+      // drawn the token's offset outside the bar.
+      const token = (name: string) =>
+        Number.parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue(name),
+        ) *
+        Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+      expect(bareRing.style).toBe("solid");
+      expect(Number.parseFloat(bareRing.width)).toBeCloseTo(
+        token("--focus-ring-width"),
+        1,
+      );
+      expect(Number.parseFloat(bareRing.offset)).toBeCloseTo(
+        token("--focus-ring-offset"),
+        1,
+      );
+      root?.unmount();
+      host?.remove();
+      const room = await declinedRoom("guest", width, height, "phone", 1);
+      const barEl = room.querySelector(".sys-declined-bar") as HTMLElement;
+      expect(document.activeElement).toBe(barEl);
+      const style = getComputedStyle(barEl);
+      expect(style.outlineStyle).toBe("solid");
+      const ringPx = Number.parseFloat(style.outlineWidth);
+      expect(ringPx).toBeCloseTo(token("--focus-ring-width"), 1);
+      const border = barEl.clientTop;
+      expect(Number.parseFloat(style.outlineOffset)).toBeLessThanOrEqual(
+        -(ringPx + border) + 0.01,
+      );
+      // The ring's top band lies inside the bar, below the line.
+      const bar = rect(barEl);
+      const line = rect(
+        room.querySelector(".sys-declined-looking-in") as Element,
+      );
+      expect(line.bottom).toBeLessThanOrEqual(bar.top + border + 0.5);
+      const text = rect(room.querySelector(".sys-declined-text") as Element);
+      const button = rect(
+        room.querySelector(".sys-declined-bar button") as Element,
+      );
+      const inner = bar.top + border + ringPx;
+      expect(text.top).toBeGreaterThanOrEqual(inner - 0.5);
+      expect(button.top).toBeGreaterThanOrEqual(inner - 0.5);
+    });
+  }
+
+  it("keeps the alert slot, grid, listener row and rail inside the inert body", async () => {
+    const room = await declinedRoom("guest", 1280, 800, "desktop", 2);
+    const body = room.querySelector(".sys-room-view-body") as Element;
+    for (const selector of [
+      ".sys-room-view-stage",
+      ".sys-room-view-alert",
+      ".sys-room-view-grid",
+      ".sys-room-listeners",
+      ".sys-room-view-rail",
+    ]) {
+      const part = room.querySelector(selector);
+      expect(part, selector).not.toBeNull();
+      expect((part as Element).closest("[inert]"), selector).toBe(body);
+    }
+  });
+});
+
+describe("the looking-in line only adds its own row", () => {
+  const PRODUCER = (name: string, colorIndex: number): RoomPerson => ({
+    role: "producer",
+    person: { name, colorIndex },
+    presence: "live",
+    connection: "good",
+  });
+  const HOST_ME: RoomPerson = {
+    role: "host",
+    person: { name: "Maya", colorIndex: 1 },
+    you: true,
+    presence: "live",
+    connection: "good",
+    level: 1,
+    speaking: true,
+  };
+  const sizes = [
+    [320, 568, "phone", false],
+    [320, 440, "phone", false],
+    [390, 844, "phone", false],
+    [667, 375, "phone-landscape", false],
+    [768, 1024, "desktop", true],
+    [768, 1024, "desktop", false],
+    [1280, 800, "desktop", false],
+    [1280, 722, "desktop", false],
+  ] as const;
+  const phases: [string, RoomPhase][] = [
+    ["waiting", { kind: "waiting", host: "Maya" }],
+    ["live", LIVE],
+    ["saving", { kind: "saving", savedPeople: 0, totalPeople: 2, percent: 10 }],
+  ];
+  const intersect = (a: DOMRect, b: DOMRect) =>
+    a.left < b.right - 0.5 &&
+    b.left < a.right - 0.5 &&
+    a.top < b.bottom - 0.5 &&
+    b.top < a.bottom - 0.5;
+  const measure = (room: HTMLElement) => {
+    const stage = room.querySelector(".sys-room-view-stage") as HTMLElement;
+    const line = room.querySelector(".sys-room-looking-in");
+    return {
+      tiles: [...room.querySelectorAll(".sys-room-tile")].map(rect),
+      listeners: [...room.querySelectorAll(".sys-room-listener-glyph")].map(
+        rect,
+      ),
+      header: rect(room.querySelector(".sys-room-view-header") as Element),
+      dock: rect(room.querySelector(".sys-dock") as Element),
+      scroll: stage.scrollHeight,
+      gap: Number.parseFloat(getComputedStyle(stage).rowGap),
+      line: line ? rect(line).height : 0,
+    };
+  };
+  const same = (a: DOMRect, b: DOMRect) => {
+    expect(Math.abs(a.width - b.width)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(a.height - b.height)).toBeLessThanOrEqual(0.5);
+  };
+
+  for (const percent of [100, 125, 150, 200]) {
+    for (const seat of ["guest", "producer", "host"] as const) {
+      for (const [width, height, viewerWidth, railOpen] of sizes) {
+        it(`keeps every box its size and moves it down by at most the line for a ${seat} at ${width}x${height}, rail ${railOpen ? "open" : "closed"}, ${percent}% text`, async () => {
+          document.documentElement.style.fontSize = `${percent}%`;
+          try {
+            for (const count of [1, 2, 4]) {
+              for (const listenerCount of [0, 2]) {
+                for (const [name, phase] of phases) {
+                  const where = `${count} people, ${listenerCount} listeners, ${name}`;
+                  const people = [
+                    ...(seat === "host" ? [HOST_ME] : []),
+                    ...OTHERS.slice(0, count - 1),
+                    ...(seat === "host" ? [] : [ME]),
+                    ...[PRODUCER("Pat", 4), PRODUCER("Quin", 5)].slice(
+                      0,
+                      listenerCount,
+                    ),
+                  ];
+                  const props = {
+                    seat,
+                    phase,
+                    viewerWidth,
+                    defaultNotesOpen: railOpen,
+                    embedded: seat === "host",
+                    people,
+                  } as const;
+                  const without = measure(
+                    await render(width, height, { ...props, lookingIn: 0 }),
+                  );
+                  root?.unmount();
+                  host?.remove();
+                  const withLine = measure(
+                    await render(width, height, { ...props, lookingIn: 3 }),
+                  );
+                  root?.unmount();
+                  host?.remove();
+                  const lost = withLine.line + withLine.gap;
+                  expect(withLine.line, where).toBeGreaterThan(0);
+                  // (d) the header and the dock never move.
+                  expect(withLine.header, where).toEqual(without.header);
+                  expect(withLine.dock, where).toEqual(without.dock);
+                  // (e) the stage scrolls by no more than the line and a gap.
+                  expect(
+                    withLine.scroll - without.scroll,
+                    where,
+                  ).toBeLessThanOrEqual(lost + 1);
+                  for (const key of ["tiles", "listeners"] as const) {
+                    expect(withLine[key], where).toHaveLength(
+                      without[key].length,
+                    );
+                    for (const [index, box] of withLine[key].entries()) {
+                      const was = without[key][index] as DOMRect;
+                      // (a) the same size.
+                      same(box, was);
+                      // (b) down by between nothing and the line and a gap.
+                      expect(box.top - was.top, where).toBeGreaterThanOrEqual(
+                        -0.5,
+                      );
+                      expect(box.top - was.top, where).toBeLessThanOrEqual(
+                        lost + 0.5,
+                      );
+                    }
+                  }
+                  // (c) nothing meets what it did not meet without the line.
+                  for (const [index, tile] of withLine.tiles.entries()) {
+                    for (const [next, other] of withLine.tiles.entries()) {
+                      if (next <= index) continue;
+                      expect(
+                        intersect(tile, other) &&
+                          !intersect(
+                            without.tiles[index] as DOMRect,
+                            without.tiles[next] as DOMRect,
+                          ),
+                        where,
+                      ).toBe(false);
+                    }
+                    for (const [next, avatar] of withLine.listeners.entries()) {
+                      expect(
+                        intersect(tile, avatar) &&
+                          !intersect(
+                            without.tiles[index] as DOMRect,
+                            without.listeners[next] as DOMRect,
+                          ),
+                        where,
+                      ).toBe(false);
+                    }
+                  }
+                }
+              }
+            }
+          } finally {
+            document.documentElement.style.fontSize = "";
+          }
+        }, 120_000);
+      }
     }
   }
 });

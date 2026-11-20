@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, model_serializer
 
 
 class _HistoryResult(BaseModel):
@@ -18,11 +18,22 @@ class HistoryStatusResult(_HistoryResult):
     head_id: str
 
 
-class HistoryMoveResult(HistoryStatusResult):
+class _GuestStepMarked(HistoryStatusResult):
+    guest_step: bool = False
+
+    @model_serializer(mode="wrap")
+    def _omit_false_guest_step(self, handler: SerializerFunctionWrapHandler) -> Any:
+        out = handler(self)
+        if not self.guest_step:
+            out.pop("guest_step", None)
+        return out
+
+
+class HistoryMoveResult(_GuestStepMarked):
     pass
 
 
-class HistoryMoveRerenderedResult(HistoryStatusResult):
+class HistoryMoveRerenderedResult(_GuestStepMarked):
     preview: dict[str, Any]
 
 

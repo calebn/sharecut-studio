@@ -262,6 +262,60 @@ describe("one document authority", () => {
   });
 });
 
+describe("a guest delta that replaces history", () => {
+  const guestHistoryDelta = (
+    overlay: DocumentSnapshot["history"],
+  ): DocumentSnapshot => ({
+    server_seq: 1,
+    state_token: token,
+    file_before: { mtime_ns: 1, size: 1 },
+    file: { mtime_ns: 2, size: 1 },
+    history: overlay,
+    delta: {
+      base_seq: 0,
+      base_token: token,
+      projection: "shell",
+      audience: "guest",
+      operations: [
+        {
+          type: "replace",
+          section: "history",
+          parent: null,
+          value: {
+            cursor: 0,
+            can_undo: false,
+            can_redo: false,
+            entries: [],
+            groups: [],
+            head_id: "after-edit",
+          },
+        },
+      ],
+    },
+  });
+
+  it("keeps the viewer's flags that ride beside it", () => {
+    applyDocumentSnapshot(
+      guestHistoryDelta({ can_undo: true, can_redo: false }),
+    );
+    expect(documentAuthority.project?.history).toMatchObject({
+      head_id: "after-edit",
+      can_undo: true,
+      can_redo: false,
+    });
+    expect(useDawStore.getState().project?.history.can_undo).toBe(true);
+  });
+
+  it("reads the delta's own flags when none ride beside it", () => {
+    applyDocumentSnapshot(guestHistoryDelta(undefined));
+    expect(documentAuthority.project?.history).toMatchObject({
+      head_id: "after-edit",
+      can_undo: false,
+      can_redo: false,
+    });
+  });
+});
+
 describe("the settled transcript", () => {
   const shareKey = "share:settled";
   const row = {

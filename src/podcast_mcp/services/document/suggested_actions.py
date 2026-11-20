@@ -38,6 +38,8 @@ def revise_suggested_actions(
                 f"{strangers[0]!r} was not part of the latest batch",
                 code="sound_not_in_batch",
             )
+        if ws.share_author is not None and mgr.entry(project, index).author != ws.share_author:
+            raise CodedValueError("Nothing of yours to revise", code="nothing_of_yours_to_undo")
         if index < 1:
             raise CodedValueError(
                 "Nothing to revise: the batch's starting state is no longer in history.",

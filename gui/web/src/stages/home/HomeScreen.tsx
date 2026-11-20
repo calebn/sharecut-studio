@@ -25,7 +25,12 @@ import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { ProjectCardData } from "../../system/ProjectCard";
 import { StatusLiveRegion } from "../../ui/StatusLiveRegion";
-import { ApiError, errorMessage } from "../../utils/apiError";
+import {
+  ApiError,
+  errorMessage,
+  PROJECT_VERSION_NEWER_CODE,
+  PROJECT_VERSION_UNSUPPORTED_CODE,
+} from "../../utils/apiError";
 import {
   countHomeVisit,
   dismissHomeScreenHint,
@@ -123,8 +128,8 @@ function navigateToProject(path: string): true {
 
 /** A server refusal that names its own fix: the version of the file, not a fault to retry. */
 const VERSION_REFUSAL_CODES = new Set([
-  "project_version_newer",
-  "project_version_unsupported",
+  PROJECT_VERSION_NEWER_CODE,
+  PROJECT_VERSION_UNSUPPORTED_CODE,
 ]);
 const GENERIC_OPEN_CODES = new Set(["project_open_failed", "network_error"]);
 const READABLE_MESSAGE_MAX = 240;

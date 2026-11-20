@@ -22,9 +22,12 @@ The bar and the name hold still between the loading screen and the studio: the s
 
 | When | What the guest sees | What a screen reader hears |
 |---|---|---|
+| Before the script has loaded, on a link that has a named episode | The page itself carries the header bar with the name and a quiet "Loading…" under it, in the system's light or dark, with nothing else; when the script runs the same header is drawn again from the same name, so nothing moves and no frame is empty | "Loading <name>…" |
 | The link has answered with the episode's name (or the saved copy has it) | The header with the name and a quiet "Loading…" under it, at once; the grey blocks of the guest frame from 300 ms | "Loading <name>…" |
-| The name is not known yet | Nothing for 300 ms, then the header bar with one grey block where the name goes, and the grey blocks; no words | "Loading the episode…" |
+| The name is not known yet (a link the page does not name: a link that does not open, whether unknown, malformed, turned off, expired or of the wrong kind; a restricted link; or an episode with no name) | Nothing for 300 ms, then the header bar with one grey block where the name goes, and the grey blocks; no words | "Loading the episode…" |
 | Still waiting at 4 s, counted from the first screen | "Still loading…" and **Retry** under the blocks | the same line |
+
+The page names the episode only where the browser tab already does. A link that does not open (unknown, malformed, turned off, expired or of the wrong kind), a restricted link and an episode with no name show a blank page until the script runs.
 
 The studio then opens on the same header: "Loading…" gives way to "Shared link" and the role, then the version label. A guest's header never reads "Project"; if no name ever arrives it reads "Episode". The recording room has its own loading screen ("Joining the room…").
 
@@ -63,7 +66,7 @@ Pressing **Try now** or **Retry** answers on the same button: it reads "Trying�
 
 The region's title is "The transcript didn't load" on Review and "Could not load the project" on the other stages. A press answers as it does on the page covers: the same button reads "Trying…" for at least 0.6 seconds and keeps its place and focus, and a status line says "Trying again…", then "Still asleep.", "Still offline." or "Still not loading.", or the new cover's title as a sentence when a different cover answers. The sentence never changes during a press. The page's own retries put no words on the line.
 
-**A link that stops working while the episode is open.** The page replaces the studio with the dead-link cover, with the same title and sentence, only when the server answers a request for the link with the dead-link answer (a 404 carrying the code `share_not_found`) **and** one more check of the link (`GET /project`, 10 seconds) gives that same answer. It then stops all sound, stops asking the server, moves focus to the cover's title and deletes the saved copy of the episode. Nothing else ends the session: a 404 without that code, a 403, a 5xx, a busy host, a rate limit, a lost connection, a timeout, an aborted request, and the live connection closing with `4403` (which only asks for the same check). Until the cover arrives, a failed request reads "That didn't go through. Try again in a moment." and never the server's words; the region cover reads that same sentence, with **Try again**. Queued edits and conflicts kept for the link stay as they are.
+**A link that stops working while the episode is open.** The page replaces the studio with the dead-link cover, with the same title and sentence, only when the server answers a request for the link with the dead-link answer (a 404 carrying the code `share_not_found`) **and** one more check of the link (`GET /project`, 10 seconds) gives that same answer. It then stops all sound, stops asking the server, moves focus to the cover's title and deletes the saved copy of the episode and the audio the browser kept. Nothing else ends the session: a 404 without that code, a 403, a 5xx, a busy host, a rate limit, a lost connection, a timeout, an aborted request, and the live connection closing with `4403` (which only asks for the same check). Until the cover arrives, a failed request reads "That didn't go through. Try again in a moment." and never the server's words; the region cover reads that same sentence, with **Try again**. Queued edits and conflicts kept for the link stay as they are.
 
 **What the guest had typed and not sent.** When the studio ends this way, a comment in the composer (or one being posted), a reply and the note on a pending edit that were typed and not sent are handed back under the sentence, in a read-only box with a heading: "Your comment was not posted", "Your reply was not posted" or "Your note was not posted" for one text, "These were not posted" for several (each as `Label:` then its text, a blank line between). The cover's one button copies the text: **Copy your comment**, **Copy your reply**, **Copy your note**, or **Copy all**; a status line says "Copied" for 3 seconds, or, when the clipboard is missing or refuses, the text is selected and the line says "Couldn't copy. The text is selected, so you can copy it by hand." The text scrolls inside its box. The button's block is pinned to the bottom of the screen at every width, so the button is always in view; with room to spare it sits where it would anyway, and it moves only once the page has to scroll. It is 48 px tall on a touch screen and the height of any other cover button with a mouse. On a short window (a phone held sideways, 30rem tall or less) the logo and the large symbol are left out, the spaces shrink and a touch button follows the window's height (never under 44 px down to a window 340 px tall), so the title, the sentence, the heading and the text are on screen with the button; with the text at 200% the title is on screen above the button, and the rest is reached by scrolling the page, nothing staying under the button. A cover with nothing unsent has no box, no button and no status line. The name field, find fields and transcript fixes are not handed back; unsent text does not survive a reload. This addition to the spec's cover is on the spec-deviation list.
 
@@ -94,6 +97,12 @@ Step flows: [Guest journeys](#/journeys).
 
 The separate static role chip is an image whose accessible name starts with
 **Editor: can edit**, **Commenter: can comment** or **Viewer: can listen**.
+The button is as big as its chip (24 px tall). It presses over 44 px on a touch
+screen or in a header 40 rem wide or narrower, and over 32 px otherwise: an area
+that reaches up over the name, which is not pressable, and at most a hairline
+down, never under the bar. The New version pill and the folded version line
+press over the same size; their areas grow toward the start of the line, so they
+never reach the Role button's area.
 
 The automatic role hint is eligible on visits until it is dismissed for that
 browser role; its appearance is not persisted. If the hint is still visible on
@@ -105,9 +114,41 @@ leaves the outside control's pointer behavior and click intact, including an
 already-focused scrub field's uncommitted draft. It dismisses an automatic
 hint while leaving focus on the outside control.
 
+A press on the hint itself, on its sentence or its padding, closes it and
+records it as seen. It moves no focus. It closes when the press ends, so
+nothing under the hint is pressed.
+
+The next key press anywhere closes the hint and still does its own job (`L`
+plays, a typed character lands). Escape always closes it. Shift, Control, Alt
+and Meta alone do not, and neither does Tab, so Tab still reaches the Dismiss
+button. Enter or Space on Dismiss closes the hint and focuses the role button.
+On the role button they only dismiss it, and the next press opens the dialog.
+
+The sentence is said once, through the page's status region, when the hint
+appears. It is not said again on a re-render, on dismissal or when the dialog
+opens. A returning guest hears nothing.
+
+On a touch screen the hint is 44 px tall at the default text size. It hangs 3 px
+under the header bar, so it ends above the first line of the transcript at 390
+and 320 px wide. At larger text it grows with its text and may reach that line.
+On a desktop it is 40 px tall.
+
+A saved copy opened offline shows no hint and writes no flag. The copy opens
+read-only, so the link's role is not known there, and the header shows no role
+chip on it. The next load that reaches the server shows the link's own role and
+its hint once. A saved copy that is already open does not change until it is
+reloaded.
+
+In a private window, or with browser storage blocked, nothing can remember the
+dismissal, so the hint returns on the next load.
+
 **Comment field on a phone:** on the phone layout (767 px and narrower) a Viewer or Commenter link uses the Listen layout: a Viewer link has no Comment button, no selection bar and no text field, and on a Commenter link no text field is on screen until the guest taps **Comment** in the Listen dock, which pins the time, pauses an episode that is playing, and opens the composer above the dock; **Post** or **Close** plays on if Comment paused it and nothing touched playback since, and returns focus to the Comment button. The transcript selection bar's Comment on a Commenter link also pauses an episode that is playing and opens the composer, but pins the selected range, replacing the time of text kept by Close; only on this layout does opening the composer pause. An Editor link on a phone keeps the Player bar and the always-present comment field, docked at the foot of the Review panel (inline in the card when the layout is 30rem tall or less; the keyboard does not count); the bar's Comment button, visible without a menu (also on a short landscape phone), opens the composer and leaves playback running. A landscape phone wider than 767 px uses the tablet shell. On a tablet, a desktop and for the host the field stays at the top of the card.
 
+**Undo and Redo on an Editor link:** an Editor's Undo and Redo, in the header, the palette, Mod+Z and Mod+Shift+Z, and the phone's two-finger tap, take back only the Editor's own latest step and bring back only a step they undid. When the latest change is the host's, another guest's, or a comment or decision by someone else, the controls are disabled, a key press is not sent, and the page says "There is nothing of yours to undo." (Redo: "There is nothing of yours to redo."). The longer server sentences ("The latest change is someone else's." and "Redo brings back only what you undid.") appear only when a press that was sent is refused, for instance when the host edited since the page last heard. A refusal is told once in words and never lands in Needs attention as a conflict. Header, palette and keys agree because they read one answer built from the same information. A flag is only as fresh as the last update the page received, and the server's sentence corrects a stale one. A Viewer or Commenter link has no Undo or Redo ("Undo needs Editor access").
+
 **Approve in the queue:** an Editor decides the suggested cuts in the Review queue with **Cut** and **Keep** (the Review badge counts them); Find more, unsure-word Fix and Resolve stay host-only. Approve and Reject also work from the Timeline overlay, and as Cut and Keep from the Action bar.
+
+**Hand edits on an Editor link:** an Editor selects words or a range and presses **Cut**, or **Mute** in More, and the edit applies on the host's episode; the toast reads "Cut "uncle" · 0.3 s · 1 more" or "Range mute applied. Use Undo to restore it." with Undo, which takes back only the Editor's own step. **Fix text** (bar, F2, double-tap) and **Find and replace** work as for the host; a Commenter or Viewer link has neither. On a cut seam, **Keep** puts back an approved cut, and on a cut the Editor made with the bar it is disabled with "This cut can't be put back on its own. Undo takes back your own latest change; for anything else, ask the host." When the server holds an edit, the page says so in one sentence that names whose cut it was and why ("Reference's cut at 0:02.5 was not applied because that part of the recording is no longer in one piece on the timeline. Nothing was changed."); it is not filed under Needs attention as it happens (only a command replayed after an offline spell is) and never names a file, a check or a setting.
 
 When a guest Cut finishes after the active project changes, its old refusal
 does not replace feedback for the project now open. A completed Paste focuses

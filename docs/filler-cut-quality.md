@@ -96,12 +96,15 @@ enforced-by:
 - tests/test_selected_range.py::test_propose_range_cut_tool_assesses_edges_and_human_approval_overrides
 - tests/test_guest_transcript_selection.py::test_suggest_guest_cut_is_a_pending_suggestion_and_direct_edits_are_refused
 - tests/test_manual_cut_intent_role.py::test_host_route_intent_follows_the_actor_role
-- tests/test_manual_cut_intent_role.py::test_guest_editor_never_stamps_human_intent
+- tests/test_manual_cut_intent_role.py::test_guest_editor_stamps_human_intent
+- tests/test_manual_cut_intent_role.py::test_guest_commenter_stays_programmatic
+- tests/test_editor_guest_edits.py::test_guest_mcp_editor_cut_stays_programmatic
 -->
 
 An intentional manual user edit may apply without acoustic-safety vetoes. Programmatic
-and agentic decisions keep those checks. Intent follows the acting role, not the route: only
-the host `viewer` role is a manual user; guest, `agent` and `cli` roles are programmatic.
+and agentic decisions keep those checks. Intent follows the acting role and the route: only
+the host `viewer` role and an Editor review link on the browser route are manual users; a
+Commenter link, the guest MCP route's own commands, `agent` and `cli` roles are programmatic.
 The host route trusts the declared role, so a local process that claims `viewer` is treated
 as the host. This decision does not remove finite bounds,
 finalized-edge preservation, current-placement validation, structural validity, pad
