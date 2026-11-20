@@ -44,6 +44,9 @@ const upload = (over: Partial<RecordUploadProgress> = {}) =>
     ...over,
   }) as RecordUploadProgress;
 
+const device = { localUnreadable: false, captureSettled: true };
+const readable = { unreadable: false, stopped: true, captureSettled: true };
+
 const actions = {
   busy: false,
   error: null,
@@ -92,10 +95,10 @@ describe("guestRoomPhase", () => {
     expect(
       guestRoomPhase(
         recordSnapshot({ state: "lobby", participants: [host, me] }),
-        { localSegments: 0 },
+        { localSegments: 0, ...device },
       ),
     ).toEqual({ kind: "waiting", host: "Hana" });
-    expect(guestRoomPhase(null, { localSegments: 0 })).toEqual({
+    expect(guestRoomPhase(null, { localSegments: 0, ...device })).toEqual({
       kind: "waiting",
     });
   });
@@ -107,7 +110,9 @@ describe("guestRoomPhase", () => {
       recording_ms: 4000,
       participants: [host, me],
     });
-    expect(guestRoomPhase(snapshot, { localSegments: 0 })).toMatchObject({
+    expect(
+      guestRoomPhase(snapshot, { localSegments: 0, ...device }),
+    ).toMatchObject({
       kind: "live",
       take: 2,
     });
@@ -128,6 +133,7 @@ describe("guestRoomPhase", () => {
     expect(
       guestRoomPhase(snapshot, {
         localSegments: 0,
+        ...device,
         upload: upload({ acked: 1, total: 3 }),
       }),
     ).toEqual({
@@ -139,10 +145,11 @@ describe("guestRoomPhase", () => {
     expect(
       guestRoomPhase(snapshot, {
         localSegments: 0,
+        ...device,
         upload: upload({ total: 3, fileAck: true }),
       }),
     ).toEqual({ kind: "saved" });
-    expect(guestRoomPhase(snapshot, { localSegments: 0 })).toEqual({
+    expect(guestRoomPhase(snapshot, { localSegments: 0, ...device })).toEqual({
       kind: "saved",
     });
   });
@@ -155,10 +162,18 @@ describe("guestRoomPhase", () => {
     });
     const acknowledged = upload({ total: 1, fileAck: true, seenSegments: 1 });
     expect(
-      guestRoomPhase(snapshot, { upload: acknowledged, localSegments: 1 }),
+      guestRoomPhase(snapshot, {
+        upload: acknowledged,
+        localSegments: 1,
+        ...device,
+      }),
     ).toEqual({ kind: "saved" });
     expect(
-      guestRoomPhase(snapshot, { upload: acknowledged, localSegments: 2 }),
+      guestRoomPhase(snapshot, {
+        upload: acknowledged,
+        localSegments: 2,
+        ...device,
+      }),
     ).toMatchObject({ kind: "saving" });
   });
 
@@ -170,7 +185,11 @@ describe("guestRoomPhase", () => {
     });
     const acknowledged = upload({ total: 1, fileAck: true, seenSegments: 1 });
     expect(
-      guestRoomPhase(snapshot, { upload: acknowledged, localSegments: null }),
+      guestRoomPhase(snapshot, {
+        upload: acknowledged,
+        localSegments: null,
+        ...device,
+      }),
     ).toMatchObject({ kind: "saving" });
   });
 
@@ -179,11 +198,12 @@ describe("guestRoomPhase", () => {
       uploadInFlight(
         upload({ total: 1, fileAck: true, seenSegments: 1 }),
         null,
+        readable,
       ),
     ).toBe(false);
-    expect(uploadInFlight(upload({ total: 1, pending: true }), null)).toBe(
-      true,
-    );
+    expect(
+      uploadInFlight(upload({ total: 1, pending: true }), null, readable),
+    ).toBe(true);
   });
 
   describe("an unreadable device scan", () => {
@@ -276,18 +296,21 @@ describe("guestRoomPhase", () => {
     expect(
       guestRoomPhase(snapshot, {
         localSegments: 0,
+        ...device,
         upload: upload({ acked: 1, total: 3, error: "offline" }),
       }),
     ).toEqual(failed);
     expect(
       guestRoomPhase(snapshot, {
         localSegments: 0,
+        ...device,
         upload: upload({ recoverable: true }),
       }),
     ).toEqual(failed);
     expect(
       guestRoomPhase(snapshot, {
         localSegments: 0,
+        ...device,
         upload: upload({ total: 3, recoverable: true, uploading: true }),
       }),
     ).toMatchObject({ kind: "saving", percent: 0 });
@@ -303,12 +326,17 @@ describe("guestRoomPhase", () => {
     expect(
       guestRoomPhase(snapshot, {
         localSegments: 0,
+        ...device,
         upload: upload(),
         tookPart: false,
       }),
     ).toEqual({ kind: "waiting", host: "Hana" });
     expect(
-      guestRoomPhase(snapshot, { localSegments: 0, tookPart: false }),
+      guestRoomPhase(snapshot, {
+        localSegments: 0,
+        ...device,
+        tookPart: false,
+      }),
     ).toEqual({
       kind: "waiting",
       host: "Hana",
@@ -316,6 +344,7 @@ describe("guestRoomPhase", () => {
     expect(
       guestRoomPhase(snapshot, {
         localSegments: 0,
+        ...device,
         upload: upload(),
         tookPart: true,
       }),
@@ -323,6 +352,7 @@ describe("guestRoomPhase", () => {
     expect(
       guestRoomPhase(snapshot, {
         localSegments: 0,
+        ...device,
         upload: upload({ pending: true }),
         tookPart: false,
       }),
@@ -338,12 +368,14 @@ describe("guestRoomPhase", () => {
     expect(
       guestRoomPhase(snapshot, {
         localSegments: 0,
+        ...device,
         upload: upload({ pending: true }),
       }),
     ).toMatchObject({ kind: "saving" });
     expect(
       guestRoomPhase(snapshot, {
         localSegments: 0,
+        ...device,
         upload: upload({ total: 2, fileAck: true }),
       }),
     ).toEqual({ kind: "saved" });
@@ -361,6 +393,7 @@ describe("guestRoomPhase when this page's socket drops", () => {
     expect(
       guestRoomPhase(snapshot, {
         localSegments: 0,
+        ...device,
         connected: false,
         elapsedSinceSnapshotMs: 1000,
       }),
@@ -371,7 +404,7 @@ describe("guestRoomPhase when this page's socket drops", () => {
     expect(
       guestRoomPhase(
         recordSnapshot({ state: "lobby", participants: [host, me] }),
-        { connected: false, localSegments: 0 },
+        { connected: false, localSegments: 0, ...device },
       ),
     ).toEqual({ kind: "waiting", host: "Hana" });
   });
@@ -697,25 +730,32 @@ describe("tookAnyTake", () => {
 
 describe("ownSaving", () => {
   it("follows the guest's own upload", () => {
-    expect(ownSaving(null, 0)).toBeNull();
-    expect(ownSaving(upload(), 0)).toBeNull();
-    expect(ownSaving(upload({ acked: 1, total: 4 }), 0)).toEqual({
+    expect(ownSaving(null, 0, readable)).toBeNull();
+    expect(ownSaving(upload(), 0, readable)).toBeNull();
+    expect(ownSaving(upload({ acked: 1, total: 4 }), 0, readable)).toEqual({
       done: 1,
       total: 4,
     });
-    expect(ownSaving(upload({ total: 4, fileAck: true }), 0)).toBe("saved");
-    expect(ownSaving(upload({ total: 4, error: "x" }), 0)).toBe("failed");
+    expect(ownSaving(upload({ total: 4, fileAck: true }), 0, readable)).toBe(
+      "saved",
+    );
+    expect(ownSaving(upload({ total: 4, error: "x" }), 0, readable)).toBe(
+      "failed",
+    );
   });
 
   it("does not call an acknowledged take saved while the device count is unknown", () => {
     const acknowledged = upload({ total: 2, fileAck: true, seenSegments: 1 });
-    expect(ownSaving(acknowledged, null)).toEqual({ done: 0, total: 2 });
+    expect(ownSaving(acknowledged, null, readable)).toEqual({
+      done: 0,
+      total: 2,
+    });
   });
 
   it("trusts an acknowledgement only for the segments its pass saw", () => {
     const acknowledged = upload({ total: 2, fileAck: true, seenSegments: 1 });
-    expect(ownSaving(acknowledged, 1)).toBe("saved");
-    expect(ownSaving(acknowledged, 2)).toEqual({ done: 0, total: 2 });
+    expect(ownSaving(acknowledged, 1, readable)).toBe("saved");
+    expect(ownSaving(acknowledged, 2, readable)).toEqual({ done: 0, total: 2 });
   });
 });
 

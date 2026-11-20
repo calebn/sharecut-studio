@@ -119,7 +119,7 @@ export function holdsJoinSheet(input: SheetHold): boolean {
   }
   return (
     input.localRecording &&
-    !uploadAcknowledged(input.upload, input.localSegments)
+    !countAcknowledged(input.upload, input.localSegments)
   );
 }
 
@@ -195,20 +195,40 @@ export function guestTakes(
   return takes;
 }
 
+type DeviceScan = {
+  unreadable: boolean;
+  stopped: boolean;
+  captureSettled: boolean;
+};
+
+function countAcknowledged(
+  upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments">,
+  localSegments: number,
+): boolean {
+  return upload.fileAck && localSegments <= upload.seenSegments;
+}
+
 /**
  * Whether the server's acknowledgement covers everything this device holds. It
  * counts only for the segments its pass saw, and the pass already forgets an
  * acknowledgement given for another take. An unknown device count covers
- * nothing.
+ * nothing, except when the scan is unreadable, the take is stopped and capture
+ * has settled: then the segments the pass saw are all the device holds.
  */
 export function uploadAcknowledged(
   upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments">,
   localSegments: number | null,
+  scan: DeviceScan,
 ): boolean {
+  if (localSegments !== null) {
+    return countAcknowledged(upload, localSegments);
+  }
   return (
     upload.fileAck &&
-    localSegments !== null &&
-    localSegments <= upload.seenSegments
+    upload.seenSegments > 0 &&
+    scan.unreadable &&
+    scan.stopped &&
+    scan.captureSettled
   );
 }
 
@@ -222,10 +242,11 @@ function uploadStuck(upload: RecordUploadProgress): boolean {
 export function uploadInFlight(
   upload: RecordUploadProgress | null,
   localSegments: number | null,
+  scan: DeviceScan,
 ): boolean {
   return (
     upload !== null &&
-    !uploadAcknowledged(upload, localSegments) &&
+    !uploadAcknowledged(upload, localSegments, scan) &&
     !(upload.fileAck && localSegments === null) &&
     !uploadStuck(upload) &&
     (upload.pending || upload.uploading || upload.total > 0)
@@ -239,8 +260,10 @@ export function guestRoomPhase(
     upload?: RecordUploadProgress | null;
     /** Segments this device holds for the take. */
     localSegments: number | null;
-    /** The device scan failed twice: an acknowledged upload cannot be confirmed. */
-    localUnreadable?: boolean;
+    /** The device scan failed twice: its count is unknown for good. */
+    localUnreadable: boolean;
+    /** Capture has finished writing this device's segments. */
+    captureSettled: boolean;
     /** False for a guest who is not in the take: nothing of theirs is saving. */
     tookPart?: boolean;
     /** This page's room socket is open. Defaults to true. False on air reads reconnecting. */
@@ -252,10 +275,15 @@ export function guestRoomPhase(
     dropped: options.connected === false,
   });
   const { upload, localSegments } = options;
+  const scan = {
+    unreadable: options.localUnreadable,
+    stopped: snapshot?.state === "stopped",
+    captureSettled: options.captureSettled,
+  };
   const acknowledged =
     upload !== null &&
     upload !== undefined &&
-    uploadAcknowledged(upload, localSegments);
+    uploadAcknowledged(upload, localSegments, scan);
   if (snapshot?.state === "stopped" && upload) {
     if (acknowledged) {
       return { kind: "saved" };
@@ -263,7 +291,7 @@ export function guestRoomPhase(
     if (uploadStuck(upload)) {
       return { kind: "saving", savedPeople: 0, totalPeople: 1, failed: true };
     }
-    if (uploadInFlight(upload, localSegments)) {
+    if (uploadInFlight(upload, localSegments, scan)) {
       return {
         kind: "saving",
         savedPeople: 0,
@@ -272,9 +300,7 @@ export function guestRoomPhase(
       };
     }
     if (upload.fileAck && localSegments === null) {
-      return options.localUnreadable
-        ? { kind: "saving", savedPeople: 0, totalPeople: 1, failed: true }
-        : { kind: "saving", savedPeople: 0, totalPeople: 1 };
+      return { kind: "saving", savedPeople: 0, totalPeople: 1 };
     }
   }
   const idle =
@@ -693,15 +719,15 @@ function capitalized(text: string): string {
 export function ownSaving(
   upload: RecordUploadProgress | null | undefined,
   localSegments: number | null,
-  localUnreadable = false,
+  scan: DeviceScan,
 ): RoomSaving | null {
   if (!upload) {
     return null;
   }
-  if (uploadAcknowledged(upload, localSegments)) {
+  if (uploadAcknowledged(upload, localSegments, scan)) {
     return "saved";
   }
-  if (upload.error || (localUnreadable && upload.fileAck)) {
+  if (upload.error) {
     return "failed";
   }
   return upload.total > 0 ? { done: upload.acked, total: upload.total } : null;
@@ -734,14 +760,18 @@ export function guestCoverProps(
   room: CoverRoom,
   options: { onRetry: () => void; phase: RoomPhase },
 ): CoverProps | null {
+  const scan = {
+    unreadable: room.localUnreadable,
+    stopped: room.snapshot?.state === "stopped",
+    captureSettled: room.captureSettled,
+  };
   // Before the first take, or once the server has acknowledged every segment
   // the device holds, there is nothing here to save: whatever the device still
   // holds (a copy kept for the reclaim grace after a download) is a duplicate.
   const hasLocalCopy =
     (room.snapshot?.take_index ?? room.keeperIdentity?.takeIndex ?? -1) >= 0 &&
-    ((room.localRecording &&
-      !uploadAcknowledged(room.upload, room.localSegments)) ||
-      (room.localSegments === null && room.recordedHere));
+    !uploadAcknowledged(room.upload, room.localSegments, scan) &&
+    (room.localRecording || (room.localSegments === null && room.recordedHere));
   const keeperActions = hasLocalCopy
     ? room.keeperActions
     : {
