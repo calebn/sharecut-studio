@@ -726,3 +726,25 @@ unavailable evidence rather than silently choosing a new target.
 head. It runs only while that exact head and project opening remain current.
 A queued, unconfirmed or no-op response supplies no action-specific Undo.
 The host-only Restore action has no default shortcut or command-palette entry.
+
+## Experimental editable REAPER export
+
+Use the saved episode to create a new portable session folder on Linux or macOS.
+
+```sh
+podcast episode export-reaper --project /path/to/episode.sharecut --output /path/to/new-session
+```
+
+Open `session.rpp` with its sibling `media/` directory. Keep them together when
+moving the package. The export preserves ordered tracks and editable placements,
+source trims, gaps and overlaps. It copies complete uncompressed WAVs and
+converts other sources to WAV. A failed export does not replace an existing
+destination. The saved Sharecut project is read-only during export.
+
+The editable package omits transcripts, comments, undo history, plugin and
+effect settings, and render-only features such as room tone, mute-region
+processing, and automatic join borrowing. Timing-mapped clips export as their
+separate source pieces. The exporter carries fade lengths using linear curves. Nonlinear fade shapes
+and rendered mix parity are outside this experimental export. Use Sharecut's rendered WAV
+exports when you need the rendered sound. The experimental command does not
+provide AAF, SESX, or the Deliver format picker.

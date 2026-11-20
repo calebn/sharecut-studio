@@ -19,6 +19,7 @@ if TYPE_CHECKING:
         make_admin_client,
         setup_bucket_cors,
     )
+    from podcast_mcp.services.media.daw_session import export_reaper_session
     from podcast_mcp.services.media.ingest import (
         IngestService,
         import_folder_report_to_dict,
@@ -128,6 +129,7 @@ __all__ = [
     "ensure_audio_in_workspace",
     "ensure_proxy_manifest",
     "ensure_track_proxy",
+    "export_reaper_session",
     "guest_check",
     "gui_media_chunk_max_bytes",
     "gui_media_max_bytes",
@@ -160,6 +162,7 @@ __all__ = [
 ]
 
 _MODULE_BY_NAME = {
+    "export_reaper_session": "daw_session",
     "WaveformStatusResult": "results",
     "WaveformLevel": "results",
     "WaveformEntry": "results",

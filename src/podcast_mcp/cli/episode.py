@@ -36,6 +36,21 @@ def track_add(
     typer.echo(msg)
 
 
+@episode_app.command("export-reaper")
+def export_reaper(
+    project: Path = typer.Option(..., "--project", help="Saved episode.sharecut"),
+    output: Path = typer.Option(..., "--output", help="New directory for the portable package"),
+) -> None:
+    """Export an experimental editable REAPER project and its WAV media."""
+    from podcast_mcp.services.media import export_reaper_session
+
+    try:
+        session = export_reaper_session(project, output)
+    except OSError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(str(session))
+
+
 @episode_app.command("reorder-track")
 def track_reorder(
     project: Path = typer.Option(..., "--project", help="episode.sharecut"),
