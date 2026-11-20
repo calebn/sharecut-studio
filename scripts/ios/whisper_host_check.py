@@ -116,7 +116,7 @@ def main() -> None:
 
         if args.host_cli:
             done = subprocess.run(
-                [str(args.host_cli), *base[1:], "-of", str(tmp / "h")],
+                [str(args.host_cli), *base[1:], "-ng", "-of", str(tmp / "h")],
                 capture_output=True,
                 check=False,
             )
