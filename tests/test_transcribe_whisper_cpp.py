@@ -1,5 +1,3 @@
-"""TranscriptionEngine picks the whisper.cpp backend from the host row."""
-
 from __future__ import annotations
 
 import wave
