@@ -804,6 +804,12 @@ describe("Q focuses the Review composer", () => {
     expect(focused).not.toHaveBeenCalled();
   });
 
+  it("does nothing with Shift held, which would type a capital Q into the field", async () => {
+    enter("comment", ["view", "play", "comment"]);
+    await press(document.body, { key: "Q", shiftKey: true });
+    expect(focused).not.toHaveBeenCalled();
+  });
+
   it("does nothing with Ctrl held or with focus already in a field", async () => {
     enter("comment", ["view", "play", "comment"]);
     await press(document.body, { key: "q", ctrlKey: true });
