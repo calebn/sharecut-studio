@@ -1230,7 +1230,7 @@ rows and at most 88dvh, with the room's header above it (and the status pill onc
 screen under 30rem tall at any width (a phone on its side), or under 37.5rem wide and
 44rem tall (a small phone upright), the sheet scrolls as one, footer included, with
 the consent sentence directly above **Join and record**; on taller screens the consent
-sentence and the buttons stay pinned and only the rows scroll. The sheet has one **Close**, and **Not now**, Escape and Close all decline, a producer's also while the sheet reads Joining… (Not now closes the connection, so the look ends too: the Not now bar shows, and a producer the room had already listed shows to the host as left);
+sentence and the buttons stay pinned and only the rows scroll. The sheet has one **Close**, and **Not now**, Escape and Close all decline (a guest's also before this page has reached the room), a producer's also while the sheet reads Joining… (Not now closes the connection, so the look ends too: the Not now bar shows, and a producer the room had already listed shows to the host as left);
 a press on the scrim beside the sheet does nothing (`Dialog` with `scrimDismisses`
 false), because consent is answered with a button. Each row is its status line with
 its control full width underneath, on one left edge. Every control is at least 44 px.
@@ -1669,7 +1669,7 @@ stateDiagram-v2
 | Storage unavailable | "This device can't store your full-quality recording. Check that this browser or app allows local storage, then retry." with **Retry storage check** |
 | Host status (per participant and segment) | "Ava: Saving to project… 1 of 3 chunks", "Ava: Saved to project"; with several segments "Ava, take 1 segment 2: Saved to project"; a failed land adds "Landing failed. Use Retry on the take." |
 | Full room | Cover "The room is full" / "Ask {host} to make space or send you a new link." with **Try again** |
-| Declined | Guest: scrim "You're not being recorded." with **Join recording** ("You can join after this take." while a take is not waiting). Producer: scrim "You're not in the room yet. You won't be recorded." with **Join to listen**, never held by a take; Not now has ended the look, so no room, pill or looking-in line sits behind the scrim |
+| Declined | Guest: scrim "You're not being recorded." with **Join recording** ("You can join after this take." while a take is not waiting), also before the room connects and across a lobby reconnect. Producer: scrim "You're not in the room yet. You won't be recorded." with **Join to listen**, never held by a take; Not now has ended the look, so no room, pill or looking-in line sits behind the scrim |
 
 ### Host Record stage
 
