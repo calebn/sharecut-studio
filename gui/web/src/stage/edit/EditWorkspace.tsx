@@ -221,6 +221,10 @@ function EditWorkspaceAdapter({
   const actionBar = (
     <EditActionBar form={phone ? "dock" : "floating"} root={root} />
   );
+  const findButton = () =>
+    root?.querySelector<HTMLButtonElement>(
+      'button[aria-label="Find in transcript"]',
+    ) ?? null;
   const corner = (
     <EditCorner
       showScript={!phone}
@@ -231,11 +235,10 @@ function EditWorkspaceAdapter({
             ? {
                 kind: "unavailable",
                 returnTarget: () =>
-                  root?.querySelector<HTMLButtonElement>(
-                    'button[aria-label="Find in transcript"]',
-                  ) ??
+                  findButton() ??
                   root?.querySelector<HTMLElement>(".edit-script") ??
                   null,
+                preferredTarget: findButton,
               }
             : AVAILABLE_VIEW_ANCHOR
       }

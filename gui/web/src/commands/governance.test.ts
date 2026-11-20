@@ -46,6 +46,7 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   // A clip drag in progress takes Escape from the document, wherever focus is, so the cancel does not depend on the clip holding focus.
   "system/Clip.tsx",
   "timeline/ClipBlock.tsx",
+  "stage/edit/useViewAnchor.ts",
   "ui/useDialogModal.ts",
   "ui/useMenuKeyboard.ts",
   "commands/governance.test.ts",
