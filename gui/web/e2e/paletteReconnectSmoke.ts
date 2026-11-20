@@ -445,31 +445,48 @@ export function registerPaletteReconnectSmoke() {
                       !!hostProbe.clientId,
                   )
                   .toBe(true);
-                const leaderId = hostProbe.clientId;
-                const followerId = (await readFollowerWire(follower)).clientId;
-                const leaderName = peerName(observerProbe, leaderId);
-                const face = follower.locator(
-                  `.avatar-header .avatar-face[data-person=${JSON.stringify(leaderId)}]`,
-                );
-                await expect(face).toHaveCount(1);
-                const menu = await openPeopleMenu(follower, face);
-                await menu
-                  .getByRole("menuitem", { name: "Follow", exact: true })
-                  .click();
-                await expect(followPill(follower)).toContainText(
-                  `Following ${leaderName}`,
-                );
-                await expect
-                  .poll(async () =>
-                    (await readFollowerWire(follower)).sent.some(
-                      ({ frame }) => frame.meta?.following === leaderId,
-                    ),
-                  )
-                  .toBe(true);
-                const before = await readFollowerWire(follower);
-                const old = before.sockets.at(-1);
-                if (!old || old.closed || old.helloSequence === null)
-                  inconclusive("no actual live follower socket with hello");
+                const { leaderId, followerId, leaderName } =
+                  await test.step("3940:61", async () => {
+                    const leaderId = hostProbe.clientId;
+                    const followerId = (await readFollowerWire(follower))
+                      .clientId;
+                    const leaderName = peerName(observerProbe, leaderId);
+                    return { leaderId, followerId, leaderName };
+                  });
+                const menu = await test.step("3940:62", async () => {
+                  const face = follower.locator(
+                    `.avatar-header .avatar-face[data-person=${JSON.stringify(leaderId)}]`,
+                  );
+                  await expect(face).toHaveCount(1);
+                  const menu = await openPeopleMenu(follower, face);
+                  return menu;
+                });
+                await test.step("3940:63", async () => {
+                  await menu
+                    .getByRole("menuitem", { name: "Follow", exact: true })
+                    .click();
+                });
+                await test.step("3940:64", async () => {
+                  await expect(followPill(follower)).toContainText(
+                    `Following ${leaderName}`,
+                  );
+                });
+                await test.step("3940:65", async () => {
+                  await expect
+                    .poll(async () =>
+                      (await readFollowerWire(follower)).sent.some(
+                        ({ frame }) => frame.meta?.following === leaderId,
+                      ),
+                    )
+                    .toBe(true);
+                });
+                const old = await test.step("3940:66", async () => {
+                  const before = await readFollowerWire(follower);
+                  const old = before.sockets.at(-1);
+                  if (!old || old.closed || old.helloSequence === null)
+                    inconclusive("no actual live follower socket with hello");
+                  return old;
+                });
                 await outage.drop();
                 try {
                   await expect
