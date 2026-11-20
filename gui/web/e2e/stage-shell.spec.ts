@@ -681,26 +681,11 @@ diagnosticTest(
         certificate: `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`,
       };
     };
-    const classificationOf = (
-      error: unknown,
-    ): "assertion" | "timeout" | "error" | "non-error" | "unclassified" => {
-      try {
-        if (
-          error !== null &&
-          typeof error === "object" &&
-          "matcherResult" in error
-        )
-          return "assertion";
-        if (error instanceof Error)
-          return error.name === "TimeoutError" ? "timeout" : "error";
-        return "non-error";
-      } catch {
-        return "unclassified";
-      }
-    };
+    const messageOf = (error: unknown): string =>
+      error instanceof Error ? error.message : String(error);
     let phase = "fixture-setup";
     let bodyFailed = false;
-    let bodyClassification = "unclassified";
+    let bodyError: unknown;
     const cleanupErrors: Error[] = [];
     try {
       workspaceDir = fs.mkdtempSync(
@@ -862,34 +847,40 @@ diagnosticTest(
         .toBe(digest(JSON.stringify(before.project.review.comments)));
     } catch (error) {
       bodyFailed = true;
-      bodyClassification = classificationOf(error);
+      bodyError = error;
     }
     try {
       if (guestContext) await guestContext.close();
     } catch (error) {
       cleanupErrors.push(
-        new Error(`Guest context cleanup failed [${classificationOf(error)}]`),
+        new Error(`Guest context cleanup failed: ${messageOf(error)}`, {
+          cause: error,
+        }),
       );
     }
     try {
       await page.close();
     } catch (error) {
       cleanupErrors.push(
-        new Error(`Host page cleanup failed [${classificationOf(error)}]`),
+        new Error(`Host page cleanup failed: ${messageOf(error)}`, {
+          cause: error,
+        }),
       );
     }
     try {
       await switchE2eProject(e2eProjectPath);
     } catch (error) {
       cleanupErrors.push(
-        new Error(
-          `Host project restoration failed [${classificationOf(error)}]`,
-        ),
+        new Error(`Host project restoration failed: ${messageOf(error)}`, {
+          cause: error,
+        }),
       );
     }
     const errors = bodyFailed
       ? [
-          new Error(`Scenario failed at ${phase} [${bodyClassification}]`),
+          new Error(`Scenario failed at ${phase}: ${messageOf(bodyError)}`, {
+            cause: bodyError,
+          }),
           ...cleanupErrors,
         ]
       : cleanupErrors;
