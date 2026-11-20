@@ -7,6 +7,25 @@ import { SetupCard } from "./SetupCard";
 
 const noop = () => {};
 
+describe("SetupCard needed", () => {
+  it("makes Get ready the neutral button, not the filled one", () => {
+    render(
+      <SetupCard
+        state="needed"
+        sizeLabel="about 2 GB"
+        onGetReady={noop}
+        onChoose={noop}
+        onCancel={noop}
+        onRetry={noop}
+        onNotNow={noop}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Get ready" });
+    expect(button).not.toHaveClass("primary");
+    expect(button).toHaveClass("modifier-action");
+  });
+});
+
 describe("SetupCard on a device without audio tools", () => {
   it("shows the server's sentence and offers nothing to do", async () => {
     const { container } = render(

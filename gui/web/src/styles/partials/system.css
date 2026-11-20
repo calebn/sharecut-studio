@@ -3353,7 +3353,7 @@ html:not([data-shell="phone"])
     flex-wrap: wrap;
   }
 
-  .sys-setup-actions .modifier-action.primary {
+  .sys-setup-actions .modifier-action:first-child {
     flex: 1 0 100%;
     min-block-size: 3rem;
   }

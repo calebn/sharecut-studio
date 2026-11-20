@@ -61,6 +61,22 @@ export const Empty: Story = {
   args: { phase: "empty", projects: [] },
   play: importIsPrimary,
 };
+export const EmptySetupNeeded: Story = {
+  args: {
+    phase: "empty",
+    projects: [],
+    setup: { state: "needed", sizeLabel: "about 2 GB" },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: /^Import audio/ }),
+    ).toHaveClass("sys-start--primary");
+    await expect(
+      canvas.getByRole("button", { name: "Get ready" }),
+    ).not.toHaveClass("primary");
+  },
+};
 export const WithRecents: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);

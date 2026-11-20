@@ -36,6 +36,12 @@ for (const viewport of VIEWPORTS) {
         await expect(
           setup.getByRole("button", { name: "Get ready" }),
         ).toBeEnabled();
+        await expect(
+          setup.getByRole("button", { name: "Get ready" }),
+        ).not.toHaveClass(/\bprimary\b/);
+        const importTile = page.locator(".sys-home .sys-start--import");
+        await expect(importTile).toBeEnabled();
+        await expect(importTile).toHaveClass(/sys-start--primary/);
         await expect(page.locator(".sys-need")).toHaveCount(0);
         await setup.getByRole("button", { name: "Choose…" }).click();
         const dialog = page.getByRole("dialog", { name: "Models" });

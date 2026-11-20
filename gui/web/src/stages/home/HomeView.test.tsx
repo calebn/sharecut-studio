@@ -184,6 +184,24 @@ describe("HomeView empty, loading and drop", () => {
     );
   });
 
+  it("keeps Import audio the only filled action while Setup needs models", () => {
+    setup({
+      phase: "empty",
+      projects: [],
+      setup: { state: "needed", sizeLabel: "about 2 GB" },
+    });
+    expect(screen.getByRole("button", { name: /^Import audio/ })).toHaveClass(
+      "sys-start--primary",
+    );
+    expect(screen.getByRole("button", { name: /^Import audio/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Get ready" })).not.toHaveClass(
+      "primary",
+    );
+    expect(
+      document.querySelectorAll(".primary, .sys-start--primary"),
+    ).toHaveLength(1);
+  });
+
   it("keeps Import audio default when there are recents", () => {
     setup();
     expect(

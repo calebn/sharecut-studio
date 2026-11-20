@@ -136,9 +136,7 @@ function SetupBody({
           </p>
         </div>
         <div className="sys-setup-actions">
-          <Button variant="primary" onClick={onGetReady}>
-            Get ready
-          </Button>
+          <Button onClick={onGetReady}>Get ready</Button>
           <button type="button" className="sys-text-btn" onClick={onChoose}>
             Choose…
           </button>
