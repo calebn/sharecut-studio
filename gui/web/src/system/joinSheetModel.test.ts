@@ -389,6 +389,33 @@ describe("micRow while the browser asks", () => {
   });
 });
 
+describe("micRow when the browser stays silent", () => {
+  const slow = micRow({ status: "prompting", slow: true });
+
+  it("tells the guest to check the prompt and offers Retry, not busy", () => {
+    expect(slow).toEqual({
+      key: "mic",
+      state: "needs-you",
+      title: "Microphone",
+      detail: "Still waiting. Check your browser's permission prompt.",
+      action: { label: "Retry", name: "Retry microphone", kind: "retry" },
+    });
+  });
+
+  it("keeps the primary waiting on the browser", () => {
+    const model = joinGuestModel({
+      name: "Jon",
+      mic: { status: "prompting", slow: true },
+      headphones: "on",
+      headphonesRule: "required",
+    });
+    expect(model.rows[1]).toEqual(slow);
+    expect(model.primary.reason).toBe("Answer your browser first");
+    expect(model.next).toBe("mic");
+    expect(model.ready).toBe(false);
+  });
+});
+
 describe("joinGuestModel headphones rule", () => {
   const base = {
     name: "Jon",

@@ -48,6 +48,7 @@ type Props = {
   transport?: ReturnType<typeof memoryUploadTransport> | null;
   error?: string | null;
   consented?: boolean | null;
+  declined?: boolean;
 };
 
 function setup(initial: Props = {}, wrapper?: typeof StrictMode) {
@@ -64,6 +65,7 @@ function setup(initial: Props = {}, wrapper?: typeof StrictMode) {
             ? me
             : { ...me, consented: props.consented },
         producer: props.producer ?? false,
+        declined: props.declined,
         transport: props.transport === undefined ? transport : props.transport,
         roomTone: {
           status: props.status ?? "idle",
@@ -92,6 +94,12 @@ describe("useLateRoomTone", () => {
     result.current?.onSecondaryAction?.();
     expect(record).toHaveBeenCalledOnce();
     expect(skip).toHaveBeenCalledOnce();
+  });
+
+  it("stays quiet for a guest who has chosen Not now, though the room still holds their Consent true", async () => {
+    const { result } = setup({ declined: true });
+    await act(async () => undefined);
+    expect(result.current).toBeNull();
   });
 
   it("stays quiet for a guest the countdown named", async () => {

@@ -204,6 +204,8 @@ class FakeSocket {
   close() {}
 }
 
+let holdOpen = false;
+
 function stubWebSocket(
   sockets: FakeSocket[],
   reply: FakeSocket["reply"] = "join",
@@ -215,7 +217,7 @@ function stubWebSocket(
       ws.url = url;
       ws.reply = reply;
       sockets.push(ws);
-      queueMicrotask(() => ws.onopen?.());
+      if (!holdOpen) queueMicrotask(() => ws.onopen?.());
       return ws;
     }),
     { OPEN: 1, CONNECTING: 0, CLOSING: 2, CLOSED: 3 },
@@ -286,6 +288,7 @@ describe("GuestRoomApp", () => {
 
   beforeEach(() => {
     joinedAs = {};
+    holdOpen = false;
     closeGuardSpy.mockClear();
     sockets = [];
     stubWebSocket(sockets);
@@ -2808,6 +2811,303 @@ describe("GuestRoomApp", () => {
       false,
       true,
     ]);
+  });
+
+  describe("Not now before the room answers", () => {
+    const consentFrames = (socket: FakeSocket) =>
+      socket.sent
+        .map(
+          (row) =>
+            JSON.parse(row) as {
+              command_type: string;
+              payload: { accepted?: boolean };
+            },
+        )
+        .filter((row) => row.command_type === "Consent")
+        .map((row) => row.payload.accepted);
+    const frameOrder = (socket: FakeSocket) =>
+      socket.sent.map(
+        (row) => (JSON.parse(row) as { command_type: string }).command_type,
+      );
+    const hello = (socket: FakeSocket, consented: boolean | null = null) => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          plane: "record",
+          type: "Echo",
+          participant_id: "p_g",
+          lease: "lease-1",
+        }),
+      });
+      socket.onmessage?.(snapshotMessage({ state: "lobby" }, consented));
+    };
+    const heldGuest = async () => {
+      holdOpen = true;
+      stubWebSocket(sockets, "silent");
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await screen.findByRole("button", { name: "Not now" });
+    };
+
+    it("closes the sheet into the declined scrim at once, with the mic off and no frame sent", async () => {
+      await heldGuest();
+      await userEvent.click(allowMic());
+      await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+      const stream = await getUserMedia.mock.results[0].value;
+      await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+      expect(
+        await screen.findByText("You're not being recorded."),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("heading", { name: "Join the room" }),
+      ).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Join recording" }),
+      ).toBeEnabled();
+      expect(document.title).toBe("Not being recorded | Shot of Truth");
+      await waitFor(() =>
+        expect(stream.getTracks()[0].stop).toHaveBeenCalled(),
+      );
+      expect(sockets[0].sent).toEqual([]);
+    });
+
+    it("tells the room once the room has answered this page's Join, and not before", async () => {
+      await heldGuest();
+      await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+      await screen.findByText("You're not being recorded.");
+      act(() => sockets[0].onopen?.());
+      expect(frameOrder(sockets[0])).toEqual(["Join"]);
+      act(() => hello(sockets[0]));
+      await waitFor(() => expect(consentFrames(sockets[0])).toEqual([false]));
+      expect(frameOrder(sockets[0])).toEqual(["Join", "Consent"]);
+      act(() =>
+        sockets[0].onmessage?.(snapshotMessage({ state: "lobby" }, false)),
+      );
+      act(() =>
+        sockets[0].onmessage?.(snapshotMessage({ state: "lobby" }, false)),
+      );
+      expect(consentFrames(sockets[0])).toEqual([false]);
+      expect(screen.getByText("You're not being recorded.")).toBeVisible();
+    });
+
+    it("keeps the scrim and sends the decline again when the lobby socket drops and the room forgets it", async () => {
+      await heldGuest();
+      await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+      act(() => sockets[0].onopen?.());
+      act(() => hello(sockets[0]));
+      await waitFor(() => expect(consentFrames(sockets[0])).toEqual([false]));
+      await waitFor(() =>
+        expect(screen.getByText("You're not being recorded.")).toBeVisible(),
+      );
+      holdOpen = false;
+      stubWebSocket(sockets, "silent");
+      act(() => sockets[0].onclose?.({ code: 1006 }));
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => expect(frameOrder(sockets[1])).toEqual(["Join"]));
+      expect(
+        screen.queryByRole("heading", { name: "Join the room" }),
+      ).toBeNull();
+      act(() => hello(sockets[1], null));
+      await waitFor(() => expect(consentFrames(sockets[1])).toEqual([false]));
+      expect(
+        screen.queryByRole("heading", { name: "Join the room" }),
+      ).toBeNull();
+      expect(screen.getByText("You're not being recorded.")).toBeVisible();
+    });
+
+    it("drops the decline when Join recording is pressed before the room is reached", async () => {
+      await heldGuest();
+      await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Join recording" }),
+      );
+      expect(
+        await screen.findByRole("heading", { name: "Join the room" }),
+      ).toBeVisible();
+      act(() => sockets[0].onopen?.());
+      act(() => hello(sockets[0]));
+      await waitFor(() => expect(sockets[0].sent.length).toBeGreaterThan(0));
+      expect(consentFrames(sockets[0])).toEqual([]);
+    });
+
+    it("sends true after a decline the room already holds, and no second false once it echoes true", async () => {
+      await heldGuest();
+      await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+      act(() => sockets[0].onopen?.());
+      act(() => hello(sockets[0]));
+      await waitFor(() => expect(consentFrames(sockets[0])).toEqual([false]));
+      act(() =>
+        sockets[0].onmessage?.(snapshotMessage({ state: "lobby" }, false)),
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Join recording" }),
+      );
+      await enterName();
+      await userEvent.click(allowMic());
+      await userEvent.click(
+        await screen.findByRole("button", { name: "I'm wearing headphones" }),
+      );
+      await waitFor(() => expect(joinButton()).toBeEnabled());
+      await userEvent.click(joinButton());
+      await waitFor(() =>
+        expect(consentFrames(sockets[0])).toEqual([false, true]),
+      );
+      await screen.findByRole("button", { name: "Leave room" });
+      expect(consentFrames(sockets[0])).toEqual([false, true]);
+    });
+
+    it("clears the joining spinner when the socket drops before the room answers Consent", async () => {
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await readyToJoin(getUserMedia);
+      sockets[0].holdConsent = true;
+      await userEvent.click(joinButton());
+      expect(
+        await screen.findByRole("button", { name: "Joining…" }),
+      ).toBeVisible();
+      act(() => sockets[0].onclose?.({ code: 1006 }));
+      expect(
+        await screen.findByRole("button", { name: "Join and record" }),
+      ).toBeEnabled();
+    });
+
+    it("sends no Consent true from a socket whose Join the room has not answered", async () => {
+      holdOpen = true;
+      stubWebSocket(sockets, "silent");
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await enterName();
+      act(() => sockets[0].onopen?.());
+      await userEvent.click(allowMic());
+      await userEvent.click(
+        await screen.findByRole("button", { name: "I'm wearing headphones" }),
+      );
+      await waitFor(() => expect(joinButton()).toBeEnabled());
+      await userEvent.click(joinButton());
+      expect(consentFrames(sockets[0])).toEqual([]);
+      expect(joinButton()).toBeEnabled();
+    });
+
+    it("shows the full-room cover and sends nothing for a decline made before the answer", async () => {
+      holdOpen = true;
+      stubWebSocket(sockets, "full");
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Not now" }),
+      );
+      act(() => sockets[0].onopen?.());
+      expect(
+        await screen.findByRole("heading", { name: "The room is full" }),
+      ).toBeVisible();
+      expect(consentFrames(sockets[0])).toEqual([]);
+    });
+
+    it("closes the sheet from Escape and Close as well", async () => {
+      await heldGuest();
+      await userEvent.keyboard("{Escape}");
+      expect(
+        await screen.findByText("You're not being recorded."),
+      ).toBeVisible();
+    });
+  });
+
+  describe("a microphone prompt that never answers", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+    const STILL_WAITING =
+      "Still waiting. Check your browser's permission prompt.";
+
+    it("says so after 10 seconds, asks the browser again on Retry, and settles when it answers", async () => {
+      const pending: ((stream: unknown) => void)[] = [];
+      const track = () => ({
+        stop: vi.fn(),
+        getSettings: () => ({
+          echoCancellation: false,
+          autoGainControl: false,
+          noiseSuppression: false,
+        }),
+      });
+      const first = track();
+      const second = track();
+      getUserMedia.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            pending.push(resolve);
+          }),
+      );
+      stubBootstrap();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<GuestRoomApp token="guest-tok" />);
+      await user.click(
+        await screen.findByRole("button", { name: MIC_ALLOW_LABEL }),
+      );
+      expect(screen.getByText("Waiting for your browser…")).toBeVisible();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(9_900);
+      });
+      expect(screen.queryByText(STILL_WAITING)).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      expect(screen.getAllByText(STILL_WAITING).length).toBeGreaterThan(0);
+      await user.click(
+        screen.getByRole("button", { name: "Retry microphone" }),
+      );
+      expect(getUserMedia).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText(STILL_WAITING)).toBeNull();
+      await act(async () =>
+        pending[0]({ getTracks: () => [first], getAudioTracks: () => [first] }),
+      );
+      expect(first.stop).toHaveBeenCalled();
+      await act(async () =>
+        pending[1]({
+          getTracks: () => [second],
+          getAudioTracks: () => [second],
+        }),
+      );
+      expect(
+        await screen.findByRole("button", { name: "I'm wearing headphones" }),
+      ).toBeVisible();
+      expect(screen.queryByText(STILL_WAITING)).toBeNull();
+      expect(second.stop).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("a hung microphone prompt and Not now", () => {
+    it("stops a stream that arrives after the guest declined", async () => {
+      const pending: ((stream: unknown) => void)[] = [];
+      const track = {
+        stop: vi.fn(),
+        getSettings: () => ({
+          echoCancellation: false,
+          autoGainControl: false,
+          noiseSuppression: false,
+        }),
+      };
+      getUserMedia.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            pending.push(resolve);
+          }),
+      );
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await userEvent.click(
+        await screen.findByRole("button", { name: MIC_ALLOW_LABEL }),
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+      expect(
+        await screen.findByText("You're not being recorded."),
+      ).toBeVisible();
+      await act(async () =>
+        pending[0]({ getTracks: () => [track], getAudioTracks: () => [track] }),
+      );
+      expect(track.stop).toHaveBeenCalled();
+    });
   });
 
   describe("headphones on a phone", () => {

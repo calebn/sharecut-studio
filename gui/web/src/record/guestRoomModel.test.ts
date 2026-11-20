@@ -364,6 +364,17 @@ describe("joinMic", () => {
   const base = { stream: null, devices: [] as MediaDeviceInfo[] };
   const options = { deviceId: "", levelDb: -30 };
 
+  it("marks a prompt that has gone slow, and only a prompt", () => {
+    expect(
+      joinMic({ ...base, status: "prompting" }, { ...options, slow: true }),
+    ).toEqual({ status: "prompting", slow: true });
+    for (const status of ["idle", "denied", "unavailable", "error"] as const) {
+      expect(
+        joinMic({ ...base, status }, { ...options, slow: true }),
+      ).not.toHaveProperty("slow");
+    }
+  });
+
   it("maps permission states", () => {
     expect(joinMic({ ...base, status: "idle" }, options)).toEqual({
       status: "idle",

@@ -286,6 +286,41 @@ describe("JoinSheet guest", () => {
     expect(onMicAction).not.toHaveBeenCalled();
   });
 
+  it("offers Retry after 10 seconds of silence and announces the note once", async () => {
+    const onMicAction = vi.fn();
+    const { rerender } = render(
+      <Harness name="Jon" mic={{ status: "idle" }} onMicAction={onMicAction} />,
+    );
+    await waitFor(() => expect(primary("Allow microphone")).toHaveFocus());
+    rerender(
+      <Harness
+        name="Jon"
+        mic={{ status: "prompting" }}
+        onMicAction={onMicAction}
+      />,
+    );
+    rerender(
+      <Harness
+        name="Jon"
+        mic={{ status: "prompting", slow: true }}
+        onMicAction={onMicAction}
+      />,
+    );
+    const retry = primary("Retry microphone");
+    expect(retry).not.toHaveAttribute("aria-disabled");
+    expect(retry).toHaveFocus();
+    const mic = document.querySelector('[data-step="mic"]') as HTMLElement;
+    const lines = within(mic)
+      .getAllByRole("status")
+      .map((node) => node.textContent)
+      .filter(Boolean);
+    expect(lines.filter((line) => line?.includes("Still waiting"))).toEqual([
+      "Still waiting. Check your browser's permission prompt.",
+    ]);
+    await userEvent.click(retry);
+    expect(onMicAction).toHaveBeenCalledWith("retry");
+  });
+
   it("keeps focus on the mic action when the prompt is denied", async () => {
     const { rerender } = render(
       <Harness name="Jon" mic={{ status: "idle" }} />,

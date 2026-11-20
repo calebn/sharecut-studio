@@ -149,6 +149,7 @@ class FakeSocket {
 describe("useGuestRoom", () => {
   let sockets: FakeSocket[];
   let socketUrls: string[];
+  let holdOpen = false;
   let getUserMedia: ReturnType<typeof vi.fn>;
 
   function stubFetch(bootstrap: object, extra?: typeof fetch) {
@@ -174,7 +175,7 @@ describe("useGuestRoom", () => {
           const ws = new FakeSocket();
           ws.reply = reply;
           sockets.push(ws);
-          queueMicrotask(() => ws.onopen?.());
+          if (!holdOpen) queueMicrotask(() => ws.onopen?.());
           return ws;
         }),
         { OPEN: 1, CONNECTING: 0, CLOSING: 2, CLOSED: 3 },
@@ -184,6 +185,7 @@ describe("useGuestRoom", () => {
 
   beforeEach(() => {
     joinedAs = {};
+    holdOpen = false;
     sockets = [];
     socketUrls = [];
     stubSocket();
@@ -939,6 +941,303 @@ describe("useGuestRoom", () => {
       }),
     );
     await waitFor(() => expect(result.current.view).toBe("declined"));
+  });
+
+  describe("declining before the room answers", () => {
+    const consents = (socket: FakeSocket | undefined) =>
+      socket
+        ?.commands("Consent")
+        .map(
+          (row) =>
+            (row as { payload?: { accepted?: boolean } }).payload?.accepted,
+        );
+    const commandOrder = (socket: FakeSocket) =>
+      socket.sent.map(
+        (row) => (JSON.parse(row) as { command_type: string }).command_type,
+      );
+    const hello = (
+      socket: FakeSocket | undefined,
+      consented: boolean | null = null,
+      state = "lobby",
+    ) => {
+      socket?.emit({ type: "Echo", participant_id: "p_g", lease: "lease-1" });
+      socket?.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({
+          state,
+          take_index: state === "lobby" ? -1 : 0,
+          participants: [{ ...guest, consented }],
+        }),
+      });
+    };
+    const heldRoom = async () => {
+      holdOpen = true;
+      stubSocket("silent");
+      stubFetch(guestBootstrap);
+      const view = renderHook(() => useGuestRoom("guest-tok"));
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      return view;
+    };
+
+    it("is declined with no socket and no snapshot, and the microphone stays off", async () => {
+      const { result } = await heldRoom();
+      expect(result.current.consented).toBeNull();
+      act(() => result.current.declineHere());
+      expect(result.current.consented).toBe(false);
+      expect(result.current.me).toBeNull();
+      act(() => result.current.mic.request());
+      expect(getUserMedia).not.toHaveBeenCalled();
+      expect(result.current.mic.status).toBe("idle");
+      expect(sockets[0]?.sent).toEqual([]);
+    });
+
+    it("releases a granted microphone on the same render", async () => {
+      const { result } = await heldRoom();
+      act(() => result.current.mic.request());
+      await waitFor(() => expect(result.current.mic.stream).not.toBeNull());
+      const stream = result.current.mic.stream as MediaStream;
+      act(() => result.current.declineHere());
+      expect(result.current.mic.stream).toBeNull();
+      expect(stream.getTracks()[0].stop).toHaveBeenCalled();
+    });
+
+    it("sends Consent false once, after Join, and only once the Echo has come", async () => {
+      const { result } = await heldRoom();
+      act(() => result.current.declineHere());
+      act(() => sockets[0]?.onopen?.());
+      expect(commandOrder(sockets[0])).toEqual(["Join"]);
+      act(() => hello(sockets[0]));
+      await waitFor(() => expect(consents(sockets[0])).toEqual([false]));
+      expect(commandOrder(sockets[0])).toEqual(["Join", "Consent"]);
+    });
+
+    it("sends nothing more once the room shows the decline, however many snapshots follow", async () => {
+      const { result } = await heldRoom();
+      act(() => result.current.declineHere());
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0]));
+      await waitFor(() => expect(consents(sockets[0])).toEqual([false]));
+      for (let n = 0; n < 3; n += 1) {
+        act(() =>
+          sockets[0]?.emit({
+            type: "Snapshot",
+            snapshot: snapshotOf({
+              participants: [{ ...guest, consented: false }],
+            }),
+          }),
+        );
+      }
+      expect(consents(sockets[0])).toEqual([false]);
+      expect(result.current.consented).toBe(false);
+    });
+
+    it("sends it again after a lobby reconnect cleared the room's copy, and stays declined throughout", async () => {
+      const { result } = await heldRoom();
+      act(() => result.current.declineHere());
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0]));
+      act(() =>
+        sockets[0]?.emit({
+          type: "Snapshot",
+          snapshot: snapshotOf({
+            participants: [{ ...guest, consented: false }],
+          }),
+        }),
+      );
+      await waitFor(() => expect(consents(sockets[0])).toEqual([false]));
+      holdOpen = false;
+      act(() => sockets[0]?.onclose?.({ code: 1006 }));
+      expect(result.current.consented).toBe(false);
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() =>
+        expect(commandOrder(sockets[1] as FakeSocket)).toEqual(["Join"]),
+      );
+      expect(consents(sockets[1])).toEqual([]);
+      act(() => hello(sockets[1], null));
+      await waitFor(() => expect(consents(sockets[1])).toEqual([false]));
+      expect(result.current.consented).toBe(false);
+    });
+
+    it("does not send it again after a reconnect in a live take, where the room keeps the decline", async () => {
+      const { result } = await heldRoom();
+      act(() => result.current.declineHere());
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0]));
+      await waitFor(() => expect(consents(sockets[0])).toEqual([false]));
+      act(() =>
+        sockets[0]?.emit({
+          type: "Snapshot",
+          snapshot: snapshotOf({
+            state: "recording",
+            take_index: 0,
+            participants: [{ ...guest, consented: false }],
+          }),
+        }),
+      );
+      holdOpen = false;
+      act(() => sockets[0]?.onclose?.({ code: 1006 }));
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => expect(sockets[1]?.commands("Join")).toHaveLength(1));
+      act(() => hello(sockets[1], false, "recording"));
+      expect(consents(sockets[1])).toEqual([]);
+      expect(result.current.consented).toBe(false);
+    });
+
+    it.each([
+      ["paused", false, []],
+      ["stopped", null, [false]],
+    ] as const)(
+      "after a reconnect in a %s room, sends again exactly when the room's copy is gone",
+      async (state, roomHolds, resent) => {
+        const { result } = await heldRoom();
+        act(() => result.current.declineHere());
+        act(() => sockets[0]?.onopen?.());
+        act(() => hello(sockets[0], null, state));
+        await waitFor(() => expect(consents(sockets[0])).toEqual([false]));
+        act(() =>
+          sockets[0]?.emit({
+            type: "Snapshot",
+            snapshot: snapshotOf({
+              state,
+              take_index: 0,
+              participants: [{ ...guest, consented: false }],
+            }),
+          }),
+        );
+        holdOpen = false;
+        act(() => sockets[0]?.onclose?.({ code: 1006 }));
+        await waitFor(() => expect(sockets).toHaveLength(2));
+        await waitFor(() =>
+          expect(sockets[1]?.commands("Join")).toHaveLength(1),
+        );
+        act(() => hello(sockets[1], roomHolds, state));
+        await waitFor(() => expect(consents(sockets[1])).toEqual(resent));
+        expect(result.current.consented).toBe(false);
+      },
+    );
+
+    it("drops the decline when Join recording clears it before the socket opens", async () => {
+      const { result } = await heldRoom();
+      act(() => result.current.declineHere());
+      act(() => result.current.clearDecline());
+      expect(result.current.consented).toBeNull();
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0]));
+      await waitFor(() => expect(result.current.me).not.toBeNull());
+      expect(consents(sockets[0])).toEqual([]);
+    });
+
+    it("never sends a second false after Join recording, even once the room echoes true", async () => {
+      const { result } = await heldRoom();
+      act(() => result.current.declineHere());
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0]));
+      await waitFor(() => expect(consents(sockets[0])).toEqual([false]));
+      act(() =>
+        sockets[0]?.emit({
+          type: "Snapshot",
+          snapshot: snapshotOf({
+            participants: [{ ...guest, consented: false }],
+          }),
+        }),
+      );
+      act(() => result.current.clearDecline());
+      act(() => {
+        result.current.send("Consent", { accepted: true });
+      });
+      act(() =>
+        sockets[0]?.emit({
+          type: "Snapshot",
+          snapshot: snapshotOf({
+            participants: [{ ...guest, consented: true }],
+          }),
+        }),
+      );
+      await waitFor(() => expect(result.current.consented).toBe(true));
+      expect(consents(sockets[0])).toEqual([false, true]);
+    });
+
+    it("sends a decline queued while Consent true is in flight", async () => {
+      const { result } = await heldRoom();
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0], true));
+      await waitFor(() => expect(result.current.me?.consented).toBe(true));
+      act(() => result.current.declineHere());
+      expect(result.current.consented).toBe(false);
+      await waitFor(() => expect(consents(sockets[0])).toEqual([false]));
+    });
+
+    it("sends nothing from a reconnect whose Join the room has not answered, though the old identity is still held", async () => {
+      const { result } = await heldRoom();
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0]));
+      await waitFor(() => expect(result.current.me).not.toBeNull());
+      act(() => result.current.declineHere());
+      await waitFor(() => expect(consents(sockets[0])).toEqual([false]));
+      holdOpen = false;
+      act(() => sockets[0]?.onclose?.({ code: 1006 }));
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => expect(sockets[1]?.commands("Join")).toHaveLength(1));
+      expect(result.current.me).not.toBeNull();
+      expect(result.current.connected).toBe(true);
+      expect(consents(sockets[1])).toEqual([]);
+    });
+
+    it("sends nothing when the room is full", async () => {
+      holdOpen = true;
+      stubSocket("full");
+      stubFetch(guestBootstrap);
+      const { result } = renderHook(() => useGuestRoom("guest-tok"));
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      act(() => result.current.declineHere());
+      act(() => sockets[0]?.onopen?.());
+      await waitFor(() => expect(result.current.error).toBe("room_full"));
+      expect(consents(sockets[0])).toEqual([]);
+    });
+
+    it("sends nothing for a producer", async () => {
+      holdOpen = true;
+      stubSocket("silent");
+      stubFetch(producerBootstrap);
+      const { result } = renderHook(() => useGuestRoom("prod-tok"));
+      await waitFor(() => expect(result.current.producer).toBe(true));
+      act(() => result.current.declineHere());
+      expect(sockets.flatMap((socket) => socket.commands("Consent"))).toEqual(
+        [],
+      );
+    });
+
+    it("discards a room-tone capture in flight when a decline is queued", async () => {
+      holdOpen = true;
+      stubSocket("silent");
+      stubFetch({
+        ...guestBootstrap,
+        build: { capture: false, monitor: false, upload: true },
+      });
+      const { result } = renderHook(() => useGuestRoom("guest-tok"));
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0], true));
+      await waitFor(() => expect(result.current.me?.consented).toBe(true));
+      act(() => result.current.mic.request());
+      await waitFor(() => expect(result.current.mic.stream).not.toBeNull());
+      await waitFor(() =>
+        expect(result.current.roomTone.captureReady).toBe(true),
+      );
+      act(() => result.current.roomTone.record());
+      expect(result.current.roomTone.status).toBe("capturing");
+      act(() => result.current.declineHere());
+      await waitFor(() => expect(result.current.roomTone.status).toBe("idle"));
+    });
+
+    it("routes a decline made while a take is on to the declined view before the room has heard it", async () => {
+      const { result } = await heldRoom();
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0], null, "recording"));
+      await waitFor(() => expect(result.current.me).not.toBeNull());
+      act(() => result.current.declineHere());
+      expect(result.current.view).toBe("declined");
+    });
   });
 
   describe("storage preflight", () => {
