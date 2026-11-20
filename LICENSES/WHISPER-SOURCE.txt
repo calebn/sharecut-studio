@@ -1,0 +1,48 @@
+whisper.cpp in the ShareCut iOS app: source information
+
+Status: draft. Legal review of this text is pending. Nothing here has been
+approved by counsel.
+
+What the app contains
+
+The iOS app embeds one dynamic framework, Whisper.framework, that runs the
+whisper.cpp command line tool inside the app process. It is built from the
+source below, with the patch pinned in contracts/whisper-build.json in the
+application source repository. whisper.cpp and ggml are licensed under the MIT
+license, which is reproduced below and ships with the app.
+
+  whisper.cpp v1.9.5   MIT
+    https://github.com/ggml-org/whisper.cpp
+    commit d1be6fde11ac6e0407606b4e42fe72d34add8037
+    sha256 of the pinned source archive: see contracts/whisper-build.json
+
+Changes to the upstream sources
+
+The patch patches/whisper-cli-hooks.patch (gui/desktop/src-tauri/ios/whisper)
+adds an abort callback and an encoder-begin callback so a running transcription
+can be cancelled, removes the runtime scan for ggml backend libraries, removes
+an unused call to system(), and makes an unknown language exit with status 1.
+
+The MIT license of whisper.cpp
+
+MIT License
+
+Copyright (c) 2023-2026 The ggml authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
