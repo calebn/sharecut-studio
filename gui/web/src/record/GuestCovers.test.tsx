@@ -896,6 +896,94 @@ describe("after Save my recording handed the whole zip to the browser", () => {
     );
   });
 
+  describe("a guest whose device scan is unreadable", () => {
+    const saved = { kind: "saved" } as const;
+    const base = () => ({
+      localRecording: false,
+      localSegments: null,
+      localUnreadable: true,
+      recordedHere: true,
+      upload: { fileAck: true, seenSegments: 2 },
+      keeperActions: {
+        busy: false,
+        error: null,
+        notice: null,
+        downloaded: false,
+        download: vi.fn(),
+        recover: vi.fn(),
+      },
+      snapshot: recordSnapshot({
+        participants: [host],
+        take_index: 0,
+        state: "stopped",
+      }),
+    });
+
+    it("tells a saved guest who left their recording is saved", () => {
+      const cover = guestCoverProps(room({ ...base(), left: true }), {
+        onRetry: vi.fn(),
+        phase: saved,
+      });
+      expect(cover?.title).toBe("You left the room");
+      expect(cover?.children).toBe(
+        "Your recording is saved to Hana's project. You can close this page.",
+      );
+      expect(cover?.secondary).toBeUndefined();
+    });
+
+    it("thanks a saved guest when the session ends", () => {
+      const cover = guestCoverProps(room({ ...base(), accessEnded: true }), {
+        onRetry: vi.fn(),
+        phase: saved,
+      });
+      expect(cover?.title).toBe("This session has ended");
+      expect(cover?.children).toBe("Thanks for recording.");
+      expect(cover?.primary).toBeUndefined();
+      expect(cover?.secondary).toBeUndefined();
+    });
+
+    it("never sends a saved guest to check their downloads", () => {
+      const source = base();
+      const cover = guestCoverProps(
+        room({
+          ...source,
+          accessEnded: true,
+          keeperActions: { ...source.keeperActions, downloaded: true },
+        }),
+        { onRetry: vi.fn(), phase: saved },
+      );
+      expect(cover?.title).toBe("This session has ended");
+      expect(cover?.children).toBe("Thanks for recording.");
+    });
+
+    it("keeps the unreadable copy for a guest the server has not acknowledged", () => {
+      const cover = guestCoverProps(
+        room({
+          ...base(),
+          left: true,
+          upload: { fileAck: false, seenSegments: 0 },
+        }),
+        { onRetry: vi.fn(), phase: waiting },
+      );
+      expect(cover?.title).toBe("Your recording didn't finish saving");
+      expect(cover?.children).toBe(
+        "We couldn't check this device. Try saving it again, or save a copy.",
+      );
+      expect(cover?.primary?.label).toBe("Save my recording");
+      expect(cover?.secondary?.label).toBe("Try saving again");
+    });
+
+    it("keeps the unreadable copy while the capture is still finishing", () => {
+      const cover = guestCoverProps(
+        room({ ...base(), accessEnded: true, captureSettled: false }),
+        { onRetry: vi.fn(), phase: waiting },
+      );
+      expect(cover?.children).toBe(
+        "Finishing your full-quality recording… Keep this page open.",
+      );
+    });
+  });
+
   it("keeps the unsent wording after a reload when the roster shows this guest recorded", () => {
     const self = recordParticipant({
       participant_id: "p_g",

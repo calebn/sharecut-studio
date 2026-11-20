@@ -64,6 +64,7 @@ type Overrides = {
   localRecording?: boolean;
   localSegments?: number | null;
   localUnreadable?: boolean;
+  sinkError?: string | null;
 };
 
 function fakeRoom(over: Overrides = {}) {
@@ -106,7 +107,7 @@ function fakeRoom(over: Overrides = {}) {
     },
     staleMic: false,
     sink: {},
-    sinkError: null,
+    sinkError: over.sinkError ?? null,
     storageRequired: true,
     retryStorage: vi.fn(),
     keeper: {
@@ -237,16 +238,123 @@ describe("GuestRoomApp in the room", () => {
     expect(leave()).not.toHaveAttribute("aria-disabled");
   });
 
-  it("lets Leave go once the device count is unreadable", () => {
-    fakeRoom({
-      snapshot: stopped,
+  describe("a guest whose device count is unreadable", () => {
+    const SINK_FAILED = "This device couldn't save the recording.";
+    const savedPass = { acked: 3, total: 3, fileAck: true, seenSegments: 3 };
+    const took = {
+      ...stopped,
+      takes: [
+        {
+          take_index: 0,
+          session_start_wall_ms: 1000,
+          session_start_iso: "t",
+          stopped_wall_ms: 61_000,
+          pauses: [],
+          consented_participant_ids: ["p_g"],
+        },
+      ],
+    };
+    const unreadable = {
+      snapshot: took,
       localSegments: null,
       localUnreadable: true,
-      upload: { acked: 3, total: 3, fileAck: true },
+    };
+
+    it("reads Saved once the server has every segment, and lets Leave go", async () => {
+      const room = fakeRoom({ ...unreadable, upload: savedPass });
+      render(<GuestRoomApp token="t" />);
+      expect(
+        screen.getByText("Saved to project. You can close this page."),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("Saved").length).toBeGreaterThan(0);
+      expect(screen.queryByText("Couldn't save")).toBeNull();
+      expect(screen.queryByText("Saving stopped")).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Resume saving" }),
+      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Leave room" })).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Done" }));
+      expect(room.leave).toHaveBeenCalledOnce();
     });
-    render(<GuestRoomApp token="t" />);
-    expect(screen.getByText("Saving stopped")).toBeInTheDocument();
-    expect(leave()).not.toHaveAttribute("aria-disabled");
+
+    it("keeps saving while the capture is still finishing", () => {
+      fakeRoom({ ...unreadable, captureSettled: false, upload: savedPass });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.queryByText("Couldn't save")).toBeNull();
+      expect(screen.queryByText("Saving stopped")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+      expect(
+        screen.queryByText("Saved to project. You can close this page."),
+      ).toBeNull();
+    });
+
+    it("raises no saving alert for an upload error once the take is saved", () => {
+      fakeRoom({
+        ...unreadable,
+        upload: { ...savedPass, error: "Network error" },
+      });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.queryByText("Saving stopped")).toBeNull();
+      expect(screen.queryByText("Couldn't save")).toBeNull();
+    });
+
+    it("raises no storage alert once the take is saved", () => {
+      fakeRoom({ ...unreadable, sinkError: "disk", upload: savedPass });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.queryByText(SINK_FAILED)).toBeNull();
+      expect(screen.getAllByText("Saved").length).toBeGreaterThan(0);
+    });
+
+    it("keeps the storage alert for a guest whose take is not saved", () => {
+      fakeRoom({
+        ...unreadable,
+        sinkError: "disk",
+        upload: { ...savedPass, fileAck: false },
+      });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.getByText(SINK_FAILED)).toBeInTheDocument();
+    });
+
+    it("keeps the live copy of an unsaved guest, with no failure word and Leave released", () => {
+      fakeRoom({
+        ...unreadable,
+        upload: { acked: 0, total: 0, fileAck: false, seenSegments: 0 },
+      });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.getAllByText(/^Saving · 0 of 1/).length).toBeGreaterThan(0);
+      expect(screen.queryByText("Couldn't save")).toBeNull();
+      expect(screen.queryByText("Saving stopped")).toBeNull();
+      expect(
+        screen.queryByText("Saved to project. You can close this page."),
+      ).toBeNull();
+      expect(leave()).not.toHaveAttribute("aria-disabled");
+    });
+
+    it("does not read an acknowledgement the pass gave without seeing a segment as saved", () => {
+      fakeRoom({
+        ...unreadable,
+        upload: { acked: 0, total: 1, fileAck: true, seenSegments: 0 },
+      });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.queryByText("Couldn't save")).toBeNull();
+      expect(
+        screen.queryByText("Saved to project. You can close this page."),
+      ).toBeNull();
+    });
+
+    it("leaves a producer's room unchanged", () => {
+      fakeRoom({
+        ...unreadable,
+        producer: true,
+        me: { ...me, role: "producer" },
+        upload: savedPass,
+      });
+      render(<GuestRoomApp token="t" />);
+      expect(
+        screen.queryByText("Saved to project. You can close this page."),
+      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+    });
   });
 
   it("holds Leave during a take and says why on press", async () => {
