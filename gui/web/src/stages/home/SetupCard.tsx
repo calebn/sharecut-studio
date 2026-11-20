@@ -207,8 +207,14 @@ function SetupBody({
       <StatusRow
         state="failed"
         title="The download didn't finish."
+        detail={detail}
         action={{ label: "Try again", onAction: onRetry }}
       />
+      <div className="sys-setup-actions">
+        <button type="button" className="sys-text-btn" onClick={onChoose}>
+          Choose…
+        </button>
+      </div>
     </Card>
   );
 }
@@ -216,8 +222,11 @@ function SetupBody({
 /** A card that changes later for another reason is not the Cancel the person pressed. */
 const CANCEL_FOCUS_MS = 5000;
 
-function focusAfterCancel(root: HTMLElement) {
+function focusAfterCancel(root: HTMLElement, state: SetupState) {
   const next =
+    (state === "failed"
+      ? root.querySelector<HTMLElement>(".sys-status-actions button")
+      : null) ??
     root.querySelector<HTMLElement>(".sys-setup-actions button") ??
     root.querySelector<HTMLElement>("h1, h2, h3, h4, [role='heading']");
   if (next) {
@@ -235,7 +244,7 @@ export function SetupCard(props: SetupCardProps) {
     if (at === null || state === "downloading") return;
     cancelledAt.current = null;
     if (Date.now() - at < CANCEL_FOCUS_MS && root.current) {
-      focusAfterCancel(root.current);
+      focusAfterCancel(root.current, state);
     }
   }, [state]);
   return (

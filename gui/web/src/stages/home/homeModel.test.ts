@@ -303,12 +303,53 @@ describe("setupOf", () => {
         ...base,
         models: [
           model({
-            state: { kind: "failed", failure: { kind: "network", plain: "x" } },
+            state: {
+              kind: "failed",
+              failure: {
+                kind: "network",
+                plain: "The download server doesn't have the speech model.",
+              },
+            },
           }),
         ],
       }),
     );
     expect(data?.state).toBe("failed");
+    expect(data?.detail).toBe(
+      "The download server doesn't have the speech model.",
+    );
+  });
+  it("quotes the failure the Models sheet lists first, not the registry's", () => {
+    const failed = (plain: string) => ({
+      kind: "failed" as const,
+      failure: { kind: "network" as const, plain },
+    });
+    const data = setupOf(
+      setupApi({
+        ...base,
+        models: [
+          model({ id: "rnnoise", state: failed("Noise reduction failed.") }),
+          model({ id: "word-aligner", state: failed("Word timing failed.") }),
+        ],
+      }),
+    );
+    expect(data?.detail).toBe("Word timing failed.");
+  });
+  it("drops the failure when a Whisper size change leaves the row to get", () => {
+    const failed = model({
+      state: {
+        kind: "failed",
+        failure: { kind: "network", plain: "The speech model failed." },
+      },
+    });
+    expect(setupOf(setupApi({ ...base, models: [failed] }))?.state).toBe(
+      "failed",
+    );
+    const other = setupOf(
+      setupApi({ ...base, models: [model({ state: { kind: "missing" } })] }),
+    );
+    expect(other?.state).toBe("needed");
+    expect(other?.detail).toBeUndefined();
   });
 });
 
