@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from podcast_mcp.engines import waveform_media, waveform_pyramid
-from podcast_mcp.engines.waveform_pyramid import write_synthetic_pyramid
+from podcast_mcp.engines.waveform_pyramid import (
+    PyramidLevel,
+    PyramidMeta,
+    write_synthetic_pyramid,
+)
 from podcast_mcp.models import load_project
 from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import recent_peaks
@@ -272,25 +279,6 @@ def test_an_edit_to_the_project_replans_the_fold(tmp_path):
     assert recent.recent_project_cards()[0]["peaks"] != full
 
 
-def test_the_request_path_never_decodes_or_builds(tmp_path, monkeypatch):
-    project = _make(tmp_path)
-    _layout(project, [_clip()])
-    _pyramid(project, "track:t")
-
-    def refuse(*args, **kwargs):
-        raise AssertionError("the recent list must not decode or build")
-
-    for module in (waveform_pyramid, waveform_media):
-        for name in ("build_pyramid", "schedule_pyramid_build"):
-            if hasattr(module, name):
-                monkeypatch.setattr(module, name, refuse)
-    for name in ("build_pyramid", "schedule_pyramid_build", "decode_integer_pcm"):
-        if hasattr(recent_peaks, name):
-            monkeypatch.setattr(recent_peaks, name, refuse)
-    monkeypatch.setattr(waveform_media, "schedule_media_ref", refuse)
-    assert len(_peaks(project)) == recent_peaks.COLUMNS
-
-
 def test_an_unchanged_project_is_planned_once(tmp_path, monkeypatch):
     project = _make(tmp_path)
     _layout(project, [_clip()])
@@ -328,3 +316,412 @@ def test_a_forgotten_project_drops_its_cached_peaks(tmp_path):
 
 def test_bin_peaks_lives_in_util_and_review_peaks_reexports_it():
     assert review_peaks.bin_peaks is peak_bins.bin_peaks
+
+
+COLUMNS = recent_peaks.COLUMNS
+BIN_SEC = 0.032
+
+
+def _cells(*cells: tuple[int, int, int]) -> np.ndarray:
+    bins = np.zeros((max(c[0] for c in cells) + 1, 3), dtype="<i2")
+    for index, low, high in cells:
+        bins[index] = (low, high, 0)
+    return bins
+
+
+def _craft(monkeypatch, by_pyramid: dict[Path, np.ndarray]) -> None:
+    by_name = {path.name: bins for path, bins in by_pyramid.items()}
+
+    def read(path, meta, level, start, count):
+        return by_name[path.name].tobytes()
+
+    monkeypatch.setattr(recent_peaks, "read_bins", read)
+
+
+def _lit(peaks: list[float]) -> dict[int, float]:
+    return {i: v for i, v in enumerate(peaks) if v}
+
+
+def _meta(rate: int, spps: list[int]) -> PyramidMeta:
+    levels = tuple(PyramidLevel(spp=spp, bins=1, data_offset=0) for spp in spps)
+    return PyramidMeta(
+        version=1,
+        header_bytes=0,
+        sample_rate=rate,
+        channels=1,
+        total_frames=rate,
+        base_spp=spps[0],
+        level_factor=2,
+        bins_per_tile=1,
+        levels=levels,
+    )
+
+
+@pytest.mark.parametrize(
+    ("column_sec", "level"),
+    [(0.5, 0), (1.0, 0), (1.9, 0), (2.0, 1), (3.9, 1), (4.0, 2), (40.0, 2)],
+)
+def test_the_level_is_the_coarsest_whose_bin_fits_the_column(column_sec, level):
+    meta = _meta(64, [64, 128, 256])
+    assert recent_peaks._level_for(meta, column_sec) == level
+
+
+@pytest.mark.parametrize(("duration", "level"), [(100.0, 1), (3.0, 0)])
+def test_the_chosen_level_is_the_only_one_read(tmp_path, monkeypatch, duration, level):
+    project = _make(tmp_path)
+    _layout(project, [_clip(end=duration)], duration=duration)
+    _pyramid(project, "track:t")
+    seen: list[int] = []
+    real = recent_peaks.read_bins
+
+    def spy(path, meta, chosen, start, count):
+        seen.append(chosen)
+        return real(path, meta, chosen, start, count)
+
+    monkeypatch.setattr(recent_peaks, "read_bins", spy)
+    assert _peaks(project)
+    assert seen == [level]
+
+
+@pytest.mark.parametrize(
+    ("cells", "expected"),
+    [
+        pytest.param([(0, -1000, 10), (40, -500, 20)], {0: 1.0, 1: 0.5}, id="min-larger-than-max"),
+        pytest.param([(0, -10, 1000), (40, -20, 500)], {0: 1.0, 1: 0.5}, id="max-larger-than-min"),
+        pytest.param([(0, -32768, 0), (40, 0, 16384)], {0: 1.0, 1: 0.5}, id="int16-minimum"),
+        pytest.param([(0, 0, 20000), (1, 0, 10000), (40, 0, 15000)], {0: 1.0, 1: 0.75}, id="max"),
+        pytest.param([(0, 0, 10000), (1, 0, 20000), (40, 0, 15000)], {0: 1.0, 1: 0.75}, id="max2"),
+    ],
+)
+def test_a_column_takes_the_largest_absolute_extreme_of_its_bins(
+    tmp_path, monkeypatch, cells, expected
+):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    path = _pyramid(project, "track:t")
+    _craft(monkeypatch, {path: _cells(*cells)})
+    assert _lit(_peaks(project)) == expected
+
+
+@pytest.mark.parametrize(("bin_index", "column"), [(0, 0), (31, 0), (33, 1), (65, 2), (3124, 95)])
+def test_a_bin_lands_in_the_column_of_its_centre(tmp_path, monkeypatch, bin_index, column):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    path = _pyramid(project, "track:t")
+    _craft(monkeypatch, {path: _cells((bin_index, 0, 9000))})
+    assert _lit(_peaks(project)) == {column: 1.0}
+
+
+def test_a_bin_past_the_timeline_clamps_into_the_last_column(tmp_path, monkeypatch):
+    project = _make(tmp_path)
+    _layout(project, [_clip()], duration=50.0)
+    path = _pyramid(project, "track:t")
+    _craft(monkeypatch, {path: _cells((1562, 0, 9000))})
+    assert _lit(_peaks(project)) == {COLUMNS - 1: 1.0}
+
+
+def test_bins_far_outside_the_timeline_are_dropped(tmp_path, monkeypatch):
+    project = _make(tmp_path)
+    _layout(project, [_clip()], duration=50.0)
+    path = _pyramid(project, "track:t")
+    _craft(monkeypatch, {path: _cells((300, 0, 4000), (1700, 0, 9000), (2500, 0, 9000))})
+    assert _lit(_peaks(project)) == {18: 1.0}
+
+
+def test_source_start_shifts_the_bins_onto_the_timeline(tmp_path, monkeypatch):
+    project = _make(tmp_path)
+    _layout(project, [_clip(start=48.0, end=100.0, at=0.0)])
+    path = _pyramid(project, "track:t")
+    _craft(monkeypatch, {path: _cells((1565, 0, 9000))})
+    assert _lit(_peaks(project)) == {2: 1.0}
+
+
+def test_bins_before_the_clip_start_are_left_out(tmp_path, monkeypatch):
+    project = _make(tmp_path)
+    _layout(project, [_clip(start=10.0, end=100.0, at=0.0)])
+    path = _pyramid(project, "track:t")
+    _craft(monkeypatch, {path: _cells((100, 0, 9000), (500, 0, 4500))})
+    assert _lit(_peaks(project)) == {5: 1.0}
+
+
+def test_a_clip_edge_inside_a_bin_keeps_that_bin(tmp_path, monkeypatch):
+    project = _make(tmp_path)
+    _layout(project, [_clip(start=0.040, end=0.045, at=0.0)])
+    path = _pyramid(project, "track:t")
+    _craft(monkeypatch, {path: _cells((1, 0, 9000))})
+    assert _lit(_peaks(project)) == {0: 1.0}
+
+
+def test_each_ref_folds_only_its_own_pieces(tmp_path, monkeypatch):
+    project = _make(tmp_path)
+    _layout(
+        project,
+        [_clip(end=50.0), _clip("c2", source_id="s1", end=50.0, at=50.0)],
+        sources=("s1",),
+    )
+    track = _pyramid(project, "track:t")
+    source = _pyramid(project, "source:s1")
+    _craft(
+        monkeypatch,
+        {track: _cells((300, 0, 20000)), source: _cells((600, 0, 10000))},
+    )
+    assert _lit(_peaks(project)) == {9: 1.0, 66: 0.5}
+
+
+def test_overlapping_tracks_take_the_louder_not_the_sum(tmp_path, monkeypatch):
+    project = _make(tmp_path)
+
+    def edit(data: dict) -> None:
+        data["timeline"]["tracks"] = [
+            {"id": "t", "label": "t", "media": {"path": "raw/t.wav"}},
+            {"id": "u", "label": "u", "media": {"path": "raw/u.wav"}},
+        ]
+        data["timeline"]["clips"] = [_clip(), _clip("c2", "u")]
+        data["timeline"]["duration_sec"] = float(SECONDS)
+
+    (project.parent / "raw").mkdir(exist_ok=True)
+    for name in ("t", "u"):
+        (project.parent / "raw" / f"{name}.wav").write_bytes(b"x")
+    _edit(project, edit)
+    first = _pyramid(project, "track:t")
+    second = _pyramid(project, "track:u")
+    _craft(
+        monkeypatch,
+        {first: _cells((0, 0, 20000), (40, 0, 15000)), second: _cells((0, 0, 10000))},
+    )
+    assert _lit(_peaks(project)) == {0: 1.0, 1: 0.75}
+
+
+def test_a_partial_pyramid_set_stays_flat(tmp_path):
+    project = _make(tmp_path)
+
+    def edit(data: dict) -> None:
+        data["timeline"]["tracks"] = [
+            {"id": "t", "label": "t", "media": {"path": "raw/t.wav"}},
+            {"id": "u", "label": "u", "media": {"path": "raw/u.wav"}},
+        ]
+        data["timeline"]["clips"] = [_clip(end=50.0), _clip("c2", "u", end=50.0, at=50.0)]
+        data["timeline"]["duration_sec"] = float(SECONDS)
+
+    (project.parent / "raw").mkdir(exist_ok=True)
+    for name in ("t", "u"):
+        (project.parent / "raw" / f"{name}.wav").write_bytes(b"x")
+    _edit(project, edit)
+    _pyramid(project, "track:t")
+    assert _peaks(project) == []
+    _pyramid(project, "track:u")
+    assert len(recent.recent_project_cards()[0]["peaks"]) == COLUMNS
+
+
+def test_a_timed_gap_leaves_its_timeline_span_flat(tmp_path, monkeypatch):
+    project = _make(tmp_path)
+    timing = {"steps": [{"at": 50.0, "delta_sec": 30.0}]}
+    _layout(project, [_clip(timing=timing)], duration=130.0)
+    path = _pyramid(project, "track:t")
+    cells = [(i, 0, 9000) for i in range(0, 3125, 20)]
+    _craft(monkeypatch, {path: _cells(*cells)})
+    peaks = _peaks(project)
+    column_sec = 130.0 / COLUMNS
+    gap = range(int(50.0 / column_sec) + 2, int(80.0 / column_sec) - 1)
+    assert gap
+    assert all(peaks[i] == 0.0 for i in gap)
+    assert peaks[int(30.0 / column_sec)] == 1.0
+    assert peaks[int(100.0 / column_sec)] == 1.0
+
+
+def test_a_zero_width_clip_at_an_unaligned_source_time_adds_nothing(tmp_path):
+    project = _make(tmp_path)
+    _layout(project, [_clip(start=50.00123, end=50.00123, at=10.0)])
+    _pyramid(project, "track:t")
+    assert _peaks(project) == []
+
+
+def test_the_cached_peaks_are_not_the_returned_list(tmp_path):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    _pyramid(project, "track:t")
+    first = _peaks(project)
+    expected = list(first)
+    first[0] = 99.0
+    first.clear()
+    second = recent.recent_project_cards()[0]["peaks"]
+    assert second == expected
+    second[0] = 99.0
+    assert recent.recent_project_cards()[0]["peaks"] == expected
+
+
+def test_a_pyramid_rebuilt_during_the_fold_is_not_cached_as_current(tmp_path, monkeypatch):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    _pyramid(project, "track:t", seed=1)
+    real = recent_peaks.fold_peaks
+
+    def fold_then_rebuild(plan, ready):
+        out = real(plan, ready)
+        _pyramid(project, "track:t", seed=9)
+        return out
+
+    monkeypatch.setattr(recent_peaks, "fold_peaks", fold_then_rebuild)
+    first = _peaks(project)
+    monkeypatch.setattr(recent_peaks, "fold_peaks", real)
+    second = recent.recent_project_cards()[0]["peaks"]
+    assert first
+    assert second != first
+
+
+def test_a_pyramid_that_changes_size_alone_refreshes_the_card(tmp_path):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    path = _pyramid(project, "track:t", seconds=SECONDS)
+    first = _peaks(project)
+    stat = path.stat()
+    _pyramid(project, "track:t", seconds=SECONDS - 30)
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    assert path.stat().st_size != stat.st_size
+    assert recent.recent_project_cards()[0]["peaks"] != first
+
+
+def test_a_pyramid_under_a_new_name_refreshes_the_card_when_size_and_mtime_match(tmp_path):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    old = _pyramid(project, "track:t", seed=1)
+    first = _peaks(project)
+    stat = old.stat()
+    media = project.parent / "raw" / "t.wav"
+    media.write_bytes(b"different media bytes")
+    new = _pyramid(project, "track:t", seed=9)
+    os.utime(new, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    assert new.name != old.name
+    assert new.stat().st_size == stat.st_size
+    assert recent.recent_project_cards()[0]["peaks"] != first
+
+
+def test_a_pyramid_that_becomes_ready_refreshes_a_card_with_another_pyramid_waiting(tmp_path):
+    project = _make(tmp_path)
+
+    def edit(data: dict) -> None:
+        data["timeline"]["tracks"] = [
+            {"id": "t", "label": "t", "media": {"path": "raw/t.wav"}},
+            {"id": "u", "label": "u", "media": {"path": "raw/u.wav"}},
+        ]
+        data["timeline"]["clips"] = [_clip(end=50.0), _clip("c2", "u", end=50.0, at=50.0)]
+        data["timeline"]["duration_sec"] = float(SECONDS)
+
+    (project.parent / "raw").mkdir(exist_ok=True)
+    for name in ("t", "u"):
+        (project.parent / "raw" / f"{name}.wav").write_bytes(b"x")
+    _edit(project, edit)
+    assert _peaks(project) == []
+    _pyramid(project, "track:t")
+    assert recent.recent_project_cards()[0]["peaks"] == []
+    _pyramid(project, "track:u")
+    assert len(recent.recent_project_cards()[0]["peaks"]) == COLUMNS
+
+
+def test_media_that_vanishes_after_the_plan_is_flat_and_logs_once(tmp_path, caplog):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    _pyramid(project, "track:t")
+    assert _peaks(project)
+    (project.parent / "raw" / "t.wav").unlink()
+    with caplog.at_level(logging.DEBUG, logger=recent.__name__):
+        cards = [recent.recent_project_cards()[0] for _ in range(4)]
+    assert all(card["peaks"] == [] for card in cards)
+    assert all(card["chip"]["text"] != "Needs attention" for card in cards)
+    warned = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert len(warned) == 1
+    assert len(caplog.records) == 4
+
+
+def test_a_warm_list_probes_no_media(tmp_path, monkeypatch):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    _pyramid(project, "track:t")
+    probes: list[Path] = []
+
+    def probe(path):
+        probes.append(path)
+        return False
+
+    monkeypatch.setattr(waveform_media, "has_several_audio_streams", probe)
+    first = _peaks(project)
+    assert len(probes) == 1
+    for _ in range(3):
+        assert recent.recent_project_cards()[0]["peaks"] == first
+    assert len(probes) == 1
+
+
+def test_an_unprobeable_media_file_is_probed_once_per_stat(tmp_path, monkeypatch):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    probes: list[Path] = []
+
+    def unprobeable(path):
+        probes.append(path)
+        return False
+
+    monkeypatch.setattr(waveform_media, "has_several_audio_streams", unprobeable)
+    for _ in range(3):
+        assert _peaks(project) == []
+    assert len(probes) == 1
+    media = project.parent / "raw" / "t.wav"
+    stat = media.stat()
+    media.write_bytes(b"changed size")
+    os.utime(media, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    assert media.stat().st_size != stat.st_size
+    assert recent.recent_project_cards()[0]["peaks"] == []
+    assert len(probes) == 2
+    recent.recent_project_cards()
+    assert len(probes) == 2
+
+
+def test_media_keys_are_pruned_with_the_forgotten_project(tmp_path):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    _pyramid(project, "track:t")
+    _peaks(project)
+    media = (project.parent / "raw" / "t.wav").resolve()
+    assert media in recent_peaks._MEDIA_KEYS
+    recent.forget_recent(project)
+    recent.recent_project_cards()
+    assert media not in recent_peaks._MEDIA_KEYS
+
+
+BUILDERS = (
+    "build_pyramid",
+    "schedule_pyramid_build",
+    "decode_media",
+    "schedule_media_ref",
+    "schedule_track_waveforms",
+    "schedule_stem_waveforms",
+    "ensure_track_waveforms",
+    "ensure_project_waveforms",
+)
+
+
+@pytest.mark.parametrize("ready", [False, True], ids=["missing-pyramid", "ready-pyramid"])
+def test_the_request_path_never_decodes_or_builds(tmp_path, monkeypatch, ready):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    if ready:
+        _pyramid(project, "track:t")
+    called: list[str] = []
+
+    def refuse(name):
+        def stop(*args, **kwargs):
+            called.append(name)
+            raise AssertionError(f"the recent list must not call {name}")
+
+        return stop
+
+    for module in (waveform_pyramid, waveform_media, recent_peaks, recent):
+        for name in BUILDERS:
+            monkeypatch.setattr(module, name, refuse(name), raising=False)
+    peaks_dir = project.parent / "artifacts" / "peaks"
+    before = sorted(peaks_dir.glob("*")) if peaks_dir.exists() else []
+    peaks = _peaks(project)
+    recent.recent_project_cards()
+    after = sorted(peaks_dir.glob("*")) if peaks_dir.exists() else []
+    assert called == []
+    assert (len(peaks) == COLUMNS) is ready
+    assert after == before

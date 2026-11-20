@@ -10,13 +10,20 @@ from __future__ import annotations
 
 import logging
 import math
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
-from podcast_mcp.engines.waveform_media import MediaEntry, pyramid_target, resolve_media_refs
-from podcast_mcp.engines.waveform_pyramid import PyramidMeta, read_bins, read_meta
+from podcast_mcp.engines.waveform_media import MediaEntry, current_key, resolve_media_refs
+from podcast_mcp.engines.waveform_pyramid import (
+    PyramidMeta,
+    pyramid_path,
+    read_bins,
+    read_meta,
+    ref_slug,
+)
 from podcast_mcp.models import load_project
 from podcast_mcp.util.peak_bins import bin_peaks
 
@@ -25,6 +32,11 @@ log = logging.getLogger(__name__)
 COLUMNS = 96
 
 PyramidStamp = tuple[tuple[str, int | None, int | None], ...]
+
+_MediaStat = tuple[str, int, int]
+
+_MEDIA_KEYS: dict[Path, tuple[_MediaStat, str]] = {}
+_MEDIA_KEYS_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -38,7 +50,7 @@ class PeakPlan:
 def plan_peaks(project_file: Path) -> PeakPlan | None:
     try:
         return _plan(project_file)
-    except Exception:  # a project the full loader refuses is a flat card, not a failed list
+    except Exception:
         log.warning("Cannot plan recent peaks for %s", project_file, exc_info=True)
         return None
 
@@ -72,12 +84,34 @@ def _plan(project_file: Path) -> PeakPlan | None:
     )
 
 
+def prune_media_keys(plans: list[PeakPlan]) -> None:
+    keep = {entry.abs_path for plan in plans for _, entry in plan.refs}
+    with _MEDIA_KEYS_LOCK:
+        for stale in [path for path in _MEDIA_KEYS if path not in keep]:
+            del _MEDIA_KEYS[stale]
+
+
+def _media_key(entry: MediaEntry) -> str:
+    """The pyramid key of the media, probed once per (path, size, mtime_ns), failures included."""
+    st = entry.abs_path.stat()
+    stat: _MediaStat = (entry.rel_path, st.st_size, st.st_mtime_ns)
+    with _MEDIA_KEYS_LOCK:
+        cached = _MEDIA_KEYS.get(entry.abs_path)
+    if cached is not None and cached[0] == stat:
+        return cached[1]
+    key = current_key(entry)
+    with _MEDIA_KEYS_LOCK:
+        _MEDIA_KEYS[entry.abs_path] = (stat, key)
+    return key
+
+
 def pyramid_stamp(plan: PeakPlan) -> tuple[PyramidStamp, list[tuple[str, Path]] | None]:
     """The stamp of the plan's pyramid files, and their paths when every one is on disk."""
     stamp: list[tuple[str, int | None, int | None]] = []
     ready: list[tuple[str, Path]] = []
     for ref, entry in plan.refs:
-        out = pyramid_target(plan.artifacts_dir, ref, entry).out
+        kind, _, ref_id = ref.partition(":")
+        out = pyramid_path(plan.artifacts_dir / "peaks", ref_slug(kind, ref_id), _media_key(entry))
         try:
             st = out.stat()
         except OSError:
