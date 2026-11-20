@@ -9,7 +9,7 @@ This directory holds the C and C++ that turns whisper.cpp 1.9.5 (tag `v1.9.5`) i
 - `sc_whisper_cli.cpp`: wrapper translation unit that includes `examples/cli/cli.cpp`; compiled with `main` renamed to `sc_whisper_cli_main`.
 - `sc_whisper_stdio.h`: forced include for the cli wrapper and the example sources. After it, `stdout`, `stderr` and the printf family go to the stream of the running session and never to descriptors 1 and 2 of the app.
 - `sc_whisper_exit_map.h`: forced include for every translation unit. `exit(code)` becomes `sc_tool_exit(code)` and `abort()` becomes `sc_tool_exit(134)`, in C and C++ (`std::exit` too).
-- `patches/whisper-cli-hooks.patch`: pinned by sha256 in `contracts/whisper-build.json`. It makes the cli's abort and encoder-begin callbacks read the latch (`sc_whisper_aborted`), drops `ggml_backend_load_all()` (it scans directories and `dlopen`s any `libggml-*` it finds; the CPU and Accelerate backends are linked in), turns the unknown-language `exit(0)` into `exit(1)`, and replaces the `system()` call of an unused function in `common-whisper.cpp`.
+- `patches/whisper-cli-hooks.patch`: pinned by sha256 in `contracts/whisper-build.json`. It makes the cli's abort and encoder-begin callbacks read the latch (`sc_whisper_aborted`), drops `ggml_backend_load_all()` (it scans directories and `dlopen`s any `libggml-*` it finds; the CPU and Accelerate backends are linked in), turns the unknown-language `exit(0)` into `exit(1)`, replaces the `system()` call of an unused function in `common-whisper.cpp`, and compiles ggml's debugger-attaching `ggml_print_backtrace` (`fork`, `execlp`, `waitpid`) out of iOS builds, because iOS forbids starting processes and App Review flags those imports.
 
 ## Argv policy
 
@@ -23,7 +23,7 @@ This directory holds the C and C++ that turns whisper.cpp 1.9.5 (tag `v1.9.5`) i
 
 On a Mac with Xcode and both iOS SDKs, `scripts/ios/build_whisper.sh <device|sim>` reads every pin from `contracts/whisper-build.json`, verifies the tarball and the patch before extracting, applies the patch to a copy of the tree, builds the whisper.cpp and ggml static libraries with CMake for arm64 (CPU and Accelerate, no Metal, no OpenMP, no dynamic backends), compiles the glue and the example sources, links them into `Whisper.framework` (libc++ and Accelerate come from the SDK), and fails unless `nm -gU` lists exactly the four `sc_whisper_` symbols. Output is `gui/desktop/src-tauri/ios-whisper/out/<device|sim>/Whisper.framework`, with sources and build trees beside it under `src/` and `build/`.
 
-The tarball is `codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v1.9.5`. Its sha256 in the contract was computed from `git archive --format=tar.gz --prefix=whisper.cpp-1.9.5/ v1.9.5`, because the cloud session could not reach codeload; a mismatch on the first Mac build means GitHub's gzip bytes differ from that; confirm the extracted tree is the one of commit `d1be6fde11ac6e0407606b4e42fe72d34add8037`, then replace the sha256 with the one of the downloaded file. `SC_WHISPER_SOURCE_TARBALL` names a local copy to use instead of downloading it; it is checked against the same sha256.
+The tarball is `codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v1.9.5` (9,626,464 bytes). Its sha256 in the contract was measured on the Mac from the download, identical from codeload and from the archive URL. `SC_WHISPER_SOURCE_TARBALL` names a local copy to use instead of downloading it; it is checked against the same sha256.
 
 ## Host proof (no Mac)
 

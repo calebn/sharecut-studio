@@ -6,7 +6,7 @@
   "sources": {
     "whisper": {
       "url": "https://codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v1.9.5",
-      "sha256": "274a712f9b1a78a61874aa0f1d643d3b4332e009a3db905af394ee04111ee197",
+      "sha256": "ff1a9053feb509ff9d7729703355541ae9690073a6b1c40eb692c962e0dc1720",
       "archive": "whisper.cpp-1.9.5.tar.gz",
       "directory": "whisper.cpp-1.9.5"
     }
@@ -44,7 +44,7 @@
     {
       "name": "whisper-cli-hooks",
       "path": "gui/desktop/src-tauri/ios/whisper/patches/whisper-cli-hooks.patch",
-      "sha256": "7f9915c97bbc94ed58bb7aa2895c23162a2be8961de8066f50fd62b8063285e3",
+      "sha256": "0dc12ffeb336f1bbe1afb63dde59352e870540720f9995136d6c5c59ea6d4f94",
       "applies_to": "whisper",
       "platform": "ios"
     }
