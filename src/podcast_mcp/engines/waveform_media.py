@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import functools
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -150,7 +151,7 @@ def _resolve(
     candidates: list[_Candidate | None],
     *,
     fresh_only: bool,
-    defaults: EffectiveConfig,
+    defaults: EffectiveConfig | None,
 ) -> MediaRefs:
     """Check each candidate on disk: drawable refs, or refs that exist but cannot be drawn."""
     out = MediaRefs(refs={}, unavailable={})
@@ -164,7 +165,7 @@ def _resolve(
         if (
             cand.kind == "stem"
             and fresh_only
-            and not stem_is_fresh(project, ref_id, defaults=defaults)
+            and (defaults is None or not stem_is_fresh(project, ref_id, defaults=defaults))
         ):
             continue
         if not cand.path.is_file():
@@ -180,6 +181,18 @@ def _resolve(
 def collect_media_refs(project: EpisodeProject, *, defaults: EffectiveConfig) -> MediaRefs:
     """Every raw and (fresh) stem ref of *project*."""
     return _resolve(project, _project_candidates(project), fresh_only=True, defaults=defaults)
+
+
+def resolve_media_refs(project: EpisodeProject, refs: Iterable[str]) -> MediaRefs:
+    candidates: list[_Candidate | None] = []
+    for ref in refs:
+        kind, _, ref_id = ref.partition(":")
+        track = project.track_by_id(ref_id) if kind == "track" else None
+        if kind == "source":
+            candidates.append(_source_candidate(project, ref_id))
+        elif track is not None:
+            candidates.append(_track_candidate(project, track))
+    return _resolve(project, candidates, fresh_only=False, defaults=None)
 
 
 def media_watch_paths(project: EpisodeProject) -> tuple[Path, ...]:
