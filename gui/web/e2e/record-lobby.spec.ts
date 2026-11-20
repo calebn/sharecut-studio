@@ -1981,14 +1981,8 @@ test.describe("join sheet on a phone", () => {
       ).toHaveCount(0);
       await guest.mouse.click(195, 40);
       await expect(dialog).toBeVisible();
-      // Not now sends the decline over the room's socket; press again until
-      // the room has registered this guest and answers.
-      await expect(async () => {
-        await guest.keyboard.press("Escape");
-        await expect(guest.getByText("You're not being recorded.")).toBeVisible(
-          { timeout: 2_000 },
-        );
-      }).toPass();
+      await guest.keyboard.press("Escape");
+      await expect(guest.getByText("You're not being recorded.")).toBeVisible();
     });
   });
 
