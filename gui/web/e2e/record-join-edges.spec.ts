@@ -105,7 +105,6 @@ type SocketGate = {
   dropLive: () => void;
 };
 
-/** Closes every guest room socket until `open` is set, then forwards them to the room. */
 async function gateRoomSocket(context: BrowserContext): Promise<SocketGate> {
   const live: WebSocketRoute[] = [];
   const gate: SocketGate = {
