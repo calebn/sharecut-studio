@@ -275,7 +275,7 @@ class Lookup(enum.Enum):
 
 
 def app_shaped(app: object) -> bool:
-    return isinstance(app, dict) and (app.get("type") == "apps" or "bundleId" in app)
+    return isinstance(app, dict) and isinstance(app.get("bundleId"), str) and bool(app["bundleId"])
 
 
 def app_record_lookup(text: str, bundle_identifier: str) -> Lookup:
@@ -289,8 +289,26 @@ def app_record_lookup(text: str, bundle_identifier: str) -> Lookup:
         apps = value
     if not isinstance(apps, list) or not all(app_shaped(app) for app in apps):
         return Lookup.UNANSWERED
-    found = any(app["bundleId"] == bundle_identifier for app in apps if "bundleId" in app)
+    found = any(app["bundleId"] == bundle_identifier for app in apps)
     return Lookup.FOUND if found else Lookup.MISSING
+
+
+LOOKUP_SERVER_ERROR = re.compile(
+    r"internal server error|\b(?:http(?:/\d(?:\.\d)?)?|status(?: code)?)\W{0,3}5\d\d\b",
+    re.I,
+)
+LOOKUP_AUTH_CODE = re.compile(r"\bNOT_AUTHORIZED\b", re.I)
+
+
+def unanswered_lookup_sentence(text: str) -> str:
+    haystack = error_haystack(text, altool_document(text))
+    if AUTH.search(haystack) or LOOKUP_AUTH_CODE.search(haystack):
+        return SENTENCES[Verdict.AUTH_FAILED]
+    if LOOKUP_SERVER_ERROR.search(text):
+        return (
+            "Apple answered with a server error; nothing was changed. Run the same command again."
+        )
+    return SENTENCES[Verdict.UNREACHABLE]
 
 
 SENTENCES = {

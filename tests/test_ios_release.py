@@ -961,8 +961,6 @@ def test_the_app_record_lookup_reads_the_real_list_apps_output() -> None:
         altool_listing({**listed_app("studio.sharecut.other"), "BundleId": APP}),
         "[]\n",
         "[\n\n]\n",
-        '[{"bundleId": null}, {"bundleId": ["studio.sharecut.app"]}, {"type": "apps"}]',
-        '{"applications": [{"type": "apps", "BundleId": "studio.sharecut.app"}]}',
         '{"applications": []}',
         RETRY_LINES + "[]\n",
     ],
@@ -975,8 +973,6 @@ def test_the_app_record_lookup_reads_the_real_list_apps_output() -> None:
         "capitalised-key",
         "empty-array",
         "empty-array-with-a-blank-line",
-        "malformed-bundle-ids-on-app-shaped-entries",
-        "object-form-with-the-old-invented-key",
         "empty-object-form",
         "empty-array-after-retry-lines",
     ],
@@ -994,6 +990,9 @@ def test_a_parsed_list_without_the_bundle_identifier_means_no_app_record(listing
         '{"applications": null}',
         '[{"name": "ShareCut"}]',
         '{"applications": [{"BundleId": "studio.sharecut.app"}]}',
+        '[{"type": "apps", "code": "NOT_AUTHORIZED"}]',
+        '[{"bundleId": null}, {"bundleId": ["studio.sharecut.app"]}]',
+        '{"applications": [{"type": "apps", "BundleId": "studio.sharecut.app"}]}',
         '[{"code": 500, "message": "An unexpected error occurred."}]',
         '[{"product-errors": [{"code": 500}]}]',
         '[{"code": 500, "user-info": {"bundleId": "studio.sharecut.app"}}]',
@@ -1014,6 +1013,9 @@ def test_a_parsed_list_without_the_bundle_identifier_means_no_app_record(listing
         "applications-is-null",
         "entry-without-an-app-shape",
         "applications-entry-with-the-wrong-key-case",
+        "app-type-on-error",
+        "nonstring-bundle-ids",
+        "object-form-with-the-old-invented-key",
         "list-of-error-objects",
         "list-of-product-errors-objects",
         "bundle-id-only-inside-an-error",
@@ -1161,7 +1163,7 @@ def lookup_run(
 
 
 @pytest.mark.parametrize("text", [REAL_5XX_ALTOOL, REAL_5XX_CAPTURE])
-def test_the_real_5xx_on_exit_0_stops_as_unreachable_and_not_as_a_missing_app(
+def test_the_real_5xx_on_exit_0_says_apple_answered_with_an_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -1170,10 +1172,32 @@ def test_the_real_5xx_on_exit_0_stops_as_unreachable_and_not_as_a_missing_app(
     code, ran = lookup_run(tmp_path, monkeypatch, (0, text))
     out = capsys.readouterr().out
     assert code == Failure.TOOL.value
-    assert release_classify.SENTENCES[Verdict.UNREACHABLE] in out
+    assert "Apple answered with a server error" in out
+    assert "Check the network" not in out
     assert NO_APP_RECORD not in out and "Create the app" not in out
     assert not any("--validate-app" in c.argv for c in ran)
     assert record_module.read_record(tmp_path).validations == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"product-errors": [{"code": "NOT_AUTHORIZED", "message": "Key refused"}]}',
+        '[{"type": "apps", "code": "NOT_AUTHORIZED"}]',
+    ],
+)
+def test_an_exit_zero_app_lookup_failure_can_name_the_refused_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    text: str,
+) -> None:
+    code, ran = lookup_run(tmp_path, monkeypatch, (0, text))
+    out = capsys.readouterr().out
+    assert code == Failure.TOOL.value
+    assert release_classify.SENTENCES[Verdict.AUTH_FAILED] in out
+    assert NO_APP_RECORD not in out
+    assert not any("--validate-app" in c.argv for c in ran)
 
 
 def test_a_parsed_list_without_the_app_on_exit_0_still_means_create_the_app(
