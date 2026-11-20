@@ -504,7 +504,7 @@ void     sc_whisper_cancel(int64_t session);
   passed through unchanged, such as `-m`, `-f`, `-ojf`, `-of`, `-np`, `-l` and `-t`. The array
   has `argc` strings and a NULL slot.
   The core accepts only those flags (no positional argument), and refuses `-`, an empty string,
-  `@...`, a `dev` or `proc` directory component and a `..` component as the value of `-m`, `-f`
+  `@...`, a path that begins with a `dev` or `proc` directory (or has one right after a delimiter such as a space, `=` or `;`) and a `..` component as the value of `-m`, `-f`
   or `-of`, so no accepted path spells fd 0 (the check reads the path text and does not resolve
   symlinks); a refused argv is exit `1` with one `sc_whisper:` line.
 - **Sessions.** `start` returns an id >= 1 or `-errno`; `wait` returns an exit code in 0..255 or
