@@ -260,9 +260,7 @@ export function guestRoomPhase(
     upload?: RecordUploadProgress | null;
     /** Segments this device holds for the take. */
     localSegments: number | null;
-    /** The device scan failed twice: its count is unknown for good. */
     localUnreadable: boolean;
-    /** Capture has finished writing this device's segments. */
     captureSettled: boolean;
     /** False for a guest who is not in the take: nothing of theirs is saving. */
     tookPart?: boolean;
