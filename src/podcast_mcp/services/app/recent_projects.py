@@ -11,10 +11,11 @@ fails the open or create that triggered it. Project state stays in the project f
 :func:`recent_project_cards` turns each entry into the card Home draws. The parsed summary is
 cached per file by its revision stamp plus ctime, so a list that has not changed since the last
 read parses nothing; only the job state, the delivered date and the pyramid file stamp are looked
-up per request. A summary miss reads the project file as JSON and also validates the project
-with ``load_project`` once, to plan the card's ``peaks`` from the waveform pyramids on disk (see
-:mod:`recent_peaks`). Each list probes every media file the plan needs (ffprobe) unless its
-(path, size, mtime) was probed before, and stats its pyramid files. It never decodes audio and
+up per request. A summary miss reads the project file as JSON and, when the project has a
+non-zero duration, also validates it with ``load_project`` once, to plan the card's ``peaks`` from
+the waveform pyramids on disk (see :mod:`recent_peaks`). Each list probes every media file the plan
+needs (ffprobe) unless its (path, size, mtime) was probed successfully before, so media that cannot
+be probed is probed again on every list, and stats its pyramid files. It never decodes audio and
 never builds a pyramid: a pyramid that is not ready leaves ``peaks`` empty. The list is
 read-modify-written under a process lock only: two processes that record at once can drop each
 other's entry, but the file is never left half written.

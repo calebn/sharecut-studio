@@ -3,7 +3,8 @@
 Nothing here decodes audio or queues a pyramid build: a pyramid that is not ready gives a flat
 card, and the card fills in once a build elsewhere finishes. The plan (which clip pieces play
 from which media) is made once per project file revision; the stamp of the pyramid files is
-read on every request.
+read on every request. A media key is cached per (path, size, mtime) only when its probe
+succeeded: media that cannot be probed is probed again on every request.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
+from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.waveform_media import MediaEntry, current_key, resolve_media_refs
 from podcast_mcp.engines.waveform_pyramid import (
     PyramidMeta,
@@ -92,7 +94,7 @@ def prune_media_keys(plans: list[PeakPlan]) -> None:
 
 
 def _media_key(entry: MediaEntry) -> str:
-    """The pyramid key of the media, probed once per (path, size, mtime_ns), failures included."""
+    """The pyramid key of the media, cached per (path, size, mtime_ns) once its probe succeeded."""
     st = entry.abs_path.stat()
     stat: _MediaStat = (entry.rel_path, st.st_size, st.st_mtime_ns)
     with _MEDIA_KEYS_LOCK:
@@ -100,8 +102,9 @@ def _media_key(entry: MediaEntry) -> str:
     if cached is not None and cached[0] == stat:
         return cached[1]
     key = current_key(entry)
-    with _MEDIA_KEYS_LOCK:
-        _MEDIA_KEYS[entry.abs_path] = (stat, key)
+    if probe_media(entry.abs_path) is not None:
+        with _MEDIA_KEYS_LOCK:
+            _MEDIA_KEYS[entry.abs_path] = (stat, key)
     return key
 
 
