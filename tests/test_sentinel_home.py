@@ -293,3 +293,18 @@ def test_the_session_root_sits_outside_the_real_home_and_is_removed_at_exit(
 def test_a_symlink_in_the_session_home_is_reported(tmp_path: Path) -> None:
     (tmp_path / "link").symlink_to(tmp_path / "missing")
     assert stray_files(tmp_path) == ["link"]
+
+
+def test_huggingface_writes_go_to_the_session_state_when_no_cache_is_passed_through(
+    tmp_path: Path,
+) -> None:
+    real = tmp_path / "realhome"
+    real.mkdir()
+    result = _run_session(
+        tmp_path,
+        "def test_hf():\n"
+        "    home = Path(os.environ['HOME'])\n"
+        "    assert not Path(os.environ['HF_HOME']).is_relative_to(home)\n",
+        {"HOME": str(real), "USERPROFILE": str(real)},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
