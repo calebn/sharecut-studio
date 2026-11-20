@@ -53,19 +53,17 @@ const start = () => {
 
 describe("the View anchor upgrade", () => {
   it("moves focus to the preferred control when it draws 4.5 s later", async () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     start();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4500);
     });
+    vi.useRealTimers();
     let f!: HTMLElement;
     act(() => {
       f = mk();
     });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(20);
-    });
-    expect(document.activeElement).toBe(f);
+    await waitFor(() => expect(document.activeElement).toBe(f));
   });
   it("moves focus when the preferred control is revealed by the hidden attribute", async () => {
     const wrap = document.createElement("div");

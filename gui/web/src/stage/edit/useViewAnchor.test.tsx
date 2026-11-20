@@ -97,7 +97,7 @@ describe("the View anchor's focus return", () => {
   });
 
   it("gives up after five seconds", async () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     render(<Harness />);
     screen.getByRole("button", { name: "Prosody" }).focus();
     act(() => setHidden(true));
@@ -187,6 +187,39 @@ describe("the View anchor's focus return", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
     expect(document.activeElement).toBe(pane);
+  });
+
+  it("leaves focus alone when a modal opens as the control draws", async () => {
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    const pane = document.querySelector<HTMLElement>("#pane");
+    let layer: ReturnType<typeof openOverlay> | undefined;
+    act(() => {
+      appendFind();
+    });
+    act(() => {
+      layer = openOverlay(true);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    if (layer) closeOverlay(layer);
+    expect(document.activeElement).toBe(pane);
+  });
+
+  it("leaves focus on the page when it is on the body as the control draws", async () => {
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    (document.activeElement as HTMLElement | null)?.blur();
+    act(() => {
+      appendFind();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(document.activeElement).toBe(document.body);
   });
 
   it("returns straight to the preferred control when it is already drawn", () => {

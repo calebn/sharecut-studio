@@ -103,6 +103,7 @@ function upgradeFocus(
   const doc = fallback.ownerDocument;
   const stop = () => {
     observer.disconnect();
+    window.cancelAnimationFrame(frame);
     unsubscribe();
     window.clearTimeout(timer);
     doc.removeEventListener("focusin", onFocusIn);
@@ -112,15 +113,29 @@ function upgradeFocus(
   const onFocusIn = (event: FocusEvent) => {
     if (event.target !== fallback) stop();
   };
+  let frame = 0;
   const observer = new MutationObserver(() => {
-    const target = preferred();
+    if (frame !== 0) return;
     if (modalOpen()) {
       stop();
       return;
     }
-    if (doc.activeElement !== fallback || !isValidFocusTarget(target)) return;
-    stop();
-    target.focus();
+    if (doc.activeElement !== fallback || !isValidFocusTarget(preferred()))
+      return;
+    frame = window.requestAnimationFrame(() => {
+      frame = 0;
+      const target = preferred();
+      if (
+        modalOpen() ||
+        doc.activeElement !== fallback ||
+        !isValidFocusTarget(target)
+      ) {
+        stop();
+        return;
+      }
+      stop();
+      target.focus();
+    });
   });
   const timer = window.setTimeout(stop, UPGRADE_WINDOW_MS);
   const unsubscribe = subscribeModalOpen(stop);

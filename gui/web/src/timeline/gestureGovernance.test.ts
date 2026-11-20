@@ -203,7 +203,7 @@ const SURFACE_GESTURES: Record<string, string> = {
   "models/useModelNeedFocus.ts":
     "cancels a delayed model-action focus handoff when a press or focus move happens before the action is ready; it starts no gesture, captures no pointer and never consumes the event; focusin also covers keyboard navigation",
   "stage/edit/useViewAnchor.ts":
-    "a new press cancels pending View focus recovery and the short wait for its preferred control; it starts no gesture and intercepts no pointer action",
+    "a new press or key press cancels pending View focus recovery and the short wait for its preferred control; it starts no gesture and intercepts no pointer action",
   "stage/edit/InspectorHost.tsx":
     "the Close control's capture-phase pointer observer runs before default focus transfer and matches focus restoration to the press; it starts no gesture and takes no pointer capture, while InspectorSheet and useGrab own the detent drag",
   "stage/edit/ScriptDivider.tsx":
