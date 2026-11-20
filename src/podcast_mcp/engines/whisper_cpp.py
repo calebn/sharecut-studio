@@ -147,10 +147,11 @@ def _join(first: str, second: str) -> str:
 
 
 def _words_from_drafts(drafts: list[_Draft]) -> tuple[list[TranscriptWord], int, int]:
-    """Timed words in order, never overlapping; text of a word with no usable time is kept.
+    """Timed words in order, never overlapping; text of a word with no usable time joins a neighbour.
 
     A word with no usable span, or one a neighbour's span swallows whole, joins the previous
-    word's text (or the next word's when none came before). Where a word starts inside the
+    word's text (or the next word's when none came before; a transcript with no timed word at
+    all yields no words and the text is logged). Where a word starts inside the
     previous one, the previous word ends where it starts. Returns the words, the count that
     joined a neighbour and the count whose neighbour was trimmed.
     """
