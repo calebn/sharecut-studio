@@ -9,7 +9,6 @@ export type JoinMic =
   | { status: "idle" }
   | {
       status: "prompting";
-      /** The browser has not answered for a while, so the row offers Retry. */
       slow?: boolean;
     }
   | { status: "denied" }

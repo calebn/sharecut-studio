@@ -24,7 +24,6 @@ export type MicPermissionState = {
   lost: boolean;
   staleDeviceId: string | null;
   pending: boolean;
-  /** The browser's prompt has gone unanswered for MIC_PROMPT_SLOW_MS. Retry then asks again. */
   promptSlow: boolean;
 };
 
