@@ -301,10 +301,17 @@ LOOKUP_AUTH_CODE = re.compile(r"\bNOT_AUTHORIZED\b", re.I)
 
 
 def unanswered_lookup_sentence(text: str) -> str:
-    haystack = error_haystack(text, altool_document(text))
-    if AUTH.search(haystack) or LOOKUP_AUTH_CODE.search(haystack):
+    document = altool_document(text)
+    haystack = error_haystack(text, document)
+    statuses = {
+        int(value)
+        for error in product_errors(document)
+        for value in (error.get("code"), error.get("status"))
+        if isinstance(value, (int, str)) and re.fullmatch(r"[45][0-9]{2}", str(value))
+    }
+    if statuses & {401, 403} or AUTH.search(haystack) or LOOKUP_AUTH_CODE.search(haystack):
         return SENTENCES[Verdict.AUTH_FAILED]
-    if LOOKUP_SERVER_ERROR.search(text):
+    if any(status >= 500 for status in statuses) or LOOKUP_SERVER_ERROR.search(text):
         return (
             "Apple answered with a server error; nothing was changed. Run the same command again."
         )

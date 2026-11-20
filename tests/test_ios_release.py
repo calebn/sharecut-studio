@@ -1162,8 +1162,16 @@ def lookup_run(
     return code, ran
 
 
-@pytest.mark.parametrize("text", [REAL_5XX_ALTOOL, REAL_5XX_CAPTURE])
-def test_the_real_5xx_on_exit_0_says_apple_answered_with_an_error(
+@pytest.mark.parametrize(
+    "text",
+    [
+        REAL_5XX_ALTOOL,
+        REAL_5XX_CAPTURE,
+        '{"product-errors": [{"code": 500, "message": "An unexpected error occurred."}]}',
+        '{"product-errors": [{"status": "503", "message": "Try later."}]}',
+    ],
+)
+def test_a_5xx_on_exit_0_says_apple_answered_with_an_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -1183,6 +1191,8 @@ def test_the_real_5xx_on_exit_0_says_apple_answered_with_an_error(
     "text",
     [
         '{"product-errors": [{"code": "NOT_AUTHORIZED", "message": "Key refused"}]}',
+        '{"product-errors": [{"code": 401, "message": "Key refused"}]}',
+        '{"product-errors": [{"status": "403", "message": "Key refused"}]}',
         '[{"type": "apps", "code": "NOT_AUTHORIZED"}]',
     ],
 )
