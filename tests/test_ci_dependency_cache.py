@@ -30,15 +30,8 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         "frontend-suite",
         "frontend-e2e-suites",
         "frontend-e2e",
-        "verify-3940-paired-palette",
     }
-    for name in (
-        "pytest-quality",
-        "pytest-shard",
-        "pytest-python-floor",
-        "frontend-e2e-suites",
-        "verify-3940-paired-palette",
-    ):
+    for name in ("pytest-quality", "pytest-shard", "pytest-python-floor", "frontend-e2e-suites"):
         steps = jobs[name]["steps"]
         ffmpegs = [step for step in steps if step.get("uses") == "./.github/actions/setup-ffmpeg"]
         assert len(ffmpegs) == (name != "pytest-quality")
@@ -54,10 +47,9 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
                 "pytest-shard": "3.14",
                 "pytest-python-floor": "3.11",
                 "frontend-e2e-suites": "3.12",
-                "verify-3940-paired-palette": "3.12",
             }[name]
         )
-        if name in {"frontend-e2e-suites", "verify-3940-paired-palette"}:
+        if name == "frontend-e2e-suites":
             assert "cache" not in python["with"]
         else:
             assert python["with"]["cache"] == "pip"
@@ -209,12 +201,7 @@ def test_every_native_consumer_uses_catalog_importer_without_compilation():
     assert consumers == {
         "desktop.yml": ["project-commit-lock-windows", "ffmpeg-native-payload"],
         "registry-backup-windows.yml": ["native-registry-backup"],
-        "test.yml": [
-            "pytest-shard",
-            "pytest-python-floor",
-            "frontend-e2e-suites",
-            "verify-3940-paired-palette",
-        ],
+        "test.yml": ["pytest-shard", "pytest-python-floor", "frontend-e2e-suites"],
         "release-desktop-build.yml": ["prepare-extension-runtime", "bundle"],
     }
     action = load_github_yaml(ROOT / ".github/actions/setup-ffmpeg/action.yml")
@@ -590,7 +577,6 @@ def test_locked_exporter_recipe_stops_on_dependency_check_failure(
         ("test.yml", "pytest-quality"),
         ("test.yml", "pytest-shard"),
         ("test.yml", "frontend-e2e-suites"),
-        ("test.yml", "verify-3940-paired-palette"),
         ("extras-import.yml", "extras"),
     ],
 )
@@ -675,7 +661,6 @@ def test_only_the_quota_affected_jobs_select_runner_temporary_storage() -> None:
         ("test.yml", "pytest-quality"),
         ("test.yml", "pytest-shard"),
         ("test.yml", "frontend-e2e-suites"),
-        ("test.yml", "verify-3940-paired-palette"),
         ("extras-import.yml", "extras"),
     }
 
@@ -685,7 +670,6 @@ def test_only_the_quota_affected_jobs_select_runner_temporary_storage() -> None:
     [
         ("test.yml", "pytest-shard", "Record pytest run context"),
         ("test.yml", "frontend-e2e-suites", "Install frontend deps"),
-        ("test.yml", "verify-3940-paired-palette", "Install frontend deps"),
         ("extras-import.yml", "extras", "Import each extra in a clean venv"),
     ],
 )
@@ -705,7 +689,6 @@ def test_quota_affected_jobs_record_temporary_paths_and_filesystem_capacity(
         ("test.yml", "pytest-shard", "Record pytest run context", "ctrace"),
         ("test.yml", "pytest-shard", "Record pytest run context", "pytrace"),
         ("test.yml", "frontend-e2e-suites", "Install frontend deps", "ctrace"),
-        ("test.yml", "verify-3940-paired-palette", "Install frontend deps", "ctrace"),
         ("extras-import.yml", "extras", "Import each extra in a clean venv", "ctrace"),
     ],
 )
