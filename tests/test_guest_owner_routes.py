@@ -153,17 +153,13 @@ def _editor_job_id(world, name: str) -> str:
         export.mkdir(parents=True, exist_ok=True)
         (export / "test_episode.mp3").write_bytes(b"mp3")
         return "j1"
-    if name in {
-        "pipeline_run",
-        "export_start",
-        "export_status",
-        "export_files",
-        "speaker_split",
-        "speaker_status",
-    }:
-        return "j1"
-    start = GUEST_OWNER_ROUTES["render_preview"]
-    return _call(world, start, world.tokens["editor"]).json()["job"]["id"]
+    if name == "render_preview_status":
+        job = Job(
+            id="preview-1", kind="render_preview", status="ok", project_path=str(world.ws.path)
+        )
+        world.app.state.jobs._catalog._job = job
+        return job.id
+    return "j1"
 
 
 def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
@@ -244,6 +240,8 @@ def test_each_row_refuses_commenter_and_viewer(world, name, role) -> None:
 def test_each_row_serves_the_editor_without_a_host_path(world, name) -> None:
     row = GUEST_OWNER_ROUTES[name]
     job_id = _editor_job_id(world, name)
+    if name == "render_preview":
+        assert world.app.state.jobs.get_job() is None
 
     res = _call(world, row, world.tokens["editor"], job_id)
 
