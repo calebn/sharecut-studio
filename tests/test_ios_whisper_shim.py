@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -121,6 +122,14 @@ class Shim:
         return words
 
 
+def _until(condition: Callable[[], bool]) -> None:
+    tick = threading.Event()
+    deadline = time.monotonic() + BOUND_SEC * 2
+    while not condition():
+        assert time.monotonic() < deadline, "the tool never started"
+        tick.wait(0.005)
+
+
 @pytest.fixture
 def shim(built: Path) -> Shim:
     return Shim(built)
@@ -218,9 +227,10 @@ def test_mapped_exit_and_abort_end_the_session_not_the_process(shim: Shim) -> No
 
 
 def test_cancel_of_a_running_session_returns_255_even_when_the_tool_returns_0(shim: Shim) -> None:
+    runs_before = shim.counters()[1]
     session = shim.start([*GOOD, "--prompt", "block"])
     assert session >= 1
-    time.sleep(0.2)
+    _until(lambda: shim.counters()[1] > runs_before)
     began = time.monotonic()
     shim.cdll.sc_whisper_cancel(session)
     shim.cdll.sc_whisper_cancel(session)
@@ -234,7 +244,7 @@ def test_cancel_of_a_running_session_returns_255_even_when_the_tool_returns_0(sh
 def test_cancel_of_a_queued_session_returns_255_without_running_it(shim: Shim) -> None:
     runs_before = shim.counters()[1]
     holder = shim.start([*GOOD, "--prompt", "block"])
-    time.sleep(0.2)
+    _until(lambda: shim.counters()[1] > runs_before)
     queued = shim.start([*GOOD, "--prompt", "echo"])
     assert holder >= 1 and queued > holder
     shim.cdll.sc_whisper_cancel(queued)
@@ -251,19 +261,21 @@ def test_wait_and_cancel_of_unknown_ids(shim: Shim) -> None:
 
 
 def test_cancel_from_another_thread_wakes_the_waiter(shim: Shim) -> None:
+    runs_before = shim.counters()[1]
     session = shim.start([*GOOD, "--prompt", "block"])
     result: list[int] = []
     waiter = threading.Thread(target=lambda: result.append(shim.cdll.sc_whisper_wait(session)))
     waiter.start()
-    time.sleep(0.2)
+    _until(lambda: shim.counters()[1] > runs_before)
     shim.cdll.sc_whisper_cancel(session)
     waiter.join(BOUND_SEC)
     assert result == [255]
 
 
 def test_queue_is_capped_with_eagain(shim: Shim) -> None:
+    runs_before = shim.counters()[1]
     holder = shim.start([*GOOD, "--prompt", "block"])
-    time.sleep(0.2)
+    _until(lambda: shim.counters()[1] > runs_before)
     queued = [shim.start([*GOOD, "--prompt", "echo"]) for _ in range(16)]
     assert all(item >= 1 for item in queued)
     assert shim.start([*GOOD, "--prompt", "echo"]) == -errno.EAGAIN
@@ -276,8 +288,9 @@ def test_session_streams_are_not_the_process_streams(
     shim: Shim, capfd: pytest.CaptureFixture[str]
 ) -> None:
     assert shim.run([*GOOD, "--prompt", "echo"])[0] == 0
-    assert shim.start([*GOOD, "--prompt", "echo"]) >= 1
-    time.sleep(0.3)
+    session = shim.start([*GOOD, "--prompt", "echo"])
+    assert session >= 1
+    assert shim.cdll.sc_whisper_wait(session) == 0
     captured = capfd.readouterr()
     assert "out" not in captured.out and "err line" not in captured.err
 
