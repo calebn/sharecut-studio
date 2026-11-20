@@ -553,7 +553,8 @@ above and nothing else.
   run `scripts/ios/ffmpeg_framework.py --framework whisper assemble`, which writes
   `ios-payload/Whisper.xcframework` from whichever slices exist, the same way as for FFmpeg
   (staging folder, `xcodebuild -create-xcframework`, a swap that keeps the previous xcframework on
-  failure). `make ios-whisper` builds both. Without `--framework` the script means FFmpeg, so
+  failure). `make ios-whisper` builds both, one after the other: the two slices share one extracted source tree, so
+  do not run `ios-whisper-device` and `ios-whisper-sim` at the same time. Without `--framework` the script means FFmpeg, so
   every FFmpeg command is unchanged. The one assemble lock, `ios-payload/.native-frameworks.lock`,
   covers both frameworks.
 - **Privacy manifest.** Each slice gets
