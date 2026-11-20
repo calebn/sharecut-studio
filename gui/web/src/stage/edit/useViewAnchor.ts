@@ -4,7 +4,11 @@ import { subscribeModalOpen } from "../../ui/modalGate";
 
 export type ViewAnchorAvailability =
   | { kind: "available" }
-  | { kind: "unavailable"; returnTarget: () => HTMLElement | null };
+  | {
+      kind: "unavailable";
+      returnTarget: () => HTMLElement | null;
+      preferredTarget?: () => HTMLElement | null;
+    };
 
 export const AVAILABLE_VIEW_ANCHOR: ViewAnchorAvailability = {
   kind: "available",
@@ -19,6 +23,7 @@ export function useViewAnchor(
   const recovery = useRef<{
     owner: HTMLElement;
     destination: () => HTMLElement | null;
+    preferred: (() => HTMLElement | null) | undefined;
     cancel: () => void;
   } | null>(null);
 
@@ -41,6 +46,7 @@ export function useViewAnchor(
         recovery.current = {
           owner: active,
           destination: availability.returnTarget,
+          preferred: availability.preferredTarget,
           cancel,
         };
         document.addEventListener("focusin", cancel);
@@ -55,12 +61,49 @@ export function useViewAnchor(
         active === pending.owner ||
         (active === document.body && !pending.owner.isConnected);
       const destination = pending.destination();
+      const preferred = pending.preferred;
       pending.cancel();
-      if (ownsFocus && isValidFocusTarget(destination)) destination.focus();
+      if (ownsFocus && isValidFocusTarget(destination)) {
+        destination.focus();
+        if (preferred && destination !== preferred())
+          upgradeFocus(destination, preferred);
+      }
     } else {
       recovery.current?.cancel();
     }
   });
 
   useLayoutEffect(() => () => recovery.current?.cancel(), []);
+}
+
+const UPGRADE_WINDOW_MS = 5000;
+
+function upgradeFocus(
+  fallback: HTMLElement,
+  preferred: () => HTMLElement | null,
+) {
+  const doc = fallback.ownerDocument;
+  const stop = () => {
+    observer.disconnect();
+    window.clearTimeout(timer);
+    doc.removeEventListener("focusin", onFocusIn);
+    doc.removeEventListener("pointerdown", stop, true);
+  };
+  const onFocusIn = (event: FocusEvent) => {
+    if (event.target !== fallback) stop();
+  };
+  const observer = new MutationObserver(() => {
+    const target = preferred();
+    if (doc.activeElement !== fallback || !isValidFocusTarget(target)) return;
+    stop();
+    target.focus();
+  });
+  const timer = window.setTimeout(stop, UPGRADE_WINDOW_MS);
+  doc.addEventListener("focusin", onFocusIn);
+  doc.addEventListener("pointerdown", stop, true);
+  observer.observe(doc.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+  });
 }
