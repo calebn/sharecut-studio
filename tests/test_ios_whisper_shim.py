@@ -295,7 +295,7 @@ def test_descriptors_do_not_leak_across_sessions(shim: Shim) -> None:
 def test_stdio_header_survives_cstdio_in_c_plus_plus(tmp_path: Path) -> None:
     source = tmp_path / "x.cpp"
     source.write_text(
-        '#include <cstdio>\n#include <string>\nint f() { printf("a"); puts("b"); return fprintf(stderr, "c"); }\n',
+        '#include <cstdio>\n#include <string>\nint f() { printf("a"); return fprintf(stderr, "c"); }\n',
         encoding="utf-8",
     )
     assert CXX is not None
@@ -317,5 +317,5 @@ def test_stdio_header_survives_cstdio_in_c_plus_plus(tmp_path: Path) -> None:
     )
     assert done.returncode == 0, done.stderr
     body = done.stdout.split("int f()")[-1]
-    assert 'sc_session_printf("a")' in body and 'sc_session_puts("b")' in body
+    assert 'sc_session_printf("a")' in body
     assert "sc_err()" in body

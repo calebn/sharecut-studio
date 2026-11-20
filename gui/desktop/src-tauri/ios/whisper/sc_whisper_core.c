@@ -2,18 +2,6 @@
 #define _GNU_SOURCE
 #include "sc_whisper_core.h"
 
-#include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <setjmp.h>
-#include <signal.h>
-#include <stdatomic.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
 #define SC_LOG_NAME "sc_whisper"
 #define SC_STACK_BYTES (8u << 20)
 #define SC_CANCEL_FORCES_255 1
@@ -23,7 +11,6 @@
 
 static int sc_accepts_argv0(const char *argv0) { return strcmp(argv0, CLI_NAME) == 0; }
 
-// 1 for a flag with no value, 2 for a flag with one value, 0 for anything else.
 static int flag_arity(const char *arg) {
     static const char *const bare[] = {"-ojf", "-np"};
     static const char *const valued[] = {"-m", "-f", "-of", "-l", "-t", "--prompt"};

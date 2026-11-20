@@ -42,7 +42,6 @@ if [ "$PLAT" = host ]; then
   CC="${SC_WHISPER_CC:-cc}"
   CXX="${SC_WHISPER_CXX:-c++}"
   SYSROOT=/
-  PLAT_FLAGS="-fPIC"
   LIB_DEFS="-D_GNU_SOURCE"
   CMAKE_PLAT=()
 else
@@ -50,7 +49,6 @@ else
   SYSROOT=$(xcrun --sdk "$SDK" --show-sdk-path)
   CC="$(xcrun --sdk "$SDK" -f clang) -arch arm64 -isysroot $SYSROOT $MIN"
   CXX="$(xcrun --sdk "$SDK" -f clang++) -arch arm64 -isysroot $SYSROOT $MIN"
-  PLAT_FLAGS="-fPIC"
   LIB_DEFS=""
   CMAKE_PLAT=(-DCMAKE_SYSTEM_NAME=iOS "-DCMAKE_OSX_SYSROOT=$SDK" -DCMAKE_OSX_ARCHITECTURES=arm64 "-DCMAKE_OSX_DEPLOYMENT_TARGET=$MINOS")
 fi
@@ -114,17 +112,17 @@ FORCE="-include sc_whisper_exit_map.h -I$GLUE"
 mkdir -p "$BUILD/cmake"
 cmake -S "$WSRC" -B "$BUILD/cmake" "${CMAKE_PLAT[@]}" $(pin cmake_configure) \
   "-DCMAKE_C_COMPILER=${CC%% *}" "-DCMAKE_CXX_COMPILER=${CXX%% *}" \
-  "-DCMAKE_C_FLAGS=$PLAT_FLAGS $LIB_DEFS $VIS $MAPS $FORCE" "-DCMAKE_CXX_FLAGS=$PLAT_FLAGS $LIB_DEFS $VIS -fvisibility-inlines-hidden $MAPS $FORCE" \
+  "-DCMAKE_C_FLAGS=-fPIC $LIB_DEFS $VIS $MAPS $FORCE" "-DCMAKE_CXX_FLAGS=-fPIC $LIB_DEFS $VIS -fvisibility-inlines-hidden $MAPS $FORCE" \
   > "$BUILD/cmake-configure.log" 2>&1
 nice -n 10 cmake --build "$BUILD/cmake" --target whisper -j "$JOBS" > "$BUILD/cmake-build.log" 2>&1
 LIBS=$(find "$BUILD/cmake" -name 'lib*.a' | LC_ALL=C sort)
 
 rm -rf "$WORK"; mkdir -p "$WORK"
 INC="-I$GLUE -I$WSRC/include -I$WSRC/ggml/include -I$WSRC/examples -I$WSRC/examples/cli"
-CXXF="-std=c++17 -O2 $PLAT_FLAGS $LIB_DEFS $VIS -fvisibility-inlines-hidden $MAPS -DMA_NO_RUNTIME_LINKING"
+CXXF="-std=c++17 -O2 -fPIC $LIB_DEFS $VIS -fvisibility-inlines-hidden $MAPS -DMA_NO_RUNTIME_LINKING"
 OBJS=()
 compile_plain() {
-  $CC -std=c11 -O2 $PLAT_FLAGS $VIS $MAPS -c "$1" -o "$WORK/$(basename "$1").o"
+  $CC -std=c11 -O2 -fPIC $VIS $MAPS -c "$1" -o "$WORK/$(basename "$1").o"
   OBJS+=("$WORK/$(basename "$1").o")
 }
 compile_glue() {
@@ -148,6 +146,7 @@ exports_check() {
   [ "$listed" = "$expected" ] || { echo "exported sc_ symbols are: $listed; expected: $expected" >&2; exit 1; }
 }
 
+pin exports | sed 's/^/_/' > "$WORK/exports.txt"
 if [ "$PLAT" = host ]; then
   pin exports | sed 's/^/  /; s/$/;/' | { echo "{ global:"; cat; echo "local: *; };"; } > "$WORK/exports.map"
   case "$(uname -s)" in
@@ -156,7 +155,6 @@ if [ "$PLAT" = host ]; then
   esac
   rm -f "$OUT/$LIBFILE"
   if [ "$(uname -s)" = Darwin ]; then
-    pin exports | sed 's/^/_/' > "$WORK/exports.txt"
     $CXX -dynamiclib -o "$OUT/$LIBFILE" -exported_symbols_list "$WORK/exports.txt" -Wl,-dead_strip "${OBJS[@]}" $LIBS -framework Accelerate -lc++ -lm > "$BUILD/link.log" 2>&1
     exports_check nm -gU "$OUT/$LIBFILE"
   else
@@ -167,7 +165,6 @@ if [ "$PLAT" = host ]; then
   exit 0
 fi
 
-pin exports | sed 's/^/_/' > "$WORK/exports.txt"
 FW=$OUT/Whisper.framework
 rm -rf "$FW"; mkdir -p "$FW"
 $CXX -dynamiclib -o "$FW/Whisper" -install_name @rpath/Whisper.framework/Whisper -compatibility_version 1 -current_version "$(pin version)" \

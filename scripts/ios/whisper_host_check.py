@@ -159,10 +159,7 @@ def main() -> None:
             tmp / "v.err",
         )
         check(code == 0 and "system_info" in err, "logs_reach_the_session_stderr", report)
-        code, err = shim.run(
-            [*base, "-of", str(tmp / "l"), "-l", "zz"],
-            tmp / "l.err",
-        )
+        code, _ = shim.run([*base, "-of", str(tmp / "l"), "-l", "zz"], tmp / "l.err")
         check(code == 1, "unknown_language_exit_1_no_process_exit", report, code)
         check(os.getpid() == pid, "process_still_alive", report)
 

@@ -1,6 +1,6 @@
 /* Portable session machinery shared by the in-process tool shims: queue, fd ownership, exit path.
    The includer defines SC_LOG_NAME (and optionally SC_STACK_BYTES, SC_CANCEL_FORCES_255), includes its
-   own core header and the libc headers first, includes this file, then defines sc_accepts_argv0 and
+   own core header first, includes this file, then defines sc_accepts_argv0 and
    sc_build_argv and exports sc_session_start, sc_session_wait and sc_session_cancel under its ABI names. */
 #include <ctype.h>
 #include <errno.h>
