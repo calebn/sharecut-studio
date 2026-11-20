@@ -406,7 +406,7 @@ def test_cancel_set_before_start_is_seen_by_the_watcher() -> None:
 def test_a_backend_that_ignores_cancel_is_abandoned_after_the_grace(
     host: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.2)
+    monkeypatch.setattr(process, "_KILL_GRACE_SEC", 0.2)
     fake = Blocking(honour_cancel=False)
     try:
         with process.using_in_process_backend(NativeFFmpegBackend(fake)):
@@ -421,7 +421,7 @@ def test_a_backend_that_ignores_cancel_is_abandoned_after_the_grace(
 def test_abandon_closes_the_callers_stdin_so_a_blocked_read_ends_and_the_next_session_runs(
     host: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.2)
+    monkeypatch.setattr(process, "_KILL_GRACE_SEC", 0.2)
     fake = FakeNative(honour_cancel=False)
     with process.using_in_process_backend(NativeFFmpegBackend(fake)):
         child = process.popen([IN_PROCESS_FFMPEG], stdin=process.PIPE)
@@ -442,7 +442,7 @@ def test_abandon_closes_the_callers_stdin_so_a_blocked_read_ends_and_the_next_se
 def test_a_reader_sees_eof_after_kill_and_abandon_with_a_conformant_native(
     host: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.2)
+    monkeypatch.setattr(process, "_KILL_GRACE_SEC", 0.2)
     fake = SlowWait()
     with process.using_in_process_backend(NativeFFmpegBackend(fake)):
         child = process.popen([IN_PROCESS_FFMPEG], stdout=process.PIPE)
@@ -461,7 +461,7 @@ def test_a_reader_sees_eof_after_kill_and_abandon_with_a_conformant_native(
 def test_a_native_that_ignores_cancel_never_hangs_wait_though_eof_is_delayed(
     host: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.2)
+    monkeypatch.setattr(process, "_KILL_GRACE_SEC", 0.2)
     fake = Blocking(honour_cancel=False)
     try:
         with process.using_in_process_backend(NativeFFmpegBackend(fake)):

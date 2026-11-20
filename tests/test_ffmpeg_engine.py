@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from ffmpeg_in_process_support import desktop_ffmpeg
 from podcast_mcp.engines.ffmpeg import (
     AudioProbe,
     FFmpegEngine,
@@ -51,6 +52,7 @@ def test_extracted_effect_filter_exact_contract(effect, params, expected):
     assert _effect_filter(ProcessingEffect(effect=effect, params=params)) == expected
 
 
+@desktop_ffmpeg("probes real media metadata")
 def test_probe_sample_wav(sample_wav: Path):
     eng = FFmpegEngine()
     ok, _ = eng.check_available()
@@ -172,6 +174,7 @@ def test_build_track_filter_envelope():
     assert "volume" in filt
 
 
+@desktop_ffmpeg("writes gained PCM")
 def test_apply_gain(sample_wav: Path, tmp_path: Path):
     eng = FFmpegEngine()
     ok, _ = eng.check_available()
@@ -190,6 +193,7 @@ def test_apply_gain(sample_wav: Path, tmp_path: Path):
         subprocess.TimeoutExpired("ffmpeg", 10),
     ],
 )
+@desktop_ffmpeg("walks subprocess binary availability failures")
 def test_check_available_failure_paths(failure):
     engine = FFmpegEngine()
     with patch("podcast_mcp.util.binaries.run", side_effect=failure):
@@ -199,6 +203,7 @@ def test_check_available_failure_paths(failure):
     assert "9.0.2" in message
 
 
+@desktop_ffmpeg("reads the desktop version response")
 def test_check_available_handles_empty_version_output():
     engine = FFmpegEngine()
     with patch("podcast_mcp.util.binaries.run", return_value=MagicMock(returncode=0, stdout="")):
@@ -207,6 +212,7 @@ def test_check_available_handles_empty_version_output():
     assert "did not report a numeric" in message
 
 
+@desktop_ffmpeg("changes the admitted desktop pair")
 def test_check_available_refreshes_live_pair_after_cached_probe_failure():
     engine = FFmpegEngine()
     with patch("podcast_mcp.util.binaries.run", side_effect=FileNotFoundError("missing")) as run:
@@ -313,6 +319,7 @@ def test_volume_expression_variants():
     assert "if(lt(t,2.0)" in expr
 
 
+@desktop_ffmpeg("renders PCM and verifies the applied filter")
 def test_render_timeline_single_segment_applies_fx_once(sample_wav: Path, tmp_path: Path):
     from podcast_mcp.engines.audio import SourceAudio
 
@@ -344,33 +351,36 @@ def test_render_timeline_single_segment_applies_fx_once(sample_wav: Path, tmp_pa
     assert out.is_file()
 
 
-def test_mix_tracks_empty_and_single(tmp_path: Path, sample_wav: Path):
+def test_mix_tracks_empty_and_single(tmp_path: Path):
+    source = tmp_path / "sample.wav"
     eng = FFmpegEngine()
     with pytest.raises(ValueError, match="no tracks"):
         eng.mix_tracks([], tmp_path / "mix.wav")
 
     out = tmp_path / "solo.wav"
     with patch("podcast_mcp.engines.ffmpeg.shutil.copy2") as copy2:
-        eng.mix_tracks([(sample_wav, 0.0)], out)
-    copy2.assert_called_once_with(sample_wav, out)
+        eng.mix_tracks([(source, 0.0)], out)
+    copy2.assert_called_once_with(source, out)
 
 
-def test_mix_tracks_single_applies_gain(tmp_path: Path, sample_wav: Path):
+def test_mix_tracks_single_applies_gain(tmp_path: Path):
+    source = tmp_path / "sample.wav"
     eng = FFmpegEngine()
     out = tmp_path / "solo_gain.wav"
     with patch.object(eng, "apply_gain", return_value=out) as apply_gain:
-        result = eng.mix_tracks([(sample_wav, -6.0)], out)
+        result = eng.mix_tracks([(source, -6.0)], out)
     assert result == out
-    apply_gain.assert_called_once_with(sample_wav, out, -6.0)
+    apply_gain.assert_called_once_with(source, out, -6.0)
 
 
-def test_export_audio_options(sample_wav: Path, tmp_path: Path):
+def test_export_audio_options(tmp_path: Path):
+    source = tmp_path / "sample.wav"
     eng = FFmpegEngine()
     out = tmp_path / "out.ogg"
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         run.return_value = MagicMock(returncode=0)
         eng.export_audio(
-            sample_wav,
+            source,
             out,
             codec="libvorbis",
             format="ogg",
@@ -390,6 +400,7 @@ def test_export_audio_options(sample_wav: Path, tmp_path: Path):
     assert "-vn" in cmd
 
 
+@desktop_ffmpeg("encodes and decodes real media")
 def test_real_wav_and_mp3_exports_decode(tmp_path: Path) -> None:
     engine = FFmpegEngine()
     source = tmp_path / "source.wav"
@@ -829,6 +840,7 @@ def test_ffmpeg_engine_defaults_resolve_binaries():
     assert eng.ffprobe == "/resolved/ffprobe"
 
 
+@desktop_ffmpeg("overrides the desktop binary pair")
 def test_ffmpeg_engine_rejects_invalid_explicit_pair():
     from podcast_mcp.util.binaries import FFmpegPairResolutionError
 
@@ -836,6 +848,7 @@ def test_ffmpeg_engine_rejects_invalid_explicit_pair():
         FFmpegEngine(ffmpeg="/custom/ffmpeg", ffprobe="/custom/ffprobe")
 
 
+@desktop_ffmpeg("overrides the desktop binary pair")
 def test_ffmpeg_engine_constructor_override_wins_per_slot(monkeypatch):
     from podcast_mcp.util.binaries import FFmpegPairResolutionError
 
@@ -845,6 +858,7 @@ def test_ffmpeg_engine_constructor_override_wins_per_slot(monkeypatch):
         FFmpegEngine(ffmpeg="invalid explicit command")
 
 
+@desktop_ffmpeg("renders an image with FFmpeg")
 def test_render_spectrogram(sample_wav: Path, tmp_path: Path):
     eng = FFmpegEngine()
     ok, _ = eng.check_available()
@@ -855,15 +869,16 @@ def test_render_spectrogram(sample_wav: Path, tmp_path: Path):
     assert out_png.is_file()
 
 
-def test_visual_diagnostics_bound_ffmpeg_threads(sample_wav: Path, tmp_path: Path):
+def test_visual_diagnostics_bound_ffmpeg_threads(tmp_path: Path):
+    source = tmp_path / "sample.wav"
     eng = FFmpegEngine()
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         run.return_value = MagicMock(returncode=0)
-        eng.render_spectrogram(sample_wav, tmp_path / "spec.png")
+        eng.render_spectrogram(source, tmp_path / "spec.png")
         spectrogram_cmd = run.call_args[0][0]
-        eng.render_showwavespic(sample_wav, tmp_path / "wave.png")
+        eng.render_showwavespic(source, tmp_path / "wave.png")
         waveform_cmd = run.call_args[0][0]
-        eng.render_stacked_showwavespic([sample_wav, sample_wav], tmp_path / "stack.png")
+        eng.render_stacked_showwavespic([source, source], tmp_path / "stack.png")
         stacked_cmd = run.call_args[0][0]
 
     for cmd in (spectrogram_cmd, waveform_cmd, stacked_cmd):
@@ -872,7 +887,9 @@ def test_visual_diagnostics_bound_ffmpeg_threads(sample_wav: Path, tmp_path: Pat
         assert cmd[cmd.index("-filter_complex_threads") + 1] == "1"
 
 
-def test_extract_segment(sample_wav: Path, tmp_path: Path):
+def test_extract_segment(tmp_path: Path):
+    source = tmp_path / "sample.wav"
+    source.touch()
     eng = FFmpegEngine()
     out = tmp_path / "clip.wav"
     with (
@@ -880,7 +897,7 @@ def test_extract_segment(sample_wav: Path, tmp_path: Path):
         patch("podcast_mcp.engines.ffmpeg.run") as run,
     ):
         run.return_value = MagicMock(returncode=0)
-        result = eng.extract_segment(sample_wav, out, 0.5, 1.0)
+        result = eng.extract_segment(source, out, 0.5, 1.0)
     assert result == out
     cmd = run.call_args[0][0]
     # Within the pre-roll of the file start: decode from 0, trim by timestamp.
@@ -888,7 +905,8 @@ def test_extract_segment(sample_wav: Path, tmp_path: Path):
     assert cmd[cmd.index("-ss") : cmd.index("-ss") + 4] == ["-ss", "0.500000", "-t", "0.500000"]
 
 
-def test_render_showwavespic_with_segment(sample_wav: Path, tmp_path: Path):
+def test_render_showwavespic_with_segment(tmp_path: Path):
+    source = tmp_path / "sample.wav"
     eng = FFmpegEngine()
     png = tmp_path / "wave.png"
     with (
@@ -897,26 +915,28 @@ def test_render_showwavespic_with_segment(sample_wav: Path, tmp_path: Path):
     ):
         extract.return_value = tmp_path / "seg.wav"
         run.return_value = MagicMock(returncode=0)
-        result = eng.render_showwavespic(sample_wav, png, start_sec=0.0, duration_sec=0.5)
+        result = eng.render_showwavespic(source, png, start_sec=0.0, duration_sec=0.5)
     extract.assert_called_once()
     assert result == png
 
 
-def test_render_showwavespic_full_file(sample_wav: Path, tmp_path: Path):
+def test_render_showwavespic_full_file(tmp_path: Path):
+    source = tmp_path / "sample.wav"
     eng = FFmpegEngine()
     png = tmp_path / "wave.png"
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         run.return_value = MagicMock(returncode=0)
-        result = eng.render_showwavespic(sample_wav, png)
+        result = eng.render_showwavespic(source, png)
     assert result == png
 
 
-def test_render_stacked_showwavespic(sample_wav: Path, tmp_path: Path):
+def test_render_stacked_showwavespic(tmp_path: Path):
+    source = tmp_path / "sample.wav"
     eng = FFmpegEngine()
     png = tmp_path / "stack.png"
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         run.return_value = MagicMock(returncode=0)
-        result = eng.render_stacked_showwavespic([sample_wav, sample_wav], png)
+        result = eng.render_stacked_showwavespic([source, source], png)
     assert result == png
     fc = run.call_args[0][0]
     assert "vstack" in fc[fc.index("-filter_complex") + 1]
@@ -925,14 +945,10 @@ def test_render_stacked_showwavespic(sample_wav: Path, tmp_path: Path):
         eng.render_stacked_showwavespic([], png)
 
 
-def test_render_dialogue_track_delegates(minimal_project, sample_wav, tmp_workspace):
-    from podcast_mcp.models import Clip, load_project, save_project
+def test_render_dialogue_track_delegates(tmp_path: Path):
+    from podcast_mcp.models import Clip, EpisodeProject
 
-    proj = load_project(minimal_project)
-    raw = tmp_workspace / "raw"
-    raw.mkdir(exist_ok=True)
-    dest = raw / "host.wav"
-    dest.write_bytes(sample_wav.read_bytes())
+    proj = EpisodeProject.create("Episode", str(tmp_path))
     proj.tracks = [
         Track(
             id="host",
@@ -950,9 +966,7 @@ def test_render_dialogue_track_delegates(minimal_project, sample_wav, tmp_worksp
             timeline_start=0.0,
         )
     ]
-    save_project(proj, minimal_project)
-    proj = load_project(minimal_project)
-    out = tmp_workspace / "rendered.wav"
+    out = tmp_path / "rendered.wav"
     eng = FFmpegEngine()
     with patch(
         "podcast_mcp.engines.timeline_render.render_track_from_timeline",
@@ -963,15 +977,10 @@ def test_render_dialogue_track_delegates(minimal_project, sample_wav, tmp_worksp
     assert result == out
 
 
-def test_join_audio_parts_defaults_to_concat(sample_wav: Path, tmp_path: Path):
+def test_join_audio_parts_defaults_to_concat(tmp_path: Path):
     eng = FFmpegEngine()
-    ok, _ = eng.check_available()
-    if not ok:
-        pytest.skip("ffmpeg not available")
     p1 = tmp_path / "a.wav"
     p2 = tmp_path / "b.wav"
-    eng.extract_segment(sample_wav, p1, 0.0, 0.5)
-    eng.extract_segment(sample_wav, p2, 0.5, 1.0)
     out = tmp_path / "joined_default.wav"
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         eng.join_audio_parts([p1, p2], out)
@@ -980,27 +989,21 @@ def test_join_audio_parts_defaults_to_concat(sample_wav: Path, tmp_path: Path):
     assert not (tmp_path / ".concat_joined_default.txt").exists()
 
 
-def test_join_audio_parts_single_file(sample_wav: Path, tmp_path: Path):
+def test_join_audio_parts_single_file(tmp_path: Path):
     eng = FFmpegEngine()
-    ok, _ = eng.check_available()
-    if not ok:
-        pytest.skip("ffmpeg not available")
+    part = tmp_path / "part.wav"
+    part.write_bytes(b"one part")
     out = tmp_path / "single.wav"
-    eng.join_audio_parts([sample_wav], out)
-    assert out.is_file()
+    eng.join_audio_parts([part], out)
+    assert out.read_bytes() == part.read_bytes()
     with pytest.raises(ValueError, match="no parts"):
         eng.join_audio_parts([], tmp_path / "none.wav")
 
 
-def test_join_audio_parts_concat_without_crossfade(sample_wav: Path, tmp_path: Path):
+def test_join_audio_parts_concat_without_crossfade(tmp_path: Path):
     eng = FFmpegEngine()
-    ok, _ = eng.check_available()
-    if not ok:
-        pytest.skip("ffmpeg not available")
     p1 = tmp_path / "a.wav"
     p2 = tmp_path / "b.wav"
-    eng.extract_segment(sample_wav, p1, 0.0, 0.5)
-    eng.extract_segment(sample_wav, p2, 0.5, 1.0)
     out = tmp_path / "joined_hard.wav"
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         eng.join_audio_parts([p1, p2], out, crossfade_ms_between=[0])
@@ -1010,15 +1013,10 @@ def test_join_audio_parts_concat_without_crossfade(sample_wav: Path, tmp_path: P
     assert not (tmp_path / ".concat_joined_hard.txt").exists()
 
 
-def test_join_audio_parts_uses_acrossfade(sample_wav: Path, tmp_path: Path):
+def test_join_audio_parts_uses_acrossfade(tmp_path: Path):
     eng = FFmpegEngine()
-    ok, _ = eng.check_available()
-    if not ok:
-        pytest.skip("ffmpeg not available")
     p1 = tmp_path / "a.wav"
     p2 = tmp_path / "b.wav"
-    eng.extract_segment(sample_wav, p1, 0.0, 0.5)
-    eng.extract_segment(sample_wav, p2, 0.5, 1.0)
     out = tmp_path / "joined.wav"
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         eng.join_audio_parts([p1, p2], out, crossfade_ms_between=[40])
@@ -1026,6 +1024,7 @@ def test_join_audio_parts_uses_acrossfade(sample_wav: Path, tmp_path: Path):
         assert "acrossfade" in cmd
 
 
+@desktop_ffmpeg("verifies encoded silence duration")
 def test_pad_end_silence_extends_duration(sample_wav: Path, tmp_path: Path):
     eng = FFmpegEngine()
     ok, _ = eng.check_available()
@@ -1078,6 +1077,7 @@ def test_escape_drawtext_strips_c0_controls() -> None:
     assert "hi" in escaped
 
 
+@desktop_ffmpeg("generates an encoded tone")
 def test_generate_tone_writes_wav(tmp_path: Path) -> None:
     eng = FFmpegEngine()
     ok, _ = eng.check_available()
@@ -1089,6 +1089,7 @@ def test_generate_tone_writes_wav(tmp_path: Path) -> None:
     assert out.stat().st_size > 0
 
 
+@desktop_ffmpeg("renders and annotates a real image")
 def test_annotate_time_marks_writes_png(sample_wav: Path, tmp_path: Path):
     eng = FFmpegEngine()
     ok, _ = eng.check_available()
@@ -1114,6 +1115,7 @@ def test_annotate_time_marks_missing_png(tmp_path: Path):
         eng.annotate_time_marks(tmp_path / "missing.png", [], tmp_path / "out.png")
 
 
+@desktop_ffmpeg("exercises a real rejected FFmpeg filter")
 def test_overlay_png_returns_false_on_bad_filter(sample_wav: Path, tmp_path: Path):
     eng = FFmpegEngine()
     ok, _ = eng.check_available()
@@ -1126,12 +1128,12 @@ def test_overlay_png_returns_false_on_bad_filter(sample_wav: Path, tmp_path: Pat
 
 def test_listed_names_are_cached_and_a_failed_listing_is_not():
     eng = FFmpegEngine()
-    ok, _ = eng.check_available()
-    if not ok:
-        pytest.skip("ffmpeg not available")
-    first = eng._listed_names("-filters")
-    assert first is not None and "drawbox" in first
-    assert eng._listed_names("-filters") is first
+    listing = MagicMock(stdout=" T.. drawbox   V->V  Draw a colored box\n", returncode=0)
+    with patch("podcast_mcp.engines.ffmpeg.run", return_value=listing) as spawned:
+        first = eng._listed_names("-filters")
+        assert first is not None and "drawbox" in first
+        assert eng._listed_names("-filters") is first
+        assert spawned.call_count == 1
     broken = FFmpegEngine()
     with patch("podcast_mcp.engines.ffmpeg.run", side_effect=FileNotFoundError):
         assert broken._listed_names("-filters") is None
@@ -1179,13 +1181,10 @@ def test_supports_encode_needs_the_encoder_and_the_muxer_and_a_readable_listing(
         assert broken.supports_encode("aac", "ipod") is None
 
 
-def test_annotate_retries_boxes_when_drawtext_overlay_fails(sample_wav: Path, tmp_path: Path):
+def test_annotate_retries_boxes_when_drawtext_overlay_fails(tmp_path: Path):
     eng = FFmpegEngine()
-    ok, _ = eng.check_available()
-    if not ok:
-        pytest.skip("ffmpeg not available")
     png = tmp_path / "wave.png"
-    eng.render_showwavespic(sample_wav, png, start_sec=0.0, duration_sec=1.0)
+    png.write_bytes(b"waveform")
     out = tmp_path / "marked.png"
     vfs: list[str] = []
 
@@ -1210,13 +1209,10 @@ def test_annotate_retries_boxes_when_drawtext_overlay_fails(sample_wav: Path, tm
     assert any("drawtext" not in vf and "drawbox" in vf for vf in vfs)
 
 
-def test_annotate_time_marks_empty_copies_png(sample_wav: Path, tmp_path: Path):
+def test_annotate_time_marks_empty_copies_png(tmp_path: Path):
     eng = FFmpegEngine()
-    ok, _ = eng.check_available()
-    if not ok:
-        pytest.skip("ffmpeg not available")
     png = tmp_path / "wave.png"
-    eng.render_showwavespic(sample_wav, png, start_sec=0.0, duration_sec=1.0)
+    png.write_bytes(b"waveform")
     out = tmp_path / "copy.png"
     with patch.object(FFmpegEngine, "_has_filter", return_value=False):
         result = eng.annotate_time_marks(png, [], out)
@@ -1326,6 +1322,7 @@ def test_mix_tracks_uses_the_completed_peak_summary(
 
 
 @pytest.mark.parametrize("track_count", [1, 2])
+@desktop_ffmpeg("measures the rendered audio peak")
 def test_real_mix_true_peak_ceiling_after_independent_4x_resample(
     tmp_path: Path, track_count: int
 ) -> None:
@@ -1400,19 +1397,18 @@ def test_measure_loudness_blocks_parses_framelog(tmp_path: Path):
     assert af2[af2.index("-af") + 1] == "ebur128=framelog=info"
 
 
-def test_render_timeline_reuses_inputs_for_repeated_resolved_sources(
-    sample_wav: Path, tmp_path: Path
-) -> None:
+def test_render_timeline_reuses_inputs_for_repeated_resolved_sources(tmp_path: Path) -> None:
+    source = tmp_path / "sample.wav"
     from podcast_mcp.engines.audio import SequenceAudio, SourceAudio
 
     engine = FFmpegEngine()
     other = tmp_path / "other.wav"
     placed = [
-        SourceAudio(sample_wav, 0.0, 0.1),
+        SourceAudio(source, 0.0, 0.1),
         SourceAudio(other, 0.1, 0.2),
-        SourceAudio(sample_wav, 0.2, 0.3),
+        SourceAudio(source, 0.2, 0.3),
         SourceAudio(other, 0.3, 0.4),
-        SourceAudio(sample_wav, 0.4, 0.5),
+        SourceAudio(source, 0.4, 0.5),
     ]
     with (
         patch.object(FFmpegEngine, "audio_start_sec", return_value=0.0),
@@ -1428,13 +1424,13 @@ def test_render_timeline_reuses_inputs_for_repeated_resolved_sources(
         if token == "-i"
     ]
     filter_complex = command[command.index("-filter_complex") + 1]
-    assert input_paths.count(sample_wav.resolve()) == 1
+    assert input_paths.count(source.resolve()) == 1
     assert input_paths.count(other.resolve()) == 1
     assert len(input_paths) == 2
     assert "[0:a]asplit=3" in filter_complex
     assert "[1:a]asplit=2" in filter_complex
     assert filter_complex.count("atrim=") == len(placed)
-    for path, expected_end in ((sample_wav.resolve(), "0.500000"), (other.resolve(), "0.400000")):
+    for path, expected_end in ((source.resolve(), "0.500000"), (other.resolve(), "0.400000")):
         input_index = input_paths.index(path)
         input_position = [i for i, token in enumerate(command) if token == "-i"][input_index]
         assert command[input_position - 2 : input_position] == ["-t", expected_end]
@@ -1442,6 +1438,7 @@ def test_render_timeline_reuses_inputs_for_repeated_resolved_sources(
     assert "-ss" not in command
 
 
+@desktop_ffmpeg("verifies samples after bounded seek")
 def test_render_timeline_bounded_seek_keeps_nonzero_source_ranges(tmp_path: Path) -> None:
     import numpy as np
 
@@ -1608,6 +1605,7 @@ def test_concat_with_gap_leaves_no_silence_file_when_the_silence_render_fails(tm
     assert list(tmp_path.glob(".*_gap.wav")) == []
 
 
+@desktop_ffmpeg("verifies the encoded join duration")
 def test_concat_with_gap_real_round_trip_length_is_the_sum(tmp_path: Path):
     def tone(path: Path, seconds: float) -> None:
         with wave.open(str(path), "wb") as w:

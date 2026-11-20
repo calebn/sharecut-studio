@@ -19,8 +19,8 @@ from typing import Any
 
 import pytest
 
+from ffmpeg_in_process_support import FakeBackend
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.engines.source_proxy_audio import _is_in_process_tool
 from podcast_mcp.util import process
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.host_platform import IOS, MACOS
@@ -29,77 +29,6 @@ from process_child_contract import CASES, run_case
 
 ROW = replace(IOS, media_tools="in_process")
 MIB = 1 << 20
-
-
-class FakeBackend:
-    """Records every call and plays the behaviour named by ``argv[1]`` (default: succeed)."""
-
-    def __init__(self, **params: Any) -> None:
-        self.calls: list[list[str]] = []
-        self.cancels: list[threading.Event] = []
-        self.params = params
-
-    def run(self, argv: list[str], streams: Streams, cancel: threading.Event) -> int:
-        self.calls.append(argv)
-        self.cancels.append(cancel)
-        p = self.params
-        behaviour = argv[1] if len(argv) > 1 else "ok"
-        if behaviour == "echo":
-            while data := os.read(streams.stdin.fileno(), 65536):
-                streams.stdout.write(data)
-                streams.stdout.flush()
-            return 0
-        if behaviour == "lines":
-            for i in range(p["n"]):
-                streams.stdout.write(b"line %d\n" % i)
-            streams.stdout.flush()
-            return 0
-        if behaviour == "stderr_exit":
-            streams.stdout.write(p["out"])
-            streams.stdout.flush()
-            streams.stderr.write(p["err"])
-            streams.stderr.flush()
-            return p["code"]
-        if behaviour == "wait_stdin":
-            streams.stdin.read()
-            return p["code"]
-        if behaviour == "block":
-            cancel.wait()
-            return -9
-        if behaviour == "cancel_zero":
-            cancel.wait()
-            return 0
-        if behaviour == "pcm_short":
-            streams.stdout.write(b"\0" * 400)
-            streams.stdout.flush()
-            cancel.wait()
-            return 0
-        if behaviour == "ignore_kill":
-            threading.Event().wait(30)
-            return 0
-        if behaviour == "stuck_read":
-            streams.stdin.read()
-            return 0
-        if behaviour == "stuck_write":
-            streams.stdout.write(b"x" * (8 * MIB))
-            return 0
-        if behaviour == "none":
-            return None
-        if behaviour == "flood":
-            chunk = b"x" * (p["err_bytes"] // p["lines"])
-            for i in range(p["lines"]):
-                streams.stdout.write(b"frame=%d\n" % i)
-                streams.stdout.flush()
-                streams.stderr.write(chunk)
-                streams.stderr.flush()
-            return 0
-        if behaviour == "boom":
-            raise RuntimeError("backend bug")
-        for stream, text in ((streams.stdout, b"out"), (streams.stderr, b"err")):
-            if stream is not None:
-                stream.write(text)
-                stream.flush()
-        return p.get("code", 0)
 
 
 @pytest.fixture
@@ -175,7 +104,7 @@ def test_popen_stdin_is_written_then_closed(backend: FakeBackend) -> None:
 def test_kill_is_cooperative_and_a_backend_that_ignores_it_is_abandoned(
     backend: FakeBackend, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.1)
+    monkeypatch.setattr(process, "_KILL_GRACE_SEC", 0.1)
     child = process.popen([IN_PROCESS_FFMPEG, "ignore_kill"], stdout=process.PIPE)
     child.kill()
     child.kill()
@@ -187,7 +116,7 @@ def test_kill_is_cooperative_and_a_backend_that_ignores_it_is_abandoned(
 def test_a_backend_stuck_in_a_pipe_call_is_abandoned_and_the_reader_sees_eof(
     backend: FakeBackend, monkeypatch: pytest.MonkeyPatch, behaviour: str
 ) -> None:
-    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.2)
+    monkeypatch.setattr(process, "_KILL_GRACE_SEC", 0.2)
     child = process.popen([IN_PROCESS_FFMPEG, behaviour], stdin=process.PIPE, stdout=process.PIPE)
     threading.Event().wait(0.3)
     started = time.monotonic()
@@ -209,7 +138,7 @@ def test_a_backend_stuck_in_a_pipe_call_is_abandoned_and_the_reader_sees_eof(
 def test_an_abandoned_child_gives_eof_with_no_descriptor_left_to_open(
     backend: FakeBackend, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.1)
+    monkeypatch.setattr(process, "_KILL_GRACE_SEC", 0.1)
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     outcome: dict[str, Any] = {}
 
@@ -310,6 +239,18 @@ def test_a_backend_returning_a_non_int_fails_with_code_one(backend: FakeBackend)
         process.run([IN_PROCESS_FFMPEG, "none"], capture_output=True, check=True)
 
 
+def test_backend_failure_log_does_not_print_the_invalid_result(
+    backend: FakeBackend, caplog: pytest.LogCaptureFixture
+) -> None:
+    value = "unbounded backend detail" * 200
+    backend.params = {"code": value}
+    done = process.run([IN_PROCESS_FFMPEG], capture_output=True)
+    assert done.returncode == 1
+    (record,) = [r for r in caplog.records if r.name == process.__name__]
+    assert "not an int" in record.getMessage()
+    assert "unbounded backend detail" not in record.getMessage()
+
+
 def test_a_kill_before_the_backend_finishes_reports_sigkill_whatever_it_returns(
     backend: FakeBackend,
 ) -> None:
@@ -347,6 +288,21 @@ def test_silence_without_patching_run_reaches_the_backend_and_never_popen(
     (argv,) = backend.calls
     assert argv[0] == IN_PROCESS_FFMPEG
     assert argv[-1] == str(tmp_path / "s.wav")
+
+
+def test_backend_receives_only_plain_strings(backend: FakeBackend) -> None:
+    class StringResult(str):
+        pass
+
+    class Argument(str):
+        def __str__(self) -> str:
+            return StringResult(super().__str__())
+
+    done = process.run([Argument(IN_PROCESS_FFMPEG), Argument("argument")], capture_output=True)
+    assert done.returncode == 0
+    (argv,) = backend.calls
+    assert argv == [IN_PROCESS_FFMPEG, "argument"]
+    assert all(type(item) is str for item in argv)
 
 
 def test_only_the_exact_sentinel_is_dispatched(backend: FakeBackend) -> None:
@@ -436,10 +392,10 @@ def test_a_sentinel_free_argv_reaches_popen_unchanged_with_a_backend_installed(
 
 
 def test_the_proxy_identity_recognises_only_the_sentinels() -> None:
-    assert _is_in_process_tool(IN_PROCESS_FFMPEG)
-    assert _is_in_process_tool(IN_PROCESS_FFPROBE)
-    assert not _is_in_process_tool("/usr/bin/ffmpeg")
-    assert not _is_in_process_tool(IN_PROCESS_FFMPEG + "/")
+    assert process.is_in_process_media_tool(IN_PROCESS_FFMPEG)
+    assert process.is_in_process_media_tool(IN_PROCESS_FFPROBE)
+    assert not process.is_in_process_media_tool("/usr/bin/ffmpeg")
+    assert not process.is_in_process_media_tool(IN_PROCESS_FFMPEG + "/")
 
 
 def test_the_proxy_identity_binds_the_sentinels_and_never_resolves_them(
@@ -642,7 +598,7 @@ def test_the_descriptor_is_freed_exactly_once_however_close_and_release_interlea
 def test_a_writer_blocked_on_a_full_pipe_cannot_stall_the_abandon(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.1)
+    monkeypatch.setattr(process, "_KILL_GRACE_SEC", 0.1)
     never = threading.Event()
     held: list[int] = []
     probes: list[_ProbeRaw] = []

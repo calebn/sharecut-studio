@@ -357,6 +357,13 @@ library is linked, and `bundle_checks.check_ffmpeg_framework` checks that the fr
 exactly the four functions. The Whisper backend has its own framework and its own check (see
 [iOS native whisper ABI](#ios-native-whisper-abi)).
 
+The [in-process FFmpeg tests](../tests/test_ffmpeg_engine_in_process.py) replay the
+shared engine cases with a fake backend installed on the iOS host row. An unexpected
+skip or subprocess call fails the suite. Annotate a source test with
+`@desktop_ffmpeg("reason")` only when it needs real encoded output or desktop
+executable resolution. Ordinary command and stream tests use local fake inputs.
+Device smoke testing verifies the compiled framework.
+
 ```c
 int      sc_ffmpeg_abi_version(void);   /* must return 1 */
 int64_t  sc_ffmpeg_start(int argc, const char* const* argv, int in_fd, int out_fd, int err_fd);
@@ -395,7 +402,7 @@ void     sc_ffmpeg_cancel(int64_t session);
   lavfi job returned from `wait` about 1 s after cancel, but ffprobe on `pipe:0` that is never
   written did not return until the caller closed its write end, because ffprobe sets no libav
   interrupt callback and retries the read. The backstop is the bridge closing the caller's write end
-  of the stdin pipe, which Python does at `KILL_GRACE_SEC` at the latest when the tool has not
+  of the stdin pipe, which Python does after at most five seconds when the tool has not
   returned (the stdout and stderr read ends stay open). The Simulator 1 s return was observed once,
   at the probe stage, and is not a guarantee. The backstop releases only the caller's stdin pipe:
   a demux or mux thread blocked on a stdout or stderr write is not covered by any path until the
@@ -404,7 +411,7 @@ void     sc_ffmpeg_cancel(int64_t session);
   reader of a pipe sees EOF only when the native's dups are closed (when the tool returns) and the
   caller-side write end is released. `wait` does not release a caller's stdin writer: the caller
   closes it (`communicate` and `__exit__` do), or, if the tool ignores the cancel, Python
-  releases it at `KILL_GRACE_SEC`. The release never waits on a caller's write or flush that is
+  releases it at the five-second deadline. The release never waits on a caller's write or flush that is
   blocked on a full pipe: such a call stays blocked until the native reads or returns. A caller's
   `close` of the stdin writer likewise does not wait for a write in flight (after its own flush):
   it points the descriptor at /dev/null and returns, and the descriptor number is freed only when
@@ -530,7 +537,7 @@ void     sc_whisper_cancel(int64_t session);
 - **Threads.** `start` and `wait` for one session are called from one worker thread; `cancel`
   comes from another: Python's `run` forwards a cancel from its watcher thread. Calling `wait` twice for one id gives `-ESRCH` the second time.
 - **Cancel deadline.** After `cancel` the native tool must return from `wait` within
-  `KILL_GRACE_SEC` (5 s). Python reports `-9` at that deadline and detaches the session, but the
+  five seconds. Python reports `-9` at that deadline and detaches the session, but the
   native worker is still running the tool: the single worker stays busy and the next session
   waits in the queue behind it. A tool that cannot be interrupted inside that time therefore
   delays every later session, not only its own.
