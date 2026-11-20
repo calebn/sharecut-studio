@@ -262,9 +262,10 @@ export function setupOf(
   if (ready) return null;
   const toGet = modelsToGet(models);
   if (toGet.length === 0) return null;
-  const failed = toGet.some((m) => m.state.kind === "failed");
-  return {
-    state: failed ? "failed" : "needed",
-    sizeLabel: sizeLabelOf(toGet),
-  };
+  const failure = toGet.flatMap((m) =>
+    m.state.kind === "failed" ? [m.state.failure.plain] : [],
+  )[0];
+  return failure === undefined
+    ? { state: "needed", sizeLabel: sizeLabelOf(toGet) }
+    : { state: "failed", sizeLabel: sizeLabelOf(toGet), detail: failure };
 }

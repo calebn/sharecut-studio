@@ -32,6 +32,34 @@ describe("SetupCard on a device without audio tools", () => {
   });
 });
 
+describe("SetupCard after a failed download", () => {
+  it("says why and offers Try again and Choose…", async () => {
+    const onRetry = vi.fn();
+    const onChoose = vi.fn();
+    const { container } = render(
+      <SetupCard
+        state="failed"
+        sizeLabel="about 2 GB"
+        detail="The download server doesn't have the speech model."
+        onGetReady={noop}
+        onChoose={onChoose}
+        onCancel={noop}
+        onRetry={onRetry}
+        onNotNow={noop}
+      />,
+    );
+    expect(screen.getByText("The download didn't finish.")).toBeVisible();
+    expect(
+      screen.getByText("The download server doesn't have the speech model."),
+    ).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(onChoose).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(container);
+  });
+});
+
 describe("SetupCard checking", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());

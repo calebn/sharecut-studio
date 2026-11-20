@@ -33,7 +33,7 @@ const meta: Meta<typeof SetupCard> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Setup card on Home, shown only while models are missing. Needed: "Get ready" starts the one download, "Choose…" opens Models, and "Not now" in the more menu hides it until the next launch. Downloading is one progress row with the bytes, the time left and an x icon to cancel (40 px); while the first status is on its way the card draws nothing for 300 ms and then static grey blocks, never a "Checking" box; the person can import or record meanwhile. Failed and the check error say what happened in one line with "Try again" and never show raw error text. The size comes from the caller as words ("about 2 GB"). Missing audio tools show one row with "Check again" and the setup guide link, and offer no download.\n\n**Motion.** The card changes state in place with `--motion-hover` on the bar fill; dismissing leaves with `--motion-panel`.',
+          'The Setup card on Home, shown only while models are missing. Needed: "Get ready" starts the one download, "Choose…" opens Models, and "Not now" in the more menu hides it until the next launch. Downloading is one progress row with the bytes, the time left and an x icon to cancel (40 px); while the first status is on its way the card draws nothing for 300 ms and then static grey blocks, never a "Checking" box; the person can import or record meanwhile. A failed download says why in one plain sentence with "Try again" and "Choose…" (a smaller model may fit); the check error says what happened with "Try again". Neither shows raw error text. The size comes from the caller as words ("about 2 GB"). Missing audio tools show one row with "Check again" and the setup guide link, and offer no download.\n\n**Motion.** The card changes state in place with `--motion-hover` on the bar fill; dismissing leaves with `--motion-panel`.',
       },
     },
   },
@@ -80,7 +80,12 @@ export const Checking: Story = {
     await expect(canvas.queryByText(/Checking/)).toBeNull();
   },
 };
-export const Failed: Story = { args: { state: "failed" } };
+export const Failed: Story = {
+  args: {
+    state: "failed",
+    detail: "The download server doesn't have the speech model.",
+  },
+};
 export const CheckError: Story = { args: { state: "check-error" } };
 export const ToolsUnsupported: Story = {
   args: {

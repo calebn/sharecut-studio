@@ -303,12 +303,21 @@ describe("setupOf", () => {
         ...base,
         models: [
           model({
-            state: { kind: "failed", failure: { kind: "network", plain: "x" } },
+            state: {
+              kind: "failed",
+              failure: {
+                kind: "network",
+                plain: "The download server doesn't have the speech model.",
+              },
+            },
           }),
         ],
       }),
     );
     expect(data?.state).toBe("failed");
+    expect(data?.detail).toBe(
+      "The download server doesn't have the speech model.",
+    );
   });
 });
 

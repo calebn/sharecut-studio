@@ -207,8 +207,14 @@ function SetupBody({
       <StatusRow
         state="failed"
         title="The download didn't finish."
+        detail={detail}
         action={{ label: "Try again", onAction: onRetry }}
       />
+      <div className="sys-setup-actions">
+        <button type="button" className="sys-text-btn" onClick={onChoose}>
+          Choose…
+        </button>
+      </div>
     </Card>
   );
 }
