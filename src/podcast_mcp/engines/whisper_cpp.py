@@ -46,6 +46,20 @@ def default_model_name() -> str:
     return settings.value("WHISPER_CPP_MODEL_NAME", fallback)
 
 
+def engine_model_name(model_size: str) -> str:
+    """The file a step's ``model_size`` names when it is a whisper.cpp variant, else the default."""
+    if model_size in whisper_cpp_models.VARIANT_IDS:
+        return whisper_cpp_models.variant_for(model_size).filename
+    return default_model_name()
+
+
+def model_cache_key(model_size: str) -> str:
+    """The model file the run reads, plus the override path when one replaces it."""
+    name = engine_model_name(model_size)
+    override = settings.raw("WHISPER_CPP_MODEL")
+    return f"{name}@{override}" if override else name
+
+
 def resolve_whisper_cli() -> Path | str:
     if host_platform.current().media_tools == "in_process" and native_whisper.is_installed():
         return IN_PROCESS_WHISPER
@@ -132,14 +146,22 @@ def _drafts(data: dict[str, Any]) -> tuple[list[_Draft], int]:
     for segment in data.get("transcription", []):
         current: _Draft | None = None
         in_bracket = False
+        after_bracket = False
         for token in segment.get("tokens", []):
             raw = str(token.get("text", ""))
             if in_bracket or raw.lstrip().startswith("["):
                 current = None
                 in_bracket = "]" not in raw
+                after_bracket = not in_bracket
+                continue
+            if raw.lstrip().startswith("<|"):
+                current = None
                 continue
             if _is_special_token(raw):
                 continue
+            if after_bracket and not raw[:1].isspace() and not any(c.isalnum() for c in raw):
+                continue
+            after_bracket = False
             span = _token_span(token)
             untimed_tokens += span is None
             if current is None or raw[:1].isspace():
@@ -289,7 +311,7 @@ def transcribe_file_whisper_cpp(
             "-np",
         ]
         if language:
-            cmd.extend(["-l", language])
+            cmd.extend(["-l", normalize_language(language) or language])
         if initial_prompt:
             cmd.extend(["--prompt", initial_prompt])
         if threads is not None:

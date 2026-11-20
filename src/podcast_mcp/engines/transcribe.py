@@ -642,9 +642,9 @@ class TranscriptionEngine:
 
     def _cache_model_key(self) -> str:
         if self.backend == "whisper_cpp":
-            from podcast_mcp.engines.whisper_cpp import default_model_name
+            from podcast_mcp.engines.whisper_cpp import model_cache_key
 
-            return default_model_name()
+            return model_cache_key(self.model_size)
         return self.model_size
 
     def cache_path(
@@ -916,14 +916,21 @@ class TranscriptionEngine:
     def _transcribe_samples_whisper_cpp(
         self, samples: np.ndarray, *, language: str | None, initial_prompt: str | None
     ) -> str:
-        from podcast_mcp.engines.whisper_cpp import transcribe_file_whisper_cpp, write_wav_16k_mono
+        from podcast_mcp.engines.whisper_cpp import (
+            engine_model_name,
+            transcribe_file_whisper_cpp,
+            write_wav_16k_mono,
+        )
 
         raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
         with tempfile.TemporaryDirectory(prefix="whisper-cpp-samples-") as tmp:
             wav = Path(tmp) / "samples.wav"
             write_wav_16k_mono([samples.astype(np.float32, copy=False)], wav)
             heard = transcribe_file_whisper_cpp(
-                wav, language=language, initial_prompt=initial_prompt
+                wav,
+                language=language,
+                initial_prompt=initial_prompt,
+                model=engine_model_name(self.model_size),
             )
         raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
         return " ".join(w.text for w in heard.words).strip()
@@ -941,6 +948,7 @@ class TranscriptionEngine:
         from podcast_mcp.engines.ffmpeg import FFmpegEngine
         from podcast_mcp.engines.whisper_cpp import (
             WHISPER_SAMPLE_RATE,
+            engine_model_name,
             transcribe_file_whisper_cpp,
             write_wav_16k_mono,
         )
@@ -961,6 +969,7 @@ class TranscriptionEngine:
                 language=language,
                 initial_prompt=initial_prompt,
                 max_word_sec=max_word_sec,
+                model=engine_model_name(self.model_size),
             )
             raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
         transcript.asr_language = normalize_language(language)

@@ -101,6 +101,7 @@ def test_transcribe_file_decodes_to_a_16k_mono_wav_and_runs_whisper_cpp(
         "language": "en-US",
         "initial_prompt": "names",
         "max_word_sec": 2.0,
+        "model": "ggml-small.en-q5_1.bin",
     }
     assert [w.text for w in transcript.words] == ["hi"]
     assert transcript.asr_language == "en"
@@ -152,3 +153,32 @@ def test_the_desktop_cache_key_has_no_backend_field(host, minimal_project, tmp_p
         sort_keys=True,
     )
     assert engine.cache_path(project, "host", audio).name.endswith(f"_{short_digest(legacy)}.json")
+
+
+def test_a_step_that_names_a_variant_reads_that_variants_file(
+    host, monkeypatch, minimal_project, tmp_path: Path
+) -> None:
+    host(IOS)
+    monkeypatch.setattr(native_whisper, "is_installed", lambda: True)
+    monkeypatch.delenv("WHISPER_CPP_MODEL_NAME", raising=False)
+    project = load_project(minimal_project)
+    audio = tmp_path / "recording.wav"
+    audio.write_bytes(b"recording")
+    small = TranscriptionEngine(model_size="small.en-q5_1", defaults=load_defaults())
+    base = TranscriptionEngine(model_size="base.en-q5_1", defaults=load_defaults())
+    assert whisper_cpp.engine_model_name("base.en-q5_1") == "ggml-base.en-q5_1.bin"
+    assert small._cache_model_key() == "ggml-small.en-q5_1.bin"
+    assert base._cache_model_key() == "ggml-base.en-q5_1.bin"
+    assert small.cache_path(project, "host", audio) != base.cache_path(project, "host", audio)
+
+
+def test_the_model_path_override_is_part_of_the_cache_key(
+    ios_engine, monkeypatch, minimal_project, tmp_path: Path
+) -> None:
+    project = load_project(minimal_project)
+    audio = tmp_path / "recording.wav"
+    audio.write_bytes(b"recording")
+    monkeypatch.delenv("WHISPER_CPP_MODEL", raising=False)
+    plain = ios_engine.cache_path(project, "host", audio)
+    monkeypatch.setenv("WHISPER_CPP_MODEL", str(tmp_path / "other.en.bin"))
+    assert ios_engine.cache_path(project, "host", audio) != plain

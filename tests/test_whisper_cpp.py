@@ -496,3 +496,39 @@ def test_a_token_with_a_non_finite_offset_gets_no_nan_time() -> None:
     words = parse_whisper_cpp_json(data).words
     assert [w.text for w in words] == ["Hi ok"]
     assert all(w.start == w.start and w.end == w.end for w in words)
+
+
+def test_punctuation_after_a_bracketed_annotation_is_not_its_own_word() -> None:
+    def token(text: str, start: int, end: int) -> dict:
+        return {"text": text, "offsets": {"from": start, "to": end}, "p": 0.9}
+
+    data = {
+        "transcription": [
+            {
+                "tokens": [
+                    token(" [MUSIC]", 0, 400),
+                    token(".", 400, 450),
+                    token(" Next", 500, 900),
+                ]
+            }
+        ]
+    }
+    assert [w.text for w in parse_whisper_cpp_json(data).words] == ["Next"]
+
+
+def test_an_end_of_text_marker_ends_the_word_before_it() -> None:
+    def token(text: str, start: int, end: int) -> dict:
+        return {"text": text, "offsets": {"from": start, "to": end}, "p": 0.9}
+
+    data = {
+        "transcription": [
+            {
+                "tokens": [
+                    token(" a", 0, 200),
+                    token("<|eot|>", 200, 200),
+                    token("b", 200, 400),
+                ]
+            }
+        ]
+    }
+    assert [w.text for w in parse_whisper_cpp_json(data).words] == ["a", "b"]
