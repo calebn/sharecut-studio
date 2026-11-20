@@ -99,8 +99,124 @@ describe("useRecordSync", () => {
     expect(saveRecordParticipant).toHaveBeenCalledWith("tok", {
       participant_id: "p_g",
       lease: "abc",
+      issuedAt: expect.any(Number),
     });
     expect(result.current.me?.display_name).toBe("Ava");
+  });
+
+  it("stamps the issue time of a newly minted lease with the clock", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-19T12:00:00Z"));
+    try {
+      loadRecordParticipant.mockResolvedValue({
+        participant_id: "p_g",
+        lease: "old",
+        issuedAt: Date.parse("2026-11-10T00:00:00Z"),
+      });
+      renderHook(() => useRecordSync("tok", "Ava"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Echo",
+          plane: "record",
+          participant_id: "p_g2",
+          lease: "fresh",
+        });
+      });
+      expect(saveRecordParticipant).toHaveBeenCalledWith("tok", {
+        participant_id: "p_g2",
+        lease: "fresh",
+        issuedAt: Date.parse("2026-11-19T12:00:00Z"),
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the old issue time when a rejoin echoes the same lease", async () => {
+    const issuedAt = Date.parse("2026-11-10T00:00:00Z");
+    loadRecordParticipant.mockResolvedValue({
+      participant_id: "p_g",
+      lease: "abc",
+      issuedAt,
+    });
+    renderHook(() => useRecordSync("tok", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      FakeWebSocket.instances[0].emit({
+        type: "Echo",
+        plane: "record",
+        participant_id: "p_g",
+        lease: "abc",
+      });
+    });
+    expect(saveRecordParticipant).toHaveBeenCalledWith("tok", {
+      participant_id: "p_g",
+      lease: "abc",
+      issuedAt,
+    });
+  });
+
+  it("keeps the first issue time when the same lease is echoed again in one page", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-10T00:00:00Z"));
+    try {
+      renderHook(() => useRecordSync("tok", "Ava"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      const echo = {
+        type: "Echo",
+        plane: "record",
+        participant_id: "p_g",
+        lease: "abc",
+      };
+      await act(async () => {
+        FakeWebSocket.instances[0].emit(echo);
+      });
+      vi.setSystemTime(new Date("2026-11-13T00:00:00Z"));
+      await act(async () => {
+        FakeWebSocket.instances[0].emit(echo);
+      });
+      expect(saveRecordParticipant).toHaveBeenLastCalledWith("tok", {
+        participant_id: "p_g",
+        lease: "abc",
+        issuedAt: Date.parse("2026-11-10T00:00:00Z"),
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not invent an issue time for a cached lease that had none", async () => {
+    loadRecordParticipant.mockResolvedValue({
+      participant_id: "p_g",
+      lease: "abc",
+    });
+    renderHook(() => useRecordSync("tok", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      FakeWebSocket.instances[0].emit({
+        type: "Echo",
+        plane: "record",
+        participant_id: "p_g",
+        lease: "abc",
+      });
+    });
+    expect(saveRecordParticipant).toHaveBeenCalledWith("tok", {
+      participant_id: "p_g",
+      lease: "abc",
+    });
   });
 
   it("sends a segment report over the open socket and refuses without one", async () => {

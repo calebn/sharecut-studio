@@ -370,6 +370,39 @@ const RECORD_LOCAL: Story = {
 export const EndedWithLocalRecording: Story = { ...RECORD_LOCAL };
 export const EndedPhone: Story = { ...RECORD_LOCAL };
 
+export const LeftWithLocalRecording: Story = {
+  args: {
+    ...RECORD_LOCAL.args,
+    children:
+      "It's safe on this device. Save it and send it to Maya. Or join again from this page.",
+    tertiary: { label: "Join again", onClick: fn() },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getAllByRole("button").map((button) => button.textContent),
+    ).toEqual(["Save my recording", "Try saving again", "Join again"]);
+    await userEvent.click(canvas.getByRole("button", { name: "Join again" }));
+    await expect(args.tertiary?.onClick).toHaveBeenCalledTimes(1);
+  },
+};
+
+export const LeftWithLocalRecordingBusy: Story = {
+  args: {
+    ...LeftWithLocalRecording.args,
+    primary: { label: "Save my recording", onClick: fn(), busy: true },
+    secondary: { label: "Try saving again", onClick: fn(), busy: true },
+    tertiary: { label: "Join again", onClick: fn(), busy: true },
+  },
+  play: async ({ canvasElement }) => {
+    const again = within(canvasElement).getByRole("button", {
+      name: "Join again",
+    });
+    await expect(again).toHaveAttribute("aria-disabled", "true");
+    await expect(again).toHaveAttribute("aria-busy", "true");
+  },
+};
+
 export const EndedBusy: Story = {
   args: {
     ...RECORD_LOCAL.args,

@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { loadRecordParticipant } from "../services/offlineQueue/offlineStore";
 import { deferred } from "../test/deferred";
 import { seedPendingKeeper } from "../test/keepers";
 import { urlOf } from "../test/urlOf";
@@ -433,6 +434,93 @@ describe("useGuestRoom", () => {
     expect(result.current.connected).toBe(false);
   });
 
+  it("has no keeper identity before the first take and one once a take exists", async () => {
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me?.participant_id).toBe("p_g"));
+    expect(result.current.keeperIdentity).toBeNull();
+    await act(async () => {
+      sockets[0]?.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({ state: "stopped", take_index: 0 }),
+      });
+    });
+    expect(result.current.keeperIdentity).toEqual({
+      sessionId: "room1",
+      participantId: "p_g",
+      takeIndex: 0,
+    });
+  });
+
+  describe("leaseFresh", () => {
+    const DAY = 24 * 60 * 60 * 1000;
+
+    async function leftRoom(entry: Record<string, unknown> | undefined) {
+      vi.mocked(loadRecordParticipant).mockResolvedValue(
+        entry as Awaited<ReturnType<typeof loadRecordParticipant>>,
+      );
+      stubFetch(guestBootstrap);
+      const hook = renderHook(() => useGuestRoom("guest-tok"));
+      await waitFor(() => expect(hook.result.current.me).not.toBeNull());
+      return hook;
+    }
+
+    afterEach(() => {
+      vi.mocked(loadRecordParticipant).mockResolvedValue(undefined);
+    });
+
+    it("is false before the page has left, and until the cached lease is read", async () => {
+      const { result } = await leftRoom({
+        participant_id: "p_g",
+        lease: "l",
+        issuedAt: Date.now() - DAY,
+      });
+      expect(result.current.leaseFresh).toBe(false);
+      const held =
+        deferred<Awaited<ReturnType<typeof loadRecordParticipant>>>();
+      vi.mocked(loadRecordParticipant).mockReturnValue(held.promise);
+      act(() => result.current.leave());
+      expect(result.current.leaseFresh).toBe(false);
+      await act(async () =>
+        held.resolve({
+          participant_id: "p_g",
+          lease: "l",
+          issuedAt: Date.now() - DAY,
+        }),
+      );
+      expect(result.current.leaseFresh).toBe(true);
+    });
+
+    it("is true after leaving with a lease minted five days ago", async () => {
+      const { result } = await leftRoom({
+        participant_id: "p_g",
+        lease: "l",
+        issuedAt: Date.now() - 5 * DAY,
+      });
+      act(() => result.current.leave());
+      await waitFor(() => expect(result.current.leaseFresh).toBe(true));
+    });
+
+    it("stays false after leaving with a lease older than six days", async () => {
+      const { result } = await leftRoom({
+        participant_id: "p_g",
+        lease: "l",
+        issuedAt: Date.now() - 6 * DAY - 60_000,
+      });
+      act(() => result.current.leave());
+      await waitFor(() => expect(loadRecordParticipant).toHaveBeenCalled());
+      await act(async () => undefined);
+      expect(result.current.leaseFresh).toBe(false);
+    });
+
+    it("stays false for a cached lease with no issue time", async () => {
+      const { result } = await leftRoom({ participant_id: "p_g", lease: "l" });
+      act(() => result.current.leave());
+      await act(async () => undefined);
+      expect(result.current.leaseFresh).toBe(false);
+    });
+  });
+
   it("falls back from a stale saved microphone and forgets it", async () => {
     localStorage.setItem("record:guest-tok:mic", "dead-id");
     stubFetch(guestBootstrap);
@@ -668,6 +756,68 @@ describe("useGuestRoom", () => {
     expect(sockets[1]?.commands("Join")[0]).toMatchObject({
       payload: { display_name: "Ava Okafor" },
     });
+  });
+
+  it("sends the remembered name on the Join of a rejoin that carries the identity of a recording this device holds", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava");
+    stubFetch(guestBootstrap);
+    renderHook(() =>
+      useGuestRoom("guest-tok", {
+        carried: { sessionId: "room1", participantId: "p_g", takeIndex: 0 },
+      }),
+    );
+    await waitFor(() => expect(sockets[0]?.commands("Join")).toHaveLength(1));
+    expect(
+      (
+        JSON.parse(sockets[0]?.sent[0] ?? "{}") as {
+          payload: { display_name: string };
+        }
+      ).payload.display_name,
+    ).toBe("Ava");
+  });
+
+  it("lets the live snapshot's session, take and participant win over the carried identity", async () => {
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() =>
+      useGuestRoom("guest-tok", {
+        carried: { sessionId: "old", participantId: "p_old", takeIndex: 0 },
+      }),
+    );
+    expect(result.current.keeperIdentity).toEqual({
+      sessionId: "old",
+      participantId: "p_old",
+      takeIndex: 0,
+    });
+    await waitFor(() => expect(result.current.me?.participant_id).toBe("p_g"));
+    await act(async () => {
+      sockets[0]?.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({
+          session_id: "room2",
+          state: "recording",
+          take_index: 1,
+        }),
+      });
+    });
+    expect(result.current.keeperIdentity).toEqual({
+      sessionId: "room2",
+      participantId: "p_g",
+      takeIndex: 1,
+    });
+  });
+
+  it("keeps the name off the Join when nothing is carried", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava");
+    stubFetch(guestBootstrap);
+    renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(sockets[0]?.commands("Join")).toHaveLength(1));
+    expect(
+      (
+        JSON.parse(sockets[0]?.sent[0] ?? "{}") as {
+          payload: { display_name: string };
+        }
+      ).payload.display_name,
+    ).toBe("Guest");
   });
 
   it("keeps a remembered name off a reconnect when the guest never acted", async () => {

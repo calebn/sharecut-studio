@@ -6,9 +6,11 @@ import {
   guestRoomPhase,
   guestTakes,
   guestViewerWidth,
+  holdsJoinSheet,
   hostGoneMidTake,
   joinHere,
   joinMic,
+  onTakeRoster,
   ownSaving,
   tookAnyTake,
   tookPart,
@@ -1064,6 +1066,214 @@ describe("guestCovers after leaving", () => {
     expect(
       guestCovers({ ...coverSource, left: true, accessEnded: true }),
     ).toMatchObject({ title: "This session has ended" });
+  });
+});
+
+describe("guestCovers Join again on the unsent cover", () => {
+  const download = vi.fn();
+  const recover = vi.fn();
+  const unsentLeft = (over: Record<string, unknown> = {}) => ({
+    ...coverSource,
+    left: true,
+    stake: "unsent" as const,
+    host: "Hana",
+    leaseFresh: true,
+    onRetry: vi.fn(),
+    keeperActions: { ...actions, download, recover },
+    ...over,
+  });
+
+  it("offers Join again as a tertiary action under Save my recording and Try saving again", () => {
+    const onRetry = vi.fn();
+    const cover = guestCovers(unsentLeft({ onRetry }));
+    expect(cover).toMatchObject({
+      title: "Your recording didn't finish saving",
+      children:
+        "It's safe on this device. Save it and send it to Hana. Or join again from this page.",
+      primary: { label: "Save my recording" },
+      secondary: { label: "Try saving again" },
+      tertiary: { label: "Join again" },
+    });
+    cover?.tertiary?.onClick();
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("does not promise an upload", () => {
+    const cover = guestCovers(unsentLeft());
+    expect(cover?.children).toEqual(
+      expect.not.stringMatching(/upload|send it from here/i),
+    );
+  });
+
+  it("keeps the plain copy and no Join again when the lease is not known to be fresh", () => {
+    for (const leaseFresh of [false, undefined]) {
+      const cover = guestCovers(unsentLeft({ leaseFresh }));
+      expect(cover?.tertiary).toBeUndefined();
+      expect(cover?.children).toBe(
+        "It's safe on this device. Save it and send it to Hana.",
+      );
+    }
+  });
+
+  it("offers no Join again without a retry to run", () => {
+    const cover = guestCovers(unsentLeft({ onRetry: undefined }));
+    expect(cover?.tertiary).toBeUndefined();
+    expect(cover?.children).toBe(
+      "It's safe on this device. Save it and send it to Hana.",
+    );
+  });
+
+  it("offers no Join again to a guest the host removed", () => {
+    const cover = guestCovers(unsentLeft({ accessEnded: true }));
+    expect(cover).toMatchObject({
+      title: "Your recording didn't finish saving",
+      primary: { label: "Save my recording" },
+    });
+    expect(cover?.tertiary).toBeUndefined();
+  });
+
+  it("offers no Join again once the invite link is closed", () => {
+    const cover = guestCovers(
+      unsentLeft({ accessEnded: true, inviteClosed: true }),
+    );
+    expect(cover?.title).toBe("Invite link closed");
+    expect(cover?.tertiary).toBeUndefined();
+  });
+
+  it("offers no Join again when the device could not be read", () => {
+    const cover = guestCovers(unsentLeft({ localUnreadable: true }));
+    expect(cover).toMatchObject({
+      children:
+        "We couldn't check this device. Try saving it again, or save a copy.",
+    });
+    expect(cover?.tertiary).toBeUndefined();
+  });
+
+  it("offers no Join again while capture is still finishing", () => {
+    const cover = guestCovers(unsentLeft({ stake: "finishing" }));
+    expect(cover?.tertiary).toBeUndefined();
+    expect(cover?.primary).toBeUndefined();
+  });
+
+  it("offers no Join again on Check your downloads", () => {
+    const cover = guestCovers(
+      unsentLeft({ keeperActions: { ...actions, download, downloaded: true } }),
+    );
+    expect(cover?.title).toBe("Check your downloads");
+    expect(cover?.tertiary).toBeUndefined();
+  });
+
+  it("leaves the saved cover as it was, with Join again as its primary", () => {
+    const cover = guestCovers(unsentLeft({ stake: "saved" }));
+    expect(cover).toMatchObject({
+      title: "You left the room",
+      primary: { label: "Join again" },
+    });
+    expect(cover?.tertiary).toBeUndefined();
+  });
+
+  it("runs the retry on a press while the lease is still fresh", () => {
+    const onRetry = vi.fn();
+    const cover = guestCovers(
+      unsentLeft({ onRetry, leaseStillFresh: () => true }),
+    );
+    cover?.tertiary?.onClick();
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("does not run the retry on a press once the lease went stale", () => {
+    const onRetry = vi.fn();
+    const cover = guestCovers(
+      unsentLeft({ onRetry, leaseStillFresh: () => false }),
+    );
+    expect(cover?.tertiary).toMatchObject({ label: "Join again" });
+    cover?.tertiary?.onClick();
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  it("holds Join again busy with the other actions while a save runs", () => {
+    const cover = guestCovers(
+      unsentLeft({
+        keeperActions: {
+          ...actions,
+          busy: true,
+          running: "recover",
+          download,
+          recover,
+        },
+      }),
+    );
+    expect(cover?.tertiary).toMatchObject({ label: "Join again", busy: true });
+  });
+});
+
+describe("holdsJoinSheet", () => {
+  const rostered = recordSnapshot({
+    state: "stopped",
+    take_index: 0,
+    participants: [host, me],
+    takes: [
+      {
+        take_index: 0,
+        session_start_wall_ms: 1000,
+        session_start_iso: "t",
+        stopped_wall_ms: 61_000,
+        pauses: [],
+        consented_participant_ids: ["p_g"],
+      },
+    ],
+  });
+  const input = (over: Partial<Parameters<typeof holdsJoinSheet>[0]> = {}) => ({
+    state: "stopped" as const,
+    consented: null,
+    snapshot: rostered,
+    me,
+    upload: { fileAck: false, seenSegments: 0 },
+    localRecording: false,
+    localSegments: null,
+    localUnreadable: false,
+    ...over,
+  });
+
+  it("has nobody on a take roster before the guest is known", () => {
+    expect(onTakeRoster(rostered, null)).toBe(false);
+    expect(onTakeRoster(null, me)).toBe(false);
+    expect(onTakeRoster(rostered, me)).toBe(true);
+  });
+
+  it("holds while the device scan of a take this guest was on is unread", () => {
+    expect(holdsJoinSheet(input())).toBe(true);
+  });
+
+  it("holds while the device holds a segment the server has not acknowledged", () => {
+    expect(
+      holdsJoinSheet(input({ localSegments: 1, localRecording: true })),
+    ).toBe(true);
+  });
+
+  it("lets go once the scan finds nothing, or every segment is acknowledged", () => {
+    expect(holdsJoinSheet(input({ localSegments: 0 }))).toBe(false);
+    expect(
+      holdsJoinSheet(
+        input({
+          localSegments: 1,
+          localRecording: true,
+          upload: { fileAck: true, seenSegments: 1 },
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("lets go when the device cannot be read", () => {
+    expect(holdsJoinSheet(input({ localUnreadable: true }))).toBe(false);
+  });
+
+  it("does not hold for a guest who was not on the take, a live room or a consented guest", () => {
+    expect(
+      holdsJoinSheet(input({ snapshot: { ...rostered, takes: [] } })),
+    ).toBe(false);
+    expect(holdsJoinSheet(input({ state: "recording" }))).toBe(false);
+    expect(holdsJoinSheet(input({ consented: true }))).toBe(false);
   });
 });
 

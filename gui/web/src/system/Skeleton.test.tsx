@@ -1,5 +1,13 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../test/a11y";
 import { Skeleton, SkeletonBlock } from "./Skeleton";
 
 describe("SkeletonBlock", () => {
@@ -15,6 +23,50 @@ describe("SkeletonBlock", () => {
 });
 
 describe("Skeleton Retry", () => {
+  it("keeps the slow loading status without offering Retry when no handler exists", () => {
+    render(<Skeleton elapsedMs={5_000} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Still loading…");
+    expect(
+      screen.queryByRole("button", { name: "Retry" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each(["{Enter}", " "])(
+    "retries with %s, prevents duplicate attempts during the hold, and recovers",
+    async (key) => {
+      const user = userEvent.setup();
+      const onRetry = vi.fn();
+      render(<Skeleton elapsedMs={5_000} retryMs={400} onRetry={onRetry} />);
+      const button = screen.getByRole("button", { name: "Retry" });
+      await user.tab();
+      expect(button).toHaveFocus();
+      await user.keyboard(key);
+      expect(onRetry).toHaveBeenCalledTimes(1);
+      expect(button).toHaveAccessibleName("Trying…");
+      expect(button).toHaveAttribute("aria-busy", "true");
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveFocus();
+      await user.keyboard(key);
+      await user.click(button);
+      expect(onRetry).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(button).toHaveAccessibleName("Retry"));
+      expect(button).not.toHaveAttribute("aria-busy");
+      expect(button).not.toHaveAttribute("aria-disabled");
+      await user.keyboard(key);
+      expect(onRetry).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each([undefined, () => {}])(
+    "has no axe violations with handler %s",
+    async (onRetry) => {
+      const { container } = render(
+        <Skeleton elapsedMs={5_000} onRetry={onRetry} />,
+      );
+      await expectNoA11yViolations(container);
+    },
+  );
+
   it("keeps both labels in the DOM and hides the one not shown from assistive tech", () => {
     const { container } = render(
       <Skeleton elapsedMs={5_000} onRetry={() => {}} />,

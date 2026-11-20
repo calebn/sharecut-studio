@@ -24,6 +24,7 @@ import {
   keeperCaptureSettled,
   useRecordUpload,
 } from "./upload/useRecordUpload";
+import { useLeaseFreshWhileLeft } from "./useLeaseFreshWhileLeft";
 import { useMicPermission } from "./useMicPermission";
 import { useOutputDevice } from "./useOutputDevice";
 import { useRecordLiveComments } from "./useRecordLiveComments";
@@ -60,9 +61,18 @@ function storageKey(token: string, suffix: string): string {
   return `record:${token}:${suffix}`;
 }
 
+export type KeeperIdentity = {
+  sessionId: string;
+  participantId: string;
+  takeIndex: number;
+};
+
 export function useGuestRoom(
   token: string,
-  { rejoining = false }: { rejoining?: boolean } = {},
+  {
+    rejoining = false,
+    carried = null,
+  }: { rejoining?: boolean; carried?: KeeperIdentity | null } = {},
 ) {
   const [boot, setBoot] = useState<{
     owner: { token: string };
@@ -111,8 +121,9 @@ export function useGuestRoom(
 
   const [heldAsJoined, setHeldAsJoined] = useState(false);
   const syncName =
-    (nameTyped || producerJoined || heldAsJoined ? name.trim() : "") ||
-    (producer ? "Producer" : "Guest");
+    (nameTyped || producerJoined || heldAsJoined || carried !== null
+      ? name.trim()
+      : "") || (producer ? "Producer" : "Guest");
   const requestedMode = requestedRecordMode({
     bootstrapped: !!bootstrap,
     producer,
@@ -131,6 +142,7 @@ export function useGuestRoom(
     counted,
     socketMode,
   } = useRecordSync(token, syncName, requestedMode);
+  const { leaseFresh, leaseStillFresh } = useLeaseFreshWhileLeft(token, left);
   const accessEnded = isRecordAccessEnded(error);
   const inviteClosed = error === RECORD_INVITE_CLOSED;
   const joinedName = (producer ? producerJoined : me?.consented === true)
@@ -321,18 +333,36 @@ export function useGuestRoom(
   useEffect(() => {
     if (keeper.recordingLocally) setRecordedThisPage(true);
   }, [keeper.recordingLocally]);
+  const keeperSessionId = snapshot?.session_id ?? carried?.sessionId ?? null;
+  const keeperParticipantId =
+    me?.participant_id ?? carried?.participantId ?? null;
+  const keeperTakeIndex = snapshot?.take_index ?? carried?.takeIndex ?? null;
+  const keeperIdentity = useMemo(
+    () =>
+      keeperSessionId &&
+      keeperParticipantId &&
+      keeperTakeIndex !== null &&
+      keeperTakeIndex >= 0
+        ? {
+            sessionId: keeperSessionId,
+            participantId: keeperParticipantId,
+            takeIndex: keeperTakeIndex,
+          }
+        : null,
+    [keeperSessionId, keeperParticipantId, keeperTakeIndex],
+  );
   const localKeeper = useLocalKeeper({
     sink,
-    sessionId: snapshot?.session_id ?? null,
-    participantId: me?.participant_id ?? null,
-    takeIndex: snapshot?.take_index ?? null,
+    sessionId: keeperSessionId,
+    participantId: keeperParticipantId,
+    takeIndex: keeperTakeIndex,
     recheck: `${accessEnded}:${captureSettled}:${keeperRuns}:${uploadRetryNonce}:${upload.seenSegments}:${upload.fileAck}`,
   });
   const keeperActions = useKeeperRecoveryActions({
     sink,
-    sessionId: snapshot?.session_id ?? null,
-    participantId: me?.participant_id ?? null,
-    takeIndex: snapshot?.take_index ?? null,
+    sessionId: keeperSessionId,
+    participantId: keeperParticipantId,
+    takeIndex: keeperTakeIndex,
     uploadAvailable: uploadTransport !== null,
     recoverAllowed:
       (snapshot?.state === "stopped" || accessEnded) && captureSettled,
@@ -466,6 +496,9 @@ export function useGuestRoom(
     counted,
     resumeUpload,
     left,
+    leaseFresh,
+    leaseStillFresh,
+    keeperIdentity,
     leave,
   };
 }

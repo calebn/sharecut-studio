@@ -12,6 +12,7 @@ import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "./liveProject";
+import { createScriptRecordingIdentityProject } from "./scriptRecordingIdentityProject";
 import {
   silenceWav,
   switchE2eProject,
@@ -36,7 +37,7 @@ import {
   setAudition,
   stageTab,
 } from "./stageNav";
-import { withBrowserPages } from "./twoBrowserPages";
+import { withBrowserPages, withTwoBrowserPages } from "./twoBrowserPages";
 
 const diagnosticTest = test.extend<{}, { privateDiagnostic: void }>({
   trace: "off",
@@ -575,6 +576,73 @@ test.describe("Stage shell on a guest link", () => {
       );
     });
   });
+});
+
+test("an Editor's stalled document load recovers when its loading Retry requests the shell again", async ({
+  browser,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await withTwoBrowserPages(
+        browser,
+        {},
+        { viewport: { width: 1280, height: 800 } },
+        async (host, guest) => {
+          await openHostShare(host, projectPath);
+          const token = await createReviewShare(host, projectPath, "editor");
+          const shellPath = `/api/review/${token}/daw/document/state`;
+          let held = true;
+          let shellRequests = 0;
+          await guest.route(`**${shellPath}*`, (route) => {
+            const url = new URL(route.request().url());
+            if (url.searchParams.get("phase") !== "shell")
+              return route.continue();
+            shellRequests += 1;
+            if (held) return;
+            return route.continue();
+          });
+          await guest.routeWebSocket(
+            (url) => url.pathname === `/api/review/${token}/daw/ws`,
+            () => {},
+          );
+          await guest.goto(`/r/${token}`, { waitUntil: "domcontentloaded" });
+          await expect.poll(() => shellRequests).toBe(1);
+          const editor = guest.locator(".stage-host");
+          await expect(editor).toHaveAttribute("aria-busy", "true");
+          const retry = editor.getByRole("button", {
+            name: "Retry",
+            exact: true,
+          });
+          await expect(retry).toBeVisible();
+          const answer = guest.waitForResponse((response) => {
+            const url = new URL(response.url());
+            return (
+              url.pathname === shellPath &&
+              url.searchParams.get("phase") === "shell"
+            );
+          });
+          held = false;
+          await retry.click();
+          const response = await answer;
+          expect(response.status()).toBe(200);
+          expect(await response.json()).toMatchObject({
+            project: { meta: { name: "Recording identity QA" } },
+          });
+          await expect.poll(() => shellRequests).toBe(2);
+          await expect(
+            guest.locator('.stage-host[aria-busy="true"]'),
+          ).toHaveCount(0);
+          await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+          await expect(retry).toHaveCount(0);
+          await goToStage(guest, "edit");
+          expect(new URL(guest.url()).pathname).toBe(`/r/${token}`);
+        },
+      );
+    },
+    undefined,
+    createScriptRecordingIdentityProject,
+  );
+  process.stdout.write("sharecut-guest-retry-bootstrap: case completed\n");
 });
 
 diagnosticTest(

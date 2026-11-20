@@ -28,7 +28,7 @@ export function SkeletonBlock({
 export type SkeletonProps = {
   /** Nothing is drawn before this. Default 300 ms. */
   blankMs?: number;
-  /** "Still loading…" and Retry appear at this time. Default 4000 ms. */
+  /** "Still loading…" appears at this time, with Retry if provided. Default 4000 ms. */
   retryMs?: number;
   /** Fixes the elapsed time (stories, tests). Without it the timers run. */
   elapsedMs?: number;
@@ -67,7 +67,8 @@ const phaseOf = (
 
 /**
  * Nothing for 300 ms, then static grey blocks in the destination's layout, then
- * at 4 s "Still loading…" with Retry. No shimmer until the animation pass.
+ * at 4 s "Still loading…" with Retry when onRetry is provided.
+ * No shimmer until the animation pass.
  */
 export function Skeleton({
   blankMs = 300,
@@ -130,22 +131,23 @@ export function Skeleton({
       {phase === "slow" ? (
         <p className="sys-skeleton-slow" role="status">
           <span>Still loading…</span>
-          <Button
-            className="sys-skeleton-retry"
-            aria-busy={busy || undefined}
-            aria-disabled={busy || undefined}
-            onClick={
-              busy
-                ? undefined
-                : () => {
-                    if (!onRetry) return;
-                    press();
-                    onRetry();
-                  }
-            }
-          >
-            <BusyLabel idle="Retry" working={busy} busy={TRYING_LABEL} />
-          </Button>
+          {onRetry ? (
+            <Button
+              className="sys-skeleton-retry"
+              aria-busy={busy || undefined}
+              aria-disabled={busy || undefined}
+              onClick={
+                busy
+                  ? undefined
+                  : () => {
+                      press();
+                      onRetry();
+                    }
+              }
+            >
+              <BusyLabel idle="Retry" working={busy} busy={TRYING_LABEL} />
+            </Button>
+          ) : null}
         </p>
       ) : null}
     </div>
