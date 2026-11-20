@@ -291,7 +291,10 @@ flowchart TD
    quality on this device. It saves to Ava's project when the take ends." and its
    **Details** explain that joining means you agree to be recorded. **Not now**
    declines: the room dims under "You're not being recorded." with **Join
-   recording**, available while the room waits for a take. The recorder is armed on
+   recording**, available while the room waits for a take. This holds before
+   the page has reached the room: the sheet closes at once and the host sees
+   the decline once the room has answered this page's Join (after a lobby
+   reconnect too). The recorder is armed on
    joining and writes **no full-quality recording audio** until host Start. The
    room-tone upload waits for consent. The host re-checks consent server-side, per
    take: a full-quality recording chunk needs the guest in that take's
@@ -330,6 +333,10 @@ flowchart TD
    possible in the current state), a persistent alert explains it and offers
    **Dismiss**; ended and full-room Covers are unchanged, and a later room
    error never replaces the full-room Cover.
+   If the browser's microphone prompt is left unanswered for 10 seconds, the
+   Microphone row reads "Still waiting. Check your browser's permission
+   prompt." with **Retry**, which asks the browser again; a late answer to the
+   first request is dropped.
    If the saved microphone is no longer available, the Join sheet falls back to the
    default input, shows a notice, and resets the saved choice to Default.
    Retry then goes straight to the default input while the saved microphone is
