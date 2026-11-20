@@ -608,7 +608,7 @@ def test_final_revalidation_preserves_external_edits_and_refs(
 def _proxy_pcm(ws, tmp_path, name):
     engine = FFmpegEngine()
     defaults = load_defaults()
-    inputs = SourceProxyInputs.capture_legacy(ws.project, "host", engine, defaults=defaults)
+    inputs = pv.capture_manifest_inputs(ws.project, engine, defaults, "host").legacy["host"]
     output = tmp_path / name
     render_source_proxy_inputs(ws.project, inputs, output, engine=engine, defaults=defaults)
     with open_wav(output) as wav:

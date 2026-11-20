@@ -1,13 +1,23 @@
-import { expect, type Page, test } from "@playwright/test";
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import type { ProjectView } from "../src/types/project";
 import { expectPageAxeClean } from "./axe";
-import { e2eProjectPath } from "./env";
+import { registerE2eCleanupWorkspace } from "./cleanupManifest";
+import { assertDisposableE2eProject, e2eProjectPath } from "./env";
+import { createEpisodeFromHome, openHome } from "./home";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "./liveProject";
 import { createScriptRecordingIdentityProject } from "./scriptRecordingIdentityProject";
-import { switchE2eProject, withShareableProject } from "./shareableProject";
+import {
+  silenceWav,
+  switchE2eProject,
+  withShareableProject,
+} from "./shareableProject";
 import {
   createReviewShare,
   openGuestShare,
@@ -28,6 +38,28 @@ import {
   stageTab,
 } from "./stageNav";
 import { withBrowserPages, withTwoBrowserPages } from "./twoBrowserPages";
+
+const diagnosticTest = test.extend<{}, { privateDiagnostic: void }>({
+  trace: "off",
+  screenshot: "off",
+  video: "off",
+  privateDiagnostic: [
+    async ({ browserName }, runFixture) => {
+      if (!browserName)
+        throw new Error("Diagnostic browser configuration missing");
+      const previous = process.env.PLAYWRIGHT_NO_COPY_PROMPT;
+      process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
+      try {
+        await runFixture();
+      } finally {
+        if (previous === undefined)
+          delete process.env.PLAYWRIGHT_NO_COPY_PROMPT;
+        else process.env.PLAYWRIGHT_NO_COPY_PROMPT = previous;
+      }
+    },
+    { scope: "worker", auto: true },
+  ],
+});
 
 const STAGES: readonly Stage[] = [
   "record",
@@ -612,3 +644,260 @@ test("an Editor's stalled document load recovers when its loading Retry requests
   );
   process.stdout.write("sharecut-guest-retry-bootstrap: case completed\n");
 });
+
+diagnosticTest(
+  "an Editor's comment survives a normal reload-derived save and Undo/Redo restores only that comment",
+  async ({ page, browser }) => {
+    let workspaceDir = "";
+    let projectPath = "";
+    let guestContext: BrowserContext | undefined;
+    const digest = (value: string | Buffer) =>
+      createHash("sha256").update(value).digest("hex");
+    type Saved = {
+      history: {
+        cursor: number;
+        entries: { id: string; author?: string | null }[];
+      };
+      review: { comments: { id: string; body: string }[] };
+      render: {
+        proxy_manifests?: {
+          revision: string;
+          project_basis: { history_head_id: string };
+          tracks: Record<string, unknown>;
+        }[];
+      };
+    };
+    const read = () => {
+      const bytes = fs.readFileSync(projectPath);
+      const project = JSON.parse(bytes.toString("utf8")) as Saved;
+      const stat = fs.statSync(projectPath, { bigint: true });
+      return {
+        project,
+        bytes: digest(bytes),
+        history: digest(JSON.stringify(project.history)),
+        index: digest(
+          fs.readFileSync(path.join(workspaceDir, "history", "index.json")),
+        ),
+        certificate: `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`,
+      };
+    };
+    const classificationOf = (
+      error: unknown,
+    ): "assertion" | "timeout" | "error" | "non-error" | "unclassified" => {
+      try {
+        if (
+          error !== null &&
+          typeof error === "object" &&
+          "matcherResult" in error
+        )
+          return "assertion";
+        if (error instanceof Error)
+          return error.name === "TimeoutError" ? "timeout" : "error";
+        return "non-error";
+      } catch {
+        return "unclassified";
+      }
+    };
+    let phase = "fixture-setup";
+    let bodyFailed = false;
+    let bodyClassification = "unclassified";
+    const cleanupErrors: Error[] = [];
+    try {
+      workspaceDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "sharecut-e2e-derived-"),
+      );
+      if (!registerE2eCleanupWorkspace(workspaceDir))
+        throw new Error("Owned cleanup registration required");
+      projectPath = path.join(workspaceDir, "episode.sharecut");
+      assertDisposableE2eProject(projectPath);
+      guestContext = await browser.newContext({
+        viewport: { width: 1280, height: 800 },
+      });
+      phase = "open-home";
+      await openHome(page);
+      phase = "create-episode";
+      await createEpisodeFromHome(page, {
+        name: "Derived save QA",
+        workspaceDir,
+      });
+      phase = "wait-record-invite";
+      await expect(page.getByRole("dialog", { name: "Invite" })).toBeVisible();
+      phase = "dismiss-record-invite";
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog", { name: "Invite" })).toBeHidden();
+      phase = "open-prepare";
+      await goToStage(page, "prepare");
+      phase = "choose-audio";
+      const chooser = page.waitForEvent("filechooser");
+      await page
+        .getByRole("button", { name: /^Import audio/ })
+        .first()
+        .click();
+      phase = "import-audio";
+      await (await chooser).setFiles({
+        name: "synthetic.wav",
+        mimeType: "audio/wav",
+        buffer: silenceWav(2),
+      });
+      phase = "open-host-edit";
+      await goToStage(page, "edit");
+      phase = "wait-imported-clip";
+      await expect(page.locator(".clip-block").first()).toBeVisible();
+
+      phase = "open-review-invite";
+      await openProjectDialog(page, "share");
+      phase = "choose-editor-role";
+      await page
+        .getByRole("button", { name: "Editor: can edit", exact: true })
+        .click();
+      phase = "copy-editor-link";
+      await page
+        .getByRole("button", { name: "Copy new Editor link", exact: true })
+        .click();
+      phase = "refresh-mix";
+      await page
+        .getByRole("button", { name: "Refresh mix", exact: true })
+        .click();
+      phase = "wait-ui-mix-recovery";
+      // The completed UI invitation witnesses actual mix recovery. Its public
+      // relay address is not the isolated GUI's navigation address.
+      const made = page.locator(".sys-link").filter({
+        has: page.getByRole("img", { name: "Editor: can edit", exact: true }),
+      });
+      await expect(made).toBeVisible();
+      await page.keyboard.press("Escape");
+
+      phase = "create-local-editor-role";
+      // Use the established host-authorized fixture on this same application.
+      // The UI-created invitation stays unused; neither address is forwarded.
+      const token = await createReviewShare(page, projectPath, "editor");
+      phase = "open-local-editor-role";
+      const guest = await guestContext.newPage();
+      await openGuestShare(guest, token);
+      await guest.getByRole("tab", { name: "Edit", exact: true }).click();
+      await expect
+        .poll(
+          () =>
+            Object.keys(
+              read().project.render.proxy_manifests?.[0]?.tracks ?? {},
+            ).length,
+        )
+        .toBeGreaterThan(0);
+      phase = "observe-initial-manifest";
+      const originalComments = digest(
+        JSON.stringify(read().project.review.comments),
+      );
+      const commentBody = "Derived save authorship QA";
+      const comment = guest
+        .locator('.sys-queue-row[data-kind="comment"]')
+        .filter({ hasText: commentBody });
+      phase = "post-editor-comment";
+      await guest.getByRole("tab", { name: "Review", exact: true }).click();
+      const composer = guest.locator(".rv-compose");
+      await composer
+        .getByRole("textbox", { name: "Comment", exact: true })
+        .fill(commentBody);
+      await composer
+        .getByRole("textbox", { name: "Your name", exact: true })
+        .fill("Synthetic editor");
+      await composer.getByRole("button", { name: "Post", exact: true }).click();
+      await expect(comment).toHaveCount(1);
+      await expect
+        .poll(
+          () =>
+            read().project.review.comments.filter(
+              (row) => row.body === commentBody,
+            ).length,
+        )
+        .toBe(1);
+      await expect(
+        guest.getByRole("button", { name: "Undo", exact: true }),
+      ).toBeEnabled();
+      phase = "capture-before-reload";
+      const before = read();
+      const own = before.project.history.entries[before.project.history.cursor];
+      expect(
+        typeof own?.author === "string" && own.author.startsWith("share:"),
+      ).toBe(true);
+
+      const previousGeneration = before.project.render.proxy_manifests?.[0];
+      expect(typeof previousGeneration?.revision === "string").toBe(true);
+      expect(
+        previousGeneration?.project_basis.history_head_id === own?.id,
+      ).toBe(false);
+
+      phase = "reload-guest";
+      await guest.reload();
+      await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+      await expect
+        .poll(
+          () =>
+            read().project.render.proxy_manifests?.[0]?.project_basis
+              .history_head_id,
+        )
+        .toBe(own?.id);
+      phase = "assert-derived-save-preserved-history";
+      const after = read();
+      expect(
+        after.project.render.proxy_manifests?.[0]?.revision ===
+          previousGeneration?.revision,
+      ).toBe(false);
+      expect(after.bytes === before.bytes).toBe(false);
+      expect(after.certificate === before.certificate).toBe(false);
+      expect(after.history === before.history).toBe(true);
+      expect(after.index === before.index).toBe(true);
+      await goToStage(guest, "review");
+      await expect(comment).toHaveCount(1);
+      phase = "undo-editor-comment";
+      await guest.getByRole("button", { name: "Undo", exact: true }).click();
+      await expect(comment).toHaveCount(0);
+      await expect
+        .poll(() => digest(JSON.stringify(read().project.review.comments)))
+        .toBe(originalComments);
+      phase = "redo-editor-comment";
+      await guest.getByRole("button", { name: "Redo", exact: true }).click();
+      await expect(comment).toHaveCount(1);
+      await expect
+        .poll(() => digest(JSON.stringify(read().project.review.comments)))
+        .toBe(digest(JSON.stringify(before.project.review.comments)));
+    } catch (error) {
+      bodyFailed = true;
+      bodyClassification = classificationOf(error);
+    }
+    try {
+      if (guestContext) await guestContext.close();
+    } catch (error) {
+      cleanupErrors.push(
+        new Error(`Guest context cleanup failed [${classificationOf(error)}]`),
+      );
+    }
+    try {
+      await page.close();
+    } catch (error) {
+      cleanupErrors.push(
+        new Error(`Host page cleanup failed [${classificationOf(error)}]`),
+      );
+    }
+    try {
+      await switchE2eProject(e2eProjectPath);
+    } catch (error) {
+      cleanupErrors.push(
+        new Error(
+          `Host project restoration failed [${classificationOf(error)}]`,
+        ),
+      );
+    }
+    const errors = bodyFailed
+      ? [
+          new Error(`Scenario failed at ${phase} [${bodyClassification}]`),
+          ...cleanupErrors,
+        ]
+      : cleanupErrors;
+    if (errors.length > 0)
+      throw new AggregateError(
+        errors,
+        "Guest derived-save scenario or cleanup failed",
+      );
+    process.stdout.write("sharecut-3923-ui-derived-save: case completed\n");
+  },
+);

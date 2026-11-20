@@ -87,9 +87,9 @@ def test_legacy_selector_needs_no_occurrence_and_renders_exact_primary(capture_p
     project, engine = capture_project
     project.clips = []
     before = project.model_dump_json()
-    captured = proxy.SourceProxyInputs.capture_legacy(
-        project, "origin", engine, defaults=load_defaults()
-    )
+    captured = proxy.capture_source_proxy_inputs(
+        project, proxy.SourceProxySelection(legacy=("origin",)), engine, defaults=load_defaults()
+    ).legacy["origin"]
     expected = tmp_path / "expected.wav"
     timeline_render.render_source_with_chain(
         project, project.tracks[0], expected, engine=engine, defaults=load_defaults()
@@ -116,9 +116,9 @@ def test_occurrence_selector_keeps_secondary_at_unity(capture_project, tmp_path,
     np.testing.assert_array_equal(_samples(actual), np.full(16000, 3000))
     assert captured.affected
     assert captured.source.name == "secondary.wav"
-    legacy = proxy.SourceProxyInputs.capture_legacy(
-        project, "origin", engine, defaults=load_defaults()
-    )
+    legacy = proxy.capture_source_proxy_inputs(
+        project, proxy.SourceProxySelection(legacy=("origin",)), engine, defaults=load_defaults()
+    ).legacy["origin"]
     assert legacy.input_hash != captured.input_hash
 
 
@@ -303,9 +303,9 @@ def test_prepared_baseline_keeps_default_command_and_pcm(
     _write(tmp_path / "fill.wav", 200)
     fill = tmp_path / "fill.wav" if filled else None
     monkeypatch.setattr(timeline_render, "current_gate_fill_path", lambda *_: fill)
-    captured = proxy.SourceProxyInputs.capture_legacy(
-        project, "origin", engine, defaults=load_defaults()
-    )
+    captured = proxy.capture_source_proxy_inputs(
+        project, proxy.SourceProxySelection(legacy=("origin",)), engine, defaults=load_defaults()
+    ).legacy["origin"]
     target = tmp_path / "same.wav"
     run = Mock(wraps=timeline_render.run)
     monkeypatch.setattr(timeline_render, "run", run)
@@ -335,9 +335,9 @@ def test_prepared_renderer_consumes_captured_gate(capture_project, tmp_path, mon
     project.clips = []
     gate = BleedGatePlan(attenuation_spans=((0.2, 0.4),), fade_sec=0)
     monkeypatch.setattr(proxy, "build_bleed_gate_plan", lambda *_a, **_k: gate)
-    captured = proxy.SourceProxyInputs.capture_legacy(
-        project, "origin", engine, defaults=load_defaults()
-    )
+    captured = proxy.capture_source_proxy_inputs(
+        project, proxy.SourceProxySelection(legacy=("origin",)), engine, defaults=load_defaults()
+    ).legacy["origin"]
     monkeypatch.setattr(
         proxy,
         "build_bleed_gate_plan",
@@ -359,16 +359,21 @@ def test_prepared_renderer_consumes_captured_gate(capture_project, tmp_path, mon
 
 def test_legacy_and_occurrence_preparation_identities_are_independent(capture_project):
     project, engine = capture_project
-    legacy = proxy.SourceProxyInputs.capture_legacy(
-        project, "origin", engine, defaults=load_defaults()
-    )
+    legacy = proxy.capture_source_proxy_inputs(
+        project, proxy.SourceProxySelection(legacy=("origin",)), engine, defaults=load_defaults()
+    ).legacy["origin"]
     occurrence = _capture(project, engine)
     project.clips[0].mute_regions = [ClipMuteRegion(start_s=0.2, end_s=0.8)]
     project.clips[0].bleed_restore.regions[0].end_s = 0.8
     assert (
-        proxy.SourceProxyInputs.capture_legacy(
-            project, "origin", engine, defaults=load_defaults()
-        ).input_hash
+        proxy.capture_source_proxy_inputs(
+            project,
+            proxy.SourceProxySelection(legacy=("origin",)),
+            engine,
+            defaults=load_defaults(),
+        )
+        .legacy["origin"]
+        .input_hash
         == legacy.input_hash
     )
     assert _capture(project, engine).input_hash != occurrence.input_hash
