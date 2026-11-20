@@ -506,8 +506,8 @@ participants; guest sees own) until ACK or stall. An incomplete local segment
 after capture has settled is retained for recovery and reported separately;
 it cannot receive a file ACK and does not hold Leave. A guest's Leave is held while a take runs (until the host has been gone for 60 seconds), while
 their own upload is moving, while the server has the file and this device's segment count is not
-known yet (until the scan answers, or reads as unreadable, when the file the server has is read
-as saved once capture has settled), and while Stop is still finalizing the last segment
+known yet (until the scan answers; if the scan reads as unreadable, the server's file counts as
+saved once the take has stopped and capture has settled, and Leave is released), and while Stop is still finalizing the last segment
 until its complete metadata lands or capture latches a failure (a latched
 failure counts as settled so recovery and export appear). The room reads "Saving to project… N of M chunks"
 while finalized WAV totals are known, then "Saved to project" once the file is ACK'd. When a participant has
@@ -1381,7 +1381,7 @@ alternate local sink path.
 enabled while a take runs; the `M` key adds a marker), Mute and Leave, and alerts in one
 slot: "Your mic stopped." (**Reconnect mic**), "No sound is reaching the recorder."
 (**Check mic**), "This device couldn't save the recording.", "Saving stopped."
-(**Resume saving**, **Save a copy**; never raised from an upload error once the server has every segment this device holds, or every segment its last upload pass saw when the device could not be read), "We found part of your recording."
+(**Resume saving**, **Save a copy**; never raised from an upload error once the server has every segment this device holds, or, when the device could not be read, every segment its last upload pass saw, and only once the take has stopped and capture has settled; a take still finishing keeps it), "We found part of your recording."
 (**Finish saving**), "Lost connection to the room. You're still recording on this
 device." (this page's connection dropped mid-take; while it shows, "Saving stopped." is not
 shown, and it comes back once the connection does if the upload still fails; nothing is raised
@@ -1487,8 +1487,10 @@ When this device's own segment count cannot be read, the server's acknowledgemen
 still counts as saved if the last upload pass (which reads the same device store)
 saw at least one segment and the server acknowledged all it saw, the take is
 stopped and capture has settled. The own tile and dock read "Saved", Leave becomes
-**Done**, and the covers say the recording is saved. No "Couldn't save", "Saving
-stopped." or "This device couldn't save the recording." is raised for that guest.
+**Done**, and the covers say the recording is saved. No "Couldn't save" or "Saving
+stopped." is raised for that guest, and neither is "This device couldn't save the
+recording.", which is hidden only for this case: a guest whose count is readable, or
+whose take is recording or paused, still sees it.
 Before capture settles the guest reads "Saving…". A guest the server has not
 acknowledged keeps the existing saving copy ("Saving · 0 of N") and, once they
 leave, the cover "Your recording didn't finish saving"; no live state reads a

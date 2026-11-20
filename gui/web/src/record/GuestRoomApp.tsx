@@ -383,6 +383,7 @@ function GuestRoomSession({
   );
   const saved =
     !producer && uploadAcknowledged(upload, room.localSegments, scan);
+  const savedUnreadable = saved && room.localSegments === null;
   const phase = guestRoomPhase(snapshot, {
     elapsedSinceSnapshotMs: elapsed,
     upload: producer ? null : upload,
@@ -398,7 +399,7 @@ function GuestRoomSession({
       captureHealth,
       keeperError: keeper.error,
       micLost: micNeedsAttention,
-      sinkError: sheetOpen || producer || saved ? null : sinkError,
+      sinkError: sheetOpen || producer || savedUnreadable ? null : sinkError,
       uploadError: producer || recoverable || saved ? null : upload.error,
       recoverable,
       monitorError: monitor.error,

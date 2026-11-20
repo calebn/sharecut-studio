@@ -973,6 +973,55 @@ describe("after Save my recording handed the whole zip to the browser", () => {
       expect(cover?.secondary?.label).toBe("Try saving again");
     });
 
+    it("offers only a new link when the invite closes on a saved guest", () => {
+      const cover = guestCoverProps(
+        room({ ...base(), accessEnded: true, inviteClosed: true }),
+        { onRetry: vi.fn(), phase: saved },
+      );
+      expect(cover?.title).toBe("Invite link closed");
+      expect(cover?.children).toBe(
+        "Hana closed this invite link. Ask for a new link.",
+      );
+      expect(cover?.primary).toBeUndefined();
+      expect(cover?.secondary).toBeUndefined();
+    });
+
+    it.each([
+      ["paused", "paused" as const],
+      ["recording", "recording" as const],
+    ])(
+      "keeps the unsent cover when the guest left a %s take",
+      (_name, state) => {
+        const source = base();
+        const cover = guestCoverProps(
+          room({
+            ...source,
+            left: true,
+            snapshot: { ...source.snapshot, state },
+          }),
+          { onRetry: vi.fn(), phase: waiting },
+        );
+        expect(cover?.title).toBe("Your recording didn't finish saving");
+        expect(cover?.primary?.label).toBe("Save my recording");
+      },
+    );
+
+    it.each([
+      ["left", { left: true }],
+      ["the session ended", { accessEnded: true }],
+    ])(
+      "keeps the unsent cover while the scan is pending and %s",
+      (_name, over) => {
+        const cover = guestCoverProps(
+          room({ ...base(), ...over, localUnreadable: false }),
+          { onRetry: vi.fn(), phase: waiting },
+        );
+        expect(cover?.primary?.label).toBe("Save my recording");
+        expect(cover?.children).not.toBe("Thanks for recording.");
+        expect(cover?.title).not.toBe("This session has ended");
+      },
+    );
+
     it("keeps the unreadable copy while the capture is still finishing", () => {
       const cover = guestCoverProps(
         room({ ...base(), accessEnded: true, captureSettled: false }),
