@@ -113,6 +113,8 @@ def _run_session(tmp_path: Path, body: str, extra_env: dict[str, str] | None = N
     import subprocess
     import sys
 
+    import conftest as real_conftest
+
     project = tmp_path / "proj"
     project.mkdir(exist_ok=True)
     here = Path(__file__).parent
@@ -130,13 +132,7 @@ def _run_session(tmp_path: Path, body: str, extra_env: dict[str, str] | None = N
     env = {
         k: v
         for k, v in os.environ.items()
-        if k
-        not in {
-            "PODCAST_SHARE_IDENTITY",
-            "CARGO_HOME",
-            "PODCAST_MCP_CACHE",
-            "SHARECUT_TEST_ORIGINAL_ENV",
-        }
+        if k not in {"SHARECUT_TEST_ORIGINAL_ENV", *real_conftest._MANAGED_ENV}
     }
     env.update(extra_env or {})
     return subprocess.run(
@@ -308,3 +304,70 @@ def test_huggingface_writes_go_to_the_session_state_when_no_cache_is_passed_thro
         {"HOME": str(real), "USERPROFILE": str(real)},
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_the_checkout_and_the_working_directory_are_both_watched_for_artifacts() -> None:
+    import conftest
+    from podcast_mcp.config.defaults import repo_root
+
+    assert {repo_root() / "artifacts", Path.cwd() / "artifacts"} <= conftest._WATCHED_ARTIFACTS
+
+
+def test_a_cache_that_exists_keeps_its_real_place_and_a_missing_one_gets_a_session_folder(
+    tmp_path: Path,
+) -> None:
+    real = tmp_path / "realhome"
+    (real / ".cache" / "huggingface").mkdir(parents=True)
+    kept = _run_session(
+        tmp_path,
+        f"def test_hf():\n    assert os.environ['HF_HOME'] == {str(real / '.cache' / 'huggingface')!r}\n",
+        {
+            "HOME": str(real),
+            "USERPROFILE": str(real),
+            "HF_HOME": str(real / ".cache" / "huggingface"),
+        },
+    )
+    assert kept.returncode == 0, kept.stdout + kept.stderr
+
+
+def test_a_worker_gets_the_real_home_back_and_its_own_cache_folder(tmp_path: Path) -> None:
+    import json
+
+    real = tmp_path / "realhome"
+    real.mkdir()
+    controller_hf = tmp_path / "controller_state" / "huggingface"
+    result = _run_session(
+        tmp_path,
+        "import sys\n\n\n"
+        "def test_env():\n"
+        f"    assert sys.modules['real_conftest'].REAL_HOME == Path({str(real)!r}).resolve()\n"
+        f"    assert os.environ['HF_HOME'] != {str(controller_hf)!r}\n"
+        "    assert not Path(os.environ['HF_HOME']).is_relative_to(Path(os.environ['HOME']))\n",
+        {
+            "HOME": str(tmp_path / "controller_home"),
+            "USERPROFILE": str(tmp_path / "controller_home"),
+            "HF_HOME": str(controller_hf),
+            "SHARECUT_TEST_ORIGINAL_ENV": json.dumps(
+                {"HOME": str(real), "USERPROFILE": str(real), "HF_HOME": None}
+            ),
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_an_identity_store_chosen_by_the_job_outside_the_home_is_left_alone(tmp_path: Path) -> None:
+    real = tmp_path / "realhome"
+    real.mkdir()
+    chosen = tmp_path / "job" / "identity.sqlite"
+    result = _run_session(
+        tmp_path,
+        f"def test_identity():\n    assert os.environ['PODCAST_SHARE_IDENTITY'] == {str(chosen)!r}\n",
+        {"HOME": str(real), "USERPROFILE": str(real), "PODCAST_SHARE_IDENTITY": str(chosen)},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_a_folder_that_only_starts_like_a_telemetry_folder_is_reported(tmp_path: Path) -> None:
+    (tmp_path / ".cache" / "MicrosoftX").mkdir(parents=True)
+    (tmp_path / ".cache" / "MicrosoftX" / "f").write_bytes(b"x")
+    assert stray_files(tmp_path) == [".cache/MicrosoftX/f"]

@@ -255,7 +255,7 @@ def _enter_session_home() -> tuple[Path, pytest.MonkeyPatch]:
     _default_env(patch_env, "PODCAST_MCP_CACHE", str(state / "cache"))
     for name, value in keep.items():
         patch_env.setenv(name, value)
-    if "HF_HOME" not in keep:
+    if "HF_HOME" not in keep and "HF_HOME" not in _ORIGINAL_ENV:
         # huggingface_hub writes a harness record under its home on import.
         patch_env.setenv("HF_HOME", str(state / "huggingface"))
     patch_env.setenv("HOME", str(home))
