@@ -163,4 +163,13 @@ describe("useLeaseFreshWhileLeft", () => {
     expect(result.current.leaseFresh).toBe(false);
     expect(result.current.leaseStillFresh()).toBe(false);
   });
+
+  it("never shows the offer for a stored lease older than six days or stamped in the future", async () => {
+    for (const issuedAt of [Date.now() - 7 * DAY, Date.now() + DAY]) {
+      const { result, unmount } = await leave(issuedAt);
+      expect(result.current.leaseFresh).toBe(false);
+      expect(result.current.leaseStillFresh()).toBe(false);
+      unmount();
+    }
+  });
 });

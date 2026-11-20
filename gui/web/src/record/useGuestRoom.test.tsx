@@ -776,6 +776,36 @@ describe("useGuestRoom", () => {
     ).toBe("Ava");
   });
 
+  it("lets the live snapshot's session, take and participant win over the carried identity", async () => {
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() =>
+      useGuestRoom("guest-tok", {
+        carried: { sessionId: "old", participantId: "p_old", takeIndex: 0 },
+      }),
+    );
+    expect(result.current.keeperIdentity).toEqual({
+      sessionId: "old",
+      participantId: "p_old",
+      takeIndex: 0,
+    });
+    await waitFor(() => expect(result.current.me?.participant_id).toBe("p_g"));
+    await act(async () => {
+      sockets[0]?.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({
+          session_id: "room2",
+          state: "recording",
+          take_index: 1,
+        }),
+      });
+    });
+    expect(result.current.keeperIdentity).toEqual({
+      sessionId: "room2",
+      participantId: "p_g",
+      takeIndex: 1,
+    });
+  });
+
   it("keeps the name off the Join when nothing is carried", async () => {
     localStorage.setItem("sharecut.recordName", "Ava");
     stubFetch(guestBootstrap);
