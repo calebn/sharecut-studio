@@ -459,3 +459,40 @@ def test_benchmark_report_fixture_exists() -> None:
     data = json.loads(path.read_text())
     assert "results" in data
     assert len(data["results"]) >= 2
+
+
+def test_a_bracketed_annotation_is_dropped_whole_and_ends_the_word() -> None:
+    def token(text: str, start: int, end: int) -> dict:
+        return {"text": text, "offsets": {"from": start, "to": end}, "p": 0.9}
+
+    data = {
+        "transcription": [
+            {
+                "tokens": [
+                    token(" Hi", 0, 500),
+                    token(" [", 500, 600),
+                    token("BLANK", 600, 900),
+                    token("_AUDIO", 900, 1200),
+                    token("]", 1200, 1300),
+                    token("there", 1300, 1600),
+                ]
+            }
+        ]
+    }
+    assert [w.text for w in parse_whisper_cpp_json(data).words] == ["Hi", "there"]
+
+
+def test_a_token_with_a_non_finite_offset_gets_no_nan_time() -> None:
+    data = {
+        "transcription": [
+            {
+                "tokens": [
+                    {"text": " Hi", "offsets": {"from": 0, "to": 500}},
+                    {"text": " ok", "offsets": {"from": float("nan"), "to": 5}},
+                ]
+            }
+        ]
+    }
+    words = parse_whisper_cpp_json(data).words
+    assert [w.text for w in words] == ["Hi ok"]
+    assert all(w.start == w.start and w.end == w.end for w in words)

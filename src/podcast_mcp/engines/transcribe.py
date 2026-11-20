@@ -658,16 +658,15 @@ class TranscriptionEngine:
         audio_sha256: str | None = None,
     ) -> Path:
         audio_key = (audio_sha256 or sha256_file(audio_path))[:16]
-        inputs = json.dumps(
-            {
-                "backend": self.backend,
-                "model": self._cache_model_key(),
-                "language": language,
-                "initial_prompt": initial_prompt,
-                "decode": self.options.decode_key(),
-            },
-            sort_keys=True,
-        )
+        key_fields: dict[str, Any] = {
+            "model": self._cache_model_key(),
+            "language": language,
+            "initial_prompt": initial_prompt,
+            "decode": self.options.decode_key(),
+        }
+        if self.backend != "faster_whisper":
+            key_fields["backend"] = self.backend
+        inputs = json.dumps(key_fields, sort_keys=True)
         inputs_key = short_digest(inputs)
         name = f"{cache_id_part(track_id)}_{audio_key}_{inputs_key}.json"
         return _cache_file(project, track_id, name)
