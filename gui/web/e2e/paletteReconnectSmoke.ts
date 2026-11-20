@@ -340,493 +340,414 @@ export function registerPaletteReconnectSmoke() {
         outcome: "NOT_EXECUTED",
       };
       try {
-        await test.step("3940:01", async () => {
-          const version = browser.version();
-          const executable = browser.browserType().executablePath();
-          if (
-            version !== "158.0.8127.18" ||
-            !/(?:chromium|chromium_headless_shell)-1254\//.test(executable)
-          ) {
-            inconclusive(
-              "requires locked Chromium1254 Chrome for Testing158.0.8127.18",
-            );
-          }
-          Object.assign(receipt, {
-            browserVersion: version,
-            browserRevision: 1254,
-            fixtureSha256: createHash("sha256")
-              .update(
-                fs.readFileSync(
-                  new URL(
-                    "./fixtures/palette-reconnect.sharecut",
-                    import.meta.url,
-                  ),
-                ),
-              )
-              .digest("hex"),
-          });
-        });
-        await test.step("3940:02", async () => {
-          await withShareableProject(
-            async (projectPath) => {
-              await withBrowserPages(
-                browser,
-                [PHONE, PHONE, DESKTOP].map((viewport) => ({
-                  viewport,
-                  storageState: {
-                    cookies: [],
-                    origins: [
-                      {
-                        origin: new URL(e2eBaseURL).origin,
-                        localStorage: [
-                          { name: AUTO_MIX_PREF_KEY, value: "off" },
-                        ],
-                      },
-                    ],
-                  },
-                })),
-                async (pages) => {
-                  const {
-                    host,
-                    follower,
-                    observer,
-                    hostProbe,
-                    observerProbe,
-                    outage,
-                    followerToken,
-                    observerToken,
-                  } = await test.step("3940:03", async () => {
-                    const [host, follower, observer] = pages;
-                    if (!host || !follower || !observer)
-                      throw new Error("three isolated pages are required");
-                    const hostProbe = observe(host);
-                    await installFollowerWireProbe(follower);
-                    const outage = await installNetworkOutage(follower, {
-                      webSocket: /\/api\/review\/[^/]+\/daw\/ws/,
-                    });
-                    const observerProbe = observe(observer);
-                    await openHostShare(host, projectPath);
-                    await phone.showTimeline(host);
-                    const ruler = host.getByRole("slider", {
-                      name: "Timeline position",
-                    });
-                    await ruler.focus();
-                    await ruler.press("End");
-                    await phone.showText(host);
-                    const followerToken = await createReviewShare(
-                      host,
-                      projectPath,
-                      "editor",
-                    );
-                    secrets.push(followerToken);
-                    const observerToken = await createReviewShare(
-                      host,
-                      projectPath,
-                      "editor",
-                    );
-                    secrets.push(observerToken);
-                    return {
-                      host,
-                      follower,
-                      observer,
-                      hostProbe,
-                      observerProbe,
-                      outage,
-                      followerToken,
-                      observerToken,
-                    };
-                  });
-                  await test.step("3940:04", async () => {
-                    await openGuestShare(follower, followerToken);
-                    const followerRoleHint = follower
-                      .locator(".stage-frame-header")
-                      .getByRole("note")
-                      .filter({
-                        hasText:
-                          "You can edit and comment. The host decides what ships.",
-                      });
-                    await expect(followerRoleHint).toBeVisible();
-                    await followerRoleHint
-                      .getByRole("button", {
-                        name: "Dismiss hint",
-                        exact: true,
-                      })
-                      .click();
-                    await expect(followerRoleHint).toBeHidden();
-                    await phone.showText(follower);
-                  });
-                  await test.step("3940:05", async () => {
-                    await openGuestShare(observer, observerToken);
-                    const observerRoleHint = observer
-                      .locator(".stage-frame-header")
-                      .getByRole("note")
-                      .filter({
-                        hasText:
-                          "You can edit and comment. The host decides what ships.",
-                      });
-                    await expect(observerRoleHint).toBeVisible();
-                    await observerRoleHint
-                      .getByRole("button", {
-                        name: "Dismiss hint",
-                        exact: true,
-                      })
-                      .click();
-                    await expect(observerRoleHint).toBeHidden();
-                    await goToStage(observer, "edit");
-                    await expect
-                      .poll(
-                        async () =>
-                          !!(await readFollowerWire(follower)).clientId &&
-                          !!observerProbe.clientId &&
-                          !!hostProbe.clientId,
-                      )
-                      .toBe(true);
-                  });
-                  const { leaderId, followerId, leaderName, old } =
-                    await test.step("3940:06", async () => {
-                      const leaderId = hostProbe.clientId;
-                      const followerId = (await readFollowerWire(follower))
-                        .clientId;
-                      const leaderName = peerName(observerProbe, leaderId);
-                      const face = follower.locator(
-                        `.avatar-header .avatar-face[data-person=${JSON.stringify(leaderId)}]`,
-                      );
-                      await expect(face).toHaveCount(1);
-                      const menu = await openPeopleMenu(follower, face);
-                      await menu
-                        .getByRole("menuitem", { name: "Follow", exact: true })
-                        .click();
-                      await expect(followPill(follower)).toContainText(
-                        `Following ${leaderName}`,
-                      );
-                      await expect
-                        .poll(async () =>
-                          (await readFollowerWire(follower)).sent.some(
-                            ({ frame }) => frame.meta?.following === leaderId,
-                          ),
-                        )
-                        .toBe(true);
-                      const before = await readFollowerWire(follower);
-                      const old = before.sockets.at(-1);
-                      if (!old || old.closed || old.helloSequence === null)
-                        inconclusive(
-                          "no actual live follower socket with hello",
-                        );
-                      return { leaderId, followerId, leaderName, old };
-                    });
-                  await test.step("3940:07", async () => {
-                    await outage.drop();
-                    try {
-                      await expect
-                        .poll(
-                          async () =>
-                            (await readFollowerWire(follower)).sockets.find(
-                              (s) => s.id === old.id,
-                            )?.closed,
-                        )
-                        .toBe(true);
-                      await expect
-                        .poll(() => !observerProbe.roster[followerId])
-                        .toBe(true);
-                    } catch {
-                      inconclusive(
-                        "outage did not produce actual browser close and server roster removal",
-                      );
-                    } finally {
-                      outage.restore();
-                    }
-                  });
-                  const name = await test.step("3940:08", async () => {
-                    try {
-                      await expect
-                        .poll(
-                          async () => {
-                            const wire = await readFollowerWire(follower);
-                            const closed = wire.sockets.find(
-                              (s) => s.id === old.id,
-                            );
-                            const active = wire.sockets.at(-1);
-                            const row = observerProbe.roster[followerId];
-                            return (
-                              !wire.uncertain &&
-                              wire.clientId === followerId &&
-                              active &&
-                              !active.closed &&
-                              active.id > old.id &&
-                              active.helloSequence !== null &&
-                              closed?.closeSequence !== null &&
-                              active.helloSequence >
-                                (closed?.closeSequence ?? Infinity) &&
-                              wire.sent.some(
-                                ({ socketId, sequence, frame }) =>
-                                  socketId === active.id &&
-                                  sequence >
-                                    (active.helloSequence ?? Infinity) &&
-                                  frame.meta?.following === leaderId &&
-                                  !Number.isFinite(frame.playhead_sec) &&
-                                  !Number.isFinite(
-                                    frame.meta?.transport?.playhead_sec,
-                                  ),
-                              ) &&
-                              noPlayhead(row) &&
-                              row?.meta?.following === leaderId &&
-                              row?.meta?.ui?.tab === "transcript" &&
-                              row?.meta?.ui?.mobile_mode === "text"
-                            );
-                          },
-                          { timeout: 20_000 },
-                        )
-                        .toBe(true);
-                    } catch {
-                      inconclusive(
-                        "real reconnect did not yield preserved follow and independently observed no-playhead text row",
-                      );
-                    }
-                    const rejoined = await readFollowerWire(follower);
-                    await expect(followPill(follower)).toContainText(
-                      `Following ${leaderName}`,
-                    );
-                    const peer = requiredPeer(observerProbe, followerId);
-                    const name = peerName(observerProbe, followerId);
-                    const leader = requiredPeer(observerProbe, leaderId);
-                    if (
-                      !Number.isFinite(leader.playhead_sec) &&
-                      !Number.isFinite(leader.meta?.transport?.playhead_sec)
-                    )
-                      inconclusive("finite-playhead leader control is absent");
-                    Object.assign(receipt, {
-                      followerId,
-                      leaderId,
-                      observerId: observerProbe.clientId,
-                      actualName: name,
-                      follower: peer,
-                      reconnect: { oldSocketId: old.id, wire: rejoined },
-                    });
-                    return name;
-                  });
-                  let { input, selectedFollowId, dialogNode } =
-                    await test.step("3940:09", async () => {
-                      await observer.setViewportSize(PHONE);
-                      await phone.showTimeline(observer);
-                      await expect(
-                        observer.locator('.phone-edit[data-surface="lanes"]'),
-                      ).toBeVisible();
-                      await expect(
-                        observer.locator('.phone-edit[data-surface="text"]'),
-                      ).toBeHidden();
-                      await observer.setViewportSize(DESKTOP);
-                      let input = await searchPeer(
-                        observer,
-                        peerName(observerProbe, leaderId),
-                      );
-                      await selectVerb(
-                        observer,
-                        peerName(observerProbe, leaderId),
-                        "Go to",
-                      );
-                      await input.press("Escape");
-                      input = await searchPeer(observer, name);
-                      await expect(rowsFor(observer, name)).toHaveCount(1);
-                      const selectedFollowId = await selectVerb(
-                        observer,
-                        name,
-                        "Follow",
-                      );
-                      const dialogNode =
-                        await palette(observer).elementHandle();
-                      if (!dialogNode)
-                        throw new Error("palette is not mounted");
-                      return { input, selectedFollowId, dialogNode };
-                    });
-                  const retainFollow = async () => {
-                    if (!dialogNode) throw new Error("palette is not mounted");
-                    expect(
-                      await dialogNode.evaluate((node) => node.isConnected),
-                    ).toBe(true);
-                    expect(
-                      await palette(observer).evaluate(
-                        (node, original) => node === original,
-                        dialogNode,
-                      ),
-                    ).toBe(true);
-                    await expect(input).toHaveValue(name);
-                    await expect(input).toHaveAttribute(
-                      "aria-activedescendant",
-                      selectedFollowId,
-                    );
-                    await expect(
-                      palette(observer).getByRole("status"),
-                    ).toContainText(`Enter: Follow ${name}`);
-                    await expect(
-                      observer.locator(
-                        `[id=${JSON.stringify(selectedFollowId)}]`,
-                      ),
-                    ).toHaveAttribute("aria-selected", "true");
-                  };
-                  const reopen = async (count: number) => {
-                    await input.press("Escape");
-                    input = await searchPeer(observer, name);
-                    await expect(rowsFor(observer, name)).toHaveCount(count);
-                    selectedFollowId = await selectVerb(
-                      observer,
-                      name,
-                      "Follow",
-                    );
-                    dialogNode = await palette(observer).elementHandle();
-                    if (!dialogNode)
-                      throw new Error("reopened palette is not mounted");
-                  };
-                  await test.step("3940:10", async () => {
-                    await unchangedDuring(observerProbe, observer, async () => {
-                      await observer.setViewportSize(PHONE);
-                      await expect(observer.locator("html")).toHaveAttribute(
-                        "data-shell",
-                        "phone",
-                      );
-                      await expect(input).toHaveValue(name);
-                      await expect(rowsFor(observer, name)).toHaveCount(
-                        mode === "head" ? 2 : 1,
-                      );
-                      await retainFollow();
-                    });
-                  });
-                  receipt.criticalResize =
-                    "stable raw roster, no inbound roster/document frames, same mounted dialog and project URL";
-                  if (mode === "parent") {
-                    receipt.parentObservedMissingUntilReopen = true;
-                    await reopen(2);
-                  }
-                  await retainFollow();
-                  await test.step("3940:11", async () => {
-                    await unchangedDuring(observerProbe, observer, async () => {
-                      await observer.setViewportSize(DESKTOP);
-                      await expect(
-                        observer.locator("html"),
-                      ).not.toHaveAttribute("data-shell", "phone");
-                      await expect(rowsFor(observer, name)).toHaveCount(
-                        mode === "head" ? 1 : 2,
-                      );
-                      await retainFollow();
-                    });
-                  });
-                  if (mode === "parent") await reopen(1);
-                  await test.step("3940:12", async () => {
-                    await unchangedDuring(observerProbe, observer, async () => {
-                      await observer.setViewportSize(PHONE);
-                      await expect(observer.locator("html")).toHaveAttribute(
-                        "data-shell",
-                        "phone",
-                      );
-                      await expect(rowsFor(observer, name)).toHaveCount(
-                        mode === "head" ? 2 : 1,
-                      );
-                      await retainFollow();
-                    });
-                  });
-                  if (mode === "parent") await reopen(2);
-                  await test.step("3940:13", async () => {
-                    const selectedId = await selectVerb(
-                      observer,
-                      name,
-                      "Go to",
-                    );
-                    const updateBefore =
-                      observerProbe.cursorUpdates.get(leaderId) ?? 0;
-                    const leaderWords = host.locator(".sys-script-word");
-                    await expect(leaderWords).toHaveCount(2);
-                    const firstBox = await leaderWords.first().boundingBox();
-                    const lastBox = await leaderWords.last().boundingBox();
-                    if (!firstBox || !lastBox)
-                      inconclusive("real leader text targets are not visible");
-                    await host.mouse.move(
-                      firstBox.x + firstBox.width / 2,
-                      firstBox.y + firstBox.height / 2,
-                    );
-                    await host.mouse.move(
-                      lastBox.x + lastBox.width / 2,
-                      lastBox.y + lastBox.height / 2,
-                      { steps: 3 },
-                    );
-                    try {
-                      await expect
-                        .poll(
-                          () => observerProbe.cursorUpdates.get(leaderId) ?? 0,
-                          { timeout: 5_000 },
-                        )
-                        .toBeGreaterThan(updateBefore);
-                    } catch {
-                      inconclusive(
-                        "ordinary pointer interaction produced no observed roster update for parent-render retention proof",
-                      );
-                    }
-                    const destination = requiredPeer(observerProbe, followerId);
-                    if (
-                      !noPlayhead(destination) ||
-                      destination.meta?.following !== leaderId ||
-                      destination.meta?.ui?.tab !== "transcript" ||
-                      destination.meta?.ui?.mobile_mode !== "text"
-                    ) {
-                      inconclusive(
-                        "unrelated update changed the destination precondition",
-                      );
-                    }
-                    await expect(input).toHaveValue(name);
-                    await expect(input).toHaveAttribute(
-                      "aria-activedescendant",
-                      selectedId,
-                    );
-                    await expect(
-                      palette(observer).getByRole("status"),
-                    ).toContainText(`Enter: Go to ${name}`);
-                    if (!dialogNode)
-                      throw new Error("palette is not mounted before Go to");
-                    expect(
-                      await palette(observer).evaluate(
-                        (node, original) => node === original,
-                        dialogNode,
-                      ),
-                    ).toBe(true);
-                  });
-                  await test.step("3940:14", async () => {
-                    await expect(
-                      observer.locator('.phone-edit[data-surface="lanes"]'),
-                    ).toBeVisible();
-                    await expect(
-                      observer.locator('.phone-edit[data-surface="text"]'),
-                    ).toBeHidden();
-                    receipt.navigationBefore =
-                      "phone Edit lanes visible, text hidden, Go to selected";
-                    await input.press("Enter");
-                    await expect(palette(observer)).toBeHidden();
-                    await expect(
-                      observer.locator('.phone-edit[data-surface="lanes"]'),
-                    ).toBeHidden();
-                    await expect(
-                      observer.getByRole("main", { name: "Edit", exact: true }),
-                    ).toBeVisible();
-                    await expect(
-                      observer.locator('.phone-edit[data-surface="text"]'),
-                    ).toBeVisible();
-                    await expect(
-                      observer.getByRole("region", {
-                        name: "Script",
-                        exact: true,
-                      }),
-                    ).toBeVisible();
-                    if (observerProbe.uncertain)
-                      inconclusive(
-                        "passive frame attribution became uncertain",
-                      );
-                    receipt.outcome =
-                      mode === "head" ? "HEAD_PASS" : "PARENT_BUG_REPRODUCED";
-                  });
-                },
-              );
-            },
-            undefined,
-            createPaletteReconnectProject,
+        const version = browser.version();
+        const executable = browser.browserType().executablePath();
+        if (
+          version !== "158.0.8127.18" ||
+          !/(?:chromium|chromium_headless_shell)-1254\//.test(executable)
+        ) {
+          inconclusive(
+            "requires locked Chromium1254 Chrome for Testing158.0.8127.18",
           );
+        }
+        Object.assign(receipt, {
+          browserVersion: version,
+          browserRevision: 1254,
+          fixtureSha256: createHash("sha256")
+            .update(
+              fs.readFileSync(
+                new URL(
+                  "./fixtures/palette-reconnect.sharecut",
+                  import.meta.url,
+                ),
+              ),
+            )
+            .digest("hex"),
         });
+        await withShareableProject(
+          async (projectPath) => {
+            await withBrowserPages(
+              browser,
+              [PHONE, PHONE, DESKTOP].map((viewport) => ({
+                viewport,
+                storageState: {
+                  cookies: [],
+                  origins: [
+                    {
+                      origin: new URL(e2eBaseURL).origin,
+                      localStorage: [{ name: AUTO_MIX_PREF_KEY, value: "off" }],
+                    },
+                  ],
+                },
+              })),
+              async ([host, follower, observer]) => {
+                if (!host || !follower || !observer)
+                  throw new Error("three isolated pages are required");
+                const hostProbe = observe(host);
+                await installFollowerWireProbe(follower);
+                const outage = await installNetworkOutage(follower, {
+                  webSocket: /\/api\/review\/[^/]+\/daw\/ws/,
+                });
+                const observerProbe = observe(observer);
+                await openHostShare(host, projectPath);
+                await phone.showTimeline(host);
+                const ruler = host.getByRole("slider", {
+                  name: "Timeline position",
+                });
+                await ruler.focus();
+                await ruler.press("End");
+                await phone.showText(host);
+                const followerToken = await createReviewShare(
+                  host,
+                  projectPath,
+                  "editor",
+                );
+                secrets.push(followerToken);
+                const observerToken = await createReviewShare(
+                  host,
+                  projectPath,
+                  "editor",
+                );
+                secrets.push(observerToken);
+                await openGuestShare(follower, followerToken);
+                const followerRoleHint = follower
+                  .locator(".stage-frame-header")
+                  .getByRole("note")
+                  .filter({
+                    hasText:
+                      "You can edit and comment. The host decides what ships.",
+                  });
+                await expect(followerRoleHint).toBeVisible();
+                await followerRoleHint
+                  .getByRole("button", { name: "Dismiss hint", exact: true })
+                  .click();
+                await expect(followerRoleHint).toBeHidden();
+                await phone.showText(follower);
+                await openGuestShare(observer, observerToken);
+                const observerRoleHint = observer
+                  .locator(".stage-frame-header")
+                  .getByRole("note")
+                  .filter({
+                    hasText:
+                      "You can edit and comment. The host decides what ships.",
+                  });
+                await expect(observerRoleHint).toBeVisible();
+                await observerRoleHint
+                  .getByRole("button", { name: "Dismiss hint", exact: true })
+                  .click();
+                await expect(observerRoleHint).toBeHidden();
+                await goToStage(observer, "edit");
+                await expect
+                  .poll(
+                    async () =>
+                      !!(await readFollowerWire(follower)).clientId &&
+                      !!observerProbe.clientId &&
+                      !!hostProbe.clientId,
+                  )
+                  .toBe(true);
+                const leaderId = hostProbe.clientId;
+                const followerId = (await readFollowerWire(follower)).clientId;
+                const leaderName = peerName(observerProbe, leaderId);
+                const face = follower.locator(
+                  `.avatar-header .avatar-face[data-person=${JSON.stringify(leaderId)}]`,
+                );
+                await expect(face).toHaveCount(1);
+                const menu = await openPeopleMenu(follower, face);
+                await menu
+                  .getByRole("menuitem", { name: "Follow", exact: true })
+                  .click();
+                await expect(followPill(follower)).toContainText(
+                  `Following ${leaderName}`,
+                );
+                await expect
+                  .poll(async () =>
+                    (await readFollowerWire(follower)).sent.some(
+                      ({ frame }) => frame.meta?.following === leaderId,
+                    ),
+                  )
+                  .toBe(true);
+                const before = await readFollowerWire(follower);
+                const old = before.sockets.at(-1);
+                if (!old || old.closed || old.helloSequence === null)
+                  inconclusive("no actual live follower socket with hello");
+                await outage.drop();
+                try {
+                  await expect
+                    .poll(
+                      async () =>
+                        (await readFollowerWire(follower)).sockets.find(
+                          (s) => s.id === old.id,
+                        )?.closed,
+                    )
+                    .toBe(true);
+                  await expect
+                    .poll(() => !observerProbe.roster[followerId])
+                    .toBe(true);
+                } catch {
+                  inconclusive(
+                    "outage did not produce actual browser close and server roster removal",
+                  );
+                } finally {
+                  outage.restore();
+                }
+                try {
+                  await expect
+                    .poll(
+                      async () => {
+                        const wire = await readFollowerWire(follower);
+                        const closed = wire.sockets.find(
+                          (s) => s.id === old.id,
+                        );
+                        const active = wire.sockets.at(-1);
+                        const row = observerProbe.roster[followerId];
+                        return (
+                          !wire.uncertain &&
+                          wire.clientId === followerId &&
+                          active &&
+                          !active.closed &&
+                          active.id > old.id &&
+                          active.helloSequence !== null &&
+                          closed?.closeSequence !== null &&
+                          active.helloSequence >
+                            (closed?.closeSequence ?? Infinity) &&
+                          wire.sent.some(
+                            ({ socketId, sequence, frame }) =>
+                              socketId === active.id &&
+                              sequence > (active.helloSequence ?? Infinity) &&
+                              frame.meta?.following === leaderId &&
+                              !Number.isFinite(frame.playhead_sec) &&
+                              !Number.isFinite(
+                                frame.meta?.transport?.playhead_sec,
+                              ),
+                          ) &&
+                          noPlayhead(row) &&
+                          row?.meta?.following === leaderId &&
+                          row?.meta?.ui?.tab === "transcript" &&
+                          row?.meta?.ui?.mobile_mode === "text"
+                        );
+                      },
+                      { timeout: 20_000 },
+                    )
+                    .toBe(true);
+                } catch {
+                  inconclusive(
+                    "real reconnect did not yield preserved follow and independently observed no-playhead text row",
+                  );
+                }
+                const rejoined = await readFollowerWire(follower);
+                await expect(followPill(follower)).toContainText(
+                  `Following ${leaderName}`,
+                );
+                const peer = requiredPeer(observerProbe, followerId);
+                const name = peerName(observerProbe, followerId);
+                const leader = requiredPeer(observerProbe, leaderId);
+                if (
+                  !Number.isFinite(leader.playhead_sec) &&
+                  !Number.isFinite(leader.meta?.transport?.playhead_sec)
+                )
+                  inconclusive("finite-playhead leader control is absent");
+                Object.assign(receipt, {
+                  followerId,
+                  leaderId,
+                  observerId: observerProbe.clientId,
+                  actualName: name,
+                  follower: peer,
+                  reconnect: { oldSocketId: old.id, wire: rejoined },
+                });
+                await observer.setViewportSize(PHONE);
+                await phone.showTimeline(observer);
+                await expect(
+                  observer.locator('.phone-edit[data-surface="lanes"]'),
+                ).toBeVisible();
+                await expect(
+                  observer.locator('.phone-edit[data-surface="text"]'),
+                ).toBeHidden();
+                await observer.setViewportSize(DESKTOP);
+                let input = await searchPeer(
+                  observer,
+                  peerName(observerProbe, leaderId),
+                );
+                await selectVerb(
+                  observer,
+                  peerName(observerProbe, leaderId),
+                  "Go to",
+                );
+                await input.press("Escape");
+                input = await searchPeer(observer, name);
+                await expect(rowsFor(observer, name)).toHaveCount(1);
+                let selectedFollowId = await selectVerb(
+                  observer,
+                  name,
+                  "Follow",
+                );
+                let dialogNode = await palette(observer).elementHandle();
+                if (!dialogNode) throw new Error("palette is not mounted");
+                const retainFollow = async () => {
+                  if (!dialogNode) throw new Error("palette is not mounted");
+                  expect(
+                    await dialogNode.evaluate((node) => node.isConnected),
+                  ).toBe(true);
+                  expect(
+                    await palette(observer).evaluate(
+                      (node, original) => node === original,
+                      dialogNode,
+                    ),
+                  ).toBe(true);
+                  await expect(input).toHaveValue(name);
+                  await expect(input).toHaveAttribute(
+                    "aria-activedescendant",
+                    selectedFollowId,
+                  );
+                  await expect(
+                    palette(observer).getByRole("status"),
+                  ).toContainText(`Enter: Follow ${name}`);
+                  await expect(
+                    observer.locator(
+                      `[id=${JSON.stringify(selectedFollowId)}]`,
+                    ),
+                  ).toHaveAttribute("aria-selected", "true");
+                };
+                const reopen = async (count: number) => {
+                  await input.press("Escape");
+                  input = await searchPeer(observer, name);
+                  await expect(rowsFor(observer, name)).toHaveCount(count);
+                  selectedFollowId = await selectVerb(observer, name, "Follow");
+                  dialogNode = await palette(observer).elementHandle();
+                  if (!dialogNode)
+                    throw new Error("reopened palette is not mounted");
+                };
+                await unchangedDuring(observerProbe, observer, async () => {
+                  await observer.setViewportSize(PHONE);
+                  await expect(observer.locator("html")).toHaveAttribute(
+                    "data-shell",
+                    "phone",
+                  );
+                  await expect(input).toHaveValue(name);
+                  await expect(rowsFor(observer, name)).toHaveCount(
+                    mode === "head" ? 2 : 1,
+                  );
+                  await retainFollow();
+                });
+                receipt.criticalResize =
+                  "stable raw roster, no inbound roster/document frames, same mounted dialog and project URL";
+                if (mode === "parent") {
+                  receipt.parentObservedMissingUntilReopen = true;
+                  await reopen(2);
+                }
+                await retainFollow();
+                await unchangedDuring(observerProbe, observer, async () => {
+                  await observer.setViewportSize(DESKTOP);
+                  await expect(observer.locator("html")).not.toHaveAttribute(
+                    "data-shell",
+                    "phone",
+                  );
+                  await expect(rowsFor(observer, name)).toHaveCount(
+                    mode === "head" ? 1 : 2,
+                  );
+                  await retainFollow();
+                });
+                if (mode === "parent") await reopen(1);
+                await unchangedDuring(observerProbe, observer, async () => {
+                  await observer.setViewportSize(PHONE);
+                  await expect(observer.locator("html")).toHaveAttribute(
+                    "data-shell",
+                    "phone",
+                  );
+                  await expect(rowsFor(observer, name)).toHaveCount(
+                    mode === "head" ? 2 : 1,
+                  );
+                  await retainFollow();
+                });
+                if (mode === "parent") await reopen(2);
+                const selectedId = await selectVerb(observer, name, "Go to");
+                const updateBefore =
+                  observerProbe.cursorUpdates.get(leaderId) ?? 0;
+                const leaderWords = host.locator(".sys-script-word");
+                await expect(leaderWords).toHaveCount(2);
+                const firstBox = await leaderWords.first().boundingBox();
+                const lastBox = await leaderWords.last().boundingBox();
+                if (!firstBox || !lastBox)
+                  inconclusive("real leader text targets are not visible");
+                await host.mouse.move(
+                  firstBox.x + firstBox.width / 2,
+                  firstBox.y + firstBox.height / 2,
+                );
+                await host.mouse.move(
+                  lastBox.x + lastBox.width / 2,
+                  lastBox.y + lastBox.height / 2,
+                  { steps: 3 },
+                );
+                try {
+                  await expect
+                    .poll(
+                      () => observerProbe.cursorUpdates.get(leaderId) ?? 0,
+                      { timeout: 5_000 },
+                    )
+                    .toBeGreaterThan(updateBefore);
+                } catch {
+                  inconclusive(
+                    "ordinary pointer interaction produced no observed roster update for parent-render retention proof",
+                  );
+                }
+                const destination = requiredPeer(observerProbe, followerId);
+                if (
+                  !noPlayhead(destination) ||
+                  destination.meta?.following !== leaderId ||
+                  destination.meta?.ui?.tab !== "transcript" ||
+                  destination.meta?.ui?.mobile_mode !== "text"
+                ) {
+                  inconclusive(
+                    "unrelated update changed the destination precondition",
+                  );
+                }
+                await expect(input).toHaveValue(name);
+                await expect(input).toHaveAttribute(
+                  "aria-activedescendant",
+                  selectedId,
+                );
+                await expect(
+                  palette(observer).getByRole("status"),
+                ).toContainText(`Enter: Go to ${name}`);
+                if (!dialogNode)
+                  throw new Error("palette is not mounted before Go to");
+                expect(
+                  await palette(observer).evaluate(
+                    (node, original) => node === original,
+                    dialogNode,
+                  ),
+                ).toBe(true);
+                await expect(
+                  observer.locator('.phone-edit[data-surface="lanes"]'),
+                ).toBeVisible();
+                await expect(
+                  observer.locator('.phone-edit[data-surface="text"]'),
+                ).toBeHidden();
+                receipt.navigationBefore =
+                  "phone Edit lanes visible, text hidden, Go to selected";
+                await input.press("Enter");
+                await expect(palette(observer)).toBeHidden();
+                await expect(
+                  observer.locator('.phone-edit[data-surface="lanes"]'),
+                ).toBeHidden();
+                await expect(
+                  observer.getByRole("main", { name: "Edit", exact: true }),
+                ).toBeVisible();
+                await expect(
+                  observer.locator('.phone-edit[data-surface="text"]'),
+                ).toBeVisible();
+                await expect(
+                  observer.getByRole("region", { name: "Script", exact: true }),
+                ).toBeVisible();
+                if (observerProbe.uncertain)
+                  inconclusive("passive frame attribution became uncertain");
+                receipt.outcome =
+                  mode === "head" ? "HEAD_PASS" : "PARENT_BUG_REPRODUCED";
+              },
+            );
+          },
+          undefined,
+          createPaletteReconnectProject,
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         receipt.outcome = message.startsWith("INCONCLUSIVE:")
