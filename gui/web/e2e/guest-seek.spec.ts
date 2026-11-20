@@ -337,6 +337,23 @@ test("a comment row seeks to its time and its clip plays and stops 2 s after it,
   });
 });
 
+test("a comment clip ends at its bound without animation frame callbacks", async ({
+  browser,
+}) => {
+  await withGuest(browser, DESKTOP, "light", async (guest) => {
+    const { at, row } = await postCommentAt(guest, COMMENT_AT_SEC);
+    await row.click();
+    await guest.page.evaluate(() => {
+      window.requestAnimationFrame = () => 0;
+    });
+    await expect(
+      guest.page.getByRole("button", { name: "Pause", exact: true }),
+    ).toBeVisible();
+    await expect(playButton(guest.page)).toBeVisible({ timeout: 15_000 });
+    await expectClockNear(guest, at + 2);
+  });
+});
+
 test("Pause during a comment clip stops it, and the next Play is not cut at the old clip end", async ({
   browser,
 }) => {

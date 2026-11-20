@@ -320,6 +320,74 @@ describe("useProxyTransport", () => {
     return () => vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2].onEnded;
   }
 
+  it("passes the live audition bound to the audio engine and restores unbounded playback", async () => {
+    const onEnded = await playingEpisode(120);
+    act(() =>
+      useDawStore.getState().beginAudition({ playheadSec: 10, untilSec: 20 }),
+    );
+    expect(engine.setSnapshot.mock.calls.at(-1)?.[0]).toMatchObject({
+      playUntilSec: 20,
+      durationSec: 120,
+    });
+    act(() => onEnded()?.(20));
+    expect(useDawStore.getState().playheadSec).toBe(20);
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(engine.setSnapshot.mock.calls.at(-1)?.[0]).toMatchObject({
+      playUntilSec: null,
+      durationSec: 120,
+    });
+  });
+
+  it("keeps an audition playing near its bound until the audio engine ends it", async () => {
+    const onEnded = await playingEpisode(120);
+    act(() => {
+      useDawStore.getState().beginAudition({ playheadSec: 10, untilSec: 20 });
+      useDawStore.setState({ sessionRegion: { start_sec: 10, end_sec: 20 } });
+    });
+    engine.currentTimeSec.mockReturnValue(19.99);
+    engine.pause.mockClear();
+    expect(frames.length).toBeGreaterThan(0);
+    act(() => {
+      for (const frame of frames.splice(0)) frame(0);
+    });
+    expect(useDawStore.getState().playheadSec).toBe(19.99);
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(useDawStore.getState().playUntilSec).toBe(20);
+    expect(useDawStore.getState().sessionRegion).toEqual({
+      start_sec: 10,
+      end_sec: 20,
+    });
+    expect(engine.pause).not.toHaveBeenCalled();
+
+    act(() => onEnded()?.(20));
+    expect(useDawStore.getState().playheadSec).toBe(20);
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(useDawStore.getState().playUntilSec).toBeNull();
+    expect(useDawStore.getState().sessionRegion).toBeNull();
+  });
+
+  it("seeks each replacement audition including an equal-valued start revision", async () => {
+    await playingEpisode(120);
+    act(() =>
+      useDawStore.getState().beginAudition({ playheadSec: 30, untilSec: 40 }),
+    );
+    act(() => useDawStore.getState().setPlayheadSec(35, "playback"));
+    act(() =>
+      useDawStore.getState().beginAudition({ playheadSec: 10, untilSec: 20 }),
+    );
+    expect(engine.setSnapshot.mock.calls.at(-1)?.[0]).toMatchObject({
+      playUntilSec: 20,
+    });
+    expect(engine.seek).toHaveBeenLastCalledWith(10);
+    const seeks = engine.seek.mock.calls.length;
+    act(() =>
+      useDawStore.getState().beginAudition({ playheadSec: 10, untilSec: 15 }),
+    );
+    expect(engine.seek).toHaveBeenCalledTimes(seeks + 1);
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(useDawStore.getState().playUntilSec).toBe(15);
+  });
+
   it("ending an audition that reaches the episode end clears its session region", async () => {
     const onEnded = await playingEpisode(120);
     act(() => {
