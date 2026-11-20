@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject } from "../../test/fixtures";
-import { seedScript } from "../../test/scriptHostKit";
+import { seedScript, setTranscriptLoading } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
+import { closeOverlay, openOverlay } from "../../ui/modalGate";
 import { EditWorkspace } from "./EditWorkspace";
 
 beforeEach(() => {
@@ -24,27 +24,75 @@ beforeEach(() => {
 });
 
 describe("Script focus return to Find", () => {
-  it("moves focus from the Script pane to Find once the transcript loads", async () => {
-    useDawStore
-      .getState()
-      .hydrate("/tmp/x/e.sharecut", minimalProject({ tracks: [] }));
+  const openScriptFocus = async (loading: boolean) => {
+    seedScript();
+    setTranscriptLoading(loading);
     const user = userEvent.setup();
-    render(<EditWorkspace />);
+    render(
+      <>
+        <EditWorkspace />
+        <button type="button">Elsewhere</button>
+      </>,
+    );
     await user.click(screen.getByRole("button", { name: "View options" }));
-    await act(async () => {
+    act(() => {
       useDawStore.setState({ scriptFocus: true });
     });
+  };
+
+  const findButton = () =>
+    screen.getByRole("button", { name: "Find in transcript" });
+  const scriptPane = () => document.querySelector<HTMLElement>(".edit-script");
+
+  it("returns focus directly to Find when the transcript is ready", async () => {
+    await openScriptFocus(false);
+    expect(findButton()).toHaveFocus();
+  });
+
+  it("moves focus from the Script pane to Find once the same transcript loads", async () => {
+    await openScriptFocus(true);
     expect(
       screen.queryByRole("button", { name: "Find in transcript" }),
     ).toBeNull();
-    expect(document.querySelector(".edit-script")).toHaveFocus();
-    await act(async () => {
-      seedScript();
-    });
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Find in transcript" }),
-      ).toHaveFocus(),
-    );
+    expect(scriptPane()).toHaveFocus();
+    act(() => setTranscriptLoading(false));
+    await waitFor(() => expect(findButton()).toHaveFocus());
   });
+
+  it("leaves focus on the Script pane when loading ends without a transcript", async () => {
+    await openScriptFocus(true);
+    act(() => seedScript({ utterances: [] }));
+    expect(screen.getByText("No transcript yet")).toBeVisible();
+    expect(scriptPane()).toHaveFocus();
+  });
+
+  it.each(["focus", "key", "pointer", "modal", "project"] as const)(
+    "does not move focus after an intervening %s change",
+    async (interruption) => {
+      await openScriptFocus(true);
+      const pane = scriptPane();
+      expect(pane).toHaveFocus();
+      act(() => {
+        if (interruption === "focus") {
+          screen.getByRole("button", { name: "Elsewhere" }).focus();
+          pane?.focus();
+        } else if (interruption === "key") {
+          pane?.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true }));
+        } else if (interruption === "pointer") {
+          pane?.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+        } else if (interruption === "modal") {
+          closeOverlay(openOverlay(true));
+        } else {
+          seedScript({ projectPath: "/tmp/another-episode" });
+        }
+        setTranscriptLoading(false);
+      });
+      await act(async () => {
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve()),
+        );
+      });
+      expect(findButton()).not.toHaveFocus();
+    },
+  );
 });

@@ -37,4 +37,6 @@ In the desktop transcript, Shift-click extends a range from the original word on
 | Script focus (`view.scriptFocus`) | `Shift+T` | Grows the Script pane and replaces the timeline with a 32 px overview strip of the whole episode (a 44 px touch box on a touch screen): tap or drag it to seek, or use the arrows, Home and End when it is focused |
 | Resize Script | Divider: drag, arrows, Home/End, Enter or double-click resets | Sets the pane width; saved as a browser preference |
 
+If Script focus hides the View button while its popover has keyboard focus, the popover closes and focus returns to **Find in transcript**. While the words load, focus goes to the Script pane. When Find appears, it takes focus if the reader has left focus on the pane without pressing another key or clicking. An episode with no transcript leaves focus on the pane.
+
 The old layout presets (Restore layout, Maximize timeline, Maximize transcript, Review layout) and their `Mod+1` to `Mod+4` keys were removed; those keys now go to stages. Every stage keeps the header, Player bar and banner rows in place (geometry guard: `stage/frame/StageFrame.test.tsx`).

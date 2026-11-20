@@ -2,12 +2,18 @@ import { type RefObject, useLayoutEffect, useRef } from "react";
 import { isValidFocusTarget } from "../../ui/focusTarget";
 import { modalOpen, subscribeModalOpen } from "../../ui/modalGate";
 
+export type ViewFocusTarget = {
+  get: () => HTMLElement | null;
+  subscribe: (listener: () => void) => () => void;
+};
+
 export type ViewAnchorAvailability =
   | { kind: "available" }
   | {
       kind: "unavailable";
       returnTarget: () => HTMLElement | null;
-      preferredTarget?: () => HTMLElement | null;
+      preferredTarget?: ViewFocusTarget;
+      awaitingTarget?: boolean;
     };
 
 export const AVAILABLE_VIEW_ANCHOR: ViewAnchorAvailability = {
@@ -23,19 +29,25 @@ export function useViewAnchor(
   const recovery = useRef<{
     owner: HTMLElement;
     destination: () => HTMLElement | null;
-    preferred: (() => HTMLElement | null) | undefined;
+    preferred: ViewFocusTarget | undefined;
     cancel: () => void;
   } | null>(null);
-  const upgrade = useRef<(() => void) | null>(null);
+  const handoff = useRef<ReturnType<typeof waitForTarget> | null>(null);
 
   useLayoutEffect(() => {
-    if (availability.kind === "available") {
-      upgrade.current?.();
-      upgrade.current = null;
+    const preferred =
+      availability.kind === "unavailable"
+        ? availability.preferredTarget
+        : undefined;
+    const awaiting =
+      availability.kind === "unavailable" && availability.awaitingTarget;
+    const waiting = handoff.current;
+    if (waiting) {
+      if (open || waiting.target !== preferred) waiting.cancel();
+      else if (!awaiting) waiting.settle();
     }
+
     if (open && availability.kind === "unavailable") {
-      upgrade.current?.();
-      upgrade.current = null;
       const panel = panelRef.current;
       const active = document.activeElement;
       if (
@@ -53,7 +65,7 @@ export function useViewAnchor(
         recovery.current = {
           owner: active,
           destination: availability.returnTarget,
-          preferred: availability.preferredTarget,
+          preferred,
           cancel,
         };
         document.addEventListener("focusin", cancel);
@@ -67,85 +79,98 @@ export function useViewAnchor(
       const ownsFocus =
         active === pending.owner ||
         (active === document.body && !pending.owner.isConnected);
-      const destination = pending.destination();
-      const preferred = pending.preferred;
       pending.cancel();
-      if (ownsFocus && isValidFocusTarget(destination)) {
-        destination.focus();
-        upgrade.current?.();
-        upgrade.current =
-          preferred && destination !== preferred()
-            ? upgradeFocus(destination, preferred)
-            : null;
+      if (
+        !ownsFocus ||
+        modalOpen() ||
+        (pending.preferred && pending.preferred !== preferred)
+      )
+        return;
+
+      const target = pending.preferred?.get() ?? null;
+      if (isValidFocusTarget(target)) {
+        target.focus();
+        return;
+      }
+      const fallback = pending.destination();
+      if (!isValidFocusTarget(fallback)) return;
+      fallback.focus();
+      if (
+        awaiting &&
+        pending.preferred &&
+        fallback === document.activeElement &&
+        !modalOpen()
+      ) {
+        handoff.current = waitForTarget(fallback, pending.preferred, () => {
+          handoff.current = null;
+        });
       }
     } else {
       recovery.current?.cancel();
-      upgrade.current?.();
-      upgrade.current = null;
     }
   });
 
   useLayoutEffect(
     () => () => {
       recovery.current?.cancel();
-      upgrade.current?.();
+      handoff.current?.cancel();
     },
     [],
   );
 }
 
-const UPGRADE_WINDOW_MS = 5000;
-
-function upgradeFocus(
+function waitForTarget(
   fallback: HTMLElement,
-  preferred: () => HTMLElement | null,
-): () => void {
+  target: ViewFocusTarget,
+  clear: () => void,
+) {
   const doc = fallback.ownerDocument;
-  const stop = () => {
-    observer.disconnect();
-    window.cancelAnimationFrame(frame);
-    unsubscribe();
-    window.clearTimeout(timer);
-    doc.removeEventListener("focusin", onFocusIn);
-    doc.removeEventListener("pointerdown", stop, true);
-    doc.removeEventListener("keydown", stop, true);
+  const view = doc.defaultView;
+  let frame: number | null = null;
+  let settled = false;
+
+  const cancel = () => {
+    if (frame !== null) view?.cancelAnimationFrame(frame);
+    unsubscribeTarget();
+    unsubscribeModal();
+    doc.removeEventListener("focusin", onFocus);
+    doc.removeEventListener("pointerdown", cancel, true);
+    doc.removeEventListener("keydown", cancel, true);
+    clear();
   };
-  const onFocusIn = (event: FocusEvent) => {
-    if (event.target !== fallback) stop();
+  const onFocus = (event: FocusEvent) => {
+    if (event.target !== fallback) cancel();
   };
-  let frame = 0;
-  const observer = new MutationObserver(() => {
-    if (frame !== 0) return;
-    if (modalOpen()) {
-      stop();
-      return;
-    }
-    if (doc.activeElement !== fallback || !isValidFocusTarget(preferred()))
-      return;
-    frame = window.requestAnimationFrame(() => {
-      frame = 0;
-      const target = preferred();
-      stop();
-      if (
-        modalOpen() ||
-        doc.activeElement !== fallback ||
-        !isValidFocusTarget(target)
-      ) {
+  const check = () => {
+    if (frame !== null || view === null) return;
+    frame = view.requestAnimationFrame(() => {
+      frame = null;
+      if (modalOpen() || doc.activeElement !== fallback) {
+        cancel();
         return;
       }
-      target.focus();
+      const next = target.get();
+      if (isValidFocusTarget(next)) {
+        cancel();
+        next.focus();
+      } else if (settled) {
+        cancel();
+      }
     });
-  });
-  const timer = window.setTimeout(stop, UPGRADE_WINDOW_MS);
-  const unsubscribe = subscribeModalOpen(stop);
-  doc.addEventListener("focusin", onFocusIn);
-  doc.addEventListener("pointerdown", stop, true);
-  doc.addEventListener("keydown", stop, true);
-  observer.observe(doc.body, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["hidden", "class"],
-  });
-  return stop;
+  };
+  const unsubscribeTarget = target.subscribe(check);
+  const unsubscribeModal = subscribeModalOpen(cancel);
+  doc.addEventListener("focusin", onFocus);
+  doc.addEventListener("pointerdown", cancel, true);
+  doc.addEventListener("keydown", cancel, true);
+  if (target.get()) check();
+
+  return {
+    target,
+    cancel,
+    settle: () => {
+      settled = true;
+      check();
+    },
+  };
 }

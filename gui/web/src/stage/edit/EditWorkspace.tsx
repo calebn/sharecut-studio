@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { execute } from "../../commands/execute";
 import { runPointerCommand } from "../../commands/pointer";
@@ -92,6 +92,24 @@ function EditWorkspaceAdapter({
   const overviewGuest = isGuestSession(projectPath, guestMode, guestShare);
   const size = useScriptSize();
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  const findTarget = useMemo(() => {
+    let button: HTMLButtonElement | null = null;
+    let notify: (() => void) | null = null;
+    return {
+      projectPath,
+      get: () => button,
+      attach: (target: HTMLButtonElement | null) => {
+        button = target;
+        if (target) notify?.();
+      },
+      subscribe: (listener: () => void) => {
+        notify = listener;
+        return () => {
+          if (notify === listener) notify = null;
+        };
+      },
+    };
+  }, [projectPath]);
 
   // The timeline column keeps timeline keys firing; the Script pane, the
   // divider and the Inspector do not (spec: focus regions).
@@ -106,6 +124,14 @@ function EditWorkspaceAdapter({
   const scriptRegion = useTimelineFocusRegion<HTMLElement>(
     false,
     setTimelineFocused,
+  );
+  const scriptElement = useRef<HTMLElement>(null);
+  const bindScript = useCallback(
+    (target: HTMLElement | null) => {
+      scriptElement.current = target;
+      scriptRegion(target);
+    },
+    [scriptRegion],
   );
   const inspectorRegion = useTimelineFocusRegion<HTMLDivElement>(
     false,
@@ -206,9 +232,10 @@ function EditWorkspaceAdapter({
   ) : (
     <div ref={scriptScroll} className="edit-script-body">
       <ScriptHost
-        key={projectPath ?? ""}
+        key={findTarget.projectPath ?? ""}
         layout={phone ? "phone" : "desktop"}
         onTranscribe={transcribe}
+        onFindTargetChange={findTarget.attach}
       />
     </div>
   );
@@ -221,10 +248,6 @@ function EditWorkspaceAdapter({
   const actionBar = (
     <EditActionBar form={phone ? "dock" : "floating"} root={root} />
   );
-  const findButton = () =>
-    root?.querySelector<HTMLButtonElement>(
-      'button[aria-label="Find in transcript"]',
-    ) ?? null;
   const corner = (
     <EditCorner
       showScript={!phone}
@@ -234,11 +257,10 @@ function EditWorkspaceAdapter({
           : !phone && scriptFocus
             ? {
                 kind: "unavailable",
-                returnTarget: () =>
-                  findButton() ??
-                  root?.querySelector<HTMLElement>(".edit-script") ??
-                  null,
-                preferredTarget: findButton,
+                returnTarget: () => scriptElement.current,
+                preferredTarget: findTarget,
+                awaitingTarget:
+                  project?.meta.hydration?.transcript_words === false,
               }
             : AVAILABLE_VIEW_ANCHOR
       }
@@ -287,7 +309,7 @@ function EditWorkspaceAdapter({
           lanes={timeline}
           script={script}
           overview={<EditOverview height={16} guest={overviewGuest} />}
-          bindings={{ lanes: timelineRegion, script: scriptRegion }}
+          bindings={{ lanes: timelineRegion, script: bindScript }}
           onOpenMix={
             canEditMix(projectPath, guestMode, shareCapabilities)
               ? () => setOpenSheet("mix")
@@ -307,7 +329,7 @@ function EditWorkspaceAdapter({
         root: setRoot,
         timeline: timelineRegion,
         divider: dividerRegion,
-        script: scriptRegion,
+        script: bindScript,
       }}
     />
   );
