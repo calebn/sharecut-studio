@@ -24,7 +24,11 @@ import { ModelNeedRow } from "../../models";
 import { ModelsContext } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
 import { SourceCard } from "../../system/SourceCard";
-import { pipelineJobSnapshot, sampleTrack } from "../../test/fixtures";
+import {
+  minimalProject,
+  pipelineJobSnapshot,
+  sampleTrack,
+} from "../../test/fixtures";
 import {
   modelRow,
   modelStatus,
@@ -274,8 +278,38 @@ describe("track commands", () => {
 });
 
 describe("hear", () => {
+  it("announces a refused preview without changing the solo or transport", () => {
+    const announce = vi.fn();
+    useDawStore.setState({
+      project: minimalProject(),
+      soloTracks: { joss: true },
+      isPlaying: false,
+      playheadSec: 7,
+      playUntilSec: null,
+      announceStatus: announce,
+    });
+    const { result } = setup();
+
+    act(() => result.current.actions.onHear("maya"));
+
+    expect(announce).toHaveBeenCalledWith("Import audio to play.", {
+      tone: "error",
+    });
+    expect(useDawStore.getState()).toMatchObject({
+      soloTracks: { joss: true },
+      isPlaying: false,
+      playheadSec: 7,
+      playUntilSec: null,
+    });
+    expect(result.current.playingId).toBeNull();
+  });
+
   it("solos the voice for a moment and puts the solo back when playback stops", () => {
-    useDawStore.setState({ soloTracks: { joss: true } });
+    useDawStore.setState({
+      project: minimalProject({ tracks }),
+      soloTracks: { joss: true },
+      isPlaying: false,
+    });
     const { result, rerender } = setup();
     act(() => {
       result.current.actions.onHear("maya");

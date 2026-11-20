@@ -50,6 +50,18 @@ test("Prepare: the hand-off opens the next stage once the sources are ready", as
   ).toBeVisible();
 });
 
+test("Prepare: Hear starts and stops a source preview", async ({ page }) => {
+  await openProject(page, e2eProjectPath, { stage: "prepare" });
+  const hear = page
+    .locator("[data-source-id]")
+    .getByRole("button", { name: /^Hear / })
+    .first();
+  await hear.click();
+  await expect(hear).toHaveAttribute("aria-pressed", "true");
+  await hear.click();
+  await expect(hear).not.toHaveAttribute("aria-pressed", "true");
+});
+
 test("Prepare: audio added next to transcribed tracks waits for Process new audio, then shows a waiting Run when the slot is busy", async ({
   page,
 }) => {
