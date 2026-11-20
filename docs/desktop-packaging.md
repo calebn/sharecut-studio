@@ -616,19 +616,21 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   none of them and never reads the key.
 - **Manual export profile.** Two more optional names, accepted in the same private file and
   overridden by the environment:
-  - `APPLE_PROVISIONING_PROFILE=` is the installed App Store profile's name (letters, digits,
-    space and `. _ -`); `APPLE_SIGNING_CERTIFICATE=` defaults to `Apple Distribution` and is
+  - `APPLE_PROVISIONING_PROFILE=` is the installed App Store profile's name. It accepts letters,
+    digits, spaces and `. _ : -`, with at least two characters after trimming.
+    `APPLE_SIGNING_CERTIFICATE=` defaults to `Apple Distribution` and is
     validated (up to 100 characters of letters, digits, space and `. , _ : ( ) ' -`).
   - A signed `build` (never the rehearsal) reads `~/Library/MobileDevice/Provisioning Profiles`
     and `~/Library/Developer/Xcode/UserData/Provisioning Profiles`, never Downloads. One valid
     App Store profile for the team and bundle identifier, or the one named, switches the export
     to manual signing with that profile and none of the API-key flags.
-  - It refuses, with counts and reasons and no profile names: several valid profiles unless
-    one is named (profiles are counted, so two sharing a name refuse too); profiles for this
-    app that are all unusable (expired, development, ad hoc, enterprise, wildcard, another
-    team), because automatic signing with the key cannot create a profile; every profile file
-    unreadable. A named profile never falls back: it must be installed once, and valid.
-  - With none for this app, the export stays automatic.
+  - Automatic discovery ignores wildcard and development profiles. If no candidate or unreadable
+    file remains, the export stays automatic.
+  - The build refuses with counts and reasons if multiple valid profiles remain, if all candidates
+    are unusable, or if unreadable files leave it without a candidate. The profile must support
+    iOS. If you name a profile, it must be valid for the app and installed once.
+  - A corrupt file or a decode that times out or exceeds the read limit counts as unreadable.
+    The tool omits profile names from diagnostics and redacts the selected names in export logs.
   - The API key is still required and checked for a signed build, because the archive uses it.
 - **Identity and build number.** A three-key overlay (`identifier`, `productName` from
   `short_name`, `bundle.iOS.bundleVersion`) goes to both `tauri ios init` and `tauri ios build`.
@@ -646,10 +648,10 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   for the rehearsal). A signed archive gets `APPLE_API_KEY`, `APPLE_API_ISSUER` and
   `APPLE_API_KEY_PATH` in its environment, which Tauri turns into the `-authentication*` flags;
   without them Xcode needs a signed-in account and fails with "No Accounts". Then, signed, the
-  tool's own `xcodebuild -exportArchive -allowProvisioningUpdates -authenticationKeyPath
-  -authenticationKeyID -authenticationKeyIssuerID` with a private `ExportOptions.plist` (method `app-store-connect`,
-  automatic signing, or manual signing with an installed profile (see Manual export profile,
-  with none of the update or key flags); `uploadSymbols` false because dSYMs carry build paths,
+  tool runs `xcodebuild -exportArchive` with a private `ExportOptions.plist` (method `app-store-connect`).
+  Automatic export adds `-allowProvisioningUpdates` and the `-authentication*` flags.
+  Manual export uses the installed profile and certificate in the plist.
+  `uploadSymbols` is false because dSYMs carry build paths,
   and `manageAppVersionAndBuildNumber` false so Xcode cannot rewrite the build number). The
   archive and export directories are deleted once the IPA is collected. Child processes get an
   explicit environment allowlist (`PATH` with the rustup toolchain first, `HOME`, `USER`,
@@ -754,9 +756,9 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   redacted one-line failure for any exception. Private files made for a command (the export
   options), the per-step logs and the rehearsal's recorded `xcodebuild` arguments
   (`logs/xcodebuild-args.log`) are created without following links. A stale file or planted link
-  at that path is replaced (files) or refused (logs), and the mode is set to `0600`. The argv of
-  altool and of the export shows the key id, issuer and key path to the same user in `ps` for the
-  length of one call; that is accepted.
+  at that path is replaced (files) or refused (logs), and the mode is set to `0600`.
+  The arguments to altool and automatic export show the key id, issuer and key path to the
+  same user in `ps` for the length of one call.
 - **Signing failures.** An export that fails with `No signing certificate "iOS Distribution"
   found` or `Cloud signing permission error` is an account problem: the API key's role cannot use
   cloud-managed distribution certificates and the login keychain has none. Create the Apple
@@ -766,7 +768,8 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   either `Cloud signing permission error` or `FORBIDDEN_ERROR`, the key's role most likely cannot
   create the App Store profile (Apple usually answers `FORBIDDEN_ERROR` in the Xcode log). The
   tool prints a two-sentence hint (`scripts/ios/release_classify.py`): give the key the Admin
-  role, or make the profile by hand at developer.apple.com, which the export may not pick up.
+  role for automatic signing, or install an App Store profile from developer.apple.com and set
+  `APPLE_PROVISIONING_PROFILE` to its name for manual export.
 - **Rehearsal.** `make ios-release-rehearsal` with a profile shaped like the owner's passes every
   local check (`gui/desktop/src-tauri/target/ios-release/<build>/`). The unsigned archive signs
   the Python frameworks ad hoc (the template's install phase). It proves the payload and the
@@ -776,10 +779,10 @@ Owner runbook. A step marked Apple contacts Apple.
 
 1. Local. The rehearsal has passed on the merged code.
 2. Local. Write the private file with the team, key id, issuer and key path (`chmod 600`), then
-   `uv run python scripts/ios/ios_release.py build --dry-run` and read the plan. It says the real
-   build may create an Apple Distribution certificate and an App Store profile in the account
-   Xcode is signed in to.
-3. Apple (Xcode creates the certificate and profile): `ios_release.py build`.
+   `uv run python scripts/ios/ios_release.py build --dry-run` and read the plan. It reports the
+   export signing style. Automatic export may create an Apple Distribution certificate and an
+   App Store profile. Manual export uses the local profile and certificate.
+3. Apple (the signed archive contacts Apple): `ios_release.py build`.
 4. Apple, read-only: `ios_release.py validate`.
 5. Apple, writes: `ios_release.py upload --confirm <build>:<sha12>`. If a run was interrupted or the upload could not reach Apple, check TestFlight for the build number before you use `--retry-unknown-upload`.
 6. By hand in App Store Connect: wait for processing and assign the build to yourself as an

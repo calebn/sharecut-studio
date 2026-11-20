@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import plistlib
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -9,7 +10,7 @@ import pytest
 from scripts.ios import ios_release, provisioning, release_inputs, release_plan
 from scripts.ios.provisioning import ProfileFacts
 from scripts.ios.release_inputs import BuildNumber, Checkout, Identity, Signing
-from scripts.ios.release_run import ToolFailed
+from scripts.ios.release_run import ToolFailed, capture_limited, spawn
 from scripts.ios.release_secrets import Redactor, Secret
 
 TEAM = "BBBBBBBBBB"
@@ -29,6 +30,7 @@ def facts(**changes: object) -> ProfileFacts:
         "provisions_all": False,
         "devices": 0,
         "get_task_allow": False,
+        "platforms": ("iOS",),
     }
     fields.update(changes)
     return ProfileFacts(**fields)  # type: ignore[arg-type]
@@ -59,13 +61,16 @@ def test_the_certificate_comes_from_the_value_when_set() -> None:
     chosen, _ = resolve(
         {"APPLE_SIGNING_CERTIFICATE": "Apple Distribution: Jo (BBBBBBBBBB)"}, (facts(),)
     )
-    assert chosen is not None and chosen.certificate == "Apple Distribution: Jo (BBBBBBBBBB)"
+    assert chosen is not None and isinstance(chosen.certificate, Secret)
+    assert chosen.certificate.reveal() == "Apple Distribution: Jo (BBBBBBBBBB)"
+    assert repr(chosen.certificate) == "<signing-certificate>"
 
 
 @pytest.mark.parametrize("certificate", ["bad\nname", "x<y>"])
 def test_a_certificate_with_control_or_markup_characters_is_refused(certificate: str) -> None:
     chosen, problems = resolve({"APPLE_SIGNING_CERTIFICATE": certificate}, (facts(),))
     assert chosen is None and problems[0].name == "APPLE_SIGNING_CERTIFICATE"
+    assert problems[0].source == "private file or environment"
 
 
 def test_several_distinct_valid_profiles_refuse_without_naming_them() -> None:
@@ -85,15 +90,31 @@ def test_profiles_for_other_apps_are_not_candidates() -> None:
     assert resolve(profiles=(other,)) == (None, [])
 
 
+@pytest.mark.parametrize("changes", [{"get_task_allow": True}, {"app_id": f"{TEAM}.*"}])
+def test_wildcard_and_development_profiles_only_matter_when_named(
+    changes: dict[str, object],
+) -> None:
+    profile = facts(**changes)
+    assert resolve(profiles=(profile,)) == (None, [])
+    selected, problems = resolve({"APPLE_PROVISIONING_PROFILE": NAME}, (profile,))
+    assert selected is None and "cannot sign an App Store export" in why(problems)
+
+
+def test_xcode_managed_profile_name_may_contain_a_colon() -> None:
+    name = f"iOS Team Store Provisioning Profile: {BUNDLE}"
+    chosen, problems = resolve({"APPLE_PROVISIONING_PROFILE": name}, (facts(name=name),))
+    assert problems == [] and chosen is not None and chosen.profile.reveal() == name
+
+
 @pytest.mark.parametrize(
     ("changes", "reason"),
     [
         ({"expires": NOW - timedelta(seconds=1)}, "expired"),
-        ({"get_task_allow": True}, "development"),
+        ({"expires": NOW}, "expired"),
         ({"provisions_all": True}, "enterprise"),
         ({"devices": 3}, "ad hoc"),
         ({"team": "CCCCCCCCCC", "app_id": f"CCCCCCCCCC.{BUNDLE}"}, "team"),
-        ({"app_id": f"{TEAM}.*"}, "wildcard"),
+        ({"platforms": ("OSX",)}, "does not support iOS"),
         ({"name": "Bad</string>Name"}, "name"),
     ],
 )
@@ -139,13 +160,15 @@ def test_an_explicit_name_that_matches_a_rejected_profile_refuses_with_the_reaso
     assert chosen is None and "expired" in why(problems)
 
 
-@pytest.mark.parametrize("name", ["A</string><key>x</key>", "new\nline"])
+@pytest.mark.parametrize("name", ["A</string><key>x</key>", "new\nline", " ", " X "])
 def test_an_explicit_name_outside_the_safe_characters_is_refused_before_matching(
     name: str,
 ) -> None:
     chosen, problems = resolve({"APPLE_PROVISIONING_PROFILE": name}, (facts(name=name),))
     assert chosen is None and problems[0].name == "APPLE_PROVISIONING_PROFILE"
-    assert name not in why(problems)
+    assert "at least two characters after trimming" in why(problems)
+    if name.strip():
+        assert name not in why(problems)
 
 
 def test_two_usable_profiles_sharing_a_name_refuse_instead_of_picking_one() -> None:
@@ -165,19 +188,34 @@ def test_unreadable_files_alone_refuse_with_the_count_and_no_names() -> None:
     assert chosen is None and "3" in why(problems) and "could not be read" in why(problems)
 
 
+def test_unreadable_files_are_reported_beside_another_apps_profile() -> None:
+    other = facts(app_id=f"{TEAM}.studio.sharecut.app2")
+    chosen, problems = resolve(profiles=(other,), unreadable=2)
+    assert chosen is None and "2 profile file(s) could not be read" in why(problems)
+    assert NAME not in why(problems)
+
+
 def test_some_unreadable_files_among_readable_ones_are_tolerated() -> None:
     chosen, problems = resolve(profiles=(facts(),), unreadable=2)
     assert problems == [] and chosen is not None
 
 
 def test_a_rejected_only_refusal_says_why_there_is_no_automatic_fallback() -> None:
-    _, problems = resolve(profiles=(facts(get_task_allow=True),))
+    _, problems = resolve(profiles=(facts(devices=1),))
     text = why(problems)
     assert "automatic" in text and "install a valid App Store profile" in text
 
 
 @pytest.mark.parametrize(
-    "changes", [{"ExpirationDate": "2027-06-01"}, {"Name": 5}, {"TeamIdentifier": "BBBBBBBBBB"}]
+    "changes",
+    [
+        {"ExpirationDate": "2027-06-01"},
+        {"Name": 5},
+        {"TeamIdentifier": "BBBBBBBBBB"},
+        {"Platform": "iOS"},
+        {"Platform": []},
+        {"Platform": [5]},
+    ],
 )
 def test_read_profile_rejects_wrongly_typed_fields_as_unreadable(
     changes: dict[str, object],
@@ -193,22 +231,26 @@ def profile_plist(**changes: object) -> bytes:
         "TeamIdentifier": [TEAM],
         "ExpirationDate": datetime(2027, 6, 1, 12, 0, 0),
         "Entitlements": {"application-identifier": f"{TEAM}.{BUNDLE}", "get-task-allow": False},
+        "Platform": ["iOS"],
     }
     document.update(changes)
     return plistlib.dumps(document)
 
 
 def test_read_profile_decodes_the_cms_plist_through_the_injected_runner() -> None:
-    calls: list[list[str]] = []
+    calls: list[tuple[list[str], dict[str, object]]] = []
 
-    def run(argv: list[str], **_: object) -> str:
-        calls.append(argv)
+    def run(argv: list[str], **options: object) -> str:
+        calls.append((argv, options))
         return profile_plist().decode()
 
     read = provisioning.read_profile(Path("p.mobileprovision"), run=run)
-    assert calls[0][:4] == ["security", "cms", "-D", "-i"] and calls[0][4].endswith(
-        "p.mobileprovision"
-    )
+    assert calls == [
+        (
+            ["security", "cms", "-D", "-i", "p.mobileprovision"],
+            {"path": "/usr/bin:/bin", "timeout": 10.0, "limit": 4 << 20},
+        )
+    ]
     assert read == facts(expires=datetime(2027, 6, 1, 12, 0, 0, tzinfo=UTC))
 
 
@@ -259,6 +301,80 @@ def test_every_file_unreadable_is_counted(tmp_path: Path) -> None:
     assert provisioning.discover([tmp_path], reader) == ([], 2)
 
 
+@pytest.mark.parametrize(
+    "malformed",
+    [
+        "<plist><dict></array></plist>",
+        "<plist>" + "<array>" * 1500 + "</array>" * 1500 + "</plist>",
+    ],
+)
+def test_a_corrupt_cms_plist_cannot_stop_discovery(tmp_path: Path, malformed: str) -> None:
+    bad = tmp_path / "a.mobileprovision"
+    bad.touch()
+    (tmp_path / "b.mobileprovision").touch()
+
+    def read(path: Path) -> ProfileFacts:
+        text = malformed if path == bad else profile_plist().decode()
+        return provisioning.read_profile(path, run=lambda argv, **_: text)
+
+    profiles, unreadable = provisioning.discover([tmp_path], read)
+    assert [profile.name for profile in profiles] == [NAME]
+    assert unreadable == 1
+
+
+def test_a_parser_recursion_error_counts_as_an_unreadable_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "profile.mobileprovision").touch()
+
+    def parse(data: bytes) -> object:
+        raise RecursionError
+
+    def read(path: Path) -> ProfileFacts:
+        return provisioning.read_profile(path, run=lambda argv, **_: "<plist/>")
+
+    monkeypatch.setattr(plistlib, "loads", parse)
+    assert provisioning.discover([tmp_path], read) == ([], 1)
+
+
+def test_discover_refuses_non_files_before_running_security(tmp_path: Path) -> None:
+    (tmp_path / "directory.mobileprovision").mkdir()
+
+    def read(path: Path) -> ProfileFacts:
+        pytest.fail(f"security would read non-regular path {path}")
+
+    assert provisioning.discover([tmp_path], read) == ([], 1)
+
+
+def test_cms_capture_gives_the_tool_no_stdin_and_ignores_stderr() -> None:
+    command = [
+        sys.executable,
+        "-c",
+        "import sys; assert sys.stdin.read() == ''; print('decoded'); print('private', file=sys.stderr)",
+    ]
+    assert capture_limited(command, path=provisioning.TOOL_PATH, timeout=2, limit=64) == "decoded\n"
+
+
+@pytest.mark.parametrize(
+    ("script", "reason"),
+    [
+        ("print('x' * 200)", "output exceeds 64 bytes"),
+        ("import time; time.sleep(5)", "timed out"),
+        ("import os, time; os.close(1); time.sleep(5)", "timed out"),
+        ("raise SystemExit(2)", "exited 2"),
+    ],
+)
+def test_cms_capture_bounds_the_child_process(script: str, reason: str) -> None:
+    timeout = 0.2 if reason == "timed out" else 2
+    with pytest.raises(ToolFailed, match=reason):
+        capture_limited(
+            [sys.executable, "-c", script],
+            path=provisioning.TOOL_PATH,
+            timeout=timeout,
+            limit=64,
+        )
+
+
 def test_the_scanned_directories_are_the_two_installed_profile_locations_never_downloads() -> None:
     assert provisioning.PROFILE_DIRECTORIES == (
         "Library/MobileDevice/Provisioning Profiles",
@@ -266,7 +382,7 @@ def test_the_scanned_directories_are_the_two_installed_profile_locations_never_d
     )
 
 
-def provisioned_inputs(name: str = NAME, certificate: str = "Apple Distribution"):
+def provisioned_inputs(name: str = NAME, certificate: str | Secret = "Apple Distribution"):
     return release_inputs.BuildInputs(
         Identity(BUNDLE, "ShareCut"),
         "0.1.4",
@@ -283,16 +399,14 @@ def provisioned_inputs(name: str = NAME, certificate: str = "Apple Distribution"
     )
 
 
-def provisioned_steps(**kwargs: str):
+def provisioned_steps(**kwargs):
     steps = release_plan.plan_build(provisioned_inputs(**kwargs), LAYOUT, NOISY, "/p")
     return {step.name: step for step in steps}
 
 
 def options_of(step) -> dict[str, object]:
-    values = {"team": TEAM, "provisioning-profile": NAME}
     text = "".join(
-        values[part.label] if isinstance(part, Secret) else part
-        for part in step.command.files[0].parts
+        part.reveal() if isinstance(part, Secret) else part for part in step.command.files[0].parts
     )
     return plistlib.loads(text.encode())
 
@@ -352,8 +466,32 @@ def test_the_profile_name_is_a_secret_and_appears_in_no_argv_or_display() -> Non
 
 def test_a_certificate_with_punctuation_round_trips_through_the_plist() -> None:
     certificate = "Apple Distribution: O'Neil, Jo (BBBBBBBBBB)"
-    options = options_of(provisioned_steps(certificate=certificate)["export"])
+    options = options_of(
+        provisioned_steps(certificate=Secret(certificate, "signing-certificate"))["export"]
+    )
     assert options["signingCertificate"] == certificate
+
+
+def test_the_manual_export_redacts_its_selected_profile_and_certificate(tmp_path: Path) -> None:
+    tool = tmp_path / "xcodebuild"
+    tool.write_text('#!/bin/sh\nfor arg do file=$arg; done\ncat "$file"\nexit 7\n')
+    tool.chmod(0o700)
+    layout = release_plan.Layout(tmp_path / "repo")
+    (layout.tauri / "gen/apple/build").mkdir(parents=True)
+    certificate = "Manual signing account (BBBBBBBBBB)"
+    inputs = provisioned_inputs(certificate=Secret(certificate, "signing-certificate"))
+    export = next(
+        step
+        for step in release_plan.plan_build(inputs, layout, NOISY, f"{tmp_path}:/usr/bin:/bin")
+        if isinstance(step, release_plan.Run) and step.name == "export"
+    )
+    log = tmp_path / "export.log"
+    result = spawn(export.command, ios_release.build_redactor(inputs, layout.root), log)
+    assert result.exit_code == 7
+    for output in (result.output, result.tail, log.read_text()):
+        assert all(raw not in output for raw in (NAME, certificate, TEAM))
+        assert "<signing-certificate>" in output and "<provisioning-profile>" in output
+    assert not export.command.files[0].path.exists()
 
 
 def automatic_parts_at_base(team: Secret) -> tuple[object, ...]:

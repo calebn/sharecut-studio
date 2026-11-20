@@ -18,6 +18,7 @@ import pytest
 from scripts.ios import bundle_checks as checks
 from scripts.ios import (
     ios_release,
+    provisioning,
     release_classify,
     release_deliver,
     release_inputs,
@@ -565,7 +566,8 @@ def test_the_dry_run_prints_the_apple_notice_before_any_step(
     stage_signed_build(tmp_path, monkeypatch)
     assert ios_release.main(["build", "--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert out.index("may create an Apple Distribution certificate") < out.index(" 1 ")
+    assert out.index("Export signing is automatic.") < out.index(" 1 ")
+    assert "may create an Apple Distribution certificate" in out
     assert TEAM not in out and "APPLE_DEVELOPMENT_TEAM=<team>" in out
     assert out.endswith("dry run: nothing was run\n")
 
@@ -589,6 +591,56 @@ def stage_signed_build(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(ios_release, "toolchain", lambda: ("/rustup:/usr/bin", None))
     monkeypatch.setattr(ios_release, "checkout_lock", lambda root: contextlib.nullcontext())
     return key
+
+
+@pytest.mark.parametrize("candidate", ["wildcard", "explicit", "corrupt"])
+def test_signed_build_reports_the_export_mode_after_reading_installed_profile_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    candidate: str,
+) -> None:
+    stage_signed_build(tmp_path, monkeypatch)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    security = bin_dir / "security"
+    security.write_text('#!/bin/sh\n[ "$1 $2 $3" = "cms -D -i" ] || exit 2\ncat "$4"\n')
+    security.chmod(0o700)
+    monkeypatch.setattr(provisioning, "TOOL_PATH", f"{bin_dir}:/usr/bin:/bin")
+    installed = Path.home() / provisioning.PROFILE_DIRECTORIES[0]
+    installed.mkdir(parents=True)
+    name = "iOS Team Store Provisioning Profile: ShareCut"
+    profile = installed / "private-profile.mobileprovision"
+    if candidate == "corrupt":
+        profile.write_text("<plist><dict></array></plist>")
+    else:
+        bundle = "*" if candidate == "wildcard" else IDENTITY.bundle_identifier
+        profile.write_bytes(
+            plistlib.dumps(
+                {
+                    "Name": name,
+                    "TeamIdentifier": [TEAM],
+                    "Platform": ["iOS"],
+                    "ExpirationDate": datetime.now(UTC).replace(tzinfo=None) + timedelta(days=1),
+                    "Entitlements": {"application-identifier": f"{TEAM}.{bundle}"},
+                }
+            )
+        )
+    if candidate == "explicit":
+        monkeypatch.setenv("APPLE_PROVISIONING_PROFILE", name)
+
+    code = ios_release.main(["build", "--dry-run"])
+    output = capsys.readouterr().out
+    assert name not in output and profile.name not in output
+    if candidate == "corrupt":
+        assert code == Failure.INPUT.value
+        assert "1 profile file(s) could not be read" in output
+    else:
+        assert code == 0
+        style = "automatic" if candidate == "wildcard" else "manual"
+        assert f"Export signing is {style}." in output
+        export = next(line for line in output.splitlines() if "xcodebuild -exportArchive" in line)
+        assert ("-authenticationKeyID <key-id>" in export) == (style == "automatic")
 
 
 def test_the_signed_dry_run_shows_the_key_as_tokens_only(
@@ -1261,7 +1313,8 @@ def hint_for(tail: str) -> str:
 def assert_profile_hint(hint: str) -> None:
     assert "App Store profile" in hint and "Admin role" in hint
     assert "Settings > Accounts" not in hint and "Sign in to Xcode" not in hint
-    assert hint.index("Admin role") < hint.index("by hand")
+    assert hint.index("Admin role") < hint.index("APPLE_PROVISIONING_PROFILE")
+    assert "manual export" in hint
 
 
 @pytest.mark.parametrize(

@@ -18,7 +18,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from scripts import version_policy
-from scripts.ios.provisioning import ProfileFacts, concerns, facts_problems, safe_name
+from scripts.ios.provisioning import (
+    PROFILE_NAME_RULE,
+    ProfileFacts,
+    concerns,
+    facts_problems,
+    safe_name,
+)
 from scripts.ios.release_secrets import Secret
 
 from podcast_mcp.config.distribution import (
@@ -40,6 +46,7 @@ KEY_SECRETS = (KEY_ID_NAME, ISSUER_NAME)
 PROFILE_NAME, CERTIFICATE_NAME = "APPLE_PROVISIONING_PROFILE", "APPLE_SIGNING_CERTIFICATE"
 SECRET_NAMES = (*TEAM_SECRETS, *KEY_SECRETS, KEY_PATH_NAME, PROFILE_NAME, CERTIFICATE_NAME)
 PROVISIONING_SOURCE = "private file, environment or installed profiles"
+CERTIFICATE_SOURCE = "private file or environment"
 DEFAULT_CERTIFICATE = "Apple Distribution"
 CERTIFICATE = re.compile(r"^[A-Za-z0-9 .,_:()'-]{1,100}$")
 PLACEHOLDER_TEAM = "AAAAAAAAAA"
@@ -114,7 +121,7 @@ class BuildInputs:
 @dataclass(frozen=True)
 class Provisioning:
     profile: Secret
-    certificate: str
+    certificate: str | Secret
 
 
 @dataclass(frozen=True)
@@ -250,19 +257,24 @@ def resolve_provisioning(
 ) -> tuple[Provisioning | None, list[InputProblem]]:
     """A named profile never falls back; unnamed, one usable profile is used and none for this app
     keeps the automatic path. Anything else refuses with counts and reasons, never a name."""
-    certificate = values.get(CERTIFICATE_NAME) or DEFAULT_CERTIFICATE
-    if not CERTIFICATE.fullmatch(certificate):
+    certificate_name = values.get(CERTIFICATE_NAME) or DEFAULT_CERTIFICATE
+    if not CERTIFICATE.fullmatch(certificate_name):
         return None, [
             InputProblem(
-                CERTIFICATE_NAME, PROVISIONING_SOURCE, "has characters a certificate name never has"
+                CERTIFICATE_NAME, CERTIFICATE_SOURCE, "has characters a certificate name never has"
             )
         ]
+    certificate = (
+        DEFAULT_CERTIFICATE
+        if certificate_name == DEFAULT_CERTIFICATE
+        else Secret(certificate_name, "signing-certificate")
+    )
     explicit = values.get(PROFILE_NAME, "")
     if explicit:
         return resolve_named(explicit, certificate, profiles, team, bundle, now)
     candidates = [facts for facts in profiles if concerns(facts, bundle)]
     if not candidates:
-        if profiles or not unreadable:
+        if not unreadable:
             return None, []
         why = (
             f"{unreadable} profile file(s) could not be read (is `security` available?); "
@@ -290,7 +302,7 @@ def resolve_provisioning(
 
 def resolve_named(
     explicit: str,
-    certificate: str,
+    certificate: str | Secret,
     profiles: Sequence[ProfileFacts],
     team: str,
     bundle: str,
@@ -298,7 +310,7 @@ def resolve_named(
 ) -> tuple[Provisioning | None, list[InputProblem]]:
     named = [facts for facts in profiles if facts.name == explicit]
     if not safe_name(explicit):
-        why = "has characters outside letters, digits, space and . _ -"
+        why = f"needs {PROFILE_NAME_RULE}"
     elif not named:
         why = "names no installed profile"
     elif len(named) > 1:

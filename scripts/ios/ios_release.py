@@ -7,7 +7,9 @@
 
 ``build --unsigned`` is the rehearsal: every local check, nothing sent to anyone. The secrets (team,
 key id, issuer, key path) come from a private ``0600`` file outside the repository or from the
-environment; nothing prints them. ``docs/desktop-packaging.md`` § iOS release has the runbook.
+environment; nothing prints them. The same sources accept the optional
+``APPLE_PROVISIONING_PROFILE`` and ``APPLE_SIGNING_CERTIFICATE`` names for manual export.
+``docs/desktop-packaging.md`` § iOS release has the runbook.
 """
 
 from __future__ import annotations
@@ -44,7 +46,6 @@ from scripts.ios.release_inputs import (
     resolve_build_inputs,
 )
 from scripts.ios.release_plan import (
-    APPLE_NOTICE,
     Layout,
     Run,
     Step,
@@ -145,9 +146,14 @@ def key_secrets(key: AscKey | None) -> list[Secret]:
 
 
 def build_redactor(inputs: BuildInputs, root: Path) -> Redactor:
-    team = [inputs.team] if inputs.team is not None else []
-    profile = [inputs.provisioning.profile] if inputs.provisioning is not None else []
-    return Redactor([*team, *profile, *key_secrets(inputs.key)], machine_directories(root))
+    secrets = key_secrets(inputs.key)
+    if inputs.team is not None:
+        secrets.append(inputs.team)
+    if inputs.provisioning is not None:
+        secrets.append(inputs.provisioning.profile)
+        if isinstance(inputs.provisioning.certificate, Secret):
+            secrets.append(inputs.provisioning.certificate)
+    return Redactor(secrets, machine_directories(root))
 
 
 def installed_profiles(signing: Signing) -> tuple[list[provisioning.ProfileFacts], int]:
@@ -187,7 +193,16 @@ def build(session: Session, unsigned: bool) -> int:
         f"commit {commit[:7]}{' dirty' if dirty else ''}"
     )
     if signing is Signing.APP_STORE:
-        session.say(f"note: {APPLE_NOTICE}")
+        if inputs.provisioning is None:
+            session.say(
+                "Export signing is automatic. Xcode may create an Apple Distribution "
+                "certificate and an App Store provisioning profile."
+            )
+        else:
+            session.say(
+                "Export signing is manual. Xcode uses the installed profile and signing "
+                "certificate for the export. The archive still uses automatic signing."
+            )
     partial = layout.release_root / f"{inputs.build_number}.partial"
     ws = Workspace(out=partial, build_number=str(inputs.build_number))
     if session.dry_run:
