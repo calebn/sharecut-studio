@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { isTypingTarget } from "../../keymap/typing";
 import { runPointerCommand } from "../../commands/pointer";
 import { useRenameProject } from "../../hooks/useRenameProject";
 import { useReviewPeaks } from "../../hooks/useReviewPeaks";
@@ -113,6 +114,9 @@ export function useHeaderProps(): Omit<
                   dismissEditStakes();
                 }
               },
+              escapeYields: (event) =>
+                useDawStore.getState().feedbackToast !== null &&
+                !isTypingTarget(event.target),
               // The frame's one polite live region says it; a toast would repeat the bubble.
               // The reminder rises as the edit lands, ahead of the edit's own status, which would replace it.
               onShown: () =>

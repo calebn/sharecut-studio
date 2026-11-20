@@ -836,6 +836,15 @@ describe("AppHeader first-visit role hint: a press and a key", () => {
     expect(screen.queryByRole("note")).toBeNull();
   });
 
+  it("stays up on Escape when the header says a nearer thing takes it", () => {
+    const { onDismiss } = hintHeader({ escapeYields: () => true });
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(screen.getByRole("note")).toBeVisible();
+    fireEvent.keyDown(screen.getByText("Outside"), { key: "l" });
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
   it("closes on Escape with focus on the X and hands focus to the Role button", async () => {
     const { onDismiss, trigger } = hintHeader();
     screen.getByRole("button", { name: "Dismiss hint" }).focus();

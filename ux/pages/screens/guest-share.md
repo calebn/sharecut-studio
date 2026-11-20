@@ -119,7 +119,7 @@ records it as seen. It moves no focus. It closes when the press ends, so
 nothing under the hint is pressed.
 
 The next key press anywhere closes the hint and still does its own job (`L`
-plays, a typed character lands). Escape always closes it. Shift, Control, Alt
+plays, a typed character lands). Escape closes it too, except while a toast is up and focus is not in a field: that Escape closes the toast and leaves the hint. Shift, Control, Alt
 and Meta alone do not, and neither does Tab, so Tab still reaches the Dismiss
 button. Enter or Space on Dismiss closes the hint and focuses the role button.
 On the role button they only dismiss it, and the next press opens the dialog.
