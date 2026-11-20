@@ -490,40 +490,70 @@ Revoke deletes the object when no other active shares reference that version.
 
 ### Verify the guest CORS fallback
 
-Use a disposable project, object-store bucket, and bucket-admin key. Open the guest link through the relay's public origin. A direct loopback GUI request deliberately returns local proxy URLs and does not exercise the object-store path.
+Use the opt-in browser acceptance driver for a repeatable local proof. It runs the normal GUI and guest routes against a disposable loopback S3 store, and stamps `x-sharecut-relayed` on the manifest request to exercise the production relay-marked manifest branch. It does not start a live relay. The default direct-loopback manifest deliberately selects local proxy URLs and skips the store probe.
 
-1. Set `public_base_url` to the exact origin guests open. Configure `object_store` with a test bucket and test-only upload credentials. Start the host, relay, and tunnel as described in [Quick start](#quick-start-local-compose). Create a Viewer or Commenter link.
-2. Allow the exact public origin in the bucket's CORS configuration. `podcast relay bucket-setup` does this for an HTTPS relay, and `podcast relay bucket-check` confirms it. It refuses loopback origins. For local Compose, configure the disposable bucket through its admin S3 API.
-3. Open the guest link. In the browser's Network panel, inspect `GET /api/review/<token>/daw/proxy/manifest`. Record a track's `hash`, its project basis, its first signed URL, and the corresponding local chunk URL shape. The response has no `object_store_cors` warning. In the guest page console, `await fetch("<signed-url>", { mode: "cors" })` resolves. Record the signed object's digest while CORS is allowed; after fallback, digest the local URL in that same console:
+The driver lives outside Playwright's default `e2e/` discovery, so regular frontend CI does not contact an object store or register a skipped case. It uses only the fixed test credentials in its private relay config and the bucket `sharecut-cors-proof`; it never reads the developer's AWS profile or inherited `PODCAST_OBJECT_STORE_*` settings. Use a disposable host and test data only.
 
-   ```js
-   async function sha256(url) {
-     const response = await fetch(url, { mode: "cors", cache: "no-store" });
-     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-     const bytes = await response.arrayBuffer();
-     const digest = await crypto.subtle.digest("SHA-256", bytes);
-     return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-   }
-   const signedHash = await sha256("<signed-url>");
-   ```
-4. Replace the disposable bucket's entire CORS configuration with a rule for a different origin. An extra rule cannot override the existing allow rule. For example, use this admin command with `STORE_ENDPOINT`, `STORE_REGION`, and `TEST_BUCKET` set to the disposable store:
+With the official [SeaweedFS 4.54 release binary](https://github.com/seaweedfs/seaweedfs/releases) on `PATH`, run this from the repository root. Ports 18333–18336 must be free. The command binds every SeaweedFS listener to loopback, owns its temporary data and credential files, runs the proof through the repository E2E runner, then stops the server and removes that temporary directory:
 
-   ```bash
-   AWS_ACCESS_KEY_ID="$PODCAST_OBJECT_STORE_ADMIN_ACCESS_KEY_ID" \
-   AWS_SECRET_ACCESS_KEY="$PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY" \
-   aws s3api put-bucket-cors \
-     --endpoint-url "$STORE_ENDPOINT" \
-     --region "$STORE_REGION" \
-     --bucket "$TEST_BUCKET" \
-     --cors-configuration '{"CORSRules":[{"AllowedOrigins":["https://wrong.example.test"],"AllowedMethods":["GET","HEAD"],"AllowedHeaders":["Range","*"],"ExposeHeaders":["Content-Range","Content-Length","Accept-Ranges"]}]}'
-   ```
+```bash
+set -eu
+command -v weed >/dev/null
+if curl -sS --max-time 1 http://127.0.0.1:18333/ >/dev/null 2>&1; then
+  echo "127.0.0.1:18333 is already in use" >&2
+  exit 1
+fi
+store_dir="$(mktemp -d "${TMPDIR:-/tmp}/sharecut-cors-store.XXXXXX")"
+chmod 700 "$store_dir"
+mkdir -p "$store_dir/data"
+cat >"$store_dir/s3.json" <<'JSON'
+{"identities":[{"name":"ephemeral-test","credentials":[{"accessKey":"sharecut-test-access","secretKey":"sharecut-test-secret"}],"actions":["Admin","Read","List","Tagging","Write"]}]}
+JSON
+chmod 600 "$store_dir/s3.json"
+weed server \
+  -ip=127.0.0.1 -ip.bind=127.0.0.1 \
+  -dir="$store_dir/data" \
+  -master.port=18334 -volume.port=18335 -filer.port=18336 \
+  -s3 -s3.port=18333 -s3.config="$store_dir/s3.json" \
+  -master.telemetry=false >"$store_dir/server.log" 2>&1 &
+store_pid=$!
+cleanup() {
+  kill "$store_pid" 2>/dev/null || true
+  wait "$store_pid" 2>/dev/null || true
+  rm -rf "$store_dir"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
+ready=0
+for attempt in $(seq 1 30); do
+  status="$(curl -sS --max-time 1 -o /dev/null -w '%{http_code}' http://127.0.0.1:18333/ 2>/dev/null || true)"
+  if [ "$status" = 403 ]; then ready=1; break; fi
+  kill -0 "$store_pid" 2>/dev/null || { cat "$store_dir/server.log" >&2; exit 1; }
+  sleep 1
+done
+test "$ready" = 1 || { cat "$store_dir/server.log" >&2; exit 1; }
+(cd gui/web && npm run test:e2e -- --config=playwright.cors-proof.config.ts)
+```
 
-5. Restart the GUI host to clear its in-memory CORS probe cache. Wait for the tunnel to reconnect, then reload the same guest link. The manifest reports `object_store_cors.status: "blocked"`. Its local chunk URL keeps the same track hash and project basis.
-6. Fetch the recorded signed URL again from the guest page console. The browser rejects it with a CORS `TypeError`. A request with the same `Origin` still returns HTTP 200 or 206 without `Access-Control-Allow-Origin`.
-7. Click Play. Confirm the player clock advances and the Network panel shows a 200 response for `/api/review/<token>/daw/proxy/<track>/<hash>/<chunk>`. In the guest page console, run `await sha256("<local-chunk-url>")`. It must equal `signedHash`. The local URL is same-origin and includes the guest token, so use the active guest page rather than an unauthenticated shell request.
-8. Revoke the link from the host. Request the recorded local chunk URL again. It must return 404 and no media bytes.
+The spec creates the disposable bucket, allows the exact E2E origin, verifies the signed URL in the browser, then denies that origin and restarts the probe on the same store under `localhost` to avoid the positive probe cache. It checks the blocked manifest metadata, unchanged project basis and media hash, a signed GET without `Access-Control-Allow-Origin`, the browser's CORS rejection, identical signed/local bytes, player-clock advance with the local chunk request, and 404/no media after revocation. The server's root 403 is only a startup check; S3 operations use the private test identity.
 
-Keep the admin key out of `relay.yaml`. Delete the temporary project, bucket, admin key, and downloaded media after the check. Run any browser driver through `npm run test:e2e` so its owned projects and port are cleaned up. Do not pass developer object-store credentials through the E2E environment. The default direct-loopback E2E page skips the store probe by design.
+For an actual deployed relay, set `public_base_url` to the guest's exact HTTPS origin and use a disposable bucket. `podcast relay bucket-setup` adds that origin and `podcast relay bucket-check` checks the host-side probe; local Compose loopback origins must be configured through the disposable store's admin API because the setup command rejects loopback. The GUI's current CSP can block a non-loopback store host in `connect-src` before the browser applies CORS, so treat a guest-page signed fetch as browser CORS evidence only when the console/network shows no CSP violation. A CSP-blocked public-origin fetch does not disprove or prove CORS; the local driver above isolates that boundary. The host probe can still report the manifest fallback independently.
+
+When manually comparing bytes through a deployed guest page, record the signed object's SHA-256 outside DevTools before changing the bucket policy. A page reload resets its console context. After reloading the same link, re-enter the `sha256` helper and paste the recorded digest into a new `expectedSignedHash` value before hashing the authenticated local URL:
+
+```js
+async function sha256(url) {
+  const response = await fetch(url, { mode: "cors", cache: "no-store" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const digest = await crypto.subtle.digest("SHA-256", await response.arrayBuffer());
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+const expectedSignedHash = "<digest recorded before reload>";
+await sha256("<local-chunk-url>") === expectedSignedHash;
+```
+
+If changing a deployed bucket manually with `aws s3api put-bucket-cors`, provide disposable administrator credentials through an explicit AWS CLI profile or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables. The admin credentials in a relay YAML do not populate the AWS CLI credential chain. Keep those credentials out of shell history and `relay.yaml`; never use a production bucket or key. Revoke the share, delete the temporary project and bucket, and discard downloaded test media when finished.
 
 ### Security notes
 
