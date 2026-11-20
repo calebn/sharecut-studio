@@ -26,7 +26,8 @@ from pathlib import Path
 from typing import Literal
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.engines.media_probe import has_several_audio_streams
+from podcast_mcp.engines.ffmpeg import AudioProbe
+from podcast_mcp.engines.media_probe import probe_media, several_audio_streams
 from podcast_mcp.engines.play_audit import stem_hash_path, stem_is_fresh
 from podcast_mcp.engines.track_ids import SAFE_TRACK_ID
 from podcast_mcp.engines.waveform_pyramid import (
@@ -39,7 +40,7 @@ from podcast_mcp.engines.waveform_pyramid import (
     schedule_pyramid_build,
 )
 from podcast_mcp.models import EpisodeProject, Track, load_project, project_file_path
-from podcast_mcp.util.fingerprint import file_stamp
+from podcast_mcp.util.fingerprint import FileStamp, file_stamp
 from podcast_mcp.util.tracks import stem_path
 from podcast_mcp.util.workspace_paths import (
     resolve_under_workspace,
@@ -229,11 +230,13 @@ def current_key(entry: MediaEntry) -> str:
     Request handlers call ``services.media.waveform.live_key`` instead: it turns a missing
     file into ``LookupError`` (404), where a bare ``OSError`` would become a 500.
     """
-    return media_key(
-        entry.rel_path,
-        *file_stamp(entry.abs_path).content,
-        first_stream=has_several_audio_streams(entry.abs_path),
-    )
+    stamp = file_stamp(entry.abs_path)
+    return key_from_probe(entry, stamp, probe_media(entry.abs_path))
+
+
+def key_from_probe(entry: MediaEntry, stamp: FileStamp, info: AudioProbe | None) -> str:
+    """Pyramid key of *entry* from one stat and one probe result (``None``: probe failed)."""
+    return media_key(entry.rel_path, *stamp.content, first_stream=several_audio_streams(info))
 
 
 def current_ref_key(project_path: Path, ref: str, *, defaults: EffectiveConfig) -> str | None:

@@ -13,10 +13,11 @@ cached per file by its revision stamp plus ctime, so a list that has not changed
 read parses nothing; only the job state, the delivered date and the pyramid file stamp are looked
 up per request. A summary miss reads the project file as JSON and, when the project has a
 non-zero duration, also validates it with ``load_project`` once, to plan the card's ``peaks`` from
-the waveform pyramids on disk (see :mod:`recent_peaks`). Each list probes every media file the plan
-needs (ffprobe) unless its (path, size, mtime) was probed successfully before, so media that cannot
-be probed is probed again on every list, and stats its pyramid files. It never decodes audio and
-never builds a pyramid: a pyramid that is not ready leaves ``peaks`` empty. The list is
+the waveform pyramids on disk (see :mod:`recent_peaks`). Each media file the plan needs is probed
+once (ffprobe) per (path, size, mtime), and the pyramid key comes from that one probe; a successful
+probe is cached, a failed one leaves ``peaks`` empty and is retried after 30 seconds, or at once
+when the file changes. Each list also stats the pyramid files. It never decodes audio and never
+builds a pyramid: a pyramid that is not ready leaves ``peaks`` empty. The list is
 read-modify-written under a process lock only: two processes that record at once can drop each
 other's entry, but the file is never left half written.
 

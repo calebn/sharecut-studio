@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.engines import waveform_media, waveform_pyramid
+from podcast_mcp.engines.ffmpeg import AudioProbe
 from podcast_mcp.engines.waveform_pyramid import (
     PyramidLevel,
     PyramidMeta,
@@ -24,9 +25,60 @@ from podcast_mcp.services.app import recent_projects as recent
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.collaboration import review_peaks
 from podcast_mcp.util import peak_bins
+from podcast_mcp.util.fingerprint import file_stamp
 
 RATE = 8000
 SECONDS = 100
+
+
+class _Probe:
+    def __init__(self) -> None:
+        self.several = False
+        self.failures = 0
+        self.calls: list[Path] = []
+
+    def __call__(self, path: Path) -> AudioProbe | None:
+        self.calls.append(path)
+        if self.failures:
+            self.failures -= 1
+            return None
+        return AudioProbe(
+            duration_sec=float(SECONDS),
+            sample_rate=RATE,
+            channels=1,
+            audio_start_sec=0.0,
+            rebases_audio_reads=False,
+            audio_stream_count=2 if self.several else 1,
+        )
+
+    def fail(self, times: int = 10**6) -> None:
+        self.failures = times
+
+    def heal(self) -> None:
+        self.failures = 0
+
+
+class _Clock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+@pytest.fixture(autouse=True)
+def probe(monkeypatch) -> _Probe:
+    stub = _Probe()
+    monkeypatch.setattr(recent_peaks, "probe_media", stub)
+    monkeypatch.setattr(waveform_media, "probe_media", stub)
+    return stub
+
+
+@pytest.fixture(autouse=True)
+def clock(monkeypatch) -> _Clock:
+    fake = _Clock()
+    monkeypatch.setattr(recent_peaks, "_clock", fake)
+    return fake
 
 
 def _make(tmp_path: Path, name: str = "ep") -> Path:
@@ -635,60 +687,136 @@ def test_media_that_vanishes_after_the_plan_is_flat_and_logs_once(tmp_path, capl
     assert len(caplog.records) == 4
 
 
-class _Probe:
-    def __init__(self, monkeypatch, *, ok: bool = True, several: bool = False) -> None:
-        self.ok = ok
-        self.several = several
-        self.calls: list[Path] = []
-        monkeypatch.setattr(recent_peaks, "probe_media", self._probe)
-        monkeypatch.setattr(waveform_media, "has_several_audio_streams", self._streams)
-
-    def _probe(self, path):
-        return object() if self.ok else None
-
-    def _streams(self, path):
-        self.calls.append(path)
-        return self.several
+def _media(project: Path) -> Path:
+    return (project.parent / "raw" / "t.wav").resolve()
 
 
-def test_a_warm_list_probes_no_media(tmp_path, monkeypatch):
+def test_a_warm_list_probes_no_media(tmp_path, probe):
     project = _make(tmp_path)
     _layout(project, [_clip()])
     _pyramid(project, "track:t")
-    probe = _Probe(monkeypatch)
+    probe.calls.clear()
     first = _peaks(project)
-    assert len(probe.calls) == 1
+    assert first
+    assert probe.calls == [_media(project)]
     for _ in range(3):
         assert recent.recent_project_cards()[0]["peaks"] == first
-    assert len(probe.calls) == 1
+    assert probe.calls == [_media(project)]
 
 
-def test_an_unprobeable_media_file_is_probed_again_on_every_list(tmp_path, monkeypatch):
+def test_an_unprobeable_media_file_is_not_probed_again_within_30_seconds(
+    tmp_path, probe, clock, caplog
+):
     project = _make(tmp_path)
     _layout(project, [_clip()])
-    probe = _Probe(monkeypatch, ok=False)
-    for expected in (1, 2, 3):
+    probe.fail()
+    probe.calls.clear()
+    with caplog.at_level(logging.DEBUG, logger=recent.__name__):
         assert _peaks(project) == []
-        assert len(probe.calls) == expected
+    assert _fault_records(caplog) == []
+    assert len(probe.calls) == 1
+    clock.now += 29.9
+    for _ in range(3):
+        assert recent.recent_project_cards()[0]["peaks"] == []
+    assert len(probe.calls) == 1
     assert not recent_peaks._MEDIA_KEYS
 
 
-def test_a_probe_that_fails_once_fills_the_card_in_with_no_stat_change(tmp_path, monkeypatch):
+def test_an_unprobeable_media_file_is_probed_again_after_30_seconds(tmp_path, probe, clock):
     project = _make(tmp_path)
     _layout(project, [_clip()])
-    probe = _Probe(monkeypatch, ok=False)
-    assert _peaks(project) == []
-    probe.ok = True
+    probe.fail()
+    probe.calls.clear()
+    _peaks(project)
+    clock.now += 30.0
+    assert recent.recent_project_cards()[0]["peaks"] == []
+    assert len(probe.calls) == 2
+    recent.recent_project_cards()
+    assert len(probe.calls) == 2
+    clock.now += 30.0
+    recent.recent_project_cards()
+    assert len(probe.calls) == 3
+    assert not recent_peaks._MEDIA_KEYS
+
+
+def test_a_media_file_that_changes_is_probed_at_once_after_a_failure(tmp_path, probe, clock):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    probe.fail()
+    probe.calls.clear()
+    _peaks(project)
+    assert len(probe.calls) == 1
+    media = project.parent / "raw" / "t.wav"
+    media.write_bytes(b"a different size")
+    recent.recent_project_cards()
+    assert len(probe.calls) == 2
+    recent.recent_project_cards()
+    assert len(probe.calls) == 2
+
+
+def test_a_media_file_with_a_new_mtime_is_probed_at_once_after_a_failure(tmp_path, probe, clock):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    probe.fail()
+    probe.calls.clear()
+    _peaks(project)
+    media = project.parent / "raw" / "t.wav"
+    stat = media.stat()
+    os.utime(media, ns=(stat.st_atime_ns, stat.st_mtime_ns + 5_000_000_000))
+    recent.recent_project_cards()
+    assert len(probe.calls) == 2
+
+
+def test_a_failed_probe_of_another_rel_path_is_not_served_from_the_negative_cache(tmp_path, probe):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    entry = waveform_media.resolve_media_refs(load_project(project), ["track:t"]).refs["track:t"]
+    probe.fail()
+    probe.calls.clear()
+    assert recent_peaks._media_key(entry) is None
+    assert recent_peaks._media_key(replace(entry, rel_path="elsewhere/t.wav")) is None
+    assert len(probe.calls) == 2
+
+
+def test_the_probe_that_fails_first_never_pins_the_key_of_a_multi_stream_file(
+    tmp_path, probe, clock
+):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
     probe.several = True
     _pyramid(project, "track:t")
+    probe.calls.clear()
+    probe.fail(1)
+    assert _peaks(project) == []
+    assert len(probe.calls) == 1
+    assert not recent_peaks._MEDIA_KEYS
+    clock.now += 30.0
     assert len(recent.recent_project_cards()[0]["peaks"]) == COLUMNS
+    assert len(probe.calls) == 2
+    entry = waveform_media.resolve_media_refs(load_project(project), ["track:t"]).refs["track:t"]
+    stat, key = recent_peaks._MEDIA_KEYS[_media(project)]
+    assert key == waveform_media.current_key(entry)
+    plain = waveform_media.media_key(entry.rel_path, *stat[1:])
+    assert key != plain
 
 
-def test_a_successful_probe_is_cached_per_stat(tmp_path, monkeypatch):
+def test_a_probe_that_fails_once_fills_the_card_in_with_no_stat_change(tmp_path, probe, clock):
     project = _make(tmp_path)
     _layout(project, [_clip()])
     _pyramid(project, "track:t")
-    probe = _Probe(monkeypatch)
+    probe.fail(1)
+    assert _peaks(project) == []
+    assert recent.recent_project_cards()[0]["peaks"] == []
+    clock.now += 30.0
+    assert len(recent.recent_project_cards()[0]["peaks"]) == COLUMNS
+    assert not recent_peaks._FAILED_PROBES
+
+
+def test_a_successful_probe_is_cached_per_stat(tmp_path, probe):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    _pyramid(project, "track:t")
+    probe.calls.clear()
     _peaks(project)
     media = project.parent / "raw" / "t.wav"
     stat = media.stat()
@@ -700,10 +828,9 @@ def test_a_successful_probe_is_cached_per_stat(tmp_path, monkeypatch):
     assert len(probe.calls) == 2
 
 
-def test_a_media_key_for_another_rel_path_is_not_served_from_the_cache(tmp_path, monkeypatch):
+def test_a_media_key_for_another_rel_path_is_not_served_from_the_cache(tmp_path):
     project = _make(tmp_path)
     _layout(project, [_clip()])
-    _Probe(monkeypatch)
     loaded = load_project(project)
     entry = waveform_media.resolve_media_refs(loaded, ["track:t"]).refs["track:t"]
     other = replace(entry, rel_path="elsewhere/t.wav")
@@ -712,11 +839,10 @@ def test_a_media_key_for_another_rel_path_is_not_served_from_the_cache(tmp_path,
     assert recent_peaks._media_key(entry) == first
 
 
-def test_a_media_file_with_a_new_mtime_and_the_same_size_loses_its_pyramid(tmp_path, monkeypatch):
+def test_a_media_file_with_a_new_mtime_and_the_same_size_loses_its_pyramid(tmp_path):
     project = _make(tmp_path)
     _layout(project, [_clip()])
     _pyramid(project, "track:t")
-    _Probe(monkeypatch)
     assert _peaks(project)
     media = project.parent / "raw" / "t.wav"
     stat = media.stat()
@@ -747,11 +873,11 @@ def test_a_second_outage_after_a_cache_hit_warns_again(tmp_path, caplog):
     assert _peaks(project)
     media.unlink()
     recent.recent_project_cards()
-    assert recent._PEAK_FAULTS
+    assert str(project) in recent._PEAK_FAULTS
     media.write_bytes(saved)
     os.utime(media, ns=(stat.st_atime_ns, stat.st_mtime_ns))
     assert recent.recent_project_cards()[0]["peaks"]
-    assert not recent._PEAK_FAULTS
+    assert str(project) not in recent._PEAK_FAULTS
     media.unlink()
     caplog.clear()
     with caplog.at_level(logging.DEBUG, logger=recent.__name__):
@@ -767,11 +893,11 @@ def test_a_second_outage_after_a_fresh_fold_warns_again(tmp_path, caplog):
     assert _peaks(project)
     media.unlink()
     recent.recent_project_cards()
-    assert recent._PEAK_FAULTS
+    assert str(project) in recent._PEAK_FAULTS
     media.write_bytes(b"different media bytes")
     _pyramid(project, "track:t", seed=9)
     assert recent.recent_project_cards()[0]["peaks"]
-    assert not recent._PEAK_FAULTS
+    assert str(project) not in recent._PEAK_FAULTS
     media.unlink()
     caplog.clear()
     with caplog.at_level(logging.DEBUG, logger=recent.__name__):
@@ -786,10 +912,10 @@ def test_a_forgotten_project_drops_its_peak_fault(tmp_path):
     assert _peaks(project)
     (project.parent / "raw" / "t.wav").unlink()
     recent.recent_project_cards()
-    assert recent._PEAK_FAULTS
+    assert str(project) in recent._PEAK_FAULTS
     recent.forget_recent(project)
     recent.recent_project_cards()
-    assert not recent._PEAK_FAULTS
+    assert str(project) not in recent._PEAK_FAULTS
 
 
 def test_a_card_with_a_missing_pyramid_is_cached_until_the_stamp_changes(tmp_path):
@@ -820,17 +946,47 @@ def test_a_fold_failure_warns_with_the_traceback(tmp_path, monkeypatch, caplog):
     assert records[0].exc_info is not None
 
 
-def test_media_keys_are_pruned_with_the_forgotten_project(tmp_path, monkeypatch):
+def test_media_keys_are_pruned_with_the_forgotten_project(tmp_path):
     project = _make(tmp_path)
     _layout(project, [_clip()])
     _pyramid(project, "track:t")
-    _Probe(monkeypatch)
     _peaks(project)
-    media = (project.parent / "raw" / "t.wav").resolve()
+    media = _media(project)
     assert media in recent_peaks._MEDIA_KEYS
     recent.forget_recent(project)
     recent.recent_project_cards()
     assert media not in recent_peaks._MEDIA_KEYS
+
+
+def test_failed_probes_are_pruned_with_the_forgotten_project(tmp_path, probe):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    probe.fail()
+    _peaks(project)
+    media = _media(project)
+    assert media in recent_peaks._FAILED_PROBES
+    recent.forget_recent(project)
+    recent.recent_project_cards()
+    assert media not in recent_peaks._FAILED_PROBES
+
+
+def test_a_success_clears_the_failed_probe_of_that_media(tmp_path, probe, clock):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    probe.fail(1)
+    _peaks(project)
+    assert _media(project) in recent_peaks._FAILED_PROBES
+    clock.now += 30.0
+    recent.recent_project_cards()
+    assert _media(project) in recent_peaks._MEDIA_KEYS
+    assert _media(project) not in recent_peaks._FAILED_PROBES
+
+
+def test_a_source_clip_on_an_unknown_track_stays_flat(tmp_path):
+    project = _make(tmp_path)
+    _layout(project, [_clip(track="nope", source_id="s1")], sources=("s1",))
+    _pyramid(project, "source:s1")
+    assert _peaks(project) == []
 
 
 BUILDERS = (
@@ -871,3 +1027,17 @@ def test_the_request_path_never_decodes_or_builds(tmp_path, monkeypatch, ready):
     assert called == []
     assert (len(peaks) == COLUMNS) is ready
     assert after == before
+
+
+def test_one_probe_result_decides_the_key_with_no_stream_for_a_failed_probe(tmp_path, probe):
+    project = _make(tmp_path)
+    _layout(project, [_clip()])
+    entry = waveform_media.resolve_media_refs(load_project(project), ["track:t"]).refs["track:t"]
+    stamp = file_stamp(entry.abs_path)
+    plain = waveform_media.media_key(entry.rel_path, *stamp.content)
+    several = waveform_media.media_key(entry.rel_path, *stamp.content, first_stream=True)
+    assert waveform_media.key_from_probe(entry, stamp, None) == plain
+    assert waveform_media.key_from_probe(entry, stamp, probe(entry.abs_path)) == plain
+    probe.several = True
+    assert waveform_media.key_from_probe(entry, stamp, probe(entry.abs_path)) == several
+    assert plain != several
