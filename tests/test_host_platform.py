@@ -94,7 +94,7 @@ def test_ios_row_shares_the_darwin_kernel_runs_media_tools_in_process_and_loses_
         "can_spawn_processes": False,
         "loopback_is_trusted": False,
         "media_tools": "in_process",
-        "transcription": "unavailable",
+        "transcription": "whisper_cpp",
         "file_dialog": None,
         "reveal_tool": None,
         "audition_player": None,

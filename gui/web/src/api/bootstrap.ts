@@ -38,7 +38,7 @@ export type BootstrapHost = {
   can_spawn_processes: boolean;
   loopback_is_trusted: boolean;
   media_tools: "executables" | "unavailable" | "in_process";
-  transcription: "faster_whisper" | "unavailable";
+  transcription: "faster_whisper" | "whisper_cpp" | "unavailable";
   /** False on a device with no OS folder picker (a phone): Home offers no Open other. */
   folder_picker: boolean;
 };

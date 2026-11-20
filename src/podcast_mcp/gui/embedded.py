@@ -145,6 +145,24 @@ def _install_media_tools() -> None:
         log.exception("in-process FFmpeg install failed; audio tools stay unavailable")
 
 
+def _install_whisper_backend() -> None:
+    """Install the in-process whisper backend; a failure is logged and never fails the boot."""
+    if host_platform.current().transcription != "whisper_cpp":
+        return
+    try:
+        from podcast_mcp.util import native_whisper
+
+        if native_whisper.is_available():
+            if native_whisper.install_native_backend():
+                log.info("in-process whisper installed")
+            else:
+                log.warning("in-process whisper is linked but its backend was not installed")
+        else:
+            log.warning("in-process whisper is not linked; transcription stays unavailable")
+    except Exception:
+        log.exception("in-process whisper install failed; transcription stays unavailable")
+
+
 class _Engine:
     def __init__(self, start_timeout_sec: float = START_TIMEOUT_SEC) -> None:
         self._lock = threading.Lock()
@@ -185,6 +203,7 @@ class _Engine:
         listener: _Listener | None = None
         try:
             _install_media_tools()
+            _install_whisper_backend()
             if self._app is None:
                 from podcast_mcp.gui.server import create_app
 

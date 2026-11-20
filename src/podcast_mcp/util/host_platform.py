@@ -20,7 +20,7 @@ from typing import Literal
 
 Kernel = Literal["darwin", "linux", "nt", "other"]
 MediaTools = Literal["executables", "unavailable", "in_process"]
-Transcription = Literal["faster_whisper", "unavailable"]
+Transcription = Literal["faster_whisper", "whisper_cpp", "unavailable"]
 FileDialog = Literal["osascript", "powershell", "zenity"]
 RevealTool = Literal["open", "explorer", "xdg-open"]
 AuditionPlayer = Literal["afplay", "ffplay"]
@@ -145,7 +145,7 @@ IOS = HostPlatform(
     can_spawn_processes=False,
     loopback_is_trusted=False,
     media_tools="in_process",
-    transcription="unavailable",
+    transcription="whisper_cpp",
     file_dialog=None,
     reveal_tool=None,
     audition_player=None,

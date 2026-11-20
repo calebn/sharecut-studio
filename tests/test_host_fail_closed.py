@@ -13,7 +13,7 @@ from host_session_helpers import LOOPBACK_PEER, exchange
 from podcast_mcp.engines.models.registry import MODELS
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.pipeline import bootstrap as boot
-from podcast_mcp.util import native_ffmpeg, process
+from podcast_mcp.util import native_ffmpeg, native_whisper, process
 from podcast_mcp.util.binaries import FFmpegPairResolutionError, resolve_ffmpeg_pair
 from podcast_mcp.util.host_platform import IOS, MACOS, UNKNOWN
 
@@ -125,8 +125,8 @@ TRANSCRIBE_SENTENCE = "ShareCut can't transcribe audio on this device yet."
 def test_the_ios_row_with_a_linked_library_offers_rnnoise_alone(
     host, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The aligner and speaker models are ONNX (no onnxruntime on iOS); whisper needs
-    faster-whisper. Only RNNoise, which runs through FFmpeg, may be offered."""
+    """The aligner and speaker models are ONNX (no onnxruntime on iOS); whisper needs its native
+    backend installed. Without it only RNNoise, which runs through FFmpeg, may be offered."""
     monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
     host(IOS)
     for status in (boot.component_status(), _route_status()):
@@ -141,6 +141,27 @@ def test_the_ios_row_with_a_linked_library_offers_rnnoise_alone(
             assert by_id[model_id]["hint"] == MEDIA_SENTENCE, model_id
             assert "bootstrap" not in by_id[model_id], model_id
             assert "path" not in by_id[model_id], model_id
+
+
+def test_the_ios_row_with_the_whisper_backend_installed_offers_transcription(
+    host, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    monkeypatch.setattr(native_whisper, "is_installed", lambda: True)
+    host(IOS)
+    by_id = {m["id"]: m for m in boot.component_status()["models"]}
+    assert by_id["whisper"]["state"] != "unsupported"
+    assert by_id["rnnoise"]["state"] == "missing"
+    for model_id in ("word-aligner", "speaker-ecapa"):
+        assert by_id[model_id]["state"] == "unsupported", model_id
+        assert by_id[model_id]["hint"] == MEDIA_SENTENCE, model_id
+        assert "bootstrap" not in by_id[model_id], model_id
+
+
+def test_the_ios_host_object_names_whisper_cpp(host, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    host(IOS)
+    assert boot.component_status()["host"]["transcription"] == "whisper_cpp"
 
 
 def test_the_unsupported_fixture_matches_the_engine_answer(host) -> None:
