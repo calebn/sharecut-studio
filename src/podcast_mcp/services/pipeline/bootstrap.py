@@ -34,7 +34,7 @@ from podcast_mcp.services.pipeline.install_failure import (
     classify,
     unexpected_text,
 )
-from podcast_mcp.util import host_platform
+from podcast_mcp.util import host_platform, native_whisper
 from podcast_mcp.util.asset_sources import DOWNLOAD_TASK_ID, DownloadProgress, cdn_base_configured
 from podcast_mcp.util.binaries import (
     FFmpegPairResolutionError,
@@ -62,12 +62,6 @@ def _in_process_linked() -> bool:
     return native_ffmpeg.is_available()
 
 
-def _whisper_backend_installed() -> bool:
-    from podcast_mcp.util import native_whisper
-
-    return native_whisper.is_installed()
-
-
 def _unsupported_model_hint(host: host_platform.HostPlatform, model_id: str) -> str | None:
     if host.transcription == "unavailable":
         return (
@@ -78,7 +72,7 @@ def _unsupported_model_hint(host: host_platform.HostPlatform, model_id: str) -> 
     if host.transcription == "whisper_cpp":
         if model_id != "whisper":
             return host_platform.MEDIA_UNAVAILABLE
-        if not _whisper_backend_installed():
+        if not native_whisper.is_installed():
             return host_platform.TRANSCRIPTION_UNAVAILABLE
     return None
 
