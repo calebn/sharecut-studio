@@ -493,3 +493,365 @@ def test_workspace_receipt_connects_web_capture_and_root_projection(tmp_path):
         not in public + capture.stdout + capture.stderr + projection.stdout + projection.stderr
     )
     assert json.loads(public)["suites"][0]["specs"][0]["tests"][0]["status"] == "flaky"
+
+
+def phase_marker(phase, duration=5):
+    return {"title": f"3940:{phase:02}", "duration": duration}
+
+
+def phase_report():
+    value = report()
+    value["errors"] = []
+    root = value["suites"][0]
+    root["file"] = "root-pin.spec.ts"
+    suite = root["suites"][0]
+    suite["title"] = "real palette reconnect"
+    suite["specs"][0]["title"] = "real reconnect keeps palette actions current while open"
+    test = logical_test(value)
+    test.update(projectName="", status="expected")
+    test["results"] = [
+        {
+            "status": "passed",
+            "retry": 0,
+            "duration": 30,
+            "errors": [],
+            "stdout": [{"text": MARKER}],
+            "attachments": [{"path": MARKER}],
+            "steps": [
+                phase_marker(1),
+                {**phase_marker(2), "steps": [phase_marker(n) for n in range(3, 15)]},
+            ],
+        }
+    ]
+    return value
+
+
+def reported_failure(value, phase, state):
+    test = logical_test(value)
+    test["status"] = "unexpected"
+    attempt = test["results"][0]
+    attempt.update(
+        status="timedOut" if state == 3 else "failed",
+        error={"message": MARKER},
+        errors=[{"message": MARKER}],
+    )
+    steps = attempt["steps"]
+    if phase < 3:
+        del steps[phase:]
+        if phase == 2:
+            steps[1].pop("steps")
+        step = steps[-1]
+    else:
+        steps[1]["error"] = {"message": MARKER}
+        nested = steps[1]["steps"]
+        del nested[phase - 2 :]
+        step = nested[-1]
+    if state == 3:
+        step["duration"] = -1
+    else:
+        step["error"] = {"message": MARKER}
+    return steps
+
+
+@pytest.mark.parametrize(
+    "phase,state",
+    [(14, 1), (1, 2), (2, 2), (2, 3), (3, 2), (7, 2), (8, 3), (14, 2)],
+)
+def test_palette_phase_projection_reports_only_unique_observed_origin(phase, state):
+    value = phase_report()
+    if state != 1:
+        reported_failure(value, phase, state)
+    assert public_report.palette_phase(value) == {"phase_id": phase, "state_id": state}
+
+
+def test_palette_phase_reports_outer_lifecycle_failure_after_inner_completion():
+    value = phase_report()
+    test = logical_test(value)
+    test["status"] = "unexpected"
+    attempt = test["results"][0]
+    attempt.update(status="failed", error={"message": MARKER}, errors=[{"message": MARKER}])
+    attempt["steps"][1]["error"] = {"message": MARKER}
+    assert public_report.palette_phase(value) == {"phase_id": 2, "state_id": 2}
+
+
+@pytest.mark.parametrize(
+    "problem",
+    [
+        "global-error",
+        "wrong-case",
+        "duplicate-case",
+        "wrong-project",
+        "duplicate-project",
+        "missing-attempt",
+        "retry",
+        "extra-attempt",
+        "bad-status",
+        "interrupted",
+        "unmarked-failure",
+        "missing-marker",
+        "unordered",
+        "duplicate-marker",
+        "extra-marker",
+        "wrong-nesting",
+        "subtitle",
+        "bad-error",
+        "bad-duration",
+        "unfinished-pass",
+        "unfinished-failure",
+        "later-marker",
+        "missing-ancestor-error",
+        "unknown-lifecycle-origin",
+    ],
+)
+def test_palette_phase_refuses_incomplete_or_ambiguous_evidence(problem):
+    value = phase_report()
+    root = value["suites"][0]
+    suite = root["suites"][0]
+    case = suite["specs"][0]
+    test = logical_test(value)
+    attempt = test["results"][0]
+    outer = attempt["steps"][1]
+    nested = outer["steps"]
+    match problem:
+        case "global-error":
+            value["errors"] = [{"message": MARKER}]
+        case "wrong-case":
+            root["file"] = MARKER
+        case "duplicate-case":
+            suite["specs"].append(case)
+        case "wrong-project":
+            test["projectName"] = MARKER
+        case "duplicate-project":
+            case["tests"].append(test)
+        case "missing-attempt":
+            test["results"].clear()
+        case "retry":
+            attempt["retry"] = 1
+        case "extra-attempt":
+            test["results"].append(attempt)
+        case "bad-status" | "interrupted":
+            attempt["status"] = MARKER if problem == "bad-status" else "interrupted"
+        case "unmarked-failure":
+            test["status"] = "unexpected"
+            attempt.update(status="failed", error={"message": MARKER}, errors=[{"message": MARKER}])
+        case "missing-marker":
+            nested.pop()
+        case "unordered":
+            nested[0], nested[1] = nested[1], nested[0]
+        case "duplicate-marker":
+            nested[1] = nested[0]
+        case "extra-marker":
+            nested.append(phase_marker(15))
+        case "wrong-nesting":
+            nested[0]["steps"] = [phase_marker(4)]
+        case "subtitle":
+            nested[0]["subtitle"] = MARKER
+        case "bad-error":
+            reported_failure(value, 4, 2)
+            nested[-1]["error"] = MARKER
+        case "bad-duration":
+            nested[0]["duration"] = -2
+        case "unfinished-pass":
+            nested[-1]["duration"] = -1
+        case "unfinished-failure":
+            reported_failure(value, 4, 3)
+            attempt["status"] = "failed"
+        case "later-marker":
+            reported_failure(value, 4, 2)
+            nested.append(phase_marker(5))
+        case "missing-ancestor-error":
+            reported_failure(value, 4, 2)
+            del outer["error"]
+        case "unknown-lifecycle-origin":
+            reported_failure(value, 4, 2)
+            del nested[-1]["error"]
+    with pytest.raises(public_report.InvalidReport):
+        public_report.palette_phase(value)
+
+
+@pytest.mark.parametrize(
+    "problem",
+    [
+        None,
+        "malformed",
+        "stale",
+        "wrong-receipt",
+        "missing",
+        "duplicate-errors",
+        "duplicate-steps",
+        "NaN",
+        "Infinity",
+        "-Infinity",
+        "missing-attempt-error",
+        "missing-attempt-errors",
+        "empty-attempt-errors",
+        "malformed-attempt-error",
+        "malformed-attempt-errors",
+        "timeout-without-error",
+    ],
+)
+def test_palette_phase_cli_exports_only_numeric_output_and_keeps_default_bytes(
+    tmp_path, monkeypatch, problem
+):
+    receipt = capture_receipt(tmp_path, monkeypatch)
+    source = tmp_path / "private.json"
+    value = phase_report()
+    reported_failure(value, 7, 2)
+    source.write_text(json.dumps(value))
+    output = tmp_path / "phase.json"
+    output.write_text(MARKER)
+    channel = tmp_path / "github-output"
+    summary = tmp_path / "github-summary"
+    summary.write_text("Existing runner summary.\n")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(channel))
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    common = [
+        sys.executable,
+        str(SCRIPT),
+        "--report",
+        str(source),
+        "--capture-receipt",
+        str(receipt),
+    ]
+    if problem == "malformed":
+        source.write_text(MARKER)
+    elif problem == "stale":
+        os.utime(source, ns=(1, 1))
+    elif problem == "wrong-receipt":
+        receipt.write_text("123 1\n")
+    elif problem == "missing":
+        source.unlink()
+    elif problem == "duplicate-errors":
+        source.write_text('{"errors": [{"message": "' + MARKER + '"}], ' + source.read_text()[1:])
+    elif problem == "duplicate-steps":
+        source.write_text(source.read_text().replace('"steps":', '"steps": [], "steps":', 1))
+    elif problem in ("NaN", "Infinity", "-Infinity"):
+        source.write_text('{"ignored": {"invalid": ' + problem + "}, " + source.read_text()[1:])
+    elif problem is not None:
+        attempt = logical_test(value)["results"][0]
+        match problem:
+            case "missing-attempt-error":
+                del attempt["error"]
+            case "missing-attempt-errors":
+                del attempt["errors"]
+            case "empty-attempt-errors":
+                attempt["errors"] = []
+            case "malformed-attempt-error":
+                attempt["error"] = {"message": [MARKER]}
+            case "malformed-attempt-errors":
+                attempt["errors"] = [{"message": MARKER}, {"message": [MARKER]}]
+            case "timeout-without-error":
+                attempt.update(status="timedOut", errors=[])
+                del attempt["error"]
+        source.write_text(json.dumps(value))
+
+    child = subprocess.run(
+        [*common, "--output", str(output), "--palette-phase"], capture_output=True, text=True
+    )
+    assert child.returncode == 0
+    assert child.stdout == child.stderr == ""
+    assert summary.read_text() == "Existing runner summary.\n"
+    if problem is not None:
+        assert channel.read_bytes() == b"phase_id=0\nstate_id=0\n"
+        assert not output.exists()
+        if problem not in ("duplicate-errors", "duplicate-steps", "NaN", "Infinity", "-Infinity"):
+            return
+    else:
+        assert channel.read_bytes() == b"phase_id=7\nstate_id=2\n"
+        assert output.read_bytes() == b'{\n  "phase_id": 7,\n  "state_id": 2\n}\n'
+        assert stat.S_IMODE(output.stat().st_mode) == 0o600
+
+    saved_channel = channel.read_bytes()
+    public = tmp_path / "public.json"
+    default = subprocess.run([*common, "--output", str(public)], capture_output=True, text=True)
+    assert default.returncode == 0
+    before = phase_report()
+    reported_failure(before, 7, 2)
+    del logical_test(before)["results"][0]["steps"]
+    assert public.read_text() == json.dumps(public_report.project(before), indent=2) + "\n"
+    assert MARKER not in public.read_text() + default.stdout + default.stderr
+    assert channel.read_bytes() == saved_channel
+    assert summary.read_text() == "Existing runner summary.\n"
+
+
+def test_palette_phase_scope_keeps_browser_failure_and_upload_authoritative():
+    from github_yaml import load_github_yaml
+
+    workflow = load_github_yaml(ROOT / ".github/workflows/test.yml")
+    job = workflow["jobs"]["frontend-e2e-suites"]
+    steps = job["steps"]
+    browser = next(s for s in steps if s.get("name") == "Playwright ${{ matrix.name }}")
+    assert browser["run"] == "bash ../../scripts/private_browser_command.sh ${{ matrix.command }}"
+    assert not browser.get("continue-on-error")
+    projected = next(i for i, s in enumerate(steps) if s.get("id") == "browser-public-projection")
+    producer, consumer = steps[projected + 1 : projected + 3]
+    assert producer["id"] == "palette-phase"
+    assert producer["continue-on-error"] is True
+    assert producer["if"] == consumer["if"]
+    assert " ".join(producer["if"].split()) == (
+        "${{ !cancelled() && steps.browser-public-projection.outcome == 'success' "
+        "&& github.event_name == 'pull_request' && github.base_ref == 'develop' "
+        "&& github.event.pull_request.number == 3940 "
+        "&& github.event.pull_request.head.repo.full_name == github.repository "
+        "&& github.head_ref == 'fix/palette-live-context-3608' "
+        "&& github.event.pull_request.draft == false && matrix.name == 'main-smoke' }}"
+    )
+    guard = (
+        "steps.palette-phase.outcome == 'success' && steps.palette-phase.outputs.phase_id "
+        "&& steps.palette-phase.outputs.state_id"
+    )
+    assert " ".join(consumer["name"].split()) == (
+        f"Palette smoke phase ${{{{ {guard} && steps.palette-phase.outputs.phase_id || '0' }}}} "
+        f"state ${{{{ {guard} && steps.palette-phase.outputs.state_id || '0' }}}}"
+    )
+    assert consumer["run"] == "true"
+    assert '--output "${TMPDIR:?}/palette-phase.json"' in producer["run"]
+    assert producer["run"].startswith("python3 scripts/browser_public_report.py --palette-phase ")
+    assert '--capture-receipt "$BROWSER_CAPTURE_RECEIPT"' in producer["run"]
+    uploads = [s["with"]["path"] for s in steps if "upload-artifact" in s.get("uses", "")]
+    assert uploads == ["gui/web/playwright-public/${{ matrix.name }}.json"]
+    aggregate = workflow["jobs"]["frontend-e2e"]["steps"][0]
+    script = aggregate["run"]
+    outcome = subprocess.run(
+        ["bash", "-c", script],
+        env={**os.environ, "PLAN": "success", "GUI": "true", "SUITES": "failure"},
+        capture_output=True,
+    )
+    assert outcome.returncode == 1
+
+
+@pytest.mark.parametrize(
+    "outcome,phase,state,expected",
+    [
+        ("success", "7", "2", "7 state 2"),
+        ("success", "0", "0", "0 state 0"),
+        ("success", "7", "", "0 state 0"),
+        ("success", "", "2", "0 state 0"),
+        ("failure", "7", "", "0 state 0"),
+        ("failure", "7", "2", "0 state 0"),
+        ("skipped", "", "", "0 state 0"),
+    ],
+)
+def test_palette_metadata_reports_a_pair_or_neither(outcome, phase, state, expected):
+    from github_yaml import load_github_yaml
+
+    workflow = load_github_yaml(ROOT / ".github/workflows/test.yml")
+    name = next(
+        step["name"]
+        for step in workflow["jobs"]["frontend-e2e-suites"]["steps"]
+        if step.get("name", "").startswith("Palette smoke phase ")
+    )
+    values = {
+        "steps.palette-phase.outcome == 'success'": outcome == "success",
+        "steps.palette-phase.outputs.phase_id": phase,
+        "steps.palette-phase.outputs.state_id": state,
+    }
+
+    def render_expression(match):
+        positive, fallback = re.split(r"\s+\|\|\s+", match[1].strip())
+        assert fallback == "'0'"
+        predicates = [values[part] for part in re.split(r"\s+&&\s+", positive)]
+        return str(predicates[-1]) if all(predicates) else "0"
+
+    rendered = re.sub(r"\$\{\{(.*?)\}\}", render_expression, name, flags=re.S)
+    assert " ".join(rendered.split()) == f"Palette smoke phase {expected}"
