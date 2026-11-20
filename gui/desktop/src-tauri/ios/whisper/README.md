@@ -35,7 +35,7 @@ The tarball is `codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v1.9.5
         --model /tmp/ggml-tiny.en.bin --wav /tmp/whisper-host/src/whisper.cpp-1.9.5/samples/jfk.wav \
         --host-cli /path/to/whisper-cli
 
-It transcribes the WAV twice and compares the `-ojf` segments with a whisper-cli built from the same tag, then checks a wrong `argv[0]`, an unsupported flag, a missing model, an unknown language (an `exit()` that must not end the process), cancels at 0, 1 and 3 s into a long input (exit 255, latency under the grace, double cancel, cancel from another thread, `-ESRCH` after the claim) and a session after a cancel.
+It transcribes the WAV twice and compares the `-ojf` segments with a whisper-cli built from the same tag (run with `-ng`, because the library is CPU-only and a GPU run of the host cli can differ in the last digits), then checks a wrong `argv[0]`, an unsupported flag, a missing model, an unknown language (an `exit()` that must not end the process), cancels at 0, 1 and 3 s into a long input (exit 255, latency under the grace, double cancel, cancel from another thread, `-ESRCH` after the claim) and a session after a cancel.
 
 ## Why this is not in cloud CI
 
