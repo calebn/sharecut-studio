@@ -294,8 +294,19 @@ describe("GuestRoomApp in the room", () => {
         upload: { ...savedPass, error: "Network error" },
       });
       render(<GuestRoomApp token="t" />);
-      expect(screen.queryByText("Saving stopped")).toBeNull();
+      expect(screen.queryByText("Saving stopped.")).toBeNull();
       expect(screen.queryByText("Couldn't save")).toBeNull();
+      expect(screen.getAllByText("Saved").length).toBeGreaterThan(0);
+    });
+
+    it("raises the saving alert for an upload error while the take is still finishing", () => {
+      fakeRoom({
+        ...unreadable,
+        captureSettled: false,
+        upload: { ...savedPass, error: "Network error" },
+      });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.getByText("Saving stopped.")).toBeInTheDocument();
     });
 
     it("raises no storage alert once the take is saved", () => {
@@ -314,6 +325,44 @@ describe("GuestRoomApp in the room", () => {
       render(<GuestRoomApp token="t" />);
       expect(screen.getByText(SINK_FAILED)).toBeInTheDocument();
     });
+
+    it.each([
+      ["a paused take", { snapshot: { ...took, state: "paused" as const } }],
+      [
+        "a take still recording",
+        { snapshot: { ...took, state: "recording" as const } },
+      ],
+      ["a take whose capture is still finishing", { captureSettled: false }],
+      ["a scan that is still pending", { localUnreadable: false }],
+    ])("keeps the storage alert for %s", (_name, over) => {
+      fakeRoom({
+        ...unreadable,
+        ...over,
+        sinkError: "disk",
+        upload: savedPass,
+      });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.getByText(SINK_FAILED)).toBeInTheDocument();
+      expect(screen.queryAllByText("Saved")).toHaveLength(0);
+    });
+
+    it.each([
+      ["a stopped take", took],
+      ["a paused take", { ...took, state: "paused" as const }],
+      ["a take still recording", { ...took, state: "recording" as const }],
+    ])(
+      "keeps the storage alert for a readable acknowledged count on %s",
+      (_name, snapshot) => {
+        fakeRoom({
+          snapshot,
+          localSegments: 3,
+          sinkError: "disk",
+          upload: savedPass,
+        });
+        render(<GuestRoomApp token="t" />);
+        expect(screen.getByText(SINK_FAILED)).toBeInTheDocument();
+      },
+    );
 
     it("keeps the live copy of an unsaved guest, with no failure word and Leave released", () => {
       fakeRoom({
@@ -354,6 +403,22 @@ describe("GuestRoomApp in the room", () => {
         screen.queryByText("Saved to project. You can close this page."),
       ).toBeNull();
       expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+    });
+
+    it("leaves watch mode unaffected", () => {
+      fakeRoom({
+        snapshot: { ...took, state: "recording" as const },
+        producer: true,
+        me: { ...me, role: "producer" },
+        localSegments: null,
+        localUnreadable: true,
+        sinkError: "disk",
+        upload: { ...savedPass, error: "Network error" },
+      });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.queryAllByText("Saved")).toHaveLength(0);
+      expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+      expect(screen.queryByText("Saving stopped.")).toBeNull();
     });
   });
 

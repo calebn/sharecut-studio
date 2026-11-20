@@ -292,6 +292,15 @@ describe("roomAlerts", () => {
     expect(roomAlerts(quiet, { resumeUpload })).toEqual([]);
   });
 
+  it("raises nothing for a stopped take that carries no error", () => {
+    const stale = {
+      ...quiet,
+      state: "stopped" as const,
+      savingUnverified: true,
+    };
+    expect(roomAlerts(stale)).toEqual([]);
+  });
+
   it("shows the muted alert only for muted speech while on air", () => {
     expect(roomAlerts({ ...quiet, mutedSpeech: true })).toEqual([
       { kind: "muted" },
