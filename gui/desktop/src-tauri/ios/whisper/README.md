@@ -1,0 +1,54 @@
+# whisper.cpp inside the iOS app
+
+This directory holds the C and C++ that turns whisper.cpp 1.9.5 (tag `v1.9.5`) into `Whisper.framework`, the dynamic framework the iOS app embeds so that transcription runs in the app process. iOS cannot spawn `whisper-cli`, so the Python side calls four exported functions (`sc_whisper_abi_version`, `sc_whisper_start`, `sc_whisper_wait`, `sc_whisper_cancel`) with the argv it would give the CLI. The ABI is described in `docs/desktop-packaging.md`.
+
+## Files
+
+- `sc_whisper_core.h`, `sc_whisper_core.c`: the whisper side of the session core: it accepts `whisper-cli` as `argv[0]`, applies the argv policy and exports the four symbols. The queue, worker thread, descriptor ownership and exit path are `ios/native/sc_session_core.inc`, shared with the FFmpeg core (`ios/ffmpeg/sc_ffmpeg_core.c`). It builds and is tested on Linux (`tests/test_ios_whisper_shim.py`) against a fake glue.
+- `sc_whisper_glue.cpp`: `sc_glue_run` (runs the cli main, turns an uncaught C++ exception into exit 1), `sc_glue_reset` (clears the cancel latch, routes `whisper_log_set` and so the ggml log to the session's error stream) and `sc_glue_interrupt` (sets the latch).
+- `sc_whisper_cli.cpp`: wrapper translation unit that includes `examples/cli/cli.cpp`; compiled with `main` renamed to `sc_whisper_cli_main`.
+- `sc_whisper_stdio.h`: forced include for the cli wrapper and the example sources. After it, `stdout`, `stderr` and the printf family go to the stream of the running session and never to descriptors 1 and 2 of the app.
+- `sc_whisper_exit_map.h`: forced include for every translation unit. `exit(code)` becomes `sc_tool_exit(code)` and `abort()` becomes `sc_tool_exit(134)`, in C and C++ (`std::exit` too).
+- `patches/whisper-cli-hooks.patch`: pinned by sha256 in `contracts/whisper-build.json`. It makes the cli's abort and encoder-begin callbacks read the latch (`sc_whisper_aborted`), drops `ggml_backend_load_all()` (it scans directories and `dlopen`s any `libggml-*` it finds; the CPU and Accelerate backends are linked in), turns the unknown-language `exit(0)` into `exit(1)`, and replaces the `system()` call of an unused function in `common-whisper.cpp`.
+
+## Argv policy
+
+`argv[0]` must be exactly `whisper-cli`, otherwise `sc_whisper_start` returns `-EINVAL`. The remaining arguments may only be the flags the Python engine passes: `-ojf`, `-np`, and `-m`, `-f`, `-of`, `-l`, `-t`, `--prompt` with one value each. Anything else, a missing value, bare file names, and `-`, an empty string or `@...` as the value of `-m`, `-f` or `-of` make the session exit 1 with one `sc_whisper:` line on its error stream and run nothing. There is no descriptor or path rewriting: whisper reads and writes by path and never reads stdin.
+
+## Cancel
+
+`sc_whisper_cancel` sets the latch and returns. The latch is polled by ggml between graph nodes (`abort_callback`) and before every encoder window (`encoder_begin_callback`). whisper.cpp ends a run stopped by the second callback with a success code and a partial result, so the core reports `255` for any session that was cancelled while running, whatever the tool returned. Model loading and a single ggml node are not interruptible, so `sc_whisper_wait` can lag a cancel by that long; the Python bridge abandons a session that outlasts its 5 s grace.
+
+## Building
+
+On a Mac with Xcode and both iOS SDKs, `scripts/ios/build_whisper.sh <device|sim>` reads every pin from `contracts/whisper-build.json`, verifies the tarball and the patch before extracting, applies the patch to a copy of the tree, builds the whisper.cpp and ggml static libraries with CMake for arm64 (CPU and Accelerate, no Metal, no OpenMP, no dynamic backends), compiles the glue and the example sources, links them into `Whisper.framework` (libc++ and Accelerate come from the SDK), and fails unless `nm -gU` lists exactly the four `sc_whisper_` symbols. Output is `gui/desktop/src-tauri/ios-whisper/out/<device|sim>/Whisper.framework`, with sources and build trees beside it under `src/` and `build/`.
+
+The tarball is `codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v1.9.5`. Its sha256 in the contract was computed from `git archive --format=tar.gz --prefix=whisper.cpp-1.9.5/ v1.9.5`, because the cloud session could not reach codeload; a mismatch on the first Mac build means GitHub's gzip bytes differ from that; confirm the extracted tree is the one of commit `d1be6fde11ac6e0407606b4e42fe72d34add8037`, then replace the sha256 with the one of the downloaded file. `SC_WHISPER_SOURCE_TARBALL` names a local copy to use instead of downloading it; it is checked against the same sha256.
+
+## Host proof (no Mac)
+
+`scripts/ios/build_whisper.sh host` builds the same sources, patch and glue with the host `cc`, `c++` and `cmake` into `libsc_whisper.so` (`SC_WHISPER_WORKDIR` moves the work tree out of the repository). `scripts/ios/whisper_host_check.py` then drives it through `sc_whisper_start`, `sc_whisper_wait` and `sc_whisper_cancel` with ctypes. This needs a model and a speech WAV, so it is a manual check and not part of CI:
+
+    SC_WHISPER_WORKDIR=/tmp/whisper-host scripts/ios/build_whisper.sh host
+    curl -L -o /tmp/ggml-tiny.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin
+    python3 -I scripts/ios/whisper_host_check.py --lib /tmp/whisper-host/out/host/libsc_whisper.so \
+        --model /tmp/ggml-tiny.en.bin --wav /tmp/whisper-host/src/whisper.cpp-1.9.5/samples/jfk.wav \
+        --host-cli /path/to/whisper-cli
+
+It transcribes the WAV twice and compares the `-ojf` segments with a whisper-cli built from the same tag, then checks a wrong `argv[0]`, an unsupported flag, a missing model, an unknown language (an `exit()` that must not end the process), cancels at 0, 1 and 3 s into a long input (exit 255, latency under the grace, double cancel, cancel from another thread, `-ESRCH` after the claim) and a session after a cancel.
+
+## Why this is not in cloud CI
+
+The iOS build needs Xcode's clang and the iPhoneOS and iPhoneSimulator SDKs, and CI runs on Linux. Cloud tests cover what is portable: the core against a fake glue under ASan (`tests/test_ios_whisper_shim.py`, with `SC_SHIM_SANITIZER=address`), the pins, the patch checksum and, when `SC_WHISPER_SOURCE_TARBALL` is set, that the patch applies to the pinned tree, and the text of the build script (`tests/test_ios_whisper_build.py`). Compiling for iOS, the export check on the iOS slices, the Simulator and device runs and their timings are done on a Mac.
+
+## Known limits
+
+- `sc_tool_exit` called from a ggml worker thread (a `GGML_ABORT` inside a compute thread) ends that thread only; the rest of the compute barrier can then wait forever. Input errors are checked before compute, but a corrupt model is not proven safe.
+- The unwind by `siglongjmp` skips C++ destructors, as in the FFmpeg shim. The cli itself leaks its whisper context on a few early error returns (grammar, DTW preset), which the argv policy makes unreachable.
+- `std::terminate` (an uncaught exception on a ggml thread) still ends the process.
+- The single worker runs one session at a time, so one model is resident at a time; peak memory and jetsam behaviour on a device are unmeasured.
+- Privacy-manifest categories for this framework's imports (`clock_gettime`, `sysctlbyname`, `stat`) are unconfirmed until the Mac privacy check has seen the iOS slice.
+
+## License
+
+whisper.cpp and ggml are MIT licensed; the notice must ship in the app (`LICENSES/WHISPER-SOURCE.txt`).

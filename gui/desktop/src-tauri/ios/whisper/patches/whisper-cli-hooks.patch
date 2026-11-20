@@ -1,0 +1,78 @@
+--- a/examples/cli/cli.cpp
++++ b/examples/cli/cli.cpp
+@@ -116,6 +116,8 @@
+ 
+ static void whisper_print_usage(int argc, char ** argv, const whisper_params & params);
+ 
++extern bool sc_whisper_aborted(void);
++
+ static char * whisper_param_turn_lowercase(char * in){
+     int string_len = strlen(in);
+     for (int i = 0; i < string_len; i++){
+@@ -1043,7 +1045,7 @@
+     if (params.language != "auto" && whisper_lang_id(params.language.c_str()) == -1) {
+         fprintf(stderr, "error: unknown language '%s'\n", params.language.c_str());
+         whisper_print_usage(argc, argv, params);
+-        exit(0);
++        exit(1);
+     }
+ 
+     if (params.diarize && params.tinydiarize) {
+@@ -1056,8 +1058,6 @@
+         whisper_log_set(cb_log_disable, NULL);
+     }
+ 
+-    ggml_backend_load_all();
+-
+     // whisper init
+     struct whisper_context_params cparams = whisper_context_default_params();
+ 
+@@ -1304,30 +1304,13 @@
+                 wparams.progress_callback_user_data = &user_data;
+             }
+ 
+-            // examples for abort mechanism
+-            // in examples below, we do not abort the processing, but we could if the flag is set to true
+-
+-            // the callback is called before every encoder run - if it returns false, the processing is aborted
+-            {
+-                static bool is_aborted = false; // NOTE: this should be atomic to avoid data race
+-
+-                wparams.encoder_begin_callback = [](struct whisper_context * /*ctx*/, struct whisper_state * /*state*/, void * user_data) {
+-                    bool is_aborted = *(bool*)user_data;
+-                    return !is_aborted;
+-                };
+-                wparams.encoder_begin_callback_user_data = &is_aborted;
+-            }
+-
+-            // the callback is called before every computation - if it returns true, the computation is aborted
+-            {
+-                static bool is_aborted = false; // NOTE: this should be atomic to avoid data race
+-
+-                wparams.abort_callback = [](void * user_data) {
+-                    bool is_aborted = *(bool*)user_data;
+-                    return is_aborted;
+-                };
+-                wparams.abort_callback_user_data = &is_aborted;
+-            }
++            wparams.encoder_begin_callback = [](struct whisper_context * /*ctx*/, struct whisper_state * /*state*/, void * /*user_data*/) {
++                return !sc_whisper_aborted();
++            };
++
++            wparams.abort_callback = [](void * /*user_data*/) {
++                return sc_whisper_aborted();
++            };
+ 
+             if (whisper_full_parallel(ctx, wparams, pcmf32.data(), pcmf32.size(), params.n_processors) != 0) {
+                 fprintf(stderr, "%s: failed to process audio\n", argv[0]);
+--- a/examples/common-whisper.cpp
++++ b/examples/common-whisper.cpp
+@@ -234,7 +234,7 @@
+     } else {
+         speak_file.write(text.c_str(), text.size());
+         speak_file.close();
+-        int ret = system((command + " " + std::to_string(voice_id) + " " + path).c_str());
++        int ret = -1;
+         if (ret != 0) {
+             fprintf(stderr, "%s: failed to speak\n", __func__);
+             return false;
