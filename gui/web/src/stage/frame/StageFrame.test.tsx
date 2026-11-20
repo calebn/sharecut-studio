@@ -1,4 +1,11 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
@@ -394,6 +401,23 @@ describe("StageFrame roles", () => {
     localStorage.removeItem("sharecut.roleHintSeen.editor");
     localStorage.removeItem("sharecut.editStakesSeen.11419wyk0bk");
     useDawStore.setState({ shareCapabilities: null });
+  });
+
+  it("leaves the bubble up for the Escape that closes a toast, and closes it on the next", () => {
+    localStorage.removeItem("sharecut.roleHintSeen.commenter");
+    useDawStore.setState({ guestMode: "comment", stage: "review" });
+    mount();
+    act(() => {
+      useDawStore.getState().announceStatus("Range suggestion sent");
+    });
+    const toast = useDawStore.getState().feedbackToast;
+    expect(toast).not.toBeNull();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.getByRole("note")).toBeVisible();
+    act(() => useDawStore.getState().dismissFeedbackToast(toast!.id));
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.queryByRole("note")).toBeNull();
+    localStorage.removeItem("sharecut.roleHintSeen.commenter");
   });
 
   it("shows a guest reading the saved copy no hint, and writes no flag", async () => {

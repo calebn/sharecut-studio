@@ -74,6 +74,8 @@ export type AppHeaderProps = {
       onDismiss: () => void;
       /** Called once when the automatic hint appears, so the sentence can be said. */
       onShown?: () => void;
+      /** Escape leaves the bubble up for this key, because it has a nearer thing to close. */
+      escapeYields?: (event: KeyboardEvent) => boolean;
     };
   };
   /** Theme row at the bottom of the Project menu. */
@@ -155,6 +157,7 @@ function RoleHint({
       event.target instanceof Node &&
       (outsideRef.current?.contains(event.target) ?? false);
     if (event.key === "Escape") {
+      if (guest.hint?.escapeYields?.(event)) return;
       dismissAutomatic();
       // The X is about to unmount: keep focus on the control that stays.
       if (inside) triggerRef.current?.focus({ preventScroll: true });
