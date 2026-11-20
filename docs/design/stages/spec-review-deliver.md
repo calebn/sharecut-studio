@@ -135,7 +135,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
   - Defaults: the word aligner is off by default, yet the cut-safety bar depends on it (desktop F07).
 - **Fate:** merge into SCR-HOME as the Setup card plus a background Job row. The full model list moves to DLG-MODELS.
 - **Spec:**
-  - Setup card on Home (only when required models are missing): full content width, 120 px tall, sits between the Source tiles and Recent. Left: an icon (cloud with down arrow) 32 px. Text: "Get ShareCut ready" 20/24, line "Transcription and cut-finding run on this computer. One download, about 2 GB." Right: primary button "Get ready" and a text button "Choose…" (opens DLG-MODELS).
+  - Setup card on Home (only when required models are missing): full content width, 120 px tall, sits between the Source tiles and Recent. Left: an icon (cloud with down arrow) 32 px. Text: "Get ShareCut ready" 20/24, line "Transcription and cut-finding run on this computer. One download, about 2 GB." Right: an outlined neutral button "Get ready" (Import audio stays the one filled action on first run) and a text button "Choose…" (opens DLG-MODELS).
   - Defaults bundle: speech model (recommended size), noise reduction, word aligner, speaker model. The aligner is in the default bundle (see open question 2).
   - Downloading: the card turns into a Job row: one progress bar for the bundle, "1.1 of 2.0 GB · about 3 min", a cancel icon (x, 40 px) at the right. The user can import or record while it runs; Prepare queues transcription until the model lands and says so on its job row.
   - Checking: nothing renders for the first 300 ms; after that the card shows a static skeleton. No "Checking installed tools…" box.
