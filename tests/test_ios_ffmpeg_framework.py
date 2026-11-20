@@ -261,6 +261,25 @@ def test_the_command_line_check_exits_one_with_the_hint_on_stderr(tmp_path: Path
     assert result.stdout == ""
 
 
+@pytest.mark.parametrize("command", [["assemble"], ["check", "--sdk", "iphonesimulator"]])
+def test_the_command_line_framework_option_reaches_every_command(
+    tmp_path: Path, command: list[str]
+) -> None:
+    root = checkout(tmp_path, ())
+    copy = root / "scripts/ios/ffmpeg_framework.py"
+    copy.parent.mkdir(parents=True)
+    shutil.copy(SCRIPT, copy)
+    result = subprocess.run(
+        [sys.executable, "-I", str(copy), "--framework", "whisper", *command],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "make ios-whisper" in result.stderr
+    assert "ffmpeg" not in result.stderr.lower()
+
+
 def test_the_command_line_check_is_silent_and_zero_when_the_slice_exists(tmp_path: Path) -> None:
     root = checkout(tmp_path)
     tool.assemble(root, FakeXcodebuild())
