@@ -62,6 +62,27 @@ def _in_process_linked() -> bool:
     return native_ffmpeg.is_available()
 
 
+def _whisper_backend_installed() -> bool:
+    from podcast_mcp.util import native_whisper
+
+    return native_whisper.is_installed()
+
+
+def _unsupported_model_hint(host: host_platform.HostPlatform, model_id: str) -> str | None:
+    if host.transcription == "unavailable":
+        return (
+            host_platform.TRANSCRIPTION_UNAVAILABLE
+            if model_id == "whisper"
+            else host_platform.MEDIA_UNAVAILABLE
+        )
+    if host.transcription == "whisper_cpp":
+        if model_id != "whisper":
+            return host_platform.MEDIA_UNAVAILABLE
+        if not _whisper_backend_installed():
+            return host_platform.TRANSCRIPTION_UNAVAILABLE
+    return None
+
+
 def model_status(
     model_id: str, variant: str | None = None, *, memoize: bool = True
 ) -> dict[str, Any]:
@@ -73,7 +94,10 @@ def model_status(
     ``missing`` with ``hint`` and ``bootstrap``. A host that cannot process audio reports every
     model as ``unsupported`` with the one sentence the audio tools use: RNNoise runs through
     FFmpeg and the other models need the transcription stack that host also lacks. A host that
-    can process audio but not transcribe reports whisper alone as ``unsupported``. A host whose
+    can process audio but not transcribe reports whisper alone as ``unsupported``. A host that
+    transcribes with whisper.cpp (the iPhone) reports whisper ``unsupported`` with the
+    transcription sentence until the native whisper backend is installed, and always reports the
+    word aligner and the speaker model ``unsupported`` (they need onnxruntime). A host whose
     media tools run in-process counts as unable to process audio until the FFmpeg library is
     linked, so an unlinked build reports every model ``unsupported`` with the same sentence
     instead of offering a download that cannot make audio work. Once linked, only RNNoise (it
@@ -88,13 +112,10 @@ def model_status(
         host.media_tools == "in_process" and not _in_process_linked()
     ):
         return {**base, "state": "unsupported", "hint": host_platform.MEDIA_UNAVAILABLE}
-    if host.transcription == "unavailable" and model_id != "rnnoise":
-        hint = (
-            host_platform.TRANSCRIPTION_UNAVAILABLE
-            if model_id == "whisper"
-            else host_platform.MEDIA_UNAVAILABLE
-        )
-        return {**base, "state": "unsupported", "hint": hint}
+    if model_id != "rnnoise":
+        hint = _unsupported_model_hint(host, model_id)
+        if hint is not None:
+            return {**base, "state": "unsupported", "hint": hint}
     try:
         record = model_record(model_id, variant, memoize=memoize)
         path = str(spec.location())
