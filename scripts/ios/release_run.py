@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import codecs
 import os
+import selectors
 import shlex
 import subprocess
+import time
 from collections import deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -135,13 +137,57 @@ def capture(argv: Sequence[str], *, cwd: Path | None = None, path: str | None = 
     """stdout of a read-only tool (git, codesign, nm, security cms); raises on a non-zero exit."""
     environment = {"PATH": path or os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "en_US.UTF-8"}
     done = subprocess.run(
-        list(argv), cwd=cwd, env=environment, capture_output=True, text=True, check=False
+        list(argv),
+        cwd=cwd,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if done.returncode != 0:
         raise ToolFailed(
             f"{Path(argv[0]).name} exited {done.returncode}: {done.stderr.strip()[:300]}"
         )
     return done.stdout
+
+
+def capture_limited(argv: Sequence[str], *, path: str, timeout: float, limit: int) -> str:
+    """Read stdout from a local probe, discarding stderr and bounding time and bytes."""
+    name = Path(argv[0]).name
+    deadline = time.monotonic() + timeout
+    output = bytearray()
+    with (
+        subprocess.Popen(
+            list(argv),
+            env={"PATH": path, "LANG": "en_US.UTF-8"},
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        ) as process,
+        selectors.DefaultSelector() as selector,
+    ):
+        assert process.stdout is not None
+        try:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while selector.select(max(0, deadline - time.monotonic())):
+                chunk = os.read(process.stdout.fileno(), min(65536, limit - len(output) + 1))
+                if not chunk:
+                    code = process.wait(timeout=max(0, deadline - time.monotonic()))
+                    if code:
+                        raise ToolFailed(f"{name} exited {code}")
+                    return output.decode()
+                output.extend(chunk)
+                if len(output) > limit:
+                    raise ToolFailed(f"{name} output exceeds {limit} bytes")
+                if time.monotonic() >= deadline:
+                    break
+            raise ToolFailed(f"{name} timed out")
+        except subprocess.TimeoutExpired as error:
+            raise ToolFailed(f"{name} timed out") from error
+        finally:
+            if process.poll() is None:
+                process.kill()
 
 
 class ToolFailed(RuntimeError):

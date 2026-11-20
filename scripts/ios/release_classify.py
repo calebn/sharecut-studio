@@ -52,7 +52,7 @@ SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
             rf"(?=.*(?:{CLOUD_PERMISSION}|forbidden_error))",
             re.I | re.S,
         ),
-        "Xcode could not create the App Store profile for {app} with this API key. Give the key the Admin role (cloud-managed signing usually needs it), then run again; if that is not possible, a profile created by hand may work, though the export may not pick it up.",
+        "Xcode could not create the App Store profile for {app} with this API key. Use a key with the Admin role for automatic signing, or install an App Store profile for this app and set APPLE_PROVISIONING_PROFILE to its name for manual export.",
     ),
     (
         re.compile(

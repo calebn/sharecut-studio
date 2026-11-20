@@ -58,10 +58,6 @@ PASS_THROUGH = (
     "NODE_EXTRA_CA_CERTS",
 )
 LANGUAGE = "en_US.UTF-8"
-APPLE_NOTICE = (
-    "This step may create an Apple Distribution certificate and an App Store provisioning "
-    "profile in the developer account that Xcode is signed in to."
-)
 
 
 @dataclass(frozen=True)
@@ -172,8 +168,7 @@ def overlay_argument(identity: Identity, build_number: str) -> str:
 def export_options_parts(
     team: Secret, provisioning: Provisioning | None, bundle_identifier: str
 ) -> tuple[Part, ...]:
-    """The ExportOptions.plist text with the team (and, for manual signing, the profile name)
-    left as secrets to be revealed only when the file is written."""
+    """The ExportOptions.plist text with signing values revealed only when writing the file."""
     team_marker, profile_marker = "@@TEAM@@", "@@PROFILE@@"
     options: dict[str, object] = {
         "method": "app-store-connect",
@@ -186,7 +181,13 @@ def export_options_parts(
     secrets = {team_marker: team}
     if provisioning is not None:
         options["signingStyle"] = "manual"
-        options["signingCertificate"] = provisioning.certificate
+        certificate = provisioning.certificate
+        if isinstance(certificate, Secret):
+            certificate_marker = "@@CERTIFICATE@@"
+            options["signingCertificate"] = certificate_marker
+            secrets[certificate_marker] = certificate
+        else:
+            options["signingCertificate"] = certificate
         options["provisioningProfiles"] = {bundle_identifier: profile_marker}
         secrets[profile_marker] = provisioning.profile
     pieces = re.split(f"({'|'.join(secrets)})", plistlib.dumps(options).decode())
