@@ -49,13 +49,9 @@ def default_model_name() -> str:
     return settings.value("WHISPER_CPP_MODEL_NAME", fallback)
 
 
-def _in_process_whisper() -> bool:
-    return host_platform.current().media_tools == "in_process" and native_whisper.is_installed()
-
-
 def resolve_whisper_cli() -> Path | str:
     """The ``whisper-cli`` to run: the in-process sentinel where the native backend serves it."""
-    if _in_process_whisper():
+    if host_platform.current().media_tools == "in_process" and native_whisper.is_installed():
         return IN_PROCESS_WHISPER
     env = settings.raw("WHISPER_CPP_BIN")
     if env:
