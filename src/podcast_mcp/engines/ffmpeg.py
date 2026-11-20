@@ -85,11 +85,10 @@ from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import (
     DEVNULL,
-    IN_PROCESS_FFMPEG,
-    IN_PROCESS_FFPROBE,
     PIPE,
     CalledProcessError,
     TimeoutExpired,
+    is_in_process_media_tool,
     popen,
     run,
 )
@@ -582,10 +581,6 @@ def _read_audio_extent(ffprobe: str, path: str, *, untrusted: bool) -> tuple[flo
         proc.wait()
 
 
-def _is_in_process_tool(command: str) -> bool:
-    return command in (IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE)
-
-
 @functools.lru_cache(maxsize=1024)
 def _cached_audio_extent(
     ffprobe: str, binary_revision: FileRevision, path: str, revision: FileRevision, untrusted: bool
@@ -957,7 +952,7 @@ class FFmpegEngine:
         """a:0's first packet pts and the end of its last packet, or None when the scan fails."""
         try:
             resolved = path.resolve()
-            if _is_in_process_tool(self.ffprobe):
+            if is_in_process_media_tool(self.ffprobe):
                 # No file identifies the installed backend, so its answer is never cached.
                 return _read_audio_extent(self.ffprobe, str(resolved), untrusted=untrusted)
             binary = Path(self.ffprobe).resolve()

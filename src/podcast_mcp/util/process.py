@@ -9,15 +9,16 @@ stops through its ``cancel_check`` instead of each child dying on its own (#1164
 ``kill_detached_children()`` kills those children's process groups, so leaving early
 never orphans one.
 
-An argv whose first item is exactly an in-process tool sentinel never reaches ``Popen``: on a
+In the default dispatch, an exact in-process sentinel as argv[0] never reaches ``Popen``. On a
 ``media_tools == "in_process"`` row with a backend installed by ``using_in_process_backend`` it
 runs on an ``InProcessChild``, anywhere else it raises ``SpawnUnavailableError``. ``in-process:whisper-cli``
 is served the same way from its own slot, ``using_in_process_whisper_backend``.
 
-Both are properties of the desktop ``_spawn``. A runner installed with ``using_runner``
-replaces ``_spawn``, so its children are not niceness-wrapped, not registered by
-``detached_children`` and not seen by ``kill_detached_children``, and the host gate
-(``can_spawn_processes``) is the runner's job.
+The default spawn dispatch checks sentinels before applying desktop process policy.
+In-process children ignore ``cwd``, ``env`` and ``start_new_session``, and never enter the
+detached registry. A runner installed with ``using_runner`` replaces this dispatch,
+including the sentinel check. The runner owns host admission, niceness, and child
+cleanup.
 
 This module also owns the ``subprocess`` error types; see docs/contributing.md.
 """
@@ -57,14 +58,16 @@ Popen = subprocess.Popen
 IN_PROCESS_FFMPEG = "in-process:ffmpeg"
 IN_PROCESS_FFPROBE = "in-process:ffprobe"
 IN_PROCESS_WHISPER = "in-process:whisper-cli"
-_IN_PROCESS_TOOLS = frozenset({IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, IN_PROCESS_WHISPER})
-KILL_GRACE_SEC = 5.0
+_IN_PROCESS_MEDIA_TOOLS = frozenset({IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE})
+_IN_PROCESS_TOOLS = _IN_PROCESS_MEDIA_TOOLS | {IN_PROCESS_WHISPER}
+_KILL_GRACE_SEC = 5.0
 
 _log = logging.getLogger(__name__)
 
 # Niceness for children started in this context (and in pool threads that copy it).
 _niceness: ContextVar[int] = ContextVar("process_niceness", default=0)
 
+_runner_lock = threading.Lock()
 _detach_lock = threading.RLock()
 _detach_depth = 0
 _detached: weakref.WeakSet[subprocess.Popen[Any]] = weakref.WeakSet()
@@ -197,12 +200,18 @@ def _kill_unless_reaped(proc: subprocess.Popen[Any]) -> None:
             reap_lock.release()
 
 
+def is_in_process_media_tool(command: str) -> bool:
+    """Identify a bundled FFmpeg or FFprobe command without resolving a filesystem path."""
+    return command in _IN_PROCESS_MEDIA_TOOLS
+
+
 def _check_argv(argv: Sequence[str | bytes | Path]) -> list[str]:
+    """Normalize argv before dispatch, including subclasses returned by ``str()``."""
     if not isinstance(argv, (list, tuple)):
         raise TypeError("argv must be a list or tuple (no shell strings)")
     if not argv:
         raise ValueError("argv must not be empty")
-    return [str(a) for a in argv]
+    return [str.__str__(str(a)) for a in argv]
 
 
 def _with_niceness(cmd: list[str]) -> list[str]:
@@ -454,9 +463,10 @@ class InProcessChild:
     """A :class:`Child` whose program is ``backend.run`` on a daemon thread.
 
     A PIPE stream is an ``os.pipe`` pair, a file object is handed to the backend as is, and
-    DEVNULL or ``None`` give the backend ``None``. ``pid`` is ``None``. A ``kill`` that the
-    backend ignores for ``KILL_GRACE_SEC`` ends the child with ``-9`` at once (``wait`` never
-    hangs) and abandons its thread. At the abandon it releases the caller's write end of a stdin
+    DEVNULL or ``None`` give the backend ``None`` and ``stderr=STDOUT`` passes the same object
+    for both outputs. A caller file object need not provide a native descriptor. ``pid`` is
+    ``None``. A ``kill`` that the backend ignores for five seconds ends the child with ``-9``
+    and abandons its thread so the caller can finish waiting. At the abandon it releases the caller's write end of a stdin
     pipe (a backend blocked reading it sees EOF; a later write raises ``BrokenPipeError``) and
     detaches the backend's own pipe ends. The caller's stdout and stderr read ends stay open: a
     reader sees EOF after the abandon only if the backend has closed its own stream ends on
@@ -588,7 +598,9 @@ class InProcessChild:
             _log.exception("in-process backend failed: %s", self.args[0])
             code = 1
         if not isinstance(code, int) or isinstance(code, bool):
-            _log.error("in-process backend returned %r, not an int: %s", code, self.args[0])
+            _log.error(
+                "in-process backend returned a value that is not an int: %.80s", self.args[0]
+            )
             code = 1
         if self._cancel.is_set():
             code = -9
@@ -606,7 +618,7 @@ class InProcessChild:
         if self._done.is_set() or self._cancel.is_set():
             return
         self._cancel.set()
-        self._grace = threading.Timer(KILL_GRACE_SEC, self._abandon)
+        self._grace = threading.Timer(_KILL_GRACE_SEC, self._abandon)
         self._grace.daemon = True
         try:
             self._grace.start()
@@ -724,7 +736,6 @@ def _spawn(
 
 
 _DESKTOP_SPAWN = _spawn
-_runner_lock = threading.Lock()
 
 
 @contextmanager

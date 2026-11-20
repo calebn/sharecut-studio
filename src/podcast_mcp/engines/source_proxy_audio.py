@@ -68,7 +68,7 @@ from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
 from podcast_mcp.util.hashing import sha256_file, short_digest
-from podcast_mcp.util.process import IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, run
+from podcast_mcp.util.process import is_in_process_media_tool, run
 from podcast_mcp.util.project_state import (
     FileRevision,
     file_revision,
@@ -613,10 +613,6 @@ def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
-def _is_in_process_tool(command: str) -> bool:
-    return command in (IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE)
-
-
 @dataclass(frozen=True)
 class SourceProxyInputs:
     """Sealed source inputs shared by semantic identity, rendering, and publication."""
@@ -769,13 +765,16 @@ class SourceProxyInputs:
                     paths += (sealed,)
                     bindings += ((logical, sealed),)
                     models.append((semantic_effect, sealed))
-        tools = tuple(c for c in (engine.ffmpeg, engine.ffprobe) if not _is_in_process_tool(c))
-        binaries = tuple(Path(shutil.which(command) or command).resolve() for command in tools)
-        paths += binaries
-        bindings += tuple(
-            (Path(shutil.which(command) or command).absolute(), sealed)
-            for command, sealed in zip(tools, binaries, strict=True)
-        )
+        bundled_tools: list[str] = []
+        binary_bindings: list[tuple[Path, Path]] = []
+        for command in (engine.ffmpeg, engine.ffprobe):
+            if is_in_process_media_tool(command):
+                bundled_tools.append(command)
+            else:
+                logical = Path(shutil.which(command) or command).absolute()
+                binary_bindings.append((logical, logical.resolve()))
+        paths += tuple(sealed for _, sealed in binary_bindings)
+        bindings += tuple(binary_bindings)
         ordinary = (
             mute_spans_for_source_window(
                 clip, 0, math.inf, extra=IgnoredWordRegions(snapshot).for_clip(clip)
@@ -839,8 +838,8 @@ class SourceProxyInputs:
             "baseline_encoding": "pcm_s16le",
             "ffmpeg_policy": ffmpeg_policy(),
             "binaries": [
-                *(c for c in (engine.ffmpeg, engine.ffprobe) if _is_in_process_tool(c)),
-                *(content(path) for path in binaries),
+                *bundled_tools,
+                *(content(sealed) for _, sealed in binary_bindings),
             ],
             "context_track_id": context.id,
             "recording": {
