@@ -70,6 +70,8 @@ export type AppHeaderProps = {
       /** The sentence the bubble carries: the first-visit one (the default), or the Editor's reminder that an edit is everyone's. */
       kind?: "role" | "stakes";
       text: string;
+      /** What the role dialog says when it is not the bubble's sentence (the reminder is not the role's explanation). */
+      explanation?: string;
       shown: boolean;
       onDismiss: () => void;
       /** Called once when the automatic hint appears, so the sentence can be said. */
@@ -222,7 +224,7 @@ function RoleHint({
           ref: triggerRef,
         }}
       >
-        {guest.hint.text}
+        {guest.hint.explanation ?? guest.hint.text}
       </Dialog>
     </>
   );
