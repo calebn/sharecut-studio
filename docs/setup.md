@@ -317,7 +317,7 @@ Win/Linux/mac-x64 installers are produced by the reusable `release-desktop-build
 ## iOS app toolchain (Simulator build)
 
 `make ios-sim` needs Xcode, `brew install xcodegen`, `rustup target add aarch64-apple-ios-sim
-aarch64-apple-ios`, Node (for the Tauri CLI) and `uv`. Put the rustup toolchain's `bin` ahead of
+aarch64-apple-ios`, Node (for the Tauri CLI), `uv` and `cmake` (`brew install cmake`, used by `make ios-whisper-sim`). Put the rustup toolchain's `bin` ahead of
 Homebrew's `rustc` (`scripts/ios/build_payload.py` does this, and `scripts/ios/ios_sim.sh` reuses
 its answer), because Homebrew's has no iOS standard library, and keep Apple's `/usr/bin/rsync`
 ahead of Homebrew's 3.5.1, which hangs in the Python.xcframework install phase. See [desktop-packaging.md](desktop-packaging.md#ios-app-3810).

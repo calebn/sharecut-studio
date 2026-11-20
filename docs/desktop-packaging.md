@@ -177,15 +177,16 @@ Deferred path and interim constraints: [cross-platform-byok.md](cross-platform-b
 
 <a id="ios-app-3810"></a>
 **iOS app (#3810, stage 1).** `make ios-sim` builds the Simulator app and launches it. It
-needs `make ios-ffmpeg-sim` first; with the FFmpeg framework linked and its backend installed at engine start the audio tools report
+needs `make ios-ffmpeg-sim` and `make ios-whisper-sim` first (the second needs `cmake`, for example from Homebrew); with the FFmpeg framework linked and its backend installed at engine start the audio tools report
 installed (linked without the backend they read missing with their own sentence), and an app built without it shows the Audio tools card as missing, and its model rows
-read "ShareCut can't process audio on this device yet." Once linked, only the noise-reduction model (RNNoise, which runs through FFmpeg) can be offered: the word aligner and speaker model are ONNX models and the phone has no onnxruntime, so they stay unsupported with the same sentence, and so does Whisper ("can't transcribe"). The app is the `sharecut` lib (a `staticlib`) with Python.xcframework and FFmpeg.xcframework linked
+read "ShareCut can't process audio on this device yet." Once linked, only the noise-reduction model (RNNoise, which runs through FFmpeg) can be offered: the word aligner and speaker model are ONNX models and the phone has no onnxruntime, so they stay unsupported with the same sentence, and so does Whisper ("can't transcribe"). The app is the `sharecut` lib (a `staticlib`) with Python.xcframework, FFmpeg.xcframework and Whisper.xcframework linked
 into it; there is no sidecar process.
 
 - **Build.** `scripts/ios/ios_sim.sh run` first ensures the payload (`build_payload.py --ensure`;
   the generated Xcode project needs `ios-payload/` at init), checks that
-  `ios-payload/FFmpeg.xcframework` has a Simulator slice (`ffmpeg_framework.py check --sdk
-  iphonesimulator`; run `make ios-ffmpeg-sim` once if it stops there), then runs `tauri ios init`, then
+  `ios-payload/FFmpeg.xcframework` and `ios-payload/Whisper.xcframework` have a Simulator slice
+  (`ffmpeg_framework.py check --sdk iphonesimulator` and the same with `--framework whisper`; run
+  `make ios-ffmpeg-sim` or `make ios-whisper-sim` once if it stops there), then runs `tauri ios init`, then
   `tauri ios build --target aarch64-sim --debug`; `launch` and `proof` take the product of this
   checkout's own generated Xcode project (`xcodebuild -showBuildSettings`), never the newest
   `sharecut-*` DerivedData folder, which can belong to another worktree. The overlay
