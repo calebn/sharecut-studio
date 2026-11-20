@@ -16,6 +16,7 @@ from typing import Any
 import yaml
 
 from podcast_mcp import settings
+from podcast_mcp.engines.models import whisper_cpp_models
 from podcast_mcp.util.asset_sources import DownloadProgress, OnProgress
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
@@ -208,6 +209,8 @@ def normalize_whisper_model(model: str) -> str:
 def validate_whisper_model(model: str) -> str:
     """Return a canonical faster-whisper size or raise a coded ``ValueError``."""
     normalized = normalize_whisper_model(model)
+    if normalized in whisper_cpp_models.VARIANT_IDS and whisper_cpp_models.on_whisper_cpp_host():
+        return normalized
     if normalized not in FASTER_WHISPER_SIZES:
         allowed = ", ".join(WHISPER_SIZE_ENUM)
         raise CodedValueError(
@@ -265,7 +268,15 @@ def persist_whisper_model(model: str) -> str:
 
 
 def resolve_whisper_model(*, requested: str | None = None) -> str:
-    """Precedence: explicit request → env → prefs.yaml → product default."""
+    """Precedence: explicit request → env → prefs.yaml → product default.
+
+    On a whisper.cpp host the answer is always one of its variants: a faster-whisper id (the
+    pipeline's own default) becomes the installed variant, else the default variant.
+    """
+    return whisper_cpp_models.coerce(_resolve_requested(requested))
+
+
+def _resolve_requested(requested: str | None) -> str:
     if requested is not None and str(requested).strip():
         return validate_whisper_model(requested)
     env = _env_whisper_model()
@@ -453,9 +464,13 @@ def bootstrap_whisper_model(
     """
     from podcast_mcp.config.defaults import whisper_cache_dir
 
-    canonical = validate_whisper_model(model_size)
+    canonical = whisper_cpp_models.coerce(validate_whisper_model(model_size))
     pin = WHISPER_PINS.get(canonical)
-    if pin is None:
+    cache = whisper_cache_dir()
+    if canonical in whisper_cpp_models.VARIANT_IDS and whisper_cpp_models.on_whisper_cpp_host():
+        whisper_cpp_models.bootstrap_variant(canonical, force=force, on_progress=on_progress)
+        cache = whisper_cpp_models.whisper_cpp_cache_dir()
+    elif pin is None:
         from faster_whisper import WhisperModel
 
         if on_progress is not None:
@@ -485,13 +500,18 @@ def bootstrap_whisper_model(
     return {
         "ok": True,
         "model": canonical,
-        "cache": str(whisper_cache_dir()),
+        "cache": str(cache),
         "persist_error": persist_error,
     }
 
 
 def catalog_payload() -> list[dict[str, Any]]:
-    """Catalog rows for setup + Pipeline pickers, including on-disk ``cached``."""
+    """Catalog rows for setup + Pipeline pickers, including on-disk ``cached``.
+
+    A whisper.cpp host lists its own two variants instead of the faster-whisper sizes.
+    """
+    if whisper_cpp_models.on_whisper_cpp_host():
+        return whisper_cpp_models.catalog_payload()
     return [
         {
             **dict(item),

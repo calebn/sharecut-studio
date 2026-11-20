@@ -90,7 +90,8 @@ def model_status(
     FFmpeg and the other models need the transcription stack that host also lacks. A host that
     can process audio but not transcribe reports whisper alone as ``unsupported``. A host that
     transcribes with whisper.cpp (the iPhone) reports whisper ``unsupported`` with the
-    transcription sentence until the native whisper backend is installed, and always reports the
+    transcription sentence until the native whisper backend is installed, then reports the
+    whisper.cpp model file for the chosen variant (not a faster-whisper size), and always reports the
     word aligner and the speaker model ``unsupported`` (they need onnxruntime). A host whose
     media tools run in-process counts as unable to process audio until the FFmpeg library is
     linked, so an unlinked build reports every model ``unsupported`` with the same sentence
