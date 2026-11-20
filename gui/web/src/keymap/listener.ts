@@ -120,6 +120,7 @@ export function useDawKeymapListener(): void {
       if (!matches.length) {
         if (
           e.key.toLowerCase() === "q" &&
+          !e.shiftKey &&
           !e.ctrlKey &&
           !e.metaKey &&
           !e.altKey &&
