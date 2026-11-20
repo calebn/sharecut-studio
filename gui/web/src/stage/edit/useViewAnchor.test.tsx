@@ -156,6 +156,39 @@ describe("the View anchor's focus return", () => {
     disconnect.mockRestore();
   });
 
+  it("leaves focus on the fallback after a key press", async () => {
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    const pane = document.querySelector<HTMLElement>("#pane");
+    act(() => {
+      pane?.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true }));
+    });
+    act(() => {
+      appendFind();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(document.activeElement).toBe(pane);
+  });
+
+  it("does not move focus back after it left the fallback and returned", async () => {
+    render(<Harness />);
+    screen.getByRole("button", { name: "Prosody" }).focus();
+    act(() => setHidden(true));
+    const pane = document.querySelector<HTMLElement>("#pane");
+    screen.getByRole("button", { name: "Elsewhere" }).focus();
+    pane?.focus();
+    act(() => {
+      appendFind();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(document.activeElement).toBe(pane);
+  });
+
   it("returns straight to the preferred control when it is already drawn", () => {
     const find = appendFind();
     render(<Harness />);

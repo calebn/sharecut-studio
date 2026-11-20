@@ -1,6 +1,6 @@
 import { type RefObject, useLayoutEffect, useRef } from "react";
 import { isValidFocusTarget } from "../../ui/focusTarget";
-import { subscribeModalOpen } from "../../ui/modalGate";
+import { modalOpen, subscribeModalOpen } from "../../ui/modalGate";
 
 export type ViewAnchorAvailability =
   | { kind: "available" }
@@ -107,12 +107,17 @@ function upgradeFocus(
     window.clearTimeout(timer);
     doc.removeEventListener("focusin", onFocusIn);
     doc.removeEventListener("pointerdown", stop, true);
+    doc.removeEventListener("keydown", stop, true);
   };
   const onFocusIn = (event: FocusEvent) => {
     if (event.target !== fallback) stop();
   };
   const observer = new MutationObserver(() => {
     const target = preferred();
+    if (modalOpen()) {
+      stop();
+      return;
+    }
     if (doc.activeElement !== fallback || !isValidFocusTarget(target)) return;
     stop();
     target.focus();
@@ -121,11 +126,12 @@ function upgradeFocus(
   const unsubscribe = subscribeModalOpen(stop);
   doc.addEventListener("focusin", onFocusIn);
   doc.addEventListener("pointerdown", stop, true);
+  doc.addEventListener("keydown", stop, true);
   observer.observe(doc.body, {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["hidden", "class", "style"],
+    attributeFilter: ["hidden", "class"],
   });
   return stop;
 }
