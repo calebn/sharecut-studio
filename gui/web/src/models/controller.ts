@@ -286,6 +286,16 @@ type ComponentResult = {
   failure?: { kind?: ModelFailure["kind"]; plain?: string };
 };
 
+function guiFailure(kind: ModelFailure["kind"], plain: string): ModelFailure {
+  return {
+    kind,
+    plain:
+      kind === "pin_mismatch"
+        ? "The downloaded model is not the expected version."
+        : plain,
+  };
+}
+
 /**
  * The per-row failures of a finished job. A component's own result wins: its typed `failure`, else
  * its plain `error`. A job that ended without results (an exception) charges `ids`, the requested
@@ -303,7 +313,7 @@ export function jobFailures(
   )?.results;
   if (!results) {
     const failure: ModelFailure = job.failure
-      ? { kind: job.failure.kind, plain: job.failure.plain }
+      ? guiFailure(job.failure.kind, job.failure.plain)
       : {
           kind: null,
           plain: job.error ?? job.message ?? "The download failed.",
@@ -315,10 +325,10 @@ export function jobFailures(
   const out: ModelFailures = {};
   for (const [id, result] of Object.entries(results)) {
     if (result.failure?.plain) {
-      out[failureKey(id, job.whisper_model)] = {
-        kind: result.failure.kind ?? null,
-        plain: result.failure.plain,
-      };
+      out[failureKey(id, job.whisper_model)] = guiFailure(
+        result.failure.kind ?? null,
+        result.failure.plain,
+      );
     } else if (result.ok === false) {
       out[failureKey(id, job.whisper_model)] = {
         kind: null,

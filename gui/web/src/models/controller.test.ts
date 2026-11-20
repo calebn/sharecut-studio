@@ -323,6 +323,33 @@ describe("jobFailures", () => {
     });
   });
 
+  it.each(["component", "job"])(
+    "keeps the terminal command out of a %s pin failure",
+    (source) => {
+      const failure = {
+        kind: "pin_mismatch",
+        status: null,
+        plain:
+          "Unexpected model version. Run: podcast bootstrap --component whisper --upgrade",
+      } as const;
+      const failures = jobFailures(
+        job({
+          status: "error",
+          failure,
+          result:
+            source === "component"
+              ? { results: { whisper: { ok: false, failure } } }
+              : null,
+        }),
+        ["whisper"],
+      );
+      expect(failures["whisper/large-v3-turbo"]).toEqual({
+        kind: "pin_mismatch",
+        plain: "The downloaded model is not the expected version.",
+      });
+    },
+  );
+
   it("falls back to the plain error text when no failure is typed", () => {
     const failures = jobFailures(
       job({
