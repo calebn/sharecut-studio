@@ -394,7 +394,7 @@ describe("buildScriptModel", () => {
     ).toBe(2);
   });
 
-  it("shows a cut word once when the boundary names a source id and the utterance has none", () => {
+  it("shows a primary cut word once with canonical transcript identity", () => {
     const boundary = {
       id: "b1",
       track_id: "host",
@@ -405,7 +405,7 @@ describe("buildScriptModel", () => {
       cutaway_word_ids: [
         {
           track_id: "host",
-          source_id: "a",
+          source_id: null,
           word_index: -2,
           text: "uh",
           start: 12.5,
@@ -430,6 +430,171 @@ describe("buildScriptModel", () => {
     expect(
       model.turns.flatMap((t) => t.words).filter((w) => w.text === "uh"),
     ).toHaveLength(1);
+  });
+
+  it("keeps an equal-index word from a different recording than the cut", () => {
+    const boundary = {
+      id: "b1",
+      track_id: "host",
+      timeline_join_sec: 12.5,
+      has_cutaway: true,
+      cutaway_source_start: 12.5,
+      cutaway_source_end: 14,
+      cutaway_word_ids: [
+        {
+          track_id: "host",
+          source_id: "a",
+          word_index: -2,
+          text: "uh",
+          start: 12.5,
+          end: 12.9,
+        },
+      ],
+    } as unknown as EditBoundaryView;
+    const cutWord = {
+      mappable: false,
+      timeline_start: null,
+      timeline_end: null,
+    };
+    const first = utterance(
+      "host",
+      "Maya",
+      [word("Welcome", 0, 12), word("uh", 1, 12.5, cutWord)],
+      { source_id: "a" },
+    );
+    const second = utterance(
+      "host",
+      "Maya",
+      [word("Again", 0, 22), word("uh", 1, 22.5, cutWord)],
+      { source_id: "b" },
+    );
+    const model = buildScriptModel(
+      input([first, second], { boundaries: [boundary] }),
+    );
+    expect(
+      model.turns.flatMap((turn) => turn.words).filter((w) => w.text === "uh"),
+    ).toHaveLength(2);
+    const secondIndex = model.indexOf({
+      trackId: "host",
+      sourceId: "b",
+      wordIndex: 1,
+    });
+    expect(secondIndex).toBeDefined();
+    expect(model.refs[secondIndex ?? -1]?.sourceId).toBe("b");
+    expect(model.isCut(secondIndex ?? -1)).toBe(false);
+  });
+
+  it.each(["a", "other"])(
+    "keeps a word on track %s when distinct recording identities contain colons",
+    (otherTrack) => {
+      const cutWord = {
+        mappable: false,
+        timeline_start: null,
+        timeline_end: null,
+      };
+      const boundary = {
+        id: "b1",
+        track_id: "a:b",
+        timeline_join_sec: 12.5,
+        has_cutaway: true,
+        cutaway_source_start: 12.5,
+        cutaway_source_end: 14,
+        cutaway_word_ids: [
+          {
+            track_id: "a:b",
+            source_id: "c",
+            word_index: -2,
+            text: "uh",
+            start: 12.5,
+            end: 12.9,
+          },
+        ],
+      } as unknown as EditBoundaryView;
+      const first = utterance(
+        "a:b",
+        "Maya",
+        [word("Welcome", 0, 12), word("uh", 1, 12.5, cutWord)],
+        { source_id: "c" },
+      );
+      const second = utterance(
+        otherTrack,
+        "Anneke",
+        [word("Again", 0, 22), word("uh", 1, 22.5, cutWord)],
+        { source_id: "b:c" },
+      );
+      const model = buildScriptModel(
+        input([first, second], { boundaries: [boundary] }),
+      );
+      expect(
+        model.turns
+          .flatMap((turn) => turn.words)
+          .filter((w) => w.text === "uh"),
+      ).toHaveLength(2);
+      expect(model.refs).toContainEqual({
+        trackId: otherTrack,
+        sourceId: "b:c",
+        wordIndex: 1,
+      });
+    },
+  );
+
+  it("resolves repeated previews to each recording's own first and last cut word", () => {
+    const utterances = ["a", "b"].map((source, i) =>
+      utterance(
+        "host",
+        "Maya",
+        [
+          word("before", 0, 10 + i * 10),
+          word("uh", 1, 11 + i * 10, {
+            mappable: false,
+            timeline_start: null,
+            timeline_end: null,
+          }),
+          word("after", 2, 12 + i * 10),
+        ],
+        { source_id: source },
+      ),
+    );
+    const boundaries = ["a", "b", "a"].map(
+      (source, i) =>
+        ({
+          id: `cut-${i}`,
+          track_id: "host",
+          timeline_join_sec: i === 1 ? 21 : 11,
+          has_cutaway: true,
+          cutaway_source_start: 11,
+          cutaway_source_end: 12,
+          cutaway_word_ids: [
+            {
+              track_id: "host",
+              source_id: source,
+              word_index: -2,
+              text: "uh",
+              start: 11,
+              end: 11.4,
+            },
+          ],
+        }) as unknown as EditBoundaryView,
+    );
+    const model = buildScriptModel(input(utterances, { boundaries }));
+    for (const sourceId of ["a", "b"]) {
+      const ref = { trackId: "host", sourceId, wordIndex: 1 };
+      const previews = model.refs.flatMap((r, index) =>
+        r.sourceId === sourceId && r.wordIndex === -2 ? [index] : [],
+      );
+      expect(previews).toHaveLength(sourceId === "a" ? 2 : 1);
+      expect(model.indexOf(ref)).toBe(previews[0]);
+      expect(model.indexOf(ref, "last")).toBe(previews[previews.length - 1]);
+      for (const index of previews) {
+        expect(model.isCut(index)).toBe(true);
+        expect(model.seekSecOf(index)).toBeNull();
+        expect(
+          model.turns
+            .flatMap((turn) => turn.words)
+            .find((w) => w.index === index)?.anchor,
+        ).toBeUndefined();
+      }
+    }
   });
 
   it("keeps an unmappable word the boundary does not name", () => {

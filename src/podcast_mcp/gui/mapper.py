@@ -942,7 +942,7 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
                     cutaway_word_ids.append(
                         {
                             "track_id": track_id,
-                            "source_id": left.source_id,
+                            "source_id": left_transcript.source_id,
                             # Cutaway references are previews, never active word identities.
                             "word_index": -1 - word_index,
                             "text": word.text,

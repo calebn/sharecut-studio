@@ -1,9 +1,13 @@
 import { expect, test } from "@playwright/test";
+import type { ProjectView } from "../src/types/project";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { hostOfflineQueueCount } from "./offlineQueue";
 import { interceptCommentCommands, postHostComment } from "./queuedComment";
+import { createScriptRecordingIdentityProject } from "./scriptRecordingIdentityProject";
+import { withShareableProject } from "./shareableProject";
 import { openPanel, openProject } from "./stageNav";
+import { openScript } from "./transcriptEdit";
 
 test.describe("ShareCut Studio smoke", () => {
   test("loads fixture project shell and is axe-clean on chrome", async ({
@@ -66,4 +70,68 @@ test.describe("ShareCut Studio smoke", () => {
       page.getByRole("group", { name: /^Needs attention/ }),
     ).toHaveCount(0);
   });
+});
+
+test("Script Find keeps equal-index words in separate recordings beside a primary cut preview", async ({
+  page,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await openProject(page, projectPath);
+      const body = await openScript(page);
+      const response = await page.request.get(
+        `/api/project?path=${encodeURIComponent(projectPath)}&phase=full`,
+      );
+      expect(response.ok()).toBe(true);
+      const project = (await response.json()) as ProjectView;
+      const boundary = project.edit_boundaries?.find(
+        (row) => row.left_clip_id === "left" && row.right_clip_id === "right",
+      );
+      expect(boundary?.cutaway_word_ids).toEqual([
+        {
+          track_id: "host",
+          source_id: null,
+          word_index: -2,
+          text: "echo",
+          start: 1.2,
+          end: 1.5,
+        },
+      ]);
+      const showCut = page.getByRole("button", {
+        name: "Show cut text",
+        exact: true,
+      });
+      if ((await showCut.getAttribute("aria-pressed")) !== "true")
+        await showCut.click();
+      await expect(showCut).toHaveAttribute("aria-pressed", "true");
+      const echoes = body
+        .locator(".sys-script-word")
+        .filter({ hasText: /^echo$/ });
+      await expect(echoes).toHaveCount(2);
+      const cut = body.locator('.sys-script-word[data-word-key="host::-2"]');
+      const other = body.locator(
+        '.sys-script-word[data-word-key="host:other:1"]',
+      );
+      await expect(cut).toHaveText("echo");
+      await expect(cut).toHaveAttribute("data-state", "cut");
+      await expect(other).toHaveText("echo");
+      await expect(other).not.toHaveAttribute("data-state", "cut");
+      await page.getByRole("button", { name: "Find in transcript" }).click();
+      const bar = page.getByRole("search", { name: "Find in transcript" });
+      const field = bar.getByRole("searchbox", { name: "Find", exact: true });
+      await field.fill("echo");
+      await expect(bar).toContainText("1 of 1");
+      await expect(other).toHaveAttribute("data-found");
+      await expect(cut).not.toHaveAttribute("data-found");
+      await field.fill("alpha omega");
+      await expect(bar).toContainText("No matches");
+      await field.fill("omega beta");
+      await expect(bar).toContainText("No matches");
+      await field.fill("beta echo");
+      await expect(bar).toContainText("1 of 1");
+    },
+    undefined,
+    createScriptRecordingIdentityProject,
+  );
 });
