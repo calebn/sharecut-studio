@@ -3,13 +3,16 @@ import axe from "axe-core";
 import { storyNameFromExport } from "storybook/internal/csf";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
+import {
+  SHELL_TITLES,
+  selectBrowserStoryShard,
+} from "../test/storySweepPolicy";
 
 const PHONE = 360;
 const WIDE = 1280;
 const HEIGHT = 900;
 const THEMES = ["light", "dark"] as const;
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
-const SHELL_TITLES = ["Stages/Edit/Frame"];
 
 type ComposedStory = {
   run: (options: {
@@ -189,33 +192,18 @@ afterEach(() => {
   document.documentElement.removeAttribute("data-theme");
 });
 
-function parseShard(raw: string | undefined): { index: number; total: number } {
-  if (raw === undefined || raw === "") return { index: 1, total: 1 };
-  const match = /^(\d+)\/(\d+)$/.exec(raw);
-  const index = Number(match?.[1]);
-  const total = Number(match?.[2]);
-  if (!match || index < 1 || index > total) {
-    throw new Error(
-      `VITE_STORY_SHARD must be i/n with 1 <= i <= n, got "${raw}"`,
-    );
-  }
-  return { index, total };
-}
-const shard = parseShard(import.meta.env.VITE_STORY_SHARD);
-const inShard = (position: number) =>
-  position % shard.total === shard.index - 1;
+const shardStories = selectBrowserStoryShard(
+  stories,
+  import.meta.env.VITE_STORY_SHARD,
+);
 
 it("sweeps a non-empty set of stories in this shard", () => {
-  expect(
-    stories.filter((_, position) => inShard(position)).length,
-  ).toBeGreaterThan(0);
+  expect(shardStories.length).toBeGreaterThan(0);
 });
 
 for (const theme of THEMES) {
   describe(`stories in ${theme}`, () => {
-    for (const [index, base] of stories.entries()) {
-      if (!inShard(index)) continue;
-      if (base.tags.includes("storybook-only")) continue;
+    for (const base of shardStories) {
       it(`${base.title} / ${base.storyName}`, async () => {
         const errors: string[] = [];
         const onError = (event: ErrorEvent) => errors.push(event.message);
