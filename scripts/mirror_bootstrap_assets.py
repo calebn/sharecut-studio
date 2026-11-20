@@ -63,7 +63,9 @@ def main() -> int:
 
     for name, meta in assets.items():
         kind = meta.get("kind")
-        prefix = meta["cdn_prefix"]
+        prefix = meta.get("cdn_prefix")
+        if prefix is None:
+            continue
         if kind == "http":
             url = meta["url"]
             filename = meta.get("filename") or Path(url).name
