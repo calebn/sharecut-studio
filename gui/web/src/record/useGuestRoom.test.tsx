@@ -12,9 +12,13 @@ import {
   OpfsUnavailableError,
   parseKeeperMeta,
 } from "./keeper/store";
+import { useKeeperCapture } from "./keeper/useKeeperCapture";
 import { MIC_SAVED_DEVICE_MISSING_COPY } from "./micPermission";
+import { useRecordMonitor } from "./monitor/useRecordMonitor";
 import { OPFS_UNAVAILABLE_COPY, UPLOAD_SINK_ERROR_COPY } from "./types";
+import { useRecordUpload } from "./upload/useRecordUpload";
 import { requestedRecordMode, useGuestRoom } from "./useGuestRoom";
+import { useRoomToneCapture } from "./useRoomToneCapture";
 
 vi.mock("./encodeRoomTone", () => ({
   encodeRoomToneWav: (
@@ -31,8 +35,29 @@ vi.mock("../desktop/useDesktopCloseGuard", () => ({
 }));
 
 vi.mock("./monitor/useRecordMonitor", () => ({
-  useRecordMonitor: () => ({ hearing: false, remoteCount: 0, error: null }),
+  useRecordMonitor: vi.fn(() => ({
+    hearing: false,
+    remoteCount: 0,
+    error: null,
+  })),
 }));
+
+vi.mock("./keeper/useKeeperCapture", async (importActual) => {
+  const actual =
+    await importActual<typeof import("./keeper/useKeeperCapture")>();
+  return { ...actual, useKeeperCapture: vi.fn(actual.useKeeperCapture) };
+});
+
+vi.mock("./upload/useRecordUpload", async (importActual) => {
+  const actual =
+    await importActual<typeof import("./upload/useRecordUpload")>();
+  return { ...actual, useRecordUpload: vi.fn(actual.useRecordUpload) };
+});
+
+vi.mock("./useRoomToneCapture", async (importActual) => {
+  const actual = await importActual<typeof import("./useRoomToneCapture")>();
+  return { ...actual, useRoomToneCapture: vi.fn(actual.useRoomToneCapture) };
+});
 
 vi.mock("./keeper/graph", () => ({
   openKeeperTap: vi.fn(async () => ({
@@ -1230,6 +1255,69 @@ describe("useGuestRoom", () => {
       await waitFor(() => expect(result.current.roomTone.status).toBe("idle"));
     });
 
+    it("switches keeper capture, the monitor stream, upload and room tone off while a decline is queued over a room that still holds true", async () => {
+      holdOpen = true;
+      stubSocket("silent");
+      stubFetch({
+        ...guestBootstrap,
+        build: { capture: true, monitor: true, upload: true },
+      });
+      const { result } = renderHook(() => useGuestRoom("guest-tok"));
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0], true));
+      await waitFor(() => expect(result.current.me?.consented).toBe(true));
+      act(() => result.current.mic.request());
+      await waitFor(() => expect(result.current.mic.stream).not.toBeNull());
+      await waitFor(() => expect(result.current.sink).not.toBeNull());
+      const last = <T extends (...args: never[]) => unknown>(hook: T) =>
+        vi.mocked(hook).mock.calls.at(-1)?.[0] as Parameters<T>[0];
+      expect(last(useKeeperCapture)).toMatchObject({
+        enabled: true,
+        consented: true,
+      });
+      expect(last(useRecordMonitor).localStream).not.toBeNull();
+      expect(last(useRecordUpload)).toMatchObject({
+        enabled: true,
+        captureExpected: true,
+      });
+      expect(last(useRoomToneCapture).canUpload).toBe(true);
+      act(() => result.current.declineHere());
+      expect(result.current.me?.consented).toBe(true);
+      expect(last(useKeeperCapture)).toMatchObject({
+        enabled: false,
+        consented: false,
+      });
+      expect(last(useRecordMonitor).localStream).toBeNull();
+      expect(last(useRecordUpload)).toMatchObject({
+        enabled: false,
+        captureExpected: false,
+      });
+      expect(last(useRoomToneCapture).canUpload).toBe(false);
+    });
+
+    it("keeps the typed name off the device and the room while a decline is queued over a room that holds true", async () => {
+      const { result } = await heldRoom();
+      act(() => result.current.setName("Bea"));
+      act(() => result.current.declineHere());
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0], true));
+      await waitFor(() => expect(result.current.me?.consented).toBe(true));
+      await waitFor(() => expect(consents(sockets[0])).toEqual([false]));
+      expect(localStorage.getItem("sharecut.recordName")).toBeNull();
+    });
+
+    it("keeps a remembered name off the room while a decline is queued over a room that holds true", async () => {
+      localStorage.setItem("sharecut.recordName", "Ava Okafor");
+      const { result } = await heldRoom();
+      act(() => result.current.declineHere());
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0], true));
+      await waitFor(() => expect(result.current.me?.consented).toBe(true));
+      await waitFor(() => expect(consents(sockets[0])).toEqual([false]));
+      expect(sockets[0]?.commands("UpdateName")).toHaveLength(0);
+    });
+
     it("routes a decline made while a take is on to the declined view before the room has heard it", async () => {
       const { result } = await heldRoom();
       act(() => sockets[0]?.onopen?.());
@@ -1439,6 +1527,21 @@ describe("useGuestRoom", () => {
       expect(localStorage.getItem("sharecut.recordName")).toBe("Rosa");
       expect(result.current.uploadTransport).toBeNull();
       expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
+    });
+
+    it("never answers a decline from a look at the room, whatever the socket delivers", async () => {
+      stubFetch(producerBootstrap);
+      const { result } = renderHook(() => useGuestRoom("prod-tok"));
+      await waitFor(() => expect(result.current.socketMode).toBe("watch"));
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      act(() => sockets[0]?.emit({ type: "Snapshot", snapshot: snapshotOf() }));
+      await waitFor(() => expect(result.current.connected).toBe(true));
+      act(() => result.current.declineHere());
+      act(() =>
+        sockets[0]?.emit({ type: "Echo", participant_id: "p_g", lease: "l" }),
+      );
+      await act(async () => undefined);
+      expect(sockets[0]?.sent).toEqual([]);
     });
 
     it("ends the look on Not now and looks again when the sheet comes back", async () => {

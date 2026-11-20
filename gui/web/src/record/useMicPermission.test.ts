@@ -496,7 +496,7 @@ describe("useMicPermission slow prompt", () => {
     hungGum();
     const { result } = renderHook(() => useMicPermission(true, ""));
     act(() => result.current.request());
-    await advance(MIC_PROMPT_SLOW_MS - 1);
+    await advance(9_999);
     expect(result.current).toMatchObject({
       status: "prompting",
       promptSlow: false,
@@ -506,6 +506,28 @@ describe("useMicPermission slow prompt", () => {
       status: "prompting",
       promptSlow: true,
     });
+  });
+
+  it("starts a fresh clock for a request made after the mic was switched off while slow", async () => {
+    hungGum();
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useMicPermission(enabled, ""),
+      { initialProps: { enabled: true } },
+    );
+    act(() => result.current.request());
+    await advance(MIC_PROMPT_SLOW_MS);
+    expect(result.current.promptSlow).toBe(true);
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+    act(() => result.current.request());
+    expect(result.current).toMatchObject({
+      status: "prompting",
+      promptSlow: false,
+    });
+    await advance(MIC_PROMPT_SLOW_MS - 1);
+    expect(result.current.promptSlow).toBe(false);
+    await advance(1);
+    expect(result.current.promptSlow).toBe(true);
   });
 
   it("is never slow before a request", async () => {
