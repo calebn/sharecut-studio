@@ -14,7 +14,7 @@ export type Rect = { x: number; y: number; w: number; h: number };
 export type ShiftEntry = {
   value: number;
   at: number;
-  sources: { node: string; from: Rect; to: Rect }[];
+  sources: { node: string; inPlayer: boolean; from: Rect; to: Rect }[];
 };
 
 type Probes = {
@@ -82,6 +82,12 @@ export async function installProbes(page: Page): Promise<void> {
           at: shift.startTime,
           sources: shift.sources.map((s) => ({
             node: label(s.node),
+            inPlayer: Boolean(
+              (s.node instanceof Element
+                ? s.node
+                : s.node?.parentElement
+              )?.closest(".sys-player-host"),
+            ),
             from: rect(s.previousRect),
             to: rect(s.currentRect),
           })),

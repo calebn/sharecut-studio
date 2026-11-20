@@ -78,9 +78,30 @@ function StageFrameAdapter({
   );
   const twoFingerUndo = shell === "phone" && undoEnabled;
   useTwoFingerTap(rootRef, { enabled: twoFingerUndo });
-  // The Role chip hint and the Undo tip share the header's edge; Undo waits.
+  // A link shows one coach tip at a time.
   const roleHintUp = headerProps.guest?.hint?.shown ?? false;
   const undoTip = useUndoCoachTip(twoFingerUndo && !roleHintUp);
+  const undoHint = {
+    text: undoTip.text,
+    shown: undoTip.shown,
+    onDismiss: undoTip.dismiss,
+  };
+  const playerHistory =
+    placement === "bar" &&
+    shell === "phone" &&
+    headerProps.guest?.role === "editor"
+      ? {
+          loading: headerProps.loading,
+          canUndo: headerProps.canUndo,
+          canRedo: headerProps.canRedo,
+          undoReason: headerProps.undoReason,
+          redoReason: headerProps.redoReason,
+          onUndo: headerProps.onUndo,
+          onRedo: headerProps.onRedo,
+          onHistory: headerProps.onHistory,
+          undoHint,
+        }
+      : undefined;
 
   // Header and Player keep transport keys working after a click (true). Edit
   // sets its own regions inside the body; every other stage's body is not the
@@ -108,11 +129,8 @@ function StageFrameAdapter({
         header={
           <AppHeader
             {...headerProps}
-            undoHint={{
-              text: undoTip.text,
-              shown: undoTip.shown,
-              onDismiss: undoTip.dismiss,
-            }}
+            undoHint={undoHint}
+            historyInPlayer={Boolean(playerHistory)}
             stages={
               headerProps.stages && {
                 ...headerProps.stages,
@@ -133,7 +151,7 @@ function StageFrameAdapter({
         banners={<BannerStack guestShare={guestShare} />}
         player={
           placement === "bar" || placement === "dock" ? (
-            <PlayerBar placement={placement} />
+            <PlayerBar placement={placement} history={playerHistory} />
           ) : null
         }
         tabs={

@@ -345,7 +345,7 @@ for (const size of SIZES) {
       });
     });
 
-    test("an Editor link keeps the guest column, Undo, Redo and the save mark centred in the bar", async ({
+    test("an Editor link keeps the title and save mark centred in the header", async ({
       browser,
     }) => {
       await withGuestLink(
@@ -356,8 +356,14 @@ for (const size of SIZES) {
           await seeEveryHint(guest);
           await guest.goto(`/r/${token}`);
           await landed(guest, name);
+          const historySlot = size.touch
+            ? ".sys-player-history"
+            : ".sys-header-history";
           await expect(
-            guest.locator(".sys-header-history button").first(),
+            guest.locator(historySlot).getByRole("button", { name: "Undo" }),
+          ).toBeVisible();
+          await expect(
+            guest.locator(historySlot).getByRole("button", { name: "Redo" }),
           ).toBeVisible();
           const boxes = await guest.evaluate(() => {
             const box = (el: Element | null | undefined) => {
@@ -386,9 +392,8 @@ for (const size of SIZES) {
           expect(boxes.title?.h).toBeCloseTo(18, 0);
           for (const control of [
             boxes.column,
-            boxes.undo,
-            boxes.redo,
             boxes.save,
+            ...(size.touch ? [] : [boxes.undo, boxes.redo]),
           ]) {
             expect(control).not.toBeNull();
             expect(

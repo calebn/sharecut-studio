@@ -394,6 +394,9 @@ live region speaks the new edit's own message; the visible text is the count.
    it is unavailable. The touch long-press label peek (`useRailLabelPeek`,
    #1878) went with the tool rail. The long-press on Hear original opens the
    hear menu instead.
+   A phone Editor's Undo and Redo appear together in the Player. Long-press or
+   right-click the pair to open the existing History sheet. The Undo hint
+   opens above the Player.
 5. **Panel tabs are a tablist.** `role="tablist"`, `role="tab"`,
    `aria-selected`, arrow-key movement. The list has `tabindex=-1`, so direct focus adds no sequential Tab stop.
    Focusing or clicking its padding forwards focus to the selected enabled tab,

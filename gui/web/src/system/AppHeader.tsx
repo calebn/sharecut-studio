@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLongPress } from "../hooks/useLongPress";
 import type { ThemePreference } from "../hooks/useTheme";
 import {
   Avatar,
@@ -21,7 +20,8 @@ import {
 } from "../ui";
 import { AppearanceControl } from "./AppearanceControl";
 import { AppMenuItems } from "./AppMenuItems";
-import { type CoachHint, CoachTip } from "./CoachTip";
+import { CoachTip } from "./CoachTip";
+import { HistoryButtons, type HistoryButtonsProps } from "./HistoryButtons";
 import type { SystemIconName } from "./icons";
 import { type LinkRole, ROLES } from "./linkRoles";
 import { RenameProjectPopover } from "./RenameProjectPopover";
@@ -36,7 +36,7 @@ import { type NewVersionUpdate, VersionLine } from "./VersionLine";
 
 export type HeaderPerson = { name: string; colorIndex?: number };
 
-export type AppHeaderProps = {
+export type AppHeaderProps = HistoryButtonsProps & {
   title: string;
   /** Omitted when there is nothing to say yet, or for a guest: no light is better than a wrong one. */
   save?: SaveIndicatorProps;
@@ -85,16 +85,8 @@ export type AppHeaderProps = {
     value: ThemePreference;
     onChange: (value: ThemePreference) => void;
   };
-  /** The project is still loading: the title is known, the rest waits. */
-  loading?: boolean;
-  canUndo?: boolean;
-  canRedo?: boolean;
-  /** Why Undo or Redo is off, as the disabled button's title. */
-  undoReason?: string;
-  redoReason?: string;
-  onUndo?: () => void;
-  undoHint?: CoachHint;
-  onRedo?: () => void;
+  /** The phone Editor has the history pair in the Player. */
+  historyInPlayer?: boolean;
   onInvite?: () => void;
   onPalette?: () => void;
   /**
@@ -103,8 +95,6 @@ export type AppHeaderProps = {
    * Left out (a guest, or a project that cannot be renamed), the row is absent.
    */
   onRename?: (name: string) => void | Promise<void>;
-  /** Undo was long-pressed or right-clicked: the host opens History. */
-  onHistory?: () => void;
   onMenuCommand?: (command: string) => void;
 };
 
@@ -412,6 +402,7 @@ export function AppHeader({
   guest,
   appearance,
   loading = false,
+  historyInPlayer = false,
   canUndo = true,
   canRedo = true,
   undoReason,
@@ -425,7 +416,6 @@ export function AppHeader({
   onHistory,
   onMenuCommand,
 }: AppHeaderProps) {
-  const historyPress = useLongPress(() => onHistory?.());
   const shown = people.slice(0, MAX_AVATARS);
   const extra = people.length - shown.length;
   const canEdit = !guest || guest.role === "editor";
@@ -451,7 +441,7 @@ export function AppHeader({
         </MenuItem>
       ) : null}
       {guest && appearance ? <AppearanceSection {...appearance} /> : null}
-      {narrow && guest && canEdit ? (
+      {narrow && guest && canEdit && !historyInPlayer ? (
         <MenuItem
           onSelect={() => onRedo?.()}
           disabledReason={canRedo ? undefined : (redoReason ?? "")}
@@ -468,7 +458,10 @@ export function AppHeader({
       aria-busy={loading || undefined}
     >
       <h1 className="sr-only">{title}</h1>
-      <div className="sys-app-header">
+      <div
+        className="sys-app-header"
+        data-player-history={historyInPlayer || undefined}
+      >
         <div className="sys-header-left">
           {guest ? (
             <div className="sys-header-guest">
@@ -498,45 +491,19 @@ export function AppHeader({
             />
           )}
           {loading || !save ? null : <SaveIndicator {...save} />}
-          {canEdit ? (
-            <>
-              {/* Long-press and right-click on Undo or Redo open History; a plain press stays Undo or Redo. */}
-              <span
-                className="sys-header-history"
-                onContextMenu={
-                  onHistory
-                    ? (event) => {
-                        event.preventDefault();
-                        onHistory();
-                      }
-                    : undefined
-                }
-                {...(onHistory ? historyPress : {})}
-              >
-                <CoachTip
-                  edge
-                  align="end"
-                  placement="below"
-                  text={undoHint?.text ?? ""}
-                  shown={undoHint?.shown ?? false}
-                  onDismiss={undoHint?.onDismiss}
-                >
-                  <VerbButton
-                    verb="undo"
-                    disabled={loading || !canUndo}
-                    {...(loading || canUndo ? {} : { title: undoReason })}
-                    onClick={onUndo}
-                  />
-                </CoachTip>
-                <VerbButton
-                  verb="redo"
-                  className={guest ? "sys-header-redo" : undefined}
-                  disabled={loading || !canRedo}
-                  {...(loading || canRedo ? {} : { title: redoReason })}
-                  onClick={onRedo}
-                />
-              </span>
-            </>
+          {canEdit && !historyInPlayer ? (
+            <HistoryButtons
+              loading={loading}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              undoReason={undoReason}
+              redoReason={redoReason}
+              undoHint={undoHint}
+              onUndo={onUndo}
+              onRedo={onRedo}
+              onHistory={onHistory}
+              narrowRedo={Boolean(guest)}
+            />
           ) : null}
           {rightGivesWay ? (
             <div className="sys-header-short">

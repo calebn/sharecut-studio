@@ -49,6 +49,11 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     reason:
       "the loading header and its grey blocks are drawn from theme colors, and the holds-still check (boxes, shift, shell) is asked in both themes (#3891)",
   },
+  "editor-player-history.spec.ts": {
+    loops: 2,
+    reason:
+      "#4042 checks Player target geometry and load shift at 100%, 150% and 200% text with both inputs at two widths. The relocated Undo tip is checked at default and 200% text.",
+  },
   "record-guest-leave.spec.ts": {
     loops: 1,
     reason:
