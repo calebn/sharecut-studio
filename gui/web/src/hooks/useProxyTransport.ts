@@ -35,7 +35,6 @@ import { transportAvailability } from "../state/transportAvailability";
 import { useDaw } from "../state/useDaw";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { audioContextCtor } from "../utils/audio";
-import { AUDITION_STOP_EPS_SEC } from "../utils/auditionStop";
 import { sortedVolumePoints } from "../utils/envelopes";
 
 /** An audition stops where it was asked to, or at the episode end if that comes first. */
@@ -104,10 +103,6 @@ export function useProxyTransport(): boolean {
   useEffect(() => {
     playheadSecRef.current = playheadSec;
   }, [playheadSec]);
-  const playUntilRef = useRef(playUntilSec);
-  useEffect(() => {
-    playUntilRef.current = playUntilSec;
-  }, [playUntilSec]);
   const ownsTimeline =
     !!projectPath && isShareProjectKey(projectPath) && sourcePreview === null;
   const active =
@@ -374,8 +369,9 @@ export function useProxyTransport(): boolean {
         ]),
       ),
       durationSec: project.timeline_duration_sec ?? Number.POSITIVE_INFINITY,
+      playUntilSec: sourcePreview === null ? playUntilSec : null,
     });
-  }, [project, accepted, active]);
+  }, [project, accepted, active, playUntilSec, sourcePreview]);
 
   useEffect(() => {
     engineRef.current?.setPlaybackRate(playbackRate);
@@ -408,12 +404,6 @@ export function useProxyTransport(): boolean {
         }
         const t = engine.currentTimeSec();
         setPlayheadSec(t, "playback");
-        const until = playUntilRef.current;
-        if (until != null && t >= until - AUDITION_STOP_EPS_SEC) {
-          engine.pause();
-          finishAudition(until);
-          return;
-        }
         rafRef.current = requestAnimationFrame(tick);
       };
       rafRef.current = requestAnimationFrame(tick);

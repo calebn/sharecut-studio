@@ -46,6 +46,7 @@ export interface ProxyPlaybackSnapshot {
   readonly volumeByTrack?: Readonly<Record<string, readonly VolumePoint[]>>;
   /** The stored timeline duration; the episode ends no earlier. Infinity when unknown, which never ends it. */
   readonly durationSec: number;
+  readonly playUntilSec: number | null;
 }
 
 type FetchChunk = (ref: ImmutableChunkRef) => Promise<ArrayBuffer>;
@@ -161,8 +162,10 @@ export class ProxyEngine {
       clipsByTrack,
       volumeByTrack,
       endSec,
+      snapshot.playUntilSec,
     ]);
     const changed = scheduleKey !== this.scheduleKey;
+    const now = this.currentTimeSec();
     this.scheduleKey = scheduleKey;
     this.snapshot = snapshot;
     this.endSec = endSec;
@@ -187,12 +190,22 @@ export class ProxyEngine {
     this.applyGains();
     // A volume or mute change only moves gains; new clips need new sources.
     if (changed) {
-      const now = this.currentTimeSec();
       this.scheduleGeneration += 1;
       this.horizon = null;
       this.stopSources();
-      if (this.playing) this.schedule(now);
+      if (this.playing) {
+        this.originTimelineSec = now;
+        this.originCtxTime = this.ctx.currentTime;
+        this.schedule(now);
+      }
     }
+  }
+
+  private get stopSec(): number {
+    const until = this.snapshot?.playUntilSec;
+    return until != null && Number.isFinite(until)
+      ? Math.min(this.endSec, until)
+      : this.endSec;
   }
 
   /** Listen-only solo: this listener hears only the soloed tracks. */
@@ -293,7 +306,7 @@ export class ProxyEngine {
       return this.originTimelineSec;
     }
     return Math.min(
-      this.endSec,
+      this.stopSec,
       this.originTimelineSec +
         (this.ctx.currentTime - this.originCtxTime) * this.playbackRate,
     );
@@ -432,12 +445,26 @@ export class ProxyEngine {
       this.touchLru(key, bufferBytes(buf));
       return buf;
     } catch (error) {
-      if (generation === this.scheduleGeneration) this.fail(error, ref);
+      this.fail(generation, error, ref);
       return null;
     }
   }
 
-  private fail(error: unknown, ref: ImmutableChunkRef | null): void {
+  private fail(
+    generation: number,
+    error: unknown,
+    ref: ImmutableChunkRef | null,
+  ): void {
+    if (!this.playing || generation !== this.scheduleGeneration) return;
+    if (error instanceof ChunkFetchError) {
+      ref = error.ref;
+      error = error.cause;
+    }
+    const stopSec = this.stopSec;
+    if (Number.isFinite(stopSec) && this.currentTimeSec() >= stopSec) {
+      this.finish();
+      return;
+    }
     this.pause();
     this.events.onFailure(error, ref);
   }
@@ -477,9 +504,7 @@ export class ProxyEngine {
   private schedule(timelineSec: number): void {
     const generation = this.scheduleGeneration + 1;
     void this.scheduleAround(timelineSec).catch((error: unknown) => {
-      if (generation !== this.scheduleGeneration) return;
-      if (error instanceof ChunkFetchError) this.fail(error.cause, error.ref);
-      else this.fail(error, null);
+      this.fail(generation, error, null);
     });
   }
 
@@ -523,11 +548,19 @@ export class ProxyEngine {
     const snapshot = this.snapshot;
     if (!snapshot || !this.playing) return;
     // A slice that straddles the target is still included; nothing before it can sound.
-    const windowEnd = timelineSec + WINDOW_PAD_SEC;
-    const slices = this.slicesBetween(snapshot, timelineSec, windowEnd);
+    const windowEnd = Math.min(timelineSec + WINDOW_PAD_SEC, this.stopSec);
+    this.arm();
+    const slices =
+      windowEnd > timelineSec
+        ? this.slicesBetween(snapshot, timelineSec, windowEnd)
+        : [];
     const decoded = new Map<string, AudioBuffer>();
     await this.decodeInto(decoded, slices, generation);
     if (!this.playing || generation !== this.scheduleGeneration) return;
+    if (this.currentTimeSec() >= this.stopSec) {
+      this.finish();
+      return;
+    }
     this.stopSources();
     this.place(slices, decoded, this.currentTimeSec());
     this.horizon = {
@@ -554,6 +587,7 @@ export class ProxyEngine {
       const when =
         nowCtx + (slice.whenTimelineSec - timelineSec) / this.playbackRate;
       if (when + slice.durationSec / this.playbackRate <= nowCtx) continue;
+      if (slice.whenTimelineSec >= this.stopSec) continue;
       const source = this.ctx.createBufferSource();
       source.buffer = buf;
       source.playbackRate.value = this.playbackRate;
@@ -569,6 +603,11 @@ export class ProxyEngine {
           slice.bufferOffsetSec + skipped,
           playSec,
         );
+        if (slice.whenTimelineSec + slice.durationSec > this.stopSec)
+          source.stop(
+            this.originCtxTime +
+              (this.stopSec - this.originTimelineSec) / this.playbackRate,
+          );
       } catch {
         source.disconnect();
         clipGain.disconnect();
@@ -591,8 +630,11 @@ export class ProxyEngine {
     const t = this.currentTimeSec();
     const to =
       horizon.retry?.batchEndSec ??
-      Math.max(from, t) +
-        Math.max(WINDOW_PAD_SEC, 2 * LOW_WATER_CTX_SEC * this.playbackRate);
+      Math.min(
+        this.stopSec,
+        Math.max(from, t) +
+          Math.max(WINDOW_PAD_SEC, 2 * LOW_WATER_CTX_SEC * this.playbackRate),
+      );
     // A slice that straddles `from` already has its source from the earlier batch;
     // one that has already ended is not worth fetching after a late wake.
     const slices = this.slicesBetween(snapshot, from, to).filter(
@@ -631,7 +673,7 @@ export class ProxyEngine {
     const t = this.currentTimeSec();
     const giveUpSec = horizon.giveUpSec;
     if (giveUpSec === null || t >= giveUpSec) {
-      this.fail(error.cause, error.ref);
+      this.fail(horizon.generation, error, null);
       return;
     }
     const attempt = horizon.retry?.attempt ?? 0;
@@ -650,23 +692,26 @@ export class ProxyEngine {
     return horizon.throughSec - RETRY_GIVE_UP_SEC * this.playbackRate;
   }
 
-  private wakeTimelineSec(horizon: Horizon): number {
-    if (horizon.busy) return horizon.giveUpSec ?? Number.POSITIVE_INFINITY;
-    if (horizon.retry) return horizon.retry.wakeSec;
-    const duration = this.endSec;
-    return horizon.throughSec >= duration
-      ? duration
-      : horizon.throughSec - LOW_WATER_CTX_SEC * this.playbackRate;
+  private wakeTimelineSec(): number {
+    const horizon = this.horizon;
+    const stopSec = this.stopSec;
+    if (!horizon) return stopSec;
+    const due = horizon.busy
+      ? (horizon.giveUpSec ?? Number.POSITIVE_INFINITY)
+      : horizon.retry
+        ? horizon.retry.wakeSec
+        : horizon.throughSec >= stopSec
+          ? stopSec
+          : horizon.throughSec - LOW_WATER_CTX_SEC * this.playbackRate;
+    return Math.min(stopSec, due);
   }
 
   /** Wakes the engine from the audio clock, which keeps running when timers and frames are throttled. */
   private arm(): void {
     this.disarm();
-    const horizon = this.horizon;
-    if (!horizon) return;
-    const { generation } = horizon;
-    const wakeTimelineSec = this.wakeTimelineSec(horizon);
-    if (wakeTimelineSec === Number.POSITIVE_INFINITY) return;
+    const generation = this.scheduleGeneration;
+    const wakeTimelineSec = this.wakeTimelineSec();
+    if (!Number.isFinite(wakeTimelineSec)) return;
     if (this.currentTimeSec() >= wakeTimelineSec) {
       queueMicrotask(() => {
         if (generation === this.scheduleGeneration) this.pump();
@@ -703,39 +748,39 @@ export class ProxyEngine {
 
   private pump(): void {
     const horizon = this.horizon;
-    if (!this.playing || !horizon) return;
+    if (!this.playing) return;
     this.pruneEnded();
     const t = this.currentTimeSec();
+    if (t >= this.stopSec) {
+      this.finish();
+      return;
+    }
+    if (!horizon) {
+      this.arm();
+      return;
+    }
     this.pruneBuffers(
       t - SKIP_BACK_KEEP_SEC,
       Math.max(t, horizon.retry?.batchEndSec ?? horizon.throughSec),
     );
+    if (t < this.wakeTimelineSec()) {
+      this.arm();
+      return;
+    }
     if (
-      (horizon.busy || horizon.retry) &&
       horizon.giveUpSec !== null &&
-      t >= horizon.giveUpSec
+      t >= horizon.giveUpSec &&
+      (horizon.busy || horizon.retry)
     ) {
       this.fail(
+        horizon.generation,
         horizon.retry?.error ?? new Error("chunk fetch timed out"),
         horizon.retry?.ref ?? null,
       );
       return;
     }
-    if (horizon.busy) {
-      this.arm();
-      return;
-    }
-    if (t >= this.endSec) {
-      this.finish();
-      return;
-    }
-    if (t < this.wakeTimelineSec(horizon)) {
-      this.arm();
-      return;
-    }
     void this.extend(horizon).catch((error: unknown) => {
-      if (horizon.generation === this.scheduleGeneration)
-        this.fail(error, null);
+      this.fail(horizon.generation, error, null);
     });
   }
 
