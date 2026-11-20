@@ -543,6 +543,32 @@ describe("GuestRoomApp", () => {
     expect(localStorage.getItem("sharecut.recordName")).toBe("Ava");
   });
 
+  it("shows the join_first error and enables Join again when the room refuses a Join", async () => {
+    stubBootstrap();
+    render(<GuestRoomApp token="guest-tok" />);
+    await readyToJoin(getUserMedia);
+    sockets[0].holdConsent = true;
+    await userEvent.click(joinButton());
+    expect(screen.getByRole("button", { name: "Joining…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    act(() =>
+      sockets[0].onmessage?.({
+        data: JSON.stringify({
+          plane: "record",
+          type: "Error",
+          code: "join_first",
+        }),
+      }),
+    );
+    expect(
+      await screen.findByText("Still joining the room. Try again in a moment."),
+    ).toBeInTheDocument();
+    expect(joinButton()).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Joining…" })).toBeNull();
+  });
+
   it("holds a remembered name back until Join, then sends it just before Consent", async () => {
     localStorage.setItem("sharecut.recordName", "Ava Okafor");
     stubBootstrap();
