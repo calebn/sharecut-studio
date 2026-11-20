@@ -9,6 +9,8 @@ from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.export.daw_timeline import DawMedia, build_daw_timeline
 from podcast_mcp.export.reaper_project import reaper_project
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util.atomic_file import atomic_write, publish_completed_file
+from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.owned_stage import OwnedStage
 from podcast_mcp.util.pinned_media import open_pinned_media
@@ -17,24 +19,24 @@ from podcast_mcp.util.wav import rendered_wav_is_complete
 
 def _package_media(asset: DawMedia, destination: Path, engine: FFmpegEngine) -> None:
     staged_source = destination.with_suffix(".source")
-    with open_pinned_media(asset.path) as source, staged_source.open("xb") as copy:
-        copyfileobj(source, copy)
-    if rendered_wav_is_complete(staged_source):
-        staged_source.rename(destination)
-    else:
+    with open_pinned_media(asset.path) as source:
+        atomic_write(staged_source, lambda output: copyfileobj(source, output))
+    packaged = staged_source
+    if not rendered_wav_is_complete(staged_source):
+        packaged = destination.with_suffix(".converted.wav")
         engine.export_audio(
             staged_source,
-            destination,
+            packaged,
             codec="pcm_f32le",
             format="wav",
             extra_args=["-map", "0:a:0", "-map_metadata", "-1", "-rf64", "auto"],
         )
         staged_source.unlink()
-    if not rendered_wav_is_complete(destination):
+    if not rendered_wav_is_complete(packaged):
         raise CodedValueError(
             f"Incomplete WAV media for {asset.path.name}.", code="daw_export_incomplete_wav"
         )
-    probe = engine.probe(destination)
+    probe = engine.probe(packaged)
     if (
         probe.sample_rate != asset.sample_rate
         or probe.channels != asset.channels
@@ -43,6 +45,7 @@ def _package_media(asset: DawMedia, destination: Path, engine: FFmpegEngine) -> 
         raise CodedValueError(
             f"WAV media changed while exporting {asset.path.name}.", code="daw_export_media_changed"
         )
+    publish_completed_file(packaged, destination)
 
 
 def export_reaper_session(project_path: Path, destination: Path) -> Path:
@@ -64,7 +67,7 @@ def export_reaper_session(project_path: Path, destination: Path) -> Path:
         engine = FFmpegEngine()
         for asset in timeline.media:
             _package_media(asset, stage.path / asset.package_name, engine)
-        (stage.path / "session.rpp").write_text(session, encoding="utf-8", newline="\n")
+        write_text_atomic(stage.path / "session.rpp", session)
         stage.publish(name)
     finally:
         stage.close()
