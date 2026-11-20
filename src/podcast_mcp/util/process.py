@@ -11,7 +11,8 @@ never orphans one.
 
 An argv whose first item is exactly an in-process tool sentinel never reaches ``Popen``: on a
 ``media_tools == "in_process"`` row with a backend installed by ``using_in_process_backend`` it
-runs on an ``InProcessChild``, anywhere else it raises ``SpawnUnavailableError``.
+runs on an ``InProcessChild``, anywhere else it raises ``SpawnUnavailableError``. ``in-process:whisper-cli``
+is served the same way from its own slot, ``using_in_process_whisper_backend``.
 
 Both are properties of the desktop ``_spawn``. A runner installed with ``using_runner``
 replaces ``_spawn``, so its children are not niceness-wrapped, not registered by
@@ -55,7 +56,8 @@ Popen = subprocess.Popen
 
 IN_PROCESS_FFMPEG = "in-process:ffmpeg"
 IN_PROCESS_FFPROBE = "in-process:ffprobe"
-_IN_PROCESS_TOOLS = frozenset({IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE})
+IN_PROCESS_WHISPER = "in-process:whisper-cli"
+_IN_PROCESS_TOOLS = frozenset({IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, IN_PROCESS_WHISPER})
 KILL_GRACE_SEC = 5.0
 
 _log = logging.getLogger(__name__)
@@ -271,7 +273,7 @@ class Streams(NamedTuple):
 
 
 class InProcessBackend(Protocol):
-    """Runs one ffmpeg or ffprobe argv inside this process (a Kit adapter, or a test fake)."""
+    """Runs one ffmpeg, ffprobe or whisper-cli argv inside this process (a Kit adapter, or a test fake)."""
 
     def run(self, argv: list[str], streams: Streams, cancel: threading.Event) -> int:
         """Read stdin to EOF, write stdout and stderr, return the exit code.
@@ -282,6 +284,7 @@ class InProcessBackend(Protocol):
 
 
 _in_process_backend: InProcessBackend | None = None
+_in_process_whisper_backend: InProcessBackend | None = None
 
 
 @contextmanager
@@ -306,6 +309,31 @@ def in_process_backend_installed() -> bool:
     """Whether an in-process backend is installed right now."""
     with _runner_lock:
         return _in_process_backend is not None
+
+
+@contextmanager
+def using_in_process_whisper_backend(backend: InProcessBackend) -> Iterator[None]:
+    """Serve ``IN_PROCESS_WHISPER`` argv from ``backend`` while inside this block.
+
+    Process-wide, separate from ``using_in_process_backend``. Raises ``RuntimeError`` when one
+    is already installed.
+    """
+    global _in_process_whisper_backend
+    with _runner_lock:
+        if _in_process_whisper_backend is not None:
+            raise RuntimeError("an in-process whisper backend is already installed")
+        _in_process_whisper_backend = backend
+    try:
+        yield
+    finally:
+        with _runner_lock:
+            _in_process_whisper_backend = None
+
+
+def in_process_whisper_backend_installed() -> bool:
+    """Whether an in-process whisper backend is installed right now."""
+    with _runner_lock:
+        return _in_process_whisper_backend is not None
 
 
 _PIPES_OUT = ("stdout", "stderr")
@@ -659,7 +687,9 @@ def _spawn(
     start_new_session: bool = False,
 ) -> subprocess.Popen[Any]:
     if cmd[0] in _IN_PROCESS_TOOLS:
-        backend = _in_process_backend
+        backend = (
+            _in_process_whisper_backend if cmd[0] == IN_PROCESS_WHISPER else _in_process_backend
+        )
         if host_platform.current().media_tools != "in_process" or backend is None:
             raise SpawnUnavailableError(errno.ENOSYS, "In-process media tools are not available.")
         return InProcessChild(  # type: ignore[return-value]
