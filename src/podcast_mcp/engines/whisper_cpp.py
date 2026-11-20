@@ -40,7 +40,6 @@ def whisper_cpp_cache_dir() -> Path:
 
 
 def default_model_name() -> str:
-    """The model file used when nothing names one: the iPhone variant on a whisper_cpp host."""
     fallback = (
         IOS_MODEL_NAME
         if host_platform.current().transcription == "whisper_cpp"
@@ -50,7 +49,6 @@ def default_model_name() -> str:
 
 
 def resolve_whisper_cli() -> Path | str:
-    """The ``whisper-cli`` to run: the in-process sentinel where the native backend serves it."""
     if host_platform.current().media_tools == "in_process" and native_whisper.is_installed():
         return IN_PROCESS_WHISPER
     env = settings.raw("WHISPER_CPP_BIN")
