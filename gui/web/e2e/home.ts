@@ -24,15 +24,16 @@ export async function openHome(
   await expectHome(page);
 }
 
+export const homeRecordTile = (page: Page) =>
+  page.locator(".sys-home .sys-start--record");
+
 /** Home is showing: the ShareCut heading over the Import audio and Record tiles. */
 export async function expectHome(page: Page): Promise<void> {
   await expect(
     page.getByRole("heading", { level: 1, name: "ShareCut" }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: /^Import audio/ }),
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Record/ })).toBeVisible();
+  await expect(page.locator(".sys-home .sys-start--import")).toBeVisible();
+  await expect(homeRecordTile(page)).toBeVisible();
 }
 
 export async function chooseHomeMenuItem(
@@ -62,7 +63,7 @@ export async function createEpisodeFromHome(
       }),
     }),
   );
-  await page.getByRole("button", { name: /^Record/ }).click();
+  await homeRecordTile(page).click();
   await expect
     .poll(() => new URL(page.url()).searchParams.get("project"))
     .not.toBeNull();
