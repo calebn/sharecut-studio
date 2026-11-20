@@ -88,6 +88,55 @@ for (const viewport of VIEWPORTS) {
         await shot(page, viewport.name, theme, "setup-downloading", true);
       });
 
+      test("a failed Get ready says why on the Setup card and Choose… opens the Models sheet", async ({
+        page,
+      }) => {
+        await prepare(page, theme, false);
+        const failure = {
+          kind: "http",
+          status: 404,
+          plain: "The download server doesn't have the speech model.",
+        };
+        const mock = await mockBootstrap(page, {
+          events: () =>
+            `retry: 3600000\n\ndata: ${JSON.stringify({
+              job: {
+                id: "job-1",
+                kind: "bootstrap",
+                failed_components: ["whisper"],
+                components: ["whisper"],
+                whisper_model: "large-v3-turbo",
+                status: "error",
+                error: failure.plain,
+                failure,
+                result: {
+                  results: {
+                    whisper: { ok: false, error: failure.plain, failure },
+                  },
+                },
+              },
+            })}\n\n`,
+        });
+        await openHome(page, { dismissSetup: false });
+        const setup = page.getByRole("region", { name: "Get ShareCut ready" });
+        await setup.getByRole("button", { name: "Get ready" }).click();
+        await expect.poll(() => mock.runs.length).toBe(1);
+        await expect(
+          setup.getByText("The download didn't finish."),
+        ).toBeVisible();
+        await expect(setup.getByText(failure.plain)).toBeVisible();
+        await expect(
+          setup.getByRole("button", { name: "Try again" }),
+        ).toBeEnabled();
+        await expectNoHorizontalScroll(page);
+        await expectReadingSurfaceAxeClean(page);
+        await shot(page, viewport.name, theme, "setup-failed", true);
+        await setup.getByRole("button", { name: "Choose…" }).click();
+        await expect(
+          page.getByRole("dialog", { name: "Models" }),
+        ).toBeVisible();
+      });
+
       test("Models opens from Home with the skip flag and shows every state", async ({
         page,
       }) => {
