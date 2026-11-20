@@ -150,7 +150,6 @@ function resolveRangeAction(action: RangeAction, override?: ExactRangeTarget) {
   return { state, target, reason };
 }
 
-/** Why a range action cannot run on the current selection, or null when it can. */
 export function rangeActionReason(action: RangeAction): string | null {
   return resolveRangeAction(action).reason;
 }

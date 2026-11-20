@@ -185,7 +185,6 @@ export function useReviewComments(guest: boolean) {
   useEffect(() => {
     if (showComposer && commentDraft) composeRef.current?.focus();
   }, [showComposer, commentDraft]);
-  // The first press of Q on a desktop Review page lands in the field (keymap/listener.ts).
   useEffect(() => {
     if (!showComposer || shell === "phone") return;
     return registerComposerFocus(() => {
