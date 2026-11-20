@@ -362,7 +362,7 @@ def test_the_in_process_run_passes_threads_and_only_allowed_flags(
     argvs: list[list[str]] = []
     monkeypatch.setattr("podcast_mcp.engines.whisper_cpp.run", _run_recording(argvs))
     monkeypatch.setattr("podcast_mcp.engines.whisper_cpp.resolve_model_path", lambda m=None: model)
-    monkeypatch.setattr("podcast_mcp.engines.whisper_cpp.os.cpu_count", lambda: 8)
+    monkeypatch.setattr("podcast_mcp.engines.whisper_cpp.cpu_budget", lambda: 8)
 
     tr = transcribe_file_whisper_cpp(
         audio, language="en", initial_prompt="names", cli_path=IN_PROCESS_WHISPER

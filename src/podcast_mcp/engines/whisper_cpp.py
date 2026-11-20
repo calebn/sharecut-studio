@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import shutil
 import tempfile
@@ -23,6 +22,7 @@ from podcast_mcp.engines.transcribe import flag_anomalous_asr_durations
 from podcast_mcp.models import Transcript, TranscriptWord
 from podcast_mcp.util import host_platform, native_whisper
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.hardware import cpu_budget
 from podcast_mcp.util.process import IN_PROCESS_WHISPER, run
 from podcast_mcp.util.wav import PCM_SAMPLE_WIDTH_BYTES, WAV_HEADER_BYTES, pcm_wav_header
 
@@ -258,7 +258,7 @@ def transcribe_file_whisper_cpp(
     model_path = resolve_model_path(model)
     _check_language(language, model_path)
     if threads is None and cli == IN_PROCESS_WHISPER:
-        threads = min(MAX_IOS_THREADS, os.cpu_count() or MAX_IOS_THREADS)
+        threads = min(MAX_IOS_THREADS, cpu_budget())
 
     with tempfile.TemporaryDirectory(prefix="whisper-cpp-") as tmp:
         out_prefix = Path(tmp) / "out"
