@@ -996,6 +996,57 @@ function episode(durationSec: number, chunkSec = 60, trackIds = ["host"]) {
   };
 }
 
+it.each([
+  { rate: 1, started: 118, deadline: 120 },
+  { rate: 2, started: 125, deadline: 127 },
+])(
+  "stops a regular listen at $deadline s when an extension started at $started s hangs at $rate x",
+  async ({ rate, started, deadline }) => {
+    const handle = makeCtx();
+    const hung = deferred<ArrayBuffer>();
+    const fetchChunk = vi.fn((ref: ImmutableChunkRef) =>
+      ref.index === 2 ? hung.promise : Promise.resolve(new ArrayBuffer(64)),
+    );
+    const onFailure = vi.fn();
+    const onEnded = vi.fn();
+    const engine = new ProxyEngine(
+      handle.ctx,
+      fetchChunk,
+      engineEvents({ onFailure, onEnded }),
+    );
+    try {
+      engine.setSnapshot(episode(400));
+      engine.setPlaybackRate(rate);
+      engine.play(0);
+      await flush();
+      await advanceTo(handle, started / rate);
+      expect(
+        fetchChunk.mock.calls.filter(([ref]) => ref.index === 2),
+      ).toHaveLength(1);
+      await advanceTo(handle, (deadline - 0.5) / rate);
+      expect(onFailure).not.toHaveBeenCalled();
+      await advanceTo(handle, deadline / rate);
+      expect(onFailure).toHaveBeenCalledExactlyOnceWith(
+        expect.any(Error),
+        null,
+      );
+      expect(engine.currentTimeSec()).toBe(deadline);
+      expect(onEnded).not.toHaveBeenCalled();
+
+      const sourceCount = handle.created.length;
+      hung.resolve(new ArrayBuffer(64));
+      await flush();
+      await advanceTo(handle, (deadline + 5) / rate);
+      expect(handle.created).toHaveLength(sourceCount);
+      expect(onFailure).toHaveBeenCalledOnce();
+      expect(engine.currentTimeSec()).toBe(deadline);
+      expect(onEnded).not.toHaveBeenCalled();
+    } finally {
+      engine.dispose();
+    }
+  },
+);
+
 describe("audition audio-clock bounds", () => {
   it.each([
     { durationSec: 60, playUntilSec: null, at: 60, end: 60 },
@@ -1399,6 +1450,9 @@ describe("audition audio-clock bounds", () => {
     expect(
       fetchChunk.mock.calls.filter(([ref]) => ref.index === 2),
     ).toHaveLength(1);
+    await advanceTo(handle, 125);
+    expect(onFailure).not.toHaveBeenCalled();
+    expect(onEnded).not.toHaveBeenCalled();
     await advanceTo(handle, 150);
     expect(onEnded).toHaveBeenCalledExactlyOnceWith(150);
     expect(onFailure).not.toHaveBeenCalled();
