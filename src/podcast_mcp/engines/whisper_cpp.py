@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import shutil
 import tempfile
@@ -111,7 +112,11 @@ def _token_span(token: dict[str, Any]) -> tuple[float, float] | None:
         end_ms = float(offsets["to"])
     except (KeyError, TypeError, ValueError):
         return None
-    if start_ms < 0 or end_ms <= start_ms:
+    if (
+        not (math.isfinite(start_ms) and math.isfinite(end_ms))
+        or start_ms < 0
+        or end_ms <= start_ms
+    ):
         return None
     return start_ms / 1000.0, end_ms / 1000.0
 
@@ -126,8 +131,13 @@ def _drafts(data: dict[str, Any]) -> tuple[list[_Draft], int]:
     untimed_tokens = 0
     for segment in data.get("transcription", []):
         current: _Draft | None = None
+        in_bracket = False
         for token in segment.get("tokens", []):
             raw = str(token.get("text", ""))
+            if in_bracket or raw.lstrip().startswith("["):
+                current = None
+                in_bracket = "]" not in raw
+                continue
             if _is_special_token(raw):
                 continue
             span = _token_span(token)

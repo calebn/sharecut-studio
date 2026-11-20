@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import wave
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import Transcript, TranscriptWord, load_project
 from podcast_mcp.util import native_whisper
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.host_platform import IOS, MACOS
 
 
@@ -132,3 +134,21 @@ def test_transcribe_samples_writes_a_temp_wav_and_joins_the_words(ios_engine, mo
     assert heard == "uh huh"
     assert seen["wav"] == (16_000, 1, 3200)
     assert not Path(str(seen["path"])).exists()
+
+
+def test_the_desktop_cache_key_has_no_backend_field(host, minimal_project, tmp_path: Path) -> None:
+    project = load_project(minimal_project)
+    audio = tmp_path / "recording.wav"
+    audio.write_bytes(b"recording")
+    host(MACOS)
+    engine = TranscriptionEngine(model_size="base.en", defaults=load_defaults())
+    legacy = json.dumps(
+        {
+            "model": engine._cache_model_key(),
+            "language": None,
+            "initial_prompt": None,
+            "decode": engine.options.decode_key(),
+        },
+        sort_keys=True,
+    )
+    assert engine.cache_path(project, "host", audio).name.endswith(f"_{short_digest(legacy)}.json")
