@@ -1981,9 +1981,13 @@ describe("GuestRoomApp", () => {
           true,
         ),
       );
-      await userEvent.click(
-        await screen.findByRole("button", { name: "Leave room" }),
+      await screen.findByRole("button", { name: "Finish saving" });
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Leave room" }),
+        ).not.toHaveAttribute("aria-disabled", "true"),
       );
+      await userEvent.click(screen.getByRole("button", { name: "Leave room" }));
       await screen.findByRole("heading", {
         name: "Your recording didn't finish saving",
       });

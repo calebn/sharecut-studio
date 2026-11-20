@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   leaseKnownYoungEnough,
+  msUntilLeaseStale,
   REJOIN_LEASE_MAX_AGE_MS,
   stampLease,
 } from "./participantLease";
@@ -83,5 +84,25 @@ describe("stampLease", () => {
         NOW,
       ),
     ).toEqual({ participant_id: "p", lease: "same" });
+  });
+});
+
+describe("msUntilLeaseStale", () => {
+  const entry = (issuedAt?: number) => ({
+    participant_id: "p",
+    lease: "l",
+    ...(issuedAt === undefined ? {} : { issuedAt }),
+  });
+
+  it("counts the milliseconds left until the lease passes six days, plus one", () => {
+    expect(msUntilLeaseStale(entry(NOW - 5 * DAY), NOW)).toBe(DAY + 1);
+    expect(msUntilLeaseStale(entry(NOW - 6 * DAY), NOW)).toBe(1);
+  });
+
+  it("is null for a stale, future-stamped, unstamped or missing entry", () => {
+    expect(msUntilLeaseStale(entry(NOW - 6 * DAY - 1), NOW)).toBeNull();
+    expect(msUntilLeaseStale(entry(NOW + DAY), NOW)).toBeNull();
+    expect(msUntilLeaseStale(entry(), NOW)).toBeNull();
+    expect(msUntilLeaseStale(undefined, NOW)).toBeNull();
   });
 });
