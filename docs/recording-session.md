@@ -506,7 +506,8 @@ participants; guest sees own) until ACK or stall. An incomplete local segment
 after capture has settled is retained for recovery and reported separately;
 it cannot receive a file ACK and does not hold Leave. A guest's Leave is held while a take runs (until the host has been gone for 60 seconds), while
 their own upload is moving, while the server has the file and this device's segment count is not
-known yet (until the scan answers or reads as unreadable), and while Stop is still finalizing the last segment
+known yet (until the scan answers, or reads as unreadable, when the file the server has is read
+as saved once capture has settled), and while Stop is still finalizing the last segment
 until its complete metadata lands or capture latches a failure (a latched
 failure counts as settled so recovery and export appear). The room reads "Saving to project… N of M chunks"
 while finalized WAV totals are known, then "Saved to project" once the file is ACK'd. When a participant has
@@ -1380,7 +1381,7 @@ alternate local sink path.
 enabled while a take runs; the `M` key adds a marker), Mute and Leave, and alerts in one
 slot: "Your mic stopped." (**Reconnect mic**), "No sound is reaching the recorder."
 (**Check mic**), "This device couldn't save the recording.", "Saving stopped."
-(**Resume saving**, **Save a copy**; never raised from an upload error once the server has every segment this device holds), "We found part of your recording."
+(**Resume saving**, **Save a copy**; never raised from an upload error once the server has every segment this device holds, or every segment its last upload pass saw when the device could not be read), "We found part of your recording."
 (**Finish saving**), "Lost connection to the room. You're still recording on this
 device." (this page's connection dropped mid-take; while it shows, "Saving stopped." is not
 shown, and it comes back once the connection does if the upload still fails; nothing is raised
@@ -1415,8 +1416,12 @@ tone records on this device ("Finish or cancel the room tone first"). The reason
 button's description at all times, and a press shows it. A failed save releases Leave,
 and so does a saving line with no upload behind it. The device scan gives up after 5
 seconds, is tried once more after 2 seconds, and a second failure (or a device storage
-that cannot be opened at all) reads as unreadable, which turns the saving line into
-"Saving stopped." and releases Leave. Once the
+that cannot be opened at all) reads as unreadable. For a guest the server has every
+segment of (its last upload pass saw at least one, and acknowledged all it saw), once the take is
+stopped and capture has settled, unreadable reads as saved: the tile and dock read "Saved", with
+no "Couldn't save" and no "Saving stopped.", and no "This device couldn't save the recording." when the device storage could not be opened. Before capture settles that guest reads "Saving…".
+A guest the server has not acknowledged keeps the saving line ("Saving · 0 of N") and no failure
+word, and once they leave reads the cover "Your recording didn't finish saving". Once the
 file ACK lands the dock reads "Saved to project. You can close this page." with
 **Done**, which leaves the room and closes the page where the browser allows, and is held
 for the same reasons. Leave closes this page's room connection, which
@@ -1459,6 +1464,39 @@ without a word. Deviation: only the decline is held until this socket's first Ec
 Consent true sent before that Echo is not held, so a refused Join shows the `join_first`
 error ("Still joining the room. Try again in a moment.") and clears the spinner, and the
 guest presses again.
+
+### Decision: A saved guest never reads "Couldn't save" when the device scan is unreadable
+
+<!-- decision
+id: D-record-83
+status: accepted
+date: 2026-11-20
+decided-by: issue #3834 implementation
+evidence:
+- #3834 journey B: a guest whose device scan hung for 12 seconds read "Couldn't save" and "Saving stopped." although the host already held every segment
+- Coordinator decision 2026-11-20: when the host already has the take, a hung scan says saved, with no failure wording
+enforced-by:
+- gui/web/src/record/guestRoomModel.test.ts::reads an acknowledged, stopped, settled take as saved
+- gui/web/src/record/guestRoomModel.test.ts::reads a take whose capture is still finishing as saving, never saved or failed
+- gui/web/src/record/GuestRoomApp.room.test.tsx::reads Saved once the server has every segment, and lets Leave go
+- gui/web/src/record/GuestRoomApp.room.test.tsx::raises no storage alert once the take is saved
+- gui/web/src/record/GuestCovers.test.tsx::never sends a saved guest to check their downloads
+-->
+
+When this device's own segment count cannot be read, the server's acknowledgement
+still counts as saved if the last upload pass (which reads the same device store)
+saw at least one segment and the server acknowledged all it saw, the take is
+stopped and capture has settled. The own tile and dock read "Saved", Leave becomes
+**Done**, and the covers say the recording is saved. No "Couldn't save", "Saving
+stopped." or "This device couldn't save the recording." is raised for that guest.
+Before capture settles the guest reads "Saving…". A guest the server has not
+acknowledged keeps the existing saving copy ("Saving · 0 of N") and, once they
+leave, the cover "Your recording didn't finish saving"; no live state reads a
+failure word from an unreadable scan. The 5 second and 2 second scan timings are
+unchanged and no copy is new. Risk accepted: a hung scan can hide a device that
+holds more segments than the last upload pass saw. The pass reruns every 2
+seconds, and a later readable scan that finds more segments sends the guest back to
+"Saving…", then "Saved", or to unsent once they have left.
 
 ### Decision: Join again is offered only on the guest-left unsent cover
 
@@ -1643,12 +1681,12 @@ stateDiagram-v2
 | Mic blocked in the Linux Tauri desktop app | "Microphone access is blocked in this Linux desktop window. Retry once, or open ShareCut Studio in your browser and allow microphone access there." |
 | Mic permission prompt in the Linux Tauri desktop app | "Waiting for the desktop webview microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
-| Invite closed | Cover "Invite link closed"; "{Host} closed this invite link. Ask for a new link."; while a full-quality WAV of the take is still on the device (read from the keeper store, so it holds after a reload; not once every segment has landed and been cleared) it adds "Your recording is safe on this device. Save it and send it to {host}, or ask for a new link." with **Save my recording** / **Try saving again**; when the device scan could not be read (the retry also failed) it adds "We couldn't check this device. Try saving it again, or save a copy, or ask for a new link." instead, because nothing then says the recording is safe |
+| Invite closed | Cover "Invite link closed"; "{Host} closed this invite link. Ask for a new link."; while a full-quality WAV of the take is still on the device (read from the keeper store, so it holds after a reload; not once every segment has landed and been cleared) it adds "Your recording is safe on this device. Save it and send it to {host}, or ask for a new link." with **Save my recording** / **Try saving again**; when the device scan could not be read (the retry also failed) and the server has not acknowledged the take it adds "We couldn't check this device. Try saving it again, or save a copy, or ask for a new link." instead, because nothing then says the recording is safe; a guest the server has acknowledged (unreadable scan, stopped take, capture settled) is saved and sees only "Ask for a new link." |
 | Link refused (any 4xx except 408 and 429) | Cover "This link doesn't open a room"; "Ask the person who invited you for a new link."; no button, no retry |
 | No answer from the network (no response at all, or a reply whose body could not be read) | Cover "Couldn't reach the room"; "Check your internet connection, then try again. If it keeps happening, let the person who invited you know."; **Try again** looks the room up again, and so does the browser's `online` event, once |
 | The room's page code fails to load (the browser could not fetch or run the room script) | Cover "Couldn't reach the room" with the network sentence above, and **Reload**, which reloads the page; the tab reads "Couldn't reach the room \| ShareCut Studio". Any other error that stops the room page draws the cover "Something went wrong with the room"; "Reload the page to try again. If it keeps happening, let the person who invited you know."; **Reload**; the error is also written to the browser console. Neither cover says the recording is kept, because a reload stops capture on that page |
 | Server or host didn't answer (5xx including a sleeping host's 503, 408, 429, an error reply) | Cover "The room didn't answer"; "Try again in a minute. If it keeps happening, let the person who invited you know."; **Try again** |
-| After **Save my recording** handed the whole zip to the browser (ended, closed invite, or left the room) | Cover "Check your downloads"; "Look for the zip file of your recording and send it to {host}. If it isn't there, save it again."; text button **Save it again**, which reads "Saving…" at the same width and keeps focus while it runs (**Save my recording** and **Try saving again** read "Saving…" only on the one pressed, and both ignore presses meanwhile); the cover, heading and tab stay unless that run fails. Whenever a guest cover appears or its title changes, focus moves to the cover heading so a screen reader reads the new message. The cover offers Save while the device holds any segment the last upload pass did not see, whatever an earlier acknowledgement said, and an acknowledgement never carries into a later take. A "Couldn't reach the room" cover retries once by itself when the browser came back online during the attempt before it. It belongs to the audio that was downloaded: a zip saved while the room was live or paused, or while capture was still running, or one that a resume overlapped, or any segment the device holds that the zip lacked (a later segment, a later take, or a device count that could not be read), shows "Your recording didn't finish saving" with **Save my recording** instead, and "Finishing your full-quality recording…" outranks it while capture settles. A guest who left a live or paused take reads this cover once the keeper has finished the segment, with **Join again** under the two buttons while the cached lease is young enough (see the Join again decision). A recording the server acknowledged shows the ended cover instead, even while the device still holds its copy for the reclaim grace. "Saved" and "unsent" read one acknowledgement rule in every cover and in the dock: the server's acknowledgement counts only for the take it was given for and only while the device holds no more segments than that pass saw; an unreadable device count is never read as saved. A failed device scan is tried once more after a short delay and again on the next upload pass; meanwhile an acknowledged upload shows "Saving…" and holds Leave ("Your recording is still saving"), a scan that does not answer within 5 seconds counts as failed, and once the retry also fails (or the device storage cannot be opened) it reads as "Saving stopped." with **Resume saving** (which re-scans) and **Save a copy**, and Leave is free; that verdict holds through later rechecks (Leave, a finished run) until a scan succeeds, so the covers keep saying the device could not be checked and Leave does not hold again. A guest the server's take roster lists as recorded, or whose page recorded, shows "Your recording didn't finish saving" with **Try saving again** instead of "Thanks for recording." or "You can close this page." That cover says "It's safe on this device. Save it and send it to {host}." only while the device scan could be read; once the scan is unreadable it says "We couldn't check this device. Try saving it again, or save a copy." and keeps both buttons. A partial export keeps "Your recording didn't finish saving" |
+| After **Save my recording** handed the whole zip to the browser (ended, closed invite, or left the room) | Cover "Check your downloads"; "Look for the zip file of your recording and send it to {host}. If it isn't there, save it again."; text button **Save it again**, which reads "Saving…" at the same width and keeps focus while it runs (**Save my recording** and **Try saving again** read "Saving…" only on the one pressed, and both ignore presses meanwhile); the cover, heading and tab stay unless that run fails. Whenever a guest cover appears or its title changes, focus moves to the cover heading so a screen reader reads the new message. The cover offers Save while the device holds any segment the last upload pass did not see, whatever an earlier acknowledgement said, and an acknowledgement never carries into a later take. A "Couldn't reach the room" cover retries once by itself when the browser came back online during the attempt before it. It belongs to the audio that was downloaded: a zip saved while the room was live or paused, or while capture was still running, or one that a resume overlapped, or any segment the device holds that the zip lacked (a later segment, a later take, or a device count that could not be read), shows "Your recording didn't finish saving" with **Save my recording** instead, and "Finishing your full-quality recording…" outranks it while capture settles. A guest who left a live or paused take reads this cover once the keeper has finished the segment, with **Join again** under the two buttons while the cached lease is young enough (see the Join again decision). A recording the server acknowledged shows the ended cover instead, even while the device still holds its copy for the reclaim grace. "Saved" and "unsent" read one acknowledgement rule in every cover and in the dock: the server's acknowledgement counts only for the take it was given for and only while the device holds no more segments than that pass saw. An unreadable device count is read as saved only when the server has acknowledged every segment of the last successful upload pass for this take, that pass saw at least one segment, the take is stopped and capture has settled (the pass reads the same device store the scan reads); otherwise it is never read as saved. A failed device scan is tried once more after a short delay and again on the next upload pass; meanwhile an acknowledged upload shows "Saving…" and holds Leave ("Your recording is still saving"), a scan that does not answer within 5 seconds counts as failed, and once the retry also fails (or the device storage cannot be opened) an acknowledged, settled guest reads "Saved" with Done and the saved covers ("Your recording is saved to {host}'s project. You can close this page." once they leave, "Thanks for recording." once the session ends), never "Check your downloads". An unacknowledged guest keeps the live saving copy, and the cover "Your recording didn't finish saving" once they leave; that verdict holds through later rechecks (Leave, a finished run) until a scan succeeds. A hung scan can hide a device that holds more segments than the last upload pass saw. The pass reruns every 2 seconds and the guard is a stopped take with capture settled; if a later readable scan finds more segments the guest goes back to "Saving…", then "Saved", or to unsent once they have left. A guest the server's take roster lists as recorded, or whose page recorded, shows "Your recording didn't finish saving" with **Try saving again** instead of "Thanks for recording." or "You can close this page." That cover says "It's safe on this device. Save it and send it to {host}." only while the device scan could be read; once the scan is unreadable it says "We couldn't check this device. Try saving it again, or save a copy." and keeps both buttons. A partial export keeps "Your recording didn't finish saving" |
 | Tab title | `{state} \| {episode}` (`{state} \| ShareCut Studio` while the episode is unknown). State: the shown cover's title; "Joining the room" before the room code is looked up; "Join to listen" (producer, until the room lists them); "Join the room"; "Not being recorded" (guest after Not now); "Not in the room" (producer after Not now); then the pill's phase: Waiting, Stay quiet, Recording, Paused, Saving to project…, Saving stopped, Saved to project, Reconnecting… |
 | Room tone (host Record stage) | "Record 1 minute of room tone"; while capturing "Stay quiet · 0:42" with a bar, **End early** and **Cancel** |
 | Room tone for a guest who joined late (alert row) | "Record 1 minute of room tone." **Record room tone** / **Skip**; while capturing the row reads "Stay quiet · 0:42" with a bar, **End early** and **Cancel** (any capturing guest sees it, host-started or not) |
