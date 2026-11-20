@@ -149,7 +149,9 @@ A and AA tags, including contrast and label-content-name-mismatch.
 Vitest browser mode, sharded 4 ways in `storybook.yml`) checks each story in both
 themes and its supported phone and desktop widths. The sweep excludes stories
 tagged `storybook-only` before assigning shards, so each shard counts only
-stories it runs. Tagged stories need the Storybook runtime and run in
+stories it runs. Chromium’s network log contributes failed HTTP requests to
+the error check for the active story, with the request URL when available.
+Tagged stories need the Storybook runtime and run in
 `e2e-storybook/coverage.spec.ts` instead. These checks do not certify the live
 palette, which also needs browser verification against the current catalog.
 

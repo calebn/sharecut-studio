@@ -1,8 +1,16 @@
 import { composeStories } from "@storybook/react-vite";
 import axe from "axe-core";
 import { storyNameFromExport } from "storybook/internal/csf";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { page } from "vitest/browser";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { cdp, page } from "vitest/browser";
 import {
   SHELL_TITLES,
   selectBrowserStoryShard,
@@ -181,15 +189,52 @@ describe("viewport policy", () => {
 });
 
 let host: HTMLElement | undefined;
+let networkErrors: string[] | undefined;
+function onBrowserLog({
+  entry,
+}: {
+  entry: { source: string; level: string; text: string; url?: string };
+}) {
+  if (
+    entry.source === "network" &&
+    entry.level === "error" &&
+    !entry.url?.endsWith("/favicon.ico")
+  ) {
+    networkErrors?.push(
+      entry.url ? `${entry.text} (${entry.url})` : entry.text,
+    );
+  }
+}
 
 beforeAll(async () => {
   await document.fonts.ready;
+  await cdp().send("Log.enable");
+  cdp().on("Log.entryAdded", onBrowserLog);
+});
+
+afterAll(async () => {
+  cdp().off("Log.entryAdded", onBrowserLog);
+  await cdp().send("Log.disable");
 });
 
 afterEach(() => {
+  networkErrors = undefined;
   host?.remove();
   host = undefined;
   document.documentElement.removeAttribute("data-theme");
+});
+
+it("records an HTTP error reported by Chromium without console.error", async () => {
+  const path = "/__sharecut_story_sweep_missing__.woff2";
+  const errors: string[] = [];
+  networkErrors = errors;
+  const response = await fetch(path, {
+    headers: { Accept: "application/json" },
+  });
+  expect(response.status).toBe(404);
+  await expect
+    .poll(() => errors.some((error) => error.includes(path)))
+    .toBe(true);
 });
 
 const shardStories = selectBrowserStoryShard(
@@ -206,6 +251,7 @@ for (const theme of THEMES) {
     for (const base of shardStories) {
       it(`${base.title} / ${base.storyName}`, async () => {
         const errors: string[] = [];
+        networkErrors = errors;
         const onError = (event: ErrorEvent) => errors.push(event.message);
         const onRejection = (event: PromiseRejectionEvent) =>
           errors.push(String(event.reason));
@@ -263,7 +309,7 @@ for (const theme of THEMES) {
             ).toEqual([]);
             expect(
               errors,
-              atWidth(width, "page errors, rejections or console errors"),
+              atWidth(width, "page, network, rejection or console errors"),
             ).toEqual([]);
           }
         } finally {
