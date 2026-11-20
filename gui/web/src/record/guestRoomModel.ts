@@ -201,6 +201,14 @@ type DeviceScan = {
   captureSettled: boolean;
 };
 
+export function deviceScan(
+  unreadable: boolean,
+  stopped: boolean,
+  captureSettled: boolean,
+): DeviceScan {
+  return { unreadable, stopped, captureSettled };
+}
+
 function countAcknowledged(
   upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments">,
   localSegments: number,
@@ -273,11 +281,11 @@ export function guestRoomPhase(
     dropped: options.connected === false,
   });
   const { upload, localSegments } = options;
-  const scan = {
-    unreadable: options.localUnreadable,
-    stopped: snapshot?.state === "stopped",
-    captureSettled: options.captureSettled,
-  };
+  const scan = deviceScan(
+    options.localUnreadable,
+    snapshot?.state === "stopped",
+    options.captureSettled,
+  );
   const acknowledged =
     upload !== null &&
     upload !== undefined &&
@@ -758,11 +766,11 @@ export function guestCoverProps(
   room: CoverRoom,
   options: { onRetry: () => void; phase: RoomPhase },
 ): CoverProps | null {
-  const scan = {
-    unreadable: room.localUnreadable,
-    stopped: room.snapshot?.state === "stopped",
-    captureSettled: room.captureSettled,
-  };
+  const scan = deviceScan(
+    room.localUnreadable,
+    room.snapshot?.state === "stopped",
+    room.captureSettled,
+  );
   // Before the first take, or once the server has acknowledged every segment
   // the device holds, there is nothing here to save: whatever the device still
   // holds (a copy kept for the reclaim grace after a download) is a duplicate.
