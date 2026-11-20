@@ -1318,6 +1318,26 @@ describe("useGuestRoom", () => {
       expect(sockets[0]?.commands("UpdateName")).toHaveLength(0);
     });
 
+    it("keeps a remembered name out of the next Join while a decline is queued over a room that holds true", async () => {
+      localStorage.setItem("sharecut.recordName", "Ava Okafor");
+      const { result } = await heldRoom();
+      act(() => result.current.declineHere());
+      act(() => sockets[0]?.onopen?.());
+      act(() => hello(sockets[0], true));
+      await waitFor(() => expect(consents(sockets[0])).toEqual([false]));
+      holdOpen = false;
+      act(() => sockets[0]?.onclose?.({ code: 1006 }));
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => expect(sockets[1]?.commands("Join")).toHaveLength(1));
+      expect(
+        (
+          sockets[1]?.commands("Join")[0] as {
+            payload: { display_name: string };
+          }
+        ).payload.display_name,
+      ).toBe("Guest");
+    });
+
     it("routes a decline made while a take is on to the declined view before the room has heard it", async () => {
       const { result } = await heldRoom();
       act(() => sockets[0]?.onopen?.());

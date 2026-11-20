@@ -557,7 +557,7 @@ describe("useMicPermission slow prompt", () => {
     expect(calls).toHaveLength(2);
   });
 
-  it("asks only once for two Retry clicks in the same moment", async () => {
+  it("asks the browser once when Retry is called twice before the next render", async () => {
     const { gum } = hungGum();
     const { result } = renderHook(() => useMicPermission(true, ""));
     act(() => result.current.request());

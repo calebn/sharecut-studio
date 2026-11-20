@@ -1304,10 +1304,11 @@ turns the row to "Still waiting. Check your browser's permission prompt." with
 again and drops the first request: a late answer to the first request is stopped,
 never used, and the page follows the second. A second click while the new request
 waits does nothing, and the note returns only after another 10 seconds. A blocked,
-missing or failing microphone never shows this note. Chromium serves the second
-request; the fake-media end-to-end test proves only that a second request is made and that
-the first is dropped. Whether a real Chromium prompt, Firefox or Safari serve the second
-request from the same prompt or show a second one is a manual check, not a test. The reusable peak meter hook shares one metering
+missing or failing microphone never shows this note. The note is on the guest Join
+and Device sheets only; the host's own microphone prompt does not show it. The
+fake-media end-to-end test shows only that a second request is made and that the first is
+dropped. How a real Chromium prompt, Firefox or Safari answers the second request, from
+the same prompt or with a second one, is a manual check, not a test. The reusable peak meter hook shares one metering
 `AudioContext`, one worklet module load, and one animation-frame scheduler across
 concurrent mic meters. Each mic keeps its own worklet node, peak hold, and clip
 latch; the context closes when the last meter leaves. The keeper capture graph
