@@ -35,13 +35,13 @@ WHY_BY_REASON = {
 
 RETRY = "Try again in a moment, or leave a comment for the host."
 NEXT_STEP_BY_REASON = {
-    "acoustic_edge": "Move the edges off the word or breath and try again.",
+    "acoustic_edge": "Try a slightly different range.",
     "source_geometry": "Select it again to try another cut.",
     "operation_scope": "Select it again to try another cut.",
     "scope_unavailable": RETRY,
     "media_extent_unavailable": RETRY,
-    "speaker_bleed": RETRY,
-    "peer_speech": RETRY,
+    "speaker_bleed": "Leave a comment for the host.",
+    "peer_speech": "Leave a comment for the host.",
     "stored_track_pause": "Leave a comment for the host.",
     "pause_not_shorter": "Leave a comment for the host.",
     "pause_imperceptible": "Leave a comment for the host.",
@@ -124,7 +124,7 @@ def test_an_unnamed_edit_and_an_unnamed_peer_still_read_plainly():
     message = _refusal("peer_speech", peers=("track_7",), label=None).guest_message()
     assert message == (
         "That edit was not applied because someone else is speaking there and would be cut off. "
-        "Nothing was changed. Try again in a moment, or leave a comment for the host."
+        "Nothing was changed. Leave a comment for the host."
     )
 
 
@@ -143,12 +143,12 @@ def test_a_path_in_a_speaker_name_is_never_shown(name):
     message = _refusal("speaker_bleed", label=f"{name}'s cut at 0:02.5").guest_message()
     assert message == (
         "That edit was not applied because that sound is another speaker's voice on this "
-        "microphone. Nothing was changed. Try again in a moment, or leave a comment for the host."
+        "microphone. Nothing was changed. Leave a comment for the host."
     )
     peer = _refusal("peer_speech", speakers={"guest": name}).guest_message()
     assert peer == (
         f"{LABEL} was not applied because someone else is speaking there and would be cut off. "
-        "Nothing was changed. Try again in a moment, or leave a comment for the host."
+        "Nothing was changed. Leave a comment for the host."
     )
 
 
