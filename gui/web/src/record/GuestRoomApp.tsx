@@ -375,11 +375,19 @@ function GuestRoomSession({
   // A partial take's upload error only explains Finish saving; one action is enough.
   const recoverable = !producer && upload.recoverable && state === "stopped";
   const inTake = !producer && tookPart(snapshot, me);
+  const scan = {
+    unreadable: room.localUnreadable,
+    stopped: state === "stopped",
+    captureSettled: room.captureSettled,
+  };
+  const saved =
+    !producer && uploadAcknowledged(upload, room.localSegments, scan);
   const phase = guestRoomPhase(snapshot, {
     elapsedSinceSnapshotMs: elapsed,
     upload: producer ? null : upload,
     localSegments: room.localSegments,
     localUnreadable: room.localUnreadable,
+    captureSettled: room.captureSettled,
     tookPart: producer ? undefined : inTake,
     connected,
   });
@@ -389,18 +397,8 @@ function GuestRoomSession({
       captureHealth,
       keeperError: keeper.error,
       micLost: micNeedsAttention,
-      sinkError: sheetOpen || producer ? null : sinkError,
-      uploadError:
-        producer ||
-        recoverable ||
-        uploadAcknowledged(upload, room.localSegments)
-          ? null
-          : upload.error,
-      savingUnverified:
-        !producer &&
-        state === "stopped" &&
-        room.localUnreadable &&
-        upload.fileAck,
+      sinkError: sheetOpen || producer || saved ? null : sinkError,
+      uploadError: producer || recoverable || saved ? null : upload.error,
       recoverable,
       monitorError: monitor.error,
       transportError: producerOutside ? null : recordSyncErrorCopy(error),
@@ -459,7 +457,7 @@ function GuestRoomSession({
     saving:
       meId && state === "stopped" && !producer
         ? {
-            [meId]: ownSaving(upload, room.localSegments, room.localUnreadable),
+            [meId]: ownSaving(upload, room.localSegments, scan),
           }
         : undefined,
   });
@@ -578,6 +576,7 @@ function GuestRoomSession({
           uploading: uploadInFlight(
             producer ? null : upload,
             room.localSegments,
+            scan,
           ),
           verifying:
             !producer &&

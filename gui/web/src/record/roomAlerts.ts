@@ -12,8 +12,6 @@ export type RoomAlertSource = {
   micLost: boolean;
   sinkError: string | null;
   uploadError: string | null;
-  /** The upload is acknowledged but this device could not be read to confirm it. */
-  savingUnverified?: boolean;
   recoverable: boolean;
   monitorError: string | null;
   transportError: string | null;
@@ -62,7 +60,7 @@ export function roomAlerts(
   } else if (source.keeperError) {
     alerts.push({ kind: "storage-failed", onAction: actions.retryKeeper });
   }
-  if (source.uploadError || source.savingUnverified) {
+  if (source.uploadError) {
     alerts.push({ kind: "saving-failed", onAction: actions.resumeUpload });
   }
   if (source.recoverable && actions.recover) {

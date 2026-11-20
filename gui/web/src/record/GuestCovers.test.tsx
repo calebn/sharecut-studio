@@ -1236,6 +1236,8 @@ describe("the left-room cover and the download confirmation", () => {
       const phase = guestRoomPhase(snapshot, {
         upload: progress,
         localSegments,
+        localUnreadable: false,
+        captureSettled: true,
       });
       show(
         {
