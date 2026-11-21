@@ -25,6 +25,11 @@ import { selectTranscriptLoading, useScriptStatus } from "./useScriptStatus";
 import { useScriptUnsure } from "./useScriptUnsure";
 import { useScriptWindow } from "./useScriptWindow";
 
+function endAfterCut() {
+  const { afterCut, setAfterCut } = useDawStore.getState();
+  if (afterCut) setAfterCut(null);
+}
+
 export type ScriptHostProps = {
   /** Where the Script is drawn. Left out, it follows the shell. */
   layout?: "desktop" | "phone";
@@ -211,6 +216,7 @@ export function ScriptHost({
           onRelease: handleTip.release,
         }}
         onClearSelection={selection.onClearSelection}
+        onUnselectedSeamEscape={endAfterCut}
         onSeamSelect={selection.onSeamSelect}
         onSuggestionSelect={selection.onSuggestionSelect}
         onFixText={fix.onFixText}

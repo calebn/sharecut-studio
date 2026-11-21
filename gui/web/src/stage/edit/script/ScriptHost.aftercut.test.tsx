@@ -20,7 +20,7 @@ import {
   scriptWord,
   seedScript,
 } from "../../../test/scriptHostKit";
-import type { HistoryEntryId } from "../../../types/project";
+import type { EditBoundaryView, HistoryEntryId } from "../../../types/project";
 import { closeOverlay, noteMenuOpen, openOverlay } from "../../../ui/modalGate";
 import { registerAfterCutNav } from "./afterCutNav";
 import { resetQueuedCutsForTests } from "./cutHits";
@@ -354,6 +354,54 @@ describe("Tab after a words cut", () => {
     await user.keyboard("{Escape}");
     expect(selected()).toBeNull();
     expect(state().afterCut).toBeNull();
+    expect(tab().defaultPrevented).toBe(false);
+  });
+
+  it("ends the chain on the Escape that dismisses an unselected seam tooltip", async () => {
+    const user = await startCut();
+    act(() => {
+      cutAway([0, 1], "h1");
+      const { project } = state();
+      const cut = project!.transcript!.utterances[0]!.words!.slice(0, 2);
+      useDawStore.setState({
+        project: {
+          ...project!,
+          edit_boundaries: [
+            {
+              id: "cut-join",
+              track_id: "host",
+              left_clip_id: "left",
+              right_clip_id: "right",
+              timeline_join_sec: 10,
+              has_cutaway: true,
+              cutaway_source_start: 10,
+              cutaway_source_end: 11,
+              cutaway_word_ids: cut.map((word) => ({
+                track_id: "host",
+                source_id: null,
+                word_index: word.word_index,
+                text: word.text,
+                start: word.start,
+                end: word.end,
+              })),
+            } as EditBoundaryView,
+          ],
+        },
+      });
+    });
+    const seam = await screen.findByRole("button", {
+      name: /^Cut, .* removed$/,
+    });
+    seam.focus();
+    await user.hover(seam);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("you know");
+    expect(state().selection).toBeNull();
+    expect(state().afterCut).not.toBeNull();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(state().afterCut).toBeNull();
+    expect(seam).toHaveFocus();
     expect(tab().defaultPrevented).toBe(false);
   });
 
