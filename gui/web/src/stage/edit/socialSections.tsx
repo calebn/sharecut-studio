@@ -8,9 +8,18 @@ import { InlineEdit } from "../../system/InlineEdit";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { MARKER_MIN_SPAN } from "../../system/MarkerLane";
 import { ScrubField } from "../../system/ScrubField";
+import { placesOf, roundTo } from "../../system/scrubMath";
 import type { Selection } from "../../types/project";
 import { shownTitle } from "../../utils/clipTitle";
 import { note } from "./sheetNote";
+
+function offsetByMinimumSpan(edge: number, direction: -1 | 1): number {
+  const shifted = edge + direction * MARKER_MIN_SPAN;
+  const decimals = Math.max(placesOf(edge), placesOf(MARKER_MIN_SPAN));
+  return Math.abs(shifted * 10 ** decimals) <= Number.MAX_SAFE_INTEGER
+    ? roundTo(shifted, decimals)
+    : shifted;
+}
 
 export function useSocialSections(
   selection: Selection,
@@ -36,8 +45,8 @@ export function useSocialSections(
     ];
 
   const editable = !isShareProjectKey(projectPath);
-  const minEnd = Math.min(clip.end, clip.start + MARKER_MIN_SPAN);
-  const maxStart = Math.max(0, clip.start, clip.end - MARKER_MIN_SPAN);
+  const minEnd = Math.min(clip.end, offsetByMinimumSpan(clip.start, 1));
+  const maxStart = Math.max(0, clip.start, offsetByMinimumSpan(clip.end, -1));
   const maxEnd = duration > 0 ? Math.max(duration, clip.end) : undefined;
 
   const save = async (start: number, end: number) => {
