@@ -298,8 +298,8 @@ class HistoryManager:
         return history.entries[index] if index is not None else None
 
     def step_owners(self, project: EpisodeProject) -> StepOwners:
-        """The guest ownership of the same steps that ordinary Undo and Redo will move."""
-        history = self._load_index(project)
+        """Guest ownership for the next moves in the already loaded history."""
+        history = project.history
         return history.step_owners(self._navigation(project, history))
 
     def tip_entry_index(self, project: EpisodeProject, operation: str) -> int | None:
