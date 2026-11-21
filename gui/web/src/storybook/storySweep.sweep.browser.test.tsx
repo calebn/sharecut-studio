@@ -1,7 +1,13 @@
-import { composeStories, composeStory } from "@storybook/react-vite";
+import {
+  composeStory as composeReactStory,
+  type Meta,
+} from "@storybook/react-vite";
 import axe from "axe-core";
 import { storyNameFromExport } from "storybook/internal/csf";
-import { composeStory as composeBareStory } from "storybook/preview-api";
+import {
+  composeStory as composeBareStory,
+  composeStories,
+} from "storybook/preview-api";
 import {
   afterAll,
   afterEach,
@@ -12,6 +18,10 @@ import {
   vi,
 } from "vitest";
 import { cdp, page } from "vitest/browser";
+import {
+  observeCleanupErrors,
+  reportCleanupRejections,
+} from "../test/storyCleanupErrors";
 import {
   SHELL_TITLES,
   selectBrowserStoryShard,
@@ -107,11 +117,34 @@ const settle = async () => {
   await Promise.allSettled(running.map((animation) => animation.finished));
 };
 
+function composeStory(
+  story: Parameters<typeof composeReactStory>[0],
+  meta: Meta,
+  project?: Parameters<typeof composeReactStory>[2],
+  exportName?: string,
+) {
+  const hook = { beforeEach: reportCleanupRejections(story.beforeEach) };
+  const renderable = !story.beforeEach
+    ? story
+    : typeof story === "function"
+      ? Object.assign(story.bind(undefined), story, hook)
+      : { ...story, ...hook };
+  return composeReactStory(
+    renderable,
+    { ...meta, beforeEach: reportCleanupRejections(meta.beforeEach) },
+    project && {
+      ...project,
+      beforeEach: reportCleanupRejections(project.beforeEach),
+    },
+    exportName,
+  );
+}
+
 const stories: ComposedStory[] = [];
 for (const mod of Object.values(modules)) {
   const title = (mod.default as { title: string }).title;
   for (const story of Object.values(
-    composeStories(mod as never) as Record<string, unknown>,
+    composeStories(mod as never, {}, composeStory) as Record<string, unknown>,
   ) as unknown as ComposedStory[]) {
     story.title = title;
     stories.push(story);
@@ -266,6 +299,8 @@ async function observeStory(
   document.body.appendChild(host);
   const errors: string[] = [];
   networkErrors = errors;
+  const cleanupRejections: unknown[] = [];
+  const stopObservingCleanup = observeCleanupErrors(cleanupRejections);
   const onError = (event: ErrorEvent) => errors.push(event.message);
   const onRejection = (event: PromiseRejectionEvent) =>
     errors.push(String(event.reason));
@@ -280,18 +315,38 @@ async function observeStory(
     .spyOn(console, "error")
     .mockImplementation((...args) => errors.push(args.map(String).join(" ")));
   try {
-    await check(host, errors);
-  } finally {
+    let checkFailure: { error: unknown; errorCount: number } | undefined;
     try {
+      await check(host, errors);
+    } catch (error) {
+      checkFailure = { error, errorCount: errors.length };
+    } finally {
       await teardown.load().finally(() => host.remove());
       await settle();
-    } finally {
-      networkErrors = undefined;
-      window.removeEventListener("error", onResourceError, true);
-      window.removeEventListener("error", onError);
-      window.removeEventListener("unhandledrejection", onRejection);
-      consoleError.mockRestore();
+      for (const error of cleanupRejections) {
+        errors.push(`story cleanup: ${String(error)}`);
+      }
     }
+    if (checkFailure) {
+      const teardownErrors = errors.slice(checkFailure.errorCount);
+      if (teardownErrors.length > 0) {
+        throw new AggregateError(
+          [
+            checkFailure.error,
+            ...teardownErrors.map((error) => new Error(error)),
+          ],
+          "Story checks and teardown failed",
+        );
+      }
+      throw checkFailure.error;
+    }
+  } finally {
+    stopObservingCleanup();
+    networkErrors = undefined;
+    window.removeEventListener("error", onResourceError, true);
+    window.removeEventListener("error", onError);
+    window.removeEventListener("unhandledrejection", onRejection);
+    consoleError.mockRestore();
   }
   return errors;
 }
@@ -361,9 +416,18 @@ it("reports a rejected cleanup once and still runs the following story", async (
     {
       title: "Sweep/Rejecting Fixture",
       component: () => null,
-      beforeEach: () => () => {
-        cleanupOrder.push("component cleanup");
-      },
+      beforeEach: [
+        () => () => {
+          cleanupOrder.push("component cleanup");
+        },
+      ],
+    },
+    {
+      beforeEach:
+        async ({ globals }) =>
+        () => {
+          cleanupOrder.push(`project cleanup in ${globals.theme}`);
+        },
     },
   );
   const clean = composeStory(
@@ -379,15 +443,44 @@ it("reports a rejected cleanup once and still runs the following story", async (
     (errors) => ({ errors }),
     (error: unknown) => ({ threw: String(error) }),
   );
+  const ownerCleanupOrder = [...cleanupOrder];
   const nextErrors = await observeStory(async (host) => {
     await clean.run({ canvasElement: host, globals: { theme: "light" } });
     expect(host.textContent).toBe("Clean story rendered");
   });
 
-  expect({ cleanupOrder, first, nextErrors }).toEqual({
-    cleanupOrder: ["story cleanup", "component cleanup"],
+  const expectedOrder = [
+    "story cleanup",
+    "component cleanup",
+    "project cleanup in light",
+  ];
+  expect({ ownerCleanupOrder, cleanupOrder, first, nextErrors }).toEqual({
+    ownerCleanupOrder: expectedOrder,
+    cleanupOrder: expectedOrder,
     first: { errors: ["story cleanup: Error: cleanup fixture failed"] },
     nextErrors: [],
+  });
+});
+
+it("reports both story check and cleanup failures", async () => {
+  const failing = composeStory(
+    {
+      beforeEach: () => () => {
+        throw new Error("teardown failed");
+      },
+    },
+    { title: "Sweep/Dual Failure", component: () => null },
+  );
+  await expect(
+    observeStory(async (host) => {
+      await failing.run({ canvasElement: host, globals: { theme: "light" } });
+      throw new Error("story check failed");
+    }),
+  ).rejects.toMatchObject({
+    errors: [
+      new Error("story check failed"),
+      new Error("story cleanup: Error: teardown failed"),
+    ],
   });
 });
 

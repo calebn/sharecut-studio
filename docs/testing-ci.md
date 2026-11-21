@@ -153,7 +153,9 @@ stories it runs. Chromium’s network log contributes failed HTTP requests to
 the error check for the active story, with the request URL when available.
 Fullscreen shell stories also check that the browser body adds no padding.
 Browser errors emitted during unmount and the following frames stay with that
-story. Storybook can retry a cleanup hook that rejects when the next story starts.
+story. If a `beforeEach` cleanup rejects, the sweep reports the rejection on
+that story and lets Storybook finish teardown. The following story starts
+without retrying the cleanup.
 Tagged stories need the Storybook runtime and run in
 `e2e-storybook/coverage.spec.ts` instead. These checks do not certify the live
 palette, which also needs browser verification against the current catalog.
