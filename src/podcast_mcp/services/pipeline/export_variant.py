@@ -266,7 +266,7 @@ class _VariantRequest:
 @dataclass(frozen=True)
 class VariantProjectCheckpoint:
     edit_head_id: str
-    other_state: dict[str, Any]
+    other_state: Mapping[str, Any]
     comments: tuple[TimelineComment, ...]
     guest_post_receipts: dict[str, bool]
 
@@ -620,14 +620,16 @@ def variant_identity(
     return source.digest, request.identity
 
 
-def _project_state_without_comment_changes(project: EpisodeProject) -> dict[str, Any]:
-    return project.model_dump(
-        mode="json",
-        exclude={
-            "history": True,
-            "review": {"comments"},
-            "document_sync": {"guest_post_receipts"},
-        },
+def _project_state_without_comment_changes(project: EpisodeProject) -> Mapping[str, Any]:
+    return MappingProxyType(
+        project.model_dump(
+            mode="json",
+            exclude={
+                "history": True,
+                "review": {"comments"},
+                "document_sync": {"guest_post_receipts"},
+            },
+        )
     )
 
 
