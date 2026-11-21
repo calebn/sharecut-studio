@@ -165,6 +165,39 @@ describe("HistoryPanel list", () => {
     expect(screen.queryByText("first")).toBeNull();
     await act(async () => resolvers[1]!(diffOf("second")));
     expect(await screen.findByText("second")).toBeTruthy();
+    expect(screen.queryByText("Loading…")).toBeNull();
+  });
+
+  it("switches between Raw JSON and Summary for the same diff", async () => {
+    vi.mocked(loadHistoryDiff).mockResolvedValueOnce(diffOf("fade changed"));
+    const { container } = renderList();
+    fireEvent.click(rowAt(container, 0)!);
+    expect(await screen.findByText("fade changed")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Raw JSON" }));
+    expect(container.querySelector("pre.history-raw")).toHaveTextContent("{}");
+    expect(screen.queryByText("fade changed")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Summary" }));
+    expect(screen.getByText("fade changed")).toBeVisible();
+    expect(container.querySelector("pre.history-raw")).toBeNull();
+  });
+
+  it("starts a different resolved diff in Summary after viewing Raw JSON", async () => {
+    vi.mocked(loadHistoryDiff)
+      .mockResolvedValueOnce(diffOf("first change"))
+      .mockResolvedValueOnce(diffOf("second change"));
+    const { container } = renderList();
+    fireEvent.click(rowAt(container, 0)!);
+    expect(await screen.findByText("first change")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Raw JSON" }));
+    expect(screen.getByRole("button", { name: "Summary" })).toBeVisible();
+
+    fireEvent.click(rowAt(container, 1)!);
+    expect(await screen.findByText("second change")).toBeVisible();
+    expect(screen.queryByText("first change")).toBeNull();
+    expect(screen.getByRole("button", { name: "Raw JSON" })).toBeVisible();
+    expect(container.querySelector("pre.history-raw")).toBeNull();
   });
 
   it("shows a failed diff load as an inline error", async () => {
