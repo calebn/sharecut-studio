@@ -636,20 +636,22 @@ function pointerContext(
 }
 
 async function collectResizeObserverLoops(page: PlayerPage, loops: string[]) {
-  await page.addInitScript(() => {
+  const binding = "recordResizeObserverLoop";
+  await page.exposeFunction(binding, (message: string) => {
+    loops.push(message);
+  });
+  await page.addInitScript((name) => {
+    const record = Reflect.get(window, name) as (
+      message: string,
+    ) => Promise<void>;
     window.addEventListener("error", (event) => {
       if (
         event instanceof ErrorEvent &&
         event.message.startsWith("ResizeObserver loop")
       )
-        console.error(event.message);
+        void record(event.message);
     });
-  });
-  page.on("console", (message) => {
-    const text = message.text();
-    if (message.type() === "error" && text.startsWith("ResizeObserver loop"))
-      loops.push(text);
-  });
+  }, binding);
 }
 
 test("the Player bar sweep records a native ResizeObserver loop", async ({
