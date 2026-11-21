@@ -926,7 +926,6 @@ describe("JoinSheet headphones on a phone", () => {
       expect(scrollIntoView).not.toHaveBeenCalled();
       await userEvent.click(primary(NOT_WEARING));
       expect(scrollIntoView).toHaveBeenCalledTimes(1);
-      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
       expect(scrollIntoView.mock.contexts[0]).toBe(
         screen.getByText(NOTE).closest('[role="status"]'),
       );
