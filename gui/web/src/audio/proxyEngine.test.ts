@@ -2114,6 +2114,56 @@ describe("playing a timeline longer than the first window", () => {
       engine.dispose();
     });
 
+    it("replaces a pending retry when an edit removes the unavailable audio", async () => {
+      const { handle, engine, fetchChunk, failure } = await playWithFlakyChunk(
+        Number.POSITIVE_INFINITY,
+      );
+      await tick(handle, 76);
+      const attempts = () =>
+        fetchChunk.mock.calls.filter(
+          ([ref]) => ref.index === FLAKY_CHUNK_INDEX,
+        );
+      const attemptsBeforeEdit = attempts().length;
+      expect(attemptsBeforeEdit).toBeGreaterThan(0);
+      expect(failure).not.toHaveBeenCalled();
+      const sourcesBeforeEdit = handle.created.length;
+
+      const edited = episode(400);
+      const [clip] = edited.clipsByTrack.host;
+      const cutStart = FIRST_WINDOW_END_SEC - 60;
+      const cutEnd = FIRST_WINDOW_END_SEC + 60;
+      const editedEnd = edited.durationSec - (cutEnd - cutStart);
+      edited.clipsByTrack.host = [
+        {
+          ...clip,
+          source_end: cutStart,
+          timeline_end: cutStart,
+        },
+        {
+          ...clip,
+          id: "after-cut",
+          source_start: cutEnd,
+          timeline_start: cutStart,
+          timeline_end: editedEnd,
+        },
+      ];
+      engine.setSnapshot({ ...edited, durationSec: editedEnd });
+      await flush();
+      expect(
+        handle.created
+          .slice(sourcesBeforeEdit)
+          .some(({ start }) => start.mock.calls[0][0] === 76),
+      ).toBe(true);
+      for (let ctxSec = 77; ctxSec <= 140; ctxSec += 1) {
+        await tick(handle, ctxSec);
+        expect(soundingAt(handle.created, ctxSec + 0.5, 1)).toBe(1);
+      }
+      expect(attempts()).toHaveLength(attemptsBeforeEdit);
+      expect(failure).not.toHaveBeenCalled();
+      expect(engine.currentTimeSec()).toBe(140);
+      engine.dispose();
+    });
+
     it("reports a chunk that keeps failing once, near the end of the scheduled sound", async () => {
       const { handle, engine, failure } = await playWithFlakyChunk(
         Number.POSITIVE_INFINITY,
