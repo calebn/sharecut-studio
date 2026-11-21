@@ -687,6 +687,28 @@ describe("immutable playback snapshots", () => {
     engine.dispose();
   });
 
+  it("can request the same chunk after a seek while an obsolete fetch is pending", async () => {
+    const { ctx, decode, created } = makeCtx();
+    const old = deferred<ArrayBuffer>();
+    const fetch = vi.fn(
+      async (_ref: ImmutableChunkRef) => new ArrayBuffer(128),
+    );
+    fetch.mockReturnValueOnce(old.promise);
+    const engine = new ProxyEngine(ctx, fetch, engineEvents());
+    engine.setSnapshot(snapshot());
+    engine.play(0);
+    expect(fetch).toHaveBeenCalledOnce();
+
+    engine.seek(1);
+    await vi.waitFor(() => expect(created).toHaveLength(1));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    old.resolve(new ArrayBuffer(64));
+    await flush();
+    expect(decode).toHaveBeenCalledOnce();
+    expect(created[0].buffer?.length).toBe(128);
+    engine.dispose();
+  });
+
   it("invalidates pending work on pause and ignores obsolete failures", async () => {
     const { ctx, decode, created } = makeCtx();
     const pending = deferred<ArrayBuffer>();
@@ -2199,6 +2221,46 @@ describe("playing a timeline longer than the first window", () => {
       // The first attempt's batch is chunks 0-3; a retry must neither widen it
       // nor shrink it so far that a chunk already fetched is asked for again.
       expect([...requested].sort()).toEqual([0, 1, 3]);
+      engine.dispose();
+    });
+
+    it("keeps the still-downloading sibling of a failed chunk through the retry", async () => {
+      vi.useFakeTimers();
+      const handle = makeCtx();
+      const sibling = deferred<ArrayBuffer>();
+      let attempts = 0;
+      const fetchChunk = vi.fn(async (ref: ImmutableChunkRef) => {
+        if (ref.index === FLAKY_CHUNK_INDEX) {
+          attempts += 1;
+          if (attempts === 1) throw new TypeError("Failed to fetch");
+        }
+        if (ref.index === FLAKY_CHUNK_INDEX + 1) return sibling.promise;
+        return new ArrayBuffer(64);
+      });
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        fetchChunk,
+        engineEvents({ onFailure: failure }),
+      );
+      engine.setSnapshot(episode(400));
+      engine.play(0);
+      await flush();
+      for (let ctxSec = 1; ctxSec <= 75; ctxSec += 1)
+        await advanceTo(handle, ctxSec);
+      expect(attempts).toBe(1);
+
+      await tick(handle, 76);
+      expect(attempts).toBe(2);
+      const siblingRequests = fetchChunk.mock.calls.filter(
+        ([ref]) => ref.index === FLAKY_CHUNK_INDEX + 1,
+      ).length;
+      sibling.resolve(new ArrayBuffer(64));
+      await flush();
+      expect(siblingRequests).toBe(1);
+      expect(handle.decode).toHaveBeenCalledTimes(4);
+      expect(soundingAt(handle.created, 130, 1)).toBe(1);
+      expect(failure).not.toHaveBeenCalled();
       engine.dispose();
     });
 
