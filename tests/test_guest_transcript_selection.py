@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.edits.range_target import range_geometry, range_media_seal
 from podcast_mcp.engines.transcript_sync import rebuild_combined
+from podcast_mcp.gui.assembler import build_project_view
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     Clip,
@@ -39,6 +40,7 @@ from podcast_mcp.services.collaboration.share_capabilities import (
     capabilities_for_role,
     guest_reads_transcript_words,
 )
+from podcast_mcp.services.document_sync import DocumentSyncService
 
 VIEW = capabilities_for_role("viewer")
 SUGGEST = capabilities_for_role("commenter")
@@ -218,6 +220,98 @@ def test_edit_guest_cut_applies(guest):
     assert _clip_spans(path) == [(0.0, 0.2), (0.6, 2.0)]
     assert project.edit_decisions == []
     assert project.editorial.edit_log[-1].params["action"] == "cut"
+
+
+@pytest.mark.parametrize("role", ["viewer", "commenter", "editor"])
+def test_guest_cutaway_keeps_visible_words_and_geometry_after_editor_cut(guest, role):
+    client, open_share, path = guest
+    observer = open_share(capabilities_for_role(role, with_mcp=True))
+    editor = open_share(EDIT)
+    base = f"/api/review/{observer}/daw"
+
+    with client.websocket_connect(f"{base}/ws") as socket:
+        socket.receive_json()
+        initial = socket.receive_json()
+        assert initial["snapshot"]["project"]["edit_boundaries"] == []
+        reply = _command(
+            client,
+            editor,
+            "CutRange",
+            {"start": 0.7, "end": 1.6, "mode": "ripple", "track_ids": ["host"]},
+        )
+        assert reply.status_code == 200, reply.text
+        assert _clip_spans(path) == [(0.0, 0.7), (1.6, 2.0)]
+        for _ in range(10):
+            frame = socket.receive_json()
+            if frame["plane"] == "document" and frame["type"] == "Applied":
+                break
+        else:
+            pytest.fail("guest did not receive the cut update")
+
+    [host_boundary] = build_project_view(path).edit_boundaries
+    host_words = host_boundary["cutaway_word_ids"]
+    assert [word["text"] for word in host_words] == ["welcome", "bleed"]
+    expected = {**host_boundary, "cutaway_word_ids": [host_words[0]]}
+
+    for event in (reply.json(), frame):
+        delta = event["snapshot"]["delta"]
+        assert delta["audience"] == "guest"
+        [change] = [op for op in delta["operations"] if op["section"] == "edit_boundaries"]
+        [splice] = change["splices"]
+        assert "bleed" not in json.dumps(event)
+        assert splice["insert"] == [expected]
+
+    for phase in ("shell", "full"):
+        state = client.get(f"{base}/document/state", params={"phase": phase})
+        assert state.status_code == 200
+        assert "bleed" not in state.text
+        assert state.json()["project"]["edit_boundaries"] == [expected]
+
+    project_view = client.get(f"{base}/project")
+    assert project_view.status_code == 200
+    assert "bleed" not in project_view.text
+    assert project_view.json()["edit_boundaries"] == [expected]
+    assert _mcp_project(observer)["edit_boundaries"] == [expected]
+
+    with client.websocket_connect(f"{base}/ws") as socket:
+        socket.receive_json()
+        snapshot = socket.receive_json()
+    assert "bleed" not in json.dumps(snapshot)
+    assert snapshot["snapshot"]["project"]["edit_boundaries"] == [expected]
+    host = DocumentSyncService(ProjectWorkspace.open(path)).document_snapshot(projection="shell")
+    assert host["project"]["edit_boundaries"] == [host_boundary]
+
+
+def test_guest_cutaway_projection_is_an_allowlist_and_can_be_applied_twice():
+    word = {
+        "track_id": "host",
+        "source_id": None,
+        "word_index": -1,
+        "text": "visible",
+        "start": 0.5,
+        "end": 0.8,
+    }
+    boundary = {
+        "id": "eb:left:right",
+        "cutaway_word_ids": [
+            {**word, "private": "extra"},
+            {**word, "text": "suppressed", "suppressed": True},
+            {**word, "text": "malformed", "suppressed": "unknown"},
+            {"text": "partial"},
+            "invalid",
+        ],
+    }
+    view = {"edit_boundaries": [boundary, {"id": "eb:right:end", "cutaway_word_ids": None}]}
+    expected = {
+        "edit_boundaries": [
+            {"id": "eb:left:right", "cutaway_word_ids": [word]},
+            {"id": "eb:right:end", "cutaway_word_ids": []},
+        ]
+    }
+    guest = sanitize_guest_project_view(view)
+    assert guest == expected
+    assert sanitize_guest_project_view(guest) == expected
+    assert len(boundary["cutaway_word_ids"]) == 5
 
 
 def test_suggest_guest_cut_is_a_pending_suggestion_and_direct_edits_are_refused(guest):
