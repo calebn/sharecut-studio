@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import struct
 import threading
@@ -271,6 +272,28 @@ def test_a_different_volume_is_refused(episode, dest_parent, monkeypatch) -> Non
     _refused(res, 409, "move_cross_volume")
     assert episode.is_file()
     assert list(dest_parent.iterdir()) == []
+
+
+def test_cross_volume_rename_refusal_cleans_up_destination(episode, dest_parent, monkeypatch):
+    target = dest_parent / episode.parent.name
+    before = episode.read_bytes()
+    rename_attempts = []
+
+    def refuse(src, dst):
+        rename_attempts.append((Path(src), Path(dst)))
+        raise OSError(errno.EXDEV, "Cross-device link")
+
+    monkeypatch.setattr(f"{SERVICE}._device_of", lambda _path: 1)
+    monkeypatch.setattr(f"{SERVICE}.os.rename", refuse)
+    app = _app(episode)
+
+    res = _move(_client(app), episode, dest_parent)
+
+    _refused(res, 409, "move_cross_volume")
+    assert rename_attempts == [(episode.parent, target)]
+    assert episode.read_bytes() == before
+    assert list(dest_parent.iterdir()) == []
+    assert app.state.served_project == episode
 
 
 def test_a_rename_the_system_refuses_leaves_everything_unchanged(
