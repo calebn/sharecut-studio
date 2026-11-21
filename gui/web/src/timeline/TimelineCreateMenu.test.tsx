@@ -498,6 +498,26 @@ describe("TimelineCreateMenu focus after close", () => {
     row.remove();
   });
 
+  it("restores focus to the current surface after the menu unmounts", async () => {
+    const original = lane();
+    const current = lane();
+    original.row.tabIndex = -1;
+    current.row.tabIndex = -1;
+    try {
+      const { rerender, unmount } = mount(false, { surface: original.empty });
+      await waitFor(() =>
+        expect(screen.getAllByRole("menuitem")[0]).toHaveFocus(),
+      );
+      rerender(tree(false, { surface: current.empty }));
+      unmount();
+      await waitFor(() => expect(current.row).toHaveFocus());
+      expect(original.row).not.toHaveFocus();
+    } finally {
+      original.row.remove();
+      current.row.remove();
+    }
+  });
+
   it("lands on the held lane after a phone Sheet goes", async () => {
     const { row, empty } = lane();
     const { unmount } = mount(true, { surface: empty });

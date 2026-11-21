@@ -41,7 +41,7 @@ function setup(over: Record<string, unknown> = {}) {
     onMoveChapter: vi.fn(),
     onMoveSocial: vi.fn(),
   };
-  const view = render(
+  const host = (update: Record<string, unknown> = {}) => (
     <MarkerLaneHost
       chapters={chapters}
       socialClips={socialClips}
@@ -54,9 +54,15 @@ function setup(over: Record<string, unknown> = {}) {
       readOnly={false}
       {...handlers}
       {...over}
-    />,
+      {...update}
+    />
   );
-  return { ...handlers, ...view };
+  const view = render(host());
+  return {
+    ...handlers,
+    ...view,
+    update: (props: Record<string, unknown>) => view.rerender(host(props)),
+  };
 }
 
 describe("laneMarkers", () => {
@@ -164,6 +170,16 @@ describe("MarkerLaneHost", () => {
     expect(resolvePresenceAnchor(container, "markers:clipping")).toBe(
       container.querySelector(".marker-row.clipping"),
     );
+  });
+
+  it("routes a marker click to the latest chapter handler", () => {
+    const { onSelectChapter, update } = setup();
+    const selectCurrentChapter = vi.fn();
+    update({ onSelectChapter: selectCurrentChapter });
+
+    fireEvent.click(screen.getByRole("button", { name: /Intro/ }));
+    expect(selectCurrentChapter).toHaveBeenCalledWith(chapters[0]);
+    expect(onSelectChapter).not.toHaveBeenCalled();
   });
 
   it("routes a click to the matching select callback", () => {
