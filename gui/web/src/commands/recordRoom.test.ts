@@ -99,7 +99,7 @@ describe("record room commands", () => {
     expect(await execute("record.createRoom")).toEqual({ status: "ok" });
     expect(useRecordHostStore.getState().snapshot?.session_id).toBe("room1");
     expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Record room created and guest link copied. Your new room is ready. Links to an earlier room may still work. End the earlier room in Invite to turn them off.",
+      "Record room created and guest link copied. Your new room is ready. Earlier links may still work. End earlier rooms in Invite to turn them off. Creating another room may end this one.",
     );
   });
 
