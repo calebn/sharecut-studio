@@ -3411,7 +3411,7 @@ html:not([data-shell="phone"])
 
 .sys-home-recent-head:has(.sys-open-pop) {
   flex-wrap: wrap;
-  row-gap: var(--space-2);
+  row-gap: var(--space-3);
 }
 
 .sys-home-recent-head:has(.sys-open-pop)::after {
@@ -3419,7 +3419,7 @@ html:not([data-shell="phone"])
   order: 1;
   flex: 0 0 100%;
   block-size: 0;
-  margin-block: calc(-1 * var(--space-2));
+  margin-block: calc(-1 * var(--space-3));
 }
 
 .sys-open-other:has(.sys-open-pop) {
