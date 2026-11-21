@@ -8,16 +8,18 @@ import subprocess
 import sys
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.export.daw_timeline import DawMedia
 from podcast_mcp.models import Clip, MediaAsset, SourceRecording, Track
 from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.media.daw_session import export_aaf_session
+from podcast_mcp.services.media.daw_session import _valid_aaf_pcm, export_aaf_session
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -31,6 +33,37 @@ def _pcm_wav(path: Path, sample_rate: int, channels: int, frames: int, seed: int
                 values.append(value)
         audio.writeframes(struct.pack(f"<{len(values)}h", *values))
     return MediaAsset(path=path.name)
+
+
+def _sparse_pcm_wav(path: Path, size_bytes: int) -> DawMedia:
+    data_size = size_bytes - 44
+    assert size_bytes > 44 and data_size % 2 == 0
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF",
+        size_bytes - 8,
+        b"WAVE",
+        b"fmt ",
+        16,
+        1,
+        1,
+        48_000,
+        96_000,
+        2,
+        16,
+        b"data",
+        data_size,
+    )
+    with path.open("wb") as stream:
+        stream.write(header)
+        stream.truncate(size_bytes)
+    return DawMedia(
+        path=path,
+        package_name="media/0001.wav",
+        sample_rate=48_000,
+        channels=1,
+        frames=data_size // 2,
+    )
 
 
 def _project(root: Path) -> ProjectWorkspace:
@@ -213,6 +246,45 @@ def test_aaf_rejects_same_track_mixed_rates_before_publication(tmp_path: Path) -
     with pytest.raises(ValueError, match="one sample rate per track"):
         export_aaf_session(workspace.path, output)
     assert not output.exists()
+
+
+def test_large_sparse_aaf_pcm_is_validated_without_reading_audio(
+    tmp_path: Path, monkeypatch
+) -> None:
+    asset = _sparse_pcm_wav(tmp_path / "long.wav", 256 * 1024 * 1024)
+
+    def reject_bulk_read(_path: Path) -> bytes:
+        pytest.fail("AAF PCM validation must inspect WAV metadata without reading sample data")
+
+    monkeypatch.setattr(Path, "read_bytes", reject_bulk_read)
+
+    assert _valid_aaf_pcm(asset.path, asset)
+
+
+def test_export_refuses_oversized_wav_before_transcode_and_publication(
+    tmp_path: Path, monkeypatch
+) -> None:
+    workspace = _project(tmp_path / "original")
+    output = tmp_path / "package"
+    original_stat = Path.stat
+
+    def oversized_staged_source(path: Path, *args, **kwargs):
+        result = original_stat(path, *args, **kwargs)
+        if path.name.endswith(".source.wav"):
+            return SimpleNamespace(st_size=0x1_0000_0000)
+        return result
+
+    def no_transcode(*_args, **_kwargs) -> None:
+        pytest.fail("oversized WAVs must be rejected before attempting conversion")
+
+    monkeypatch.setattr(Path, "stat", oversized_staged_source)
+    monkeypatch.setattr(FFmpegEngine, "export_audio", no_transcode)
+    with pytest.raises(CodedValueError, match="too large") as error:
+        export_aaf_session(workspace.path, output)
+
+    assert error.value.code == "aaf_export_pcm_too_large"
+    assert not output.exists()
+    assert not list(tmp_path.glob(".partial-*"))
     assert not any(path.name.startswith((".partial-", ".cleanup-")) for path in tmp_path.iterdir())
 
 

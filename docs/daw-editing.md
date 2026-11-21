@@ -815,7 +815,7 @@ interop check locally, build the reader in a new scratch directory and set
 ```sh
 bash scripts/build_libaaf_test_tool.sh /tmp/sharecut-libaaf-aaf
 SHARECUT_AAFTOOL=/tmp/sharecut-libaaf-aaf/build/bin/aaftool \
-  uv run pytest -q --no-cov tests/test_aaf_export.py
+  uv run --extra aaf pytest -q --no-cov tests/test_aaf_export.py
 ```
 
 The build script refuses to reuse its source or build directories. Native
@@ -828,10 +828,10 @@ the tested versions and fixture are recorded above.
 id: D-aaf-embedded-native-edit-units
 status: accepted
 date: 2026-11-21
-decided-by: calebn
+decided-by: AAF implementation/review lane
 evidence:
-- Owner prototype on #4045 showed pyaaf2 1.7.1 writing embedded 48 kHz mono/stereo PCM that LibAAF extracted byte-equivalently, with Ardour importing and editing a separate overlap track
-- Owner accepted the writer-in-stage, embedded-media, per-track-rate policy in [the #4045 implementation checkpoint](https://github.com/calebn/sharecut-studio/issues/4045#issuecomment-7054443634)
+- An external pyaaf2 1.7.1 prototype showed LibAAF extraction of byte-equivalent 48 kHz PCM and an Ardour edit that preserved source offset and duration on a separate overlap track ([prototype evidence](https://github.com/calebn/sharecut-studio/issues/4045#issuecomment-7052570944))
+- The #4045 AAF candidate review selected a writer-owned private stage, embedded media, and per-track native rates; the implementation checkpoint records that decision and the open mixed-rate constraint ([implementation checkpoint](https://github.com/calebn/sharecut-studio/issues/4045#issuecomment-7054443634))
 - Corrected ShareCut CLI fixture imported and edited in Logic Pro 12.4/macOS 26.7.1 and Ardour 8.12/Debian 13.7 arm64; [issue proof checkpoint](https://github.com/calebn/sharecut-studio/issues/4045#issuecomment-7055080095) records the artifact digest and native tests
 - [AAF Object Specification v1.1 §7.7](https://static.amwa.tv/ms-01-aaf-object-spec.pdf) defines SourceClip StartTime and Length in the owning MobSlot's edit units
 - Independent LibAAF verification of the ShareCut CLI fixture checks ordered tracks, empty tracks, placement, trims, extracted PCM, and relocation
