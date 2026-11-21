@@ -295,17 +295,20 @@ describe("ScrubField read-only during a drag", () => {
     expect(calls.onCommit).not.toHaveBeenCalled();
   });
 
-  it("commits nothing from an open editor once the field turned read-only", () => {
-    const calls: Calls = {
-      onPreview: vi.fn(),
-      onCommit: vi.fn(),
-      onCancel: vi.fn(),
-    };
+  it("keeps an open editor focused and read-only while it is busy", async () => {
+    const user = userEvent.setup();
+    const calls = makeCalls();
     const { rerender } = render(<Harness calls={calls} />);
     fireEvent.keyDown(screen.getByRole("spinbutton"), { key: "Enter" });
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "7" } });
-    rerender(<Harness calls={calls} readOnly />);
-    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+    const input = screen.getByRole("textbox");
+    await user.keyboard("7");
+    rerender(<Harness calls={calls} readOnly busy />);
+    expect(input).toHaveFocus();
+    expect(input).toHaveAttribute("readonly");
+    expect(input).toHaveAttribute("aria-busy", "true");
+    await user.keyboard("2");
+    expect(input).toHaveValue("7");
+    await user.keyboard("{Enter}");
     expect(calls.onCommit).not.toHaveBeenCalled();
     expect(screen.queryByRole("textbox")).toBeNull();
   });
@@ -1200,10 +1203,26 @@ describe("ScrubField states", () => {
     expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(21);
   });
 
-  it("marks an outside error on the field and describes it", () => {
-    const { field } = setup({ error: "The server refused 900 ms" });
-    expect(field()).toHaveAttribute("aria-invalid", "true");
-    expect(field()).toHaveAccessibleDescription("The server refused 900 ms");
+  it("describes both presentations with the outside error and field help", () => {
+    render(
+      <>
+        <p id="offset-help">Sets the offset from the recording start.</p>
+        <Harness
+          calls={makeCalls()}
+          describedBy="offset-help"
+          error="The server refused 900 ms"
+        />
+      </>,
+    );
+    const field = screen.getByRole("spinbutton");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(
+      "The server refused 900 ms Sets the offset from the recording start.",
+    );
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(screen.getByRole("textbox")).toHaveAccessibleDescription(
+      "The server refused 900 ms Sets the offset from the recording start.",
+    );
   });
 
   it("reads the value with its unit", () => {

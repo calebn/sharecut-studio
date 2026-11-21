@@ -43,12 +43,17 @@ describe("chapter content", () => {
     vi.clearAllMocks();
   });
 
-  it("names its fields and saves a retitle once on blur", async () => {
+  it("saves a retitle once on blur and explains why Time edits must wait", async () => {
+    let settle: () => void = () => undefined;
+    vi.mocked(updateChapter).mockImplementationOnce(
+      () => new Promise<void>((resolve) => (settle = resolve)),
+    );
     const user = userEvent.setup();
     const { container } = open();
     const title = screen.getByRole("textbox", { name: "Title" });
+    const time = screen.getByRole("spinbutton", { name: "Time" });
     expect(title).toHaveValue("Opening");
-    expect(screen.getByRole("spinbutton", { name: "Time" })).toBeVisible();
+    expect(time).toBeVisible();
     await expectNoA11yViolations(container);
     await user.clear(title);
     await user.type(title, "Interview");
@@ -62,6 +67,15 @@ describe("chapter content", () => {
       5,
       "Interview",
     );
+    const pending = "Saving chapter. Try again when it finishes.";
+    expect(screen.getByText(pending)).toBeVisible();
+    expect(title).toHaveAccessibleDescription(pending);
+    expect(time).toHaveAccessibleDescription(pending);
+    fireEvent.keyDown(time, { key: "ArrowUp" });
+    expect(updateChapter).toHaveBeenCalledTimes(1);
+    await act(async () => settle());
+    expect(screen.queryByText(pending)).toBeNull();
+    expect(time).not.toHaveAccessibleDescription();
     expect(useDawStore.getState().selection).toEqual({
       kind: "chapter",
       id: "Interview",
