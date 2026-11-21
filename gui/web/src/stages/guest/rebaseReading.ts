@@ -1,18 +1,46 @@
+import {
+  findSelectionEnd,
+  type SelectionEnd,
+  selectionEndOf,
+} from "../../edit/selectionFollow";
+import type { GuestScriptModel } from "../../stage/hosts/guestScript";
 import type { ScriptPaneReadingPosition } from "../../system/ScriptPane";
 import type { ScriptTurn } from "../../system/scriptPieces";
 
-/**
- * A word position captured in an earlier set of turns, expressed in `turns`.
- * A word's key is not the identity: a cut removes words from the track's
- * transcript, so `word_index` (a word's position in what is left) is
- * renumbered. The line id (track, source, start) is stable, so the word is
- * looked for in its line: same key and text, else the same place in the line.
- * A line that is there but drawn as bars keeps the position as it was. A line
- * that is gone gives the first word of the next old line that survived;
- * if none did, the position is returned as it was (the pane then falls back to
- * its pixel offset).
- */
+export type GuestBookmark = {
+  position: ScriptPaneReadingPosition;
+  end: SelectionEnd | null;
+};
+
+export function captureReading(
+  position: ScriptPaneReadingPosition,
+  model: GuestScriptModel,
+): GuestBookmark {
+  const end =
+    position.kind === "word" &&
+    position.turns === model.turns &&
+    model.wordStarts[position.index] != null
+      ? selectionEndOf(model, position.index)
+      : null;
+  return { position, end };
+}
+
 export function rebaseReading(
+  { position, end }: GuestBookmark,
+  model: GuestScriptModel,
+) {
+  if (position.kind === "scroll" || position.turns === model.turns)
+    return position;
+  if (end) {
+    const found = findSelectionEnd(model, end);
+    if (found.kind === "wait") return found;
+    if (found.kind === "at" && found.unique)
+      return { ...position, index: found.index, turns: model.turns };
+  }
+  return replacementPosition(position, model.turns);
+}
+
+function replacementPosition(
   position: Extract<ScriptPaneReadingPosition, { kind: "word" }>,
   turns: readonly ScriptTurn[],
 ): ScriptPaneReadingPosition {

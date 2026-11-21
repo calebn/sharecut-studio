@@ -508,7 +508,7 @@ export type ScriptPaneReadingPosition =
   | { kind: "scroll"; top: number };
 
 export type ScriptPaneReadingPositionBinding = {
-  getPosition: () => ScriptPaneReadingPosition | null;
+  getPosition: () => ScriptPaneReadingPosition | { kind: "wait" } | null;
   capture: (position: ScriptPaneReadingPosition) => void;
   restore: boolean;
 };
@@ -1272,7 +1272,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     }, []);
 
     /** Where a follower was last looking; handed to the binding if a refresh asks to restore it. */
-    const followerPlace = useRef<ScriptPaneReadingPosition | null>(null);
+    const followerPlace = useRef<(() => void) | null>(null);
     const serializeReadingPosition = useCallback(
       (preferredIndex?: number, aside = false) => {
         const body = bodyRef.current;
@@ -1285,7 +1285,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           rect?: DOMRect,
         ) => {
           if (aside) {
-            followerPlace.current = position;
+            followerPlace.current = () => binding.capture(position);
             return;
           }
           const state = readingOwnership.current;
@@ -1376,8 +1376,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         readingPositionRef.current?.restore === false &&
         readingPosition?.restore === true &&
         readingPosition.getPosition() === null;
-      if (holdsStill && followerPlace.current)
-        readingPosition.capture(followerPlace.current);
+      if (holdsStill) followerPlace.current?.();
       readingPositionRef.current = readingPosition;
       // The hold is over: note where the follower is now for the next one.
       if (resumesFollowing) serializeReadingPosition(undefined, true);
@@ -1750,7 +1749,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       }
       const body = bodyRef.current;
       const position = readingPositionRef.current?.getPosition();
-      if (!body || !position) return;
+      if (!body || !position || position.kind === "wait") return;
       const before = body.scrollTop;
       let focusedAnchor: HTMLElement | null = null;
       let target =

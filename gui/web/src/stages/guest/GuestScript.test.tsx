@@ -1,10 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { guestScriptOf } from "../../stage/hosts/guestScript";
 import { SCRIPT_TURNS } from "../../system/scriptFixtures";
 import { NEAREST, probeScript } from "../../system/scriptScrollProbe";
 import { GuestScript, type GuestScriptProps } from "./GuestScript";
-import { WORD_STARTS } from "./guestFixture";
+import { GUEST_SCRIPT, WORD_STARTS } from "./guestFixture";
 
 function setup(props: Partial<GuestScriptProps> = {}) {
   const onSeek = vi.fn();
@@ -12,8 +13,7 @@ function setup(props: Partial<GuestScriptProps> = {}) {
     <GuestScript
       guest="suggester"
       layout="desktop"
-      turns={SCRIPT_TURNS}
-      wordStarts={WORD_STARTS}
+      script={GUEST_SCRIPT}
       playing={2}
       onSeek={onSeek}
       {...props}
@@ -28,8 +28,7 @@ describe("GuestScript", () => {
       <GuestScript
         guest="viewer"
         layout="desktop"
-        turns={SCRIPT_TURNS}
-        wordStarts={WORD_STARTS}
+        script={GUEST_SCRIPT}
         playing={undefined}
         onSeek={vi.fn()}
       />,
@@ -112,9 +111,12 @@ describe("GuestScript", () => {
 
   it("does nothing when a word with no known time is tapped", async () => {
     const { onSeek } = setup({
-      wordStarts: WORD_STARTS.map((start, index) =>
-        index === 1 ? null : start,
-      ),
+      script: {
+        ...GUEST_SCRIPT,
+        wordStarts: WORD_STARTS.map((start, index) =>
+          index === 1 ? null : start,
+        ),
+      },
     });
     const held = SCRIPT_TURNS[0]?.words[1];
     await userEvent.click(
@@ -187,8 +189,7 @@ describe("GuestScript", () => {
         <GuestScript
           guest="suggester"
           layout="desktop"
-          turns={SCRIPT_TURNS}
-          wordStarts={WORD_STARTS}
+          script={GUEST_SCRIPT}
           playing={1}
           onSeek={vi.fn()}
         />,
@@ -203,8 +204,7 @@ describe("GuestScript", () => {
         <GuestScript
           guest="suggester"
           layout="desktop"
-          turns={SCRIPT_TURNS}
-          wordStarts={WORD_STARTS}
+          script={GUEST_SCRIPT}
           playing={2}
           onSeek={vi.fn()}
         />,
@@ -216,8 +216,7 @@ describe("GuestScript", () => {
         <GuestScript
           guest="suggester"
           layout="desktop"
-          turns={SCRIPT_TURNS}
-          wordStarts={WORD_STARTS}
+          script={GUEST_SCRIPT}
           playing={3}
           onSeek={vi.fn()}
         />,
@@ -238,10 +237,8 @@ describe("GuestScript", () => {
       <GuestScript
         guest="viewer"
         layout="desktop"
-        turns={[]}
-        wordStarts={[]}
+        script={{ ...guestScriptOf([]), empty: "cut" }}
         playing={undefined}
-        empty="cut"
         onSeek={vi.fn()}
       />,
     );
@@ -249,7 +246,7 @@ describe("GuestScript", () => {
       screen.getByText("Every word of this version has been cut or ignored."),
     ).toBeInTheDocument();
     unmount();
-    setup({ turns: [], wordStarts: [] });
+    setup({ script: guestScriptOf([]) });
     expect(
       screen.getByText("The host has not made a transcript of this version."),
     ).toBeInTheDocument();
@@ -267,8 +264,7 @@ describe("GuestScript following", () => {
       <GuestScript
         guest="suggester"
         layout="desktop"
-        turns={SCRIPT_TURNS}
-        wordStarts={WORD_STARTS}
+        script={GUEST_SCRIPT}
         playing={1}
         onSeek={vi.fn()}
         {...props}
@@ -369,10 +365,8 @@ describe("GuestScript following", () => {
         <GuestScript
           guest="viewer"
           layout="desktop"
-          turns={[]}
-          wordStarts={[]}
+          script={{ ...guestScriptOf([]), empty }}
           playing={undefined}
-          empty={empty}
           onSeek={vi.fn()}
         />,
       );
