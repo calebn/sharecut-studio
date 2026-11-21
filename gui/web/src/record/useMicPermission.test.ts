@@ -508,6 +508,43 @@ describe("useMicPermission slow prompt", () => {
     });
   });
 
+  it("waits another 10 s when a slow prompt is blocked and then resumes", async () => {
+    const permission = Object.assign(new EventTarget(), {
+      state: "prompt" as PermissionState,
+    });
+    const gum = stubGum(() => new Promise(() => {}), {
+      query: vi.fn(async () => permission),
+    });
+    const { result } = renderHook(() => useMicPermission(true, ""));
+    await advance(0);
+    act(() => result.current.request());
+    await advance(MIC_PROMPT_SLOW_MS);
+    expect(result.current.promptSlow).toBe(true);
+
+    act(() => {
+      permission.state = "denied";
+      permission.dispatchEvent(new Event("change"));
+    });
+    expect(result.current).toMatchObject({
+      status: "denied",
+      promptSlow: false,
+    });
+
+    act(() => {
+      permission.state = "prompt";
+      permission.dispatchEvent(new Event("change"));
+    });
+    expect(gum).toHaveBeenCalledTimes(2);
+    expect(result.current).toMatchObject({
+      status: "prompting",
+      promptSlow: false,
+    });
+    await advance(MIC_PROMPT_SLOW_MS - 1);
+    expect(result.current.promptSlow).toBe(false);
+    await advance(1);
+    expect(result.current.promptSlow).toBe(true);
+  });
+
   it("starts a fresh clock for a request made after the mic was switched off while slow", async () => {
     hungGum();
     const { result, rerender } = renderHook(
