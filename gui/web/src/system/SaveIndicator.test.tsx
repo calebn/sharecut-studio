@@ -34,18 +34,20 @@ describe("SaveIndicator away", () => {
   it("adds the waiting count to the words and to the spoken sentence", () => {
     render(<SaveIndicator state="away" cause="host" waiting={2} />);
     const status = screen.getByRole("status");
-    expect(status).toHaveTextContent("Can't reach the host · 2 waiting");
+    expect(status).toHaveTextContent(
+      "Can't reach the host · 2 waiting to send",
+    );
     const spoken = [...status.querySelectorAll("span[aria-hidden='true']")];
     expect(spoken.map((node) => node.textContent)).toEqual([
-      "Can't reach the host · 2 waiting",
+      "Can't reach the host · 2 waiting to send",
       "2",
     ]);
     expect(status.querySelector(".sr-only")).toHaveTextContent(
-      /^Can't reach the host, 2 waiting\. This page keeps trying\.$/,
+      /^Can't reach the host, 2 waiting to send\. This page keeps trying\.$/,
     );
     expect(status).toHaveAttribute(
       "title",
-      "Can't reach the host, 2 waiting. This page keeps trying.",
+      "Can't reach the host, 2 waiting to send. This page keeps trying.",
     );
   });
 
