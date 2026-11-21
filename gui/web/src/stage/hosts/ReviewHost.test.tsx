@@ -1648,23 +1648,31 @@ describe("Review host unsure words", () => {
     expect(farEcho).toHaveAttribute("data-selected", "");
   });
 
-  it("drops a held unsure note once the cut has no unsure words", async () => {
+  it("does not revive an old hold when a cut becomes unsure again", async () => {
     server.held = [{ id: "f2", label: "filler f2", reason: "unsure_word" }];
     mount();
     await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
     await undoButton();
     await userEvent.click(screen.getByRole("button", { name: /filler f2/ }));
     expect(screen.getByText(/Unsure word: is this/)).toBeVisible();
+    const heldNote = /Check the word first/;
+    expect(
+      within(screen.getByRole("article")).getByText(heldNote),
+    ).toBeVisible();
+    const unsure = server.pending;
     server.pending = server.pending.map((e) =>
       e.id === "f2" ? { ...e, unsure_words: [] } : e,
     );
     snapshot();
-    await waitFor(() =>
-      expect(
-        within(document.querySelector(".rv-card") as HTMLElement).queryByText(
-          /Check the word first/,
-        ),
-      ).toBeNull(),
-    );
+    expect(
+      within(screen.getByRole("article")).queryByText(heldNote),
+    ).toBeNull();
+
+    server.pending = unsure;
+    snapshot();
+    expect(screen.getByText(/Unsure word: is this/)).toBeVisible();
+    expect(
+      within(screen.getByRole("article")).queryByText(heldNote),
+    ).toBeNull();
   });
 });
