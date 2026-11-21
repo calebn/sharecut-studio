@@ -367,6 +367,64 @@ describe("Move…", () => {
     );
   });
 
+  it("refuses to open the folder picker when the recording close guard is armed", async () => {
+    tauri.on = true;
+    inProject(projectPath);
+    window.location.href += "&sc_close_guard=host";
+    vi.mocked(pickFolder).mockResolvedValue({ cancelled: true });
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+
+    await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+    expect(
+      await within(sheet).findByText(
+        "Stop the recording room before moving this episode.",
+      ),
+    ).toBeVisible();
+    expect(pickFolder).not.toHaveBeenCalled();
+    expect(moveProject).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("releases the move fence when a recording starts while the picker is open", async () => {
+    tauri.on = true;
+    inProject(projectPath);
+    const picked = deferred<Awaited<ReturnType<typeof pickFolder>>>();
+    vi.mocked(pickFolder).mockReturnValueOnce(picked.promise);
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    const button = within(sheet).getByRole("button", { name: "Move…" });
+
+    await user.click(button);
+    await waitFor(() => expect(pickFolder).toHaveBeenCalledOnce());
+    window.location.href += "&sc_close_guard=host";
+    await act(async () => picked.resolve({ folder: "/Users/ada/Archive" }));
+    expect(
+      await within(sheet).findByText(
+        "Stop the recording room before moving this episode.",
+      ),
+    ).toBeVisible();
+    expect(moveProject).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+    await expect(
+      withCommandSendOwnership(projectPath, "shared", async () => "saved"),
+    ).resolves.toBe("saved");
+
+    window.location.href = window.location.href.replace(
+      "&sc_close_guard=host",
+      "",
+    );
+    vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
+    vi.mocked(moveProject).mockResolvedValue({
+      project_path: "/Users/ada/Archive/ep-12/episode.sharecut",
+      previous_path: projectPath,
+    });
+    await user.click(button);
+    await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+  });
+
   it("changes nothing when the folder dialog is cancelled", async () => {
     tauri.on = true;
     inProject(projectPath);

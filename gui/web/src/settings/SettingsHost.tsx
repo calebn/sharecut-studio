@@ -7,6 +7,7 @@ import {
   setJoinFadeLimitCommand,
 } from "../api";
 import { runPointerCommand } from "../commands/pointer";
+import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import { useTheme } from "../hooks/useTheme";
 import { useViewportClass } from "../hooks/useViewportClass";
@@ -40,6 +41,8 @@ const MOVE_REFUSAL_CODES = new Set<string | null>([
   "move_room_open",
   "project_busy",
 ]);
+const MOVE_RECORDING_OPEN =
+  "Stop the recording room before moving this episode.";
 const MOVE_CHECK_FAILED =
   "Couldn't check whether all edits are saved. Keep this episode open and try Move again when editing has finished.";
 const MOVE_PICK_FAILED =
@@ -54,6 +57,10 @@ type MoveFailure = {
   message: string;
 };
 
+function refuseWhileRecording(): void {
+  if (desktopCloseGuardArmed()) throw new Error(MOVE_RECORDING_OPEN);
+}
+
 async function refuseWhileEditsQueued(projectPath: string): Promise<void> {
   if ((await loadHostCommandCount(projectPath)) > 0) {
     throw new Error(MOVE_WAIT_FOR_EDITS);
@@ -67,7 +74,8 @@ function moveErrorMessage(error: unknown, fallback: string): string {
   if (
     error instanceof Error &&
     (error.message === MOVE_WAIT_FOR_EDITS ||
-      error.message === MOVE_IN_PROGRESS)
+      error.message === MOVE_IN_PROGRESS ||
+      error.message === MOVE_RECORDING_OPEN)
   ) {
     return error.message;
   }
@@ -152,7 +160,9 @@ export function SettingsHost() {
     void mover.run(async () => {
       let fallback = MOVE_CHECK_FAILED;
       try {
+        refuseWhileRecording();
         await refuseWhileEditsQueued(projectPath);
+        refuseWhileRecording();
         fallback = MOVE_PICK_FAILED;
         const picked = await pickFolder();
         if ("unavailable" in picked) {
@@ -167,6 +177,7 @@ export function SettingsHost() {
         fallback = MOVE_CHECK_FAILED;
         const destination = await withHostMove(projectPath, async () => {
           await refuseWhileEditsQueued(projectPath);
+          refuseWhileRecording();
           fallback = MOVE_UNCONFIRMED;
           try {
             const moved = await moveProject(
