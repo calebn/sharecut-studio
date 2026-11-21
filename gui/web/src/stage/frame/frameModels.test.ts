@@ -147,6 +147,27 @@ describe("player model", () => {
     ]);
   });
 
+  it("clamps chapter labels and ticks to the known episode bounds", () => {
+    const markers = [
+      { time: -10, title: "Before the start" },
+      { time: 30, title: "Middle" },
+      { time: 60, title: "End" },
+      { time: 75, title: "After the end" },
+    ];
+    const chapters = playerChapters(markers, 60);
+    expect(chapters).toEqual([
+      { title: "Before the start", time: "0:00", at: 0 },
+      { title: "Middle", time: "0:30", at: 0.5 },
+      { title: "End", time: "1:00", at: 1 },
+      { title: "After the end", time: "1:00", at: 1 },
+    ]);
+    expect(playerTicks(chapters, [], 60)).toEqual([
+      { at: 0, kind: "chapter" },
+      { at: 0.5, kind: "chapter" },
+      { at: 1, kind: "chapter" },
+    ]);
+  });
+
   it("adds one suggestion tick per clamped time, after the comments", () => {
     expect(playerTicks([], [15], 60, [30, 30, 90, 75, -5])).toEqual([
       { at: 0.25, kind: "comment" },
