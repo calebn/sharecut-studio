@@ -239,7 +239,8 @@ for (const size of SIZES) {
         else await words.last().click();
         await expect(selected).toHaveCount(1);
         const picked = (await selected.innerText()).trim();
-        const originalTime = await seconds(view);
+        const firstCutDuration = 5;
+        const pickedTimeAfterCut = (await seconds(view)) - firstCutDuration;
         const originalKey = await selected.getAttribute("data-word-key");
         if (!originalKey) throw new Error("The selected word has no key");
         const originalSection = await section.elementHandle();
@@ -252,12 +253,17 @@ for (const size of SIZES) {
           .toBe(false);
         await originalSection.dispose();
         await expect(selected).toHaveText(picked);
+        await selected.scrollIntoViewIfNeeded();
+        await expect(
+          bar.getByRole("button", { name: "Comment" }),
+        ).toBeEnabled();
 
         const detail = deferred<void>();
         guest.detail.waitFor = detail.promise;
         try {
           await hostEdit(page, guest.projectPath, "cut", 0);
           await expect(section).toHaveAttribute("aria-busy", "true");
+          await expect(bar.locator("button:enabled")).toHaveCount(0);
         } finally {
           detail.resolve();
         }
@@ -273,13 +279,12 @@ for (const size of SIZES) {
         if (!survivorKey) throw new Error("The surviving word has no key");
         await expect(selected).toHaveAttribute("data-word-key", survivorKey);
 
-        // The first ripple removed five seconds before the picked word.
         await hostEdit(
           page,
           guest.projectPath,
           "cut",
           0,
-          Math.max(0, originalTime - 6),
+          Math.max(0, pickedTimeAfterCut - 1),
         );
         await expect(
           view.locator(`${WORD}[data-word-key="${survivorKey}"]`),
