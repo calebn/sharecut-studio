@@ -37,7 +37,7 @@ function engineEvents(
   };
 }
 
-function makeCtx() {
+function makeCtx(decodedFrames?: number) {
   const sentinels: FakeSentinel[] = [];
   const created: Array<{
     start: ReturnType<typeof vi.fn>;
@@ -125,7 +125,7 @@ function makeCtx() {
     decodeAudioData: vi.fn(
       async (ab: ArrayBuffer) =>
         ({
-          length: ab.byteLength || 48000,
+          length: decodedFrames ?? (ab.byteLength || 48000),
           duration: 1,
           numberOfChannels: 1,
           sampleRate: 48000,
@@ -2892,18 +2892,20 @@ describe("playing a timeline longer than the first window", () => {
 
 describe("the decoded audio the engine holds", () => {
   const CHUNK_SEC = 60;
-  const CHUNK_BYTES = 48000 * CHUNK_SEC * 4;
+  const CHUNK_FRAMES = 48000 * CHUNK_SEC;
+  const CHUNK_BYTES = CHUNK_FRAMES * 4;
   const TRACK_IDS = ["host", "guest", "cohost", "solo"];
   /** Per track: the retained window plus one chunk of slack. */
   const CHUNKS_PER_TRACK = 5;
   const BOUND = TRACK_IDS.length * CHUNKS_PER_TRACK * CHUNK_BYTES;
 
   function rig(durationSec: number, trackIds = TRACK_IDS) {
-    const handle = makeCtx();
+    const handle = makeCtx(CHUNK_FRAMES);
     const fetched: string[] = [];
     const fetchChunk = vi.fn(async (ref: ImmutableChunkRef) => {
       fetched.push(ref.url);
-      return new ArrayBuffer(48000 * CHUNK_SEC);
+      // The mock decoder supplies the logical size; no encoded audio is read.
+      return new ArrayBuffer(1);
     });
     const events = engineEvents();
     const engine = new ProxyEngine(handle.ctx, fetchChunk, events);
@@ -2916,7 +2918,7 @@ describe("the decoded audio the engine holds", () => {
     let peak = 0;
     const decodeImpl = handle.decode.getMockImplementation();
     handle.decode.mockImplementation(async (ab: ArrayBuffer) => {
-      peak = Math.max(peak, held().bytes + ab.byteLength * 4);
+      peak = Math.max(peak, held().bytes + CHUNK_BYTES);
       return decodeImpl?.(ab) as Promise<AudioBuffer>;
     });
     engine.setSnapshot(episode(durationSec, CHUNK_SEC, trackIds));
@@ -3313,9 +3315,9 @@ describe("the decoded audio the engine holds", () => {
   it("counts every channel of a decoded buffer", async () => {
     const r = rig(600, ["host"]);
     r.handle.decode.mockImplementation(
-      async (ab: ArrayBuffer) =>
+      async () =>
         ({
-          length: ab.byteLength,
+          length: CHUNK_FRAMES,
           duration: 1,
           numberOfChannels: 2,
           sampleRate: 48000,
@@ -3325,7 +3327,7 @@ describe("the decoded audio the engine holds", () => {
     await flush();
     const held = r.held();
     expect(held.buffers.size).toBeGreaterThan(0);
-    expect(held.bytes).toBe(held.buffers.size * 48000 * CHUNK_SEC * 2 * 4);
+    expect(held.bytes).toBe(held.buffers.size * CHUNK_BYTES * 2);
     r.engine.dispose();
   });
 
