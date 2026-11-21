@@ -184,6 +184,9 @@ export function useMicPermission(
   }
 
   const prompting = status === "prompting";
+  if (!prompting && slowEpisode !== null) {
+    setSlowEpisode(null);
+  }
   const episode = `${attempt}:${restarts}`;
   useEffect(() => {
     if (!prompting) {
