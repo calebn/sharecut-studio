@@ -168,6 +168,12 @@ test("an Editor's Cut lands on the host's episode and Undo on the toast takes it
     async ([host, guest], links, projectPath) => {
       await openGuestShare(guest!, links.editor!);
       await word(guest!, "uncle").first().click();
+      const highlight = guest!.locator(
+        '.lane-row[data-track-id="reference"] .range-overlay',
+      );
+      await expect(highlight).toHaveAttribute("data-range-start", "2.53");
+      await expect(highlight).toHaveAttribute("data-range-end", "2.79");
+      await expect(guest!.locator(".lane-row .range-overlay")).toHaveCount(1);
       await pressCut(guest!, "EditSelectedRange");
 
       await expectFeedback(guest!, 'Cut "uncle" · 0.3 s · 1 more', {

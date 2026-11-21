@@ -328,6 +328,27 @@ test.describe("Cut", () => {
     await expect.poll(() => clipCount(page)).toBe(before);
   });
 
+  test("selected Script words highlight only their speaker's timeline lane", async ({
+    page,
+  }) => {
+    await openEdit(page);
+    await openPanel(page, "transcript");
+    const words = page.locator(
+      '.sys-script-body .sys-script-word[data-word-key^="reference:"]',
+    );
+    await words.nth(2).click();
+    await words.nth(3).click({ modifiers: ["Shift"] });
+    const overlay = page.locator(
+      '.lane-row[data-track-id="reference"] .range-overlay',
+    );
+    await expect(overlay).toHaveAttribute("data-range-start", "2.79");
+    await expect(overlay).toHaveAttribute("data-range-end", "3.56");
+    await expect(page.locator(".lane-row .range-overlay")).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(overlay).toHaveCount(0);
+    await expect(words.nth(3)).not.toHaveAttribute("data-selected");
+  });
+
   test("Backspace cuts selected words", async ({ page }) => {
     await openEdit(page);
     await openPanel(page, "transcript");
@@ -480,6 +501,23 @@ test.describe("Create menu", () => {
 
 test.describe("Phone dock", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test("a word selected on the phone Script highlights its timeline lane", async ({
+    page,
+  }) => {
+    await openEdit(page);
+    await openPanel(page, "transcript");
+    const word = page.locator('.sys-script-word[data-word-key="reference::3"]');
+    await word.tap();
+    await expect(word).toHaveAttribute("data-selected");
+    await phone.showTimeline(page);
+    const highlight = page.locator(
+      '.lane-row[data-track-id="reference"] .range-overlay',
+    );
+    await expect(highlight).toHaveAttribute("data-range-start", "2.97");
+    await expect(highlight).toHaveAttribute("data-range-end", "3.56");
+    await expect(page.locator(".lane-row .range-overlay")).toHaveCount(1);
+  });
 
   test("selected words keep Split reachable and Fix text in More, with a visible Undo", async ({
     page,

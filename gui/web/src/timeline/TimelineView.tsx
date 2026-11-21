@@ -30,6 +30,7 @@ import {
   trackIdFromPoint,
 } from "../edit/clipMove";
 import { cancelClipPlacement, useClipPlacement } from "../edit/clipPlacement";
+import { resolveSelectionRange } from "../edit/rangeSelection";
 import { useShortTouchScreen } from "../hooks/useShortTouchScreen";
 import { presenceColorVar } from "../presence/colors";
 import { useProsodyOverlayViews } from "../prosody/useProsodyOverlay";
@@ -220,6 +221,20 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     () => "none",
   );
   const project = useDaw(selectTimelineProject);
+  const scriptProject = useDawStore((state) =>
+    state.selection?.kind === "transcriptRange" ? state.project : null,
+  );
+  // Use the same word-to-clip mapping as range actions without changing the Script selection.
+  const laneSelection = useMemo(() => {
+    if (selection?.kind !== "transcriptRange" || !scriptProject)
+      return selection;
+    const { targets } = resolveSelectionRange(scriptProject, selection);
+    const target = targets.length === 1 ? targets[0] : undefined;
+    return target?.track_ids.length === 1 &&
+      target.track_ids[0] === selection.trackId
+      ? { kind: "range" as const, target }
+      : selection;
+  }, [scriptProject, selection]);
   const bleedInspection = useSyncExternalStore(
     clipBleedSession.subscribe,
     clipBleedSession.getSnapshot,
@@ -1080,7 +1095,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                             laneHeight={laneHeight}
                             zoomPxPerSec={zoomPxPerSec}
                             projectPath={projectPath}
-                            selection={selection}
+                            selection={laneSelection}
                             showLevels={layers.showLevels}
                             envelopes={envelopeSlices[track.id] ?? EMPTY_ARR}
                             appliedRecords={

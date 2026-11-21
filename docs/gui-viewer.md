@@ -246,6 +246,11 @@ The store keeps a run of words in one track as `word_index` numbers. Another ses
 
 While an own range action is in flight, or while a replacement has no words yet, the stored numbers are left as they are and may name other words in the meantime. They are judged against the project the selection was named in when the action ends or the words arrive, and a selection made while the words were missing is cleared when the words arrive. If an own range action is in flight at that moment, nothing names the project it was made in, so the selection is kept as it is when the action ends.
 
+In Edit, a single-speaker Script selection highlights its resolved audible
+intervals in that speaker's timeline lane. The highlight follows clip timing
+and clears with the selection. It appears only when the words resolve to one
+unambiguous placement on the speaker's lane.
+
 During a Script cut, the inline range progress stays in the live region without
 adding a row to the timeline. The edit can split a waveform into new clip
 layers. Each new layer measures its initial height before paint so it can draw
