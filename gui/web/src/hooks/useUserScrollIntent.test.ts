@@ -35,6 +35,46 @@ describe("useUserScrollIntent", () => {
     expect(result.current.isUserScroll()).toBe(true);
   });
 
+  it.each(["wheel", "touch", "key", "scrollbar"] as const)(
+    "clears earlier input and accepts fresh %s input",
+    (input) => {
+      const { result } = renderHook(() => useUserScrollIntent());
+      const container = {};
+      act(() => result.current.handlers.onWheel());
+      expect(result.current.isUserScroll()).toBe(true);
+      act(() => result.current.clear());
+      expect(result.current.isUserScroll()).toBe(false);
+
+      act(() => {
+        const handlers = result.current.handlers;
+        switch (input) {
+          case "wheel":
+            handlers.onWheel();
+            break;
+          case "touch":
+            handlers.onTouchStart();
+            handlers.onTouchMove();
+            handlers.onTouchEnd();
+            break;
+          case "key":
+            handlers.onKeyDown({
+              key: "PageDown",
+              target: container,
+              currentTarget: container,
+            } as unknown as KeyboardEvent<HTMLElement>);
+            break;
+          case "scrollbar":
+            handlers.onPointerDown({
+              target: container,
+              currentTarget: container,
+            } as unknown as PointerEvent<HTMLElement>);
+            break;
+        }
+      });
+      expect(result.current.isUserScroll()).toBe(true);
+    },
+  );
+
   it("does not count a touch tap, but counts a touch drag", () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useUserScrollIntent());

@@ -32,6 +32,8 @@ Follow playhead keeps overlapping speakers highlighted in transcript order.
 When the leading playing word leaves the view, Script scrolls only far enough
 to bring it in at the nearest edge. A word already in view does not move the list.
 Backward seeks update the active words through the same time-indexed lookup.
+**Back to playhead** returns to the current word and resumes Follow as soon as
+you tap it. Scrolling again pauses Follow.
 
 Roll handles on a seam pill's two edges roll the join during a drag. A floating
 preview shows the time change, restored-word side, and legal limits. The glyph

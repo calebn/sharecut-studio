@@ -2,7 +2,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { USER_SCROLL_INTENT_MS } from "../src/hooks/useUserScrollIntent";
 import { e2eProjectPath } from "./env";
 import { seekTo } from "./playback";
-import { openPanel, openProject } from "./stageNav";
+import { openPanel, openProject, stageTab } from "./stageNav";
 import { servePendingEditsCleared } from "./transcriptEdit";
 
 type Word = Record<string, unknown>;
@@ -206,6 +206,40 @@ function needlessScrolls(samples: Sample[]): number {
   }).length;
 }
 
+async function scrollAwayFromPlayhead(page: Page) {
+  const list = await openFollowedTranscript(page);
+  await seekTo(page, 30);
+  const word = list.locator('[data-word-key="reference::10"]');
+  await expect(word).toHaveAttribute("data-playing", "");
+  // Fractional intersections can round just below 1.
+  await expect(word).toBeInViewport({ ratio: 0.99 });
+  const followingTop = await settledScrollTop(list);
+  expect(followingTop).toBeGreaterThan(0);
+
+  const back = page.getByRole("button", {
+    name: "Back to playhead",
+    exact: true,
+  });
+  const follow = page.getByRole("button", { name: "Follow the playhead" });
+  await list.hover();
+  await page.mouse.wheel(0, -followingTop - 100);
+  await expect(back).toBeVisible();
+  await expect(word).not.toBeInViewport();
+  await expect(word).toHaveAttribute("data-playing", "");
+  return { list, word, followingTop, back, follow };
+}
+
+async function expectFollowingPlayhead({
+  word,
+  back,
+  follow,
+}: Awaited<ReturnType<typeof scrollAwayFromPlayhead>>) {
+  await expect(word).toBeInViewport({ ratio: 0.99 });
+  await expect(back).toBeHidden();
+  await expect(word).toHaveAttribute("data-playing", "");
+  await expect(follow).toHaveAttribute("aria-pressed", "true");
+}
+
 const viewports = [
   { name: "desktop", width: 1280, height: 800 },
   { name: "phone portrait", width: 390, height: 844 },
@@ -257,43 +291,43 @@ for (const viewport of viewports) {
       }
     });
 
-    test("Back to playhead restores the current word after a manual scroll", async ({
+    test("Back to playhead restores the current word after a reading pause", async ({
       page,
     }) => {
-      const list = await openFollowedTranscript(page);
-      await seekTo(page, 30);
-      const word = list.locator('[data-word-key="reference::10"]');
-      await expect(word).toHaveAttribute("data-playing", "");
-      // The browser can round a fractional intersection just below 1.
-      await expect(word).toBeInViewport({ ratio: 0.99 });
-      const followingTop = await settledScrollTop(list);
-      expect(followingTop).toBeGreaterThan(0);
+      const script = await scrollAwayFromPlayhead(page);
+      expect(await settledScrollTop(script.list)).toBeLessThan(
+        script.followingTop,
+      );
 
-      await list.hover();
-      await page.mouse.wheel(0, -followingTop - 100);
-      const back = page.getByRole("button", {
-        name: "Back to playhead",
-        exact: true,
-      });
-      await expect(back).toBeVisible();
-      expect(await settledScrollTop(list)).toBeLessThan(followingTop);
-      await expect(word).not.toBeInViewport();
-      await expect(word).toHaveAttribute("data-playing", "");
-
-      // Return after a reading pause, once the previous wheel intent expires.
       const until = await page.evaluate(
         (duration) => performance.now() + duration,
         USER_SCROLL_INTENT_MS,
       );
       await page.waitForFunction((end) => performance.now() >= end, until);
-      await back.click();
-      await expect(word).toBeInViewport({ ratio: 0.99 });
-      await expect(back).toBeHidden();
-      await expect(word).toHaveAttribute("data-playing", "");
-      await expect(
-        page.getByRole("button", { name: "Follow the playhead" }),
-      ).toHaveAttribute("aria-pressed", "true");
+      await script.back.click();
+      await expectFollowingPlayhead(script);
     });
+
+    for (const action of viewport.name === "desktop"
+      ? (["Back to playhead", "Follow the playhead", "Edit"] as const)
+      : (["Back to playhead"] as const)) {
+      test(`a quick ${action} return resumes Follow until another scroll`, async ({
+        page,
+      }) => {
+        const script = await scrollAwayFromPlayhead(page);
+        if (action === "Edit") await stageTab(page, "edit").click();
+        else
+          await page.getByRole("button", { name: action, exact: true }).click();
+        const returned = await settledScrollTop(script.list);
+        await expectFollowingPlayhead(script);
+
+        await script.list.hover();
+        await page.mouse.wheel(0, -returned - 100);
+        await expect(script.back).toBeVisible();
+        await expect(script.follow).toHaveAttribute("aria-pressed", "false");
+        await expect(script.word).not.toBeInViewport();
+      });
+    }
 
     test("a suppressed word at the playhead never moves the list", async ({
       page,

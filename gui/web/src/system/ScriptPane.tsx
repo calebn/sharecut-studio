@@ -486,6 +486,7 @@ function elementClipped(element: HTMLElement, includeViewport: boolean) {
 }
 
 export type ScriptPaneHandle = {
+  clearScrollIntent: () => void;
   /** Scroll the word into view. False when the pane does not show it, so the host should widen its window of turns. */
   scrollToWord: (index: number, block?: ScrollLogicalPosition) => boolean;
   /** Put focus on the header's Find button, where the Find bar's focus goes when it closes or finishes a bulk verb. False when the pane draws no such button. */
@@ -977,7 +978,11 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     const editedAt = useRef<number | null>(null);
     const [places, setPlaces] = useState<HandlePlaces | null>(null);
     const inside = useRef(false);
-    const { handlers: scrollHandlers, isUserScroll } = useUserScrollIntent();
+    const {
+      handlers: scrollHandlers,
+      isUserScroll,
+      clear: clearScrollIntent,
+    } = useUserScrollIntent();
     const readingOwnership = useRef<ReadingScrollOwnership>(
       EMPTY_READING_OWNERSHIP,
     );
@@ -1737,6 +1742,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     useImperativeHandle(
       ref,
       () => ({
+        clearScrollIntent,
         scrollToWord: (index, block = "nearest") => {
           const stop = stopContaining(live.current.stops, index);
           const el = stop ? registry.current.get(stop.start) : undefined;
@@ -1763,7 +1769,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           return el != null;
         },
       }),
-      [focusInternally, sampleReading],
+      [clearScrollIntent, focusInternally, sampleReading],
     );
 
     const bodyShown = status.kind !== "empty" && status.kind !== "loading";
