@@ -43,3 +43,6 @@ captions and transcript. The Podcast listing's export repair always uses Project
 default. A named variant leaves the shared master and Listen link unchanged.
 
 On a phone the Stage bar is the bottom tab bar, Edit shows one of Timeline or Script at a time, and the people slot shows one avatar plus a count. A Commenter or Viewer share link is Review alone, with no Stage bar, and an Editor link has three stages.
+
+On an Editor link, Deliver shows the host's exported files as downloads. The Files
+section shows when the list is loading and offers Retry if the request fails.

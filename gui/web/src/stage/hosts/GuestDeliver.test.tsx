@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listed = vi.hoisted(() => ({ list: vi.fn() }));
@@ -85,6 +86,37 @@ describe("GuestDeliver files", () => {
     expect(
       await screen.findByText("No exported files yet. Ask the host to export."),
     ).toBeInTheDocument();
+  });
+
+  it("shows the Editor a pending listing and a retry after a failure", async () => {
+    let rejectListing!: (reason: Error) => void;
+    listed.list.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectListing = reject;
+        }),
+    );
+    asGuest("edit");
+    render(<GuestDeliver />);
+
+    expect(screen.getByText("Loading exported files…")).toBeInTheDocument();
+    expect(screen.queryByText(/^No exported files yet/)).toBeNull();
+    rejectListing(new Error("Internal listing error"));
+    expect(
+      await screen.findByText("Exported files could not be loaded."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Internal listing error")).toBeNull();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry loading exported files" }),
+    );
+    expect(
+      await screen.findByRole("link", { name: /^Download ep\.mp3/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Exported files could not be loaded."),
+    ).toBeNull();
+    expect(listed.list).toHaveBeenCalledTimes(2);
   });
 
   it.each(["comment", "view"] as const)(
