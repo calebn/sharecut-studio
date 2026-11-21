@@ -2,9 +2,9 @@ import { type PointerEvent, type RefObject, useCallback, useRef } from "react";
 import { makeRangeTarget } from "../edit/rangeSelection";
 import { useInterruptCancel } from "../hooks/useInterruptCancel";
 import { useDawStore } from "../state/dawStore";
-import { captureSelectionRestore } from "../state/selectionSlice";
 import type { RangeDraft } from "../state/types";
 import type { ProjectView, Selection } from "../types/project";
+import { captureTimelineSelectionRestore } from "./captureTimelineSelectionRestore";
 import { isSplitModifier } from "./useSplitAtPointer";
 
 export type RangePoint = { clientX: number; clientY: number };
@@ -24,7 +24,7 @@ export function useRangeGesture(
     owner: object | undefined;
     origin: RangePoint;
     project: ProjectView;
-    restoreSelection: ReturnType<typeof captureSelectionRestore>;
+    restoreSelection: ReturnType<typeof captureTimelineSelectionRestore>;
     previousDraft: RangeDraft | null;
     drawing: boolean;
     epoch: number;
@@ -61,7 +61,7 @@ export function useRangeGesture(
           owner,
           origin: point,
           project: state.project,
-          restoreSelection: captureSelectionRestore(state),
+          restoreSelection: captureTimelineSelectionRestore(state),
           previousDraft: state.rangeDraft,
           drawing: false,
           epoch: state.projectEpoch,

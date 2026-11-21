@@ -1,10 +1,12 @@
 import { act, fireEvent, render } from "@testing-library/react";
 import { useLayoutEffect, useRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { makeRangeTarget } from "../edit/rangeSelection";
 import "../stage/edit/script/registerTranscriptSelectionFollower";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject, sampleTrack } from "../test/fixtures";
+import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { named, snapshot } from "../test/transcriptSelectionFixtures";
+import { captureTimelineSelectionRestore } from "./captureTimelineSelectionRestore";
 import { useRangeGesture } from "./useRangeGesture";
 
 class TestPointerEvent extends MouseEvent {
@@ -488,5 +490,69 @@ describe("range select with a second pointer (#1034)", () => {
     const owned = useDawStore.getState().selection;
     fireEvent.pointerCancel(lanes, { ...touch, pointerId: 2 });
     expect(useDawStore.getState().selection).toBe(owned);
+  });
+});
+
+describe("an exact range saved before a Timeline gesture", () => {
+  const host = clipRow({ track_id: "host" });
+  const guest = clipRow({ id: "guest-clip", track_id: "guest" });
+  const project = minimalProject({
+    tracks: [sampleTrack(), sampleTrack({ id: "guest" })],
+    clips: { tracks: { host: [host], guest: [guest] }, clip_count: 2 },
+  });
+
+  function capture() {
+    const store = useDawStore.getState();
+    store.hydrate(project.project_path, project);
+    const target = makeRangeTarget(project, [{ start: 2, end: 5 }], ["host"]);
+    if (!target) throw new Error("Expected a sealed host range");
+    store.setSelection({ kind: "range", target });
+    return captureTimelineSelectionRestore(useDawStore.getState());
+  }
+
+  it.each(["a drawn range", "the saved selection"] as const)(
+    "clears changed audio on cancel when %s is still selected",
+    (current) => {
+      const restore = capture();
+      const store = useDawStore.getState();
+      if (current === "a drawn range") {
+        const target = makeRangeTarget(
+          project,
+          [{ start: 6, end: 8 }],
+          ["host"],
+        );
+        if (!target) throw new Error("Expected a temporary host range");
+        store.setSelection({ kind: "range", target });
+      }
+      store.setProject({
+        ...project,
+        clips: {
+          ...project.clips,
+          tracks: {
+            host: [{ ...host, source_start: 0.75, source_end: 10.75 }],
+            guest: [guest],
+          },
+        },
+      });
+      expect(restore(useDawStore.getState())).toBeNull();
+    },
+  );
+
+  it("restores the exact interval after an unrelated lane edit", () => {
+    const restore = capture();
+    const store = useDawStore.getState();
+    const selection = store.selection;
+    store.setSelection(null);
+    store.setProject({
+      ...project,
+      clips: {
+        ...project.clips,
+        tracks: {
+          host: [host],
+          guest: [{ ...guest, source_start: 0.75, source_end: 10.75 }],
+        },
+      },
+    });
+    expect(restore(useDawStore.getState())).toEqual(selection);
   });
 });
