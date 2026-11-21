@@ -183,7 +183,10 @@ describe("App bootstrap request lifetime", () => {
   );
 
   it("gives an offline cached review no transcript words", async () => {
-    offline.load.mockResolvedValue({ project: cachedProject(), saved_at: 1 });
+    offline.load.mockResolvedValue({
+      project: cachedProject(),
+      saved_at: Date.now(),
+    });
     serve(async () => {
       throw new TypeError("offline");
     });
@@ -240,7 +243,7 @@ describe("App bootstrap request lifetime", () => {
     rerender(<App />);
     await screen.findByText("Studio body");
     await act(async () => {
-      oldCache.resolve({ project: cachedProject(), saved_at: 1 });
+      oldCache.resolve({ project: cachedProject(), saved_at: Date.now() });
     });
     expect(provider()).toHaveAttribute("data-path", "share:beta");
     expect(provider()).toHaveAttribute("data-cached-name", "");
@@ -248,7 +251,10 @@ describe("App bootstrap request lifetime", () => {
 
   it("retains the same review's cached project when a later bootstrap succeeds", async () => {
     let calls = 0;
-    offline.load.mockResolvedValue({ project: cachedProject(), saved_at: 1 });
+    offline.load.mockResolvedValue({
+      project: cachedProject(),
+      saved_at: Date.now(),
+    });
     serve(async () => {
       if (++calls === 1) throw new TypeError("offline");
       return bootstrap("Alpha online");
@@ -265,7 +271,10 @@ describe("App bootstrap request lifetime", () => {
   });
 
   it("does not seed an online review with another token's cached project", async () => {
-    offline.load.mockResolvedValue({ project: cachedProject(), saved_at: 1 });
+    offline.load.mockResolvedValue({
+      project: cachedProject(),
+      saved_at: Date.now(),
+    });
     serve(async (token) => {
       if (token === "alpha") throw new TypeError("offline");
       return bootstrap("Beta");
@@ -479,7 +488,10 @@ describe("App bootstrap request lifetime", () => {
 
     it("reads no saved copy and shows nothing for the newest attempt that an older one's episode aborted", async () => {
       const { second, third, fetchMock } = await replacedWhileHung();
-      offline.load.mockResolvedValue({ project: cachedProject(), saved_at: 1 });
+      offline.load.mockResolvedValue({
+        project: cachedProject(),
+        saved_at: Date.now(),
+      });
       const reads = offline.load.mock.calls.length;
       await act(async () => {
         second.resolve(bootstrap("Alpha"));
@@ -497,7 +509,10 @@ describe("App bootstrap request lifetime", () => {
 
     it("aborts the older attempts when the newest one opens the saved copy", async () => {
       const { third, fetchMock } = await replacedWhileHung();
-      offline.load.mockResolvedValue({ project: cachedProject(), saved_at: 1 });
+      offline.load.mockResolvedValue({
+        project: cachedProject(),
+        saved_at: Date.now(),
+      });
       await act(async () => {
         third.resolve(new Response("{}", { status: 500 }));
       });

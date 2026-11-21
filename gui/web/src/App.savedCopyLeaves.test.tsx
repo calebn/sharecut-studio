@@ -70,7 +70,7 @@ beforeEach(() => {
     project: minimalProject({
       meta: { name: "Stale episode", workspace_dir: "/tmp/x" },
     }),
-    saved_at: 1,
+    saved_at: Date.now(),
   });
   offline.clear.mockReset().mockResolvedValue(undefined);
   audio.forget.mockReset().mockResolvedValue(undefined);

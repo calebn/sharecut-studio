@@ -695,6 +695,19 @@ describe("useProxyTransport", () => {
     expect(useDawStore.getState().audioError).toBeNull();
   });
 
+  it("does not play even a matching cached manifest after seven days", async () => {
+    vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
+    vi.mocked(loadOfflineSnapshot).mockResolvedValue({
+      manifest: manifestFor(),
+      saved_at: Date.now() - 7 * 24 * 60 * 60 * 1000,
+    });
+    renderHook(() => useProxyTransport());
+    await vi.waitFor(() =>
+      expect(useDawStore.getState().audioError).toBeTruthy(),
+    );
+    expect(engine.setSnapshot).not.toHaveBeenCalled();
+  });
+
   it("never matches a cached manifest whose render hashes are stem hashes", async () => {
     const current = structuredClone(useDawStore.getState().project!);
     current.render_status.tracks = { host: { render_hash: "stem-host" } };
@@ -714,7 +727,7 @@ describe("useProxyTransport", () => {
     vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
     vi.mocked(loadOfflineSnapshot).mockResolvedValue({
       manifest: cached,
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     renderHook(() => useProxyTransport());
     await vi.waitFor(() =>
@@ -731,7 +744,7 @@ describe("useProxyTransport", () => {
     vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
     vi.mocked(loadOfflineSnapshot).mockResolvedValue({
       manifest: cached,
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     const { result } = renderHook(() => {
       const owns = useProxyTransport();
@@ -791,7 +804,7 @@ describe("useProxyTransport", () => {
     vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
     vi.mocked(loadOfflineSnapshot).mockResolvedValue({
       manifest: manifestFor(),
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     renderHook(() => useProxyTransport());
     await ready();
@@ -883,7 +896,7 @@ describe("useProxyTransport", () => {
       vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
       vi.mocked(loadOfflineSnapshot).mockResolvedValue({
         manifest: cached,
-        saved_at: 1,
+        saved_at: Date.now(),
       });
       const project = structuredClone(fixture.base);
       if (advance === "clip") project.clips.tracks = fixture.moved.clips.tracks;
@@ -909,7 +922,7 @@ describe("useProxyTransport", () => {
     vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
     vi.mocked(loadOfflineSnapshot).mockResolvedValue({
       manifest: cached,
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     const project = structuredClone(useDawStore.getState().project!);
     project.history.head_id = "after-comment" as typeof project.history.head_id;
@@ -926,7 +939,7 @@ describe("useProxyTransport", () => {
     vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
     vi.mocked(loadOfflineSnapshot).mockResolvedValue({
       manifest: cached,
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     renderHook(() => useProxyTransport());
     await ready();
@@ -1000,7 +1013,7 @@ describe("useProxyTransport", () => {
     vi.mocked(loadOfflineSnapshot).mockResolvedValue({
       manifest: fixture.manifest,
       project: fixture.moved,
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     vi.mocked(loadCommandQueue).mockResolvedValue(fixture.queue);
     engine.setSnapshot.mockClear();
@@ -1039,7 +1052,7 @@ describe("useProxyTransport", () => {
       vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
       vi.mocked(loadOfflineSnapshot).mockResolvedValue({
         manifest,
-        saved_at: 1,
+        saved_at: Date.now(),
       });
       vi.mocked(loadCommandQueue).mockResolvedValue(
         kind === "missing"
@@ -1064,7 +1077,7 @@ describe("useProxyTransport", () => {
     vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
     vi.mocked(loadOfflineSnapshot).mockResolvedValue({
       manifest: fixture.manifest,
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     let release!: (value: QueuedCommand[]) => void;
     vi.mocked(loadCommandQueue).mockImplementation(
@@ -1100,7 +1113,7 @@ describe("useProxyTransport", () => {
       vi.mocked(loadOfflineSnapshot).mockResolvedValue({
         manifest: fixture.manifest,
         project: fixture.moved,
-        saved_at: 1,
+        saved_at: Date.now(),
       });
       vi.mocked(loadCommandQueue).mockResolvedValue(fixture.queue);
       const { result } = renderHook(() => useProxyTransport());
@@ -1121,7 +1134,7 @@ describe("useProxyTransport", () => {
     vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
     vi.mocked(loadOfflineSnapshot).mockResolvedValue({
       manifest: fixture.manifest,
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     let release!: (value: QueuedCommand[]) => void;
     vi.mocked(loadCommandQueue).mockImplementation(
@@ -1278,7 +1291,10 @@ describe("useProxyTransport", () => {
       },
     };
     vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
-    vi.mocked(loadOfflineSnapshot).mockResolvedValue({ manifest, saved_at: 1 });
+    vi.mocked(loadOfflineSnapshot).mockResolvedValue({
+      manifest,
+      saved_at: Date.now(),
+    });
     renderHook(() => useProxyTransport());
     await ready();
     expect(

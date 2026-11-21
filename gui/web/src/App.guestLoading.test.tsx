@@ -85,7 +85,7 @@ describe("guest loading never shows host chrome", () => {
     window.history.pushState({}, "", "/r/offline");
     offline.load.mockResolvedValue({
       project: { meta: { name: "Stale episode" } },
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     vi.stubGlobal(
       "fetch",
@@ -220,7 +220,7 @@ describe("guest loading never shows host chrome", () => {
     offline.clear.mockResolvedValue(undefined);
     offline.load.mockResolvedValue({
       project: { meta: { name: "Stale episode" } },
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     vi.stubGlobal(
       "fetch",
