@@ -442,6 +442,7 @@ const FIELD_VERBS: ReadonlySet<BarId> = new Set([
 /** The room half needs to hold the dock and a few fields, in rem so large text asks for more. */
 const DOCK_ROOM_REM = 26.25;
 const SHEET_FULL = 0.92;
+const MIN_PHONE_FIELD_REM = 2.5;
 
 function Phone({
   sheet,
@@ -456,6 +457,18 @@ function Phone({
   const [takeover, setTakeover] = useState(false);
   const chosen = useRef(false);
   const box = useRef<HTMLDivElement>(null);
+  const fullChrome = useRef<{
+    name: string;
+    rootPx: number;
+    height: number;
+  } | null>(null);
+  const fullBody = useCallback(
+    () =>
+      box.current?.querySelector<HTMLElement>(
+        '.sys-inspector--phone[data-detent="full"]:not([data-dragging]) .sys-inspector-scroll',
+      ),
+    [],
+  );
   // Read once, from the phone sheet's first mount, so the slot can still be
   // measured after the takeover has replaced that sheet.
   const [lanes, setLanes] = useState<HTMLElement | null>(null);
@@ -467,13 +480,33 @@ function Phone({
   const fit = useCallback(() => {
     const room = lanes?.clientHeight ?? 0;
     const rootPx = rootFontPx();
-    const short = room * SHEET_FULL < DOCK_ROOM_REM * rootPx;
+    const fullHeight = room * SHEET_FULL;
+    const short = fullHeight < DOCK_ROOM_REM * rootPx;
+    const body = fullBody();
+    const surface = body?.closest(".sys-inspector--phone");
+    // The full sheet can fit its frame and still clip a field when a long
+    // heading wraps. Retain the last measured chrome while the takeover is up.
+    if (short && body && surface) {
+      fullChrome.current = {
+        name: heading.name,
+        rootPx,
+        height: surface.getBoundingClientRect().height - body.clientHeight,
+      };
+    }
+    const measured = fullChrome.current;
+    const needsFieldRoom =
+      short &&
+      measured?.name === heading.name &&
+      measured.rootPx === rootPx &&
+      fullHeight - measured.height < MIN_PHONE_FIELD_REM * rootPx;
     setTight(short);
-    setTakeover(room > 0 && room * SHEET_FULL < scaledMinBlock(rootPx));
+    setTakeover(
+      room > 0 && (fullHeight < scaledMinBlock(rootPx) || needsFieldRoom),
+    );
     if (room > 0 && !chosen.current) setDetent(short ? "full" : "half");
-  }, [lanes]);
+  }, [fullBody, heading.name, lanes]);
   useLayoutEffect(fit, [fit]);
-  useResizeObserver(lanes, fit);
+  useResizeObserver([lanes, fullBody], fit);
   const dockShown = !(detent === "full" && tight);
   // A verb that opens the Inspector's fields (Fix text on a chapter, Adjust
   // bounds) raises a sheet resting on its dock, and the field takes focus.
