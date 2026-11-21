@@ -460,6 +460,7 @@ function Phone({
   const fullChrome = useRef<{
     name: string;
     rootPx: number;
+    width: number;
     height: number;
   } | null>(null);
   const fullBody = useCallback(
@@ -480,31 +481,35 @@ function Phone({
   const fit = useCallback(() => {
     const room = lanes?.clientHeight ?? 0;
     const rootPx = rootFontPx();
+    const width = lanes?.clientWidth ?? 0;
     const fullHeight = room * SHEET_FULL;
     const short = fullHeight < DOCK_ROOM_REM * rootPx;
     const body = fullBody();
     const surface = body?.closest(".sys-inspector--phone");
-    // The full sheet can fit its frame and still clip a field when a long
-    // heading wraps. Retain the last measured chrome while the takeover is up.
-    if (short && body && surface) {
+    // After the dock is hidden, a wrapped heading can still clip a field.
+    // Keep that measurement while full-screen at the same width.
+    if (short && tight && body && surface) {
       fullChrome.current = {
         name: heading.name,
         rootPx,
+        width,
         height: surface.getBoundingClientRect().height - body.clientHeight,
       };
     }
     const measured = fullChrome.current;
     const needsFieldRoom =
       short &&
+      tight &&
       measured?.name === heading.name &&
       measured.rootPx === rootPx &&
+      measured.width === width &&
       fullHeight - measured.height < MIN_PHONE_FIELD_REM * rootPx;
     setTight(short);
     setTakeover(
       room > 0 && (fullHeight < scaledMinBlock(rootPx) || needsFieldRoom),
     );
     if (room > 0 && !chosen.current) setDetent(short ? "full" : "half");
-  }, [fullBody, heading.name, lanes]);
+  }, [fullBody, heading.name, lanes, tight]);
   useLayoutEffect(fit, [fit]);
   useResizeObserver([lanes, fullBody], fit);
   const dockShown = !(detent === "full" && tight);

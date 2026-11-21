@@ -1177,6 +1177,58 @@ describe("the Inspector sheet on the phone", () => {
     }
   });
 
+  it("measures field room after removing the dock when a full sheet shrinks", () => {
+    stubViewportShell("phone");
+    stubResizeObserver();
+    const lanes = document.createElement("div");
+    let room = 700;
+    Object.defineProperty(lanes, "clientHeight", { get: () => room });
+    const offsetParent = vi
+      .spyOn(HTMLElement.prototype, "offsetParent", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("sys-inspector") ? lanes : null;
+      });
+
+    try {
+      const { unmount } = render(
+        <InspectorHost
+          shell="phone"
+          root={null}
+          regionRef={() => undefined}
+          sheet={{
+            open: true,
+            rangeActionsInSheet: false,
+            close: vi.fn(),
+            dismiss: vi.fn(),
+          }}
+        />,
+      );
+      const sheet = screen.getByRole("dialog", { name: "Inspector" });
+      fireEvent.keyDown(screen.getByRole("slider", { name: "Sheet height" }), {
+        key: "End",
+      });
+      expect(sheet).toHaveAttribute("data-detent", "full");
+      const dock = sheet.querySelector(".sys-inspector-dock")!;
+      const body = sheet.querySelector(".sys-inspector-scroll")!;
+      expect(dock).not.toBeEmptyDOMElement();
+      Object.defineProperty(body, "clientHeight", {
+        get: () => (dock.childElementCount ? 32 : 96),
+      });
+      vi.spyOn(sheet, "getBoundingClientRect").mockImplementation(() =>
+        DOMRect.fromRect({ height: room * 0.92 }),
+      );
+
+      room = 400;
+      act(() => FakeResizeObserver.of(lanes).fire(lanes));
+      expect(dock).toBeEmptyDOMElement();
+      expect(screen.getByRole("dialog", { name: "Inspector" })).toBe(sheet);
+      expect(sheet).toHaveAttribute("data-detent", "full");
+      unmount();
+    } finally {
+      offsetParent.mockRestore();
+    }
+  });
+
   it.each(["dock", "half", "full"] as const)(
     "keeps a manually chosen %s height while room changes",
     (detent) => {
