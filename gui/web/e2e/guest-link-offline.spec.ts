@@ -159,7 +159,9 @@ for (const size of SIZES) {
         await expect.poll(() => guestSavedCopy(guest, token)).not.toBeNull();
         await loseConnectionOnLoad(guest, token);
         await expect(guest.locator(".stage-frame--guest")).toBeVisible();
-        await expect(guest.getByText("Saved copy").first()).toBeVisible();
+        const savedCopy = guest.locator(".sys-save--unreachable");
+        await expect(savedCopy).toBeVisible();
+        await expect(savedCopy).toHaveAttribute("title", /^Saved copy/);
         await expect(guest.locator("main h1")).toHaveCount(0);
         // The studio's own first read fails too, with no connection: its
         // region says so in the page cover's words, over the saved copy.

@@ -156,6 +156,40 @@ for (const viewport of [SIZES[0], NARROW_PHONE]) {
 }
 
 test.describe("a page that opened on the saved copy", () => {
+  test("names the saved copy visibly on a narrow phone", async ({
+    browser,
+  }) => {
+    await withGuestLink(browser, NARROW_PHONE, async (guest, token) => {
+      await openGuestShare(guest, token);
+      await expect.poll(() => guestSavedCopy(guest, token)).not.toBeNull();
+      const away = await hostGoesAway(guest, token);
+      await guest.reload();
+      const short = light(guest).locator(".sys-save-short");
+      await expect(short).toBeVisible();
+      await expect(short).toHaveText("Saved copy");
+      await expect
+        .poll(() => light(guest).ariaSnapshot())
+        .toContain("Saved copy from");
+      const label = await short.boundingBox();
+      const viewport = guest.viewportSize();
+      expect(label).not.toBeNull();
+      expect(viewport).not.toBeNull();
+      expect(label!.x).toBeGreaterThanOrEqual(0);
+      expect(label!.x + label!.width).toBeLessThanOrEqual(viewport!.width);
+      const header = guest.locator(".sys-app-header");
+      await expect
+        .poll(() =>
+          header.evaluate(
+            (element) => element.scrollWidth <= element.clientWidth,
+          ),
+        )
+        .toBe(true);
+
+      await away.back();
+      await expect(short).toHaveCount(0, { timeout: 45_000 });
+    });
+  });
+
   test("becomes the live episode by itself when the host answers, without a reload", async ({
     browser,
   }) => {
