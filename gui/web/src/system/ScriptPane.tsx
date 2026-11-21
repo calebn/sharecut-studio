@@ -655,6 +655,8 @@ export type ScriptPaneProps = {
   onPrimary?: () => void;
   /** Esc with something selected. */
   onClearSelection?: () => void;
+  /** Escape on an unselected seam, before its tooltip dismisses. */
+  onUnselectedSeamEscape?: () => void;
   onSeamSelect?: (id: string) => void;
   onSuggestionSelect?: (id: string) => void;
   /** The turn's time was pressed. */
@@ -706,6 +708,7 @@ type Live = {
     | "onSeek"
     | "onPrimary"
     | "onClearSelection"
+    | "onUnselectedSeamEscape"
     | "onSeamSelect"
     | "seamRoll"
     | "onSuggestionSelect"
@@ -946,6 +949,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       onSeek,
       onPrimary,
       onClearSelection,
+      onUnselectedSeamEscape,
       onSeamSelect,
       seamRoll,
       onSuggestionSelect,
@@ -1232,6 +1236,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           onSeek,
           onPrimary,
           onClearSelection,
+          onUnselectedSeamEscape,
           onSeamSelect,
           seamRoll,
           onSuggestionSelect,
@@ -1610,7 +1615,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             return;
           }
           if (event.key === "Escape") {
-            if (!now.selection || !now.props.onClearSelection) return;
+            if (!now.selection) {
+              if (stopContaining(now.stops, start)?.kind === "cut")
+                now.props.onUnselectedSeamEscape?.();
+              return;
+            }
+            if (!now.props.onClearSelection) return;
             handled(event);
             now.props.onClearSelection();
             return;
