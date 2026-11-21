@@ -3,6 +3,7 @@ import type { ShareOptions } from "../../../stages/deliver/shareLogic";
 import { TunnelStatusLine } from "../../../stages/deliver/TunnelStatusLine";
 import type { InviteGroup } from "../../../types/stage";
 import { InlineError } from "../../../ui";
+import { innermostModalPanel } from "../../../ui/modalGate";
 import { ListenLinkRow } from "./ListenLinkRow";
 import { RecordLinks } from "./RecordLinks";
 import { ReviewLinks } from "./ReviewLinks";
@@ -63,11 +64,19 @@ export function InviteBody({ options, at = null }: Props) {
     record: recordHeading,
     listen: listenHeading,
   };
+  // Undo can outlive this sheet. A reopened Invite owns the same group's
+  // action only while it is the innermost modal.
+  const returnTo = (group: InviteGroup) => () =>
+    headings[group].current ??
+    innermostModalPanel()?.querySelector<HTMLElement>(
+      `[data-invite-undo-origin="${group}"]`,
+    ) ??
+    null;
   const stopLink = (group: "review" | "listen") => (token: string) => {
-    options.onStop(token, () => headings[group].current);
+    options.onStop(token, returnTo(group));
   };
   const endRoom = (sessionId: string) => {
-    options.onEndRoom(sessionId, () => headings.record.current);
+    options.onEndRoom(sessionId, returnTo("record"));
   };
   return (
     <div className="inv-body">
@@ -101,6 +110,7 @@ export function InviteBody({ options, at = null }: Props) {
           ref={reviewHeading}
           id={reviewId}
           className="inv-heading"
+          data-invite-undo-origin="review"
           tabIndex={-1}
         >
           Review links
@@ -121,6 +131,7 @@ export function InviteBody({ options, at = null }: Props) {
           ref={recordHeading}
           id={recordId}
           className="inv-heading"
+          data-invite-undo-origin="record"
           tabIndex={-1}
         >
           Record links
@@ -142,6 +153,7 @@ export function InviteBody({ options, at = null }: Props) {
           ref={listenHeading}
           id={listenId}
           className="inv-heading"
+          data-invite-undo-origin="listen"
           tabIndex={-1}
         >
           Listen link

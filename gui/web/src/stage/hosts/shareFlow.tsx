@@ -721,7 +721,11 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
                 ? restoreHostShare(path, target.token)
                 : restoreHostRoom(path, target.sessionId),
             scope,
-            () => (isValidFocusTarget(heading) ? heading : null),
+            () => {
+              if (!isSameProject(scope)) return null;
+              const origin = focus?.() ?? heading;
+              return isValidFocusTarget(origin) ? origin : null;
+            },
           );
           await load(scopeNow());
         } catch (err) {
