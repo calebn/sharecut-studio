@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSavedCopyDate } from "../../state/savedCopy";
 import type { SaveIndicatorProps } from "../../system/SaveIndicator";
 import type { SaveState } from "./saveState";
 import { type SaveAttention, useSaveState } from "./useSaveState";
@@ -38,6 +39,7 @@ export function saveIndicatorOf(
 /** Null when there is nothing to say: a queue not read yet. */
 export function useSaveIndicator(): SaveIndicatorProps | null {
   const { state, attention } = useSaveState();
+  const savedAt = useSavedCopyDate();
   const [justSaved, setJustSaved] = useState(false);
   const previous = useRef<SaveState["kind"] | null>(null);
   const kind = state?.kind ?? null;
@@ -53,5 +55,9 @@ export function useSaveIndicator(): SaveIndicatorProps | null {
     const timer = window.setTimeout(() => setJustSaved(false), JUST_SAVED_MS);
     return () => window.clearTimeout(timer);
   }, [kind]);
-  return state ? saveIndicatorOf(state, attention, justSaved) : null;
+  if (!state) return null;
+  const indicator = saveIndicatorOf(state, attention, justSaved);
+  return state.kind === "unreachable" && savedAt !== null
+    ? { ...indicator, savedAt }
+    : indicator;
 }

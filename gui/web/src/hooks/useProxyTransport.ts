@@ -345,10 +345,11 @@ export function useProxyTransport(): boolean {
         ownedErrorRef.current = null;
         const token = shareTokenFromKey(projectPath);
         if (token && !cachedFallback) {
-          void mergeOfflineSnapshot(token, {
-            project: displayed,
-            manifest,
-          }).catch(() => undefined);
+          void mergeOfflineSnapshot(
+            token,
+            { project: displayed, manifest },
+            { preserveDate: true },
+          ).catch(() => undefined);
           // Only a manifest the server just gave is the newest: one read from
           // the saved copy can be older than the audio the device holds.
           void pruneLinkAudio(token, manifestChunkRefs(manifest));

@@ -15,6 +15,7 @@ export type SaveIndicatorProps = {
   justSaved?: boolean;
   /** Offline, unreachable or away: edits waiting to send. */
   waiting?: number;
+  savedAt?: number;
   /**
    * Narrow chrome: glyph, a count and Retry only. The App header gets the same
    * form from its container width, so it does not pass this.
@@ -32,6 +33,7 @@ export function SaveIndicator({
   state,
   justSaved,
   waiting,
+  savedAt,
   cause = "host",
   compact,
   onRetry,
@@ -112,15 +114,20 @@ export function SaveIndicator({
     );
   }
   if (state === "unreachable") {
+    const date = new Date(savedAt ?? NaN);
+    const label =
+      savedAt !== undefined && savedAt > 0 && Number.isFinite(date.getTime())
+        ? `Saved copy from ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date)}`
+        : "Saved copy";
     return (
       <span
         className={`sys-save sys-save--unreachable${size}`}
         role="status"
-        title={SAVED_COPY_TEXT}
+        title={`${label}. ${SAVED_COPY_TEXT}`}
       >
         <SystemIcon name="cloud" size={16} className="sys-tone-warning" />
         <span className="sys-save-text">
-          {waiting ? `Saved copy · ${waiting} waiting to send` : "Saved copy"}
+          {waiting ? `${label} · ${waiting} waiting to send` : label}
           <span className="sr-only">. {SAVED_COPY_TEXT}</span>
         </span>
         {waiting ? (

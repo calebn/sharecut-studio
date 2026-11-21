@@ -1,3 +1,4 @@
+import { createContext, useContext } from "react";
 import { isShareProjectKey } from "../shareMode";
 import type { DawState } from "./types";
 import { useDaw } from "./useDaw";
@@ -17,6 +18,12 @@ function readsSavedCopy(
 
 export function useReadsSavedCopy(): boolean {
   return useDaw(readsSavedCopy);
+}
+
+export const SavedCopyDateContext = createContext<number | null>(null);
+
+export function useSavedCopyDate(): number | null {
+  return useContext(SavedCopyDateContext);
 }
 
 const reopenListeners = new Set<() => void>();

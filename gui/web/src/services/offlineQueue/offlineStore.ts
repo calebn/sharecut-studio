@@ -449,18 +449,40 @@ export async function clearOfflineSnapshot(token: string): Promise<void> {
 /** Merge patch into the existing offline snapshot (keeps prior project/manifest). */
 export async function mergeOfflineSnapshot(
   token: string,
-  patch: Partial<OfflineSnapshot>,
+  patch: Omit<Partial<OfflineSnapshot>, "saved_at">,
+  { preserveDate = false }: { preserveDate?: boolean } = {},
 ): Promise<void> {
   if (isLinkEnded(token)) return;
   await trackSnapshotWrite(
     token,
     (async () => {
-      const prev = (await loadOfflineSnapshot(token)) ?? { saved_at: 0 };
-      await saveOfflineSnapshot(token, {
-        ...prev,
-        ...patch,
-        saved_at: Date.now(),
-      });
+      const db = await openDb();
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const tx = db.transaction(STORE, "readwrite");
+          const store = tx.objectStore(STORE);
+          const key = snapKey(token);
+          const read = store.get(key);
+          read.onsuccess = () => {
+            if (isLinkEnded(token)) return;
+            const previous = read.result as OfflineSnapshot | undefined;
+            store.put(
+              {
+                ...previous,
+                ...patch,
+                saved_at: preserveDate ? (previous?.saved_at ?? 0) : Date.now(),
+              },
+              key,
+            );
+          };
+          tx.oncomplete = () => resolve();
+          tx.onabort = () =>
+            reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+          tx.onerror = () => reject(tx.error);
+        });
+      } finally {
+        db.close();
+      }
     })(),
   );
 }
