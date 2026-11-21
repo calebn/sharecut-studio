@@ -1,5 +1,3 @@
-import type { ExecuteResult } from "../commands/types";
-
 export type PreviewTransportRequest = Readonly<{
   projectEpoch: number;
   immediate: boolean;
@@ -10,9 +8,7 @@ type WriteTransport = (request: PreviewTransportRequest) => void;
 
 let pending: Map<WriteTransport, PreviewTransportRequest> | null = null;
 
-export function withSettledPreviewTransport<T extends ExecuteResult>(
-  resume: () => T,
-): T {
+export function withSettledPreviewTransport<T>(resume: () => T): T {
   if (pending) return resume();
   const requests = new Map<WriteTransport, PreviewTransportRequest>();
   pending = requests;
