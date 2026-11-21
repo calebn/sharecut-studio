@@ -13,7 +13,7 @@ import shutil
 import stat
 import tempfile
 import zipfile
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -349,12 +349,8 @@ def _gui_dist_present() -> bool:
     return (resolve_gui_static_root() / "index.html").is_file()
 
 
-def _sanitize_job_snapshots(
-    snapshots: list[dict[str, Any]] | None,
-    *,
-    home: Path,
-    workspace: Path | None,
-    limit: int = 10,
+def _report_job_snapshots(
+    snapshots: list[dict[str, Any]] | None, *, limit: int = 10
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for snap in (snapshots or [])[:limit]:
@@ -370,9 +366,7 @@ def _sanitize_job_snapshots(
                 "status": snap.get("status"),
                 "phase": phase,
                 "elapsed_sec": snap.get("elapsed_sec"),
-                "message": sanitize(str(message), **_redact_kwargs(home=home, workspace=workspace))
-                if message
-                else None,
+                "message": str(message) if message else None,
             }
         )
     return rows
@@ -489,10 +483,24 @@ def _truncate_logs(logs: dict[str, str], *, budget: int) -> dict[str, str]:
     return {name: blob.decode("utf-8", errors="replace") for name, blob in encoded.items()}
 
 
+def _redact_report_value(value: Any, redact_text: Callable[[str], str]) -> Any:
+    if isinstance(value, dict):
+        return {
+            redact_text(key) if isinstance(key, str) else key: _redact_report_value(
+                item, redact_text
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list | tuple):
+        return [_redact_report_value(item, redact_text) for item in value]
+    if value is None or isinstance(value, bool | int | float):
+        return value
+    return redact_text(str(value))
+
+
 def _build_report_json(
     project: EpisodeProject | None,
     *,
-    home: Path,
     workspace: Path | None,
     job_snapshots: list[dict[str, Any]] | None,
     unopened: UnopenedEpisode | None = None,
@@ -523,11 +531,7 @@ def _build_report_json(
         "bootstrap": component_status(),
         "disk_free_bytes": disk_free,
         "project": _project_counts(project),
-        "jobs": _sanitize_job_snapshots(
-            job_snapshots,
-            home=home,
-            workspace=workspace,
-        ),
+        "jobs": _report_job_snapshots(job_snapshots),
         "env": collect_env_flags(),
         "created_at": datetime.now(UTC).isoformat(),
     }
@@ -563,32 +567,32 @@ class DiagnosticsService:
             task.set_phase("collecting", "Collecting environment…")
             payload = _build_report_json(
                 project,
-                home=home,
                 workspace=workspace,
                 job_snapshots=job_snapshots,
                 unopened=unopened,
             )
-            redaction = _redact_kwargs(home=home, workspace=workspace)
-            report_text = sanitize(json.dumps(payload, indent=2, default=str), **redaction)
             task.advance(1, message="Collected")
 
             task.set_phase("redacting", "Redacting logs…")
             logs = _collect_logs(include_logs=include_logs, home=home, workspace=workspace)
+            redaction = _redact_kwargs(home=home, workspace=workspace)
             README = sanitize(
                 _README + (f"\n{NOT_OPENED_STATEMENT}\n" if unopened is not None else ""),
                 **redaction,
             )
             tokens = sorted(get_share_registry().known_tokens())
-            report_text = _mask_share_tokens(report_text, tokens)
+
+            def redact_report_text(text: str) -> str:
+                masked = _mask_share_tokens(sanitize(text, **redaction), tokens)
+                return sanitize(masked, **redaction)
+
+            safe_payload = _redact_report_value(payload, redact_report_text)
             if unopened is not None:
-                safe_payload = json.loads(report_text)
                 safe_payload["episode_not_opened"] = {
                     "code": unopened.code.value,
-                    "statement": _mask_share_tokens(
-                        sanitize(NOT_OPENED_STATEMENT, **redaction), tokens
-                    ),
+                    "statement": redact_report_text(NOT_OPENED_STATEMENT),
                 }
-                report_text = json.dumps(safe_payload, indent=2)
+            report_text = json.dumps(safe_payload, indent=2)
             logs = {name: _mask_share_tokens(body, tokens) for name, body in logs.items()}
             fixed = len(report_text.encode("utf-8")) + len(README.encode("utf-8"))
             log_budget = max(0, MAX_BUNDLE_BYTES - fixed - 64_000)
