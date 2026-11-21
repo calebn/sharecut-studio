@@ -675,6 +675,46 @@ describe("Review host comments", () => {
     expect(sent("ResolveComment")).toHaveLength(1);
   });
 
+  it("keeps the optimistic Resolve when a queued Reopen fails before its snapshot lands", async () => {
+    mount();
+    let release = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    wire.post.mockImplementationOnce(async () => {
+      await pending;
+      return {
+        ok: true,
+        data: {
+          history_head_id: "h0",
+          command: { payload: { result: { ...OPEN, resolved: true } } },
+          snapshot: { server_seq: ++server.seq, project: projectOf() },
+        },
+      };
+    });
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(1));
+    await userEvent.click(
+      within(await decided()).getByRole("button", { name: /Rosa/ }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Reopen" }));
+    expect(sent("ResolveComment")).toHaveLength(1);
+
+    server.refuse.add("ResolveComment");
+    release();
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(2));
+    expect(sent("ResolveComment")[1].payload).toMatchObject({
+      comment_id: OPEN.id,
+      resolved: false,
+    });
+    await waitFor(() => expect(toast()).toBe("No"));
+    expect(
+      within(await decided()).getByRole("button", { name: /Rosa/ }),
+    ).toBeInTheDocument();
+  });
+
   it("keeps Undo's open state when a late snapshot still shows Resolved", async () => {
     mount();
     wire.post.mockImplementationOnce(async () => ({
