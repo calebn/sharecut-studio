@@ -9,6 +9,7 @@ const quiet: SaveStateInput = {
   conflicts: [],
   unreachable: false,
   unreadable: false,
+  away: null,
   loaded: true,
   settling: false,
 };
@@ -241,6 +242,48 @@ describe("saveStateOf", () => {
     expect(saveStateOf({ ...quiet, loaded: false, unreadable: true })).toEqual({
       kind: "failed",
       cause: "unreadable",
+    });
+  });
+
+  describe("away", () => {
+    it("says why and carries the waiting count", () => {
+      expect(saveStateOf({ ...quiet, away: "host" })).toEqual({
+        kind: "away",
+        cause: "host",
+        count: 0,
+      });
+      expect(saveStateOf({ ...quiet, away: "device", pending: 3 })).toEqual({
+        kind: "away",
+        cause: "device",
+        count: 3,
+      });
+    });
+
+    it("outranks a send in flight or settling, so the light does not churn", () => {
+      expect(saveStateOf({ ...quiet, away: "host", busy: true })).toMatchObject(
+        { kind: "away" },
+      );
+      expect(
+        saveStateOf({ ...quiet, away: "host", settling: true }),
+      ).toMatchObject({ kind: "away" });
+    });
+
+    it("outranks waiting and the saved copy, and says it before the queue is read", () => {
+      expect(saveStateOf({ ...quiet, away: "host", pending: 1 })).toMatchObject(
+        { kind: "away" },
+      );
+      expect(
+        saveStateOf({ ...quiet, away: "host", unreachable: true }),
+      ).toMatchObject({ kind: "away" });
+      expect(
+        saveStateOf({ ...quiet, away: "host", loaded: false }),
+      ).toMatchObject({ kind: "away" });
+    });
+
+    it("still gives way to an unreadable queue", () => {
+      expect(saveStateOf({ ...quiet, away: "host", unreadable: true })).toEqual(
+        { kind: "failed", cause: "unreadable" },
+      );
     });
   });
 });

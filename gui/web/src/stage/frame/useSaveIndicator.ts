@@ -21,6 +21,8 @@ export function saveIndicatorOf(
       return { state: "offline", waiting: state.count };
     case "unreachable":
       return { state: "unreachable", waiting: state.count };
+    case "away":
+      return { state: "away", cause: state.cause, waiting: state.count };
     case "failed":
     case "unknown":
       return {

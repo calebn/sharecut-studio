@@ -10,6 +10,10 @@ import {
 import type { OfflineConflict } from "../../services/offlineQueue/offlineStore";
 import { useDawStore } from "../../state/dawStore";
 import { beginDocumentSend } from "../../state/documentSendOrder";
+import {
+  noteReviewAnswer,
+  noteReviewTransportFailure,
+} from "../../state/hostReach";
 import { useDaw } from "../../state/useDaw";
 import { reviewContent } from "../../storybook/reviewContent";
 import { SaveIndicator } from "../../system/SaveIndicator";
@@ -436,6 +440,62 @@ describe("useSaveState", () => {
       expect(status).toHaveTextContent(
         "Showing a saved copy because the host can't be reached. It is read-only.",
       );
+    });
+
+    describe("when the host stops answering", () => {
+      const goAway = () =>
+        act(() => {
+          noteReviewTransportFailure("tok-1448");
+          noteReviewTransportFailure("tok-1448");
+        });
+
+      it("says so with the waiting count, one sentence, and no Saving while a poll is in flight", async () => {
+        hydrateGuest(["comment"]);
+        offlineStore.loadCommandQueue.mockResolvedValue(queued(2));
+        render(<SaveDot />);
+        await settle();
+        goAway();
+        const status = screen.getByRole("status");
+        expect(status).toHaveTextContent("Can't reach the host · 2 waiting");
+        expect(status).toHaveTextContent(
+          "Can't reach the host. This page keeps trying.",
+        );
+        const end = beginDocumentSend("share:tok-1448", "c1");
+        await settle();
+        expect(screen.getAllByRole("status")).toHaveLength(1);
+        expect(screen.getByRole("status")).not.toHaveTextContent("Saving");
+        end.finish();
+      });
+
+      it("returns to Saved when the host answers", async () => {
+        hydrateGuest(["comment"]);
+        render(<SaveDot />);
+        await settle();
+        goAway();
+        expect(screen.getByRole("status")).toHaveTextContent(
+          "Can't reach the host",
+        );
+        act(() => noteReviewAnswer("tok-1448"));
+        expect(screen.getByRole("status")).toHaveTextContent(/^Saved$/);
+      });
+
+      it("keeps saying it is a saved copy on the copy", async () => {
+        hydrateGuest(null);
+        render(<SaveDot />);
+        await settle();
+        goAway();
+        expect(screen.getByRole("status")).toHaveTextContent("Saved copy");
+      });
+
+      it("says nothing about a host project", async () => {
+        render(<SaveDot />);
+        await settle();
+        act(() => {
+          noteReviewTransportFailure("tok-1448");
+          noteReviewTransportFailure("tok-1448");
+        });
+        expect(screen.getByRole("status")).toHaveTextContent(/^Saved$/);
+      });
     });
   });
 });

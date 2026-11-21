@@ -9,7 +9,8 @@ import {
   selectRecoveryOutcome,
   useOfflineAttention,
 } from "../../services/offlineQueue/offlineAttention";
-import { isShareProjectKey } from "../../shareMode";
+import { isShareProjectKey, shareTokenFromKey } from "../../shareMode";
+import { useHostCause } from "../../state/hostReach";
 import { useReadsSavedCopy } from "../../state/savedCopy";
 import { useDaw } from "../../state/useDaw";
 import { useDocumentBusy } from "../../state/useDocumentBusy";
@@ -42,7 +43,7 @@ function focusAttention() {
  * The project's save state from the sends this tab has in flight and the
  * offline queue and conflicts the Needs attention rows list. A share guest's
  * queue is the edits waiting to reach the host; a guest reading the saved copy
- * is unreachable.
+ * is unreachable. A guest whose open page stopped reaching the host is away.
  */
 export function useSaveState(): {
   state: SaveState | null;
@@ -52,6 +53,7 @@ export function useSaveState(): {
   const guest = isShareProjectKey(projectPath);
   const unreachable = useReadsSavedCopy();
   const busy = useDocumentBusy(projectPath);
+  const hostCause = useHostCause(shareTokenFromKey(projectPath));
   const attention = useOfflineAttention(projectPath || null);
   const state = !projectPath
     ? null
@@ -60,6 +62,7 @@ export function useSaveState(): {
         pending: attention.pending,
         conflicts: attention.conflicts,
         unreachable,
+        away: unreachable ? null : hostCause,
         unreadable:
           attention.status === "unreadable" || attention.status === "retrying",
         loaded: attention.loaded,
