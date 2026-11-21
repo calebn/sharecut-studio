@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { seekTransport } from "../../commands/seek";
 import type { ShownTranscript } from "../../document/shownTranscript";
 import {
+  isScriptRange,
   markScriptRange,
   TRANSCRIPT_REFRESHING,
 } from "../../edit/rangeSelection";
@@ -48,18 +49,24 @@ function GuestScriptHostAdapter({
   shown,
 }: GuestScriptHostProps) {
   const reading = useGuestReading(providedReading);
-  const { guestMode, projectPath, capabilities } = useDawStore(
-    useShallow((s) => ({
-      guestMode: s.guestMode,
-      projectPath: s.projectPath,
-      capabilities: s.shareCapabilities,
-    })),
-  );
+  const { guestMode, projectPath, capabilities, selectedScriptRange } =
+    useDawStore(
+      useShallow((s) => ({
+        guestMode: s.guestMode,
+        projectPath: s.projectPath,
+        capabilities: s.shareCapabilities,
+        selectedScriptRange: isScriptRange(s.selection),
+      })),
+    );
   const shell = useViewportClass();
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const short = useShortViewport();
   const role = stageRoleOf(guestMode);
-  const script = useMemo(() => guestScriptOf(shown.rows), [shown.rows]);
+  const { script, scriptRevision } = useMemo(
+    () => ({ script: guestScriptOf(shown.rows), scriptRevision: Symbol() }),
+    [shown.rows],
+  );
+  const [selectionRevision, setSelectionRevision] = useState(scriptRevision);
   const { turns, wordStarts, words, empty } = script;
   const rangeMode = rangeEditMode(projectPath, capabilities);
   const mayRange = rangeMode !== "none";
@@ -94,10 +101,11 @@ function GuestScriptHostAdapter({
       const prior = useDawStore.getState().selection;
       selectRange?.(selection);
       const taken = useDawStore.getState().selection;
-      if (taken === prior) return;
+      if (taken === prior) return false;
       // The object the store holds is the one marked and the one remembered.
       markScriptRange(taken);
       remember(selection);
+      return true;
     },
     [selectRange, remember],
   );
@@ -107,9 +115,9 @@ function GuestScriptHostAdapter({
         heldNotice();
         return;
       }
-      write(selection);
+      if (write(selection)) setSelectionRevision(scriptRevision);
     },
-    [script, write, heldNotice],
+    [script, scriptRevision, write, heldNotice],
   );
   // An edit renumbers words: a selection of ours follows its words or goes.
   // It writes with no gesture, so it never announces and waits for live words.
@@ -128,7 +136,10 @@ function GuestScriptHostAdapter({
     } else if (next.kind === "move") {
       write({ kind: "words", anchor: next.anchor, head: next.head });
     }
-  }, [script, write]);
+    if (isScriptRange(state.selection) && !shown.refreshing) {
+      setSelectionRevision(scriptRevision);
+    }
+  }, [script, scriptRevision, shown.refreshing, write]);
   // The Script gives way to a cover mid-refresh: the words come back under new
   // numbers with nothing watching the selection, so it goes with the Script.
   const refreshingNow = useRef(shown.refreshing);
@@ -184,6 +195,12 @@ function GuestScriptHostAdapter({
         reading={reading}
         empty={empty}
         refreshing={shown.refreshing}
+        selectionRefreshing={
+          mayRange &&
+          selectedScriptRange &&
+          (selectionRevision !== scriptRevision ||
+            (shown.refreshing && range.selection === null))
+        }
         onSeek={(seconds) => void seekTransport(seconds)}
         onHeldWord={heldNotice}
         selection={mayRange ? range.selection : undefined}

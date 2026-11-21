@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { deferred } from "../src/test/deferred";
 import {
   expectNoBlankFrame,
   frames,
@@ -167,6 +168,77 @@ test("a slow word detail leaves the same busy Script, whose held words do not se
         swapped.length,
         `the Script section was replaced in ${swapped.length} frame(s)\nGuest requests:\n${guest.log.join("\n")}`,
       ).toBe(0);
+    },
+  );
+});
+
+test("the guest Script keeps a cross-speaker selection announcement during refresh", async ({
+  browser,
+  page,
+}) => {
+  await withGuest(
+    browser,
+    page,
+    { role: "commenter", size: WIDE },
+    async (guest) => {
+      const { page: view } = guest;
+      const section = view.locator(SECTION);
+      const status = section.getByRole("status");
+      await view.locator(`${WORD}[data-word-key^="reference:"]`).last().click();
+      await view
+        .locator(`${WORD}[data-word-key^="guest:"]`)
+        .last()
+        .click({ modifiers: ["Shift"] });
+      const selected = view.locator(`${WORD}[data-selected]`);
+      const picked = await selected.allTextContents();
+      const tracks = await selected.evaluateAll((words) => [
+        ...new Set(
+          words.map(
+            (word) => word.getAttribute("data-word-key")?.split(":")[0],
+          ),
+        ),
+      ]);
+      expect(tracks).toEqual(["reference", "guest"]);
+      await expect(status).toHaveText(/^\d+ words selected/);
+      const announcement = await status.textContent();
+      const spoken = await status.evaluateHandle((el) => {
+        const changes: (string | null)[] = [];
+        const watcher = new MutationObserver(() =>
+          changes.push(el.textContent),
+        );
+        watcher.observe(el, {
+          subtree: true,
+          characterData: true,
+          childList: true,
+        });
+        return { changes, watcher };
+      });
+
+      const held = deferred<void>();
+      guest.detail.waitFor = held.promise;
+      try {
+        await hostEdit(page, guest.projectPath, "cut", 0);
+        await expect(section).toHaveAttribute("aria-busy", "true");
+        await painted(view);
+        expect(await status.textContent()).toBe(announcement);
+      } finally {
+        held.resolve();
+      }
+
+      await expect(section).not.toHaveAttribute("aria-busy", "true");
+      await expect.poll(() => selected.allTextContents()).toEqual(picked);
+      await painted(view);
+      expect(
+        await spoken.evaluate(({ changes, watcher }) => {
+          watcher.disconnect();
+          return changes;
+        }),
+      ).toEqual([]);
+      await spoken.dispose();
+      await selected.last().focus();
+      await view.keyboard.press("Escape");
+      await expect(selected).toHaveCount(0);
+      await expect(status).toHaveText("Selection cleared");
     },
   );
 });

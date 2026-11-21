@@ -25,6 +25,7 @@ export type GuestScriptProps = {
   empty?: GuestEmpty;
   /** Some lines are still being refreshed: the pane says so and follow mode holds still. */
   refreshing?: boolean;
+  selectionRefreshing?: boolean;
   onSeek: (seconds: number) => void;
   /** A tap or Enter landed on a word whose time is not known yet. */
   onHeldWord?: () => void;
@@ -45,6 +46,7 @@ export function GuestScript({
   playheadWord,
   empty = "none",
   refreshing = false,
+  selectionRefreshing = false,
   onSeek,
   onHeldWord,
   onUserScroll,
@@ -96,6 +98,7 @@ export function GuestScript({
       playheadWord={playheadWord}
       following={reading.following}
       busy={refreshing}
+      selectionRefreshing={selectionRefreshing}
       selection={selection}
       onSelect={onSelect}
       onPrimary={
