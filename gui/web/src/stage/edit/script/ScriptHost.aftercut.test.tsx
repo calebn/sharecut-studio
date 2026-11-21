@@ -8,12 +8,13 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { submitDocumentCommand } from "../../../api/documentEdits";
-import { clearRegisteredCommands } from "../../../commands/execute";
+import { clearRegisteredCommands, execute } from "../../../commands/execute";
 import { registerDawCommands } from "../../../commands/register";
 import { FeedbackToast } from "../../../feedback/FeedbackToast";
 import { useDawKeymapListener } from "../../../keymap/listener";
 import { useDawStore } from "../../../state/dawStore";
 import { resetFeedbackRepeatForTests } from "../../../state/uiSlice";
+import { deferred } from "../../../test/deferred";
 import { COMMENTER_CAPABILITIES, clipRow } from "../../../test/fixtures";
 import {
   scriptUtterance,
@@ -211,6 +212,7 @@ describe("Tab after a words cut", () => {
     expect(state().feedbackToast?.message).toContain("2 more");
     expect(state().afterCut?.focused).toBe(true);
     cutAway([0, 1], "h1");
+    act(() => state().openStage("edit", { sheet: "history" }));
     expect(tab().defaultPrevented).toBe(true);
     expect(selected()).toEqual([3, 4]);
     expect(state().statusAnnouncement).toBe('"you know", 1 of 2');
@@ -416,6 +418,79 @@ describe("Tab after a words cut", () => {
     await act(async () => {});
     expect(selected()).toBeNull();
     expect(state().afterCut).toBeNull();
+  });
+
+  it("keeps the selection and uses native Tab after leaving and re-entering Edit", async () => {
+    await startCut();
+    cutAway([0, 1], "h1");
+    expect(tab().defaultPrevented).toBe(true);
+    expect(selected()).toEqual([3, 4]);
+
+    act(() => {
+      state().openStage("review");
+      state().openStage("edit");
+    });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveTextContent("you"),
+    );
+    expect(tab().defaultPrevented).toBe(false);
+    expect(selected()).toEqual([3, 4]);
+    expect(state().project?.history?.head_id).toBe(head("h1"));
+  });
+
+  it("finishes a delayed cut without starting a chain after a stage round trip", async () => {
+    const reply = deferred<Awaited<ReturnType<typeof submitDocumentCommand>>>();
+    vi.mocked(submitDocumentCommand).mockReturnValueOnce(reply.promise);
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getAllByRole("button", { name: "you" })[0]!);
+    act(() => state().setSelection(range(0, 1)));
+    await user.keyboard("{Backspace}");
+    expect(submitDocumentCommand).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      state().openStage("review");
+      state().openStage("edit");
+    });
+    expect(selected()).toEqual([0, 1]);
+    await act(async () => {
+      reply.resolve({ type: "Applied", history_head_id: head("h1") });
+    });
+    cutAway([0, 1], "h1");
+    expect(state().feedbackToast?.message).toContain("2 more");
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+    expect(selected()).toBeNull();
+    await act(async () => {});
+    const nextWord = screen.getAllByRole("button", { name: "you" })[0]!;
+    nextWord.focus();
+    expect(nextWord).toHaveFocus();
+    expect(tab().defaultPrevented).toBe(false);
+    expect(selected()).toBeNull();
+  });
+
+  it("settles a held Tab when leaving Edit while the transcript still loads", async () => {
+    await startCut();
+    cutAway([0, 1], "h1");
+    hydrating(true);
+    await act(async () => {});
+    const settled = vi.fn();
+    const tab = execute("edit.nextOccurrence").then(settled);
+    try {
+      expect(settled).not.toHaveBeenCalled();
+      await act(async () => {
+        state().openStage("review");
+        state().openStage("edit");
+      });
+      expect(settled).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ status: "disabled" }),
+      );
+      expect(selected()).toBeNull();
+    } finally {
+      hydrating(false);
+      await act(async () => {
+        await tab;
+      });
+    }
   });
 
   it("leaves Tab native while the refresh is pending when the cut did not start in the Script", async () => {
