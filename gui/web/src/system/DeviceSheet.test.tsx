@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -68,18 +68,30 @@ describe("DeviceSheet", () => {
     expect(screen.getByRole("button", { name: /^Input:/ })).toBeEnabled();
   });
 
-  it("shows the slow prompt's Retry in the Microphone row", async () => {
+  it("announces the slow prompt once and clears it when the mic opens", async () => {
     const onMicAction = vi.fn();
-    render(sheet({ mic: { status: "prompting", slow: true }, onMicAction }));
-    expect(
-      screen.getByText(
-        "Still waiting. Check your browser's permission prompt.",
-      ),
-    ).toBeVisible();
+    const { rerender } = render(
+      sheet({ mic: { status: "prompting" }, onMicAction }),
+    );
+    const row = within(screen.getByRole("group", { name: "Microphone" }));
+    const statusWith = (text: string) =>
+      row.queryAllByRole("status").filter((node) => node.textContent === text);
+    const initialStatuses = row.queryAllByRole("status");
+    const waiting = "Still waiting. Check your browser's permission prompt.";
+
+    rerender(sheet({ mic: { status: "prompting", slow: true }, onMicAction }));
+    expect(statusWith(waiting)).toHaveLength(1);
+    const [status] = statusWith(waiting);
+    expect(initialStatuses).toContain(status);
     await userEvent.click(
       screen.getByRole("button", { name: "Retry microphone" }),
     );
     expect(onMicAction).toHaveBeenCalledWith("retry");
+
+    rerender(sheet({ onMicAction }));
+    expect(statusWith(waiting)).toHaveLength(0);
+    expect(status).toBeEmptyDOMElement();
+    expect(status).toBeInTheDocument();
   });
 
   it("toggles headphones, and omits the toggle without a handler", async () => {
