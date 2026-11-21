@@ -349,7 +349,9 @@ test.describe("Home while the Recent list loads on a phone", () => {
     await expect(page.locator(".sys-home .sys-start--import")).toHaveCount(0);
     release();
     await expect(page.locator(".sys-home .sys-start--import")).toBeVisible();
-    await page.waitForTimeout(300);
+    await expect(
+      page.getByText("Your episodes will appear here."),
+    ).toBeVisible();
     const tops = await page.evaluate(
       () => (window as unknown as { __tileTops: number[] }).__tileTops,
     );
