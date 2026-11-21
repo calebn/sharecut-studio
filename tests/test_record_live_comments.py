@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
+from podcast_mcp.project import store as project_store
 from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
@@ -127,7 +128,11 @@ def test_host_rewrites_recording_ms_and_lands_comment(
     assert live[0]["author"] == guest
     assert live[0]["body"] == "Marker"
     svc.submit(_cmd("Stop"), now_wall_ms=200_000)
-    result = RecordLandingService(ws).land(align=lambda _p: None)
+    before = project_store.write_counts().get("legacy_record_landing", 0)
+    with monkeypatch.context() as strict:
+        strict.setattr(project_store, "_guard_mode", "strict")
+        result = RecordLandingService(ws).land(align=lambda _p: None)
+    assert project_store.write_counts()["legacy_record_landing"] == before + 1
     assert result["clips"] == []
     assert len(result["comments"]) == 1
     assert result["comments"][0]["timeline_start"] == pytest.approx(123.4)
@@ -273,7 +278,11 @@ def test_discard_take_deletes_live_and_landed_comments(
     svc.submit(_cmd("Stop"), now_wall_ms=3_000)
     RecordLandingService(ws).land(align=lambda _p: None)
     assert len(ws.project.comments) == 1
-    RecordLandingService(ws).delete_take(0)
+    before = project_store.write_counts().get("legacy_record_landing", 0)
+    with monkeypatch.context() as strict:
+        strict.setattr(project_store, "_guard_mode", "strict")
+        RecordLandingService(ws).delete_take(0)
+    assert project_store.write_counts()["legacy_record_landing"] == before + 1
     ws.reload()
     assert ws.project.comments == []
     assert (

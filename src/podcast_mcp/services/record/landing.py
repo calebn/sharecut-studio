@@ -51,6 +51,7 @@ from podcast_mcp.models import (
     StagedTake,
 )
 from podcast_mcp.project.history.summary import record_land_title
+from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import after_agent_mutation
 from podcast_mcp.services.media import schedule_track_waveforms, unique_raw_path
@@ -997,13 +998,14 @@ class RecordLandingService:
 
         with self.workspace.transaction():
             try:
-                landed = self.workspace.mutate(
-                    f"before {label}",
-                    f"after {label}",
-                    mutate,
-                    operation="record_land",
-                    params=session_params,
-                )
+                with write_grant(WriteGrantKind.LEGACY_RECORD_LANDING):
+                    landed = self.workspace.mutate(
+                        f"before {label}",
+                        f"after {label}",
+                        mutate,
+                        operation="record_land",
+                        params=session_params,
+                    )
             except (SessionSuggestionClosedError, InsertAnchorTakenError):
                 for item in copied + room_tone_copied:
                     self._discard_copy(item)
@@ -1138,13 +1140,14 @@ class RecordLandingService:
             refresh_timeline_duration(project)
             self._close_start_tail(project, extent_before)
 
-        self.workspace.mutate(
-            f"before discard take {take}",
-            f"after discard take {take}",
-            mutate,
-            operation="record_discard_take",
-            params={"take_index": take},
-        )
+        with write_grant(WriteGrantKind.LEGACY_RECORD_LANDING):
+            self.workspace.mutate(
+                f"before discard take {take}",
+                f"after discard take {take}",
+                mutate,
+                operation="record_discard_take",
+                params={"take_index": take},
+            )
         self._upload.tombstone_take(self.session_id, take)
         self._comments.delete_take(self.session_id, take)
         # The discard mutation just re-read and committed the project under the land lock.
@@ -1531,13 +1534,14 @@ class RecordLandingService:
                     touched = {track.id for track in project.tracks}
                 record_invalidation(project, track_ids=sorted(touched), reason="other")
 
-        self.workspace.mutate(
-            "before record land stale ACK rollback",
-            "after record land stale ACK rollback",
-            mutate,
-            operation="record_land_rollback",
-            params={"session_id": self.session_id, "superseded": superseded},
-        )
+        with write_grant(WriteGrantKind.LEGACY_RECORD_LANDING):
+            self.workspace.mutate(
+                "before record land stale ACK rollback",
+                "after record land stale ACK rollback",
+                mutate,
+                operation="record_land_rollback",
+                params={"session_id": self.session_id, "superseded": superseded},
+            )
 
     def _rollback_applies(self, project: EpisodeProject, item: dict[str, Any]) -> bool:
         """Whether *item*'s stale registration is still in the project to undo.
@@ -1749,13 +1753,14 @@ class RecordLandingService:
                 if ids:
                     record_invalidation(project, track_ids=ids, reason="other")
 
-            self.workspace.mutate(
-                "before record land media repair",
-                "after record land media repair",
-                mutate,
-                operation="record_land_media_repair",
-                params={"session_id": self.session_id},
-            )
+            with write_grant(WriteGrantKind.LEGACY_RECORD_LANDING):
+                self.workspace.mutate(
+                    "before record land media repair",
+                    "after record land media repair",
+                    mutate,
+                    operation="record_land_media_repair",
+                    params={"session_id": self.session_id},
+                )
         except Exception:
             log.exception("record land media repair failed session=%s", self.session_id)
             self._drop_failed_write()
