@@ -62,12 +62,17 @@ export type BootstrapDownload = {
   total: number | null;
 };
 
-export type BootstrapFailureKind = "http" | "pin_mismatch" | "network" | "disk";
+export type BootstrapFailureKind =
+  | "http"
+  | "pin_mismatch"
+  | "network"
+  | "disk"
+  | "configuration";
 
 export type BootstrapFailure = {
   kind: BootstrapFailureKind;
   status: number | null;
-  /** Plain text safe to show: it names no path, URL or environment variable. */
+  /** Plain text safe to show: it contains no local path or URL. */
   plain: string;
 };
 

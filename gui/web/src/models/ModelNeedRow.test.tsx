@@ -195,10 +195,20 @@ describe("ModelNeedRowView, a model this device cannot run", () => {
       model: { ...WHISPER, size: "~360 MB" },
       state: unsupported,
     });
-    expect(document.querySelector(".sys-need-meta")?.textContent).toBe(
-      "Not available",
-    );
+    expect(screen.getByText("Not available")).toBeTruthy();
     expect(screen.getByText("Transcription")).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+    await expectNoA11yViolations(container);
+  });
+
+  it("shows a model-specific recovery hint without offering a download", async () => {
+    const hint =
+      "To use the verified model, unset PODCAST_MCP_WORD_ALIGNER_MODEL.";
+    const { container } = view({
+      placement: "list",
+      state: { kind: "unsupported", hint },
+    });
+    expect(screen.getByText(hint)).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
     await expectNoA11yViolations(container);
   });

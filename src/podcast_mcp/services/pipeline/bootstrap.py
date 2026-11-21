@@ -113,6 +113,8 @@ def model_status(
             return {**base, "state": "unsupported", "hint": hint}
     try:
         record = model_record(model_id, variant, memoize=memoize)
+        if record["state"] == "unsupported":
+            return record
         path = str(spec.location())
     except Exception as exc:  # huggingface_hub / filesystem surprises: report, never raise
         return {**base, "state": "missing", "hint": str(exc), "bootstrap": spec.fix_command}

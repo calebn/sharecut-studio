@@ -8,7 +8,7 @@ import type {
 export type ModelFailure = {
   /** Null for untyped plain text (an unexpected error). */
   kind: BootstrapFailureKind | null;
-  /** Plain text safe to show: it names no path, URL or environment variable. */
+  /** Plain text safe to show: it contains no local path or URL. */
   plain: string;
 };
 
@@ -21,7 +21,7 @@ export type ModelState =
   | { kind: "installed" }
   | { kind: "missing" }
   | { kind: "update_needed" }
-  /** This device cannot run it, so there is nothing to get. `hint` is the server's plain sentence. */
+  /** The server's hint explains why a download is unavailable. */
   | { kind: "unsupported"; hint: string }
   | { kind: "queued" }
   | { kind: "downloading"; bytes: number; total: number | null }

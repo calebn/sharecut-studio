@@ -30,6 +30,10 @@ _failed: set[tuple[str, str]] = set()
 _failed_lock = threading.Lock()
 
 
+class OnnxOverrideUnsupportedError(RuntimeError):
+    pass
+
+
 def onnx_override_restriction(variable: str) -> str | None:
     if host_platform.current().kernel != "darwin" or host_platform.machine() != "x86_64":
         return None

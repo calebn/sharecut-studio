@@ -1,4 +1,4 @@
-"""Why a model download failed, classified once and worded without paths, URLs or env vars."""
+"""Why model setup failed, classified once and worded without paths or URLs."""
 
 from __future__ import annotations
 
@@ -8,10 +8,11 @@ from typing import Literal
 
 from podcast_mcp.engines.models.whisper import WhisperPinMismatchError
 from podcast_mcp.engines.models.word_aligner import WordAlignerPinMismatchError
+from podcast_mcp.engines.onnx_session import OnnxOverrideUnsupportedError
 from podcast_mcp.util.asset_sources import AssetIntegrityError, AssetSourceError
 from podcast_mcp.util.coded_error import CodedError
 
-FailureKind = Literal["http", "pin_mismatch", "network", "disk"]
+FailureKind = Literal["http", "pin_mismatch", "network", "disk", "configuration"]
 
 _PLAIN = {
     "http_missing": "The download server doesn't have {label}.",
@@ -107,6 +108,8 @@ def classify(exc: BaseException, *, label: str, fix: str) -> InstallFailure | No
     URL attempt (``AssetSourceError``) is the source being unreachable, so it reads as
     ``network``; a ``ValueError`` is not classified.
     """
+    if isinstance(exc, OnnxOverrideUnsupportedError):
+        return InstallFailure("configuration", None, str(exc))
     found = _reason(exc)
     if found is None:
         return None
