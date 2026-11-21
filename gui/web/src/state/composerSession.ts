@@ -1,7 +1,16 @@
 import type { CommentDraft } from "./types";
 
-/** What the phone Listen layout shows above the dock, one at a time. */
-export type Surface = "none" | "composer" | "comments" | "thread" | "chapters";
+export type Surface =
+  | "none"
+  | "composer"
+  | "wideComposer"
+  | "comments"
+  | "thread"
+  | "chapters";
+
+export function isComposerSurface(surface: Surface): boolean {
+  return surface === "composer" || surface === "wideComposer";
+}
 
 /**
  * The comment being written. `anchor` is the pin: it is set when a draft
@@ -56,8 +65,7 @@ export type ComposerEvent =
       surface: "none" | "comments" | "thread" | "chapters";
       threadId?: string;
     }
-  /** The layout that hosted the sheets is gone; text it held becomes the open composer. */
-  | { type: "sheetsGone" }
+  | { type: "layout"; listen: boolean }
   | { type: "postStart"; id: number }
   | { type: "postDone"; id: number }
   | { type: "postFailed"; id: number }
@@ -195,14 +203,18 @@ export function reduceComposer(
       return leave(s, ctx, false);
     case "show": {
       const threadId = e.surface === "thread" ? (e.threadId ?? null) : null;
-      if (s.surface === "composer")
+      if (isComposerSurface(s.surface))
         return leave(s, ctx, true, e.surface, threadId);
       return same({ ...s, surface: e.surface, threadId });
     }
-    case "sheetsGone": {
-      // Text the Listen layout held keeps its pin on the field that shows it.
-      if (s.draft?.text && s.surface !== "composer")
-        return same({ ...s, surface: "composer", threadId: null });
+    case "layout": {
+      if (e.listen) {
+        return same(
+          s.surface === "wideComposer" ? { ...s, surface: "none" } : s,
+        );
+      }
+      if (s.draft?.text && !isComposerSurface(s.surface))
+        return same({ ...s, surface: "wideComposer", threadId: null });
       return SHEETS.includes(s.surface)
         ? same({ ...s, surface: "none", threadId: null })
         : same(s);
@@ -218,7 +230,7 @@ export function reduceComposer(
       return {
         state: {
           ...s,
-          surface: s.surface === "composer" ? "none" : s.surface,
+          surface: isComposerSurface(s.surface) ? "none" : s.surface,
           draft: null,
           dropped: null,
           post: null,
@@ -240,7 +252,7 @@ function withoutResume(s: ComposerSession): ComposerSession {
 
 /** The anchor the comment would post at while the composer is open. */
 export function commentDraftOf(s: ComposerSession): CommentDraft | null {
-  return s.surface === "composer" && s.draft ? s.draft.anchor : null;
+  return isComposerSurface(s.surface) && s.draft ? s.draft.anchor : null;
 }
 
 /** The store fields one session value fills in. */

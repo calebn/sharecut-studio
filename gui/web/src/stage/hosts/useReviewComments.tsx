@@ -34,6 +34,7 @@ import {
   commentRole,
   shareTokenFromKey,
 } from "../../shareMode";
+import { isComposerSurface } from "../../state/composerSession";
 import { useDawStore } from "../../state/dawStore";
 import { hostCauseNow } from "../../state/hostReach";
 import {
@@ -377,7 +378,7 @@ export function useReviewComments(guest: boolean) {
 
   const open = () => {
     const state = useDawStore.getState();
-    if (state.composer.surface === "composer") composeRef.current?.focus();
+    if (isComposerSurface(state.composer.surface)) composeRef.current?.focus();
     else {
       const anchor = resolveCommentAnchor(state);
       if (anchor.source === "refreshing") {
