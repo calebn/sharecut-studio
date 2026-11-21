@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from history_helpers import history_move
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.models.history import StepOwners
@@ -151,6 +152,49 @@ def test_a_guest_redo_flag_follows_who_undid(minimal_project, sample_wav):
     assert flags(undone.json()["snapshot"]["history"]) == (False, True)
     assert state_flags(client, token_a) == (False, True)
     assert state_flags(client, token_b) == (False, False)
+
+
+def test_legacy_publication_does_not_block_the_owning_guests_history(minimal_project, sample_wav):
+    (token, _author), (other, _other_author) = two_editor_links(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    command(client, token, "First", 1)
+    ws = ProjectWorkspace.open(minimal_project)
+    version = ws.project.review.versions[0].model_copy(update={"id": "legacy-publication"})
+    ws.project.review.versions.append(version)
+    ws.project.review.active_version_id = version.id
+    ws.history().record(ws.project, "after publish review version", force=True).author = None
+    save_project(ws.project, minimal_project)
+    command(client, token, "Second", 2)
+
+    def move(link: str, action: str, seq: int):
+        return client.post(
+            f"/api/review/{link}/daw/document/command",
+            json={
+                "type": f"{action}History",
+                "payload": history_move(minimal_project),
+                "client_id": "legacy-history",
+                "client_seq": seq,
+                "role": "guest",
+            },
+        )
+
+    for seq, action, titles, expected_flags in (
+        (3, "Undo", ["First"], (True, True)),
+        (5, "Undo", [], (False, True)),
+        (6, "Redo", ["First"], (True, True)),
+        (7, "Redo", ["First", "Second"], (True, False)),
+    ):
+        reply = move(token, action, seq)
+        assert reply.status_code == 200, reply.text
+        assert flags(reply.json()["snapshot"]["history"]) == expected_flags
+        assert state_flags(client, token) == expected_flags
+        assert flags(share_daw_project_view(token)["history"]) == expected_flags
+        assert state_flags(client, other) == (False, False)
+        if seq == 3:
+            assert move(other, "Undo", 4).status_code == 400
+        saved = load_project(minimal_project)
+        assert [chapter.title for chapter in saved.chapters] == titles
+        assert saved.review.active_version_id == version.id
 
 
 def test_guest_payloads_hold_only_the_booleans_and_no_owner_or_share_id(
