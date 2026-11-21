@@ -60,6 +60,10 @@ bounded previews, and Escape cleanup. Install Chromium with
 `npx playwright install chromium` before running this focused suite locally.
 The suite also checks opened menu and avatar panels in Canvas and Docs,
 fixed popovers, and modal and shell isolation at desktop and phone widths.
+The Playwright Player bar sweep records native ResizeObserver errors from the
+page before loading each story. A test creates a real browser loop to verify
+that the sweep can detect it.
+
 Use `src/storybook/storyLayout.tsx` for menu spacing and isolated Docs
 viewports. Fixed overlays, body portals, and viewport shells render in
 separate `40rem` Docs frames that follow the Docs theme toolbar. Previews
