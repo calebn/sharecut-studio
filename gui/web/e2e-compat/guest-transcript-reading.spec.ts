@@ -91,7 +91,7 @@ async function followerHoldsStill(
       await anchoringOff(view);
       // Start in speech before the cut. The paused word also needs to fit
       // completely inside the short pane before the refresh begins.
-      const tapped = view.locator(WORD).nth(mode === "playing" ? -26 : -32);
+      const tapped = view.locator(WORD).nth(-32);
       const tappedKey = await tapped.getAttribute("data-word-key");
       const playheadPlace = await tapped.evaluate((el) => {
         const turn = el.closest("[data-turn-id]");
@@ -117,7 +117,10 @@ async function followerHoldsStill(
       const anchorKey = await visiblePlace(view, "first");
       expect(anchorKey, "a word is visible to anchor on").not.toBeNull();
       guest.detail.delayMs = 1_500;
-      const seen = await frames(guest, page, "cut", 1, anchorKey, 46);
+      // A ripple cut can pause guest playback while its audio snapshot changes.
+      // Correct a later word so playback and the observed turn stay intact.
+      const edit = mode === "playing" ? "correct-last" : "cut";
+      const seen = await frames(guest, page, edit, 1, anchorKey, 46);
       expectNoBlankFrame(seen.frames, seen.from, guest.log, "for a follower");
       const after = seen.frames.filter((f) => f.t >= seen.from);
       const refreshStart = after.findIndex((frame) => frame.busy);
@@ -139,9 +142,13 @@ async function followerHoldsStill(
         "the follower's view moved while the Script refreshed",
       ).toBeLessThan(2);
       const playing = view.locator(`${WORD}[data-playing]`).first();
-      if (mode === "playing")
+      if (mode === "playing") {
+        await expect(
+          view.getByRole("button", { name: "Pause", exact: true }),
+          "playback stays active after the correction",
+        ).toBeVisible();
         await expect(playing, "the playing word is in view").toBeInViewport();
-      else {
+      } else {
         expect(
           await view
             .locator(`${WORD}[data-playing]`)
