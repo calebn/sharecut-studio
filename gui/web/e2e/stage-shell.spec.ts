@@ -39,6 +39,7 @@ import {
   setAudition,
   stageTab,
 } from "./stageNav";
+import { openScript } from "./transcriptEdit";
 import { withBrowserPages, withTwoBrowserPages } from "./twoBrowserPages";
 
 const diagnosticTest = test.extend<{}, { privateDiagnostic: void }>({
@@ -573,6 +574,50 @@ for (const width of [1024, 1440]) {
 
 test.describe("Stage shell on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test("Deliver reports a phone-width Script cut and Undo without reloading", async ({
+    page,
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await openStageProject(page, projectPath, { stage: "edit" });
+      const removedSeconds = async () => {
+        const response = await page.request.get(
+          `/api/project?path=${encodeURIComponent(projectPath)}&phase=full`,
+        );
+        expect(response.ok()).toBe(true);
+        return ((await response.json()) as ProjectView).edit_impact
+          .total_removed_sec;
+      };
+      expect(await removedSeconds()).toBe(0);
+      const script = await openScript(page);
+      const words = script.locator(
+        '.sys-script-word[data-word-key^="reference:"]',
+      );
+      await words.nth(2).click();
+      await words.nth(8).click({ modifiers: ["Shift"] });
+      await expect(words.nth(8)).toHaveAttribute("data-selected");
+      const cut = page.getByRole("button", { name: "Cut", exact: true });
+      await expect(cut).toBeVisible();
+      await cut.click();
+
+      await expect.poll(removedSeconds).toBeGreaterThan(0);
+      const savedSeconds = await removedSeconds();
+      expect(Number(savedSeconds.toFixed(1))).toBeGreaterThan(0);
+      await goToStage(page, "deliver");
+      const editsSaved = deliverPage(page)
+        .getByRole("listitem")
+        .filter({ hasText: "Edits saved" });
+      await expect(
+        editsSaved.getByText(`${savedSeconds.toFixed(1)} s`, { exact: true }),
+      ).toBeVisible();
+
+      await page.keyboard.press("ControlOrMeta+z");
+      await expect.poll(removedSeconds).toBe(0);
+      await expect(
+        editsSaved.getByText("0.0 s", { exact: true }),
+      ).toBeVisible();
+    });
+  });
 
   test("keeps the tab bar on every stage, Record included", async ({
     page,
