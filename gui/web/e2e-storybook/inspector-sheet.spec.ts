@@ -7,6 +7,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { storybookUrl } from "./server";
 import { storyUrl } from "./storyUrl";
 
 /**
@@ -28,7 +29,7 @@ async function open(page: Page, id: string, width: number, height = 800) {
 async function coarsePage(browser: Browser, id: string) {
   const context = await browser.newContext({
     ...devices["Pixel 5"],
-    baseURL: "http://127.0.0.1:6010",
+    baseURL: storybookUrl,
     reducedMotion: "reduce",
   });
   const page = await context.newPage();

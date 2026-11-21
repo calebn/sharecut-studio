@@ -7,6 +7,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { storybookUrl } from "./server";
 import { storyUrl } from "./storyUrl";
 
 /**
@@ -39,7 +40,7 @@ async function openDesktop(page: Page, id = GESTURES) {
 async function touchPage(browser: Browser, id = PHONE) {
   const context = await browser.newContext({
     ...devices["Pixel 5"],
-    baseURL: "http://127.0.0.1:6010",
+    baseURL: storybookUrl,
   });
   const page = await context.newPage();
   await page.goto(storyUrl(id, { theme: "light" }));

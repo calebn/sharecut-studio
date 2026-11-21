@@ -1,4 +1,5 @@
 import { devices, expect, type Locator, test } from "@playwright/test";
+import { storybookUrl } from "./server";
 import { storyUrl } from "./storyUrl";
 
 async function expectInside(element: Locator, bounds: "viewport" | "story") {
@@ -122,7 +123,7 @@ test("Menu rows are 44 px under a coarse pointer without the phone shell", async
 }) => {
   const context = await browser.newContext({
     ...devices["Pixel 5"],
-    baseURL: "http://127.0.0.1:6010",
+    baseURL: storybookUrl,
   });
   const page = await context.newPage();
   await page.goto(storyUrl("molecules-menu--default", { theme: "light" }));

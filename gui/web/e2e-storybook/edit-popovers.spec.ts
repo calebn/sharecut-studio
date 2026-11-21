@@ -1,5 +1,6 @@
 import { devices, expect, test } from "@playwright/test";
 import { newFinger } from "../e2e/finger";
+import { storybookUrl } from "./server";
 import { storyUrl } from "./storyUrl";
 
 /**
@@ -25,7 +26,7 @@ async function coarsePage(
 ) {
   const context = await browser.newContext({
     ...devices["Pixel 5"],
-    baseURL: "http://127.0.0.1:6010",
+    baseURL: storybookUrl,
   });
   const page = await context.newPage();
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
@@ -286,7 +287,7 @@ async function touchPage(
   const context = await browser.newContext({
     ...devices["Pixel 5"],
     viewport: { width, height: 851 },
-    baseURL: "http://127.0.0.1:6010",
+    baseURL: storybookUrl,
   });
   const page = await context.newPage();
   await page.emulateMedia({ colorScheme: "light" });
