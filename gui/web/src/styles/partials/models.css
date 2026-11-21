@@ -78,19 +78,29 @@
 
 .sys-need-extra .ui-segmented {
   display: flex;
-  flex-wrap: wrap;
   block-size: auto;
 }
 
 .sys-need-extra .ui-segmented > .ui-control {
-  /* Side by side while two fit; under text zoom they stack instead of clipping. */
-  flex: 1 1 8rem;
+  flex: 1 1 0;
   flex-direction: column;
   gap: 0;
   min-block-size: var(--touch-min);
-  min-inline-size: min-content;
-  padding-inline: var(--space-1);
+  min-inline-size: 0;
   white-space: nowrap;
+}
+
+/* On a phone under text zoom the sizes stack instead of clipping. */
+@media (max-width: 30rem) {
+  .sys-need-extra .ui-segmented {
+    flex-wrap: wrap;
+  }
+
+  .sys-need-extra .ui-segmented > .ui-control {
+    flex: 1 1 8rem;
+    min-inline-size: min-content;
+    padding-inline: var(--space-1);
+  }
 }
 
 .sys-size-bytes {
