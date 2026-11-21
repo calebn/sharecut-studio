@@ -82,6 +82,31 @@ test("a menu item runs its command and closes the menu", async ({ page }) => {
   ).toHaveCount(0);
 });
 
+test("Shift+C adds a chapter at the playhead and one undo removes it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openHostProject(page);
+  const position = page
+    .getByRole("slider", { name: "Timeline position" })
+    .first();
+  await position.focus();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowRight");
+  const at = await playheadSec(page);
+  expect(at).toBeGreaterThan(0);
+  const chapters = page.locator('[data-hit-kind="chapter"]');
+  await expect(chapters).toHaveCount(0);
+
+  await page.keyboard.press("Shift+c");
+  await expect(chapters).toHaveCount(1);
+  await expect(chapters).toHaveAttribute("data-hit-time", String(at));
+
+  // Undo also restores the shared fixture for later tests.
+  await page.keyboard.press("Control+z");
+  await expect(chapters).toHaveCount(0);
+});
+
 test("Shift+F10 on the focused envelope line opens the create menu and Escape closes it", async ({
   page,
 }) => {
