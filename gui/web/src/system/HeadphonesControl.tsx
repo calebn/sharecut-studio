@@ -23,7 +23,8 @@ export function HeadphonesControl({
   const noteRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (choice === "off") {
-      noteRef.current?.scrollIntoView?.({ block: "nearest" });
+      // The microphone row can grow after the guest chooses.
+      noteRef.current?.scrollIntoView?.({ block: "center" });
     }
   }, [choice]);
   if (rule === "required") {

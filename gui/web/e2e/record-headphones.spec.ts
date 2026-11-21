@@ -249,13 +249,18 @@ test.describe("headphones in the record room", () => {
               .click();
             const notWearing = phone.getByRole("button", { name: NOT_WEARING });
             await notWearing.click();
+            await expect(
+              phone.getByRole("button", { name: "Join and record" }),
+            ).toBeEnabled();
             await expect(phone.getByText(NOTE)).toBeInViewport({ ratio: 1 });
+            await expect(notWearing).toBeInViewport({ ratio: 1 });
             const box = await notWearing.boundingBox();
             expect(box?.width).toBeGreaterThan(100);
             expect(box?.height).toBeGreaterThanOrEqual(44);
             await expect(
               notWearing.getByText("Not wearing", { exact: true }),
             ).toBeVisible();
+            await join(phone, "Maya");
           },
         );
       });

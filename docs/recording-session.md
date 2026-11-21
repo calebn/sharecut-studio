@@ -1215,8 +1215,9 @@ The Headphones row follows the device. On a laptop or a tablet it is the single 
 phone it is a pair of buttons side by side, labelled "Wearing" and "Not wearing" (their
 names for assistive tech are "I'm wearing headphones" and "I'm not wearing headphones"), each
 at least 44 px tall, neither pressed until the guest answers; the pressed one shows a check
-in place of its headphones glyph, and choosing "Not wearing" scrolls the warning into view; until then the reason reads "Say if you're wearing
-headphones first", and either answer lets **Join and record** work. "I'm not wearing headphones"
+in place of its headphones glyph. Choosing "Not wearing" scrolls the full warning into view
+on a short phone. Until the guest answers, the reason reads "Say if you're wearing headphones
+first". Either answer lets **Join and record** work. "I'm not wearing headphones"
 shows, under the pair, "Others may hear their own echo and be heard in your recording. Keep your
 volume low." The Device sheet holds the same control, and a press applies
 at once, during a take too. A phone is a device test, read once when the page opens
