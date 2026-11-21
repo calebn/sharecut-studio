@@ -1,7 +1,8 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import type { DawExportRequest, DawFormat } from "../types/project.generated";
 import { apiFetch } from "./http";
 
-export type DawFormat = "rpp" | "aaf" | "sesx";
+export type { DawFormat } from "../types/project.generated";
 
 export async function loadDawFormats(projectPath: string, signal: AbortSignal) {
   const response = await apiFetch(
@@ -41,7 +42,10 @@ export async function startDawSession(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal,
-      body: JSON.stringify({ path: projectPath, format }),
+      body: JSON.stringify({
+        path: projectPath,
+        format,
+      } satisfies DawExportRequest),
     },
   );
   const { job }: { job: PipelineJobSnapshot } = await response.json();
