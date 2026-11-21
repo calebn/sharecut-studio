@@ -125,6 +125,7 @@ def test_share_audition_context_http_caps(minimal_project, sample_wav, tmp_works
     assert ok.status_code == 200, ok.text
     body = ok.json()
     dumped = json.dumps(body)
+    assert "auxiliary_tracks" not in body
     assert "/Users/" not in dumped
     assert "workspace_dir" not in dumped
     assert body["visuals"]
@@ -139,6 +140,13 @@ def test_share_audition_context_mcp_urls_and_image(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws = _seed_dialogue(minimal_project, sample_wav, tmp_workspace)
+    ws.project.tracks.append(
+        Track(id="cue", label="Cue", role=TrackRole.SFX, media=ws.project.tracks[0].media)
+    )
+    ws.project.clips.append(
+        Clip(id="cue-clip", track_id="cue", source_start=0, source_end=1, timeline_start=0)
+    )
+    ws.save()
     share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
     token = share["token"]
     calls = _stub_ffmpeg_pngs(monkeypatch)
@@ -167,6 +175,7 @@ def test_share_audition_context_mcp_urls_and_image(
     called = _mcp_call(token, "guest_audition_context", {"start": 0.2, "end": 1.5})
     assert "error" not in called, called
     payload = json.loads(called["result"]["content"][0]["text"])
+    assert "auxiliary_tracks" not in payload
     assert payload["visuals"][0]["wave_path"].startswith(f"/api/review/{token}/")
     assert "/Users/" not in json.dumps(payload)
 

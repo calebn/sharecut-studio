@@ -7,6 +7,7 @@ from podcast_mcp.edits.audition_context import build_audition_context
 from podcast_mcp.models import (
     Clip,
     MediaAsset,
+    SourceRecording,
     Track,
     TrackRole,
     Transcript,
@@ -98,6 +99,96 @@ def test_audition_context_captions_and_skew(minimal_project, sample_wav, tmp_wor
     assert ctx["clip_skew"]["any_skewed"] is False
     assert not any("clip_skew" in w for w in ctx["warnings"])
     assert all(h["code"] != "clip_skew" for h in ctx["hypotheses"])
+
+
+@pytest.mark.parametrize("detail", ["summary", "full"])
+def test_audition_context_reports_music_and_sfx_placements(
+    minimal_project, sample_wav, tmp_workspace, detail
+):
+    project = _two_track_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    captions = build_audition_context(
+        project, 2.5, 5.0, detail=detail, include_dsp=False, defaults=defaults
+    )["tracks"]
+    for track_id, role in (
+        ("music", TrackRole.MUSIC),
+        ("sting", TrackRole.SFX),
+        ("intro", TrackRole.INTRO),
+    ):
+        path = f"raw/{track_id}.wav"
+        (tmp_workspace / path).write_bytes(sample_wav.read_bytes())
+        project.tracks.append(
+            Track(
+                id=track_id,
+                label=track_id,
+                role=role,
+                media=MediaAsset(path=path, duration_sec=60.0),
+                muted=role is TrackRole.SFX,
+            )
+        )
+    project.sources = [SourceRecording(id="music-source", path="raw/music.wav", duration_sec=60.0)]
+    project.clips.extend(
+        [
+            Clip(
+                id=clip_id,
+                track_id="music",
+                source_id="music-source",
+                source_start=1,
+                source_end=2,
+                timeline_start=start,
+            )
+            for clip_id, start in [("late", 4), ("early", 2), ("touching", 5)]
+        ]
+        + [
+            Clip(
+                id="effect",
+                track_id="sting",
+                source_start=0,
+                source_end=1,
+                timeline_start=3,
+                timing=ClipTiming(steps=[TimingStep(at=0.5, delta_sec=0.25)]),
+            ),
+            Clip(id="intro", track_id="intro", source_start=0, source_end=1, timeline_start=3),
+        ]
+    )
+
+    context = build_audition_context(
+        project, 2.5, 5.0, detail=detail, include_dsp=False, defaults=defaults
+    )
+
+    def placement(clip_id, source_id, start, end, source_start, source_end):
+        return {
+            "clip_id": clip_id,
+            "source_id": source_id,
+            "timeline": {"clock": "timeline", "unit": "sec", "start": start, "end": end},
+            "source": {"clock": "source", "unit": "sec", "start": source_start, "end": source_end},
+        }
+
+    assert context["tracks"] == captions
+    assert context["auxiliary_tracks"] == [
+        {
+            "track_id": "music",
+            "role": "music",
+            "muted": False,
+            "placements": [
+                placement("early", "music-source", 2, 3, 1, 2),
+                placement("late", "music-source", 4, 5, 1, 2),
+            ],
+        },
+        {
+            "track_id": "sting",
+            "role": "sfx",
+            "muted": True,
+            "placements": [
+                placement("effect", None, 3, 3.5, 0, 0.5),
+                placement("effect", None, 3.75, 4.25, 0.5, 1),
+            ],
+        },
+    ]
+    gap = build_audition_context(
+        project, 3.5, 3.75, detail=detail, include_dsp=False, defaults=defaults
+    )
+    assert gap["auxiliary_tracks"] == []
 
 
 def _two_track_ripple_project(minimal_project, sample_wav, tmp_workspace):
