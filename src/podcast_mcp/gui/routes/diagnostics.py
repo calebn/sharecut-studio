@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -29,6 +28,7 @@ from podcast_mcp.services.media import TranscriptContextBusyError
 from podcast_mcp.services.support import (
     MAX_BUNDLE_BYTES,
     DiagnosticsService,
+    EpisodeOpenCode,
     UnopenedEpisode,
     default_bundle_dir,
     get_report_status,
@@ -38,10 +38,6 @@ from podcast_mcp.services.support import (
     resolve_bundle_file,
     submit_bundle,
 )
-from podcast_mcp.util.project_state import PROJECT_BUSY_CODE
-
-PROJECT_OPEN_FAILED_CODE = "project_open_failed"
-_FIXED_CODE = re.compile(r"[a-z][a-z0-9_]{2,63}")
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -109,7 +105,7 @@ def _load_project(
             or Path(raw).expanduser().resolve() != Path(served).resolve()
         ):
             raise
-        return None, _unopened(PROJECT_NOT_FOUND_CODE, Path(raw).expanduser().resolve())
+        return None, _unopened(EpisodeOpenCode.NOT_FOUND, Path(raw).expanduser().resolve())
     try:
         return ProjectWorkspace.open(project_path).project, None
     except Exception as exc:
@@ -120,17 +116,21 @@ def _load_project(
         return None, _unopened(_failure_code(exc), project_path, exc)
 
 
-def _failure_code(exc: Exception) -> str:
-    """The code a failed open is reported under: its own when it is a fixed identifier."""
+def _failure_code(exc: Exception) -> EpisodeOpenCode:
     if isinstance(exc, Timeout | TranscriptContextBusyError):
-        return PROJECT_BUSY_CODE
+        return EpisodeOpenCode.BUSY
     code = getattr(exc, "code", None)
-    if isinstance(code, str) and _FIXED_CODE.fullmatch(code):
-        return code
-    return PROJECT_OPEN_FAILED_CODE
+    if not isinstance(code, str):
+        return EpisodeOpenCode.FAILED
+    try:
+        return EpisodeOpenCode(code)
+    except ValueError:
+        return EpisodeOpenCode.FAILED
 
 
-def _unopened(code: str, project_file: Path, exc: Exception | None = None) -> UnopenedEpisode:
+def _unopened(
+    code: EpisodeOpenCode, project_file: Path, exc: Exception | None = None
+) -> UnopenedEpisode:
     # The exception's class and the code only: its message can hold the episode's own words.
     cause = type(exc).__name__ if exc is not None else "none"
     log.warning("diagnostics bundle for an episode that did not open (%s, %s)", cause, code)
