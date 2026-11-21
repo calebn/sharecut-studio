@@ -404,7 +404,7 @@ def test_guest_socket_busy_is_transient_and_releases_admission(
     if kind == "review":
         token = review_token(shared_workspace)
         path = f"/api/review/{token}/daw/ws"
-        symbol = "require_share_cap" if stage == "admission" else "SessionSyncService"
+        symbol = "open_resolved_share_workspace" if stage == "admission" else "SessionSyncService"
         monkeypatch.setattr(review_share, symbol, busy)
     else:
         token = ShareService(shared_workspace).create_record_room()["guest"]["token"]
@@ -432,14 +432,14 @@ def test_guest_review_revocation_during_admission_remains_terminal(
     shared_workspace, monkeypatch, caplog
 ):
     token = review_token(shared_workspace)
-    admit = review_share._admit_review_ws
+    initial_lookup = review_share.guest_ws_share_row
 
-    async def admit_then_revoke(websocket, token):
-        restricted = await admit(websocket, token)
+    async def lookup_then_revoke(websocket, token, *, kind):
+        row = await initial_lookup(websocket, token, kind=kind)
         ShareService(shared_workspace).revoke(token)
-        return restricted
+        return row
 
-    monkeypatch.setattr(review_share, "_admit_review_ws", admit_then_revoke)
+    monkeypatch.setattr(review_share, "guest_ws_share_row", lookup_then_revoke)
     with pytest.raises(WebSocketDisconnect) as failure:
         with TestClient(create_app()).websocket_connect(f"/api/review/{token}/daw/ws") as socket:
             socket.receive_json()
