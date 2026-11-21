@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fixTextAvailability } from "../../../commands/fixTextAvailability";
 import { canIngestMedia, rangeEditMode } from "../../../shareMode";
 import { FindBar, type FindBarHandle } from "../../../stages/edit/FindBar";
@@ -140,10 +140,14 @@ export function ScriptHost({
   const seamRoll = useScriptSeamRoll(say);
   const speaker = useScriptSpeaker(model, mayIngest && ready, say);
 
-  const changeFollow = useStableCallback((follow: boolean) => {
-    if (follow) pane.current?.clearScrollIntent();
-    playback.onFollowChange(follow);
-  });
+  const setFollowing = playback.onFollowChange;
+  const changeFollow = useCallback(
+    (follow: boolean) => {
+      if (follow) pane.current?.clearScrollIntent();
+      setFollowing(follow);
+    },
+    [setFollowing],
+  );
   const backToPlayhead = () => {
     changeFollow(true);
     const word = playback.playing[0] ?? playback.playheadWord;
