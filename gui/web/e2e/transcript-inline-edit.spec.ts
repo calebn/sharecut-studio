@@ -42,6 +42,11 @@ test.describe("Script Fix text", () => {
           await original.dblclick();
           await expect(input).toHaveCount(0);
           await original.focus();
+          await expect(original).toHaveAttribute("data-selected", "");
+          await page.keyboard.type("qw");
+          await expect(input).toHaveCount(0);
+          await expect(original).toBeFocused();
+          await expect(original).toHaveAttribute("data-selected", "");
           await page.keyboard.press("F2");
           await expect(input).toBeFocused();
           await input.press("Escape");
