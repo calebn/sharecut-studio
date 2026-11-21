@@ -69,7 +69,7 @@ export type PlayerProps = {
   peaks?: readonly number[];
   ticks?: readonly OverviewTick[];
   playhead?: number;
-  /** Episode length in seconds, for the overview strip's slider value and key steps. */
+  /** Episode length in seconds, for the total readout and overview slider. */
   duration?: number;
   /** Seeks to a 0 to 1 fraction of the episode from the expanded overview strip. */
   onSeek?: (fraction: number) => void;
@@ -428,7 +428,15 @@ function HearOriginal({
  * tap away. The status reads as text here, not a clipped glyph.
  */
 function Dock(props: PlayerProps & { statusId: string }) {
-  const { time, total, state, status, chapters = [], chapter } = props;
+  const {
+    time,
+    total,
+    duration,
+    state,
+    status,
+    chapters = [],
+    chapter,
+  } = props;
   const centre = status ?? chapters[chapter ?? -1]?.title;
   return (
     <div
@@ -475,7 +483,11 @@ function Dock(props: PlayerProps & { statusId: string }) {
           ) : null}
           <StatePills {...props} />
         </div>
-        <span className="sys-listen-dock-total sys-player-total">{total}</span>
+        {duration === undefined || duration > 0 ? (
+          <span className="sys-listen-dock-total sys-player-total">
+            {total}
+          </span>
+        ) : null}
         <div className="sys-listen-dock-transport">
           {props.onChapters ? (
             <button
@@ -519,6 +531,7 @@ export function Player(props: PlayerProps) {
     form,
     time,
     total,
+    duration,
     state,
     guest,
     title,
@@ -546,6 +559,8 @@ export function Player(props: PlayerProps) {
   useBarFit(barHostRef, form === "bar", barFitKey(props));
   if (form === "dock") return <Dock {...props} statusId={statusId} />;
   if (form === "bar") {
+    const hasTotal = duration === undefined || duration > 0;
+    const clock = hasTotal ? `${time} / ${total}` : time;
     const sideStatus = (
       <>
         <StatusLine status={props.status} id={statusId} />
@@ -567,11 +582,13 @@ export function Player(props: PlayerProps) {
               ref={barToggleRef}
               type="button"
               className="sys-player-time"
-              aria-label={`${time} / ${total}. Expand player`}
+              aria-label={`${clock}. Expand player`}
               onClick={onExpand}
             >
               <span className="sys-player-now">{time}</span>
-              <span className="sys-player-total">{` / ${total}`}</span>
+              {hasTotal ? (
+                <span className="sys-player-total">{` / ${total}`}</span>
+              ) : null}
             </button>
             <CutsPill cuts={props.cuts} />
             <RatePill rate={props.rate} />

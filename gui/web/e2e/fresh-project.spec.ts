@@ -39,6 +39,10 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
     await goToStage(page, "edit");
     const play = page.getByRole("button", { name: "Play", exact: true });
     await expect(play).toBeVisible();
+    const player = page.getByRole("group", { name: "Player" });
+    const clock = player.getByRole("button", { name: /Expand player/ });
+    await expect(clock).toHaveAccessibleName(/^00:00\.000\. Expand player$/);
+    await expect(player.locator(".sys-player-total")).toHaveCount(0);
     await openPanel(page, "transcript");
     await page.evaluate(() => (document.activeElement as HTMLElement).blur());
     const playbackProbe = await page.evaluateHandle(() => {
@@ -77,6 +81,8 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator(".stage-frame-player")).toBeVisible();
+    await expect(clock).toHaveAccessibleName(/^00:00\.000\. Expand player$/);
+    await expect(player.locator(".sys-player-total")).toHaveCount(0);
     await expect(page.getByText("Mix out of date")).toHaveCount(0);
     await expect(audioError).toHaveCount(0);
   } finally {
