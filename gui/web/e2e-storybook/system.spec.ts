@@ -1435,28 +1435,45 @@ test("System/Player the expanded Player keeps the skip buttons and A and B in a 
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
 });
 
-test("System/Player the Hear menu opens beside the bar at the level that hid its chevron (#2576)", async ({
-  page,
-}) => {
-  const host = await phoneBar(page, BAR_STATES.followcuts);
-  await expect(host).toHaveAttribute("data-fit", /^[678]$/);
-  const chevron = await host.locator(".sys-player-hear-more").boundingBox();
-  expect(chevron?.width ?? 0).toBeLessThanOrEqual(2);
-  await host
-    .getByRole("button", { name: "B", exact: true })
-    .click({ button: "right" });
-  const panel = page.getByRole("menu", { name: "Hear" });
-  await expect(panel).toBeVisible();
-  const [menu, group] = await Promise.all([
-    panel.boundingBox(),
-    host.locator(".sys-player-hear").boundingBox(),
-  ]);
-  if (!menu || !group) throw new Error("no boxes");
-  // Under the A/B group, as with the chevron: not at the corner of the screen.
-  expect(Math.abs(menu.y - (group.y + group.height))).toBeLessThan(8);
-  expect(menu.x < group.x + group.width).toBe(true);
-  expect(menu.x + menu.width > group.x).toBe(true);
-});
+for (const triggerShape of ["visually hidden", "narrow and tall"] as const) {
+  test(`System/Player the Hear menu opens beside the bar with a ${triggerShape} chevron (#2576)`, async ({
+    page,
+  }) => {
+    const host = await phoneBar(page, BAR_STATES.followcuts);
+    await expect(host).toHaveAttribute("data-fit", /^[678]$/);
+    const chevron = host.locator(".sys-player-hear-more");
+    const hearGroup = host.locator(".sys-player-hear");
+    if (triggerShape === "narrow and tall") {
+      // Isolate the width guard. A height-only check would accept this box,
+      // whose lower edge is well below the visible A/B group.
+      await chevron.evaluate((button) => {
+        button.style.blockSize = "80px";
+      });
+    }
+    const [triggerBox, group] = await Promise.all([
+      chevron.boundingBox(),
+      hearGroup.boundingBox(),
+    ]);
+    if (!triggerBox || !group) throw new Error("Hear controls did not render");
+    expect(triggerBox.width).toBeLessThanOrEqual(2);
+    if (triggerShape === "narrow and tall") {
+      expect(
+        triggerBox.y + triggerBox.height - group.y - group.height,
+      ).toBeGreaterThan(24);
+    }
+    await host
+      .getByRole("button", { name: "B", exact: true })
+      .click({ button: "right" });
+    const panel = page.getByRole("menu", { name: "Hear" });
+    await expect(panel).toBeVisible();
+    const menu = await panel.boundingBox();
+    if (!menu) throw new Error("Hear menu did not render");
+    // The panel opens beside the visible A/B group.
+    expect(Math.abs(menu.y - (group.y + group.height))).toBeLessThan(8);
+    expect(menu.x < group.x + group.width).toBe(true);
+    expect(menu.x + menu.width > group.x).toBe(true);
+  });
+}
 
 test("System/Marker a chapter's span leaves the lane under it to the marker beneath", async ({
   page,
