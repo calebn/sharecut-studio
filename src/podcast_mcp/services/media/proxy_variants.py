@@ -4,7 +4,9 @@ import json
 import math
 import os
 import re
+import shutil
 import tempfile
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -372,6 +374,12 @@ def _accepted(project: EpisodeProject) -> list[ProxyPublishedArtifact]:
     ]
 
 
+@dataclass(frozen=True)
+class _EncodedChunks:
+    directory: Path
+    digests: tuple[str, ...]
+
+
 def _prepare(
     project: EpisodeProject,
     inputs: SourceProxyInputs,
@@ -380,6 +388,7 @@ def _prepare(
     *,
     legacy: bool,
     defaults: EffectiveConfig,
+    encodes: dict[str, _EncodedChunks] | None,
 ) -> _PreparedArtifact:
     input_hash = _input_hash(project, inputs, defaults)
     accepted = _accepted(project)
@@ -439,6 +448,19 @@ def _prepare(
         duration_sec=duration,
         bitrate_kbps=proxy_media.PROXY_BITRATE_KBPS,
     )
+    encode_key = None
+    donor = None
+    if encodes is not None:
+        identity = inputs.identity_payload
+        encode_key = _digest(
+            {
+                "wav": sha256_file(wav),
+                "binaries": identity["binaries"],
+                "ffmpeg_policy": identity["ffmpeg_policy"],
+                **_geometry(descriptor),
+            }
+        )
+        donor = encodes.get(encode_key)
     root = _proxy_root(project)
     _safe_id(inputs.context_track_id)
     parent = root / inputs.context_track_id
@@ -447,17 +469,25 @@ def _prepare(
     private = Path(tempfile.mkdtemp(prefix=".proxy-", dir=parent))
     try:
         for index in range(count):
-            start, duration_chunk = proxy_media.chunk_window(
-                index, duration, chunk_sec=descriptor.chunk_sec, overlap_ms=descriptor.overlap_ms
-            )
             output = private / f"{index:05d}.mp3"
-            proxy_media._encode_chunk(
-                engine, wav, output, start, duration_chunk, bitrate_kbps=descriptor.bitrate_kbps
-            )
+            if donor is None:
+                start, duration_chunk = proxy_media.chunk_window(
+                    index,
+                    duration,
+                    chunk_sec=descriptor.chunk_sec,
+                    overlap_ms=descriptor.overlap_ms,
+                )
+                proxy_media._encode_chunk(
+                    engine, wav, output, start, duration_chunk, bitrate_kbps=descriptor.bitrate_kbps
+                )
+            else:
+                shutil.copyfile(donor.directory / output.name, output)
             with output.open("rb") as handle:
                 os.fsync(handle.fileno())
         wav.unlink()
         digests = _measure(private, descriptor)
+        if donor is not None and tuple(digests) != donor.digests:
+            raise _damaged()
         _sync_directory(private)
         descriptor.hash = _content_hash(input_hash, descriptor, digests)
         artifact = ProxyPublishedArtifact(
@@ -466,6 +496,8 @@ def _prepare(
             input_hash=input_hash,
             chunk_sha256=digests,
         )
+        if encodes is not None and encode_key is not None and donor is None:
+            encodes[encode_key] = _EncodedChunks(private, tuple(digests))
         return _PreparedArtifact(inputs, artifact, private)
     except BaseException:
         _remove_private(private)
@@ -524,13 +556,24 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                     if snapshot.track_by_id(tid) is None:
                         raise CodedKeyError("Track is not available", code="track_not_found")
                 sealed = capture_manifest_inputs(snapshot, engine, defaults, track_id)
+            all_inputs = sealed.all()
+            source_counts = Counter(inputs.source for inputs in all_inputs)
+            encodes: dict[Path, dict[str, _EncodedChunks]] = {
+                source: {} for source, count in source_counts.items() if count > 1
+            }
             with tempfile.TemporaryDirectory(prefix="proxy-wav-") as temporary:
                 tracks = {}
                 artifacts = {}
                 occurrences = {}
                 for tid, inputs in sealed.legacy.items():
                     item = _prepare(
-                        snapshot, inputs, engine, Path(temporary), legacy=True, defaults=defaults
+                        snapshot,
+                        inputs,
+                        engine,
+                        Path(temporary),
+                        legacy=True,
+                        defaults=defaults,
+                        encodes=encodes.get(inputs.source),
                     )
                     prepared.append(item)
                     tracks[tid] = item.artifact
@@ -553,6 +596,7 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                             Path(temporary),
                             legacy=False,
                             defaults=defaults,
+                            encodes=encodes.get(inputs.source),
                         )
                         prepared.append(candidate)
                     artifacts[candidate.artifact.hash] = candidate.artifact
@@ -564,7 +608,13 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                 prepared_recordings = {}
                 for key, inputs in sealed.recordings.items():
                     item = _prepare(
-                        snapshot, inputs, engine, Path(temporary), legacy=False, defaults=defaults
+                        snapshot,
+                        inputs,
+                        engine,
+                        Path(temporary),
+                        legacy=False,
+                        defaults=defaults,
+                        encodes=encodes.get(inputs.source),
                     )
                     prepared.append(item)
                     prepared_recordings[key] = item.artifact
@@ -597,7 +647,7 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                         raise CodedValueError(
                             "Proxy inputs changed; retry", code="proxy_inputs_changed"
                         )
-                    validate_source_proxy_inputs(current, sealed.all(), engine, defaults=defaults)
+                    validate_source_proxy_inputs(current, all_inputs, engine, defaults=defaults)
                     for item in prepared:
                         item.publish(current)
                     before = current.model_dump(mode="json")
