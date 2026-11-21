@@ -74,6 +74,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.binaries import (
+    IN_PROCESS_LABEL,
     FFmpegPair,
     FFmpegPairResolutionError,
     in_process_problem,
@@ -845,7 +846,7 @@ class FFmpegEngine:
             return False, str(exc)
         if pair.is_in_process:
             problem = in_process_problem()
-            return (True, "in-process FFmpeg") if problem is None else (False, problem)
+            return (True, IN_PROCESS_LABEL) if problem is None else (False, problem)
         return True, "FFmpeg/FFprobe " + ".".join(map(str, pair.version))
 
     def audio_start_sec(self, path: Path) -> float:
