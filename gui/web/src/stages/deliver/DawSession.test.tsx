@@ -127,3 +127,44 @@ it("shows the real phase on re-entry and cancels only that episode’s job", asy
   expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
   expect(screen.getByLabelText("DAW format")).toBeEnabled();
 });
+
+it.each([false, true])(
+  "reports cancellation with a published archive: %s",
+  (published) => {
+    const file = {
+      id: "daw-abc/session-rpp.zip",
+      name: "session-rpp.zip",
+      kind: "daw",
+      label: "REAPER session",
+      bytes: 128,
+      current: true,
+      href: "/download/pinned-rpp",
+    } as const;
+    useDawStore.setState({
+      activityJob: pipelineJobSnapshot({
+        kind: "daw_export",
+        project_path: props.projectPath,
+        status: "cancelled",
+        result: published ? { file_ids: [file.id] } : null,
+      }),
+    });
+    render(
+      <DawSession
+        {...props}
+        files={{ ...files, files: published ? [file] : [] }}
+      />,
+    );
+    expect(props.reload).toHaveBeenCalled();
+    if (published) {
+      expect(
+        screen.getByText("Cancel came too late. DAW session exported."),
+      ).toBeVisible();
+      expect(
+        screen.getByRole("link", { name: /Download session-rpp.zip/ }),
+      ).toHaveAttribute("href", file.href);
+    } else {
+      expect(screen.getByText("DAW export cancelled.")).toBeVisible();
+      expect(screen.queryByRole("link")).toBeNull();
+    }
+  },
+);
