@@ -976,6 +976,64 @@ def test_actual_ffmpeg_long_source_complete_chunks_and_boundary(workspace, monke
     assert pv.accepted_proxy_chunk_path(ws, "host", 1, expected_hash=artifact.hash).is_file()
 
 
+def test_manifest_reuses_encodes_and_keeps_distinct_recording_bindings(
+    workspace, monkeypatch, gentle_wav, fast_encode
+):
+    ws = workspace
+    ws.project.tracks.extend(
+        Track(id=track_id, label=track_id, media=MediaAsset(path="raw/host.wav"))
+        for track_id in ("peer", "filtered")
+    )
+    ws.project.processing_chains = [
+        ProcessingChain(
+            track_id="filtered",
+            effects=[ProcessingEffect(effect="highpass", params={"frequency": 1600})],
+        )
+    ]
+    (ws.project.raw_dir() / "take.wav").write_bytes(gentle_wav.read_bytes())
+    clips = [("take", "host"), ("alias", "host"), ("peer-take", "peer"), ("fx-take", "filtered")]
+    ws.project.sources = [SourceRecording(id=clip_id, path="raw/take.wav") for clip_id, _ in clips]
+    ws.project.clips = [
+        Clip(
+            id=clip_id,
+            track_id=track_id,
+            source_id=clip_id,
+            source_start=0,
+            source_end=1,
+            timeline_start=index,
+        )
+        for index, (clip_id, track_id) in enumerate(clips)
+    ]
+    ws.save()
+    encodes = []
+
+    def count_encode(engine, wav, output, start, duration, **kwargs):
+        fast_encode(engine, wav, output, start, duration, **kwargs)
+        encodes.append(output.read_bytes())
+
+    monkeypatch.setattr(pm, "_encode_chunk", count_encode)
+    generation = pv.ensure_proxy_manifest(ws)
+    tracks = generation.tracks
+    assert tracks["host"].chunk_sha256 == tracks["peer"].chunk_sha256
+    assert tracks["host"].chunk_sha256 != tracks["filtered"].chunk_sha256
+    digests = {}
+    paths = []
+    for clip_id, track_id in clips:
+        binding = generation.occurrences[clip_id]
+        assert binding.output_track_id == track_id
+        assert not binding.bakes_mutes
+        artifact = generation.artifacts[binding.artifact_id]
+        path = pv.accepted_proxy_chunk_path(ws, track_id, 0, expected_hash=artifact.hash)
+        paths.append(path)
+        digests[clip_id] = sha256_file(path)
+        assert [digests[clip_id]] == artifact.chunk_sha256
+    assert len(set(paths)) == len(clips)
+    assert not os.path.samefile(paths[0], paths[1])
+    assert digests["take"] == digests["alias"] == digests["peer-take"]
+    assert digests["take"] != digests["fx-take"]
+    assert len(encodes) == len(set(encodes)) == 4
+
+
 def test_proxy_manifest_releases_pcm_before_rendering_the_next_recording(
     workspace, monkeypatch, gentle_wav
 ):
