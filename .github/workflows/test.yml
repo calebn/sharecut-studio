@@ -76,11 +76,6 @@ jobs:
         with:
           extras: dev gui relay prosody
 
-      - name: Build pinned LibAAF reader and verify AAF export
-        run: |
-          bash scripts/build_libaaf_test_tool.sh "$TMPDIR/libaaf-v1"
-          SHARECUT_AAFTOOL="$TMPDIR/libaaf-v1/build/bin/aaftool" pytest -q --no-cov tests/test_aaf_export.py
-
       - name: Python lint / format / security / deps
         run: |
           ruff check src tests scripts
@@ -172,7 +167,13 @@ jobs:
       - name: Install package and dev deps
         uses: ./.github/actions/install-locked-python
         with:
-          extras: dev gui relay prosody
+          extras: dev gui relay prosody aaf
+
+      - name: Build pinned LibAAF reader for independent AAF export checks
+        if: matrix.shard == 1
+        run: |
+          bash scripts/build_libaaf_test_tool.sh "$TMPDIR/libaaf-v1"
+          printf 'SHARECUT_AAFTOOL=%s\n' "$TMPDIR/libaaf-v1/build/bin/aaftool" >> "$GITHUB_ENV"
 
       - name: Record pytest run context
         env:

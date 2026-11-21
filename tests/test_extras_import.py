@@ -76,18 +76,43 @@ def test_every_declared_extra_has_an_import_check() -> None:
     assert _declared_extras() == {*EXTRA_IMPORTS, ALL_EXTRA}
 
 
+def test_clean_env_redirects_user_caches(tmp_path: Path) -> None:
+    cache_root = tmp_path / "home" / ".cache"
+    env = _clean_env(cache_root)
+
+    assert env["HOME"] == str(cache_root.parent)
+    assert env["XDG_CACHE_HOME"] == str(cache_root)
+    assert not set(_OUTER_ENV_VARS).intersection(env)
+
+
 # The outer runner is a locked `uv sync` env (`uv run` exports VIRTUAL_ENV; a shell may
 # export PYTHONPATH). Neither may reach the per-extra venv or its import probe.
 _OUTER_ENV_VARS = ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "UV_PROJECT_ENVIRONMENT")
 
 
-def _clean_env() -> dict[str, str]:
-    return {k: v for k, v in os.environ.items() if k not in _OUTER_ENV_VARS}
+def _clean_env(cache_root: Path) -> dict[str, str]:
+    env = {k: v for k, v in os.environ.items() if k not in _OUTER_ENV_VARS}
+    isolated_home = cache_root.parent
+    env.update(
+        HOME=str(isolated_home),
+        XDG_CACHE_HOME=str(cache_root),
+        XDG_CONFIG_HOME=str(isolated_home / ".config"),
+        XDG_DATA_HOME=str(isolated_home / ".local" / "share"),
+    )
+    if os.name == "nt":
+        env["USERPROFILE"] = str(isolated_home)
+        env["LOCALAPPDATA"] = str(cache_root)
+    return env
 
 
-def _run(cmd: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
+def _run(cmd: list[str], *, timeout: int, cache_root: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        cmd, capture_output=True, text=True, timeout=timeout, check=False, env=_clean_env()
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+        env=_clean_env(cache_root),
     )
 
 
@@ -101,7 +126,13 @@ def _run(cmd: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
 def test_extra_imports_in_clean_venv(extra: str, tmp_path: Path) -> None:
     venv = tmp_path / "venv"
     python = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    created = _run(["uv", "venv", str(venv), "--python", sys.executable], timeout=120)
+    cache_root = tmp_path / "home" / ".cache"
+    cache_root.mkdir(parents=True)
+    created = _run(
+        ["uv", "venv", str(venv), "--python", sys.executable],
+        timeout=120,
+        cache_root=cache_root,
+    )
     assert created.returncode == 0, created.stderr
 
     # Unlocked on purpose: a user's `pip install` ignores uv.lock.
@@ -115,6 +146,7 @@ def test_extra_imports_in_clean_venv(extra: str, tmp_path: Path) -> None:
             f"{ROOT}[{extra}]",
         ],
         timeout=1500,
+        cache_root=cache_root,
     )
     assert installed.returncode == 0, installed.stderr[-4000:]
 
@@ -134,7 +166,7 @@ def test_extra_imports_in_clean_venv(extra: str, tmp_path: Path) -> None:
         timeout=300,
         cwd=tmp_path,
         check=False,
-        env=_clean_env(),
+        env=_clean_env(cache_root),
     )
     assert probe.returncode == 0, f"extra [{extra}] failed to import:\n{probe.stderr[-4000:]}"
 
