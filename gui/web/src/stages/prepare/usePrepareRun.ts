@@ -245,6 +245,7 @@ export function usePrepareRun(input: PrepareRunInput) {
     async (request: RunRequest) => {
       if (activeStart.current || !ownsRequest(request)) return;
       const store = useDawStore.getState();
+      if (store.setupWaitingProject === request.projectPath) return;
       if (
         isPipelineSlotBusy(store.pipelineJob) ||
         isPipelineSlotBusy(store.activityJob)
@@ -396,8 +397,7 @@ export function usePrepareRun(input: PrepareRunInput) {
     if (slotBusy) setStartError(null);
   }, [slotBusy]);
 
-  // Audio that Home imported into this new episode starts processing on open,
-  // once, the same as an import made here.
+  // Script can hand a new episode to Prepare for a one-shot run.
   useEffect(() => {
     if (!canRun || !mediaKey || ingestBusy) return;
     if (takeAutoRun(latest.current.projectPath)) void start("run");

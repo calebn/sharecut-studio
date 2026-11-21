@@ -17,6 +17,8 @@ const STREAM_SILENCE_MS = 5000;
 
 type Options = {
   enabled?: boolean;
+  projectPath?: string;
+  setSetupWaitingProject?: (path: string | null) => void;
   activityJob?: PipelineJobSnapshot | null;
   setActivityJob?: (job: PipelineJobSnapshot | null) => void;
   setActivityRunningCount?: (count: number) => void;
@@ -100,6 +102,7 @@ export function usePipelineJob(
   options: Options = {},
 ): void {
   const enabled = options.enabled ?? true;
+  const { projectPath, setSetupWaitingProject } = options;
   const activityJob = options.activityJob ?? null;
   const esRef = useRef<EventSource | null>(null);
   const statusPollRef = useRef<FallbackPoll | null>(null);
@@ -330,9 +333,12 @@ export function usePipelineJob(
     statusPollRef.current = statusPoll;
     void loadPipelineStatus({ signal: ac.signal })
       .then((st) => {
-        if (!mountedRef.current) {
+        if (!mountedRef.current || ac.signal.aborted) {
           return;
         }
+        setSetupWaitingProject?.(
+          st.waiting_for_setup ? (projectPath ?? null) : null,
+        );
         apply(st);
         const target = attachTargetId(st);
         if (target) {
@@ -348,9 +354,12 @@ export function usePipelineJob(
     const discover = window.setInterval(() => {
       void loadPipelineStatus({ signal: ac.signal })
         .then((st) => {
-          if (!mountedRef.current) {
+          if (!mountedRef.current || ac.signal.aborted) {
             return;
           }
+          setSetupWaitingProject?.(
+            st.waiting_for_setup ? (projectPath ?? null) : null,
+          );
           apply(st, { skipUnchanged: true });
           const target = attachTargetId(st);
           if (target && attachedJobId.current !== target) {
@@ -375,7 +384,7 @@ export function usePipelineJob(
       statusPoll.stop();
       statusPollRef.current = null;
     };
-  }, [enabled, apply, attachEvents]);
+  }, [enabled, projectPath, setSetupWaitingProject, apply, attachEvents]);
 
   const runningJobId = (() => {
     if (pipelineJob && isPipelineRunning(pipelineJob)) {

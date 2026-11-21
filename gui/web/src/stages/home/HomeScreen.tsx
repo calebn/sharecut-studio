@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createEpisodeProject,
   duplicateRecentProject,
+  enqueueSetupRun,
   forgetRecentProject,
   listRecentProjects,
   openEpisodeProject,
@@ -225,27 +226,43 @@ export function HomeScreen() {
     registerDawCommands();
   }, []);
 
+  const hasActiveEpisode =
+    recents?.some(
+      ({ chip }) =>
+        chip.text === "Waiting for setup" || chip.state === "running",
+    ) ?? false;
   useEffect(() => {
     const controller = new AbortController();
-    listRecentProjects(controller.signal)
-      .then((recents) => {
-        if (!controller.signal.aborted) {
-          setRead((current) =>
-            current.reload === reload ? { ...current, recents } : current,
-          );
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setRead((current) =>
-            current.reload === reload
-              ? { ...current, loadFailed: true }
-              : current,
-          );
-        }
-      });
-    return () => controller.abort();
-  }, [reload]);
+    let timer: number | undefined;
+    const refresh = () => {
+      void listRecentProjects(controller.signal)
+        .then((recents) => {
+          if (!controller.signal.aborted) {
+            setRead((current) =>
+              current.reload === reload ? { ...current, recents } : current,
+            );
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setRead((current) =>
+              current.reload === reload
+                ? { ...current, loadFailed: true }
+                : current,
+            );
+          }
+        })
+        .finally(() => {
+          if (hasActiveEpisode && !controller.signal.aborted)
+            timer = window.setTimeout(refresh, 5000);
+        });
+    };
+    refresh();
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [reload, hasActiveEpisode]);
 
   useEffect(() => {
     const restored = (event: PageTransitionEvent) => {
@@ -381,9 +398,19 @@ export function HomeScreen() {
             );
             return undefined;
           }
+          let queued: boolean;
+          try {
+            queued = await enqueueSetupRun(created.project_path);
+          } catch {
+            setReload((n) => n + 1);
+            setNotice(
+              `Audio was added to "${created.name}". Open it from Recent episodes to start processing.`,
+            );
+            return undefined;
+          }
           writeOpenIntent(created.project_path, {
             stage: "prepare",
-            autoRun: true,
+            autoRun: !queued || undefined,
           });
           return navigateToProject(created.project_path);
         },

@@ -4,11 +4,14 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
     coded_exception_error,
+    coded_http_error,
     host_gate,
+    require_loopback_peer,
     resolve_project,
 )
 from podcast_mcp.gui.routes.pipeline_jobs import (
@@ -97,7 +100,27 @@ def pipeline_status(
     request: Request,
 ) -> dict[str, Any]:
     served = getattr(request.app.state, "served_project", None)
-    return _jobs(request).status(project_path=str(served) if served is not None else None)
+    status = _jobs(request).status(project_path=str(served) if served is not None else None)
+    if (
+        served is not None
+        and not status["running"]
+        and request.app.state.setup_runs.waiting(served)
+    ):
+        status["waiting_for_setup"] = True
+    return status
+
+
+class SetupRunRequest(BaseModel):
+    path: str
+
+
+@router.post("/api/pipeline/setup-run", dependencies=_HOST_GATE, status_code=202)
+def pipeline_setup_run(req: SetupRunRequest, request: Request) -> dict[str, bool]:
+    require_loopback_peer(request)
+    if not request.app.state.setup_runs_enabled:
+        return {"queued": False}
+    project_path = resolve_project(req.path, request)
+    return {"queued": request.app.state.setup_runs.enqueue(project_path)}
 
 
 @router.post("/api/pipeline/retry", dependencies=_HOST_GATE)
@@ -124,6 +147,8 @@ def pipeline_run(
     jobs = _jobs(request)
     project_path = resolve_project(req.path, request)
     check_steps(req.from_step, req.only_step, req.skip_steps)
+    if request.app.state.setup_runs.waiting(project_path):
+        raise coded_http_error(409, "Waiting for setup", code="pipeline_setup_waiting")
 
     store = config_store()
     working = store.get(project_path) if req.use_working_set else None

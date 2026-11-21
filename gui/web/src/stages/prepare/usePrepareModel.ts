@@ -95,6 +95,7 @@ export function usePrepareModel(): PrepareModel {
     guestMode,
     shareCapabilities,
     pipelineJob,
+    setupWaiting,
     activityJob,
     ingestBusy,
     ingestFileCount,
@@ -108,6 +109,7 @@ export function usePrepareModel(): PrepareModel {
       guestMode: s.guestMode,
       shareCapabilities: s.shareCapabilities,
       pipelineJob: s.pipelineJob,
+      setupWaiting: s.setupWaitingProject === s.projectPath,
       activityJob: s.activityJob,
       ingestBusy: s.ingestBusy,
       ingestFileCount: s.ingestFileCount,
@@ -121,6 +123,7 @@ export function usePrepareModel(): PrepareModel {
   const allTracks = project?.tracks;
   const job = isPipelineKindJob(pipelineJob) ? pipelineJob : null;
   const running = isPipelineRunning(job ?? undefined);
+  const waitingForSetup = setupWaiting && !running;
 
   const { transcribed, voices } = useMemo(
     () => transcriptIndex(project?.transcript?.utterances),
@@ -149,7 +152,7 @@ export function usePrepareModel(): PrepareModel {
     transcribed: sourcesNow.length - untranscribed.length,
     mediaKey,
     ingestBusy,
-    canRun: canIngest,
+    canRun: canIngest && !waitingForSetup,
     languageStatus,
     nameOf: (id) => {
       const track = allTracks?.find((t) => t.id === id);
@@ -185,6 +188,7 @@ export function usePrepareModel(): PrepareModel {
     !running &&
     !run.starting &&
     !run.waiting &&
+    !waitingForSetup &&
     !run.model &&
     !run.keepFixes &&
     !run.startError;
@@ -271,6 +275,7 @@ export function usePrepareModel(): PrepareModel {
     jobCoversMedia,
     starting: run.starting,
     waiting: run.waiting,
+    waitingForSetup,
     startError: run.startError,
     job,
     pendingSuggestions: project?.edit_impact.pending_review_count ?? 0,
@@ -283,6 +288,7 @@ export function usePrepareModel(): PrepareModel {
     !planShown &&
     !run.starting &&
     !run.waiting &&
+    !waitingForSetup &&
     !run.model &&
     !run.keepFixes &&
     !run.startError &&
@@ -298,6 +304,7 @@ export function usePrepareModel(): PrepareModel {
     checking: run.starting && job === null,
     model: run.model,
     waiting: run.waiting,
+    waitingForSetup,
     plan: planShown,
     stoppedRun,
     rows,
@@ -391,6 +398,7 @@ export function usePrepareModel(): PrepareModel {
         }))
         .catch(failed);
     },
+    runDisabledReason: waitingForSetup ? "Waiting for setup" : undefined,
     onRunFromHere: (id) => {
       setAdvancedOpen(false);
       if (id === "transcribe_tracks") run.retranscribe();
@@ -411,7 +419,7 @@ export function usePrepareModel(): PrepareModel {
         : undefined,
     terms: vocabulary.terms,
     onTermsChange: vocabulary.onTermsChange,
-    needsRetranscribe: vocabulary.needsRetranscribe,
+    needsRetranscribe: !waitingForSetup && vocabulary.needsRetranscribe,
     onRetranscribe: run.retranscribe,
     cleanup,
     onCleanup,

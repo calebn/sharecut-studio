@@ -362,6 +362,7 @@ export type ReadyInput = {
   starting: boolean;
   /** A run was refused because another job holds the pipeline slot. */
   waiting?: boolean;
+  waitingForSetup?: boolean;
   /** Starting the run failed for a reason other than a busy slot. */
   startError?: string | null;
   job: PipelineJobSnapshot | null;
@@ -823,7 +824,14 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
   const transcribe = rowOutcome(job, "transcribe");
   const terminalTranscribe = terminalRowResult(job, "transcribe");
   const speakers = plural(input.sourceCount, "speaker", "speakers");
-  if (input.model) {
+  if (input.waitingForSetup && !live) {
+    rows.push({
+      id: "transcribe",
+      state: "queued",
+      title: ROW_TITLE.transcribe,
+      detail: "Waiting for setup",
+    });
+  } else if (input.model) {
     rows.push({
       id: "transcribe",
       state: "needs-you",
@@ -1049,6 +1057,7 @@ type PhaseInput = {
   /** The run is stopped on a missing model. */
   model?: NeedTarget | null;
   waiting?: boolean;
+  waitingForSetup?: boolean;
   /** The rows are the plan for audio added after a run. */
   plan?: boolean;
   /** A stopped current run can contain only deliberately omitted rows. */
@@ -1064,6 +1073,7 @@ type PhaseResult = {
 export function preparePhase(input: PhaseInput): PhaseResult {
   if (input.sources === 0 && !input.ingestBusy) return { phase: "empty" };
   if (input.ingestBusy) return { phase: "adding" };
+  if (input.waitingForSetup) return { phase: "waiting-for-setup" };
   if (input.checking) return { phase: "checking" };
   const failed = input.rows.find((row) => row.state === "failed");
   if (failed) {

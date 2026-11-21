@@ -142,6 +142,7 @@ beforeEach(() => {
   useDawStore.setState({
     projectPath: "/tmp/p/episode.sharecut",
     pipelineJob: null,
+    setupWaitingProject: null,
     activityJob: null,
   });
   start.mockResolvedValue(pipelineJobSnapshot({ id: "j1", status: "running" }));
@@ -233,7 +234,7 @@ describe("usePrepareRun auto-run", () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it("starts once when Home imported the audio and left the intent", async () => {
+  it("starts once when Script hands the episode to Prepare", async () => {
     writeOpenIntent("/tmp/p/episode.sharecut", {
       stage: "prepare",
       autoRun: true,
@@ -249,7 +250,7 @@ describe("usePrepareRun auto-run", () => {
     expect(takeOpenStage("/tmp/p/episode.sharecut")).toBe("prepare");
   });
 
-  it("keeps Home's auto-run as a waiting run when the slot is busy, then starts it", async () => {
+  it("holds Script's auto-run while the slot is busy, then starts it", async () => {
     writeOpenIntent("/tmp/p/episode.sharecut", {
       stage: "prepare",
       autoRun: true,
@@ -265,6 +266,17 @@ describe("usePrepareRun auto-run", () => {
       useDawStore.setState({ pipelineJob: null });
     });
     await waitFor(() => expect(start).toHaveBeenCalledOnce());
+  });
+
+  it("leaves both manual and import starts to the host while setup is queued", async () => {
+    const { result, rerender } = setup();
+    useDawStore.setState({ setupWaitingProject: "/tmp/p/episode.sharecut" });
+    rerender({ ingestBusy: true, mediaKey: "" });
+    rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
+    await act(async () => {
+      await result.current.run("run");
+    });
+    expect(start).not.toHaveBeenCalled();
   });
 
   it("waits out a busy pipeline slot, shows it, and runs when the slot frees", async () => {

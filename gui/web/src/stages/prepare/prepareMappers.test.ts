@@ -429,6 +429,24 @@ describe("readyRows", () => {
     expect(readyRows({ ...base, starting: true })[1].action).toBeUndefined();
   });
 
+  it("shows setup waiting without a competing Start action", () => {
+    const rows = readyRows({ ...base, waitingForSetup: true });
+    expect(rows.find((row) => row.id === "transcribe")).toMatchObject({
+      state: "queued",
+      detail: "Waiting for setup",
+    });
+    expect(rows.every((row) => row.action === undefined)).toBe(true);
+    expect(
+      preparePhase({
+        sources: base.sourceCount,
+        ingestBusy: false,
+        checking: false,
+        waitingForSetup: true,
+        rows,
+      }),
+    ).toEqual({ phase: "waiting-for-setup" });
+  });
+
   it("does not call new audio done because an earlier run finished", () => {
     const finished = pipelineJobSnapshot({
       status: "ok",

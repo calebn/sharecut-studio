@@ -167,6 +167,9 @@ function SetupBody({
             <SystemIcon name="x" size={16} />
           </button>
         </div>
+        <p className="sys-setup-line">
+          You can import now. Transcription starts when this finishes.
+        </p>
       </Card>
     );
   }

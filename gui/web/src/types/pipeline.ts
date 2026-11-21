@@ -57,6 +57,7 @@ export interface PipelineStatusResponse {
   job: PipelineJobSnapshot | null;
   jobs?: PipelineJobSnapshot[];
   running_count?: number;
+  waiting_for_setup?: boolean;
 }
 
 export interface PipelineEvent {

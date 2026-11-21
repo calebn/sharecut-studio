@@ -345,6 +345,7 @@ export interface DawState {
   chapterAddPending: boolean;
   showCutAwayUtterances: boolean;
   pipelineJob: PipelineJobSnapshot | null;
+  setupWaitingProject: string | null;
   /** Most recent Studio activity (pipeline or agent) for the stage chrome. */
   activityJob: PipelineJobSnapshot | null;
   activityRunningCount: number;
