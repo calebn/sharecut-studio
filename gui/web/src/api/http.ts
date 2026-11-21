@@ -9,6 +9,12 @@ import { authHeaders } from "../sessionAuth";
 import { reviewApiBase, SHARE_PREFIX } from "../shareMode";
 import { recordApiBase } from "../shareRoute";
 import {
+  noteReviewAnswer,
+  noteReviewTransportFailure,
+  setHostReachProbe,
+} from "../state/hostReach";
+import { withAbortTimeout } from "../utils/abortTimeout";
+import {
   ApiError,
   ERROR_CODE_HEADER,
   isAbortError,
@@ -105,7 +111,14 @@ export async function apiSend(
     ? projectKey.slice(SHARE_PREFIX.length)
     : null;
   if (token !== null && isLinkEnded(token)) throw endedRequestError();
-  const res = await fetch(url, requestInit);
+  let res: Response;
+  try {
+    res = await fetch(url, requestInit);
+  } catch (error) {
+    if (token !== null && isNoAnswer(error)) noteReviewTransportFailure(token);
+    throw error;
+  }
+  if (token !== null) noteReviewAnswer(token);
   // Only a 404 has its header read: every other answer is none of this.
   if (
     token !== null &&
@@ -115,6 +128,14 @@ export async function apiSend(
     reportLinkDoubt(token);
   }
   return res;
+}
+
+/** A request that got no answer from the host: the transport failed or it timed out. */
+function isNoAnswer(error: unknown): boolean {
+  return (
+    isTransportFailure(error) ||
+    (error instanceof DOMException && error.name === "TimeoutError")
+  );
 }
 
 function isTransportFailure(error: unknown): boolean {
@@ -152,3 +173,11 @@ export async function apiFetch(
   }
   return res;
 }
+
+const PROBE_TIMEOUT_MS = 8000;
+
+setHostReachProbe((token) =>
+  withAbortTimeout(PROBE_TIMEOUT_MS, "The host didn't answer.", (signal) =>
+    apiSend(`${SHARE_PREFIX}${token}`, { guest: "/daw/meta" }, { signal }),
+  ),
+);
