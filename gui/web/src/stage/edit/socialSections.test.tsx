@@ -119,6 +119,34 @@ describe("social clip content", () => {
     );
   });
 
+  it("waits for an explicit retry when a conflicting title save fails", async () => {
+    vi.mocked(updateSocialClipDetails).mockRejectedValueOnce(
+      new Error("Could not save this title"),
+    );
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    title.focus();
+    fireEvent.change(title, { target: { value: "My title" } });
+    replaceSavedTitle("Peer title");
+    await act(async () => fireEvent.keyDown(title, { key: "Enter" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Could not save this title",
+    );
+
+    title.blur();
+    title.focus();
+    title.blur();
+    expect(updateSocialClipDetails).toHaveBeenCalledTimes(1);
+    expect(title).toHaveValue("My title");
+    expect(title).toHaveAccessibleDescription(/Title changed elsewhere/);
+
+    title.focus();
+    await act(async () => fireEvent.keyDown(title, { key: "Enter" }));
+    expect(updateSocialClipDetails).toHaveBeenCalledTimes(2);
+    replaceSavedTitle("My title");
+    expect(title).not.toHaveAccessibleDescription();
+  });
+
   it("updates a clean title and escapes a draft to the newest saved title", () => {
     open();
     const title = screen.getByRole("textbox", { name: "Title" });
