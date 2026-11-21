@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
+import { deferred } from "../src/test/deferred";
 import { historyHead } from "./documentCommand";
-import { e2eProjectPath } from "./env";
+import { e2eBaseURL, e2eProjectPath } from "./env";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -39,6 +40,27 @@ const focusInScript = (page: Page) =>
   page.evaluate(
     () => document.activeElement?.closest(".sys-script-body") != null,
   );
+
+async function holdAppliedWordCut(page: Page) {
+  const reply = deferred();
+  await page.route(
+    (url) => url.pathname === "/api/document/command",
+    async (route) => {
+      const request = route.request();
+      if (
+        request.method() !== "POST" ||
+        request.postDataJSON()?.type !== "EditSelectedRange"
+      ) {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      await reply.promise;
+      await route.fulfill({ response });
+    },
+  );
+  return reply;
+}
 
 async function walkChain(page: Page, settled: boolean) {
   await servePendingEditsCleared(page);
@@ -125,4 +147,160 @@ test("Tab moves focus without selecting another match after leaving Edit", async
   await expect(selected).toHaveCount(0);
   await expect.poll(() => focusInScript(page)).toBe(false);
   expect(await historyHead(page, projectPath)).toBe(cut);
+});
+
+for (const cutReply of ["settled", "pending"] as const) {
+  test(`undoing another tab’s cut does not resume Tab with the previous cut reply ${cutReply}`, async ({
+    page,
+    browser,
+  }) => {
+    await servePendingEditsCleared(page);
+    await openProject(page, projectPath);
+    const body = await openScript(page);
+    const peerContext = await browser.newContext({
+      baseURL: e2eBaseURL,
+      viewport: page.viewportSize() ?? undefined,
+      storageState: await page.context().storageState(),
+    });
+    const reply =
+      cutReply === "pending" ? await holdAppliedWordCut(page) : null;
+    try {
+      const peer = await peerContext.newPage();
+      await servePendingEditsCleared(peer);
+      await openProject(peer, projectPath);
+      const peerBody = await openScript(peer);
+      const repeated = body.locator(SCRIPT_WORD).filter({ hasText: /^the$/ });
+      const peerWord = peerBody
+        .locator(SCRIPT_WORD)
+        .filter({ hasText: /^my$/ });
+      const peerWordInScript = body
+        .locator(SCRIPT_WORD)
+        .filter({ hasText: /^my$/ });
+      const toast = page.locator(".ui-toast-message");
+      await page.bringToFront();
+      const headBefore = await historyHead(page, projectPath);
+      await repeated.first().click();
+      await page.keyboard.press("Backspace");
+      await expect
+        .poll(() => historyHead(page, projectPath))
+        .not.toBe(headBefore);
+      const cutHead = await historyHead(page, projectPath);
+      await expect(repeated).toHaveCount(3);
+      await expect(
+        peerBody.locator(SCRIPT_WORD).filter({ hasText: /^the$/ }),
+      ).toHaveCount(3);
+      if (reply) {
+        await expect(toast).toHaveCount(0);
+      } else {
+        await expect(toast).toContainText(/Cut .* · \d+ more/);
+        await expect(body.locator(".sys-seam-hit:focus")).toHaveCount(1);
+      }
+
+      await peer.bringToFront();
+      await expect(peerWordInScript).toHaveCount(2);
+      await peerWord.first().click();
+      await peer.keyboard.press("Backspace");
+      const peerToast = peer.locator(".ui-toast");
+      await expect(peerToast.locator(".ui-toast-message")).toContainText(
+        /Cut .*my/,
+      );
+      await expect.poll(() => historyHead(page, projectPath)).not.toBe(cutHead);
+      await expect(peerWordInScript).toHaveCount(1);
+
+      await peerToast.getByRole("button", { name: "Undo" }).click();
+      await expect.poll(() => historyHead(page, projectPath)).toBe(cutHead);
+      await expect(peerWordInScript).toHaveCount(2);
+      await page.bringToFront();
+      if (reply) {
+        await expect(toast).toHaveCount(0);
+        reply.resolve();
+        await expect(toast).toContainText(/Cut .* · \d+ more/);
+        await body.locator(".sys-seam-hit").first().focus();
+      }
+
+      await expect(body.locator(".sys-seam-hit:focus")).toHaveCount(1);
+      const picked = body.locator(SCRIPT_SELECTED);
+      await expect(picked).toHaveCount(0);
+      await page.keyboard.press("Tab");
+      await expect(picked).toHaveCount(0);
+      await expect.poll(() => focusInScript(page)).toBe(false);
+      expect(await historyHead(page, projectPath)).toBe(cutHead);
+    } finally {
+      reply?.resolve();
+      await peerContext.close();
+    }
+  });
+}
+
+test("the same cut’s Undo and Redo buttons pause and restore its Tab chain", async ({
+  page,
+}) => {
+  await servePendingEditsCleared(page);
+  await openProject(page, projectPath);
+  const body = await openScript(page);
+  const repeated = body.locator(SCRIPT_WORD).filter({ hasText: /^the$/ });
+  const initialCount = await repeated.count();
+  const headBefore = await historyHead(page, projectPath);
+
+  await repeated.first().click();
+  await page.keyboard.press("Backspace");
+  const toast = page.locator(".ui-toast");
+  await expect(toast.locator(".ui-toast-message")).toContainText(
+    /Cut .* · \d+ more/,
+  );
+  await expect.poll(() => historyHead(page, projectPath)).not.toBe(headBefore);
+  const cutHead = await historyHead(page, projectPath);
+  await expect(repeated).toHaveCount(initialCount - 1);
+
+  const picked = body.locator(SCRIPT_SELECTED);
+  await toast.getByRole("button", { name: "Undo" }).click();
+  await expect(repeated).toHaveCount(initialCount);
+  await expect.poll(() => historyHead(page, projectPath)).not.toBe(cutHead);
+  expect(headBefore).toBe("root");
+  expect(await historyHead(page, projectPath)).not.toBe(headBefore);
+  await repeated.first().focus();
+  await page.keyboard.press("Tab");
+  await expect(picked).toHaveCount(0);
+  await expect.poll(() => focusInScript(page)).toBe(false);
+
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect(repeated).toHaveCount(initialCount - 1);
+  await expect.poll(() => historyHead(page, projectPath)).toBe(cutHead);
+
+  await expect(picked).toHaveCount(0);
+  await body.locator(".sys-seam-hit").first().focus();
+
+  await page.keyboard.press("Tab");
+  await expect(picked).toHaveText("the");
+});
+
+test("Tab waits when the next cut is visible before its reply arrives", async ({
+  page,
+}) => {
+  await servePendingEditsCleared(page);
+  await openProject(page, projectPath);
+  const body = await openScript(page);
+  const words = body.locator(SCRIPT_WORD).filter({ hasText: /^the$/ });
+  const picked = body.locator(SCRIPT_SELECTED);
+  await words.first().click();
+  await page.keyboard.press("Backspace");
+  await expect(page.locator(".ui-toast-message")).toContainText(
+    /Cut .* · \d+ more/,
+  );
+  await expect(words).toHaveCount(3);
+  await page.keyboard.press("Tab");
+  await expect(picked).toHaveText("the");
+
+  const reply = await holdAppliedWordCut(page);
+  try {
+    await page.keyboard.press("Backspace");
+    await expect(words).toHaveCount(2);
+    await body.locator(".sys-seam-hit").first().focus();
+    await page.keyboard.press("Tab");
+    await expect(body.locator(".sys-seam-hit:focus")).toHaveCount(1);
+  } finally {
+    reply.resolve();
+  }
+  await expect(picked).toHaveText("the");
+  await expect.poll(() => focusInScript(page)).toBe(true);
 });
