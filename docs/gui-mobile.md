@@ -815,8 +815,8 @@ A guest who plays an episode from a share link can lock the phone and keep liste
 | --- | --- | --- |
 | No preview, episode paused | `transport.togglePlay` | nothing |
 | No preview, episode playing | nothing | the live clock is copied into the store, then `transport.togglePlay` |
-| A source preview is playing | nothing | the preview stops and the episode stays off; a Follow breaks |
-| A source preview has ended on its own, `isPlaying` either way | the preview is released to a paused episode, then `transport.togglePlay` plays it; the OS is never told paused in between | as for a playing preview |
+| A source preview is playing | nothing | the preview stops, any episode playback is turned off, and a Follow breaks |
+| A source preview has ended on its own, `isPlaying` either way | the preview is released and `transport.togglePlay` starts the episode without an intermediate paused update. If no tracks remain, Play is refused and the Media Session entry clears | as for a playing preview |
 
 Seeking to or beyond the episode end while playing keeps the reported Media Session position at the episode duration as playback pauses. A subsequent Play starts the episode over and reports zero.
 

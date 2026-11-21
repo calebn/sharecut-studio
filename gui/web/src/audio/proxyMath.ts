@@ -325,7 +325,10 @@ export function episodeEndSec(
   return end;
 }
 
-/** The end the engine plays to, so the lock screen and the skips agree with it. */
+/**
+ * Episode end for display and transport actions. With no stored duration this
+ * can use a clip end while the proxy engine treats its duration as unbounded.
+ */
 export function episodeDurationSec(project: ProjectView | null): number {
   return project
     ? episodeEndSec(project.timeline_duration_sec ?? 0, project.clips.tracks)

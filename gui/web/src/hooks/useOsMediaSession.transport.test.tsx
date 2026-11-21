@@ -284,6 +284,29 @@ describe("lock screen position against the real proxy transport clock", () => {
     },
   );
 
+  it("clears the Media Session if Play releases an ended preview with no tracks left", async () => {
+    await playing();
+    endedPreviewDuringPlay();
+    act(() => {
+      const { project } = useDawStore.getState();
+      useDawStore.setState({ project: { ...project!, tracks: [] } });
+    });
+    expect(handlers.get("play")).toBeTypeOf("function");
+    expect(osPlaybackState).toBe("paused");
+    engine.play.mockClear();
+
+    os("play");
+    await act(async () => {});
+
+    expect(useDawStore.getState().sourcePreview).toBeNull();
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(engine.play).not.toHaveBeenCalled();
+    expect(session.metadata).toBeNull();
+    expect(osPlaybackState).toBe("none");
+    expect(handlers.get("play")).toBeNull();
+    expect(session.setPositionState).toHaveBeenLastCalledWith();
+  });
+
   it("lock-screen Play after a block during a preview retries the proxy like the Player's Play", async () => {
     await playing();
     playingPreview();
