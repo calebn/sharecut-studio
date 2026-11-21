@@ -936,6 +936,9 @@ audio-clock second after the wake, whichever is later. An audition that wakes
 late still ends at its playback bound. Play, seek, a rate change or an edit
 restarts the retry window. A failure in the first batch after a schedule or seek
 is reported at once, and so is a decode failure.
+A paused seek or playback snapshot change keeps decoded chunks that intersect
+the window from 30 seconds behind to two minutes ahead of the playhead. The
+engine drops its other decoded cache entries without fetching chunks.
 `hostPlaybackMeterMonitor.ts` fetches
 processed PCM16 stems and validated raw PCM16 recordings through finite byte
 ranges checked against each asset's ETag. Compatible source sample grids share
