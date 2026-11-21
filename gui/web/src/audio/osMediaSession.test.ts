@@ -92,12 +92,12 @@ describe("projectOsMediaSession", () => {
   });
 
   it.each([600, 700])(
-    "declares 0 when playing starts at %s s, where the engine wraps",
+    "clamps a playing position of %s to the episode end",
     (positionSec) => {
       expect(
         projectOsMediaSession({ ...PLAYING, positionSec }).positionState
           ?.position,
-      ).toBe(0);
+      ).toBe(600);
     },
   );
 
