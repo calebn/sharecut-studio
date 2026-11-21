@@ -345,6 +345,52 @@ it("captures teardown and frame errors on the story that caused them", async () 
   expect(nextErrors).toEqual([]);
 });
 
+it("reports a rejected cleanup once and still runs the following story", async () => {
+  const cleanupOrder: string[] = [];
+  let reject = true;
+  const failing = composeStory(
+    {
+      beforeEach: () => async () => {
+        cleanupOrder.push("story cleanup");
+        if (reject) {
+          reject = false;
+          throw new Error("cleanup fixture failed");
+        }
+      },
+    },
+    {
+      title: "Sweep/Rejecting Fixture",
+      component: () => null,
+      beforeEach: () => () => {
+        cleanupOrder.push("component cleanup");
+      },
+    },
+  );
+  const clean = composeStory(
+    {},
+    {
+      title: "Sweep/Clean Fixture",
+      component: () => <p>Clean story rendered</p>,
+    },
+  );
+  const first = await observeStory(async (host) => {
+    await failing.run({ canvasElement: host, globals: { theme: "light" } });
+  }).then(
+    (errors) => ({ errors }),
+    (error: unknown) => ({ threw: String(error) }),
+  );
+  const nextErrors = await observeStory(async (host) => {
+    await clean.run({ canvasElement: host, globals: { theme: "light" } });
+    expect(host.textContent).toBe("Clean story rendered");
+  });
+
+  expect({ cleanupOrder, first, nextErrors }).toEqual({
+    cleanupOrder: ["story cleanup", "component cleanup"],
+    first: { errors: ["story cleanup: Error: cleanup fixture failed"] },
+    nextErrors: [],
+  });
+});
+
 for (const theme of THEMES) {
   describe(`stories in ${theme}`, () => {
     for (const base of shardStories) {
