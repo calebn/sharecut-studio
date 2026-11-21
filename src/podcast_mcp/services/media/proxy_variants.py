@@ -33,7 +33,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import proxy_media
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_directory import rename_noreplace
-from podcast_mcp.util.batch_scope import frozen
+from podcast_mcp.util.batch_scope import frozen, frozen_state, unscoped
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 from podcast_mcp.util.hashing import sha256_file, short_digest
 from podcast_mcp.util.project_state import file_revision, render_lock
@@ -516,7 +516,8 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
         try:
             with ws.transaction() as current:
                 snapshot = current.model_copy(deep=True)
-                basis = project_basis(snapshot, defaults)
+                with unscoped(), frozen_state(fresh=True):
+                    basis = project_basis(snapshot, defaults)
                 ids = dialogue_track_ids(snapshot) if track_id is None else [track_id]
                 for tid in ids:
                     _safe_id(tid)
@@ -588,7 +589,8 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                     occurrences=occurrences,
                 )
                 with ws.transaction() as current:
-                    current_basis = project_basis(current, defaults)
+                    with unscoped(), frozen_state(fresh=True):
+                        current_basis = project_basis(current, defaults)
                     if current_basis.model_dump(exclude=_HEAD_FIELD) != basis.model_dump(
                         exclude=_HEAD_FIELD
                     ):

@@ -114,15 +114,16 @@ _frozen: ContextVar[dict[Hashable, Any] | None] = ContextVar("frozen_state", def
 
 
 @contextmanager
-def frozen_state() -> Iterator[None]:
+def frozen_state(*, fresh: bool = False) -> Iterator[None]:
     """Reads of project state inside this block may be shared; the caller promises not to mutate it.
 
     Proving one cut reads the same stems dozens of times before anything changes, and
     each read fingerprints a track whose clips have not moved. A block that only reads the
     project lets those repeats share the first result; leaving the block drops them, so the
-    next mutation is never read through a stale entry. A nested block shares the outer one.
+    next mutation is never read through a stale entry. A nested block shares the outer one
+    unless it marks a separate observation with ``fresh=True``.
     """
-    if _frozen.get() is not None:
+    if not fresh and _frozen.get() is not None:
         yield
         return
     token = _frozen.set({})
