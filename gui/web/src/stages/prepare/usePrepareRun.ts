@@ -534,6 +534,7 @@ export function usePrepareRun(input: PrepareRunInput) {
     keepFixes,
     /** Word timing is missing; null when the model is in or unknown. */
     approximateTiming: approximate,
+    wordTimingUnsupported: alignerRow?.state.kind === "unsupported",
     awaitAligner: (model: NeedTarget, outcome: Promise<DownloadOutcome>) => {
       const intent = {
         projectPath: latest.current.projectPath,

@@ -314,6 +314,19 @@ export const ROWS = {
     { id: "clean", state: "done", title: "Clean and level" },
     SUGGEST,
   ],
+  approximateTimingPhone: [
+    ADD_DONE,
+    {
+      id: "transcribe",
+      state: "done",
+      title: "Transcribe",
+      detail:
+        "Transcribed. Word timing is approximate, so cuts may clip word edges.",
+    },
+    ALIGN,
+    { id: "clean", state: "done", title: "Clean and level" },
+    SUGGEST,
+  ],
 } as const satisfies Record<string, readonly ReadyRowData[]>;
 
 export const FAILURE = {

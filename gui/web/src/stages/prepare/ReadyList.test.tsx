@@ -8,6 +8,10 @@ import {
   registryRows,
   renderWithModels,
 } from "../../test/renderWithModels";
+import {
+  UNSUPPORTED_SENTENCE,
+  UNSUPPORTED_STATUS,
+} from "../../test/unsupportedStatus";
 import { ROWS } from "./prepareFixture";
 import { ReadyList, type ReadyRowData } from "./ReadyList";
 
@@ -159,6 +163,21 @@ describe("ReadyList", () => {
     expect(
       screen.getByRole("button", { name: "Get word timing" }),
     ).toBeVisible();
+  });
+
+  it("reads as done with the approximate note and no unavailable row on a phone", () => {
+    renderWithModels(
+      <ReadyList rows={ROWS.approximateTimingPhone} onAction={vi.fn()} />,
+      {
+        status: UNSUPPORTED_STATUS,
+      },
+    );
+    expect(screen.getByText(/Word timing is approximate/)).toBeVisible();
+    expect(screen.queryByText(UNSUPPORTED_SENTENCE)).toBeNull();
+    expect(screen.queryByText("Needs word timing")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Get word timing" }),
+    ).toBeNull();
   });
 
   it("downloads an aligner refused by a run without starting a separate re-time", async () => {

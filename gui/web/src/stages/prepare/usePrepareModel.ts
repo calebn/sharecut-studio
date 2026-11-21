@@ -276,6 +276,7 @@ export function usePrepareModel(): PrepareModel {
     pendingSuggestions: project?.edit_impact.pending_review_count ?? 0,
     model: run.model,
     approximateTiming: run.approximateTiming,
+    wordTimingUnsupported: run.wordTimingUnsupported,
     keepFixes: run.keepFixes,
     plan,
   });

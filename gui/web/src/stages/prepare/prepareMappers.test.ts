@@ -631,6 +631,22 @@ describe("readyRows", () => {
     });
   });
 
+  it("shows the approximate note as done, with no Model row, when word timing is unsupported", () => {
+    const row = readyRows({
+      ...base,
+      transcribed: true,
+      approximateTiming: ALIGNER_NEED,
+      wordTimingUnsupported: true,
+    })[1];
+    expect(row).toMatchObject({
+      id: "transcribe",
+      state: "done",
+      detail: expect.stringMatching(/approximate/),
+    });
+    expect(row.model).toBeUndefined();
+    expect(row.modelGetAction).toBeUndefined();
+  });
+
   it("flags approximate word timing with the Model need row", () => {
     const row = readyRows({
       ...base,

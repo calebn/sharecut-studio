@@ -167,6 +167,15 @@ export const Done: Story = {
   },
 };
 
+export const ApproximateTimingOnPhone: Story = {
+  args: { rows: ROWS.approximateTimingPhone },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText(/Word timing is approximate/)).toBeVisible();
+    await expect(canvas.queryByText("Needs word timing")).toBeNull();
+  },
+};
+
 export const ApproximateTiming: Story = {
   args: { rows: ROWS.approximateTiming },
   decorators: [withModels],

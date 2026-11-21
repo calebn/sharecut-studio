@@ -34,6 +34,7 @@ import {
   modelsApi,
   registryRows,
 } from "../../test/renderWithModels";
+import { UNSUPPORTED_STATUS } from "../../test/unsupportedStatus";
 import { ApiError } from "../../utils/apiError";
 import { takeOpenStage, writeOpenIntent } from "../../utils/openIntent";
 import type { LanguageStatus } from "./useLanguageStatus";
@@ -612,6 +613,36 @@ describe("usePrepareRun word timing", () => {
     await waitFor(() => expect(start).toHaveBeenCalledOnce());
     expect(start.mock.calls[0][1]).toMatchObject({ retimeWords: true });
     expect(result.current.approximateTiming).toBeNull();
+  });
+
+  it("reports word timing unsupported when the host has no aligner to get", () => {
+    const api = modelsApi({ status: UNSUPPORTED_STATUS });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
+    );
+    const { result } = renderHook(
+      () =>
+        usePrepareRun({
+          projectPath: "/tmp/p/episode.sharecut",
+          workingSet: workingSet(),
+          transcribed: 1,
+          untranscribed: 0,
+          mediaKey: "a:/a.wav",
+          ingestBusy: false,
+          canRun: true,
+          nameOf: (id) => id,
+        }),
+      { wrapper },
+    );
+    expect(result.current.approximateTiming).toMatchObject({
+      id: "word-aligner",
+    });
+    expect(result.current.wordTimingUnsupported).toBe(true);
+  });
+
+  it("does not call word timing unsupported when it only needs a download", () => {
+    const { result } = alignerSetup();
+    expect(result.current.wordTimingUnsupported).toBe(false);
   });
 
   it("does not re-time when the aligner lands without Get having been pressed on the row", async () => {
