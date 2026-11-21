@@ -131,6 +131,14 @@ for (const size of SIZES) {
       const dialog = page.getByRole("dialog", { name: "Models" });
       await expect(dialog).toBeVisible();
       const group = dialog.getByRole("group", { name: "Size" });
+      const indent = await dialog
+        .locator(".sys-need-extra")
+        .first()
+        .evaluate((el) =>
+          Number.parseFloat(getComputedStyle(el).paddingInlineStart),
+        );
+      if (size.fontPx) expect(indent).toBe(0);
+      else expect(indent).toBeGreaterThan(0);
       const recommended = group.getByRole("button", {
         name: "Recommended 190 MB",
       });
