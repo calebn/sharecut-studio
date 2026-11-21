@@ -71,7 +71,7 @@ export function InlineEdit({
   }, [focusOnMount]);
   const commit = () => {
     if (readOnly || text === value) return;
-    if (draft !== null) setDraft(null);
+    if (draft === "edited") setDraft(null);
     if (next === value) {
       setText(value);
       return;
