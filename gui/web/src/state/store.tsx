@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import type { ProjectView } from "../types/project";
 import { useDawStore } from "./dawStore";
 import { ShareNameContext } from "./shareName";
@@ -27,7 +27,21 @@ export function DawProvider({
   shareName?: string | null;
 }) {
   const hydrate = useDawStore((s) => s.hydrate);
+  const hydratedPath = useRef<string | null>(null);
   useEffect(() => {
+    // The same project with new access (the saved copy became the live
+    // episode) keeps what the studio holds: the project the shell loaded since,
+    // the composer's text and the playhead. Only the access changes.
+    if (hydratedPath.current === projectPath) {
+      useDawStore.setState({
+        guestMode,
+        shareCapabilities,
+        shareTranscriptWords,
+        shareAuthor,
+      });
+      return;
+    }
+    hydratedPath.current = projectPath;
     hydrate(
       projectPath,
       initialProject,

@@ -37,6 +37,8 @@ import { GuestPageCover, NotServedCover } from "./stage/frame/StatusCovers";
 import { HomeScreen } from "./stages/home/HomeScreen";
 import { composerPatch, initialSession } from "./state/composerSession";
 import { useDawStore } from "./state/dawStore";
+import { useHostBackCount } from "./state/hostReach";
+import { subscribeSavedCopyReopen } from "./state/savedCopy";
 import { cleanShareName } from "./state/shareName";
 import { DawProvider } from "./state/store";
 import { collectUnsent, type UnsentText } from "./state/unsentText";
@@ -119,6 +121,9 @@ function sameRequest(a: BootstrapRequest, b: BootstrapRequest) {
 
 /** How long a cover with no automatic retry counts an unanswered attempt as trying. */
 const ATTEMPT_PATIENCE_MS = 30_000;
+
+/** How often a page showing the saved copy asks the host again. */
+const COPY_RETRY_MS = 30_000;
 
 /** Attempts for one link kept in flight: the newest and the two before it. */
 const MAX_ATTEMPTS_IN_FLIGHT = 3;
@@ -325,6 +330,41 @@ function AppInner({ bootName }: { bootName: string | null }) {
     return () => window.clearTimeout(timer);
   }, [autoRetryMs, attempt]);
 
+  // The saved copy leaves itself: while the guest reads it, the same attempt
+  // runs again on a timer, when the browser is back online, when the host
+  // answers after being away and when the cover's Try now is pressed. An answer
+  // swaps the copy for the live episode under the same studio; a failure leaves
+  // the copy where it is.
+  const readsCopy =
+    reviewToken !== null &&
+    shareKey !== null &&
+    shareCapabilities === null &&
+    cachedGuestProject !== null &&
+    !error;
+  const copyIdle = readsCopy && !shareBootstrapping;
+  const guestOpen = useRef(false);
+  guestOpen.current = shareKey !== null;
+  useBackOnline(copyIdle, attempt, retry);
+  useEffect(() => {
+    if (!readsCopy) return;
+    const timer = window.setTimeout(
+      () => setAttempt((n) => n + 1),
+      COPY_RETRY_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [readsCopy, attempt]);
+  useEffect(() => {
+    if (!readsCopy) return;
+    return subscribeSavedCopyReopen(() => setAttempt((n) => n + 1));
+  }, [readsCopy]);
+  const backSeq = useHostBackCount(reviewToken);
+  const seenBack = useRef(backSeq);
+  useEffect(() => {
+    if (backSeq === seenBack.current) return;
+    seenBack.current = backSeq;
+    if (copyIdle) setAttempt((n) => n + 1);
+  }, [backSeq, copyIdle]);
+
   // Tells an attempt whether a later one for the same link replaced it, or the
   // link changed or the page left (the effect's cleanup runs for both, so it
   // cannot tell them apart). The generation moves whenever the link does, so an
@@ -407,10 +447,17 @@ function AppInner({ bootName }: { bootName: string | null }) {
         // page went away): there is nothing to show or to save.
         if (controller.signal.aborted || standing() !== "newest") return;
         const failure = classifyBootstrapFailure(e, navigator.onLine !== false);
-        if (failure.kind === "bad-link") {
-          if (e instanceof ApiError && e.code === "share_not_found") {
+        if (failure.kind === "bad-link" || failure.kind === "restricted") {
+          if (
+            failure.kind === "restricted" ||
+            (e instanceof ApiError && e.code === "share_not_found")
+          ) {
             void clearOfflineSnapshot(reviewToken).catch(() => undefined);
             void forgetLinkAudio(reviewToken);
+          }
+          if (failure.kind === "restricted" && guestOpen.current) {
+            endSession(reviewToken, failure);
+            return;
           }
           outcome = { kind: "error", error: { failure } };
           return;
@@ -463,7 +510,10 @@ function AppInner({ bootName }: { bootName: string | null }) {
   // The host turned the link off while the episode is open: one confirmed
   // answer replaces the studio with the cover, and what the guest had typed
   // and not sent goes with it, collected just before the studio unmounts.
-  const endSession = (token: string) => {
+  const endSession = (
+    token: string,
+    failure: GuestLoadFailure = { kind: "bad-link" },
+  ) => {
     if (attempts.current.newest?.reviewToken !== token) return;
     markLinkEnded(token);
     abortAll(attempts.current.flight);
@@ -482,7 +532,7 @@ function AppInner({ bootName }: { bootName: string | null }) {
               status: "settled",
               guest: null,
               cached: null,
-              error: { failure: { kind: "bad-link" }, unsent },
+              error: { failure, unsent },
             }
           : state,
       );
@@ -491,7 +541,7 @@ function AppInner({ bootName }: { bootName: string | null }) {
     // Started after the cover is on screen and never waited for.
     void forgetLinkAudio(token);
   };
-  useDeadLinkWatch(shareKey ? reviewToken : null, endSession);
+  useDeadLinkWatch(shareKey ? reviewToken : null, (token) => endSession(token));
 
   if (recordToken && !error) {
     return (
@@ -509,7 +559,10 @@ function AppInner({ bootName }: { bootName: string | null }) {
       </RoomLoadBoundary>
     );
   }
-  if (reviewToken && (!featuresReady || (shareBootstrapping && !error))) {
+  if (
+    reviewToken &&
+    (!featuresReady || (shareBootstrapping && !error && !shareKey))
+  ) {
     return <ReviewLoadingScreen name={shareName} onRetry={retry} />;
   }
   if (!featuresReady) {
