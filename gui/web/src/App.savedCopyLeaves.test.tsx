@@ -1,5 +1,11 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { useEffect } from "react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { resetFeaturesCache } from "./extensions/features";
@@ -9,6 +15,7 @@ import {
   noteReviewTransportFailure,
 } from "./state/hostReach";
 import { requestSavedCopyReopen } from "./state/savedCopy";
+import { useUnsentText } from "./state/unsentText";
 import { minimalProject } from "./test/fixtures";
 import { urlOf } from "./test/urlOf";
 
@@ -17,13 +24,19 @@ const studio = vi.hoisted(() => ({ mounts: 0 }));
 vi.mock("./dawApp", () => ({
   DawApp: function StudioStub() {
     const caps = useDawStore((s) => s.shareCapabilities);
+    const [draft, setDraft] = useState("");
+    useUnsentText("Your comment", draft);
     useEffect(() => {
       studio.mounts += 1;
     }, []);
     return (
       <div>
         <span data-testid="caps">{caps ? caps.join(",") : "none"}</span>
-        <input aria-label="Comment draft" />
+        <input
+          aria-label="Comment draft"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+        />
       </div>
     );
   },
@@ -123,7 +136,9 @@ afterEach(() => {
 
 async function openCopy() {
   render(<App />);
-  expect(await screen.findByTestId("caps")).toHaveTextContent("none");
+  await waitFor(() =>
+    expect(screen.getByTestId("caps")).toHaveTextContent("none"),
+  );
   fireEvent.change(screen.getByLabelText("Comment draft"), {
     target: { value: "typed on the copy" },
   });
@@ -286,21 +301,88 @@ describe("a saved copy that leaves itself", () => {
         await screen.findByText(/This link is only for certain people/),
       ).toBeInTheDocument();
       expect(screen.queryByTestId("caps")).toBeNull();
+      expect(offline.load).not.toHaveBeenCalled();
       expect(offline.retire).toHaveBeenCalledWith(token);
       expect(audio.forget).toHaveBeenCalledWith(token);
     },
   );
 
   it("ends the open copy when the host confirms access is denied", async () => {
-    await openCopy();
+    const before = await openCopy();
     answer = deniedAnswer("share_acl_denied");
     await pass(31_000);
     expect(
       await screen.findByText(/This link is only for certain people/),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("caps")).toBeNull();
-    expect(offline.retire).toHaveBeenCalledWith(token);
-    expect(audio.forget).toHaveBeenCalledWith(token);
+    expect(screen.getByRole("textbox")).toHaveValue("typed on the copy");
+    expect(projectCalls).toBe(before + 2);
+    expect(offline.retire).toHaveBeenCalledExactlyOnceWith(token);
+    expect(audio.forget).toHaveBeenCalledExactlyOnceWith(token);
+  });
+
+  it("finishes confirming denial when an older retry answers with the episode", async () => {
+    await openCopy();
+    const fetchStub = vi.mocked(fetch);
+    const before = fetchStub.mock.calls.length;
+    let answerOlder: (response: Response) => void = () => {};
+    const older = new Promise<Response>((resolve) => {
+      answerOlder = resolve;
+    });
+    let answerConfirmation: (response: Response) => void = () => {};
+    const confirmation = new Promise<Response>((resolve) => {
+      answerConfirmation = resolve;
+    });
+    fetchStub
+      .mockImplementationOnce(() => older)
+      .mockResolvedValueOnce(deniedAnswer("share_acl_denied"))
+      .mockImplementationOnce(() => confirmation);
+    act(() => requestSavedCopyReopen());
+    await pass(10);
+    expect(fetchStub.mock.calls).toHaveLength(before + 1);
+    act(() => requestSavedCopyReopen());
+    await pass(10);
+    expect(fetchStub.mock.calls).toHaveLength(before + 3);
+    const signal = fetchStub.mock.calls.at(-1)?.[1]?.signal;
+    expect(signal?.aborted).toBe(false);
+
+    answerOlder(liveAnswer());
+    await pass(10);
+    expect(signal?.aborted).toBe(false);
+    expect(screen.getByTestId("caps")).toHaveTextContent("none");
+
+    answerConfirmation(deniedAnswer("share_acl_denied"));
+    await pass(10);
+    expect(
+      await screen.findByText(/This link is only for certain people/),
+    ).toBeInTheDocument();
+    expect(offline.retire).toHaveBeenCalledExactlyOnceWith(token);
+    expect(audio.forget).toHaveBeenCalledExactlyOnceWith(token);
+  });
+
+  it("opens the live episode when the confirming read grants access", async () => {
+    await openCopy();
+    const input = screen.getByLabelText("Comment draft");
+    vi.mocked(fetch).mockResolvedValueOnce(deniedAnswer("share_acl_denied"));
+    answer = "live";
+    await pass(31_000);
+    expectLiveStudioWithDraft(input);
+    expect(offline.retire).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
+  });
+
+  it("keeps the open copy when the confirming read fails with a server error", async () => {
+    const before = await openCopy();
+    const input = screen.getByLabelText("Comment draft");
+    vi.mocked(fetch).mockResolvedValueOnce(deniedAnswer("share_acl_denied"));
+    answer = new Response("{}", { status: 500 });
+    await pass(31_000);
+    expect(projectCalls).toBe(before + 1);
+    expect(screen.getByTestId("caps")).toHaveTextContent("none");
+    expect(screen.getByLabelText("Comment draft")).toBe(input);
+    expect(input).toHaveValue("typed on the copy");
+    expect(offline.retire).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
   });
 
   it("keeps the copy on a 403 that does not establish a host access refusal", async () => {

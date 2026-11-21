@@ -408,13 +408,14 @@ describe("App review route", () => {
       "This link needs a sign-in; ask the person who sent it how to sign in.",
     ],
     [
-      "a 403",
+      "a host access denial",
       () =>
         new Response(JSON.stringify({ detail: "SENTINEL-1 mismatch" }), {
           status: 403,
           headers: { "X-Sharecut-Error-Code": "share_token_mismatch" },
         }),
       "This link is only for certain people; ask the person who sent it to check it was made for you.",
+      "plain-restricted",
     ],
     [
       "a 404 with another code",
@@ -432,15 +433,19 @@ describe("App review route", () => {
     ],
   ])(
     "never prints the server's response text, only the table's sentence, for %s",
-    async (_name, respond, sentence) => {
-      window.history.pushState({}, "", "/r/plain");
+    async (_name, respond, sentence, deniedToken?: string) => {
+      window.history.pushState({}, "", `/r/${deniedToken ?? "plain"}`);
       offline.load.mockResolvedValue(undefined);
       stubBootstrapFailure(respond);
       render(<App />);
       await screen.findByRole("heading", { name: "This link did not load" });
       expect(screen.getByText(sentence)).toBeVisible();
       expect(document.body).not.toHaveTextContent("SENTINEL-1");
-      expect(audio.forget).not.toHaveBeenCalled();
+      if (deniedToken) {
+        expect(audio.forget).toHaveBeenCalledExactlyOnceWith(deniedToken);
+      } else {
+        expect(audio.forget).not.toHaveBeenCalled();
+      }
     },
   );
 
