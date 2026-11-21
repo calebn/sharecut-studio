@@ -2847,7 +2847,9 @@ describe("Record stage session target", () => {
     recording_key: null,
   };
   const withClip = () => {
-    const project = minimalProject();
+    const project = minimalProject({
+      timeline_duration_sec: clipRow.timeline_end,
+    });
     useDawStore.getState().hydrate("/tmp/p.json", {
       ...project,
       clips: { ...project.clips, tracks: { t1: [clipRow] } },
