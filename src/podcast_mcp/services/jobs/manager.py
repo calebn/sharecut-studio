@@ -549,8 +549,16 @@ class JobManager:
                 from podcast_mcp.services.pipeline import (
                     ensure_whisper_cached_for_run,
                     ensure_word_aligner_for_run,
+                    ensure_word_aligner_override_supported_for_run,
                 )
 
+                ensure_word_aligner_override_supported_for_run(
+                    state.config,
+                    from_step=state.from_step,
+                    only_step=state.only_step,
+                    skip_steps=list(state.skip_steps),
+                    resolved=True,
+                )
                 ensure_whisper_cached_for_run(
                     config=state.config,
                     from_step=state.from_step,

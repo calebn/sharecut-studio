@@ -16,12 +16,14 @@ from podcast_mcp.engines.models.whisper import (
     validate_whisper_model,
 )
 from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
+from podcast_mcp.engines.onnx_session import OnnxOverrideUnsupportedError
 
 __all__ = [
     "DEFAULT_WHISPER_MODEL",
     "MODELS",
     "WHISPER_MODEL_IDS",
     "ModelSpec",
+    "OnnxOverrideUnsupportedError",
     "WhisperWeightsMissingError",
     "WordAlignerMissingError",
     "model_spec",

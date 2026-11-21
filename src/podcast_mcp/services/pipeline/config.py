@@ -299,6 +299,26 @@ def ensure_word_aligner_for_run(
         ).forced_alignment.require()
 
 
+def ensure_word_aligner_override_supported_for_run(
+    config: dict[str, Any] | None = None,
+    *,
+    from_step: str | None = None,
+    only_step: str | None = None,
+    skip_steps: list[str] | None = None,
+    resolved: bool = False,
+) -> None:
+    from podcast_mcp.engines.models.word_aligner import word_aligner_override_restriction
+
+    if word_aligner_override_restriction() is not None:
+        ensure_word_aligner_for_run(
+            config,
+            from_step=from_step,
+            only_step=only_step,
+            skip_steps=skip_steps,
+            resolved=resolved,
+        )
+
+
 def _transcribes(
     from_step: str | None, only_step: str | None, skip_steps: list[str] | None
 ) -> bool:

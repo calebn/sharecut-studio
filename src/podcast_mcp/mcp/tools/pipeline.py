@@ -9,9 +9,11 @@ from podcast_mcp.mcp.args import JsonObject, JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline import (
+    OnnxOverrideUnsupportedError,
     PipelineService,
     ensure_whisper_cached_for_run,
     ensure_word_aligner_for_run,
+    ensure_word_aligner_override_supported_for_run,
     format_export_qc_lines,
     stale_stream_notices,
 )
@@ -96,6 +98,9 @@ def pipeline_run(
 
     jobs = studio_job_manager()
     if jobs is not None:
+        ensure_word_aligner_override_supported_for_run(
+            run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
+        )
         ensure_whisper_cached_for_run(
             config=run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
         )
@@ -114,7 +119,10 @@ def pipeline_run(
         if job.status == "error":
             if job.error_model is not None:
                 raise ModelMissing(**job.error_model)
-            raise RuntimeError(job.error or job.message or "Pipeline failed")
+            message = job.error or job.message or "Pipeline failed"
+            if job.error_code == OnnxOverrideUnsupportedError.code:
+                raise OnnxOverrideUnsupportedError(message)
+            raise RuntimeError(message)
         if job.status == "cancelled":
             raise RuntimeError(job.message or "Pipeline cancelled")
         return _run_message(job.result_step or "", job.result, _stale_notices(ws))

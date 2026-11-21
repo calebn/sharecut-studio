@@ -14,12 +14,14 @@ from filelock import Timeout
 from pydantic import BaseModel, TypeAdapter
 
 from podcast_mcp import settings
+from podcast_mcp.engines.onnx_session import OnnxOverrideUnsupportedError
 from podcast_mcp.models import EpisodeProject, TrackRole, load_project
 from podcast_mcp.services.jobs import LIVE_JOB_STATUSES, JobManager, JobSlotBusyError
 from podcast_mcp.services.pipeline import (
     config_store,
     ensure_whisper_cached_for_run,
     ensure_word_aligner_for_run,
+    ensure_word_aligner_override_supported_for_run,
     merge_pipeline_config,
     skip_steps_from_enabled,
 )
@@ -58,6 +60,7 @@ def _needs_transcription(project: EpisodeProject) -> bool:
 
 
 def _models_ready(entry: SetupRun) -> bool:
+    ensure_word_aligner_override_supported_for_run(entry.config, skip_steps=entry.skip_steps)
     try:
         ensure_whisper_cached_for_run(
             config=entry.config, skip_steps=entry.skip_steps, memoize=True
@@ -166,7 +169,11 @@ class SetupRunQueue:
             model_changed = (
                 staged_model is not None and staged_model != run.config["transcribe"]["model"]
             )
-            if downloading_model is None and not model_changed and _models_ready(run):
+            if downloading_model is not None or model_changed:
+                ensure_word_aligner_override_supported_for_run(
+                    run.config, skip_steps=run.skip_steps
+                )
+            elif _models_ready(run):
                 return False
             self._replace([*entries, intent])
         return True
@@ -201,8 +208,12 @@ class SetupRunQueue:
             if self._parked.get(entry.path) == epoch:
                 continue
             run = self._resolve_model(entry, self._downloading_whisper_model())
-            if not _models_ready(run):
-                continue
+            try:
+                if not _models_ready(run):
+                    continue
+            except OnnxOverrideUnsupportedError:
+                # The pipeline job reports the refusal before it opens a model.
+                pass
             if stop.is_set():
                 return
             try:

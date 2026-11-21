@@ -34,6 +34,7 @@ from podcast_mcp.gui.schemas import (
 from podcast_mcp.pipeline import STEP_NAMES
 from podcast_mcp.services.jobs import JobManager, JobSlotBusyError
 from podcast_mcp.services.pipeline import (
+    OnnxOverrideUnsupportedError,
     build_config_payload,
     config_store,
     merge_pipeline_config,
@@ -121,7 +122,10 @@ def pipeline_setup_run(req: SetupRunRequest, request: Request) -> dict[str, bool
     if not request.app.state.setup_runs_enabled:
         return {"queued": False}
     project_path = resolve_project(req.path, request)
-    return {"queued": request.app.state.setup_runs.enqueue(project_path)}
+    try:
+        return {"queued": request.app.state.setup_runs.enqueue(project_path)}
+    except OnnxOverrideUnsupportedError as exc:
+        raise coded_http_error(409, str(exc), code=exc.code) from exc
 
 
 @router.post("/api/pipeline/retry", dependencies=_HOST_GATE)
@@ -132,7 +136,7 @@ def pipeline_retry(
     project_path = resolve_project(req.path, request)
     try:
         job = _jobs(request).retry_pipeline(project_path, req.job_id)
-    except CodedValueError as exc:
+    except (CodedValueError, OnnxOverrideUnsupportedError) as exc:
         status = 404 if exc.code == "pipeline_retry_unavailable" else 409
         raise coded_exception_error(status, exc, code="pipeline_retry_unavailable") from exc
     except JobSlotBusyError as exc:

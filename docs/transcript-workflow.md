@@ -289,6 +289,11 @@ the score method, so older sidecars miss once. The cache write is
 best-effort: a failed write logs a warning and keeps the aligned spans. Writing a new
 alignment cache deletes older ones for the same ASR cache.
 
+On Intel Macs with ONNX Runtime 1.23.2, a run that requires the aligner refuses a
+custom model setting before it reads a model. The host CLI, MCP, and Studio
+report `model_override_unsupported`. Unset `PODCAST_MCP_WORD_ALIGNER_MODEL`
+to use the verified model.
+
 **Default (#780).** `transcribe.forced_alignment.enabled` is a tri-state resolved once at the
 options boundary (`engines/asr_options.ForcedAlignment`, from `word_aligner_installed()`, a
 presence check that does not hash the snapshot): unset follows the installed model (on when
