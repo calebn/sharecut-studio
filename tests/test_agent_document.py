@@ -18,6 +18,7 @@ from podcast_mcp.mcp.tools.transcript import transcript_refine_waive_tool
 from podcast_mcp.models import (
     Clip,
     MediaAsset,
+    SourceRecording,
     Track,
     TrackRole,
     Transcript,
@@ -279,6 +280,89 @@ def test_cli_copy_then_paste_segment_is_undoable(tmp_path, sample_wav):
     assert json.loads(pasted.output)["operation"] == "paste_segment"
     assert _layout(path) == [*before, ("host", 8.0, 1.0, 3.0)]
     assert _journal_types(path) == ["PasteSegment"]
+    assert runner.invoke(app, ["undo", "--project", path]).exit_code == 0
+    assert _layout(path) == before
+
+
+@pytest.mark.parametrize("role", [TrackRole.MUSIC, TrackRole.SFX])
+def test_cli_gap_paste_reuses_auxiliary_media_without_moving_dialogue(
+    tmp_path, ten_second_silence_wav, role
+):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_lanes(path, ten_second_silence_wav)
+    project_path = Path(path)
+    project = load_project(project_path)
+    shutil.copyfile(ten_second_silence_wav, project_path.parent / "raw" / "cue.wav")
+    project.tracks.append(Track(id="cue", label="Cue", role=role))
+    project.sources.append(SourceRecording(id="cue-source", path="raw/cue.wav", duration_sec=10))
+    project.clips.append(
+        Clip(
+            id="original-cue",
+            track_id="cue",
+            source_id="cue-source",
+            source_start=1,
+            source_end=2,
+            timeline_start=0,
+        )
+    )
+    save_project(project, project_path)
+    before = _layout(path)
+    runner = CliRunner()
+    copied = runner.invoke(
+        app,
+        [
+            "edit",
+            "copy-segment",
+            "--project",
+            path,
+            "--tracks",
+            "cue",
+            "--start",
+            "0",
+            "--end",
+            "1",
+        ],
+    )
+    assert copied.exit_code == 0, copied.output
+
+    def paste(at, mode):
+        return runner.invoke(
+            app,
+            [
+                "edit",
+                "paste-segment",
+                "--project",
+                path,
+                "--at",
+                at,
+                "--clipboard",
+                "-",
+                "--mode",
+                mode,
+            ],
+            input=copied.stdout,
+        )
+
+    before_refusal = _on_disk(path)
+    ripple = paste("3", "ripple")
+    assert ripple.exit_code != 0
+    assert "paste_unknown_track" in ripple.output
+    assert _on_disk(path) == before_refusal
+
+    first = paste("3", "gap")
+    assert first.exit_code == 0, first.output
+    after_first = sorted([*before, ("cue", 3.0, 1.0, 2.0)])
+    assert _layout(path) == after_first
+    second = paste("6", "gap")
+    assert second.exit_code == 0, second.output
+    assert _layout(path) == sorted([*after_first, ("cue", 6.0, 1.0, 2.0)])
+    placements = [clip for clip in load_project(project_path).clips if clip.track_id == "cue"]
+    assert {clip.source_id for clip in placements} == {"cue-source"}
+    assert len({clip.id for clip in placements}) == 3
+    assert _journal_types(path) == ["PasteSegment", "PasteSegment"]
+
+    assert runner.invoke(app, ["undo", "--project", path]).exit_code == 0
+    assert _layout(path) == after_first
     assert runner.invoke(app, ["undo", "--project", path]).exit_code == 0
     assert _layout(path) == before
 
