@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { deferred } from "../src/test/deferred";
+import { postDocumentCommand } from "./documentCommand";
 import {
   expectNoBlankFrame,
   frames,
@@ -16,6 +17,7 @@ import {
   WORD,
   withGuest,
 } from "./guestTranscript";
+import { playButton } from "./playback";
 import { parseTimecodeSec } from "./timecode";
 
 for (const role of ROLES) {
@@ -80,6 +82,50 @@ test("a commenter keeps the transcript on screen through two quick host cuts", a
 const clock = (page: Page) => page.locator(".sys-player-now");
 const seconds = async (page: Page) =>
   parseTimecodeSec(await clock(page).innerText());
+
+test("a guest sees why playback paused after a host cut", async ({
+  browser,
+  page,
+}) => {
+  await withGuest(
+    browser,
+    page,
+    { role: "commenter", size: WIDE },
+    async ({ page: guest, projectPath }) => {
+      const notice = "Playback paused because the episode changed.";
+      const feedback = guest.getByRole("region", { name: "Status messages" });
+      const play = playButton(guest);
+      const initial = await seconds(guest);
+      await play.click();
+      await expect.poll(() => seconds(guest)).toBeGreaterThan(initial);
+
+      await postDocumentCommand(
+        page,
+        "e2e-audio-note",
+        "AddComment",
+        { body: "Guest audio note", author: "Host", timeline_start: 15 },
+        projectPath,
+      );
+      await expect(
+        guest.getByRole("button", { name: /^Host 0:15 Guest audio note$/ }),
+      ).toBeVisible();
+      await expect(
+        guest.getByRole("button", { name: "Pause", exact: true }),
+      ).toBeVisible();
+      await expect(feedback.getByText(notice)).toHaveCount(0);
+
+      await hostEdit(page, projectPath, "cut", 0);
+      await expect(play).toBeVisible();
+      await expect(feedback.getByText(notice)).toBeVisible();
+      await expect(
+        guest.getByRole("status").filter({ hasText: notice }),
+      ).toHaveCount(1);
+      const paused = await seconds(guest);
+      await play.click();
+      await expect.poll(() => seconds(guest)).toBeGreaterThan(paused);
+    },
+  );
+});
 
 test("a slow word detail leaves the same busy Script, whose held words do not seek", async ({
   browser,

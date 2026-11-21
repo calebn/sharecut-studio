@@ -813,6 +813,7 @@ describe("useProxyTransport", () => {
     await ready();
     act(() => useDawStore.getState().setIsPlaying(true));
     expect(engine.play).toHaveBeenCalled();
+    const statusSeq = useDawStore.getState().statusAnnouncementSeq;
     engine.pause.mockClear();
     const project = structuredClone(useDawStore.getState().project!);
     project.history.head_id = "after-comment" as typeof project.history.head_id;
@@ -822,16 +823,22 @@ describe("useProxyTransport", () => {
     expect(engine.pause).not.toHaveBeenCalled();
     expect(loadProxyManifest).toHaveBeenCalledOnce();
     expect(useDawStore.getState().audioError).toBeNull();
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(statusSeq);
   });
 
-  it.each(["render hash", "clip timeline"])(
-    "stops playing when an audible %s change lands with the head moved",
-    async (change) => {
+  it.each([
+    ["render hash", true],
+    ["clip timeline", true],
+    ["clip timeline", false],
+  ])(
+    "handles an audible %s change while playing is %s",
+    async (change, playing) => {
       const fixture = moveFixture();
       useDawStore.getState().setProject(fixture.base);
       renderHook(() => useProxyTransport());
       await ready();
-      act(() => useDawStore.getState().setIsPlaying(true));
+      if (playing) act(() => useDawStore.getState().setIsPlaying(true));
+      const statusSeq = useDawStore.getState().statusAnnouncementSeq;
       engine.pause.mockClear();
       const project = structuredClone(fixture.base);
       project.history.head_id = "after-edit" as typeof project.history.head_id;
@@ -845,7 +852,14 @@ describe("useProxyTransport", () => {
       await act(async () => {});
       expect(engine.pause).toHaveBeenCalled();
       expect(useDawStore.getState().isPlaying).toBe(false);
-      expect(useDawStore.getState().audioError).toBeNull();
+      const state = useDawStore.getState();
+      expect(state.audioError).toBeNull();
+      expect(state.statusAnnouncementSeq).toBe(statusSeq + Number(playing));
+      if (playing) {
+        const notice = "Playback paused because the episode changed.";
+        expect(state.statusAnnouncement).toBe(notice);
+        expect(state.feedbackToast?.message).toBe(notice);
+      }
     },
   );
 

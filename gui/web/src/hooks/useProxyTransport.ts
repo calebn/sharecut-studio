@@ -213,8 +213,13 @@ export function useProxyTransport(): boolean {
       accepted.path === projectPath &&
       accepted.epoch === projectEpoch &&
       accepted.key !== basisKey
-    )
+    ) {
+      const state = useDawStore.getState();
+      const wasPlaying = state.isPlaying && state.sourcePreview === null;
       block(new Error("Audio is waiting for a matching project snapshot."));
+      if (wasPlaying)
+        state.announceStatus("Playback paused because the episode changed.");
+    }
   }, [accepted, projectPath, projectEpoch, basisKey]);
 
   useEffect(() => {
