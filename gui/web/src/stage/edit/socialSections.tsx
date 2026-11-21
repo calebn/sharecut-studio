@@ -36,19 +36,9 @@ export function useSocialSections(
     ];
 
   const editable = !isShareProjectKey(projectPath);
-  const normalMinEnd = clip.start + MARKER_MIN_SPAN;
-  const shortClip = clip.end < normalMinEnd;
-  const minEnd = shortClip ? clip.end : normalMinEnd;
-  const maxStart = Math.max(
-    0,
-    shortClip ? clip.start : clip.end - MARKER_MIN_SPAN,
-  );
-  const maxEnd =
-    duration > minEnd
-      ? duration
-      : shortClip && duration > 0
-        ? minEnd
-        : undefined;
+  const minEnd = Math.min(clip.end, clip.start + MARKER_MIN_SPAN);
+  const maxStart = Math.max(0, clip.start, clip.end - MARKER_MIN_SPAN);
+  const maxEnd = duration > 0 ? Math.max(duration, clip.end) : undefined;
 
   const save = async (start: number, end: number) => {
     if (start === clip.start && end === clip.end) return;
@@ -70,7 +60,7 @@ export function useSocialSections(
       decimals={2}
       min={min}
       max={max}
-      exactBounds={shortClip}
+      exactBounds
       skipUnchanged
       readOnly={!editable || busy}
       busy={busy}
