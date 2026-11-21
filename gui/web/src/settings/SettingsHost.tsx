@@ -13,6 +13,7 @@ import { useViewportClass } from "../hooks/useViewportClass";
 import { loadHostCommandCount } from "../services/offlineQueue/offlineStore";
 import { canApplyPass12 } from "../shareMode";
 import {
+  MOVE_IN_PROGRESS,
   MOVE_WAIT_FOR_EDITS,
   withHostMove,
 } from "../state/commandSendOwnership";
@@ -28,6 +29,23 @@ function parentFolder(projectPath: string): string {
 }
 
 const PARTIAL_MOVE_CODE = "project_moved_partial";
+const MOVE_REFUSAL_CODES = new Set<string | null>([
+  "move_busy_jobs",
+  "move_cross_volume",
+  "move_dest_exists",
+  "move_dest_invalid",
+  "move_failed",
+  "move_in_use",
+  "move_others_connected",
+  "move_room_open",
+  "project_busy",
+]);
+const MOVE_CHECK_FAILED =
+  "Couldn't check whether all edits are saved. Keep this episode open and try Move again when editing has finished.";
+const MOVE_PICK_FAILED =
+  "Couldn't open the selected folder. The move hasn't started. Try Move again.";
+const MOVE_UNCONFIRMED =
+  "Couldn't confirm where this episode is. Check the folder you chose and the original folder before trying again.";
 const JOIN_FADE_LIMIT_READ_ONLY =
   "This link can view, but not change, episode settings. Ask the host for an editor link.";
 
@@ -42,13 +60,29 @@ async function refuseWhileEditsQueued(projectPath: string): Promise<void> {
   }
 }
 
+function moveErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && MOVE_REFUSAL_CODES.has(error.code)) {
+    return errorMessage(error);
+  }
+  if (
+    error instanceof Error &&
+    (error.message === MOVE_WAIT_FOR_EDITS ||
+      error.message === MOVE_IN_PROGRESS)
+  ) {
+    return error.message;
+  }
+  return fallback;
+}
+
 function partialMoveDestination(error: unknown): string | null {
   if (!(error instanceof ApiError) || error.code !== PARTIAL_MOVE_CODE) {
     return null;
   }
   const detail = (error.body as { detail?: { project_path?: unknown } } | null)
     ?.detail;
-  return typeof detail?.project_path === "string" ? detail.project_path : null;
+  return typeof detail?.project_path === "string" && detail.project_path.trim()
+    ? detail.project_path
+    : null;
 }
 
 /** The desktop app's native Settings… menu item (Cmd+,) dispatches this on window. */
@@ -116,23 +150,36 @@ export function SettingsHost() {
     reveal.setError(null);
     setMoveFailure(null);
     void mover.run(async () => {
+      let fallback = MOVE_CHECK_FAILED;
       try {
         await refuseWhileEditsQueued(projectPath);
+        fallback = MOVE_PICK_FAILED;
         const picked = await pickFolder();
         if ("unavailable" in picked) {
-          throw new Error(
-            "This computer couldn't open a folder dialog, so the episode stays where it is.",
-          );
+          setMoveFailure({
+            opening,
+            message:
+              "This computer couldn't open a folder dialog, so the episode stays where it is.",
+          });
+          return;
         }
         if ("cancelled" in picked) return;
+        fallback = MOVE_CHECK_FAILED;
         const destination = await withHostMove(projectPath, async () => {
           await refuseWhileEditsQueued(projectPath);
+          fallback = MOVE_UNCONFIRMED;
           try {
             const moved = await moveProject(
               projectPath,
               picked.folder,
               localClientId,
             );
+            if (
+              typeof moved.project_path !== "string" ||
+              !moved.project_path.trim()
+            ) {
+              throw new Error("Missing project path in move response");
+            }
             return moved.project_path;
           } catch (error) {
             const destination = partialMoveDestination(error);
@@ -140,10 +187,11 @@ export function SettingsHost() {
             return destination;
           }
         });
+        fallback = "The episode moved. Open it from the folder you chose.";
         setLeaving(true);
         window.location.assign(projectUrl(window.location.href, destination));
       } catch (error) {
-        setMoveFailure({ opening, message: errorMessage(error) });
+        setMoveFailure({ opening, message: moveErrorMessage(error, fallback) });
       }
     });
   };
