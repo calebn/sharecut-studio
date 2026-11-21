@@ -344,6 +344,60 @@ describe("a refresh that stops moving", () => {
       });
     });
 
+  it("keeps the deadline when a shell rereads an equivalent delta-inserted row", () => {
+    openGuest();
+    hold();
+    const { result } = renderHook(useTranscriptDetail);
+    const inserted = guestRow("two edited", 4, false);
+    const { text, ...header } = inserted;
+    act(() => {
+      applyDocumentSnapshot({
+        server_seq: 1,
+        state_token: "b".repeat(64),
+        file,
+        delta: {
+          base_seq: 0,
+          base_token: "a".repeat(64),
+          projection: "shell",
+          audience: "guest",
+          operations: [
+            {
+              type: "rows",
+              section: "utterances",
+              parent: null,
+              row_encoding: "predecessor-spans",
+              before_count: 2,
+              splices: [
+                {
+                  index: 1,
+                  delete: 1,
+                  insert: [{ header, text: { literal: text } }],
+                },
+              ],
+              updates: [],
+            },
+          ],
+        },
+      });
+    });
+    const restored = documentAuthority.project?.transcript?.utterances[1];
+    expect(restored).toEqual(inserted);
+    expect(Object.keys(restored ?? {})).not.toEqual(Object.keys(inserted));
+    expect(result.current.kind).toBe("ready");
+    act(() => {
+      vi.advanceTimersByTime(20_000);
+    });
+    applyShell(1, "c", { ...file, size: 60 });
+    expect(documentAuthority.project?.transcript?.utterances[1]).toEqual(
+      restored,
+    );
+    expect(result.current.kind).toBe("ready");
+    act(() => {
+      vi.advanceTimersByTime(STALL - 20_000);
+    });
+    expect(result.current.kind).toBe("failed");
+  });
+
   it("becomes failed after 35 s on the same commit", () => {
     openGuest();
     hold();
