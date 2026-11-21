@@ -68,7 +68,7 @@ describe("range fields", () => {
     const { container } = render(<RangeFields />);
     expect(container).toBeEmptyDOMElement();
   });
-  it("announces a pending Script cut without inserting a timeline row", () => {
+  it("does not insert a timeline row while a Script cut is pending", () => {
     useDawStore.setState({
       rangeBusy: true,
       selection: {
@@ -80,9 +80,6 @@ describe("range fields", () => {
     });
     render(<RangeFields />);
     expect(screen.queryByRole("region", { name: "Range fields" })).toBeNull();
-    const status = screen.getByRole("status");
-    expect(status).toHaveClass("sr-only");
-    expect(status).toHaveTextContent("Preparing range action…");
   });
   it("has no In and Out inputs, Select range, Cancel or Apply: a range is edited by its Scrub fields", () => {
     render(<RangeFields sheet always />);

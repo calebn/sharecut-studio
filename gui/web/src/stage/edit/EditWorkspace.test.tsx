@@ -51,6 +51,19 @@ afterEach(() => {
 });
 
 describe("EditWorkspace regions", () => {
+  it("announces pending range progress in an already mounted live region", () => {
+    render(<EditWorkspace />);
+    const status = screen.getByRole("status", { name: "Range action" });
+    expect(status).toHaveClass("sr-only");
+    expect(status).toBeEmptyDOMElement();
+    act(() => useDawStore.getState().setRangeBusy(true));
+    expect(screen.getByRole("status", { name: "Range action" })).toBe(status);
+    expect(status).toHaveTextContent("Preparing range action…");
+    act(() => useDawStore.getState().setRangeBusy(false));
+    expect(screen.getByRole("status", { name: "Range action" })).toBe(status);
+    expect(status).toBeEmptyDOMElement();
+  });
+
   it("dismisses View when Script focus hides its eye", async () => {
     const user = userEvent.setup();
     render(<EditWorkspace />);

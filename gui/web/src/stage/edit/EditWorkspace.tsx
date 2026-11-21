@@ -51,6 +51,20 @@ export type EditWorkspaceProps = {
   loadFailure?: LoadFailure | null;
 };
 
+function RangeActionStatus() {
+  const busy = useDawStore((s) => s.rangeBusy);
+  return (
+    <p
+      className="sr-only"
+      role="status"
+      aria-label="Range action"
+      aria-atomic="true"
+    >
+      {busy ? "Preparing range action…" : null}
+    </p>
+  );
+}
+
 function EditWorkspaceAdapter({
   viewAnchor = AVAILABLE_VIEW_ANCHOR,
   guestShare = false,
@@ -278,7 +292,7 @@ function EditWorkspaceAdapter({
     );
   }
 
-  return (
+  const workspace = (
     <EditWorkspaceView
       arrangement={arrangement}
       state={state}
@@ -332,6 +346,12 @@ function EditWorkspaceAdapter({
         script: bindScript,
       }}
     />
+  );
+  return (
+    <>
+      <RangeActionStatus />
+      {workspace}
+    </>
   );
 }
 
