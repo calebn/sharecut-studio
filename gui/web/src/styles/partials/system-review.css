@@ -452,7 +452,7 @@ button.sys-queue-row--decided {
 .sys-dots-dot {
   inline-size: 0.5rem;
   block-size: 0.5rem;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-text-secondary);
   border-radius: 50%;
   box-sizing: border-box;
 }
