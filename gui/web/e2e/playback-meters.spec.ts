@@ -241,7 +241,7 @@ test("real premix exposes per-track peaks, clipping, and responsive controls", a
         );
         await pause(host);
         await expect(clearClip(host)).toBeEnabled();
-        expect(await ringLevel(guestHeader)).toBe(0);
+        await expect.poll(() => ringLevel(guestHeader)).toBe(0);
         await expect(referenceHeader).toHaveAttribute("data-clipped", "true");
         await clearClip(host).click({ timeout: 10000 });
         await expect(clearClip(host)).toBeDisabled();
@@ -308,13 +308,25 @@ test("reduced motion freezes meter bars while real playback clipping remains det
         const before = await fill.getAttribute("style");
         await play(page);
         await expect(clearClip(page)).toBeEnabled();
+        const position = page.getByRole("slider", {
+          name: "Timeline position",
+        });
+        await expect
+          .poll(async () =>
+            Number(await position.getAttribute("aria-valuenow")),
+          )
+          .toBeGreaterThan(0.5);
         await expect(fill).toHaveAttribute("style", before ?? "");
         expect(await ringLevel(header)).toBe(0);
         await expect(meter(page, "reference")).toHaveAttribute(
           "aria-valuenow",
           "-60",
         );
+        // The same signal moves the ring once the motion preference is lifted.
+        await page.emulateMedia({ reducedMotion: "no-preference" });
+        await expect.poll(() => ringLevel(header)).toBeGreaterThan(0);
         await pause(page);
+        await expect.poll(() => ringLevel(header)).toBe(0);
         await expect(clearClip(page)).toBeEnabled();
         await clearClip(page).click({ timeout: 10000 });
         await expect(clearClip(page)).toBeDisabled();
