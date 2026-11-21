@@ -397,8 +397,9 @@ export type GuestPostsAttention = {
 
 /** Offline edits that did not apply or have not been sent, shown as Check rows above the groups. */
 export type ReviewAttention = {
-  /** Host edits queued but not yet applied. */
+  /** Edits queued but not yet applied. */
   pending: number;
+  guest?: boolean;
   rows: readonly AttentionRow[];
   unreadable: boolean;
   dismissFailed: boolean;
@@ -500,6 +501,7 @@ export const attentionVisible = (
 export const attentionLabelOf = (attention: ReviewAttention): string =>
   attentionRegionLabel({
     pending: attention.pending,
+    guest: attention.guest,
     waitingPosts: waitingPostsOf(attention.posts),
     returnedPosts: attention.posts?.returned.length ?? 0,
     conflictCount: attention.rows.length,

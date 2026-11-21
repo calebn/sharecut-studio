@@ -2,7 +2,14 @@ import type { HostCause } from "../state/hostReach";
 import { SystemIcon } from "./SystemIcon";
 
 export type SaveIndicatorProps = {
-  state: "saved" | "saving" | "offline" | "unreachable" | "away" | "failed";
+  state:
+    | "saved"
+    | "saving"
+    | "offline"
+    | "waiting"
+    | "unreachable"
+    | "away"
+    | "failed";
   cause?: HostCause;
   /** Saved: show the check for the 2 s after a save. */
   justSaved?: boolean;
@@ -63,8 +70,10 @@ export function SaveIndicator({
       </span>
     );
   }
-  if (state === "offline") {
-    const text = waiting ? `${waiting} waiting` : "Offline";
+  if (state === "offline" || state === "waiting") {
+    const text = waiting
+      ? `${waiting} waiting${state === "waiting" ? " to send" : ""}`
+      : "Offline";
     return (
       <span className={`sys-save sys-save--offline${size}`} role="status">
         <SystemIcon name="cloud-off" size={16} className="sys-tone-warning" />
@@ -80,7 +89,7 @@ export function SaveIndicator({
   if (state === "away") {
     const label =
       cause === "device" ? "You're offline" : "Can't reach the host";
-    const sentence = `${label}${waiting ? `, ${waiting} waiting` : ""}. This page keeps trying.`;
+    const sentence = `${label}${waiting ? `, ${waiting} waiting to send` : ""}. This page keeps trying.`;
     return (
       <span
         className={`sys-save sys-save--away${size}`}
@@ -90,7 +99,7 @@ export function SaveIndicator({
         <SystemIcon name="cloud-off" size={16} className="sys-tone-warning" />
         <span className="sys-save-text">
           <span aria-hidden="true">
-            {waiting ? `${label} · ${waiting} waiting` : label}
+            {waiting ? `${label} · ${waiting} waiting to send` : label}
           </span>
           <span className="sr-only">{sentence}</span>
         </span>
@@ -111,7 +120,7 @@ export function SaveIndicator({
       >
         <SystemIcon name="cloud" size={16} className="sys-tone-warning" />
         <span className="sys-save-text">
-          {waiting ? `Saved copy · ${waiting} waiting` : "Saved copy"}
+          {waiting ? `Saved copy · ${waiting} waiting to send` : "Saved copy"}
           <span className="sr-only">. {SAVED_COPY_TEXT}</span>
         </span>
         {waiting ? (

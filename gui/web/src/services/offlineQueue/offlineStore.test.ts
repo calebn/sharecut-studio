@@ -172,6 +172,7 @@ describe("dismissal transaction results", () => {
   ])(
     "returns the committed $name queue and conflict snapshot",
     async ({
+      name,
       queueKey,
       conflictKey,
       dismiss,
@@ -192,14 +193,15 @@ describe("dismissal transaction results", () => {
         { ...history, dismissed: true },
       ];
 
-      await expect(dismiss()).resolves.toEqual({
+      const snapshot = {
         pending,
         conflicts: committedConflicts,
-      });
-      await expect(readAttention()).resolves.toEqual({
-        pending,
-        conflicts: committedConflicts,
-      });
+        ...(name === "guest"
+          ? { queuedCommandIds: ["unrelated", "history"] }
+          : {}),
+      };
+      await expect(dismiss()).resolves.toEqual(snapshot);
+      await expect(readAttention()).resolves.toEqual(snapshot);
       await expect(readQueue()).resolves.toEqual([unrelated, historyCommand]);
       await expect(otherQueue()).resolves.toEqual([
         refusal.command,

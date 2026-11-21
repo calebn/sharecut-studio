@@ -27,6 +27,7 @@ const snapshot = (
   over: Partial<AttentionSnapshot> = {},
 ): AttentionSnapshot => ({
   pending: 0,
+  waitingPosts: 0,
   conflicts: [
     offlineConflict({ command: { command_id: "c1", type: "TrimClip" } }),
     {

@@ -30,7 +30,8 @@ export function useReviewAttention(
     const share = isShareProjectKey(projectPath);
     const active = saved.conflicts.filter((conflict) => !conflict.dismissed);
     return {
-      pending: share ? 0 : saved.pending,
+      pending: saved.pending,
+      guest: share,
       rows: attentionRowsOf(
         saved.recoverySelection ? [...active, saved.recoverySelection] : active,
         share,

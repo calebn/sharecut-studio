@@ -25,7 +25,8 @@ export function OfflineAttentionAnnouncer() {
   const conflictCount = activeConflicts.length + (recoverySelection ? 1 : 0);
   useOfflineAttentionAnnouncement({
     projectPath,
-    pending: isShareProjectKey(projectPath) ? 0 : pending,
+    pending,
+    guest: isShareProjectKey(projectPath),
     waitingPosts: posts.rows.length,
     returnedPosts: posts.returned.length,
     conflictCount,

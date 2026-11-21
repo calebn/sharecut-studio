@@ -6,6 +6,7 @@ import { useDawStore } from "../state/dawStore";
 type Input = {
   projectPath: string;
   pending: number;
+  guest?: boolean;
   waitingPosts?: number;
   returnedPosts?: number;
   conflictCount: number;
@@ -31,6 +32,7 @@ function attentionAnnouncement(input: Input): string | null {
   }
   return attentionRegionLabel({
     pending: input.pending,
+    guest: input.guest,
     waitingPosts: input.waitingPosts,
     returnedPosts: input.returnedPosts,
     conflictCount: input.conflictCount,

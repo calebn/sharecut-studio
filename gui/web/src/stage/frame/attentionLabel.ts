@@ -7,9 +7,14 @@ export function attentionCountLabel(
   pending: number,
   conflictCount: number,
   posts: { waiting: number; returned: number } = { waiting: 0, returned: 0 },
+  guest = false,
 ): string {
   return [
-    pending > 0 ? `${pending} pending` : "",
+    pending > 0
+      ? guest
+        ? `${pending} ${plural(pending, "edit")} waiting to send`
+        : `${pending} pending`
+      : "",
     posts.waiting > 0 ? `${posts.waiting} waiting to send` : "",
     posts.returned > 0 ? `${posts.returned} not posted` : "",
     conflictCount > 0
@@ -22,16 +27,19 @@ export function attentionCountLabel(
 
 export function attentionRegionLabel(input: {
   pending: number;
+  guest?: boolean;
   waitingPosts?: number;
   returnedPosts?: number;
   conflictCount: number;
   unreadable: boolean;
   dismissFailed: boolean;
 }): string {
-  const countLabel = attentionCountLabel(input.pending, input.conflictCount, {
-    waiting: input.waitingPosts ?? 0,
-    returned: input.returnedPosts ?? 0,
-  });
+  const countLabel = attentionCountLabel(
+    input.pending,
+    input.conflictCount,
+    { waiting: input.waitingPosts ?? 0, returned: input.returnedPosts ?? 0 },
+    input.guest,
+  );
   return [
     NEEDS_ATTENTION,
     countLabel,

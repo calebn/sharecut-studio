@@ -15,6 +15,21 @@ describe("attentionRegionLabel", () => {
     ).toBe("Needs attention. 2 waiting to send, 1 not posted");
   });
 
+  it("distinguishes waiting guest edits, kept posts, and actual conflicts", () => {
+    expect(
+      attentionRegionLabel({
+        guest: true,
+        pending: 1,
+        waitingPosts: 2,
+        conflictCount: 1,
+        unreadable: false,
+        dismissFailed: false,
+      }),
+    ).toBe(
+      "Needs attention. 1 edit waiting to send, 2 waiting to send, 1 conflict",
+    );
+  });
+
   it("joins pending, conflicts, and failure flags", () => {
     expect(
       attentionRegionLabel({

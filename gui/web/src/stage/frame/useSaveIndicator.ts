@@ -18,7 +18,10 @@ export function saveIndicatorOf(
     case "saved":
       return { state: "saved", justSaved };
     case "waiting":
-      return { state: "offline", waiting: state.count };
+      return {
+        state: state.guest ? "waiting" : "offline",
+        waiting: state.count,
+      };
     case "unreachable":
       return { state: "unreachable", waiting: state.count };
     case "away":

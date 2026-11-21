@@ -10,7 +10,6 @@ import {
   dismissHostConflicts,
   loadGuestAttention,
   loadHostAttention,
-  type OfflineAttentionData,
   type OfflineConflict,
 } from "./offlineStore";
 
@@ -26,6 +25,7 @@ export type AttentionStatus =
 export type AttentionSnapshot = {
   /** Edits queued but not yet applied. */
   pending: number;
+  waitingPosts: number;
   conflicts: readonly OfflineConflict[];
   recoverySelection: OfflineConflict | null;
   status: AttentionStatus;
@@ -39,6 +39,7 @@ export const ATTENTION_POLL_MS = 2_000;
 
 const INITIAL: AttentionSnapshot = {
   pending: 0,
+  waitingPosts: 0,
   conflicts: [],
   recoverySelection: null,
   status: "checking",
@@ -50,6 +51,7 @@ type Source = {
   snapshot: AttentionSnapshot;
   listeners: Set<() => void>;
   generation: number;
+  queuedCommandIds?: readonly string[];
   stop: () => void;
 };
 
@@ -66,30 +68,24 @@ export function volatileOutcomeFor(
     ?.find((outcome) => outcome.command.command_id === commandId);
 }
 
-async function withKeptPosts(
-  token: string,
-  saved: Promise<OfflineAttentionData>,
-): Promise<OfflineAttentionData> {
-  const [attention, kept] = await Promise.all([saved, loadOutbox(token)]);
-  return { ...attention, pending: attention.pending + kept.length };
-}
-
-function read(projectPath: string): Promise<[number, OfflineConflict[]]> {
+async function read(projectPath: string) {
   const token = shareTokenFromKey(projectPath);
-  const stored = token
-    ? withKeptPosts(token, loadGuestAttention(token))
-    : loadHostAttention(projectPath);
-  return stored.then(({ pending, conflicts }) => {
-    return [pending, withVolatileOutcomes(projectPath, conflicts)] as [
-      number,
-      OfflineConflict[],
-    ];
-  });
+  const [{ pending, conflicts, queuedCommandIds }, kept] = await Promise.all([
+    token ? loadGuestAttention(token) : loadHostAttention(projectPath),
+    token ? loadOutbox(token) : [],
+  ]);
+  return {
+    pending,
+    waitingPosts: kept.length,
+    conflicts,
+    queuedCommandIds,
+  };
 }
 
 function withVolatileOutcomes(
   projectPath: string,
   conflicts: readonly OfflineConflict[],
+  queuedCommandIds?: readonly string[],
 ): OfflineConflict[] {
   const byCommand = new Map(
     conflicts.map((conflict) => [conflict.command.command_id, conflict]),
@@ -105,7 +101,13 @@ function withVolatileOutcomes(
     byCommand.delete(commandId);
     byCommand.set(commandId, outcome);
   }
-  return [...byCommand.values()];
+  const queued = new Set(queuedCommandIds);
+  return [...byCommand.values()].filter(
+    (outcome) =>
+      outcome.kind !== "unknown" ||
+      outcome.recovery !== "retry-same-command" ||
+      !queued.has(outcome.command.command_id),
+  );
 }
 
 function sameOutcome(left: OfflineConflict, right: OfflineConflict): boolean {
@@ -134,7 +136,11 @@ export function recordVolatileOutcome(
   const source = sources.get(projectPath);
   if (source) {
     set(source, {
-      conflicts: withVolatileOutcomes(projectPath, source.snapshot.conflicts),
+      conflicts: withVolatileOutcomes(
+        projectPath,
+        source.snapshot.conflicts,
+        source.queuedCommandIds,
+      ),
     });
   }
 }
@@ -156,6 +162,7 @@ export function clearVolatileOutcome(
         source.snapshot.conflicts.filter(
           (item) => item.command.command_id !== commandId,
         ),
+        source.queuedCommandIds,
       ),
     });
   }
@@ -190,11 +197,17 @@ function refresh(projectPath: string, source: Source, manual = false): void {
           : "checking",
     });
   read(projectPath)
-    .then(([pending, conflicts]) => {
+    .then(({ pending, waitingPosts, conflicts, queuedCommandIds }) => {
       if (reading !== source.generation) return;
+      source.queuedCommandIds = queuedCommandIds;
       set(source, {
         pending,
-        conflicts: withVolatileOutcomes(projectPath, conflicts),
+        waitingPosts,
+        conflicts: withVolatileOutcomes(
+          projectPath,
+          conflicts,
+          queuedCommandIds,
+        ),
         status: keepFailure ? "dismiss-failed" : "ready",
         loaded: true,
         settling: documentActivityBusy(projectPath),
@@ -318,8 +331,8 @@ export async function hasConflictBeyond(
   known: ReadonlySet<string>,
   matches: (conflict: OfflineConflict) => boolean = () => true,
 ): Promise<boolean> {
-  const [, conflicts] = await read(projectPath);
-  return conflicts.some(
+  const { conflicts, queuedCommandIds } = await read(projectPath);
+  return withVolatileOutcomes(projectPath, conflicts, queuedCommandIds).some(
     (conflict) =>
       !conflict.dismissed &&
       !known.has(conflict.command.command_id) &&
@@ -350,9 +363,14 @@ export async function dismissOneConflict(
     if (source) {
       const { status } = source.snapshot;
       if (status !== "dismissing") source.generation++;
+      source.queuedCommandIds = result.queuedCommandIds;
       set(source, {
         pending: result.pending,
-        conflicts: withVolatileOutcomes(projectPath, result.conflicts),
+        conflicts: withVolatileOutcomes(
+          projectPath,
+          result.conflicts,
+          source.queuedCommandIds,
+        ),
         status:
           status === "checking" || status === "dismiss-failed"
             ? "ready"
@@ -384,9 +402,14 @@ export function dismissAllConflicts(projectPath: string): void {
     .then((result) => {
       if (clearing === source.generation) {
         markVolatileDismissed(projectPath, captured);
+        source.queuedCommandIds = result.queuedCommandIds;
         set(source, {
           pending: result.pending,
-          conflicts: withVolatileOutcomes(projectPath, result.conflicts),
+          conflicts: withVolatileOutcomes(
+            projectPath,
+            result.conflicts,
+            source.queuedCommandIds,
+          ),
           status: "ready",
         });
         if (source.snapshot.settling && !documentActivityBusy(projectPath)) {
@@ -399,11 +422,17 @@ export function dismissAllConflicts(projectPath: string): void {
       const reading = ++source.generation;
       set(source, { status: "dismiss-failed" });
       read(projectPath)
-        .then(([pending, conflicts]) => {
+        .then(({ pending, waitingPosts, conflicts, queuedCommandIds }) => {
           if (reading !== source.generation) return;
+          source.queuedCommandIds = queuedCommandIds;
           set(source, {
             pending,
-            conflicts: withVolatileOutcomes(projectPath, conflicts),
+            waitingPosts,
+            conflicts: withVolatileOutcomes(
+              projectPath,
+              conflicts,
+              queuedCommandIds,
+            ),
             status: "dismiss-failed",
             loaded: true,
             settling: documentActivityBusy(projectPath),

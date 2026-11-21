@@ -168,8 +168,21 @@ async function refusedEditorCut(host: Page, guest: Page, projectPath: string) {
   await expect
     .poll(async () => (await queued(guest, token)).map((c) => c.type))
     .toEqual(["EditSelectedRange"]);
-  await hostEditsTheAudio(host, projectPath);
   await goToStage(guest, "review");
+  const save = guest.locator(".sys-save").first();
+  await expect(save).toContainText("1 waiting to send");
+  await expect(save).not.toContainText("Save failed");
+  await expect(attention(guest)).toHaveAccessibleName(
+    "Needs attention. 1 edit waiting to send",
+  );
+  await expect(attention(guest)).toContainText("1 edit waiting to send");
+  await expect(
+    attention(guest).getByRole("button", { name: "Dismiss all" }),
+  ).toHaveCount(0);
+  await expect(
+    attention(guest).getByRole("button", { name: "Retry" }),
+  ).toHaveCount(0);
+  await hostEditsTheAudio(host, projectPath);
   await reconnect(guest);
 }
 
