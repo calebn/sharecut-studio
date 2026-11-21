@@ -12,7 +12,7 @@ import { clearRegisteredCommands, execute } from "../../../commands/execute";
 import { registerDawCommands } from "../../../commands/register";
 import { FeedbackToast } from "../../../feedback/FeedbackToast";
 import { useDawKeymapListener } from "../../../keymap/listener";
-import { useDawStore } from "../../../state/dawStore";
+import { batchDawWrites, useDawStore } from "../../../state/dawStore";
 import { resetFeedbackRepeatForTests } from "../../../state/uiSlice";
 import { deferred } from "../../../test/deferred";
 import { COMMENTER_CAPABILITIES, clipRow } from "../../../test/fixtures";
@@ -905,6 +905,26 @@ describe("Tab after a words cut", () => {
     useDawStore.setState({ project });
     expect(tab().defaultPrevented).toBe(true);
     expect(selected()).toEqual([3, 4]);
+  });
+
+  it("leaves Tab native after a peer cut and Undo published together", async () => {
+    await startCut();
+    cutAway([0, 1], "h1");
+    const original = state().project!;
+    act(() =>
+      batchDawWrites(() => {
+        state().setProject({
+          ...original,
+          history: { ...original.history, head_id: head("h2") },
+        });
+        state().setProject({
+          ...original,
+          history: { ...original.history, can_redo: true },
+        });
+      }),
+    );
+    expect(tab().defaultPrevented).toBe(false);
+    expect(selected()).toBeNull();
   });
 
   it("is never set for someone who may only suggest", async () => {
