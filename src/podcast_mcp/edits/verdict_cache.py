@@ -79,6 +79,9 @@ READ_SEC = 6.0
 SEMANTICS = "batch-base-profile"
 PAUSE_REACH_FLOOR_SEC = 13.0
 LONG_FADE_NO_CACHE_SEC = 1.0
+# The render rounds the seam, borrow and window start independently to frames.
+# Keep a small guard on the unrounded side without probing audio for a cache key.
+_OUTSIDE_JOIN_GRID_SLACK_SEC = 0.001
 _ENTRIES = 512
 
 
@@ -531,6 +534,7 @@ def _join_folds(
     clips = clips_for_track(project, track_id)
     pieces, _ = expand_timed_clips(clips, micro_fade_ms=shell_micro_fade_ms(clips, defaults))
     folds: list[_JoinFold] = []
+    earliest_tail = window_start - _OUTSIDE_JOIN_GRID_SLACK_SEC
     for left, right in pairwise(pieces):
         left_heard = left.id in heard_ids
         right_heard = right.id in heard_ids
@@ -541,13 +545,13 @@ def _join_folds(
         ms = crossfade_ms_at_join(left, right)
         if ms <= 0:
             continue
-        if not heard and left.timeline_end + crossfade_borrow_limit_sec(ms) <= window_start:
+        if not heard and left.timeline_end + crossfade_borrow_limit_sec(ms) < earliest_tail:
             continue
         fields = join_render_fields(left, right, project, mutes())
         borrow = fields.get("join_borrow_sec", 0.0)
         # A full stem can play the left clip's borrowed tail past its authored end even
         # when both clips end before the window. Their audio inputs are absent from `heard`.
-        if not heard and borrow and left.timeline_end + borrow > window_start:
+        if not heard and borrow and left.timeline_end + borrow >= earliest_tail:
             return None
         if left_heard:
             folds.append(_JoinFold("out", ms, borrow))

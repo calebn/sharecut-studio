@@ -840,8 +840,9 @@ the larger of the shorter fade and half the longer, and the `join_borrow_sec` of
 these account for the rendered neighbour's edge-piece length and for mutes that limit
 borrow, including on clips outside the window. A join with no overlap adds nothing.
 When two adjacent clips end before the window and the left clip's borrowed tail
-can reach into it, the cut runs uncached. A whole-track render can include that tail
-even though the key window excludes both authored clips. The key also carries `base_profile`, the digest
+can reach into it, the cut runs uncached. The guard also allows 1 ms before the
+window because rounding the seam, borrow and window boundary to frames can put
+that tail inside the rendered window. The key also carries `base_profile`, the digest
 (`cut_proof.BatchBase.stamp`) of the batch-base profile inputs of every dialogue track (its
 clips, mutes, fades and more). The stamp is computed once per batch, at its first check and before anything is
 applied, so a clip edit applied inside the batch does not move it, and neither does any edit to a

@@ -15,7 +15,12 @@ from podcast_mcp.edits import cut_application, cut_policy, cut_safety, verdict_c
 from podcast_mcp.edits.cut_application import approve_edits, precompute_verdicts
 from podcast_mcp.edits.cut_speech import LaneSourceExtent
 from podcast_mcp.engines.audio import placed_sources, sources
-from podcast_mcp.engines.timeline_render import placed_track_audio, track_grid
+from podcast_mcp.engines.clips_ops import join_render_fields
+from podcast_mcp.engines.timeline_render import (
+    placed_track_audio,
+    render_track_from_timeline,
+    track_grid,
+)
 from podcast_mcp.models import (
     Clip,
     ClipJoinMode,
@@ -943,3 +948,90 @@ def test_a_crossfade_entirely_before_the_window_can_borrow_into_it(
 
     right.join_in_mode = ClipJoinMode.FADE
     assert observe(40)[1] == observe(20)[1] == short_key
+
+
+def test_an_outside_crossfade_can_enter_the_window_on_the_sample_grid(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    track = project.tracks[0]
+    rate = 44_100
+    pcm = np.full(rate * SECONDS, 12_000, dtype="<i2")
+    pcm[rate * 4 :] = -12_000
+    with wave.open(str(tmp_path / "raw" / "host.wav"), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(rate)
+        handle.writeframes(pcm.tobytes())
+    track.media.sample_rate = rate
+    edit = project.edit_decisions[1]
+    span = (edit.start + 0.25 / rate, edit.end)
+    defaults = _KEY_ARGS["defaults"]
+    window_start = span[0] - verdict_cache.check_reach_sec(project, edit, span, defaults)
+    seam = window_start - 0.015 - 1e-6
+    window_frame = round(window_start * rate)
+    left = Clip(
+        id="left",
+        track_id=track.id,
+        source_start=1,
+        source_end=3,
+        timeline_start=seam - 2,
+        fade_out_ms=30,
+    )
+    right = Clip(
+        id="right",
+        track_id=track.id,
+        source_start=6,
+        source_end=6.08,
+        timeline_start=seam - 0.08,
+        fade_in_ms=30,
+        join_in_mode=ClipJoinMode.CROSSFADE,
+    )
+    project.clips = [
+        left,
+        right,
+        Clip(
+            id="window",
+            track_id=track.id,
+            source_start=window_start + 1,
+            source_end=39,
+            timeline_start=window_start + 1,
+        ),
+    ]
+
+    def key() -> str | None:
+        return verdict_cache.verdict_key(project, edit, **{**_KEY_ARGS, "span": span})
+
+    def observe(fade_in: int) -> tuple[int, int, str | None]:
+        right.fade_in_ms = fade_in
+        borrow = join_render_fields(left, right, project)["join_borrow_sec"]
+        assert left.timeline_end + borrow < window_start
+        grid = track_grid(project, track, [left, right])
+        assert grid is not None and grid.rate == rate
+        graph = placed_track_audio(project, track, [left, right], grid=grid)
+        leaf = next(
+            placed
+            for placed in placed_sources(graph.audio, crossfade_curve="tri")
+            if placed.source.clip_id == right.id
+        )
+        wav = tmp_path / f"render-{fade_in}.wav"
+        render_track_from_timeline(project, track, wav, defaults)
+        with wave.open(str(wav), "rb") as handle:
+            assert handle.getframerate() == rate
+            handle.setpos(window_frame)
+            sample = int(np.frombuffer(handle.readframes(1), dtype="<i2")[0])
+        return round(leaf.ramps[0].end * rate), sample, key()
+
+    short_tail, short_sample, short_key = observe(20)
+    long_tail, long_sample, long_key = observe(30)
+    assert short_tail < window_frame
+    assert long_tail == window_frame + 1
+    assert long_sample != short_sample
+    assert short_key is not None
+    assert long_key is None
+
+    right.join_in_mode = ClipJoinMode.FADE
+    assert key() == short_key
+
+    right.join_in_mode = ClipJoinMode.CROSSFADE
+    left.timeline_start -= 0.002
+    right.timeline_start -= 0.002
+    assert key() == short_key
