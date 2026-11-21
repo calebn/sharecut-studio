@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { dismissSetupCard, expectHome, homeRecordTile, openHome } from "./home";
 import { expectNoHorizontalScroll, mockBootstrap } from "./modelsMock";
 import { setRootFontSize } from "./rootFontSize";
@@ -164,6 +164,23 @@ test("a Recent card named Recording does not make Home's Record tile ambiguous",
   await created;
 });
 
+async function expectFitsVisualViewport(page: Page): Promise<void> {
+  const overflow = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth -
+      (window.visualViewport?.width ?? window.innerWidth),
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+}
+
+async function expectLabelWhole(label: Locator): Promise<void> {
+  const [scroll, client] = await label.evaluate((el) => [
+    el.scrollWidth,
+    el.clientWidth,
+  ]);
+  expect(scroll).toBeLessThanOrEqual(client);
+}
+
 const EMPTY_HOME_SIZES = [
   { name: "phone", width: 390, height: 844 },
   { name: "iPad", width: 820, height: 1180 },
@@ -207,12 +224,14 @@ for (const width of [390, 360]) {
       hasTouch: true,
     });
 
-    test("both tiles stay inside the page at a 32px root", async ({ page }) => {
+    test("both tiles stay inside the page with whole labels at a 32px root", async ({
+      page,
+    }) => {
       await mockBootstrap(page);
       await mockRecents(page, []);
       await openHome(page);
       await setRootFontSize(page, 32);
-      await expectNoHorizontalScroll(page);
+      await expectFitsVisualViewport(page);
       for (const tile of [
         page.locator(".sys-home .sys-start--import"),
         homeRecordTile(page),
@@ -220,7 +239,40 @@ for (const width of [390, 360]) {
         const box = (await tile.boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(width);
+        await expectLabelWhole(tile.locator(".sys-start-title"));
       }
     });
   });
 }
+
+test.describe("Home with many recents on a phone", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  test("a focused last Recent row is not hidden under the bottom bar", async ({
+    page,
+  }) => {
+    await mockBootstrap(page);
+    await mockRecents(
+      page,
+      Array.from({ length: 8 }, (_, i) => ({
+        ...RECENT,
+        path: `${EPISODE}.${i}`,
+        name: `Episode ${i}`,
+      })),
+    );
+    await openHome(page);
+    const last = page.getByRole("button", { name: /^Episode 7/ });
+    await last.focus();
+    await expect
+      .poll(async () => {
+        const box = (await last.boundingBox())!;
+        const bar = (await page.locator(".sys-home-bar").boundingBox())!;
+        return box.y + box.height <= bar.y;
+      })
+      .toBe(true);
+  });
+});

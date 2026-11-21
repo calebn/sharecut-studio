@@ -3303,21 +3303,23 @@ html:not([data-shell="phone"])
   gap: var(--space-5);
 }
 
-.sys-home[data-narrow]:not([data-phase="empty"]) .sys-home-main {
-  padding-block-end: 0;
-}
-
-.sys-home[data-narrow]:not([data-phase="empty"]) .sys-home-tiles {
+.sys-home-bar {
   position: sticky;
   inset-block-end: 0;
   z-index: var(--z-content);
-  order: 1;
-  margin-block-start: auto;
-  margin-inline: calc(-1 * var(--space-5));
   padding: var(--space-4) var(--space-5);
   padding-block-end: max(var(--space-4), env(safe-area-inset-bottom));
   border-block-start: 1px solid var(--color-border-subtle);
   background: var(--color-bg-canvas);
+}
+
+.sys-home[data-narrow] .sys-project,
+.sys-home[data-narrow] .sys-project :is(button, a) {
+  scroll-margin-block-end: 8rem;
+}
+
+.sys-home[data-narrow][data-phase="empty"] .sys-home-tiles {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
 }
 
 /* Setup card */

@@ -6,6 +6,38 @@ import { HomeView, type HomeViewProps } from "./HomeView";
 import { RECENTS } from "./homeFixture";
 import { OpenOther } from "./OpenOther";
 
+function setupPhone(
+  phase: HomeViewProps["phase"],
+  projects: HomeViewProps["projects"],
+) {
+  return render(
+    <HomeView
+      phase={phase}
+      projects={projects}
+      setup={null}
+      showInstallHint={false}
+      dropActive={false}
+      onOpenProject={vi.fn()}
+      onFindProject={vi.fn()}
+      onRevealProject={vi.fn()}
+      onDuplicateProject={vi.fn()}
+      onRemoveProject={vi.fn()}
+      onImport={vi.fn()}
+      onRecord={vi.fn()}
+      onOpenOther={vi.fn()}
+      onGetReady={vi.fn()}
+      onChooseModels={vi.fn()}
+      onCancelSetup={vi.fn()}
+      onRetrySetup={vi.fn()}
+      onDismissSetup={vi.fn()}
+      onDismissHint={vi.fn()}
+      onSettings={vi.fn()}
+      onConnectAgent={vi.fn()}
+      onHelp={vi.fn()}
+    />,
+  );
+}
+
 function setup(props: Partial<HomeViewProps> = {}) {
   const handlers = {
     onOpenProject: vi.fn(),
@@ -216,7 +248,6 @@ describe("HomeView empty, loading and drop", () => {
         screen.getByRole("button", { name: /^Record/ }),
       );
       expect(document.querySelector(".sys-home-bar")).toBeNull();
-      expect(document.querySelectorAll(".sys-start--import")).toHaveLength(1);
       expect(screen.getByText("Drop a file anywhere to start.")).toBeVisible();
     } finally {
       rect.mockRestore();
@@ -229,58 +260,36 @@ describe("HomeView empty, loading and drop", () => {
       .mockReturnValue({ width: 390 } as DOMRect);
     try {
       setup();
-      expect(document.querySelectorAll(".sys-start--import")).toHaveLength(1);
+      expect(document.querySelector(".sys-home-bar")).not.toBeNull();
       expect(screen.queryByText(/Drop a file anywhere/)).toBeNull();
     } finally {
       rect.mockRestore();
     }
   });
 
-  it("keeps the same Import tile and its focus from loading to empty to ready", () => {
+  it("keeps DOM order equal to visual order in both phone phases", () => {
     const rect = vi
       .spyOn(HTMLElement.prototype, "getBoundingClientRect")
       .mockReturnValue({ width: 390 } as DOMRect);
     try {
-      const handlers = {
-        onOpenProject: vi.fn(),
-        onFindProject: vi.fn(),
-        onRevealProject: vi.fn(),
-        onDuplicateProject: vi.fn(),
-        onRemoveProject: vi.fn(),
-        onImport: vi.fn(),
-        onRecord: vi.fn(),
-        onOpenOther: vi.fn(),
-        onGetReady: vi.fn(),
-        onChooseModels: vi.fn(),
-        onCancelSetup: vi.fn(),
-        onRetrySetup: vi.fn(),
-        onDismissSetup: vi.fn(),
-        onDismissHint: vi.fn(),
-        onSettings: vi.fn(),
-        onConnectAgent: vi.fn(),
-        onHelp: vi.fn(),
-      };
-      const view = (
-        phase: HomeViewProps["phase"],
-        projects: HomeViewProps["projects"],
-      ) => (
-        <HomeView
-          phase={phase}
-          projects={projects}
-          setup={null}
-          showInstallHint={false}
-          dropActive={false}
-          {...handlers}
-        />
-      );
-      const { rerender } = render(view("loading", []));
-      const tile = screen.getByRole("button", { name: /^Import audio/ });
-      rerender(view("empty", []));
-      expect(screen.getByRole("button", { name: /^Import audio/ })).toBe(tile);
-      tile.focus();
-      rerender(view("ready", RECENTS));
-      expect(screen.getByRole("button", { name: /^Import audio/ })).toBe(tile);
-      expect(tile).toHaveFocus();
+      const empty = setupPhone("empty", []);
+      const main = document.querySelector("main")!;
+      const tiles = document.querySelector(".sys-home-tiles")!;
+      expect(main.contains(tiles)).toBe(true);
+      expect(
+        tiles.compareDocumentPosition(
+          screen.getByRole("heading", { name: "Recent" }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      empty.unmount();
+      setupPhone("ready", RECENTS);
+      const bar = document.querySelector(".sys-home-bar")!;
+      expect(document.querySelector("main")!.contains(bar)).toBe(false);
+      expect(
+        screen
+          .getByRole("heading", { name: "Recent" })
+          .compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
     } finally {
       rect.mockRestore();
     }

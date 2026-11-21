@@ -291,13 +291,15 @@ export function HomeView({
           onHelp={onHelp}
         />
         <main className="sys-home-main">
-          <div
-            className={
-              narrow ? "sys-home-tiles sys-start-pair" : "sys-home-tiles"
-            }
-          >
-            {tiles}
-          </div>
+          {narrow && !empty ? null : (
+            <div
+              className={
+                narrow ? "sys-home-tiles sys-start-pair" : "sys-home-tiles"
+              }
+            >
+              {tiles}
+            </div>
+          )}
           {narrow && empty ? (
             <p className="sys-home-drop">Drop a file anywhere to start.</p>
           ) : null}
@@ -345,6 +347,9 @@ export function HomeView({
           </section>
         </main>
       </div>
+      {narrow && !empty ? (
+        <div className="sys-home-bar sys-start-pair">{tiles}</div>
+      ) : null}
       {dropActive ? <DropOverlay label="Drop to start an episode" /> : null}
       <p className="sr-only" role="status">
         {dropActive ? "Drop to start an episode" : ""}
