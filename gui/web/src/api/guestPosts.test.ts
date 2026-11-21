@@ -160,6 +160,18 @@ describe("sendGuestPost", () => {
       false,
     ],
     [
+      "a published version that is briefly missing",
+      async () => json(404, {}, "review_version_not_found"),
+      "retry",
+      true,
+    ],
+    [
+      "a 404 with no code",
+      async () => json(404, {}),
+      "refused",
+      undefined,
+    ],
+    [
       "a link that no longer comments",
       async () => json(403, {}, "share_capability_required"),
       "refused",

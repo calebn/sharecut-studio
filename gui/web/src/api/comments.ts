@@ -44,7 +44,8 @@ function classifyFailure(error: unknown): GuestSendOutcome {
     const { status } = error;
     if (
       (status === null && error.code === NETWORK_ERROR_CODE) ||
-      (status !== null && KEEP_STATUSES.has(status))
+      (status !== null && KEEP_STATUSES.has(status)) ||
+      isVersionMissing(error)
     ) {
       return { status: "retry", error, keep: true };
     }
@@ -71,6 +72,11 @@ function classifyFailure(error: unknown): GuestSendOutcome {
 
 function isDeadLink(error: ApiError): boolean {
   return error.status === 404 && error.code === "share_not_found";
+}
+
+/** The host's published version can be missing for a while and come back, so the post waits for it. */
+function isVersionMissing(error: ApiError): boolean {
+  return error.status === 404 && error.code === "review_version_not_found";
 }
 
 function commentBody(row: OutboxRow): string {
