@@ -2957,9 +2957,9 @@ describe("Record stage session target", () => {
     const project = minimalProject();
     useDawStore.getState().hydrate("/tmp/p.json", {
       ...project,
+      timeline_duration_sec: 3000,
       clips: {
         ...project.clips,
-        timeline_duration_sec: 3000,
         tracks: { t1: [clipRow] },
       },
     });

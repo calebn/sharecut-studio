@@ -7,6 +7,7 @@ import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { RangeFields } from "./RangeFields";
 
 const project = minimalProject({
+  timeline_duration_sec: 5,
   tracks: [
     sampleTrack({ id: "a", label: "Speaker", range_media_seal: "seal" }),
   ],

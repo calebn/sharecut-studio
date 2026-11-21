@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EDIT_SELECTIONS, editFixtureProject } from "../test/actionBarFixtures";
-import { SCRIPT_MAX_CHARS, scriptOf } from "./pickupTarget";
+import { clipRow, minimalProject } from "../test/fixtures";
+import { replaceableSpan, SCRIPT_MAX_CHARS, scriptOf } from "./pickupTarget";
 
 describe("scriptOf", () => {
   it("quotes the selected words between ellipses", () => {
@@ -26,5 +27,22 @@ describe("scriptOf", () => {
     expect(line.startsWith("…long")).toBe(true);
     expect(line.endsWith("…")).toBe(true);
     expect(line.length).toBeLessThanOrEqual(SCRIPT_MAX_CHARS + 2);
+  });
+});
+
+describe("replaceableSpan", () => {
+  it("allows a pickup through the canonical timeline end after the last clip", () => {
+    const trackId = "mira-voice";
+    const project = minimalProject({
+      timeline_duration_sec: 10,
+      clips: {
+        clip_count: 1,
+        tracks: { [trackId]: [clipRow({ timeline_end: 5 })] },
+      },
+    });
+    const span = { start: 4, end: 10, trackIds: [trackId] };
+
+    expect(replaceableSpan(span, project)).toEqual(span);
+    expect(replaceableSpan({ ...span, end: 10.01 }, project)).toBeNull();
   });
 });

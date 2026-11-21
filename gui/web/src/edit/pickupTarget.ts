@@ -23,7 +23,7 @@ export function lastClipEndSec(
 }
 
 export function timelineEndSec(project: ProjectView): number {
-  return project.clips.timeline_duration_sec ?? lastClipEndSec(project) ?? 0;
+  return project.timeline_duration_sec ?? lastClipEndSec(project) ?? 0;
 }
 
 /**
