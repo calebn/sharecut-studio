@@ -147,6 +147,7 @@ def test_an_unopened_bundle_keeps_its_code_and_masks_the_same_prefix_in_free_tex
 ):
     prefix = "suppor"
     token = prefix + "ting-fixture-quokka"
+    encoded_token = "%73" + token[1:]
     monkeypatch.setattr(
         diagnostics_mod,
         "get_share_registry",
@@ -161,7 +162,9 @@ def test_an_unopened_bundle_keeps_its_code_and_masks_the_same_prefix_in_free_tex
             "kind": "pipeline",
             "status": "failed",
             "message": f"Failed with {token} or {prefix} under {minimal_project.parent}/raw",
-        }
+        },
+        {"message": f"Source %22clip%22%0Ashare {encoded_token} (contact alpha%40example.invalid)"},
+        {"message": "Failure token=opaque-fixture-value"},
     ]
     _break(minimal_project, "unsupported")
     with _client(minimal_project, jobs) as client:
@@ -175,6 +178,8 @@ def test_an_unopened_bundle_keeps_its_code_and_masks_the_same_prefix_in_free_tex
         assert report["jobs"][0]["message"] == (
             "Failed with <redacted> or <redacted> under <workspace>/raw"
         )
+        assert report["jobs"][1]["message"] == ('Source "clip"\nshare <redacted> (contact <email>)')
+        assert report["jobs"][2]["message"] == "Failure token=<redacted>"
         assert zf.read("sidecar.log").decode() == (
             "Failed to open <workspace>/raw with <redacted> or <redacted>"
         )
