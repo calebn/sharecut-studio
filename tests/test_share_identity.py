@@ -1727,3 +1727,71 @@ def test_default_auth_limits_leave_normal_sign_in_alone(identity_store) -> None:
 
     for index in range(3):
         assert _magic_post(client, f"user{index}@example.com").status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("path", "family", "body", "admitted_status"),
+    [
+        (
+            "/auth/password/login",
+            "PASSWORD_LOGIN",
+            {"email": "local@example.com", "password": "fixture-password"},
+            401,
+        ),
+        ("/auth/passkey/login/begin", "PASSKEY_BEGIN", {}, 200),
+        (
+            "/auth/passkey/login/finish",
+            "PASSKEY_FINISH",
+            {"credential_id": "fixture", "challenge": "fixture"},
+            400,
+        ),
+        ("/auth/agent-credential", "AGENT_CREDENTIAL", {"share_token": "fixture"}, 401),
+    ],
+)
+@pytest.mark.parametrize("enabled", [True, False])
+def test_remaining_auth_limits_apply_per_peer(
+    identity_store, monkeypatch, path, family, body, admitted_status, enabled
+) -> None:
+    monkeypatch.setenv("PODCAST_RATE_LIMIT", "1" if enabled else "0")
+    monkeypatch.setenv(f"PODCAST_AUTH_{family}_RPM", "1")
+    monkeypatch.setenv(f"PODCAST_AUTH_{family}_BURST", "1")
+    reset_host_limiters_for_tests(clock=lambda: 0.0)
+    app = create_app()
+    first = TestClient(app, client=("127.0.0.1", 50000))
+    other = TestClient(app, client=("127.0.0.2", 50000))
+
+    assert first.post(path, json=body).status_code == admitted_status
+    next_response = first.post(path, json=body)
+    assert next_response.status_code == (429 if enabled else admitted_status)
+    if enabled:
+        assert next_response.headers["X-Sharecut-Error-Code"] == "rate_limited"
+        assert next_response.headers["Retry-After"] == "60"
+    assert other.post(path, json=body).status_code == admitted_status
+
+
+def test_password_account_limit_uses_the_sign_in_email_across_peers(
+    identity_store, monkeypatch
+) -> None:
+    _verified_user(identity_store, "local@example.com")
+    _verified_user(identity_store, "second@example.com")
+    monkeypatch.setenv("PODCAST_RATE_LIMIT", "1")
+    monkeypatch.setenv("PODCAST_AUTH_PASSWORD_ACCOUNT_RPM", "1")
+    monkeypatch.setenv("PODCAST_AUTH_PASSWORD_ACCOUNT_BURST", "1")
+    reset_host_limiters_for_tests(clock=lambda: 0.0)
+    app = create_app()
+    first = TestClient(app, client=("127.0.0.1", 50000))
+    other = TestClient(app, client=("127.0.0.2", 50000))
+    path = "/auth/password/login"
+
+    assert (
+        first.post(path, json={"email": "local@example.com", "password": "password1"}).status_code
+        == 200
+    )
+    denied = other.post(path, json={"email": " LOCAL@Example.com ", "password": "password1"})
+    assert denied.status_code == 429
+    assert denied.headers["X-Sharecut-Error-Code"] == "rate_limited"
+    assert "set-cookie" not in denied.headers
+    assert (
+        other.post(path, json={"email": "second@example.com", "password": "password1"}).status_code
+        == 200
+    )

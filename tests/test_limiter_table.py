@@ -117,6 +117,46 @@ HOST_RATE_ROWS = [
         "PODCAST_AUTH_MAGIC_CONSUME_BURST",
         20.0,
     ),
+    (
+        "auth_password_login",
+        "auth_password_login",
+        "PODCAST_AUTH_PASSWORD_LOGIN_RPM",
+        30.0,
+        "PODCAST_AUTH_PASSWORD_LOGIN_BURST",
+        10.0,
+    ),
+    (
+        "auth_password_account",
+        "auth_password_account",
+        "PODCAST_AUTH_PASSWORD_ACCOUNT_RPM",
+        6.0,
+        "PODCAST_AUTH_PASSWORD_ACCOUNT_BURST",
+        3.0,
+    ),
+    (
+        "auth_passkey_begin",
+        "auth_passkey_begin",
+        "PODCAST_AUTH_PASSKEY_BEGIN_RPM",
+        30.0,
+        "PODCAST_AUTH_PASSKEY_BEGIN_BURST",
+        10.0,
+    ),
+    (
+        "auth_passkey_finish",
+        "auth_passkey_finish",
+        "PODCAST_AUTH_PASSKEY_FINISH_RPM",
+        30.0,
+        "PODCAST_AUTH_PASSKEY_FINISH_BURST",
+        10.0,
+    ),
+    (
+        "auth_agent_credential",
+        "auth_agent_credential",
+        "PODCAST_AUTH_AGENT_CREDENTIAL_RPM",
+        30.0,
+        "PODCAST_AUTH_AGENT_CREDENTIAL_BURST",
+        10.0,
+    ),
 ]
 # (attribute, bucket, env, default limit)
 HOST_GATE_ROWS = [
