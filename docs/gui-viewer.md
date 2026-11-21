@@ -560,6 +560,8 @@ Agent, CLI, local DAW tabs, and future remote web users are **clients** of one s
 
 **Transport authority (Figma-like):** each DAW tab owns its own play/pause clock. Agent commands (`SetRegion` / `AuditionInViewer` / `SetPlaying` from role `agent`) may drive transport; other viewers’ `SetPlaying` / playhead echoes are ignored (ack cursor only). Local Play clears any leftover agent `playUntil` auto-stop so a prior audition region cannot halt free scrubbing. Agents call `get_session_state_tool` (or `podcast session status`) before “cut from here”; prefer the viewer entry in `clients[]` for the live playhead while transport is rolling.
 
+Dragging the timeline ruler or Episode overview queues the latest move for the next animation frame. Releasing a drag sends its last queued seek immediately. Escape drops any queued move and restores the starting position.
+
 **First Snapshot:** the DAW applies agent transport from the connect snapshot **before** recording `last_command_id` as applied (see `gui/web/src/session/dedupe.ts`), so an in-flight agent play still seeks/highlights when a tab opens mid-command.
 
 Keep the viewer pointed at the same `episode.sharecut`.

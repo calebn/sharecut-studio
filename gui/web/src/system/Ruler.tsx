@@ -175,6 +175,7 @@ export const Ruler = memo(function Ruler({
     clamp(timeAtX(clientX - left(), start, pxPerSecond), 0, duration);
 
   const grab = useGrab<RulerGrip>({
+    coalesceMoves: (grip) => grip === "scrub",
     // A finger on the body only taps: a horizontal swipe belongs to the browser, which pans the timeline.
     canGrab: (grip, event) =>
       grip === "scrub" ? event.pointerType !== "touch" : editable,

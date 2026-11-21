@@ -1,4 +1,4 @@
-import { type PointerEvent, useEffect, useRef } from "react";
+import { type PointerEvent, useEffect, useLayoutEffect, useRef } from "react";
 import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
 import { listenForInterrupt } from "../hooks/useInterruptCancel";
 import { useStableCallback } from "../utils/useStableCallback";
@@ -21,6 +21,7 @@ type GrabOptions<G> = {
   axis?: "x" | "y" | "both";
   canGrab: (grip: G, event: PointerEvent<HTMLElement>) => boolean;
   slop?: (grip: G, event: PointerEvent<HTMLElement>) => number;
+  coalesceMoves?: (grip: G) => boolean;
   /** A node moved in the DOM loses its pointer capture, so a lasting ancestor takes it when the drag starts. */
   captureOnStart?: () => HTMLElement | null;
   onStart: (
@@ -34,6 +35,9 @@ type GrabOptions<G> = {
   onEnd: (grip: G, committed: boolean, at: number) => void;
 };
 
+type MoveSample = { move: GrabMove; at: number };
+type PendingMove = { frame: number; sample: MoveSample };
+
 type Grab<G> = {
   grip: G;
   pointerId: number;
@@ -41,7 +45,17 @@ type Grab<G> = {
   fromY: number;
   press: GrabPointer;
   moved: boolean;
+  coalesceMoves: boolean;
+  pendingMove: PendingMove | null;
 };
+
+function takePendingMove<G>(grab: Grab<G> | null): MoveSample | undefined {
+  if (!grab?.pendingMove) return;
+  const { frame, sample } = grab.pendingMove;
+  grab.pendingMove = null;
+  cancelAnimationFrame(frame);
+  return sample;
+}
 
 /** The keys a part ignores while one of its drags is moving; Escape and the Alt focus walk stay live. */
 export function swallowsDuringDrag(event: {
@@ -103,6 +117,7 @@ export function useGrab<G>(options: GrabOptions<G>) {
     stopWatching();
     if (!grab) return;
     held.current = null;
+    takePendingMove(grab);
     if (!grab.moved) return;
     dragged.current = true;
     onEnd(grab.grip, false, performance.now());
@@ -114,6 +129,12 @@ export function useGrab<G>(options: GrabOptions<G>) {
     abort();
   });
 
+  useLayoutEffect(
+    () => () => {
+      takePendingMove(held.current);
+    },
+    [],
+  );
   useEffect(() => abort, [abort]);
 
   const down = (grip: G) => (event: PointerEvent<HTMLElement>) => {
@@ -121,6 +142,7 @@ export function useGrab<G>(options: GrabOptions<G>) {
     if (!canGrab(grip, event)) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     if (held.current && held.current.pointerId !== event.pointerId) return;
+    takePendingMove(held.current);
     held.current = {
       grip,
       pointerId: event.pointerId,
@@ -128,6 +150,8 @@ export function useGrab<G>(options: GrabOptions<G>) {
       fromY: event.clientY,
       press: pointerOf(event),
       moved: false,
+      coalesceMoves: options.coalesceMoves?.(grip) ?? false,
+      pendingMove: null,
     };
     stopWatching();
     const { signal } = (watching.current = new AbortController());
@@ -167,15 +191,29 @@ export function useGrab<G>(options: GrabOptions<G>) {
         // A synthetic pointer id has nothing to capture.
       }
     }
-    onMove(
-      grab.grip,
-      {
-        ...pointerOf(event),
-        dx: event.clientX - grab.fromX,
-        dy: event.clientY - grab.fromY,
-      },
-      event.timeStamp,
-    );
+    const change = {
+      ...pointerOf(event),
+      dx: event.clientX - grab.fromX,
+      dy: event.clientY - grab.fromY,
+    };
+    if (!grab.coalesceMoves) {
+      onMove(grab.grip, change, event.timeStamp);
+      return;
+    }
+    const sample = { move: change, at: event.timeStamp };
+    if (grab.pendingMove) {
+      grab.pendingMove.sample = sample;
+      return;
+    }
+    const pending: PendingMove = {
+      sample,
+      frame: requestAnimationFrame(() => {
+        if (held.current !== grab || grab.pendingMove !== pending) return;
+        grab.pendingMove = null;
+        onMove(grab.grip, pending.sample.move, pending.sample.at);
+      }),
+    };
+    grab.pendingMove = pending;
   };
   const finish = (committed: boolean) => (event: PointerEvent<HTMLElement>) => {
     const grab = held.current;
@@ -184,6 +222,8 @@ export function useGrab<G>(options: GrabOptions<G>) {
     stopWatching();
     if (!grab.moved) return;
     dragged.current = true;
+    const pending = takePendingMove(grab);
+    if (committed && pending) onMove(grab.grip, pending.move, pending.at);
     onEnd(grab.grip, committed, event.timeStamp);
   };
 

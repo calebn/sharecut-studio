@@ -38,6 +38,7 @@ const ticks = (container: HTMLElement) => [
 ];
 
 afterEach(() => {
+  vi.useRealTimers();
   useDawStore.setState({
     scrollLeft: 0,
     playheadSec: 0,
@@ -208,6 +209,7 @@ describe("TimelineRuler", () => {
   });
 
   it("seeks on a click and on a scrub, and a cancelled scrub puts the playhead back", () => {
+    vi.useFakeTimers();
     useDawStore.setState({ playheadSec: 2 });
     const onSeek = vi.fn();
     render(<Ruler onSeek={onSeek} />);
@@ -225,6 +227,9 @@ describe("TimelineRuler", () => {
       pointerId: 1,
       pointerType: "mouse",
       clientX: 120,
+    });
+    act(() => {
+      vi.advanceTimersToNextFrame();
     });
     expect(onSeek).toHaveBeenLastCalledWith(3);
     fireEvent.keyDown(document.body, { key: "Escape" });

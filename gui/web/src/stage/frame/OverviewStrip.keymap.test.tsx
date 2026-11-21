@@ -76,7 +76,11 @@ describe("OverviewStrip with the global keymap", () => {
       ({ left: 0, width: 400, right: 400 }) as DOMRect;
     fireEvent.pointerDown(strip, { pointerId: 1, clientX: 100 });
     fireEvent.pointerMove(strip, { pointerId: 1, clientX: 200 });
-    await settle();
+    await act(async () => {
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+    });
     expect(useDawStore.getState().playheadSec).toBe(50);
     fireEvent.keyDown(strip, { key: "ArrowRight", code: "ArrowRight" });
     fireEvent.keyDown(strip, { key: "ArrowUp", code: "ArrowUp" });
