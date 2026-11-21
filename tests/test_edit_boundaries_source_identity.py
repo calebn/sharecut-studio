@@ -13,6 +13,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
 
 def project_with_join(tmp_path: Path, left_source: str | None, right_source: str | None):
@@ -97,6 +98,17 @@ def test_explicit_same_path_transcript_takes_precedence(tmp_path):
             "end": 9.5,
         }
     ]
+
+
+def test_guest_cutaway_keeps_boundary_geometry_when_all_active_words_are_suppressed(tmp_path):
+    project = project_with_join(tmp_path, "primary", None)
+    project.transcripts[0].words[0].suppressed = True
+    [host] = map_edit_boundaries(project)
+    assert host["has_cutaway"] is True
+    assert [word["text"] for word in host["cutaway_word_ids"]] == ["gone"]
+
+    guest = sanitize_guest_project_view({"edit_boundaries": [host]})
+    assert guest["edit_boundaries"] == [{**host, "cutaway_word_ids": []}]
 
 
 def test_separate_recordings_do_not_borrow_cutaway_words(tmp_path):
