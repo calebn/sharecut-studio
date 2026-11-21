@@ -154,7 +154,7 @@ export async function withGuest(
   });
 }
 
-export type Edit = "cut" | "correct";
+export type Edit = "cut" | "correct" | "correct-last";
 
 export async function hostEdit(
   host: Page,
@@ -191,9 +191,10 @@ export async function hostEdit(
       }[];
     };
   };
-  const row = body.transcript.utterances.find(
-    (u) => (u.words?.length ?? 0) > 3,
-  );
+  const rows = body.transcript.utterances;
+  const hasWords = (row: (typeof rows)[number]) => (row.words?.length ?? 0) > 3;
+  const row =
+    edit === "correct-last" ? rows.findLast(hasWords) : rows.find(hasWords);
   const word = row?.words?.[2];
   if (!row || !word) throw new Error("the fixture has no row to correct");
   await postDocumentCommand(
