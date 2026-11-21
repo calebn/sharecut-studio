@@ -38,7 +38,6 @@ import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
 import { selectedClipIdsOf, selectedTrackIdsOf } from "../state/selection";
-import { captureSelectionRestore } from "../state/selectionSlice";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { DawState } from "../state/types";
 import { pickDaw, useDaw } from "../state/useDaw";
@@ -72,6 +71,7 @@ import { WaveformStatusSync } from "../waveform/WaveformStatusSync";
 import { AuditionOverlay } from "./AuditionOverlay";
 import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
+import { captureTimelineSelectionRestore } from "./captureTimelineSelectionRestore";
 import { clippingFlags } from "./clippingFlags";
 import { attachDragWatch } from "./dragWatch";
 import { FixedPlayheadNeedle } from "./FixedPlayheadNeedle";
@@ -294,7 +294,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       snapshot: () => {
         const state = useDawStore.getState();
         const { selectionHit } = state;
-        const restoreSelection = captureSelectionRestore(state);
+        const restoreSelection = captureTimelineSelectionRestore(state);
         const bleed = clipBleedSession.getSnapshot();
         return () => {
           const s = useDawStore.getState();
