@@ -683,7 +683,7 @@ diagnosticTest(
     };
     const messageOf = (error: unknown): string => {
       try {
-        return error instanceof Error ? error.message : String(error);
+        return String(error instanceof Error ? error.message : error);
       } catch {
         return "unprintable error";
       }
