@@ -74,6 +74,11 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     reason:
       "the name field must fit and read in both themes at each of four phone sizes, screenshots and axe included (#2164)",
   },
+  "marker-inspector-a11y.spec.ts": {
+    loops: 1,
+    reason:
+      "the Quality meter contrast reads its actual colors in light, dark and forced colors (#3537)",
+  },
   "models.spec.ts": {
     loops: 2,
     reason:

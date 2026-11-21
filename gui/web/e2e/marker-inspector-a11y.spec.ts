@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { expect, type Page, type Request, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
+import { contrastRatio } from "./contrastRatio";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
@@ -60,6 +61,59 @@ function recordWrites(page: Page) {
   return (type: string) =>
     writes.filter((body) => body.includes(`"${type}"`)).length;
 }
+
+test("Quality meter dots stay distinct in light, dark and forced colors", async ({
+  page,
+}) => {
+  await page.setViewportSize(SHELLS[1].viewport);
+  await withShareableProject(
+    async (projectPath) => {
+      await openHostShare(page, projectPath);
+      await page
+        .getByRole("button", { name: /^Clip idea Inventory social/ })
+        .click();
+      await inspectSelectionByKey(page);
+      const meter = page.getByRole("img", { name: "Quality 4 of 5" });
+      await expect(meter).toBeVisible();
+      const empty = meter.locator(".sys-dots-dot:not([data-filled])");
+      const filled = meter.locator(".sys-dots-dot[data-filled]");
+      await expect(empty).toHaveCount(1);
+      await expect(filled).toHaveCount(4);
+
+      for (const appearance of ["light", "dark", "forced"] as const) {
+        await setTheme(page, appearance === "light" ? "light" : "dark");
+        await page.emulateMedia({
+          forcedColors: appearance === "forced" ? "active" : "none",
+        });
+        const surface = await empty.evaluate((dot) => {
+          for (
+            let ancestor = dot.parentElement;
+            ancestor;
+            ancestor = ancestor.parentElement
+          ) {
+            const color = getComputedStyle(ancestor).backgroundColor;
+            if (color !== "rgba(0, 0, 0, 0)") return color;
+          }
+          throw new Error("Missing opaque Inspector surface");
+        });
+        const ring = await empty.evaluate(
+          (dot) => getComputedStyle(dot).borderTopColor,
+        );
+        const ink = await filled
+          .first()
+          .evaluate((dot) => getComputedStyle(dot).backgroundColor);
+        expect
+          .soft(contrastRatio(ring, surface), `${appearance} empty ring`)
+          .toBeGreaterThanOrEqual(3);
+        expect
+          .soft(contrastRatio(ink, surface), `${appearance} filled dot`)
+          .toBeGreaterThanOrEqual(3);
+      }
+    },
+    undefined,
+    markerProject,
+  );
+});
 
 for (const { shell, viewport } of SHELLS) {
   for (const { cell: rootFont, theme, reducedMotion } of withAppearance([
