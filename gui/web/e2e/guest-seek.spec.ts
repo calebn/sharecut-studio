@@ -300,6 +300,26 @@ test("ArrowRight and ArrowLeft move the clock exactly one second", async ({
   });
 });
 
+test("the guest overview handles vertical arrow and page seek keys", async ({
+  browser,
+}) => {
+  await withGuest(browser, DESKTOP, "light", async (guest) => {
+    await clickStrip(guest, 0.5);
+    const from = await now(guest);
+    await guest.strip.focus();
+    for (const [key, delta] of [
+      ["ArrowUp", 1],
+      ["ArrowDown", 0],
+      ["PageUp", 10],
+      ["PageDown", 0],
+    ] as const) {
+      await guest.page.keyboard.press(key);
+      await expect.poll(() => now(guest)).toBeCloseTo(from + delta, 2);
+      await expect(guest.strip).toBeFocused();
+    }
+  });
+});
+
 test("a comment row seeks to its time and its clip plays and stops 2 s after it, unless a strip click or Pause overrides the stop", async ({
   browser,
 }) => {

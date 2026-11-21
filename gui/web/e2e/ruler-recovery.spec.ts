@@ -118,6 +118,32 @@ test("ruler End then ArrowRight stays inside its declared session endpoint", {
   });
 });
 
+test("the timeline ruler handles vertical arrow and page seek keys", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await withShareableProject(async (projectPath) => {
+    await openHostShare(page, projectPath);
+    const ruler = page.getByRole("slider", { name: "Timeline position" });
+    await ruler.focus();
+    for (let index = 0; index < 5; index++) await page.keyboard.press("-");
+    await page.keyboard.press("Home");
+    const { ticks } = await rulerScale(ruler);
+    const step = ticks[1].seconds - ticks[0].seconds;
+    const endpoint = Number(await ruler.getAttribute("aria-valuemax"));
+    for (const [key, value] of [
+      ["ArrowUp", step],
+      ["ArrowDown", 0],
+      ["PageUp", Math.min(endpoint, step * 10)],
+      ["PageDown", 0],
+    ] as const) {
+      await page.keyboard.press(key);
+      await expect(ruler).toHaveAttribute("aria-valuenow", String(value));
+      await expect(ruler).toBeFocused();
+    }
+  });
+});
+
 async function openModes(page: Page, projectPath: string, phone = false) {
   await page.setViewportSize(
     phone ? { width: 375, height: 812 } : { width: 1440, height: 900 },

@@ -639,8 +639,18 @@ describe("Ruler keys", () => {
     const { onSeek } = setup({ selection });
     await user.tab();
     expect(body()).toHaveFocus();
-    await user.keyboard("{ArrowRight}{ArrowLeft}{Shift>}{ArrowRight}{/Shift}");
-    expect(onSeek.mock.calls).toEqual([[610.5], [606.5], [628.5]]);
+    await user.keyboard(
+      "{ArrowRight}{ArrowLeft}{ArrowUp}{ArrowDown}{Shift>}{ArrowRight}{/Shift}{PageUp}{PageDown}",
+    );
+    expect(onSeek.mock.calls).toEqual([
+      [610.5],
+      [606.5],
+      [610.5],
+      [606.5],
+      [628.5],
+      [628.5],
+      [588.5],
+    ]);
     await user.tab();
     expect(body()).not.toHaveFocus();
   });
@@ -671,13 +681,7 @@ describe("Ruler keys", () => {
     fireEvent.keyDown(body(), { key: " " });
     fireEvent.keyDown(body(), { key: "ArrowUp" });
     window.removeEventListener("keydown", listen);
-    expect(seen).toEqual([
-      "ArrowRight",
-      "ArrowLeft",
-      "ArrowRight",
-      " ",
-      "ArrowUp",
-    ]);
+    expect(seen).toEqual(["ArrowRight", "ArrowLeft", "ArrowRight", " "]);
   });
 
   it("walks focus to the selection handles with Alt, and nudges 10 ms, Shift 100 ms", async () => {

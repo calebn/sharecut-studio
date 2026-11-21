@@ -51,6 +51,8 @@ describe("OverviewStrip with the global keymap", () => {
   it.each([
     ["ArrowRight", false, 1],
     ["ArrowRight", true, 10],
+    ["ArrowUp", false, 1],
+    ["PageUp", false, 10],
     ["End", false, DURATION],
   ])(
     "%s (shift %s) moves the playhead once, to %s s",
@@ -76,6 +78,8 @@ describe("OverviewStrip with the global keymap", () => {
     await settle();
     expect(useDawStore.getState().playheadSec).toBe(50);
     fireEvent.keyDown(strip, { key: "ArrowRight", code: "ArrowRight" });
+    fireEvent.keyDown(strip, { key: "ArrowUp", code: "ArrowUp" });
+    fireEvent.keyDown(strip, { key: "PageDown", code: "PageDown" });
     await settle();
     expect(useDawStore.getState().playheadSec).toBe(50);
   });
