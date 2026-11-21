@@ -8,6 +8,7 @@ import {
 } from "@playwright/test";
 import { expectStoryAxeClean } from "../e2e/axe";
 import { isStorybookOnly, SHELL_TITLES } from "../src/test/storySweepPolicy";
+import { storybookUrl } from "./server";
 import { expectRootFit, expectShellFit } from "./shellFit";
 import { emit } from "./storyChannel";
 import { type StoryTheme, storyUrl } from "./storyUrl";
@@ -103,8 +104,6 @@ base("no phone-named story is tagged wide-only", () => {
   ).toEqual([]);
 });
 
-const STORYBOOK_URL = "http://127.0.0.1:6010";
-
 type PreviewWindow = {
   __STORYBOOK_PREVIEW__?: {
     currentRender?: {
@@ -120,7 +119,7 @@ const test = base.extend<object, { storybook: Page }>({
     async ({ browser }, use) => {
       const context = await browser.newContext({
         ...devices["Desktop Chrome"],
-        baseURL: STORYBOOK_URL,
+        baseURL: storybookUrl,
       });
       const page = await context.newPage();
       await page.goto(storyUrl(stories[0].id, { theme: "light" }));

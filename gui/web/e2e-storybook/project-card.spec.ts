@@ -1,5 +1,6 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import { devices, expect, test } from "@playwright/test";
+import { storybookUrl } from "./server";
 import { storyUrl } from "./storyUrl";
 
 for (const theme of ["light", "dark"] as const) {
@@ -9,7 +10,7 @@ for (const theme of ["light", "dark"] as const) {
     const context = await browser.newContext({
       ...devices["Pixel 5"],
       viewport: { width: 390, height: 844 },
-      baseURL: "http://127.0.0.1:6010",
+      baseURL: storybookUrl,
       reducedMotion: "reduce",
     });
     const page = await context.newPage();

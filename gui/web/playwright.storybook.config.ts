@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { storybookPort, storybookUrl } from "./e2e-storybook/server";
 
 export default defineConfig({
   testDir: "./e2e-storybook",
@@ -15,14 +16,13 @@ export default defineConfig({
     : "list",
   use: {
     ...devices["Desktop Chrome"],
-    baseURL: "http://127.0.0.1:6010",
+    baseURL: storybookUrl,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   webServer: {
-    command:
-      "npm run build-storybook && npm exec -- vite preview --config .storybook/static-server.config.ts --outDir storybook-static --host 127.0.0.1 --port 6010 --strictPort",
-    url: "http://127.0.0.1:6010",
+    command: `npm run build-storybook && npm exec -- vite preview --config .storybook/static-server.config.ts --outDir storybook-static --host 127.0.0.1 --port ${storybookPort} --strictPort`,
+    url: storybookUrl,
     reuseExistingServer: false,
     timeout: 120_000,
   },

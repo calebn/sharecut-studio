@@ -10,7 +10,8 @@ npm run dev         # Vite on :5173 (proxy /api → :8765)
 npm run build
 npm run storybook  # component catalog on :6006
 npm run build-storybook  # static catalog under storybook-static/
-npm run test:e2e:storybook  # build catalog, then smoke-check Storybook itself on :6010
+npm run test:e2e:storybook  # build and smoke-check Storybook (default port 6010)
+STORYBOOK_E2E_PORT=6011 npm run test:e2e:storybook  # use a different loopback port
 npm run test:stories        # Vitest browser mode: axe + fit sweep of every story
 npm run typecheck   # tsc -b (strict; includes e2e/, e2e-compat/, and e2e-storybook/)
 npm test            # vitest run (unit + component a11y)

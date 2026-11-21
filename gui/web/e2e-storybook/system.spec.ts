@@ -5,6 +5,7 @@ import {
   ENVELOPE_TOP_DB,
   gainToDb,
 } from "../src/system/envelopeMath";
+import { storybookUrl } from "./server";
 import { emit } from "./storyChannel";
 import { storyUrl } from "./storyUrl";
 
@@ -625,7 +626,7 @@ function pointerContext(
   pointer: "fine" | "coarse",
 ) {
   return browser.newContext({
-    baseURL: "http://127.0.0.1:6010",
+    baseURL: storybookUrl,
     viewport: { width: 1400, height: 400 },
     colorScheme: "light",
     reducedMotion: "reduce",
@@ -1502,7 +1503,7 @@ test("System/Seam a coarse text pill leaves the lines around it to the text", as
 }) => {
   const context = await browser.newContext({
     ...devices["Pixel 5"],
-    baseURL: "http://127.0.0.1:6010",
+    baseURL: storybookUrl,
   });
   const page = await context.newPage();
   await page.goto(storyUrl("system-seam--text-pill", { theme: "light" }));
@@ -1547,7 +1548,7 @@ test("System/ScriptPane header buttons and the Back to playhead pill reach 44 px
 }) => {
   const context = await browser.newContext({
     ...devices["Pixel 5"],
-    baseURL: "http://127.0.0.1:6010",
+    baseURL: storybookUrl,
   });
   const page = await context.newPage();
   await page.goto(
@@ -1596,7 +1597,7 @@ async function coarsePage(
   const context = await browser.newContext({
     ...devices["Pixel 5"],
     ...(viewport ? { viewport } : {}),
-    baseURL: "http://127.0.0.1:6010",
+    baseURL: storybookUrl,
   });
   const page = await context.newPage();
   await page.goto(storyUrl(id, { theme: "light" }));
