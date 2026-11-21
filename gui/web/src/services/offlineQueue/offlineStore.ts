@@ -470,6 +470,10 @@ export async function mergeOfflineSnapshot(
               {
                 ...previous,
                 ...patch,
+                // The playback path can seed a copy, but a prior live snapshot owns its project and date.
+                ...(preserveDate && previous?.project !== undefined
+                  ? { project: previous.project }
+                  : {}),
                 saved_at: preserveDate ? (previous?.saved_at ?? 0) : Date.now(),
               },
               key,
