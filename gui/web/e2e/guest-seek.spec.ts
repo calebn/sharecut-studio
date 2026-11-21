@@ -300,7 +300,7 @@ test("ArrowRight and ArrowLeft move the clock exactly one second", async ({
   });
 });
 
-test("the guest overview handles vertical arrow and page seek keys", async ({
+test("the guest overview handles plain, shifted and page seek keys", async ({
   browser,
 }) => {
   await withGuest(browser, DESKTOP, "light", async (guest) => {
@@ -310,6 +310,10 @@ test("the guest overview handles vertical arrow and page seek keys", async ({
     for (const [key, delta] of [
       ["ArrowUp", 1],
       ["ArrowDown", 0],
+      ["Shift+ArrowRight", 5],
+      ["Shift+ArrowLeft", 0],
+      ["Shift+ArrowUp", 5],
+      ["Shift+ArrowDown", 0],
       ["PageUp", 10],
       ["PageDown", 0],
     ] as const) {

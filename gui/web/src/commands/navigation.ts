@@ -9,7 +9,7 @@ import { transportAvailability } from "../state/transportAvailability";
 import type { AuditionMode } from "../state/types";
 import { errorMessage } from "../utils/apiError";
 import { GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
-import { clampToSession } from "../utils/time";
+import { clampToSession, playheadNudgeStepSec } from "../utils/time";
 import { registerCommand } from "./execute";
 import { shuttleBack, shuttleForward } from "./shuttle";
 import type { ExecuteResult } from "./types";
@@ -202,12 +202,12 @@ export function registerNavigationCommands(): void {
   };
 
   registerCommand("navigation.nudgePlayheadBack", (args, ctx) => {
-    const delta = args.shift ? 5 : 1;
+    const delta = playheadNudgeStepSec(Boolean(args.shift));
     return movePlayhead(Math.max(0, ctx.playheadSec - delta));
   });
 
   registerCommand("navigation.nudgePlayheadForward", (args, ctx) => {
-    const delta = args.shift ? 5 : 1;
+    const delta = playheadNudgeStepSec(Boolean(args.shift));
     return movePlayhead(
       Math.min(ctx.timelineDurationSec, ctx.playheadSec + delta),
     );

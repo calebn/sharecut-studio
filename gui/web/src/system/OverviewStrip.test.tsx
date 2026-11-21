@@ -94,8 +94,8 @@ describe("OverviewStrip seeking", () => {
   it.each([
     ["ArrowRight", false, 0.255],
     ["ArrowLeft", false, 0.245],
-    ["ArrowRight", true, 0.3],
-    ["ArrowLeft", true, 0.2],
+    ["ArrowRight", true, 0.275],
+    ["ArrowLeft", true, 0.225],
     ["Home", false, 0],
     ["End", false, 1],
   ])("seeks on %s (shift %s) to %s", (key, shiftKey, fraction) => {

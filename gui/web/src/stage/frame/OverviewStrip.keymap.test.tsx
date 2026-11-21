@@ -50,7 +50,8 @@ afterEach(() => {
 describe("OverviewStrip with the global keymap", () => {
   it.each([
     ["ArrowRight", false, 1],
-    ["ArrowRight", true, 10],
+    ["ArrowRight", true, 5],
+    ["ArrowUp", true, 5],
     ["ArrowUp", false, 1],
     ["PageUp", false, 10],
     ["End", false, DURATION],

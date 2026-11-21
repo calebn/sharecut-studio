@@ -205,3 +205,8 @@ export function formatIngestDuration(sec: number): string {
 
 /** The seconds the Player's skip buttons and the lock-screen skips move. */
 export const SKIP_SEC = 15;
+
+/** Seconds moved by an arrow-key playhead nudge. */
+export function playheadNudgeStepSec(shift: boolean): number {
+  return shift ? 5 : 1;
+}
