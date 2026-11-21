@@ -23,7 +23,6 @@ const AWAY_TEST_TIMEOUT_MS = 180_000;
 
 const light = (page: Page) => page.locator(".sys-save").first();
 
-/** Aborts every request the page makes to the review link, as a host that is gone would; reports when the first one failed. */
 async function hostGoesAway(page: Page, token: string) {
   const refused = { first: 0, count: 0 };
   const handler = async (route: import("@playwright/test").Route) => {
@@ -38,7 +37,6 @@ async function hostGoesAway(page: Page, token: string) {
   };
 }
 
-/** Each new text a live region took after this call, one entry per change of one region. */
 async function watchLiveRegions(page: Page) {
   await page.evaluate(() => {
     const heard: string[] = [];
@@ -109,7 +107,6 @@ for (const size of SIZES) {
           ),
         ).toBe(1);
         const spoken = await heard(guest);
-        console.log("SPOKEN", JSON.stringify(spoken));
         expect(spoken[0]).toBe("Saved");
       });
     });

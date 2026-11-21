@@ -3,7 +3,6 @@ import { SystemIcon } from "./SystemIcon";
 
 export type SaveIndicatorProps = {
   state: "saved" | "saving" | "offline" | "unreachable" | "away" | "failed";
-  /** Away: whether this device or the host stopped answering. */
   cause?: HostCause;
   /** Saved: show the check for the 2 s after a save. */
   justSaved?: boolean;
