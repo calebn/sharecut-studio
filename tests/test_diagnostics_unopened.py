@@ -154,7 +154,10 @@ def test_an_unopened_bundle_keeps_its_code_and_masks_the_same_prefix_in_free_tex
         lambda: SimpleNamespace(known_tokens=lambda: frozenset({token})),
     )
     log = tmp_path / "sidecar.log"
-    log.write_text(f"Failed to open {minimal_project.parent}/raw with {token} or {prefix}\n")
+    log.write_text(
+        f"Failed to open {minimal_project.parent}/raw with {token} or {prefix}\n"
+        f"Link {encoded_token} (contact alpha%40example.invalid)\n"
+    )
     monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
     jobs = MagicMock()
     jobs.recent_snapshots.return_value = [
@@ -181,7 +184,8 @@ def test_an_unopened_bundle_keeps_its_code_and_masks_the_same_prefix_in_free_tex
         assert report["jobs"][1]["message"] == ('Source "clip"\nshare <redacted> (contact <email>)')
         assert report["jobs"][2]["message"] == "Failure token=<redacted>"
         assert zf.read("sidecar.log").decode() == (
-            "Failed to open <workspace>/raw with <redacted> or <redacted>"
+            "Failed to open <workspace>/raw with <redacted> or <redacted>\n"
+            "Link <redacted> (contact <email>)"
         )
     assert report["episode_not_opened"]["code"] == "project_version_unsupported"
 
