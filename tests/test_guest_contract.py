@@ -453,7 +453,7 @@ PROBES: dict[tuple[str, str], Probe] = {
     ("OPTIONS", "/r/{token}/mcp"): Probe(MCP_PREFLIGHT),
 }
 SOCKETS: dict[str, Site] = {
-    "/api/review/{token}/daw/ws": _review("require_share_cap"),
+    "/api/review/{token}/daw/ws": _review("open_resolved_share_workspace"),
     "/api/rec/{token}/ws": Site(record_share, "open_share_workspace"),
 }
 TOOLS: dict[str, tuple[Site | None, dict[str, object]]] = {
