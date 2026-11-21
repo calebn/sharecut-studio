@@ -162,8 +162,12 @@
   block-size: 1rem;
 }
 
+.sys-save-short,
 .sys-save-count {
   display: none;
+}
+
+.sys-save-count {
   font-family: var(--font-family-mono);
 }
 
@@ -183,6 +187,7 @@
   display: none;
 }
 
+.sys-save--compact .sys-save-short,
 .sys-save--compact .sys-save-count {
   display: inline;
 }
@@ -754,6 +759,7 @@ button.sys-version-line {
     display: none;
   }
 
+  .sys-header-left .sys-save-short,
   .sys-header-left .sys-save-count {
     display: inline;
   }

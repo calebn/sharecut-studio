@@ -126,6 +126,9 @@ export function SaveIndicator({
         title={`${label}. ${SAVED_COPY_TEXT}`}
       >
         <SystemIcon name="cloud" size={16} className="sys-tone-warning" />
+        <span className="sys-save-short" aria-hidden="true">
+          Saved copy
+        </span>
         <span className="sys-save-text">
           {waiting ? `${label} · ${waiting} waiting to send` : label}
           <span className="sr-only">. {SAVED_COPY_TEXT}</span>
