@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { registerDawWebMcpTools } from "./agentic/webmcp";
 import { runPointerCommand } from "./commands/pointer";
 import { registerDawCommands } from "./commands/register";
@@ -41,6 +41,7 @@ import { StageHost } from "./stage/hosts/StageHost";
 import { ShareFlowProvider } from "./stage/hosts/shareFlow";
 import { useDawStore } from "./state/dawStore";
 import { selectPublishKey } from "./state/publishKey";
+import { requestSavedCopyReopen, useReadsSavedCopy } from "./state/savedCopy";
 import type { DawState } from "./state/types";
 import { pickDaw, useDaw } from "./state/useDaw";
 import { FollowEngine, TransportEngine } from "./TransportEngine";
@@ -138,6 +139,14 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     bootstrapAttempt,
     retryBootstrap,
   );
+
+  const readsSavedCopy = useReadsSavedCopy();
+  const wasSavedCopy = useRef(readsSavedCopy);
+  useEffect(() => {
+    const wasCopy = wasSavedCopy.current;
+    wasSavedCopy.current = readsSavedCopy;
+    if (wasCopy && !readsSavedCopy && bootstrapFailure) retryBootstrap();
+  }, [readsSavedCopy, bootstrapFailure, retryBootstrap]);
 
   const syncEnabled = !guestShare && !isShareProjectKey(projectPath);
   const guestSyncEnabled = guestShare || isShareProjectKey(projectPath);
@@ -268,7 +277,10 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
                         viewAnchor={viewAnchor}
                         guestShare={guestShare}
                         loadFailure={loadFailure}
-                        onRetryLoad={retryBootstrap}
+                        onRetryLoad={() => {
+                          retryBootstrap();
+                          requestSavedCopyReopen();
+                        }}
                       />
                     </>
                   )}
