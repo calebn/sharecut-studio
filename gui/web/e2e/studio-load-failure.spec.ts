@@ -242,11 +242,89 @@ for (const size of SIZES) {
           const cover = await expectCover(guest, expected);
 
           shell.lift();
-          await pressOn(cover, expected.buttons[0]!, size);
+          if (fail === MARKER_500) {
+            await expect(
+              cover.getByRole("button", { name: "Try again" }),
+            ).toBeFocused();
+            await guest.keyboard.press("Enter");
+          } else {
+            await pressOn(cover, expected.buttons[0]!, size);
+          }
           await expect(cover).toBeHidden();
         });
       });
     }
+
+    test("a guest can retry with Enter before the document snapshot arrives", async ({
+      browser,
+    }) => {
+      test.setTimeout(90_000);
+      await withGuestLink(browser, size, async (guest, token) => {
+        const socketPath = `/api/review/${token}/daw/ws`;
+        const documentPath = `/api/review/${token}/daw/document/state`;
+        let heldSnapshots: Array<() => void> | null = [];
+        await guest.routeWebSocket(
+          (url) => url.pathname === socketPath,
+          (socket) => {
+            const server = socket.connectToServer();
+            server.onMessage((message) => {
+              const frame = JSON.parse(String(message));
+              if (
+                heldSnapshots &&
+                frame.plane === "document" &&
+                frame.type === "Snapshot"
+              ) {
+                heldSnapshots.push(() => socket.send(message));
+              } else {
+                socket.send(message);
+              }
+            });
+          },
+        );
+        const shell = await failShell(guest, { token }, MARKER_500);
+        await guest.goto(`/r/${token}`);
+        const queue = guest.getByRole("region", { name: "Queue", exact: true });
+        const cover = guest.getByRole("alert");
+        const retry = cover.getByRole("button", { name: "Try again" });
+        await expect(retry).toBeVisible();
+        await expect.poll(() => heldSnapshots?.length ?? 0).toBeGreaterThan(0);
+        await expect(queue).toHaveCount(0);
+        await expect(retry).toBeFocused();
+        await guest.keyboard.press("Enter");
+        await expect.poll(shell.requests).toBe(2);
+        await expect(cover.getByRole("status")).toHaveText(
+          "Still not loading.",
+        );
+        await expect(retry).toBeFocused();
+
+        const role = guest.getByRole("button", {
+          name: "Explain Commenter role",
+        });
+        await role.focus();
+        const detail = guest.waitForResponse((response) => {
+          const url = new URL(response.url());
+          return (
+            url.pathname === documentPath &&
+            url.searchParams.get("phase") === "detail"
+          );
+        });
+        const release = heldSnapshots;
+        heldSnapshots = null;
+        release?.forEach((send) => send());
+        expect((await detail).ok()).toBe(true);
+        const loadedCover = queue.getByRole("alert");
+        const loadedRetry = loadedCover.getByRole("button", {
+          name: "Try again",
+        });
+        await expect(loadedRetry).toBeVisible();
+        await expect(role).toBeFocused();
+
+        shell.lift();
+        await loadedRetry.focus();
+        await guest.keyboard.press("Enter");
+        await expect(loadedCover).toBeHidden();
+      });
+    });
 
     for (const [name, fail, expected] of hostAnswers(
       hostName(e2eProjectPath),
@@ -370,7 +448,9 @@ for (const size of SIZES) {
       await withGuestLink(browser, size, async (guest, token) => {
         const shell = await failShell(guest, { token }, MARKER_500);
         await guest.goto(`/r/${token}`);
-        const cover = guest.getByRole("alert");
+        const cover = guest
+          .getByRole("region", { name: "Queue", exact: true })
+          .getByRole("alert");
         await expect(
           cover.getByRole("button", { name: "Try again" }),
         ).toBeVisible();

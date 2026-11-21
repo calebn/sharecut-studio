@@ -806,8 +806,28 @@ describe("Review queue for a guest", () => {
       expect(document.querySelector(".sys-player--expanded")).not.toBeNull();
       expect(field()).toBeEnabled();
       expect(screen.getAllByText("Cut the intro")[0]).toBeVisible();
-      await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(screen.getByRole("button", { name: "Try again" })).toHaveFocus();
+      await userEvent.keyboard("{Enter}");
       expect(onRetry).toHaveBeenCalledOnce();
+    });
+
+    it("leaves focus on a surviving comment field when the first episode read fails", async () => {
+      join("comment");
+      const { rerender } = render(<ReviewHost guestShare />);
+      await userEvent.click(field());
+      rerender(
+        <ReviewHost
+          guestShare
+          loadFailure={{
+            source: "shell",
+            cause: { audience: "guest", failure: { kind: "server" } },
+            name: "",
+            onRetry: vi.fn(),
+          }}
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
+      expect(field()).toHaveFocus();
     });
   });
 

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { type RefObject, useRef } from "react";
 import { shellFailureCover } from "../../shellLoadFailure";
 import { Cover } from "../../system/Cover";
 import {
@@ -18,16 +18,17 @@ const ALL_PROJECTS = "All projects";
 export function ShellFailureCover({
   title,
   failure,
+  scope,
 }: {
   /** The region's own title, for a failure with no cause title of its own. */
   title: string;
   failure: Extract<LoadFailure, { source: "shell" }>;
+  scope: RefObject<HTMLDivElement | null>;
 }) {
   const cover = shellFailureCover(failure.cause, {
     stageTitle: title,
     name: failure.name,
   });
-  const scope = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const { busy, status, press } = useCoverPress({
     scope,

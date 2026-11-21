@@ -34,12 +34,18 @@ export function LoadFailureCover({
 }: {
   stage: StageId;
   failure?: LoadFailure | null;
+  /** Opt in to the same retry focus handoff for transcript detail failures. */
   focusIfLost?: boolean;
 }) {
   const scope = useRef<HTMLDivElement>(null);
+  const focusRetryOnEntry =
+    focusIfLost ||
+    (stage === "review" &&
+      failure?.source === "shell" &&
+      failure.cause.audience === "guest");
   useLayoutEffect(() => {
     const cover = scope.current;
-    if (!focusIfLost || !cover) return;
+    if (!focusRetryOnEntry || !cover) return;
     const { activeElement, body } = cover.ownerDocument;
     if (!activeElement || activeElement === body) {
       cover
@@ -48,9 +54,15 @@ export function LoadFailureCover({
         )
         ?.focus();
     }
-  }, [focusIfLost]);
+  }, [focusRetryOnEntry]);
   if (failure?.source === "shell") {
-    return <ShellFailureCover title={regionTitle(stage)} failure={failure} />;
+    return (
+      <ShellFailureCover
+        title={regionTitle(stage)}
+        failure={failure}
+        scope={scope}
+      />
+    );
   }
   return (
     <div role="alert" ref={scope}>

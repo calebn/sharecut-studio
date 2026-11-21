@@ -96,6 +96,7 @@ describe("the studio's own load-failure cover, for a host", () => {
     expect(screen.getByRole("heading")).toHaveTextContent(
       "The transcript didn't load",
     );
+    expect(screen.getByRole("button", { name: "Try again" })).not.toHaveFocus();
   });
 
   it("keeps the cause's own title where it has one", () => {
