@@ -68,6 +68,49 @@ for (const [shell, width, tab] of [
   });
 }
 
+test("System/StageBar padding click forwards focus without scrolling the tabs", async ({
+  page,
+}) => {
+  await open(page, "system-stagebar--desktop", 800);
+  const tabs = page.getByRole("tablist", { name: "Stages" });
+  const record = tabs.getByRole("tab", { name: /^Record/ });
+  await expect(record).toHaveAttribute("aria-selected", "true");
+
+  await page.addStyleTag({
+    content: `
+      .sys-stage-list {
+        inline-size: 240px;
+        overflow-x: auto;
+        padding-inline-end: 40px;
+        justify-content: start;
+      }
+      .sys-stage-list > [role="tab"] { flex: 0 0 120px; }
+    `,
+  });
+  await record.evaluate((tab) => tab.blur());
+  const scrolled = await tabs.evaluate((list) => {
+    list.scrollLeft = list.scrollWidth;
+    const box = list.getBoundingClientRect();
+    const x = box.right - 12;
+    const y = box.top + box.height / 2;
+    if (document.elementFromPoint(x, y) !== list)
+      throw new Error("The click must land on tab list padding");
+    return { x, y, left: list.scrollLeft };
+  });
+  expect(scrolled.left).toBeGreaterThan(0);
+
+  await page.mouse.click(scrolled.x, scrolled.y);
+  await expect(record).toBeFocused();
+  expect(await tabs.evaluate((list) => list.scrollLeft)).toBe(scrolled.left);
+  await page.keyboard.press("ArrowRight");
+  const prepare = tabs.getByRole("tab", { name: /^Prepare/ });
+  await expect(prepare).toBeFocused();
+  await expect(prepare).toHaveAttribute("aria-selected", "true");
+  expect(await tabs.evaluate((list) => list.scrollLeft)).toBeLessThan(
+    scrolled.left,
+  );
+});
+
 for (const [story, label] of [
   ["system-stagebar--record-live-phone", "live"],
   ["system-stagebar--record-live-phone-hour", "live over an hour"],

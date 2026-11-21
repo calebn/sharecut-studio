@@ -54,7 +54,7 @@ export function TabList({ label, className, children }: TabListProps) {
         const selected = tabs.find(
           (tab) => tab.getAttribute("aria-selected") === "true",
         );
-        (selected ?? tabs[0])?.focus();
+        (selected ?? tabs[0])?.focus({ preventScroll: true });
       }}
       onKeyDown={onKeyDown}
     >
