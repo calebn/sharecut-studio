@@ -751,5 +751,88 @@ effect settings, and render-only features such as room tone, mute-region
 processing, and automatic join borrowing. Timing-mapped clips export as their
 separate source pieces. The exporter carries fade lengths using linear curves. Nonlinear fade shapes
 and rendered mix parity are outside this experimental export. Use Sharecut's rendered WAV
-exports when you need the rendered sound. The experimental command does not
-provide AAF, SESX, or the Deliver format picker.
+exports when you need the rendered sound. This command does not provide SESX
+or the Deliver format picker.
+
+## Experimental editable AAF export
+
+Install the optional AAF writer, then export a saved episode into a new folder:
+
+```sh
+pip install "podcast-mcp[aaf]"
+podcast episode export-aaf --project /path/to/episode.sharecut --output /path/to/new-aaf
+```
+
+The folder contains one `session.aaf` file with the full audio sources embedded.
+It can be moved without the ShareCut workspace or a companion media directory.
+Track order and names, empty tracks, clip positions, source trims, gaps, and
+overlaps are preserved. Overlapping items are assigned to adjacent named tracks
+such as `Host (overlap 1)`; the original track order is retained. A position is
+rounded once to the nearest source sample at that track's rate, with ties to an
+even sample. Source trims and durations use integer source frames. Empty tracks
+carry silence through the end of the exported composition.
+
+Each populated AAF track uses one native sample rate for its edit units. Different
+tracks can use different rates. A saved track whose clips reference more than
+one sample rate is refused before the package is published. AAF source clips
+express both source offsets and durations in the owning composition slot's edit
+units; mixed-rate clips need a conversion policy and native-import proof before
+they can be represented safely on one track.
+
+16-bit and 24-bit PCM RIFF WAV files are embedded without changing their PCM
+samples. Other supported audio is converted to 24-bit PCM at its original sample
+rate and channel count. This conversion can reduce precision or clip values
+outside the 24-bit integer range. Truncated, unsupported, and over-4-GB WAV
+media are refused. RF64 source WAVs are converted to RIFF PCM when they fit the
+writer's size limit. A failed export leaves no destination package and does
+not change the saved episode.
+
+The AAF omits clip fades and gains, track gain and mute, effects, transcripts,
+comments, history, and rendered-only processing. Fades are not baked into the
+source audio. The AAF is an editable transfer of timeline geometry and source
+audio, not the rendered mix; use ShareCut's rendered WAV export when you need the
+saved mix. This experimental exporter does not claim compatibility with Logic,
+Pro Tools, or Audition.
+
+The regular Python tests exercise the real export command against a synthetic
+project. The `pytest-quality` job builds pinned LibAAF v1.0 and independently
+checks clip geometry and extracted PCM after relocating the package and hiding
+the source workspace. To run that interop check locally, build the reader in a
+new scratch directory and set `SHARECUT_AAFTOOL`:
+
+```sh
+bash scripts/build_libaaf_test_tool.sh /tmp/sharecut-libaaf-aaf
+SHARECUT_AAFTOOL=/tmp/sharecut-libaaf-aaf/build/bin/aaftool \
+  uv run pytest -q --no-cov tests/test_aaf_export.py
+```
+
+The build script refuses to reuse its source or build directories. A native
+application import remains separate evidence from LibAAF's parser and PCM
+extraction; compatibility claims need an import, edit, save, reopen, and playback
+check in each application.
+
+### Decision: AAF embeds source audio and uses per-track native edit units
+
+<!-- decision
+id: D-aaf-embedded-native-edit-units
+status: accepted
+date: 2026-11-21
+decided-by: calebn
+evidence:
+- Owner prototype on #4045 showed pyaaf2 1.7.1 writing embedded 48 kHz mono/stereo PCM that LibAAF extracted byte-equivalently, with Ardour importing and editing a separate overlap track
+- Owner accepted the writer-in-stage, embedded-media, per-track-rate policy in [the #4045 implementation checkpoint](https://github.com/calebn/sharecut-studio/issues/4045#issuecomment-7054443634)
+- [AAF Object Specification v1.1 §7.7](https://static.amwa.tv/ms-01-aaf-object-spec.pdf) defines SourceClip StartTime and Length in the owning MobSlot's edit units
+- Independent LibAAF verification of the ShareCut CLI fixture checks ordered tracks, empty tracks, placement, trims, extracted PCM, and relocation
+enforced-by:
+- tests/test_aaf_export.py::test_cli_export_is_relocatable_and_matches_independent_aaf_reader
+- tests/test_aaf_export.py::test_aaf_rejects_same_track_mixed_rates_before_publication
+-->
+
+The AAF writer is optional, embedded media is private to the AAF, and its
+composition slots use each track's native rate. A track that mixes source rates
+fails closed until a rate conversion has independent-reader and native importer
+proof. This keeps same-rate source frame positions exact without committing to an
+unverified mixed-rate conversion. A common copied-media package followed by an
+AAF writer was rejected because the embedded AAF would duplicate deliverables;
+the AAF writer instead owns temporary audio preparation and finishes inside the
+shared atomic publication stage.
