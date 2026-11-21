@@ -375,6 +375,37 @@ describe("social clip content", () => {
     },
   );
 
+  it.each([
+    { name: "Start", key: "ArrowUp", next: [5441, 10241] },
+    { name: "End", key: "ArrowDown", next: [5440, 10240] },
+  ])(
+    "keeps sample-aligned $name at 0.1 s and edits it with a frame to spare",
+    async ({ name, key, next }) => {
+      const start = 5440 / 48000;
+      open("host", clip.id, { ...clip, start, end: 10240 / 48000 });
+      const nudge = () =>
+        act(async () => {
+          fireEvent.keyDown(screen.getByRole("spinbutton", { name }), { key });
+        });
+      await nudge();
+      expect(updateSocialClip).not.toHaveBeenCalled();
+
+      act(() => {
+        const saved = { ...clip, start, end: 10241 / 48000 };
+        const project = useDawStore.getState().project!;
+        useDawStore.setState({
+          project: { ...project, social_clips: [saved] },
+        });
+      });
+      await nudge();
+      expect(updateSocialClip).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/p.json",
+        clip.id,
+        ...next.map((frame) => expect.closeTo(frame / 48000, 14)),
+      );
+    },
+  );
+
   it("refuses an end before the minimum span with the range", async () => {
     open();
     await typeScrub("End", "20");
