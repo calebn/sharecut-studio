@@ -236,10 +236,11 @@ for (const viewport of viewports) {
       page,
     }) => {
       const list = await openFollowedTranscript(page);
-      await seekTo(page, 27);
-      const word = list.locator('[data-word-key="reference::9"]');
+      await seekTo(page, 30);
+      const word = list.locator('[data-word-key="reference::10"]');
       await expect(word).toHaveAttribute("data-playing", "");
-      await expect(word).toBeInViewport({ ratio: 1 });
+      // The browser can round a fractional intersection just below 1.
+      await expect(word).toBeInViewport({ ratio: 0.99 });
       const followingTop = await settledScrollTop(list);
       expect(followingTop).toBeGreaterThan(0);
 
@@ -261,7 +262,7 @@ for (const viewport of viewports) {
       );
       await page.waitForFunction((end) => performance.now() >= end, until);
       await back.click();
-      await expect(word).toBeInViewport({ ratio: 1 });
+      await expect(word).toBeInViewport({ ratio: 0.99 });
       await expect(back).toBeHidden();
       await expect(word).toHaveAttribute("data-playing", "");
       await expect(
