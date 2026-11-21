@@ -41,16 +41,18 @@ export function roundWithinBounds(
   value: number,
   decimals: number,
   bounds: ScrubBounds,
+  origin?: number,
 ): number {
   const bounded = bounds.exact ? clamp(value, bounds) : value;
   let nearest = clamp(roundTo(bounded, decimals), bounds);
   if (bounds.exact) {
-    for (const limit of [bounds.min, bounds.max]) {
+    for (const candidate of [bounds.min, bounds.max, origin]) {
       if (
-        limit !== undefined &&
-        Math.abs(limit - bounded) < Math.abs(nearest - bounded)
+        candidate !== undefined &&
+        inBounds(candidate, bounds) &&
+        Math.abs(candidate - bounded) < Math.abs(nearest - bounded)
       ) {
-        nearest = limit;
+        nearest = candidate;
       }
     }
   }
@@ -105,6 +107,7 @@ export function steppedValue(
     value + direction * step * modifierScale(modifiers),
     decimals,
     bounds,
+    value,
   );
 }
 

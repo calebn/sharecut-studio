@@ -317,11 +317,12 @@ export function ScrubField({
       bounds,
     );
     gesture.lastX = event.clientX;
+    const origin = gesture.start ?? base;
     const rounded = exactBounds
-      ? roundWithinBounds(gesture.raw, decimals, bounds)
+      ? roundWithinBounds(gesture.raw, decimals, bounds, origin)
       : roundTo(gesture.raw, decimals);
     const next = snap
-      ? roundWithinBounds(snap(rounded), decimals, bounds)
+      ? roundWithinBounds(snap(rounded), decimals, bounds, origin)
       : rounded;
     if (next === gesture.current) return;
     gesture.current = next;
@@ -516,6 +517,7 @@ export function ScrubField({
               base * step ** (direction * factorScale(event)),
               decimals,
               bounds,
+              base,
             )
           : steppedValue(base, direction, step, event, decimals, bounds),
       );
