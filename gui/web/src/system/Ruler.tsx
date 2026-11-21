@@ -28,7 +28,6 @@ import {
   xAtTime,
 } from "./rulerMath";
 import type { TimeRange } from "./seconds";
-import { sliderSeekTarget } from "./sliderSeek";
 import {
   type GrabMove,
   type GrabPointer,
@@ -282,16 +281,37 @@ export const Ruler = memo(function Ruler({
     if (walkFocus(event, "body")) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (swallowedMidDrag(event)) return;
-    const next = sliderSeekTarget(
-      event,
-      playhead,
-      duration,
-      step,
-      step * SEEK_BIG_TICKS,
-    );
-    if (next === null) return;
+    const from = playhead;
+    const largeStep = step * SEEK_BIG_TICKS;
+    const arrowStep = event.shiftKey ? largeStep : step;
+    let target: number;
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowUp":
+        target = from + arrowStep;
+        break;
+      case "ArrowLeft":
+      case "ArrowDown":
+        target = from - arrowStep;
+        break;
+      case "PageUp":
+        target = from + largeStep;
+        break;
+      case "PageDown":
+        target = from - largeStep;
+        break;
+      case "Home":
+        target = 0;
+        break;
+      case "End":
+        target = duration;
+        break;
+      default:
+        return;
+    }
     event.preventDefault();
     event.stopPropagation();
+    const next = clamp(target, 0, duration);
     if (!grab.dragging() && next !== playhead) onSeek(next);
   };
 

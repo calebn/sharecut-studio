@@ -3,7 +3,6 @@ import { useResizeObserver } from "../ui/useResizeObserver";
 import { clamp } from "../utils/math";
 import { formatTimeShort } from "../utils/time";
 import { bucketPeaks } from "./peakBuckets";
-import { sliderSeekTarget } from "./sliderSeek";
 import { swallowsDuringDrag, useGrab } from "./useGrab";
 import { pointerRatio } from "./wavePointer";
 
@@ -91,17 +90,37 @@ export function OverviewStrip({
       event.stopPropagation();
       return;
     }
-    const target = sliderSeekTarget(
-      event,
-      playhead ?? 0,
-      1,
-      KEY_STEP_SEC / duration,
-      KEY_STEP_BIG_SEC / duration,
-    );
-    if (target === null) return;
+    const from = playhead ?? 0;
+    const largeStep = KEY_STEP_BIG_SEC / duration;
+    const arrowStep = event.shiftKey ? largeStep : KEY_STEP_SEC / duration;
+    let target: number;
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowUp":
+        target = from + arrowStep;
+        break;
+      case "ArrowLeft":
+      case "ArrowDown":
+        target = from - arrowStep;
+        break;
+      case "PageUp":
+        target = from + largeStep;
+        break;
+      case "PageDown":
+        target = from - largeStep;
+        break;
+      case "Home":
+        target = 0;
+        break;
+      case "End":
+        target = 1;
+        break;
+      default:
+        return;
+    }
     event.preventDefault();
     event.stopPropagation();
-    if (!grab.dragging()) onSeek(target);
+    if (!grab.dragging()) onSeek(clamp(target, 0, 1));
   };
   const seconds = Math.round(clamp(playhead ?? 0, 0, 1) * duration);
   const seekable = onSeek !== undefined && duration > 0;
