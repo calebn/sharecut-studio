@@ -404,6 +404,10 @@ live region speaks the new edit's own message; the visible text is the count.
    Focusing or clicking its padding forwards focus to the selected enabled tab,
    or the first enabled tab if no selected enabled tab exists. Focus alone does not select or
    run a command; arrows still select, and Tab continues to the next control.
+6. **The tablet Inspector leaves room for Timeline controls.** When it would
+   cover the Timeline view group, the card moves beside it if there is room.
+   Otherwise the card uses a clear area above or below the group if it can
+   show its header and fields there.
 
 ## Where primitives and tokens live
 
@@ -451,7 +455,8 @@ not apply is answered "n/a" with the reason in the PR.
 - [ ] If it needs a target, it resolves target → selection → focus and is
       disabled with a reason otherwise.
 - [ ] If it opens an overlay, it uses `Menu`, `Dialog` or `InlineConfirm`;
-      the overlay is a sheet on phone and tablet; one overlay at a time.
+      use one overlay at a time. Follow the shell's placement rule. On tablet,
+      the Inspector card leaves the Timeline view controls clear when both fit.
 - [ ] If it opens a menu on touch, the same descriptor opens on right click
       and on the keyboard.
 - [ ] If it mutates, it goes through the document command path and

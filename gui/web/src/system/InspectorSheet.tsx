@@ -65,6 +65,8 @@ export type InspectorCardProps = InspectorBase & {
   /** In the coordinates of `bounds`, the box the card is placed in. */
   anchor: InspectorRect;
   bounds: InspectorBounds;
+  /** Chrome to keep uncovered, in the same coordinates as the anchor. */
+  keepClear?: InspectorRect;
 };
 
 export type InspectorPhoneProps = InspectorBase & {
@@ -248,6 +250,7 @@ function Card({
   onClose,
   anchor,
   bounds,
+  keepClear,
 }: InspectorCardProps) {
   const scale = (rootRem() || DEFAULT_ROOT_PX) / DEFAULT_ROOT_PX;
   const place = placeCard(
@@ -255,6 +258,7 @@ function Card({
     bounds,
     CARD_WIDTH_PX * scale,
     scaledMinBlock(rootRem()),
+    keepClear,
   );
   const style: CSSProperties = {
     insetInlineStart: place.inline,

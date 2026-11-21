@@ -130,24 +130,18 @@ export function steppedDetent(
   );
 }
 
-/**
- * Below the anchor when the card's tallest form (60 % of the bounds) fits
- * there, otherwise above, otherwise on the side with more room, shortened to it.
- * The room never takes the card under `minBlock` (8.75 rem at the default root
- * size), so a card squeezed between its anchor and an edge covers the part of
- * the anchor it overlaps. A frame too short for `minBlock` at 60 % (`cardFits`)
- * gets no card: the host takes the screen instead.
- */
-export function placeCard(
+function placeCardBlock(
   anchor: InspectorRect,
-  bounds: InspectorBounds,
-  cardWidth = CARD_WIDTH_PX,
-  minBlock = CARD_MIN_BLOCK_PX,
-): CardPlacement {
-  const tallest = bounds.height * CARD_MAX_SHARE;
-  const below =
-    bounds.height - (anchor.y + anchor.height) - CARD_GAP_PX - CARD_EDGE_PX;
-  const above = anchor.y - CARD_GAP_PX - CARD_EDGE_PX;
+  height: number,
+  minBlock: number,
+  top: number,
+  bottom: number,
+): Omit<CardPlacement, "inline"> {
+  const tallest = height * CARD_MAX_SHARE;
+  const belowEdge = anchor.y + anchor.height + CARD_GAP_PX;
+  const aboveEdge = anchor.y - CARD_GAP_PX;
+  const below = bottom - belowEdge;
+  const above = aboveEdge - top;
   const side =
     below >= tallest
       ? "below"
@@ -156,26 +150,83 @@ export function placeCard(
         : below >= above
           ? "below"
           : "above";
-  const room = Math.max(0, side === "below" ? below : above);
-  const maxBlock = Math.min(tallest, Math.max(room, minBlock));
-  const edge =
+  const room = side === "below" ? below : above;
+  const maxBlock = Math.min(tallest, Math.max(room, minBlock), bottom - top);
+  const block =
     side === "below"
-      ? anchor.y + anchor.height + CARD_GAP_PX
-      : bounds.height - anchor.y + CARD_GAP_PX;
-  const width = Math.min(cardWidth, bounds.width - 2 * CARD_EDGE_PX);
-  const centred = anchor.x + anchor.width / 2 - width / 2;
-  return {
-    side,
-    inline: clamp(
-      centred,
-      CARD_EDGE_PX,
-      Math.max(CARD_EDGE_PX, bounds.width - width - CARD_EDGE_PX),
-    ),
-    block: clamp(
-      edge,
-      CARD_EDGE_PX,
-      Math.max(CARD_EDGE_PX, bounds.height - CARD_EDGE_PX - maxBlock),
-    ),
-    maxBlock,
+      ? clamp(belowEdge, top, bottom - maxBlock)
+      : height - clamp(aboveEdge, top + maxBlock, bottom);
+  return { side, block, maxBlock };
+}
+
+/**
+ * Prefer the normal above/below position. If it covers the keep-clear area,
+ * slide beside the area or place the card in the nearest usable vertical band.
+ * Keep the normal position if neither alternative can hold a usable card.
+ */
+export function placeCard(
+  anchor: InspectorRect,
+  bounds: InspectorBounds,
+  cardWidth = CARD_WIDTH_PX,
+  minBlock = CARD_MIN_BLOCK_PX,
+  keepClear?: InspectorRect,
+): CardPlacement {
+  const min = CARD_EDGE_PX;
+  const bottom = Math.max(min, bounds.height - min);
+  const width = Math.min(cardWidth, bounds.width - 2 * min);
+  const maxInline = Math.max(min, bounds.width - width - min);
+  const inline = clamp(anchor.x + anchor.width / 2 - width / 2, min, maxInline);
+  const normal = {
+    ...placeCardBlock(anchor, bounds.height, minBlock, min, bottom),
+    inline,
   };
+  if (!keepClear) return normal;
+
+  const left = keepClear.x - CARD_GAP_PX;
+  const right = keepClear.x + keepClear.width + CARD_GAP_PX;
+  const top = keepClear.y - CARD_GAP_PX;
+  const end = keepClear.y + keepClear.height + CARD_GAP_PX;
+  const normalTop =
+    normal.side === "below"
+      ? normal.block
+      : bounds.height - normal.block - normal.maxBlock;
+  if (
+    inline + width <= left ||
+    inline >= right ||
+    normalTop + normal.maxBlock <= top ||
+    normalTop >= end
+  )
+    return normal;
+
+  const beside = [left - width, right]
+    .filter((x) => x >= min && x <= maxInline)
+    .sort((a, b) => Math.abs(a - inline) - Math.abs(b - inline))[0];
+  if (beside !== undefined) return { ...normal, inline: beside };
+
+  const anchorClearance = (placement: Omit<CardPlacement, "inline">) =>
+    placement.side === "below"
+      ? placement.block - anchor.y - anchor.height
+      : placement.block + anchor.y - bounds.height;
+  const clear = [
+    [min, top],
+    [end, bottom],
+  ]
+    .filter(([start, stop]) => stop - start >= minBlock)
+    .map(([start, stop]) => {
+      const placement = placeCardBlock(
+        anchor,
+        bounds.height,
+        minBlock,
+        start,
+        stop,
+      );
+      return { placement, clearance: anchorClearance(placement) };
+    })
+    .sort(
+      (a, b) =>
+        Number(a.clearance < 0) - Number(b.clearance < 0) ||
+        Math.abs(a.clearance - CARD_GAP_PX) -
+          Math.abs(b.clearance - CARD_GAP_PX),
+    )[0];
+  return clear ? { ...clear.placement, inline } : normal;
 }
