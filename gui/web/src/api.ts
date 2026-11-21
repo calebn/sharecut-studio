@@ -46,6 +46,8 @@ export {
   patchComment,
   setCommentActionDone,
 } from "./api/comments";
+export type { DawFormat } from "./api/dawExport";
+export { loadDawFormats, startDawSession } from "./api/dawExport";
 export {
   acceptSessionSuggestionCommand,
   addChapter,

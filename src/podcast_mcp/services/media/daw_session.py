@@ -10,7 +10,6 @@ from fractions import Fraction
 from pathlib import Path
 from shutil import copyfileobj
 from tempfile import TemporaryDirectory
-from typing import IO
 from zipfile import ZipFile
 
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -20,7 +19,7 @@ from podcast_mcp.export.daw_format import DawFormat
 from podcast_mcp.export.daw_timeline import DawMedia, DawTimeline, build_daw_timeline
 from podcast_mcp.export.reaper_project import reaper_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.util.atomic_file import atomic_write, publish_completed_file
+from podcast_mcp.util.atomic_file import atomic_write, publish_completed_file, write_zip_atomic
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.owned_stage import OwnedStage, owned_stage_supported
@@ -290,21 +289,20 @@ def export_daw_archive(
         package = OwnedStage(root)
         stages.callback(package.close)
 
-        def zip_session(output: IO[bytes]) -> None:
-            with ZipFile(output, "w") as archive:
-                for member in members:
-                    check_cancelled()
-                    with (
-                        open_pinned_media(media.path / member) as source,
-                        archive.open(member, "w", force_zip64=True) as target,
-                    ):
-                        while chunk := source.read(1024 * 1024):
-                            check_cancelled()
-                            target.write(chunk)
-                            progress.advance(0)
-                    progress.advance(message=f"Packed {member}")
+        def zip_session(archive: ZipFile) -> None:
+            for member in members:
+                check_cancelled()
+                with (
+                    open_pinned_media(media.path / member) as source,
+                    archive.open(member, "w", force_zip64=True) as target,
+                ):
+                    while chunk := source.read(1024 * 1024):
+                        check_cancelled()
+                        target.write(chunk)
+                        progress.advance(0)
+                progress.advance(message=f"Packed {member}")
 
-        atomic_write(package.path / format.archive_name, zip_session)
+        write_zip_atomic(package.path / format.archive_name, zip_session)
         check_cancelled()
         progress.set_phase("publish", "Saving the session package")
         package.publish(directory)

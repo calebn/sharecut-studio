@@ -6,6 +6,7 @@ import secrets
 from collections.abc import Callable
 from pathlib import Path
 from typing import IO
+from zipfile import ZipFile
 
 from podcast_mcp.util import host_platform
 
@@ -51,6 +52,14 @@ def atomic_write(
         if temp is not None:
             with contextlib.suppress(OSError):
                 temp.unlink(missing_ok=True)
+
+
+def write_zip_atomic(dest: Path, write_members: Callable[[ZipFile], None]) -> Path:
+    def write(handle: IO[bytes]) -> None:
+        with ZipFile(handle, "w") as archive:
+            write_members(archive)
+
+    return atomic_write(dest, write)
 
 
 def publish_completed_file(
