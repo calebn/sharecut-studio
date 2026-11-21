@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { updateChapter } from "../../api";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
@@ -18,6 +18,7 @@ export function useChapterSections(
     followChapter: s.followChapter,
   }));
   const chapter = selection?.kind === "chapter" ? selection : null;
+  const savingId = useId();
   const { busy, error, setError, run } = useProjectMutation(
     chapter ? `${chapter.time}:${chapter.id}` : undefined,
   );
@@ -28,6 +29,7 @@ export function useChapterSections(
 
   const { id: title, time } = chapter;
   const editable = !isShareProjectKey(projectPath);
+  const savingDescription = editable && busy ? savingId : undefined;
 
   const save = async (nextTime: number, nextTitle: string) => {
     if (nextTime === time && nextTitle === title) return;
@@ -64,6 +66,7 @@ export function useChapterSections(
               value={title}
               onCommit={commitTitle}
               readOnly={busy}
+              describedBy={savingDescription}
               trim
               className="inspector-text-field"
             />
@@ -86,10 +89,23 @@ export function useChapterSections(
               skipUnchanged
               readOnly={!editable || busy}
               busy={busy}
+              describedBy={savingDescription}
               onCommit={(next) => void save(next, title)}
             />
           ),
         },
+        ...(savingDescription
+          ? [
+              {
+                id: "saving",
+                control: note(
+                  "Saving chapter. Try again when it finishes.",
+                  undefined,
+                  savingDescription,
+                ),
+              },
+            ]
+          : []),
         ...(error
           ? [
               {

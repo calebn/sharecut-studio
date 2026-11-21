@@ -243,6 +243,9 @@ export function ScrubField({
         : rangeHint(bounds, unit)
       : undefined;
   const message = error ?? typedError;
+  const describedBy =
+    [message ? errorId : null, describedByProp].filter(Boolean).join(" ") ||
+    undefined;
 
   const cancelDrag = () => {
     if (!drag.current) return;
@@ -557,8 +560,10 @@ export function ScrubField({
       <ScrubInput
         label={label}
         draft={draft ?? ""}
+        readOnly={readOnly}
+        busy={busy}
         invalid={message !== undefined}
-        describedBy={message ? errorId : undefined}
+        describedBy={describedBy}
         onChange={(text) => {
           clearLevelReset();
           setRejected(false);
@@ -613,11 +618,7 @@ export function ScrubField({
             aria-readonly={readOnly || undefined}
             aria-busy={busy || undefined}
             aria-invalid={error ? true : undefined}
-            aria-describedby={
-              [error ? errorId : null, describedByProp]
-                .filter(Boolean)
-                .join(" ") || undefined
-            }
+            aria-describedby={describedBy}
             data-empty={value === null || undefined}
             data-readonly={readOnly || undefined}
             style={{ "--sys-scrub-ratio": ratio } as CSSProperties}
@@ -690,6 +691,8 @@ export function ScrubField({
 type ScrubInputProps = {
   label: string;
   draft: string;
+  readOnly: boolean;
+  busy: boolean;
   invalid: boolean;
   describedBy?: string;
   onChange: (text: string) => void;
@@ -700,6 +703,8 @@ type ScrubInputProps = {
 function ScrubInput({
   label,
   draft,
+  readOnly,
+  busy,
   invalid,
   describedBy,
   onChange,
@@ -720,6 +725,8 @@ function ScrubInput({
       autoComplete="off"
       spellCheck={false}
       aria-label={label}
+      readOnly={readOnly}
+      aria-busy={busy || undefined}
       aria-invalid={invalid || undefined}
       aria-describedby={describedBy}
       value={draft}
