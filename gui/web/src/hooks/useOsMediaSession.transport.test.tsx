@@ -261,6 +261,11 @@ describe("lock screen position against the real proxy transport clock", () => {
       it("lock-screen Play never tells the OS paused on its way to playing", async () => {
         await endedPreview();
         expect(osPlaybackState).toBe("paused");
+        expect(session.setPositionState).toHaveBeenLastCalledWith({
+          duration: 60,
+          playbackRate: 1,
+          position: 10,
+        });
         playbackStateWrites.length = 0;
         os("play");
         await act(async () => {});

@@ -54,7 +54,7 @@ describe("projectOsMediaSession", () => {
     [true, "playing"],
     [false, "paused"],
   ] as const)(
-    "shows a source preview (playing %s) as %s with no episode position",
+    "reports progress for the paused episode during a source preview (playing %s, state %s)",
     (playing, playbackState) => {
       expect(
         projectOsMediaSession({
@@ -65,7 +65,9 @@ describe("projectOsMediaSession", () => {
       ).toEqual({
         metadata: { title: "Episode 12" },
         playbackState,
-        positionState: null,
+        positionState: playing
+          ? null
+          : { duration: 600, playbackRate: 1, position: 125 },
         handlersOn: true,
       });
     },
