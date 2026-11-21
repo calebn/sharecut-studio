@@ -402,6 +402,7 @@ function AttentionGroup({
             `[data-attention-row="${CSS.escape(nextId)}"] button`,
           );
     (target ?? group).focus();
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- the key stands for the order it was joined from
   }, [focusOrderKey]);
   const leaveAfter =
     (act: (row: AttentionRow) => void | Promise<void>) =>
