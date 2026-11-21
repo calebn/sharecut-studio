@@ -180,7 +180,7 @@ describe("EditActionBar on the phone dock", () => {
     host(EDIT_SELECTIONS.rangeOnAllTracks, {
       project: {
         ...project,
-        clips: { ...project.clips, timeline_duration_sec: 1.5 },
+        timeline_duration_sec: 1.5,
       },
     });
     render(<EditActionBar form="dock" root={null} />);
