@@ -120,18 +120,31 @@ describe("social clip content", () => {
   });
 
   it("waits for an explicit retry when a conflicting title save fails", async () => {
-    vi.mocked(updateSocialClipDetails).mockRejectedValueOnce(
-      new Error("Could not save this title"),
+    let refuse = () => {};
+    vi.mocked(updateSocialClipDetails).mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          refuse = () => reject(new Error("Could not save this title"));
+        }),
     );
     open();
+    const user = userEvent.setup();
     const title = screen.getByRole("textbox", { name: "Title" });
     title.focus();
     fireEvent.change(title, { target: { value: "My title" } });
     replaceSavedTitle("Peer title");
     await act(async () => fireEvent.keyDown(title, { key: "Enter" }));
+    const discard = screen.getByRole("button", { name: "Use saved title" });
+    expect(title).toHaveAttribute("aria-busy", "true");
+    expect(discard).toBeDisabled();
+    await user.click(discard);
+    expect(title).toHaveValue("My title");
+
+    await act(async () => refuse());
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Could not save this title",
     );
+    expect(discard).toBeEnabled();
 
     title.blur();
     title.focus();
