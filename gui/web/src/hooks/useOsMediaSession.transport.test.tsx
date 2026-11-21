@@ -6,10 +6,12 @@ import { ProxyEngine } from "../audio/proxyEngine";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { resetDocumentAuthority } from "../document/authorityState";
+import { usePresencePublisher } from "../presence/usePresencePublisher";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { hostProxyManifest } from "../test/proxyManifest";
+import type { PresenceMeta, PresenceTransport } from "../types/session";
 import { useOsMediaSession } from "./useOsMediaSession";
 import { useProxyTransport } from "./useProxyTransport";
 
@@ -133,6 +135,16 @@ describe("lock screen position against the real proxy transport clock", () => {
     session.setPositionState.mockClear();
   }
 
+  function recordPublishedTransport() {
+    const transport: PresenceTransport[] = [];
+    const send = (frame: Record<string, unknown>) => {
+      const value = (frame.meta as PresenceMeta | undefined)?.transport;
+      if (value) transport.push(value);
+    };
+    renderHook(() => usePresencePublisher(send, "Guest"));
+    return transport;
+  }
+
   it("has no live position between a store seek and the engine taking it", async () => {
     await playing();
     engine.currentTimeSec.mockReturnValue(12);
@@ -197,6 +209,8 @@ describe("lock screen position against the real proxy transport clock", () => {
   it("lock-screen Play after a preview ended on its own puts the episode back on", async () => {
     await playing();
     endedPreviewDuringPlay();
+    const published = recordPublishedTransport();
+    const before = published.length;
     expect(useDawStore.getState().isPlaying).toBe(true);
     expect(session.playbackState).toBe("paused");
     engine.play.mockClear();
@@ -211,6 +225,9 @@ describe("lock screen position against the real proxy transport clock", () => {
       playbackRate: 1,
       position: expect.any(Number),
     });
+    expect(published.slice(before)).toEqual([
+      { playing: true, playhead_sec: 10, rate: 1 },
+    ]);
   });
 
   it("lock-screen skip after a preview ended on its own leaves the OS and the audio agreeing", async () => {
@@ -299,6 +316,8 @@ describe("lock screen position against the real proxy transport clock", () => {
     expect(handlers.get("play")).toBeTypeOf("function");
     expect(osPlaybackState).toBe("paused");
     engine.play.mockClear();
+    const published = recordPublishedTransport();
+    const before = published.length;
 
     os("play");
     await act(async () => {});
@@ -310,6 +329,22 @@ describe("lock screen position against the real proxy transport clock", () => {
     expect(osPlaybackState).toBe("none");
     expect(handlers.get("play")).toBeNull();
     expect(session.setPositionState).toHaveBeenLastCalledWith();
+    expect(published.slice(before)).toEqual([
+      { playing: false, playhead_sec: 10, rate: 1 },
+    ]);
+  });
+
+  it("publishes a real lock-screen Pause while an ended preview is held", async () => {
+    await playing();
+    endedPreviewDuringPlay();
+    const published = recordPublishedTransport();
+    const before = published.length;
+
+    os("pause");
+
+    expect(published.slice(before)).toEqual([
+      { playing: false, playhead_sec: 10, rate: 1 },
+    ]);
   });
 
   it("lock-screen Play after a block during a preview retries the proxy like the Player's Play", async () => {
