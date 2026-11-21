@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import wave
+from contextlib import contextmanager
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -9,6 +10,7 @@ import pytest
 
 from gated_track import transcribed_gate_project
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.engines import source_proxy_audio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import proxy_render_hash, track_render_hash
 from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs, render_source_proxy_inputs
@@ -24,6 +26,7 @@ from podcast_mcp.models.episode import SourceRecording, SourceSpan
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import proxy_media as pm
 from podcast_mcp.services.media import proxy_variants as pv
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.object_store import ObjectStoreConfig
@@ -823,6 +826,93 @@ def test_proxy_manifest_releases_pcm_before_rendering_the_next_recording(
     assert set(generation.occurrences) == {"second"}
     assert live_pcm == [(0, 1), (0, 1)]
     assert not any(path.exists() for path in rendered)
+
+
+@pytest.mark.parametrize(
+    ("mutate_between_captures", "windows_fallback"),
+    [(False, False), (True, False), (False, True), (True, True)],
+)
+def test_manifest_final_validation_reuses_only_unchanged_source_digests(
+    workspace, monkeypatch, gentle_wav, mutate_between_captures, windows_fallback
+):
+    ws = workspace
+    raw = ws.project.workspace_path() / "raw"
+    source = raw / "host.wav"
+    (raw / "second.wav").write_bytes(gentle_wav.read_bytes())
+    ws.project.sources = [SourceRecording(id="second", path="raw/second.wav")]
+    ws.project.clips.append(
+        Clip(
+            id="second-clip",
+            track_id="host",
+            source_id="second",
+            source_start=0,
+            source_end=1,
+            timeline_start=3,
+        )
+    )
+    ws.save()
+    original = pv.ensure_proxy_manifest(ws)
+    original_chunks = {
+        artifact.hash: _chunk(ws, artifact).read_bytes()
+        for artifact in [*original.tracks.values(), *original.artifacts.values()]
+    }
+    transaction = ws.transaction
+    transactions = 0
+    final_validation = False
+
+    @contextmanager
+    def observe_transaction():
+        nonlocal transactions, final_validation
+        transactions += 1
+        with transaction() as current:
+            final_validation = transactions == 2
+            try:
+                yield current
+            finally:
+                final_validation = False
+
+    monkeypatch.setattr(ws, "transaction", observe_transaction)
+    if windows_fallback:
+        monkeypatch.setattr(
+            source_proxy_audio, "current_host_platform", lambda: host_platform.WINDOWS
+        )
+    read_digest = source_proxy_audio.sha256_file
+    source_reads = 0
+
+    def observe_digest(path):
+        nonlocal source_reads
+        if final_validation and path == source:
+            source_reads += 1
+        return read_digest(path)
+
+    monkeypatch.setattr(source_proxy_audio, "sha256_file", observe_digest)
+    validate = SourceProxyInputs.validate
+    modified = False
+
+    def observe_validation(inputs, project, engine, **kwargs):
+        nonlocal modified
+        validate(inputs, project, engine, **kwargs)
+        if final_validation and mutate_between_captures and not modified:
+            stat = source.stat()
+            data = bytearray(source.read_bytes())
+            data[-1] ^= 1
+            source.write_bytes(data)
+            os.utime(source, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+            modified = True
+
+    monkeypatch.setattr(SourceProxyInputs, "validate", observe_validation)
+    if mutate_between_captures:
+        with pytest.raises(CodedValueError) as error:
+            pv.ensure_proxy_manifest(ws)
+        assert error.value.code == "bleed_restore_inputs_changed"
+        assert modified
+        assert source_reads == 2
+    else:
+        assert pv.ensure_proxy_manifest(ws) == original
+        assert source_reads == (2 if windows_fallback or host_platform.current().is_nt else 1)
+    assert ProjectWorkspace.open(ws.path).project.render.proxy_manifests == [original]
+    for artifact in [*original.tracks.values(), *original.artifacts.values()]:
+        assert _chunk(ws, artifact).read_bytes() == original_chunks[artifact.hash]
 
 
 def test_same_content_relocation_reuses_occurrence_before_render(

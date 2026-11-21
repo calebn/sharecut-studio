@@ -1733,8 +1733,11 @@ and revalidates captured inputs before accepting the generation. The revalidatio
 compares render hashes and clips (not the history head) and the project without
 its `review`, `history` and `document_sync` sections, so a comment saved
 mid-build, whether through the share path or the host GUI's document command, does
-not refuse the generation while an audible edit still does. The build adds no
-History step. Existing accepted URLs are never overwritten or purged on refusal.
+not refuse the generation while an audible edit still does. Within the final
+validation pass on POSIX, captures share a fresh content digest only for the same
+resolved path and full file stamp, including change time. Windows keeps a content
+read per capture. Each binding still checks its own sealed files. The build adds
+no History step. Existing accepted URLs are never overwritten or purged on refusal.
 A complete unaccepted directory alone grants no read authority.
 
 Host `ensure_and_upload_all_proxies` publishes the complete generation after its
