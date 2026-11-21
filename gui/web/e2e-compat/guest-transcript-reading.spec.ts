@@ -89,7 +89,10 @@ async function followerHoldsStill(
         "the Script must overflow to scroll",
       ).toBeGreaterThan(100);
       await anchoringOff(view);
-      const tapped = view.locator(WORD).nth(-26);
+      // Start in speech before the cut. The paused word also needs to fit
+      // completely inside the short pane before the refresh begins.
+      const tapped = view.locator(WORD).nth(mode === "playing" ? -26 : -32);
+      const tappedKey = await tapped.getAttribute("data-word-key");
       const playheadPlace = await tapped.evaluate((el) => {
         const turn = el.closest("[data-turn-id]");
         const nth = [
@@ -109,10 +112,12 @@ async function followerHoldsStill(
         );
       }
       await scrollIdle(view);
+      if (mode === "paused")
+        expect(await placeInView(view, playheadPlace)).toBe(true);
       const anchorKey = await visiblePlace(view, "first");
       expect(anchorKey, "a word is visible to anchor on").not.toBeNull();
       guest.detail.delayMs = 1_500;
-      const seen = await frames(guest, page, "cut", 1, anchorKey, 20);
+      const seen = await frames(guest, page, "cut", 1, anchorKey, 46);
       expectNoBlankFrame(seen.frames, seen.from, guest.log, "for a follower");
       const after = seen.frames.filter((f) => f.t >= seen.from);
       expect(after.some((f) => f.busy)).toBe(true);
@@ -129,11 +134,20 @@ async function followerHoldsStill(
       const playing = view.locator(`${WORD}[data-playing]`).first();
       if (mode === "playing")
         await expect(playing, "the playing word is in view").toBeInViewport();
-      else
+      else {
+        expect(
+          await view
+            .locator(`${WORD}[data-playing]`)
+            .evaluateAll((words) =>
+              words.map((word) => word.getAttribute("data-word-key")),
+            ),
+          "the untouched source word is still at the playhead",
+        ).toContain(tappedKey);
         expect(
           await placeInView(view, playheadPlace),
           "the word at the playhead is in view",
         ).toBe(true);
+      }
     },
   );
 }
@@ -175,7 +189,7 @@ test("a following guest holds its view still through a second refresh, wherever 
         "cut",
         1,
         await visiblePlace(view, "first"),
-        20,
+        46,
       );
       await expect(view.locator(SECTION)).not.toHaveAttribute(
         "aria-busy",

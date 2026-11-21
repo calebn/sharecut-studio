@@ -10,6 +10,7 @@ import type { ScriptTurn } from "../../system/scriptPieces";
 export type GuestBookmark = {
   position: ScriptPaneReadingPosition;
   end: SelectionEnd | null;
+  alternates?: readonly { end: SelectionEnd; offset: number }[];
 };
 
 export function captureReading(
@@ -22,18 +23,37 @@ export function captureReading(
     model.wordStarts[position.index] != null
       ? selectionEndOf(model, position.index)
       : null;
-  return { position, end };
+  const alternates =
+    end && position.kind === "word"
+      ? position.visibleAlternates?.flatMap(({ index, offset }) => {
+          const alternate = selectionEndOf(model, index);
+          return alternate ? [{ end: alternate, offset }] : [];
+        })
+      : undefined;
+  return { position, end, alternates };
 }
 
 export function rebaseReading(
-  { position, end }: GuestBookmark,
+  { position, end, alternates }: GuestBookmark,
   model: GuestScriptModel,
 ) {
   if (position.kind === "scroll" || position.turns === model.turns)
     return position;
   if (end) {
     const found = findSelectionEnd(model, end);
-    if (found.kind === "wait") return found;
+    if (found.kind === "wait") {
+      for (const alternate of alternates ?? []) {
+        const visible = findSelectionEnd(model, alternate.end, "layout");
+        if (visible.kind === "at" && visible.unique)
+          return {
+            ...position,
+            index: visible.index,
+            offset: alternate.offset,
+            turns: model.turns,
+          };
+      }
+      return found;
+    }
     if (found.kind === "at" && found.unique)
       return { ...position, index: found.index, turns: model.turns };
   }

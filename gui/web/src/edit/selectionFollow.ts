@@ -134,12 +134,13 @@ function matches(
 export function findSelectionEnd(
   model: SelectionModel,
   end: SelectionEnd,
+  purpose: "action" | "layout" = "action",
 ): Found {
   const live: number[] = [];
-  let held = false;
+  const held: number[] = [];
   for (let index = 0; index < model.words.length; index++) {
     if (!matches(model, end, index) || model.cut?.[index]) continue;
-    if (model.wordStarts[index] === null) held = true;
+    if (model.wordStarts[index] === null) held.push(index);
     else live.push(index);
   }
   const barred =
@@ -154,8 +155,17 @@ export function findSelectionEnd(
         end.start <= span.end + SAME
       );
     });
+  // A drawn held word can serve as an unambiguous layout anchor.
+  if (
+    purpose === "layout" &&
+    !barred &&
+    held.length === 1 &&
+    live.length === 0 &&
+    end.copies === 1
+  )
+    return { kind: "at", index: held[0]!, unique: true };
   // A copy may sit in a line not drawn yet: nothing can be counted.
-  if (barred || held) return { kind: "wait" };
+  if (barred || held.length > 0) return { kind: "wait" };
   if (live.length === 1 && end.copies === 1)
     return { kind: "at", index: live[0]!, unique: true };
   const same = live.filter((index) => holds(model, end, index));

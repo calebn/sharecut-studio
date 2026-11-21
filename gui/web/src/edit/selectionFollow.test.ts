@@ -54,6 +54,21 @@ function remember(
 
 const ONE: Spec = { start: 1 };
 
+it("allows one drawn held word for layout while keeping actions pending", () => {
+  const end = selectionEndOf(modelOf([ONE]), 0)!;
+  const held = { ...ONE, held: true };
+  const after = modelOf([held]);
+  expect(findSelectionEnd(after, end)).toEqual({ kind: "wait" });
+  expect(findSelectionEnd(after, end, "layout")).toEqual({
+    kind: "at",
+    index: 0,
+    unique: true,
+  });
+  expect(findSelectionEnd(modelOf([held, held]), end, "layout")).toEqual({
+    kind: "wait",
+  });
+});
+
 describe("following a selection across two Script models", () => {
   it("keeps a word that is exactly where it was", () => {
     const before = modelOf([ONE]);
