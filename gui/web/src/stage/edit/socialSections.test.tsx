@@ -228,6 +228,73 @@ describe("social clip content", () => {
     );
   });
 
+  it.each([
+    { start: 18.004, end: 18.098, duration: 18.105 },
+    { start: 18, end: 18.095, duration: 18.1 },
+  ])(
+    "keeps End at the episode ceiling $duration after the clip reaches 0.1 s",
+    async ({ start, end, duration }) => {
+      open("host", clip.id, { ...clip, start, end }, duration);
+      const nudgeEnd = () =>
+        act(async () => {
+          fireEvent.keyDown(screen.getByRole("spinbutton", { name: "End" }), {
+            key: "ArrowUp",
+          });
+        });
+      await nudgeEnd();
+      expect(updateSocialClip).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/p.json",
+        clip.id,
+        start,
+        duration,
+      );
+      act(() => {
+        const saved = { ...clip, start, end: duration };
+        const project = useDawStore.getState().project!;
+        useDawStore.setState({
+          project: { ...project, social_clips: [saved] },
+        });
+      });
+      await nudgeEnd();
+      expect(updateSocialClip).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("moves Start in the requested direction to the exact 0.1 s limit after End widens", async () => {
+    const start = 18.008;
+    const duration = 18.109;
+    open("host", clip.id, { ...clip, start, end: 18.052 }, duration);
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole("spinbutton", { name: "End" }), {
+        key: "ArrowUp",
+        shiftKey: true,
+      });
+    });
+    expect(updateSocialClip).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/p.json",
+      clip.id,
+      start,
+      duration,
+    );
+    act(() => {
+      const saved = { ...clip, start, end: duration };
+      const project = useDawStore.getState().project!;
+      useDawStore.setState({ project: { ...project, social_clips: [saved] } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole("spinbutton", { name: "Start" }), {
+        key: "ArrowUp",
+      });
+    });
+    expect(updateSocialClip).toHaveBeenCalledTimes(2);
+    expect(updateSocialClip).toHaveBeenLastCalledWith(
+      "/tmp/p.json",
+      clip.id,
+      expect.closeTo(18.009, 10),
+      duration,
+    );
+  });
+
   it("refuses an end before the minimum span with the range", async () => {
     open();
     await typeScrub("End", "20");
