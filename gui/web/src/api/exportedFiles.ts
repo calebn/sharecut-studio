@@ -6,7 +6,8 @@ export type ExportedFileKind =
   | "transcript"
   | "chapters"
   | "feed"
-  | "bounce";
+  | "bounce"
+  | "daw";
 export type ExportedTranscriptFormat =
   | "txt"
   | "md"

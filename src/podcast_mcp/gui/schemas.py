@@ -5,6 +5,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, BaseModel, Field, field_validator, model_validator
 
+from podcast_mcp.export.daw_format import DawFormat
 from podcast_mcp.feed.model import FeedEdit
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.models.feed import PinAuthor
@@ -171,6 +172,17 @@ class SpeakerMoveLaneSpanRequest(BaseModel):
     to_lane: str
     timeline_start: float
     timeline_end: float
+
+
+class DawExportRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    path: str
+    format: DawFormat
+
+
+class DawExportStarted(BaseModel):
+    job_id: str
+    job: dict[str, Any]
 
 
 class ExportDeliverablesRequest(BaseModel):

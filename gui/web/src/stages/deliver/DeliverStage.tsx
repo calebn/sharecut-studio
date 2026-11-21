@@ -93,6 +93,7 @@ export type DeliverStageProps = {
   }) => ReactNode;
   /** The Podcast listing section, mounted after the Listen link. Without it the section is not shown. */
   feed?: ReactNode;
+  dawSession?: ReactNode;
   /** Called when Undo brings a removed clip back, so a host can take the removal back too. */
   onClipRestore?: (clip: Clip) => void;
   /** True when each clip title is saved as it is finished (Enter or leaving the field), not on every keystroke. */
@@ -141,6 +142,7 @@ export function DeliverStage({
   transcript,
   listen,
   feed,
+  dawSession,
   onClipRestore,
   clipTitleCommit = false,
   onChapters,
@@ -394,6 +396,7 @@ export function DeliverStage({
               onExport={() => startExport()}
               onCancel={onCancel}
             />
+            {dawSession}
             {phone ? null : (
               <>
                 {chaptersPart}

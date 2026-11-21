@@ -77,6 +77,7 @@ describe("GuestDeliver files", () => {
     }
     expect(screen.queryByRole("button", { name: /^Reveal/ })).toBeNull();
     expect(screen.queryByText("Download all")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "DAW format" })).toBeNull();
   });
 
   it("says so when the host has exported nothing yet", async () => {

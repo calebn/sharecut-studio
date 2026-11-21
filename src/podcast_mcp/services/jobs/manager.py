@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
 
+from podcast_mcp.export.daw_format import DawFormat
 from podcast_mcp.export.names import BOUNCES_DIRNAME
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.project.history.author import SYSTEM_AUTHOR, history_author
@@ -256,6 +257,15 @@ class JobManager:
                 "exact_range": exact_range.model_dump(mode="json") if exact_range else None,
             },
             validate=validate_bounce,
+        )
+
+    def start_daw_export(self, project_path: Path, format: DawFormat) -> Job:
+        from podcast_mcp.services.media import daw_format_blocker
+
+        if blocker := daw_format_blocker(format):
+            raise CodedValueError(blocker, code="daw_export_unavailable")
+        return self._spawn(
+            project_path, kind="daw_export", label="Export DAW session", config={"format": format}
         )
 
     def start_export(
@@ -703,6 +713,16 @@ class JobManager:
         job: Job,
         reporter: JobProgressReporter,
     ) -> tuple[str, dict[str, Any] | None]:
+        if job.kind == "daw_export":
+            from podcast_mcp.services.media import export_daw_archive
+
+            file_id = export_daw_archive(
+                Path(job.project_path),
+                DawFormat((job.config or {})["format"]),
+                job.id,
+                lambda: job.cancel_requested,
+            )
+            return "DAW session exported", {"file_ids": [file_id]}
         raw_target = (job.config or {}).get("target") if job.kind == "export" else None
         variant_target = ExportTarget(raw_target) if raw_target is not None else None
         if variant_target is not None:

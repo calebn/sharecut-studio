@@ -1,4 +1,4 @@
-"""The eleven host document and export routes sit behind the route-level host gate."""
+"""The host document and export routes sit behind the route-level host gate."""
 
 from __future__ import annotations
 
@@ -17,6 +17,8 @@ ROUTES = [
     ("POST", "/api/pending-preview/warm"),
     ("POST", "/api/range-audio"),
     ("POST", "/api/export/bounce"),
+    ("GET", "/api/export/daw/formats"),
+    ("POST", "/api/export/daw"),
     ("POST", "/api/export/deliverables"),
     ("POST", "/api/export/deliverables/settings"),
     ("GET", "/api/export/files"),

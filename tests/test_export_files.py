@@ -182,7 +182,7 @@ def test_a_host_listing_adds_the_bounces_and_skips_what_is_hidden(ws, folder) ->
     (bounces / "nested" / "deep.wav").write_bytes(WAV)
     (bounces / "linked.wav").symlink_to(folder / "clips" / "cold-open_c1.wav")
 
-    listed = ExportFilesService(ws, bounces=True).list()
+    listed = ExportFilesService(ws, host_files=True).list()
 
     assert [(f.id, f.label, f.bytes) for f in listed if f.kind == "bounce"] == [
         ("bounces/range.mp3", "Unmastered export", len(MP3)),
@@ -195,7 +195,7 @@ def test_the_default_service_never_lists_or_opens_a_bounce(ws, folder) -> None:
     assert _bounce_ids(ws) == []
     with pytest.raises(CodedFileNotFoundError):
         ExportFilesService(ws).open("bounces/range.wav")
-    assert ExportFilesService(ws, bounces=True).open("bounces/range.wav").kind == "bounce"
+    assert ExportFilesService(ws, host_files=True).open("bounces/range.wav").kind == "bounce"
 
 
 @pytest.mark.parametrize(
@@ -211,7 +211,7 @@ def test_a_bounce_id_is_matched_as_a_whole_never_joined(ws, folder, file_id) -> 
     (folder / "bounces" / ".range.trim.wav").write_bytes(WAV)
 
     with pytest.raises(CodedFileNotFoundError) as refused:
-        ExportFilesService(ws, bounces=True).open(file_id)
+        ExportFilesService(ws, host_files=True).open(file_id)
 
     assert refused.value.code == "export_file_gone"
 
@@ -224,7 +224,7 @@ def test_a_symlinked_bounces_folder_lists_nothing(ws, folder, tmp_path) -> None:
     (folder / "bounces").rmdir()
     (folder / "bounces").symlink_to(outside)
 
-    assert _bounce_ids(ws, bounces=True) == []
+    assert _bounce_ids(ws, host_files=True) == []
 
 
 def test_the_host_lists_and_downloads_a_bounce_with_a_ticket(ws, folder, remote) -> None:

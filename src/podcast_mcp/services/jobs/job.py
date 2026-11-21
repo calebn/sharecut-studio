@@ -29,6 +29,7 @@ JobKind = Literal[
     "pipeline",
     "render_preview",
     "bounce",
+    "daw_export",
     "export",
     "analyze",
     "split_speakers",
@@ -213,6 +214,7 @@ class KindMeta:
 # Analyze owns both per-track children, so the bar restarts at 0/N for the silence phase.
 KIND_META: dict[str, KindMeta] = {
     "pipeline": KindMeta("Pipeline cancelled", "Pipeline", frozenset({"pipeline"})),
+    "daw_export": KindMeta("DAW export cancelled", "DAW export", frozenset({"daw_export"})),
     "bounce": KindMeta("Bounce cancelled", "Bounce", frozenset({"bounce"})),
     "export": KindMeta("Export cancelled", "Export", frozenset({"export"})),
     "render_preview": KindMeta("Render preview cancelled", "Render preview", frozenset({"render"})),

@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, Request
 from starlette.responses import Response
 
+from podcast_mcp.export.daw_format import DawFormat
 from podcast_mcp.gui.routes import export_ticket
 from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
@@ -24,6 +25,8 @@ from podcast_mcp.gui.routes.export_files import (
 )
 from podcast_mcp.gui.schemas import (
     BounceRequestBody,
+    DawExportRequest,
+    DawExportStarted,
     ExportDeliverablesRequest,
     ExportRevealRequest,
     ExportSettingsAvailable,
@@ -33,6 +36,7 @@ from podcast_mcp.gui.schemas import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import ExportBusyError, TranscriptEmptyError, TranscriptService
 from podcast_mcp.services.jobs import JobManager
+from podcast_mcp.services.media import daw_format_blocker
 from podcast_mcp.services.pipeline import read_export_settings
 
 router = APIRouter()
@@ -70,6 +74,23 @@ def export_bounce(
         raise coded_exception_error(400, exc, code="export_request_invalid") from exc
     snap = job.snapshot()
     return {"job_id": job.id, "job": snap}
+
+
+@router.get("/api/export/daw/formats", dependencies=_HOST_GATE)
+def daw_export_formats() -> dict[DawFormat, str | None]:
+    return {format: daw_format_blocker(format) for format in DawFormat}
+
+
+@router.post("/api/export/daw", dependencies=_HOST_GATE)
+def export_daw(body: DawExportRequest, request: Request) -> DawExportStarted:
+    project_path = resolve_project(body.path, request)
+    try:
+        job = _jobs(request).start_daw_export(project_path, body.format)
+    except RuntimeError as exc:
+        raise coded_exception_error(409, exc, code="export_job_conflict") from exc
+    except ValueError as exc:
+        raise coded_exception_error(400, exc, code="export_request_invalid") from exc
+    return DawExportStarted(job_id=job.id, job=job.snapshot())
 
 
 @router.post("/api/export/deliverables", dependencies=_HOST_GATE)
@@ -140,7 +161,9 @@ def list_export_files(
 ) -> dict[str, Any]:
     """Every file the export folder holds that an export wrote, by id; no host paths."""
     return list_exported_files(
-        ProjectWorkspace.open(resolve_project(path, request)), ticketed=True, bounces=True
+        ProjectWorkspace.open(resolve_project(path, request), adopt=False),
+        ticketed=True,
+        host_files=True,
     )
 
 
@@ -162,8 +185,10 @@ def download_export_file(
     else:
         refuse_relayed(request)
         ticket_version = export_ticket.verified_version(ticket, path, file_id)
-    ws = ProjectWorkspace.open(resolve_project(path, request))
-    return download_exported_file(request, ws, file_id, ticket_version=ticket_version, bounces=True)
+    ws = ProjectWorkspace.open(resolve_project(path, request), adopt=False)
+    return download_exported_file(
+        request, ws, file_id, ticket_version=ticket_version, host_files=True
+    )
 
 
 @router.post("/api/export/files/reveal", dependencies=_HOST_GATE)
@@ -172,5 +197,5 @@ def reveal_export_file(
     request: Request,
 ) -> dict[str, bool]:
     """Show one listed file in this computer's file manager (the desktop app's Reveal)."""
-    ws = ProjectWorkspace.open(resolve_project(body.path, request))
+    ws = ProjectWorkspace.open(resolve_project(body.path, request), adopt=False)
     return reveal_exported_file(request, ws, body.id)

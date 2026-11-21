@@ -24,6 +24,7 @@ import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { useOfflineAttention } from "../../services/offlineQueue/offlineAttention";
 import { canApplyPass12 } from "../../shareMode";
+import { DawSession } from "../../stages/deliver/DawSession";
 import { DeliverStage as DeliverStageBody } from "../../stages/deliver/DeliverStage";
 import type { NamedExportFiles } from "../../stages/deliver/deliverFiles";
 import {
@@ -547,6 +548,25 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             edits,
             onFormats: exportFlow.setSelected,
           }}
+          dawSession={
+            projectPath ? (
+              <DawSession
+                key={`${projectPath}|${projectEpoch}`}
+                projectPath={projectPath}
+                files={files}
+                fileLoad={files.currentLoad}
+                reload={files.reload}
+                filesRunning={exportRunning || bouncing}
+                saveBlocker={
+                  unsaved
+                    ? "Some changes are not saved."
+                    : settling
+                      ? "Saving your changes first."
+                      : undefined
+                }
+              />
+            ) : undefined
+          }
           feed={
             projectPath ? (
               <FeedPanel

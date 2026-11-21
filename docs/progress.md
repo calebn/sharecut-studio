@@ -21,6 +21,8 @@ Export on the Deliver stage renders its progress as a `StatusRow` built in
 unit count, elapsed time, and stale status. The Episode file section owns its
 starting and cancel copy, errors, and outcomes.
 
+The host DAW export reports media preparation, ZIP packing and publication through the Studio job reporter. Each ZIP member advances the count. Packing checks cancellation between chunks. A cancellation during media preparation takes effect before packing. Deliver shows elapsed time and the job’s Cancel action, and Activity owns completion feedback when the host leaves the stage.
+
 ## Loading placeholders
 
 The shared `Skeleton` keeps its "Still loading…" status after the slow-load

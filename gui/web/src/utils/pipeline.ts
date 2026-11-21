@@ -3,6 +3,7 @@ import type { PipelineJobSnapshot } from "../types/pipeline";
 const PIPELINE_SLOT_KINDS = new Set<string>([
   "pipeline",
   "bounce",
+  "daw_export",
   "export",
   "render_preview",
   "analyze",

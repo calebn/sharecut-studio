@@ -55,6 +55,7 @@ Each thing is declared once. A second map from the same key is a bug.
 | Capability (GUI, command, keys, touch, MCP, CLI, skill) | `contracts/capabilities.manifest.json` | `make generated-check`, `commands/manifestSurfaces.test.ts` |
 | Term | `docs/communication-philosophy.md` § Terminology | review (advisory docs-sync row `user-facing-copy-and-controls`) |
 | Job result feedback | `state/uiSlice.ts` owns unidentified start tokens and one tagged feedback record per real ID. `runAnnouncedJob` binds and hands off owned outcomes. One shell transaction observes, publishes and consumes feedback. | `state/runAnnouncedJob.test.ts`, `hooks/useJobStatusAnnouncement.test.tsx`, `stage/hosts/DeliverHostAnnouncements.test.tsx` |
+| Deliver editable DAW session | The host chooses a format in the labeled native select, then activates Export DAW session. Each package uses the shared Download or Reveal row. | `e2e/deliver-daw.spec.ts` |
 | Deliver loudness | Episode file uses the shared toggle buttons and the host export provider holds the next choice. Export snapshots it. Feed repair always uses Project default. | `stage/hosts/DeliverHostLoudness.test.tsx` |
 | Token (color, space, type, z role) | `gui/web/src/styles/theme/`, `deploy/brand/brand-tokens.css` | Stylelint, `tests/test_css_policy.py` |
 

@@ -24,6 +24,7 @@ const KIND_TITLES: Record<ExportedFileKind, string> = {
   chapters: "Chapters",
   feed: "Feed",
   bounce: "Exports of a selection",
+  daw: "DAW sessions",
 };
 
 /** Files from the same kind sit together; inside a kind the order the server sent is kept. */
@@ -34,6 +35,7 @@ export function groupByKind(files: readonly ExportedFile[]) {
     "chapters",
     "feed",
     "bounce",
+    "daw",
   ];
   return order
     .map((kind) => ({
