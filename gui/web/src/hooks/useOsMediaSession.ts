@@ -91,11 +91,10 @@ export function useOsMediaSession(): void {
         position,
         startedPath === state.projectPath,
       );
-      // The engine wraps when playback starts at the end.
+      const restartingFromEnd =
+        startingPlayback && position >= input.durationSec;
       const next = projectOsMediaSession(
-        startingPlayback && position >= input.durationSec
-          ? { ...input, positionSec: 0 }
-          : input,
+        restartingFromEnd ? { ...input, positionSec: 0 } : input,
       );
       write(next);
     };
