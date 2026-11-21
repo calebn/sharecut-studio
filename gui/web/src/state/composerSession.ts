@@ -105,7 +105,9 @@ function leave(
       surface,
       threadId,
       draft:
-        draft && keepText && draft.text ? { ...draft, resume: false } : null,
+        draft && keepText && draft.text.trim()
+          ? { ...draft, resume: false }
+          : null,
       dropped: null,
       pausing: false,
     },
@@ -215,9 +217,13 @@ export function reduceComposer(
     }
     case "layout": {
       if (e.listen) {
-        return same(
-          s.surface === "wideComposer" ? { ...s, surface: "none" } : s,
-        );
+        return s.surface === "wideComposer"
+          ? same({
+              ...s,
+              surface: "none",
+              draft: s.draft?.text.trim() ? s.draft : null,
+            })
+          : same(s);
       }
       if (s.draft?.text && !isComposerSurface(s.surface))
         return same({ ...s, surface: "wideComposer", threadId: null });
