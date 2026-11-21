@@ -4,6 +4,7 @@ import { followCapsOf, planGoTo } from "../presence/goToPlan";
 import { rosterEntry } from "../presence/roster";
 import { canManageProjects, guestHearsMixOnly } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
 import { transportAvailability } from "../state/transportAvailability";
 import type { AuditionMode } from "../state/types";
 import { errorMessage } from "../utils/apiError";
@@ -191,34 +192,33 @@ export function registerNavigationCommands(): void {
     }
   });
 
+  const movePlayhead = (sec: number): ExecuteResult => {
+    const s = useDawStore.getState();
+    s.setPlayheadSec(sec);
+    if (!s.isPlaying && s.timelineFollowPlayhead && !s.followingClientId) {
+      playheadScrollRegistry.scrollToPlayhead("timeline", "if-offscreen");
+    }
+    return { status: "ok" };
+  };
+
   registerCommand("navigation.nudgePlayheadBack", (args, ctx) => {
     const delta = args.shift ? 5 : 1;
-    const s = useDawStore.getState();
-    s.setPlayheadSec(Math.max(0, ctx.playheadSec - delta));
-    return { status: "ok" };
+    return movePlayhead(Math.max(0, ctx.playheadSec - delta));
   });
 
   registerCommand("navigation.nudgePlayheadForward", (args, ctx) => {
     const delta = args.shift ? 5 : 1;
-    const s = useDawStore.getState();
-    s.setPlayheadSec(
+    return movePlayhead(
       Math.min(ctx.timelineDurationSec, ctx.playheadSec + delta),
     );
-    return { status: "ok" };
   });
 
-  registerCommand("navigation.goToStart", () => {
-    const s = useDawStore.getState();
-    s.setPlayheadSec(0);
-    return { status: "ok" };
-  });
+  registerCommand("navigation.goToStart", () => movePlayhead(0));
 
   registerCommand("navigation.goToEnd", (_args, ctx) => {
     const end = Number.isFinite(ctx.timelineDurationSec)
       ? ctx.timelineDurationSec
       : 0;
-    const s = useDawStore.getState();
-    s.setPlayheadSec(Math.max(0, end));
-    return { status: "ok" };
+    return movePlayhead(Math.max(0, end));
   });
 }

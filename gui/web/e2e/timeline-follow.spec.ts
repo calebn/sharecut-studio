@@ -156,6 +156,47 @@ test.describe("desktop timeline follow", () => {
     await expect(page.locator(".timeline-scroll")).toBeFocused();
   });
 
+  test("keyboard seeks reveal the paused playhead while timeline follow is on", async ({
+    page,
+  }) => {
+    await openZoomedTimeline(page);
+    await page.locator(".timeline-scroll").focus();
+    await expect(playButton(page)).toBeVisible();
+
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(() => clockSec(page)).toBeCloseTo(1, 1);
+    expect(await scrollLeft(page)).toBe(0);
+
+    await page.keyboard.press("End");
+    await expect.poll(() => scrollLeft(page)).toBeGreaterThan(0);
+    await expect.poll(() => playheadInView(page)).toBe(true);
+    await expect(playButton(page)).toBeVisible();
+
+    await page.keyboard.press("Home");
+    await expect.poll(() => scrollLeft(page)).toBe(0);
+    await expect.poll(() => playheadInView(page)).toBe(true);
+  });
+
+  test("keyboard seeks leave a manually parked paused timeline in place", async ({
+    page,
+  }) => {
+    await openZoomedTimeline(page);
+    await parkTheViewAwayFromThePlayhead(page);
+    await page.getByRole("button", { name: "Pause" }).click();
+    await page.locator(".timeline-scroll").focus();
+    const parked = await scrollLeft(page);
+
+    await page.keyboard.press("ArrowRight");
+    const beforeHome = await clockSec(page);
+    expect(beforeHome).toBeGreaterThan(0);
+
+    await page.keyboard.press("Home");
+    await expect.poll(() => clockSec(page)).toBe(0);
+    expect(await scrollLeft(page)).toBe(parked);
+    expect(await playheadInView(page)).toBe(false);
+    await expect(page.getByRole("button", { name: PILL })).toBeVisible();
+  });
+
   test("Play re-arms the follow and reveals an off-screen playhead", async ({
     page,
   }) => {
