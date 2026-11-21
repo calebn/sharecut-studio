@@ -2926,15 +2926,19 @@ def test_guest_daw_ws_retries_a_missing_review_version(
     if check == "admission":
         versions = _drop_versions(minimal_project)
     with client.websocket_connect(path) as guest:
-        if check != "admission":
+        if check == "admission":
+            with pytest.raises(WebSocketDisconnect) as closed:
+                guest.receive_json()
+            assert closed.value.code == 1013
+        else:
             assert {guest.receive_json()["plane"], guest.receive_json()["plane"]} == {
                 "session",
                 "document",
             }
             versions = _drop_versions(minimal_project)
-        if check == "presence":
-            guest.send_json({"type": "Presence", "client_seq": 2})
-        assert receive_close(guest) == 1013
+            if check == "presence":
+                guest.send_json({"type": "Presence", "client_seq": 2})
+            assert receive_close(guest) == 1013
     _bring_versions_back(minimal_project, versions)
     with client.websocket_connect(path) as guest:
         assert {guest.receive_json()["plane"], guest.receive_json()["plane"]} == {

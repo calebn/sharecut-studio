@@ -6,6 +6,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Callable, Coroutine
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import WebSocket
@@ -22,6 +23,16 @@ GUEST_SHARE_RECHECK_S = 30.0
 GUEST_SHARE_RECHECK_ON_FRAME_S = 5.0
 GUEST_WS_INVALID_TOKEN_REASON = "invalid or revoked share token"
 GUEST_WS_CONCURRENCY_REASON = "guest ws concurrency limit"
+GUEST_WS_REVOKED_REASON = "share revoked or expired"
+
+
+@dataclass(frozen=True)
+class GuestWsClose:
+    code: int
+    reason: str
+
+
+GuestWsValidation = bool | GuestWsClose
 
 
 async def guest_ws_reject(websocket: WebSocket, code: int, reason: str) -> None:
@@ -36,13 +47,13 @@ class GuestWsGuard:
     def __init__(
         self,
         websocket: WebSocket,
-        still_valid: Callable[[], bool],
+        still_valid: Callable[[], GuestWsValidation],
         *,
         interval: float = GUEST_SHARE_RECHECK_S,
         on_frame: float = GUEST_SHARE_RECHECK_ON_FRAME_S,
         malformed_limit: int = GUEST_MALFORMED_LIMIT,
         send_gate: Callable[[], bool] | None = None,
-        revoked_reason: str = "share revoked or expired",
+        revoked_reason: str = GUEST_WS_REVOKED_REASON,
         invalid_frame: Callable[[], dict[str, Any] | None] | None = None,
     ) -> None:
         self.websocket = websocket
@@ -56,7 +67,7 @@ class GuestWsGuard:
         self.malformed = 0
         self.last_recheck = time.monotonic()
         self._validation_lock = asyncio.Lock()
-        self._valid = True
+        self._validation: GuestWsValidation = True
         self._writer = SerializedWsWriter(self._send_json, websocket.close)
 
     @property
@@ -64,6 +75,8 @@ class GuestWsGuard:
         return self._writer.closed
 
     async def _send_json(self, payload: dict[str, Any]) -> None:
+        if isinstance(self._validation, GuestWsClose):
+            return
         if self._send_gate is not None and not self._send_gate():
             await self.close(4403, "participant removed")
             return
@@ -76,7 +89,9 @@ class GuestWsGuard:
         await self._writer.close(code, reason)
 
     async def close_invalid(self, reason: str) -> None:
-        """Close 4403 after a failed check; a socket that gets a frame for its cause gets it first."""
+        if isinstance(self._validation, GuestWsClose):
+            await self.close(self._validation.code, self._validation.reason)
+            return
         try:
             if self._invalid_frame is not None:
                 frame = await run_in_threadpool(self._invalid_frame)
@@ -98,10 +113,12 @@ class GuestWsGuard:
 
     async def _validate(self, *, force: bool = False) -> bool:
         async with self._validation_lock:
-            if self._valid and (force or time.monotonic() - self.last_recheck >= self.on_frame):
-                self._valid = await run_in_threadpool(self._still_valid)
+            if self._validation is True and (
+                force or time.monotonic() - self.last_recheck >= self.on_frame
+            ):
+                self._validation = await run_in_threadpool(self._still_valid)
                 self.last_recheck = time.monotonic()
-            return self._valid
+            return self._validation is True
 
     async def share_ok_on_frame(self) -> bool:
         return await self._validate()
@@ -204,7 +221,7 @@ class GuestWsConnection:
 
     async def start(
         self,
-        still_valid: Callable[[], bool],
+        still_valid: Callable[[], GuestWsValidation],
         *,
         send_gate: Callable[[], bool] | None = None,
         invalid_frame: Callable[[], dict[str, Any] | None] | None = None,

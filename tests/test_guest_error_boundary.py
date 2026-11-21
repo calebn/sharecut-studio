@@ -290,8 +290,8 @@ def test_guest_ws_coded_permission_reason_ignores_diagnostic_and_is_byte_bounded
 ):
     from podcast_mcp.util.coded_error import CodedPermissionError
 
-    async def admit(_websocket, _token):
-        return False
+    async def share_row(_websocket, _token, *, kind):
+        return {"kind": kind}
 
     error = CodedPermissionError(diagnostic, code="share_capability_required")
     refusal = error
@@ -303,8 +303,8 @@ def test_guest_ws_coded_permission_reason_ignores_diagnostic_and_is_byte_bounded
     def fail(*_args, **_kwargs):
         raise error
 
-    monkeypatch.setattr(review_share, "_admit_review_ws", admit)
-    monkeypatch.setattr(review_share, "require_share_cap", fail)
+    monkeypatch.setattr(review_share, "guest_ws_share_row", share_row)
+    monkeypatch.setattr(review_share, "_resolve_review_ws", fail)
     app = FastAPI()
     app.include_router(review_share.router)
     with pytest.raises(WebSocketDisconnect) as failure:

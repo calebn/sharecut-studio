@@ -33,6 +33,8 @@ from podcast_mcp.gui.routes.feed_routes import served as served_feed
 from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_http_error, guest_ws_error
 from podcast_mcp.gui.routes.guest_ws_common import (
     GUEST_MALFORMED_LIMIT,
+    GUEST_WS_REVOKED_REASON,
+    GuestWsClose,
     GuestWsGuard,
     admit_guest_ws,
     guest_ws_reject,
@@ -66,7 +68,9 @@ from podcast_mcp.services.collaboration import (
     episode_peaks,
     guest_progress_hub,
     guest_words,
+    has_capability,
     lookup_share,
+    open_resolved_share_workspace,
     require_share_cap,
     require_share_edit,
     resolve_share_audio_redirect,
@@ -135,9 +139,11 @@ from podcast_mcp.services.session_sync import (
 from podcast_mcp.services.share_auth import access_required
 from podcast_mcp.util.coded_error import (
     CodedFileNotFoundError,
+    CodedKeyError,
     CodedPermissionError,
     CodedValueError,
     GuardRefusal,
+    guest_message_for_code,
 )
 from podcast_mcp.util.proxy_paths import is_relayed_request
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
@@ -788,13 +794,42 @@ def _restricted_principal_ok(websocket: WebSocket, token: str) -> bool:
     return principal is not None and principal.acl_role is not None
 
 
-def _share_still_valid(token: str, *, restricted: bool, websocket: WebSocket) -> bool:
+def _review_ws_denial(
+    websocket: WebSocket, token: str, row: dict[str, Any], *, admission: bool
+) -> GuestWsClose | None:
+    decision = authorize_share_token(token=token, expected_token=row.get("token"))
+    if not decision.allowed:
+        return GuestWsClose(4403, decision.reason or "forbidden")
+    if access_required(row):
+        if not guest_restricted_origin_allowed(websocket.headers.get("origin")):
+            return GuestWsClose(4403, "Origin not allowed")
+        if not _restricted_principal_ok(websocket, token):
+            return GuestWsClose(4401 if admission else 4403, "authentication required")
+    if not has_capability(row.get("capabilities"), CAP_VIEW):
+        return GuestWsClose(4403, guest_message_for_code("share_capability_required"))
+    return None
+
+
+def _resolve_review_ws(
+    websocket: WebSocket, token: str, *, admission: bool
+) -> tuple[dict[str, Any], ProjectWorkspace] | GuestWsClose:
     try:
-        lookup_share(token, kind="review")
-        require_share_cap(token, CAP_VIEW)
-    except (KeyError, PermissionError, FileNotFoundError):
-        return False
-    return (not restricted) or _restricted_principal_ok(websocket, token)
+        row = lookup_share(token, kind=SHARE_KIND_REVIEW)
+        denial = _review_ws_denial(websocket, token, row, admission=admission)
+        if denial is not None:
+            return denial
+        return open_resolved_share_workspace(row)
+    except (KeyError, PermissionError, FileNotFoundError) as exc:
+        if isinstance(exc, CodedKeyError) and exc.code == "review_version_not_found":
+            return GuestWsClose(1013, guest_message_for_code(exc.code))
+        if admission:
+            raise
+        return GuestWsClose(4403, GUEST_WS_REVOKED_REASON)
+
+
+def _recheck_review_ws(websocket: WebSocket, token: str) -> bool | GuestWsClose:
+    resolved = _resolve_review_ws(websocket, token, admission=False)
+    return resolved if isinstance(resolved, GuestWsClose) else True
 
 
 def _guest_session_frame(event: dict[str, Any], *, guest_client_id: str) -> dict[str, Any]:
@@ -892,30 +927,6 @@ async def _pump_guest_progress(
         raise
 
 
-async def _admit_review_ws(websocket: WebSocket, token: str) -> bool | None:
-    """Review-socket preamble: token, authz, restricted origin/principal.
-
-    Returns the share's ``restricted`` flag, or ``None`` after a reject close
-    (callers must test ``is None`` — ``False`` means an open share).
-    """
-    row = await guest_ws_share_row(websocket, token, kind=SHARE_KIND_REVIEW)
-    if row is None:
-        return None
-    decision = authorize_share_token(token=token, expected_token=row.get("token"))
-    if not decision.allowed:
-        await guest_ws_reject(websocket, 4403, decision.reason or "forbidden")
-        return None
-    restricted = access_required(row)
-    if restricted:
-        if not guest_restricted_origin_allowed(websocket.headers.get("origin")):
-            await guest_ws_reject(websocket, 4403, "Origin not allowed")
-            return None
-        if not await run_in_threadpool(_restricted_principal_ok, websocket, token):
-            await guest_ws_reject(websocket, 4401, "authentication required")
-            return None
-    return restricted
-
-
 @router.websocket("/api/review/{token}/daw/ws")
 async def daw_ws(
     websocket: WebSocket,
@@ -925,10 +936,13 @@ async def daw_ws(
 ) -> None:
     """Guest ShareCut Studio dual-plane fanout (Presence inbound; share-token auth)."""
     try:
-        restricted = await _admit_review_ws(websocket, token)
-        if restricted is None:
+        if await guest_ws_share_row(websocket, token, kind=SHARE_KIND_REVIEW) is None:
             return
-        row, ws_proj = await run_in_threadpool(require_share_cap, token, CAP_VIEW)
+        resolved = await run_in_threadpool(_resolve_review_ws, websocket, token, admission=True)
+        if isinstance(resolved, GuestWsClose):
+            await guest_ws_reject(websocket, resolved.code, resolved.reason)
+            return
+        row, ws_proj = resolved
         share_id = share_id_of(row)
         viewer = share_author(row)
         conn = await admit_guest_ws(websocket, token, share_id=share_id, log_label="guest ws")
@@ -952,9 +966,7 @@ async def daw_ws(
     guard = None
 
     try:
-        guard = await conn.start(
-            lambda: _share_still_valid(token, restricted=restricted, websocket=websocket)
-        )
+        guard = await conn.start(lambda: _recheck_review_ws(websocket, token))
         loop = asyncio.get_running_loop()
         q_session = hub.subscribe(session_key, loop)
         q_doc = hub.subscribe(doc_key, loop)
@@ -1044,7 +1056,7 @@ async def daw_ws(
                 except WebSocketDisconnect:
                     break
                 if not await guard.share_ok_on_frame():
-                    await guard.close(4403, "share revoked or expired")
+                    await guard.close_invalid(GUEST_WS_REVOKED_REASON)
                     break
                 result = await run_in_threadpool(
                     _handle_guest_presence_frame,

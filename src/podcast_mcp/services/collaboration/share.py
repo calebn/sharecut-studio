@@ -1064,7 +1064,11 @@ def open_share_workspace(
     ``kind=SHARE_KIND_RECORD``; the empty review-version sentinel skips the
     mix-version check.
     """
-    row = lookup_share(token, kind=kind)
+    return open_resolved_share_workspace(lookup_share(token, kind=kind))
+
+
+def open_resolved_share_workspace(row: dict[str, Any]) -> tuple[dict[str, Any], ProjectWorkspace]:
+    """Open the episode and resolve the review version of a row from ``lookup_share``."""
     ws = workspace_from_share_row(row, author=share_author(row))
     vid = str(row.get("review_version_id") or "")
     if vid and row.get("follow_latest"):
