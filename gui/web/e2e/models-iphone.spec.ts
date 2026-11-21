@@ -3,8 +3,8 @@ import { openHome } from "./home";
 import {
   expectNoHorizontalScroll,
   expectTouchTargets,
-  mockBootstrap,
   type ModelRow,
+  mockBootstrap,
   prepare,
   shot,
 } from "./modelsMock";
