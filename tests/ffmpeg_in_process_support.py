@@ -7,10 +7,12 @@ import threading
 from collections.abc import Callable, Mapping
 from inspect import isclass, isfunction
 from typing import Any, TypeVar
+from unittest import TestCase
 
 from podcast_mcp.util.process import Streams
 
 _DESKTOP_REASON = "desktop_ffmpeg_reason"
+_DEFAULT_TEST_DISCOVERY = object()
 _Test = TypeVar("_Test", bound=Callable[..., object])
 _MIB = 1 << 20
 
@@ -31,11 +33,16 @@ def shared_ffmpeg_tests(namespace: Mapping[str, object]) -> dict[str, Callable[.
     """Collect the shared cases and reject test shapes this replay cannot mirror."""
     tests: dict[str, Callable[..., object]] = {}
     for name, candidate in namespace.items():
-        explicit = getattr(candidate, "__test__", None)
-        if explicit is False or not callable(candidate):
+        explicit = getattr(candidate, "__test__", _DEFAULT_TEST_DISCOVERY)
+        if candidate is TestCase or (explicit is not _DEFAULT_TEST_DISCOVERY and not explicit):
             continue
-        prefix = "Test" if isclass(candidate) else "test"
-        if explicit is not True and not name.startswith(prefix):
+        if isclass(candidate):
+            matches = name.startswith("Test") or issubclass(candidate, TestCase)
+        elif isinstance(candidate, (classmethod, staticmethod)) or callable(candidate):
+            matches = name.startswith("test")
+        else:
+            continue
+        if explicit is not True and not matches:
             continue
         if not isfunction(candidate):
             raise TypeError(f"{name} must be a module-level function for the FFmpeg test replay")
