@@ -37,6 +37,7 @@ import os
 import re
 import shutil
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -406,7 +407,9 @@ def _clean(text: str) -> str:
     return _LONE_SURROGATE.sub("\ufffd", text)
 
 
-def _card(entry: RecentEntry, jobs: Any) -> dict[str, Any]:
+def _card(
+    entry: RecentEntry, jobs: Any, waiting_for_setup: Callable[[Path], bool] | None
+) -> dict[str, Any]:
     project_file = Path(entry.path)
     base: dict[str, Any] = {
         "path": entry.path,
@@ -431,14 +434,17 @@ def _card(entry: RecentEntry, jobs: Any) -> dict[str, Any]:
         if summary is None:
             return _attention_card(base)
         running, percent = _job_progress(jobs, project_file)
-        stage, chip = _stage_chip(
-            tracks=summary.tracks,
-            running=running,
-            percent=percent,
-            failed=summary.failed,
-            pending=summary.pending,
-            delivered_on=_delivered_on(summary.mastered, project_file),
-        )
+        if not running and waiting_for_setup is not None and waiting_for_setup(project_file):
+            stage, chip = "prepare", {"text": "Waiting for setup", "state": "not-yet"}
+        else:
+            stage, chip = _stage_chip(
+                tracks=summary.tracks,
+                running=running,
+                percent=percent,
+                failed=summary.failed,
+                pending=summary.pending,
+                delivered_on=_delivered_on(summary.mastered, project_file),
+            )
     except Exception:  # one card must never fail the list
         log.exception("Cannot build the recent card for %s", entry.path)
         return _attention_card(base)
@@ -453,11 +459,13 @@ def _card(entry: RecentEntry, jobs: Any) -> dict[str, Any]:
     }
 
 
-def recent_project_cards(jobs: Any = None) -> list[dict[str, Any]]:
+def recent_project_cards(
+    jobs: Any = None, *, waiting_for_setup: Callable[[Path], bool] | None = None
+) -> list[dict[str, Any]]:
     """Card data for Home, newest first. *jobs* is the host job manager when one is running."""
     entries = read_recent()
     _prune_summaries(entries)
-    return [_card(entry, jobs) for entry in entries]
+    return [_card(entry, jobs, waiting_for_setup) for entry in entries]
 
 
 def default_workspace_dir(name: str) -> Path:

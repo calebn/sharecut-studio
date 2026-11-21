@@ -80,7 +80,7 @@ from podcast_mcp.models.project_format import (
 from podcast_mcp.project.io import adopt_retired_entry_file
 from podcast_mcp.services.collaboration import sweep_all_pending
 from podcast_mcp.services.document import cross_process_bridge
-from podcast_mcp.services.jobs import shared_job_manager
+from podcast_mcp.services.jobs import SetupRunQueue, shared_job_manager
 from podcast_mcp.services.media import TranscriptContextBusyError
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.body_limits import MaxBodySizeMiddleware, gui_max_body_bytes
@@ -264,6 +264,8 @@ async def _gui_lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         await asyncio.to_thread(_finalize_due_revokes)
         async with AsyncExitStack() as stack:
+            if app.state.setup_runs_enabled:
+                await stack.enter_async_context(app.state.setup_runs.running())
             if getattr(app.state, "host_mcp_session_manager", None) is not None:
                 from podcast_mcp.gui.host_mcp import host_mcp_lifespan
 
@@ -311,6 +313,8 @@ def create_app(
         lifespan=_gui_lifespan,
     )
     app.state.jobs = jobs
+    app.state.setup_runs = SetupRunQueue(jobs, initial_project=served_project)
+    app.state.setup_runs_enabled = is_bind_loopback(bind_host)
     app.state.host_sessions = None if loopback_is_trusted else HostSessions()
     app.state.diagnostics_bundles = {}
     app.state.studio_host = handoff.StudioHostState(bind_host)

@@ -35,6 +35,7 @@ if TYPE_CHECKING:
         studio_job_manager,
     )
     from podcast_mcp.services.jobs.reporter import AgentJobFanInReporter, SsePublishReporter
+    from podcast_mcp.services.jobs.setup_runs import SetupRunQueue
 
 __all__ = [
     "GUEST_EXPORT_KINDS",
@@ -50,6 +51,7 @@ __all__ = [
     "JobKind",
     "JobManager",
     "JobSlotBusyError",
+    "SetupRunQueue",
     "SsePublishReporter",
     "StepTiming",
     "guest_job_done",
@@ -76,6 +78,7 @@ _MODULE_BY_NAME = {
     "JobKind": "job",
     "JobManager": "manager",
     "JobSlotBusyError": "job",
+    "SetupRunQueue": "setup_runs",
     "SsePublishReporter": "reporter",
     "StepTiming": "job",
     "GUEST_EXPORT_KINDS": "job",

@@ -104,6 +104,11 @@ function shellLoadFailure(
   };
 }
 
+function setSetupWaitingProject(setupWaitingProject: string | null) {
+  if (useDawStore.getState().setupWaitingProject !== setupWaitingProject)
+    useDawStore.setState({ setupWaitingProject });
+}
+
 export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const {
     projectPath,
@@ -145,6 +150,8 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
 
   usePipelineJob(pipelineJob, setPipelineJob, {
     enabled: pipelineEnabled,
+    projectPath,
+    setSetupWaitingProject,
     activityJob,
     setActivityJob,
     setActivityRunningCount,

@@ -148,6 +148,7 @@ export type {
 } from "./api/pipeline";
 export {
   cancelPipelineRun,
+  enqueueSetupRun,
   followExportJob,
   followJobToOk,
   JobCancelledError,

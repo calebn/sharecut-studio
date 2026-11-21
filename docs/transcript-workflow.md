@@ -707,6 +707,10 @@ Pipeline Run, MCP `pipeline_run` and `transcribe_track`, and CLI `podcast transc
 check the Whisper model before they change anything. When it is not downloaded (or does
 not match its pin) they refuse with `model_needed`, naming the model, its size and
 `podcast bootstrap --component whisper`; the Run route answers 409 with the same fields.
+When the active Studio host already queued a first run for an imported episode,
+its MCP `pipeline_run` reports `pipeline_setup_waiting`. Studio starts the saved run
+when the selected models are ready. Standalone commands still run when requested.
+
 A model that goes missing after that check (such as RNNoise in a mix step) fails the job; `pipeline_run`
 re-raises it as the same `model_needed` refusal with the command, while the Studio job text stays the plain
 "{label} is not downloaded." line. That holds for every job text, including the live progress message, a failed step's error and an agent job's message: they

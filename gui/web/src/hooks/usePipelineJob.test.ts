@@ -113,6 +113,35 @@ describe("usePipelineJob", () => {
     });
   });
 
+  it("publishes setup waiting changes even when the job status is unchanged", async () => {
+    vi.useFakeTimers();
+    const setSetupWaitingProject = vi.fn();
+    const projectPath = "/episodes/queued.sharecut";
+    loadPipelineStatus
+      .mockResolvedValueOnce({
+        running: false,
+        job: null,
+        waiting_for_setup: true,
+      })
+      .mockResolvedValue({
+        running: false,
+        job: null,
+        waiting_for_setup: false,
+      });
+    const { unmount } = renderHook(() =>
+      usePipelineJob(null, vi.fn(), { projectPath, setSetupWaitingProject }),
+    );
+    try {
+      await act(async () => vi.advanceTimersByTimeAsync(0));
+      expect(setSetupWaitingProject).toHaveBeenLastCalledWith(projectPath);
+      await act(async () => vi.advanceTimersByTimeAsync(5000));
+      expect(setSetupWaitingProject).toHaveBeenLastCalledWith(null);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
   it("splits jobs into pipeline vs activity store fields", () => {
     const setPipelineJob = vi.fn();
     const setActivityJob = vi.fn();

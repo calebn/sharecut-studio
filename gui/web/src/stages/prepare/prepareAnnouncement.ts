@@ -11,6 +11,7 @@ export type PreparePhase =
   | "transcribing"
   | "needs-model"
   | "waiting"
+  | "waiting-for-setup"
   | "not-started"
   | "new-audio"
   | "keep-fixes"
@@ -62,6 +63,8 @@ export function prepareAnnouncement({
       return "Transcribing needs a download first.";
     case "keep-fixes":
       return "You fixed words by hand. Keep my fixes or replace them.";
+    case "waiting-for-setup":
+      return "Waiting for setup.";
     case "waiting":
       return "Processing starts when the other job finishes.";
     case "not-started":

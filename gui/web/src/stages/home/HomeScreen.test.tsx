@@ -51,6 +51,7 @@ vi.mock("../../api", async (importOriginal) => ({
   revealRecentProject: vi.fn(),
   duplicateRecentProject: vi.fn(),
   createEpisodeProject: vi.fn(),
+  enqueueSetupRun: vi.fn(),
   addTrackCommand: vi.fn(),
   uploadMediaFile: vi.fn(),
   openEpisodeProject: vi.fn(),
@@ -76,6 +77,7 @@ const forget = vi.mocked(api.forgetRecentProject);
 const reveal = vi.mocked(api.revealRecentProject);
 const duplicate = vi.mocked(api.duplicateRecentProject);
 const create = vi.mocked(api.createEpisodeProject);
+const enqueueSetup = vi.mocked(api.enqueueSetupRun);
 const open = vi.mocked(api.openEpisodeProject);
 const loadCfg = vi.mocked(api.loadPipelineConfig);
 const putCfg = vi.mocked(api.putPipelineConfig);
@@ -157,6 +159,7 @@ describe("HomeScreen", () => {
     window.localStorage.clear();
     list.mockResolvedValue([recent()]);
     forget.mockResolvedValue(undefined);
+    enqueueSetup.mockReset().mockResolvedValue(true);
     assign.mockReset();
     vi.stubGlobal("location", {
       href: "http://127.0.0.1:8765/?home=1",
@@ -173,6 +176,32 @@ describe("HomeScreen", () => {
     expect(assign).toHaveBeenCalledOnce();
     return new URL(String(assign.mock.calls[0]?.[0]));
   }
+
+  it("refreshes Recent while an episode waits for setup and then runs", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const waiting = recent({
+      stage: "prepare",
+      chip: { text: "Waiting for setup", state: "needs-you" },
+    });
+    list.mockResolvedValue([waiting]);
+    const { unmount } = render(<HomeScreen />);
+    try {
+      await act(async () => vi.advanceTimersByTimeAsync(0));
+      expect(screen.getByText("Waiting for setup")).toBeVisible();
+      list.mockResolvedValue([
+        recent({ chip: { text: "Processing", state: "running" } }),
+      ]);
+      await act(async () => vi.advanceTimersByTimeAsync(5000));
+      expect(screen.queryByText("Waiting for setup")).not.toBeInTheDocument();
+      expect(screen.getByText("Processing")).toBeVisible();
+      list.mockResolvedValue([recent()]);
+      await act(async () => vi.advanceTimersByTimeAsync(5000));
+      expect(screen.getByText("Review 6")).toBeVisible();
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
 
   it("lists the recent episodes as cards", async () => {
     render(<HomeScreen />);
@@ -670,7 +699,44 @@ describe("HomeScreen", () => {
       expect(localStorage.getItem("sharecut.soundScanStartFailed")).toBeNull();
       expect(ingestInto).toHaveBeenCalledWith(EP, [file]);
       expect(takeOpenStage(EP)).toBe("prepare");
+      expect(enqueueSetup).toHaveBeenCalledWith(EP);
+      expect(enqueueSetup).toHaveBeenCalledAfter(ingestInto);
+      expect(assign).toHaveBeenCalledAfter(enqueueSetup);
+      expect(takeAutoRun(EP)).toBe(false);
+    });
+
+    it("uses the on-open run when the host cannot queue setup", async () => {
+      const user = userEvent.setup();
+      pickFiles.mockResolvedValue([new File(["x"], "Rosa.wav")]);
+      create.mockResolvedValue({ project_path: EP, name: "Rosa" });
+      ingestInto.mockResolvedValue({ added: 1 });
+      loadCfg.mockResolvedValue(freshConfig());
+      enqueueSetup.mockResolvedValue(false);
+      render(<HomeScreen />);
+      await user.click(
+        await screen.findByRole("button", { name: /^Import audio/ }),
+      );
+      await waitFor(() => expect(assign).toHaveBeenCalledOnce());
       expect(takeAutoRun(EP)).toBe(true);
+    });
+
+    it("keeps the imported episode in Recent if queuing setup fails", async () => {
+      expect.assertions(3);
+      const user = userEvent.setup();
+      pickFiles.mockResolvedValue([new File(["x"], "Rosa.wav")]);
+      create.mockResolvedValue({ project_path: EP, name: "Rosa" });
+      ingestInto.mockResolvedValue({ added: 1 });
+      loadCfg.mockResolvedValue(freshConfig());
+      enqueueSetup.mockRejectedValue(new Error("queue unavailable"));
+      render(<HomeScreen />);
+      await user.click(
+        await screen.findByRole("button", { name: /^Import audio/ }),
+      );
+      expect(
+        await screen.findByText(/Audio was added to "Rosa"/),
+      ).toBeVisible();
+      expect(assign).not.toHaveBeenCalled();
+      expect(takeAutoRun(EP)).toBe(false);
     });
 
     it("Import is enabled and starts an episode while models are missing", async () => {

@@ -88,6 +88,7 @@ export type AdvancedStepsProps = {
   onPersonal?: (stepId: string, on: boolean) => void;
   onReset: (stepId: string, paramId: string) => void;
   onRunFromHere: (id: string) => void;
+  runDisabledReason?: string;
   onCancel: () => void;
 };
 
@@ -308,6 +309,7 @@ export function AdvancedSteps({
   onPersonal,
   onReset,
   onRunFromHere,
+  runDisabledReason,
   onCancel,
 }: AdvancedStepsProps) {
   const titleId = useId();
@@ -469,7 +471,7 @@ export function AdvancedSteps({
                   )}
                 >
                   <MenuItem
-                    disabledReason={locked ? BUSY : undefined}
+                    disabledReason={locked ? BUSY : runDisabledReason}
                     onSelect={() => {
                       setMenuFor(null);
                       onRunFromHere(step.id);

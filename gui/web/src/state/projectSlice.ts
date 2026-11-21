@@ -126,6 +126,7 @@ type ProjectSlice = Pick<
   | "setGuestMode"
   | "setPipelineJob"
   | "pipelineJob"
+  | "setupWaitingProject"
   | "setActivityJob"
   | "activityJob"
   | "setActivityRunningCount"
@@ -263,6 +264,7 @@ export const createProjectSlice: StateCreator<
   setPipelineJob: (pipelineJob: PipelineJobSnapshot | null) =>
     set({ pipelineJob }),
   pipelineJob: null,
+  setupWaitingProject: null,
   setActivityJob: (activityJob: PipelineJobSnapshot | null) =>
     set({ activityJob }),
   activityJob: null,
@@ -290,6 +292,7 @@ export const createProjectSlice: StateCreator<
     set({
       projectPath,
       projectEpoch: samePath ? get().projectEpoch : get().projectEpoch + 1,
+      setupWaitingProject: samePath ? get().setupWaitingProject : null,
       project: initialProject,
       heldTrim: null,
       guestMode,

@@ -56,6 +56,20 @@ export async function putPipelineConfig(
   return res.json() as Promise<PipelineConfigResponse>;
 }
 
+export async function enqueueSetupRun(projectPath: string): Promise<boolean> {
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/pipeline/setup-run" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath }),
+    },
+  );
+  const { queued } = (await res.json()) as { queued: boolean };
+  return queued;
+}
+
 export async function loadPipelineStatus(init?: {
   signal?: AbortSignal;
 }): Promise<PipelineStatusResponse> {

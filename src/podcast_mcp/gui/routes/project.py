@@ -262,7 +262,10 @@ def list_recent_projects(
 ) -> JSONResponse:
     """The last opened episodes on this machine as Home cards (host / loopback only)."""
     _require_recent_access(request)
-    cards = recent_project_cards(getattr(request.app.state, "jobs", None))
+    cards = recent_project_cards(
+        getattr(request.app.state, "jobs", None),
+        waiting_for_setup=request.app.state.setup_runs.waiting,
+    )
     return JSONResponse({"projects": cards}, headers={"Cache-Control": "no-store"})
 
 
