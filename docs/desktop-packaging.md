@@ -227,7 +227,9 @@ into it; there is no sidecar process.
   cross-built wheel, each have a sha256 recorded beside them and are rebuilt when it no longer
   matches.
 - **FFmpeg framework.** `make ios-ffmpeg-device` and `make ios-ffmpeg-sim` run
-  `build_ffmpeg.sh` and then `scripts/ios/ffmpeg_framework.py assemble`, which builds
+  `build_ffmpeg.sh` and then `scripts/ios/ffmpeg_framework.py assemble`. The build
+  script requires valid option lists for LAME, Opus, and FFmpeg in
+  `contracts/ffmpeg-build.json` before it runs any configure step. The assemble builds
   `src-tauri/ios-payload/FFmpeg.xcframework` (untracked) from whichever of
   `ios-ffmpeg/out/{device,sim}/FFmpeg.framework` exist. It copies each framework to a staging
   folder, adds the framework's own `PrivacyInfo.xcprivacy`
