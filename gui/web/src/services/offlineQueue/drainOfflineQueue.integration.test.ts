@@ -96,8 +96,10 @@ const rec = (id: string, seq: number): QueuedCommand => ({
   created_at: seq,
 });
 
-/** Answer each POST by its command_id: an HTTP status (default 200) or "offline". */
-function stubServer(answers: Record<string, number | "offline">): string[] {
+type StubAnswer = number | "offline" | { status: number; code: string };
+
+/** Answer each POST by its command_id: an HTTP status (default 200), a coded refusal or "offline". */
+function stubServer(answers: Record<string, StubAnswer>): string[] {
   const posted: string[] = [];
   vi.stubGlobal(
     "fetch",
@@ -110,6 +112,12 @@ function stubServer(answers: Record<string, number | "offline">): string[] {
       if (answer === "offline") throw new TypeError("network down");
       if (answer === 200) {
         return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+      if (typeof answer === "object") {
+        return new Response("refused", {
+          status: answer.status,
+          headers: { "X-ShareCut-Error-Code": answer.code },
+        });
       }
       return new Response("refused", { status: answer });
     }),
@@ -298,6 +306,29 @@ describe("guest drain against the real submit layer", () => {
       expect(ids(guestQueues.get(TOKEN))).toEqual(["held", "c"]);
     },
   );
+
+  it("keeps a guest command in order until its missing review version returns", async () => {
+    guestQueues.set(TOKEN, [rec("held", 1), rec("later", 2)]);
+    const answers: Record<string, StubAnswer> = {
+      held: { status: 404, code: "review_version_not_found" },
+    };
+    const posted = stubServer(answers);
+
+    await drain();
+
+    expect(posted).toEqual(["held"]);
+    expect(ids(guestQueues.get(TOKEN))).toEqual(["held", "later"]);
+    expect(guestConflicts).toMatchObject([
+      { kind: "unknown", command: { command_id: "held" } },
+    ]);
+
+    delete answers.held;
+    await drain();
+    await drain();
+
+    expect(posted).toEqual(["held", "held", "later"]);
+    expect(ids(guestQueues.get(TOKEN))).toEqual([]);
+  });
 
   it("records orphaned history as inspect-only uncertainty before later work", async () => {
     guestQueues.set(TOKEN, [
