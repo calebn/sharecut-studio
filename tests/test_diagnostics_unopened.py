@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
@@ -139,6 +140,45 @@ def test_the_folder_is_still_redacted_in_jobs_and_logs_of_an_unopened_bundle(
     assert job["message"] == "no audio under <workspace>/raw"
     for text in members.values():
         assert folder not in text
+
+
+def test_an_unopened_bundle_keeps_its_code_and_masks_the_same_prefix_in_free_text(
+    minimal_project, bundle_env, monkeypatch, tmp_path
+):
+    prefix = "suppor"
+    token = prefix + "ting-fixture-quokka"
+    monkeypatch.setattr(
+        diagnostics_mod,
+        "get_share_registry",
+        lambda: SimpleNamespace(known_tokens=lambda: frozenset({token})),
+    )
+    log = tmp_path / "sidecar.log"
+    log.write_text(f"Failed to open {minimal_project.parent}/raw with {token} or {prefix}\n")
+    monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
+    jobs = MagicMock()
+    jobs.recent_snapshots.return_value = [
+        {
+            "kind": "pipeline",
+            "status": "failed",
+            "message": f"Failed with {token} or {prefix} under {minimal_project.parent}/raw",
+        }
+    ]
+    _break(minimal_project, "unsupported")
+    with _client(minimal_project, jobs) as client:
+        bundle = client.post("/api/diagnostics/bundle", json={})
+        assert bundle.status_code == 200, bundle.text
+        downloaded = client.get(f"/api/diagnostics/bundle/{bundle.json()['filename']}")
+    assert downloaded.status_code == 200, downloaded.text
+    with zipfile.ZipFile(io.BytesIO(downloaded.content)) as zf:
+        report = json.loads(zf.read("report.json"))
+        assert report["project"] is None
+        assert report["jobs"][0]["message"] == (
+            "Failed with <redacted> or <redacted> under <workspace>/raw"
+        )
+        assert zf.read("sidecar.log").decode() == (
+            "Failed to open <workspace>/raw with <redacted> or <redacted>"
+        )
+    assert report["episode_not_opened"]["code"] == "project_version_unsupported"
 
 
 def test_a_gone_folder_still_reports_free_space(minimal_project, bundle_env):
