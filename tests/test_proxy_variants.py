@@ -96,6 +96,37 @@ def _bootstrap(ws, monkeypatch):
     return imported
 
 
+def test_project_basis_tracks_selected_secondary_recording(workspace, monkeypatch):
+    project = workspace.project
+    project.sources = [
+        SourceRecording(id="take-a", path="raw/take-a.wav"),
+        SourceRecording(id="take-b", path="raw/take-b.wav"),
+    ]
+    clip = Clip(
+        id="selected",
+        track_id="host",
+        source_id="take-a",
+        source_start=0.2,
+        source_end=1.4,
+        timeline_start=3,
+    )
+    project.clips = [clip]
+    defaults = load_defaults()
+
+    # Hold the engine digests constant to exercise the manifest selection term itself.
+    monkeypatch.setattr(pv, "proxy_render_hash", lambda *_args, **_kwargs: "proxy")
+    monkeypatch.setattr(pv, "track_render_hash", lambda *_args, **_kwargs: "track")
+
+    assert pv.select_manifest(project).recordings == {"selected": ("host", "take-a")}
+    first = pv.project_basis(project, defaults)
+
+    clip.source_id = "take-b"
+    assert pv.select_manifest(project).recordings == {"selected": ("host", "take-b")}
+    second = pv.project_basis(project, defaults)
+
+    assert second.render_hashes["host"] != first.render_hashes["host"]
+
+
 def test_restored_occurrence_reads_non_dialogue_origin_and_lane(workspace):
     ws = workspace
     host = ws.project.track_by_id("host")
