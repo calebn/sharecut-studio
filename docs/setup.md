@@ -638,7 +638,7 @@ podcast play --project ... --source track:host --start 0 --end 10
 podcast play --project ... --source premix --start 30 --end 45 --rerender
 
 podcast play --project ... --query "keyword" --padding 1.5
-# Captions + clip-skew / stem freshness before audition (timeline seconds)
+# Dialogue captions, cue placements, clip skew, and stem freshness (timeline seconds)
 podcast play context --project ... --start 924 --end 930
 podcast play context --project ... --start 924 --end 930 --detail visual
 
