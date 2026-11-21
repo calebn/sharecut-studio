@@ -17,17 +17,22 @@ import { runPointerCommand } from "../commands/pointer";
 import { seekTransport } from "../commands/seek";
 import { useDawStore } from "../state/dawStore";
 import { syncPlayhead } from "../state/systemPlayhead";
-import { resumeEpisodeFromPreview, stopSourcePreview } from "./playerPlayback";
+
+const togglePlay = () => runPointerCommand("transport.togglePlay");
 
 const storeCommands: OsTransportCommands = {
   isPlaying: () => useDawStore.getState().isPlaying,
   livePositionSec: livePlayheadSec,
   previewActive: () => useDawStore.getState().sourcePreview !== null,
   previewPlaying: () => useDawStore.getState().sourcePreview?.playing === true,
-  stopPreview: stopSourcePreview,
-  resumeEpisode: resumeEpisodeFromPreview,
+  stopPreview: () => {
+    const state = useDawStore.getState();
+    state.setIsPlaying(false);
+    state.stopFollow("local");
+  },
+  resumeEpisode: togglePlay,
   syncPlayhead,
-  togglePlay: () => runPointerCommand("transport.togglePlay"),
+  togglePlay,
   skip: (deltaSec) =>
     skipListen(deltaSec, episodeDurationSec(useDawStore.getState().project)),
   seek: (sec) => void seekTransport(sec),

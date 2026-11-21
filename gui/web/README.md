@@ -214,6 +214,11 @@ Use `executePointerCommand(id, args)` when a pointer handler needs to await a
 result or clear busy state after completion. It returns the command's original
 `ExecuteResult` promise, including rejections. Both helpers share one gate policy.
 `CommandButton` and `useCommand` retain their configurable gate policy.
+`transport.togglePlay` handles the Player button, Space, and the palette. It
+pauses a playing source preview and plays the episode after the preview ends.
+The composer and audio Retry pass `episodeOnly` because their actions use the
+episode's playback state. Media Session chooses Play or Pause before dispatch
+so an explicit Pause can release an ended preview without restarting sound.
 The keymap listener evaluates keyboard gates before dispatch. DAW WebMCP play
 returns the original `execute` result through its agent adapter. The `play_pause`
 reply is `{ status: "ok" }` on success, `{ status: "disabled", reason }` on refusal,

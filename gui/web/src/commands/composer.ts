@@ -17,5 +17,6 @@ export function dispatchComposer(event: ComposerEvent): void {
     playing: isPlaying,
   });
   if (state !== composer) useDawStore.setState(composerPatch(state));
-  for (const _ of effects) runPointerCommand("transport.togglePlay");
+  for (const _ of effects)
+    runPointerCommand("transport.togglePlay", { episodeOnly: true });
 }
