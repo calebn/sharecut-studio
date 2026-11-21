@@ -104,6 +104,24 @@ for (const { shell, viewport } of SHELLS) {
               exact: true,
             });
             await expect(title).toHaveValue("Opening");
+            if (shell === "phone") {
+              const gap = await title.evaluate((field) => {
+                const label = field
+                  .closest(".sys-inspector-row")!
+                  .querySelector(".sys-inspector-label")!;
+                const text = document.createRange();
+                text.selectNodeContents(label);
+                const labelBox = text.getBoundingClientRect();
+                const fieldBox = field.getBoundingClientRect();
+                return Math.max(
+                  fieldBox.left - labelBox.right,
+                  fieldBox.top - labelBox.bottom,
+                );
+              });
+              expect(gap, "the Title label clears its input").toBeGreaterThan(
+                0,
+              );
+            }
             await expect(
               dialog.getByRole("spinbutton", { name: "Time" }),
             ).toHaveAttribute("aria-valuenow", "40");
