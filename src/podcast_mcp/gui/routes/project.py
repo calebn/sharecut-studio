@@ -264,7 +264,9 @@ def list_recent_projects(
     _require_recent_access(request)
     cards = recent_project_cards(
         getattr(request.app.state, "jobs", None),
-        waiting_for_setup=request.app.state.setup_runs.waiting,
+        waiting_for_setup=(
+            request.app.state.setup_runs.waiting if request.app.state.setup_runs_enabled else None
+        ),
     )
     return JSONResponse({"projects": cards}, headers={"Cache-Control": "no-store"})
 

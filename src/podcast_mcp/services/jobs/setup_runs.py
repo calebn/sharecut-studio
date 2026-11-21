@@ -20,6 +20,7 @@ from podcast_mcp.services.pipeline import (
     config_store,
     ensure_whisper_cached_for_run,
     ensure_word_aligner_for_run,
+    merge_pipeline_config,
     skip_steps_from_enabled,
 )
 from podcast_mcp.util import host_platform
@@ -38,6 +39,7 @@ class SetupRun(BaseModel):
     config: dict[str, Any]
     skip_steps: list[str] | None
     unattended: bool
+    launch_project: Path | None = None
 
 
 _RUNS = TypeAdapter(list[SetupRun])
@@ -78,7 +80,7 @@ class SetupRunQueue:
     ) -> None:
         self.jobs = jobs
         self.path = path or settings.config_dir() / "setup-runs.json"
-        self._projects = {initial_project.resolve()} if initial_project else None
+        self._launch_project = initial_project.resolve() if initial_project else None
 
     def _read(self) -> list[SetupRun]:
         try:
@@ -89,13 +91,36 @@ class SetupRunQueue:
     def _replace(self, entries: list[SetupRun]) -> None:
         atomic_write(self.path, lambda handle: handle.write(_RUNS.dump_json(entries)))
 
+    def _owns(self, entry: SetupRun) -> bool:
+        return self._launch_project is None or self._launch_project in (
+            entry.path,
+            entry.launch_project,
+        )
+
     def waiting(self, project_path: Path | str) -> bool:
         path = Path(project_path).resolve()
         try:
-            return any(entry.path == path for entry in self._read())
+            return any(entry.path == path and self._owns(entry) for entry in self._read())
         except (OSError, ValueError):
             logger.warning("Could not read queued setup runs")
             return False
+
+    def _downloading_whisper_model(self) -> str | None:
+        download = self.jobs.get_bootstrap_job()
+        if (
+            download is not None
+            and download.status in LIVE_JOB_STATUSES
+            and not download.cancel_requested
+            and "whisper" in download.components
+        ):
+            return download.whisper_model
+        return None
+
+    def _resolve_model(self, entry: SetupRun, downloading_model: str | None) -> SetupRun:
+        config = merge_pipeline_config(entry.config)
+        if downloading_model is not None:
+            config["transcribe"]["model"] = downloading_model
+        return entry.model_copy(update={"config": config})
 
     def enqueue(self, project_path: Path) -> bool:
         path = project_path.resolve()
@@ -106,6 +131,10 @@ class SetupRunQueue:
         ):
             return False
         working = config_store().get(path, stage=False)
+        # Home applies the current Prepare defaults before upload. The Whisper model for a
+        # first run follows Setup, whose preference may change while the episode is waiting.
+        transcribe = working.config.get("transcribe")
+        staged_model = transcribe.pop("model", None) if isinstance(transcribe, dict) else None
         intent = SetupRun(
             path=path,
             created_at=project.created_at,
@@ -116,15 +145,21 @@ class SetupRunQueue:
                 else None
             ),
             unattended=working.unattended,
+            launch_project=self._launch_project,
         )
         with hold_shared_file_lock(self.path.with_suffix(".lock"), timeout=2):
             entries = self._read()
-            if not any(entry.path == path for entry in entries):
-                if _models_ready(intent):
-                    return False
-                self._replace([*entries, intent])
-            if self._projects is not None:
-                self._projects.add(path)
+            existing = next((entry for entry in entries if entry.path == path), None)
+            if existing is not None:
+                return self._owns(existing)
+            downloading_model = self._downloading_whisper_model()
+            run = self._resolve_model(intent, downloading_model)
+            model_changed = (
+                staged_model is not None and staged_model != run.config["transcribe"]["model"]
+            )
+            if downloading_model is None and not model_changed and _models_ready(run):
+                return False
+            self._replace([*entries, intent])
         return True
 
     def _remove(self, entry: SetupRun) -> None:
@@ -138,9 +173,10 @@ class SetupRunQueue:
         for entry in self._read():
             if stop.is_set():
                 return
-            if self._projects is not None and entry.path not in self._projects:
+            if not self._owns(entry):
                 continue
-            if not _models_ready(entry):
+            run = self._resolve_model(entry, self._downloading_whisper_model())
+            if not _models_ready(run):
                 continue
             try:
                 project = load_project(entry.path)
@@ -154,7 +190,7 @@ class SetupRunQueue:
             try:
                 job = self.jobs.start(
                     entry.path,
-                    config=entry.config,
+                    config=run.config,
                     skip_steps=entry.skip_steps,
                     unattended=entry.unattended,
                 )

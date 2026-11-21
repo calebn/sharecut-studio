@@ -296,6 +296,32 @@ def test_host_mcp_injects_open_project(minimal_project) -> None:
         assert unknown is not None
 
 
+def test_host_mcp_pipeline_run_respects_its_own_setup_queue(minimal_project, monkeypatch) -> None:
+    app = create_app(served_project=minimal_project)
+    checked = []
+
+    def waiting(path):
+        checked.append(path)
+        return True
+
+    monkeypatch.setattr(app.state.setup_runs, "waiting", waiting)
+    with TestClient(app) as client:
+        _initialize(client)
+        response = _post_mcp(
+            client,
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "pipeline_run", "arguments": {}},
+            },
+        )
+        assert _rpc_payload(response)["result"]["structuredContent"]["error_code"] == (
+            "pipeline_setup_waiting"
+        )
+    assert checked == [minimal_project]
+
+
 def test_host_mcp_shares_app_with_static_dir(tmp_path, minimal_project) -> None:
     pytest.importorskip("fastapi")
     dist = tmp_path / "dist"

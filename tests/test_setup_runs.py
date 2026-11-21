@@ -7,13 +7,14 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.engines.models.whisper import persist_whisper_model
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.app.recent_projects import recent_project_cards, record_recent
 from podcast_mcp.services.jobs import Job, JobManager
 from podcast_mcp.services.jobs import setup_runs as queue_module
 from podcast_mcp.services.jobs.setup_runs import SetupRunQueue
-from podcast_mcp.services.pipeline import PipelineService
+from podcast_mcp.services.pipeline import PipelineService, config_store
 from podcast_mcp.util.model_missing import ModelMissing
 
 
@@ -132,7 +133,46 @@ def test_pinned_studio_does_not_start_another_hosts_queued_episode(
 
     monkeypatch.setattr(queue_module, "_models_ready", must_not_start)
     other._dispatch(threading.Event())
-    assert other.waiting(imported_project)
+    assert not other.waiting(imported_project)
+
+
+def test_pinned_studio_resumes_its_home_import_after_restarting(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    path = tmp_path / "setup-runs.json"
+    launch_project = tmp_path / "pinned.sharecut"
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    initial = SetupRunQueue(jobs, path, initial_project=launch_project)
+    assert initial.enqueue(imported_project)
+    reopened = SetupRunQueue(jobs, path, initial_project=launch_project)
+    assert reopened.waiting(imported_project)
+    calls = []
+
+    def start(project_path, **_opts):
+        calls.append(project_path)
+        return Job(id="first-run", kind="pipeline", status="ok")
+
+    monkeypatch.setattr(jobs, "start", start)
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: True)
+    reopened._dispatch(threading.Event())
+    assert calls == [imported_project]
+    assert not reopened.waiting(imported_project)
+
+
+def test_studio_without_setup_worker_does_not_project_a_local_queue(
+    imported_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    assert SetupRunQueue(JobManager()).enqueue(imported_project)
+    record_recent(imported_project)
+    app = create_app(served_project=imported_project, bind_host="0.0.0.0", host_mcp=False)
+    client = TestClient(app, client=("127.0.0.1", 5000))
+    assert not client.get("/api/pipeline/status").json().get("waiting_for_setup")
+    [card] = client.get("/api/projects/recent").json()["projects"]
+    assert card["chip"]["text"] != "Waiting for setup"
+    response = client.post("/api/pipeline/run", json={"path": str(imported_project)})
+    assert response.headers.get("x-sharecut-error-code") != "pipeline_setup_waiting"
 
 
 def test_ready_import_keeps_the_existing_immediate_run_path(
@@ -142,6 +182,49 @@ def test_ready_import_keeps_the_existing_immediate_run_path(
     queue = SetupRunQueue(JobManager(), tmp_path / "setup-runs.json")
     assert queue.enqueue(imported_project) is False
     assert queue.waiting(imported_project) is False
+
+
+@pytest.mark.parametrize("selection", ["after_import", "downloading", "finished_during_import"])
+def test_queued_run_uses_the_new_whisper_variant(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, selection: str
+) -> None:
+    monkeypatch.delenv("PODCAST_WHISPER_MODEL", raising=False)
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "model-cache"))
+    persist_whisper_model("large-v3-turbo")
+    jobs = JobManager()
+    queue = SetupRunQueue(jobs, tmp_path / "setup-runs.json")
+    download = Job.bootstrap("alternate-download", ["whisper"], whisper_model="small.en")
+    ready = set()
+    if selection == "downloading":
+        monkeypatch.setattr(jobs, "get_bootstrap_job", lambda: download)
+        ready.add("large-v3-turbo")
+    elif selection == "finished_during_import":
+        config_store().put(imported_project, config={"transcribe": {"model": "large-v3-turbo"}})
+        persist_whisper_model("small.en")
+        ready.add("small.en")
+    used = []
+
+    def start(_path, *, config, **_kwargs):
+        used.append(config["transcribe"]["model"])
+        return Job(id="first-run", kind="pipeline", status="ok")
+
+    monkeypatch.setattr(jobs, "start", start)
+    monkeypatch.setattr(
+        queue_module, "_models_ready", lambda entry: entry.config["transcribe"]["model"] in ready
+    )
+    assert queue.enqueue(imported_project)
+    assert queue.waiting(imported_project)
+    if selection != "finished_during_import":
+        queue._dispatch(threading.Event())
+        assert used == []
+        assert queue.waiting(imported_project)
+
+    persist_whisper_model("small.en")
+    download.status = "ok"
+    ready.add("small.en")
+    queue._dispatch(threading.Event())
+    assert used == ["small.en"]
+    assert not queue.waiting(imported_project)
 
 
 def test_studio_starts_the_waiting_episode_after_the_person_opens_another(

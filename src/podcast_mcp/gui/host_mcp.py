@@ -64,6 +64,14 @@ def install_host_project_injection() -> None:
                 arguments["project_path"] = str(served)
             try:
                 with app.state.jobs.host_tool_call():
+                    if (
+                        name == "pipeline_run"
+                        and app.state.setup_runs_enabled
+                        and app.state.setup_runs.waiting(served)
+                    ):
+                        return refusal_tool_result(
+                            ToolRefusal("Waiting for setup", "pipeline_setup_waiting")
+                        )
                     return await call_next(arguments)
             except JobSlotBusyError as exc:
                 return refusal_tool_result(ToolRefusal(str(exc), exc.code))

@@ -145,7 +145,8 @@ Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`). T
 **Import while setup is running.** When a complete Home import needs a transcription
 model, the local Studio host queues the episode's first Prepare run. Home Recent and
 Prepare show **Waiting for setup**. Studio starts the run when its selected models are
-ready and the pipeline slot is free, including while another episode is open. Setup
+ready and the pipeline slot is free, including while another episode is open. A waiting
+episode uses the Whisper variant being downloaded or the current Studio default. Setup
 downloads still start only when requested. The queue belongs to the local Studio host
 and can resume when it next opens. A Run request through the same Studio host
 reports the pending setup intent. Standalone CLI and MCP import and pipeline commands

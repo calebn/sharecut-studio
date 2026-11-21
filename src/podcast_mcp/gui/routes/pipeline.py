@@ -104,6 +104,7 @@ def pipeline_status(
     if (
         served is not None
         and not status["running"]
+        and request.app.state.setup_runs_enabled
         and request.app.state.setup_runs.waiting(served)
     ):
         status["waiting_for_setup"] = True
@@ -147,7 +148,7 @@ def pipeline_run(
     jobs = _jobs(request)
     project_path = resolve_project(req.path, request)
     check_steps(req.from_step, req.only_step, req.skip_steps)
-    if request.app.state.setup_runs.waiting(project_path):
+    if request.app.state.setup_runs_enabled and request.app.state.setup_runs.waiting(project_path):
         raise coded_http_error(409, "Waiting for setup", code="pipeline_setup_waiting")
 
     store = config_store()
