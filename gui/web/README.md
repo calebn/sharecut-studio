@@ -587,6 +587,11 @@ room and upload/recovery states are available in Storybook as prop-driven
 examples. Run browser wrappers sequentially with fixture/environment unit tests
 so their shared workspace-marker lifecycle does not overlap.
 
+`npm run test:layout` verifies that the bundled IBM Plex Sans faces load before
+it measures the recording-room geometry. Room status text uses an explicit
+line height so platform font metrics do not change the saving dock or push
+Held text outside its bar. Enlarged-text checks retain the Join hit targets.
+
 The live `e2e/edit-boundary-archive.spec.ts` regression cuts a disposable episode, drags the resulting transcript boundary, verifies the restored word after reload, and exercises undo/redo. Run `npm run test:e2e -- e2e/edit-boundary-archive.spec.ts` after `VITE_SHARECUT_E2E=1 npm run build`.
 
 ### Profile editor responsiveness
