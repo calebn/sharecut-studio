@@ -622,7 +622,10 @@ def test_the_warning_for_an_unopened_episode_names_the_class_and_the_code_only(
     named = [r.getMessage() for r in own if "did not open" in r.getMessage()]
     assert len(named) == 1
     assert "_Failing" in named[0]
-    assert "odd_failure" in named[0]
+    assert "project_open_failed" in named[0]
+    assert "odd_failure" not in named[0]
+    members = _members(response.json()["path"])
+    assert json.loads(members["report.json"])["episode_not_opened"]["code"] == "project_open_failed"
 
 
 @pytest.mark.parametrize(
@@ -635,16 +638,13 @@ def test_the_warning_for_an_unopened_episode_names_the_class_and_the_code_only(
         ("ab", "project_open_failed"),
         (7, "project_open_failed"),
         (None, "project_open_failed"),
-        ("fine_code_2", "fine_code_2"),
+        ("fine_code_2", "project_open_failed"),
+        ("project_old_filename", "project_old_filename"),
+        ("project_version_unsupported", "project_version_unsupported"),
     ],
 )
-def test_a_failed_open_is_reported_under_its_own_code_only_when_it_is_a_fixed_identifier(
-    code, expected
-):
-    exc = _Failing("x")
-    exc.code = code
-    assert diagnostics_route._failure_code(exc) == expected
-    assert diagnostics_route.PROJECT_OPEN_FAILED_CODE == "project_open_failed"
+def test_a_failed_open_uses_a_fixed_project_open_code(code, expected):
+    assert diagnostics_route._failure_code(_Failing("x", code=code)) == expected
 
 
 def test_a_failed_job_message_with_a_folder_that_has_spaces_is_not_in_the_bundle(

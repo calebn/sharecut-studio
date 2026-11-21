@@ -16,6 +16,7 @@ import zipfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,11 @@ from podcast_mcp.config.defaults import cache_dir, whisper_cache_dir
 from podcast_mcp.config.distribution import runtime_distribution_metadata
 from podcast_mcp.engines.models.whisper import resolve_whisper_model, whisper_model_is_cached
 from podcast_mcp.models import EPISODE_PROJECT_FILENAME, EpisodeProject
+from podcast_mcp.models.episode import ProjectUnreadableError
+from podcast_mcp.models.project_format import (
+    ProjectVersionNewerError,
+    ProjectVersionUnsupportedError,
+)
 from podcast_mcp.services.app import resolve_gui_static_root
 from podcast_mcp.services.collaboration import get_share_registry
 from podcast_mcp.services.pipeline import component_status
@@ -45,6 +51,7 @@ from podcast_mcp.util.diagnostics_bundle_contract import (
 from podcast_mcp.util.hardware import accelerator_preference, hardware_profile
 from podcast_mcp.util.model_assets import rnnoise_model_path
 from podcast_mcp.util.progress import resolve_progress_task
+from podcast_mcp.util.project_state import PROJECT_BUSY_CODE
 from podcast_mcp.util.redact import redact_secrets, sanitize
 
 TOKEN_PREFIX_MIN = 6
@@ -121,11 +128,21 @@ NOT_OPENED_STATEMENT = (
 )
 
 
+class EpisodeOpenCode(StrEnum):
+    NOT_FOUND = "project_not_found"
+    BUSY = PROJECT_BUSY_CODE
+    OLD_FILENAME = "project_old_filename"
+    UNREADABLE = ProjectUnreadableError.code
+    VERSION_NEWER = ProjectVersionNewerError.code
+    VERSION_UNSUPPORTED = ProjectVersionUnsupportedError.code
+    FAILED = "project_open_failed"
+
+
 @dataclass(frozen=True)
 class UnopenedEpisode:
     """An episode the host asked about that could not be opened: why, and where its folder is."""
 
-    code: str
+    code: EpisodeOpenCode
     workspace: Path
 
 
@@ -486,7 +503,7 @@ def _build_report_json(
     disk_free = _disk_free_bytes(disk_target)
     if disk_free is None and unopened is not None:
         disk_free = _disk_free_bytes(Path.home())
-    report = {
+    return {
         "app_version": podcast_mcp.__version__,
         "python": python_runtime_info(),
         "os": {
@@ -514,9 +531,6 @@ def _build_report_json(
         "env": collect_env_flags(),
         "created_at": datetime.now(UTC).isoformat(),
     }
-    if unopened is not None:
-        report["episode_not_opened"] = {"code": unopened.code, "statement": NOT_OPENED_STATEMENT}
-    return report
 
 
 class DiagnosticsService:
@@ -554,20 +568,27 @@ class DiagnosticsService:
                 job_snapshots=job_snapshots,
                 unopened=unopened,
             )
-            report_text = sanitize(
-                json.dumps(payload, indent=2, default=str),
-                **_redact_kwargs(home=home, workspace=workspace),
-            )
+            redaction = _redact_kwargs(home=home, workspace=workspace)
+            report_text = sanitize(json.dumps(payload, indent=2, default=str), **redaction)
             task.advance(1, message="Collected")
 
             task.set_phase("redacting", "Redacting logs…")
             logs = _collect_logs(include_logs=include_logs, home=home, workspace=workspace)
             README = sanitize(
                 _README + (f"\n{NOT_OPENED_STATEMENT}\n" if unopened is not None else ""),
-                **_redact_kwargs(home=home, workspace=workspace),
+                **redaction,
             )
             tokens = sorted(get_share_registry().known_tokens())
             report_text = _mask_share_tokens(report_text, tokens)
+            if unopened is not None:
+                safe_payload = json.loads(report_text)
+                safe_payload["episode_not_opened"] = {
+                    "code": unopened.code.value,
+                    "statement": _mask_share_tokens(
+                        sanitize(NOT_OPENED_STATEMENT, **redaction), tokens
+                    ),
+                }
+                report_text = json.dumps(safe_payload, indent=2)
             logs = {name: _mask_share_tokens(body, tokens) for name, body in logs.items()}
             fixed = len(report_text.encode("utf-8")) + len(README.encode("utf-8"))
             log_budget = max(0, MAX_BUNDLE_BYTES - fixed - 64_000)
