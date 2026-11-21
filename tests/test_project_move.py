@@ -7,6 +7,7 @@ import struct
 import threading
 import wave
 from pathlib import Path
+from urllib.parse import urlencode
 
 import pytest
 from fastapi.testclient import TestClient
@@ -222,6 +223,20 @@ def test_another_connected_window_blocks_the_move_but_the_callers_own_does_not(
     store.remove_client("tab-b")
     allowed = _move(_client(app), episode, dest_parent, client_id="tab-a")
     assert allowed.status_code == 200, allowed.text
+
+
+def test_host_socket_disconnect_after_move(episode, dest_parent) -> None:
+    query = urlencode(
+        {"path": str(episode), "client_id": "tab-a", "document_client_id": "document-a"}
+    )
+    with _client(_app(episode)) as client:
+        with client.websocket_connect(f"/api/host/ws?{query}") as socket:
+            assert socket.receive_json()["plane"] == "session"
+            assert socket.receive_json()["plane"] == "document"
+            response = _move(client, episode, dest_parent, client_id="tab-a")
+            assert response.status_code == 200, response.text
+        assert Path(response.json()["project_path"]).is_file()
+        assert not episode.parent.exists()
 
 
 def test_moving_into_the_folder_it_is_already_in_is_refused(episode) -> None:

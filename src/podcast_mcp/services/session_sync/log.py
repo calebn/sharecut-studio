@@ -685,12 +685,17 @@ class SyncStore:
         rows = self._conn.execute(self._sql["live_client_ids"], (cutoff,)).fetchall()
         return {str(r["client_id"]) for r in rows}
 
-    def remove_client(self, client_id: str, *, generation: int | None = None) -> None:
+    def remove_client(self, client_id: str, *, generation: int | None = None) -> bool:
+        """Return whether cleanup ran on the live store for this client."""
         with self._lock:
+            # A move can close the old store before its host socket disconnects.
+            if not self._connection_finalizer.alive:
+                return False
             if generation is not None and self._client_generation.get(client_id) != generation:
-                return
+                return False
             self._conn.execute(self._sql["delete_client"], (client_id,))
             self._client_generation.pop(client_id, None)
+            return True
 
     def list_clients(self, *, max_age_ns: int = 30_000_000_000) -> list[dict[str, Any]]:
         cutoff = time.time_ns() - max_age_ns
