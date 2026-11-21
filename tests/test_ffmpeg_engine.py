@@ -4,6 +4,7 @@ import json
 import subprocess
 import wave
 from pathlib import Path
+from struct import unpack
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -1106,7 +1107,10 @@ def test_annotate_time_marks_writes_png(sample_wav: Path, tmp_path: Path):
         window_end=6.0,
     )
     assert result.is_file()
-    assert result.stat().st_size > 0
+    base_width, base_height = unpack(">II", png.read_bytes()[16:24])
+    marked_width, marked_height = unpack(">II", result.read_bytes()[16:24])
+    assert marked_width == base_width
+    assert marked_height > base_height
 
 
 def test_annotate_time_marks_missing_png(tmp_path: Path):
