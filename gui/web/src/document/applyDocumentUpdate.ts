@@ -8,7 +8,6 @@ import type {
   TimelineComment,
 } from "../types/project";
 import { isGuestAudience } from "../utils/can";
-import { jsonEqual } from "../utils/jsonEqual";
 import {
   activateDocumentScope,
   type DocumentScope,
@@ -167,6 +166,35 @@ function transcriptRowHeader({ words: _words, ...header }: CombinedUtterance) {
   return header;
 }
 
+function sameHeaderValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (
+    left === null ||
+    right === null ||
+    typeof left !== "object" ||
+    typeof right !== "object"
+  )
+    return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      sameItems(left, right, sameHeaderValue)
+    );
+  }
+  const leftFields = left as Record<string, unknown>;
+  const rightFields = right as Record<string, unknown>;
+  const keys = Object.keys(leftFields);
+  return (
+    keys.length === Object.keys(rightFields).length &&
+    keys.every(
+      (key) =>
+        Object.hasOwn(rightFields, key) &&
+        sameHeaderValue(leftFields[key], rightFields[key]),
+    )
+  );
+}
+
 function incompleteTranscriptHeadersChanged(
   previous: ProjectView | null,
   next: ProjectView,
@@ -178,7 +206,8 @@ function incompleteTranscriptHeadersChanged(
       previous.transcript?.utterances ?? [],
       next.transcript?.utterances ?? [],
       (a, b) =>
-        a === b || jsonEqual(transcriptRowHeader(a), transcriptRowHeader(b)),
+        a === b ||
+        sameHeaderValue(transcriptRowHeader(a), transcriptRowHeader(b)),
     )
   );
 }
