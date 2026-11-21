@@ -12,6 +12,10 @@ import { useTheme } from "../hooks/useTheme";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { loadHostCommandCount } from "../services/offlineQueue/offlineStore";
 import { canApplyPass12 } from "../shareMode";
+import {
+  MOVE_WAIT_FOR_EDITS,
+  withHostMove,
+} from "../state/commandSendOwnership";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { ApiError, errorMessage } from "../utils/apiError";
@@ -32,18 +36,13 @@ type MoveFailure = {
   message: string;
 };
 
-/** Where a half-finished move left the episode, from the server's refusal body. */
-// Edits still waiting to be saved are queued under the old path, and the
-// reload would strand them.
 async function refuseWhileEditsQueued(projectPath: string): Promise<void> {
   if ((await loadHostCommandCount(projectPath)) > 0) {
-    throw new Error(
-      "Some edits are still waiting to be saved. Wait for them to finish, then move the episode.",
-    );
+    throw new Error(MOVE_WAIT_FOR_EDITS);
   }
 }
 
-function movedTo(error: unknown): string | null {
+function partialMoveDestination(error: unknown): string | null {
   if (!(error instanceof ApiError) || error.code !== PARTIAL_MOVE_CODE) {
     return null;
   }
@@ -126,24 +125,23 @@ export function SettingsHost() {
           );
         }
         if ("cancelled" in picked) return;
-        await refuseWhileEditsQueued(projectPath);
-        try {
-          const moved = await moveProject(
-            projectPath,
-            picked.folder,
-            localClientId,
-          );
-          setLeaving(true);
-          window.location.assign(
-            projectUrl(window.location.href, moved.project_path),
-          );
-        } catch (error) {
-          // The folder did move: stay on the old path and the next save misses.
-          const there = movedTo(error);
-          if (there === null) throw error;
-          setLeaving(true);
-          window.location.assign(projectUrl(window.location.href, there));
-        }
+        const destination = await withHostMove(projectPath, async () => {
+          await refuseWhileEditsQueued(projectPath);
+          try {
+            const moved = await moveProject(
+              projectPath,
+              picked.folder,
+              localClientId,
+            );
+            return moved.project_path;
+          } catch (error) {
+            const destination = partialMoveDestination(error);
+            if (destination === null) throw error;
+            return destination;
+          }
+        });
+        setLeaving(true);
+        window.location.assign(projectUrl(window.location.href, destination));
       } catch (error) {
         setMoveFailure({ opening, message: errorMessage(error) });
       }
