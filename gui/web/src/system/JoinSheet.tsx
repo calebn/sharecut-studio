@@ -35,9 +35,8 @@ import {
   joinHeadline,
   joinProducerModel,
   listenersLine,
-  MIC_ROW_TITLE,
 } from "./joinSheetModel";
-import { MicRow } from "./MicRow";
+import { MicRow, MicStatus } from "./MicRow";
 import { PersonAvatar, type PersonData } from "./Person";
 import type { RoomRole } from "./roomViewModel";
 import { SheetRow } from "./SheetRow";
@@ -162,20 +161,6 @@ function SlowJoinNote() {
       {JOIN_TEXT.producerSlow}
     </p>
   ) : null;
-}
-
-function micStatusLine(row: JoinRow): string {
-  if (row.state === "running") return row.detail ?? "";
-  if (row.state === "needs-you" && row.title === MIC_ROW_TITLE) {
-    return row.detail ?? "";
-  }
-  if (row.state === "needs-you" || row.state === "failed") {
-    return [row.title, row.detail]
-      .filter((part): part is string => Boolean(part))
-      .map((part) => (/[.!?…]$/.test(part) ? part : `${part}.`))
-      .join(" ");
-  }
-  return "";
 }
 
 /** The element for a focus target: a row's first enabled control, else the row. */
@@ -418,9 +403,7 @@ export function JoinSheet({
                 notes={guestModel.micNotes}
                 onInputChange={onInputChange}
               />
-              <p className="sr-only" role="status">
-                {micStatusLine(rowOf("mic"))}
-              </p>
+              <MicStatus row={rowOf("mic")} />
             </SheetRow>
             <SheetRow row={rowOf("headphones")}>
               <HeadphonesControl

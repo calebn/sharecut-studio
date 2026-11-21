@@ -15,7 +15,7 @@ import type {
   HeadphonesRule,
   JoinMicAction,
 } from "./joinSheetModel";
-import { MicRow } from "./MicRow";
+import { MicRow, MicStatus } from "./MicRow";
 import { OutputRow } from "./OutputRow";
 import { Sheet } from "./Sheet";
 import { SheetRow } from "./SheetRow";
@@ -122,6 +122,9 @@ export function DeviceSheet({
             mic={model.control}
             notes={model.micNotes}
             onInputChange={onInputChange}
+          />
+          <MicStatus
+            row={mic.status === "prompting" && mic.slow ? model.mic : undefined}
           />
         </SheetRow>
         {onHeadphonesChange ? (

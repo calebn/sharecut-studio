@@ -6,6 +6,8 @@ import {
   type JoinInput,
   type JoinMic,
   type JoinNote,
+  type JoinRow,
+  MIC_ROW_TITLE,
 } from "./joinSheetModel";
 import { SystemIcon } from "./SystemIcon";
 
@@ -73,6 +75,28 @@ function InputMenu({
         </MenuItem>
       ))}
     </Menu>
+  );
+}
+
+function micStatusLine(row: JoinRow): string {
+  if (row.state === "running") return row.detail ?? "";
+  if (row.state === "needs-you" && row.title === MIC_ROW_TITLE) {
+    return row.detail ?? "";
+  }
+  if (row.state === "needs-you" || row.state === "failed") {
+    return [row.title, row.detail]
+      .filter((part): part is string => Boolean(part))
+      .map((part) => (/[.!?…]$/.test(part) ? part : `${part}.`))
+      .join(" ");
+  }
+  return "";
+}
+
+export function MicStatus({ row }: { row?: JoinRow }) {
+  return (
+    <p className="sr-only" role="status">
+      {row ? micStatusLine(row) : ""}
+    </p>
   );
 }
 

@@ -78,6 +78,7 @@ describe("DeviceSheet", () => {
       row.queryAllByRole("status").filter((node) => node.textContent === text);
     const initialStatuses = row.queryAllByRole("status");
     const waiting = "Still waiting. Check your browser's permission prompt.";
+    expect(statusWith("Waiting for your browser…")).toHaveLength(0);
 
     rerender(sheet({ mic: { status: "prompting", slow: true }, onMicAction }));
     expect(statusWith(waiting)).toHaveLength(1);
@@ -92,6 +93,9 @@ describe("DeviceSheet", () => {
     expect(statusWith(waiting)).toHaveLength(0);
     expect(status).toBeEmptyDOMElement();
     expect(status).toBeInTheDocument();
+
+    rerender(sheet({ mic: { ...READY, switching: true }, onMicAction }));
+    expect(statusWith(READY.input)).toHaveLength(0);
   });
 
   it("toggles headphones, and omits the toggle without a handler", async () => {

@@ -1310,7 +1310,8 @@ A blocked mic reads "Microphone blocked" with **How to allow**, which retries; a
 lost device reads "Your microphone isn't
 available." with **Retry**. A browser prompt nobody has answered after 10 seconds
 turns the row to "Still waiting. Check your browser's permission prompt." with
-**Retry** (and no prefix in the screen-reader line). **Retry** asks the browser
+**Retry**. The guest Join sheet and the Devices sheet announce that sentence
+through a polite live region. **Retry** asks the browser
 again and drops the first request: a late answer to the first request is stopped,
 never used, and the page follows the second. A second click while the new request
 waits does nothing, and the note returns only after another 10 seconds. A blocked,
