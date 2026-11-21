@@ -28,8 +28,9 @@ The transport bar, status bar, Menu, View menu and bottom dock tabs of earlier r
 The bar measures whether its controls fit when the container or its contents
 change. It first drops the total duration, then trims Following details and
 turns status labels into icons. Tighter levels hide the skip controls and
-other secondary actions. At the tightest level, open the expanded Player for
-Comment or Retry when those actions are available.
+other secondary actions. If the bar hides a focused skip button or Stop
+following, keyboard focus moves to Play. At the tightest level, open the
+expanded Player for Comment or Retry when those actions are available.
 
 Fixed layout rules also apply. At 22 rem or narrower, the A and B buttons give
 way to the Hear menu button. The same swap happens in a short frame, such as a

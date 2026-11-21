@@ -106,8 +106,19 @@ function fitBar(host: HTMLElement): void {
 
 /** Fits the bar and keeps the sizes it ended with, so a report of those sizes does nothing. */
 function refit(host: HTMLElement, settled: { current: string }): void {
+  const focused = host.ownerDocument.activeElement;
   fitBar(host);
   settled.current = sizesOf(host);
+  if (
+    focused instanceof HTMLButtonElement &&
+    host.contains(focused) &&
+    focused.matches(".sys-player-skip, .sys-pill-x") &&
+    focused.getClientRects().length === 0
+  ) {
+    host.querySelector<HTMLButtonElement>(".sys-play-btn")?.focus({
+      preventScroll: true,
+    });
+  }
 }
 
 /** Fits the bar again only when the sizes are not the ones the last search ended with. */
