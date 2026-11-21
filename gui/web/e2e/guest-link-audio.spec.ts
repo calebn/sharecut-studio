@@ -460,6 +460,53 @@ test("the old cache every link shared is removed the first time a link's audio i
   });
 });
 
+test("guest playback waits for proxy hashes and recovers from a matching snapshot", async ({
+  browser,
+}) => {
+  await withLinks(browser, 1, async ({ guest, tokens }) => {
+    const [token] = tokens as [string];
+    const chunks = countChunkRequests(guest);
+    const clock = await audioClocks(guest);
+    const snapshotPath = `/api/review/${token}/daw/document/state`;
+    let omitHashes = true;
+    let snapshotsWithoutHashes = 0;
+    // Exercise HTTP recovery with the older snapshot shape. A live socket
+    // would otherwise immediately supply the current server's complete state.
+    await guest.routeWebSocket(/\/daw\/ws(?:\?|$)/, () => undefined);
+    await guest.route(
+      (url) => url.pathname === snapshotPath,
+      async (route) => {
+        if (!omitHashes) return route.continue();
+        const response = await route.fetch();
+        const json = await response.json();
+        if (json.project?.render_status?.proxy_hashes) {
+          delete json.project.render_status.proxy_hashes;
+          snapshotsWithoutHashes++;
+        }
+        await route.fulfill({ response, json });
+      },
+    );
+    await open(guest, token);
+    await expect.poll(() => snapshotsWithoutHashes).toBeGreaterThan(0);
+    const retry = guest.getByRole("button", { name: "Retry", exact: true });
+    await expect(retry).toBeVisible();
+    expect(chunks.started).toBe(0);
+
+    omitHashes = false;
+    const recovered = guest.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === snapshotPath && response.ok(),
+    );
+    await retry.click();
+    expect(
+      (await (await recovered).json()).project.render_status.proxy_hashes,
+    ).toBeDefined();
+    await expect.poll(() => chunks.finished).toBeGreaterThan(0);
+    await expect.poll(() => clock.advanced()).toBe(true);
+    await expect(retry).toHaveCount(0);
+  });
+});
+
 test("a guest manifest keeps its revision through comment-only saves", async ({
   browser,
 }) => {
