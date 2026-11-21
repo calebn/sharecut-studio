@@ -96,10 +96,35 @@ describe("Player", () => {
     );
   });
 
-  it("shows no total duration when the episode has none yet", () => {
-    render(<Player {...base} form="expanded" total="00:00.000" duration={0} />);
-    expect(document.querySelector(".sys-player-total")).toBeNull();
-  });
+  it.each(["bar", "expanded", "dock"] as const)(
+    "shows no total duration in the %s form until the episode has one",
+    (form) => {
+      const { rerender } = render(
+        <Player
+          {...base}
+          form={form}
+          time="00:00.000"
+          total="00:00.000"
+          duration={0}
+        />,
+      );
+      const total = () => document.querySelector(".sys-player-total");
+      expect(total()).toBeNull();
+      if (form === "bar") {
+        expect(
+          screen.getByRole("button", { name: /Expand player/ }),
+        ).toHaveAccessibleName("00:00.000. Expand player");
+      }
+
+      rerender(<Player {...base} form={form} duration={3130} />);
+      expect(total()).toHaveTextContent("52:10");
+      if (form === "bar") {
+        expect(
+          screen.getByRole("button", { name: /Expand player/ }),
+        ).toHaveAccessibleName("12:04 / 52:10. Expand player");
+      }
+    },
+  );
 
   it("does not hide the total duration label on a narrow Player", () => {
     // A rule starts after a brace, a semicolon or a comment, however its
@@ -110,7 +135,7 @@ describe("Player", () => {
     expect(css).toMatch(hides("\\.sys-player-time \\.sys-player-total"));
     expect(css).not.toMatch(hides("\\.sys-player-total"));
     expect(css).not.toMatch(
-      hides("\\.sys-player-expanded[^{,]*\\.sys-player-total"),
+      hides("\\.sys-player--expanded[^{,]*\\.sys-player-total"),
     );
   });
 
