@@ -3,7 +3,7 @@ import { isShareProjectKey } from "../shareMode";
 type HostActivity = { kind: "sending"; count: number } | { kind: "moving" };
 
 const hostActivity = new Map<string, HostActivity>();
-const MOVE_IN_PROGRESS =
+export const MOVE_IN_PROGRESS =
   "This episode is moving. Try the edit again after it opens.";
 export const MOVE_WAIT_FOR_EDITS =
   "Some edits are still waiting to be saved. Wait for them to finish, then move the episode.";

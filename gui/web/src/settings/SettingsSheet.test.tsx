@@ -18,6 +18,7 @@ import { registerHostCommands } from "../commands/host";
 import { __resetThemeForTests, useTheme } from "../hooks/useTheme";
 import { ModelsSheet } from "../models";
 import { ModelsContext } from "../models/useModels";
+import { loadHostCommandCount } from "../services/offlineQueue/offlineStore";
 import { CommandPalette } from "../stage/dialogs/CommandPalette";
 import { withCommandSendOwnership } from "../state/commandSendOwnership";
 import { useDawStore } from "../state/dawStore";
@@ -384,6 +385,46 @@ describe("Move…", () => {
     ).resolves.toBe("saved");
   });
 
+  it("shows what to do when it cannot check the saved edit queue", async () => {
+    tauri.on = true;
+    inProject(projectPath);
+    vi.mocked(loadHostCommandCount).mockRejectedValueOnce(
+      new Error("Invalid saved command list"),
+    );
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+    expect(
+      await within(sheet).findByText(
+        "Couldn't check whether all edits are saved. Keep this episode open and try Move again when editing has finished.",
+      ),
+    ).toBeVisible();
+    expect(pickFolder).not.toHaveBeenCalled();
+    expect(moveProject).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("reports an uncertain result when the move response has no folder path", async () => {
+    tauri.on = true;
+    inProject(projectPath);
+    vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
+    vi.mocked(moveProject).mockResolvedValue({
+      project_path: "",
+      previous_path: projectPath,
+    });
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+    expect(
+      await within(sheet).findByText(
+        "Couldn't confirm where this episode is. Check the folder you chose and the original folder before trying again.",
+      ),
+    ).toBeVisible();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
   it("shows the server's refusal under the row and keeps the episode where it is", async () => {
     tauri.on = true;
     inProject(projectPath);
@@ -439,7 +480,11 @@ describe("Move…", () => {
         expect(pickFolder).toHaveBeenCalledOnce();
         expect(revealProject).not.toHaveBeenCalled();
       }
-      await act(async () => pending.reject(new Error("Old Move refusal")));
+      await act(async () =>
+        pending.reject(
+          new ApiError("Old Move refusal", "move_dest_invalid", 400),
+        ),
+      );
       if (settlement === "before reopen") sheet = await openSettings();
       expect(within(sheet).queryByRole("alert")).toBeNull();
       expect(
@@ -448,7 +493,7 @@ describe("Move…", () => {
       expect(assign).not.toHaveBeenCalled();
 
       vi.mocked(moveProject).mockRejectedValueOnce(
-        new Error("New Move refusal"),
+        new ApiError("New Move refusal", "move_others_connected", 409),
       );
       await user.click(within(sheet).getByRole("button", { name: "Move…" }));
       expect(await within(sheet).findByRole("alert")).toHaveTextContent(
@@ -609,7 +654,9 @@ describe("Move…", () => {
     ).rejects.toThrow(/episode is moving/i);
     expect(save).not.toHaveBeenCalled();
 
-    await act(async () => pending.reject(new Error("The folder is in use.")));
+    await act(async () =>
+      pending.reject(new ApiError("The folder is in use.", "move_in_use", 409)),
+    );
     expect(await within(sheet).findByRole("alert")).toHaveTextContent(
       "The folder is in use.",
     );
