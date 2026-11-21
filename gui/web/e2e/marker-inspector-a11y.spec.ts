@@ -240,6 +240,12 @@ for (const { shell, viewport } of SHELLS) {
             await expect(title).toHaveValue("Opening");
             await title.press("Escape");
             await expect(dialog).toHaveCount(0);
+
+            await inspectSelection(page);
+            await expect(title).toHaveValue("Opening");
+            await title.press("Escape");
+            await expect(dialog).toHaveCount(0);
+            expect(count("UpdateChapter")).toBe(1);
           },
           undefined,
           markerProject,
