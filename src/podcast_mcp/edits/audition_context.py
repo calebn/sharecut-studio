@@ -21,7 +21,7 @@ import contextlib
 from collections.abc import Sequence
 from pathlib import Path
 from statistics import median
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.comments import list_comments
@@ -33,7 +33,7 @@ from podcast_mcp.engines.bleed_echo import EchoConfig, EchoPairProfile, echo_pro
 from podcast_mcp.engines.clips_ops import clips_for_track, is_session_join
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.engines.session_timeline import SessionTimeline, shift_at
-from podcast_mcp.models import Clip, EditMode, EpisodeProject
+from podcast_mcp.models import Clip, EditMode, EpisodeProject, TrackRole
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.text import count_noun
@@ -44,6 +44,28 @@ if TYPE_CHECKING:
     from podcast_mcp.engines.prosody import ProsodyParams
 
 DetailLevel = Literal["summary", "full", "visual"]
+
+
+class _PlacementRange(TypedDict):
+    clock: Literal["timeline", "source"]
+    unit: Literal["sec"]
+    start: float
+    end: float
+
+
+class _AuxiliaryPlacement(TypedDict):
+    clip_id: str
+    source_id: str | None
+    timeline: _PlacementRange
+    source: _PlacementRange
+
+
+class _AuxiliaryTrack(TypedDict):
+    track_id: str
+    role: TrackRole
+    muted: bool
+    placements: list[_AuxiliaryPlacement]
+
 
 SCHEMA_ID = "audition_context.v2"
 
@@ -342,6 +364,51 @@ def _prosody_notes(tracks_out: list[dict[str, Any]]) -> list[str]:
     return notes
 
 
+def _auxiliary_tracks(
+    project: EpisodeProject,
+    timeline: SessionTimeline,
+    start: float,
+    end: float,
+) -> list[_AuxiliaryTrack]:
+    tracks: list[_AuxiliaryTrack] = []
+    for track in project.tracks:
+        if track.role not in (TrackRole.MUSIC, TrackRole.SFX):
+            continue
+        spans = sorted(
+            timeline.lane_clip_spans(track.id), key=lambda span: (span.timeline_start, span.clip.id)
+        )
+        placements: list[_AuxiliaryPlacement] = [
+            {
+                "clip_id": span.clip.id,
+                "source_id": span.clip.source_id,
+                "timeline": {
+                    "clock": "timeline",
+                    "unit": "sec",
+                    "start": span.timeline_start,
+                    "end": span.timeline_end,
+                },
+                "source": {
+                    "clock": "source",
+                    "unit": "sec",
+                    "start": span.source_start,
+                    "end": span.source_end,
+                },
+            }
+            for span in spans
+            if min(end, span.timeline_end) > max(start, span.timeline_start)
+        ]
+        if placements:
+            tracks.append(
+                {
+                    "track_id": track.id,
+                    "role": track.role,
+                    "muted": track.muted,
+                    "placements": placements,
+                }
+            )
+    return tracks
+
+
 def build_audition_context(
     project: EpisodeProject,
     timeline_start: float,
@@ -513,6 +580,7 @@ def build_audition_context(
         "mid_sec": mid,
         "detail": detail,
         "tracks": tracks_out,
+        "auxiliary_tracks": _auxiliary_tracks(project, st, timeline_start, timeline_end),
         "clip_skew": skew,
         "comments": comments,
         "edits": edits,

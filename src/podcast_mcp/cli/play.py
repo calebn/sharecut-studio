@@ -116,9 +116,10 @@ def play_context_cmd(
         help="summary | full | visual (visual adds waveform/spectrogram PNGs)",
     ),
 ) -> None:
-    """Per-track captions + clip-skew / stem freshness for a timeline window (v2).
+    """Show dialogue captions, cue placements, clip skew, and stem freshness for a timeline window.
 
-    Each track also carries a ``prosody`` window (pitch, rate, energy, prominent
+    Music and sound-effect placements appear in ``auxiliary_tracks``.
+    Each dialogue track carries a ``prosody`` window (pitch, rate, energy, prominent
     words, phrase boundaries) read from the pipeline's cached profile; run
     ``podcast pipeline run --only analyze_prosody`` first if it reports
     missing or stale.

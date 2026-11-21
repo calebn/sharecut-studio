@@ -75,6 +75,16 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `play_pending_preview_tool` | Current / Suggested / A/B full mix around a pending remove or mute. Suggested renders the edit as approving applies it (ripple, paced pad, fades); `pad_sec` (0 to 10, default 0.5) is the audio either side, clamped to the timeline; the master loudness stage is not applied, so A and B compare to each other, not to the exported file's level; does not mutate. Host speakers. Share agents: `guest_pending_preview`. |
 | `audition_context_tool` | The blind editor's ears for a timeline window: per-track captions + stem freshness (no audio). Payload `schema: audition_context.v2` adds typed `hypotheses[]` (windowed hum/clip at default `summary`; `speech_crosses_cut` for every splice in the window whose clip edge sits in voiced speech, with `removed_ms`, `suggested_source_sec` and `asr_disagrees`; `echo_risk` when one dialogue mic carries another speaker at one consistent lag far more often than the same pair time-shifted, with lag, level and the null rates; `clip_skew` when a single-track ripple moved one track's later clips out of step; clipping needs a peak at or above -20 dBFS), `suggested_listen[]`, explicit clocks, and `limits` (`echo_check_needs_fresh_stems` when stems are stale; `whisper_word_times` when a dialogue track in the window still has Whisper's own word times, i.e. its `tracks[].word_aligner` is `null` because no forced aligner ran; double-check cut points then, #780). Run it on every applied join before export; fix a clipped onset with the `trim_clip_edge_tool` call in `evidence.fix`, confirm an `echo_risk` by listening or from its per-pair evidence before gating with `podcast-mute-bleed`. `detail=visual` adds PNGs. Each track also carries a `prosody` window (pitch, rate, energy, prominent words, phrase boundaries) read from the pipeline's cached profile (`missing`/`stale` with a hint when no fresh profile is cached; `unavailable` with a redacted `error` when the cached profile cannot be read or parsed); top-level `prosody_notes` has up to 8 one-line summaries — see [pipeline.md § Prosody profile](pipeline.md#prosody-profile). |
 
+In host `audition_context_tool` and `podcast play context` output, `auxiliary_tracks`
+shows music and sound-effect placement spans that overlap the requested window.
+Each row gives the track ID, role, mute state, and placement spans. A span records
+its clip ID, source ID, and paired timeline and source bounds in seconds. A null
+source ID means the clip uses the track's primary recording. The bounds describe
+the whole playable piece that intersects the window. A retimed clip can have more
+than one piece with the same clip ID. Separate copies have distinct clip IDs.
+A window that only touches a span's endpoint, or lies in an inserted timing gap,
+returns no span for that clip.
+
 MCP edit and playback handlers import `EditService`, `TimelineService`,
 `TranscriptService`, `AnalysisService`, `PlayService`, and their related public
 names from `podcast_mcp.services.document`. `history_diff_tool` serializes the
