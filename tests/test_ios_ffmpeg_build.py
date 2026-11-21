@@ -128,6 +128,100 @@ def test_build_script_parses_and_rejects_bad_arguments() -> None:
         assert done.returncode == 2 and "usage" in done.stderr
 
 
+@pytest.fixture
+def configure_probe(tmp_path: Path):
+    script = tmp_path / "scripts" / "ios" / SCRIPT.name
+    script.parent.mkdir(parents=True)
+    shutil.copy2(SCRIPT, script)
+    recipe = contract()
+    base = tmp_path / "gui" / "desktop" / "src-tauri" / "ios-ffmpeg"
+    source = base / "src"
+    source.mkdir(parents=True)
+    recipe["patches"] = []
+    for name in ("lame", "opus", "ffmpeg"):
+        pinned = recipe["sources"][name]
+        archive = source / pinned["archive"]
+        archive.write_bytes(name.encode())
+        pinned["sha256"] = sha256(archive)
+        directory = source / pinned["directory"]
+        directory.mkdir()
+        configure = directory / "configure"
+        configure.write_text(
+            "#!/bin/bash\nprintf '%s\\n' \"$@\"\n" + ("exit 37\n" if name == "ffmpeg" else ""),
+            encoding="utf-8",
+        )
+        configure.chmod(0o755)
+
+    stubs = tmp_path / "tools.sh"
+    stubs.write_text(
+        'xcrun() { case "$3" in --show-sdk-path) echo /sdk ;; -f) echo /usr/bin/true ;; esac; }\n'
+        'nice() { shift 2; "$@"; }\n'
+        "make() { return 0; }\n",
+        encoding="utf-8",
+    )
+    contract_file = tmp_path / "contracts" / CONTRACT.name
+    contract_file.parent.mkdir()
+
+    def run():
+        contract_file.write_text(json.dumps(recipe), encoding="utf-8")
+        done = subprocess.run(
+            ["bash", str(script), "device"],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "BASH_ENV": str(stubs), "SC_FFMPEG_JOBS": "1"},
+            check=False,
+        )
+        logs = {
+            path.name.removesuffix("-configure.log"): path.read_text(encoding="utf-8").splitlines()
+            for path in (base / "build" / "device").glob("*-configure.log")
+        }
+        return done, logs
+
+    return recipe, run
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX shell")
+@pytest.mark.parametrize("key", ["lame_configure", "opus_configure", "ffmpeg_configure"])
+def test_build_stops_before_configure_if_an_options_pin_is_missing(configure_probe, key) -> None:
+    recipe, run = configure_probe
+    del recipe[key]
+
+    done, logs = run()
+
+    assert done.returncode != 0
+    assert logs == {}, f"configure ran for {', '.join(logs)}"
+    assert key in done.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX shell")
+@pytest.mark.parametrize("value", [None, [], "--disable-autodetect", ["--first\n--second"]])
+def test_build_stops_before_configure_if_an_options_pin_is_invalid(configure_probe, value) -> None:
+    recipe, run = configure_probe
+    recipe["ffmpeg_configure"] = value
+
+    done, logs = run()
+
+    assert done.returncode != 0
+    assert logs == {}, f"configure ran for {', '.join(logs)}"
+    assert "ffmpeg_configure" in done.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX shell")
+def test_build_passes_each_pinned_option_as_one_argument(configure_probe) -> None:
+    recipe, run = configure_probe
+    option = "--pkg-config-flags=--static --silence-errors"
+    recipe["ffmpeg_configure"][-1] = option
+
+    done, logs = run()
+
+    assert done.returncode == 37, done.stderr
+    assert set(logs) == {"lame", "opus", "ffmpeg"}
+    for name, args in logs.items():
+        flags = recipe[f"{name}_configure"]
+        first = args.index(flags[0])
+        assert args[first : first + len(flags)] == flags
+
+
 SCRIPT_FRAGMENTS = [
     "device) SDK=iphoneos; PLATFORM_NAME=iPhoneOS ;;",
     "sim) SDK=iphonesimulator; PLATFORM_NAME=iPhoneSimulator ;;",
