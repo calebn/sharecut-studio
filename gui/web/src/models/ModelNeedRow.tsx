@@ -8,6 +8,7 @@ import { capabilityOf, type NeedTarget, plainSize } from "./capability";
 import { progressText } from "./format";
 import { bytesDetail, needRowProps, progressOf } from "./needRowProps";
 import type { DownloadOutcome, ModelState } from "./types";
+import { NOT_ON_THIS_DEVICE } from "./unsupported";
 import { useModelNeed } from "./useModelNeed";
 
 export type ModelNeedPlacement =
@@ -119,6 +120,13 @@ function ListRow({
           >
             {listMeta(state, size)}
           </span>
+          {state.kind === "unsupported" &&
+          state.hint &&
+          state.hint !== NOT_ON_THIS_DEVICE ? (
+            <span className="sys-need-meta" data-unsupported-reason>
+              {state.hint}
+            </span>
+          ) : null}
           {reason.note}
         </div>
         {state.kind === "downloading" ? (

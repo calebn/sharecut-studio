@@ -204,6 +204,30 @@ describe("ModelNeedRowView, a model this device cannot run", () => {
   });
 });
 
+describe("ModelNeedRowView, a model only this model cannot run", () => {
+  it("shows the server's own sentence under the row when it is not the audio one", () => {
+    const sentence =
+      "ShareCut can't time words or tell speakers apart on this device yet.";
+    view({
+      placement: "list",
+      model: { ...WHISPER, size: "~360 MB" },
+      state: { kind: "unsupported", hint: sentence },
+    });
+    expect(screen.getByText("Not available")).toBeTruthy();
+    expect(screen.getByText(sentence)).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("does not repeat the audio sentence the sheet already says once", () => {
+    view({
+      placement: "list",
+      model: { ...WHISPER, size: "~360 MB" },
+      state: { kind: "unsupported", hint: UNSUPPORTED_SENTENCE },
+    });
+    expect(screen.queryByText(UNSUPPORTED_SENTENCE)).toBeNull();
+  });
+});
+
 describe("ModelNeedRowView, list placement", () => {
   const meta = (state: ModelState) => {
     const { unmount } = view({
