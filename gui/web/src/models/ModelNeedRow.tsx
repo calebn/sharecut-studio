@@ -51,7 +51,7 @@ const META: Record<Exclude<ModelState["kind"], "unsupported">, string> = {
 
 function listMeta(state: ModelState, size: string): string {
   if (state.kind === "unsupported") {
-    return state.hint === NOT_ON_THIS_DEVICE ? "Not available" : state.hint;
+    return "Not available";
   }
   if (state.kind === "downloading") {
     return bytesDetail(state, size);
@@ -120,6 +120,13 @@ function ListRow({
           >
             {listMeta(state, size)}
           </span>
+          {state.kind === "unsupported" &&
+          state.hint &&
+          state.hint !== NOT_ON_THIS_DEVICE ? (
+            <span className="sys-need-meta" data-unsupported-reason>
+              {state.hint}
+            </span>
+          ) : null}
           {reason.note}
         </div>
         {state.kind === "downloading" ? (

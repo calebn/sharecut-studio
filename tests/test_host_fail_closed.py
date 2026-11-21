@@ -208,6 +208,7 @@ def test_a_host_that_can_process_audio_but_not_transcribe_blocks_whisper_alone(h
         "speaker-ecapa": "unsupported",
     }
     assert states["word-aligner"][1] == ANALYSIS_SENTENCE
+    assert states["speaker-ecapa"][1] == ANALYSIS_SENTENCE
 
 
 def test_a_desktop_host_reports_each_model_as_it_did_before(host) -> None:

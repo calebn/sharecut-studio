@@ -350,15 +350,16 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
 
         pair = resolve_ffmpeg_pair(force_refresh=True)
         path = pair.ffmpeg
-        ok = pair.is_available()
         if pair.is_in_process:
             problem = in_process_problem()
+            ok = problem is None
             out["ffmpeg"] = {
                 "state": "installed" if ok else "missing",
                 "source": IN_PROCESS_SOURCE,
                 **({} if problem is None else {"hint": problem}),
             }
         else:
+            ok = pair.is_available()
             out["ffmpeg"] = {
                 "state": "installed" if ok else "missing",
                 "path": path,
