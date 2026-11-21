@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -134,13 +135,15 @@ def audio_diagnostics_report(
     start_sec: float | None = None,
     end_sec: float | None = None,
     pngs: bool = True,
+    stage_plots: Callable[[Path], Path] | None = None,
     defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Spectrogram + waveform PNGs plus astats/hum health for one track (or a time window).
 
     When ``start_sec``/``end_sec`` are set, astats and hum run on the extracted
     window (same segment as the PNGs), not the full stem. ``pngs=False`` skips
-    spectrogram/waveform render (windowed numbers only).
+    spectrogram/waveform render (windowed numbers only). ``stage_plots`` can
+    supply a private render directory while the report retains the final paths.
     """
     window: tuple[float, float] | None = None
     extract_path: Path
@@ -177,8 +180,11 @@ def audio_diagnostics_report(
             eng.extract_segment(extract_path, tmp_segment, file_start, file_end)
             analysis_path = tmp_segment
         if pngs:
-            eng.render_spectrogram(analysis_path, spectrogram_png, legend=window is None)
-            eng.render_showwavespic(analysis_path, waveform_png)
+            plot_dir = stage_plots(out_dir) if stage_plots else out_dir
+            eng.render_spectrogram(
+                analysis_path, plot_dir / spectrogram_png.name, legend=window is None
+            )
+            eng.render_showwavespic(analysis_path, plot_dir / waveform_png.name)
         astats = FFmpegEngine.astats(analysis_path)
         hum = detect_mains_hum(analysis_path)
     finally:

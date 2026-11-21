@@ -38,6 +38,7 @@ from podcast_mcp.engines.audio import (
     postorder,
     sources,
 )
+from podcast_mcp.engines.audition_plot import annotate_plot, png_dimensions
 from podcast_mcp.engines.effect_filters import format_effect, graph_rate
 from podcast_mcp.engines.mastering import (
     LIMITER_MARGIN_DB,
@@ -426,6 +427,10 @@ LATE_MPEG_AUDIO_MESSAGE = "audio starts late in an MPEG transport stream; re-enc
 class LateMpegAudioError(CodedValueError):
     def __init__(self) -> None:
         super().__init__(LATE_MPEG_AUDIO_MESSAGE, code="invalid_audio")
+
+
+class PlotAnnotationUnavailableError(RuntimeError):
+    """This FFmpeg build cannot render the plot axis and key."""
 
 
 @dataclass
@@ -2789,14 +2794,16 @@ class FFmpegEngine:
     ) -> Path:
         """Burn vertical time marks onto a spectrogram/waveform PNG.
 
-        ``marks`` items: ``{x: 0-1, label: str, kind: str}``. x is relative to the
-        plot width (legend=0 images). Uses drawbox always; drawtext labels only
-        when this ffmpeg build includes the filter (Homebrew often omits
-        libfreetype). No Pillow.
+        A timeline window adds a same-width time axis and marker key beneath
+        the plot. Without a window, use the existing marker-only overlay.
+        FFmpeg builds without XBIN can publish marker lines and report that
+        the axis and key are unavailable.
         """
         if not png_path.is_file():
             raise FileNotFoundError(f"png not found: {png_path}")
         out_path.parent.mkdir(parents=True, exist_ok=True)
+        if window_start is not None and window_end is not None:
+            return self._annotate_plot_png(png_path, marks, out_path, window_start, window_end)
         font = _drawtext_font()
         use_drawtext = bool(font is not None and self._has_filter("drawtext"))
         vf = _annotate_vf(
@@ -2828,7 +2835,81 @@ class FFmpegEngine:
             shutil.copy2(png_path, out_path)
         return out_path
 
-    def _overlay_png(self, png_path: Path, out_path: Path, vf: str) -> bool:
+    def _annotate_plot_png(
+        self,
+        png_path: Path,
+        marks: list[dict[str, Any]],
+        out_path: Path,
+        window_start: float,
+        window_end: float,
+    ) -> Path:
+        width, height = png_dimensions(png_path)
+        annotation = annotate_plot(width, marks, window_start, window_end)
+        plot_filters = ",".join(("format=rgba", *annotation.grid_filters, *annotation.mark_filters))
+        graph = (
+            f"[0:v]{plot_filters}[plot];"
+            f"[1:v]format=rgba,crop=w={width}:h=ih:x=0:y=0[footer];"
+            "[plot][footer]vstack[out]"
+        )
+        with tempfile.TemporaryDirectory(
+            prefix=f".{out_path.stem}.", dir=out_path.parent
+        ) as temporary_dir:
+            footer = Path(temporary_dir) / "footer.xbin"
+            tmp = Path(temporary_dir) / "plot.png"
+            footer.write_bytes(annotation.footer)
+            cmd = [
+                self.ffmpeg,
+                "-y",
+                *_VISUAL_DIAGNOSTIC_THREAD_ARGS,
+                "-i",
+                str(png_path),
+                "-f",
+                "xbin",
+                "-linespeed",
+                "1000000",
+                "-i",
+                str(footer),
+                "-filter_complex",
+                graph,
+                "-map",
+                "[out]",
+                "-frames:v",
+                "1",
+                str(tmp),
+            ]
+            try:
+                run(cmd, check=True, capture_output=True)
+            except CalledProcessError as exc:
+                stderr = exc.stderr or ""
+                if isinstance(stderr, bytes):
+                    stderr = stderr.decode(errors="replace")
+                missing_xbin = {
+                    "Unknown input format: 'xbin'",
+                    "Decoding requested, but no decoder found for: bintext",
+                }
+                if not any(
+                    line.rsplit("] ", 1)[-1] in missing_xbin for line in stderr.splitlines()
+                ):
+                    raise
+                if annotation.mark_filters:
+                    marker_filters = ",".join(("format=rgba", *annotation.mark_filters))
+                    self._overlay_png(
+                        png_path, out_path, marker_filters, dimensions=(width, height)
+                    )
+                raise PlotAnnotationUnavailableError("FFmpeg XBIN support is unavailable") from exc
+            if png_dimensions(tmp) != (width, height + annotation.footer_height):
+                raise CodedValueError("Incomplete plot annotation", code="invalid_plot_png")
+            publish_completed_file(tmp, out_path)
+        return out_path
+
+    def _overlay_png(
+        self,
+        png_path: Path,
+        out_path: Path,
+        vf: str,
+        *,
+        dimensions: tuple[int, int] | None = None,
+    ) -> bool:
         with tempfile.TemporaryDirectory(
             prefix=f".{out_path.stem}.", dir=out_path.parent
         ) as temporary_dir:
@@ -2836,14 +2917,19 @@ class FFmpegEngine:
             cmd = [
                 self.ffmpeg,
                 "-y",
+                *_VISUAL_DIAGNOSTIC_THREAD_ARGS,
                 "-i",
                 str(png_path),
                 "-vf",
                 vf,
+                "-frames:v",
+                "1",
                 str(tmp),
             ]
             try:
                 run(cmd, check=True, capture_output=True)
+                if dimensions is not None and png_dimensions(tmp) != dimensions:
+                    return False
                 publish_completed_file(tmp, out_path)
                 return True
             except CalledProcessError:
