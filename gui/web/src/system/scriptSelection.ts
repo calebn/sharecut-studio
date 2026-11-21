@@ -351,6 +351,7 @@ export function selectionSummary(
   }
   const span = spanOf(selection);
   if (!span) return "";
+  let seamStops = 0;
   const words = pieces.flatMap((piece) => {
     if (pieceEnd(piece) < span.start || pieceStart(piece) > span.end) return [];
     switch (piece.kind) {
@@ -361,6 +362,10 @@ export function selectionSummary(
           .filter((w) => w.index >= span.start && w.index <= span.end)
           .map((w) => w.text);
       case "cut":
+        if (piece.seamOnly) {
+          seamStops += 1;
+          return [];
+        }
         return [`cut ${piece.words}`];
       case "suggestion":
         return [piece.text];
@@ -369,7 +374,8 @@ export function selectionSummary(
     }
   });
   const shown = words.length > 12 ? [...words.slice(0, 12), "..."] : words;
-  const count = span.end - span.start + 1;
+  const count = span.end - span.start + 1 - seamStops;
+  if (count === 0) return "";
   return `${count} ${count === 1 ? "word" : "words"} selected: ${shown.join(" ")}`;
 }
 

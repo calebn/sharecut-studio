@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { expect, test } from "@playwright/test";
 import type { ProjectView } from "../src/types/project";
 import { expectPageAxeClean } from "./axe";
@@ -133,5 +134,82 @@ test("Script Find keeps equal-index words in separate recordings beside a primar
     },
     undefined,
     createScriptRecordingIdentityProject,
+  );
+});
+
+test("Script keeps a partially cut word once and leaves its seam editable", async ({
+  page,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await openProject(page, projectPath);
+      const body = await openScript(page);
+      const response = await page.request.get(
+        `/api/project?path=${encodeURIComponent(projectPath)}&phase=full`,
+      );
+      expect(response.ok()).toBe(true);
+      const project = (await response.json()) as ProjectView;
+      const boundary = project.edit_boundaries?.find(
+        (row) => row.left_clip_id === "left" && row.right_clip_id === "right",
+      );
+      expect(boundary?.cutaway_word_ids).toEqual([
+        {
+          track_id: "host",
+          source_id: null,
+          word_index: -2,
+          text: "echo",
+          start: 1.2,
+          end: 1.5,
+        },
+      ]);
+      const kept = project.transcript?.utterances
+        .filter((utterance) => !utterance.source_id)
+        .flatMap((utterance) => utterance.words ?? [])
+        .find((word) => word.word_index === 1 && word.mappable);
+      expect(kept).toMatchObject({ timeline_start: 1.2, timeline_end: 1.35 });
+
+      const showCut = page.getByRole("button", {
+        name: "Show cut text",
+        exact: true,
+      });
+      if ((await showCut.getAttribute("aria-pressed")) !== "true")
+        await showCut.click();
+      await expect(showCut).toHaveAttribute("aria-pressed", "true");
+      await expect(body.locator('[data-word-key="host::1"]')).toHaveText(
+        "echo",
+      );
+      await expect(body.locator('[data-word-key="host::-2"]')).toHaveCount(0);
+      const seam = body
+        .locator('[data-seam-id="eb:left:right"]')
+        .getByRole("button", { name: /^Cut,/ });
+      await expect(seam).toBeVisible();
+      expect(await seam.getAttribute("aria-describedby")).toBeNull();
+      await showCut.click();
+      await expect(showCut).toHaveAttribute("aria-pressed", "false");
+      await expect(seam).toBeVisible();
+      await seam.click();
+      await expect(seam).toHaveAttribute("aria-pressed", "true");
+    },
+    undefined,
+    (prefix) => {
+      const copy = createScriptRecordingIdentityProject(prefix);
+      const data = JSON.parse(fs.readFileSync(copy.projectPath, "utf8")) as {
+        timeline: {
+          clips: Array<{
+            id: string;
+            source_end: number;
+            timeline_start: number;
+          }>;
+        };
+      };
+      const left = data.timeline.clips.find((clip) => clip.id === "left");
+      const right = data.timeline.clips.find((clip) => clip.id === "right");
+      if (!left || !right) throw new Error("Missing primary clip join");
+      left.source_end = 1.35;
+      right.timeline_start = 1.35;
+      fs.writeFileSync(copy.projectPath, JSON.stringify(data));
+      return copy;
+    },
   );
 });

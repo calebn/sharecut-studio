@@ -206,6 +206,28 @@ describe("selectionSummary", () => {
     );
   });
 
+  it("omits a text-free cut from the word count but still announces its selection", () => {
+    const withSeam: ScriptPiece[] = [
+      word(0, "kept"),
+      {
+        kind: "cut",
+        id: "seam",
+        start: 1,
+        end: 1,
+        removed: "0.2 s",
+        words: "",
+        seamOnly: true,
+      },
+      word(2, "word"),
+    ];
+    expect(selectionSummary(withSeam, words(0, 2))).toBe(
+      "2 words selected: kept word",
+    );
+    expect(selectionSummary(withSeam, { kind: "cut", id: "seam" })).toBe(
+      "Cut selected, 0.2 s removed",
+    );
+  });
+
   it("reads a single word, a cut and a suggestion", () => {
     expect(selectionSummary(pieces, words(0, 0))).toBe("1 word selected: a");
     expect(selectionSummary(pieces, { kind: "cut", id: "c" })).toBe(

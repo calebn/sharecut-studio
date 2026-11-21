@@ -41,4 +41,6 @@ If Script focus hides the View button while its popover has keyboard focus, the 
 
 When another session cuts transcript words, Find keeps the highlight on the same match if those words survive. If the current match is gone, Find shows the remaining count. Choose the next or previous match before using **Replace**.
 
+A word that crosses a cut edge and still has audio appears once as timed Script text. The cut preview skips its duplicate. If the preview has no words left to show, the Seam pill stays available with **Show cut text** on or off.
+
 The old layout presets (Restore layout, Maximize timeline, Maximize transcript, Review layout) and their `Mod+1` to `Mod+4` keys were removed; those keys now go to stages. Every stage keeps the header, Player bar and banner rows in place (geometry guard: `stage/frame/StageFrame.test.tsx`).
