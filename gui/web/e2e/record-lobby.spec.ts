@@ -45,7 +45,17 @@ import {
   waitForTakeLanded,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
-import { goToStage, openPanel, openProject, phone, stageTab } from "./stageNav";
+import {
+  collapsePlayer,
+  expandPlayer,
+  goToStage,
+  openHeaderMore,
+  openPanel,
+  openProject,
+  phone,
+  setAudition,
+  stageTab,
+} from "./stageNav";
 import { trackHeaderButton } from "./trackHeader";
 import { withBrowserPages } from "./twoBrowserPages";
 
@@ -621,42 +631,77 @@ test.describe("record lobby", () => {
         await expect(recTab).toHaveAccessibleName(/^Record Live\b/);
         await expect(recTab.locator(".sys-stage-badge--pill")).toBeVisible();
         await host.setViewportSize({ width: 390, height: 844 });
-        await expect(recTab).toHaveAccessibleName(/^Record Live\b/);
-        await expect(recTab.locator(".sys-stage-badge--pill")).toBeVisible();
         await phone.showTimeline(host);
+        const header = host.locator(".stage-frame-header");
+        const player = host.getByRole("group", { name: "Player", exact: true });
+        const audition = player.getByRole("group", { name: "Audition" });
+        const tabs = host
+          .getByRole("tablist", { name: "Stages" })
+          .getByRole("tab");
+        const invite = header.getByRole("button", {
+          name: "Invite",
+          exact: true,
+        });
+        const palette = header.getByRole("button", {
+          name: "Palette",
+          exact: true,
+        });
         for (const width of [390, 320]) {
           await host.setViewportSize({ width, height: 844 });
-          // The header folds Invite and Palette into More once it measures the
-          // narrower width; collect the controls only after that has settled.
-          const header = host.locator(".stage-frame-header");
-          if (width === 320) {
+          await expect(recTab).toHaveAccessibleName(/^Record Live\b/);
+          await expect(recTab.locator(".sys-stage-badge--pill")).toBeVisible();
+          await expect(tabs).toHaveCount(5);
+          await expect(
+            player.getByRole("button", { name: "Play", exact: true }),
+          ).toBeInViewport({ ratio: 1 });
+          await expect(
+            player.getByRole("button", { name: /Expand player$/ }),
+          ).toBeInViewport({ ratio: 1 });
+
+          if (width === 390) {
+            await expect(invite).toBeVisible();
+            await expect(palette).toBeVisible();
+            await expect(audition).toBeVisible();
+          } else {
+            const more = await openHeaderMore(host);
             await expect(
-              header.getByRole("button", { name: "More", exact: true }),
-            ).toBeVisible();
+              more.getByRole("menuitem", { name: "Invite", exact: true }),
+            ).toBeInViewport({ ratio: 1 });
             await expect(
-              header.getByRole("button", { name: "Invite", exact: true }),
-            ).toHaveCount(0);
-            await expect(
-              header.getByRole("button", { name: "Palette", exact: true }),
-            ).toHaveCount(0);
+              more.getByRole("menuitem", {
+                name: "Search commands and people",
+              }),
+            ).toBeInViewport({ ratio: 1 });
+            await host.keyboard.press("Escape");
+            await expect(more).toBeHidden();
+            await expect(invite).toBeHidden();
+            await expect(palette).toBeHidden();
+            await expect(audition).toBeHidden();
+            await setAudition(host, "raw");
+            await setAudition(host, "mix");
           }
-          // On a phone the header's Stage bar gives way to the tab bar and the
-          // Player bar hides its skip buttons, so neither has a box here; the
-          // tab bar's own tabs are checked instead.
-          const controls = host.locator(
-            ".stage-frame-header button:not([role='tab']), .stage-frame-player button:not(.sys-player-skip), .stage-frame-tabs button",
-          );
+
+          const controls = header
+            .getByRole("button")
+            .or(player.getByRole("button"))
+            .or(tabs);
           for (const control of await controls.all()) {
-            const bounds = await control.boundingBox();
-            expect(
-              bounds,
-              (await control.getAttribute("aria-label")) ??
-                "header or Player control",
-            ).not.toBeNull();
-            expect(bounds!.x).toBeGreaterThanOrEqual(0);
-            expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+            await expect(control, `phone width ${width}px`).toBeInViewport({
+              ratio: 1,
+            });
           }
         }
+        const expanded = await expandPlayer(host);
+        for (const name of [
+          "Back 15 seconds",
+          "Forward 15 seconds",
+          "Comment",
+        ]) {
+          await expect(
+            expanded.getByRole("button", { name, exact: true }),
+          ).toBeInViewport({ ratio: 1 });
+        }
+        await collapsePlayer(host);
 
         await host.evaluate(() => {
           (window as unknown as { __denyHostRetry?: boolean }).__denyHostRetry =
