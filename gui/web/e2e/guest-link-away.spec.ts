@@ -18,7 +18,6 @@ const DEVICE_AWAY = "You're offline";
 const DEVICE_SENTENCE = "You're offline. This page keeps trying.";
 
 const LIGHT_WITHIN_MS = 10_000;
-const POLL_CYCLE_MS = 30_000;
 const AWAY_TEST_TIMEOUT_MS = 180_000;
 
 const light = (page: Page) => page.locator(".sys-save").first();
@@ -93,7 +92,10 @@ for (const size of SIZES) {
         ).toHaveCount(1);
 
         await watchLiveRegions(guest);
-        await guest.waitForTimeout(POLL_CYCLE_MS + 5_000);
+        const asked = away.refused.count;
+        await expect
+          .poll(() => away.refused.count - asked, { timeout: 45_000 })
+          .toBeGreaterThanOrEqual(3);
         expect(
           (await heard(guest)).filter((text) => /^Saving$|^Saved$/.test(text)),
         ).toEqual([]);
