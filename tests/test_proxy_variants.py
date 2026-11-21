@@ -23,6 +23,7 @@ from podcast_mcp.models import (
     ProcessingChain,
     ProcessingEffect,
     Track,
+    TrackRole,
 )
 from podcast_mcp.models.episode import SourceRecording, SourceSpan
 from podcast_mcp.services.app import ProjectWorkspace
@@ -93,6 +94,30 @@ def _bootstrap(ws, monkeypatch):
         pv, "render_source_proxy_inputs", lambda *_a, **_k: pytest.fail("Unexpected render")
     )
     return imported
+
+
+def test_restored_occurrence_reads_non_dialogue_origin_and_lane(workspace):
+    ws = workspace
+    host = ws.project.track_by_id("host")
+    host.role = TrackRole.MUSIC
+    raw = ws.project.workspace_path() / "raw"
+    (raw / "lane.wav").write_bytes((raw / "host.wav").read_bytes())
+    ws.project.tracks.append(
+        Track(id="lane", label="Lane", role=TrackRole.MUSIC, media=MediaAsset(path="raw/lane.wav"))
+    )
+    ws.project.sources = [SourceRecording(id="recording", path="raw/host.wav")]
+    clip = _choice(ws, source_id="recording", track_id="lane")
+
+    generation = pv.ensure_proxy_manifest(ws)
+    assert generation.tracks == {}
+    assert set(generation.project_basis.render_hashes) == {"host", "lane"}
+    basis = generation.project_basis.clips[clip.id]
+    assert basis.origin_track_id == "host"
+    assert basis.track_id == "lane"
+    occurrence = generation.occurrences[clip.id]
+    artifact = generation.artifacts[occurrence.artifact_id]
+    assert artifact.context_track_id == "host"
+    assert _chunk(ws, artifact).stat().st_size > 0
 
 
 def test_history_free_complete_manifest_and_noop(workspace, monkeypatch, fast_encode):
