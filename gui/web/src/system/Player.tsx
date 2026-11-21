@@ -46,6 +46,8 @@ export type PlayerProps = {
   rate?: number;
   /** Mix is re-rendering: a ring on Play and a Status pill. */
   state?: "ready" | "loading" | "mix-updating" | "error";
+  /** The short label for a known playback error. */
+  errorLabel?: string;
   /**
    * The mix's status ("No mix yet", "Mix out of date") or why Play cannot
    * start ("Import audio to play."), as a visible status line.
@@ -221,6 +223,7 @@ function StatusLine({
 function StatePills({
   solo,
   state,
+  errorLabel = "Audio error",
   guest,
   following,
   onUnfollow,
@@ -273,12 +276,9 @@ function StatePills({
       ) : null}
       {state === "error" ? (
         <>
-          <Pill
-            className="sys-player-pill sys-pill--danger"
-            title="Audio error"
-          >
+          <Pill className="sys-player-pill sys-pill--danger" title={errorLabel}>
             <SystemIcon name="octagon-alert" size={12} />
-            <span className="sys-player-pill-text">Audio error</span>
+            <span className="sys-player-pill-text">{errorLabel}</span>
           </Pill>
           <Button variant="link" className="sys-player-retry" onClick={onRetry}>
             Retry

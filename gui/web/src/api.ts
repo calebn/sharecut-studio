@@ -127,7 +127,12 @@ export {
   startExportJob,
 } from "./api/exportJobs";
 export { loadFeed, sendFeedEdit, sendFeedWrite } from "./api/feed";
-export { apiSend, HOST_KEY, isHostProjectKey } from "./api/http";
+export {
+  apiSend,
+  HOST_KEY,
+  isHostProjectKey,
+  NETWORK_ERROR_CODE,
+} from "./api/http";
 export { openJobStream } from "./api/jobStream";
 export {
   isDeadLinkAnswer,

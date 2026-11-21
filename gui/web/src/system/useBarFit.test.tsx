@@ -35,6 +35,7 @@ describe("barFitKey", () => {
     ["playback speed", { rate: 2 }],
     ["solo label", { solo: "Cal" }],
     ["player state", { state: "error" }],
+    ["error label", { errorLabel: "Audio failed to load" }],
     ["status message", { status: "Mix out of date" }],
     ["guest controls", { guest: true }],
     ["followed name", { following: follow("Cal") }],

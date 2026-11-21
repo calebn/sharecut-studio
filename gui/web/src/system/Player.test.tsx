@@ -187,8 +187,17 @@ describe("Player", () => {
     );
     await user.click(screen.getByRole("button", { name: "Retry" }));
     rerender(
-      <Player {...base} form="expanded" state="error" onRetry={onRetry} />,
+      <Player
+        {...base}
+        form="expanded"
+        state="error"
+        errorLabel="Audio failed to load"
+        onRetry={onRetry}
+      />,
     );
+    expect(
+      screen.getByText("Audio failed to load").closest(".pill"),
+    ).toHaveAttribute("title", "Audio failed to load");
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(onRetry).toHaveBeenCalledTimes(2);
   });

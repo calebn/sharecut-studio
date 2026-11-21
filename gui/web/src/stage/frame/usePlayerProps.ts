@@ -22,7 +22,7 @@ import { transportAvailability } from "../../state/transportAvailability";
 import { useDaw } from "../../state/useDaw";
 import type { PlayerProps } from "../../system/Player";
 import type { AuditionMode } from "../../types/session";
-import { NO_PREVIEW_ERROR } from "../../utils/audioErrorLabel";
+import { audioErrorLabel, NO_PREVIEW_ERROR } from "../../utils/audioErrorLabel";
 import { guestMixBehind, staleMixLabel } from "../../utils/staleRender";
 import { formatTimeShort, transportTimecode } from "../../utils/time";
 import { auditionOf, cutsLabel, hearModeOf, playerTicks } from "./playerModel";
@@ -174,6 +174,7 @@ export function usePlayerProps(
     rate:
       followingClientId == null && playbackRate > 1 ? playbackRate : undefined,
     state,
+    errorLabel: hasAudioError ? audioErrorLabel(audioError) : undefined,
     status: unavailable ?? mixStatus,
     playUnavailable: unavailable !== undefined,
     hearOriginal: auditionMode === "raw",
