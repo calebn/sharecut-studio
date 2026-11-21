@@ -3,6 +3,7 @@ import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { resetServerClock } from "../presence/clock";
 import { resetLoadingClockForTests } from "../stage/frame/loadingClock";
+import { resetHostReach } from "../state/hostReach";
 import { resetPublishKeyForTests } from "../state/publishKey";
 import { resetFeedbackRepeatForTests } from "../state/uiSlice";
 import { resetQuestions } from "./ask";
@@ -33,6 +34,7 @@ afterEach(() => {
   // sees another's server clock offset or cached publish key.
   resetServerClock();
   resetPublishKeyForTests();
+  resetHostReach();
   resetLoadingClockForTests();
   resetQuestions();
   resetFeedbackRepeatForTests();

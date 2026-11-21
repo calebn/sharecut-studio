@@ -1,4 +1,6 @@
+import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetHostReach, useHostCause } from "../state/hostReach";
 import { ApiError } from "../utils/apiError";
 import {
   apiFetch,
@@ -342,5 +344,88 @@ describe("apiSend and a link that may be off", () => {
     expect(spy).toHaveBeenCalledWith("/api/features", {
       headers: { "X-Podcast-Token": "host-secret" },
     });
+  });
+});
+
+describe("apiSend and the host's reach", () => {
+  const reach = (token: string) =>
+    renderHook(() => useHostCause(token)).result.current;
+  const refuse = () =>
+    stubFetch(async () => Promise.reject(new TypeError("Failed to fetch")));
+  const run = (key: string) =>
+    apiSend(key, { guest: "/daw/meta" }).catch(() => undefined);
+
+  beforeEach(() => {
+    resetHostReach();
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("is away after two transport failures of a review guest", async () => {
+    refuse();
+    await run("share:tok-r1");
+    expect(reach("tok-r1")).toBeNull();
+    await run("share:tok-r1");
+    expect(reach("tok-r1")).toBe("host");
+  });
+
+  it("is away at once, for the device, when the browser says it is offline", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    refuse();
+    await run("share:tok-r2");
+    expect(reach("tok-r2")).toBe("device");
+  });
+
+  it("counts a timeout, not an abort", async () => {
+    stubFetch(async () => {
+      throw new DOMException("The server didn't answer.", "TimeoutError");
+    });
+    await run("share:tok-r3");
+    await run("share:tok-r3");
+    expect(reach("tok-r3")).toBe("host");
+    resetHostReach();
+    stubFetch(async () => {
+      throw new DOMException("Aborted", "AbortError");
+    });
+    await run("share:tok-r3");
+    await run("share:tok-r3");
+    await run("share:tok-r3");
+    expect(reach("tok-r3")).toBeNull();
+  });
+
+  it("clears on any answer, a 5xx and a 404 included", async () => {
+    refuse();
+    await run("share:tok-r4");
+    await run("share:tok-r4");
+    expect(reach("tok-r4")).toBe("host");
+    stubFetch(async () => new Response("{}", { status: 500 }));
+    await run("share:tok-r4");
+    expect(reach("tok-r4")).toBeNull();
+    refuse();
+    await run("share:tok-r4");
+    await run("share:tok-r4");
+    stubFetch(async () => new Response("{}", { status: 404 }));
+    await run("share:tok-r4");
+    expect(reach("tok-r4")).toBeNull();
+  });
+
+  it("never counts the host's own requests, a recording guest or a link that ended", async () => {
+    refuse();
+    for (let i = 0; i < 3; i += 1) {
+      await run(HOST_KEY);
+      await apiSend(recordProjectKey("tok-r5"), { guest: "/x" }).catch(() => 0);
+    }
+    expect(reach("tok-r5")).toBeNull();
+    markLinkEnded("tok-r6");
+    for (let i = 0; i < 3; i += 1) await run("share:tok-r6");
+    expect(reach("tok-r6")).toBeNull();
+  });
+
+  it("rethrows the failure unchanged", async () => {
+    const failure = new TypeError("Failed to fetch");
+    stubFetch(async () => Promise.reject(failure));
+    await expect(apiSend("share:tok-r7", { guest: "/x" })).rejects.toBe(
+      failure,
+    );
   });
 });
