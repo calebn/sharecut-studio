@@ -54,6 +54,7 @@ import {
   MARKER_ROW_HEIGHT,
   RULER_HEIGHT,
 } from "../utils/layout";
+import { isPlayheadOffscreen } from "../utils/timelineFollow";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
   domToLogicalScrollLeft,
@@ -436,10 +437,24 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
 
   useEffect(
     () =>
-      playheadScrollRegistry.register("timeline", () => {
+      playheadScrollRegistry.register("timeline", (mode) => {
         const el = scrollRef.current;
         if (!el || fixedPlayhead) {
           return false;
+        }
+        if (mode === "if-offscreen") {
+          const { playheadSec, zoomPxPerSec, scrollLeft } =
+            useDawStore.getState();
+          if (
+            !isPlayheadOffscreen({
+              playheadSec,
+              zoomPxPerSec,
+              viewportPx: timeViewportPx,
+              scrollPx: scrollLeft,
+            })
+          ) {
+            return false;
+          }
         }
         return revealPlayhead({ writeScroll, leadPx }, el, {
           viewportPx: timeViewportPx,

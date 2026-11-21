@@ -1,9 +1,12 @@
 export type PlayheadSurface = "script" | "timeline";
 
-const scrollers = new Map<PlayheadSurface, () => boolean>();
+type ScrollMode = "always" | "if-offscreen";
+type PlayheadScroller = (mode?: ScrollMode) => boolean;
+
+const scrollers = new Map<PlayheadSurface, PlayheadScroller>();
 
 export const playheadScrollRegistry = {
-  register: (surface: PlayheadSurface, scroll: () => boolean) => {
+  register: (surface: PlayheadSurface, scroll: PlayheadScroller) => {
     scrollers.set(surface, scroll);
     return () => {
       if (scrollers.get(surface) === scroll) scrollers.delete(surface);
@@ -17,6 +20,6 @@ export const playheadScrollRegistry = {
     return scrolled;
   },
   /** Scrolls one surface only, so re-arming the timeline leaves the Script where it is. */
-  scrollToPlayhead: (surface: PlayheadSurface): boolean =>
-    scrollers.get(surface)?.() ?? false,
+  scrollToPlayhead: (surface: PlayheadSurface, mode?: ScrollMode): boolean =>
+    scrollers.get(surface)?.(mode) ?? false,
 };
