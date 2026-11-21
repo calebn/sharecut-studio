@@ -87,11 +87,19 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("retireOfflineSnapshot", () => {
-  it("keeps the saved date when only the playback path refreshes the copy", async () => {
+  it("keeps the saved project and date when stale playback refreshes the manifest", async () => {
     const token = "r-date";
     await saveOfflineSnapshot(token, { project: { a: 1 }, saved_at: 1 });
-    await mergeOfflineSnapshot(token, { manifest: {} }, { preserveDate: true });
-    expect((await loadOfflineSnapshot(token))?.saved_at).toBe(1);
+    await mergeOfflineSnapshot(
+      token,
+      { project: { a: 0 }, manifest: {} },
+      { preserveDate: true },
+    );
+    expect(await loadOfflineSnapshot(token)).toEqual({
+      project: { a: 1 },
+      manifest: {},
+      saved_at: 1,
+    });
     await mergeOfflineSnapshot(token, { project: { a: 2 } });
     expect((await loadOfflineSnapshot(token))?.saved_at).toBeGreaterThan(1);
   });
