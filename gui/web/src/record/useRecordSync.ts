@@ -101,12 +101,16 @@ function isTerminalRecordError(error: string): boolean {
   return error === RECORD_ROOM_FULL || isRecordAccessEnded(error);
 }
 
+type RecordFailure = Readonly<{ code: string }>;
+
 /** A terminal error keeps its screen: a later non-terminal code or a dismiss cannot replace it. */
-function keepTerminalRecordError(
-  current: string | null,
-  next: string | null,
-): string | null {
-  return current !== null && isTerminalRecordError(current) ? current : next;
+function keepTerminalRecordFailure(
+  current: RecordFailure | null,
+  next: RecordFailure | null,
+): RecordFailure | null {
+  return current !== null && isTerminalRecordError(current.code)
+    ? current
+    : next;
 }
 
 /** Guest-facing copy for a non-terminal record error; null when none applies or a terminal screen owns it. */
@@ -123,7 +127,8 @@ export function useRecordSync(
   requestedMode: RecordSocketMode = "join",
 ) {
   const [snapshot, setSnapshot] = useState<RecordSnapshot | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<RecordFailure | null>(null);
+  const error = failure?.code ?? null;
   const [connected, setConnected] = useState(false);
   const [echoed, setEchoed] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
@@ -214,7 +219,7 @@ export function useRecordSync(
       ctx?: PlaneSocketContext,
     ) => {
       accessEnded = true;
-      setError(reason);
+      setFailure({ code: reason });
       ctx?.close();
     };
     const stopHeartbeat = () => {
@@ -263,7 +268,7 @@ export function useRecordSync(
         if (keepErrorOnOpenRef.current) {
           keepErrorOnOpenRef.current = false;
         } else {
-          setError(null);
+          setFailure(null);
         }
         if (modeRef.current === "join") {
           sendJoin();
@@ -271,7 +276,9 @@ export function useRecordSync(
       },
       onReceive: (msg) => applyServerClock(msg.snapshot?.server_time_ns),
       onMalformed: () =>
-        setError((current) => keepTerminalRecordError(current, "malformed")),
+        setFailure((current) =>
+          keepTerminalRecordFailure(current, { code: "malformed" }),
+        ),
       fallback: {
         immediate: true,
         handle: (msg, ctx) => {
@@ -308,14 +315,16 @@ export function useRecordSync(
               if (!joined) {
                 endAccess(RECORD_ACCESS_REMOVED, ctx);
               } else {
-                setError((current) =>
-                  keepTerminalRecordError(current, "forbidden"),
+                setFailure((current) =>
+                  keepTerminalRecordFailure(current, { code: "forbidden" }),
                 );
               }
               return;
             }
-            const next = msg.code || msg.detail || "error";
-            setError((current) => keepTerminalRecordError(current, next));
+            const code = msg.code || msg.detail || "error";
+            setFailure((current) =>
+              keepTerminalRecordFailure(current, { code }),
+            );
             return;
           }
           if (msg.type === "Echo" && msg.participant_id && msg.lease) {
@@ -403,7 +412,7 @@ export function useRecordSync(
   }, [mode, sendJoin]);
 
   const clearError = useCallback(() => {
-    setError((current) => keepTerminalRecordError(current, null));
+    setFailure((current) => keepTerminalRecordFailure(current, null));
   }, []);
 
   const me =
@@ -413,6 +422,7 @@ export function useRecordSync(
     me,
     send,
     error,
+    failure,
     clearError,
     connected,
     echoed,
