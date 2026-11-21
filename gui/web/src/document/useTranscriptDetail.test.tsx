@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { deferred } from "../test/deferred";
 import { minimalProject } from "../test/fixtures";
+import { applyDocumentSnapshot } from "./applyDocumentUpdate";
 import { documentAuthority, resetDocumentAuthority } from "./authorityState";
 import { scheduleTranscriptDetailHydrate } from "./hydrateTranscriptDetail";
 import type { DocumentSnapshot } from "./projectPatch";
@@ -324,6 +325,24 @@ describe("a refresh that stops moving", () => {
     guestRow("one", 0, false),
     { ...guestRow("two", 4, false), timeline_start: 7 },
   ];
+  const file = { mtime_ns: 100, size: 50 };
+  const applyShell = (
+    seq: number,
+    token: string,
+    revision?: DocumentSnapshot["file"],
+    text = "two edited",
+  ) =>
+    act(() => {
+      applyDocumentSnapshot({
+        server_seq: seq,
+        state_token: token.repeat(64),
+        file: revision,
+        project: guestProject(
+          [guestRow("one", 0, false), guestRow(text, 4, false)],
+          false,
+        ),
+      });
+    });
 
   it("becomes failed after 35 s on the same commit", () => {
     openGuest();
@@ -341,18 +360,58 @@ describe("a refresh that stops moving", () => {
     expect(result.current).toMatchObject({ kind: "failed", recovering: false });
   });
 
-  it("restarts the clock on a new commit", () => {
+  it.each([
+    { label: "the same file", first: file, second: file },
+    {
+      label: "a different file with the same rows",
+      first: file,
+      second: { ...file, mtime_ns: 200, size: 60 },
+    },
+    { label: "a missing file signature", first: file, second: undefined },
+    { label: "the first known file signature", first: undefined, second: file },
+  ])(
+    "keeps the deadline when a shell supplies $label under a new token",
+    ({ first, second }) => {
+      openGuest();
+      hold();
+      loadDetail.mockClear();
+      const { result } = renderHook(useTranscriptDetail);
+      applyShell(1, "a", first);
+      act(() => {
+        vi.advanceTimersByTime(20_000);
+      });
+      applyShell(1, "b", second);
+      expect(loadDetail).toHaveBeenCalledTimes(2);
+      act(() => {
+        vi.advanceTimersByTime(STALL - 20_000 - 1);
+      });
+      expect(result.current.kind).toBe("ready");
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(result.current).toMatchObject({
+        kind: "failed",
+        recovering: false,
+      });
+    },
+  );
+
+  it.each([
+    { label: "a new sequence", seq: 2, text: "two edited" },
+    {
+      label: "new transcript rows at the same sequence",
+      seq: 1,
+      text: "two edited again",
+    },
+  ])("restarts the clock on $label", ({ seq, text }) => {
     openGuest();
     hold();
     const { result } = renderHook(useTranscriptDetail);
-    showWordFree(wordFree());
+    applyShell(1, "a", file);
     act(() => {
       vi.advanceTimersByTime(20_000);
     });
-    act(() => {
-      documentAuthority.token = "b".repeat(64);
-      useDawStore.setState({ project: guestProject(wordFree(), false) });
-    });
+    applyShell(seq, "b", { ...file, mtime_ns: 200, size: 60 }, text);
     act(() => {
       vi.advanceTimersByTime(20_000);
     });
