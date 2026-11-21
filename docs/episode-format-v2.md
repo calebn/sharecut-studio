@@ -175,7 +175,9 @@ Undo/redo restores snapshot → `ProjectStore.commit()` updates `episode.sharecu
 
 ## Version policy
 
-Only **`version: "2.3"`** is supported. `2.1` added `timeline.join_fade_max_ms`; `2.2` added `transcripts.per_track[].asr_language`; `2.3` added `history.entries[].author` and `undone_by` (who wrote a history step and who undid it; `null` on a step an older build wrote). A `2.0`, `2.1` or `2.2` file opens and is upgraded in memory (written as `2.3` by the next save); other older or newer versions and flat layouts are refused at load time with a coded error; `podcast episode upgrade --project <old episode.sharecut> --output <new workspace dir>` writes a `2.3` copy of a `2.0`, `2.1` or `2.2` workspace and leaves the source unchanged ([project-format.md](project-format.md#upgrade-after-a-real-format-break)).
+ShareCut writes **`version: "2.4"`**. Version `2.1` added `timeline.join_fade_max_ms`. Version `2.2` added `transcripts.per_track[].asr_language`. Version `2.3` added `history.entries[].author` and `undone_by`, with null values on older steps. Version `2.4` added `document_sync.guest_post_receipts`, which holds share-scoped comment and reply keys with no post text. A receipt is committed with the post and survives Undo and Redo. Older workspaces start with an empty receipt map.
+
+Files from `2.0` through `2.3` upgrade in memory on open and are written as `2.4` on the next save. The loader gives a coded error for unknown versions and flat layouts. The `podcast episode upgrade --project <old episode.sharecut> --output <new workspace dir>` command writes a `2.4` copy and leaves the source intact. See [project format](project-format.md#upgrade-after-a-real-format-break).
 
 ## Prior art
 

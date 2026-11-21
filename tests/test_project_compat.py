@@ -89,10 +89,39 @@ def test_format_2_0_fixture_is_a_2_0_document_without_the_2_1_field() -> None:
     assert "join_fade_max_ms" not in document["timeline"]
 
 
+@pytest.fixture
+def v23_project(tmp_path):
+    document = compat.read_json(DEVELOPMENT / compat.PROJECT)
+    document["version"] = "2.3"
+    document["document_sync"] = {
+        "last_command": {
+            "command_id": "remembered-command",
+            "client_id": "host-client",
+            "role": "owner",
+            "type": "test_command",
+            "base_server_seq": 0,
+        }
+    }
+    path = tmp_path / compat.PROJECT
+    write_json(path, document)
+    return path
+
+
+def test_format_2_3_opens_without_receipts_and_keeps_document_recovery(v23_project):
+    before = v23_project.read_bytes()
+    project = compat.load_project(v23_project)
+
+    assert project.version == "2.4"
+    assert project.document_sync.guest_post_receipts == {}
+    assert project.document_sync.last_command is not None
+    assert project.document_sync.last_command.command_id == "remembered-command"
+    assert v23_project.read_bytes() == before
+
+
 def test_format_2_0_opens_through_load_project_and_stays_2_0_on_disk(v20_workspace) -> None:
     before = (v20_workspace / compat.PROJECT).read_bytes()
     project = compat.load_project(v20_workspace / compat.PROJECT)
-    assert project.version == "2.3"
+    assert project.version == "2.4"
     assert [t.id for t in project.timeline.tracks] == ["reference", "guest"]
     assert (v20_workspace / compat.PROJECT).read_bytes() == before
 
@@ -132,7 +161,7 @@ def test_format_2_0_is_read_by_the_cli(v20_workspace) -> None:
         app, ["info", "--project", str(v20_workspace / compat.PROJECT), "--json"]
     )
     assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout)["version"] == "2.3"
+    assert json.loads(result.stdout)["version"] == "2.4"
     assert (v20_workspace / compat.PROJECT).read_bytes() == before
 
 
