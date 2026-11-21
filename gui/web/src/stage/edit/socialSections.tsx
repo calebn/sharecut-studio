@@ -36,6 +36,9 @@ export function useSocialSections(
     ];
 
   const editable = !isShareProjectKey(projectPath);
+  const minEnd = Math.min(clip.end, clip.start + MARKER_MIN_SPAN);
+  const maxStart = Math.max(0, clip.start, clip.end - MARKER_MIN_SPAN);
+  const maxEnd = duration > 0 ? Math.max(duration, clip.end) : undefined;
 
   const save = async (start: number, end: number) => {
     if (start === clip.start && end === clip.end) return;
@@ -57,6 +60,7 @@ export function useSocialSections(
       decimals={2}
       min={min}
       max={max}
+      exactBounds
       skipUnchanged
       readOnly={!editable || busy}
       busy={busy}
@@ -76,8 +80,6 @@ export function useSocialSections(
       updateSocialClipDetails(projectPath, clip.id, { title: next }),
     );
   };
-
-  const minEnd = clip.start + MARKER_MIN_SPAN;
 
   return [
     {
@@ -104,16 +106,12 @@ export function useSocialSections(
         {
           id: "start",
           label: "Start",
-          control: edge("start", 0, Math.max(0, clip.end - MARKER_MIN_SPAN)),
+          control: edge("start", 0, maxStart),
         },
         {
           id: "end",
           label: "End",
-          control: edge(
-            "end",
-            minEnd,
-            duration > minEnd ? duration : undefined,
-          ),
+          control: edge("end", minEnd, maxEnd),
         },
         ...(clip.score > 0
           ? [

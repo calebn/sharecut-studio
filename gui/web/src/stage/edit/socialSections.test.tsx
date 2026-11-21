@@ -30,8 +30,12 @@ function open(
   hydrateAs: "host" | "share" = "host",
   id = "social-1",
   view: SocialClipView = clip,
+  duration = 60,
 ) {
-  const project = minimalProject({ social_clips: [view] });
+  const project = minimalProject({
+    social_clips: [view],
+    timeline_duration_sec: duration,
+  });
   if (hydrateAs === "share")
     useDawStore
       .getState()
@@ -99,6 +103,195 @@ describe("social clip content", () => {
       "social-1",
       28,
       50,
+    );
+  });
+
+  it.each([
+    { name: "Start", key: "ArrowDown", next: [17.99, 18.05] },
+    { name: "End", key: "ArrowUp", next: [18, 18.06] },
+  ])(
+    "widens a saved short clip by a single $name step",
+    async ({ name, key, next }) => {
+      open("host", clip.id, { ...clip, start: 18, end: 18.05 });
+      const field = () => screen.getByRole("spinbutton", { name });
+      fireEvent.keyDown(field(), { key: "Enter" });
+      fireEvent.blur(screen.getByRole("textbox", { name }));
+      expect(updateSocialClip).not.toHaveBeenCalled();
+
+      await act(async () => {
+        fireEvent.keyDown(field(), { key });
+      });
+      expect(updateSocialClip).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/p.json",
+        clip.id,
+        ...next,
+      );
+    },
+  );
+
+  it.each([
+    { name: "Start", inward: "ArrowUp" },
+    { name: "End", inward: "ArrowDown" },
+  ])(
+    "keeps an exact $name when nudged inward on a short clip",
+    async ({ name, inward }) => {
+      open("host", clip.id, { ...clip, start: 18.008, end: 18.052 });
+      await act(async () => {
+        fireEvent.keyDown(screen.getByRole("spinbutton", { name }), {
+          key: inward,
+        });
+      });
+      expect(updateSocialClip).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { name: "Start", inward: "ArrowUp" },
+    { name: "End", inward: "ArrowDown" },
+  ])(
+    "keeps an exact $name at the blocked end of an Alt nudge",
+    async ({ name, inward }) => {
+      open("host", clip.id, { ...clip, start: 18.002, end: 18.058 });
+      await act(async () => {
+        fireEvent.keyDown(screen.getByRole("spinbutton", { name }), {
+          key: inward,
+          altKey: true,
+        });
+      });
+      expect(updateSocialClip).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not save a Start drag that returns to the saved fractional boundary", async () => {
+    open("host", clip.id, { ...clip, start: 18.008, end: 18.052 });
+    const field = screen.getByRole("spinbutton", { name: "Start" });
+    fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(field, { clientX: 90, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 60, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 90, pointerId: 1 });
+    await act(async () => {
+      fireEvent.pointerUp(field, { pointerId: 1 });
+    });
+    expect(updateSocialClip).not.toHaveBeenCalled();
+  });
+
+  it.each(["Start", "End"])(
+    "closes an untouched exact %s editor without saving",
+    async (name) => {
+      open("host", clip.id, { ...clip, start: 18.008, end: 18.052 });
+      const user = userEvent.setup();
+      screen.getByRole("spinbutton", { name }).focus();
+      await user.keyboard("{Enter}");
+      expect(screen.getByRole("textbox", { name })).not.toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      await user.keyboard("{Enter}");
+      expect(screen.getByRole("spinbutton", { name })).toHaveFocus();
+      expect(updateSocialClip).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not shorten an already widened short clip", async () => {
+    open("host", clip.id, { ...clip, start: 17.99, end: 18.05 });
+    await typeScrub("Start", "18");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Enter a number from 0 to 17.99 s",
+    );
+    expect(updateSocialClip).not.toHaveBeenCalled();
+  });
+
+  it("keeps a short clip at a fractional episode end when End cannot move", async () => {
+    const episodeEnd = 18.055;
+    open("host", clip.id, { ...clip, start: 18, end: episodeEnd }, episodeEnd);
+    const end = screen.getByRole("spinbutton", { name: "End" });
+    expect(end).toHaveAttribute("aria-valuenow", String(episodeEnd));
+    await act(async () => {
+      fireEvent.keyDown(end, { key: "ArrowUp" });
+    });
+    expect(updateSocialClip).not.toHaveBeenCalled();
+    expect(end).toHaveAttribute("aria-valuemax", String(episodeEnd));
+  });
+
+  it("stops an outward End nudge at the exact episode boundary", async () => {
+    open("host", clip.id, { ...clip, start: 18, end: 18.055 }, 18.064);
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole("spinbutton", { name: "End" }), {
+        key: "ArrowUp",
+      });
+    });
+    expect(updateSocialClip).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/p.json",
+      clip.id,
+      18,
+      18.064,
+    );
+  });
+
+  it.each([
+    { start: 18.004, end: 18.098, duration: 18.105 },
+    { start: 18, end: 18.095, duration: 18.1 },
+  ])(
+    "keeps End at the episode ceiling $duration after the clip reaches 0.1 s",
+    async ({ start, end, duration }) => {
+      open("host", clip.id, { ...clip, start, end }, duration);
+      const nudgeEnd = () =>
+        act(async () => {
+          fireEvent.keyDown(screen.getByRole("spinbutton", { name: "End" }), {
+            key: "ArrowUp",
+          });
+        });
+      await nudgeEnd();
+      expect(updateSocialClip).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/p.json",
+        clip.id,
+        start,
+        duration,
+      );
+      act(() => {
+        const saved = { ...clip, start, end: duration };
+        const project = useDawStore.getState().project!;
+        useDawStore.setState({
+          project: { ...project, social_clips: [saved] },
+        });
+      });
+      await nudgeEnd();
+      expect(updateSocialClip).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("moves Start in the requested direction to the exact 0.1 s limit after End widens", async () => {
+    const start = 18.008;
+    const duration = 18.109;
+    open("host", clip.id, { ...clip, start, end: 18.052 }, duration);
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole("spinbutton", { name: "End" }), {
+        key: "ArrowUp",
+        shiftKey: true,
+      });
+    });
+    expect(updateSocialClip).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/p.json",
+      clip.id,
+      start,
+      duration,
+    );
+    act(() => {
+      const saved = { ...clip, start, end: duration };
+      const project = useDawStore.getState().project!;
+      useDawStore.setState({ project: { ...project, social_clips: [saved] } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole("spinbutton", { name: "Start" }), {
+        key: "ArrowUp",
+      });
+    });
+    expect(updateSocialClip).toHaveBeenCalledTimes(2);
+    expect(updateSocialClip).toHaveBeenLastCalledWith(
+      "/tmp/p.json",
+      clip.id,
+      expect.closeTo(18.009, 10),
+      duration,
     );
   });
 

@@ -3,7 +3,11 @@ type ScrubModifiers = {
   readonly altKey: boolean;
 };
 
-type ScrubBounds = { readonly min?: number; readonly max?: number };
+type ScrubBounds = {
+  readonly min?: number;
+  readonly max?: number;
+  readonly exact?: boolean;
+};
 
 const COARSE = 10;
 const FINE = 0.1;
@@ -31,6 +35,26 @@ export function roundTo(value: number, decimals: number): number {
   const scaled = value * 10 ** decimals;
   if (!Number.isFinite(scaled)) return value;
   return Math.round(scaled) / 10 ** decimals || 0;
+}
+
+export function roundWithinBounds(
+  value: number,
+  decimals: number,
+  bounds: ScrubBounds,
+): number {
+  const bounded = bounds.exact ? clamp(value, bounds) : value;
+  let nearest = clamp(roundTo(bounded, decimals), bounds);
+  if (bounds.exact) {
+    for (const limit of [bounds.min, bounds.max]) {
+      if (
+        limit !== undefined &&
+        Math.abs(limit - bounded) < Math.abs(nearest - bounded)
+      ) {
+        nearest = limit;
+      }
+    }
+  }
+  return nearest;
 }
 
 export function placesOf(step: number): number {
@@ -63,7 +87,7 @@ export function inBounds(value: number, bounds: ScrubBounds): boolean {
 
 export function fillRatio(
   value: number,
-  { min, max }: Required<ScrubBounds>,
+  { min, max }: Required<Pick<ScrubBounds, "min" | "max">>,
 ): number {
   if (max <= min) return 0;
   return Math.min(1, Math.max(0, (value - min) / (max - min)));
@@ -77,19 +101,22 @@ export function steppedValue(
   decimals: number,
   bounds: ScrubBounds,
 ): number {
-  return clamp(
-    roundTo(value + direction * step * modifierScale(modifiers), decimals),
+  return roundWithinBounds(
+    value + direction * step * modifierScale(modifiers),
+    decimals,
     bounds,
   );
 }
 
 export function rangeHint(bounds: ScrubBounds, unit?: string): string {
   const suffix = unit ? ` ${unit}` : "";
+  const formatLimit = (limit: number) =>
+    bounds.exact ? String(limit) : formatScrub(limit, placesOf(limit));
   if (bounds.min !== undefined && bounds.max !== undefined)
-    return `Enter a number from ${formatScrub(bounds.min, placesOf(bounds.min))} to ${formatScrub(bounds.max, placesOf(bounds.max))}${suffix}`;
+    return `Enter a number from ${formatLimit(bounds.min)} to ${formatLimit(bounds.max)}${suffix}`;
   if (bounds.min !== undefined)
-    return `Enter a number of at least ${formatScrub(bounds.min, placesOf(bounds.min))}${suffix}`;
+    return `Enter a number of at least ${formatLimit(bounds.min)}${suffix}`;
   if (bounds.max !== undefined)
-    return `Enter a number of at most ${formatScrub(bounds.max, placesOf(bounds.max))}${suffix}`;
+    return `Enter a number of at most ${formatLimit(bounds.max)}${suffix}`;
   return "Enter a number";
 }
