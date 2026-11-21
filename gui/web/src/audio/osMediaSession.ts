@@ -22,7 +22,7 @@ export type OsTransportInput = Readonly<{
   title: string | null;
   durationSec: number;
   isPlaying: boolean;
-  preview: Readonly<{ playing: boolean }> | null;
+  preview: "playing" | "ended" | "failed" | null;
   /** The audio clock while a transport plays, else the store playhead. */
   positionSec: number;
   playbackRate: number;
@@ -55,15 +55,16 @@ export function projectOsMediaSession(
 ): OsMediaSessionState {
   if (!input.available) return OS_SESSION_OFF;
   const metadata = { title: input.title ?? "" };
-  if (input.preview) {
+  if (input.preview === "playing" || input.preview === "failed") {
     return {
       metadata,
-      playbackState: input.preview.playing ? "playing" : "paused",
+      playbackState: input.preview === "playing" ? "playing" : "paused",
       positionState: null,
       handlersOn: true,
     };
   }
-  const playbackState = input.isPlaying ? "playing" : "paused";
+  const episodePlaying = input.preview === null && input.isPlaying;
+  const playbackState = episodePlaying ? "playing" : "paused";
   const { durationSec, playbackRate, positionSec } = input;
   if (!Number.isFinite(durationSec) || durationSec <= 0) {
     return { metadata, playbackState, positionState: null, handlersOn: true };
@@ -92,14 +93,17 @@ export function osTransportInput(
   positionSec: number,
   started: boolean,
 ): OsTransportInput {
+  let preview: OsTransportInput["preview"] = null;
+  if (state.sourcePreview?.playing) preview = "playing";
+  else if (state.sourcePreview)
+    preview = state.sourcePreviewError ? "failed" : "ended";
+
   return {
     available: started && guestCanPlay(state),
     title: state.project?.meta.name ?? null,
     durationSec: episodeDurationSec(state.project),
     isPlaying: state.isPlaying,
-    preview: state.sourcePreview
-      ? { playing: state.sourcePreview.playing }
-      : null,
+    preview,
     positionSec,
     playbackRate: state.playbackRate,
   };
@@ -112,6 +116,7 @@ export function sameOsInputs(a: DawState, b: DawState): boolean {
     a.project === b.project &&
     a.isPlaying === b.isPlaying &&
     a.sourcePreview === b.sourcePreview &&
+    a.sourcePreviewError === b.sourcePreviewError &&
     a.playheadSeekRevision === b.playheadSeekRevision &&
     a.playbackRate === b.playbackRate
   );

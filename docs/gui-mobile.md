@@ -821,6 +821,8 @@ A guest who plays an episode from a share link can lock the phone and keep liste
 | A source preview is playing | nothing | the preview stops, any episode playback is turned off, and a Follow breaks |
 | A source preview has ended on its own, `isPlaying` either way | the preview is released and `transport.togglePlay` starts the episode without an intermediate paused update. If no tracks remain, Play is refused and the Media Session entry clears | as for a playing preview |
 
+While a source preview plays, Media Session clears episode progress. When the preview finishes normally, Media Session reports the paused episode at its held playhead.
+
 Seeking to or beyond the episode end while playing keeps the reported Media Session position at the episode duration as playback pauses. A subsequent Play starts the episode over and reports zero.
 
 The OS shows Pause only while something is audible, so Play after an ended preview plays the episode whatever `isPlaying` says, and runs the same command with the same Follow break, availability guard, rate reset and blocked-proxy retry as the Player's Play. A second Play does nothing. The keep-alive element has its own path (`handleSystemPlay` in `useProxyTransport.ts`): an OS Play that arrives on the element itself, with no handler involved, is honoured only when the Player would honour it and no preview is held, a playing or an ended one; otherwise the element is paused again.

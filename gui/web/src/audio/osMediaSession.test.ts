@@ -51,25 +51,24 @@ describe("projectOsMediaSession", () => {
   });
 
   it.each([
-    [true, "playing"],
-    [false, "paused"],
+    ["playing", false, "playing", null],
+    [
+      "ended",
+      true,
+      "paused",
+      { duration: 600, playbackRate: 1, position: 125 },
+    ],
   ] as const)(
-    "reports progress for the paused episode during a source preview (playing %s, state %s)",
-    (playing, playbackState) => {
-      expect(
-        projectOsMediaSession({
-          ...PLAYING,
-          isPlaying: !playing,
-          preview: { playing },
-        }),
-      ).toEqual({
-        metadata: { title: "Episode 12" },
-        playbackState,
-        positionState: playing
-          ? null
-          : { duration: 600, playbackRate: 1, position: 125 },
-        handlersOn: true,
-      });
+    "reports playback and episode progress for a %s preview",
+    (preview, isPlaying, playbackState, positionState) => {
+      expect(projectOsMediaSession({ ...PLAYING, isPlaying, preview })).toEqual(
+        {
+          metadata: { title: "Episode 12" },
+          playbackState,
+          positionState,
+          handlersOn: true,
+        },
+      );
     },
   );
 
@@ -485,6 +484,32 @@ describe("transport store projection", () => {
       metadata: { title: "Episode 12" },
       playbackState: "playing",
       positionState: { duration: 600, playbackRate: 2, position: 30 },
+      handlersOn: true,
+    });
+  });
+
+  it("keeps episode progress cleared after a preview fails", () => {
+    const store = useDawStore.getState();
+    store.beginSourcePreview({
+      ownerId: "wordbar",
+      media: { kind: "rendered", url: "preview" },
+      startSec: 1,
+      endSec: 2,
+    });
+    store.updateSourcePreview(
+      "wordbar",
+      useDawStore.getState().sourcePreviewGeneration,
+      1,
+      true,
+      { kind: "unavailable", message: "The recording could not be loaded." },
+    );
+
+    expect(
+      projectOsMediaSession(osTransportInput(useDawStore.getState(), 30, true)),
+    ).toEqual({
+      metadata: { title: "Episode 12" },
+      playbackState: "paused",
+      positionState: null,
       handlersOn: true,
     });
   });
