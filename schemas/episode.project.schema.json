@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["version", "meta", "timeline", "editorial", "transcripts", "mix", "render"],
   "properties": {
-    "version": { "const": "2.3" },
+    "version": { "const": "2.4" },
     "meta": { "$ref": "#/$defs/ProjectMeta" },
     "sources": { "type": "array", "items": { "$ref": "#/$defs/SourceRecording" } },
     "timeline": { "$ref": "#/$defs/TimelineSection" },
@@ -1341,7 +1341,8 @@
       "properties": {
         "last_command": {
           "anyOf": [{ "$ref": "#/$defs/SavedDocumentCommand" }, { "type": "null" }]
-        }
+        },
+        "guest_post_receipts": { "type": "object", "additionalProperties": { "type": "boolean" } }
       }
     },
     "SavedDocumentCommand": {

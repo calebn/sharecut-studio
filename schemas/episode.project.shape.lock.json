@@ -1,5 +1,5 @@
 {
-  "project_version": "2.3",
+  "project_version": "2.4",
   "schemas": {
     "serialization": {
       "$defs": {
@@ -835,6 +835,12 @@
         },
         "DocumentSyncSection": {
           "properties": {
+            "guest_post_receipts": {
+              "additionalProperties": {
+                "type": "boolean"
+              },
+              "type": "object"
+            },
             "last_command": {
               "anyOf": [
                 {
@@ -1181,7 +1187,7 @@
               "$ref": "#/$defs/TranscriptsSection"
             },
             "version": {
-              "default": "2.3",
+              "default": "2.4",
               "type": "string"
             }
           },
@@ -5020,6 +5026,12 @@
         },
         "DocumentSyncSection": {
           "properties": {
+            "guest_post_receipts": {
+              "additionalProperties": {
+                "type": "boolean"
+              },
+              "type": "object"
+            },
             "last_command": {
               "anyOf": [
                 {
@@ -5366,7 +5378,7 @@
               "$ref": "#/$defs/TranscriptsSection"
             },
             "version": {
-              "default": "2.3",
+              "default": "2.4",
               "type": "string"
             }
           },
