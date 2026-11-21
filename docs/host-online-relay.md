@@ -488,6 +488,10 @@ still stop guest playback. These failures retain proxy ownership and show an aud
 
 Revoke deletes the object when no other active shares reference that version.
 
+Direct loopback review pages stream the review mix from the Studio's own
+`/api/review/{token}/audio` route so the page's media policy permits playback.
+Public and relayed requests still use signed object-store redirects when available.
+
 ### Verify the guest CORS fallback
 
 Use the opt-in browser acceptance driver for a repeatable local proof. It runs the normal GUI and guest routes against a disposable loopback S3 store, and stamps `x-sharecut-relayed` on the manifest request to exercise the production relay-marked manifest branch. It does not start a live relay. The default direct-loopback manifest deliberately selects local proxy URLs and skips the store probe.
@@ -537,6 +541,10 @@ test "$ready" = 1 || { cat "$store_dir/server.log" >&2; exit 1; }
 ```
 
 The spec creates the disposable bucket, allows the exact E2E origin, verifies the signed URL in the browser, then denies that origin and restarts the probe on the same store under `localhost` to avoid the positive probe cache. It checks the blocked manifest metadata, unchanged project basis and media hash, a signed GET without `Access-Control-Allow-Origin`, the browser's CORS rejection, identical signed/local bytes, player-clock advance with the local chunk request, and 404/no media after revocation. The server's root 403 is only a startup check; S3 operations use the private test identity.
+
+A second case uses the browser media element to check direct loopback review-mix
+playback. It compares the local response to the object returned by the signed
+redirect for a relay-marked request and confirms that revocation ends local access.
 
 For an actual deployed relay, set `public_base_url` to the guest's exact HTTPS origin and use a disposable bucket. `podcast relay bucket-setup` adds that origin and `podcast relay bucket-check` checks the host-side probe; local Compose loopback origins must be configured through the disposable store's admin API because the setup command rejects loopback. The GUI's current CSP can block a non-loopback store host in `connect-src` before the browser applies CORS, so treat a guest-page signed fetch as browser CORS evidence only when the console/network shows no CSP violation. A CSP-blocked public-origin fetch does not disprove or prove CORS; the local driver above isolates that boundary. The host probe can still report the manifest fallback independently.
 

@@ -223,3 +223,65 @@ test("real S3 CORS probe replaces the signed URL with the same authenticated sha
     },
   );
 });
+
+test("direct loopback review audio plays with a real S3-backed share", async ({
+  browser,
+}) => {
+  ensureBucket();
+  setStoreEndpoint("http://127.0.0.1:18333");
+  setCors(appOrigin);
+  await withSharedProject(
+    browser,
+    [{ viewport: { width: 1280, height: 800 } }],
+    ["commenter"],
+    async ([host, guest], links, projectPath) => {
+      const token = links.commenter;
+      const audioPath = `/api/review/${token}/audio`;
+      let mediaCspBlocked = false;
+      guest!.on("console", (message) => {
+        if (message.text().includes("media-src")) mediaCspBlocked = true;
+      });
+      try {
+        await openGuestShare(guest!, token);
+        const direct = await guest!.request.get(audioPath, {
+          maxRedirects: 0,
+        });
+        const loaded = await guest!.evaluate(async (source) => {
+          const media = document.createElement("audio");
+          media.muted = true;
+          try {
+            media.src = source;
+            await media.play();
+            return media.duration > 0;
+          } catch {
+            return false;
+          } finally {
+            media.pause();
+            media.removeAttribute("src");
+            media.load();
+          }
+        }, audioPath);
+        expect({ status: direct.status(), loaded, mediaCspBlocked }).toEqual({
+          status: 200,
+          loaded: true,
+          mediaCspBlocked: false,
+        });
+
+        const relayed = await guest!.request.get(audioPath, {
+          headers: { "x-sharecut-relayed": "1" },
+          maxRedirects: 0,
+        });
+        expect(relayed.status()).toBe(302);
+        const signedUrl = new URL(relayed.headers().location!);
+        expect(signedUrl.origin).toBe("http://127.0.0.1:18333");
+        const signed = await guest!.request.get(signedUrl.href);
+        expect(signed.status()).toBe(200);
+        expect(sha256(await direct.body())).toBe(sha256(await signed.body()));
+      } finally {
+        await revokeLink(host!, token, projectPath);
+      }
+      const revoked = await guest!.request.get(audioPath, { maxRedirects: 0 });
+      expect(revoked.status()).toBe(404);
+    },
+  );
+});

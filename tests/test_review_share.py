@@ -134,6 +134,38 @@ def test_share_create_and_api(minimal_project, sample_wav, tmp_workspace, monkey
     assert denied.status_code == 404
 
 
+def test_direct_loopback_share_audio_stays_on_app_origin(minimal_project, sample_wav, monkeypatch):
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Loopback review mix")
+    shares = ShareService(ws)
+    share = shares.create(review_version_id=version["id"])
+    no_play_share = shares.create(review_version_id=version["id"], capabilities=["comment"])
+    path = f"/api/review/{share['token']}/audio"
+    signed_url = "https://storage.example.test/review.mp3?signature=example"
+    redirect = MagicMock(return_value=signed_url)
+    monkeypatch.setattr(review_share, "resolve_share_audio_redirect", redirect)
+    with TestClient(
+        create_app(), base_url="http://127.0.0.1:8765", follow_redirects=False
+    ) as client:
+        response = client.get(path, headers={"Range": "bytes=0-9"})
+        assert response.status_code == 206
+        assert response.headers["content-type"] == "audio/mpeg"
+        assert response.headers["content-range"].startswith("bytes 0-9/")
+        assert len(response.content) == 10
+        denied = client.get(f"/api/review/{no_play_share['token']}/audio")
+        assert denied.status_code == 403
+        redirect.assert_not_called()
+
+        relayed = client.get(path, headers={"X-ShareCut-Relayed": "1"})
+        assert relayed.status_code == 302
+        assert relayed.headers["location"] == signed_url
+        redirect.assert_called_once_with(share["token"])
+
+        response = client.get(f"https://review.example.test{path}")
+        assert response.status_code == 302
+        assert response.headers["location"] == signed_url
+
+
 def test_guest_action_done_http_twin(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Action")
