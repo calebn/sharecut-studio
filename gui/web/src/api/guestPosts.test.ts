@@ -75,10 +75,10 @@ beforeEach(() => {
   answer = async () => json(200, { comment: sampleComment({ id: "g-s-1" }) });
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    vi.fn(async (input: string, init?: RequestInit) => {
       seen.push({
-        url: String(input),
-        body: init?.body ? JSON.parse(String(init.body)) : null,
+        url: input,
+        body: typeof init?.body === "string" ? JSON.parse(init.body) : null,
       });
       return answer();
     }),
