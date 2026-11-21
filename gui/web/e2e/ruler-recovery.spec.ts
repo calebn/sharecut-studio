@@ -868,7 +868,10 @@ test("numeric range refuses invalid bounds and maps chosen lanes to one Mute and
         expect(
           committedHistory?.entries.filter((entry) => entry.operation !== null),
         ).toEqual([
-          expect.objectContaining({ operation: "edit_selected_range" }),
+          expect.objectContaining({
+            operation: "edit_selected_range",
+            undone_by: null,
+          }),
         ]);
         expect(
           observer.commands.filter((command) => command.type !== "UndoHistory"),
@@ -890,7 +893,13 @@ test("numeric range refuses invalid bounds and maps chosen lanes to one Mute and
         expect(afterHistory?.cursor).toBe(
           Math.max(0, before.history?.cursor ?? -1),
         );
-        expect(afterHistory?.entries).toEqual(committedHistory?.entries);
+        expect(afterHistory?.entries).toEqual(
+          committedHistory?.entries.map((entry) =>
+            entry.operation === "edit_selected_range"
+              ? { ...entry, undone_by: "host" }
+              : entry,
+          ),
+        );
         expect(
           observer.commands.filter((command) => command.type === "UndoHistory"),
         ).toHaveLength(1);

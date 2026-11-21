@@ -27,6 +27,10 @@ for (const viewport of VIEWPORTS) {
       }) => {
         await prepare(page, theme, false);
         const mock = await mockBootstrap(page);
+        await page.route(
+          (url) => url.pathname === "/api/projects/recent",
+          (route) => route.fulfill({ json: { projects: [] } }),
+        );
         await openHome(page, { dismissSetup: false });
         const setup = page.getByRole("region", { name: "Get ShareCut ready" });
         await expect(setup).toBeVisible();

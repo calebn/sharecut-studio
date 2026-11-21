@@ -95,7 +95,7 @@ export function snapshot(p: string) {
     history: fs.existsSync(h)
       ? (JSON.parse(fs.readFileSync(h, "utf8")) as {
           cursor: number;
-          entries: { operation: string | null }[];
+          entries: { operation: string | null; undone_by: string | null }[];
         })
       : null,
   };
