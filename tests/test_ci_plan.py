@@ -523,10 +523,18 @@ def test_aaf_independent_reader_runs_in_the_ffmpeg_pytest_shard() -> None:
     reader = next(
         i for i, step in enumerate(shard) if "Build pinned LibAAF reader" in step.get("name", "")
     )
+    aaf_tests = next(
+        i
+        for i, step in enumerate(shard)
+        if step.get("name") == "Run AAF tests with the independent reader"
+    )
     assert "aaf" in shard[install]["with"]["extras"].split()
     assert shard[reader]["if"] == "matrix.shard == 1"
     assert "scripts/build_libaaf_test_tool.sh" in shard[reader]["run"]
     assert ffmpeg < install < reader
+    assert shard[aaf_tests]["if"] == "matrix.shard == 1"
+    assert "env -u PYTEST_SHARD_INDEX -u PYTEST_SHARD_COUNT" in shard[aaf_tests]["run"]
+    assert "pytest -q --no-cov tests/test_aaf_export.py" in shard[aaf_tests]["run"]
 
 
 ALERT_ACTION = ROOT / ".github" / "actions" / "nightly-alert" / "action.yml"

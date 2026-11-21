@@ -61,7 +61,7 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         assert "if" not in install and not install.get("continue-on-error")
         extras = {
             "pytest-quality": "dev gui relay prosody",
-            "pytest-shard": "dev gui relay prosody",
+            "pytest-shard": "dev gui relay prosody aaf",
             "pytest-python-floor": "dev gui",
         }.get(name, "gui")
         assert install["with"] == {"extras": extras}
