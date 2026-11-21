@@ -578,6 +578,15 @@ describe("ModelsSheet on an iPhone", () => {
     expect(phone.whisper.choose).toHaveBeenCalledWith("base.en-q5_1");
   });
 
+  it("describes the size group by the description note", () => {
+    render(<ModelsSheet open onClose={vi.fn()} />, {
+      wrapper: modelsWrapper(modelsApi({ status: phoneStatus() })),
+    });
+    expect(
+      screen.getByRole("group", { name: "Size" }),
+    ).toHaveAccessibleDescription(IOS_WHISPER_CATALOG[0].description);
+  });
+
   it("shows the description of the chosen size only", () => {
     render(<ModelsSheet open onClose={vi.fn()} />, {
       wrapper: modelsWrapper(
