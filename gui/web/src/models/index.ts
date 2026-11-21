@@ -11,7 +11,9 @@ export {
   rowInstalled,
   WHISPER,
   WHISPER_SIZES,
+  type WhisperEngine,
   WORD_ALIGNER,
+  whisperSizeOptions,
 } from "./capability";
 export { formatBytes } from "./format";
 export {

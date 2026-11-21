@@ -228,7 +228,8 @@ export function setupOf(
   api: Pick<
     ReturnType<typeof useModels>,
     "models" | "downloads" | "tools" | "ready" | "loadError"
-  >,
+  > &
+    Partial<Pick<ReturnType<typeof useModels>, "onPhone">>,
   secondsLeft: number | null = null,
   totals: DownloadTotals | null = downloadTotals(api.downloads),
 ): SetupData | null {
@@ -267,6 +268,10 @@ export function setupOf(
     m.state.kind === "failed" ? [m.state.failure.plain] : [],
   )[0];
   return failure === undefined
-    ? { state: "needed", sizeLabel: sizeLabelOf(toGet) }
+    ? {
+        state: "needed",
+        sizeLabel: sizeLabelOf(toGet),
+        ...(api.onPhone ? { onPhone: true } : {}),
+      }
     : { state: "failed", sizeLabel: sizeLabelOf(toGet), detail: failure };
 }

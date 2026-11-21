@@ -33,7 +33,7 @@ const meta: Meta<typeof SetupCard> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Setup card on Home, shown only while models are missing. Needed: "Get ready" starts the one download, "Choose…" opens Models, and "Not now" in the more menu hides it until the next launch. Downloading is one progress row with the bytes, the time left and an x icon to cancel (40 px); while the first status is on its way the card draws nothing for 300 ms and then static grey blocks, never a "Checking" box; the person can import or record meanwhile. A failed download says why in one plain sentence with "Try again" and "Choose…"; the check error says what happened with "Try again". Neither shows raw error text. The size comes from the caller as words ("about 2 GB"). Missing audio tools show one row with "Check again" and the setup guide link, and offer no download.\n\n**Motion.** The card changes state in place with `--motion-hover` on the bar fill; dismissing leaves with `--motion-panel`.',
+          'The Setup card on Home, shown only while models are missing. Needed: "Get ready" starts the one download, "Choose…" opens Models, and "Not now" in the more menu hides it until the next launch. Downloading is one progress row with the bytes, the time left and an x icon to cancel (40 px); while the first status is on its way the card draws nothing for 300 ms and then static grey blocks, never a "Checking" box; the person can import or record meanwhile. A failed download says why in one plain sentence with "Try again" and "Choose…"; the check error says what happened with "Try again". Neither shows raw error text. The size comes from the caller as words ("about 2 GB"). On an iPhone the needed line says "Transcription runs on this iPhone" instead of naming a computer. Missing audio tools show one row with "Check again" and the setup guide link, and offer no download.\n\n**Motion.** The card changes state in place with `--motion-hover` on the bar fill; dismissing leaves with `--motion-panel`.',
       },
     },
   },
@@ -41,6 +41,18 @@ const meta: Meta<typeof SetupCard> = {
 
 export default meta;
 type Story = StoryObj<typeof SetupCard>;
+
+export const NeededOnPhone: Story = {
+  args: { sizeLabel: "about 190 MB", onPhone: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(
+        "Transcription runs on this iPhone. One download, about 190 MB.",
+      ),
+    ).toBeVisible();
+  },
+};
 
 export const Needed: Story = {
   play: async ({ args, canvasElement }) => {

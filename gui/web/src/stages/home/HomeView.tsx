@@ -30,7 +30,7 @@ import { SetupCard, type SetupCardProps } from "./SetupCard";
 /** What the Setup card needs from the caller: state and numbers, no callbacks. */
 export type SetupData = Pick<
   SetupCardProps,
-  "state" | "progress" | "detail" | "sizeLabel"
+  "state" | "progress" | "detail" | "sizeLabel" | "onPhone"
 >;
 
 export type HomeViewProps = {

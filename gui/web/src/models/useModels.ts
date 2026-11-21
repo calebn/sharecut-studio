@@ -22,6 +22,8 @@ export type ModelsApi = {
   tools: { ffmpeg: ModelInstallState; hint: string | null };
   /** False on a device with no OS folder picker; Home then offers no Open other. */
   canPickFolder: boolean;
+  /** True on an iPhone, where transcription runs on the device itself. */
+  onPhone: boolean;
   ready: boolean;
   /** True while any bootstrap download runs, ours or another tab's. */
   busy: boolean;
@@ -54,10 +56,16 @@ export const INERT_MODELS: ModelsApi = {
   observation: { kind: "checking", generation: 0 },
   tools: { ffmpeg: "missing", hint: null },
   canPickFolder: true,
+  onPhone: false,
   ready: false,
   busy: false,
   loadError: null,
-  whisper: { variant: "", variants: [], choose: () => undefined },
+  whisper: {
+    engine: "faster_whisper",
+    variant: "",
+    variants: [],
+    choose: () => undefined,
+  },
   download: () => Promise.resolve({ kind: "cancelled" }),
   cancel: () => Promise.resolve(),
   remove: () => Promise.resolve({ kind: "busy" }),

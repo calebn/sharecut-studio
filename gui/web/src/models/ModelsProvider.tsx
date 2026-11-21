@@ -27,6 +27,7 @@ import type { NeedTarget } from "./capability";
 import {
   canPickFolderOf,
   downloadRows,
+  engineOf,
   failureKey,
   initialState,
   jobFailures,
@@ -455,6 +456,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
           : [],
       tools: toolsOf(state.status),
       canPickFolder: canPickFolderOf(state.status),
+      onPhone: engineOf(state.status) === "whisper_cpp",
       ready:
         state.observation.kind === "current" &&
         state.status?.whisper_model === state.variant &&
@@ -463,6 +465,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       busy: state.job !== null || startingModelIds.length > 0,
       loadError: state.loadError,
       whisper: {
+        engine: engineOf(state.status),
         variant: state.variant,
         variants: state.status?.whisper_models ?? [],
         choose,

@@ -192,6 +192,20 @@ describe("setupOf", () => {
     );
     expect(data).toEqual({ state: "needed", sizeLabel: "about 2 GB" });
   });
+  it("flags a phone so the card does not say computer", () => {
+    const data = setupOf({
+      ...setupApi({
+        ...base,
+        models: [model({ sizeBytes: 190_000_000 })],
+      }),
+      onPhone: true,
+    });
+    expect(data).toEqual({
+      state: "needed",
+      sizeLabel: "about 190 MB",
+      onPhone: true,
+    });
+  });
   it("does not guess a size it does not have", () => {
     const data = setupOf(
       setupApi({

@@ -24,6 +24,8 @@ export type SetupCardProps = {
   detail?: string;
   /** The download size in words: "about 2 GB". */
   sizeLabel: string;
+  /** True on an iPhone, where transcription runs on the device itself. */
+  onPhone?: boolean;
   onGetReady: () => void;
   onChoose: () => void;
   onCancel: () => void;
@@ -116,6 +118,7 @@ function SetupBody({
   progress,
   detail,
   sizeLabel,
+  onPhone,
   onGetReady,
   onChoose,
   onCancel,
@@ -131,8 +134,10 @@ function SetupBody({
             <SystemIcon name="cloud-download" size={32} />
           </span>
           <p className="sys-setup-line">
-            Transcription and cut-finding run on this computer. One download,{" "}
-            {sizeLabel}.
+            {onPhone
+              ? "Transcription runs on this iPhone."
+              : "Transcription and cut-finding run on this computer."}{" "}
+            One download, {sizeLabel}.
           </p>
         </div>
         <div className="sys-setup-actions">
