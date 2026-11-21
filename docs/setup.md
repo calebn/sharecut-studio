@@ -125,7 +125,13 @@ CI places pytest, browser, and extras temporary work in [private disk temporary 
 | `aaf` | pyaaf2 1.7.1 | Experimental editable AAF export — [daw-editing.md § Experimental AAF export](daw-editing.md#experimental-editable-aaf-export) |
 | `all` | union of runtime extras (not `dev`) | Same as `uv sync --all-extras` for product stacks; add `--extra dev` for tooling |
 
-`faster-whisper`, `av`, `onnxruntime` and the `gui` extra's `uvicorn[standard]` (uvloop, httptools, watchfiles) carry the marker `sys_platform != 'ios'`, beside a plain `uvicorn` line in `gui`. Desktop installs are unchanged; the markers let an iOS payload resolve from `uv.lock` without the host-only wheels ([cross-platform-byok.md](cross-platform-byok.md), [contributing.md § Host platform](contributing.md#host-platform)).
+`faster-whisper`, `av`, `onnxruntime` and the `gui` extra's `uvicorn[standard]` (uvloop, httptools, watchfiles) carry the marker `sys_platform != 'ios'`, beside a plain `uvicorn` line in `gui`. The markers let an iOS payload resolve from `uv.lock` without the host-only wheels ([cross-platform-byok.md](cross-platform-byok.md), [contributing.md § Host platform](contributing.md#host-platform)).
+
+Intel Macs use ONNX Runtime 1.23.2, the latest release with Intel macOS wheels.
+The Intel desktop package includes Python 3.12 and accepts verified models only.
+Unset `PODCAST_MCP_WORD_ALIGNER_MODEL` and `PODCAST_MCP_SPEAKER_ECAPA_MODEL` to
+use the verified downloads on Intel. The bundled Silero voice activity model
+needs no separate download.
 
 `./install.sh` installs `dev` + `gui` + `relay` + `prosody`. It deliberately skips `object-store` and `all`.
 

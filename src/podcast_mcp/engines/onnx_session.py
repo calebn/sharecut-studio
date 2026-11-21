@@ -12,9 +12,11 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Mapping, Sequence
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.hardware import (
     CPU_PROVIDER,
     HardwareProfile,
@@ -26,6 +28,21 @@ log = logging.getLogger(__name__)
 
 _failed: set[tuple[str, str]] = set()
 _failed_lock = threading.Lock()
+
+
+def onnx_override_restriction(variable: str) -> str | None:
+    if host_platform.current().kernel != "darwin" or host_platform.machine() != "x86_64":
+        return None
+    try:
+        runtime_version = version("onnxruntime")
+    except PackageNotFoundError:
+        return None
+    if runtime_version != "1.23.2":
+        return None
+    return (
+        "ONNX Runtime 1.23.2 on Intel Macs accepts verified models only. "
+        f"To use the verified model, unset {variable}."
+    )
 
 
 def provider_order(
