@@ -36,7 +36,8 @@ way to the Hear menu button. The same swap happens in a short frame, such as a
 phone in landscape. The short-frame bar hides skips, Stop following and the
 host's Comment. It keeps the Audio error and Retry, and a guest on the phone
 layout keeps Comment, unless the measured fit needs to hide those actions.
-The expanded Player keeps skips and the A and B buttons in a short frame.
+The expanded Player keeps skips in a short frame. The host's A and B buttons
+remain above 14 rem. At 14 rem or narrower, the Hear menu replaces them.
 
 While a source preview plays, the Player shows **Pause**. Press it to stop the
 preview and leave the episode paused. When a preview ends, **Play** starts the
