@@ -347,7 +347,7 @@ export function HomeView({
           </section>
         </main>
       </div>
-      {narrow && !empty ? (
+      {narrow && !empty && phase !== "loading" ? (
         <div className="sys-home-bar sys-start-pair">{tiles}</div>
       ) : null}
       {dropActive ? <DropOverlay label="Drop to start an episode" /> : null}

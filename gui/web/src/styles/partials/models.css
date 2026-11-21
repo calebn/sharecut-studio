@@ -72,7 +72,6 @@
 }
 
 .sys-need-extra {
-  /* Aligned under the name; at big text sizes the indent gives way so the sizes keep their room. */
   padding-inline-start: max(
     0rem,
     min(calc(1.25rem + var(--space-4)), 9vw, calc(100vw - 15rem))

@@ -6,11 +6,11 @@ import { HomeView, type HomeViewProps } from "./HomeView";
 import { RECENTS } from "./homeFixture";
 import { OpenOther } from "./OpenOther";
 
-function setupPhone(
+function phoneView(
   phase: HomeViewProps["phase"],
   projects: HomeViewProps["projects"],
 ) {
-  return render(
+  return (
     <HomeView
       phase={phase}
       projects={projects}
@@ -34,8 +34,15 @@ function setupPhone(
       onSettings={vi.fn()}
       onConnectAgent={vi.fn()}
       onHelp={vi.fn()}
-    />,
+    />
   );
+}
+
+function setupPhone(
+  phase: HomeViewProps["phase"],
+  projects: HomeViewProps["projects"],
+) {
+  return render(phoneView(phase, projects));
 }
 
 function setup(props: Partial<HomeViewProps> = {}) {
@@ -293,6 +300,40 @@ describe("HomeView empty, loading and drop", () => {
     } finally {
       rect.mockRestore();
     }
+  });
+
+  it("shows no phone tiles while loading, then first places them for the result", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ width: 390 } as DOMRect);
+    try {
+      const loading = setupPhone("loading", []);
+      expect(
+        screen.queryByRole("button", { name: /^Import audio/ }),
+      ).toBeNull();
+      expect(document.querySelector(".sys-home-bar")).toBeNull();
+      loading.rerender(phoneView("empty", []));
+      expect(
+        document.querySelector("main .sys-home-tiles .sys-start--import"),
+      ).not.toBeNull();
+      expect(document.querySelector(".sys-home-bar")).toBeNull();
+      loading.unmount();
+      const again = setupPhone("loading", []);
+      again.rerender(phoneView("ready", RECENTS));
+      expect(
+        document.querySelector(".sys-home-bar .sys-start--import"),
+      ).not.toBeNull();
+      expect(document.querySelector("main .sys-home-tiles")).toBeNull();
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it("keeps the tiles while loading on a wide Home", () => {
+    setup({ phase: "loading", projects: [] });
+    expect(
+      screen.getByRole("button", { name: /^Import audio/ }),
+    ).toBeInTheDocument();
   });
 
   it("leaves the drop line to the Import tile on a wide empty Home", () => {

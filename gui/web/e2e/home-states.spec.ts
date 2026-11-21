@@ -276,3 +276,54 @@ test.describe("Home with many recents on a phone", () => {
       .toBe(true);
   });
 });
+
+test.describe("Home while the Recent list loads on a phone", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  test("an empty result never shows the tiles at the bottom first", async ({
+    page,
+  }) => {
+    await mockBootstrap(page);
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(
+      (url) => url.pathname === "/api/projects/recent",
+      async (route) => {
+        await held;
+        await route.fulfill({ json: { projects: [] } });
+      },
+    );
+    await dismissSetupCard(page);
+    await page.goto("/?home=1");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "ShareCut" }),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      const seen: number[] = [];
+      (window as unknown as { __tileTops: number[] }).__tileTops = seen;
+      const sample = () => {
+        const tile = document.querySelector(".sys-home .sys-start--import");
+        if (tile) seen.push(tile.getBoundingClientRect().top);
+      };
+      new MutationObserver(sample).observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    });
+    await expect(page.locator(".sys-home .sys-start--import")).toHaveCount(0);
+    release();
+    await expect(page.locator(".sys-home .sys-start--import")).toBeVisible();
+    await page.waitForTimeout(300);
+    const tops = await page.evaluate(
+      () => (window as unknown as { __tileTops: number[] }).__tileTops,
+    );
+    expect(tops.length).toBeGreaterThan(0);
+    for (const top of tops) expect(top).toBeLessThan(300);
+  });
+});
