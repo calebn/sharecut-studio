@@ -1188,8 +1188,7 @@ button.sys-version-line {
    buttons, Stop following, Comment and Retry are `display: none`, so they take no
    focus. The hear chevron is the exception: at levels 6 to 8 above 22 rem
    outside a short frame it is a 1 px clipped box, not `display: none`, so Tab
-   still reaches it and Enter opens the Hear menu, with no visible focus ring. A
-   known limit. */
+   still reaches it. Keyboard focus reveals the trigger over the A/B group. */
 .sys-player-host > .sys-player .sys-player-pill > svg,
 .sys-player-host > .sys-player .sys-pill-x {
   flex: none;
@@ -1305,6 +1304,12 @@ button.sys-version-line {
 @container sys-player (width > 22rem) {
   html:not([data-frame-short])
     .sys-player-host:is([data-fit="6"], [data-fit="7"], [data-fit="8"])
+    .sys-player-hear {
+    position: relative;
+  }
+
+  html:not([data-frame-short])
+    .sys-player-host:is([data-fit="6"], [data-fit="7"], [data-fit="8"])
     .sys-player-hear-more {
     position: absolute;
     inline-size: 1px;
@@ -1316,6 +1321,19 @@ button.sys-version-line {
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+
+  /* Reveal keyboard focus without increasing the bar's measured width. */
+  html:not([data-frame-short])
+    .sys-player-host:is([data-fit="6"], [data-fit="7"], [data-fit="8"])
+    .sys-player-hear-more:focus-visible {
+    inset: 0;
+    inline-size: auto;
+    block-size: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    background: var(--color-bg-elevated);
   }
 }
 
