@@ -162,18 +162,60 @@ describe("social clip content", () => {
     },
   );
 
-  it("does not save a Start drag that returns to the saved fractional boundary", async () => {
-    open("host", clip.id, { ...clip, start: 18.008, end: 18.052 });
-    const field = screen.getByRole("spinbutton", { name: "Start" });
-    fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
-    fireEvent.pointerMove(field, { clientX: 90, pointerId: 1 });
-    fireEvent.pointerMove(field, { clientX: 60, pointerId: 1 });
-    fireEvent.pointerMove(field, { clientX: 90, pointerId: 1 });
-    await act(async () => {
-      fireEvent.pointerUp(field, { pointerId: 1 });
-    });
-    expect(updateSocialClip).not.toHaveBeenCalled();
-  });
+  const fractionalEdges = [
+    {
+      name: "Start",
+      key: "ArrowDown",
+      start: 18.008,
+      end: 18.109,
+      duration: 18.109,
+      dragStep: -10,
+    },
+    {
+      name: "End",
+      key: "ArrowUp",
+      start: 18.001,
+      end: 18.102,
+      duration: 60,
+      dragStep: 10,
+    },
+  ];
+
+  it.each(fractionalEdges)(
+    "does not move a fractional $name opposite to the Alt nudge",
+    async ({ name, key, start, end, duration }) => {
+      open("host", clip.id, { ...clip, start, end }, duration);
+      await act(async () => {
+        fireEvent.keyDown(screen.getByRole("spinbutton", { name }), {
+          key,
+          altKey: true,
+        });
+      });
+      expect(updateSocialClip).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { name: "Start", start: 18.008, end: 18.052, duration: 60, dragStep: -10 },
+    ...fractionalEdges,
+  ])(
+    "does not save a $name drag that returns to $start–$end s",
+    async ({ name, start, end, duration, dragStep }) => {
+      open("host", clip.id, { ...clip, start, end }, duration);
+      const field = screen.getByRole("spinbutton", { name });
+      fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+      fireEvent.pointerMove(field, { clientX: 100 + dragStep, pointerId: 1 });
+      fireEvent.pointerMove(field, {
+        clientX: 100 + 4 * dragStep,
+        pointerId: 1,
+      });
+      fireEvent.pointerMove(field, { clientX: 100 + dragStep, pointerId: 1 });
+      await act(async () => {
+        fireEvent.pointerUp(field, { pointerId: 1 });
+      });
+      expect(updateSocialClip).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(["Start", "End"])(
     "closes an untouched exact %s editor without saving",
