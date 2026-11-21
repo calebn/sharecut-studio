@@ -285,7 +285,7 @@ describe("useGuestSync", () => {
     });
   });
 
-  it("adopts the server-assigned session client_id", async () => {
+  it("adopts the server session client ID and reconnects with the original connection ID", async () => {
     renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
     expect(useDawStore.getState().localClientId).toBeNull();
     const url = FakeWebSocket.instances[0].url;
@@ -309,6 +309,23 @@ describe("useGuestSync", () => {
       });
     });
     expect(useDawStore.getState().localClientId).toBe("guest-tok123-viewerabc");
+
+    act(() => FakeWebSocket.instances[0].close(1006));
+    const reconnect = vi
+      .mocked(window.setTimeout)
+      .mock.calls.find(
+        (call) =>
+          typeof call[1] === "number" && call[1] >= 250 && call[1] <= 500,
+      )?.[0];
+    expect(reconnect).toBeTypeOf("function");
+    await act(async () => {
+      (reconnect as () => void)();
+    });
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    const reconnectUrl = new URL(FakeWebSocket.instances[1].url);
+    expect(reconnectUrl.searchParams.get("client_id")).toBe(
+      new URL(url).searchParams.get("client_id"),
+    );
   });
 
   it("applies server_time_ns clock offset", async () => {
