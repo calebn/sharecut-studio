@@ -45,6 +45,16 @@ function open(
   return render(<SectionsBody withRange={false} />);
 }
 
+function replaceSavedTitle(title: string) {
+  act(() =>
+    useDawStore.setState({
+      project: minimalProject({
+        social_clips: [{ ...clip, title_suggestion: title }],
+      }),
+    }),
+  );
+}
+
 async function typeScrub(name: string, value: string) {
   await act(async () => {
     fireEvent.keyDown(screen.getByRole("spinbutton", { name }), {
@@ -81,6 +91,94 @@ describe("social clip content", () => {
     expect(screen.queryByRole("button", { name: "Seek to start" })).toBeNull();
     await expectNoA11yViolations(container);
   });
+
+  it("keeps a conflicting title draft through blur and saves it only on Enter", async () => {
+    const { container } = open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    title.focus();
+    fireEvent.change(title, { target: { value: "My title" } });
+    replaceSavedTitle("A peer's title");
+
+    expect(title).toHaveValue("My title");
+    expect(title).toHaveFocus();
+    expect(title).toHaveAccessibleDescription(/Title changed elsewhere/);
+    expect(screen.getByRole("status")).toHaveTextContent(/Enter/);
+    await expectNoA11yViolations(container);
+
+    title.blur();
+    expect(title).toHaveValue("My title");
+    expect(updateSocialClipDetails).not.toHaveBeenCalled();
+
+    title.focus();
+    await act(async () => fireEvent.keyDown(title, { key: "Enter" }));
+    title.blur();
+    expect(updateSocialClipDetails).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/p.json",
+      clip.id,
+      { title: "My title" },
+    );
+  });
+
+  it("updates a clean title and escapes a draft to the newest saved title", () => {
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    replaceSavedTitle("First peer title");
+    expect(title).toHaveValue("First peer title");
+    title.focus();
+    fireEvent.change(title, { target: { value: "Draft" } });
+    replaceSavedTitle("Second peer title");
+    replaceSavedTitle("Newest peer title");
+
+    expect(title).toHaveValue("Draft");
+    fireEvent.keyDown(title, { key: "Escape" });
+    expect(title).toHaveValue("Newest peer title");
+    expect(title).not.toHaveAccessibleDescription();
+    expect(updateSocialClipDetails).not.toHaveBeenCalled();
+  });
+
+  it("uses the saved title without writing after a peer restores it", async () => {
+    open();
+    const user = userEvent.setup();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    title.focus();
+    fireEvent.change(title, { target: { value: "Draft" } });
+    replaceSavedTitle("Peer title");
+    replaceSavedTitle(clip.title_suggestion ?? "");
+
+    expect(title).toHaveValue("Draft");
+    await user.click(screen.getByRole("button", { name: "Use saved title" }));
+    expect(title).toHaveFocus();
+    expect(title).toHaveValue(clip.title_suggestion);
+    expect(updateSocialClipDetails).not.toHaveBeenCalled();
+  });
+
+  it.each(["clip", "project"] as const)(
+    "does not transfer a draft when the %s changes",
+    (switchTo) => {
+      open();
+      const title = screen.getByRole("textbox", { name: "Title" });
+      title.focus();
+      fireEvent.change(title, { target: { value: "Old draft" } });
+      replaceSavedTitle("Peer title");
+      const other = {
+        ...clip,
+        id: switchTo === "clip" ? "social-2" : clip.id,
+        title_suggestion: "Peer title",
+      };
+      act(() =>
+        useDawStore.setState({
+          ...(switchTo === "project" ? { projectPath: "/tmp/other.json" } : {}),
+          project: minimalProject({ social_clips: [other] }),
+          selection: { kind: "social", id: other.id },
+        }),
+      );
+
+      expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue(
+        "Peer title",
+      );
+      expect(updateSocialClipDetails).not.toHaveBeenCalled();
+    },
+  );
 
   it("saves the start once with the end unchanged", async () => {
     open();
