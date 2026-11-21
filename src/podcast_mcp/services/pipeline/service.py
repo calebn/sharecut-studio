@@ -5,7 +5,7 @@ import hashlib
 import json
 import math
 from collections.abc import Callable, Mapping
-from contextlib import nullcontext
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -34,6 +34,7 @@ from podcast_mcp.services.pipeline.export_config import (
 from podcast_mcp.services.pipeline.export_variant import (
     ExportTarget,
     VariantExportResult,
+    capture_variant_checkpoint,
     export_variant_bundle,
     project_commit_guard,
 )
@@ -494,9 +495,9 @@ class PipelineService:
         ):
             self.ws.checkpoint()
             defaults = self._run_defaults()
-            edit_head_id = self.ws.project.history.edit_head_id()
+            checkpoint = capture_variant_checkpoint(self.ws.project)
 
-            def commit_guard(source_digest: str, identity: str):
+            def commit_guard(source_digest: str, identity: str) -> AbstractContextManager[str]:
                 return project_commit_guard(
                     self.ws,
                     self._run_defaults,
@@ -504,7 +505,7 @@ class PipelineService:
                     formats,
                     source_digest,
                     identity,
-                    edit_head_id,
+                    checkpoint,
                 )
 
             result = export_variant_bundle(
@@ -513,7 +514,7 @@ class PipelineService:
                 target,
                 formats,
                 pipeline_steps.ffmpeg(),
-                edit_head_id=edit_head_id,
+                generation_edit_head_id=checkpoint.edit_head_id,
                 cancel_check=cancel_check,
                 commit_guard=commit_guard,
             )

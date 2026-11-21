@@ -140,13 +140,16 @@ Hosts can export the saved, editable timeline from Deliver. The DAW job shares t
 The host `POST /api/export/deliverables` route forwards an optional `target` to the export job.
 `broadcast`, `podcast` and `streaming` select fixed -23, -16 and -14 LUFS targets;
 omitted or null preserves the canonical export behavior and configured default. The
-job result carries the target, measured QC, captured edit head and file IDs. Variant
+job result carries the target, measured QC, admitted edit head and file IDs. Variant
 jobs open a non-adopting workspace and do not save project state or rewrite the shared
-master artifacts. Cache reuse returns the edit head guarded for the current request;
-the saved receipt keeps its original generation head. Malformed receipts are excluded
-without hiding canonical downloads. Missing or unsafe encoder output produces a
-path-free coded refusal. QC refusals retain requested and measured LUFS and peak
-within the host job's 200-character message.
+master artifacts. The job reads the edit head under the project lock that checks the
+mix and normalized request at publication or cache reuse. The export can finish after
+a guest comment advances the head if both inputs match and the saved changes are
+limited to new comments, their retry records, and history. The saved receipt keeps
+its original generation head. Malformed receipts are excluded without
+hiding canonical downloads. Missing or unsafe encoder output produces a path-free
+coded refusal. QC refusals retain requested and measured LUFS and peak within the
+host job's 200-character message.
 
 Named requests reject malformed `master` and `export` section containers and container-valued
 `export.wav` before mastering, cache reuse and the final publication check. These refusals use

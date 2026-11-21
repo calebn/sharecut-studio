@@ -429,8 +429,12 @@ optional limits omit evidence without failing an otherwise successful export.
 Named export snapshots settings under the render lock. Its settings read shares
 the strict request normalizer. Fresh and cached terminal evidence comes from
 admitted bundle audio specs and QC target/limits, never later ambient defaults.
-Source/request/edit guards, bundle identity, receipts, and publication remain
-unchanged. Named MP3 zero bitrate remains invalid; missing/null uses 128.
+Publication and cache reuse recheck the certified mix and normalized request
+under the project lock. A moved edit head also requires at least one new comment.
+Apart from history, only the addition of new comments and any matching retry
+records can pass this check. The job reports the edit head admitted under the
+lock. The immutable bundle receipt keeps the edit head from the start of its render.
+Named MP3 zero bitrate remains invalid. Missing or null uses 128.
 
 The stateless version-1 comparison basis hashes a domain-separated private
 recipe with type-preserving scalar encoding. It describes supplied producer

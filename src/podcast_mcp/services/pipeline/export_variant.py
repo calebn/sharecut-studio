@@ -4,13 +4,13 @@ import hashlib
 import json
 import os
 import re
-from collections.abc import Callable, Mapping, Sequence, Set
+from collections.abc import Callable, Iterator, Mapping, Sequence, Set
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, TypedDict, cast
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.engines.ffmpeg import MASTER_SEMANTICS_REV, FFmpegEngine
@@ -38,7 +38,7 @@ from podcast_mcp.export.audio import (
     render_audio_formats,
     resolve_export_formats,
 )
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EpisodeProject, TimelineComment
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.hashing import sha256_file
@@ -51,6 +51,9 @@ from podcast_mcp.util.wav import rendered_wav_is_complete
 
 from .export_config import ExportSettingsEvidence, export_settings_evidence, require_source_config
 from .export_variant_receipt import AdmittedBundle, InvalidReceipt, _finite, admit_bundle
+
+if TYPE_CHECKING:
+    from podcast_mcp.services.app import ProjectWorkspace
 
 
 class _VariantValidationError(ValueError):
@@ -258,6 +261,14 @@ class _VariantRequest:
     formats: tuple[ExportFormatSpec, ...]
     metadata: tuple[tuple[str, str], ...]
     identity: str
+
+
+@dataclass(frozen=True)
+class VariantProjectCheckpoint:
+    edit_head_id: str
+    other_state: dict[str, Any]
+    comments: tuple[TimelineComment, ...]
+    guest_post_receipts: dict[str, bool]
 
 
 def _master_target_record(target: MasterTarget) -> MasterTargetRecord:
@@ -609,30 +620,81 @@ def variant_identity(
     return source.digest, request.identity
 
 
+def _project_state_without_comment_changes(project: EpisodeProject) -> dict[str, Any]:
+    return project.model_dump(
+        mode="json",
+        exclude={
+            "history": True,
+            "review": {"comments"},
+            "document_sync": {"guest_post_receipts"},
+        },
+    )
+
+
+def capture_variant_checkpoint(project: EpisodeProject) -> VariantProjectCheckpoint:
+    return VariantProjectCheckpoint(
+        project.history.edit_head_id(),
+        _project_state_without_comment_changes(project),
+        tuple(comment.model_copy(deep=True) for comment in project.comments),
+        project.document_sync.guest_post_receipts.copy(),
+    )
+
+
+def _allows_comment_additions(
+    checkpoint: VariantProjectCheckpoint, project: EpisodeProject
+) -> bool:
+    if _project_state_without_comment_changes(project) != checkpoint.other_state:
+        return False
+
+    previous = {comment.id: comment for comment in checkpoint.comments}
+    current = {comment.id: comment for comment in project.comments}
+    additions = current.keys() - previous.keys()
+    if (
+        not additions
+        or len(previous) != len(checkpoint.comments)
+        or len(current) != len(project.comments)
+        or any(current.get(key) != comment for key, comment in previous.items())
+    ):
+        return False
+
+    previous_receipts = checkpoint.guest_post_receipts
+    current_receipts = project.document_sync.guest_post_receipts
+    allowed_receipts = {f"comment:{key}" for key in additions}
+    return all(
+        current_receipts.get(key) == value for key, value in previous_receipts.items()
+    ) and all(
+        key in allowed_receipts and current_receipts[key] is True
+        for key in current_receipts.keys() - previous_receipts.keys()
+    )
+
+
 @contextmanager
 def project_commit_guard(
-    workspace: Any,
+    workspace: ProjectWorkspace,
     defaults_provider: Callable[[], EffectiveConfig],
     target: ExportTarget,
     formats: list[dict[str, Any]] | None,
     expected_source: str,
     expected_identity: str,
-    expected_edit_head_id: str | None,
-):
-    with workspace.transaction():
+    checkpoint: VariantProjectCheckpoint,
+) -> Iterator[str]:
+    with workspace.transaction() as project:
         current_defaults = defaults_provider()
-        source, identity = variant_identity(workspace.project, current_defaults, target, formats)
-        current_edit_head_id = workspace.project.history.edit_head_id()
+        source, identity = variant_identity(project, current_defaults, target, formats)
+        edit_head_id = project.history.edit_head_id()
         if (
             source != expected_source
             or identity != expected_identity
-            or current_edit_head_id != expected_edit_head_id
+            or (
+                edit_head_id != checkpoint.edit_head_id
+                and not _allows_comment_additions(checkpoint, project)
+            )
         ):
             raise CodedValueError(
                 "The mix or export settings changed while this export was rendering. Refresh the mix, then retry.",
                 code="stale_mix",
             )
-        yield
+        yield edit_head_id
 
 
 def _safe_bundle_root(project: EpisodeProject, *, create: bool) -> Path:
@@ -763,9 +825,9 @@ def export_variant_bundle(
     formats: list[dict[str, Any]] | None,
     engine: FFmpegEngine,
     *,
-    edit_head_id: str | None,
+    generation_edit_head_id: str,
     cancel_check: Callable[[], bool] | None,
-    commit_guard: Callable[[str, str], AbstractContextManager[None]],
+    commit_guard: Callable[[str, str], AbstractContextManager[str]],
 ) -> VariantExportResult:
     raise_if_cancel_requested(cancel_check, "Export cancelled")
     if not owned_stage_supported():
@@ -792,8 +854,8 @@ def export_variant_bundle(
                 "A saved variant bundle is damaged and was not replaced. Contact the host for help.",
                 "export_variant_cache_corrupt",
             ) from exc
-        with commit_guard(source.digest, request.identity):
-            return _result(bundle, edit_head_id)
+        with commit_guard(source.digest, request.identity) as admitted_edit_head_id:
+            return _result(bundle, admitted_edit_head_id)
 
     try:
         owned = OwnedStage(root)
@@ -858,7 +920,7 @@ def export_variant_bundle(
                         *[path.name for _, path in outputs],
                     ]
                 }
-                receipt = _receipt(request, source, edit_head_id, qc, files)
+                receipt = _receipt(request, source, generation_edit_head_id, qc, files)
                 write_json_atomic(stage / "receipt.json", cast(dict[str, Any], receipt))
                 expected_names = {
                     "master.wav",
@@ -889,7 +951,7 @@ def export_variant_bundle(
                 "The mastered or encoded output is incomplete or unsafe. No variant was published.",
                 "export_variant_unmeasured",
             ) from exc
-        with commit_guard(source.digest, request.identity):
+        with commit_guard(source.digest, request.identity) as admitted_edit_head_id:
             raise_if_cancel_requested(cancel_check, "Export cancelled")
             try:
                 _publish(owned, request.identity)
@@ -898,7 +960,7 @@ def export_variant_bundle(
                     "The export folder changed or could not be synced. Check saved exports before retrying.",
                     "export_variant_storage_invalid",
                 ) from exc
-        return _result(bundle, edit_head_id)
+        return _result(bundle, admitted_edit_head_id)
     finally:
         owned.close()
 

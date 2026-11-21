@@ -420,7 +420,8 @@ def test_cache_hit_reports_current_request_edit_head(prepared):
     assert json.loads(generation_receipt)["edit_head_id"] == "root"
 
 
-def test_guest_comment_during_variant_export_keeps_result_current(prepared, monkeypatch):
+@pytest.mark.parametrize("rename_track", [False, True], ids=["comment-only", "mixed-edit"])
+def test_guest_comment_during_variant_export(prepared, monkeypatch, rename_track):
     ws, engine, _ = prepared
     _seed_canonical_outputs(ws)
     comment_url = role_urls(ws)["commenter"].removesuffix("/daw/export") + "/comments"
@@ -451,19 +452,38 @@ def test_guest_comment_during_variant_export_keeps_result_current(prepared, monk
         )
         assert response.status_code == 200, response.text
         comment_id = response.json()["comment"]["id"]
-        commented = ProjectWorkspace.open(ws.path)
-        current_head = commented.project.history.edit_head_id()
+        if rename_track:
+            response = client.post(
+                "/api/document/command",
+                params={"path": str(ws.path)},
+                json={
+                    "type": "SetTrackMeta",
+                    "payload": {"track_id": "host", "label": "Renamed host"},
+                    "client_id": "export-test",
+                    "role": "viewer",
+                    "client_seq": 1,
+                },
+            )
+            assert response.status_code == 200, response.text
+        edited = ProjectWorkspace.open(ws.path)
+        current_head = edited.project.history.edit_head_id()
         assert current_head != generation_head
-        after_comment = _canonical_snapshot(commented)
+        after_edit = _canonical_snapshot(edited)
     finally:
         resume.set()
 
     job = done(client, ws.path, job_id)
-    assert job["status"] == "ok", job["error"]
-    assert job["result"]["edit_head_id"] == current_head
     saved = ProjectWorkspace.open(ws.path)
     assert any(comment.id == comment_id for comment in saved.project.comments)
-    assert _canonical_snapshot(saved) == after_comment
+    assert _canonical_snapshot(saved) == after_edit
+    if rename_track:
+        assert saved.project.tracks[0].label == "Renamed host"
+        assert (job["status"], job["error_code"], job["result"]) == ("error", "stale_mix", None)
+        assert list((saved.project.export_dir() / "variants").iterdir()) == []
+        return
+
+    assert job["status"] == "ok", job["error"]
+    assert job["result"]["edit_head_id"] == current_head
     file_id = next(file_id for file_id in job["result"]["file_ids"] if file_id.endswith(".mp3"))
     receipt_path = (saved.project.export_dir() / file_id).with_name("receipt.json")
     assert json.loads(receipt_path.read_bytes())["edit_head_id"] == generation_head
@@ -1821,8 +1841,8 @@ def test_invalid_request_cannot_reuse_cache_and_saved_source_stays_current(
     @contextmanager
     def changed_guard(*args, **kwargs):
         config_store().put(ws.path, config=patch)
-        with original_guard(*args, **kwargs):
-            yield
+        with original_guard(*args, **kwargs) as admitted_edit_head_id:
+            yield admitted_edit_head_id
 
     if at_guard:
         monkeypatch.setattr(pipeline, "project_commit_guard", changed_guard)
@@ -2211,8 +2231,8 @@ def test_post_publication_fault_keeps_committed_bundle(
 
     @contextmanager
     def fail_exit(*args, **kwargs):
-        with guard(*args, **kwargs):
-            yield
+        with guard(*args, **kwargs) as admitted_edit_head_id:
+            yield admitted_edit_head_id
         reached.append("guard_exit")
         raise defect
 
