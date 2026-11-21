@@ -8,6 +8,7 @@ import { capabilityOf, type NeedTarget, plainSize } from "./capability";
 import { progressText } from "./format";
 import { bytesDetail, needRowProps, progressOf } from "./needRowProps";
 import type { DownloadOutcome, ModelState } from "./types";
+import { NOT_ON_THIS_DEVICE } from "./unsupported";
 import { useModelNeed } from "./useModelNeed";
 
 export type ModelNeedPlacement =
@@ -50,7 +51,7 @@ const META: Record<Exclude<ModelState["kind"], "unsupported">, string> = {
 
 function listMeta(state: ModelState, size: string): string {
   if (state.kind === "unsupported") {
-    return "Not available";
+    return state.hint === NOT_ON_THIS_DEVICE ? "Not available" : state.hint;
   }
   if (state.kind === "downloading") {
     return bytesDetail(state, size);

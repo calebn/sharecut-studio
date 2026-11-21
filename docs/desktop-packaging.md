@@ -822,8 +822,10 @@ The public check workflow is deliberately limited:
 
 Do not put certs, `.p8` files, or `APPLE_*` / Authenticode **values** in this FOSS tree. Both macOS legs (Intel on `macos-15-intel`, Apple Silicon on `macos-15`) stay unsigned unless the funnel secrets are present. An operator can still build and notarize an Apple Silicon DMG locally (see [§ Local codesign and notarization](#local-codesign-and-notarization)).
 
-The Intel sidecar uses the locked Intel wheel of ONNX Runtime 1.23.2. Its
-word alignment and speaker recognition require the verified models. See
+The Intel sidecar uses the locked Intel wheel of ONNX Runtime 1.23.2. The
+ONNX Runtime library requires macOS 13.4 or later. The full desktop package
+requires macOS 14 or later. Word alignment and speaker recognition require
+the verified models. See
 [Setup](setup.md#pip-extras) for the Intel model settings.
 
 ## App icons

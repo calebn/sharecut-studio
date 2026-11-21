@@ -19,10 +19,10 @@ from podcast_mcp.config.defaults import cache_dir, whisper_cache_dir, word_align
 from podcast_mcp.engines.models import whisper_cpp_models
 from podcast_mcp.engines.models.speaker_ecapa import (
     SPEAKER_ECAPA_BOOTSTRAP,
-    SPEAKER_ECAPA_ENV,
     SPEAKER_ECAPA_LABEL,
     SPEAKER_ECAPA_SIZE,
     SPEAKER_ECAPA_SIZE_BYTES,
+    SpeakerEcapaOverrideError,
     bootstrap_speaker_ecapa,
     speaker_ecapa_override,
     speaker_ecapa_override_restriction,
@@ -51,6 +51,7 @@ from podcast_mcp.engines.models.word_aligner import (
     word_aligner_override_dir,
     word_aligner_problem,
 )
+from podcast_mcp.engines.onnx_session import OnnxOverrideUnsupportedError
 from podcast_mcp.util.asset_sources import OnProgress, asset_entry
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_assets import (
@@ -84,7 +85,7 @@ class ModelSpec:
     purpose: str
     size: str
     setup: SetupTier
-    problem: Callable[[str | None, bool], ModelProblem | None]
+    problem: Callable[[str | None, bool], ModelProblem | OnnxOverrideUnsupportedError | None]
     install: Callable[[str | None, bool, OnProgress | None], dict[str, Any]]
     location: Callable[[], Path]
     #: What Studio downloaded for the model, as paths to delete; raises ``ModelNotRemovable``
@@ -166,13 +167,15 @@ def _rnnoise_install(
     return {"ok": True, "path": str(bootstrap_rnnoise_model(force=force, on_progress=on_progress))}
 
 
-def _word_aligner_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
+def _word_aligner_problem(
+    variant: str | None, memoize: bool
+) -> ModelProblem | WordAlignerOverrideError | None:
     model = word_aligner_model(variant or DEFAULT_WORD_ALIGNER)
     found = word_aligner_problem(model.id, memoize=memoize)
     if found is None:
         return None
     if isinstance(found, WordAlignerOverrideError):
-        return ModelProblem(str(found), found.fix)
+        return found
     if isinstance(found, WordAlignerPinMismatchError):
         return ModelProblem(str(found), f"{WORD_ALIGNER_BOOTSTRAP} --upgrade", True)
     return ModelProblem(
@@ -192,9 +195,11 @@ def _word_aligner_install(
     return bootstrap_word_aligner(model_id, force=force, on_progress=on_progress)
 
 
-def _speaker_ecapa_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
+def _speaker_ecapa_problem(
+    variant: str | None, memoize: bool
+) -> ModelProblem | SpeakerEcapaOverrideError | None:
     if (restriction := speaker_ecapa_override_restriction()) is not None:
-        return ModelProblem(restriction, f"unset {SPEAKER_ECAPA_ENV}")
+        return SpeakerEcapaOverrideError(restriction)
     found = speaker_ecapa_problem(memoize=memoize)
     if found is None:
         return None
@@ -375,12 +380,15 @@ def model_record(
 
     ``state`` is ``installed`` when the row reports no problem. A pin mismatch is
     ``update_needed`` with an ``--upgrade`` fix as ``bootstrap``; any other problem is
-    ``missing`` with ``hint`` and ``bootstrap``.
+    ``missing`` with ``hint`` and ``bootstrap``. A configured Intel ONNX
+    override reports ``unsupported`` with a recovery hint.
     """
     base = model_base(model_id, variant)
     problem = model_spec(model_id).problem(variant, memoize)
     if problem is None:
         return {**base, "state": "installed"}
+    if isinstance(problem, OnnxOverrideUnsupportedError):
+        return {**base, "state": "unsupported", "hint": str(problem)}
     return {
         **base,
         "state": "update_needed" if problem.pin_mismatch else "missing",
@@ -390,8 +398,10 @@ def model_record(
 
 
 def require_model(model_id: str, variant: str | None = None, *, memoize: bool = True) -> None:
-    """Raise ``ModelMissing`` unless the model is installed; never downloads."""
+    """Require a usable model without downloading it."""
     rec = model_record(model_id, variant, memoize=memoize)
+    if rec["state"] == "unsupported":
+        raise OnnxOverrideUnsupportedError(rec["hint"])
     if rec["state"] != "installed":
         raise ModelMissing.from_record(rec)
 

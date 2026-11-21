@@ -128,7 +128,11 @@ CI places pytest, browser, and extras temporary work in [private disk temporary 
 `faster-whisper`, `av`, `onnxruntime` and the `gui` extra's `uvicorn[standard]` (uvloop, httptools, watchfiles) carry the marker `sys_platform != 'ios'`, beside a plain `uvicorn` line in `gui`. The markers let an iOS payload resolve from `uv.lock` without the host-only wheels ([cross-platform-byok.md](cross-platform-byok.md), [contributing.md § Host platform](contributing.md#host-platform)).
 
 Intel Macs use ONNX Runtime 1.23.2, the latest release with Intel macOS wheels.
-The Intel desktop package includes Python 3.12 and accepts verified models only.
+The ONNX Runtime library requires macOS 13.4 or later. The desktop package
+requires macOS 14 or later. Use Python 3.11 through 3.13 for an Intel source
+install. The Intel desktop package includes Python 3.12 and accepts verified
+models only. Models and `podcast bootstrap` identify the
+setting to clear if you configured a custom model.
 Unset `PODCAST_MCP_WORD_ALIGNER_MODEL` and `PODCAST_MCP_SPEAKER_ECAPA_MODEL` to
 use the verified downloads on Intel. The bundled Silero voice activity model
 needs no separate download.

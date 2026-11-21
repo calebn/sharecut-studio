@@ -22,7 +22,10 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp import settings
-from podcast_mcp.engines.onnx_session import onnx_override_restriction
+from podcast_mcp.engines.onnx_session import (
+    OnnxOverrideUnsupportedError,
+    onnx_override_restriction,
+)
 from podcast_mcp.util.asset_sources import OnProgress
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_manifest import (
@@ -108,7 +111,7 @@ class WordAlignerMissingError(RuntimeError):
         super().__init__(f"Word aligner {model_id!r} {problem}{suffix}. Run: {fix}")
 
 
-class WordAlignerOverrideError(WordAlignerMissingError):
+class WordAlignerOverrideError(WordAlignerMissingError, OnnxOverrideUnsupportedError):
     fix = f"unset {WORD_ALIGNER_ENV}"
 
     def __init__(self, model_id: str) -> None:

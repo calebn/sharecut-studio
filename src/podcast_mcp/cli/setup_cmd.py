@@ -196,10 +196,10 @@ def install_and_report(
     ``lines`` wraps each printed line, so a caller with a live bar can stop it first.
     """
     variant = whisper_model if spec.id == "whisper" else None
-    if not sys.stderr.isatty() and (
-        upgrade or model_status(spec.id, variant)["state"] != "installed"
-    ):
-        typer.echo(f"[get] {spec.id} ({spec.size})")
+    if not sys.stderr.isatty():
+        state = model_status(spec.id, variant)["state"]
+        if state != "unsupported" and (upgrade or state != "installed"):
+            typer.echo(f"[get] {spec.id} ({spec.size})")
     with _cause_stays_in_the_log():
         try:
             result = install_model(
