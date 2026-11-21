@@ -59,7 +59,7 @@ import {
   toolsUnsupportedSentence,
   untitledEpisodeName,
 } from "./homeModel";
-import { NOT_AN_EPISODE, type OpenOtherProps } from "./OpenOther";
+import { NO_FOLDER, NOT_AN_EPISODE, type OpenOtherProps } from "./OpenOther";
 import { useHeldTotals } from "./useHeldTotals";
 import { useHomeKeys } from "./useHomeKeys";
 import { useSecondsLeft } from "./useSecondsLeft";
@@ -543,7 +543,7 @@ export function HomeScreen() {
     },
     onSubmit: () => {
       if (path.trim()) void open(path.trim(), undefined, replacing, true);
-      else setPathError(NOT_AN_EPISODE);
+      else setPathError(NO_FOLDER);
     },
   };
 

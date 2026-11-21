@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
-import { NOT_AN_EPISODE, OpenOther } from "./OpenOther";
+import { NO_FOLDER, NOT_AN_EPISODE, OpenOther } from "./OpenOther";
 
 const meta: Meta<typeof OpenOther> = {
   title: "Stages/Home/OpenOther",
@@ -27,7 +27,7 @@ const meta: Meta<typeof OpenOther> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          '"Open other…" at the end of the Recent heading. With an OS picker it opens the picker in folder mode. In a plain browser it opens a popover under the button with one path field ("Folder of the episode") and an Open button; Enter submits. Errors sit under the field in plain words with the fix.\n\n**Motion.** The popover appears with `--motion-hover`.',
+          '"Open other…" at the end of the Recent heading. With an OS picker it opens the picker in folder mode. In a plain browser it opens a panel under the button, in flow, with one path field ("Folder of the episode") and an Open button; Enter submits. Errors sit under the field in plain words with the fix.\n\n**Motion.** The panel appears with `--motion-hover`.',
       },
     },
   },
@@ -52,5 +52,13 @@ export const PathError: Story = {
     path: "/Users/maya/Podcast/notes",
     defaultOpen: true,
     error: NOT_AN_EPISODE,
+  },
+};
+export const PathEmpty: Story = {
+  args: {
+    mode: "path",
+    path: "",
+    defaultOpen: true,
+    error: NO_FOLDER,
   },
 };

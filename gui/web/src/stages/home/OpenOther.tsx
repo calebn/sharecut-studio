@@ -15,7 +15,7 @@ export type OpenOtherProps = {
   path: string;
   /** Plain words with a fix; never the server's text. */
   error?: string;
-  /** Starts with the path popover showing (stories, and a retry after an error). */
+  /** Starts with the path panel showing (stories, and a retry after an error). */
   defaultOpen?: boolean;
   onChooseFolder: () => void;
   onPathChange: (path: string) => void;
@@ -26,10 +26,14 @@ export type OpenOtherProps = {
 /** The error copy for a folder with no episode in it. */
 export const NOT_AN_EPISODE = `That folder has no ShareCut episode. Choose the folder that holds ${EPISODE_PROJECT_FILENAME}.`;
 
+/** The error copy for a field with nothing typed; whitespace counts as nothing. */
+export const NO_FOLDER =
+  "Type or paste the folder of the episode, then choose Open.";
+
 /**
- * "Open other…": the OS folder picker where there is one, otherwise a popover
- * under the button with one path field. Enter submits; the error sits under
- * the field.
+ * "Open other…": the OS folder picker where there is one, otherwise a panel
+ * under the button, in flow so it pushes the Recent cards down, with one path
+ * field. Enter submits; the error sits under the field.
  */
 export function OpenOther({
   mode,

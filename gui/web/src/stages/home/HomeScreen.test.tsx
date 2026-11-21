@@ -38,6 +38,7 @@ import {
 import { takeAutoRun, takeOpenStage } from "../../utils/openIntent";
 import { writeSoundScanStart } from "../prepare/soundScan";
 import { HomeScreen, SETUP_DISMISSED_KEY } from "./HomeScreen";
+import { NO_FOLDER } from "./OpenOther";
 
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
@@ -515,6 +516,30 @@ describe("HomeScreen", () => {
       await waitFor(() => expect(assign).toHaveBeenCalled());
       expect(open).toHaveBeenLastCalledWith(EP);
     });
+
+    it.each([
+      ["an empty", ""],
+      ["a spaces-only", "   "],
+    ])(
+      "says to type the folder when %s path is submitted",
+      async (_name, typed) => {
+        const user = userEvent.setup();
+        pick.mockResolvedValue({ unavailable: true });
+        render(<HomeScreen />);
+        await user.click(
+          await screen.findByRole("button", { name: "Open other…" }),
+        );
+        const field = await screen.findByRole("textbox", {
+          name: "Folder of the episode",
+        });
+        if (typed) await user.type(field, typed);
+        await user.keyboard("{Enter}");
+        const alert = await screen.findByRole("alert");
+        expect(alert).toHaveTextContent(NO_FOLDER);
+        expect(alert).not.toHaveTextContent("no ShareCut episode");
+        expect(open).not.toHaveBeenCalled();
+      },
+    );
 
     it("opens the path field at once when Studio sent the person here", async () => {
       vi.stubGlobal("location", {

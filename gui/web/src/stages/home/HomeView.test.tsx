@@ -288,6 +288,28 @@ describe("OpenOther", () => {
     return userEvent.setup();
   };
 
+  it("wires the error to the field", () => {
+    render(
+      <OpenOther
+        mode="path"
+        path=""
+        defaultOpen
+        error="Type the folder."
+        onChooseFolder={vi.fn()}
+        onPathChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+    const field = screen.getByRole("textbox", {
+      name: "Folder of the episode",
+    });
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    const described = document.getElementById(
+      field.getAttribute("aria-describedby")!,
+    );
+    expect(described).toHaveTextContent("Type the folder.");
+  });
+
   it("closes on Esc from the field and focuses the trigger", async () => {
     const user = renderOpen();
     await user.click(
