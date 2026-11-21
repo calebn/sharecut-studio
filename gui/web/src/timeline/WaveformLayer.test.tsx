@@ -2,7 +2,7 @@ import { act, render } from "@testing-library/react";
 import { Profiler } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
-import { FakeResizeObserver } from "../test/resizeObserver";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import {
   CLIP_FILL,
   readyEntry as ready,
@@ -221,6 +221,12 @@ describe("WaveformLayer", () => {
       [2, 1],
     ]);
     expect(state.tileRequests[0]).toMatchObject({ level: 1, tiles: [0] });
+  });
+
+  it("sizes the first tiles before the resize observer fires", () => {
+    stubResizeObserver();
+    const { tiles } = mount();
+    expect(tiles()[0]?.height).toBe(50);
   });
 
   it("follows the layer height when its observer reports a resize (a lane-height step)", () => {

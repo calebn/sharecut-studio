@@ -86,12 +86,19 @@ export function RangeFields({
   const editable = showNumeric && span !== null && (always || drafting);
   const agent = showNumeric && sessionRegion && (rangeArmed || !target);
   const unresolved =
+    !state.rangeBusy &&
     selection?.kind === "transcriptRange" &&
     !target &&
     resolution.reason &&
     resolution.targets.length === 0;
-  if (!(chooser || editable || agent || unresolved || state.rangeBusy))
-    return null;
+  const progress = state.rangeBusy ? (
+    <p className={sheet ? undefined : "sr-only"} role="status">
+      Preparing range action…
+    </p>
+  ) : null;
+  // An inline progress-only section would push the timeline down during a cut.
+  if (!(chooser || editable || agent || unresolved || (sheet && progress)))
+    return progress;
   const tracks = project.tracks.map((track) => ({
     id: track.id,
     label: track.label,
@@ -226,7 +233,7 @@ export function RangeFields({
         </div>
       ) : null}
       {unresolved ? <p>{resolution.reason}</p> : null}
-      {state.rangeBusy ? <p role="status">Preparing range action…</p> : null}
+      {progress}
     </section>
   );
 }

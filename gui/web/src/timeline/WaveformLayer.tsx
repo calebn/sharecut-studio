@@ -145,14 +145,18 @@ function useHeldReady(
 }
 
 /**
- * Height of the layer (css px), from a ResizeObserver: no layout reads in
- * render. It observes `.clip-waveform` itself, whose own box spans the clip
+ * Measure a new layer before paint so split clips can draw cached tiles in
+ * their first frame. The ResizeObserver follows later changes to
+ * `.clip-waveform` itself, whose own box spans the clip
  * (`top: 0; bottom: 0` in timeline.css), so a lane-height step resizes it and
  * the observer reports it with no `laneHeight` dependency. If the layer ever
  * stops sizing its own box to the lane, observe the element that does.
  */
 function useLayerHeight(el: HTMLElement | null): number {
   const [height, setHeight] = useState(0);
+  useLayoutEffect(() => {
+    if (el) setHeight(el.clientHeight);
+  }, [el]);
   useResizeObserver(el, () => {
     if (el) {
       setHeight(el.clientHeight);
