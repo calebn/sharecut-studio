@@ -246,6 +246,11 @@ The store keeps a run of words in one track as `word_index` numbers. Another ses
 
 While an own range action is in flight, or while a replacement has no words yet, the stored numbers are left as they are and may name other words in the meantime. They are judged against the project the selection was named in when the action ends or the words arrive, and a selection made while the words were missing is cleared when the words arrive. If an own range action is in flight at that moment, nothing names the project it was made in, so the selection is kept as it is when the action ends.
 
+During a Script cut, the inline range progress stays in the live region without
+adding a row to the timeline. The edit can split a waveform into new clip
+layers. Each new layer measures its initial height before paint so it can draw
+cached tiles immediately, then uses the resize observer for later changes.
+
 Correcting the text of selected words in place (same count, same numbers) keeps the selection, for a host and an Editor guest alike; a correction that merges or splits words follows the ordinary rule above. A review guest's Script does not use this: it follows in the Script itself from the ends it remembers.
 
 Keyboard word actions: Enter on a focused, unselected word selects it and
