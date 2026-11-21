@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { createRef, StrictMode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GuestScript } from "../stages/guest/GuestScript";
+import { GUEST_SCRIPT } from "../stages/guest/guestFixture";
 import { useGuestReading } from "../stages/guest/useGuestReading";
 import { expectNoA11yViolations } from "../test/a11y";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
@@ -3361,6 +3362,28 @@ describe("ScriptPane reading position", () => {
     },
   );
 
+  it("publishes the old binding's sample on entry to a follower hold", () => {
+    scriptGeometry();
+    const { body, captured, rerender } = setup(null, false, undefined, false);
+    body.scrollTop = 170;
+    fireEvent.scroll(body);
+    expect(captured()).toBeNull();
+    const capture = vi.fn();
+    rerender(
+      <ScriptPane
+        turns={SCRIPT_TURNS.slice(1)}
+        readingPosition={{ restore: true, capture, getPosition: () => null }}
+      />,
+    );
+    expect(captured()).toMatchObject({
+      kind: "word",
+      index: 8,
+      offset: -10,
+      turns: SCRIPT_TURNS,
+    });
+    expect(capture).not.toHaveBeenCalled();
+  });
+
   it("lets a follower's scrollbar drag end follow after its place was noted aside", () => {
     scriptGeometry();
     stubResizeObserver();
@@ -3458,8 +3481,7 @@ describe("ScriptPane reading position", () => {
       return shown ? (
         <GuestScript
           layout="desktop"
-          turns={SCRIPT_TURNS}
-          wordStarts={[]}
+          script={GUEST_SCRIPT}
           playing={playing}
           onSeek={vi.fn()}
           onUserScroll={onUserScroll}
@@ -3732,8 +3754,7 @@ describe("ScriptPane reading position", () => {
     const { container } = render(
       <GuestScript
         layout="desktop"
-        turns={SCRIPT_TURNS}
-        wordStarts={[]}
+        script={GUEST_SCRIPT}
         playing={34}
         onSeek={vi.fn()}
         onUserScroll={onUserScroll}
@@ -3945,8 +3966,7 @@ describe("ScriptPane reading position", () => {
       const { container } = render(
         <GuestScript
           layout="desktop"
-          turns={SCRIPT_TURNS}
-          wordStarts={[]}
+          script={GUEST_SCRIPT}
           playing={6}
           onSeek={vi.fn()}
           onUserScroll={onUserScroll}
@@ -4111,8 +4131,7 @@ describe("ScriptPane reading position", () => {
             <GuestScript
               guest="suggester"
               layout="desktop"
-              turns={SCRIPT_TURNS}
-              wordStarts={[]}
+              script={GUEST_SCRIPT}
               playing={0}
               onSeek={vi.fn()}
               reading={reading}
@@ -4282,8 +4301,7 @@ describe("ScriptPane reading position", () => {
         <GuestScript
           guest="suggester"
           layout="desktop"
-          turns={SCRIPT_TURNS}
-          wordStarts={[]}
+          script={GUEST_SCRIPT}
           playing={17}
           onSeek={vi.fn()}
           onUserScroll={onUserScroll}
@@ -4337,8 +4355,7 @@ describe("ScriptPane reading position", () => {
               <GuestScript
                 guest="suggester"
                 layout="desktop"
-                turns={SCRIPT_TURNS}
-                wordStarts={[]}
+                script={GUEST_SCRIPT}
                 playing={playing}
                 onSeek={vi.fn()}
                 onUserScroll={onUserScroll}

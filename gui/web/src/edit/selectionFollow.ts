@@ -84,7 +84,7 @@ export type SelectionFollow =
   | { kind: "move"; anchor: number; head: number };
 
 type Found =
-  | { kind: "at"; index: number }
+  | { kind: "at"; index: number; unique: boolean }
   | { kind: "wait" }
   | { kind: "gone" };
 
@@ -157,10 +157,12 @@ export function findSelectionEnd(
   // A copy may sit in a line not drawn yet: nothing can be counted.
   if (barred || held) return { kind: "wait" };
   if (live.length === 1 && end.copies === 1)
-    return { kind: "at", index: live[0]! };
+    return { kind: "at", index: live[0]!, unique: true };
   const same = live.filter((index) => holds(model, end, index));
   // Copies that all hold are one thing to the store: any of them is the pick.
-  return same.length > 0 ? { kind: "at", index: same[0]! } : { kind: "gone" };
+  return same.length > 0
+    ? { kind: "at", index: same[0]!, unique: same.length === 1 }
+    : { kind: "gone" };
 }
 
 /** Whether this end sits in a line drawn as bars, or has a held copy: not countable yet. */

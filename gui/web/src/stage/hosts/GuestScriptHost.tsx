@@ -80,7 +80,7 @@ function GuestScriptHostAdapter({
       ? mine.verifiedRows
       : shown.rows;
   });
-  const { turns, wordStarts, words, empty } = script;
+  const { wordStarts, words } = script;
   const rangeMode = rangeEditMode(projectPath, capabilities);
   const mayRange = rangeMode !== "none";
   const listening =
@@ -208,12 +208,10 @@ function GuestScriptHostAdapter({
       <GuestScript
         guest={scriptGuestOf(projectPath, guestMode, rangeMode)}
         layout={shell === "phone" ? "phone" : "desktop"}
-        turns={turns}
-        wordStarts={wordStarts}
+        script={script}
         playing={playing}
         playheadWord={playheadWord}
         reading={reading}
-        empty={empty}
         refreshing={shown.refreshing}
         selectionRefreshing={
           mayRange &&

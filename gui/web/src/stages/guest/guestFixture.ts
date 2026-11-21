@@ -1,4 +1,6 @@
+import { guestScriptOf } from "../../stage/hosts/guestScript";
 import type { OverviewTick } from "../../system/OverviewStrip";
+import { SCRIPT_TURNS } from "../../system/scriptFixtures";
 
 export const DURATION = 3120;
 
@@ -23,3 +25,30 @@ export const PEOPLE = [
   { name: "Maya Okafor", colorIndex: 0 },
   { name: "Anneke de Vries", colorIndex: 1 },
 ];
+
+export const GUEST_SCRIPT = guestScriptOf(
+  SCRIPT_TURNS.map((turn) => {
+    const words = turn.words.map(({ text, index }) => {
+      const start = WORD_STARTS[index]!;
+      return {
+        text,
+        start,
+        end: start + 1,
+        timeline_start: start,
+        timeline_end: start + 1,
+        word_index: index,
+      };
+    });
+    return {
+      kind: "live",
+      utterance: {
+        track_id: turn.speakerId,
+        speaker: turn.speaker.name,
+        text: words.map((w) => w.text).join(" "),
+        start: words[0]!.start,
+        end: words[words.length - 1]!.end,
+        words,
+      },
+    };
+  }),
+);

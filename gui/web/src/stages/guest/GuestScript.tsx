@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
+import type { GuestScriptModel } from "../../stage/hosts/guestScript";
 import { Cover } from "../../system/Cover";
+import type { ScriptPaneReadingPosition } from "../../system/ScriptPane";
 import {
   type ScriptGuest,
   ScriptPane,
@@ -7,22 +9,17 @@ import {
 } from "../../system/ScriptPane";
 import type {
   ScriptSelection,
-  ScriptTurn,
   WordsSelection,
 } from "../../system/scriptPieces";
-import { GUEST_EMPTY_COPY, type GuestEmpty } from "./guestLogic";
-import { rebaseReading } from "./rebaseReading";
+import { GUEST_EMPTY_COPY } from "./guestLogic";
 import { type GuestReading, useGuestReading } from "./useGuestReading";
 
 export type GuestScriptProps = {
   guest?: ScriptGuest;
   layout: "desktop" | "phone";
-  turns: readonly ScriptTurn[];
-  /** Where a tap on each word seeks; null for a word whose time is not known yet. */
-  wordStarts: readonly (number | null)[];
+  script: GuestScriptModel;
   playing: number | readonly number[] | undefined;
   playheadWord?: number;
-  empty?: GuestEmpty;
   /** Some lines are still being refreshed: the pane says so and follow mode holds still. */
   refreshing?: boolean;
   selectionRefreshing?: boolean;
@@ -40,11 +37,9 @@ export type GuestScriptProps = {
 export function GuestScript({
   guest,
   layout,
-  turns,
-  wordStarts,
+  script,
   playing,
   playheadWord,
-  empty = "none",
   refreshing = false,
   selectionRefreshing = false,
   onSeek,
@@ -55,21 +50,18 @@ export function GuestScript({
   onClearSelection,
   reading: providedReading,
 }: GuestScriptProps) {
+  const { turns, wordStarts, empty } = script;
   const reading = useGuestReading(providedReading);
   const pane = useRef<ScriptPaneHandle>(null);
   const readingPosition = useMemo(
     () => ({
-      getPosition: () => {
-        const position = reading.getPosition();
-        return position?.kind === "word"
-          ? rebaseReading(position, turns)
-          : position;
-      },
-      capture: reading.capture,
+      getPosition: () => reading.getPosition(script),
+      capture: (position: ScriptPaneReadingPosition) =>
+        reading.capture(position, script),
       // A follower is restored from where it was looking while lines refresh.
       restore: !reading.following || refreshing,
     }),
-    [reading, turns, refreshing],
+    [reading, script, refreshing],
   );
   const first =
     (typeof playing === "number" ? playing : playing?.[0]) ?? playheadWord;

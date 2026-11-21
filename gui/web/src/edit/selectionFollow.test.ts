@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  findSelectionEnd,
   followSelection,
   type RememberedSelection,
   type SelectionModel,
@@ -317,6 +318,25 @@ describe("waiting for words that are not live yet", () => {
 describe("a word that exists as several copies", () => {
   const COPY_A: Spec = { start: 1, wordIndex: 3, time: { start: 1, end: 2 } };
   const COPY_B: Spec = { start: 1, wordIndex: 9, time: { start: 7, end: 8 } };
+
+  it("distinguishes identical store targets from a unique reading placement", () => {
+    const before = modelOf([COPY_A, COPY_B]);
+    const end = selectionEndOf(before, 1)!;
+    expect(findSelectionEnd(modelOf([COPY_B, COPY_A]), end)).toEqual({
+      kind: "at",
+      index: 0,
+      unique: true,
+    });
+    const twins = modelOf([COPY_B, COPY_B]);
+    expect(findSelectionEnd(twins, end)).toEqual({
+      kind: "at",
+      index: 0,
+      unique: false,
+    });
+    expect(followSelection(remember(before, 1), twins)).toEqual({
+      kind: "keep",
+    });
+  });
 
   it("counts the copies when it is remembered", () => {
     expect(selectionEndOf(modelOf([COPY_A, COPY_B]), 0)!.copies).toBe(2);
