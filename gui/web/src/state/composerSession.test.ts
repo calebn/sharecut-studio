@@ -186,13 +186,13 @@ describe("transport", () => {
 describe("close", () => {
   it("plays on what the composer paused, and keeps the text and its pin", () => {
     const { state, effects } = run(
-      session({ surface: "composer", draft: draft("note", 5, true) }),
+      session({ surface: "composer", draft: draft("  note  ", 5, true) }),
       [[{ type: "close" }]],
     );
     expect(effects).toEqual(["play"]);
     expect(state.surface).toBe("none");
     expect(state.draft).toMatchObject({
-      text: "note",
+      text: "  note  ",
       anchor: at(5),
       resume: false,
     });
@@ -220,6 +220,28 @@ describe("close", () => {
         [{ type: "close" }],
       ]).state.draft,
     ).toBeNull();
+  });
+
+  it("plays on after closing a whitespace-only draft and pins the next comment", () => {
+    const { state, effects } = run(session(), [
+      [
+        { type: "open", anchor: at(5), replacePin: false, listen: true },
+        { playing: true },
+      ],
+      [{ type: "transport", playing: false }],
+      [{ type: "type", text: " \t\n", fresh: at(5) }],
+      [{ type: "close" }],
+      [{ type: "layout", listen: false }, { playing: true }],
+    ]);
+    expect(effects).toEqual(["pause", "play"]);
+    expect(commentDraftOf(state)).toBeNull();
+
+    const reopened = run(state, [
+      [{ type: "layout", listen: true }],
+      [{ type: "open", anchor: at(40), replacePin: false, listen: true }],
+    ]).state;
+    expect(reopened.draft?.text).toBe("");
+    expect(commentDraftOf(reopened)).toEqual(at(40));
   });
 
   it("discard drops the text too", () => {
@@ -492,6 +514,30 @@ describe("show", () => {
       ],
     ).state;
     expect(back.draft?.anchor).toEqual(at(5));
+  });
+
+  it("leaves Listen closed and unpinned when a wide held draft became whitespace", () => {
+    const wide = run(
+      session({ surface: "composer", draft: draft("note", 5) }),
+      [
+        [{ type: "close" }],
+        [{ type: "layout", listen: false }],
+        [{ type: "type", text: "   ", fresh: at(30) }],
+      ],
+    ).state;
+    expect(wide.draft?.text).toBe("   ");
+    expect(commentDraftOf(wide)).toEqual(at(5));
+
+    const { state, effects } = run(wide, [
+      [{ type: "layout", listen: true }, { playing: true }],
+    ]);
+    expect(state.surface).toBe("none");
+    expect(effects).toEqual([]);
+    const reopened = run(state, [
+      [{ type: "open", anchor: at(40), replacePin: false, listen: true }],
+    ]).state;
+    expect(reopened.draft?.text).toBe("");
+    expect(commentDraftOf(reopened)).toEqual(at(40));
   });
 
   it("clears the wide composer when posting its held draft succeeds", () => {
