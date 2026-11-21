@@ -4,7 +4,6 @@ import json
 import math
 import os
 import re
-import shutil
 import tempfile
 from collections import Counter
 from dataclasses import dataclass
@@ -35,6 +34,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import proxy_media
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_directory import rename_noreplace
+from podcast_mcp.util.atomic_json import copy_file_atomic
 from podcast_mcp.util.batch_scope import frozen, frozen_state, unscoped
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 from podcast_mcp.util.hashing import sha256_file, short_digest
@@ -480,10 +480,10 @@ def _prepare(
                 proxy_media._encode_chunk(
                     engine, wav, output, start, duration_chunk, bitrate_kbps=descriptor.bitrate_kbps
                 )
+                with output.open("rb") as handle:
+                    os.fsync(handle.fileno())
             else:
-                shutil.copyfile(donor.directory / output.name, output)
-            with output.open("rb") as handle:
-                os.fsync(handle.fileno())
+                copy_file_atomic(donor.directory / output.name, output)
         wav.unlink()
         digests = _measure(private, descriptor)
         if donor is not None and tuple(digests) != donor.digests:
