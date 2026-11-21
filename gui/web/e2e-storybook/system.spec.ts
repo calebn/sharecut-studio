@@ -1146,6 +1146,30 @@ async function phoneBar(page: PlayerPage, args: BarArgs) {
   return host;
 }
 
+for (const name of ["Back 15 seconds", "Stop following Rosa"]) {
+  test(`System/Player keeps keyboard focus when fit hides ${name} (#3998)`, async ({
+    page,
+  }) => {
+    const host = await wideBar(page, BAR_STATES.followmixstale);
+    const control = host.getByRole("button", { name, exact: true });
+    await expect(control).toBeVisible();
+    await control.focus();
+    await expect(control).toBeFocused();
+    await host.evaluate((el) => {
+      el.style.width = "1320px";
+    });
+    await expect(control).toBeFocused();
+    await host.evaluate((el) => {
+      el.style.width = "380px";
+    });
+    await expect(host).toHaveAttribute("data-fit", "7");
+    await expect(control).toBeHidden();
+    await expect(
+      host.getByRole("button", { name: "Play", exact: true }),
+    ).toBeFocused();
+  });
+}
+
 test("System/Player the pills a phone's bar hides stay in the accessibility tree (#2576)", async ({
   page,
 }) => {
