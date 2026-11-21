@@ -35,7 +35,9 @@ a lane range in progress and restores the previous selection. A release that
 already ended the range keeps it. When a lane range cancels or a second finger
 interrupts a Timeline press after a transcript update, the previous Script
 selection follows the same words. It clears if those words are gone or the
-transcript cannot yet confirm them.
+transcript cannot yet confirm them. A saved Timeline interval is restored only
+when it still selects the same audio. If its clip or media seal has changed,
+the selection clears so you can select the intended interval again.
 
 ## Editor panel space
 
