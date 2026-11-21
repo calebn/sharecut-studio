@@ -32,8 +32,10 @@ export type ComposerSession = {
   /** The comment a `thread` surface shows. */
   threadId: string | null;
   draft: ComposerDraft | null;
-  /** The anchor of a typed draft that was just emptied, for Undo. */
-  dropped: CommentDraft | null;
+  dropped: {
+    surface: "composer" | "wideComposer";
+    anchor: CommentDraft | null;
+  } | null;
   /** The one Post in flight. */
   post: { id: number; sentText: string } | null;
   /** The composer paused playback and the pause has not reached the transport yet. */
@@ -157,28 +159,32 @@ export function reduceComposer(
         dropped: null,
       });
     case "type": {
-      const draft = s.draft;
+      const { draft, dropped } = s;
       if (!draft) {
         if (!e.text) return same(s);
         return same({
           ...s,
-          surface: "composer",
+          surface: dropped?.surface ?? "composer",
           threadId: null,
           draft: {
             text: e.text,
-            anchor: e.undo && s.dropped ? s.dropped : e.fresh,
+            anchor: e.undo ? (dropped?.anchor ?? e.fresh) : e.fresh,
             resume: false,
             typed: true,
           },
           dropped: null,
         });
       }
-      if (!e.text && !e.composing && draft.typed)
+      const wide = s.surface === "wideComposer";
+      if (!e.text && !e.composing && (draft.typed || wide))
         return same({
           ...s,
           surface: "none",
           draft: null,
-          dropped: draft.anchor,
+          dropped: {
+            surface: wide ? "wideComposer" : "composer",
+            anchor: draft.anchor,
+          },
         });
       return same({
         ...s,
