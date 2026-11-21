@@ -76,6 +76,11 @@ jobs:
         with:
           extras: dev gui relay prosody
 
+      - name: Build pinned LibAAF reader and verify AAF export
+        run: |
+          bash scripts/build_libaaf_test_tool.sh "$TMPDIR/libaaf-v1"
+          SHARECUT_AAFTOOL="$TMPDIR/libaaf-v1/build/bin/aaftool" pytest -q --no-cov tests/test_aaf_export.py
+
       - name: Python lint / format / security / deps
         run: |
           ruff check src tests scripts

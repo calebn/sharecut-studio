@@ -117,11 +117,12 @@ CI places pytest, browser, and extras temporary work in [private disk temporary 
 | Extra | Adds | When you need it |
 |-------|------|------------------|
 | *(core)* | typer, faster-whisper ≥ 1.1 (VAD, `hotwords`, `hallucination_silence_threshold`), PyAV ≥ 11 and < 19 (faster-whisper 1.2.1 passes `metadata_errors` to `av.open`, which PyAV 19 rejects), mcp ≥ 2.2 and < 3 (`mcp/args.py`, `mcp/tool_errors.py` and `gui/host_mcp.py` rely on SDK internals; their client tests catch drift on a minor bump), onnxruntime + huggingface-hub ≥ 2.0 (its `httpx2` HTTP stack; used by forced alignment when its optional model is installed), … | Always — `uv sync` with no extras |
-| `dev` | pytest, coverage, mypy, ruff, bandit, vulture, deptry, pre-commit | Running `make test` / `make lint-py` and check-only commit hooks |
+| `dev` | pytest, coverage, mypy, ruff, bandit, vulture, deptry, pre-commit, pyaaf2 | Running `make test` / `make lint-py`, check-only commit hooks, and AAF export tests |
 | `gui` | fastapi ≥0.116.1, starlette ≥0.47, anyio ≥4, uvicorn, httpx, boto3, websockets ≥14 | `podcast gui` / review share host |
 | `relay` | fastapi ≥0.116.1, starlette ≥0.47, uvicorn, websockets ≥14 | `podcast-relay` edge process |
 | `object-store` | boto3 | Optional S3-compatible review media (also pulled by `gui`) |
 | `prosody` | `praat-parselmouth` (Praat in Python; no torch) | `analyze_prosody` pipeline step / `audition_context` prosody window — [pipeline.md § Prosody profile](pipeline.md#prosody-profile) |
+| `aaf` | pyaaf2 1.7.1 | Experimental editable AAF export — [daw-editing.md § Experimental AAF export](daw-editing.md#experimental-editable-aaf-export) |
 | `all` | union of runtime extras (not `dev`) | Same as `uv sync --all-extras` for product stacks; add `--extra dev` for tooling |
 
 `faster-whisper`, `av`, `onnxruntime` and the `gui` extra's `uvicorn[standard]` (uvloop, httptools, watchfiles) carry the marker `sys_platform != 'ios'`, beside a plain `uvicorn` line in `gui`. Desktop installs are unchanged; the markers let an iOS payload resolve from `uv.lock` without the host-only wheels ([cross-platform-byok.md](cross-platform-byok.md), [contributing.md § Host platform](contributing.md#host-platform)).

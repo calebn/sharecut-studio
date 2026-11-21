@@ -55,6 +55,7 @@ EXTRA_IMPORTS: dict[str, tuple[str, ...]] = {
     "object-store": ("boto3", "botocore.client"),
     "relay": ("fastapi", "uvicorn", "websockets", "starlette", "podcast_relay"),
     "prosody": ("parselmouth.praat",),
+    "aaf": ("aaf2",),
 }
 ALL_EXTRA = "all"
 

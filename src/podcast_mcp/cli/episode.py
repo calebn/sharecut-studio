@@ -51,6 +51,21 @@ def export_reaper(
     typer.echo(str(session))
 
 
+@episode_app.command("export-aaf")
+def export_aaf(
+    project: Path = typer.Option(..., "--project", help="Saved episode.sharecut"),
+    output: Path = typer.Option(..., "--output", help="New directory for the portable session"),
+) -> None:
+    """Export an experimental editable AAF session with embedded audio."""
+    from podcast_mcp.services.media import export_aaf_session
+
+    try:
+        session = export_aaf_session(project, output)
+    except OSError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(str(session))
+
+
 @episode_app.command("reorder-track")
 def track_reorder(
     project: Path = typer.Option(..., "--project", help="episode.sharecut"),
