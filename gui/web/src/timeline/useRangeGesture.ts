@@ -2,6 +2,7 @@ import { type PointerEvent, type RefObject, useCallback, useRef } from "react";
 import { makeRangeTarget } from "../edit/rangeSelection";
 import { useInterruptCancel } from "../hooks/useInterruptCancel";
 import { useDawStore } from "../state/dawStore";
+import { captureSelectionRestore } from "../state/selectionSlice";
 import type { RangeDraft } from "../state/types";
 import type { ProjectView, Selection } from "../types/project";
 import { isSplitModifier } from "./useSplitAtPointer";
@@ -23,7 +24,7 @@ export function useRangeGesture(
     owner: object | undefined;
     origin: RangePoint;
     project: ProjectView;
-    previous: Selection;
+    restoreSelection: ReturnType<typeof captureSelectionRestore>;
     previousDraft: RangeDraft | null;
     drawing: boolean;
     epoch: number;
@@ -35,14 +36,11 @@ export function useRangeGesture(
     const active = draft.current;
     draft.current = null;
     const state = useDawStore.getState();
-    if (
-      active?.drawing &&
-      active.epoch === state.projectEpoch &&
-      active.painted === state.selection
-    ) {
-      state.setSelection(active.previous);
-      if (active.previousDraft) state.armRange(active.previousDraft);
-    }
+    if (!active?.drawing || active.painted !== state.selection) return;
+    const previous = active.restoreSelection(state);
+    if (previous === undefined) return;
+    state.setSelection(previous);
+    if (active.previousDraft) state.armRange(active.previousDraft);
   }, []);
   useInterruptCancel(cancel);
   const gesture = useCallback<RangeGesture>(
@@ -63,7 +61,7 @@ export function useRangeGesture(
           owner,
           origin: point,
           project: state.project,
-          previous: state.selection,
+          restoreSelection: captureSelectionRestore(state),
           previousDraft: state.rangeDraft,
           drawing: false,
           epoch: state.projectEpoch,

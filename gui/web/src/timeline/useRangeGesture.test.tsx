@@ -302,9 +302,13 @@ describe("a range draft interrupted by the window", () => {
       const next = snapshot({ track: "destination", ...edit });
       act(() => store.setProject(next));
       fireEvent.blur(window);
-      const restored = useDawStore.getState().selection;
-      if (expected === null) expect(restored).toBeNull();
-      else expect(named(next, restored)).toEqual(expected);
+      const state = useDawStore.getState();
+      if (expected === null) {
+        expect(state.selection).toBeNull();
+        expect(state.inspectorKey).toBeNull();
+        expect(state.rangeArmed).toBe(false);
+        expect(state.rangeDraft).toBeNull();
+      } else expect(named(next, state.selection)).toEqual(expected);
     },
   );
 

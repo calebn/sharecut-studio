@@ -29,7 +29,13 @@ and release cannot save a canceled draft. These previews do not write episode
 state; a changed release uses the existing command and one Undo restores it.
 Right mouse buttons and foreign pointer events do not replace a gesture owner.
 Switching projects ends clip and marker ownership even when their values match.
-An active lane range rejects another pointer pressing a clip body. Window blur, a hidden document, pagehide or the lane surface losing pointer capture cancels a lane range in progress and restores the previous selection; a release that already ended the range keeps it.
+An active lane range rejects another pointer pressing a clip body. Window blur,
+a hidden document, pagehide or the lane surface losing pointer capture cancels
+a lane range in progress and restores the previous selection. A release that
+already ended the range keeps it. When a lane range cancels or a second finger
+interrupts a Timeline press after a transcript update, the previous Script
+selection follows the same words. It clears if those words are gone or the
+transcript cannot yet confirm them.
 
 ## Editor panel space
 

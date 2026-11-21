@@ -11,6 +11,7 @@ import {
 } from "../test/transcriptSelectionFixtures";
 import type { ProjectView, Selection } from "../types/project";
 import { useDawStore } from "./dawStore";
+import { captureSelectionRestore } from "./selectionSlice";
 import { registerTranscriptSelectionFollower } from "./transcriptSelectionJudge";
 
 const PATH = "/tmp/test/episode.sharecut";
@@ -40,6 +41,16 @@ describe("a words selection across another session's renumber", () => {
     const [interval] = resolveSelectionRange(b, now()).targets[0]!.intervals;
     expect(interval!.start).toBeCloseTo(2.0, 5);
     expect(interval!.end).toBeCloseTo(3.3, 5);
+  });
+
+  it("keeps the live followed selection when a gesture restores the same words", () => {
+    start(snapshot());
+    const restore = captureSelectionRestore(useDawStore.getState());
+    const next = snapshot({ removed: [1, 2] });
+    useDawStore.getState().setProject(next);
+    const followed = now();
+    expect(named(next, followed)).toEqual(["w6", "w7", "w8"]);
+    expect(restore(useDawStore.getState())).toBe(followed);
   });
 
   it("follows its words on a same-path hydrate", () => {
