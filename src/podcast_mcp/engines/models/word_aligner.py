@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp import settings
+from podcast_mcp.engines.onnx_session import onnx_override_restriction
 from podcast_mcp.util.asset_sources import OnProgress
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_manifest import (
@@ -107,6 +108,15 @@ class WordAlignerMissingError(RuntimeError):
         super().__init__(f"Word aligner {model_id!r} {problem}{suffix}. Run: {fix}")
 
 
+class WordAlignerOverrideError(WordAlignerMissingError):
+    fix = f"unset {WORD_ALIGNER_ENV}"
+
+    def __init__(self, model_id: str) -> None:
+        super().__init__(
+            model_id, problem="requires the verified model on this Intel Mac", fix=self.fix
+        )
+
+
 class WordAlignerPinMismatchError(WordAlignerMissingError):
     """A downloaded pinned snapshot whose files are not the pinned bytes (corrupt or swapped)."""
 
@@ -168,6 +178,12 @@ def word_aligner_override_dir() -> Path | None:
     return Path(override).expanduser() if override else None
 
 
+def word_aligner_override_restriction() -> str | None:
+    if settings.raw(WORD_ALIGNER_ENV):
+        return onnx_override_restriction(WORD_ALIGNER_ENV)
+    return None
+
+
 def resolve_word_aligner_dir(model_id: str = DEFAULT_WORD_ALIGNER) -> Path:
     """A local snapshot directory for ``model_id``; never downloads.
 
@@ -177,6 +193,8 @@ def resolve_word_aligner_dir(model_id: str = DEFAULT_WORD_ALIGNER) -> Path:
 
     override = word_aligner_override_dir()
     if override is not None:
+        if onnx_override_restriction(WORD_ALIGNER_ENV) is not None:
+            raise WordAlignerOverrideError(model.id)
         if _has_required_files(override, model):
             return override
         raise WordAlignerMissingError(
@@ -246,6 +264,8 @@ def bootstrap_word_aligner(
     from podcast_mcp.config.defaults import word_aligner_cache_dir
 
     model = word_aligner_model(model_id)
+    if word_aligner_override_restriction() is not None:
+        raise WordAlignerOverrideError(model.id)
     # Intentional download path: the only word-aligner download (never local_files_only).
     path, mismatch = download_pinned_snapshot(
         model.pin, word_aligner_cache_dir(), force=force, on_progress=on_progress

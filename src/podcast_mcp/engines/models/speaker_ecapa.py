@@ -20,7 +20,7 @@ import numpy as np
 from podcast_mcp import settings
 from podcast_mcp.config.defaults import models_dir
 from podcast_mcp.engines.models.ecapa_features import ecapa_features
-from podcast_mcp.engines.onnx_session import OnnxModel
+from podcast_mcp.engines.onnx_session import OnnxModel, onnx_override_restriction
 from podcast_mcp.util.asset_sources import (
     OnProgress,
     asset_entry,
@@ -65,6 +65,12 @@ def speaker_ecapa_override() -> Path | None:
     return Path(value).expanduser() if value else None
 
 
+def speaker_ecapa_override_restriction() -> str | None:
+    if settings.raw(SPEAKER_ECAPA_ENV):
+        return onnx_override_restriction(SPEAKER_ECAPA_ENV)
+    return None
+
+
 def speaker_ecapa_path() -> Path:
     if (override := speaker_ecapa_override()) is not None:
         return override
@@ -79,6 +85,8 @@ def speaker_ecapa_problem(*, memoize: bool = False) -> str | None:
     state, so a same-size overwrite that keeps its mtime goes unseen. Bootstrap's skip check
     and the embedder's load hash uncached.
     """
+    if (restriction := speaker_ecapa_override_restriction()) is not None:
+        return restriction
     path = speaker_ecapa_path()
     if not path.is_file():
         if speaker_ecapa_override() is not None:
@@ -99,6 +107,8 @@ def bootstrap_speaker_ecapa(
     *, force: bool = False, on_progress: OnProgress | None = None
 ) -> dict[str, Any]:
     """Download and verify the pinned model; skips when it is already ready."""
+    if (restriction := speaker_ecapa_override_restriction()) is not None:
+        raise SpeakerEcapaMissingError(restriction)
     if speaker_ecapa_override() is not None:
         raise SpeakerEcapaMissingError(f"{SPEAKER_ECAPA_ENV} is set; unset it to download")
     filename, expected = _pin()

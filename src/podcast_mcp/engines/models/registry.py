@@ -19,11 +19,13 @@ from podcast_mcp.config.defaults import cache_dir, whisper_cache_dir, word_align
 from podcast_mcp.engines.models import whisper_cpp_models
 from podcast_mcp.engines.models.speaker_ecapa import (
     SPEAKER_ECAPA_BOOTSTRAP,
+    SPEAKER_ECAPA_ENV,
     SPEAKER_ECAPA_LABEL,
     SPEAKER_ECAPA_SIZE,
     SPEAKER_ECAPA_SIZE_BYTES,
     bootstrap_speaker_ecapa,
     speaker_ecapa_override,
+    speaker_ecapa_override_restriction,
     speaker_ecapa_path,
     speaker_ecapa_problem,
 )
@@ -42,6 +44,7 @@ from podcast_mcp.engines.models.whisper import (
 from podcast_mcp.engines.models.word_aligner import (
     DEFAULT_WORD_ALIGNER,
     WORD_ALIGNER_BOOTSTRAP,
+    WordAlignerOverrideError,
     WordAlignerPinMismatchError,
     bootstrap_word_aligner,
     word_aligner_model,
@@ -168,6 +171,8 @@ def _word_aligner_problem(variant: str | None, memoize: bool) -> ModelProblem | 
     found = word_aligner_problem(model.id, memoize=memoize)
     if found is None:
         return None
+    if isinstance(found, WordAlignerOverrideError):
+        return ModelProblem(str(found), found.fix)
     if isinstance(found, WordAlignerPinMismatchError):
         return ModelProblem(str(found), f"{WORD_ALIGNER_BOOTSTRAP} --upgrade", True)
     return ModelProblem(
@@ -188,6 +193,8 @@ def _word_aligner_install(
 
 
 def _speaker_ecapa_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
+    if (restriction := speaker_ecapa_override_restriction()) is not None:
+        return ModelProblem(restriction, f"unset {SPEAKER_ECAPA_ENV}")
     found = speaker_ecapa_problem(memoize=memoize)
     if found is None:
         return None

@@ -230,9 +230,12 @@ def resolve_speaker_backend(
         raise ImportError(f"speaker backend unavailable: {name}")
     from podcast_mcp.engines.models.speaker_ecapa import (
         speaker_ecapa_override,
+        speaker_ecapa_override_restriction,
         speaker_ecapa_problem,
     )
 
+    if (restriction := speaker_ecapa_override_restriction()) is not None:
+        raise SpeakerBackendUnavailable(restriction)
     problem = speaker_ecapa_problem(memoize=True)
     override = speaker_ecapa_override()
     if problem is None:

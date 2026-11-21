@@ -20,6 +20,7 @@ from podcast_mcp.engines.models.word_aligner import (
     DEFAULT_WORD_ALIGNER,
     WORD_ALIGNER_BOOTSTRAP,
     word_aligner_installed,
+    word_aligner_override_restriction,
 )
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dicts import get_by_path
@@ -74,6 +75,8 @@ class ForcedAlignment:
         missing = f"word aligner {self.model!r} is not downloaded ({WORD_ALIGNER_BOOTSTRAP})"
         if self.requested is False:
             return "off: transcribe.forced_alignment.enabled is false"
+        if not self.installed and (restriction := word_aligner_override_restriction()) is not None:
+            return restriction
         if self.requested is True:
             if self.installed:
                 return "on: transcribe.forced_alignment.enabled is true"
@@ -94,13 +97,16 @@ class ForcedAlignment:
         from podcast_mcp.engines.models.word_aligner import (
             WORD_ALIGNER_ENV,
             WordAlignerMissingError,
+            WordAlignerOverrideError,
             word_aligner_override_dir,
             word_aligner_problem,
         )
 
         override = word_aligner_override_dir()
         # A download cannot fix a bad override (it still wins), so name the variable instead.
-        if override is not None and word_aligner_problem(self.model, memoize=False) is not None:
+        if override is not None and (problem := word_aligner_problem(self.model)) is not None:
+            if isinstance(problem, WordAlignerOverrideError):
+                raise problem
             raise WordAlignerMissingError(
                 self.model,
                 f"{WORD_ALIGNER_ENV}={override} has no vocab.json or the model file",
