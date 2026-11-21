@@ -7,18 +7,14 @@ import {
 } from "../state/outboxStore";
 import type { TimelineComment } from "../types/project";
 
-export type WaitingState = "waiting" | "sending";
+type WaitingState = "waiting" | "sending";
 
 export type WaitingReply = { row: OutboxRow; state: WaitingState };
 
-export type CommentsWithWaiting = {
-  /** Project comments and the guest's kept ones in timeline order, each under its slot id. */
+type CommentsWithWaiting = {
   comments: TimelineComment[];
-  /** Kept comments by slot id. */
   waiting: ReadonlyMap<string, { row: OutboxRow; state: WaitingState }>;
-  /** Kept replies by the slot id of the comment they answer. */
   waitingReplies: ReadonlyMap<string, readonly WaitingReply[]>;
-  /** The server's id for a comment listed under `slot`; null while it is only kept. */
   serverId: (slot: string) => string | null;
 };
 
@@ -48,12 +44,7 @@ function keptComment(row: OutboxRow): TimelineComment {
   };
 }
 
-/**
- * The comment list a guest sees: what the host has, plus what the guest wrote
- * and the host has not taken yet. A guest comment keeps one id (`slotOf`) from
- * the moment it is kept to the moment it lands, so its card stays the same
- * element. Nothing here is written to the project.
- */
+/** A guest comment keeps one id (`slotOf`) from kept to landed, so its card stays the same element. */
 export function withWaitingPosts(
   projectComments: readonly TimelineComment[],
   view: OutboxView,

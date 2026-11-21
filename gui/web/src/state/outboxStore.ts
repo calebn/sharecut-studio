@@ -1,10 +1,4 @@
-/**
- * A share guest's comments and replies that could not reach the host yet, kept
- * on this device under `outbox:<token>`. Each row's `id` is the key the server
- * dedupes on, so a send that landed but lost its answer is harmless to repeat.
- * Rows the host refused for good move to `outbox-returned:<token>` with the
- * reason, until the guest dismisses them or puts the text back.
- */
+/** Rows live under `outbox:<token>`; each `id` is the server's repeat key, so resending a send that landed is harmless. */
 
 import { idbGet, updateStoredList } from "./idbKv";
 
@@ -17,43 +11,33 @@ export type OutboxAnchor = {
 };
 
 export type OutboxRow = {
-  /** 32 lowercase hex: the `comment_id` or `reply_id` the server derives the stored id from. */
   id: string;
   kind: "comment" | "reply";
   body: string;
   author: string;
   created_at: number;
-  /** A comment's place on the timeline. */
   anchor?: OutboxAnchor;
-  /** A reply's comment, as the page names it (see `slotOf`). */
   parent_comment_id?: string;
 };
 
-export type ReturnedPost = OutboxRow & {
+type ReturnedPost = OutboxRow & {
   reason: string;
-  /** The HTTP status that refused it, or null when the page decided. */
   status: number | null;
 };
 
 const HEX_ID = /^[0-9a-f]{32}$/;
 const LANDED_ID = /^g-.+-([0-9a-f]{32})$/;
 
-/** The id the page lists a waiting comment under, before the server has named it. */
 export function waitingSlot(rowId: string): string {
   return `g-${rowId}`;
 }
 
-/**
- * The id a comment keeps in the list from the moment it waits to the moment it
- * lands, so the card is the same element throughout. The server's id for a
- * guest comment ends with the key the guest sent.
- */
+/** The id a comment keeps from kept to landed, so its card stays one element; the server id ends with the guest's key. */
 export function slotOf(commentId: string): string {
   const landed = LANDED_ID.exec(commentId);
   return landed ? waitingSlot(landed[1]) : commentId;
 }
 
-/** The server's id for a comment the list shows under `slot`, or null while it still waits. */
 export function serverIdOf(
   slot: string,
   comments: readonly { id: string }[],
@@ -114,7 +98,7 @@ function parseAnchor(value: unknown): OutboxAnchor {
   };
 }
 
-export function parseOutboxRow(value: unknown): OutboxRow {
+function parseOutboxRow(value: unknown): OutboxRow {
   if (
     !isRecord(value) ||
     typeof value.id !== "string" ||
@@ -207,7 +191,6 @@ export async function appendOutbox(
   return true;
 }
 
-/** Puts a row back where its time says, so an Undo keeps a reply behind its comment. */
 export async function restoreOutbox(
   token: string,
   row: OutboxRow,
@@ -233,7 +216,6 @@ export async function restoreOutbox(
   return true;
 }
 
-/** Removes a row and says which one it was, so an Undo can put it back. Null when it was already gone. */
 export async function removeOutbox(
   token: string,
   id: string,
@@ -251,11 +233,7 @@ export async function removeOutbox(
   return removed;
 }
 
-/**
- * The host refused this row for good: it leaves the outbox and waits in the
- * returned list with its reason. Written to the returned list first, so a
- * crash between the two writes shows the row twice, never loses its text.
- */
+/** Written to the returned list first, so a crash between the two writes shows the row twice, never loses its text. */
 export async function returnOutboxRow(
   token: string,
   id: string,
@@ -280,7 +258,6 @@ export async function returnOutboxRow(
   await removeOutbox(token, id);
 }
 
-/** Removes a returned row, handing it back so an action can use its text. */
 export async function removeReturned(
   token: string,
   id: string,
@@ -298,7 +275,6 @@ export async function removeReturned(
   return removed;
 }
 
-/** What a guest sees of the outbox: the rows, what was returned, and which row is on its way. */
 export type OutboxView = {
   rows: readonly OutboxRow[];
   returned: readonly ReturnedPost[];
@@ -313,7 +289,7 @@ const EMPTY: OutboxView = {
   loaded: false,
 };
 
-export const OUTBOX_POLL_MS = 2_000;
+const OUTBOX_POLL_MS = 2_000;
 
 type Watched = {
   view: OutboxView;
@@ -343,8 +319,7 @@ function sameList(a: readonly unknown[], b: readonly unknown[]): boolean {
   return a.length === b.length && JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** Reads the stored rows into the view this tab shows; a failed read leaves the view as it was. */
-export async function refreshOutboxView(token: string): Promise<void> {
+async function refreshOutboxView(token: string): Promise<void> {
   const entry = watched.get(token);
   if (!entry) return;
   const reading = ++entry.generation;
@@ -360,7 +335,6 @@ export async function refreshOutboxView(token: string): Promise<void> {
   }
 }
 
-/** Marks a row as being sent right now, in this tab. */
 export function setOutboxSending(
   token: string,
   id: string,

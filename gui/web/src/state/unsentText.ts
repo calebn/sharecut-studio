@@ -34,10 +34,6 @@ export function useUnsentText(label: string, text: string | string[]): void {
   }, [label]);
 }
 
-/**
- * The comments and replies this device keeps for a link, waiting or refused,
- * for the cover a dead link leaves. An unreadable store hands back nothing.
- */
 export async function collectKeptPosts(token: string): Promise<UnsentText[]> {
   try {
     const [waiting, refused] = await Promise.all([

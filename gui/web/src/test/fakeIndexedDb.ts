@@ -1,6 +1,5 @@
 import { vi } from "vitest";
 
-/** A one-store IndexedDB that keeps rows in `rows`, enough for the offline stores' read-modify-write. */
 export function stubIndexedDb(rows: Map<string, unknown>): void {
   const database = () => ({
     close() {},

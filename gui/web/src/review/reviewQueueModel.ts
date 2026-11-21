@@ -377,10 +377,8 @@ export type AttentionRow = {
   suggestion?: ConflictSuggestion;
 };
 
-/** A guest comment or reply the host refused for good, handed back with its text and the reason. */
-export type ReturnedPostRow = {
+type ReturnedPostRow = {
   id: string;
-  /** "Your comment at 0:12" or "Your reply". */
   what: string;
   reason: string;
   text: string;
@@ -388,7 +386,6 @@ export type ReturnedPostRow = {
   canPutBack: boolean;
 };
 
-/** A guest's comments and replies that are kept for sending, and those the host did not take. */
 export type GuestPostsAttention = {
   waiting: { comments: number; replies: number };
   returned: readonly ReturnedPostRow[];
@@ -410,7 +407,6 @@ export type ReviewAttention = {
   canDismiss: boolean;
   /** The host's project, set so a refine-gate refusal can be waived from its row. */
   refineWaiverProject?: string;
-  /** A share guest's kept comments and replies. */
   posts?: GuestPostsAttention;
   onDismissAll: () => void;
   onRetry: () => void;
@@ -473,7 +469,6 @@ export const waitingPostsOf = (
   posts: GuestPostsAttention | undefined,
 ): number => (posts ? posts.waiting.comments + posts.waiting.replies : 0);
 
-/** "1 comment waiting to send", "2 comments and 1 reply waiting to send". */
 export const waitingPostsLabelOf = (waiting: {
   comments: number;
   replies: number;

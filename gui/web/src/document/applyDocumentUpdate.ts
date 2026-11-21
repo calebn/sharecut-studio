@@ -375,7 +375,6 @@ export function mergeReturnedComment(comment: TimelineComment): void {
   else comments[index] = comment;
   applyDocumentSnapshot({ comments }, { force: true });
 }
-/** Puts a reply the server just made on its comment, unless the comment already lists it. */
 export function mergeReturnedReply(
   commentId: string,
   reply: CommentReply,

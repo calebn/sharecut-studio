@@ -3,12 +3,6 @@ import { expectPageAxeClean } from "./axe";
 import { SIZES, withGuestLink } from "./guestLink";
 import { openGuestShare } from "./shareNavigation";
 
-/**
- * A guest's comment typed while the host cannot be reached is kept on the
- * device, shown in the list as waiting, sent once when the host answers, and
- * handed back with the reason when the host refuses it for good (#3891).
- */
-
 const DESKTOP = SIZES[1];
 const TEXT = "A note I wrote while the host was away";
 const KEPT_LINE = "Comment kept. It sends when you can reach the host.";
@@ -45,7 +39,6 @@ async function serverComments(
 
 type Send = (route: Route) => Promise<void>;
 
-/** Answers every comment POST with `send`, for every tab of the guest's browser, until `lift()`. */
 async function hostSends(page: Page, token: string, send: Send) {
   const seen = { posts: 0 };
   const pattern = `**/api/review/${token}/comments*`;
@@ -63,7 +56,6 @@ async function hostSends(page: Page, token: string, send: Send) {
 
 const unreachable: Send = (route) => route.abort("connectionrefused");
 
-/** A page told its device is back, as the browser does, so the kept comment is sent now. */
 const deviceBack = (page: Page) =>
   page.evaluate(() => window.dispatchEvent(new Event("online")));
 
