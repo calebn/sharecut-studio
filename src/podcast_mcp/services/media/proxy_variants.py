@@ -18,6 +18,7 @@ from podcast_mcp.engines.source_proxy_audio import (
     SourceProxySelection,
     capture_source_proxy_inputs,
     render_source_proxy_inputs,
+    validate_source_proxy_inputs,
 )
 from podcast_mcp.models.episode import (
     EpisodeProject,
@@ -583,8 +584,7 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                         raise CodedValueError(
                             "Proxy inputs changed; retry", code="proxy_inputs_changed"
                         )
-                    for inputs in sealed.all():
-                        inputs.validate(current, engine, defaults=defaults)
+                    validate_source_proxy_inputs(current, sealed.all(), engine, defaults=defaults)
                     for item in prepared:
                         item.publish(current)
                     before = current.model_dump(mode="json")

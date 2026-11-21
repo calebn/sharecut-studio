@@ -4,6 +4,7 @@ import json
 import math
 import re
 import shutil
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, replace
 from fractions import Fraction
 from pathlib import Path
@@ -67,7 +68,9 @@ from podcast_mcp.models import EpisodeProject, Track
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
+from podcast_mcp.util.fingerprint import FileStamp, file_stamp
 from podcast_mcp.util.hashing import sha256_file, short_digest
+from podcast_mcp.util.host_platform import current as current_host_platform
 from podcast_mcp.util.process import is_in_process_media_tool, run
 from podcast_mcp.util.project_state import (
     FileRevision,
@@ -201,7 +204,14 @@ class _Dependencies:
             bindings,
         )
 
-    def validate(self, project: EpisodeProject, *, defaults: EffectiveConfig) -> None:
+    def validate(
+        self,
+        project: EpisodeProject,
+        *,
+        defaults: EffectiveConfig,
+        read_digest: Callable[[Path], str] | None = None,
+    ) -> None:
+        digest_file = read_digest or sha256_file
         with project_state_lock(project):
             if _audible_state(project.model_dump_json()) != _audible_state(self.project_json):
                 raise _inputs_changed()
@@ -218,7 +228,7 @@ class _Dependencies:
                     raise _inputs_changed()
             for path, revision, digest in self.media:
                 try:
-                    changed = file_revision(path) != revision or sha256_file(path) != digest
+                    changed = file_revision(path) != revision or digest_file(path) != digest
                 except FileNotFoundError:
                     changed = revision is not None or digest is not None
                 if changed:
@@ -899,9 +909,14 @@ class SourceProxyInputs:
         return captured
 
     def validate(
-        self, project: EpisodeProject, engine: FFmpegEngine, *, defaults: EffectiveConfig
+        self,
+        project: EpisodeProject,
+        engine: FFmpegEngine,
+        *,
+        defaults: EffectiveConfig,
+        read_digest: Callable[[Path], str] | None = None,
     ) -> None:
-        self.dependencies.validate(project, defaults=defaults)
+        self.dependencies.validate(project, defaults=defaults, read_digest=read_digest)
         if (
             engine.ffmpeg,
             engine.ffprobe,
@@ -963,6 +978,34 @@ def capture_source_proxy_inputs(
             for key in selection.recordings
         },
     )
+
+
+def validate_source_proxy_inputs(
+    project: EpisodeProject,
+    captures: Iterable[SourceProxyInputs],
+    engine: FFmpegEngine,
+    *,
+    defaults: EffectiveConfig,
+) -> None:
+    """Revalidate one manifest with a fresh read per unchanged dependency."""
+    reuse_digests = current_host_platform().is_posix
+    digests: dict[tuple[Path, FileStamp], str] = {}
+
+    def read_digest(path: Path) -> str:
+        # Windows stat may report creation time in st_ctime_ns.
+        if not reuse_digests:
+            return sha256_file(path)
+        stamp = file_stamp(path)
+        key = path, stamp
+        if key not in digests:
+            digest = sha256_file(path)
+            if file_stamp(path) != stamp:
+                raise _inputs_changed()
+            digests[key] = digest
+        return digests[key]
+
+    for inputs in captures:
+        inputs.validate(project, engine, defaults=defaults, read_digest=read_digest)
 
 
 def render_source_proxy_inputs(
