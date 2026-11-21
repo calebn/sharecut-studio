@@ -147,8 +147,12 @@ describe("new episode names", () => {
   });
 });
 
-function setupApi(api: Omit<Parameters<typeof setupOf>[0], "downloads">) {
-  return { ...api, downloads: api.models ?? [] };
+function setupApi(
+  api: Omit<Parameters<typeof setupOf>[0], "downloads" | "onPhone"> & {
+    onPhone?: boolean;
+  },
+) {
+  return { onPhone: false, ...api, downloads: api.models ?? [] };
 }
 
 describe("setupOf", () => {
@@ -193,13 +197,13 @@ describe("setupOf", () => {
     expect(data).toEqual({ state: "needed", sizeLabel: "about 2 GB" });
   });
   it("flags a phone so the card does not say computer", () => {
-    const data = setupOf({
-      ...setupApi({
+    const data = setupOf(
+      setupApi({
         ...base,
         models: [model({ sizeBytes: 190_000_000 })],
+        onPhone: true,
       }),
-      onPhone: true,
-    });
+    );
     expect(data).toEqual({
       state: "needed",
       sizeLabel: "about 190 MB",

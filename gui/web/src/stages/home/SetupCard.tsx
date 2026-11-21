@@ -24,7 +24,6 @@ export type SetupCardProps = {
   detail?: string;
   /** The download size in words: "about 2 GB". */
   sizeLabel: string;
-  /** True on an iPhone, where transcription runs on the device itself. */
   onPhone?: boolean;
   onGetReady: () => void;
   onChoose: () => void;

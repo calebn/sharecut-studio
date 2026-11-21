@@ -227,9 +227,8 @@ export function timeLeftText(seconds: number): string {
 export function setupOf(
   api: Pick<
     ReturnType<typeof useModels>,
-    "models" | "downloads" | "tools" | "ready" | "loadError"
-  > &
-    Partial<Pick<ReturnType<typeof useModels>, "onPhone">>,
+    "models" | "downloads" | "tools" | "ready" | "loadError" | "onPhone"
+  >,
   secondsLeft: number | null = null,
   totals: DownloadTotals | null = downloadTotals(api.downloads),
 ): SetupData | null {
