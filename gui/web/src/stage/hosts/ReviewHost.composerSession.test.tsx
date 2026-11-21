@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { openCommentDraft } from "../../commands/comments";
@@ -351,6 +351,52 @@ describe("text on screen posts at its pin when the layout changes", () => {
       timelineStart: 5,
     });
   });
+
+  it.each([
+    { input: "replacement text", expectedPin: 90, undo: false },
+    { input: "old note", expectedPin: 5, undo: true },
+  ])(
+    "repins a cleared wide draft with $input and keeps it closed on return",
+    async ({ input, expectedPin, undo }) => {
+      const user = userEvent.setup();
+      join("comment");
+      startPlaying();
+      const { container } = mount();
+      await user.click(commentAt());
+      await user.type(field(), "old note");
+      await user.click(screen.getByRole("button", { name: "Close" }));
+      setShell("desktop");
+      const chip = () => container.querySelector(".sys-composer-chip");
+      expect(chip()).toHaveTextContent("0:05");
+
+      act(() => useDawStore.setState({ playheadSec: 40 }));
+      await user.clear(field());
+      expect(chip()).toHaveTextContent("0:40");
+      expect(playing()).toBe(true);
+
+      act(() => useDawStore.setState({ playheadSec: 90 }));
+      if (undo) {
+        fireEvent.input(field(), {
+          target: { value: input },
+          inputType: "historyUndo",
+        });
+      } else {
+        await user.type(field(), input);
+      }
+      expect(chip()).toHaveTextContent(undo ? "0:05" : "1:30");
+
+      setShell("phone");
+      expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+      expect(playing()).toBe(true);
+      await user.click(commentAt());
+      expect(value()).toBe(input);
+      await user.click(postButton());
+      expect(createComment.mock.calls[0]?.[1]).toMatchObject({
+        body: input,
+        timelineStart: expectedPin,
+      });
+    },
+  );
 
   it("keeps a draft the guest left open across the layout change", async () => {
     const user = userEvent.setup();
