@@ -11,7 +11,6 @@
     "guest role|gui/web/src/system/AppHeader.tsx": 1,
     "host offline|gui/web/src/utils/apiError.ts": 1,
     "leave gap|gui/web/src/system/ScopeChip.tsx": 1,
-    "mix out of date|gui/web/src/utils/staleRender.ts": 1,
     "not found|gui/web/src/inspector/selectionSurface.tsx": 2,
     "not found|gui/web/src/record/keeper/store.ts": 1,
     "not found|gui/web/src/stage/edit/CommentThread.tsx": 1,
