@@ -542,8 +542,9 @@ export function HomeScreen() {
       setPathError(undefined);
     },
     onSubmit: () => {
-      if (path.trim()) void open(path.trim(), undefined, replacing, true);
-      else setPathError(NOT_AN_EPISODE);
+      const folder = path.trim();
+      if (folder) void open(folder, undefined, replacing, true);
+      else setPathError("Type or paste the path to the episode folder.");
     },
   };
 

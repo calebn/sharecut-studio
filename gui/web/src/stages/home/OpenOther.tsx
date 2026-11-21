@@ -15,7 +15,7 @@ export type OpenOtherProps = {
   path: string;
   /** Plain words with a fix; never the server's text. */
   error?: string;
-  /** Starts with the path popover showing (stories, and a retry after an error). */
+  /** Starts with the path form showing (stories, and a retry after an error). */
   defaultOpen?: boolean;
   onChooseFolder: () => void;
   onPathChange: (path: string) => void;
@@ -27,9 +27,7 @@ export type OpenOtherProps = {
 export const NOT_AN_EPISODE = `That folder has no ShareCut episode. Choose the folder that holds ${EPISODE_PROJECT_FILENAME}.`;
 
 /**
- * "Open other…": the OS folder picker where there is one, otherwise a popover
- * under the button with one path field. Enter submits; the error sits under
- * the field.
+ * "Open other…" opens the OS folder picker or shows a path form under the button.
  */
 export function OpenOther({
   mode,
@@ -70,11 +68,11 @@ export function OpenOther({
     trigger.current?.focus();
   };
   return (
-    <div className="sys-open-other">
+    <>
       <button
         ref={trigger}
         type="button"
-        className="sys-text-btn"
+        className="sys-text-btn sys-open-trigger"
         aria-expanded={mode === "path" ? open : undefined}
         onClick={mode === "picker" ? onChooseFolder : toggle}
       >
@@ -82,7 +80,7 @@ export function OpenOther({
       </button>
       {showing ? (
         <form
-          className="sys-open-pop"
+          className="sys-open-form"
           aria-label="Open another episode"
           onSubmit={submit}
         >
@@ -107,6 +105,6 @@ export function OpenOther({
           <InlineError id={errorId} message={error} />
         </form>
       ) : null}
-    </div>
+    </>
   );
 }

@@ -1,4 +1,6 @@
+import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
+import { e2eProjectPath } from "./env";
 import { dismissSetupCard, expectHome, homeRecordTile, openHome } from "./home";
 import { expectNoHorizontalScroll, mockBootstrap } from "./modelsMock";
 import { setRootFontSize } from "./rootFontSize";
@@ -45,6 +47,34 @@ test.describe("Home states", () => {
     expect(box.height).toBeGreaterThanOrEqual(43.5);
     expect(box.width).toBeGreaterThanOrEqual(43.5);
     await expectNoHorizontalScroll(page);
+  });
+
+  test("an Open other path error stays above Recent on a phone", async ({
+    page,
+  }, info) => {
+    await mockRecents(page, [RECENT]);
+    await page.route("**/api/project/pick", (route) =>
+      route.fulfill({ json: { unavailable: true } }),
+    );
+    await openHome(page);
+    const recent = page.getByRole("list", { name: "Recent episodes" });
+    await expect(recent).toBeVisible();
+    await page.getByRole("button", { name: "Open other…" }).tap();
+    const form = page.getByRole("form", { name: "Open another episode" });
+    await form
+      .getByRole("textbox", { name: "Folder of the episode" })
+      .fill(path.join(path.dirname(e2eProjectPath), "Unopened episode"));
+    await form.getByRole("button", { name: "Open" }).tap();
+    await expect(form.getByRole("alert")).toHaveText(
+      /That folder has no ShareCut episode/,
+    );
+    const formBox = (await form.boundingBox())!;
+    const recentBox = (await recent.boundingBox())!;
+    expect(formBox.y + formBox.height).toBeLessThanOrEqual(recentBox.y);
+    await expectNoHorizontalScroll(page);
+    await page.screenshot({
+      path: info.outputPath("home-open-other-iphone.png"),
+    });
   });
 
   test("opening a card marks it busy and moves nothing", async ({ page }) => {
