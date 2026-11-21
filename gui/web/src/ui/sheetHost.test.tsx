@@ -1,5 +1,6 @@
 import { cleanup, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { focusHeld } from "./focusHold";
 import { SheetHostPlacement } from "./sheetHost";
 import { createSheetHost } from "./useSheetHost";
 
@@ -66,6 +67,47 @@ describe("SheetHostPlacement", () => {
       expect(document.activeElement).toBe(button);
     } finally {
       observer.disconnect();
+    }
+  });
+
+  it("restores the selected text after a move and protects focus for two frames", () => {
+    const host = createSheetHost(document);
+    const shell = document.createElement("div");
+    shell.className = "stage-frame";
+    const main = document.createElement("main");
+    shell.append(main);
+    document.body.append(shell);
+    host.place(false, false);
+    const field = document.createElement("input");
+    field.value = "Draft text";
+    host.container.append(field);
+    field.focus();
+    field.setSelectionRange(1, 5);
+
+    const move = main.after.bind(main);
+    const moveWithBlur = vi
+      .spyOn(main, "after")
+      .mockImplementation((...nodes) => {
+        move(...nodes);
+        field.blur();
+        field.setSelectionRange(0, 0);
+      });
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame"] });
+    try {
+      host.place(true, false);
+      expect(host.container.previousElementSibling).toBe(main);
+      expect(field).toHaveFocus();
+      expect([field.selectionStart, field.selectionEnd]).toEqual([1, 5]);
+      expect(focusHeld(document)).toBe(true);
+
+      vi.advanceTimersToNextFrame();
+      expect(focusHeld(document)).toBe(true);
+      vi.advanceTimersToNextFrame();
+      expect(focusHeld(document)).toBe(false);
+    } finally {
+      vi.runAllTimers();
+      vi.useRealTimers();
+      moveWithBlur.mockRestore();
     }
   });
 
