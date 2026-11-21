@@ -211,6 +211,10 @@ html[data-shell="phone"] .modifier-footer-actions .ui-segmented {
   min-inline-size: 0;
 }
 
+.sys-inspector-row:has(> .sys-inspector-slot > .inspector-text-field) {
+  --sys-inspector-label-min: min-content;
+}
+
 .sys-inline-edit.inspector-text-field {
   inline-size: 100%;
   border-color: var(--color-border-subtle);

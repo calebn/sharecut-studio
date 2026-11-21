@@ -7819,7 +7819,10 @@ input.sys-edit-fix {
 
 .sys-inspector-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 11rem);
+  grid-template-columns: minmax(var(--sys-inspector-label-min, 0), 1fr) minmax(
+      0,
+      11rem
+    );
   align-items: center;
   gap: var(--space-4);
   min-block-size: var(--control-height);
