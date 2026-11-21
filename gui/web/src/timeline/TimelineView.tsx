@@ -38,6 +38,7 @@ import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
 import { selectedClipIdsOf, selectedTrackIdsOf } from "../state/selection";
+import { captureSelectionRestore } from "../state/selectionSlice";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { DawState } from "../state/types";
 import { pickDaw, useDaw } from "../state/useDaw";
@@ -291,10 +292,14 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       onTarget: (hit) => useDawStore.getState().setSelectionHit(hit),
       precision: precisionHandoff,
       snapshot: () => {
-        const { selection, selectionHit } = useDawStore.getState();
+        const state = useDawStore.getState();
+        const { selectionHit } = state;
+        const restoreSelection = captureSelectionRestore(state);
         const bleed = clipBleedSession.getSnapshot();
         return () => {
           const s = useDawStore.getState();
+          const selection = restoreSelection(s);
+          if (selection === undefined) return;
           if (s.selection !== selection) s.setSelection(selection);
           if (s.selectionHit !== selectionHit) s.setSelectionHit(selectionHit);
           const current = clipBleedSession.getSnapshot();

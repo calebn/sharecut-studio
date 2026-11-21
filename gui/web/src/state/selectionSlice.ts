@@ -106,6 +106,60 @@ const sameScript = (a: ProjectView, b: ProjectView) =>
   a.transcript?.utterances === b.transcript?.utterances &&
   a.edit_boundaries === b.edit_boundaries;
 
+type SelectionRestoreState = Pick<
+  DawStore,
+  "selection" | "project" | "projectEpoch" | "guestMode"
+>;
+
+/** Capture a selection for gesture cancellation. Undefined skips restoration after a project switch. */
+export function captureSelectionRestore({
+  selection,
+  project,
+  projectEpoch,
+}: SelectionRestoreState): (
+  state: SelectionRestoreState,
+) => Selection | undefined {
+  const namedProject =
+    selection?.kind === "transcriptRange"
+      ? (namedIn.get(selection) ?? project)
+      : null;
+  return (state) => {
+    if (state.projectEpoch !== projectEpoch) return undefined;
+    const current = state.selection;
+    if (current === selection || selection?.kind !== "transcriptRange")
+      return selection;
+
+    const next = state.project;
+    if (
+      !namedProject ||
+      !next ||
+      wordsPending(namedProject) ||
+      wordsPending(next)
+    )
+      return null;
+    if (sameScript(namedProject, next)) return selection;
+    const role = stageRoleOf(state.guestMode);
+    if (role !== "host" && role !== "editor") return null;
+
+    const judged = judgeTranscriptSelection(namedProject, selection, next);
+    if (judged.kind === "keep") return selection;
+    if (judged.kind !== "move") return null;
+    if (
+      current?.kind === "transcriptRange" &&
+      current.trackId === selection.trackId &&
+      (current.sourceId ?? null) === (selection.sourceId ?? null) &&
+      current.startWordIndex === judged.startWordIndex &&
+      current.endWordIndex === judged.endWordIndex
+    )
+      return current;
+    return {
+      ...selection,
+      startWordIndex: judged.startWordIndex,
+      endWordIndex: judged.endWordIndex,
+    };
+  };
+}
+
 /**
  * The selection patch a project replacement implies for a selected run of
  * words, or nothing when it still stands. The store keeps `word_index`
