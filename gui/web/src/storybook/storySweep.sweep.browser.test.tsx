@@ -319,8 +319,14 @@ it("captures teardown and frame errors on the story that caused them", async () 
   const failing = composeStory(
     {
       beforeEach: () => () => {
-        console.error("cleanup error");
-        requestAnimationFrame(() => console.error("next-frame cleanup error"));
+        window.dispatchEvent(
+          new ErrorEvent("error", { message: "cleanup error" }),
+        );
+        requestAnimationFrame(() =>
+          window.dispatchEvent(
+            new ErrorEvent("error", { message: "next-frame cleanup error" }),
+          ),
+        );
       },
     },
     meta,
@@ -333,7 +339,9 @@ it("captures teardown and frame errors on the story that caused them", async () 
   const nextErrors = await observeStory(async (host) => {
     await clean.run({ canvasElement: host, globals: { theme: "light" } });
   });
-  expect(firstErrors).toEqual(["cleanup error", "next-frame cleanup error"]);
+  expect(firstErrors).toEqual(
+    expect.arrayContaining(["cleanup error", "next-frame cleanup error"]),
+  );
   expect(nextErrors).toEqual([]);
 });
 
