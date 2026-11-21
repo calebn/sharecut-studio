@@ -53,6 +53,11 @@ _RATE_FAMILIES: tuple[tuple[str, str, str, str], ...] = (
     ("PODCAST_AUTH_MAGIC_REQUEST", "magic-link requests per client address", "30", "10"),
     ("PODCAST_AUTH_MAGIC_EMAIL", "magic-link requests per email address", "6", "3"),
     ("PODCAST_AUTH_MAGIC_CONSUME", "magic-link sign-ins per client address", "60", "20"),
+    ("PODCAST_AUTH_PASSWORD_LOGIN", "password sign-ins per client address", "30", "10"),
+    ("PODCAST_AUTH_PASSWORD_ACCOUNT", "password sign-ins per account email", "6", "3"),
+    ("PODCAST_AUTH_PASSKEY_BEGIN", "passkey sign-in starts per client address", "30", "10"),
+    ("PODCAST_AUTH_PASSKEY_FINISH", "passkey sign-in completions per client address", "30", "10"),
+    ("PODCAST_AUTH_AGENT_CREDENTIAL", "agent credential requests per client address", "30", "10"),
 )
 
 _RELAY_RATE_FAMILIES: tuple[tuple[str, str, str, str], ...] = (

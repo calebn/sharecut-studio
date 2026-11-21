@@ -303,7 +303,7 @@ Do **not** rename MCP tool IDs lightly; UI labels can diverge.
 - `schemas/episode.project.schema.json` — validation for engineers  
 - `transcripts/*.json` caches — project JSON wins  
 - Internal sqlite session logs — sync plumbing. One user-visible edge: if another ShareCut process holds the project for over 30 s, an edit is refused with a "project is busy, try again" message (HTTP 503 with `X-Sharecut-Error-Code: project_busy` / a WS `project_busy` error) and can be retried unchanged. An agent working from another process (stdio MCP, CLI) shows up in open tabs within about a second.  
-- Rate limits — the host and the relay refuse a request that exceeds a link's rate with HTTP 429 and a `Retry-After` header. The body names the bucket and the seconds to wait (`retry_after_sec`), so a client can show "try again in N seconds" and retry unchanged. Host routes and the relay answer in the same shape.  
+- Rate limits — the host and relay return HTTP 429 with a `Retry-After` header when a request exceeds its budget. Host sign-in applies budgets to password, magic-link and passkey requests, as well as agent credential requests. The response body names the bucket and the seconds to wait (`retry_after_sec`).
 - Python package layout — unless designing CLI flows  
 
 Link out when a designer needs depth; keep **Partner terms** as the default handout.

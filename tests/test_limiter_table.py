@@ -233,12 +233,12 @@ def _gate(lim: object) -> tuple[str, int]:
     return lim.bucket_name, lim.limit
 
 
-def test_the_host_has_20_env_names_and_the_relay_has_14() -> None:
+def test_host_and_relay_limiter_env_name_counts() -> None:
     host = {r[2] for r in HOST_RATE_ROWS} | {r[4] for r in HOST_RATE_ROWS}
     host |= {r[2] for r in HOST_GATE_ROWS}
     relay = {r[2] for r in RELAY_RATE_ROWS} | {r[4] for r in RELAY_RATE_ROWS}
     relay |= {r[2] for r in RELAY_GATE_ROWS}
-    assert (len(host), len(relay)) == (26, 14)
+    assert (len(host), len(relay)) == (36, 14)
 
 
 @pytest.mark.parametrize(("attr", "bucket", "rpm_env", "rpm", "burst_env", "burst"), HOST_RATE_ROWS)
