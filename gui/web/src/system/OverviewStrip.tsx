@@ -54,6 +54,7 @@ export function OverviewStrip({
   const dragFrom = useRef(0);
   const grab = useGrab<"scrub">({
     canGrab: () => onSeek !== undefined,
+    coalesceMoves: () => true,
     captureOnStart: () => root.current,
     onStart: () => {
       dragFrom.current = playhead ?? 0;
