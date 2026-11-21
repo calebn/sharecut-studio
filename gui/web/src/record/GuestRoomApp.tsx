@@ -161,6 +161,7 @@ function GuestRoomSession({
     declineHere,
     clearDecline,
     error,
+    failure,
     clearError,
     mic,
     staleMic,
@@ -278,16 +279,16 @@ function GuestRoomSession({
 
   const [joinObservation, setJoinObservation] = useState({
     consented,
-    error,
+    failure,
     connected,
   });
   if (
     joinObservation.consented !== consented ||
-    joinObservation.error !== error ||
+    joinObservation.failure !== failure ||
     joinObservation.connected !== connected
   ) {
-    setJoinObservation({ consented, error, connected });
-    if (consented !== null || error || !connected) {
+    setJoinObservation({ consented, failure, connected });
+    if (consented !== null || failure !== null || !connected) {
       setJoining(false);
     }
     if (error && producerOutside) {

@@ -461,6 +461,7 @@ describe("GuestRoomApp", () => {
     await readyToJoin(getUserMedia);
     const socket = sockets[0];
     socket.holdConsent = true;
+    const refusalMessage = "Too many requests. Wait a moment and try again.";
     const refuse = () =>
       act(() =>
         socket.onmessage?.({
@@ -478,11 +479,13 @@ describe("GuestRoomApp", () => {
     );
     refuse();
     await waitFor(() => expect(joinButton()).toBeEnabled());
+    expect(screen.getByText(refusalMessage)).toBeVisible();
     await userEvent.click(joinButton());
     expect(screen.getByRole("button", { name: "Joining…" })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
+    expect(screen.getByText(refusalMessage)).toBeVisible();
     refuse();
     await waitFor(() => expect(joinButton()).toBeEnabled());
     await userEvent.click(joinButton());

@@ -88,6 +88,7 @@ function fakeRoom(over: Overrides = {}) {
     declineHere: vi.fn(),
     clearDecline: vi.fn(),
     error: null,
+    failure: null,
     clearError: vi.fn(),
     accessEnded: over.accessEnded ?? false,
     inviteClosed: false,

@@ -1344,10 +1344,12 @@ until the room shows it; in a recording or paused take the room keeps it. **Join
 and **Join and record** always drop the intent, even after the decline was sent, and
 the guest consents again in the usual order. A late snapshot that still shows the earlier
 false can clear the Joining… spinner for a moment before the true consent lands. The
-Joining… spinner also clears when the connection closes before the room answers. Consent
-copy is product notice, not legal advice. The guest sheet appears whenever the
-guest has not consented, in any room state, so a late joiner can still join; it is
-not shown to a guest reloading after Stop with an unsaved local take, who sees the
+Joining… spinner also clears when the connection closes before the room answers. If the
+room refuses a retry with the same error, the sheet offers **Join and record** again.
+The room alert retains the last error while the retry is pending. Consent copy is product
+notice, not legal advice. The guest sheet appears whenever the guest has not consented, in
+any room state, so a late joiner can still join; it is not shown to a guest reloading after
+Stop with an unsaved local take, who sees the
 room in its saving state with **Finish saving** / **Resume saving** and
 **Save a copy** instead. The keeper encoder is armed on join and writes **zero
 bytes** until host Start. The host **Start** is enabled when **every recorded guest
