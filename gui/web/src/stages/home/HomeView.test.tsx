@@ -6,6 +6,47 @@ import { HomeView, type HomeViewProps } from "./HomeView";
 import { RECENTS } from "./homeFixture";
 import { OpenOther } from "./OpenOther";
 
+function phoneView(
+  phase: HomeViewProps["phase"],
+  projects: HomeViewProps["projects"],
+  extra: Partial<HomeViewProps> = {},
+) {
+  return (
+    <HomeView
+      phase={phase}
+      projects={projects}
+      setup={null}
+      showInstallHint={false}
+      dropActive={false}
+      onOpenProject={vi.fn()}
+      onFindProject={vi.fn()}
+      onRevealProject={vi.fn()}
+      onDuplicateProject={vi.fn()}
+      onRemoveProject={vi.fn()}
+      onImport={vi.fn()}
+      onRecord={vi.fn()}
+      onOpenOther={vi.fn()}
+      onGetReady={vi.fn()}
+      onChooseModels={vi.fn()}
+      onCancelSetup={vi.fn()}
+      onRetrySetup={vi.fn()}
+      onDismissSetup={vi.fn()}
+      onDismissHint={vi.fn()}
+      onSettings={vi.fn()}
+      onConnectAgent={vi.fn()}
+      onHelp={vi.fn()}
+      {...extra}
+    />
+  );
+}
+
+function setupPhone(
+  phase: HomeViewProps["phase"],
+  projects: HomeViewProps["projects"],
+) {
+  return render(phoneView(phase, projects));
+}
+
 function setup(props: Partial<HomeViewProps> = {}) {
   const handlers = {
     onOpenProject: vi.fn(),
@@ -200,6 +241,128 @@ describe("HomeView empty, loading and drop", () => {
     expect(
       document.querySelectorAll(".primary, .sys-start--primary"),
     ).toHaveLength(1);
+  });
+
+  it("puts the tiles at the top and names the drop on a narrow empty Home", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ width: 390 } as DOMRect);
+    try {
+      setup({ phase: "empty", projects: [] });
+      const tiles = document.querySelector(".sys-home-main .sys-home-tiles");
+      expect(tiles).toContainElement(
+        screen.getByRole("button", { name: /^Import audio/ }),
+      );
+      expect(tiles).toContainElement(
+        screen.getByRole("button", { name: /^Record/ }),
+      );
+      expect(document.querySelector(".sys-home-bar")).toBeNull();
+      expect(screen.getByText("Drop a file anywhere to start.")).toBeVisible();
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it("keeps the phone bar and no drop line once there are recents", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ width: 390 } as DOMRect);
+    try {
+      setup();
+      expect(document.querySelector(".sys-home-bar")).not.toBeNull();
+      expect(screen.queryByText(/Drop a file anywhere/)).toBeNull();
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it("keeps DOM order equal to visual order in both phone phases", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ width: 390 } as DOMRect);
+    try {
+      const empty = setupPhone("empty", []);
+      const main = document.querySelector("main")!;
+      const tiles = document.querySelector(".sys-home-tiles")!;
+      expect(main.contains(tiles)).toBe(true);
+      expect(
+        tiles.compareDocumentPosition(
+          screen.getByRole("heading", { name: "Recent" }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      empty.unmount();
+      setupPhone("ready", RECENTS);
+      const bar = document.querySelector(".sys-home-bar")!;
+      expect(document.querySelector("main")!.contains(bar)).toBe(false);
+      expect(
+        screen
+          .getByRole("heading", { name: "Recent" })
+          .compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it("shows no phone tiles while loading, then first places them for the result", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ width: 390 } as DOMRect);
+    try {
+      const loading = setupPhone("loading", []);
+      expect(
+        screen.queryByRole("button", { name: /^Import audio/ }),
+      ).toBeNull();
+      expect(document.querySelector(".sys-home-bar")).toBeNull();
+      loading.rerender(phoneView("empty", []));
+      expect(
+        document.querySelector("main .sys-home-tiles .sys-start--import"),
+      ).not.toBeNull();
+      expect(document.querySelector(".sys-home-bar")).toBeNull();
+      loading.unmount();
+      const again = setupPhone("loading", []);
+      again.rerender(phoneView("ready", RECENTS));
+      expect(
+        document.querySelector(".sys-home-bar .sys-start--import"),
+      ).not.toBeNull();
+      expect(document.querySelector("main .sys-home-tiles")).toBeNull();
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it("shows the bar once a phone load turns slow, and not before", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ width: 390 } as DOMRect);
+    try {
+      const fast = render(
+        <>{phoneView("loading", [], { loadingElapsedMs: 1000 })}</>,
+      );
+      expect(document.querySelector(".sys-home-bar")).toBeNull();
+      fast.unmount();
+      render(<>{phoneView("loading", [], { loadingElapsedMs: 5000 })}</>);
+      expect(
+        document.querySelector(".sys-home-bar .sys-start--import"),
+      ).not.toBeNull();
+      expect(
+        document.querySelector(".sys-home-bar .sys-start--record"),
+      ).not.toBeNull();
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it("keeps the tiles while loading on a wide Home", () => {
+    setup({ phase: "loading", projects: [] });
+    expect(
+      screen.getByRole("button", { name: /^Import audio/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves the drop line to the Import tile on a wide empty Home", () => {
+    setup({ phase: "empty", projects: [] });
+    expect(screen.queryByText(/Drop a file anywhere/)).toBeNull();
   });
 
   it("keeps Import audio default when there are recents", () => {

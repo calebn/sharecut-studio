@@ -3189,7 +3189,7 @@ html:not([data-shell="phone"])
 
 .sys-home-tiles {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-5);
 }
 
@@ -3278,8 +3278,23 @@ html:not([data-shell="phone"])
   }
 }
 
-.sys-home[data-phase="empty"] .sys-home-main {
-  justify-content: center;
+@container sys-home (min-width: 60rem) {
+  .sys-home[data-phase="empty"] .sys-home-main {
+    justify-content: center;
+  }
+}
+
+.sys-home-drop {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  text-align: center;
+}
+
+@media (pointer: coarse) {
+  .sys-home-drop {
+    display: none;
+  }
 }
 
 .sys-home[data-narrow] .sys-home-column {
@@ -3303,6 +3318,15 @@ html:not([data-shell="phone"])
   padding-block-end: max(var(--space-4), env(safe-area-inset-bottom));
   border-block-start: 1px solid var(--color-border-subtle);
   background: var(--color-bg-canvas);
+}
+
+.sys-home[data-narrow] .sys-project,
+.sys-home[data-narrow] .sys-project :is(button, a) {
+  scroll-margin-block-end: 8rem;
+}
+
+.sys-home[data-narrow][data-phase="empty"] .sys-home-tiles {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
 }
 
 /* Setup card */
