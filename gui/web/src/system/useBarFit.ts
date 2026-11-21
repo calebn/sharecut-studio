@@ -131,6 +131,7 @@ interface FitProps {
   rate?: number;
   solo?: string;
   state?: string;
+  errorLabel?: string;
   status?: string;
   guest?: boolean;
   following?: { name: string; detail?: string };
@@ -151,6 +152,7 @@ export function barFitKey(props: FitProps): string {
     props.rate,
     props.solo,
     props.state,
+    props.errorLabel,
     props.status,
     props.guest ? "guest" : "host",
     props.following?.name,

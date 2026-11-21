@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { loadProxyManifest } from "../api";
+import { loadProxyManifest, NETWORK_ERROR_CODE } from "../api";
 import { cachedFetchArrayBuffer, pruneLinkAudio } from "../audio/chunkCache";
 import { bindPlaybackClock } from "../audio/playbackClock";
 import { bindPlaybackMeterSource } from "../audio/playbackMeterSource";
@@ -142,12 +142,13 @@ export function useProxyTransport(): boolean {
         state.projectEpoch !== projectEpoch
       )
         return;
-      block(error);
-      if (
-        ref &&
-        error instanceof ApiError &&
-        error.code === "proxy_generation_unavailable"
-      ) {
+      const code = error instanceof ApiError ? error.code : null;
+      block(
+        ref && code === NETWORK_ERROR_CODE
+          ? new Error("Failed to load audio", { cause: error })
+          : error,
+      );
+      if (ref && code === "proxy_generation_unavailable") {
         const key = chunkRefKey(ref);
         if (recoveredRefs.current.has(key)) return;
         recoveredRefs.current.add(key);

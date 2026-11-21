@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadProxyManifest } from "../api";
+import { loadProxyManifest, NETWORK_ERROR_CODE } from "../api";
 import { loadDocumentState } from "../api/project";
 import { cachedFetchArrayBuffer, pruneLinkAudio } from "../audio/chunkCache";
 import { playbackPositionSec } from "../audio/playbackClock";
@@ -641,7 +641,7 @@ describe("useProxyTransport", () => {
     act(() => useDawStore.getState().setIsPlaying(true));
     const failure = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2].onFailure;
     act(() =>
-      failure?.(new TypeError("Failed to fetch"), {
+      failure?.(new ApiError("Couldn't reach the server", NETWORK_ERROR_CODE), {
         kind: "track",
         artifactId: "host",
         hash: "a".repeat(16),
@@ -650,7 +650,7 @@ describe("useProxyTransport", () => {
       }),
     );
     expect(useDawStore.getState().isPlaying).toBe(false);
-    expect(useDawStore.getState().audioError).toBe("Failed to fetch");
+    expect(useDawStore.getState().audioError).toBe("Failed to load audio");
     const loads = vi.mocked(loadProxyManifest).mock.calls.length;
     vi.mocked(loadProxyManifest).mockRejectedValue(
       new TypeError("Failed to fetch"),

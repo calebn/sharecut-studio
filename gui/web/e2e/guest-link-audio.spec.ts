@@ -275,6 +275,40 @@ test("turning one link off leaves the audio kept through another link", async ({
   });
 });
 
+test("a guest sees an audio-load error and can retry after a failed chunk request", async ({
+  browser,
+}) => {
+  await withLinks(browser, 1, async ({ guest, tokens }) => {
+    const [token] = tokens as [string];
+    const chunks = countChunkRequests(guest);
+    const clock = await audioClocks(guest);
+    let blocked = true;
+    await guest.route(
+      (url) => isChunk(url.href),
+      (route) => (blocked ? route.abort("failed") : route.continue()),
+    );
+    await open(guest, token);
+    await playButton(guest).click();
+
+    const retry = guest.getByRole("button", { name: "Retry", exact: true });
+    await expect(retry).toBeVisible({ timeout: 15_000 });
+    const pill = guest.locator(".sys-player-pill.sys-pill--danger");
+    await expect(pill).toHaveAttribute("title", "Audio failed to load");
+    await expect(pill).toHaveText("Audio failed to load");
+    expect(chunks.started).toBeGreaterThan(0);
+
+    blocked = false;
+    await retry.click();
+    await expect(pill).toHaveCount(0);
+    await expect(
+      guest.getByRole("button", { name: "Pause", exact: true }),
+    ).toBeVisible();
+    await expect.poll(() => chunks.finished).toBeGreaterThan(0);
+    await expect.poll(() => clock.advanced()).toBe(true);
+    await expect(pill).toHaveCount(0);
+  });
+});
+
 test("a live link replays from the device without asking the server again", async ({
   browser,
 }) => {
