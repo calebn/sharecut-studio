@@ -1412,6 +1412,8 @@ class SavedDocumentCommand(BaseModel):
 
 class DocumentSyncSection(BaseModel):
     last_command: SavedDocumentCommand | None = None
+    # Keep retry keys in the same commit as the post, outside editable history snapshots.
+    guest_post_receipts: dict[str, bool] = Field(default_factory=dict)
 
 
 class EpisodeProject(BaseModel):

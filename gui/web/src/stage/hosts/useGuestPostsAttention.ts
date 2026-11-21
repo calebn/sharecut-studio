@@ -58,13 +58,13 @@ export function useGuestPostsAttention(
         ? (id) => {
             const row = returnedRow(id);
             const anchor = row?.anchor;
-            if (!row || !anchor) return;
+            const composer = useDawStore.getState().composer;
+            if (!row?.body || !anchor || composer.post || composer.draft?.text)
+              return;
             dispatchComposer({
-              type: "type",
+              type: "restore",
               text: row.body,
-              composing: false,
-              undo: false,
-              fresh: {
+              anchor: {
                 startSec: anchor.timeline_start,
                 endSec: anchor.timeline_end,
                 trackIds: anchor.track_ids,

@@ -255,6 +255,9 @@ describe("Needs attention for kept and refused comments", () => {
   it("counts what waits, and hands back what the host refused with Copy, Dismiss and Put it back", async () => {
     const user = userEvent.setup();
     join();
+    useDawStore.setState(
+      composing({ startSec: 45, endSec: null, trackIds: [] }),
+    );
     await appendOutbox(
       "tok",
       keptComment({ id: "a".repeat(32), body: "Still waiting" }),
@@ -288,6 +291,7 @@ describe("Needs attention for kept and refused comments", () => {
       }),
     );
     expect(field()).toHaveValue("Refused words");
+    expect(useDawStore.getState().composer.draft?.anchor?.startSec).toBe(30);
     await waitFor(() =>
       expect(within(group).queryByText("Refused words")).toBeNull(),
     );

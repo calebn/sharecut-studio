@@ -2201,12 +2201,12 @@ def share_add_comment(
     def add() -> Any:
         nonlocal created
         if stored_id is not None:
-            # A host who deletes a comment that already landed lets a lost-response
-            # replay bring it back once; the stored comment is the only dedupe record.
             prior = next((c for c in ws.project.comments if c.id == stored_id), None)
             if prior is not None and prior.author == who:
                 created = False
                 return prior
+            if f"comment:{stored_id}" in ws.project.document_sync.guest_post_receipts:
+                raise CodedValueError("This comment was already posted", code="comment_exists")
         return CommentService(ws).add(
             body=body,
             author=who,
@@ -2217,6 +2217,7 @@ def share_add_comment(
             track_ids=track_ids,
             comment_id=stored_id,
             review_version_id=row["review_version_id"],
+            record_guest_receipt=stored_id is not None,
         )
 
     comment, file_revisions = run_comment_mutation_with_file_revisions(ws, add)
@@ -2236,6 +2237,8 @@ def share_add_reply(
     row, ws = open_share_workspace(token)
     if not has_capability(row.get("capabilities"), "reply"):
         raise CodedPermissionError("share does not allow replies", code="share_capability_required")
+    if comment_id.startswith("g-") and _CLIENT_POST_ID_RE.fullmatch(comment_id[2:]):
+        comment_id = f"g-{row['id']}-{comment_id[2:]}"
     stored_id = guest_post_id(row, reply_id)
     who = guest_display_name(author)
     created = True
@@ -2251,7 +2254,15 @@ def share_add_reply(
                     raise CodedValueError("reply id already exists", code="comment_exists")
                 created = False
                 return CommentReplyResult(comment_id=comment_id, reply=prior)
-        return CommentService(ws).add_reply(comment_id, body=body, author=who, reply_id=stored_id)
+            if f"reply:{stored_id}" in ws.project.document_sync.guest_post_receipts:
+                raise CodedValueError("This reply was already posted", code="comment_exists")
+        return CommentService(ws).add_reply(
+            comment_id,
+            body=body,
+            author=who,
+            reply_id=stored_id,
+            record_guest_receipt=stored_id is not None,
+        )
 
     result, file_revisions = run_comment_mutation_with_file_revisions(ws, add)
     if created:

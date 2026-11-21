@@ -261,7 +261,9 @@ test.describe("a guest's comment while the host cannot be reached", () => {
         .click();
       await expect(waitingRows(guest)).toHaveCount(0);
       await expect(
-        guest.getByRole("status").filter({ hasText: "Comment not sent" }),
+        guest
+          .getByRole("status")
+          .filter({ hasText: "Stopped retrying comment" }),
       ).toBeVisible();
       await guest.getByRole("button", { name: "Undo" }).click();
       await expect(waitingRows(guest)).toHaveCount(1);
@@ -297,6 +299,50 @@ test.describe("a guest's comment while the host cannot be reached", () => {
     });
   });
 
+  test("cannot cancel a comment another tab is sending", async ({
+    browser,
+  }) => {
+    await withGuestLink(browser, DESKTOP, async (guest, token) => {
+      await openGuestShare(guest, token);
+      const away = await hostSends(guest, token, unreachable);
+      await writeComment(guest, TEXT);
+      await expect(waitingRows(guest)).toHaveCount(1);
+
+      const other = await guest.context().newPage();
+      await openGuestShare(other, token);
+      await expect(waitingRows(other)).toHaveCount(1);
+      await away.lift();
+      let release = () => {};
+      const hold = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const sending = await hostSends(guest, token, async (route) => {
+        await hold;
+        await route.continue();
+      });
+      try {
+        await deviceBack(guest);
+        await expect.poll(() => sending.seen.posts).toBe(1);
+        await other
+          .getByRole("button", { name: /^Don't send: comment by/ })
+          .first()
+          .click();
+        await expect(
+          other
+            .getByRole("status")
+            .filter({ hasText: "Sending is in progress" }),
+        ).toBeVisible();
+        await expect(waitingRows(other)).toHaveCount(1);
+      } finally {
+        release();
+      }
+      await expect
+        .poll(async () => (await serverComments(guest, token)).length)
+        .toBe(1);
+      await expect(waitingRows(other)).toHaveCount(0);
+    });
+  });
+
   test("takes the replies waiting on it along when it is called back", async ({
     browser,
   }) => {
@@ -318,7 +364,7 @@ test.describe("a guest's comment while the host cannot be reached", () => {
       await expect(
         guest
           .getByRole("status")
-          .filter({ hasText: "Comment and 1 reply not sent" }),
+          .filter({ hasText: "Stopped retrying comment and 1 reply" }),
       ).toBeVisible();
       await expect(attention(guest)).toHaveCount(0);
       expect(await stored(guest, `outbox:${token}`)).toEqual([]);
@@ -327,6 +373,50 @@ test.describe("a guest's comment while the host cannot be reached", () => {
       await expect(attention(guest)).toContainText(
         "1 comment and 1 reply waiting to send",
       );
+    });
+  });
+
+  test("does not keep a late failed POST after the host turns off the link", async ({
+    browser,
+  }) => {
+    await withGuestLink(browser, DESKTOP, async (guest, token, host, path) => {
+      await openGuestShare(guest, token);
+      let release = () => {};
+      const hold = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const sending = await hostSends(guest, token, async (route) => {
+        await hold;
+        try {
+          await unreachable(route);
+        } catch (error) {
+          // Ending the link can cancel the intercepted request before release.
+          if (
+            !(error instanceof Error) ||
+            !error.message.includes("Route is already handled")
+          )
+            throw error;
+        }
+      });
+      try {
+        await writeComment(guest, TEXT);
+        await expect.poll(() => sending.seen.posts).toBe(1);
+        const requestFailed = guest.waitForEvent(
+          "requestfailed",
+          (request) =>
+            request.method() === "POST" && request.url().endsWith("/comments"),
+        );
+        await revokeLink(host, token, path);
+        await deviceBack(guest);
+        await expect(guest.getByText(DEAD_TITLE)).toBeVisible();
+        await expect(guest.getByText(TEXT)).toBeVisible();
+        release();
+        await requestFailed;
+      } finally {
+        release();
+      }
+      await sending.lift();
+      await expect.poll(() => stored(guest, `outbox:${token}`)).toBeNull();
     });
   });
 

@@ -146,13 +146,19 @@ describe("drainOutbox", () => {
     expect(await ids()).toEqual([]);
   });
 
-  it("leaves a reply whose comment it cannot find, and sends the rest", async () => {
-    await appendOutbox("tok", reply(1, `g-${hex(9)}`));
-    await appendOutbox("tok", comment(2));
-    send.mockResolvedValue(sent);
+  it("sends a reply appended during its parent's send before another tab's projection arrives", async () => {
+    await appendOutbox("tok", comment(1));
+    send
+      .mockImplementationOnce(async () => {
+        await appendOutbox("tok", reply(2, `g-${hex(1)}`));
+        return sent;
+      })
+      .mockResolvedValueOnce(sent);
     await drainOutbox("tok");
-    expect(send).toHaveBeenCalledTimes(1);
-    expect(await ids()).toEqual([hex(1)]);
+    await drainOutbox("tok");
+    expect(send.mock.calls[1][2]).toBe(`g-${hex(1)}`);
+    expect(await ids()).toEqual([]);
+    expect(await loadReturnedPosts("tok")).toEqual([]);
   });
 
   it("sends nothing for a link that ended", async () => {
@@ -176,19 +182,14 @@ describe("drainOutbox", () => {
     expect(await ids()).toEqual([]);
   });
 
-  it("hands back a reply once its comment is gone from a project that has loaded, not on the first miss", async () => {
-    useDawStore.setState({ project: { comments: [] } as never });
+  it("hands a reply back only after the host reports its parent is gone", async () => {
     await appendOutbox("tok", reply(1, `g-${hex(9)}`));
-    await appendOutbox("tok", comment(2));
-    send.mockResolvedValue(sent);
-    await drainOutbox("tok");
-    expect(await ids()).toEqual([hex(1)]);
+    send.mockResolvedValue(refused(404));
     await drainOutbox("tok");
     expect(await ids()).toEqual([]);
     expect(await loadReturnedPosts("tok")).toMatchObject([
-      { id: hex(1), reason: "The comment it answers is gone.", status: null },
+      { id: hex(1), reason: "The comment it answers is gone.", status: 404 },
     ]);
-    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a reply to a comment that still waits, however many passes go by", async () => {
