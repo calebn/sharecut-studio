@@ -1,11 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
+import { historyHead } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "./liveProject";
 import { switchE2eProject } from "./shareableProject";
-import { openProject } from "./stageNav";
+import { goToStage, openProject } from "./stageNav";
 import {
   openScript,
   SCRIPT_SELECTED,
@@ -86,4 +87,42 @@ test("a Tab pressed while the cut's transcript refresh is still loading waits fo
   page,
 }) => {
   await walkChain(page, false);
+});
+
+test("Tab moves focus without selecting another match after leaving Edit", async ({
+  page,
+}) => {
+  await servePendingEditsCleared(page);
+  await openProject(page, projectPath);
+  const body = await openScript(page);
+  const beforeCut = await historyHead(page, projectPath);
+  await body.locator(SCRIPT_WORD).filter({ hasText: /^the$/ }).first().click();
+  await page.keyboard.press("Backspace");
+  await expect(page.locator(".ui-toast-message")).toContainText(
+    /Cut .* · \d+ more/,
+  );
+  await expect.poll(() => historyHead(page, projectPath)).not.toBe(beforeCut);
+  const cut = await historyHead(page, projectPath);
+  const selected = body.locator(SCRIPT_SELECTED);
+  await expect(selected).toHaveCount(0);
+  await expect.poll(() => focusInScript(page)).toBe(true);
+
+  await goToStage(page, "review");
+  await goToStage(page, "edit");
+  await expect(body.locator(SCRIPT_WORD).first()).toBeVisible();
+
+  const focusedText = body.locator(
+    ":is(.sys-script-word, .sys-seam-hit):focus",
+  );
+  for (let i = 0; i < 40 && !(await focusedText.count()); i += 1) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(focusedText).toHaveCount(1);
+  await expect(selected).toHaveCount(0);
+  expect(await historyHead(page, projectPath)).toBe(cut);
+
+  await page.keyboard.press("Tab");
+  await expect(selected).toHaveCount(0);
+  await expect.poll(() => focusInScript(page)).toBe(false);
+  expect(await historyHead(page, projectPath)).toBe(cut);
 });
