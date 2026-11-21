@@ -6,6 +6,7 @@ import { FeedPanel } from "../../stages/deliver/FeedPanel";
 import { feedAccessOf } from "../../stages/deliver/feedLogic";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
+import { Button, InlineError } from "../../ui";
 import { canEditStage } from "../../utils/can";
 import { useStageScroll } from "../useStageScroll";
 import { openFeedSource } from "./feedSource";
@@ -57,16 +58,39 @@ export function GuestDeliver({ loadFailure }: Props) {
             <section className="dv-page" aria-label="Deliver">
               {canDownload ? (
                 <DeliverSection title="Files">
-                  {files.load === "ready" && files.files.length === 0 ? (
+                  {files.currentLoad === "loading" ? (
+                    <p className="dv-note" role="status">
+                      Loading exported files…
+                    </p>
+                  ) : null}
+                  <InlineError
+                    origin="state"
+                    message={
+                      files.currentLoad === "error"
+                        ? "Exported files could not be loaded."
+                        : null
+                    }
+                  />
+                  {files.currentLoad === "error" ? (
+                    <Button
+                      variant="link"
+                      aria-label="Retry loading exported files"
+                      onClick={files.reload}
+                    >
+                      Retry
+                    </Button>
+                  ) : null}
+                  {files.currentLoad === "ready" && files.files.length === 0 ? (
                     <p className="dv-note">{NO_FILES}</p>
-                  ) : (
+                  ) : null}
+                  {files.files.length > 0 ? (
                     <ExportedFiles
                       files={files.files}
                       access="download"
                       grouped
                       onStarted={files.onStarted}
                     />
-                  )}
+                  ) : null}
                 </DeliverSection>
               ) : null}
               <FeedPanel

@@ -710,6 +710,7 @@ name.
 
 An Editor can list and download what that export wrote (`GET …/daw/export/files` and
 `…/daw/export/files/{id}`; the second takes the folder-relative id, so `clips/a.wav` works).
+The Editor’s Deliver Files section shows when the listing is loading and offers a retry if it fails.
 Both are Editor twins in `GUEST_OWNER_ROUTES` on the `read` rate bucket and need no
 `PODCAST_GUEST_RENDER`, since they only read files the host already made (the listing re-renders
 transcript, chapter and feed text in memory to judge `current`, and starts no render job); a Viewer or
