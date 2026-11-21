@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 import uuid
@@ -65,6 +66,7 @@ from podcast_mcp.services.collaboration.share_registry import (
     share_is_usable,
 )
 from podcast_mcp.services.document import CommentService, run_comment_mutation_with_file_revisions
+from podcast_mcp.services.document.comment_results import CommentReplyResult
 from podcast_mcp.services.document_sync import (
     document_command_types_for_caps,
     document_poll_meta,
@@ -2127,6 +2129,25 @@ def resolve_share_audio_redirect(token: str) -> str | None:
     )
 
 
+_CLIENT_POST_ID_RE = re.compile(r"[0-9a-f]{32}")
+
+
+def guest_post_id(row: Mapping[str, Any], value: str | None) -> str | None:
+    """Scope a guest's retry key to this share so it can never name another comment.
+
+    A raw client id would let a guest repeat a host comment's id under the host's name
+    and read that comment back through the same-author repeat check.
+    """
+    if value is None:
+        return None
+    if not _CLIENT_POST_ID_RE.fullmatch(value):
+        raise CodedValueError(
+            "comment_id and reply_id must be 32 lowercase hex characters",
+            code="invalid_argument",
+        )
+    return f"g-{row['id']}-{value}"
+
+
 def share_add_comment(
     token: str,
     *,
@@ -2137,6 +2158,7 @@ def share_add_comment(
     timeline_spans: list[dict[str, float]] | None = None,
     edit_decision_id: str | None = None,
     track_ids: list[str] | None = None,
+    comment_id: str | None = None,
 ) -> dict[str, Any]:
     from podcast_mcp.models.episode import RangeInterval
 
@@ -2145,20 +2167,34 @@ def share_add_comment(
         raise CodedPermissionError(
             "share does not allow comments", code="share_capability_required"
         )
-    comment, file_revisions = run_comment_mutation_with_file_revisions(
-        ws,
-        lambda: CommentService(ws).add(
+    stored_id = guest_post_id(row, comment_id)
+    who = guest_display_name(author)
+    created = True
+
+    def add() -> Any:
+        nonlocal created
+        if stored_id is not None:
+            # A host who deletes a comment that already landed lets a lost-response
+            # replay bring it back once; the stored comment is the only dedupe record.
+            prior = next((c for c in ws.project.comments if c.id == stored_id), None)
+            if prior is not None and prior.author == who:
+                created = False
+                return prior
+        return CommentService(ws).add(
             body=body,
-            author=guest_display_name(author),
+            author=who,
             timeline_start=timeline_start,
             timeline_end=timeline_end,
             timeline_spans=[RangeInterval.model_validate(r) for r in timeline_spans or []],
             edit_decision_id=edit_decision_id,
             track_ids=track_ids,
+            comment_id=stored_id,
             review_version_id=row["review_version_id"],
-        ),
-    )
-    notify_comments_changed(ws.path, role="guest", file_revisions=file_revisions)
+        )
+
+    comment, file_revisions = run_comment_mutation_with_file_revisions(ws, add)
+    if created:
+        notify_comments_changed(ws.path, role="guest", file_revisions=file_revisions)
     return comment.model_dump()
 
 
@@ -2168,17 +2204,28 @@ def share_add_reply(
     *,
     body: str,
     author: str,
+    reply_id: str | None = None,
 ) -> dict[str, Any]:
     row, ws = open_share_workspace(token)
     if not has_capability(row.get("capabilities"), "reply"):
         raise CodedPermissionError("share does not allow replies", code="share_capability_required")
-    result, file_revisions = run_comment_mutation_with_file_revisions(
-        ws,
-        lambda: CommentService(ws).add_reply(
-            comment_id, body=body, author=guest_display_name(author)
-        ),
-    )
-    notify_comments_changed(ws.path, role="guest", file_revisions=file_revisions)
+    stored_id = guest_post_id(row, reply_id)
+    who = guest_display_name(author)
+    created = True
+
+    def add() -> Any:
+        nonlocal created
+        if stored_id is not None:
+            parent = next((c for c in ws.project.comments if c.id == comment_id), None)
+            prior = next((r for r in parent.replies if r.id == stored_id), None) if parent else None
+            if prior is not None and prior.author == who:
+                created = False
+                return CommentReplyResult(comment_id=comment_id, reply=prior)
+        return CommentService(ws).add_reply(comment_id, body=body, author=who, reply_id=stored_id)
+
+    result, file_revisions = run_comment_mutation_with_file_revisions(ws, add)
+    if created:
+        notify_comments_changed(ws.path, role="guest", file_revisions=file_revisions)
     return result.model_dump()
 
 

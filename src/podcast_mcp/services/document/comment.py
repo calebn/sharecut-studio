@@ -192,9 +192,10 @@ class CommentService:
         *,
         body: str,
         author: str,
+        reply_id: str | None = None,
     ) -> CommentReplyResult:
         def mutate(p) -> CommentReplyResult:
-            reply = add_reply(p, comment_id, body=body, author=author)
+            reply = add_reply(p, comment_id, body=body, author=author, reply_id=reply_id)
             return CommentReplyResult(comment_id=comment_id, reply=reply)
 
         return self.ws.mutate(

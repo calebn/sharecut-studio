@@ -151,6 +151,7 @@ from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 router = APIRouter()
 log = logging.getLogger(__name__)
 
+_CLIENT_POST_ID_PATTERN = r"^[0-9a-f]{32}$"
 _GUEST_CLIENT_SUFFIX_RE = re.compile(r"[^A-Za-z0-9_-]")
 
 
@@ -162,11 +163,21 @@ class ShareCommentRequest(GuestRequest):
     timeline_end: float | None = None
     edit_decision_id: str | None = None
     track_ids: list[str] | None = None
+    comment_id: str | None = Field(
+        default=None,
+        pattern=_CLIENT_POST_ID_PATTERN,
+        description="A repeat of this key returns the comment it already made.",
+    )
 
 
 class ShareReplyRequest(GuestRequest):
     body: str = Field(max_length=COMMENT_BODY_MAX)
     author: str = Field(max_length=GUEST_ID_MAX_CHARS)
+    reply_id: str | None = Field(
+        default=None,
+        pattern=_CLIENT_POST_ID_PATTERN,
+        description="A repeat of this key returns the reply it already made.",
+    )
 
 
 def _check_token(token: str, *, kind: str = SHARE_KIND_REVIEW) -> dict[str, Any]:
@@ -728,6 +739,7 @@ def post_review_comment(token: str, req: ShareCommentRequest) -> dict[str, Any]:
             timeline_spans=req.timeline_spans,
             edit_decision_id=req.edit_decision_id,
             track_ids=req.track_ids,
+            comment_id=req.comment_id,
         )
     return {"comment": comment}
 
@@ -737,7 +749,9 @@ def post_review_reply(token: str, comment_id: str, req: ShareReplyRequest) -> di
     _check_token(token)
     _rate_limit(token, "mutate")
     with guest_boundary(log, "review request"):
-        result = share_add_reply(token, comment_id, body=req.body, author=req.author)
+        result = share_add_reply(
+            token, comment_id, body=req.body, author=req.author, reply_id=req.reply_id
+        )
     return result
 
 
