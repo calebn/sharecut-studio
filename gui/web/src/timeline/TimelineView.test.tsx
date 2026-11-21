@@ -435,6 +435,32 @@ describe("TimelineView scroll to playhead", () => {
       expect(scroller.scrollLeft).toBe(450);
     });
 
+    it("announces Back to playhead once while the timeline stays parked", () => {
+      useDawStore.setState({ playheadSec: 5 });
+      mount(false);
+      const { statusAnnouncementSeq, feedbackToast } = useDawStore.getState();
+
+      act(() => setFollow(false));
+      expect(pill()).toBeNull();
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(
+        statusAnnouncementSeq,
+      );
+
+      act(() => useDawStore.getState().setPlayheadSec(80, "playback"));
+      expect(pill()).not.toBeNull();
+      expect(useDawStore.getState()).toMatchObject({
+        statusAnnouncement: "Back to playhead in timeline",
+        statusAnnouncementSeq: statusAnnouncementSeq + 1,
+        feedbackToast,
+      });
+
+      act(() => useDawStore.getState().setPlayheadSec(85, "playback"));
+      expect(pill()).not.toBeNull();
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(
+        statusAnnouncementSeq + 1,
+      );
+    });
+
     it("shows Back to playhead while follow is off and the playhead is off-screen", () => {
       useDawStore.setState({ playheadSec: 80 });
       mount(false);
@@ -452,8 +478,12 @@ describe("TimelineView scroll to playhead", () => {
       useDawStore.setState({ playheadSec: 80 });
       setFollow(false);
       mount(true);
+      const { statusAnnouncementSeq } = useDawStore.getState();
       act(() => useDawStore.setState({ scrollLeft: 0, playheadSec: 80 }));
       expect(pill()).toBeNull();
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(
+        statusAnnouncementSeq,
+      );
     });
 
     it("hides the pill while following another person", () => {
@@ -463,6 +493,39 @@ describe("TimelineView scroll to playhead", () => {
       expect(pill()).not.toBeNull();
       act(() => useDawStore.setState({ followingClientId: "leader" }));
       expect(pill()).toBeNull();
+      const { statusAnnouncementSeq } = useDawStore.getState();
+      act(() => useDawStore.getState().setPlayheadSec(85, "playback"));
+      expect(pill()).toBeNull();
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(
+        statusAnnouncementSeq,
+      );
+    });
+
+    it("keeps the Presence Follow status when the same scroll reveals Back to playhead", () => {
+      useDawStore.setState({ playheadSec: 5 });
+      mount(false);
+      act(() => useDawStore.getState().startFollow("leader"));
+      const { statusAnnouncementSeq } = useDawStore.getState();
+
+      act(() => {
+        useDawStore.getState().stopFollow("local");
+        setFollow(false);
+        useDawStore.getState().setScrollLeft(100);
+      });
+      expect(pill()).not.toBeNull();
+      expect(useDawStore.getState()).toMatchObject({
+        statusAnnouncement: "Stopped following",
+        statusAnnouncementSeq: statusAnnouncementSeq + 1,
+      });
+
+      act(() => useDawStore.getState().setScrollLeft(0));
+      expect(pill()).toBeNull();
+      act(() => useDawStore.getState().setScrollLeft(100));
+      expect(pill()).not.toBeNull();
+      expect(useDawStore.getState()).toMatchObject({
+        statusAnnouncement: "Back to playhead in timeline",
+        statusAnnouncementSeq: statusAnnouncementSeq + 2,
+      });
     });
 
     it("moves focus to the timeline when the pill is activated, so a keyboard user is not dropped", () => {
