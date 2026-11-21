@@ -112,7 +112,7 @@ async function followerHoldsStill(
       const anchorKey = await visiblePlace(view, "first");
       expect(anchorKey, "a word is visible to anchor on").not.toBeNull();
       guest.detail.delayMs = 1_500;
-      const seen = await frames(guest, page, "cut", 1, anchorKey, 0.5);
+      const seen = await frames(guest, page, "cut", 1, anchorKey, 20);
       expectNoBlankFrame(seen.frames, seen.from, guest.log, "for a follower");
       const after = seen.frames.filter((f) => f.t >= seen.from);
       expect(after.some((f) => f.busy)).toBe(true);
@@ -175,7 +175,7 @@ test("a following guest holds its view still through a second refresh, wherever 
         "cut",
         1,
         await visiblePlace(view, "first"),
-        0.5,
+        20,
       );
       await expect(view.locator(SECTION)).not.toHaveAttribute(
         "aria-busy",
@@ -193,6 +193,13 @@ test("a following guest holds its view still through a second refresh, wherever 
         ["second", secondCut],
       ] as const) {
         const after = seen.frames.filter((f) => f.t >= seen.from);
+        expectNoBlankFrame(
+          seen.frames,
+          seen.from,
+          guest.log,
+          `during the ${name} refresh`,
+        );
+        expect(after.some((f) => f.busy)).toBe(true);
         const offsets = after.map((f) => f.offset);
         expect(
           offsets.every((o) => o !== null),
