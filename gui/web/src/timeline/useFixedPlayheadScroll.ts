@@ -204,14 +204,16 @@ export function useFixedPlayheadScroll({
     }
     const dom = el.scrollLeft;
     const logicalLeft = domToLogicalScrollLeft(dom, leadPx);
-    // Only a person's scroll unfollows or seeks. Fit, recentering and follow
-    // writes are flagged, and a late echo lands on the last written value.
-    // Decide and seek before storing the scroll: a store update can render
-    // at once, and the recenter effect must already see the new playhead.
+    // Local timeline writes echo the last applied offset. A different offset
+    // can come from a user's scroll in the same frame as a page flip.
+    // Fixed-playhead and Presence Follow writes also use the frame-wide flag.
+    // Seek before storing the scroll so recentering already sees the new time.
     const echo =
       lastWrittenScrollRef.current !== null &&
       Math.abs(dom - lastWrittenScrollRef.current) <= SCROLL_SYNC_EPS_PX;
-    if (!anchoringZoom.current && !isProgrammaticScroll() && !echo) {
+    const programmatic =
+      (fixedPlayhead || followingClientId !== null) && isProgrammaticScroll();
+    if (!anchoringZoom.current && !programmatic && !echo) {
       lastWrittenScrollRef.current = null;
       timelineViewportRegistry.setLayoutProjection(null);
       timelineViewportRegistry.setVisualPan(null);
