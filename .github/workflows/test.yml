@@ -175,6 +175,13 @@ jobs:
           bash scripts/build_libaaf_test_tool.sh "$TMPDIR/libaaf-v1"
           printf 'SHARECUT_AAFTOOL=%s\n' "$TMPDIR/libaaf-v1/build/bin/aaftool" >> "$GITHUB_ENV"
 
+      - name: Run AAF tests with the independent reader
+        if: matrix.shard == 1
+        run: >-
+          env -u PYTEST_SHARD_INDEX -u PYTEST_SHARD_COUNT
+          SHARECUT_AAFTOOL="$SHARECUT_AAFTOOL"
+          pytest -q --no-cov tests/test_aaf_export.py
+
       - name: Record pytest run context
         env:
           VALIDATED_COMPAT_BASE: ${{ inputs.compatibility-base || github.event.pull_request.base.sha || github.event.before || github.sha }}
