@@ -1028,11 +1028,43 @@ describe("stopping a link", () => {
     revokeHostShare.mockResolvedValue(WINDOW);
     mount();
     const target = document.createElement("h3");
+    document.body.append(target);
+    try {
+      act(() => {
+        flow.stop("first", () => target);
+      });
+      await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+      expect(toast()?.returnFocus?.()).toBe(target);
+      target.remove();
+      expect(toast()?.returnFocus?.()).toBeNull();
+    } finally {
+      target.remove();
+    }
+  });
+
+  it("lets the newly opened project stop sharing while the previous Undo is visible", async () => {
+    const other = "/tmp/other.sharecut";
+    revokeHostShare.mockResolvedValue(WINDOW);
+    mount();
     act(() => {
-      flow.stop("first", () => target);
+      flow.stop("first");
     });
-    await waitFor(() => expect(toast()?.reverse).not.toBeNull());
-    expect(toast()?.returnFocus?.()).toBe(target);
+    await waitFor(() =>
+      expect(toast()?.reverse?.share?.projectPath).toBe(PATH),
+    );
+
+    act(() => {
+      useDawStore.setState({ projectPath: other, projectEpoch: 2 });
+    });
+    act(() => {
+      flow.stop("second");
+    });
+    await waitFor(() =>
+      expect(toast()?.reverse?.share?.projectPath).toBe(other),
+    );
+    expect(revokeHostShare).toHaveBeenNthCalledWith(2, other, "second", {
+      restorable: true,
+    });
   });
 
   it("ignores a second End room while the first Undo is open", async () => {

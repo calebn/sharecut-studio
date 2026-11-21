@@ -1,4 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { createPortal } from "react-dom";
 import { shallow } from "zustand/shallow";
 import { executePointerCommand } from "../commands/pointer";
@@ -16,9 +22,14 @@ import { Toast } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { registerFocusHold } from "../ui/focusHold";
 import { isValidFocusTarget } from "../ui/focusTarget";
-import { modalOpen } from "../ui/modalGate";
+import {
+  innermostModalPanel,
+  modalOpen,
+  subscribeModalOpen,
+} from "../ui/modalGate";
 import { claimTopLayerFloor } from "../ui/topLayerFloor";
-import { errorMessage } from "../utils/apiError";
+import { errorMessage, isPermanentRejection } from "../utils/apiError";
+import { plainError } from "../utils/plainError";
 import {
   FEEDBACK_FOCUS_ATTRIBUTE,
   hasValidFocusedFeedbackAction,
@@ -42,6 +53,13 @@ function currentSheetClose(host: HTMLElement | null): HTMLElement | null {
   return isValidFocusTarget(close) ? close : null;
 }
 
+function restoreOrigin(target: HTMLElement | null): HTMLElement | null {
+  if (!isValidFocusTarget(target)) return null;
+  return !modalOpen() || innermostModalPanel()?.contains(target)
+    ? target
+    : null;
+}
+
 export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   const { toast, headId, projectPath } = useDaw((s) => ({
     toast: s.feedbackToast,
@@ -54,6 +72,11 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   const waiting = useWaitingMove(projectPath);
   const [undoing, setUndoing] = useState(false);
   const [acting, setActing] = useState(false);
+  const reversing = useRef<ReverseAction | null>(null);
+  const [reversingId, setReversingId] = useState<number | null>(null);
+  const [retry, setRetry] = useState<{ id: number; message: string } | null>(
+    null,
+  );
   const regionRef = useRef<HTMLDivElement>(null);
   const [portal] = useState(() => {
     const region = document.createElement("section");
@@ -64,8 +87,21 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   const remembered = portal.querySelector<HTMLElement>(
     `[${FEEDBACK_FOCUS_ATTRIBUTE}]`,
   );
+  const modal = useSyncExternalStore(subscribeModalOpen, modalOpen);
+  const modalPanel = useSyncExternalStore(
+    subscribeModalOpen,
+    innermostModalPanel,
+  );
+  const share = toast?.reverse?.share;
+  const origin = share ? (toast?.returnFocus?.() ?? null) : null;
+  const modalActionOrigin =
+    origin?.isConnected && modalPanel?.contains(origin) ? origin.id : undefined;
   useToastDock(regionRef, toast != null && host == null);
-  const floating = toast != null && host == null;
+  const covered = modal && !modalActionOrigin;
+  const floating = toast != null && host == null && !covered;
+  useLayoutEffect(() => {
+    portal.inert = covered;
+  }, [covered, portal]);
   useLayoutEffect(() => {
     const region = regionRef.current;
     return floating && region ? claimTopLayerFloor(region) : undefined;
@@ -86,7 +122,11 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
           isValidFeedbackAction(event.target)
         ) {
           event.target.setAttribute(FEEDBACK_FOCUS_ATTRIBUTE, "");
-          returnFocusRef.current = currentSheetClose(portal.parentElement);
+          const toast = useDawStore.getState().feedbackToast;
+          returnFocusRef.current =
+            (toast?.reverse?.share
+              ? restoreOrigin(toast.returnFocus?.() ?? null)
+              : null) ?? currentSheetClose(portal.parentElement);
         }
       }
     };
@@ -172,7 +212,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     )
       return;
     focused.removeAttribute(FEEDBACK_FOCUS_ATTRIBUTE);
-    const target = currentSheetClose(host);
+    const target = restoreOrigin(origin) ?? currentSheetClose(host);
     returnFocusRef.current = null;
     const active = document.activeElement;
     if (
@@ -184,7 +224,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
 
   const toastReturn = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
-    const target = toast?.returnFocus?.() ?? null;
+    const target = restoreOrigin(toast?.returnFocus?.() ?? null);
     if (target) {
       toastReturn.current = target;
       returnFocusRef.current = target;
@@ -193,7 +233,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
         returnFocusRef.current = null;
       toastReturn.current = null;
     }
-  }, [toast]);
+  }, [toast, modal, modalPanel]);
 
   useEffect(() => {
     if (toast?.undo && undoEntry == null) {
@@ -240,18 +280,43 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   };
 
   const reverse = async (
-    { run, done }: ReverseAction,
+    action: ReverseAction,
+    id: number,
     returnFocus: (() => HTMLElement | null) | null,
   ) => {
-    setUndoing(true);
+    const { run, done, share } = action;
+    const isCurrent = () => {
+      const state = useDawStore.getState();
+      return (
+        state.feedbackToast?.id === id &&
+        (!share ||
+          (share.projectPath === state.projectPath &&
+            share.projectEpoch === state.projectEpoch))
+      );
+    };
+    if (reversing.current || !isCurrent()) return;
+    const focusOrigin = () => {
+      const active = document.activeElement;
+      if (!active || active === document.body || portal.contains(active))
+        restoreOrigin(returnFocus?.() ?? null)?.focus({ preventScroll: true });
+    };
+    if (share && share.deadline <= Date.now()) {
+      focusOrigin();
+      useDawStore
+        .getState()
+        .announceStatus("Too late to undo.", { tone: "error" });
+      return;
+    }
+    reversing.current = action;
+    setReversingId(id);
+    setRetry(null);
     try {
       const outcome = await run();
+      if (share && !isCurrent()) return;
+      focusOrigin();
       if (outcome === true) {
         useDawStore.getState().announceStatus(done);
-        const active = document.activeElement;
-        if (!active || active === document.body || portal.contains(active))
-          returnFocus?.()?.focus({ preventScroll: true });
-      } else
+      } else {
         useDawStore
           .getState()
           .announceStatus(
@@ -260,12 +325,27 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
               : outcome,
             { tone: "error" },
           );
+      }
     } catch (e) {
-      useDawStore.getState().announceStatus(`Undo failed: ${errorMessage(e)}`, {
-        tone: "error",
-      });
+      if (share && !isCurrent()) return;
+      const message = `Undo failed: ${errorMessage(e)}`;
+      if (share && Date.now() < share.deadline && !isPermanentRejection(e)) {
+        setRetry({ id, message: plainError(message) });
+        useDawStore
+          .getState()
+          .announceStatus(message, { tone: "error", toast: false });
+        const active = document.activeElement;
+        if (!active || active === document.body)
+          restoreOrigin(returnFocus?.() ?? null)?.focus({
+            preventScroll: true,
+          });
+      } else {
+        focusOrigin();
+        useDawStore.getState().announceStatus(message, { tone: "error" });
+      }
     } finally {
-      setUndoing(false);
+      reversing.current = null;
+      setReversingId(null);
     }
   };
 
@@ -279,6 +359,8 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   };
 
   const reversal = toast?.reverse ?? null;
+  const shareRetry =
+    share && retry?.id === toast?.id ? retry?.message : undefined;
   const onUndo =
     toast && undoEntry
       ? () => {
@@ -289,8 +371,8 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
             toast.onUndone,
           );
         }
-      : reversal
-        ? () => void reverse(reversal, toast?.returnFocus ?? null)
+      : toast && reversal
+        ? () => void reverse(reversal, toast.id, toast.returnFocus)
         : undefined;
 
   const runnableAction =
@@ -311,23 +393,32 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
         if (!toast) return;
         const held = portal.contains(document.activeElement);
         useDawStore.getState().dismissFeedbackToast(toast.id);
-        if (held) toast.returnFocus?.()?.focus({ preventScroll: true });
+        if (held)
+          restoreOrigin(toast.returnFocus?.() ?? null)?.focus({
+            preventScroll: true,
+          });
       }}
       onUndo={onUndo}
       timeoutMs={toast?.dwellMs ?? undefined}
+      expiresAtMs={reversingId === toast?.id ? undefined : share?.deadline}
+      modalActionOrigin={modalActionOrigin || undefined}
       undoLabel={toast?.merged ? "Undo all" : undefined}
       actionLabel={toast?.action?.label}
       onAction={runnableAction ? () => void act(runnableAction.run) : undefined}
       actionDisabledReason={acting ? BUSY_REASON : undefined}
-      undoDisabledReason={undoing ? BUSY_REASON : undefined}
+      undoDisabledReason={
+        undoing || reversingId !== null ? BUSY_REASON : undefined
+      }
       undoNote={
-        waiting?.action === "undo" &&
-        waiting.target !== null &&
-        waiting.target === toast?.undo
-          ? runsAfterSaveCopy("undo")
-          : saving
-            ? readyAfterSaveCopy("undo")
-            : undefined
+        share
+          ? shareRetry
+          : waiting?.action === "undo" &&
+              waiting.target !== null &&
+              waiting.target === toast?.undo
+            ? runsAfterSaveCopy("undo")
+            : saving
+              ? readyAfterSaveCopy("undo")
+              : undefined
       }
       visibility={visibility}
     />,

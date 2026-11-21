@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { shareOptionsFixture } from "../../../stages/deliver/shareFixture";
@@ -10,7 +10,7 @@ describe("Invite stop focus", () => {
     { role: "commenter" as const, name: "Commenter", group: "Review links" },
     { role: "viewer" as const, name: "listen", group: "Listen link" },
   ])(
-    "focuses $group only after its stopped row disappears",
+    "passes the $group focus target to the stop action",
     async ({ role, name, group }) => {
       const user = userEvent.setup();
       const row = hostShareRow({
@@ -20,7 +20,7 @@ describe("Invite stop focus", () => {
       });
       const onStop = vi.fn();
       const options = shareOptionsFixture({ rows: [row], onStop });
-      const { rerender } = render(<InviteBody options={options} />);
+      render(<InviteBody options={options} />);
       const heading = screen.getByRole("heading", { name: group });
       await user.click(
         screen.getByRole("button", { name: `More for ${name} link` }),
@@ -35,20 +35,6 @@ describe("Invite stop focus", () => {
       expect(
         screen.getByRole("button", { name: `More for ${name} link` }),
       ).toBeVisible();
-      const unrelated = hostShareRow({
-        token: "unrelated-link",
-        docs_role: "commenter",
-      });
-      rerender(<InviteBody options={{ ...options, rows: [row, unrelated] }} />);
-      expect(heading).not.toHaveFocus();
-      rerender(<InviteBody options={{ ...options, rows: [] }} />);
-      await waitFor(() => expect(heading).toHaveFocus());
-      const copyButton = screen.getByRole("button", {
-        name: "Copy new Commenter link",
-      });
-      copyButton.focus();
-      rerender(<InviteBody options={{ ...options, rows: [unrelated] }} />);
-      expect(copyButton).toHaveFocus();
     },
   );
 
@@ -76,7 +62,7 @@ describe("Invite stop focus", () => {
     ).toBeVisible();
   });
 
-  it("focuses Record when the ended session disappears", async () => {
+  it("passes the Record links focus target to the room end action", async () => {
     const user = userEvent.setup();
     const room = hostShareRow({
       token: "record-guest",
@@ -84,27 +70,21 @@ describe("Invite stop focus", () => {
       session_id: "record-session",
       usable: true,
     });
-    const replacement = hostShareRow({
-      token: "other-record-guest",
-      kind: "record",
-      session_id: "other-session",
-      usable: true,
-    });
+    const onEndRoom = vi.fn();
     const options = shareOptionsFixture({
       rows: [room],
-      onEndRoom: vi.fn(),
+      onEndRoom,
     });
-    const { rerender } = render(<InviteBody options={options} />);
+    render(<InviteBody options={options} />);
     const heading = screen.getByRole("heading", { name: "Record links" });
 
     await user.click(screen.getByRole("button", { name: "End room" }));
-    expect(options.onEndRoom).toHaveBeenCalledExactlyOnceWith(
+    expect(onEndRoom).toHaveBeenCalledExactlyOnceWith(
       "record-session",
       expect.any(Function),
     );
+    expect(onEndRoom.mock.calls[0]?.[1]()).toBe(heading);
     expect(heading).not.toHaveFocus();
-    rerender(<InviteBody options={{ ...options, rows: [replacement] }} />);
-    await waitFor(() => expect(heading).toHaveFocus());
   });
 
   it("does not move focus for an ignored stop", async () => {

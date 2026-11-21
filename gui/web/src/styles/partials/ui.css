@@ -823,9 +823,8 @@ html[data-shell="phone"] .ui-menu-shortcut {
   pointer-events: none;
 }
 
-/* An Undo or action toast over a modal dialog (Stop sharing in the Invite sheet)
-   stays above the scrim so its button takes the press. */
-.ui-toast-region--app.ui-toast-region--actionable {
+/* The Invite dialog keeps its own share Undo above the scrim. */
+.ui-toast-region--app[data-modal-action-origin] {
   z-index: calc(var(--z-command-palette) + 1);
 }
 

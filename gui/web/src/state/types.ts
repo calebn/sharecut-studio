@@ -164,6 +164,12 @@ export interface ReverseAction {
   run: () => Promise<boolean | string>;
   /** Announced after `run` succeeds. */
   done: string;
+  /** Share restores expire on the server even while the toast holds focus. */
+  share?: {
+    projectPath: string;
+    projectEpoch: number;
+    deadline: number;
+  };
 }
 
 /** The visible twin of an announcement, with its Undo while one is valid. */

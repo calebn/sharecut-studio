@@ -40,6 +40,7 @@ import {
 import { useDawStore } from "../../state/dawStore";
 import type { ReverseAction } from "../../state/types";
 import type { HostShareRow } from "../../types/shares";
+import { isValidFocusTarget } from "../../ui/focusTarget";
 import { errorMessage } from "../../utils/apiError";
 import { useStableCallback } from "../../utils/useStableCallback";
 import { copyWhenReady } from "./copyWhenReady";
@@ -69,7 +70,21 @@ type CreateRequest = {
   /** The listen link, made from the Deliver row or the sheet's Listen group. */
   listen: boolean;
 };
-type Owner = { scope: Scope };
+type Owner = { scope: Scope; kind: "visit" | "end" };
+type Ending =
+  | { kind: "link"; token: string }
+  | { kind: "room"; sessionId: string };
+
+function shareUndoOpen() {
+  const state = useDawStore.getState();
+  const share = state.feedbackToast?.reverse?.share;
+  return (
+    share !== undefined &&
+    share.projectPath === state.projectPath &&
+    share.projectEpoch === state.projectEpoch &&
+    Date.now() < share.deadline
+  );
+}
 
 const NO_ADDRESS = new Error("The link has no address to copy yet.");
 const ABANDONED = new Error(
@@ -89,9 +104,8 @@ function linkNameOf(request: CreateRequest): string {
 /**
  * The host's review links and record rooms, outside any stage so a result
  * that arrives after a click is still tied to the project and visit that made
- * it. Opening another project or leaving Deliver and the Invite sheet starts over: the choices, a pending Refresh mix retry and any result still on
- * its way are dropped. The listed links stay across a visit and are listed
- * again as Deliver shows.
+ * it. An accepted end still reports to the same project after its surface
+ * closes. Other results belong to their visit, and the list reloads as needed.
  */
 export function ShareFlowProvider({ children }: { children: ReactNode }) {
   const projectPath = useDawStore((s) => s.projectPath);
@@ -120,9 +134,12 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   const loadGeneration = useRef(0);
   const busyOwner = useRef<Owner | null>(null);
   const staleRequest = useRef<CreateRequest | null>(null);
-  const openUndo = useRef<{ reverse: ReverseAction; until: number } | null>(
-    null,
-  );
+  const endFocus = useRef<{
+    target: Ending;
+    heading: HTMLElement;
+    trigger: Element | null;
+    fallback: HTMLElement | null;
+  } | null>(null);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentRows = useStableCallback(() => rows);
   const seen = useRef({ projectPath, projectEpoch, onDeliver });
@@ -147,7 +164,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   const announce = useCallback(
     (message: string) => {
       setStatus(message);
-      announceStatus(message);
+      announceStatus(message, shareUndoOpen() ? { toast: false } : undefined);
     },
     [announceStatus],
   );
@@ -161,21 +178,28 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const isCurrent = useCallback((scope: Scope): boolean => {
+  const isSameProject = useCallback((scope: Scope): boolean => {
     const s = useDawStore.getState();
     return (
-      scope.generation === generation.current &&
+      mounted.current &&
       scope.projectPath === s.projectPath &&
       scope.projectEpoch === s.projectEpoch &&
-      s.project !== null &&
-      sharesShown(s)
+      s.project !== null
     );
   }, []);
 
+  const isCurrent = useCallback(
+    (scope: Scope): boolean =>
+      isSameProject(scope) &&
+      scope.generation === generation.current &&
+      sharesShown(useDawStore.getState()),
+    [isSameProject],
+  );
+
   const begin = useCallback(
-    (scope: Scope): Owner | null => {
+    (scope: Scope, kind: Owner["kind"] = "visit"): Owner | null => {
       if (!isCurrent(scope) || busyOwner.current !== null) return null;
-      const owner: Owner = { scope };
+      const owner: Owner = { scope, kind };
       busyOwner.current = owner;
       setBusy(true);
       setError(null);
@@ -190,9 +214,9 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     (owner: Owner) => {
       if (busyOwner.current !== owner) return;
       busyOwner.current = null;
-      if (isCurrent(owner.scope)) setBusy(false);
+      if (isSameProject(owner.scope)) setBusy(false);
     },
-    [isCurrent],
+    [isSameProject],
   );
 
   const load = useCallback(
@@ -208,6 +232,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         setError((shown) => (shown === listFailure.current ? null : shown));
       } catch (err) {
         if (mine === loadGeneration.current && isCurrent(scope)) {
+          endFocus.current = null;
           setListFailed(true);
           listFailure.current = errorMessage(err);
           setError(listFailure.current);
@@ -234,8 +259,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     [load, scopeNow],
   );
 
-  // A new project or leaving Deliver ends the visit: what was in flight is
-  // dropped. Only a new project forgets the listed links.
+  // Leaving the surface ends the visit. An accepted end belongs to the project.
   useLayoutEffect(() => {
     const before = seen.current;
     if (
@@ -251,10 +275,12 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     seen.current = { projectPath, projectEpoch, onDeliver };
     generation.current += 1;
     loadGeneration.current += 1;
-    busyOwner.current = null;
+    if (!sameProject || busyOwner.current?.kind !== "end")
+      busyOwner.current = null;
+    endFocus.current = null;
     staleRequest.current = null;
     clearCopiedTimer();
-    setBusy(false);
+    setBusy(busyOwner.current !== null);
     setError(null);
     setStatus(null);
     setCopiedKey(null);
@@ -268,6 +294,34 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       setListFailed(false);
     }
   }, [projectPath, projectEpoch, onDeliver, clearCopiedTimer]);
+
+  useLayoutEffect(() => {
+    const end = endFocus.current;
+    if (!end) return;
+    if (!isValidFocusTarget(end.heading)) {
+      endFocus.current = null;
+      return;
+    }
+    if (
+      rows.some(
+        (row) =>
+          row.usable &&
+          (end.target.kind === "link"
+            ? row.token === end.target.token
+            : row.session_id === end.target.sessionId),
+      )
+    ) {
+      return;
+    }
+    endFocus.current = null;
+    const active = document.activeElement;
+    if (
+      active === end.trigger ||
+      active === document.body ||
+      active === end.fallback
+    )
+      end.heading.focus({ preventScroll: true });
+  }, [rows]);
 
   useEffect(() => {
     mounted.current = true;
@@ -442,24 +496,6 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     })();
   });
 
-  const act = useCallback(
-    (run: (scope: Scope) => Promise<void>) => {
-      const scope = scopeNow();
-      const owner = begin(scope);
-      if (!owner) return;
-      void (async () => {
-        try {
-          await run(scope);
-        } catch (err) {
-          if (isCurrent(scope)) setError(errorMessage(err));
-        } finally {
-          finish(owner);
-        }
-      })();
-    },
-    [begin, finish, isCurrent, scopeNow],
-  );
-
   const createRecord = useCallback(() => {
     const scope = scopeNow();
     const owner = begin(scope);
@@ -618,6 +654,11 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       }
       const reverse: ReverseAction = {
         done: copy.restored,
+        share: {
+          projectPath: scope.projectPath,
+          projectEpoch: scope.projectEpoch,
+          deadline: Date.now() + dwellMs,
+        },
         run: async () => {
           try {
             await restore();
@@ -630,24 +671,10 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
           return true;
         },
       };
-      openUndo.current = {
-        reverse,
-        until: Date.now() + (ended.restoreMs ?? 0),
-      };
       announceStatus(copy.ended, { dwellMs, reverse, returnFocus: focus });
     },
     [announceStatus, relist],
   );
-
-  /** True while this flow's Undo toast is on screen and the server window has not passed: a second end waits for it. */
-  const undoIsOpen = useCallback(() => {
-    const open = openUndo.current;
-    return (
-      open !== null &&
-      Date.now() < open.until &&
-      useDawStore.getState().feedbackToast?.reverse === open.reverse
-    );
-  }, []);
 
   const ignoreEnd = useCallback(() => {
     setStatus(UNDO_STILL_OPEN);
@@ -656,60 +683,77 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
 
   const shownReverse = useDawStore((s) => s.feedbackToast?.reverse ?? null);
   useEffect(() => {
-    if (shownReverse !== openUndo.current?.reverse)
+    if (!shownReverse?.share)
       setStatus((now) => (now === UNDO_STILL_OPEN ? null : now));
   }, [shownReverse]);
 
-  const stop = useCallback(
-    (token: string, focus?: () => HTMLElement | null) => {
-      if (undoIsOpen()) {
+  const end = useCallback(
+    (target: Ending, focus?: () => HTMLElement | null) => {
+      if (shareUndoOpen()) {
         ignoreEnd();
         return false;
       }
-      act(async (scope) => {
-        const ended = await revokeHostShare(scope.projectPath, token, {
-          restorable: true,
-        });
-        if (!isCurrent(scope)) return;
-        announceEnded(
-          LINK_UNDO,
-          "link",
-          ended,
-          () => restoreHostShare(scope.projectPath, token),
-          scope,
-          focus,
-        );
-        await load(scope);
-      });
+      const scope = scopeNow();
+      const owner = begin(scope, "end");
+      if (!owner) return false;
+      const heading = focus?.() ?? null;
+      const trigger = document.activeElement;
+      void (async () => {
+        const path = scope.projectPath;
+        try {
+          const ended = await (target.kind === "link"
+            ? revokeHostShare(path, target.token, { restorable: true })
+            : revokeHostRoom(path, target.sessionId, { restorable: true }));
+          if (!isSameProject(scope)) return;
+          if (heading && isCurrent(scope)) {
+            // Deliver may put focus on its root when the menu closes.
+            const fallback =
+              heading.parentElement?.closest<HTMLElement>('[tabindex="-1"]') ??
+              null;
+            endFocus.current = { target, heading, trigger, fallback };
+          }
+          announceEnded(
+            target.kind === "link" ? LINK_UNDO : ROOM_UNDO,
+            target.kind,
+            ended,
+            () =>
+              target.kind === "link"
+                ? restoreHostShare(path, target.token)
+                : restoreHostRoom(path, target.sessionId),
+            scope,
+            () => (isValidFocusTarget(heading) ? heading : null),
+          );
+          await load(scopeNow());
+        } catch (err) {
+          if (isCurrent(scope)) setError(errorMessage(err));
+        } finally {
+          finish(owner);
+        }
+      })();
       return true;
     },
-    [act, announceEnded, ignoreEnd, isCurrent, load, undoIsOpen],
+    [
+      announceEnded,
+      begin,
+      finish,
+      ignoreEnd,
+      isCurrent,
+      isSameProject,
+      load,
+      scopeNow,
+    ],
+  );
+
+  const stop = useCallback(
+    (token: string, focus?: () => HTMLElement | null) =>
+      end({ kind: "link", token }, focus),
+    [end],
   );
 
   const endRoom = useCallback(
-    (sessionId: string, focus?: () => HTMLElement | null) => {
-      if (undoIsOpen()) {
-        ignoreEnd();
-        return false;
-      }
-      act(async (scope) => {
-        const ended = await revokeHostRoom(scope.projectPath, sessionId, {
-          restorable: true,
-        });
-        if (!isCurrent(scope)) return;
-        announceEnded(
-          ROOM_UNDO,
-          "room",
-          ended,
-          () => restoreHostRoom(scope.projectPath, sessionId),
-          scope,
-          focus,
-        );
-        await load(scope);
-      });
-      return true;
-    },
-    [act, announceEnded, ignoreEnd, isCurrent, load, undoIsOpen],
+    (sessionId: string, focus?: () => HTMLElement | null) =>
+      end({ kind: "room", sessionId }, focus),
+    [end],
   );
 
   const value = useMemo<ShareFlow>(

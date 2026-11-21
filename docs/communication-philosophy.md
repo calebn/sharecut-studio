@@ -322,14 +322,13 @@ the empty state, not a separate discovery task.
 - **A link or room that ends offers Undo for the server's window.** Stop
   sharing says "Link stopped." and End room says "Room ended.", each with an
   **Undo** action on the toast. Undo says "Link restored." or "Room restored."
-  The toast stays for the window the server gave minus half a second (9.5 s
-  on the default 10 s), so a press normally lands inside it. The toast stays up while hovered or
-  focused, so a late press can still be refused with "Too late to undo.". A refused Undo says
-  why in plain words: "Too late to undo.", "Another room is live, so this one
-  stays ended.", "This link had already expired, so it stays stopped.", or that
-  the link or room is already gone. While that Undo is open, a
-  second Stop sharing or End room does nothing, so the one Undo on screen is
-  always for the end the person just made. (Surfaces 2, 5.)
+  The toast leaves half a second before the server's window closes, even
+  while hovered or focused. While that Undo is available, confirmations for
+  creating or copying links stay in the share status line. A second Stop
+  sharing or End room says "Undo is still available." A failed request leaves
+  the same Undo available for another try within the window. If the server
+  refuses a restore, the toast says why, such as "Too late to undo." or
+  "Another room is live, so this one stays ended." (Surfaces 2, 5.)
 - **Feedback must be visible, not screen-reader-only.** Every
   `announceStatus` shows the same string in the app toast
   (`feedback/FeedbackToast`, built on `ui/Toast`): one toast at a time,

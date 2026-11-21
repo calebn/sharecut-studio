@@ -17,6 +17,7 @@ type Layer = {
   readonly shortcuts: readonly string[];
   readonly takeEntryFocus: () => void;
   readonly stackRank: number;
+  readonly panel?: HTMLElement | null;
 };
 
 const layers: Layer[] = [];
@@ -52,9 +53,10 @@ export function openOverlay(
   shortcuts: readonly string[] = [],
   takeEntryFocus: () => void = () => undefined,
   stackKey?: string,
+  panel?: HTMLElement | null,
 ): Layer {
   const stackRank = stackRankFor(modal, stackKey);
-  const layer = { modal, shortcuts, takeEntryFocus, stackRank };
+  const layer = { modal, shortcuts, takeEntryFocus, stackRank, panel };
   if (modal) {
     layers.push(layer);
     notifyModalListeners();
@@ -88,6 +90,10 @@ function notifyModalListeners(): void {
 /** True while a modal dialog is open (a snapshot for `useModalOpen`). */
 export function modalOpen(): boolean {
   return layers.some((layer) => layer.modal);
+}
+
+export function innermostModalPanel(): HTMLElement | null {
+  return layers.findLast((layer) => layer.modal)?.panel ?? null;
 }
 
 export function subscribeModalOpen(listener: () => void): () => void {

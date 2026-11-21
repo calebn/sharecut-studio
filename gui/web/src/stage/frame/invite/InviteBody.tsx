@@ -13,10 +13,6 @@ type Props = {
   at?: InviteGroup | null;
 };
 
-type EndedFocus =
-  | { group: "review" | "listen"; kind: "link"; token: string }
-  | { group: "record"; kind: "room"; sessionId: string };
-
 /**
  * The Invite sheet's rows: Review links, Record links, Listen link. Rows act as
  * they change; there is no Apply and no Create button, the link is made on its
@@ -62,43 +58,16 @@ export function InviteBody({ options, at = null }: Props) {
     if (text && selection) selection.selectAllChildren(text);
   }, [blockedKey, rows]);
 
-  // Focus goes to the group heading once the ended link or room has left the
-  // list: the list reloads after the stop, and a heading focused earlier would
-  // be lost with it. An Undo brings the row back without moving focus.
-  const ended = useRef<EndedFocus | null>(null);
-  useEffect(() => {
-    const gone = ended.current;
-    if (!gone) return;
-    const stillThere =
-      gone.kind === "link"
-        ? rows.some((row) => row.usable && row.token === gone.token)
-        : rows.some((row) => row.usable && row.session_id === gone.sessionId);
-    if (stillThere) return;
-    ended.current = null;
-    const heading = {
-      review: reviewHeading,
-      record: recordHeading,
-      listen: listenHeading,
-    }[gone.group];
-    heading.current?.focus();
-  }, [rows]);
-
   const headings = {
     review: reviewHeading,
     record: recordHeading,
     listen: listenHeading,
   };
   const stopLink = (group: "review" | "listen") => (token: string) => {
-    const accepted = options.onStop(token, () => headings[group].current);
-    if (accepted !== false) ended.current = { kind: "link", token, group };
+    options.onStop(token, () => headings[group].current);
   };
   const endRoom = (sessionId: string) => {
-    const accepted = options.onEndRoom(
-      sessionId,
-      () => headings.record.current,
-    );
-    if (accepted !== false)
-      ended.current = { kind: "room", sessionId, group: "record" };
+    options.onEndRoom(sessionId, () => headings.record.current);
   };
   return (
     <div className="inv-body">

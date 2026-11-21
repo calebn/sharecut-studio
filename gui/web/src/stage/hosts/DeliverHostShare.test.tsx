@@ -154,7 +154,7 @@ beforeEach(() => {
   registerDawCommands();
   loadTunnelStatus.mockReset();
   refreshMix.mockReset().mockResolvedValue({ status: "ok" });
-  useDawStore.setState({ statusAnnouncement: "" });
+  useDawStore.setState({ statusAnnouncement: "", feedbackToast: null });
   asHost();
 });
 
@@ -255,11 +255,14 @@ describe("Listen link on the Deliver stage", () => {
     ).toBeNull();
     expect(await screen.findByText("Made when you copy it")).toBeVisible();
     expect(await screen.findByText("Link stopped.")).toBeVisible();
+    const heading = listen().getByRole("heading", { name: "Listen link" });
+    expect(heading).toHaveFocus();
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(server.restoreRequests).toEqual(["listen-1"]));
     expect(
       await listen().findByRole("button", { name: "More for listen link" }),
     ).toBeVisible();
+    expect(heading).toHaveFocus();
   });
 
   it("offers Refresh mix as the row itself when the mix is stale, then makes the link once it is back", async () => {
@@ -513,6 +516,9 @@ describe("the Invite sheet over any stage", () => {
         await screen.findByRole("button", { name: "Undo" }),
       );
       expect(await screen.findByText(message)).toBeVisible();
+      expect(
+        screen.getByRole("heading", { name: "Review links" }),
+      ).toHaveFocus();
       expect(
         screen.queryByRole("button", { name: "More for Commenter link" }),
       ).toBeNull();

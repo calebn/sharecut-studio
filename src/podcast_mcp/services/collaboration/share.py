@@ -777,7 +777,8 @@ class ShareService:
         """Revoke every token in the room. KeyError if none exist.
 
         With ``restorable_for`` (seconds, capped) the room's irreversible cleanup waits for
-        the window end; repeating it on a parked room answers the existing window.
+        the window end. A retry reports the existing deadline while the window is open and
+        no finalize lease is held.
         """
         with self._record_room_guard():
             if restorable_for is not None:
@@ -787,7 +788,13 @@ class ShareService:
                     if r["kind"] == SHARE_KIND_RECORD
                 ]
                 if parked:
-                    return dict(self._pending_room(session_id, parked))
+                    result: dict[str, Any] = {
+                        "session_id": session_id,
+                        "revoked": sorted(r["token"] for r in parked),
+                    }
+                    if until := share_pending.restorable_until(parked, now):
+                        result["restorable_until"] = until
+                    return result
                 return dict(self._park_room(session_id, restorable_for, now))
             finalized = (
                 share_pending.finalize_now(self.ws, session_id, now=now)
@@ -820,14 +827,6 @@ class ShareService:
             "session_id": session_id,
             "revoked": sorted(str(p["token"]) for p in pending),
             "restorable_until": pending[0]["restorable_until"],
-        }
-
-    @staticmethod
-    def _pending_room(session_id: str, rows: Sequence[Any]) -> ParkedRoom:
-        return {
-            "session_id": session_id,
-            "revoked": sorted(str(r["token"]) for r in rows),
-            "restorable_until": rows[0]["restorable_until"],
         }
 
     def _invalidate_record_cache(self) -> None:
@@ -923,26 +922,28 @@ class ShareService:
         now: datetime | None = None,
     ) -> dict[str, Any]:
         parked, rows, is_review = self._classify(token)
+        stopped: dict[str, Any] = {"revoked": True, "token": token}
         # A live or parked review link stays revocable while a room mint, restore or
         # room revoke holds the guard; any other token waits for it.
         with nullcontext() if is_review else self._record_room_guard():
             if not is_review:
                 # Another process may have parked or restored the token while this call waited.
                 parked, rows, is_review = self._classify(token)
-            if restorable_for is not None and parked is not None:
-                return dict(
-                    ParkedShare(
-                        revoked=True,
-                        token=token,
-                        restorable_until=parked["restorable_until"],
-                    )
-                )
-            group = share_pending.group_of(self.ws, token)
-            if group is not None and restorable_for is None:
-                share_pending.finalize_now(self.ws, group, now=now)
-                return {"revoked": True, "token": token}
-            if restorable_for is not None and is_review:
-                return dict(self._park_share(token, restorable_for, now))
+            if restorable_for is not None:
+                if parked is not None:
+                    if is_review and (until := share_pending.restorable_until([parked], now)):
+                        stopped["restorable_until"] = until
+                    return stopped
+                if is_review:
+                    return dict(self._park_share(token, restorable_for, now))
+            elif parked is not None:
+                if is_review:
+                    parked = share_pending.pending_row(self.ws, token)
+                    if parked is None:
+                        rows = list_shares(self.ws.project)
+                if parked is not None:
+                    share_pending.finalize_now(self.ws, parked["group_id"], now=now)
+                    return stopped
 
             version_id: str | None = None
             kind: str | None = None
@@ -951,12 +952,14 @@ class ShareService:
                     kind = _row_kind(row)
                     version_id = self._served_version_id(row) or None
                     break
-            ok = revoke_share(self.ws.project, token)
-            if not ok:
+            if revoke_share(self.ws.project, token):
+                if kind == SHARE_KIND_REVIEW:
+                    share_pending.delete_review_effects(self.ws, [version_id or ""])
+            elif restorable_for is None and (parked := share_pending.pending_row(self.ws, token)):
+                share_pending.finalize_now(self.ws, parked["group_id"], now=now)
+            else:
                 raise KeyError("share not found")
-            if kind == SHARE_KIND_REVIEW:
-                share_pending.delete_review_effects(self.ws, [version_id or ""])
-            return {"revoked": True, "token": token}
+            return stopped
 
     def _park_share(self, token: str, window: float, now: datetime | None) -> ParkedShare:
         pending = share_pending.park(self.ws, [token], group_id=token, window_sec=window, now=now)

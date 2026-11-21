@@ -63,6 +63,10 @@ type Props = {
   /** Says why a pressable Undo will not act at once ("Undo ready after save"). Shown under the message; pauses auto-dismiss like a disabled reason. */
   undoNote?: string;
   timeoutMs?: number;
+  /** A server-backed action's wall-clock deadline. */
+  expiresAtMs?: number;
+  /** ID of the heading that owns this action in the active modal. */
+  modalActionOrigin?: string;
   visibility?: "visible" | "clipped";
   /** Receives focus when the toast closes while focus is inside it, or after focus fell from it to `<body>` (e.g. a focused Undo becoming disabled). */
   returnFocusRef?: RefObject<HTMLElement | null>;
@@ -83,7 +87,13 @@ type Props = {
  * `<body>` (the browser blurs a focused Undo when it becomes disabled), focus
  * moves to `returnFocusRef`.
  */
-export function Toast({ toast, className, regionRef, ...rest }: Props) {
+export function Toast({
+  toast,
+  className,
+  regionRef,
+  modalActionOrigin,
+  ...rest
+}: Props) {
   const actionable = toast != null && (rest.onUndo || rest.onAction);
   const regionClass = [
     "ui-toast-region",
@@ -93,13 +103,20 @@ export function Toast({ toast, className, regionRef, ...rest }: Props) {
     .filter(Boolean)
     .join(" ");
   return (
-    <div ref={regionRef} className={regionClass}>
+    <div
+      ref={regionRef}
+      className={regionClass}
+      data-modal-action-origin={modalActionOrigin}
+    >
       {toast ? <ToastCard toast={toast} {...rest} /> : null}
     </div>
   );
 }
 
-type CardProps = Omit<Props, "toast" | "className" | "regionRef"> & {
+type CardProps = Omit<
+  Props,
+  "toast" | "className" | "regionRef" | "modalActionOrigin"
+> & {
   toast: ToastState;
 };
 
@@ -120,6 +137,7 @@ function ToastCard({
   undoDisabledReason,
   undoNote,
   timeoutMs = onUndo ? TOAST_UNDO_MS : TOAST_MS,
+  expiresAtMs,
   visibility = "visible",
   returnFocusRef,
 }: CardProps) {
@@ -160,6 +178,13 @@ function ToastCard({
       lifetime.current.timeoutMs !== timeoutMs
     )
       lifetime.current = { id: toastId, timeoutMs, remaining: timeoutMs };
+    if (expiresAtMs !== undefined) {
+      const timer = window.setTimeout(
+        () => dismiss(),
+        Math.max(0, expiresAtMs - Date.now()),
+      );
+      return () => window.clearTimeout(timer);
+    }
     if (paused) return;
     const started = Date.now();
     const timer = window.setTimeout(
@@ -173,7 +198,7 @@ function ToastCard({
         lifetime.current.remaining - (Date.now() - started),
       );
     };
-  }, [toastId, paused, timeoutMs]);
+  }, [toastId, paused, timeoutMs, expiresAtMs]);
   const clippedWaiting =
     visibility === "clipped" && clippedSpentFor !== toastId;
   useEffect(() => {

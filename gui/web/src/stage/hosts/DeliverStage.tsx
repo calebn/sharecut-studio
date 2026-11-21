@@ -584,11 +584,12 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           }}
           listen={
             shareOffered
-              ? ({ highlight, phone }) => (
+              ? ({ highlight, phone, returnFocus }) => (
                   <ListenLinkRow
                     options={shareOptions}
                     highlight={highlight}
                     compact={phone}
+                    onStop={(token) => shareOptions.onStop(token, returnFocus)}
                   />
                 )
               : undefined
