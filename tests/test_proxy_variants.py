@@ -11,7 +11,7 @@ import pytest
 
 from gated_track import transcribed_gate_project
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines import source_proxy_audio
+from podcast_mcp.engines import bleed_gate, source_proxy_audio, timeline_render
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import proxy_render_hash, track_render_hash
 from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -29,7 +29,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import proxy_media as pm
 from podcast_mcp.services.media import proxy_variants as pv
 from podcast_mcp.util import host_platform
-from podcast_mcp.util.batch_scope import frozen_state
+from podcast_mcp.util.batch_scope import batch_scope, frozen_state
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.object_store import ObjectStoreConfig
@@ -721,6 +721,93 @@ def test_a_basis_read_builds_each_gated_lane_projection_once(workspace, monkeypa
         changed = pv.project_basis(ws.project, defaults)
     assert changed.render_hashes != basis.render_hashes
     assert observations == {"host": 1, "peer": 1}
+
+
+def test_gate_resolves_each_selected_recording_once_per_lane_read(workspace, monkeypatch):
+    ws = workspace
+    ws.project.clips = [
+        Clip(
+            id=f"clip-{i}",
+            track_id="host",
+            source_start=i / 2,
+            source_end=(i + 1) / 2,
+            timeline_start=i / 2,
+        )
+        for i in range(2)
+    ]
+    take = ws.project.raw_dir() / "take.wav"
+    take.write_bytes((ws.project.raw_dir() / "host.wav").read_bytes())
+    ws.project.sources = [SourceRecording(id="take", path="raw/take.wav")]
+    ws.project.clips.append(
+        Clip(
+            id="take",
+            track_id="host",
+            source_id="take",
+            source_start=0.0,
+            source_end=0.5,
+            timeline_start=1.0,
+        )
+    )
+    resolve = timeline_render.resolve_clip_audio_path
+    seen: Counter[str | None] = Counter()
+
+    def observe(project, track, clip):
+        seen[clip.source_id] += 1
+        return resolve(project, track, clip)
+
+    monkeypatch.setattr(timeline_render, "resolve_clip_audio_path", observe)
+    defaults = ws.effective_config()
+    with frozen_state():
+        rows = bleed_gate.bleed_gate_payload(ws.project, "host", defaults=defaults)["inputs"]
+        assert len(rows[0]["clips"]) == 3
+        assert len(rows[0]["media"]) == 2
+        assert seen == {None: 1, "take": 1}
+        take.unlink()
+        unavailable = bleed_gate.bleed_gate_payload(ws.project, "host", defaults=defaults)["inputs"]
+        assert unavailable[0]["media"] == []
+
+
+def test_final_basis_reads_retargeted_media_inside_an_outer_scope(
+    workspace, monkeypatch, fast_encode
+):
+    ws = workspace
+    transcribed_gate_project(ws, gate=True)
+    raw = ws.project.raw_dir()
+    source = raw / "take.wav"
+    original = raw / "original.wav"
+    alternate = raw / "alternate.wav"
+    original.write_bytes((raw / "host.wav").read_bytes())
+    alternate.write_bytes(original.read_bytes())
+    source.symlink_to(original)
+    ws.project.sources = [SourceRecording(id="take", path="raw/take.wav")]
+    ws.project.clips = [
+        Clip(
+            id="selected",
+            track_id="host",
+            source_id="take",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+        )
+    ]
+    ws.save()
+    prepare = pv._prepare
+
+    def retarget(project, inputs, *args, **kwargs):
+        result = prepare(project, inputs, *args, **kwargs)
+        if inputs.selector == "recording":
+            source.unlink()
+            source.symlink_to(alternate)
+        return result
+
+    monkeypatch.setattr(pv, "_prepare", retarget)
+    with batch_scope(), frozen_state():
+        pv.project_basis(ws.project, ws.effective_config())
+        with pytest.raises(CodedValueError) as error:
+            pv.ensure_proxy_manifest(ws)
+    assert error.value.code == "proxy_inputs_changed"
+    assert ProjectWorkspace.open(ws.path).project.render.proxy_manifests == []
+    assert not list(ws.project.artifacts_dir().glob("proxy/*/.proxy-*"))
 
 
 def test_existing_conflicting_content_destination_refuses_without_overwrite(
