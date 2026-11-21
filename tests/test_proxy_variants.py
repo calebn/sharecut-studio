@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import wave
+from collections import Counter
 from contextlib import contextmanager
 from unittest.mock import MagicMock
 
@@ -13,6 +14,7 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import source_proxy_audio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import proxy_render_hash, track_render_hash
+from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs, render_source_proxy_inputs
 from podcast_mcp.models import (
     Clip,
@@ -27,6 +29,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import proxy_media as pm
 from podcast_mcp.services.media import proxy_variants as pv
 from podcast_mcp.util import host_platform
+from podcast_mcp.util.batch_scope import frozen_state
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.object_store import ObjectStoreConfig
@@ -680,6 +683,44 @@ def test_suppressing_a_word_on_a_gated_track_moves_both_render_hashes(workspace)
     ws.project.transcripts[0].words[0].suppressed = True
     assert track_render_hash(ws.project, "host", defaults=defaults) != track_before
     assert proxy_render_hash(ws.project, "host", defaults=defaults) != proxy_before
+
+
+def test_a_basis_read_builds_each_gated_lane_projection_once(workspace, monkeypatch):
+    ws = workspace
+    transcribed_gate_project(ws, gate=True)
+    ws.project.tracks.append(
+        Track(
+            id="peer",
+            label="Peer",
+            media=MediaAsset(path="raw/host.wav"),
+            transcript_gate=True,
+        )
+    )
+    ws.project.clips = [
+        Clip(id=tid, track_id=tid, source_start=0.0, source_end=1.0, timeline_start=0.0)
+        for tid in ("host", "peer")
+    ]
+    defaults = ws.effective_config()
+    expected = pv.project_basis(ws.project, defaults)
+    lane_spans = SessionTimeline.lane_clip_spans
+    observations: Counter[str] = Counter()
+
+    def observe(timeline, lane):
+        observations[lane] += 1
+        return lane_spans(timeline, lane)
+
+    monkeypatch.setattr(SessionTimeline, "lane_clip_spans", observe)
+    with frozen_state():
+        basis = pv.project_basis(ws.project, defaults)
+    assert basis == expected
+    assert observations == {"host": 1, "peer": 1}
+
+    observations.clear()
+    ws.project.transcripts[0].words[0].suppressed = True
+    with frozen_state():
+        changed = pv.project_basis(ws.project, defaults)
+    assert changed.render_hashes != basis.render_hashes
+    assert observations == {"host": 1, "peer": 1}
 
 
 def test_existing_conflicting_content_destination_refuses_without_overwrite(
