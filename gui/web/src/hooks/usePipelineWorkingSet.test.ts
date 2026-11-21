@@ -203,6 +203,50 @@ describe("pipeline working-set request ownership", () => {
     expect(hook.result.current.cfg).toBe(saved);
     expect(hook.result.current.saveError).toBeNull();
   });
+  it("clears a load error when retrying and publishes the reloaded settings", async () => {
+    const retry = deferred<PipelineConfigResponse>();
+    const recovered = pipelineConfig({ enabled_steps: ["recovered"] });
+    vi.mocked(loadPipelineConfig)
+      .mockRejectedValueOnce(new Error("load unavailable"))
+      .mockReturnValueOnce(retry.promise);
+    const hook = renderHook(() => usePipelineWorkingSet("/a", true));
+    await waitFor(() =>
+      expect(hook.result.current.loadError).toBe("load unavailable"),
+    );
+
+    act(() => hook.result.current.reload());
+    expect(hook.result.current.loadError).toBeNull();
+    expect(hook.result.current.cfg).toBeNull();
+
+    await act(async () => retry.resolve(recovered));
+    expect(hook.result.current.cfg).toBe(recovered);
+    expect(hook.result.current.loadError).toBeNull();
+  });
+
+  it("keeps the second reload when the first reload finishes last", async () => {
+    const first = deferred<PipelineConfigResponse>();
+    const second = deferred<PipelineConfigResponse>();
+    const initial = pipelineConfig();
+    const newer = pipelineConfig({ enabled_steps: ["newer"] });
+    vi.mocked(loadPipelineConfig)
+      .mockResolvedValueOnce(initial)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const hook = renderHook(() => usePipelineWorkingSet("/a", true));
+    await waitFor(() => expect(hook.result.current.cfg).toBe(initial));
+
+    act(() => hook.result.current.reload());
+    act(() => hook.result.current.reload());
+    await act(async () => second.resolve(newer));
+    expect(hook.result.current.cfg).toBe(newer);
+
+    await act(async () =>
+      first.resolve(pipelineConfig({ enabled_steps: ["older"] })),
+    );
+    expect(hook.result.current.cfg).toBe(newer);
+    expect(hook.result.current.loadError).toBeNull();
+  });
+
   it("accepts a fresh-read command in the same event as reload", async () => {
     const reload = deferred<PipelineConfigResponse>();
     const fresh = pipelineConfig({ enabled_steps: ["fresh-command"] });
