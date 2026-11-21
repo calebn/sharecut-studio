@@ -289,6 +289,7 @@ def guest_add_comment(
     timeline_start: float,
     timeline_end: float | None = None,
     edit_decision_id: str | None = None,
+    comment_id: str | None = None,
 ) -> dict[str, Any]:
     _require_tool("guest_add_comment")
     ctx = get_remote_mcp_context()
@@ -300,14 +301,17 @@ def guest_add_comment(
             timeline_start=timeline_start,
             timeline_end=timeline_end,
             edit_decision_id=edit_decision_id,
+            comment_id=comment_id,
         )
     }
 
 
-def guest_add_reply(comment_id: str, body: str, author: str) -> dict[str, Any]:
+def guest_add_reply(
+    comment_id: str, body: str, author: str, reply_id: str | None = None
+) -> dict[str, Any]:
     _require_tool("guest_add_reply")
     ctx = get_remote_mcp_context()
-    return share_add_reply(ctx.token, comment_id, body=body, author=author)
+    return share_add_reply(ctx.token, comment_id, body=body, author=author, reply_id=reply_id)
 
 
 def guest_set_action_done(
@@ -782,6 +786,11 @@ def tool_input_schema(name: str) -> dict[str, Any]:
                 "timeline_start": {"type": "number"},
                 "timeline_end": {"type": ["number", "null"]},
                 "edit_decision_id": {"type": ["string", "null"]},
+                "comment_id": {
+                    "type": ["string", "null"],
+                    "pattern": "^[0-9a-f]{32}$",
+                    "description": "Pass the same id to retry safely.",
+                },
             },
             "required": ["body", "author", "timeline_start"],
         },
@@ -791,6 +800,11 @@ def tool_input_schema(name: str) -> dict[str, Any]:
                 "comment_id": {"type": "string"},
                 "body": {"type": "string", "maxLength": COMMENT_BODY_MAX},
                 "author": {"type": "string"},
+                "reply_id": {
+                    "type": ["string", "null"],
+                    "pattern": "^[0-9a-f]{32}$",
+                    "description": "Pass the same id to retry safely.",
+                },
             },
             "required": ["comment_id", "body", "author"],
         },
