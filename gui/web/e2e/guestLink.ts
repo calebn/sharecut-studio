@@ -115,6 +115,9 @@ export async function failShell(
   who: { token: string } | "host",
   initial: FailedAnswer,
 ) {
+  if (who === "host") {
+    await page.routeWebSocket(/\/api\/host\/ws/, () => undefined);
+  }
   let fail = initial;
   let failing = true;
   let requests = 0;
