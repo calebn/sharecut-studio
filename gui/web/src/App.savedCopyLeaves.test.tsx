@@ -180,6 +180,31 @@ describe("a saved copy that leaves itself", () => {
     expectLiveStudioWithDraft(input);
   });
 
+  it("tries again after a pending attempt when the host answered meanwhile", async () => {
+    const before = await openCopy();
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const fetchStub = vi.mocked(fetch);
+    const inner = fetchStub.getMockImplementation();
+    fetchStub.mockImplementationOnce(async (input, init) => {
+      await held;
+      return inner ? inner(input, init) : new Response("{}");
+    });
+    await pass(31_000);
+    act(() => {
+      noteReviewTransportFailure(token);
+      noteReviewTransportFailure(token);
+    });
+    act(() => noteReviewAnswer(token));
+    await pass(10);
+    expect(projectCalls).toBe(before);
+    release();
+    await pass(10);
+    expect(projectCalls).toBe(before + 2);
+  });
+
   it("tries again at once when the browser is back online", async () => {
     const before = await openCopy();
     const input = screen.getByLabelText("Comment draft");
@@ -240,7 +265,7 @@ describe("a saved copy that leaves itself", () => {
     expect(screen.queryByLabelText("Comment draft")).toBeNull();
   });
 
-  it("ends the session and deletes the copy on a 403", async () => {
+  it("keeps the copy and the open page on a 403", async () => {
     await openCopy();
     answer = new Response("{}", {
       status: 403,
@@ -248,11 +273,10 @@ describe("a saved copy that leaves itself", () => {
     });
     await pass(31_000);
     await pass(100);
+    expect(offline.clear).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
     expect(
-      await screen.findByText(/This link is only for certain people/),
-    ).toBeInTheDocument();
-    expect(offline.clear).toHaveBeenCalledWith(token);
-    expect(audio.forget).toHaveBeenCalledWith(token);
-    expect(screen.queryByLabelText("Comment draft")).toBeNull();
+      screen.queryByText(/This link is only for certain people/),
+    ).toBeNull();
   });
 });

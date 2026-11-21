@@ -1,6 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetHostReach, useHostCause } from "../state/hostReach";
+import { withAbortTimeout } from "../utils/abortTimeout";
 import { ApiError } from "../utils/apiError";
 import {
   apiFetch,
@@ -391,6 +392,76 @@ describe("apiSend and the host's reach", () => {
     await run("share:tok-r3");
     await run("share:tok-r3");
     expect(reach("tok-r3")).toBeNull();
+  });
+
+  it("counts a timeout that WebKit reports as a plain abort, not a user abort", async () => {
+    const timedOut = async () =>
+      withAbortTimeout(5, "slow", (signal) =>
+        apiSend("share:tok-r8", { guest: "/x" }, { signal }),
+      ).catch(() => undefined);
+    stubFetch(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("Fetch is aborted", "AbortError")),
+          );
+        }),
+    );
+    await timedOut();
+    await timedOut();
+    expect(reach("tok-r8")).toBe("host");
+    resetHostReach();
+    const controller = new AbortController();
+    stubFetch(async () => {
+      controller.abort();
+      throw new DOMException("Fetch is aborted", "AbortError");
+    });
+    for (let i = 0; i < 3; i += 1) {
+      await apiSend(
+        "share:tok-r8",
+        { guest: "/x" },
+        {
+          signal: controller.signal,
+        },
+      ).catch(() => undefined);
+    }
+    expect(reach("tok-r8")).toBeNull();
+  });
+
+  it.each([
+    ["a 502", { status: 502 }],
+    ["a 504", { status: 504 }],
+    ["a 503", { status: 503 }],
+  ])("counts %s as no answer", async (_name, init) => {
+    stubFetch(async () => new Response("{}", init));
+    await run("share:tok-r9");
+    expect(reach("tok-r9")).toBeNull();
+    await run("share:tok-r9");
+    expect(reach("tok-r9")).toBe("host");
+  });
+
+  it.each([
+    ["a 500", { status: 500 }],
+    ["a 403", { status: 403 }],
+    ["a 429", { status: 429 }],
+    [
+      "a busy 503",
+      { status: 503, headers: { "X-Sharecut-Error-Code": "project_busy" } },
+    ],
+  ])("treats %s as an answer", async (_name, init) => {
+    refuse();
+    await run("share:tok-r10");
+    await run("share:tok-r10");
+    expect(reach("tok-r10")).toBe("host");
+    stubFetch(async () => new Response("{}", init));
+    await run("share:tok-r10");
+    expect(reach("tok-r10")).toBeNull();
+  });
+
+  it("counts two requests that fail together once", async () => {
+    refuse();
+    await Promise.all([run("share:tok-r11"), run("share:tok-r11")]);
+    expect(reach("tok-r11")).toBeNull();
   });
 
   it("clears on any answer, a 5xx and a 404 included", async () => {

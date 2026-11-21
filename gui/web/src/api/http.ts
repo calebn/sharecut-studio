@@ -5,10 +5,12 @@
  * and the host token is never sent). Callers name the route for each audience
  * and never branch on the key themselves.
  */
+import { noAnswerStatus } from "../guestLoadFailure";
 import { authHeaders } from "../sessionAuth";
 import { reviewApiBase, SHARE_PREFIX } from "../shareMode";
 import { recordApiBase } from "../shareRoute";
 import {
+  hostReachEpoch,
   noteReviewAnswer,
   noteReviewTransportFailure,
   setHostReachProbe,
@@ -112,14 +114,24 @@ export async function apiSend(
     : null;
   if (token !== null && isLinkEnded(token)) throw endedRequestError();
   let res: Response;
+  const startedAt = hostReachEpoch();
   try {
     res = await fetch(url, requestInit);
   } catch (error) {
-    if (token !== null && isNoAnswer(error)) noteReviewTransportFailure(token);
+    if (token !== null && isNoAnswer(error, requestInit?.signal)) {
+      noteReviewTransportFailure(token, startedAt);
+    }
     throw error;
   }
-  if (token !== null) noteReviewAnswer(token);
-  // Only a 404 has its header read: every other answer is none of this.
+  if (token !== null) {
+    const code = res.status === 503 ? res.headers.get(ERROR_CODE_HEADER) : null;
+    if (noAnswerStatus(res.status, code)) {
+      noteReviewTransportFailure(token, startedAt);
+    } else {
+      noteReviewAnswer(token);
+    }
+  }
+  // Only a 404 and a 503 have their header read: every other answer is none of this.
   if (
     token !== null &&
     res.status === 404 &&
@@ -130,10 +142,15 @@ export async function apiSend(
   return res;
 }
 
-function isNoAnswer(error: unknown): boolean {
+function isTimeout(reason: unknown): boolean {
+  return reason instanceof DOMException && reason.name === "TimeoutError";
+}
+
+function isNoAnswer(error: unknown, signal?: AbortSignal | null): boolean {
   return (
     isTransportFailure(error) ||
-    (error instanceof DOMException && error.name === "TimeoutError")
+    isTimeout(error) ||
+    (signal?.aborted === true && isTimeout(signal.reason))
   );
 }
 

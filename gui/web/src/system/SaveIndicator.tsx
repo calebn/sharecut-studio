@@ -80,7 +80,7 @@ export function SaveIndicator({
   if (state === "away") {
     const label =
       cause === "device" ? "You're offline" : "Can't reach the host";
-    const sentence = `${label}. This page keeps trying.`;
+    const sentence = `${label}${waiting ? `, ${waiting} waiting` : ""}. This page keeps trying.`;
     return (
       <span
         className={`sys-save sys-save--away${size}`}
