@@ -1728,9 +1728,13 @@ Existing clip fades and output gains apply once in the client after decoding.
 
 `services/media/proxy_variants.py` owns complete manifest publication under the
 render lock. `RenderSection.proxy_manifests` retains the current and one previous
-complete generation. Each temporary PCM render is removed after its MP3 chunks
-are encoded. Ordered chunk digests bind new public hashes to actual encoded
-bytes. Publication uses the shared `util/atomic_directory.py` no-replace
+complete generation. Within one build, artifacts that use the same recording
+path can share an MP3 encode when their complete rendered WAV bytes, encoder
+identity, and chunk settings match. Each fresh artifact stages its own chunk files
+and verifies their digests before publication. The builder removes each
+temporary WAV as soon as its chunks are encoded or copied. Ordered chunk
+digests bind public hashes to actual encoded bytes. Publication uses the shared
+`util/atomic_directory.py` no-replace
 rename, synchronizes files and the namespace before one derived metadata save,
 and revalidates captured inputs before accepting the generation. The revalidation
 compares render hashes and clips (not the history head) and the project without
