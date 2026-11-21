@@ -185,6 +185,10 @@ def _rate_limit(token: str, kind: str) -> None:
     rate_limit_share(token, kind)
 
 
+def _is_direct_loopback(request: Request) -> bool:
+    return not is_relayed_request(request.headers) and origin_is_loopback(str(request.base_url))
+
+
 def _audio_file_response(token: str, path, **kwargs: Any):
     """Pin authorized media before returning; hold the slot until streaming ends."""
     cache_audio = kwargs.pop("cache_audio", False)
@@ -219,12 +223,14 @@ def get_review_features(token: str, request: Request) -> dict[str, Any]:
 
 
 @router.get("/api/review/{token}/audio")
-def get_review_audio(token: str):
+def get_review_audio(token: str, request: Request):
     _check_token(token)
     with guest_boundary(log, "review request"):
-        redirect = resolve_share_audio_redirect(token)
-        if redirect:
-            return RedirectResponse(url=redirect, status_code=302)
+        # The loopback GUI only permits same-origin or blob URLs for media.
+        if not _is_direct_loopback(request):
+            redirect = resolve_share_audio_redirect(token)
+            if redirect:
+                return RedirectResponse(url=redirect, status_code=302)
         path = share_audio_path(token)
     return _audio_file_response(
         token,
@@ -527,9 +533,7 @@ def get_daw_proxy_manifest(token: str, request: Request) -> dict[str, Any]:
     _check_token(token)
     _rate_limit(token, "read")
     with guest_boundary(log, "review request"):
-        direct = not is_relayed_request(request.headers)
-        loopback = direct and origin_is_loopback(str(request.base_url))
-        return share_proxy_manifest(token, loopback_page=loopback)
+        return share_proxy_manifest(token, loopback_page=_is_direct_loopback(request))
 
 
 @router.get("/api/review/{token}/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}")
