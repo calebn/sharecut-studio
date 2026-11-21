@@ -16,7 +16,7 @@ import shutil
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Final, Literal
 
 from podcast_mcp import settings
 from podcast_mcp.config.defaults import bin_cache_dir
@@ -26,6 +26,8 @@ from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
 from podcast_mcp.util.process import IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, TimeoutExpired, run
 
 SelectionSource = Literal["explicit", "bundle", "homebrew", "path", "cache", "in_process"]
+IN_PROCESS_SOURCE: Final = "in_process"
+IN_PROCESS_LABEL = "in-process FFmpeg"
 
 
 @dataclass(frozen=True)
@@ -39,7 +41,7 @@ class FFmpegPair:
 
     @property
     def is_in_process(self) -> bool:
-        return self.source == "in_process"
+        return self.source == IN_PROCESS_SOURCE
 
     def is_available(self) -> bool:
         if self.is_in_process:
@@ -54,7 +56,7 @@ IN_PROCESS_NOT_INSTALLED = (
     "ShareCut's in-process FFmpeg is linked but its backend is not installed."
 )
 IN_PROCESS_PAIR = FFmpegPair(
-    IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, IN_PROCESS_VERSION, "in_process"
+    IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, IN_PROCESS_VERSION, IN_PROCESS_SOURCE
 )
 
 
