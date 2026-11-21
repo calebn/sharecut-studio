@@ -1,4 +1,5 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
+import { Button } from "../ui/Button";
 
 export type InlineEditEnd = "enter" | "escape" | "blur";
 
@@ -24,6 +25,7 @@ type Props = {
   maxLength?: number;
   readOnly?: boolean;
   className?: string;
+  draftConflict?: { hint: string; discardLabel: string };
 };
 
 export function InlineEdit({
@@ -40,13 +42,23 @@ export function InlineEdit({
   maxLength,
   readOnly = false,
   className,
+  draftConflict,
 }: Props) {
   const lastSent = useRef<string | null>(null);
   const [text, setText] = useState(value);
   const [seen, setSeen] = useState(value);
+  const [draft, setDraft] = useState<"edited" | "conflict" | null>(null);
+  const conflictId = useId();
+  const next = trim ? text.trim() : text;
+  const conflict = draft === "conflict";
   if (value !== seen) {
     setSeen(value);
-    setText(value);
+    if (draft === null || next === value) {
+      setText(value);
+      if (draft !== null) setDraft(null);
+    } else if (!conflict) {
+      setDraft("conflict");
+    }
     lastSent.current = null;
   }
   const ended = useRef(false);
@@ -59,7 +71,7 @@ export function InlineEdit({
   }, [focusOnMount]);
   const commit = () => {
     if (readOnly || text === value) return;
-    const next = trim ? text.trim() : text;
+    if (draft !== null) setDraft(null);
     if (next === value) {
       setText(value);
       return;
@@ -69,7 +81,7 @@ export function InlineEdit({
     if (onCommit(next) === false) setText(value);
   };
   const leave = useEffectEvent(() => {
-    if (!ended.current) commit();
+    if (!ended.current && !conflict) commit();
   });
   useEffect(() => {
     if (!commitOnUnmount) return;
@@ -77,14 +89,22 @@ export function InlineEdit({
   }, [commitOnUnmount]);
   const change = (next: string) => {
     ended.current = false;
+    if (draftConflict) {
+      const edited = trim ? next.trim() : next;
+      setDraft(edited === value ? null : (draft ?? "edited"));
+    }
     setText(next);
+  };
+  const discard = () => {
+    ended.current = true;
+    setText(value);
+    if (draft !== null) setDraft(null);
   };
   const keys = (event: React.KeyboardEvent) => {
     if (readOnly) return;
     if (event.key === "Escape") {
       if (text !== value) event.preventDefault();
-      ended.current = true;
-      setText(value);
+      discard();
       onEnd?.("escape");
     } else if (
       event.key === "Enter" &&
@@ -100,7 +120,9 @@ export function InlineEdit({
   const shared = {
     className: className ? `sys-inline-edit ${className}` : "sys-inline-edit",
     "aria-label": label,
-    "aria-describedby": describedBy,
+    "aria-describedby": conflict
+      ? [describedBy, conflictId].filter(Boolean).join(" ")
+      : describedBy,
     value: text,
     placeholder,
     maxLength,
@@ -114,16 +136,19 @@ export function InlineEdit({
       ended.current = false;
     },
     onBlur: () => {
-      if (ended.current) return;
+      if (ended.current || conflict) return;
       if (readOnly) {
-        if (text !== lastSent.current) setText(value);
+        if (text !== lastSent.current) {
+          setText(value);
+          if (draft !== null) setDraft(null);
+        }
         return;
       }
       commit();
       onEnd?.("blur");
     },
   };
-  return multiline ? (
+  const editor = multiline ? (
     <textarea
       {...shared}
       rows={Math.min(6, Math.max(2, text.split("\n").length))}
@@ -131,5 +156,25 @@ export function InlineEdit({
     />
   ) : (
     <input {...shared} onChange={(event) => change(event.target.value)} />
+  );
+  return draftConflict ? (
+    <>
+      {editor}
+      <p id={conflictId} className="sys-inline-edit-conflict" role="status">
+        {conflict ? draftConflict.hint : null}
+      </p>
+      {conflict && (
+        <Button
+          onClick={() => {
+            discard();
+            field.current?.focus();
+          }}
+        >
+          {draftConflict.discardLabel}
+        </Button>
+      )}
+    </>
+  ) : (
+    editor
   );
 }

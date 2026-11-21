@@ -107,7 +107,12 @@ export function useSocialSections(
           label: "Title",
           control: editable ? (
             <InlineEdit
+              key={JSON.stringify([projectPath, clip.id])}
               label="Title"
+              draftConflict={{
+                hint: "Title changed elsewhere. Press Enter to save your draft.",
+                discardLabel: "Use saved title",
+              }}
               value={clip.title_suggestion ?? ""}
               placeholder="Untitled clip"
               maxLength={200}
