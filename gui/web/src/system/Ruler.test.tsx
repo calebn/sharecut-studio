@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { Ruler, type RulerProps } from "./Ruler";
@@ -287,13 +287,17 @@ describe("Ruler seeking", () => {
     fireEvent.click(body(), { clientX: 40 });
     fireEvent.pointerDown(body(), { pointerId: 1, clientX: 40 });
     fireEvent.pointerMove(body(), { pointerId: 1, clientX: 80 });
+    fireEvent.pointerUp(body(), { pointerId: 1, clientX: 80 });
     expect(onSeek.mock.calls).toEqual([[605]]);
     expect(onScrub.mock.calls.map(([seconds]) => seconds)).toEqual([606]);
   });
 });
 
 describe("Ruler scrubbing", () => {
-  it("starts after 3 px for a mouse, reports each time under the pointer, and ends committed", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("starts after 3 px, seeks to the latest move on each frame, and flushes on release", () => {
     const { onScrubStart, onScrub, onScrubEnd, onSeek } = setup();
     fireEvent.pointerDown(body(), { pointerId: 1, clientX: 40 });
     fireEvent.pointerMove(body(), { pointerId: 1, clientX: 42 });
@@ -304,19 +308,28 @@ describe("Ruler scrubbing", () => {
       clientX: 120,
       shiftKey: true,
     });
-    fireEvent.pointerUp(body(), { pointerId: 1, clientX: 120 });
-    fireEvent.click(body(), { clientX: 120, detail: 1 });
+    expect(onScrub).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    expect(onScrub.mock.calls.map(([seconds]) => seconds)).toEqual([607]);
+    fireEvent.pointerMove(body(), { pointerId: 1, clientX: 160 });
+    fireEvent.pointerUp(body(), { pointerId: 1, clientX: 160 });
+    fireEvent.click(body(), { clientX: 160, detail: 1 });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
     expect(onScrubStart.mock.calls).toEqual([
       [606, { clientX: 80, clientY: 0, shift: false, alt: true }],
     ]);
     expect(onScrub.mock.calls).toEqual([
       [
-        606,
-        { clientX: 80, clientY: 0, dx: 40, dy: 0, shift: false, alt: true },
-      ],
-      [
         607,
         { clientX: 120, clientY: 0, dx: 80, dy: 0, shift: true, alt: false },
+      ],
+      [
+        608,
+        { clientX: 160, clientY: 0, dx: 120, dy: 0, shift: false, alt: false },
       ],
     ]);
     expect(onScrubEnd.mock.calls).toEqual([[true]]);
@@ -377,6 +390,9 @@ describe("Ruler scrubbing", () => {
     const { onScrub, onScrubEnd } = setup();
     fireEvent.pointerDown(body(), { pointerId: 1, clientX: 40 });
     fireEvent.pointerMove(body(), { pointerId: 1, clientX: 60 });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
     fireEvent.pointerDown(body(), { pointerId: 2, clientX: 300 });
     fireEvent.pointerMove(body(), { pointerId: 2, clientX: 340 });
     fireEvent.pointerUp(body(), { pointerId: 2, clientX: 340 });
@@ -401,10 +417,17 @@ describe("Ruler scrubbing", () => {
     const { onScrub, onScrubEnd, onSeek } = setup();
     fireEvent.pointerDown(body(), { pointerId: 1, clientX: 40 });
     fireEvent.pointerMove(body(), { pointerId: 1, clientX: 80 });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    fireEvent.pointerMove(body(), { pointerId: 1, clientX: 100 });
     const handled = fireEvent.keyDown(document.body, { key: "Escape" });
     fireEvent.pointerMove(body(), { pointerId: 1, clientX: 120 });
     fireEvent.pointerUp(body(), { pointerId: 1, clientX: 120 });
     fireEvent.click(body(), { clientX: 120, detail: 1 });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
     expect(handled).toBe(false);
     expect(onScrubEnd.mock.calls).toEqual([[false]]);
     expect(onScrub).toHaveBeenCalledTimes(1);
@@ -429,7 +452,11 @@ describe("Ruler scrubbing", () => {
     fireEvent.pointerMove(body(), { pointerId: 1, clientX: 80 });
     second.unmount();
     fireEvent.keyDown(document.body, { key: "Escape" });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
     expect(second.onScrubEnd.mock.calls).toEqual([[false]]);
+    expect(second.onScrub).not.toHaveBeenCalled();
   });
 
   it("reads a right-button press as nothing", () => {
