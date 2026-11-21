@@ -490,6 +490,7 @@ export function registerPaletteReconnectSmoke() {
                 } finally {
                   outage.restore();
                 }
+                let lastClauses: Record<string, boolean> = {};
                 try {
                   await expect
                     .poll(
@@ -500,18 +501,21 @@ export function registerPaletteReconnectSmoke() {
                         );
                         const active = wire.sockets.at(-1);
                         const row = observerProbe.roster[followerId];
-                        return (
-                          !wire.uncertain &&
-                          wire.clientId === followerId &&
-                          active &&
-                          !active.closed &&
-                          active.id > old.id &&
-                          active.helloSequence !== null &&
-                          closed?.closeSequence !== null &&
-                          active.helloSequence >
-                            (closed?.closeSequence ?? Infinity) &&
-                          wire.sent.some(
+                        lastClauses = {
+                          wireCertain: !wire.uncertain,
+                          sameClient: wire.clientId === followerId,
+                          newSocketOpen: !!active && !active.closed,
+                          newSocketIsLater: !!active && active.id > old.id,
+                          newSocketHello: active?.helloSequence != null,
+                          oldSocketCloseSeen: closed?.closeSequence !== null,
+                          helloAfterClose:
+                            !!active &&
+                            active.helloSequence !== null &&
+                            active.helloSequence >
+                              (closed?.closeSequence ?? Infinity),
+                          followSentOnNewSocket: wire.sent.some(
                             ({ socketId, sequence, frame }) =>
+                              !!active &&
                               socketId === active.id &&
                               sequence > (active.helloSequence ?? Infinity) &&
                               frame.meta?.following === leaderId &&
@@ -519,19 +523,27 @@ export function registerPaletteReconnectSmoke() {
                               !Number.isFinite(
                                 frame.meta?.transport?.playhead_sec,
                               ),
-                          ) &&
-                          noPlayhead(row) &&
-                          row?.meta?.following === leaderId &&
-                          row?.meta?.ui?.tab === "transcript" &&
-                          row?.meta?.ui?.mobile_mode === "text"
-                        );
+                          ),
+                          observerSeesNoPlayhead: noPlayhead(row),
+                          observerSeesFollowing:
+                            row?.meta?.following === leaderId,
+                          observerSeesTranscriptTab:
+                            row?.meta?.ui?.tab === "transcript",
+                          observerSeesTextMode:
+                            row?.meta?.ui?.mobile_mode === "text",
+                        };
+                        return Object.values(lastClauses).every(Boolean);
                       },
                       { timeout: 20_000 },
                     )
                     .toBe(true);
                 } catch {
+                  const failing = Object.entries(lastClauses)
+                    .filter(([, ok]) => !ok)
+                    .map(([name]) => name)
+                    .join(", ");
                   inconclusive(
-                    "real reconnect did not yield preserved follow and independently observed no-playhead text row",
+                    `real reconnect did not yield preserved follow and independently observed no-playhead text row (false after 20 s: ${failing || "never evaluated"})`,
                   );
                 }
                 const rejoined = await readFollowerWire(follower);
