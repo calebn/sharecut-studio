@@ -622,10 +622,8 @@ class SessionSyncService:
 
     def remove_client(self, client_id: str, *, generation: int | None = None) -> None:
         store = self._store_optional()
-        if store is None:
-            return
-        store.remove_client(client_id, generation=generation)
-        self._fanout_presence_after_commit()
+        if store is not None and store.remove_client(client_id, generation=generation):
+            self._fanout_presence_after_commit()
 
     # --- Convenience builders (agent / CLI / play) ---
 
