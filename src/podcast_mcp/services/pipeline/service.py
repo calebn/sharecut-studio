@@ -389,12 +389,17 @@ class PipelineService:
             # The render lock comes before mutate()'s project locks (lock order, #482).
             # The cancel scope also stops the render between its steps (assemble, mix).
             with render_cancel_scope(cancel_check), render_lock(self.ws.project):
-                return self.ws.mutate(
+                result = self.ws.mutate(
                     "before render preview",
                     "after render preview",
                     mutate,
                     operation="render_preview",
                 )
+            if result.get("ok"):
+                from podcast_mcp.services.document_sync import after_agent_mutation
+
+                after_agent_mutation(self.ws)
+            return result
         return json.loads(
             render_preview_result(
                 self.ws.project, rerender=False, defaults=self.ws.effective_config()
