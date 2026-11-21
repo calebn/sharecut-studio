@@ -1,5 +1,6 @@
 /** Rows live under `outbox:<token>`; each `id` is the server's repeat key, so resending a send that landed is harmless. */
 
+import { isLinkEnded } from "../utils/linkEnded";
 import { idbDelete, idbGet, updateStoredList } from "./idbKv";
 
 export type OutboxAnchor = {
@@ -16,6 +17,7 @@ export type OutboxRow = {
   body: string;
   author: string;
   created_at: number;
+  attempted?: true;
   anchor?: OutboxAnchor;
   parent_comment_id?: string;
 };
@@ -131,6 +133,7 @@ function parseOutboxRow(value: unknown): OutboxRow {
       body: value.body,
       author: value.author,
       created_at: value.created_at,
+      ...(value.attempted === true ? { attempted: true } : {}),
       anchor: parseAnchor(value.anchor),
     };
   }
@@ -147,6 +150,7 @@ function parseOutboxRow(value: unknown): OutboxRow {
     author: value.author,
     created_at: value.created_at,
     parent_comment_id: value.parent_comment_id,
+    ...(value.attempted === true ? { attempted: true } : {}),
   };
 }
 
@@ -201,32 +205,36 @@ export async function appendOutbox(
   token: string,
   row: OutboxRow,
 ): Promise<boolean> {
-  if (typeof indexedDB === "undefined") return false;
+  if (typeof indexedDB === "undefined" || isLinkEnded(token)) return false;
   const admitted = parseOutboxRow(row);
-  await updateStoredList<OutboxRow, void>(
+  const kept = await updateStoredList<OutboxRow, boolean>(
     outboxKey(token),
     parseOutboxList,
-    (rows) => ({
-      items: rows.some((item) => item.id === admitted.id)
-        ? rows
-        : [...rows, admitted],
-      result: undefined,
-    }),
+    (rows) => {
+      if (isLinkEnded(token)) return { items: rows, result: false };
+      return {
+        items: rows.some((item) => item.id === admitted.id)
+          ? rows
+          : [...rows, admitted],
+        result: true,
+      };
+    },
   );
   await refreshOutboxView(token);
-  return true;
+  return kept && !isLinkEnded(token);
 }
 
 export async function restoreOutbox(
   token: string,
   row: OutboxRow,
 ): Promise<boolean> {
-  if (typeof indexedDB === "undefined") return false;
+  if (typeof indexedDB === "undefined" || isLinkEnded(token)) return false;
   const admitted = parseOutboxRow(row);
   await updateStoredList<OutboxRow, void>(
     outboxKey(token),
     parseOutboxList,
     (rows) => {
+      if (isLinkEnded(token)) return { items: rows, result: undefined };
       if (rows.some((item) => item.id === admitted.id)) {
         return { items: rows, result: undefined };
       }
@@ -259,14 +267,44 @@ export async function removeOutbox(
   return removed;
 }
 
-/** Takes a waiting comment out together with the waiting replies to it, which have nothing to answer once it is gone. */
+/** Persist the attempt before sending, serialized with cancellation even without Web Locks. */
+export function markOutboxAttempt(token: string, id: string): Promise<boolean> {
+  return updateStoredList<OutboxRow, boolean>(
+    outboxKey(token),
+    parseOutboxList,
+    (rows) => ({
+      items: rows.map((row) =>
+        row.id === id ? { ...row, attempted: true } : row,
+      ),
+      result: rows.some((row) => row.id === id),
+    }),
+  );
+}
+
+export function outboxLockName(token: string): string {
+  return `sharecut-outbox:${token}`;
+}
+
+export async function cancelOutbox(
+  token: string,
+  id: string,
+): Promise<OutboxRow[] | null> {
+  const locks = typeof navigator === "undefined" ? undefined : navigator.locks;
+  if (!locks) return removeOutboxWithReplies(token, id, false);
+  return locks.request(outboxLockName(token), { ifAvailable: true }, (lock) =>
+    lock ? removeOutboxWithReplies(token, id) : null,
+  );
+}
+
+/** Takes out a waiting comment and its waiting replies. */
 export async function removeOutboxWithReplies(
   token: string,
   id: string,
-): Promise<OutboxRow[]> {
+  allowAttempted = true,
+): Promise<OutboxRow[] | null> {
   if (typeof indexedDB === "undefined") return [];
   const slot = waitingSlot(id);
-  const removed = await updateStoredList<OutboxRow, OutboxRow[]>(
+  const removed = await updateStoredList<OutboxRow, OutboxRow[] | null>(
     outboxKey(token),
     parseOutboxList,
     (rows) => {
@@ -275,9 +313,13 @@ export async function removeOutboxWithReplies(
         (row.kind === "reply" &&
           row.parent_comment_id !== undefined &&
           slotOf(row.parent_comment_id) === slot);
+      const removed = rows.filter(goes);
+      if (!allowAttempted && removed.some((row) => row.attempted)) {
+        return { items: rows, result: null };
+      }
       return {
         items: rows.filter((row) => !goes(row)),
-        result: rows.filter(goes),
+        result: removed,
       };
     },
   );
@@ -302,20 +344,23 @@ export async function returnOutboxRow(
   reason: string,
   status: number | null,
 ): Promise<void> {
-  if (typeof indexedDB === "undefined") return;
+  if (typeof indexedDB === "undefined" || isLinkEnded(token)) return;
   const rows = await loadOutbox(token);
   const row = rows.find((item) => item.id === id);
   if (!row) return;
   await updateStoredList<ReturnedPost, void>(
     returnedKey(token),
     parseReturnedList,
-    (returned) => ({
-      items: [
-        ...returned.filter((item) => item.id !== id),
-        { ...row, reason, status },
-      ],
-      result: undefined,
-    }),
+    (returned) =>
+      isLinkEnded(token)
+        ? { items: returned, result: undefined }
+        : {
+            items: [
+              ...returned.filter((item) => item.id !== id),
+              { ...row, reason, status },
+            ],
+            result: undefined,
+          },
   );
   await removeOutbox(token, id);
 }

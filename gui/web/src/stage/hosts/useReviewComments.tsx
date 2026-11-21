@@ -37,8 +37,8 @@ import {
 import { useDawStore } from "../../state/dawStore";
 import { hostCauseNow } from "../../state/hostReach";
 import {
+  cancelOutbox,
   type OutboxRow,
-  removeOutboxWithReplies,
   restoreOutbox,
   waitingSlot,
 } from "../../state/outboxStore";
@@ -339,16 +339,31 @@ export function useReviewComments(guest: boolean) {
       active instanceof HTMLElement
         ? active.closest<HTMLElement>(".rv-stage")
         : null;
-    if (stage && active !== stage) stage.focus({ preventScroll: true });
-    const removed = await removeOutboxWithReplies(token, row.id);
+    const removed = await cancelOutbox(token, row.id);
+    if (removed === null) {
+      useDawStore
+        .getState()
+        .announceStatus("Sending is in progress. Try again in a moment.");
+      return;
+    }
     if (removed.length === 0) return;
+    if (
+      stage &&
+      (document.activeElement === active ||
+        document.activeElement === document.body)
+    ) {
+      stage.focus({ preventScroll: true });
+    }
     const noun = row.kind === "reply" ? "Reply" : "Comment";
     const replies = removed.length - 1;
     const what =
       replies > 0
         ? `${noun} and ${replies} ${plural(replies, "reply", "replies")}`
         : noun;
-    useDawStore.getState().announceStatus(`${what} not sent`, {
+    const message = removed.some((item) => item.attempted)
+      ? `Stopped retrying ${what.toLowerCase()}`
+      : `${what} not sent`;
+    useDawStore.getState().announceStatus(message, {
       reverse: {
         run: async () => {
           for (const item of removed) await restoreOutbox(token, item);

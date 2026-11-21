@@ -64,6 +64,46 @@ def test_same_comment_id_twice_makes_one_comment_and_one_history_entry(share, mi
     assert len(load_project(minimal_project).history.entries) == entries_after_first
 
 
+@pytest.mark.parametrize("remove", ["delete", "undo"])
+def test_replaying_removed_comment_does_not_restore_it(share, minimal_project, remove):
+    ws, row, client = share
+    first = _post(client, row["token"], comment_id=KEY)
+    assert first.status_code == 200
+    cid = first.json()["comment"]["id"]
+    if remove == "delete":
+        CommentService(ws).delete(cid)
+    else:
+        ws.undo()
+    history = load_project(minimal_project).history
+    replay = _post(client, row["token"], comment_id=KEY)
+    assert replay.status_code == 400
+    assert _comments(minimal_project) == []
+    assert load_project(minimal_project).history == history
+
+
+def test_undone_reply_id_cannot_be_reused_under_another_parent(share, minimal_project):
+    ws, row, client = share
+    first = _post(client, row["token"]).json()["comment"]["id"]
+    second = _post(client, row["token"]).json()["comment"]["id"]
+    body = {"reply_id": KEY, "body": "Answer", "author": "Ana"}
+    url = f"/api/review/{row['token']}/comments"
+    assert client.post(f"{url}/{first}/replies", json=body).status_code == 200
+    ws.undo()
+    assert client.post(f"{url}/{second}/replies", json=body).status_code == 400
+    assert all(not comment.replies for comment in _comments(minimal_project))
+
+
+def test_waiting_reply_target_resolves_without_a_guest_projection(share, minimal_project):
+    _, row, client = share
+    first = _post(client, row["token"], comment_id=KEY)
+    assert first.status_code == 200
+    url = f"/api/review/{row['token']}/comments/g-{KEY}/replies"
+    reply = client.post(url, json={"reply_id": OTHER_KEY, "body": "Answer", "author": "Ana"})
+    assert reply.status_code == 200
+    assert reply.json()["comment_id"] == first.json()["comment"]["id"]
+    assert len(_comments(minimal_project)[0].replies) == 1
+
+
 def test_stored_id_is_scoped_to_the_share_and_not_the_raw_client_value(share):
     _, row, client = share
     stored = _post(client, row["token"], comment_id=KEY).json()["comment"]["id"]

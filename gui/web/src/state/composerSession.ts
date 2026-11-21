@@ -38,6 +38,7 @@ export type ComposerEvent =
    * so it pauses playback and keeps the pin with the text; elsewhere it does neither.
    */
   | { type: "open"; anchor: CommentDraft; replacePin: boolean; listen: boolean }
+  | { type: "restore"; text: string; anchor: CommentDraft }
   | {
       type: "type";
       text: string;
@@ -133,6 +134,20 @@ export function reduceComposer(
         effects: pause ? ["pause"] : [],
       };
     }
+    case "restore":
+      if (s.post || s.draft?.text || !e.text) return same(s);
+      return same({
+        ...s,
+        surface: "composer",
+        threadId: null,
+        draft: {
+          text: e.text,
+          anchor: e.anchor,
+          resume: s.draft?.resume ?? false,
+          typed: true,
+        },
+        dropped: null,
+      });
     case "type": {
       const draft = s.draft;
       if (!draft) {

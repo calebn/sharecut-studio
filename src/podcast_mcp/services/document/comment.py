@@ -89,6 +89,7 @@ class CommentService:
         timeline_spans: builtins.list[RangeInterval] | None = None,
         comment_id: str | None = None,
         review_version_id: str | None = None,
+        record_guest_receipt: bool = False,
     ) -> TimelineComment:
         def mutate(p) -> TimelineComment:
             comment = add_comment(
@@ -104,6 +105,8 @@ class CommentService:
                 comment_id=comment_id,
                 review_version_id=review_version_id,
             )
+            if record_guest_receipt:
+                p.document_sync.guest_post_receipts[f"comment:{comment.id}"] = True
             return comment
 
         return self.ws.mutate("before add comment", "after add comment", mutate)
@@ -193,9 +196,12 @@ class CommentService:
         body: str,
         author: str,
         reply_id: str | None = None,
+        record_guest_receipt: bool = False,
     ) -> CommentReplyResult:
         def mutate(p) -> CommentReplyResult:
             reply = add_reply(p, comment_id, body=body, author=author, reply_id=reply_id)
+            if record_guest_receipt:
+                p.document_sync.guest_post_receipts[f"reply:{reply.id}"] = True
             return CommentReplyResult(comment_id=comment_id, reply=reply)
 
         return self.ws.mutate(

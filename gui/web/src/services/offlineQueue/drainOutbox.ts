@@ -4,7 +4,9 @@ import { hostCauseNow } from "../../state/hostReach";
 import {
   loadOutbox,
   loadReturnedPosts,
+  markOutboxAttempt,
   type OutboxRow,
+  outboxLockName,
   removeOutbox,
   returnOutboxRow,
   serverIdOf,
@@ -18,17 +20,15 @@ import { isLinkEnded } from "../../utils/linkEnded";
 const BODY_LIMIT = 8000;
 
 const PARENT_NOT_POSTED = "The comment it answers was not posted.";
-const PARENT_GONE = "The comment it answers is gone.";
-
-/** Passes in a row that found no comment for a reply once the project had loaded; two, so a project still catching up is not mistaken for a deleted comment. */
-const PARENT_MISSES_BEFORE_RETURN = 2;
-const parentMisses = new Map<string, number>();
 
 export function refusalReasonOf(
   row: Pick<OutboxRow, "kind" | "body">,
   status: number,
   error: unknown,
 ): string {
+  if (status === 404 && row.kind === "reply") {
+    return "The comment it answers is gone.";
+  }
   if (status === 403) {
     return row.kind === "reply"
       ? "This link no longer allows replies."
@@ -48,7 +48,7 @@ async function withOutboxLock(
 ): Promise<void> {
   const locks = typeof navigator === "undefined" ? undefined : navigator.locks;
   if (!locks) return run();
-  const name = `sharecut-outbox:${token}`;
+  const name = outboxLockName(token);
   await locks.request(name, { ifAvailable: true }, async (lock) => {
     if (lock) {
       await run();
@@ -88,30 +88,22 @@ export function drainOutbox(token: string): Promise<void> {
       const comments = useDawStore.getState().project?.comments;
       const target =
         parent === undefined ? undefined : serverIdOf(parent, comments ?? []);
-      if (parent !== undefined && target === null) {
-        const answersAWaitingComment = current.some(
-          (item) =>
-            item.kind === "comment" && waitingSlot(item.id) === slotOf(parent),
-        );
-        if (!comments || answersAWaitingComment) continue;
-        const missKey = `${token}:${row.id}`;
-        const misses = (parentMisses.get(missKey) ?? 0) + 1;
-        if (misses < PARENT_MISSES_BEFORE_RETURN) {
-          parentMisses.set(missKey, misses);
-          continue;
-        }
-        parentMisses.delete(missKey);
-        await returnOutboxRow(token, row.id, PARENT_GONE, null);
-        unposted.add(waitingSlot(row.id));
+      if (
+        target === null &&
+        current.some(
+          (item) => item.kind === "comment" && waitingSlot(item.id) === parent,
+        )
+      )
         continue;
-      }
-      parentMisses.delete(`${token}:${row.id}`);
+      // The host can resolve a waiting id even if this tab has not received the post yet.
       // The host is known to be away: a real send would only hold "Sending…" up until it timed out.
       if (hostCauseNow(token) !== null) return;
+      if (!(await markOutboxAttempt(token, row.id)) || isLinkEnded(token))
+        continue;
       setOutboxSending(token, row.id, true);
       let outcome: Awaited<ReturnType<typeof sendGuestPost>>;
       try {
-        outcome = await sendGuestPost(token, row, target ?? undefined);
+        outcome = await sendGuestPost(token, row, target ?? parent);
       } finally {
         setOutboxSending(token, row.id, false);
       }

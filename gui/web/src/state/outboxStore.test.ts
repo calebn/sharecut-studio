@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { stubIndexedDb } from "../test/fakeIndexedDb";
+import { markLinkEnded } from "../utils/linkEnded";
 import {
   appendOutbox,
+  cancelOutbox,
   clearOutbox,
   loadOutbox,
   loadReturnedPosts,
+  markOutboxAttempt,
   type OutboxRow,
   outboxViewOf,
   removeOutbox,
@@ -159,6 +162,20 @@ describe("the view a tab shows", () => {
 });
 
 describe("a comment taken out with Don't send", () => {
+  it("serializes removal and sending in browsers without Web Locks", async () => {
+    vi.stubGlobal("navigator", {});
+    await appendOutbox("tok", comment(1));
+    expect(await markOutboxAttempt("tok", hex(1))).toBe(true);
+    expect(await cancelOutbox("tok", hex(1))).toBeNull();
+    expect(await loadOutbox("tok")).toMatchObject([
+      { id: hex(1), attempted: true },
+    ]);
+
+    await appendOutbox("tok", comment(2));
+    expect(await cancelOutbox("tok", hex(2))).toMatchObject([{ id: hex(2) }]);
+    expect(await markOutboxAttempt("tok", hex(2))).toBe(false);
+  });
+
   it("takes its waiting replies with it, by the kept id or the server id, and nothing else", async () => {
     await appendOutbox("tok", comment(1));
     await appendOutbox("tok", reply(2, `g-${hex(1)}`));
@@ -166,7 +183,7 @@ describe("a comment taken out with Don't send", () => {
     await appendOutbox("tok", reply(4, "host-comment"));
     await appendOutbox("tok", comment(5));
     const removed = await removeOutboxWithReplies("tok", hex(1));
-    expect(removed.map((r) => r.id)).toEqual([hex(1), hex(2), hex(3)]);
+    expect(removed?.map((r) => r.id)).toEqual([hex(1), hex(2), hex(3)]);
     expect((await loadOutbox("tok")).map((r) => r.id)).toEqual([
       hex(4),
       hex(5),
@@ -190,6 +207,14 @@ describe("a saved list with one bad row", () => {
 });
 
 describe("a link that ended", () => {
+  it("does not re-create a retired outbox when a late post tries to keep its text", async () => {
+    const token = "revoked-after-post-started";
+    markLinkEnded(token);
+    await clearOutbox(token);
+    expect(await appendOutbox(token, comment(1))).toBe(false);
+    expect(rows.has(`outbox:${token}`)).toBe(false);
+  });
+
   it("forgets its waiting and returned posts and no other link's", async () => {
     await appendOutbox("tok", comment(1));
     await appendOutbox("tok", comment(2));

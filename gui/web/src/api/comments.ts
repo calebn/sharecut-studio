@@ -199,7 +199,7 @@ async function sendOrKeep(
   if (
     outcome.status === "retry" &&
     outcome.keep &&
-    (await appendOutbox(token, row))
+    (await appendOutbox(token, { ...row, attempted: true }))
   ) {
     return { kept: true, id: row.id };
   }
