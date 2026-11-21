@@ -2,7 +2,7 @@ import type { OverviewTick } from "../../system/OverviewStrip";
 import type { HearMode, PlayerChapter } from "../../system/Player";
 import type { ChapterMarker } from "../../types/project";
 import type { AuditionMode } from "../../types/session";
-import { formatTimeShort } from "../../utils/time";
+import { clampToSession, formatTimeShort } from "../../utils/time";
 
 const HEAR_FOR_AUDITION: Record<AuditionMode, HearMode> = {
   mix: "mix",
@@ -41,11 +41,17 @@ export function playerChapters(
   sorted: readonly ChapterMarker[],
   durationSec: number,
 ): PlayerChapter[] {
-  return sorted.map((chapter) => ({
-    title: chapter.title,
-    time: formatTimeShort(chapter.time),
-    at: durationSec > 0 ? chapter.time / durationSec : 0,
-  }));
+  return sorted.map((chapter) => {
+    const time =
+      durationSec > 0
+        ? clampToSession(chapter.time, durationSec)
+        : chapter.time;
+    return {
+      title: chapter.title,
+      time: formatTimeShort(time),
+      at: durationSec > 0 ? time / durationSec : 0,
+    };
+  });
 }
 
 /** The chapter the playhead is in: the last one that has started. */
@@ -77,8 +83,8 @@ export function playerTicks(
         }))
       : [];
   return [
-    ...chapters.map((chapter) => ({
-      at: chapter.at,
+    ...[...new Set(chapters.map((chapter) => chapter.at))].map((at) => ({
+      at,
       kind: "chapter" as const,
     })),
     ...comments,

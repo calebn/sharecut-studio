@@ -7,6 +7,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { postDocumentCommand } from "./documentCommand";
 import { newFinger } from "./finger";
 import { playButton } from "./playback";
 import { withShareableProject } from "./shareableProject";
@@ -69,7 +70,10 @@ async function withGuest(
   size: Size,
   theme: Theme,
   run: (guest: Guest) => Promise<void>,
-  options: { tone?: boolean } = {},
+  options: {
+    tone?: boolean;
+    chapters?: { time: number; title: string }[];
+  } = {},
 ): Promise<void> {
   await withShareableProject(async (projectPath) => {
     if (options.tone) {
@@ -93,6 +97,15 @@ async function withGuest(
       ],
       async ([host, page]) => {
         await openHostShare(host, projectPath);
+        for (const chapter of options.chapters ?? []) {
+          await postDocumentCommand(
+            host,
+            "e2e-seed",
+            "AddChapter",
+            chapter,
+            projectPath,
+          );
+        }
         const token = await createReviewShare(host, projectPath, "commenter");
         await openGuestShare(page, token);
         const strip = page
@@ -240,6 +253,46 @@ test("the guest overview strip draws the episode, not a flat line", async ({
         .toBeGreaterThan(0.2);
     },
     { tone: true },
+  );
+});
+
+test("the Player displays and seeks chapters within the episode bounds", async ({
+  browser,
+}) => {
+  await withGuest(
+    browser,
+    DESKTOP,
+    "light",
+    async (guest) => {
+      const chapters = guest.page.getByRole("list", { name: "Chapters" });
+      const middle = chapters.getByRole("button", { name: "Middle 0:30" });
+      const credits = chapters.getByRole("button", { name: "Credits 1:00" });
+      await expect(
+        chapters.getByRole("button", { name: "End 1:00" }),
+      ).toBeVisible();
+      await expect(credits).toBeVisible();
+      const ticks = guest.strip.locator(".sys-overview-tick--chapter");
+      await expect(ticks).toHaveCount(2);
+      const fractions = await ticks.evaluateAll((lines) =>
+        lines.map(
+          (line) =>
+            Number(line.getAttribute("x1")) /
+            (line.closest("svg")?.viewBox.baseVal.width ?? 0),
+        ),
+      );
+      expect(fractions).toEqual([0.5, 1]);
+      await middle.click();
+      await expectClockNear(guest, 30);
+      await credits.click();
+      await expectClockNear(guest, DURATION_SEC);
+    },
+    {
+      chapters: [
+        { time: 30, title: "Middle" },
+        { time: 60, title: "End" },
+        { time: 75, title: "Credits" },
+      ],
+    },
   );
 });
 
