@@ -91,14 +91,11 @@ export function RangeFields({
     !target &&
     resolution.reason &&
     resolution.targets.length === 0;
-  const progress = state.rangeBusy ? (
-    <p className={sheet ? undefined : "sr-only"} role="status">
-      Preparing range action…
-    </p>
-  ) : null;
-  // An inline progress-only section would push the timeline down during a cut.
-  if (!(chooser || editable || agent || unresolved || (sheet && progress)))
-    return progress;
+  // Busy feedback alone belongs outside the inline range controls.
+  if (
+    !(chooser || editable || agent || unresolved || (sheet && state.rangeBusy))
+  )
+    return null;
   const tracks = project.tracks.map((track) => ({
     id: track.id,
     label: track.label,
@@ -233,7 +230,7 @@ export function RangeFields({
         </div>
       ) : null}
       {unresolved ? <p>{resolution.reason}</p> : null}
-      {progress}
+      {sheet && state.rangeBusy ? <p>Preparing range action…</p> : null}
     </section>
   );
 }
