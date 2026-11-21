@@ -1,7 +1,12 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { deferred } from "../../test/deferred";
 import { seedPendingKeeper } from "../../test/keepers";
-import { MemorySink } from "../keeper/store";
+import {
+  keeperMetaComplete,
+  keeperMetaPath,
+  MemorySink,
+} from "../keeper/store";
 import * as recovery from "./recovery";
 import {
   recoveryNotice,
@@ -53,6 +58,20 @@ function renderActions(
       },
     },
   );
+}
+
+function holdFirstKeeperRewrite(sink: MemorySink) {
+  const started = deferred<void>();
+  const release = deferred<void>();
+  const rewriteHeader = sink.rewriteHeader.bind(sink);
+  const rewrite = vi
+    .spyOn(sink, "rewriteHeader")
+    .mockImplementationOnce(async (path, header, byteLength) => {
+      started.resolve();
+      await release.promise;
+      await rewriteHeader(path, header, byteLength);
+    });
+  return { started: started.promise, release: release.resolve, rewrite };
 }
 
 describe("recoveryNotice", () => {
@@ -119,6 +138,71 @@ describe("useKeeperRecoveryActions", () => {
     act(() => result.current.recover?.());
     expect(run).not.toHaveBeenCalled();
     expect(result.current.busy).toBe(false);
+  });
+
+  it("checks the latest recording state before recovering another segment", async () => {
+    const sink = new MemorySink();
+    const first = await seedPendingKeeper(sink, ids);
+    const second = await seedPendingKeeper(sink, { ...ids, segmentIndex: 1 });
+    const held = holdFirstKeeperRewrite(sink);
+    const { result, rerender } = renderActions(sink);
+
+    act(() => result.current.recover?.());
+    await held.started;
+    try {
+      rerender({
+        recoverAllowed: false,
+        uploadAvailable: true,
+        takeIndex: ids.takeIndex,
+        localSegments: 2,
+        captureSettled: false,
+      });
+    } finally {
+      await act(async () => held.release());
+    }
+
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    expect(result.current.error).toContain("Recording resumed");
+    expect(held.rewrite.mock.calls.map(([path]) => path)).toEqual([first]);
+    expect(keeperMetaComplete(await sink.read(keeperMetaPath(first)))).toBe(
+      true,
+    );
+    expect(keeperMetaComplete(await sink.read(keeperMetaPath(second)))).toBe(
+      false,
+    );
+  });
+
+  it("calls the latest onRecovered after a run completes", async () => {
+    const sink = new MemorySink();
+    await seedPendingKeeper(sink, ids);
+    const held = holdFirstKeeperRewrite(sink);
+    const original = vi.fn<() => void>();
+    const replacement = vi.fn<() => void>();
+    const { result, rerender } = renderHook(
+      (onRecovered) =>
+        useKeeperRecoveryActions({
+          ...ids,
+          sink,
+          recoverAllowed: true,
+          localSegments: 1,
+          captureSettled: true,
+          onRecovered,
+        }),
+      { initialProps: original },
+    );
+
+    act(() => result.current.recover?.());
+    await held.started;
+    try {
+      rerender(replacement);
+    } finally {
+      await act(async () => held.release());
+    }
+
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    expect(result.current.error).toBeNull();
+    expect(original).not.toHaveBeenCalled();
+    expect(replacement).toHaveBeenCalledOnce();
   });
 
   it("reports failures in its own error channel and clears them on retry", async () => {
