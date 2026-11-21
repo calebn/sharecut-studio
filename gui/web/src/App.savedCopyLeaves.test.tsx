@@ -29,7 +29,11 @@ vi.mock("./dawApp", () => ({
   },
 }));
 
-const offline = vi.hoisted(() => ({ load: vi.fn(), clear: vi.fn() }));
+const offline = vi.hoisted(() => ({
+  load: vi.fn(),
+  clear: vi.fn(),
+  retire: vi.fn(),
+}));
 const audio = vi.hoisted(() => ({ forget: vi.fn() }));
 vi.mock("./audio/chunkCache", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./audio/chunkCache")>()),
@@ -41,7 +45,7 @@ vi.mock("./services/offlineQueue/offlineStore", async (importOriginal) => ({
   >()),
   loadOfflineSnapshot: offline.load,
   clearOfflineSnapshot: offline.clear,
-  retireOfflineSnapshot: vi.fn(async () => undefined),
+  retireOfflineSnapshot: offline.retire,
 }));
 
 type Answer = "host-down" | "live" | Response;
@@ -62,6 +66,13 @@ function liveAnswer() {
   );
 }
 
+function deniedAnswer(code: string) {
+  return new Response("{}", {
+    status: 403,
+    headers: { "X-Sharecut-Error-Code": code },
+  });
+}
+
 beforeEach(() => {
   studio.mounts = 0;
   answer = "host-down";
@@ -73,6 +84,7 @@ beforeEach(() => {
     saved_at: Date.now(),
   });
   offline.clear.mockReset().mockResolvedValue(undefined);
+  offline.retire.mockReset().mockResolvedValue(undefined);
   audio.forget.mockReset().mockResolvedValue(undefined);
   resetFeaturesCache();
   token = `copy-${(tokenSeq += 1)}`;
@@ -265,15 +277,39 @@ describe("a saved copy that leaves itself", () => {
     expect(screen.queryByLabelText("Comment draft")).toBeNull();
   });
 
-  it("keeps the copy and the open page on a 403", async () => {
+  it.each(["share_acl_denied", "share_token_mismatch"])(
+    "does not open the saved copy if the host refuses the first project read with %s",
+    async (code) => {
+      answer = deniedAnswer(code);
+      render(<App />);
+      expect(
+        await screen.findByText(/This link is only for certain people/),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("caps")).toBeNull();
+      expect(offline.retire).toHaveBeenCalledWith(token);
+      expect(audio.forget).toHaveBeenCalledWith(token);
+    },
+  );
+
+  it("ends the open copy when the host confirms access is denied", async () => {
     await openCopy();
-    answer = new Response("{}", {
-      status: 403,
-      headers: { "X-Sharecut-Error-Code": "share_token_mismatch" },
-    });
+    answer = deniedAnswer("share_acl_denied");
+    await pass(31_000);
+    expect(
+      await screen.findByText(/This link is only for certain people/),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("caps")).toBeNull();
+    expect(offline.retire).toHaveBeenCalledWith(token);
+    expect(audio.forget).toHaveBeenCalledWith(token);
+  });
+
+  it("keeps the copy on a 403 that does not establish a host access refusal", async () => {
+    await openCopy();
+    answer = new Response("{}", { status: 403 });
     await pass(31_000);
     await pass(100);
     expect(offline.clear).not.toHaveBeenCalled();
+    expect(offline.retire).not.toHaveBeenCalled();
     expect(audio.forget).not.toHaveBeenCalled();
     expect(
       screen.queryByText(/This link is only for certain people/),
