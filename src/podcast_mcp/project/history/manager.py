@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from functools import cache
 from typing import Literal
 
 from podcast_mcp.models.episode import EpisodeProject
@@ -127,9 +126,12 @@ class HistoryManager:
         return read_history_snapshot(project, entry)
 
     def _navigation(self, project: EpisodeProject, history: ProjectHistory) -> HistoryNavigation:
-        @cache
+        snapshots: dict[int, ProjectStateSnapshot] = {}
+
         def snapshot(index: int) -> ProjectStateSnapshot:
-            return self._read_snapshot(project, history.entries[index])
+            if index not in snapshots:
+                snapshots[index] = self._read_snapshot(project, history.entries[index])
+            return snapshots[index]
 
         def legacy_publication(index: int) -> bool:
             entry = history.entries[index]
