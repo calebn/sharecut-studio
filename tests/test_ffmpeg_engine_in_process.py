@@ -11,7 +11,9 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import unittest
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -56,24 +58,33 @@ def test_replay_includes_default_and_opted_in_test_functions():
     }
 
 
-def test_replay_refuses_test_classes_and_other_callable_cases():
+def test_replay_refuses_pytest_and_unittest_test_classes():
     class TestCoverageProbe:
         def test_needs_media(self, sample_wav):
             assert sample_wav.is_file()
 
-    class CallableCoverageProbe:
-        def __call__(self):
-            pass
+    class CoverageProbe(unittest.TestCase):
+        def test_probe(self):
+            self.assertTrue(True)
 
-    cases = {
-        "TestCoverageProbe": TestCoverageProbe,
-        "test_callable_probe": CallableCoverageProbe(),
-    }
+    cases = {"TestCoverageProbe": TestCoverageProbe, "CoverageProbe": CoverageProbe}
     for name, case in cases.items():
         with pytest.raises(TypeError, match=f"{name} must be a module-level function"):
             shared_ffmpeg_tests({name: case})
-    TestCoverageProbe.__test__ = False
-    assert shared_ffmpeg_tests({"TestCoverageProbe": TestCoverageProbe}) == {}
+        for opt_out in (False, None, 0):
+            case.__test__ = opt_out
+            assert shared_ffmpeg_tests({name: case}) == {}
+
+    assert shared_ffmpeg_tests({"TestCase": unittest.TestCase}) == {}
+
+
+@pytest.mark.parametrize("wrap", [classmethod, staticmethod, partial])
+def test_replay_refuses_non_function_wrappers(wrap):
+    def probe():
+        pass
+
+    with pytest.raises(TypeError, match="testWrappedProbe must be a module-level function"):
+        shared_ffmpeg_tests({"testWrappedProbe": wrap(probe)})
 
 
 class MediaBackend(FakeBackend):
