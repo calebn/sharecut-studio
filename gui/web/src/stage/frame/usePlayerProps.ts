@@ -3,6 +3,7 @@ import { dispatchComposer } from "../../commands/composer";
 import { skipListen } from "../../commands/listenSeek";
 import { runPointerCommand } from "../../commands/pointer";
 import { useTranscriptDetail } from "../../document/useTranscriptDetail";
+import { togglePlayerPlayback } from "../../hooks/playerPlayback";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { rosterDisplayName } from "../../presence/colors";
 import { followDetail } from "../../presence/followSync";
@@ -46,6 +47,7 @@ export function usePlayerProps(
     projectPath,
     shareCapabilities,
     isPlaying,
+    previewPlaying,
     playStartSec,
     audioError,
     auditionMode,
@@ -62,6 +64,7 @@ export function usePlayerProps(
     projectPath: s.projectPath,
     shareCapabilities: s.shareCapabilities,
     isPlaying: s.isPlaying,
+    previewPlaying: s.sourcePreview?.playing,
     playStartSec: s.playStartSec,
     audioError: s.audioError,
     auditionMode: s.auditionMode,
@@ -142,12 +145,13 @@ export function usePlayerProps(
       : renderPreviewBusy
         ? "mix-updating"
         : "ready";
+  const playing = previewPlaying ?? isPlaying;
   // Why Play cannot start, else the mix's state. A missing mix is also what
   // `NO_PREVIEW_ERROR` reports when Play was pressed with nothing to play, so
   // it reads "No mix yet" and never as an audio error.
   const unavailable = transportAvailability({
     project,
-    isPlaying,
+    isPlaying: playing,
     playStartSec,
   }).togglePlay;
   const mixBehind =
@@ -162,7 +166,7 @@ export function usePlayerProps(
 
   return {
     form,
-    playing: isPlaying,
+    playing,
     time: clock.current,
     total: clock.total,
     cuts: project
@@ -201,7 +205,7 @@ export function usePlayerProps(
           mode: hearModeOf(auditionMode),
           onMode: (mode) => setAudition(auditionOf(mode)),
         },
-    onPlayPause: () => runPointerCommand("transport.togglePlay"),
+    onPlayPause: togglePlayerPlayback,
     onSkip: (seconds) => skipListen(seconds, duration),
     onHearOriginal: guest ? undefined : onHearOriginal,
     // Only a link that may comment gets the button; the command opens the

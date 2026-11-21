@@ -23,6 +23,10 @@ The transport bar, status bar, Menu, View menu and bottom dock tabs of earlier r
 | **Empty / error** | Known `?project=` but shell not yet: the frame with skeleton content, **Loading episode…**, Play/Stop focusable and showing “Loading…”. Zero tracks after load: the Import and Record Start tiles (160 x 96; dropped audio lands on them too), not the loading well, and Play/Stop show “Import audio to play.” |
 | **Out of scope** | Full mixer; a free-form pipeline editor (Prepare keeps only a short Advanced step list) |
 
+While a source preview plays, the Player shows **Pause**. Press it to stop the
+preview and leave the episode paused. When a preview ends, **Play** starts the
+episode from the position it held during the preview.
+
 Menu panels (the Project menu, the hear menu) open below their trigger, flip above it when that side has more room, stay inside the visible screen on every shell, cap to the space on that side (`min(90dvh, var(--menu-available-height))`) and scroll so **Appearance** stays reachable on short laptop heights, including when guest chrome sits above the transport. That dialog searches every runnable command by name, category or shortcut (Enter runs the top match), disables a command that cannot run with its reason beside it, and explains that character keys apply when the timeline or transcript has focus.
 
 ```
