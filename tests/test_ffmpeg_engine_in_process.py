@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 import test_ffmpeg_engine as desktop
-from ffmpeg_in_process_support import FakeBackend, shared_ffmpeg_test
+from ffmpeg_in_process_support import FakeBackend, shared_ffmpeg_tests
 from podcast_mcp.engines import ffmpeg as module
 from podcast_mcp.util import process
 from podcast_mcp.util.host_platform import IOS
@@ -39,11 +39,41 @@ def in_process_row(host, monkeypatch):
         yield
 
 
-globals().update(
-    (name, test)
-    for name, test in vars(desktop).items()
-    if name.startswith("test_") and shared_ffmpeg_test(test)
-)
+globals().update(shared_ffmpeg_tests(vars(desktop)))
+
+
+def test_replay_includes_default_and_opted_in_test_functions():
+    def ordinary():
+        pass
+
+    def explicit():
+        pass
+
+    explicit.__test__ = True
+    assert shared_ffmpeg_tests({"testOrdinary": ordinary, "helper": explicit}) == {
+        "testOrdinary": ordinary,
+        "helper": explicit,
+    }
+
+
+def test_replay_refuses_test_classes_and_other_callable_cases():
+    class TestCoverageProbe:
+        def test_needs_media(self, sample_wav):
+            assert sample_wav.is_file()
+
+    class CallableCoverageProbe:
+        def __call__(self):
+            pass
+
+    cases = {
+        "TestCoverageProbe": TestCoverageProbe,
+        "test_callable_probe": CallableCoverageProbe(),
+    }
+    for name, case in cases.items():
+        with pytest.raises(TypeError, match=f"{name} must be a module-level function"):
+            shared_ffmpeg_tests({name: case})
+    TestCoverageProbe.__test__ = False
+    assert shared_ffmpeg_tests({"TestCoverageProbe": TestCoverageProbe}) == {}
 
 
 class MediaBackend(FakeBackend):

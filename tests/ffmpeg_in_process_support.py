@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import os
 import threading
-from collections.abc import Callable
-from inspect import isfunction
+from collections.abc import Callable, Mapping
+from inspect import isclass, isfunction
 from typing import Any, TypeVar
 
 from podcast_mcp.util.process import Streams
@@ -27,8 +27,21 @@ def desktop_ffmpeg(reason: str) -> Callable[[_Test], _Test]:
     return classify
 
 
-def shared_ffmpeg_test(test: object) -> bool:
-    return isfunction(test) and not getattr(test, _DESKTOP_REASON, None)
+def shared_ffmpeg_tests(namespace: Mapping[str, object]) -> dict[str, Callable[..., object]]:
+    """Collect the shared cases and reject test shapes this replay cannot mirror."""
+    tests: dict[str, Callable[..., object]] = {}
+    for name, candidate in namespace.items():
+        explicit = getattr(candidate, "__test__", None)
+        if explicit is False or not callable(candidate):
+            continue
+        prefix = "Test" if isclass(candidate) else "test"
+        if explicit is not True and not name.startswith(prefix):
+            continue
+        if not isfunction(candidate):
+            raise TypeError(f"{name} must be a module-level function for the FFmpeg test replay")
+        if not getattr(candidate, _DESKTOP_REASON, None):
+            tests[name] = candidate
+    return tests
 
 
 class FakeBackend:
