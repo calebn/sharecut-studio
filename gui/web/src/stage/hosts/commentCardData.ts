@@ -1,5 +1,5 @@
 import type { WaitingReply } from "../../comments/waitingPosts";
-import { waitingSlot } from "../../services/offlineQueue/outboxStore";
+import { waitingSlot } from "../../state/outboxStore";
 import type { CommentCardData } from "../../system/CommentCard";
 import type { TimelineComment } from "../../types/project";
 

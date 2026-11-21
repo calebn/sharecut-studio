@@ -4,6 +4,7 @@ import {
   documentActivityBusy,
   subscribeDocumentActivity,
 } from "../../state/documentSendOrder";
+import { loadOutbox } from "../../state/outboxStore";
 import {
   dismissConflicts,
   dismissHostConflicts,
@@ -12,7 +13,6 @@ import {
   type OfflineAttentionData,
   type OfflineConflict,
 } from "./offlineStore";
-import { loadOutbox } from "./outboxStore";
 
 export type AttentionStatus =
   | "checking"

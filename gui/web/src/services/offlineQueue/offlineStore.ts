@@ -1,7 +1,13 @@
 /** Minimal IndexedDB helpers for offline snapshot + command queue. */
 
+import {
+  idbGet,
+  idbSet,
+  openDb,
+  STORE,
+  updateStoredList,
+} from "../../state/idbKv";
 import { isLinkEnded } from "../../utils/linkEnded";
-import { idbGet, idbSet, openDb, STORE, updateStoredList } from "./idbKv";
 import { chainQueuedEnvelopeBaseline } from "./queuedEnvelopeBaseline";
 
 export interface QueuedCommand {

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import { useDawStore } from "../../state/dawStore";
 import {
   appendOutbox,
   loadOutbox,
@@ -11,8 +12,7 @@ import {
   returnOutboxRow,
   setOutboxSending,
   waitingSlot,
-} from "../../services/offlineQueue/outboxStore";
-import { useDawStore } from "../../state/dawStore";
+} from "../../state/outboxStore";
 import { composing, noComposer } from "../../test/composerStore";
 import { stubIndexedDb } from "../../test/fakeIndexedDb";
 import {

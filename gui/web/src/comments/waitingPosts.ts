@@ -4,7 +4,7 @@ import {
   serverIdOf,
   slotOf,
   waitingSlot,
-} from "../services/offlineQueue/outboxStore";
+} from "../state/outboxStore";
 import type { TimelineComment } from "../types/project";
 
 export type WaitingState = "waiting" | "sending";

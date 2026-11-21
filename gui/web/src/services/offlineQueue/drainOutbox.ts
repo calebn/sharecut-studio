@@ -1,7 +1,5 @@
 import { sendGuestPost } from "../../api";
 import { useDawStore } from "../../state/dawStore";
-import { errorMessage } from "../../utils/apiError";
-import { isLinkEnded } from "../../utils/linkEnded";
 import {
   loadOutbox,
   loadReturnedPosts,
@@ -12,7 +10,9 @@ import {
   setOutboxSending,
   slotOf,
   waitingSlot,
-} from "./outboxStore";
+} from "../../state/outboxStore";
+import { errorMessage } from "../../utils/apiError";
+import { isLinkEnded } from "../../utils/linkEnded";
 
 /** The host's longest comment or reply, in characters. */
 const BODY_LIMIT = 8000;

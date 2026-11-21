@@ -4,12 +4,9 @@ import { commentAnchorLabel } from "../../comments/commentAnchor";
 import { useOutbox } from "../../comments/useOutbox";
 import { copyText } from "../../record";
 import type { GuestPostsAttention } from "../../review/reviewQueueModel";
-import {
-  type OutboxRow,
-  removeReturned,
-} from "../../services/offlineQueue/outboxStore";
 import { shareTokenFromKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { type OutboxRow, removeReturned } from "../../state/outboxStore";
 
 function whatOf(row: OutboxRow): string {
   const anchor = row.anchor;

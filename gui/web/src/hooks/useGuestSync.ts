@@ -21,7 +21,6 @@ import {
   loadCommandQueue,
   mergeOfflineSnapshot,
 } from "../services/offlineQueue/offlineStore";
-import { loadOutbox } from "../services/offlineQueue/outboxStore";
 import { requestGuestDrainLazy } from "../services/offlineQueue/requestDrainLazy";
 import {
   mergeSessionAppliedDelta,
@@ -34,6 +33,7 @@ import type { WsSender } from "../session/wsSend";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { subscribeHostBack, watchHostReach } from "../state/hostReach";
+import { loadOutbox } from "../state/outboxStore";
 import { SANITY_POLL_MS } from "../state/syncCadence";
 import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import type { ProjectView, TimelineComment } from "../types/project";

@@ -1,9 +1,6 @@
 import { useEffect, useRef } from "react";
-import {
-  loadOutbox,
-  loadReturnedPosts,
-} from "../services/offlineQueue/outboxStore";
 import { useDawStore } from "./dawStore";
+import { loadOutbox, loadReturnedPosts } from "./outboxStore";
 
 /** Something a guest typed and had not sent, and what to call it. */
 export type UnsentText = { label: string; text: string };

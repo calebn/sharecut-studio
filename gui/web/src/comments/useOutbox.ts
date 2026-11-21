@@ -3,7 +3,7 @@ import {
   type OutboxView,
   outboxViewOf,
   subscribeOutbox,
-} from "../services/offlineQueue/outboxStore";
+} from "../state/outboxStore";
 
 /** A guest's kept comments and replies, and the ones the host refused, as this device last read them. */
 export function useOutbox(token: string | null): OutboxView {

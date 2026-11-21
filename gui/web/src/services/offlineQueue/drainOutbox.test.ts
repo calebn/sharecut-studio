@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
-import { stubIndexedDb } from "../../test/fakeIndexedDb";
-import { sampleComment } from "../../test/fixtures";
-import { ApiError } from "../../utils/apiError";
-import { markLinkEnded } from "../../utils/linkEnded";
-import { drainOutbox, refusalReasonOf } from "./drainOutbox";
 import {
   appendOutbox,
   loadOutbox,
   loadReturnedPosts,
   type OutboxRow,
-} from "./outboxStore";
+} from "../../state/outboxStore";
+import { stubIndexedDb } from "../../test/fakeIndexedDb";
+import { sampleComment } from "../../test/fixtures";
+import { ApiError } from "../../utils/apiError";
+import { markLinkEnded } from "../../utils/linkEnded";
+import { drainOutbox, refusalReasonOf } from "./drainOutbox";
 
 const send = vi.hoisted(() => vi.fn());
 vi.mock("../../api", () => ({ sendGuestPost: send }));

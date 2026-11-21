@@ -4,15 +4,15 @@ import {
   mergeReturnedReply,
 } from "../document/applyDocumentUpdate";
 import { commentFromCommandResult } from "../document/projectPatch";
+import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
+import { hostCauseNow } from "../state/hostReach";
 import {
   appendOutbox,
   type OutboxAnchor,
   type OutboxRow,
   serverIdOf,
-} from "../services/offlineQueue/outboxStore";
-import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
-import { useDawStore } from "../state/dawStore";
-import { hostCauseNow } from "../state/hostReach";
+} from "../state/outboxStore";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type {
   CommentReply,

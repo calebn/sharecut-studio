@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  OutboxRow,
-  OutboxView,
-} from "../services/offlineQueue/outboxStore";
+import type { OutboxRow, OutboxView } from "../state/outboxStore";
 import { sampleComment } from "../test/fixtures";
 import { withWaitingPosts } from "./waitingPosts";
 

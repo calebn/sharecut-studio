@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OutboxRow } from "../services/offlineQueue/outboxStore";
+import type { OutboxRow } from "../state/outboxStore";
 import { sampleComment } from "../test/fixtures";
 import { addCommentReply, createComment, sendGuestPost } from "./comments";
 
@@ -13,10 +13,8 @@ vi.mock("../document/applyDocumentUpdate", () => ({
   mergeGuestActionDone: vi.fn(),
 }));
 const outbox = vi.hoisted(() => ({ appendOutbox: vi.fn(async () => true) }));
-vi.mock("../services/offlineQueue/outboxStore", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("../services/offlineQueue/outboxStore")
-  >()),
+vi.mock("../state/outboxStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../state/outboxStore")>()),
   appendOutbox: outbox.appendOutbox,
 }));
 const reach = vi.hoisted(() => ({ cause: null as "host" | "device" | null }));
