@@ -64,10 +64,7 @@ export function projectOsMediaSession(
     };
   }
   const playbackState = input.isPlaying ? "playing" : "paused";
-  const { durationSec, playbackRate } = input;
-  // The engine starts over when asked to play from the end.
-  const positionSec =
-    input.isPlaying && input.positionSec >= durationSec ? 0 : input.positionSec;
+  const { durationSec, playbackRate, positionSec } = input;
   if (!Number.isFinite(durationSec) || durationSec <= 0) {
     return { metadata, playbackState, positionState: null, handlersOn: true };
   }

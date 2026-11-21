@@ -78,6 +78,7 @@ export function useOsMediaSession(): void {
     };
     const sync = (state: ReturnType<typeof useDawStore.getState>) => {
       if (seen && sameOsInputs(seen, state)) return;
+      const startingPlayback = state.isPlaying && !seen?.isPlaying;
       seen = state;
       if (state.isPlaying || state.sourcePreview?.playing)
         startedPath = state.projectPath;
@@ -85,8 +86,16 @@ export function useOsMediaSession(): void {
       if (key === appliedKey) return;
       appliedKey = key;
       const position = livePlayheadSec();
+      const input = osTransportInput(
+        state,
+        position,
+        startedPath === state.projectPath,
+      );
+      // The engine wraps when playback starts at the end.
       const next = projectOsMediaSession(
-        osTransportInput(state, position, startedPath === state.projectPath),
+        startingPlayback && position >= input.durationSec
+          ? { ...input, positionSec: 0 }
+          : input,
       );
       write(next);
     };

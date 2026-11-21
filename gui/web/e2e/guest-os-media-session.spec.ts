@@ -213,6 +213,30 @@ for (const [deviceName, phone] of PHONES) {
       });
     });
 
+    test("an OS seek past the end keeps the episode end declared", async ({
+      browser,
+    }) => {
+      await withPhoneGuest(browser, phone, async (page) => {
+        await play(page).tap();
+        await expect(pause(page)).toBeVisible();
+        await expect.poll(() => playerSec(page)).toBeGreaterThan(1);
+        const before = (await readOsRecorder(page)).positionStates.length;
+
+        await fireOsAction(page, "seekto", { seekTime: DURATION_SEC + 10 });
+        await expect(play(page)).toBeVisible();
+        const ended = await readOsRecorder(page);
+        expect(ended.playbackState).toBe("paused");
+        const seekWrites = ended.positionStates.slice(before);
+        expect(seekWrites.length).toBeGreaterThan(0);
+        for (const state of seekWrites)
+          expect(state?.position).toBe(DURATION_SEC);
+
+        await fireOsAction(page, "play");
+        await expect(pause(page)).toBeVisible();
+        expect(lastPosition(await readOsRecorder(page))?.position).toBe(0);
+      });
+    });
+
     test("a locked page keeps the listener's place", async ({ browser }) => {
       await withPhoneGuest(browser, phone, async (page) => {
         await play(page).tap();
