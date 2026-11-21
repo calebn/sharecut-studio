@@ -616,6 +616,23 @@ def _word_view(
     return view
 
 
+GUEST_UTTERANCE_FIELDS = (
+    "track_id",
+    "source_id",
+    "speaker",
+    "start",
+    "end",
+    "text",
+    "timeline_start",
+    "timeline_end",
+    "timeline_spans",
+    "mappable",
+    "edge_suppressed_word_indices",
+    "ignored_word_indices",
+    "locked_word_indices",
+)
+
+
 READING_WORD_FIELDS = (
     "text",
     "start",
@@ -633,6 +650,7 @@ def guest_transcript(
 ) -> dict[str, Any] | None:
     """A combined-transcript dict for guests.
 
+    Keeps the utterance fields the guest reads or compares across projections.
     Drops view-only ``suppressed_only`` rows (#758): their text is suppressed words,
     which guests never see. ``NONE`` drops per-word timings. ``READING`` keeps them
     minus suppressed words, cut to ``READING_WORD_FIELDS``. ``SELECTABLE`` keeps the
@@ -650,8 +668,8 @@ def guest_transcript(
             continue
         if utterance.get("suppressed_only"):
             continue
-        row = dict(utterance)
-        timed = row.pop("words", None)
+        row = {key: utterance[key] for key in GUEST_UTTERANCE_FIELDS if key in utterance}
+        timed = utterance.get("words")
         if words is not GuestWords.NONE and isinstance(timed, list):
             kept = [w for w in timed if not (isinstance(w, dict) and w.get("suppressed"))]
             row["words"] = (
