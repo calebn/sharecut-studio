@@ -9,6 +9,7 @@ import { OpenOther } from "./OpenOther";
 function phoneView(
   phase: HomeViewProps["phase"],
   projects: HomeViewProps["projects"],
+  extra: Partial<HomeViewProps> = {},
 ) {
   return (
     <HomeView
@@ -34,6 +35,7 @@ function phoneView(
       onSettings={vi.fn()}
       onConnectAgent={vi.fn()}
       onHelp={vi.fn()}
+      {...extra}
     />
   );
 }
@@ -324,6 +326,28 @@ describe("HomeView empty, loading and drop", () => {
         document.querySelector(".sys-home-bar .sys-start--import"),
       ).not.toBeNull();
       expect(document.querySelector("main .sys-home-tiles")).toBeNull();
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it("shows the bar once a phone load turns slow, and not before", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ width: 390 } as DOMRect);
+    try {
+      const fast = render(
+        <>{phoneView("loading", [], { loadingElapsedMs: 1000 })}</>,
+      );
+      expect(document.querySelector(".sys-home-bar")).toBeNull();
+      fast.unmount();
+      render(<>{phoneView("loading", [], { loadingElapsedMs: 5000 })}</>);
+      expect(
+        document.querySelector(".sys-home-bar .sys-start--import"),
+      ).not.toBeNull();
+      expect(
+        document.querySelector(".sys-home-bar .sys-start--record"),
+      ).not.toBeNull();
     } finally {
       rect.mockRestore();
     }

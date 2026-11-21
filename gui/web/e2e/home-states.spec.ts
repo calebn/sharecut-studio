@@ -327,3 +327,31 @@ test.describe("Home while the Recent list loads on a phone", () => {
     for (const top of tops) expect(top).toBeLessThan(300);
   });
 });
+
+test.describe("Home when the Recent list never answers on a phone", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  test("Import and Record become reachable once the load is slow", async ({
+    page,
+  }) => {
+    await mockBootstrap(page);
+    await page.route(
+      (url) => url.pathname === "/api/projects/recent",
+      () => new Promise<void>(() => {}),
+    );
+    await dismissSetupCard(page);
+    await page.goto("/?home=1");
+    await expect(page.getByText("Still loading…")).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(
+      page.locator(".sys-home-bar .sys-start--import"),
+    ).toBeVisible();
+    await expect(homeRecordTile(page)).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
+});

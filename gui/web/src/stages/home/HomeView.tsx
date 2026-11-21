@@ -213,6 +213,11 @@ export function HomeView({
   const host = useRef<HTMLDivElement>(null);
   const narrow = useNarrow(host);
   const empty = phase === "empty";
+  const [slowLoad, setSlowLoad] = useState(false);
+  const showBar = narrow && !empty && (phase !== "loading" || slowLoad);
+  useEffect(() => {
+    if (phase !== "loading") setSlowLoad(false);
+  }, [phase]);
   useEffect(() => {
     if (!autoFocusPrimary || phase !== "ready") return;
     const root = host.current;
@@ -247,6 +252,7 @@ export function HomeView({
         rows={narrow ? 4 : 6}
         elapsedMs={loadingElapsedMs}
         onRetry={onRetryLoad}
+        onSlow={() => setSlowLoad(true)}
       />
     );
   } else if (phase === "error") {
@@ -347,7 +353,7 @@ export function HomeView({
           </section>
         </main>
       </div>
-      {narrow && !empty && phase !== "loading" ? (
+      {showBar ? (
         <div className="sys-home-bar sys-start-pair">{tiles}</div>
       ) : null}
       {dropActive ? <DropOverlay label="Drop to start an episode" /> : null}
