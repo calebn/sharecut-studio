@@ -31,12 +31,19 @@ const ROLES = {
   },
 } as const;
 
-function rows(role: keyof typeof ROLES, stage: "edit" | "review") {
+function rows(
+  role: keyof typeof ROLES,
+  stage: "edit" | "review",
+  durationSec = 60,
+) {
   useDawStore.setState({
     projectPath: ROLES[role].projectPath,
     guestMode: ROLES[role].guestMode,
     shareCapabilities: ROLES[role].caps ? [...ROLES[role].caps] : null,
-    project: minimalProject({ tracks: [sampleTrack()] }),
+    project: minimalProject({
+      tracks: [sampleTrack()],
+      timeline_duration_sec: durationSec,
+    }),
     stage,
     selection: null,
     shellBreakpoint: "desktop",
@@ -145,7 +152,7 @@ describe("a guest link's palette", () => {
   });
 
   it("greys an Editor's range rows with the reason the press would give", () => {
-    const editor = new Map(rows("editor", "edit"));
+    const editor = new Map(rows("editor", "edit", 0));
     for (const id of [
       "range.play",
       "range.cut",

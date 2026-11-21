@@ -99,10 +99,6 @@ describe("editBasisKey", () => {
     ],
     ["the timeline duration", (p) => ({ ...p, timeline_duration_sec: 100 })],
     [
-      "the clips duration",
-      (p) => ({ ...p, clips: { ...p.clips, timeline_duration_sec: 100 } }),
-    ],
-    [
       "the workspace",
       (p) => ({ ...p, meta: { ...p.meta, workspace_dir: "/elsewhere" } }),
     ],

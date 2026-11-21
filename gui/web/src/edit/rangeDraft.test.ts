@@ -6,7 +6,7 @@ import { clampSpan, seedRangeDraft } from "./rangeSelection";
 const project = editFixtureProject();
 const withEnd = (end: number) => ({
   ...project,
-  clips: { ...project.clips, timeline_duration_sec: end },
+  timeline_duration_sec: end,
 });
 
 describe("clampSpan", () => {
@@ -63,7 +63,9 @@ describe("seedRangeDraft", () => {
   });
 
   it("is null on an empty timeline", () => {
-    expect(seedRangeDraft(minimalProject(), 0, null)).toBeNull();
+    expect(
+      seedRangeDraft(minimalProject({ timeline_duration_sec: 0 }), 0, null),
+    ).toBeNull();
   });
 
   it("is null without tracks", () => {
