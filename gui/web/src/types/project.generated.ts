@@ -107,6 +107,18 @@ export interface CommentReplyRequest {
   author: string;
 }
 
+export interface DawExportRequest {
+  path: string;
+  format: DawFormat;
+}
+
+export interface DawExportStarted {
+  job_id: string;
+  job: Record<string, unknown>;
+}
+
+export type DawFormat = "rpp" | "aaf" | "sesx";
+
 export interface ExactRangeTarget {
   kind?: "exact_range";
   intervals: Array<RangeInterval>;
