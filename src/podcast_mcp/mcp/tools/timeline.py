@@ -702,10 +702,10 @@ def paste_segment_tool(
     """Paste a ``copy_segment_tool`` clipboard at ``insert_at`` timeline seconds (Studio Paste).
 
     ``mode="ripple"`` opens ``duration`` of time on every dialogue track at
-    ``insert_at``, then places each extract on its own track. ``mode="gap"`` pastes
-    over: it replaces ``[insert_at, insert_at + duration)`` on the pasted tracks only,
-    and nothing moves. The same clipboard can be pasted again. A clipboard naming an
-    unknown track or source, or an impossible range, is rejected with a ``paste_*``
+    ``insert_at``, then places each dialogue extract on its own track. ``mode="gap"``
+    replaces ``[insert_at, insert_at + duration)`` on the pasted dialogue, music or
+    sound-effect tracks. The same clipboard can be pasted again. A clipboard naming an
+    ineligible track, unknown source or impossible range is rejected with a ``paste_*``
     code. Submits ``PasteSegment`` on the document plane; undoable.
     """
     return to_json(submit_paste_segment(project_path, insert_at, clipboard, mode=EditMode(mode)))
