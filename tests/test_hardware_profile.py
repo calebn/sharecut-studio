@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 
@@ -270,28 +272,31 @@ def test_the_profile_is_computed_once_and_a_fake_can_replace_it(monkeypatch) -> 
         hardware.reset_hardware_cache()
 
 
+@pytest.mark.parametrize(
+    ("preference", "providers", "doctor_prefix"),
+    [
+        (None, [COREML_PROVIDER, CPU_PROVIDER], "hardware: Apple Silicon"),
+        ("cpu", [CPU_PROVIDER], "hardware: Accelerator turned off"),
+    ],
+)
 def test_doctor_and_support_bundle_report_the_profile_in_plain_words(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, preference, providers, doctor_prefix
 ) -> None:
-    from podcast_mcp.services.support import diagnostics
-    from podcast_mcp.services.support.doctor import run_doctor_checks
+    from podcast_mcp.services.support import DiagnosticsService
 
-    monkeypatch.delenv("PODCAST_ACCELERATOR", raising=False)
+    if preference is None:
+        monkeypatch.delenv("PODCAST_ACCELERATOR", raising=False)
+    else:
+        monkeypatch.setenv("PODCAST_ACCELERATOR", preference)
     with use_hardware_profile(APPLE):
-        checks = [c.message for c in run_doctor_checks().checks]
-        report = diagnostics._build_report_json(
-            None, home=tmp_path, workspace=tmp_path, job_snapshots=None
-        )
-    assert any(m.startswith("hardware: Apple Silicon") for m in checks)
-    assert report["hardware"]["onnx_provider_order"] == [COREML_PROVIDER, CPU_PROVIDER]
-    assert report["hardware"]["preference"] == "auto"
-    monkeypatch.setenv("PODCAST_ACCELERATOR", "cpu")
-    with use_hardware_profile(APPLE):
-        report = diagnostics._build_report_json(
-            None, home=tmp_path, workspace=tmp_path, job_snapshots=None
-        )
-    assert report["hardware"]["onnx_provider_order"] == [CPU_PROVIDER]
-    assert report["hardware"]["preference"] == "cpu"
+        bundle = DiagnosticsService().build_bundle(None, out_dir=tmp_path, include_logs=False)
+    with ZipFile(bundle.path) as archive:
+        report = json.loads(archive.read("report.json"))
+
+    checks = [check["message"] for check in report["doctor"]["checks"]]
+    assert any(message.startswith(doctor_prefix) for message in checks)
+    assert report["hardware"]["onnx_provider_order"] == providers
+    assert report["hardware"]["preference"] == (preference or "auto")
 
 
 def test_preference_reads_the_pipeline_defaults_when_none_are_passed(monkeypatch) -> None:

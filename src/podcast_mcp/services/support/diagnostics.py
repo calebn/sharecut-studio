@@ -13,7 +13,7 @@ import shutil
 import stat
 import tempfile
 import zipfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -52,7 +52,7 @@ from podcast_mcp.util.hardware import accelerator_preference, hardware_profile
 from podcast_mcp.util.model_assets import rnnoise_model_path
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE
-from podcast_mcp.util.redact import redact_secrets, sanitize
+from podcast_mcp.util.redact import compile_secret_redactor, sanitize
 
 TOKEN_PREFIX_MIN = 6
 LOG_TAIL_LINES = 500
@@ -455,15 +455,6 @@ def _collect_logs(*, include_logs: bool, home: Path, workspace: Path | None) -> 
     return collected
 
 
-def _mask_share_tokens(text: str, tokens: Sequence[str]) -> str:
-    """Mask every link token the registry knows, and any prefix of one from 6 characters.
-
-    The path rules in ``sanitize`` see only a token inside a share route. This sees it
-    wherever it sits (a bare slug in an exception text, a cut-off prefix).
-    """
-    return redact_secrets(text, tokens, min_prefix=TOKEN_PREFIX_MIN)
-
-
 def _truncate_logs(logs: dict[str, str], *, budget: int) -> dict[str, str]:
     """Keep logs under ``budget`` bytes, dropping oldest lines first."""
     encoded = {name: body.encode("utf-8") for name, body in logs.items()}
@@ -580,10 +571,12 @@ class DiagnosticsService:
                 _README + (f"\n{NOT_OPENED_STATEMENT}\n" if unopened is not None else ""),
                 **redaction,
             )
-            tokens = sorted(get_share_registry().known_tokens())
+            redact_tokens = compile_secret_redactor(
+                sorted(get_share_registry().known_tokens()), min_prefix=TOKEN_PREFIX_MIN
+            )
 
             def redact_report_text(text: str) -> str:
-                masked = _mask_share_tokens(sanitize(text, **redaction), tokens)
+                masked = redact_tokens(sanitize(text, **redaction))
                 return sanitize(masked, **redaction)
 
             safe_payload = _redact_report_value(payload, redact_report_text)
@@ -593,7 +586,7 @@ class DiagnosticsService:
                     "statement": redact_report_text(NOT_OPENED_STATEMENT),
                 }
             report_text = json.dumps(safe_payload, indent=2)
-            logs = {name: _mask_share_tokens(body, tokens) for name, body in logs.items()}
+            logs = {name: redact_tokens(body) for name, body in logs.items()}
             fixed = len(report_text.encode("utf-8")) + len(README.encode("utf-8"))
             log_budget = max(0, MAX_BUNDLE_BYTES - fixed - 64_000)
             logs = _truncate_logs(logs, budget=log_budget)

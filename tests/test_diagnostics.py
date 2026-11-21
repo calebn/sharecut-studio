@@ -150,7 +150,7 @@ def test_build_bundle_contents_and_doctor_reuse(
     assert "secret=<redacted>" in log_text
 
 
-def test_build_bundle_masks_a_link_token_in_the_report_text(
+def test_build_bundle_masks_link_tokens_in_the_report_and_log(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -166,20 +166,16 @@ def test_build_bundle_masks_a_link_token_in_the_report_text(
         lambda _p=None: DoctorReport(checks=[DoctorCheck("warn", f"relay refused {token}")]),
     )
 
-    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out", include_logs=False)
+    log = tmp_path / "sidecar.log"
+    log.write_text("velve! velvet!\n")
+    monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out")
 
     with zipfile.ZipFile(report.path) as zf:
         text = zf.read("report.json").decode()
+        assert zf.read("sidecar.log").decode() == "velve! <redacted>!"
     assert "relay refused <redacted>" in text
     assert "quokka" not in text
-
-
-def test_a_log_prefix_of_a_link_token_is_masked_from_six_characters_only() -> None:
-    token = "velvet-quokka-umbra"
-
-    masked = diagnostics_mod._mask_share_tokens("velve! velvet!", [token])
-
-    assert masked == "velve! <redacted>!"
 
 
 def test_build_bundle_size_bound(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

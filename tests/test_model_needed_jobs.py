@@ -8,6 +8,7 @@ import json
 import threading
 from pathlib import Path
 from typing import Any, ClassVar
+from zipfile import ZipFile
 
 import pytest
 
@@ -35,7 +36,7 @@ from podcast_mcp.services.jobs import (
     JobManager,
     guest_job_view,
 )
-from podcast_mcp.services.support.diagnostics import _sanitize_job_snapshots
+from podcast_mcp.services.support import DiagnosticsService
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import bind_progress, progress_task
@@ -240,7 +241,7 @@ def test_an_ok_job_carries_neither(minimal_project: Path, monkeypatch) -> None:
 
 
 def test_guest_and_diagnostics_views_never_carry_the_model(
-    minimal_project: Path, monkeypatch
+    minimal_project: Path, tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.render_preview", _raise(_missing())
@@ -258,7 +259,11 @@ def test_guest_and_diagnostics_views_never_carry_the_model(
         "message": None,
         "error": "Render preview failed",
     }
-    rows = _sanitize_job_snapshots([snap], home=minimal_project.parent, workspace=None)
+    bundle = DiagnosticsService().build_bundle(
+        None, out_dir=tmp_path, include_logs=False, job_snapshots=[snap]
+    )
+    with ZipFile(bundle.path) as archive:
+        rows = json.loads(archive.read("report.json"))["jobs"]
     assert set(rows[0]) == {"kind", "status", "phase", "elapsed_sec", "message"}
     assert "error_model" not in repr(rows)
 
