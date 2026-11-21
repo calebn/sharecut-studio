@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 import { rosterDisplayName } from "../presence/colors";
 import { useDawStore } from "../state/dawStore";
 import { SystemIcon } from "../system/SystemIcon";
@@ -65,6 +65,8 @@ export function FollowPlayheadChip() {
   );
 }
 
+const BACK_TO_PLAYHEAD_LABEL = "Back to playhead in timeline";
+
 /**
  * It unmounts on activation, so focus moves to the scroller first and a
  * keyboard user is not dropped.
@@ -76,18 +78,34 @@ export function TimelineFollowPill({
   timeViewportPx: number;
   scrollRef: RefObject<HTMLElement | null>;
 }) {
-  const show = useDawStore(
-    (s) =>
+  const visibility = useDawStore((s) => {
+    if (s.followingClientId) return "following-person";
+    const show =
       !s.timelineFollowPlayhead &&
-      !s.followingClientId &&
       isPlayheadOffscreen({
         playheadSec: s.playheadSec,
         zoomPxPerSec: s.zoomPxPerSec,
         viewportPx: timeViewportPx,
         scrollPx: s.scrollLeft,
-      }),
-  );
-  if (!show) {
+      });
+    return show ? "visible" : "hidden";
+  });
+  const hasMeasuredViewport = timeViewportPx > 0;
+  const availability =
+    !hasMeasuredViewport && visibility === "visible" ? "hidden" : visibility;
+  const previousAvailability = useRef(availability);
+  useEffect(() => {
+    const appearedWhileBrowsingLocally =
+      availability === "visible" && previousAvailability.current === "hidden";
+    previousAvailability.current = availability;
+    if (appearedWhileBrowsingLocally) {
+      useDawStore
+        .getState()
+        .announceStatus(BACK_TO_PLAYHEAD_LABEL, { toast: false });
+    }
+  }, [availability]);
+
+  if (visibility !== "visible") {
     return null;
   }
   return (
@@ -95,7 +113,7 @@ export function TimelineFollowPill({
       bare
       commandId="view.followPlayhead"
       className="timeline-follow-pill"
-      aria-label="Back to playhead in timeline"
+      aria-label={BACK_TO_PLAYHEAD_LABEL}
       onClick={() => scrollRef.current?.focus({ preventScroll: true })}
     >
       <SystemIcon name="locate-fixed" size={14} />
