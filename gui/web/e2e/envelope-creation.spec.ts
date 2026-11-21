@@ -64,6 +64,18 @@ async function projectHistoryShortcut(
   });
   await page.keyboard.press(key);
 }
+function historyAfterHostUndo(
+  history: ReturnType<typeof envelopeSnapshot>["history"],
+) {
+  if (!history) throw new Error("Envelope save has no history");
+  return {
+    ...history,
+    cursor: history.cursor - 1,
+    entries: history.entries.map((entry, index) =>
+      index === history.cursor ? { ...entry, undone_by: "host" } : entry,
+    ),
+  };
+}
 const savedAt = (page: Page, change: () => Promise<unknown>) =>
   acceptedEnvelopeCommand(page, "SetEnvelope", change);
 async function screenshot(page: Page, info: TestInfo, name: string) {
@@ -178,17 +190,7 @@ for (const core of [
               checkpoint: "first-point-applied",
               observation: { first, origin, firstSaved },
             });
-            const firstHistory = firstSaved.history;
-            if (!firstHistory) throw new Error("Envelope save has no history");
-            const undoneHistory = {
-              ...firstHistory,
-              cursor: 0,
-              entries: firstHistory.entries.map((entry, index) =>
-                index === firstHistory.cursor
-                  ? { ...entry, undone_by: "host" }
-                  : entry,
-              ),
-            };
+            const undoneHistory = historyAfterHostUndo(firstSaved.history);
             observer.stage("first-undo-redo");
             await acceptedEnvelopeCommand(page, "UndoHistory", () =>
               projectHistoryShortcut(page, receipts, "ControlOrMeta+z"),
@@ -208,7 +210,7 @@ for (const core of [
             const redone = envelopeSnapshot(projectPath, track.id);
             expect(redone).toEqual({
               ...firstSaved,
-              history: { ...undoneHistory, cursor: firstHistory.cursor },
+              history: { ...undoneHistory, cursor: undoneHistory.cursor + 1 },
             });
             observer.stage("level-lowering");
             await inspectEnvelopePoint(page);
@@ -306,8 +308,9 @@ for (const core of [
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual(left.points);
             const restored = envelopeSnapshot(projectPath, track.id);
-            expect(restored.history?.cursor).toBe(5);
-            expect(restored.history?.entries).toEqual(final.history?.entries);
+            expect(restored.history).toEqual(
+              historyAfterHostUndo(final.history),
+            );
             receipts.push({
               checkpoint: "final-removal-undo-restored-points-and-redo-history",
               observation: { final, restored },
