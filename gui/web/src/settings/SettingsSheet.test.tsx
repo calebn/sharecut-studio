@@ -78,8 +78,8 @@ async function openSettings() {
   return sheet;
 }
 
-function inProject() {
-  useDawStore.getState().hydrate(PROJECT_PATH, minimalProject());
+function inProject(projectPath = PROJECT_PATH) {
+  useDawStore.getState().hydrate(projectPath, minimalProject());
 }
 
 beforeEach(() => {
@@ -322,18 +322,21 @@ describe("Reveal in folder", () => {
 
 describe("Move…", () => {
   const assign = vi.fn();
+  let episode = 0;
+  let projectPath: string;
   beforeEach(() => {
+    projectPath = `/Users/ada/Episodes/move-test-${++episode}/episode.sharecut`;
     queued.count = 0;
     assign.mockReset();
     vi.stubGlobal("location", {
-      href: "http://127.0.0.1:8765/?project=%2FUsers%2Fada%2FEpisodes%2Fep-12%2Fepisode.sharecut",
+      href: `http://127.0.0.1:8765/?project=${encodeURIComponent(projectPath)}`,
       assign,
     });
   });
   afterEach(() => vi.unstubAllGlobals());
 
   it("is absent outside the desktop app", async () => {
-    inProject();
+    inProject(projectPath);
     render(<Harness />);
     const sheet = await openSettings();
     expect(within(sheet).queryByRole("button", { name: "Move…" })).toBeNull();
@@ -341,12 +344,12 @@ describe("Move…", () => {
 
   it("moves the episode to the picked folder and reloads at the new path", async () => {
     tauri.on = true;
-    inProject();
+    inProject(projectPath);
     useDawStore.setState({ localClientId: "tab-1" });
     vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
     vi.mocked(moveProject).mockResolvedValue({
       project_path: "/Users/ada/Archive/ep-12/episode.sharecut",
-      previous_path: PROJECT_PATH,
+      previous_path: projectPath,
     });
     const user = userEvent.setup();
     render(<Harness />);
@@ -354,7 +357,7 @@ describe("Move…", () => {
     await user.click(within(sheet).getByRole("button", { name: "Move…" }));
     await waitFor(() => expect(assign).toHaveBeenCalledOnce());
     expect(moveProject).toHaveBeenCalledWith(
-      PROJECT_PATH,
+      projectPath,
       "/Users/ada/Archive",
       "tab-1",
     );
@@ -365,7 +368,7 @@ describe("Move…", () => {
 
   it("changes nothing when the folder dialog is cancelled", async () => {
     tauri.on = true;
-    inProject();
+    inProject(projectPath);
     vi.mocked(pickFolder).mockResolvedValue({ cancelled: true });
     const user = userEvent.setup();
     render(<Harness />);
@@ -376,11 +379,14 @@ describe("Move…", () => {
     await waitFor(() => expect(button).toBeEnabled());
     expect(moveProject).not.toHaveBeenCalled();
     expect(assign).not.toHaveBeenCalled();
+    await expect(
+      withCommandSendOwnership(projectPath, "shared", async () => "saved"),
+    ).resolves.toBe("saved");
   });
 
   it("shows the server's refusal under the row and keeps the episode where it is", async () => {
     tauri.on = true;
-    inProject();
+    inProject(projectPath);
     vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
     vi.mocked(moveProject).mockRejectedValue(
       new ApiError(
@@ -407,7 +413,7 @@ describe("Move…", () => {
     "retires a closed opening's Move refusal when it arrives %s",
     async (settlement) => {
       tauri.on = true;
-      inProject();
+      inProject(projectPath);
       const pending = deferred<Awaited<ReturnType<typeof moveProject>>>();
       vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
       vi.mocked(moveProject).mockReturnValueOnce(pending.promise);
@@ -456,7 +462,7 @@ describe("Move…", () => {
     "navigates after close on %s and keeps both actions disabled until unload",
     async (outcome) => {
       tauri.on = true;
-      inProject();
+      inProject(projectPath);
       const destination = "/Users/ada/Archive/ep-12/episode.sharecut";
       const pending = deferred<Awaited<ReturnType<typeof moveProject>>>();
       vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
@@ -472,7 +478,7 @@ describe("Move…", () => {
         if (outcome === "success") {
           pending.resolve({
             project_path: destination,
-            previous_path: PROJECT_PATH,
+            previous_path: projectPath,
           });
         } else {
           pending.reject(
@@ -492,6 +498,9 @@ describe("Move…", () => {
       expect(String(assign.mock.calls[0]?.[0])).toContain(
         encodeURIComponent(destination),
       );
+      await expect(
+        withCommandSendOwnership(projectPath, "shared", async () => "saved"),
+      ).rejects.toThrow(/episode is moving/i);
       sheet = await openSettings();
       expect(
         within(sheet).getByRole("button", { name: "Moving…" }),
@@ -505,7 +514,7 @@ describe("Move…", () => {
 
   it("follows the folder when the move only half finished", async () => {
     tauri.on = true;
-    inProject();
+    inProject(projectPath);
     vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
     vi.mocked(moveProject).mockRejectedValue(
       new ApiError(
@@ -533,11 +542,11 @@ describe("Move…", () => {
 
   it("stays disabled once the move succeeded, until the page unloads", async () => {
     tauri.on = true;
-    inProject();
+    inProject(projectPath);
     vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
     vi.mocked(moveProject).mockResolvedValue({
       project_path: "/Users/ada/Archive/ep-12/episode.sharecut",
-      previous_path: PROJECT_PATH,
+      previous_path: projectPath,
     });
     const user = userEvent.setup();
     render(<Harness />);
@@ -552,7 +561,7 @@ describe("Move…", () => {
 
   it("waits while edits are still queued, without opening the dialog", async () => {
     tauri.on = true;
-    inProject();
+    inProject(projectPath);
     queued.count = 2;
     const user = userEvent.setup();
     render(<Harness />);
@@ -567,7 +576,7 @@ describe("Move…", () => {
 
   it("re-checks the queue after the folder is picked", async () => {
     tauri.on = true;
-    inProject();
+    inProject(projectPath);
     vi.mocked(pickFolder).mockImplementationOnce(async () => {
       queued.count = 1;
       return { folder: "/Volumes/Archive" };
@@ -583,9 +592,8 @@ describe("Move…", () => {
   });
 
   it("refuses new command admission while moving and restores it after a refusal", async () => {
-    const projectPath = "/tmp/move-fence-test/episode.sharecut";
     tauri.on = true;
-    useDawStore.getState().hydrate(projectPath, minimalProject());
+    inProject(projectPath);
     const pending = deferred<Awaited<ReturnType<typeof moveProject>>>();
     vi.mocked(pickFolder).mockResolvedValue({ folder: "/Volumes/Archive" });
     vi.mocked(moveProject).mockReturnValueOnce(pending.promise);
@@ -611,9 +619,32 @@ describe("Move…", () => {
     expect(save).toHaveBeenCalledOnce();
   });
 
+  it("waits for an admitted send even before its edit can reach the queue", async () => {
+    tauri.on = true;
+    inProject(projectPath);
+    vi.mocked(pickFolder).mockResolvedValue({ folder: "/Volumes/Archive" });
+    const pending = deferred<string>();
+    const save = vi.fn(() => pending.promise);
+    const command = withCommandSendOwnership(projectPath, "shared", save);
+    try {
+      await waitFor(() => expect(save).toHaveBeenCalledOnce());
+      const user = userEvent.setup();
+      render(<Harness />);
+      const sheet = await openSettings();
+      await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+      expect(
+        await within(sheet).findByText(/edits are still waiting to be saved/),
+      ).toBeVisible();
+      expect(moveProject).not.toHaveBeenCalled();
+    } finally {
+      pending.resolve("saved");
+      await command;
+    }
+  });
+
   it("says so when the computer has no folder dialog", async () => {
     tauri.on = true;
-    inProject();
+    inProject(projectPath);
     vi.mocked(pickFolder).mockResolvedValue({
       unavailable: true,
       detail: "no dialog; paste the path instead.",
