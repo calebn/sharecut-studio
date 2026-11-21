@@ -294,7 +294,34 @@ describe("Reveal in folder", () => {
     expect(screen.getByRole("dialog", { name: "Settings" })).toBeVisible();
   });
 
-  it("shows the server's refusal under the row and keeps the sheet open", async () => {
+  it("keeps Move disabled and marks only Reveal busy while revealing", async () => {
+    tauri.on = true;
+    inProject();
+    const pending = deferred<void>();
+    vi.mocked(revealProject).mockReturnValueOnce(pending.promise);
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    const move = within(sheet).getByRole("button", { name: "Move…" });
+    const reveal = within(sheet).getByRole("button", {
+      name: "Reveal in folder",
+    });
+
+    await user.click(reveal);
+    expect(reveal).toHaveAccessibleName("Revealing…");
+    expect(reveal).toHaveAttribute("aria-busy", "true");
+    expect(move).toBeDisabled();
+    expect(move).not.toHaveAttribute("aria-busy");
+    await user.click(move);
+    expect(pickFolder).not.toHaveBeenCalled();
+
+    await act(async () => pending.resolve(undefined));
+    expect(reveal).toHaveAccessibleName("Reveal in folder");
+    expect(reveal).not.toHaveAttribute("aria-busy");
+    expect(move).toBeEnabled();
+  });
+
+  it("shows the server's refusal under Saved in and keeps the sheet open", async () => {
     tauri.on = true;
     inProject();
     vi.mocked(revealProject).mockRejectedValue(
@@ -532,6 +559,8 @@ describe("Move…", () => {
         });
         expect(moving).toBeDisabled();
         expect(reveal).toBeDisabled();
+        expect(moving).toHaveAttribute("aria-busy", "true");
+        expect(reveal).not.toHaveAttribute("aria-busy");
         await user.click(moving);
         await user.click(reveal);
         expect(moveProject).toHaveBeenCalledOnce();
