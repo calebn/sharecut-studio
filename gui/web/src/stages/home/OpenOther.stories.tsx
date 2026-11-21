@@ -27,7 +27,7 @@ const meta: Meta<typeof OpenOther> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          '"Open other…" at the end of the Recent heading. With an OS picker it opens the picker in folder mode. In a plain browser it opens a popover under the button with one path field ("Folder of the episode") and an Open button; Enter submits. Errors sit under the field in plain words with the fix.\n\n**Motion.** The popover appears with `--motion-hover`.',
+          '"Open other…" sits at the end of the Recent heading. Without a folder picker, it opens a path form above the Recent cards. Enter submits, and Escape closes the form and returns focus to "Open other…". A blank submission asks for the path to the episode folder. Errors appear under the field.',
       },
     },
   },
