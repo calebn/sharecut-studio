@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { SRC_ROOT } from "../test/sourceFiles";
 import { Player, type PlayerProps } from "./Player";
-import { findFitLevel, MAX_FIT_LEVEL } from "./useBarFit";
+import { barFitKey, findFitLevel, MAX_FIT_LEVEL } from "./useBarFit";
 
 const playerCss = readFileSync(
   join(SRC_ROOT, "styles/partials/system.css"),
@@ -27,7 +27,43 @@ const follow = (name: string) => ({
   detail: "in Pipeline",
 });
 
+describe("barFitKey", () => {
+  const props = { ...base, following: follow("Maya") };
+  const updateCases = [
+    ["clock width", { time: "01:12:04.250" }],
+    ["cut duration", { cuts: "−4:10" }],
+    ["playback speed", { rate: 2 }],
+    ["solo label", { solo: "Cal" }],
+    ["player state", { state: "error" }],
+    ["status message", { status: "Mix out of date" }],
+    ["guest controls", { guest: true }],
+    ["followed name", { following: follow("Cal") }],
+    ["follow detail", { following: { ...props.following, detail: "in Edit" } }],
+    ["Hear availability", { hearMenu: undefined }],
+    ["Comment availability", { onComment: () => undefined }],
+    ["history availability", { history: {} }],
+  ] satisfies [string, Partial<Parameters<typeof barFitKey>[0]>][];
+
+  it.each(updateCases)("changes when %s changes", (_label, update) => {
+    expect(barFitKey({ ...props, ...update })).not.toBe(barFitKey(props));
+  });
+
+  it("keeps the key for an equal-width clock tick and a new handler", () => {
+    const before = { ...props, onComment: vi.fn() };
+    const after = { ...props, time: "12:04.251", onComment: vi.fn() };
+    expect(barFitKey(after)).toBe(barFitKey(before));
+  });
+});
+
 describe("findFitLevel", () => {
+  it("stops at the final fit level defined in the Player CSS", () => {
+    const cssLevels = Array.from(
+      playerCss.matchAll(/\[data-fit="(\d+)"\]/g),
+      ([, level]) => Number(level),
+    );
+    expect(Math.max(...cssLevels)).toBe(MAX_FIT_LEVEL);
+  });
+
   it("is the lowest level at which the bar fits", () => {
     const asked: number[] = [];
     const level = findFitLevel((candidate) => {
