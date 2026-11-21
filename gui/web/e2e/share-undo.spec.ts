@@ -297,6 +297,55 @@ test.describe("desktop 1280x900 beyond the happy path", () => {
     });
   });
 
+  test("reopening Invite keeps the same share Undo in the keyboard cycle", async ({
+    page,
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await openProject(page, projectPath);
+      const stopped = await createReviewShare(page, projectPath, "commenter");
+      const other = await createReviewShare(page, projectPath, "editor");
+      const sheet = await openInvite(page, projectPath);
+      await sheet
+        .getByRole("button", { name: "More for Commenter link" })
+        .click();
+      await page.getByRole("menuitem", { name: "Stop sharing" }).click();
+      await expectFeedback(page, "Link stopped.");
+      await sheet.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(sheet).toBeHidden();
+      await openProjectDialog(page, "palette");
+      const palette = page.getByRole("dialog", {
+        name: "Commands and shortcuts",
+      });
+      await expect(palette).toBeVisible();
+      await expect(
+        page.locator('section[aria-label="Status messages"][inert] .ui-toast'),
+      ).toContainText("Link stopped.");
+      await page.keyboard.press("Escape");
+      await expect(palette).toBeHidden();
+      await openProjectDialog(page, "share");
+      await expect(sheet).toBeVisible();
+
+      await sheet.getByRole("button", { name: "More for Editor link" }).click();
+      await page.getByRole("menuitem", { name: "Stop sharing" }).click();
+      await expect(sheet.getByText("Undo is still available.")).toBeVisible();
+      const undo = toast(page).getByRole("button", { name: "Undo" });
+      expect(await guestStatus(page, stopped)).toBe(404);
+      expect(await guestStatus(page, other)).toBe(200);
+      await expect(undo).toBeVisible({ timeout: 2_000 });
+      for (let presses = 0; presses < 40; presses += 1) {
+        await page.keyboard.press("Tab");
+        if (await undo.evaluate((el) => el === document.activeElement)) break;
+      }
+      await expect(undo).toBeFocused({ timeout: 2_000 });
+      await page.keyboard.press("Enter");
+      await expectFeedback(page, "Link restored.");
+      await expect(
+        sheet.getByRole("heading", { name: "Review links" }),
+      ).toBeFocused();
+      expect(await guestStatus(page, stopped)).toBe(200);
+    });
+  });
+
   test("End room ends the room at once, and Undo brings the room back", async ({
     page,
   }) => {
