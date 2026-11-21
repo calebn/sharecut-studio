@@ -1,5 +1,3 @@
-"""Editable session formats and their published ZIP filenames."""
-
 from enum import StrEnum
 
 

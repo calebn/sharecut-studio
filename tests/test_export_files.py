@@ -930,7 +930,7 @@ def test_a_file_that_vanishes_between_the_scan_and_the_stat_is_skipped(
 
 def test_the_listing_skips_a_found_file_whose_size_cannot_be_read(ws, folder, monkeypatch) -> None:
     service = ExportFilesService(ws)
-    missing = ServedFile("x.mp3", "audio", folder / "missing.mp3", "audio/mpeg", "1-1")
+    missing = ServedFile("x.mp3", "audio", folder / "missing.mp3", "audio/mpeg", 1, 1)
     monkeypatch.setattr(service, "_found", lambda: [missing])
 
     assert service.listed() == []

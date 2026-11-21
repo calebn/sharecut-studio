@@ -1,10 +1,24 @@
 import { type DawFormat, startDawSession } from "../../api/dawExport";
+import { useDawStore } from "../../state/dawStore";
 import { projectScopedSignal } from "../../state/projectScopedSignal";
 import { runAnnouncedJob } from "../../state/runAnnouncedJob";
+import type { DawState } from "../../state/types";
+import { isPipelineRunning } from "../../utils/pipeline";
 import { bounceResultAction, fileIdsOf } from "./bounceResultAction";
 import { hostFileAccess } from "./useDeliverFiles";
 
+export function dawStartPending(state: DawState) {
+  return Array.from(state.jobResultStarts.values()).includes("daw_export");
+}
+
 export async function exportDawSession(projectPath: string, format: DawFormat) {
+  const state = useDawStore.getState();
+  if (
+    dawStartPending(state) ||
+    (state.activityJob?.kind === "daw_export" &&
+      isPipelineRunning(state.activityJob))
+  )
+    throw new Error("A DAW export is already running.");
   const scope = projectScopedSignal(projectPath);
   try {
     const job = await runAnnouncedJob(

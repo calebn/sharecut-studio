@@ -82,10 +82,15 @@ class ServedFile:
     kind: ExportedFileKind
     path: Path
     media_type: str
-    version: str
+    mtime_ns: int
+    size: int
     format: str | None = None
     label: str | None = None
     source_digest: str | None = None
+
+    @property
+    def version(self) -> str:
+        return f"{self.size}-{self.mtime_ns}"
 
 
 def _same_text(path: Path, expected: str) -> bool:
@@ -142,7 +147,8 @@ class ExportFilesService:
                 kind,
                 resolved,
                 media_type,
-                f"{stamp.size}-{stamp.mtime_ns}",
+                stamp.mtime_ns,
+                stamp.size,
                 format,
                 label,
                 source_digest,
@@ -189,7 +195,7 @@ class ExportFilesService:
                     )
                     if entry:
                         packages.append(entry)
-            found.extend(sorted(packages, key=lambda row: row.label or "", reverse=True))
+            found.extend(sorted(packages, key=lambda row: (-row.mtime_ns, row.id)))
         for variant in completed_variant_files(project):
             label = (
                 f"{variant.target.value.title()} ({TARGET_INTEGRATED_LUFS[variant.target]:g} LUFS) "

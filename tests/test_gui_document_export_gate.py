@@ -1,5 +1,3 @@
-"""The host document and export routes sit behind the route-level host gate."""
-
 from __future__ import annotations
 
 import pytest
