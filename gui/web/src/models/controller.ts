@@ -271,13 +271,13 @@ export function overlay(
   });
 }
 
-/** Whether this device has an OS folder picker; true until the first status says otherwise. */
 export function engineOf(
   status: BootstrapStatus | null,
 ): BootstrapHost["transcription"] {
   return status?.host.transcription ?? "faster_whisper";
 }
 
+/** Whether this device has an OS folder picker; true until the first status says otherwise. */
 export function canPickFolderOf(status: BootstrapStatus | null): boolean {
   return status?.host.folder_picker ?? true;
 }

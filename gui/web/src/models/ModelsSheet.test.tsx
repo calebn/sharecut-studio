@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BootstrapStatus } from "../api";
 import * as api from "../api";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -539,6 +539,7 @@ describe("ModelsSheet", () => {
 });
 
 describe("ModelsSheet on an iPhone", () => {
+  beforeEach(() => stubViewportShell("phone"));
   const phoneRows = () => [
     modelRow({
       id: "whisper",
@@ -557,7 +558,6 @@ describe("ModelsSheet on an iPhone", () => {
     });
 
   it("offers the iPhone's Recommended and Less accurate sizes with the description", async () => {
-    stubViewportShell("phone");
     const phone = modelsApi({ status: phoneStatus() });
     render(<ModelsSheet open onClose={vi.fn()} />, {
       wrapper: modelsWrapper(phone),
@@ -579,7 +579,6 @@ describe("ModelsSheet on an iPhone", () => {
   });
 
   it("shows the description of the chosen size only", () => {
-    stubViewportShell("phone");
     render(<ModelsSheet open onClose={vi.fn()} />, {
       wrapper: modelsWrapper(
         modelsApi({
@@ -592,7 +591,6 @@ describe("ModelsSheet on an iPhone", () => {
   });
 
   it("names a download of the other size by its label, not its id", () => {
-    stubViewportShell("phone");
     const phone = modelsApi({ status: phoneStatus() });
     phone.downloads = [
       {

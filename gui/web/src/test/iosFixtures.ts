@@ -10,7 +10,6 @@ export const IOS_HOST: BootstrapHost = {
   folder_picker: false,
 };
 
-/** The two whisper.cpp variants the engine lists on an iPhone. */
 export const IOS_WHISPER_CATALOG: WhisperModelChoice[] = [
   {
     id: "small.en-q5_1",
