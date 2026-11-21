@@ -502,6 +502,8 @@ export type ScriptPaneReadingPosition =
       fallbackTop: number;
       /** Only explicit focus captures may reveal a still-focused word; omission preserves manual reading. */
       intent?: "focus";
+      /** Visible words in other turns, usable while this word is drawn as bars. */
+      visibleAlternates?: readonly { index: number; offset: number }[];
       /** Captured ordinals are valid only in this immutable transcript snapshot. */
       turns?: readonly ScriptTurn[];
     }
@@ -1350,10 +1352,33 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         const word = stop ? registry.current.get(stop.start) : undefined;
         const rect = word?.getBoundingClientRect();
         if (stop && rect && rect.top < bounds.bottom) {
+          const visibleAlternates: { index: number; offset: number }[] = [];
+          const touchedTurns = new Set([word?.closest("[data-turn-id]")]);
+          for (let at = low + 1; at < stops.length; at++) {
+            const candidate = stops[at]!;
+            const element = registry.current.get(candidate.start);
+            if (
+              candidate.kind !== "word" ||
+              !element ||
+              !body.contains(element)
+            )
+              continue;
+            const turn = element.closest("[data-turn-id]");
+            if (!turn || touchedTurns.has(turn)) continue;
+            const box = element.getBoundingClientRect();
+            if (box.top >= bounds.bottom) break;
+            if (box.top < bounds.top || box.bottom > bounds.bottom) continue;
+            touchedTurns.add(turn);
+            visibleAlternates.push({
+              index: candidate.start,
+              offset: box.top - bounds.top,
+            });
+          }
           const position: ScriptPaneReadingPosition = {
             kind: "word",
             index: stop.start,
             offset: rect.top - bounds.top,
+            ...(visibleAlternates.length ? { visibleAlternates } : {}),
             fallbackTop: body.scrollTop,
             turns: live.current.turns,
           };
