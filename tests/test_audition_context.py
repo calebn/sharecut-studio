@@ -190,6 +190,24 @@ def test_audition_context_reports_music_and_sfx_placements(
     )
     assert gap["auxiliary_tracks"] == []
 
+    project.clips.append(
+        Clip(
+            id="decimal-end",
+            track_id="music",
+            source_start=0.1,
+            source_end=0.2,
+            timeline_start=3.2,
+        )
+    )
+    adjacent = build_audition_context(
+        project, 3.3, 3.4, detail=detail, include_dsp=False, defaults=defaults
+    )
+    assert [track["track_id"] for track in adjacent["auxiliary_tracks"]] == ["sting"]
+    narrow = build_audition_context(
+        project, 3.2999, 3.3, detail=detail, include_dsp=False, defaults=defaults
+    )
+    assert narrow["auxiliary_tracks"][0]["placements"][0]["clip_id"] == "decimal-end"
+
 
 def _two_track_ripple_project(minimal_project, sample_wav, tmp_workspace):
     """Two aligned tracks sharing one ripple join at timeline 1.0 s."""
