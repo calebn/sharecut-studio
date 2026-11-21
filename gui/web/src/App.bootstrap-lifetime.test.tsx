@@ -661,16 +661,19 @@ describe("App bootstrap request lifetime", () => {
       const second = deferred<Response>();
       let calls = 0;
       offline.load.mockResolvedValue(undefined);
-      serve(async () => {
-        calls += 1;
-        if (calls === 1) {
-          return new Response("{}", {
-            status: 429,
-            headers: { "Retry-After": "5" },
-          });
-        }
-        return calls === 2 ? second.promise : third();
-      });
+      const fetchMock = serve(
+        async () => {
+          calls += 1;
+          if (calls === 1) {
+            return new Response("{}", {
+              status: 429,
+              headers: { "Retry-After": "5" },
+            });
+          }
+          return calls === 2 ? second.promise : third();
+        },
+        { ignoreAbort: true },
+      );
       vi.useFakeTimers({ shouldAdvanceTime: true });
       render(<App />);
       await screen.findByRole("heading", { name: "This link did not load" });
@@ -680,7 +683,7 @@ describe("App bootstrap request lifetime", () => {
         });
       }
       await waitFor(() => expect(calls).toBe(3));
-      return { second, calls: () => calls };
+      return { second, calls: () => calls, fetchMock };
     }
 
     it("opens the episode when it answers after a newer attempt failed with a 429, and stops retrying", async () => {
@@ -719,6 +722,26 @@ describe("App bootstrap request lifetime", () => {
         screen.getByRole("heading", {
           name: "This link doesn't open anything",
         }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Studio body")).toBeNull();
+    });
+
+    it("keeps the restricted cover when an older attempt answers after access is denied", async () => {
+      window.history.pushState({}, "", "/r/restricted-late-answer");
+      const { second, fetchMock } = await replacedAfterNewerSettled(
+        () =>
+          new Response("{}", {
+            status: 403,
+            headers: { "X-Sharecut-Error-Code": "share_acl_denied" },
+          }),
+      );
+      await screen.findByText(/This link is only for certain people/);
+      expect(projectSignals(fetchMock)[1]?.aborted).toBe(true);
+      await act(async () => {
+        second.resolve(bootstrap("Alpha"));
+      });
+      expect(
+        screen.getByText(/This link is only for certain people/),
       ).toBeInTheDocument();
       expect(screen.queryByText("Studio body")).toBeNull();
     });

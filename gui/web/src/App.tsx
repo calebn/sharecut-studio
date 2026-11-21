@@ -1,4 +1,11 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { flushSync } from "react-dom";
 import { isLinkEnded, loadReviewBootstrap, markLinkEnded } from "./api";
 import { forgetLinkAudio } from "./audio/chunkCache";
@@ -7,6 +14,7 @@ import {
   type GuestLoadFailure,
   guestLoadCover,
 } from "./guestLoadFailure";
+import { withAbortTimeout } from "./utils/abortTimeout";
 import { ApiError } from "./utils/apiError";
 import { readNotServed } from "./utils/notServed";
 import { isSavedCopyFresh } from "./utils/savedCopyAge";
@@ -21,7 +29,7 @@ import {
 import { FEATURE_SHARE_UI_ROUTES } from "./extensions/features";
 import { AskDialog } from "./feedback/AskDialog";
 import { useBackOnline } from "./hooks/useBackOnline";
-import { useDeadLinkWatch } from "./hooks/useDeadLinkWatch";
+import { CONFIRM_TIMEOUT_MS, useDeadLinkWatch } from "./hooks/useDeadLinkWatch";
 import { ModelsProvider } from "./models";
 import { RoomLoadBoundary } from "./record/RoomLoadBoundary";
 import {
@@ -120,6 +128,14 @@ type BootstrapOutcome =
   | { kind: "online"; guest: GuestAccess }
   | { kind: "cached"; guest: GuestAccess; cached: CachedGuestProject }
   | { kind: "error"; error: BootstrapError };
+
+function isHostAccessDenial(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 403 &&
+    (error.code === "share_acl_denied" || error.code === "share_token_mismatch")
+  );
+}
 
 function sameRequest(a: BootstrapRequest, b: BootstrapRequest) {
   return (
@@ -348,6 +364,11 @@ function AppInner({ bootName }: { bootName: string | null }) {
     shareCapabilities === null &&
     cachedGuestProject !== null &&
     !error;
+  const committedCopyKey = useRef<string | null>(null);
+  useEffect(() => {
+    committedCopyKey.current =
+      readsCopy && cachedGuestProject.key === shareKey ? shareKey : null;
+  }, [cachedGuestProject, readsCopy, shareKey]);
   const copyIdle = readsCopy && !shareBootstrapping;
   useBackOnline(copyIdle, attempt, retry);
   useEffect(() => {
@@ -404,6 +425,43 @@ function AppInner({ bootName }: { bootName: string | null }) {
     return () => abortAll(tracker.flight);
   }, []);
 
+  const endSession = useCallback(
+    (token: string, kind: "bad-link" | "restricted" = "bad-link") => {
+      const tracker = attempts.current;
+      if (tracker.newest?.reviewToken !== token || isLinkEnded(token)) return;
+      markLinkEnded(token);
+      abortAll(tracker.flight);
+      void collectKeptPosts(token).then((kept) => {
+        if (tracker.newest?.reviewToken === token) {
+          flushSync(() => {
+            const store = useDawStore.getState();
+            let unsent = kept;
+            if (store.projectPath === shareProjectKey(token)) {
+              unsent = collectUnsent(kept);
+              store.setIsPlaying(false);
+              useDawStore.setState(composerPatch(initialSession));
+            }
+            setBootstrap((state) =>
+              state.request.reviewToken === token
+                ? {
+                    ...state,
+                    status: "settled",
+                    guest: null,
+                    cached: null,
+                    error: { failure: { kind }, unsent },
+                  }
+                : state,
+            );
+          });
+        }
+        void retireOfflineSnapshot(token);
+        void forgetLinkAudio(token);
+      });
+    },
+    [],
+  );
+  useDeadLinkWatch(shareKey ? reviewToken : null, endSession);
+
   useEffect(() => {
     const { featuresReady, shareRoutesEnabled, reviewToken, recordToken } =
       request;
@@ -412,6 +470,8 @@ function AppInner({ bootName }: { bootName: string | null }) {
     if (isLinkEnded(reviewToken)) return;
     const tracker = attempts.current;
     const generation = tracker.generation;
+    const confirmingCopy =
+      committedCopyKey.current === shareProjectKey(reviewToken);
     const controller = new AbortController();
     tracker.flight.push(controller);
     while (tracker.flight.length > MAX_ATTEMPTS_IN_FLIGHT) {
@@ -429,7 +489,22 @@ function AppInner({ bootName }: { bootName: string | null }) {
         const bootstrap = await loadReviewBootstrap(
           reviewToken,
           controller.signal,
-        );
+        ).catch((error: unknown) => {
+          if (
+            !confirmingCopy ||
+            !isHostAccessDenial(error) ||
+            controller.signal.aborted ||
+            standing() !== "newest"
+          ) {
+            throw error;
+          }
+          return withAbortTimeout(
+            CONFIRM_TIMEOUT_MS,
+            "The server didn't answer.",
+            (signal) => loadReviewBootstrap(reviewToken, signal),
+            controller.signal,
+          );
+        });
         const caps = bootstrap.capabilities ?? [];
         if (standing() === "gone") return;
         if (!caps.includes("view")) {
@@ -451,6 +526,10 @@ function AppInner({ bootName }: { bootName: string | null }) {
         // Abandoned on purpose (the episode opened elsewhere, or the link or
         // page went away): there is nothing to show or to save.
         if (controller.signal.aborted || standing() !== "newest") return;
+        if (isHostAccessDenial(e)) {
+          endSession(reviewToken, "restricted");
+          return;
+        }
         const failure = classifyBootstrapFailure(e, navigator.onLine !== false);
         if (failure.kind === "bad-link") {
           let unsent: UnsentText[] | undefined;
@@ -501,58 +580,27 @@ function AppInner({ bootName }: { bootName: string | null }) {
         outcome = { kind: "error", error: { failure } };
       } finally {
         tracker.flight = tracker.flight.filter((one) => one !== controller);
+        const now = standing();
         // The episode opening, live or as the saved copy, makes the other
-        // attempts pointless: stop them rather than let them hold connections.
+        // attempts pointless. An older answer ignored on an open copy must
+        // leave the current attempt and its confirmation running.
         if (
           (outcome?.kind === "online" || outcome?.kind === "cached") &&
-          standing() !== "gone"
+          now !== "gone" &&
+          (now === "newest" ||
+            committedCopyKey.current !== shareProjectKey(reviewToken))
         ) {
           abortAll(tracker.flight);
         }
-        if (standing() !== "gone") {
+        if (now !== "gone") {
           const completed = outcome;
-          const now = standing();
           setBootstrap((state) =>
             settleBootstrap(state, request, now, completed),
           );
         }
       }
     })();
-  }, [request]);
-
-  // The host turned the link off while the episode is open: one confirmed
-  // answer replaces the studio with the cover, and what the guest had typed
-  // and not sent goes with it, collected just before the studio unmounts.
-  const endSession = (token: string) => {
-    if (attempts.current.newest?.reviewToken !== token) return;
-    markLinkEnded(token);
-    abortAll(attempts.current.flight);
-    void collectKeptPosts(token).then((kept) => {
-      if (attempts.current.newest?.reviewToken !== token) return;
-      // Collecting what was typed and unmounting the studio is one step: a key
-      // pressed between the two would land in a field that is about to go.
-      const unsent = collectUnsent(kept);
-      flushSync(() => {
-        const store = useDawStore.getState();
-        store.setIsPlaying(false);
-        useDawStore.setState(composerPatch(initialSession));
-        setBootstrap((state) =>
-          state.guest?.key === shareProjectKey(token)
-            ? {
-                ...state,
-                status: "settled",
-                guest: null,
-                cached: null,
-                error: { failure: { kind: "bad-link" }, unsent },
-              }
-            : state,
-        );
-      });
-      void retireOfflineSnapshot(token);
-      void forgetLinkAudio(token);
-    });
-  };
-  useDeadLinkWatch(shareKey ? reviewToken : null, endSession);
+  }, [request, endSession]);
 
   if (recordToken && !error) {
     return (
