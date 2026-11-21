@@ -265,7 +265,8 @@ export class ProxyEngine {
   }
 
   setPlaybackRate(rate: number): void {
-    if (rate === this.playbackRate) return;
+    if (!Number.isFinite(rate) || rate <= 0 || rate === this.playbackRate)
+      return;
     const at = this.currentTimeSec();
     this.originTimelineSec = at;
     this.originCtxTime = this.ctx.currentTime;
