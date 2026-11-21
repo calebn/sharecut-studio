@@ -6,6 +6,7 @@ import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import type { ProjectView } from "../src/types/project";
 import { expectPageAxeClean } from "./axe";
 import { registerE2eCleanupWorkspace } from "./cleanupManifest";
+import { postDocumentCommand, postHistoryMove } from "./documentCommand";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
 import { createEpisodeFromHome, openHome } from "./home";
 import {
@@ -33,6 +34,7 @@ import {
   openProject as openStageProject,
   openViewPopover,
   phone,
+  reloadProject,
   type Stage,
   setAudition,
   stageTab,
@@ -294,6 +296,61 @@ test.describe("Stage shell on desktop", () => {
     await expect.poll(chapterCount).toBe(before + 1);
     await page.getByRole("button", { name: /^Remove Chapter/ }).click();
     await expect.poll(chapterCount).toBe(before);
+  });
+
+  test("Deliver reports saved ripple cuts after a phone-width reload and Undo", async ({
+    page,
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      const editsSaved = deliverPage(page)
+        .getByRole("listitem")
+        .filter({ hasText: "Edits saved" });
+      const removedSeconds = async () => {
+        const response = await page.request.get(
+          `/api/project?path=${encodeURIComponent(projectPath)}&phase=full`,
+        );
+        expect(response.ok()).toBe(true);
+        return ((await response.json()) as ProjectView).edit_impact
+          .total_removed_sec;
+      };
+
+      await openStageProject(page, projectPath, { stage: "deliver" });
+      await expect(
+        editsSaved.getByText("0.0 s", { exact: true }),
+      ).toBeVisible();
+      expect(await removedSeconds()).toBe(0);
+      await page.request.post("/api/transcript/refine/waive", {
+        data: { path: projectPath, reason: "e2e Deliver edit impact" },
+      });
+      await postDocumentCommand(
+        page,
+        "e2e-deliver-impact",
+        "CutRange",
+        { start: 5, end: 15, mode: "ripple" },
+        projectPath,
+      );
+      expect(await removedSeconds()).toBeCloseTo(10);
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      await reloadProject(page);
+      await goToStage(page, "deliver");
+      await expect(
+        editsSaved.getByText("10.0 s", { exact: true }),
+      ).toBeVisible();
+
+      await postHistoryMove(
+        page,
+        "e2e-deliver-impact",
+        "UndoHistory",
+        projectPath,
+      );
+      expect(await removedSeconds()).toBe(0);
+      await reloadProject(page);
+      await goToStage(page, "deliver");
+      await expect(
+        editsSaved.getByText("0.0 s", { exact: true }),
+      ).toBeVisible();
+    });
   });
 
   test("keeps the timeline zoom across a stage round trip", async ({
