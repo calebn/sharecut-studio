@@ -51,14 +51,16 @@ def test_unknown_native_architecture_fails(monkeypatch):
         builder._target()
 
 
-def test_macos_recipe_matches_advertised_app_minimum():
+def test_macos_ffmpeg_runs_at_advertised_app_minimum():
     import json
     from pathlib import Path
 
     root = Path(__file__).parents[1]
     recipe = json.loads((root / "contracts/ffmpeg-build.json").read_text())
     app = json.loads((root / "gui/desktop/src-tauri/tauri.conf.json").read_text())
-    assert recipe["macos_deployment_target"] == app["bundle"]["macOS"]["minimumSystemVersion"]
+    ffmpeg_floor = tuple(map(int, recipe["macos_deployment_target"].split(".")))
+    app_floor = tuple(map(int, app["bundle"]["macOS"]["minimumSystemVersion"].split(".")))
+    assert ffmpeg_floor <= app_floor
 
 
 def test_safe_extract_supports_original_python_311_api(tmp_path, monkeypatch):

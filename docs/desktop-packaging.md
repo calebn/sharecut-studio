@@ -1,7 +1,11 @@
 # Desktop packaging (ShareCut Studio / Tauri)
 
 Stage 1 host installer: **Tauri 2 + Python sidecar**. The React DAW and FastAPI
-engine are unchanged; the native app is a window + process manager.
+engine run in the desktop app. The native app manages the window and sidecar
+process.
+
+Mac installers require macOS 14.0 or later on Apple Silicon and Intel. The
+bundled native Python dependencies require this minimum.
 
 ## Boundaries
 
@@ -889,7 +893,12 @@ Testers do not have `podcast` on PATH. [`scripts/build_sidecar.py`](../scripts/b
   ordinary web assets after running `make test-web-e2e` before packaging.
 - Tiny compiled launchers (`scripts/sidecar_launcher.rs`, **rustc required** for packaged builds) named `sharecut-sidecar-<rustc-host-triple>`, `podcast-<rustc-host-triple>`, and `podcast-mcp-<rustc-host-triple>` (`.exe` on Windows). All three share runtime discovery and Python relocation. The shell/cmd templates in `build_sidecar.py` are GUI-only `--dry-run` placeholders and never ship.
 
-The launcher sets `PODCAST_GUI_DIST`, `PYTHONHOME` (uv standalone CPython under `sharecut-runtime/python/cpython-*`, preferred via freeze marker `sharecut-runtime/.python-home`), `PODCAST_MAGIC_LINK_PRINT=0`, and `PODCAST_GUI_OPENAPI=0`, rewrites `venv/pyvenv.cfg` `home` / `executable` / `base-executable` to that relocated prefix, then execs `python -P -m podcast_mcp.cli.main gui --host 127.0.0.1 --port <port> --no-open`. Packaged Tauri sets `PODCAST_SIDECAR_EPHEMERAL=1` so that port is `0` (OS-assigned); `podcast gui`, `tauri dev`, and AppImage smoke (sidecar run without the parent env) stay on **8765**. Relocate fixes two failures after AppImage/DMG/NSIS copy: (1) compiled prefix `/install` → `ModuleNotFoundError: No module named 'encodings'`; (2) Windows venv stub still pointing at the GHA path → `No Python at 'D:\a\sharecut-studio\...'`. FastAPI honors `PODCAST_GUI_DIST` in [`gui/static_assets.py`](../src/podcast_mcp/gui/static_assets.py) (`resolve_gui_static_root`). It wins over the second copy the freeze carries: the non-editable checkout install runs the `hatch_build.py` hook after `web-dist` is built, so the venv also holds `podcast_mcp/gui/web_dist` ([setup.md § Web build in wheels](setup.md#web-build-in-wheels)). Layout inside the Mac app:
+The launcher sets `PODCAST_GUI_DIST`, `PYTHONHOME` (uv standalone CPython under `sharecut-runtime/python/cpython-*`, preferred via freeze marker `sharecut-runtime/.python-home`), `PODCAST_MAGIC_LINK_PRINT=0`, and `PODCAST_GUI_OPENAPI=0`, then starts `python -P -m podcast_mcp.cli.main gui --host 127.0.0.1 --port <port> --no-open`. Packaged Tauri sets `PODCAST_SIDECAR_EPHEMERAL=1` so that port is `0` (OS-assigned); `podcast gui`, `tauri dev`, and AppImage smoke (sidecar run without the parent env) stay on **8765**. Relocate fixes two failures after AppImage/DMG/NSIS copy: (1) compiled prefix `/install` → `ModuleNotFoundError: No module named 'encodings'`; (2) Windows venv stub still pointing at the GHA path → `No Python at 'D:\a\sharecut-studio\...'`. FastAPI honors `PODCAST_GUI_DIST` in [`gui/static_assets.py`](../src/podcast_mcp/gui/static_assets.py) (`resolve_gui_static_root`). It wins over the second copy the freeze carries: the non-editable checkout install runs the `hatch_build.py` hook after `web-dist` is built, so the venv also holds `podcast_mcp/gui/web_dist` ([setup.md § Web build in wheels](setup.md#web-build-in-wheels)). On Windows and Linux, the launcher updates `venv/pyvenv.cfg` to point to the
+relocated prefix. Mac launchers use `PYTHONHOME` and leave the signed runtime
+files intact. The Mac freeze precompiles the standard library and installed
+packages. The launcher disables Python bytecode writes after signing.
+
+Layout inside the Mac app:
 
 - `Contents/MacOS/sharecut` — Tauri
 - `Contents/MacOS/sharecut-sidecar`, `podcast`, and `podcast-mcp` — launchers (`bundle.externalBin`)
@@ -913,7 +922,7 @@ For packaged diagnostics and maintenance commands, invoke the compiled launcher 
 
 The launcher sets `PODCAST_PACKAGED_CLI=1` and does not parse the CLI grammar. Python's `gui` command and `ensure_viewer` (`services/app/gui_launch.py`, `packaged_cli_gui_refusal`) then refuse with exit code 2 and an instruction to launch or focus the installed app, wherever root options such as `--no-progress` appear, so a packaged CLI call cannot start a second host on `:8765`.
 
-Differences from the app-spawned sidecar: packaged CLI calls do not receive Tauri's `PODCAST_DISTRIBUTION_*` / `PODCAST_BOOTSTRAP_CDN_BASE`, so `podcast doctor` reports default distribution metadata and `podcast bootstrap` fetches from upstream URLs (content is still hash-pinned). `pyvenv.cfg` is only rewritten when its prefix changed, via a temp file + rename, so concurrent CLI calls are safe. On **Windows** the GUI-subsystem sidecar still rejects `--cli` with exit 2; use the dedicated console launchers instead.
+Differences from the app-spawned sidecar: packaged CLI calls do not receive Tauri's `PODCAST_DISTRIBUTION_*` / `PODCAST_BOOTSTRAP_CDN_BASE`, so `podcast doctor` reports default distribution metadata and `podcast bootstrap` fetches from upstream URLs (content is still hash-pinned). On Windows and Linux, the launcher replaces `pyvenv.cfg` atomically when its prefix changes. On **Windows** the GUI-subsystem sidecar still rejects `--cli` with exit 2; use the dedicated console launchers instead.
 
 Windows puts the launcher next to the exe and the runtime under `resources/sharecut-runtime`. Linux **AppImage** puts the launcher in `usr/bin/` and the freeze at `usr/lib/<productName>/sharecut-runtime` (linuxdeploy). The launcher probes those paths plus macOS `Contents/Resources/`. `spawn_sidecar` looks for `sharecut-sidecar.exe` / `.cmd` (Windows `--dry-run` placeholder only) / bare name. Keep [`gui/desktop/binaries/sharecut-sidecar`](../gui/desktop/binaries/sharecut-sidecar) (bash) in git for `tauri dev`; freeze output under `binaries/sharecut-runtime/` and leftover platform copies (`binaries-linux/`, `binaries-*/`) are gitignored. Slim uses `lib/thread[0-9]*` (Tcl `thread2.*`) rather than `lib/thread*` — on Windows, case-insensitive `Path.glob` would also delete CPython stdlib `Lib/threading.py`. Other `tcl*` / `tk*` slims could still case-fold into unexpected `Lib/` names if the CPython layout changes.
 
@@ -1437,9 +1446,9 @@ sharing installers.
 
 Clip waveforms rasterize in a module worker, using WebGL2 on an
 `OffscreenCanvas` ([waveform.md § Renderer](waveform.md#renderer)). WebView2
-(Windows) and current WKWebView (macOS 13+) provide that. Where a webview lacks it (macOS 12 WKWebView,
-many WebKitGTK builds on Linux, no GPU), or a GPU context is lost, the worker
-falls back to its CPU rasterizer, which draws the same pixels. The main
+(Windows) and WKWebView on supported macOS releases provide that.
+If a WebView lacks WebGL2 support or loses its GPU context, the worker uses a
+CPU rasterizer that draws the same pixels. The main
 thread only blits bitmaps either way. `.timeline-area[data-waveform-backend]`
 shows which backend ran (`webgl2`, `cpu-worker`, or `none` without
 `Worker`).
@@ -1447,11 +1456,9 @@ shows which backend ran (`webgl2`, `cpu-worker`, or `none` without
 ## Menu panels in the WebView
 
 Menu panels are Popover API elements ([gui-mobile.md § Menu popover support](gui-mobile.md#menu-popover-support)).
-WKWebView on macOS 14+, or on macOS 12 and 13 with Safari 17 installed, and
-WebView2 provide the API. On macOS 12 and 13 without the Safari 17 update
-(the bundle's `minimumSystemVersion` is 12.0) the app feature-detects it and
-falls back to a fixed-position panel: menus still open and work, and a clipping
-ancestor can crop them.
+WKWebView on macOS 14 and later and WebView2 provide the API. The app
+feature-detects it. WebViews without the API use a fixed-position panel,
+which a clipping ancestor can crop.
 
 ## Record microphone (WebView)
 

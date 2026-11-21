@@ -38,7 +38,7 @@
     "shortDescription": "Podcast DAW with transcript-driven editing",
     "longDescription": "Sharecut Studio wraps the Podcast MCP FastAPI engine and React UI in a native window. Source of truth stays on the host laptop; share guests use HTTPS.",
     "macOS": {
-      "minimumSystemVersion": "12.0",
+      "minimumSystemVersion": "14.0",
       "exceptionDomain": "127.0.0.1",
       "infoPlist": "Info.plist",
       "entitlements": "Entitlements.plist"

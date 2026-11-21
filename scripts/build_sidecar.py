@@ -532,6 +532,29 @@ def assert_frozen_matches_lock(venv_py: Path, lock_file: Path = LOCK_FILE) -> No
         raise SystemExit("frozen runtime differs from uv.lock: " + "; ".join(drift))
 
 
+def compile_macos_bytecode(runtime: Path, prefix: Path, venv_py: Path) -> None:
+    # Tauri copies files into the signed app and can reset their timestamps.
+    subprocess.check_call(
+        [
+            str(venv_py),
+            "-I",
+            "-S",
+            "-m",
+            "compileall",
+            "-q",
+            "-f",
+            "-j",
+            "4",
+            "--invalidation-mode",
+            "unchecked-hash",
+            "-s",
+            str(runtime),
+            str(prefix / "lib"),
+            str(runtime / "venv" / "lib"),
+        ]
+    )
+
+
 def freeze_python(runtime: Path, *, extension_wheels_dir: Path | None = None) -> None:
     uv = _uv()
     py_home = runtime / "python"
@@ -555,6 +578,8 @@ def freeze_python(runtime: Path, *, extension_wheels_dir: Path | None = None) ->
     rewrite_pyvenv_cfg(runtime, prefix)
     write_python_home_marker(runtime, prefix)
     assert_frozen_interpreter(venv_py)
+    if sys.platform == "darwin":
+        compile_macos_bytecode(runtime, prefix, venv_py)
 
 
 def slim_python_runtime(runtime: Path) -> int:

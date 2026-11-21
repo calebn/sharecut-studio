@@ -1,4 +1,3 @@
-//! Tiny frozen sidecar: set PODCAST_GUI_DIST + PYTHONHOME, rewrite pyvenv.cfg, exec Python.
 //! Compiled by scripts/build_sidecar.py (no crates).
 //!
 //! `sharecut-sidecar --cli <podcast args>` forwards to the bundled CLI. Which
@@ -17,6 +16,7 @@ use sidecar_shared::detach_to_sidecar_log;
 use std::env;
 use std::ffi::OsString;
 use std::fs;
+#[cfg(any(test, not(target_os = "macos")))]
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
@@ -162,6 +162,7 @@ fn bundled_cpython_prefix(runtime: &Path) -> Option<PathBuf> {
     dirs.into_iter().find(|cand| is_cpython_prefix(cand))
 }
 
+#[cfg(any(test, not(target_os = "macos")))]
 fn base_python_exe(home: &Path) -> PathBuf {
     let candidates = [
         home.join("python.exe"),
@@ -184,6 +185,7 @@ fn base_python_exe(home: &Path) -> PathBuf {
 /// Windows `venv\Scripts\python.exe` is a stub that reads absolute `home` /
 /// `executable` from `pyvenv.cfg`. After NSIS/AppImage relocate those still
 /// point at the freeze host (e.g. `D:\a\sharecut-studio\...`).
+#[cfg(any(test, not(target_os = "macos")))]
 fn rewritten_pyvenv_cfg(text: &str, home: &Path, exe: &Path) -> String {
     let home_s = home.display().to_string();
     let exe_s = exe.display().to_string();
@@ -227,6 +229,7 @@ fn rewritten_pyvenv_cfg(text: &str, home: &Path, exe: &Path) -> String {
 /// another interpreter may be reading the file: skip the write when nothing
 /// changed (the normal case after first launch) and otherwise replace it
 /// atomically via a sibling temp file + rename, never truncate in place.
+#[cfg(any(test, not(target_os = "macos")))]
 fn sync_pyvenv_cfg(runtime: &Path, home: &Path) -> io::Result<bool> {
     let cfg_path = runtime.join("venv").join("pyvenv.cfg");
     let text = match fs::read_to_string(&cfg_path) {
@@ -254,6 +257,7 @@ fn apply_python_home(cmd: &mut Command, runtime: &Path, keep_inherited: bool) {
         return;
     }
     if let Some(home) = bundled_cpython_prefix(runtime) {
+        #[cfg(not(target_os = "macos"))]
         if let Err(err) = sync_pyvenv_cfg(runtime, &home) {
             eprintln!(
                 "ShareCut Studio sidecar: could not update {}: {err}",
@@ -275,6 +279,9 @@ fn python_command(
 ) -> Command {
     let mut cmd = Command::new(py);
     cmd.env("PODCAST_GUI_DIST", dist);
+    if cfg!(target_os = "macos") {
+        cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    }
     cmd.env(
         "PODCAST_MCP_FFMPEG_BUNDLE",
         runtime.join("ffmpeg").join("bin"),
@@ -600,6 +607,37 @@ mod tests {
             Some(Some("0".into()))
         );
         assert_eq!(env_value(&cmd, PACKAGED_CLI_ENV), Some(None));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn relocated_macos_launches_keep_the_python_bundle_read_only() {
+        let runtime = scratch_dir("sealed-pyvenv");
+        let prefix = runtime.join("python").join("cpython-3.12");
+        fs::create_dir_all(prefix.join("lib/python3.12/encodings")).expect("stdlib");
+        fs::create_dir_all(runtime.join("venv")).expect("venv");
+        let cfg = runtime.join("venv/pyvenv.cfg");
+        let baked = "home = /original/install\ninclude-system-site-packages = false\n";
+        fs::write(&cfg, baked).expect("seed cfg");
+        for mode in [
+            LauncherMode::Gui,
+            LauncherMode::Cli(vec![]),
+            LauncherMode::Mcp(vec![]),
+        ] {
+            let cmd = python_command(
+                &python_bin(&runtime),
+                &runtime.join("web-dist"),
+                &runtime,
+                &mode,
+                |_| (),
+            );
+            assert_eq!(fs::read_to_string(&cfg).expect("read cfg"), baked);
+            assert_eq!(
+                env_value(&cmd, "PYTHONDONTWRITEBYTECODE"),
+                Some(Some("1".into()))
+            );
+        }
+        fs::remove_dir_all(runtime).expect("remove scratch runtime");
     }
 
     #[test]

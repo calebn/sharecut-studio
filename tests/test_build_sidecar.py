@@ -797,6 +797,36 @@ version = "0.28.0"
 """
 
 
+def test_macos_freeze_bytecode_survives_file_copy(tmp_path: Path) -> None:
+    from importlib.util import cache_from_source
+
+    runtime = tmp_path / "frozen runtime"
+    prefix = runtime / "python" / "cpython-3.12"
+    for lib in (prefix / "lib", runtime / "venv" / "lib"):
+        lib.mkdir(parents=True)
+        source = lib / "example.py"
+        source.write_text("VALUE = 42\n", encoding="utf-8")
+        os.utime(source, (1_700_000_000, 1_700_000_000))
+
+    _load_build_sidecar().compile_macos_bytecode(runtime, prefix, Path(sys.executable))
+
+    for lib in (prefix / "lib", runtime / "venv" / "lib"):
+        installed = tmp_path / lib.relative_to(runtime)
+        shutil.copytree(lib, installed, copy_function=shutil.copyfile)
+        source = installed / "example.py"
+        pyc = Path(cache_from_source(str(source)))
+        assert pyc.is_file()
+        result = subprocess.run(
+            [sys.executable, "-E", "-B", "-v", "-c", "from example import VALUE; print(VALUE)"],
+            cwd=installed,
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+        assert result.stdout.strip() == "42"
+        assert f"code object from {str(pyc.resolve())!r}" in result.stderr
+
+
 def test_freeze_python_installs_locked_requirements_before_project(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
