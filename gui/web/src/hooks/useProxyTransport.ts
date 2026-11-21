@@ -33,6 +33,7 @@ import { useDawStore } from "../state/dawStore";
 import { pauseFromSystem } from "../state/systemPlayhead";
 import { transportAvailability } from "../state/transportAvailability";
 import { useDaw } from "../state/useDaw";
+import type { ProjectView } from "../types/project";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { audioContextCtor } from "../utils/audio";
 import { sortedVolumePoints } from "../utils/envelopes";
@@ -348,11 +349,24 @@ export function useProxyTransport(): boolean {
           void mergeOfflineSnapshot(
             token,
             { project: displayed, manifest },
-            { preserveDate: true },
-          ).catch(() => undefined);
-          // Only a manifest the server just gave is the newest: one read from
-          // the saved copy can be older than the audio the device holds.
-          void pruneLinkAudio(token, manifestChunkRefs(manifest));
+            {
+              matchesSavedProject: (saved) => {
+                try {
+                  return (
+                    proxyBasisKey(projectProxyBasis(saved as ProjectView)) ===
+                    basisKey
+                  );
+                } catch {
+                  return false;
+                }
+              },
+            },
+          )
+            .then((written) => {
+              if (written && current())
+                return pruneLinkAudio(token, manifestChunkRefs(manifest));
+            })
+            .catch(() => undefined);
         }
       } catch (error) {
         if (current()) block(error);
