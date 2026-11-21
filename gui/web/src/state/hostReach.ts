@@ -21,6 +21,7 @@ const backListeners = new Set<(token: string) => void>();
 let probe: Probe | null = null;
 let token: string | null = null;
 let failures = 0;
+let epoch = 0;
 let away = false;
 let backSeq = 0;
 let probing = false;
@@ -82,6 +83,12 @@ export function watchHostReach(): () => void {
   watchers += 1;
   return () => {
     watchers -= 1;
+    if (watchers > 0) return;
+    stopTimers();
+    failures = 0;
+    away = false;
+    probing = false;
+    publish();
   };
 }
 
@@ -89,15 +96,31 @@ export function setHostReachProbe(next: Probe | null): void {
   probe = next;
 }
 
-export function noteReviewTransportFailure(forToken: string): void {
+/** Moves with every counted failure; a request notes it when it begins. */
+export function hostReachEpoch(): number {
+  return epoch;
+}
+
+/**
+ * `startedAtEpoch` is `hostReachEpoch()` as the failed request began. A request
+ * that began before a failure was counted belongs to that round and adds none.
+ */
+export function noteReviewTransportFailure(
+  forToken: string,
+  startedAtEpoch?: number,
+): void {
   adopt(forToken);
-  failures += 1;
+  if (startedAtEpoch === undefined || startedAtEpoch === epoch) {
+    failures += 1;
+    epoch += 1;
+  }
   const wasAway = away;
   if (!away && (failures >= AWAY_AFTER || deviceOffline())) {
     away = true;
     if (confirmTimer !== null) clearTimeout(confirmTimer);
     confirmTimer = null;
     awayTimer = setInterval(probeHostReach, WHILE_AWAY_MS);
+    probeHostReach();
   } else if (!away && confirmTimer === null) {
     confirmTimer = setTimeout(() => {
       confirmTimer = null;

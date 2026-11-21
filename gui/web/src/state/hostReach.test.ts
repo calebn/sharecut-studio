@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  hostReachEpoch,
   noteReviewAnswer,
   noteReviewTransportFailure,
   resetHostReach,
@@ -34,6 +35,15 @@ describe("hostReach", () => {
     noteReviewTransportFailure("t1");
     expect(cause()).toBeNull();
     noteReviewTransportFailure("t1");
+    expect(cause()).toBe("host");
+  });
+
+  it("counts failures of requests that began before the last counted failure once", () => {
+    const began = hostReachEpoch();
+    noteReviewTransportFailure("t1", began);
+    noteReviewTransportFailure("t1", began);
+    expect(cause()).toBeNull();
+    noteReviewTransportFailure("t1", hostReachEpoch());
     expect(cause()).toBe("host");
   });
 
@@ -140,12 +150,36 @@ describe("hostReach", () => {
       const unwatch = watchHostReach();
       noteReviewTransportFailure("t1");
       noteReviewTransportFailure("t1");
+      expect(probe).toHaveBeenCalledOnce();
       await vi.advanceTimersByTimeAsync(11_000);
-      expect(probe).toHaveBeenCalledTimes(2);
+      expect(probe).toHaveBeenCalledTimes(3);
       noteReviewAnswer("t1");
       await vi.advanceTimersByTimeAsync(11_000);
-      expect(probe).toHaveBeenCalledTimes(2);
+      expect(probe).toHaveBeenCalledTimes(3);
       unwatch();
+    });
+
+    it("asks at once when the page turns away", () => {
+      const probe = vi.fn(async () => undefined);
+      setHostReachProbe(probe);
+      const unwatch = watchHostReach();
+      online = false;
+      noteReviewTransportFailure("t1");
+      expect(probe).toHaveBeenCalledOnce();
+      unwatch();
+    });
+
+    it("stops asking and is no longer away when the last watcher leaves", async () => {
+      const probe = vi.fn(async () => undefined);
+      setHostReachProbe(probe);
+      const unwatch = watchHostReach();
+      noteReviewTransportFailure("t1");
+      noteReviewTransportFailure("t1");
+      expect(cause()).toBe("host");
+      unwatch();
+      expect(cause()).toBeNull();
+      await vi.advanceTimersByTimeAsync(11_000);
+      expect(probe).toHaveBeenCalledOnce();
     });
 
     it("asks nothing while no open page watches", async () => {

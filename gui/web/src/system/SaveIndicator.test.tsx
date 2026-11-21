@@ -31,7 +31,7 @@ describe("SaveIndicator away", () => {
     );
   });
 
-  it("adds the waiting count to the words and keeps it out of the spoken sentence", () => {
+  it("adds the waiting count to the words and to the spoken sentence", () => {
     render(<SaveIndicator state="away" cause="host" waiting={2} />);
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Can't reach the host · 2 waiting");
@@ -41,7 +41,11 @@ describe("SaveIndicator away", () => {
       "2",
     ]);
     expect(status.querySelector(".sr-only")).toHaveTextContent(
-      /^Can't reach the host\. This page keeps trying\.$/,
+      /^Can't reach the host, 2 waiting\. This page keeps trying\.$/,
+    );
+    expect(status).toHaveAttribute(
+      "title",
+      "Can't reach the host, 2 waiting. This page keeps trying.",
     );
   });
 

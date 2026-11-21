@@ -432,7 +432,7 @@ describe("App review route", () => {
     ],
   ])(
     "never prints the server's response text, only the table's sentence, for %s",
-    async (name, respond, sentence) => {
+    async (_name, respond, sentence) => {
       window.history.pushState({}, "", "/r/plain");
       offline.load.mockResolvedValue(undefined);
       stubBootstrapFailure(respond);
@@ -440,11 +440,7 @@ describe("App review route", () => {
       await screen.findByRole("heading", { name: "This link did not load" });
       expect(screen.getByText(sentence)).toBeVisible();
       expect(document.body).not.toHaveTextContent("SENTINEL-1");
-      if (name === "a 403") {
-        expect(audio.forget).toHaveBeenCalledOnce();
-      } else {
-        expect(audio.forget).not.toHaveBeenCalled();
-      }
+      expect(audio.forget).not.toHaveBeenCalled();
     },
   );
 
@@ -457,7 +453,7 @@ describe("App review route", () => {
       render(<App />);
       await screen.findByRole("heading", { name: "This link did not load" });
       expect(screen.queryByRole("button")).toBeNull();
-      expect(audio.forget).toHaveBeenCalledTimes(status === 403 ? 1 : 0);
+      expect(audio.forget).not.toHaveBeenCalled();
     },
   );
 

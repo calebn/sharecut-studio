@@ -458,7 +458,7 @@ describe("useSaveState", () => {
         const status = screen.getByRole("status");
         expect(status).toHaveTextContent("Can't reach the host · 2 waiting");
         expect(status).toHaveTextContent(
-          "Can't reach the host. This page keeps trying.",
+          "Can't reach the host, 2 waiting. This page keeps trying.",
         );
         const end = beginDocumentSend("share:tok-1448", "c1");
         await settle();
