@@ -355,11 +355,8 @@ def test_a_token_parked_between_the_two_reads_is_answered_from_the_guarded_read(
         threading.Timer(0.3, release.set).start()
         result = ShareService(ws).revoke(token, restorable_for=10.0, now=now)
     assert len(calls) == 2
-    assert result == {
-        "revoked": True,
-        "token": token,
-        "restorable_until": parked["restorable_until"],
-    }
+    assert result == {"revoked": True, "token": token}
+    assert real(ws, token) == parked
 
 
 @pytest.mark.usefixtures("effects")
