@@ -38,7 +38,7 @@ import { useDawStore } from "../../state/dawStore";
 import { hostCauseNow } from "../../state/hostReach";
 import {
   type OutboxRow,
-  removeOutbox,
+  removeOutboxWithReplies,
   restoreOutbox,
   waitingSlot,
 } from "../../state/outboxStore";
@@ -58,6 +58,7 @@ import {
   savedGuestName,
   sessionDisplayName,
 } from "../../utils/commentAuthor";
+import { plural } from "../../utils/format";
 import { useStableCallback } from "../../utils/useStableCallback";
 import { ActionItemsField } from "./ActionItemsField";
 import { filledActions } from "./actionItems";
@@ -332,17 +333,30 @@ export function useReviewComments(guest: boolean) {
 
   const dontSend = async (row: OutboxRow) => {
     if (!token || outbox.sending.has(row.id)) return;
-    const removed = await removeOutbox(token, row.id);
-    if (!removed) return;
+    // The button that was pressed goes with the card: keep the keyboard on the stage.
+    const active = document.activeElement;
+    const stage =
+      active instanceof HTMLElement
+        ? active.closest<HTMLElement>(".rv-stage")
+        : null;
+    if (stage && active !== stage) stage.focus({ preventScroll: true });
+    const removed = await removeOutboxWithReplies(token, row.id);
+    if (removed.length === 0) return;
     const noun = row.kind === "reply" ? "Reply" : "Comment";
-    useDawStore.getState().announceStatus(`${noun} not sent`, {
+    const replies = removed.length - 1;
+    const what =
+      replies > 0
+        ? `${noun} and ${replies} ${plural(replies, "reply", "replies")}`
+        : noun;
+    useDawStore.getState().announceStatus(`${what} not sent`, {
       reverse: {
         run: async () => {
-          await restoreOutbox(token, removed);
+          for (const item of removed) await restoreOutbox(token, item);
           return true;
         },
-        done: `${noun} put back`,
+        done: `${what} put back`,
       },
+      ...(stage ? { returnFocus: () => stage } : {}),
     });
   };
 

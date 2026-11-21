@@ -33,7 +33,7 @@ import type { WsSender } from "../session/wsSend";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { subscribeHostBack, watchHostReach } from "../state/hostReach";
-import { loadOutbox } from "../state/outboxStore";
+import { loadOutbox, setOutboxDrainRequester } from "../state/outboxStore";
 import { SANITY_POLL_MS } from "../state/syncCadence";
 import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import type { ProjectView, TimelineComment } from "../types/project";
@@ -93,6 +93,8 @@ const FALLBACK_POLL_MS = 1500;
  * can run useProjectPoll only while it is live (useGuestSync polls on its own while
  * it is down), giving a guest one project poll at a time (#657).
  */
+setOutboxDrainRequester(requestGuestDrainLazy);
+
 export function useGuestSync(
   projectPath: string,
   applyAgentSession: (state: SessionState) => void,

@@ -3,7 +3,7 @@ import { errorMessage } from "../utils/apiError";
  * Shared resolve / reply / action-item mutations for host project comments.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { addCommentReply, setCommentActionDone } from "../api";
 import { execute } from "../commands/execute";
 import { type CommentRole, shareTokenFromKey } from "../shareMode";
@@ -12,7 +12,7 @@ import { hostCauseNow } from "../state/hostReach";
 import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
 import { commitCommentActor } from "../utils/commentAuthor";
-import { isKept } from "../utils/keptPost";
+import { isKept, newPostKey } from "../utils/keptPost";
 import { keptLine } from "./keptLine";
 
 /** Sets a comment's resolved state through the command bus; throws the reason when it is refused. */
@@ -54,6 +54,9 @@ export function useCommentActions(opts: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { role, author, setAuthor } = opts;
+  // A reply sent again after a failure keeps its key, so a try that landed
+  // without its answer is not made twice.
+  const attempts = useRef(new Map<string, string>());
 
   const actor = useCallback(
     () => commitCommentActor(author, role, setAuthor),
@@ -100,11 +103,16 @@ export function useCommentActions(opts: {
         return false;
       }
       const by = actor();
+      const signature = JSON.stringify([projectPath, c.id, by, text]);
+      const postKey = attempts.current.get(signature) ?? newPostKey();
+      attempts.current.set(signature, postKey);
       return wrap(async () => {
         const sent = await addCommentReply(projectPath, c.id, {
           body: text,
           author: by,
+          postKey,
         });
+        attempts.current.delete(signature);
         const token = shareTokenFromKey(projectPath);
         if (token && isKept(sent)) {
           useDawStore

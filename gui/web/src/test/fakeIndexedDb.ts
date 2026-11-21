@@ -34,6 +34,12 @@ export function stubIndexedDb(rows: Map<string, unknown>): void {
               });
               return req;
             },
+            delete(key: string) {
+              queueMicrotask(() => {
+                rows.delete(key);
+                tx.oncomplete();
+              });
+            },
             put(value: unknown, key: string) {
               writes.set(key, structuredClone(value));
               if (!reading) {

@@ -6,6 +6,8 @@ import { useDawStore } from "../state/dawStore";
 type Input = {
   projectPath: string;
   pending: number;
+  waitingPosts?: number;
+  returnedPosts?: number;
   conflictCount: number;
   unreadable: boolean;
   dismissFailed: boolean;
@@ -15,7 +17,11 @@ type Input = {
 
 function attentionAnnouncement(input: Input): string | null {
   const visible =
-    input.unreadable || input.conflictCount > 0 || input.pending > 0;
+    input.unreadable ||
+    input.conflictCount > 0 ||
+    input.pending > 0 ||
+    (input.waitingPosts ?? 0) > 0 ||
+    (input.returnedPosts ?? 0) > 0;
   if (!visible) return null;
   if (!input.loaded && !input.unreadable && input.status !== "dismiss-failed") {
     return null;
@@ -25,6 +31,8 @@ function attentionAnnouncement(input: Input): string | null {
   }
   return attentionRegionLabel({
     pending: input.pending,
+    waitingPosts: input.waitingPosts,
+    returnedPosts: input.returnedPosts,
     conflictCount: input.conflictCount,
     unreadable: input.unreadable,
     dismissFailed: input.dismissFailed,

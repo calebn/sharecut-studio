@@ -564,6 +564,7 @@ describe("Review queue for a guest", () => {
     expect(addCommentReply).toHaveBeenCalledWith("share:tok", "c1", {
       body: "thanks",
       author: "Guest",
+      postKey: expect.any(String),
     });
   });
 

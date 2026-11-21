@@ -66,6 +66,8 @@ beforeEach(() => {
         mtime_ns: 1,
         size: 2,
         comment: { id: "c1" },
+        comment_id: "c1",
+        reply: { id: "r1" },
         job: { id: "j1", status: "ok", error: null },
         segments: [],
         steps: [],

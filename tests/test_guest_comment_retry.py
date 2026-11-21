@@ -131,6 +131,42 @@ def test_same_reply_id_twice_makes_one_reply(share, minimal_project):
     assert len(_comments(minimal_project)[0].replies) == 2
 
 
+def test_a_reply_id_repeated_under_another_comment_makes_no_second_reply(share, minimal_project):
+    _, row, client = share
+    first = _post(client, row["token"]).json()["comment"]["id"]
+    second = _post(client, row["token"], timeline_start=4.0).json()["comment"]["id"]
+    body = {"body": "Thanks", "author": "Ana", "reply_id": KEY}
+    assert (
+        client.post(f"/api/review/{row['token']}/comments/{first}/replies", json=body).status_code
+        == 200
+    )
+    elsewhere = client.post(f"/api/review/{row['token']}/comments/{second}/replies", json=body)
+    assert elsewhere.status_code >= 400
+    by_id = {c.id: c for c in _comments(minimal_project)}
+    assert len(by_id[first].replies) == 1
+    assert by_id[second].replies == []
+
+
+def test_a_repeat_tells_nobody_the_comments_changed(share, monkeypatch):
+    from podcast_mcp.services.collaboration import share as share_module
+
+    _, row, client = share
+    told: list[str] = []
+    monkeypatch.setattr(
+        share_module, "notify_comments_changed", lambda *a, **k: told.append("changed")
+    )
+    cid = _post(client, row["token"], comment_id=KEY).json()["comment"]["id"]
+    assert told == ["changed"]
+    _post(client, row["token"], comment_id=KEY)
+    assert told == ["changed"]
+    url = f"/api/review/{row['token']}/comments/{cid}/replies"
+    reply = {"body": "Thanks", "author": "Ana", "reply_id": KEY}
+    client.post(url, json=reply)
+    assert told == ["changed", "changed"]
+    client.post(url, json=reply)
+    assert told == ["changed", "changed"]
+
+
 def test_a_bad_reply_id_is_refused(share):
     _, row, client = share
     cid = _post(client, row["token"]).json()["comment"]["id"]

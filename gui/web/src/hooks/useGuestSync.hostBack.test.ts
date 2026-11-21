@@ -20,6 +20,7 @@ vi.mock("../services/offlineQueue/offlineStore", () => ({
 }));
 vi.mock("../state/outboxStore", () => ({
   loadOutbox: store.outbox,
+  setOutboxDrainRequester: vi.fn(),
 }));
 vi.mock("../services/offlineQueue/requestDrainLazy", () => ({
   requestGuestDrainLazy: vi.fn(),

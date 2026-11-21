@@ -38,6 +38,7 @@ import { HomeScreen } from "./stages/home/HomeScreen";
 import { composerPatch, initialSession } from "./state/composerSession";
 import { useDawStore } from "./state/dawStore";
 import { useHostBackCount } from "./state/hostReach";
+import { clearOutbox } from "./state/outboxStore";
 import { subscribeSavedCopyReopen } from "./state/savedCopy";
 import { cleanShareName } from "./state/shareName";
 import { DawProvider } from "./state/store";
@@ -444,11 +445,18 @@ function AppInner({ bootName }: { bootName: string | null }) {
         if (controller.signal.aborted || standing() !== "newest") return;
         const failure = classifyBootstrapFailure(e, navigator.onLine !== false);
         if (failure.kind === "bad-link") {
+          let unsent: UnsentText[] | undefined;
           if (e instanceof ApiError && e.code === "share_not_found") {
+            const kept = await collectKeptPosts(reviewToken);
+            unsent = collectUnsent(kept);
             void clearOfflineSnapshot(reviewToken).catch(() => undefined);
+            void clearOutbox(reviewToken).catch(() => undefined);
             void forgetLinkAudio(reviewToken);
           }
-          outcome = { kind: "error", error: { failure } };
+          outcome = {
+            kind: "error",
+            error: unsent?.length ? { failure, unsent } : { failure },
+          };
           return;
         }
         // A saved copy that cannot be read is no saved copy: the guest still

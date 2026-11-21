@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { stubIndexedDb } from "../test/fakeIndexedDb";
 import {
   appendOutbox,
+  clearOutbox,
   loadOutbox,
   loadReturnedPosts,
   type OutboxRow,
   outboxViewOf,
   removeOutbox,
+  removeOutboxWithReplies,
   removeReturned,
   restoreOutbox,
   returnOutboxRow,
@@ -109,11 +111,17 @@ describe("the outbox", () => {
     expect(await loadReturnedPosts("tok")).toEqual([]);
   });
 
-  it("refuses a row that is not a comment or reply, naming the saved data unreadable", async () => {
-    rows.set("outbox:tok", [{ id: "short", kind: "comment" }]);
-    await expect(loadOutbox("tok")).rejects.toThrow("Invalid saved comment");
-    rows.set("outbox:tok", [{ ...reply(1, "x"), parent_comment_id: "" }]);
-    await expect(loadOutbox("tok")).rejects.toThrow("Invalid saved reply");
+  it("refuses to keep a row that is not a comment or reply, and a saved list that is not a list", async () => {
+    await expect(
+      appendOutbox("tok", { id: "short", kind: "comment" } as never),
+    ).rejects.toThrow("Invalid saved comment");
+    await expect(
+      appendOutbox("tok", { ...reply(1, "x"), parent_comment_id: "" }),
+    ).rejects.toThrow("Invalid saved reply");
+    rows.set("outbox:tok", { not: "a list" });
+    await expect(loadOutbox("tok")).rejects.toThrow(
+      "Invalid saved comment list",
+    );
   });
 });
 
@@ -147,5 +155,49 @@ describe("the view a tab shows", () => {
     expect(outboxViewOf("tok").sending.size).toBe(0);
     stop();
     expect(outboxViewOf("tok").loaded).toBe(false);
+  });
+});
+
+describe("a comment taken out with Don't send", () => {
+  it("takes its waiting replies with it, by the kept id or the server id, and nothing else", async () => {
+    await appendOutbox("tok", comment(1));
+    await appendOutbox("tok", reply(2, `g-${hex(1)}`));
+    await appendOutbox("tok", reply(3, `g-abc-${hex(1)}`));
+    await appendOutbox("tok", reply(4, "host-comment"));
+    await appendOutbox("tok", comment(5));
+    const removed = await removeOutboxWithReplies("tok", hex(1));
+    expect(removed.map((r) => r.id)).toEqual([hex(1), hex(2), hex(3)]);
+    expect((await loadOutbox("tok")).map((r) => r.id)).toEqual([
+      hex(4),
+      hex(5),
+    ]);
+  });
+});
+
+describe("a saved list with one bad row", () => {
+  it("drops that row and reads the rest", async () => {
+    rows.set("outbox:tok", [comment(1), { id: "nope" }, comment(3)]);
+    rows.set("outbox-returned:tok", [
+      { ...comment(4), reason: "No", status: 403 },
+      { ...comment(5), reason: 7, status: null },
+    ]);
+    expect((await loadOutbox("tok")).map((r) => r.id)).toEqual([
+      hex(1),
+      hex(3),
+    ]);
+    expect((await loadReturnedPosts("tok")).map((r) => r.id)).toEqual([hex(4)]);
+  });
+});
+
+describe("a link that ended", () => {
+  it("forgets its waiting and returned posts and no other link's", async () => {
+    await appendOutbox("tok", comment(1));
+    await appendOutbox("tok", comment(2));
+    await returnOutboxRow("tok", hex(2), "No", 403);
+    await appendOutbox("other", comment(3));
+    await clearOutbox("tok");
+    expect(rows.has("outbox:tok")).toBe(false);
+    expect(rows.has("outbox-returned:tok")).toBe(false);
+    expect((await loadOutbox("other")).map((r) => r.id)).toEqual([hex(3)]);
   });
 });

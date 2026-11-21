@@ -1,6 +1,6 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
-import { SIZES, withGuestLink } from "./guestLink";
+import { DEAD_TITLE, revokeLink, SIZES, withGuestLink } from "./guestLink";
 import { openGuestShare } from "./shareNavigation";
 
 const DESKTOP = SIZES[1];
@@ -58,6 +58,67 @@ const unreachable: Send = (route) => route.abort("connectionrefused");
 
 const deviceBack = (page: Page) =>
   page.evaluate(() => window.dispatchEvent(new Event("online")));
+
+const stored = (page: Page, key: string) =>
+  page.evaluate(
+    (name) =>
+      new Promise<unknown>((resolve, reject) => {
+        const opened = indexedDB.open("podcast-daw-offline", 1);
+        opened.onerror = () => reject(opened.error);
+        opened.onsuccess = () => {
+          const db = opened.result;
+          const read = db
+            .transaction("kv", "readonly")
+            .objectStore("kv")
+            .get(name);
+          read.onsuccess = () => {
+            db.close();
+            resolve(read.result ?? null);
+          };
+          read.onerror = () => reject(read.error);
+        };
+      }),
+    key,
+  );
+
+async function keepReplyTo(page: Page, token: string) {
+  await page.evaluate(
+    (name) =>
+      new Promise<void>((resolve, reject) => {
+        const opened = indexedDB.open("podcast-daw-offline", 1);
+        opened.onerror = () => reject(opened.error);
+        opened.onsuccess = () => {
+          const db = opened.result;
+          const tx = db.transaction("kv", "readwrite");
+          const store = tx.objectStore("kv");
+          const read = store.get(name);
+          read.onsuccess = () => {
+            const rows = read.result as { id: string; created_at: number }[];
+            store.put(
+              [
+                ...rows,
+                {
+                  id: "c".repeat(32),
+                  kind: "reply",
+                  body: "A reply to it",
+                  author: "Guest",
+                  created_at: rows[0].created_at + 1,
+                  parent_comment_id: `g-${rows[0].id}`,
+                },
+              ],
+              name,
+            );
+          };
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+    `outbox:${token}`,
+  );
+}
 
 async function writeComment(page: Page, text: string) {
   await field(page).fill(text);
@@ -233,6 +294,59 @@ test.describe("a guest's comment while the host cannot be reached", () => {
       await expect(commentRows(other)).toHaveCount(1);
       expect(landed.seen.posts).toBe(1);
       expect(await serverComments(guest, token)).toHaveLength(1);
+    });
+  });
+
+  test("takes the replies waiting on it along when it is called back", async ({
+    browser,
+  }) => {
+    await withGuestLink(browser, DESKTOP, async (guest, token) => {
+      await openGuestShare(guest, token);
+      await hostSends(guest, token, unreachable);
+      await writeComment(guest, TEXT);
+      await expect(waitingRows(guest)).toHaveCount(1);
+      await keepReplyTo(guest, token);
+      await openGuestShare(guest, token);
+      await expect(attention(guest)).toContainText(
+        "1 comment and 1 reply waiting to send",
+      );
+
+      await guest
+        .getByRole("button", { name: /^Don't send: comment by/ })
+        .first()
+        .click();
+      await expect(
+        guest
+          .getByRole("status")
+          .filter({ hasText: "Comment and 1 reply not sent" }),
+      ).toBeVisible();
+      await expect(attention(guest)).toHaveCount(0);
+      expect(await stored(guest, `outbox:${token}`)).toEqual([]);
+
+      await guest.getByRole("button", { name: "Undo" }).click();
+      await expect(attention(guest)).toContainText(
+        "1 comment and 1 reply waiting to send",
+      );
+    });
+  });
+
+  test("is cleared from the device, and handed back, when the host turns the link off", async ({
+    browser,
+  }) => {
+    await withGuestLink(browser, DESKTOP, async (guest, token, host, path) => {
+      await openGuestShare(guest, token);
+      const away = await hostSends(guest, token, unreachable);
+      await writeComment(guest, TEXT);
+      await expect(waitingRows(guest)).toHaveCount(1);
+      expect(await stored(guest, `outbox:${token}`)).not.toBeNull();
+
+      await revokeLink(host, token, path);
+      await away.lift();
+      await deviceBack(guest);
+      await expect(guest.getByText(DEAD_TITLE)).toBeVisible();
+      await expect(guest.getByText(TEXT)).toBeVisible();
+      await expect.poll(() => stored(guest, `outbox:${token}`)).toBeNull();
+      expect(await stored(guest, `outbox-returned:${token}`)).toBeNull();
     });
   });
 });

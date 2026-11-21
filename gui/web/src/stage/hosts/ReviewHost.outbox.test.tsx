@@ -191,6 +191,40 @@ describe("a comment kept for the host", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("takes the replies waiting on it along, and Undo puts them all back", async () => {
+    const user = userEvent.setup();
+    join();
+    await appendOutbox("tok", keptComment());
+    await appendOutbox(
+      "tok",
+      keptComment({
+        id: "c".repeat(32),
+        kind: "reply",
+        anchor: undefined,
+        parent_comment_id: `g-${KEY}`,
+        body: "Waiting reply",
+        created_at: 6,
+      }),
+    );
+    render(<ReviewHost guestShare />);
+    await user.click((await screen.findAllByText("Waiting words"))[0]);
+    await user.click(
+      await screen.findByRole("button", { name: "Don't send: comment by Ana" }),
+    );
+    await waitFor(() => expect(screen.queryByText("Waiting words")).toBeNull());
+    expect(await loadOutbox("tok")).toEqual([]);
+    expect(toast()).toBe("Comment and 1 reply not sent");
+    const undo = useDawStore.getState().feedbackToast?.reverse;
+    expect(undo?.done).toBe("Comment and 1 reply put back");
+    await act(async () => {
+      await undo?.run();
+    });
+    expect((await loadOutbox("tok")).map((r) => r.id)).toEqual([
+      KEY,
+      "c".repeat(32),
+    ]);
+  });
+
   it("keeps a reply under its comment with the same words", async () => {
     join();
     await appendOutbox(
@@ -257,6 +291,37 @@ describe("Needs attention for kept and refused comments", () => {
     await waitFor(() =>
       expect(within(group).queryByText("Refused words")).toBeNull(),
     );
+  });
+
+  it("keeps the keyboard in the list when a returned row is dismissed, and in the field when one is put back", async () => {
+    const user = userEvent.setup();
+    join();
+    for (const [id, body] of [
+      ["a".repeat(32), "First refused"],
+      ["b".repeat(32), "Second refused"],
+    ] as const) {
+      await appendOutbox("tok", keptComment({ id, body }));
+      await returnOutboxRow("tok", id, "No.", 403);
+    }
+    render(<ReviewHost guestShare />);
+    const group = await screen.findByRole("group", { name: /Needs attention/ });
+    await user.click(
+      within(group).getAllByRole("button", {
+        name: /^Dismiss your comment/,
+      })[0],
+    );
+    await waitFor(() =>
+      expect(within(group).queryByText("First refused")).toBeNull(),
+    );
+    await waitFor(() =>
+      expect(group.contains(document.activeElement)).toBe(true),
+    );
+    await user.click(
+      within(group).getByRole("button", {
+        name: /^Put it back in the comment/,
+      }),
+    );
+    await waitFor(() => expect(field()).toHaveFocus());
   });
 
   it("does not offer Put it back while the field holds words of its own", async () => {
