@@ -57,6 +57,9 @@ preview/save regression.
 
 After undo, check `render_status_tool` — `needs_rerender` when stems or premix are stale; only stems whose track the undo changed go stale, a mix-only undo stales just the premix.
 
+The `PasteSegment` command creates one Undo step per paste. Its gap mode accepts
+dialogue, music and sound-effect clips and overwrites time on the named tracks.
+
 ## Applied-edit provenance
 
 Committed cuts are archived in `editorial.edit_log` (not deleted with `edit_decisions`).

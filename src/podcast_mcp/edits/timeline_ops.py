@@ -114,6 +114,7 @@ from podcast_mcp.models import (
     FadeCurve,
     ReinsertClips,
     RoomToneFill,
+    TrackRole,
 )
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
@@ -929,14 +930,17 @@ def _pasted_fade_curve(raw: dict, key: str, index: int) -> FadeCurve:
         ) from None
 
 
-def _clips_from_paste(project: EpisodeProject, extracts: list[dict]) -> dict[str, list[Clip]]:
-    """Validate a clipboard against *project* and build its clips, per dialogue track.
-
-    The ``PasteSegment`` boundary: raises ``PasteRejectedError`` for an unknown track
-    or source or an impossible range, so ``paste_segment`` never mutates on a bad clipboard.
-    """
-    tracks = dialogue_track_ids(project)
-    by_track: dict[str, list[Clip]] = {tid: [] for tid in tracks}
+def _clips_from_paste(
+    project: EpisodeProject, extracts: list[dict], *, mode: EditMode
+) -> dict[str, list[Clip]]:
+    roles = (
+        (TrackRole.DIALOGUE, TrackRole.MUSIC, TrackRole.SFX)
+        if mode is EditMode.GAP
+        else (TrackRole.DIALOGUE,)
+    )
+    by_track: dict[str, list[Clip]] = {
+        track.id: [] for track in project.tracks if track.role in roles
+    }
     for index, raw in enumerate(extracts):
         tid = str(raw.get("track_id"))
         if tid not in by_track:
@@ -1029,15 +1033,19 @@ def paste_segment(
     """Paste pre-extracted clips at ``insert_at`` on their own tracks.
 
     Ripple opens ``duration`` of time on every :func:`ripple_track_ids` track first.
-    Gap pastes over: it replaces ``[insert_at, insert_at + duration)`` on the pasted
-    tracks only, and nothing moves. A clipboard naming an unknown track or source, or
-    an impossible range, raises ``PasteRejectedError`` before anything changes.
+    Gap pastes over: it replaces ``[insert_at, insert_at + duration)`` on the named
+    dialogue, music or sound-effect tracks. A clipboard naming an ineligible track,
+    unknown source or impossible range raises ``PasteRejectedError`` before anything changes.
     """
     if not math.isfinite(duration) or duration <= 0:
         raise CodedValueError(
             "duration must be positive. Pass more than 0 seconds.", code="out_of_range"
         )
-    by_track = {tid: clips for tid, clips in _clips_from_paste(project, extracts).items() if clips}
+    by_track = {
+        tid: clips
+        for tid, clips in _clips_from_paste(project, extracts, mode=mode).items()
+        if clips
+    }
     if mode is EditMode.RIPPLE:
         affected = ripple_track_ids(project, by_track)
         ripple_insert_clips(project, insert_at, duration, affected, defaults=defaults)

@@ -403,7 +403,8 @@ their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment
 - **Gap** moves nothing else. A gap trim moves only the grabbed edge (the front edge
   moves on the timeline too) and stops at the neighbouring clip. A gap delete or cut
   leaves silence on the edited tracks. A gap paste replaces the pasted span on the
-  pasted tracks in place (paste-over).
+  named dialogue, music or sound-effect tracks in place (paste-over). Copy a sound
+  from its track and paste it at each offset to keep the surrounding dialogue in place.
 
 Every rippling edit identifies its removal (`RippleRemoval`). The cut owner finishes
 the candidate privately, then `cut_safety._peer_policy` combines mapped-lane evidence

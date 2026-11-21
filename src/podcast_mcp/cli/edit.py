@@ -825,7 +825,10 @@ def edit_paste_segment_cmd(
     mode: EditMode = typer.Option(
         EditMode.RIPPLE,
         "--mode",
-        help="ripple: open the time on every dialogue track; gap: paste over in place",
+        help=(
+            "Use ripple to open time on every dialogue track. "
+            "Use gap to paste over dialogue, music or SFX tracks in place."
+        ),
     ),
 ) -> None:
     """Paste a copied range at --at, as Studio Paste does; undoable."""
