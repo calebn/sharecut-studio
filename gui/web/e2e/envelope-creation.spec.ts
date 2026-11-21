@@ -178,6 +178,17 @@ for (const core of [
               checkpoint: "first-point-applied",
               observation: { first, origin, firstSaved },
             });
+            const firstHistory = firstSaved.history;
+            if (!firstHistory) throw new Error("Envelope save has no history");
+            const undoneHistory = {
+              ...firstHistory,
+              cursor: 0,
+              entries: firstHistory.entries.map((entry, index) =>
+                index === firstHistory.cursor
+                  ? { ...entry, undone_by: "host" }
+                  : entry,
+              ),
+            };
             observer.stage("first-undo-redo");
             await acceptedEnvelopeCommand(page, "UndoHistory", () =>
               projectHistoryShortcut(page, receipts, "ControlOrMeta+z"),
@@ -186,19 +197,19 @@ for (const core of [
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual([]);
             await expect
-              .poll(
-                () => envelopeSnapshot(projectPath, track.id).history?.cursor,
-              )
-              .toBe(0);
+              .poll(() => envelopeSnapshot(projectPath, track.id).history)
+              .toEqual(undoneHistory);
             await acceptedEnvelopeCommand(page, "RedoHistory", () =>
               projectHistoryShortcut(page, receipts, "ControlOrMeta+Shift+z"),
             );
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual(flat);
-            expect(envelopeSnapshot(projectPath, track.id).history).toEqual(
-              firstSaved.history,
-            );
+            const redone = envelopeSnapshot(projectPath, track.id);
+            expect(redone).toEqual({
+              ...firstSaved,
+              history: { ...undoneHistory, cursor: firstHistory.cursor },
+            });
             observer.stage("level-lowering");
             await inspectEnvelopePoint(page);
             const lowered = await savedAt(page, () =>
@@ -214,7 +225,7 @@ for (const core of [
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual(lowered.command.payload.points);
             const one = envelopeSnapshot(projectPath, track.id);
-            expectEnvelopeMutation(firstSaved, one, track.id);
+            expectEnvelopeMutation(redone, one, track.id);
             observer.stage("time-move");
             const moved = await savedAt(page, () =>
               setPointField(page, "Time", "6"),
