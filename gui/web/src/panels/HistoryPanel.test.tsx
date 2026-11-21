@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHistoryDiff } from "../api";
 import { executePointerCommand } from "../commands/pointer";
@@ -139,6 +140,49 @@ describe("HistoryPanel list", () => {
         .getState()
         .setProject({ ...project, history: { ...project.history, groups } });
     });
+
+  it("ignores a pending diff failure after unmount in StrictMode", async () => {
+    let rejectDiff!: (error: Error) => void;
+    vi.mocked(loadHistoryDiff)
+      .mockImplementationOnce(
+        () =>
+          new Promise<HistoryDiff>((_resolve, reject) => {
+            rejectDiff = reject;
+          }),
+      )
+      .mockResolvedValueOnce(diffOf("fresh change"));
+    const renderStrictPanel = () =>
+      render(
+        <StrictMode>
+          <DawProvider
+            projectPath="/tmp/p.json"
+            initialProject={historyProject(5)}
+          >
+            <HistoryPanel />
+          </DawProvider>
+        </StrictMode>,
+      );
+
+    const original = renderStrictPanel();
+    fireEvent.click(rowAt(original.container, 0)!);
+    expect(screen.getByText("Loading…")).toBeVisible();
+    expect(loadHistoryDiff).toHaveBeenCalledTimes(1);
+    original.unmount();
+
+    const reopened = renderStrictPanel();
+    const error = new Error();
+    // React discards a write after unmount. Observe the error formatting instead
+    // so the test also fails if the stale callback reaches the write.
+    const readMessage = vi.fn(() => "closed panel failure");
+    Object.defineProperty(error, "message", { get: readMessage });
+    await act(async () => rejectDiff(error));
+    expect(readMessage).not.toHaveBeenCalled();
+    expect(screen.queryByText("closed panel failure")).toBeNull();
+
+    fireEvent.click(rowAt(reopened.container, 0)!);
+    expect(await screen.findByText("fresh change")).toBeVisible();
+    expect(loadHistoryDiff).toHaveBeenCalledTimes(2);
+  });
 
   it("ignores an older diff that resolves after the latest one", async () => {
     const resolvers = deferredDiffs();
