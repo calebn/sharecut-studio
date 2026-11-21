@@ -115,11 +115,12 @@ describe("DawApp host room", () => {
     expect(loadHostRecordState).not.toHaveBeenCalled();
   });
 
-  it("hands StageHost the bootstrap retry for the loading skeleton's Retry", async () => {
+  it("gives StageHost a Retry that runs the bootstrap retry", async () => {
     stageHost.props.length = 0;
     render(<DawApp guestShare />);
     await act(async () => undefined);
     const last = stageHost.props.at(-1);
-    expect(last?.onRetryLoad).toBe(retryBootstrap);
+    (last?.onRetryLoad as (() => void) | undefined)?.();
+    expect(retryBootstrap).toHaveBeenCalledOnce();
   });
 });
