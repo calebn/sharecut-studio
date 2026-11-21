@@ -120,7 +120,15 @@ def test_sweep_stale_uploads_and_quota(minimal_project, monkeypatch, tmp_path):
         )
 
 
-def test_write_complete_and_chunked(minimal_project, sample_wav, tmp_path):
+def test_write_complete_and_chunked(minimal_project, sample_wav, monkeypatch):
+    probe_calls: list[tuple[Path, bool]] = []
+    real_probe = FFmpegEngine.probe
+
+    def capture_probe(engine, path: Path, *, untrusted: bool = False):
+        probe_calls.append((path, untrusted))
+        return real_probe(engine, path, untrusted=untrusted)
+
+    monkeypatch.setattr(FFmpegEngine, "probe", capture_probe)
     ws = ProjectWorkspace.open(minimal_project)
     root = ws.project.workspace_path()
     data = sample_wav.read_bytes()
@@ -128,6 +136,7 @@ def test_write_complete_and_chunked(minimal_project, sample_wav, tmp_path):
     assert out["rel_path"].startswith("raw/")
     assert (root / out["rel_path"]).is_file()
     assert out["duration_sec"] > 0
+    assert probe_calls == [((root / out["rel_path"]).resolve(), True)]
 
     mid = len(data) // 2
     a = write_upload_chunk(
@@ -139,6 +148,7 @@ def test_write_complete_and_chunked(minimal_project, sample_wav, tmp_path):
         total_chunks=2,
     )
     assert a["complete"] is False
+    assert len(probe_calls) == 1
     uid = str(a["upload_id"])
     b = write_upload_chunk(
         root,
@@ -150,6 +160,10 @@ def test_write_complete_and_chunked(minimal_project, sample_wav, tmp_path):
     )
     assert b["complete"] is True
     assert (root / b["rel_path"]).is_file()
+    assert probe_calls == [
+        ((root / out["rel_path"]).resolve(), True),
+        ((root / b["rel_path"]).resolve(), True),
+    ]
 
 
 def test_chunk_rejects_duplicate_index(minimal_project, sample_wav):
