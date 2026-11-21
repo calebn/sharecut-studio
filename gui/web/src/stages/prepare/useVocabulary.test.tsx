@@ -73,6 +73,31 @@ describe("useVocabulary", () => {
     );
   });
 
+  it("saves to the current project through the retained change callback", async () => {
+    load.mockImplementation(async (path) =>
+      path === "/new"
+        ? vocab({ terms: ["New terms"], guest_names: [], revision: "new-r1" })
+        : vocab(),
+    );
+    const { result, rerender } = renderHook(
+      ({ path }) => useVocabulary(path, ""),
+      { initialProps: { path: "/old" } },
+    );
+    await waitFor(() =>
+      expect(result.current.terms).toContain("Quetzalcoatlus"),
+    );
+    const changeTerms = result.current.onTermsChange;
+    rerender({ path: "/new" });
+    await waitFor(() => expect(result.current.terms).toEqual(["New terms"]));
+    act(() => changeTerms(["New terms", "Hyperion"]));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(save).toHaveBeenCalledWith("/new", {
+      terms: ["New terms", "Hyperion"],
+      guest_names: [],
+      base_revision: "new-r1",
+    });
+  });
+
   it("writes quick changes in order, each on the revision the last one returned", async () => {
     const { result } = renderHook(() => useVocabulary("/p", ""));
     await waitFor(() => expect(result.current.ready).toBe(true));
