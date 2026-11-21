@@ -2339,6 +2339,42 @@ describe("ClipBlock waveform", () => {
     expect(onMoveCommit).toHaveBeenCalledTimes(1);
   });
 
+  it("releases body keyboard ownership when a parent update removes the clip", () => {
+    const before = vi.fn();
+    const after = vi.fn();
+    const onMoveCancel = vi.fn();
+    const onMoveCommit = vi.fn();
+    const parent = (showClip: boolean, onKeyDown: () => void) => (
+      <div role="presentation" onKeyDown={onKeyDown}>
+        <button type="button">Other timeline control</button>
+        {showClip && (
+          <ClipBlock
+            {...base}
+            canMove
+            onSelect={vi.fn()}
+            onMoveCancel={onMoveCancel}
+            onMoveCommit={onMoveCommit}
+          />
+        )}
+      </div>
+    );
+    const view = render(parent(true, before));
+    const hit = view.container.querySelector(".clip-hit")!;
+    const other = screen.getByRole("button", {
+      name: "Other timeline control",
+    });
+    fireEvent.pointerDown(hit, { pointerId: 7, clientX: 40, clientY: 10 });
+    fireEvent.pointerMove(hit, { pointerId: 7, clientX: 80, clientY: 10 });
+    expect(fireEvent.keyDown(other, { key: "Home" })).toBe(false);
+    expect(before).not.toHaveBeenCalled();
+
+    view.rerender(parent(false, after));
+    expect(onMoveCancel).toHaveBeenCalledExactlyOnceWith(clip.id);
+    expect(onMoveCommit).not.toHaveBeenCalled();
+    expect(fireEvent.keyDown(other, { key: "Home" })).toBe(true);
+    expect(after).toHaveBeenCalledTimes(1);
+  });
+
   it("ends body keyboard ownership synchronously after cancellation", () => {
     const ancestorKeys = vi.fn();
     const add = vi.spyOn(document, "addEventListener");
