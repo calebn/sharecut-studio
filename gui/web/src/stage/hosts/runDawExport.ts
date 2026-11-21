@@ -1,4 +1,4 @@
-import { type DawFormat, startDawSession } from "../../api/dawExport";
+import { type DawFormat, startDawSession } from "../../api";
 import { useDawStore } from "../../state/dawStore";
 import { projectScopedSignal } from "../../state/projectScopedSignal";
 import { runAnnouncedJob } from "../../state/runAnnouncedJob";

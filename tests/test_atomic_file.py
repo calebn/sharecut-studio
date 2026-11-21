@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
+from zipfile import ZipFile
 
 import pytest
 
@@ -48,6 +49,22 @@ def test_atomic_write_failure_leaves_destination_and_cleans_temp(tmp_path: Path)
         atomic_file.atomic_write(dest, lambda handle: handle.write(b"new"))
     assert dest.read_bytes() == b"old"
     assert list(tmp_path.glob(".state.json.*.tmp")) == []
+
+
+def test_failed_zip_member_preserves_the_previous_archive(tmp_path: Path) -> None:
+    dest = tmp_path / "session.zip"
+    atomic_file.write_zip_atomic(dest, lambda archive: archive.writestr("session.rpp", b"saved"))
+
+    def fail(archive: ZipFile) -> None:
+        archive.writestr("other.rpp", b"unfinished")
+        raise OSError("media unavailable")
+
+    with pytest.raises(OSError, match="media unavailable"):
+        atomic_file.write_zip_atomic(dest, fail)
+    with ZipFile(dest) as archive:
+        assert archive.namelist() == ["session.rpp"]
+        assert archive.read("session.rpp") == b"saved"
+    assert list(tmp_path.iterdir()) == [dest]
 
 
 def test_atomic_write_fsyncs_before_publishing_mode_zero(tmp_path: Path) -> None:
