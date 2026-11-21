@@ -286,7 +286,7 @@ export class ProxyEngine {
     this.stopSources();
     this.originTimelineSec = t;
     this.prunePausedBuffers(t);
-    leavePlaybackSession();
+    leavePlaybackSession(this.sessionEvents);
     void this.ctx.suspend();
     return t;
   }

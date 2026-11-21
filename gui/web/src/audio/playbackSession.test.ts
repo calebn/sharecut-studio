@@ -19,6 +19,10 @@ class FakeElement extends EventTarget {
   pause = vi.fn(() => {
     this.paused = true;
   });
+  removeAttribute = vi.fn(() => {
+    this.src = "";
+  });
+  load = vi.fn();
   /** The OS acting on the element: it changes state, then the event follows. */
   osPause() {
     this.paused = true;
@@ -33,7 +37,10 @@ class FakeElement extends EventTarget {
 const url = () => "blob:keep-alive";
 const events = () => ({ onSystemPause: vi.fn(), onSystemPlay: vi.fn() });
 
-afterEach(() => resetPlaybackSessionForTest());
+afterEach(() => {
+  resetPlaybackSessionForTest();
+  vi.unstubAllGlobals();
+});
 
 describe("playback session (#1764, #3785)", () => {
   it("asks for a playback audio session and loops a blob element", () => {
@@ -137,29 +144,53 @@ describe("playback session (#1764, #3785)", () => {
     expect(e.onSystemPlay).not.toHaveBeenCalled();
   });
 
-  it("keeps the events of a newer engine when an older one is released", () => {
+  it("keeps the newer engine playing when the older one pauses and releases", () => {
     const el = new FakeElement();
     const older = events();
     const newer = events();
     enterPlaybackSession(older, {}, () => el, url);
-    leavePlaybackSession();
     enterPlaybackSession(newer, {}, () => el, url);
-    leavePlaybackSession();
+    leavePlaybackSession(older);
     releasePlaybackSession(older);
+
+    expect(el.paused).toBe(false);
+    expect(el.src).toBe("blob:keep-alive");
+    expect(el.load).not.toHaveBeenCalled();
+    el.osPause();
+    expect(newer.onSystemPause).toHaveBeenCalledTimes(1);
     el.osPlay();
     expect(newer.onSystemPlay).toHaveBeenCalledTimes(1);
   });
 
-  it("pauses the element when the OS plays it with no engine registered", () => {
+  it("unloads and revokes the disposed owner's element and uses a fresh one on Play", () => {
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { revokeObjectURL });
     const el = new FakeElement();
-    const e = events();
-    enterPlaybackSession(e, {}, () => el, url);
-    leavePlaybackSession();
-    releasePlaybackSession(e);
-    el.pause.mockClear();
-    el.osPlay();
-    expect(el.pause).toHaveBeenCalledTimes(1);
+    const remove = vi.spyOn(el, "removeEventListener");
+    const owner = events();
+    enterPlaybackSession(owner, {}, () => el, url);
+
+    releasePlaybackSession(owner);
+    releasePlaybackSession(owner);
+
     expect(el.paused).toBe(true);
+    expect(el.src).toBe("");
+    expect(el.load).toHaveBeenCalledTimes(1);
+    expect(remove.mock.calls.map(([type]) => type).sort()).toEqual([
+      "pause",
+      "play",
+    ]);
+    expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:keep-alive");
+
+    const fresh = new FakeElement();
+    enterPlaybackSession(
+      events(),
+      {},
+      () => fresh,
+      () => "blob:fresh",
+    );
+    expect(fresh.src).toBe("blob:fresh");
+    expect(fresh.paused).toBe(false);
   });
 
   it("still resumes from the OS after an ordinary pause", () => {
@@ -169,6 +200,28 @@ describe("playback session (#1764, #3785)", () => {
     leavePlaybackSession();
     el.osPlay();
     expect(e.onSystemPlay).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the WAV when the element fails while its listeners are assigned", () => {
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { revokeObjectURL });
+    const el = new FakeElement();
+    const remove = vi.spyOn(el, "removeEventListener");
+    vi.spyOn(el, "addEventListener").mockImplementation((type, listener) => {
+      if (type === "play") throw new Error("listener assignment failed");
+      EventTarget.prototype.addEventListener.call(el, type, listener);
+    });
+    const owner = events();
+    enterPlaybackSession(owner, {}, () => el, url);
+
+    expect(el.src).toBe("");
+    expect(el.load).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledWith("pause", expect.any(Function));
+    expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:keep-alive");
+
+    const fresh = new FakeElement();
+    enterPlaybackSession(owner, {}, () => fresh, url);
+    expect(fresh.paused).toBe(false);
   });
 
   it("builds a silent WAV longer than 5 s", () => {

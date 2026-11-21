@@ -2818,6 +2818,7 @@ describe("playing a timeline longer than the first window", () => {
       const registered = vi.mocked(enterPlaybackSession).mock.calls.at(-1)?.[0];
       engine.dispose();
       expect(registered).toBeDefined();
+      expect(leavePlaybackSession).toHaveBeenLastCalledWith(registered);
       expect(releasePlaybackSession).toHaveBeenCalledWith(registered);
     });
 

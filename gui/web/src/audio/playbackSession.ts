@@ -21,7 +21,17 @@ type KeepAliveElement = {
   paused: boolean;
   play: () => Promise<void> | void;
   pause: () => void;
+  load: () => void;
+  removeAttribute: (name: "src") => void;
   addEventListener: (type: "pause" | "play", listener: () => void) => void;
+  removeEventListener: (type: "pause" | "play", listener: () => void) => void;
+};
+
+type KeepAliveResource = {
+  element: KeepAliveElement;
+  url: string;
+  onPause: () => void;
+  onPlay: () => void;
 };
 
 /** The OS paused or resumed the element behind the app's back (a call, Siri, a lock-screen button). */
@@ -59,7 +69,7 @@ export function silentWavBytes(seconds: number): Uint8Array {
   return bytes;
 }
 
-let keepAlive: KeepAliveElement | null = null;
+let keepAlive: KeepAliveResource | null = null;
 let events: PlaybackSessionEvents | null = null;
 /** The live enter call, null once left or refused; the element's own events count only while set. */
 let entry: object | null = null;
@@ -72,20 +82,60 @@ function defaultCreateObjectUrl(blob: Blob): string {
   return URL.createObjectURL(blob);
 }
 
-function watch(element: KeepAliveElement): void {
-  element.addEventListener("pause", () => {
-    if (!entry || !element.paused) return;
-    entry = null;
-    events?.onSystemPause();
-  });
-  element.addEventListener("play", () => {
-    if (entry || element.paused) return;
-    if (!events) {
-      element.pause();
-      return;
-    }
-    events.onSystemPlay();
-  });
+function disposeKeepAlive({
+  element,
+  url,
+  onPause,
+  onPlay,
+}: KeepAliveResource): void {
+  const steps = [
+    () => element.removeEventListener("pause", onPause),
+    () => element.removeEventListener("play", onPlay),
+    () => {
+      if (!element.paused) element.pause();
+    },
+    () => element.removeAttribute("src"),
+    () => element.load(),
+    () => URL.revokeObjectURL(url),
+  ];
+  for (const step of steps) {
+    try {
+      step();
+    } catch {}
+  }
+}
+
+function createKeepAlive(
+  element: KeepAliveElement,
+  createObjectUrl: (blob: Blob) => string,
+): KeepAliveResource {
+  element.loop = true;
+  const resource = {
+    element,
+    url: createObjectUrl(
+      new Blob([silentWavBytes(KEEP_ALIVE_SEC) as BlobPart], {
+        type: "audio/wav",
+      }),
+    ),
+    onPause: () => {
+      if (keepAlive !== resource || !entry || !element.paused) return;
+      entry = null;
+      events?.onSystemPause();
+    },
+    onPlay: () => {
+      if (keepAlive !== resource || entry || element.paused) return;
+      events?.onSystemPlay();
+    },
+  };
+  try {
+    element.src = resource.url;
+    element.addEventListener("pause", resource.onPause);
+    element.addEventListener("play", resource.onPlay);
+    return resource;
+  } catch (error) {
+    disposeKeepAlive(resource);
+    throw error;
+  }
 }
 
 /**
@@ -113,18 +163,9 @@ export function enterPlaybackSession(
   try {
     if (!keepAlive) {
       const element = createElement();
-      if (element) {
-        element.loop = true;
-        element.src = createObjectUrl(
-          new Blob([silentWavBytes(KEEP_ALIVE_SEC) as BlobPart], {
-            type: "audio/wav",
-          }),
-        );
-        watch(element);
-        keepAlive = element;
-      }
+      if (element) keepAlive = createKeepAlive(element, createObjectUrl);
     }
-    const started = keepAlive?.play();
+    const started = keepAlive?.element.play();
     if (started && typeof (started as Promise<void>).catch === "function") {
       (started as Promise<void>).catch(() => {
         if (entry === mine) entry = null;
@@ -132,30 +173,32 @@ export function enterPlaybackSession(
     }
   } catch {
     // Autoplay rules can refuse the silent element; the Web Audio path still runs.
-    entry = null;
+    if (entry === mine) entry = null;
   }
 }
 
 /** Pause the silent element when playback pauses; the paused element keeps the lock screen's place. */
-export function leavePlaybackSession(): void {
+export function leavePlaybackSession(owner?: PlaybackSessionEvents): void {
+  if (owner && events !== owner) return;
   entry = null;
   try {
-    keepAlive?.pause();
+    keepAlive?.element.pause();
   } catch {
     // ignore
   }
 }
 
-/** Forget the events of an engine that is gone; a newer engine's events stay. */
 export function releasePlaybackSession(
   sessionEvents: PlaybackSessionEvents,
 ): void {
-  if (events === sessionEvents) events = null;
-}
-
-/** Test seam: forget the shared element. */
-export function resetPlaybackSessionForTest(): void {
+  if (events !== sessionEvents) return;
+  const resource = keepAlive;
   keepAlive = null;
   events = null;
   entry = null;
+  if (resource) disposeKeepAlive(resource);
+}
+
+export function resetPlaybackSessionForTest(): void {
+  if (events) releasePlaybackSession(events);
 }
