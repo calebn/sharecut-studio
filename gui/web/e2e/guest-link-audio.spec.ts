@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, type Page, type Route, test } from "@playwright/test";
+import { postDocumentCommand } from "./documentCommand";
 import {
   DEAD_TITLE,
   loseConnectionOnLoad,
@@ -8,6 +9,7 @@ import {
   SIZES,
   withSharedProject,
 } from "./guestLink";
+import { hostEdit } from "./guestTranscript";
 import {
   guestLinkAudio,
   guestSavedCopy,
@@ -421,6 +423,47 @@ test("the old cache every link shared is removed the first time a link's audio i
     await expect
       .poll(async () => (await guestLinkAudio(guest, token)).shared)
       .toBe(0);
+  });
+});
+
+test("a guest manifest keeps its revision through comment-only saves", async ({
+  browser,
+}) => {
+  await withLinks(browser, 1, async ({ host, guest, projectPath, tokens }) => {
+    const [token] = tokens as [string];
+    const manifest = async () => {
+      const response = await guest.request.get(
+        `/api/review/${token}/daw/proxy/manifest`,
+      );
+      expect(response.ok(), await response.text()).toBe(true);
+      return (await response.json()) as {
+        revision: string;
+        tracks: Record<string, { hash: string; urls: string[] }>;
+      };
+    };
+    await open(guest, token);
+    const before = await manifest();
+    expect(before.revision).toMatch(/^[a-f0-9]{64}$/);
+    const tracks = Object.values(before.tracks);
+    expect(tracks).not.toHaveLength(0);
+    for (const note of ["First note", "Second note"]) {
+      await postDocumentCommand(
+        host,
+        "e2e-manifest-comments",
+        "AddComment",
+        { body: note, author: "Host", timeline_start: 5 },
+        projectPath,
+      );
+      const after = await manifest();
+      expect(after.tracks).toEqual(before.tracks);
+      expect(after.revision).toBe(before.revision);
+    }
+    const chunk = await guest.request.get(tracks[0].urls[0]);
+    expect(chunk.ok(), `Audio chunk returned ${chunk.status()}`).toBe(true);
+    expect((await chunk.body()).byteLength).toBeGreaterThan(0);
+
+    await hostEdit(host, projectPath, "cut", 0);
+    expect((await manifest()).revision).not.toBe(before.revision);
   });
 });
 
