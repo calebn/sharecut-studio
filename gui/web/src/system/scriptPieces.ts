@@ -9,7 +9,7 @@ import { formatSeconds } from "./seconds";
  * never sums word lengths.
  */
 export type ScriptMark =
-  | { kind: "cut"; id: string; seconds: number }
+  | { kind: "cut"; id: string; seconds: number; seamOnly?: true }
   | { kind: "suggested"; id: string }
   | { kind: "muted" };
 
@@ -109,6 +109,8 @@ export type ScriptPiece =
       end: number;
       removed: string;
       words: string;
+      /** The boundary has no removed words to show. */
+      seamOnly?: true;
       /** The cut began in an earlier turn: this pill is its rest and does not repeat the length. */
       continued?: boolean;
       /** The cut runs on into a later turn. Only the pill where it begins shows the length. */
@@ -174,7 +176,9 @@ export function piecesOf(
   while (at < words.length) {
     const word = words[at];
     const mark =
-      word.mark?.kind === "cut" && showCutText ? undefined : word.mark;
+      word.mark?.kind === "cut" && showCutText && !word.mark.seamOnly
+        ? undefined
+        : word.mark;
     let next = at + 1;
     while (
       mark !== undefined &&
@@ -193,6 +197,7 @@ export function piecesOf(
         ...span,
         removed: formatSeconds(mark.seconds),
         words: text,
+        ...(mark.seamOnly ? { seamOnly: true } : {}),
       });
     } else if (mark?.kind === "suggested") {
       pieces.push({ kind: "suggestion", id: mark.id, ...span, text });

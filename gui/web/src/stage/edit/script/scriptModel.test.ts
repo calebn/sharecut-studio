@@ -330,6 +330,121 @@ describe("buildScriptModel", () => {
     ]);
   });
 
+  it("keeps a straddling word timed beside the fully cut words at its join", () => {
+    const edge = word("edge", 1, 12.3, { timeline_end: 12.5 });
+    const boundary: EditBoundaryView = {
+      id: "b1",
+      track_id: "host",
+      left_clip_id: "left",
+      right_clip_id: "right",
+      timeline_join_sec: 12.5,
+      has_cutaway: true,
+      cutaway_source_start: 12.5,
+      cutaway_source_end: 14,
+      cutaway_word_ids: [
+        {
+          track_id: "host",
+          source_id: null,
+          word_index: -2,
+          text: edge.text,
+          start: edge.start,
+          end: edge.end,
+        },
+        {
+          track_id: "host",
+          source_id: null,
+          word_index: -3,
+          text: "removed",
+          start: 13,
+          end: 13.4,
+        },
+      ],
+    };
+    const joined = utterance("host", "Maya", [
+      edge,
+      word("remaining", 3, 14, {
+        timeline_start: 12.5,
+        timeline_end: 12.9,
+      }),
+    ]);
+    const model = buildScriptModel(input([joined], { boundaries: [boundary] }));
+    const words = model.turns[0]?.words ?? [];
+    expect(words.map((entry) => entry.text)).toEqual([
+      "edge",
+      "removed",
+      "remaining",
+    ]);
+    expect(words[0]?.mark).toBeUndefined();
+    expect(words[1]?.mark).toEqual({ kind: "cut", id: "b1", seconds: 1.5 });
+    expect(model.timeOf(0)).toEqual({ start: 12.3, end: 12.5 });
+    expect(
+      model.indexOf({ trackId: "host", sourceId: null, wordIndex: 1 }),
+    ).toBe(0);
+
+    const edgeOnly = buildScriptModel(
+      input([joined], {
+        boundaries: [
+          {
+            ...boundary,
+            cutaway_word_ids: boundary.cutaway_word_ids.slice(0, 1),
+          },
+        ],
+      }),
+    );
+    expect(edgeOnly.turns[0]?.words[1]).toMatchObject({
+      text: "",
+      mark: { kind: "cut", id: "b1", seconds: 1.5, seamOnly: true },
+    });
+    expect(edgeOnly.refs[1]?.wordIndex).toBeNull();
+    expect(edgeOnly.timeOf(1)).toBeNull();
+    expect(
+      wordsTargetOf(edgeOnly, { kind: "words", anchor: 0, head: 2 }),
+    ).toEqual({
+      kind: "track",
+      trackId: "host",
+      sourceId: null,
+      startWordIndex: 1,
+      endWordIndex: 3,
+    });
+  });
+
+  it("retains a cut preview for a whole word or a different source identity", () => {
+    const kept = word("edge", 1, 12.3, { timeline_end: 12.5 });
+    const preview = {
+      track_id: "host",
+      source_id: null,
+      word_index: -2,
+      text: kept.text,
+      start: kept.start,
+      end: kept.end,
+    };
+    const boundary: EditBoundaryView = {
+      id: "b1",
+      track_id: "host",
+      left_clip_id: "left",
+      right_clip_id: "right",
+      timeline_join_sec: 12.5,
+      has_cutaway: true,
+      cutaway_source_start: 12.5,
+      cutaway_source_end: 14,
+      cutaway_word_ids: [preview],
+    };
+    const joined = utterance("host", "Maya", [kept]);
+    for (const distinct of [
+      { ...boundary, cutaway_source_start: 12 },
+      { ...boundary, cutaway_word_ids: [{ ...preview, source_id: "other" }] },
+      { ...boundary, cutaway_word_ids: [{ ...preview, start: 12.2 }] },
+    ]) {
+      const model = buildScriptModel(
+        input([joined], { boundaries: [distinct] }),
+      );
+      const words = model.turns[0]?.words ?? [];
+      expect(words.map((entry) => entry.text)).toEqual(["edge", "edge"]);
+      expect(words[0]?.mark).toBeUndefined();
+      expect(words[1]?.mark?.kind).toBe("cut");
+    }
+  });
+
   it("shows a cut word once when the utterance still lists it as unmappable (boundary index -1 - i)", () => {
     const boundary = {
       id: "b1",

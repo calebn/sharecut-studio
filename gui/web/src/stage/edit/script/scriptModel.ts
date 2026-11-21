@@ -64,7 +64,7 @@ export type ScriptModel = {
   seekSecOf: (index: number) => number | null;
   /** The word's span on the timeline, or null for a cut word. */
   timeOf: (index: number) => { start: number; end: number } | null;
-  /** Whether the word is one an applied cut took out. */
+  /** Whether the index belongs to a cut preview or seam instead of running text. */
   isCut: (index: number) => boolean;
   /** Source seconds; a cut does not move it. */
   starts: readonly number[];
@@ -80,10 +80,20 @@ export function wordKey(ref: ScriptWordRef): string {
   return `${ref.trackId}:${ref.sourceId ?? ""}:${ref.wordIndex ?? ""}`;
 }
 
-function cutWordKey(ref: ScriptWordRef, text: string): string {
+function cutWordKey(
+  ref: ScriptWordRef,
+  text: string,
+  sourceSpan?: { start: number; end: number },
+): string {
   const index = ref.wordIndex;
   const transcriptWordIndex = index != null && index < 0 ? -1 - index : index;
-  return JSON.stringify([ref.trackId, ref.sourceId, transcriptWordIndex, text]);
+  return JSON.stringify([
+    ref.trackId,
+    ref.sourceId,
+    transcriptWordIndex,
+    text,
+    ...(sourceSpan ? [sourceSpan.start, sourceSpan.end] : []),
+  ]);
 }
 
 const NO_TIME = null;
@@ -156,7 +166,7 @@ type DraftWord = {
   lowConfidence: boolean;
   hallucination: boolean;
   locked: boolean;
-  /** A word an applied cut took out: shown, never seeked or addressed. */
+  /** A cut preview or text-free seam: shown, never seeked or addressed. */
   cut: boolean;
 };
 
@@ -167,23 +177,90 @@ type DraftTurn = {
   words: DraftWord[];
 };
 
+type CutawayWord = EditBoundaryView["cutaway_word_ids"][number];
+
+function cutawayRef(word: CutawayWord): ScriptWordRef {
+  return {
+    trackId: word.track_id,
+    sourceId: word.source_id,
+    wordIndex: word.word_index,
+  };
+}
+
+function crossesCutawayEdge(
+  word: CutawayWord,
+  boundary: EditBoundaryView,
+): boolean {
+  return (
+    word.end > boundary.cutaway_source_start &&
+    word.start < boundary.cutaway_source_end &&
+    (word.start < boundary.cutaway_source_start ||
+      word.end > boundary.cutaway_source_end)
+  );
+}
+
+/** Match source spans as well as indices so a renamed or renumbered word cannot hide a preview. */
+function keptEdgeKeys(
+  utterances: readonly CombinedUtterance[],
+  boundaries: readonly EditBoundaryView[],
+): ReadonlySet<string> {
+  const candidates = new Set<string>();
+  for (const boundary of boundaries) {
+    for (const word of boundary.cutaway_word_ids) {
+      if (crossesCutawayEdge(word, boundary))
+        candidates.add(cutWordKey(cutawayRef(word), word.text, word));
+    }
+  }
+  const kept = new Set<string>();
+  if (candidates.size === 0) return kept;
+  for (const utterance of utterances) {
+    for (const word of utterance.words ?? []) {
+      if (word.word_index == null || wordSeek(word) == null) continue;
+      const target = word.timing_target;
+      const ref = target
+        ? {
+            trackId: target.track_id,
+            sourceId: target.source_id,
+            wordIndex: target.word_index,
+          }
+        : {
+            trackId: utterance.track_id,
+            sourceId: utterance.source_id ?? null,
+            wordIndex: word.word_index,
+          };
+      const key = cutWordKey(ref, word.text, word);
+      if (candidates.has(key)) kept.add(key);
+    }
+  }
+  return kept;
+}
+
 /** The words a boundary took out, as cut words to show at its join. */
-function cutWordsOf(boundary: EditBoundaryView): DraftWord[] {
+function cutWordsOf(
+  boundary: EditBoundaryView,
+  previews: readonly CutawayWord[],
+): DraftWord[] {
   const seconds = Math.max(
     0,
     boundary.cutaway_source_end - boundary.cutaway_source_start,
   );
-  return boundary.cutaway_word_ids.map((word) => ({
+  const seamOnly = previews.length === 0;
+  const words = seamOnly ? boundary.cutaway_word_ids.slice(0, 1) : previews;
+  return words.map((word) => ({
     ref: {
-      trackId: word.track_id,
-      sourceId: word.source_id,
-      wordIndex: word.word_index,
+      ...cutawayRef(word),
+      wordIndex: seamOnly ? null : word.word_index,
     },
-    text: word.text,
-    start: word.start,
+    text: seamOnly ? "" : word.text,
+    start: seamOnly ? boundary.cutaway_source_start : word.start,
     seek: NO_TIME,
     end: NO_TIME,
-    mark: { kind: "cut", id: boundary.id, seconds },
+    mark: {
+      kind: "cut",
+      id: boundary.id,
+      seconds,
+      ...(seamOnly ? { seamOnly: true } : {}),
+    },
     lowConfidence: false,
     hallucination: false,
     locked: false,
@@ -203,23 +280,24 @@ function cutWordsOf(boundary: EditBoundaryView): DraftWord[] {
 export function buildScriptModel(input: ScriptModelInput): ScriptModel {
   const pending = pendingByTrack(input.pending);
   const grouped = groupConsecutiveSpeakerTurns([...input.utterances]);
+  const boundaries = input.boundaries.filter(
+    (boundary) => boundary.has_cutaway && boundary.cutaway_word_ids.length > 0,
+  );
+  const keptEdges = keptEdgeKeys(input.utterances, boundaries);
+  const previews = new Map<EditBoundaryView, CutawayWord[]>();
   const shownAtJoin = new Set<string>();
   // The utterance copies dropped below, by project word key, so a caller that
   // names one still finds its cut word at the join.
   const droppedAt = new Map<string, string>();
-  for (const boundary of input.boundaries) {
-    if (!boundary.has_cutaway) continue;
-    for (const word of boundary.cutaway_word_ids) {
-      shownAtJoin.add(
-        cutWordKey(
-          {
-            trackId: word.track_id,
-            sourceId: word.source_id,
-            wordIndex: word.word_index,
-          },
-          word.text,
-        ),
-      );
+  for (const boundary of boundaries) {
+    const words = boundary.cutaway_word_ids.filter(
+      (word) =>
+        !crossesCutawayEdge(word, boundary) ||
+        !keptEdges.has(cutWordKey(cutawayRef(word), word.text, word)),
+    );
+    previews.set(boundary, words);
+    for (const word of words) {
+      shownAtJoin.add(cutWordKey(cutawayRef(word), word.text));
     }
   }
   const drafts: DraftTurn[] = grouped.map((turn) => {
@@ -266,9 +344,6 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
     };
   });
 
-  const boundaries = input.boundaries.filter(
-    (boundary) => boundary.has_cutaway && boundary.cutaway_word_ids.length > 0,
-  );
   const placements = placeEditBoundaries(
     drafts.map((turn) => ({
       trackId: turn.trackId,
@@ -284,7 +359,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
     drafts[placement.turnIndex]?.words.splice(
       placement.afterWordIndex + 1,
       0,
-      ...cutWordsOf(placement.boundary),
+      ...cutWordsOf(placement.boundary, previews.get(placement.boundary) ?? []),
     );
   }
 
