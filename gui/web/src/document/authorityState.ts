@@ -25,6 +25,7 @@ export const documentAuthority = {
   project: null as ProjectView | null,
   /** The rows of the last share commit that had every word; word-free commits leave it. */
   settled: null as SettledTranscript | null,
+  transcriptStallRevision: 0,
   phase: { kind: "starting" } as DocumentPhase,
   ownCommandHead: null as OwnCommandHeadObservation | null,
   abort: new AbortController(),
@@ -51,6 +52,7 @@ export function resetDocumentAuthority(path = ""): DocumentScope {
     file: null,
     project: null,
     settled: null,
+    transcriptStallRevision: 0,
     phase: { kind: "starting" },
     ownCommandHead: null,
     abort: new AbortController(),

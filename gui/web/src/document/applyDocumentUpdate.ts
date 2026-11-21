@@ -2,8 +2,13 @@ import { loadDocumentState } from "../api/project";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { flushInbound } from "../sync/inboundQueue";
-import type { ProjectView, TimelineComment } from "../types/project";
+import type {
+  CombinedUtterance,
+  ProjectView,
+  TimelineComment,
+} from "../types/project";
 import { isGuestAudience } from "../utils/can";
+import { jsonEqual } from "../utils/jsonEqual";
 import {
   activateDocumentScope,
   type DocumentScope,
@@ -31,6 +36,7 @@ import {
   projectFromDocumentSnapshot,
   snapshotFromResult,
 } from "./projectPatch";
+import { sameItems } from "./reuseUnchanged";
 import { settledTranscriptOf, transcriptGrantOf } from "./shownTranscript";
 
 let recovery: {
@@ -156,16 +162,34 @@ function invalidate(minimum: number, scope: DocumentScope): ProjectView | null {
   void recoverDocument(minimum, scope).catch(() => undefined);
   return useDawStore.getState().project;
 }
+
+function transcriptRowHeader({ words: _words, ...header }: CombinedUtterance) {
+  return header;
+}
+
+function incompleteTranscriptHeadersChanged(
+  previous: ProjectView | null,
+  next: ProjectView,
+): boolean {
+  return (
+    previous?.meta.hydration?.transcript_words === false &&
+    next.meta.hydration?.transcript_words === false &&
+    !sameItems(
+      previous.transcript?.utterances ?? [],
+      next.transcript?.utterances ?? [],
+      (a, b) =>
+        a === b || jsonEqual(transcriptRowHeader(a), transcriptRowHeader(b)),
+    )
+  );
+}
+
 function shellBasis(project: ProjectView): ProjectView {
   if (!project.transcript) return project;
   return {
     ...project,
     transcript: {
       ...project.transcript,
-      utterances: project.transcript.utterances.map((row) => {
-        const { words: _words, ...header } = row;
-        return header;
-      }),
+      utterances: project.transcript.utterances.map(transcriptRowHeader),
     },
     meta: {
       ...project.meta,
@@ -271,9 +295,14 @@ export function applyDocumentSnapshot(
     next = projectFromDocumentSnapshot(previous, snap);
   }
   if (!next) return invalidate(seq, scope);
-  documentAuthority.token = snap.state_token ?? null;
-  documentAuthority.project = next;
+  const token = snap.state_token ?? null;
   if (isShareProjectKey(scope.path)) {
+    if (
+      seq === currentDocumentSeq() &&
+      token !== documentAuthority.token &&
+      incompleteTranscriptHeadersChanged(previous, next)
+    )
+      documentAuthority.transcriptStallRevision += 1;
     documentAuthority.settled =
       settledTranscriptOf(
         next,
@@ -281,6 +310,8 @@ export function applyDocumentSnapshot(
         documentAuthority.settled,
       ) ?? documentAuthority.settled;
   }
+  documentAuthority.token = token;
+  documentAuthority.project = next;
   documentAuthority.phase = { kind: "ready" };
   noteDocumentSeq(seq);
   releaseHeldDrafts(seq);

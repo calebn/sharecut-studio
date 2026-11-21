@@ -3,8 +3,6 @@ import { useSyncExternalStore } from "react";
 /** How long a held refresh may sit on one commit before it counts as lost. */
 export const TRANSCRIPT_STALL_MS = 35_000;
 
-// One owner for every caller of the transcript hook: one clock per key, one
-// answer for all. A key is a refresh's `path|seq|token`.
 const watchers = new Map<string, { count: number; timer: number }>();
 let stalled: readonly string[] = [];
 const listeners = new Set<() => void>();

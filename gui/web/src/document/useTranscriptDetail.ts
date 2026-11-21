@@ -112,7 +112,7 @@ function decide(
     return held.drawn
       ? {
           view: { kind: "ready", shown: held },
-          refreshKey: `${projectPath}|${seq}|${token}`,
+          refreshKey: `${scope.generation}|${seq}|${documentAuthority.transcriptStallRevision}`,
           retry,
         }
       : { view: { kind: "pending", retry }, refreshKey: null, retry };
