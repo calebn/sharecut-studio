@@ -1,11 +1,12 @@
-"""The guest's proxy key moves with every project leaf that moves a proxy artifact.
+"""Check that sampled changes to proxy artifacts also change the guest proxy key.
 
-``test_guest_audio_freshness`` states the rule per document command. This states it on the
-project's state, without the command registry: every leaf of the project model is perturbed in
-place, one at a time (scalars changed by a fixed step, booleans flipped, enums set to each other
-member, lists shortened by their last element), and wherever the artifacts a fresh manifest would
-hold change, the manifest key (render hashes plus clip rows) must change too. All gaps are
-reported at once, as field paths.
+``test_guest_audio_freshness`` exercises document commands. This sweep uses fixture
+project state directly. It changes supported scalar values one field at a time,
+tries the other members of existing enums, and removes the last item of each
+nonempty list. It also checks the extra states supplied by each fixture. For
+accepted mutations, a change in the observed artifacts must change the manifest key.
+The sweep reports gaps by field path. It does not enumerate every value or
+every possible list edit.
 """
 
 from __future__ import annotations
@@ -92,7 +93,7 @@ class Sweep:
 
 
 def _sweep(ws: ProjectWorkspace, extra: dict[str, Callable[[Any], Callable[[], None]]]) -> Sweep:
-    """Perturb each leaf and each ``extra`` state in turn; the project is put back each time."""
+    """Sample supported mutations and extra states, restoring the project after each."""
     project = ws.project
     base_artifacts, base_key = _observe(ws)
     result = Sweep()
@@ -184,7 +185,7 @@ def _configuration(
 
 
 @pytest.mark.parametrize("configuration", CONFIGURATIONS)
-def test_the_guest_key_moves_with_every_project_leaf_that_moves_a_proxy_artifact(
+def test_sampled_artifact_changes_move_the_guest_proxy_key(
     configuration: str, gated_template: Path, ungated_template: Path, tmp_path: Path
 ) -> None:
     ws, extra = _configuration(configuration, gated_template, ungated_template, tmp_path)

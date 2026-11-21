@@ -1,7 +1,10 @@
 import { type ProxyManifest, projectProxyBasis } from "../audio/proxyMath";
 import type { ProjectView } from "../types/project";
 
-/** A one-chunk proxy manifest for a project with a single "host" track. */
+/**
+ * Hand-built one-chunk response for client hook tests. It exercises transport
+ * behavior for the supplied project basis, not server manifest generation.
+ */
 export function hostProxyManifest(project: ProjectView): ProxyManifest {
   return {
     revision: "revision",
