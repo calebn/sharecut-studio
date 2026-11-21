@@ -751,8 +751,9 @@ effect settings, and render-only features such as room tone, mute-region
 processing, and automatic join borrowing. Timing-mapped clips export as their
 separate source pieces. The exporter carries fade lengths using linear curves. Nonlinear fade shapes
 and rendered mix parity are outside this experimental export. Use Sharecut's rendered WAV
-exports when you need the rendered sound. This command does not provide SESX
-or the Deliver format picker.
+exports when you need the rendered sound. For the experimental SESX session
+export, see the next section. This command does not provide the Deliver format
+picker.
 
 ## Experimental editable AAF export
 
@@ -848,3 +849,77 @@ unverified mixed-rate conversion. A common copied-media package followed by an
 AAF writer was rejected because the embedded AAF would duplicate deliverables;
 the AAF writer instead owns temporary audio preparation and finishes inside the
 shared atomic publication stage.
+
+## Experimental editable Adobe Audition export
+
+Export a saved episode to a new folder with its SESX file and sibling WAV media:
+
+```sh
+podcast episode export-audition --project /path/to/episode.sharecut --output /path/to/new-audition-session
+```
+
+Keep `session.sesx` and `media/` together when moving the package. Track order
+and names, empty tracks, editable clip positions, source trims, gaps, and
+overlaps are projected to one session sample rate. Overlapping clips are placed
+on deterministic companion tracks such as `Host (overlap 1)`. If every source
+has the same rate, the session keeps that rate and matching WAVs are copied byte
+for byte. If source rates differ, media is converted to 48 kHz PCM WAV; mono and
+stereo channel counts are retained. Source endpoints round to the nearest
+session frame, with ties to even. The exporter checks the converted WAV against
+those bounds before publish. Each file's `relativePath` and `absolutePath`
+contain the same package-relative `media/NNNN.wav` reference. A failed export
+does not replace an existing destination or change the saved project.
+
+Linear clip fades are written as SESX fade fields, including their session-frame
+lengths. Fade playback has not been validated in Audition. The exporter refuses
+nonlinear fades. Track and clip gain, mute, effects, transcripts, comments,
+history, and rendered-only processing are omitted. The SESX path spelling and
+native media relinking, open, edit, playback, and save behavior remain
+unverified; this is an experimental editable geometry transfer, not rendered
+mix parity. Use ShareCut's rendered WAV exports when you need the saved mix.
+
+The synthetic CLI test checks the package after relocation and after moving the
+source project out of its original path. The FFmpeg-backed `pytest-shard` job
+runs it through the [MIT SESX-to-REAPER converter pinned at
+`18119aba6fe3ea7c9b6528a160cb3d2cc7c8c300`](https://github.com/atmosfar/audition_session_to_reaper_project_converter/tree/18119aba6fe3ea7c9b6528a160cb3d2cc7c8c300).
+That parser check does not establish Audition compatibility. To create a
+disposable native test package, use a new basetemp directory and run:
+
+```sh
+reader_info="$(bash scripts/build_sesx_test_reader.sh /tmp/sharecut-sesx-reader)"
+SHARECUT_SESX_READER="$(printf '%s\n' "$reader_info" | sed -n '1p')" \
+SHARECUT_SESX_RPP_SITE="$(printf '%s\n' "$reader_info" | sed -n '2p')" \
+  uv run pytest -q --no-cov --basetemp=/tmp/sharecut-sesx-native \
+  tests/test_sesx_export.py::test_cli_export_is_relocatable_and_keeps_saved_project_unchanged
+find /tmp/sharecut-sesx-native -path '*/relocated/session.sesx' -print
+```
+
+Open the `relocated/session.sesx` created below the basetemp directory with
+Audition. Confirm that every WAV loads without relinking, the named track order
+and clip/source frame values match the fixture, and the 20 ms linear fade
+appears. Listen to both overlap lanes, move one region, save, close, reopen the
+relocated session, then listen again. Record the Audition version, operating
+system, package digest, and each result. Until that run is completed, native
+Audition acceptance is pending.
+
+### Decision: SESX uses one session clock and portable media references
+
+<!-- decision
+id: D-sesx-one-session-clock-portable-media
+status: accepted
+date: 2026-11-20
+decided-by: calebn
+evidence:
+- The SESX design arena synthesis for issue #4045 selected one session rate, exact same-rate WAV copies, 48 kHz conversion for mixed rates, relative media references, and named overlap lanes
+- The pinned MIT converter at commit 18119aba6fe3ea7c9b6528a160cb3d2cc7c8c300 reads file references from absolutePath even when the value is relative; this is parser evidence, not native Audition evidence
+- The real CLI synthetic test verifies relocated relative WAV references, frame geometry, same-rate bytes, converted media geometry, and converted stereo channel content
+manual-review: the owner must verify open, relocation, edit/save/reopen, fade, and overlap playback in a licensed Audition installation before removing the experimental label
+enforced-by:
+- tests/test_sesx_export.py::test_cli_export_is_relocatable_and_keeps_saved_project_unchanged
+- tests/test_sesx_export.py::test_uniform_session_rate_preserves_every_media_byte
+- tests/test_sesx_export.py::test_packaging_failure_cleans_owned_stage
+-->
+
+The SESX writer uses a private frame projection and serializes portable package
+references. It preserves uniform rates and normalizes mixed rates to 48 kHz.
+Native Audition behavior has not been established by the independent converter.

@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import wave
 from collections.abc import Callable
+from fractions import Fraction
 from pathlib import Path
 from shutil import copyfileobj
 from tempfile import TemporaryDirectory
 
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.export.aaf_project import AAF_SESSION_NAME, require_aaf_writer, write_aaf
+from podcast_mcp.export.audition_project import AUDITION_SESSION_NAME, audition_project
 from podcast_mcp.export.daw_timeline import DawMedia, DawTimeline, build_daw_timeline
 from podcast_mcp.export.reaper_project import reaper_project
 from podcast_mcp.services.app import ProjectWorkspace
@@ -24,19 +26,34 @@ SessionWriter = Callable[[DawTimeline, Path], None]
 MAX_AAF_WAV_BYTES = 0xFFFFFFFF
 
 
-def _package_media(asset: DawMedia, destination: Path, engine: FFmpegEngine) -> None:
+def _package_media(
+    asset: DawMedia,
+    destination: Path,
+    engine: FFmpegEngine,
+    *,
+    sample_rate: int | None = None,
+) -> None:
+    target_rate = sample_rate or asset.sample_rate
+    expected_frames = round(Fraction(asset.frames * target_rate, asset.sample_rate))
     staged_source = destination.with_suffix(".source")
     with open_pinned_media(asset.path) as source:
         atomic_write(staged_source, lambda output: copyfileobj(source, output))
     packaged = staged_source
-    if not rendered_wav_is_complete(staged_source):
+    if target_rate != asset.sample_rate or not rendered_wav_is_complete(staged_source):
         packaged = destination.with_suffix(".converted.wav")
+        extra_args = ["-map", "0:a:0", "-map_metadata", "-1", "-rf64", "auto"]
+        if target_rate != asset.sample_rate:
+            extra_args.extend(
+                ["-af", f"aresample={target_rate},atrim=end_sample={expected_frames}"]
+            )
         engine.export_audio(
             staged_source,
             packaged,
             codec="pcm_f32le",
             format="wav",
-            extra_args=["-map", "0:a:0", "-map_metadata", "-1", "-rf64", "auto"],
+            sample_rate=target_rate if target_rate != asset.sample_rate else None,
+            channels=asset.channels,
+            extra_args=extra_args,
         )
         staged_source.unlink()
     if not rendered_wav_is_complete(packaged):
@@ -45,9 +62,9 @@ def _package_media(asset: DawMedia, destination: Path, engine: FFmpegEngine) -> 
         )
     probe = engine.probe(packaged)
     if (
-        probe.sample_rate != asset.sample_rate
+        probe.sample_rate != target_rate
         or probe.channels != asset.channels
-        or round(probe.require_duration_sec() * probe.sample_rate) != asset.frames
+        or round(probe.require_duration_sec() * probe.sample_rate) != expected_frames
     ):
         raise CodedValueError(
             f"WAV media changed while exporting {asset.path.name}.", code="daw_export_media_changed"
@@ -73,6 +90,20 @@ def _write_aaf_session(timeline: DawTimeline, stage_root: Path) -> None:
             for asset in timeline.media
         }
         write_aaf(timeline, media_paths, stage_root / AAF_SESSION_NAME)
+
+
+def _write_audition_session(timeline: DawTimeline, stage_root: Path) -> None:
+    session = audition_project(timeline)
+    (stage_root / "media").mkdir()
+    engine = FFmpegEngine()
+    for asset in timeline.media:
+        _package_media(
+            asset,
+            stage_root / asset.package_name,
+            engine,
+            sample_rate=session.sample_rate,
+        )
+    session.write(stage_root / AUDITION_SESSION_NAME)
 
 
 def _valid_aaf_pcm(path: Path, asset: DawMedia) -> bool:
@@ -180,3 +211,10 @@ def export_reaper_session(project_path: Path, destination: Path) -> Path:
 def export_aaf_session(project_path: Path, destination: Path) -> Path:
     """Export a self-contained experimental AAF into a new directory."""
     return _export_session(project_path, destination, AAF_SESSION_NAME, _write_aaf_session)
+
+
+def export_audition_session(project_path: Path, destination: Path) -> Path:
+    """Export an experimental SESX session and its portable WAV media."""
+    return _export_session(
+        project_path, destination, AUDITION_SESSION_NAME, _write_audition_session
+    )

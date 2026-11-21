@@ -8,7 +8,13 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.export.daw_timeline import DawItem, DawTimeline, DawTrack
+from podcast_mcp.export.daw_timeline import (
+    DawItem,
+    DawPlacement,
+    DawTimeline,
+    DawTrack,
+    partition_overlapping_items,
+)
 from podcast_mcp.util.coded_error import CodedValueError
 
 AAF_SESSION_NAME = "session.aaf"
@@ -38,8 +44,14 @@ def _lanes_for_track(track: DawTrack, reserved_labels: set[str]) -> tuple[_Track
             code="aaf_export_mixed_track_rates",
         )
     sample_rate = next(iter(rates), _EMPTY_EDIT_RATE)
-    ordered = sorted(
-        (
+    placements = tuple(
+        DawPlacement(
+            item=placed,
+            start=placed.start,
+            end=placed.end,
+            order=placed.order,
+        )
+        for placed in (
             _PlacedItem(
                 item,
                 round(Fraction(str(item.position_sec)) * sample_rate),
@@ -49,36 +61,10 @@ def _lanes_for_track(track: DawTrack, reserved_labels: set[str]) -> tuple[_Track
                 order,
             )
             for order, item in enumerate(track.items)
-        ),
-        key=lambda placed: (placed.start, placed.order),
-    )
-    lanes: list[list[_PlacedItem]] = []
-    lane_ends: list[int] = []
-    for placed in ordered:
-        lane = next(
-            (index for index, lane_end in enumerate(lane_ends) if lane_end <= placed.start),
-            None,
         )
-        if lane is None:
-            lane = len(lanes)
-            lanes.append([])
-            lane_ends.append(0)
-        lanes[lane].append(placed)
-        lane_ends[lane] = placed.end
-
-    if not lanes:
-        lanes.append([])
-    result = [_TrackLane(track.label, sample_rate, tuple(lanes[0]))]
-    for lane_index, items in enumerate(lanes[1:], start=1):
-        base_label = f"{track.label} (overlap {lane_index})"
-        label = base_label
-        suffix = 2
-        while label in reserved_labels:
-            label = f"{base_label} ({suffix})"
-            suffix += 1
-        reserved_labels.add(label)
-        result.append(_TrackLane(label, sample_rate, tuple(items)))
-    return tuple(result)
+    )
+    lanes = partition_overlapping_items(track.label, placements, reserved_labels)
+    return tuple(_TrackLane(lane.label, sample_rate, lane.items) for lane in lanes)
 
 
 def _timeline_lanes(timeline: DawTimeline) -> tuple[_TrackLane, ...]:
