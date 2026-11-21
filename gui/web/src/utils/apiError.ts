@@ -134,18 +134,20 @@ export function isServerTimeoutError(error: unknown): boolean {
   return message.includes("The server didn't answer.");
 }
 
-/** A rate limit, timeout or server error: the same request may succeed later. */
+/** Whether the same request may succeed later, including after a review version returns. */
 export function isRetryLater(error: unknown): boolean {
   if (!(error instanceof ApiError) || error.status === null) {
     return false;
   }
-  return error.status === 408 || error.status === 429 || error.status >= 500;
+  return (
+    error.status === 408 ||
+    error.status === 429 ||
+    error.status >= 500 ||
+    (error.status === 404 && error.code === "review_version_not_found")
+  );
 }
 
-/**
- * A 4xx other than 408 / 429: the server refused this request for good
- * (validation, auth, conflict, revoked share), so retrying it cannot help.
- */
+/** A 4xx refusal that retrying the same request cannot resolve. */
 export function isPermanentRejection(error: unknown): boolean {
   return (
     error instanceof ApiError &&

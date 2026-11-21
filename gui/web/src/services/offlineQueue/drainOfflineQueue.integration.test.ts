@@ -247,23 +247,26 @@ describe("guest drain against the real submit layer", () => {
     );
   };
 
-  it("skips a refused replay only after the submit layer recorded and dequeued it", async () => {
-    guestQueues.set(TOKEN, [rec("a", 1), rec("bad", 2), rec("c", 3)]);
-    const posted = stubServer({ bad: 403 });
+  it.each([403, 404, { status: 404, code: "share_not_found" }] as const)(
+    "records and dequeues a permanent refusal %j before replaying the next edit",
+    async (answer) => {
+      guestQueues.set(TOKEN, [rec("a", 1), rec("bad", 2), rec("c", 3)]);
+      const posted = stubServer({ bad: answer });
 
-    await drain();
+      await drain();
 
-    expect(posted).toEqual(["a", "bad", "c"]);
-    expect(guestConflicts).toMatchObject([
-      {
-        command: { ...rec("bad", 2), created_at: expect.any(Number) },
-        kind: "refused",
-        reason: "refused",
-        recovery: "edit-and-resubmit",
-      },
-    ]);
-    expect(ids(guestQueues.get(TOKEN))).toEqual([]);
-  });
+      expect(posted).toEqual(["a", "bad", "c"]);
+      expect(guestConflicts).toMatchObject([
+        {
+          command: { ...rec("bad", 2), created_at: expect.any(Number) },
+          kind: "refused",
+          reason: "refused",
+          recovery: "edit-and-resubmit",
+        },
+      ]);
+      expect(ids(guestQueues.get(TOKEN))).toEqual([]);
+    },
+  );
 
   it("does not resend a refusal while its durable settlement is retried", async () => {
     guestQueues.set(TOKEN, [rec("bad", 1), rec("next", 2)]);

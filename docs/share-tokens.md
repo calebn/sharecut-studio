@@ -116,7 +116,7 @@ the restore route ([Restorable revoke](#restorable-revoke)).
 
 A link names a review version, and the version list lives in the project file. History moves keep `review.versions` and the active choice (see [history.md](history.md#review-versions-are-not-history-steps)), so Undo and Redo never end a link. If a link's version cannot be found anyway (an older build's Undo that removed the version behind a link nobody has opened since, or a project file edited by hand), the link is refused with `review_version_not_found` (404 for a guest, "This link's audio isn't available right now. Ask the host to check it.") and is **not** revoked: the sidecar row stays `revoked: false` and the registry row stays active, so the link answers again once the version is back. `open_share_workspace` and the waveform tile route behave the same for every role.
 
-An open Review page reconnects its live socket after the host restores a missing version. The socket checks access before resolving the version. If the check detects a missing version, the socket withholds live data and closes with `1013` so the page can retry using its normal backoff. Turning off the link closes the socket with `4403` and ends the live session.
+An open Review page reconnects its live socket after the host restores a missing version. The socket checks access before resolving the version. If the check detects a missing version, the socket withholds live data and closes with `1013` so the page can retry using its normal backoff. A command refused with that same missing-version code stays in the guest's queue and replays with its original identity when the version returns. Turning off the link closes the socket with `4403` and ends the live session.
 
 ## Restorable revoke
 

@@ -179,7 +179,6 @@ function poll(poller: Poller): void {
       // The failed poll answers a request made while it was in flight: a
       // permanent error would repeat, and a transient one schedules a retry below.
       poller.again = false;
-      // A 4xx other than 408 / 429 (revoked share, deleted project): polling again will not help.
       if (isPermanentRejection(err)) {
         // Stop until a refresh, a tile 404, or a subscriber STOPPED_RETRY_MS
         // later asks again (not every mount: the error would repeat).
