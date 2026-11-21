@@ -910,6 +910,16 @@ read pipeline settings.
 | `PODCAST_AUTH_MAGIC_EMAIL_BURST` | `3` | Burst allowance for magic-link requests per email address. |
 | `PODCAST_AUTH_MAGIC_CONSUME_RPM` | `60` | Requests per minute allowed for magic-link sign-ins per client address. |
 | `PODCAST_AUTH_MAGIC_CONSUME_BURST` | `20` | Burst allowance for magic-link sign-ins per client address. |
+| `PODCAST_AUTH_PASSWORD_LOGIN_RPM` | `30` | Requests per minute allowed for password sign-ins per client address. |
+| `PODCAST_AUTH_PASSWORD_LOGIN_BURST` | `10` | Burst allowance for password sign-ins per client address. |
+| `PODCAST_AUTH_PASSWORD_ACCOUNT_RPM` | `6` | Requests per minute allowed for password sign-ins per account email. |
+| `PODCAST_AUTH_PASSWORD_ACCOUNT_BURST` | `3` | Burst allowance for password sign-ins per account email. |
+| `PODCAST_AUTH_PASSKEY_BEGIN_RPM` | `30` | Requests per minute allowed for passkey sign-in starts per client address. |
+| `PODCAST_AUTH_PASSKEY_BEGIN_BURST` | `10` | Burst allowance for passkey sign-in starts per client address. |
+| `PODCAST_AUTH_PASSKEY_FINISH_RPM` | `30` | Requests per minute allowed for passkey sign-in completions per client address. |
+| `PODCAST_AUTH_PASSKEY_FINISH_BURST` | `10` | Burst allowance for passkey sign-in completions per client address. |
+| `PODCAST_AUTH_AGENT_CREDENTIAL_RPM` | `30` | Requests per minute allowed for agent credential requests per client address. |
+| `PODCAST_AUTH_AGENT_CREDENTIAL_BURST` | `10` | Burst allowance for agent credential requests per client address. |
 | `PODCAST_RELAY_TOKEN_RPM` | `600` | Requests per minute allowed for relay requests per share token. |
 | `PODCAST_RELAY_TOKEN_BURST` | `80` | Burst allowance for relay requests per share token. |
 | `PODCAST_RELAY_IP_RPM` | `1200` | Requests per minute allowed for relay requests per client address. |

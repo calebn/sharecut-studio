@@ -98,6 +98,29 @@ class HostLimiters(LimiterSet):
         RateSpec(
             "auth_magic_consume", "auth_magic_consume", "PODCAST_AUTH_MAGIC_CONSUME", 60.0, 20.0
         ),
+        RateSpec(
+            "auth_password_login", "auth_password_login", "PODCAST_AUTH_PASSWORD_LOGIN", 30.0, 10.0
+        ),
+        RateSpec(
+            "auth_password_account",
+            "auth_password_account",
+            "PODCAST_AUTH_PASSWORD_ACCOUNT",
+            6.0,
+            3.0,
+        ),
+        RateSpec(
+            "auth_passkey_begin", "auth_passkey_begin", "PODCAST_AUTH_PASSKEY_BEGIN", 30.0, 10.0
+        ),
+        RateSpec(
+            "auth_passkey_finish", "auth_passkey_finish", "PODCAST_AUTH_PASSKEY_FINISH", 30.0, 10.0
+        ),
+        RateSpec(
+            "auth_agent_credential",
+            "auth_agent_credential",
+            "PODCAST_AUTH_AGENT_CREDENTIAL",
+            30.0,
+            10.0,
+        ),
     )
 
     read: KeyedLimiter
@@ -114,6 +137,11 @@ class HostLimiters(LimiterSet):
     auth_magic_request: KeyedLimiter
     auth_magic_email: KeyedLimiter
     auth_magic_consume: KeyedLimiter
+    auth_password_login: KeyedLimiter
+    auth_password_account: KeyedLimiter
+    auth_passkey_begin: KeyedLimiter
+    auth_passkey_finish: KeyedLimiter
+    auth_agent_credential: KeyedLimiter
 
 
 _LIMITERS: HostLimiters | None = None

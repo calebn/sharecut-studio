@@ -28,6 +28,7 @@ from podcast_mcp.services.share_auth import (
     make_pkce_pair,
     oauth_providers_available,
 )
+from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.proxy_paths import is_relayed_request
 from podcast_mcp.util.rate_limit_http import rate_limited_error
 from podcast_mcp.util.safe_redirect import safe_next_path
@@ -254,9 +255,14 @@ def auth_password_register(body: PasswordRegisterRequest, response: Response) ->
 
 
 @router.post("/auth/password/login")
-def auth_password_login(body: PasswordLoginRequest, response: Response) -> dict[str, Any]:
+def auth_password_login(
+    body: PasswordLoginRequest, request: Request, response: Response
+) -> dict[str, Any]:
+    _limit_auth("auth_password_login", peer_host(request))
+    email = body.email.strip().lower()
+    _limit_auth("auth_password_account", short_digest(email, length=64))
     store = get_identity_store()
-    user = store.verify_email_password(body.email, body.password)
+    user = store.verify_email_password(email, body.password)
     if not user:
         raise coded_http_error(401, "invalid email or password", code="invalid_credentials")
     session = store.create_session(user["id"])
@@ -338,12 +344,16 @@ def passkey_register_finish(body: PasskeyRegisterFinish, request: Request) -> di
 
 
 @router.post("/auth/passkey/login/begin")
-def passkey_login_begin(body: PasskeyAuthBegin) -> dict[str, Any]:
+def passkey_login_begin(body: PasskeyAuthBegin, request: Request) -> dict[str, Any]:
+    _limit_auth("auth_passkey_begin", peer_host(request))
     return begin_authentication(get_identity_store(), email=body.email)
 
 
 @router.post("/auth/passkey/login/finish")
-def passkey_login_finish(body: PasskeyAuthFinish, response: Response) -> dict[str, Any]:
+def passkey_login_finish(
+    body: PasskeyAuthFinish, request: Request, response: Response
+) -> dict[str, Any]:
+    _limit_auth("auth_passkey_finish", peer_host(request))
     store = get_identity_store()
     try:
         user = finish_authentication(
@@ -365,6 +375,7 @@ def passkey_login_finish(body: PasskeyAuthFinish, response: Response) -> dict[st
 @router.post("/auth/agent-credential")
 def mint_agent_credential(body: AgentCredentialRequest, request: Request) -> dict[str, Any]:
     """Mint a user-bound agent token for Restricted share MCP (same role/ACL)."""
+    _limit_auth("auth_agent_credential", peer_host(request))
     with guest_boundary(log, "agent credential"):
         store = get_identity_store()
         user = store.resolve_session(request.cookies.get(SESSION_COOKIE))

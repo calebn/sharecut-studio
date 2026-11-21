@@ -718,8 +718,17 @@ Generous defaults (tighten via env if you see abuse). Philosophy: false 429s hur
 | Host | Magic-link request | 30/min, burst 10 | client address |
 | Host | Magic-link request | 6/min, burst 3 | email address |
 | Host | Magic-link sign-in | 60/min, burst 20 | client address |
+| Host | Password sign-in | 30/min, burst 10 | client address |
+| Host | Password sign-in | 6/min, burst 3 | account email |
+| Host | Passkey sign-in start | 30/min, burst 10 | client address |
+| Host | Passkey sign-in completion | 30/min, burst 10 | client address |
+| Host | Agent credential request | 30/min, burst 10 | client address |
 
-The three magic-link rows guard `POST /auth/magic-link` and `GET /auth/magic-link/consume` (`PODCAST_AUTH_MAGIC_*`). The client address is the peer uvicorn reports: the socket address, or the `X-Forwarded-For` client only when the request arrives from a `forwarded-allow-ips` address (`127.0.0.1` by default, changed with uvicorn's `FORWARDED_ALLOW_IPS`; the tunnel client strips `X-Forwarded-*`, and the relay never forwards `/auth`). Behind a reverse proxy that is not on that list, every caller shares the proxy's address and bucket until the proxy is listed. The email bucket is keyed on the submitted address with no sign-in, so a caller can use up a victim's budget; the cost is that magic-link requests for that address wait for the bucket to refill (6 per minute), and password and OAuth sign-in are not affected. A denied call answers `429` with `X-Sharecut-Error-Code: rate_limited` before any link is stored, the same for a known and an unknown email.
+The client address is the peer uvicorn reports. Uvicorn uses the socket address and accepts `X-Forwarded-For` from peers on its trusted proxy list. The default list contains `127.0.0.1`. Configure it with `FORWARDED_ALLOW_IPS`. A proxy outside the list shares one client bucket for its callers. The tunnel client strips `X-Forwarded-*`, and the relay keeps `/auth` on the host.
+
+The magic-link buckets guard `POST /auth/magic-link` and `GET /auth/magic-link/consume`. Password sign-in uses both the client and the normalized account email at `POST /auth/password/login`. The account bucket is shared across client addresses. Passkey sign-in uses a separate client bucket for each stage at `POST /auth/passkey/login/begin` and `POST /auth/passkey/login/finish`. Agent credential requests are limited at `POST /auth/agent-credential`.
+
+A denied request returns `429`, `X-Sharecut-Error-Code: rate_limited`, and `Retry-After` before any sign-in or credential work. Email-based limits apply equally to known and unknown addresses. Each sign-in method has its own budget.
 
 Audio paths skip RPM and use concurrency limits. The host and relay use
 `util.rate_limit.is_review_audio_path`, which strips the query and case-folds
@@ -770,6 +779,14 @@ Guest WS fanout (host→guest) is unlimited; only inbound guest→host text fram
 | `PODCAST_RATE_LIMIT_READ_RPM` / `_BURST` | Host JSON reads + MCP reads |
 | `PODCAST_RATE_LIMIT_MUTATE_RPM` / `_BURST` | Host POSTs + MCP mutations |
 | `PODCAST_RATE_LIMIT_AUDIO_CONCURRENT` | Host audio streams |
+| `PODCAST_AUTH_MAGIC_REQUEST_RPM` / `_BURST` | Magic-link requests per client address |
+| `PODCAST_AUTH_MAGIC_EMAIL_RPM` / `_BURST` | Magic-link requests per email address |
+| `PODCAST_AUTH_MAGIC_CONSUME_RPM` / `_BURST` | Magic-link sign-ins per client address |
+| `PODCAST_AUTH_PASSWORD_LOGIN_RPM` / `_BURST` | Password sign-ins per client address |
+| `PODCAST_AUTH_PASSWORD_ACCOUNT_RPM` / `_BURST` | Password sign-ins per account email |
+| `PODCAST_AUTH_PASSKEY_BEGIN_RPM` / `_BURST` | Passkey sign-in starts per client address |
+| `PODCAST_AUTH_PASSKEY_FINISH_RPM` / `_BURST` | Passkey sign-in completions per client address |
+| `PODCAST_AUTH_AGENT_CREDENTIAL_RPM` / `_BURST` | Agent credential requests per client address |
 | `PODCAST_GUEST_WS_CONCURRENT` | Host-side max guest ShareCut Studio WS per token (default 8) |
 | `PODCAST_GUEST_WS_PRESENCE_RPM` / `_BURST` | Host per-connection guest Presence frames (900/min burst 60) |
 | `PODCAST_GUEST_WS_PRESENCE_TOKEN_RPM` / `_BURST` | Host per-token guest Presence frames (3600/min burst 200) |
