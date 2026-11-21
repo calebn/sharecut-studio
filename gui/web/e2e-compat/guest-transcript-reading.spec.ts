@@ -120,8 +120,15 @@ async function followerHoldsStill(
       const seen = await frames(guest, page, "cut", 1, anchorKey, 46);
       expectNoBlankFrame(seen.frames, seen.from, guest.log, "for a follower");
       const after = seen.frames.filter((f) => f.t >= seen.from);
-      expect(after.some((f) => f.busy)).toBe(true);
-      const offsets = after.map((f) => f.offset);
+      const refreshStart = after.findIndex((frame) => frame.busy);
+      expect(
+        refreshStart,
+        "a pre-refresh frame and a busy frame were captured",
+      ).toBeGreaterThan(0);
+      // Playback can scroll while the host command is still in flight. Starting
+      // on the last frame before busy still measures the transition into refresh.
+      const held = mode === "playing" ? after.slice(refreshStart - 1) : after;
+      const offsets = held.map((f) => f.offset);
       expect(
         offsets.every((o) => o !== null),
         "the word the follower was looking at stayed drawn",
