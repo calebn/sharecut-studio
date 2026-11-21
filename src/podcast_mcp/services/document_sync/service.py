@@ -153,11 +153,12 @@ def dump_projection_locked(
     from podcast_mcp.gui.assembler import dump_project_projection
 
     guest_or_host: Literal["host", "guest"] = "guest" if audience == "guest" else "host"
-    with ws.transaction():
+    with document_submit_lock(ws.project):
+        ws.reload()
         dumped = dump_project_projection(ws, projection=projection, audience=guest_or_host)
-        owners = (
-            ws.history().step_owners(ws.project) if "history" in dumped else StepOwners(None, None)
-        )
+        owners = StepOwners(None, None)
+        if "history" in dumped and dumped["history"]["head_id"] == ws.project.history.head_id():
+            owners = ws.history().step_owners(ws.project)
         return dumped, owners
 
 
