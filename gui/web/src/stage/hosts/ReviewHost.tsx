@@ -96,9 +96,8 @@ function ReviewHostAdapter({
     short,
   });
   const listening = listenLayoutOf(shell, guestMode);
-  // A sheet belongs to the Listen layout: it does not outlive it.
-  useEffect(() => {
-    if (!listening) dispatchComposer({ type: "sheetsGone" });
+  useLayoutEffect(() => {
+    dispatchComposer({ type: "layout", listen: listening });
   }, [listening]);
   // The dock reads the same fact, so its Chapters button agrees with the middle.
   const loadFailed = loadFailure != null;

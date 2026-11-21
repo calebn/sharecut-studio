@@ -102,7 +102,7 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
     useDawStore(
       useShallow((s) => ({
         mayComment: canComment(s.projectPath, s.guestMode, s.shareCapabilities),
-        draft: s.commentDraft,
+        draft: s.composer.surface === "composer" ? s.commentDraft : null,
         surface: s.composer.surface,
         threadId: s.composer.threadId,
         projectName: s.project?.meta.name ?? "",

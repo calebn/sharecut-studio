@@ -442,52 +442,66 @@ describe("show", () => {
     ).toMatchObject({ surface: "none", threadId: null });
   });
 
-  it("sheetsGone closes a sheet and leaves the composer", () => {
+  it("leaving Listen closes a sheet and keeps a composer the guest opened", () => {
     expect(
       run(session({ surface: "thread", threadId: "c1" }), [
-        [{ type: "sheetsGone" }],
+        [{ type: "layout", listen: false }],
       ]).state.surface,
     ).toBe("none");
     expect(
       run(session({ surface: "composer", draft: draft("a") }), [
-        [{ type: "sheetsGone" }],
+        [{ type: "layout", listen: false }],
+        [{ type: "layout", listen: true }],
       ]).state.surface,
     ).toBe("composer");
   });
 
-  it("sheetsGone makes a held draft with text the open composer at its own pin, and starts nothing", () => {
+  it("shows a held draft at its pin in the wide field and holds it again in Listen", () => {
     for (const surface of ["none", "comments", "thread", "chapters"] as const) {
       const converted = run(session({ surface, draft: draft("too loud", 5) }), [
-        [{ type: "sheetsGone" }],
+        [{ type: "layout", listen: false }],
       ]);
-      expect(converted.state.surface).toBe("composer");
+      expect(converted.state.surface).toBe("wideComposer");
       expect(converted.state.draft).toEqual(draft("too loud", 5));
-      expect(converted.state.draft?.resume).toBe(false);
       expect(commentDraftOf(converted.state)).toEqual(at(5));
       expect(converted.effects).toEqual([]);
       const { state, effects } = run(converted.state, [
         [{ type: "transport", playing: true }],
+        [{ type: "layout", listen: true }],
       ]);
+      expect(state.surface).toBe("none");
+      expect(commentDraftOf(state)).toBeNull();
       expect(state.draft).toEqual(draft("too loud", 5));
       expect(effects).toEqual([]);
     }
   });
 
-  it("sheetsGone puts no pin on a closed empty draft, and rotating back keeps the pin", () => {
+  it("leaves a closed empty draft unpinned and restores a held pin on Comment", () => {
     const closed = run(
       session({ surface: "composer", draft: draft("", 5, false, false) }),
-      [[{ type: "close" }], [{ type: "sheetsGone" }]],
+      [[{ type: "close" }], [{ type: "layout", listen: false }]],
     ).state;
     expect(closed.surface).toBe("none");
     expect(commentDraftOf(closed)).toBeNull();
     const back = run(
       session({ surface: "none", draft: draft("too loud", 5) }),
       [
-        [{ type: "sheetsGone" }],
+        [{ type: "layout", listen: false }],
+        [{ type: "layout", listen: true }],
         [{ type: "open", anchor: at(40), replacePin: false, listen: true }],
       ],
     ).state;
     expect(back.draft?.anchor).toEqual(at(5));
+  });
+
+  it("clears the wide composer when posting its held draft succeeds", () => {
+    const { state, effects } = run(session({ draft: draft("too loud", 5) }), [
+      [{ type: "layout", listen: false }],
+      [{ type: "postStart", id: 1 }],
+      [{ type: "postDone", id: 1 }],
+    ]);
+    expect(state).toEqual(initialSession);
+    expect(effects).toEqual([]);
   });
 });
 
