@@ -791,14 +791,26 @@ The AAF omits clip fades and gains, track gain and mute, effects, transcripts,
 comments, history, and rendered-only processing. Fades are not baked into the
 source audio. The AAF is an editable transfer of timeline geometry and source
 audio, not the rendered mix; use ShareCut's rendered WAV export when you need the
-saved mix. This experimental exporter does not claim compatibility with Logic,
-Pro Tools, or Audition.
+saved mix. The corrected ShareCut CLI fixture was imported, edited, saved, and
+played in Logic Pro 12.4 on macOS 26.7.1 and Ardour 8.12 on Debian 13.7 arm64.
+Both applications showed the ordered named tracks and editable regions after
+relocation with the original project unavailable. Logic preserved the 48 kHz
+mono and 44.1 kHz stereo source PCM; Ardour opened a 44.1 kHz session and
+resampled its mono source. In Ardour, moving the first Host region changed its
+start from 0.500 s to 0.590476 s while preserving its 0.500 s length and 0.250 s
+source offset; neighboring regions stayed put. Ardour's `ardour8-export`
+reopened the saved relocated edit and produced non-silent stereo 44.1 kHz audio
+with 88,200 frames. Its split Guest PCM matched the source, but the resampled
+Host is not claimed bit-identical. These checks establish interoperability for
+that synthetic fixture and those versions only. Pro Tools and Audition remain
+unverified.
 
 The regular Python tests exercise the real export command against a synthetic
-project. The `pytest-quality` job builds pinned LibAAF v1.0 and independently
-checks clip geometry and extracted PCM after relocating the package and hiding
-the source workspace. To run that interop check locally, build the reader in a
-new scratch directory and set `SHARECUT_AAFTOOL`:
+project. The FFmpeg-backed `pytest-shard` job installs the `aaf` extra; shard 1
+builds pinned LibAAF v1.0 and independently checks clip geometry and extracted
+PCM after relocating the package and hiding the source workspace. To run that
+interop check locally, build the reader in a new scratch directory and set
+`SHARECUT_AAFTOOL`:
 
 ```sh
 bash scripts/build_libaaf_test_tool.sh /tmp/sharecut-libaaf-aaf
@@ -806,10 +818,9 @@ SHARECUT_AAFTOOL=/tmp/sharecut-libaaf-aaf/build/bin/aaftool \
   uv run pytest -q --no-cov tests/test_aaf_export.py
 ```
 
-The build script refuses to reuse its source or build directories. A native
-application import remains separate evidence from LibAAF's parser and PCM
-extraction; compatibility claims need an import, edit, save, reopen, and playback
-check in each application.
+The build script refuses to reuse its source or build directories. Native
+application checks supplement LibAAF's structural parser and PCM extraction;
+the tested versions and fixture are recorded above.
 
 ### Decision: AAF embeds source audio and uses per-track native edit units
 
@@ -821,6 +832,7 @@ decided-by: calebn
 evidence:
 - Owner prototype on #4045 showed pyaaf2 1.7.1 writing embedded 48 kHz mono/stereo PCM that LibAAF extracted byte-equivalently, with Ardour importing and editing a separate overlap track
 - Owner accepted the writer-in-stage, embedded-media, per-track-rate policy in [the #4045 implementation checkpoint](https://github.com/calebn/sharecut-studio/issues/4045#issuecomment-7054443634)
+- Corrected ShareCut CLI fixture imported and edited in Logic Pro 12.4/macOS 26.7.1 and Ardour 8.12/Debian 13.7 arm64; [issue proof checkpoint](https://github.com/calebn/sharecut-studio/issues/4045#issuecomment-7055080095) records the artifact digest and native tests
 - [AAF Object Specification v1.1 §7.7](https://static.amwa.tv/ms-01-aaf-object-spec.pdf) defines SourceClip StartTime and Length in the owning MobSlot's edit units
 - Independent LibAAF verification of the ShareCut CLI fixture checks ordered tracks, empty tracks, placement, trims, extracted PCM, and relocation
 enforced-by:
