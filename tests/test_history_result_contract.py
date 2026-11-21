@@ -116,7 +116,15 @@ def test_history_read_results_keep_distinct_wire_shapes(minimal_project):
     document_history = DocumentSyncService.open(minimal_project).document_snapshot(
         projection="comments"
     )["history"]
-    assert set(document_history) == {"cursor", "head_id", "can_undo", "can_redo", "groups"}
+    assert set(document_history) == {
+        "cursor",
+        "head_id",
+        "edit_head_id",
+        "can_undo",
+        "can_redo",
+        "groups",
+    }
+    assert document_history["edit_head_id"] == listing.head_id
     assert document_history["groups"] == [group.model_dump() for group in listing.groups]
 
 

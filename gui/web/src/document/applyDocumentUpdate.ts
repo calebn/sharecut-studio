@@ -2,11 +2,12 @@ import { loadDocumentState } from "../api/project";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { flushInbound } from "../sync/inboundQueue";
-import type {
-  CombinedUtterance,
-  CommentReply,
-  ProjectView,
-  TimelineComment,
+import {
+  type CombinedUtterance,
+  type CommentReply,
+  historyEditChanged,
+  type ProjectView,
+  type TimelineComment,
 } from "../types/project";
 import { isGuestAudience } from "../utils/can";
 import {
@@ -340,6 +341,8 @@ export function applyDocumentSnapshot(
         documentAuthority.settled,
       ) ?? documentAuthority.settled;
   }
+  if (previous && historyEditChanged(previous.history, next.history))
+    documentAuthority.editHeadChangeSeq = seq;
   documentAuthority.token = token;
   documentAuthority.project = next;
   documentAuthority.phase = { kind: "ready" };

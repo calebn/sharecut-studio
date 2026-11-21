@@ -171,10 +171,11 @@ def _file_wire(revision: FileRevision | None) -> dict[str, int] | None:
     return {"mtime_ns": mtime_ns, "size": size}
 
 
-def _history_wire(hist: HistoryListResult) -> dict[str, Any]:
+def _history_wire(hist: HistoryListResult, edit_head_id: str) -> dict[str, Any]:
     return {
         "cursor": hist.cursor,
         "head_id": hist.head_id,
+        "edit_head_id": edit_head_id,
         "can_undo": hist.can_undo,
         "can_redo": hist.can_redo,
         "groups": [group.model_dump() for group in hist.groups],
@@ -585,12 +586,14 @@ class DocumentSyncService:
             certificate = self._snapshot_key(projection)
             server_seq = _journal_server_seq(self.store)
             hist = HistoryService(self.ws).list_entries()
+            edit_head_id = self.project.history.edit_head_id()
+            history = _history_wire(hist, edit_head_id)
             proj = parse_view_projection(str(projection), default=ViewProjection.SHELL)
             api_snap: dict[str, Any] = {
                 "server_seq": server_seq,
                 "comments": comments_for_view(self.project),
                 "active_version_id": self.project.review.active_version_id,
-                "history": _history_wire(hist),
+                "history": history,
             }
             file_wire = _file_wire(self.ws.loaded_file_revision)
             if file_wire is not None:
@@ -600,14 +603,17 @@ class DocumentSyncService:
                 return api_snap
             dumped = dump_project_projection(self.ws, projection=proj, history=hist)
             if proj in (ViewProjection.FULL, ViewProjection.SHELL):
-                api_snap["project"] = dumped
+                api_snap["project"] = {
+                    **dumped,
+                    "history": {**dumped["history"], "edit_head_id": edit_head_id},
+                }
                 self._stage_snapshot(certificate, api_snap)
                 return api_snap
             if proj in (
                 ViewProjection.DETAIL,
                 ViewProjection.TRANSCRIPT_AUDIO,
             ) and isinstance(dumped.get("history"), dict):
-                dumped = {**dumped, "history": _history_wire(hist)}
+                dumped = {**dumped, "history": history}
             api_snap["patch"] = dumped
             self._stage_snapshot(certificate, api_snap)
             return api_snap

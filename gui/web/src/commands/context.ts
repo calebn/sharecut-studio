@@ -109,7 +109,14 @@ function afterCutInEdit(s: DawStore): boolean {
 
 export function afterCutHolds(s: DawStore): boolean {
   const cut = s.afterCut;
-  if (!cut || !s.project || s.rangeBusy || !afterCutInEdit(s)) return false;
+  if (
+    !cut ||
+    cut.holdTabOnly ||
+    !s.project ||
+    s.rangeBusy ||
+    !afterCutInEdit(s)
+  )
+    return false;
   const history = s.project.history;
   const head = history?.head_id ?? null;
   if (head !== cut.head && head !== cut.baseHead) return false;

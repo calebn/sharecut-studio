@@ -37,6 +37,7 @@ export type DocumentSnapshot = {
   history?: {
     cursor?: number;
     head_id?: ProjectView["history"]["head_id"];
+    edit_head_id?: ProjectView["history"]["edit_head_id"];
     can_undo?: boolean;
     can_redo?: boolean;
     groups?: ProjectView["history"]["groups"];
@@ -88,6 +89,16 @@ function mergeHydration(
   };
 }
 
+function mergeHistory(
+  previous: ProjectView["history"],
+  incoming: Partial<ProjectView["history"]>,
+): ProjectView["history"] {
+  const next = { ...previous, ...incoming };
+  if (next.head_id !== previous.head_id && incoming.edit_head_id === undefined)
+    delete next.edit_head_id;
+  return next;
+}
+
 /** Shallow-merge a projection patch; keys omitted from ``patch`` keep identity. */
 export function mergeProjectPatch(
   previous: ProjectView,
@@ -107,10 +118,10 @@ export function mergeProjectPatch(
       continue;
     }
     if (key === "history" && value && typeof value === "object") {
-      next.history = {
-        ...previous.history,
-        ...(value as ProjectView["history"]),
-      };
+      next.history = mergeHistory(
+        previous.history,
+        value as ProjectView["history"],
+      );
       continue;
     }
     (next as unknown as Record<string, unknown>)[key] = value;
@@ -333,11 +344,19 @@ function preserveHydratedFields(
   previous: ProjectView,
   incoming: ProjectView,
 ): ProjectView {
-  const incomingH = incoming.meta?.hydration;
-  if (!incomingH) {
-    return incoming;
-  }
   let next = incoming;
+  if (
+    previous.history.edit_head_id !== undefined &&
+    incoming.history.edit_head_id === undefined &&
+    incoming.history.head_id === previous.history.head_id
+  )
+    next = {
+      ...incoming,
+      history: mergeHistory(previous.history, incoming.history),
+    };
+
+  const incomingH = incoming.meta?.hydration;
+  if (!incomingH) return next;
   if (incomingH.transcript_words === false && previous.transcript) {
     const { transcript, complete } = overlayTranscriptWords(
       previous.transcript,
@@ -385,9 +404,7 @@ function mergeSnapshotHistory(
   if (!history) {
     return next;
   }
-  let merged = mergeProjectPatch(next, {
-    history: { ...next.history, ...history },
-  });
+  let merged = { ...next, history: mergeHistory(next.history, history) };
   if (Array.isArray(history.groups)) {
     merged = mergeProjectPatch(merged, {
       meta: {

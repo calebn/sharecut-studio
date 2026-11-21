@@ -1,5 +1,10 @@
 import type { StateCreator } from "zustand";
-import type { HistoryEntryId, Selection } from "../types/project";
+import {
+  type HistoryEntryId,
+  historyEditChanged,
+  type ProjectView,
+  type Selection,
+} from "../types/project";
 import type { EditWordReveal } from "./stageSlice";
 import type { DawStore } from "./types";
 
@@ -16,11 +21,36 @@ export type AfterCut = Readonly<{
   epoch: number;
   focused: boolean;
   holdUntil: number;
+  holdTabOnly?: true;
   selected: TranscriptRange | null;
   at: EditWordReveal | null;
   startedAt: EditWordReveal | null;
   direction: AfterCutDirection | null;
 }>;
+
+export function afterCutAfterProject(
+  {
+    afterCut,
+    project,
+    rangeBusy,
+  }: Pick<DawStore, "afterCut" | "project" | "rangeBusy">,
+  next: ProjectView,
+): AfterCut | null {
+  const previous = project?.history;
+  const history = next.history;
+  if (
+    !afterCut ||
+    afterCut.holdTabOnly ||
+    !history ||
+    !historyEditChanged(previous, history) ||
+    (history.edit_head_id ?? history.head_id) === afterCut.head ||
+    ((previous?.edit_head_id ?? previous?.head_id) === afterCut.head &&
+      history.can_redo)
+  )
+    return afterCut;
+
+  return rangeBusy ? { ...afterCut, holdTabOnly: true } : null;
+}
 
 export interface AfterCutSliceState {
   afterCut: AfterCut | null;

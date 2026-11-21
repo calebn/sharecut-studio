@@ -197,6 +197,7 @@ def test_concurrent_writers_chain_actual_predecessor(minimal_project):
 
 def test_guest_delta_is_diffed_after_sanitization_and_host_variant_is_private(minimal_project):
     svc = DocumentSyncService.open(minimal_project)
+    old_head = svc.document_snapshot()["history"]["head_id"]
     with patch("podcast_mcp.services.document_sync.service.get_hub") as hub:
         result = svc.submit(comment(), audience="guest")
         event = hub.return_value.publish.call_args.args[1]
@@ -206,12 +207,13 @@ def test_guest_delta_is_diffed_after_sanitization_and_host_variant_is_private(mi
     operations = guest["snapshot"]["delta"]["operations"]
     sections = {operation["section"] for operation in operations}
     assert not sections.intersection({"history_groups", "history_entries"})
-    # A guest's history section moves only the opaque head, never labels or params.
-    assert all(
-        set(op.get("value") or {}) <= {"head_id", "cursor", "can_undo", "can_redo"}
-        for op in operations
-        if op["section"] == "history"
+    history = next(op["value"] for op in operations if op["section"] == "history")
+    host_history = next(
+        op["value"] for op in event["snapshot"]["delta"]["operations"] if op["section"] == "history"
     )
+    assert set(history) == {"head_id", "edit_head_id", "cursor", "can_undo", "can_redo"}
+    assert history["edit_head_id"] == host_history["edit_head_id"] == result["history_head_id"]
+    assert history["head_id"] == history["edit_head_id"] != old_head
     assert "_guest_snapshot" not in guest
     assert "_guest_snapshot" not in host_document_event(event)
     assert str(minimal_project.parent) not in json.dumps(guest)

@@ -21,7 +21,7 @@ from podcast_mcp.edits.pending_preview import DEFAULT_PAD_SEC, PendingPreviewSpa
 from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.engines.timeline_render import timeline_duration_sec
 from podcast_mcp.models.episode import ExactRangeTarget
-from podcast_mcp.models.history import StepOwners
+from podcast_mcp.models.history import HISTORY_ROOT_ID, StepOwners
 from podcast_mcp.project.io import EPISODE_PROJECT_FILENAME, adopt_retired_entry_file, open_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import share_pending
@@ -1181,11 +1181,14 @@ _GUEST_EMPTY_HISTORY: dict[str, Any] = {
 
 
 def _guest_history(history: Any) -> dict[str, Any]:
-    """History for guests: no labels or params (they can embed local paths), only the
-    opaque ``head_id`` (random hex, or ``root``). A guest's undo or redo must send it,
-    so a guest never reverts an edit it has not seen."""
-    head = history.get("head_id") if isinstance(history, dict) else None
-    return {**_GUEST_EMPTY_HISTORY, "head_id": head}
+    source = history if isinstance(history, dict) else {}
+    out = {**_GUEST_EMPTY_HISTORY, "head_id": source.get("head_id")}
+    edit_head = source.get("edit_head_id")
+    if isinstance(edit_head, str) and (
+        edit_head == HISTORY_ROOT_ID or re.fullmatch(r"[0-9a-f]{12}", edit_head)
+    ):
+        out["edit_head_id"] = edit_head
+    return out
 
 
 def _with_viewer_flags(history: Any, owners: StepOwners, viewer: str) -> dict[str, Any]:
@@ -1268,7 +1271,6 @@ def sanitize_guest_project_view(
         out["meta"] = guest_meta
     if "tracks" in out:
         out["tracks"] = _sanitize_guest_tracks(out.get("tracks"))
-    # History can embed local paths in labels/params - keep only the opaque head.
     if "history" in out:
         out["history"] = _guest_history(out["history"])
     applied = out.get("applied_edits")
@@ -1342,7 +1344,7 @@ def sanitize_guest_document_event(
 
     Drops host filesystem paths from ``snapshot.project`` / ``snapshot.patch``
     and reduces ``command`` to ``{"type": ...}`` only. ``snapshot.history`` keeps
-    only the opaque ``head_id`` (``_guest_history``): labels/params can embed local paths.
+    the opaque ``head_id`` for Undo/Redo and optional ``edit_head_id`` for edit identity.
     ``snapshot.file`` / ``snapshot.file_before`` are reduced to numeric
     ``{mtime_ns, size}``. ``_history_owners`` is always dropped; with a *viewer* (their
     ``share:<id>``) on a frame that is not a resync, it becomes that viewer's ``can_undo``

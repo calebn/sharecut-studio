@@ -1352,6 +1352,7 @@ def test_guest_daw_ws_snapshots_and_fanout(minimal_project, sample_wav, tmp_work
         assert set(doc_snap["history"]) == {
             "cursor",
             "head_id",
+            "edit_head_id",
             "can_undo",
             "can_redo",
             "entries",

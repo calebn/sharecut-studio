@@ -701,6 +701,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setRangeBusy: (rangeBusy) =>
       set((s) => ({
         rangeBusy,
+        afterCut: !rangeBusy && s.afterCut?.holdTabOnly ? null : s.afterCut,
         ...(rangeBusy
           ? {}
           : transcriptSelectionFollowPatch({ ...s, rangeBusy }, s.project)),

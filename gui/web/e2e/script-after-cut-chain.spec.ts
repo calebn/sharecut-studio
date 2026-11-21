@@ -232,47 +232,81 @@ for (const cutReply of ["settled", "pending"] as const) {
   });
 }
 
-test("the same cut’s Undo and Redo buttons pause and restore its Tab chain", async ({
-  page,
-}) => {
-  await servePendingEditsCleared(page);
-  await openProject(page, projectPath);
-  const body = await openScript(page);
-  const repeated = body.locator(SCRIPT_WORD).filter({ hasText: /^the$/ });
-  const initialCount = await repeated.count();
-  const headBefore = await historyHead(page, projectPath);
+for (const preview of [false, true]) {
+  test(`the same cut’s Undo and Redo pause and restore Tab ${preview ? "after a mix preview" : "without a preview"}`, async ({
+    page,
+  }) => {
+    const seenHeads = new Set<string>();
+    if (preview) {
+      page.on("websocket", (socket) => {
+        if (new URL(socket.url()).pathname !== "/api/host/ws") return;
+        socket.on("framereceived", ({ payload }) => {
+          if (typeof payload !== "string") return;
+          const event = JSON.parse(payload);
+          const head = event.snapshot?.history?.head_id;
+          if (event.plane === "document" && typeof head === "string") {
+            seenHeads.add(head);
+          }
+        });
+      });
+    }
+    await servePendingEditsCleared(page);
+    await openProject(page, projectPath);
+    const body = await openScript(page);
+    const repeated = body.locator(SCRIPT_WORD).filter({ hasText: /^the$/ });
+    const initialCount = await repeated.count();
+    const headBefore = await historyHead(page, projectPath);
 
-  await repeated.first().click();
-  await page.keyboard.press("Backspace");
-  const toast = page.locator(".ui-toast");
-  await expect(toast.locator(".ui-toast-message")).toContainText(
-    /Cut .* · \d+ more/,
-  );
-  await expect.poll(() => historyHead(page, projectPath)).not.toBe(headBefore);
-  const cutHead = await historyHead(page, projectPath);
-  await expect(repeated).toHaveCount(initialCount - 1);
+    await repeated.first().click();
+    await page.keyboard.press("Backspace");
+    const toast = page.locator(".ui-toast");
+    await expect(toast.locator(".ui-toast-message")).toContainText(
+      /Cut .* · \d+ more/,
+    );
+    await expect
+      .poll(() => historyHead(page, projectPath))
+      .not.toBe(headBefore);
+    const cutHead = await historyHead(page, projectPath);
+    await expect(repeated).toHaveCount(initialCount - 1);
 
-  const picked = body.locator(SCRIPT_SELECTED);
-  await toast.getByRole("button", { name: "Undo" }).click();
-  await expect(repeated).toHaveCount(initialCount);
-  await expect.poll(() => historyHead(page, projectPath)).not.toBe(cutHead);
-  expect(headBefore).toBe("root");
-  expect(await historyHead(page, projectPath)).not.toBe(headBefore);
-  await repeated.first().focus();
-  await page.keyboard.press("Tab");
-  await expect(picked).toHaveCount(0);
-  await expect.poll(() => focusInScript(page)).toBe(false);
+    if (preview) {
+      const render = await page.request.post("/api/pipeline/render-preview", {
+        data: { path: projectPath },
+      });
+      expect(render.ok()).toBe(true);
+      await expect
+        .poll(() => historyHead(page, projectPath), { timeout: 30_000 })
+        .not.toBe(cutHead);
+      const previewHead = await historyHead(page, projectPath);
+      await expect.poll(() => seenHeads.has(previewHead)).toBe(true);
+      await expect(repeated).toHaveCount(initialCount - 1);
+    }
 
-  await page.getByRole("button", { name: "Redo", exact: true }).click();
-  await expect(repeated).toHaveCount(initialCount - 1);
-  await expect.poll(() => historyHead(page, projectPath)).toBe(cutHead);
+    const picked = body.locator(SCRIPT_SELECTED);
+    const undo = (
+      preview ? page.locator(".sys-app-header-host") : toast
+    ).getByRole("button", { name: "Undo", exact: true });
+    await undo.click();
+    await expect(repeated).toHaveCount(initialCount);
+    await expect.poll(() => historyHead(page, projectPath)).not.toBe(cutHead);
+    expect(headBefore).toBe("root");
+    expect(await historyHead(page, projectPath)).not.toBe(headBefore);
+    await repeated.first().focus();
+    await page.keyboard.press("Tab");
+    await expect(picked).toHaveCount(0);
+    await expect.poll(() => focusInScript(page)).toBe(false);
 
-  await expect(picked).toHaveCount(0);
-  await body.locator(".sys-seam-hit").first().focus();
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect(repeated).toHaveCount(initialCount - 1);
+    await expect.poll(() => historyHead(page, projectPath)).toBe(cutHead);
 
-  await page.keyboard.press("Tab");
-  await expect(picked).toHaveText("the");
-});
+    await expect(picked).toHaveCount(0);
+    await body.locator(".sys-seam-hit").first().focus();
+
+    await page.keyboard.press("Tab");
+    await expect(picked).toHaveText("the");
+  });
+}
 
 test("Tab waits when the next cut is visible before its reply arrives", async ({
   page,
