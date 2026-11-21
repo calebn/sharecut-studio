@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
+import { IOS_WHISPER_CATALOG } from "../test/iosFixtures";
 import {
   registryModels,
   UNSUPPORTED_TOOLS,
@@ -59,6 +60,37 @@ export const FreshInstall: Story = {
     await userEvent.click(
       within(sheet).getByRole("button", { name: /^Balanced/ }),
     );
+  },
+};
+
+export const IPhoneTranscription: Story = {
+  parameters: {
+    models: {
+      whisper: {
+        engine: "whisper_cpp",
+        variant: "small.en-q5_1",
+        variants: IOS_WHISPER_CATALOG,
+        choose: () => undefined,
+      },
+      onPhone: true,
+    },
+  },
+  globals: { viewport: { value: "mobile360", isRotated: false } },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const sheet = await openSheet(canvasElement);
+    await expect(
+      within(sheet).getByRole("button", { name: "Recommended 190 MB" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      within(sheet).getByRole("button", { name: "Less accurate 60 MB" }),
+    ).toBeVisible();
+    await expect(
+      within(sheet).queryByRole("button", { name: /^Best/ }),
+    ).toBeNull();
+    await expect(
+      within(sheet).getByText(IOS_WHISPER_CATALOG[0].description),
+    ).toBeVisible();
   },
 };
 

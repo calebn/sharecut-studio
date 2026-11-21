@@ -1,6 +1,9 @@
+import type { BootstrapHost, WhisperModelChoice } from "../api";
 import type { SystemIconName } from "../system/icons";
 import type { ModelNeeded } from "../utils/apiError";
 import type { ModelView } from "./types";
+
+export type WhisperEngine = BootstrapHost["transcription"];
 
 export const WHISPER = "whisper";
 export const WORD_ALIGNER = "word-aligner";
@@ -46,7 +49,12 @@ export function capabilityOf(id: string, label: string): Capability {
   );
 }
 
-export type WhisperSizeOption = { id: string; name: string; size: string };
+export type WhisperSizeOption = {
+  id: string;
+  name: string;
+  size: string;
+  description?: string;
+};
 
 /** The three sizes the person picks from; `size` is the catalog's, used until the server lists it. */
 export const WHISPER_SIZES: readonly WhisperSizeOption[] = [
@@ -58,6 +66,25 @@ export const WHISPER_SIZES: readonly WhisperSizeOption[] = [
 /** A size as the sheet writes it: "1.6 GB", without the registry's tilde. */
 export function plainSize(size: string): string {
   return size.replace(/^~\s*/, "");
+}
+
+/** Desktop keeps Fast, Balanced and Best (sizes from the server when it lists them); a whisper.cpp host lists its own variants under the server's labels. */
+export function whisperSizeOptions(
+  variants: readonly WhisperModelChoice[],
+  engine: WhisperEngine,
+): readonly WhisperSizeOption[] {
+  if (engine !== "whisper_cpp") {
+    return WHISPER_SIZES.map((option) => {
+      const listed = variants.find((v) => v.id === option.id);
+      return listed ? { ...option, size: plainSize(listed.size) } : option;
+    });
+  }
+  return variants.map((v) => ({
+    id: v.id,
+    name: v.label,
+    size: plainSize(v.size),
+    description: v.description,
+  }));
 }
 
 /** The model a step stopped on, or one the sheet lists, reduced to what a need row asks. */

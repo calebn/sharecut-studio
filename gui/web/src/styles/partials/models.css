@@ -97,6 +97,12 @@
   color: var(--color-chip-selected-fg);
 }
 
+.sys-size-note {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
 .models-sheet-body {
   display: flex;
   flex-direction: column;

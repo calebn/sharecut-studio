@@ -9,6 +9,7 @@ import type {
 import {
   canPickFolderOf,
   downloadRows,
+  engineOf,
   overlay,
   toolsOf,
 } from "../models/controller";
@@ -50,10 +51,12 @@ export function modelsApi(fixture: ModelsFixture): ModelsApi {
     observation: { kind: "current", generation: ++observationGeneration },
     tools: toolsOf(status),
     canPickFolder: canPickFolderOf(status),
+    onPhone: engineOf(status) === "whisper_cpp",
     ready: status.ready,
     busy: job !== null,
     loadError: null,
     whisper: {
+      engine: engineOf(status),
       variant: status.whisper_model,
       variants: status.whisper_models,
       choose: vi.fn(),

@@ -1,4 +1,8 @@
-import type { BootstrapJobSnapshot, BootstrapStatus } from "../api";
+import type {
+  BootstrapHost,
+  BootstrapJobSnapshot,
+  BootstrapStatus,
+} from "../api";
 import type { ModelInstallState } from "../types/pipeline";
 import { isTerminalJobStatus } from "../utils/pipeline";
 import { WHISPER_SIZES } from "./capability";
@@ -268,6 +272,12 @@ export function overlay(
 }
 
 /** Whether this device has an OS folder picker; true until the first status says otherwise. */
+export function engineOf(
+  status: BootstrapStatus | null,
+): BootstrapHost["transcription"] {
+  return status?.host.transcription ?? "faster_whisper";
+}
+
 export function canPickFolderOf(status: BootstrapStatus | null): boolean {
   return status?.host.folder_picker ?? true;
 }

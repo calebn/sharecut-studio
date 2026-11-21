@@ -18,6 +18,7 @@ import type {
 import * as api from "../api";
 import { setupOf } from "../stages/home/homeModel";
 import { deferred } from "../test/deferred";
+import { IOS_HOST, IOS_WHISPER_CATALOG } from "../test/iosFixtures";
 import { DESKTOP_HOST } from "../test/renderWithModels";
 import { stubViewportShell } from "../test/viewportShell";
 import { ApiError } from "../utils/apiError";
@@ -166,6 +167,25 @@ describe("ModelsProvider", () => {
     expect(result.current.tools).toEqual({ ffmpeg: "installed", hint: null });
     expect(result.current.whisper.variant).toBe("large-v3-turbo");
     expect(result.current.whisper.variants).toHaveLength(2);
+  });
+
+  it("reports the whisper.cpp engine and the server's own variants on an iPhone", async () => {
+    fetchStatus.mockResolvedValue(
+      status(MISSING, {
+        host: IOS_HOST,
+        whisper_model: "small.en-q5_1",
+        whisper_models: IOS_WHISPER_CATALOG,
+      }),
+    );
+    const { result } = await mounted();
+    expect(result.current.whisper.engine).toBe("whisper_cpp");
+    expect(result.current.whisper.variants).toEqual(IOS_WHISPER_CATALOG);
+    expect(result.current.onPhone).toBe(true);
+  });
+  it("reports the desktop engine on a Mac", async () => {
+    const { result } = await mounted();
+    expect(result.current.whisper.engine).toBe("faster_whisper");
+    expect(result.current.onPhone).toBe(false);
   });
 
   it("refresh reads status again without posting a download", async () => {

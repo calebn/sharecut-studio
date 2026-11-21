@@ -1,15 +1,17 @@
 import { SegmentedControl, ToggleButton } from "../ui";
-import { plainSize, WHISPER_SIZES } from "./capability";
+import { whisperSizeOptions } from "./capability";
 import { useModels } from "./useModels";
 
 export function WhisperSize({ disabled = false }: { disabled?: boolean }) {
   const { whisper } = useModels();
+  const options = whisperSizeOptions(whisper.variants, whisper.engine);
+  const note = options.find(
+    (option) => option.id === whisper.variant,
+  )?.description;
   return (
-    <SegmentedControl label="Size">
-      {WHISPER_SIZES.map((option) => {
-        const listed = whisper.variants.find((v) => v.id === option.id);
-        const size = listed ? plainSize(listed.size) : option.size;
-        return (
+    <>
+      <SegmentedControl label="Size">
+        {options.map((option) => (
           <ToggleButton
             key={option.id}
             pressed={whisper.variant === option.id}
@@ -19,10 +21,11 @@ export function WhisperSize({ disabled = false }: { disabled?: boolean }) {
             onClick={() => whisper.choose(option.id)}
           >
             <span className="sys-size-name">{option.name}</span>{" "}
-            <span className="sys-size-bytes">{size}</span>
+            <span className="sys-size-bytes">{option.size}</span>
           </ToggleButton>
-        );
-      })}
-    </SegmentedControl>
+        ))}
+      </SegmentedControl>
+      {note ? <p className="sys-size-note">{note}</p> : null}
+    </>
   );
 }

@@ -5,6 +5,7 @@ import { type ModelsApi, ModelsContext } from "../models/useModels";
 import { UNSUPPORTED_STATUS } from "./unsupportedStatus";
 
 const WHISPER: WhisperChoice = {
+  engine: "faster_whisper",
   variant: "large-v3-turbo",
   variants: [
     {
@@ -99,6 +100,7 @@ function storyModelsApi(over: Partial<ModelsApi> = {}): ModelsApi {
     },
     tools: { ffmpeg: "installed", hint: null },
     canPickFolder: true,
+    onPhone: false,
     ready: models?.every((m) => m.state.kind === "installed") ?? false,
     busy: false,
     loadError: null,

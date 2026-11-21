@@ -1,5 +1,6 @@
 import type {
   BootstrapFailureKind,
+  BootstrapHost,
   BootstrapStatus,
   WhisperModelChoice,
 } from "../api";
@@ -70,6 +71,8 @@ export type RemoveOutcome =
 export type DownloadOptions = { whisperModel?: string };
 
 export type WhisperChoice = {
+  /** The engine this host transcribes with; a whisper.cpp host is an iPhone. */
+  engine: BootstrapHost["transcription"];
   variant: string;
   variants: WhisperModelChoice[];
   choose: (variant: string) => void;

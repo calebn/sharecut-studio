@@ -26,6 +26,38 @@ describe("SetupCard needed", () => {
   });
 });
 
+describe("SetupCard needed on an iPhone", () => {
+  const card = (onPhone: boolean) => (
+    <SetupCard
+      state="needed"
+      sizeLabel="about 190 MB"
+      onPhone={onPhone}
+      onGetReady={noop}
+      onChoose={noop}
+      onCancel={noop}
+      onRetry={noop}
+      onNotNow={noop}
+    />
+  );
+  it("says transcription runs on the iPhone, not on a computer", () => {
+    render(card(true));
+    expect(
+      screen.getByText(
+        "Transcription runs on this iPhone. One download, about 190 MB.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/computer/)).toBeNull();
+  });
+  it("keeps the computer sentence off a phone", () => {
+    render(card(false));
+    expect(
+      screen.getByText(
+        "Transcription and cut-finding run on this computer. One download, about 190 MB.",
+      ),
+    ).toBeVisible();
+  });
+});
+
 describe("SetupCard on a device without audio tools", () => {
   it("shows the server's sentence and offers nothing to do", async () => {
     const { container } = render(

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BootstrapStatus } from "../api";
 import * as api from "../api";
 import { expectNoA11yViolations } from "../test/a11y";
+import { IOS_HOST, IOS_WHISPER_CATALOG } from "../test/iosFixtures";
 import {
   modelRow,
   modelStatus,
@@ -534,5 +535,82 @@ describe("ModelsSheet", () => {
   it("lists only the models the server reports", () => {
     mount([modelRow({ id: "whisper", label: "Whisper" })]);
     expect(names()).toEqual(["Transcription"]);
+  });
+});
+
+describe("ModelsSheet on an iPhone", () => {
+  const phoneRows = () => [
+    modelRow({
+      id: "whisper",
+      label: "Whisper",
+      tier: "required",
+      model: "small.en-q5_1",
+      size: "190 MB",
+      size_bytes: 190_000_000,
+    }),
+  ];
+  const phoneStatus = () =>
+    modelStatus(phoneRows(), {
+      host: IOS_HOST,
+      whisper_model: "small.en-q5_1",
+      whisper_models: IOS_WHISPER_CATALOG,
+    });
+
+  it("offers the iPhone's Recommended and Less accurate sizes with the description", async () => {
+    stubViewportShell("phone");
+    const phone = modelsApi({ status: phoneStatus() });
+    render(<ModelsSheet open onClose={vi.fn()} />, {
+      wrapper: modelsWrapper(phone),
+    });
+    const recommended = screen.getByRole("button", {
+      name: "Recommended 190 MB",
+    });
+    expect(recommended).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByRole("button", { name: "Less accurate 60 MB" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: /^Fast/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Best/ })).toBeNull();
+    expect(screen.getByText(IOS_WHISPER_CATALOG[0].description)).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Less accurate 60 MB" }),
+    );
+    expect(phone.whisper.choose).toHaveBeenCalledWith("base.en-q5_1");
+  });
+
+  it("shows the description of the chosen size only", () => {
+    stubViewportShell("phone");
+    render(<ModelsSheet open onClose={vi.fn()} />, {
+      wrapper: modelsWrapper(
+        modelsApi({
+          status: { ...phoneStatus(), whisper_model: "base.en-q5_1" },
+        }),
+      ),
+    });
+    expect(screen.getByText(IOS_WHISPER_CATALOG[1].description)).toBeVisible();
+    expect(screen.queryByText(IOS_WHISPER_CATALOG[0].description)).toBeNull();
+  });
+
+  it("names a download of the other size by its label, not its id", () => {
+    stubViewportShell("phone");
+    const phone = modelsApi({ status: phoneStatus() });
+    phone.downloads = [
+      {
+        id: "whisper",
+        label: "Whisper",
+        purpose: "transcription",
+        tier: "required",
+        size: "60 MB",
+        sizeBytes: 60_000_000,
+        variant: "base.en-q5_1",
+        state: { kind: "downloading", bytes: 10_000_000, total: 60_000_000 },
+      },
+    ];
+    render(<ModelsSheet open onClose={vi.fn()} />, {
+      wrapper: modelsWrapper(phone),
+    });
+    expect(
+      screen.getByRole("group", { name: "Transcription, Less accurate" }),
+    ).toBeVisible();
   });
 });

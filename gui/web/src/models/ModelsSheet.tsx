@@ -3,7 +3,7 @@ import { Sheet } from "../system/Sheet";
 import { StatusRow } from "../system/StatusRow";
 import { InlineError } from "../ui";
 import { modelActivity } from "./activity";
-import { inSheetOrder, WHISPER, WHISPER_SIZES } from "./capability";
+import { inSheetOrder, WHISPER, whisperSizeOptions } from "./capability";
 import { progressText } from "./format";
 import { ModelNeedRow } from "./ModelNeedRow";
 import { unsupportedSentence } from "./unsupported";
@@ -27,7 +27,9 @@ export function ModelsSheet({ open, onClose }: Props) {
     observation,
     download,
     cancel,
+    whisper,
   } = useModels();
+  const sizes = whisperSizeOptions(whisper.variants, whisper.engine);
   const otherDownloads = downloads.filter(
     (row) =>
       !models?.some(
@@ -94,9 +96,11 @@ export function ModelsSheet({ open, onClose }: Props) {
             </ul>
             {otherDownloads.map((m) => {
               const sizeName =
-                WHISPER_SIZES.find((size) => size.id === m.variant)?.name ??
-                m.variant;
-              const name = `Transcription ${sizeName}`;
+                sizes.find((size) => size.id === m.variant)?.name ?? m.variant;
+              const name =
+                whisper.engine === "whisper_cpp"
+                  ? `Transcription, ${sizeName}`
+                  : `Transcription ${sizeName}`;
               const state = m.state;
               const failed = state.kind === "failed";
               const detail =
