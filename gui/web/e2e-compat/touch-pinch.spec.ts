@@ -147,8 +147,23 @@ const STARTS: Record<
     clipAt: 50,
     select: true,
     dragPx: -30,
-    locate: (page, clip) =>
-      centerOf(page, `${lane} [data-clip-id="${clip.id}"] .trim-handle.out`),
+    locate: async (page, clip) => {
+      const selector = `${lane} [data-clip-id="${clip.id}"] .trim-handle.out`;
+      const center = await centerOf(page, selector);
+      const handle = page.locator(selector);
+      const box = await handle.boundingBox();
+      if (!box) throw new Error("trim handle not on screen");
+      const at = { x: center.x, y: box.y + box.height - 2 };
+      await expect(
+        handle.evaluate(
+          (element, point) =>
+            element.contains(document.elementFromPoint(point.x, point.y)),
+          at,
+        ),
+        "first touch must target the requested trim handle",
+      ).resolves.toBe(true);
+      return at;
+    },
   },
   "envelope line": {
     clipAt: 10,
@@ -185,6 +200,16 @@ async function dragThenPinch(
   dragPx: number,
   frame: (step: string) => Promise<void>,
 ) {
+  const firstHitIsTimeline = await page.evaluate(({ x, y }) => {
+    const hit = document.elementFromPoint(x, y);
+    return (
+      hit?.closest(".lane-row") != null &&
+      hit.closest(
+        ".track-headers, .ui-control, [role='dialog'], [data-overlay]",
+      ) == null
+    );
+  }, at);
+  expect(firstHitIsTimeline, "first touch must hit the timeline").toBe(true);
   await fingers.down(at);
   await page.waitForTimeout(32);
   const one = { ...at };
@@ -198,6 +223,20 @@ async function dragThenPinch(
   // The second finger lands on the roomier side; both then spread apart.
   const side = one.x < (page.viewportSize()?.width ?? 0) / 2 ? 1 : -1;
   const two = { x: one.x + 90 * side, y: one.y };
+  const pinchHitsAreTimeline = await page.evaluate(
+    (points) =>
+      points.every(({ x, y }) => {
+        const hit = document.elementFromPoint(x, y);
+        return (
+          hit?.closest(".lane-row") != null &&
+          hit.closest(
+            ".track-headers, .ui-control, [role='dialog'], [data-overlay]",
+          ) == null
+        );
+      }),
+    [one, two, { x: (one.x + two.x) / 2, y: (one.y + two.y) / 2 }],
+  );
+  expect(pinchHitsAreTimeline, "pinch points must hit the timeline").toBe(true);
   await fingers.join(one, two);
   await page.waitForTimeout(32);
   await frame("2-second-finger");
