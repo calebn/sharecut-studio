@@ -29,10 +29,34 @@ export LC_ALL=C TZ=UTC ZERO_AR_DATE=1
 pin() {
   python3 -I -c 'import json, sys
 node = json.load(open(sys.argv[1]))
-for key in sys.argv[2].split("."):
+field = sys.argv[2]
+for key in field.split("."):
+    if not isinstance(node, dict) or key not in node:
+        sys.exit(f"Missing FFmpeg build pin: {field}")
     node = node[key]
+if field.endswith("_configure") and not (
+    isinstance(node, list) and node and all(
+        isinstance(flag, str) and flag.startswith("--")
+        and not any(char in flag for char in "\r\n\0")
+        for flag in node
+    )
+):
+    sys.exit(f"FFmpeg build pin {field} must be a nonempty list of configure options")
 print("\n".join(node) if isinstance(node, list) else node)' "$CONTRACT" "$1"
 }
+
+VERSION=$(pin version)
+FFDIR=$(pin sources.ffmpeg.directory)
+LAME_DIR=$(pin sources.lame.directory)
+OPUS_DIR=$(pin sources.opus.directory)
+LAME_CONFIGURE=$(pin lame_configure)
+OPUS_CONFIGURE=$(pin opus_configure)
+FFMPEG_CONFIGURE=$(pin ffmpeg_configure)
+
+# Bash 3.2 read needs a NUL terminator to keep all lines in one array.
+IFS=$'\n' read -r -d '' -a LAME_FLAGS < <(printf '%s\0' "$LAME_CONFIGURE")
+IFS=$'\n' read -r -d '' -a OPUS_FLAGS < <(printf '%s\0' "$OPUS_CONFIGURE")
+IFS=$'\n' read -r -d '' -a FFMPEG_FLAGS < <(printf '%s\0' "$FFMPEG_CONFIGURE")
 
 if [ "$PLAT" = device ]; then MIN="-miphoneos-version-min=$MINOS"; else MIN="-mios-simulator-version-min=$MINOS"; fi
 SYSROOT=$(xcrun --sdk "$SDK" --show-sdk-path)
@@ -41,7 +65,6 @@ CC="$CLANG -arch arm64 -isysroot $SYSROOT $MIN"
 
 mkdir -p "$SRC" "$BUILD" "$OUT" "$PREFIX"
 
-FFDIR=$(pin sources.ffmpeg.directory)
 PATCHES=$(python3 -I - "$CONTRACT" "$SRC" "$ROOT" <<'PY'
 import hashlib, json, subprocess, sys
 from pathlib import Path
@@ -98,14 +121,14 @@ CFLAGS="$CFLAGS_CONFIGURE $FORCE"
 
 if [ ! -f "$PREFIX/lib/libmp3lame.a" ]; then
   rm -rf "$BUILD/lame"; mkdir -p "$BUILD/lame"; cd "$BUILD/lame"
-  "$SRC/$(pin sources.lame.directory)/configure" --host=aarch64-apple-darwin --prefix="$PREFIX" $(pin lame_configure) CC="$CC" CFLAGS="$CFLAGS_CONFIGURE" > "$BUILD/lame-configure.log" 2>&1
+  "$SRC/$LAME_DIR/configure" --host=aarch64-apple-darwin --prefix="$PREFIX" "${LAME_FLAGS[@]}" CC="$CC" CFLAGS="$CFLAGS_CONFIGURE" > "$BUILD/lame-configure.log" 2>&1
   # the forced includes go on only after configure: with <stdlib.h> forced in, autoconf's `char strtol(void)` probes fail
   nice -n 10 make -j"$JOBS" CFLAGS="$CFLAGS" > "$BUILD/lame-make.log" 2>&1
   make install > "$BUILD/lame-install.log" 2>&1
 fi
 if [ ! -f "$PREFIX/lib/libopus.a" ]; then
   rm -rf "$BUILD/opus"; mkdir -p "$BUILD/opus"; cd "$BUILD/opus"
-  "$SRC/$(pin sources.opus.directory)/configure" --host=aarch64-apple-darwin --prefix="$PREFIX" $(pin opus_configure) CC="$CC" CFLAGS="$CFLAGS_CONFIGURE" > "$BUILD/opus-configure.log" 2>&1
+  "$SRC/$OPUS_DIR/configure" --host=aarch64-apple-darwin --prefix="$PREFIX" "${OPUS_FLAGS[@]}" CC="$CC" CFLAGS="$CFLAGS_CONFIGURE" > "$BUILD/opus-configure.log" 2>&1
   # the forced includes go on only after configure: with <stdlib.h> forced in, autoconf's `char strtol(void)` probes fail
   nice -n 10 make -j"$JOBS" CFLAGS="$CFLAGS" > "$BUILD/opus-make.log" 2>&1
   make install > "$BUILD/opus-install.log" 2>&1
@@ -125,7 +148,7 @@ rm -rf "$BUILD/ffmpeg"; mkdir -p "$BUILD/ffmpeg"; cd "$BUILD/ffmpeg"
 export PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig PKG_CONFIG_LIBDIR=$PREFIX/lib/pkgconfig
 "$FFSRC/configure" --prefix="$PREFIX" --enable-cross-compile --target-os=darwin --arch=arm64 \
   --cc="$CC" --as="$CC" --ld="$CC" --pkg-config=pkg-config --enable-pic \
-  $(pin ffmpeg_configure) \
+  "${FFMPEG_FLAGS[@]}" \
   --extra-cflags="-I$PREFIX/include $MIN $MAPS" --extra-ldflags="-L$PREFIX/lib $MIN" --extra-libs="$BUILD/cfg_stub.o" > "$BUILD/ffmpeg-configure.log" 2>&1
 # configure's probes declare `extern int fn();`, which the real prototypes from the forced <stdlib.h> contradict: add the forced includes to the build only
 printf 'CFLAGS+= %s\n' "$FORCE" >> ffbuild/config.mak
@@ -155,7 +178,7 @@ compile_tool "$GLUE/sc_ffprobe_tool.c" -Dmain=sc_ffprobe_main -Dprogram_name=ffp
 printf '_sc_ffmpeg_abi_version\n_sc_ffmpeg_start\n_sc_ffmpeg_wait\n_sc_ffmpeg_cancel\n' > "$WORK/exports.txt"
 FW=$OUT/FFmpeg.framework
 rm -rf "$FW"; mkdir -p "$FW"
-$CC -dynamiclib -o "$FW/FFmpeg" -install_name @rpath/FFmpeg.framework/FFmpeg -compatibility_version 1 -current_version "$(pin version)" \
+$CC -dynamiclib -o "$FW/FFmpeg" -install_name @rpath/FFmpeg.framework/FFmpeg -compatibility_version 1 -current_version "$VERSION" \
   -exported_symbols_list "$WORK/exports.txt" -Wl,-dead_strip -Wl,-x \
   "$WORK/sc_ffmpeg_core.o" "$WORK/sc_ffmpeg_glue.o" "$WORK/sc_ffmpeg_tool.o" "$WORK/sc_ffprobe_tool.o" $TOOL_OBJS $LIB_ARCHIVES \
   "$PREFIX/lib/libmp3lame.a" "$PREFIX/lib/libopus.a" -lz -lm -liconv > "$BUILD/framework-link.log" 2>&1
@@ -168,8 +191,8 @@ cat > "$FW/Info.plist" <<PLIST
 <key>CFBundleName</key><string>FFmpeg</string>
 <key>CFBundleExecutable</key><string>FFmpeg</string>
 <key>CFBundlePackageType</key><string>FMWK</string>
-<key>CFBundleShortVersionString</key><string>$(pin version)</string>
-<key>CFBundleVersion</key><string>$(pin version)</string>
+<key>CFBundleShortVersionString</key><string>$VERSION</string>
+<key>CFBundleVersion</key><string>$VERSION</string>
 <key>MinimumOSVersion</key><string>$MINOS</string>
 <key>CFBundleSupportedPlatforms</key><array><string>$PLATFORM_NAME</string></array>
 </dict></plist>
