@@ -156,6 +156,28 @@ for (const viewport of [SIZES[0], NARROW_PHONE]) {
 }
 
 test.describe("a page that opened on the saved copy", () => {
+  test("requires the host after the saved copy expires", async ({
+    browser,
+  }) => {
+    await withGuestLink(browser, SIZES[1], async (guest, token) => {
+      await openGuestShare(guest, token);
+      await expect.poll(() => guestSavedCopy(guest, token)).not.toBeNull();
+      const away = await hostGoesAway(guest, token);
+      await guest.clock.setFixedTime(Date.now() + 8 * 24 * 60 * 60 * 1000);
+      await guest.reload();
+      await expect(
+        guest.getByRole("heading", { name: "The host's computer is asleep" }),
+      ).toBeVisible();
+      await expect(guest.locator(".stage-frame--guest")).toHaveCount(0);
+      await expect(light(guest)).toHaveCount(0);
+
+      await away.back();
+      await guest.getByRole("button", { name: "Try now" }).click();
+      await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+      await expect(light(guest)).toHaveText("Saved");
+    });
+  });
+
   test("names the saved copy visibly on a narrow phone", async ({
     browser,
   }) => {

@@ -87,7 +87,7 @@ describe("the name the server wrote into the page", () => {
     window.history.pushState({}, "", "/r/named");
     offline.load.mockResolvedValue({
       project: { meta: { name: "Saved episode" } },
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     vi.stubGlobal("fetch", answers("fail"));
     render(<App bootName="Pilot episode" />);

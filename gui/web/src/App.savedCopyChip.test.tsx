@@ -67,7 +67,9 @@ function stubLinkFirstReadFails() {
 beforeEach(() => {
   resetFeaturesCache();
   localStorage.clear();
-  offline.load.mockReset().mockResolvedValue({ project: minimalProject() });
+  offline.load
+    .mockReset()
+    .mockResolvedValue({ project: minimalProject(), saved_at: Date.now() });
   offline.clear.mockReset().mockResolvedValue(undefined);
   window.history.pushState({}, "", "/r/saved-copy-tok");
 });
@@ -81,7 +83,7 @@ describe("the header on a saved copy the guest opened because the link was not r
   it("dates the saved copy with the stored snapshot time", async () => {
     stubLinkFirstReadFails();
     stubIndexedDb(new Map());
-    const date = new Date(2026, 10, 17, 12);
+    const date = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
     offline.load.mockResolvedValue({
       project: minimalProject(),
       saved_at: date.getTime(),

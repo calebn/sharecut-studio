@@ -37,6 +37,7 @@ import type { ProjectView } from "../types/project";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { audioContextCtor } from "../utils/audio";
 import { sortedVolumePoints } from "../utils/envelopes";
+import { isSavedCopyFresh } from "../utils/savedCopyAge";
 
 /** An audition stops where it was asked to, or at the episode end if that comes first. */
 function finishAudition(atSec: number): void {
@@ -295,7 +296,8 @@ export function useProxyTransport(): boolean {
             const token = shareTokenFromKey(projectPath);
             const snapshot = token ? await loadOfflineSnapshot(token) : null;
             if (!current()) return;
-            if (!snapshot?.manifest) throw error;
+            if (!snapshot?.manifest || !isSavedCopyFresh(snapshot.saved_at))
+              throw error;
             manifest = parseProxyManifest(snapshot.manifest);
             cachedFallback = true;
           }

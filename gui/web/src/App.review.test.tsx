@@ -135,7 +135,7 @@ describe("App review route", () => {
     window.history.pushState({}, "", "/r/revoked");
     offline.load.mockResolvedValue({
       project: { meta: { name: "Stale episode" } },
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     vi.stubGlobal(
       "fetch",
@@ -191,7 +191,7 @@ describe("App review route", () => {
     window.history.pushState({}, "", "/r/stripped");
     offline.load.mockResolvedValue({
       project: { meta: { name: "Stale episode" } },
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     stubBootstrapFailure(
       () =>
@@ -263,7 +263,7 @@ describe("App review route", () => {
     window.history.pushState({}, "", "/r/offline");
     offline.load.mockResolvedValue({
       project: { meta: { name: "Stale episode" } },
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     stubBootstrapFailure(() => {
       throw new TypeError("Failed to fetch");
@@ -916,7 +916,7 @@ describe("App review route", () => {
     it("opens the saved copy instead of the cover", async () => {
       offline.load.mockResolvedValue({
         project: { meta: { name: "Stale episode" } },
-        saved_at: 1,
+        saved_at: Date.now(),
       });
       render(<App />);
       expect(
@@ -933,7 +933,7 @@ describe("App review route", () => {
     window.history.pushState({}, "", "/r/cached");
     offline.load.mockResolvedValue({
       project: { meta: { name: "Stale episode" } },
-      saved_at: 1,
+      saved_at: Date.now(),
     });
     stubBootstrapFailure(
       () =>

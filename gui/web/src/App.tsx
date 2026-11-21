@@ -9,6 +9,7 @@ import {
 } from "./guestLoadFailure";
 import { ApiError } from "./utils/apiError";
 import { readNotServed } from "./utils/notServed";
+import { isSavedCopyFresh } from "./utils/savedCopyAge";
 import "./styles/daw.css";
 import "./stage/edit/script/registerTranscriptSelectionFollower";
 import { FeatureProvider } from "./extensions/FeatureProvider";
@@ -473,7 +474,11 @@ function AppInner({ bootName }: { bootName: string | null }) {
         );
         if (standing() !== "newest") return;
         const cachedProject = saved?.project as ProjectView | undefined;
-        if (cachedProject && typeof cachedProject === "object") {
+        if (
+          cachedProject &&
+          typeof cachedProject === "object" &&
+          isSavedCopyFresh(saved?.saved_at)
+        ) {
           const key = shareProjectKey(reviewToken);
           outcome = {
             kind: "cached",
