@@ -743,15 +743,18 @@ def _version(version_id: str) -> ReviewMixVersion:
 
 
 def _history_with_a_publish_step(project_path: Path) -> HistoryManager:
-    """A history an older build wrote: the publish of a review version is steps 0 and 1."""
+    """The old publish saved its after entry when its before matched the preceding edit."""
     mgr = HistoryManager(ProjectStore(project_path))
     proj = load_project(project_path)
-    mgr.record(proj, "before publish review version", force=True)
+    mgr.record(proj, "start")
+    proj.review.comments = [_review_comment("c1")]
+    mgr.record(proj, "after add first comment")
+    mgr.record(proj, "before publish review version")
     proj.review.versions = [_version("ver-1")]
     proj.review.active_version_id = "ver-1"
     mgr.record(proj, "after publish review version", force=True)
-    proj.review.comments = [_review_comment("c1")]
-    mgr.record(proj, "after add comment")
+    proj.review.comments.append(_review_comment("c2"))
+    mgr.record(proj, "after add second comment")
     save_project(proj, project_path)
     return mgr
 
@@ -765,16 +768,34 @@ def _review_state(project: EpisodeProject) -> tuple[list[str], str | None, list[
 
 
 def test_undo_and_redo_keep_the_review_versions_and_follow_the_comments(minimal_project):
-    mgr = _history_with_a_publish_step(minimal_project)
+    _history_with_a_publish_step(minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
 
-    proj = load_project(minimal_project)
-    mgr.apply_undo(proj)
-    assert _review_state(proj) == (["ver-1"], "ver-1", [])
-    mgr.apply_undo(proj)
-    assert _review_state(proj) == (["ver-1"], "ver-1", [])
-    mgr.apply_redo(proj)
-    mgr.apply_redo(proj)
-    assert _review_state(proj) == (["ver-1"], "ver-1", ["c1"])
+    ws.undo(expected_head_id=ws.project.history.head_id())
+    assert _review_state(load_project(minimal_project)) == (["ver-1"], "ver-1", ["c1"])
+    ws.undo(expected_head_id=ws.project.history.head_id())
+    assert _review_state(load_project(minimal_project)) == (["ver-1"], "ver-1", [])
+    ws.redo(expected_head_id=ws.project.history.head_id())
+    assert _review_state(load_project(minimal_project)) == (["ver-1"], "ver-1", ["c1"])
+    ws.redo(expected_head_id=ws.project.history.head_id())
+    assert _review_state(load_project(minimal_project)) == (["ver-1"], "ver-1", ["c1", "c2"])
+
+
+def test_a_publish_label_with_an_edit_still_undoes_and_redoes(minimal_project):
+    project = load_project(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
+    mgr.record(project, "before publish review version")
+    project.review.versions = [_version("ver-1")]
+    project.review.active_version_id = "ver-1"
+    project.review.comments = [_review_comment("c1")]
+    mgr.record(project, "after publish review version")
+    save_project(project, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+
+    assert ws.undo().current_label == "before publish review version"
+    assert _review_state(ws.project) == (["ver-1"], "ver-1", [])
+    assert ws.redo().current_label == "after publish review version"
+    assert _review_state(ws.project) == (["ver-1"], "ver-1", ["c1"])
 
 
 def test_goto_keeps_the_review_versions_and_follows_the_comments(minimal_project):
@@ -785,6 +806,9 @@ def test_goto_keeps_the_review_versions_and_follows_the_comments(minimal_project
     assert _review_state(proj) == (["ver-1"], "ver-1", [])
     mgr.apply_goto(proj, 2)
     assert _review_state(proj) == (["ver-1"], "ver-1", ["c1"])
+    assert proj.history.entries[proj.history.cursor].label == "after publish review version"
+    mgr.apply_goto(proj, 3)
+    assert _review_state(proj) == (["ver-1"], "ver-1", ["c1", "c2"])
 
 
 def test_a_history_move_keeps_the_versions_whatever_shape_the_snapshot_holds(minimal_project):
