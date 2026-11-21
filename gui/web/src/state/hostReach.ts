@@ -193,7 +193,6 @@ export function useHostCause(forToken: string | null): HostCause | null {
     : null;
 }
 
-/** Why the host cannot be reached right now, read outside a component; null when it can. */
 export function hostCauseNow(forToken: string): HostCause | null {
   if (deviceOffline()) return "device";
   return snapshot.token === forToken ? snapshot.cause : null;

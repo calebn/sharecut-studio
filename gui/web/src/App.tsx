@@ -507,7 +507,6 @@ function AppInner({ bootName }: { bootName: string | null }) {
       if (attempts.current.newest?.reviewToken !== token) return;
       // Collecting what was typed and unmounting the studio is one step: a key
       // pressed between the two would land in a field that is about to go.
-      // This runs in a promise callback, never during a render.
       const unsent = collectUnsent(kept);
       flushSync(() => {
         const store = useDawStore.getState();
@@ -526,7 +525,6 @@ function AppInner({ bootName }: { bootName: string | null }) {
         );
       });
       void retireOfflineSnapshot(token);
-      // Started after the cover is on screen and never waited for.
       void forgetLinkAudio(token);
     });
   };

@@ -18,7 +18,6 @@ export type CommentCardData = {
     id: string;
     author: string;
     body: string;
-    /** A reply the host has not taken yet. */
     pending?: "queued" | "sending";
   }[];
   actions: { id: string; text: string; done: boolean; doneBy?: string }[];
@@ -28,9 +27,7 @@ export type CommentCardData = {
 export type CommentPending =
   | {
       state: "queued";
-      /** The send is on its way; it can no longer be called back. */
       sending?: boolean;
-      /** Absent: the comment waits with no way to call it back. */
       onDontSend?: () => void;
     }
   | { state: "failed"; onRetry: () => void; onRemove: () => void };
@@ -60,7 +57,6 @@ export type CommentCardProps = {
   onToggleAction?: (id: string, done: boolean) => void;
   /** Absent: no reply field (viewer). */
   reply?: ReplyComposerProps;
-  /** Calls back a reply that has not been sent yet. */
   onDontSendReply?: (replyId: string) => void;
 };
 

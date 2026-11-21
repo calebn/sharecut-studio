@@ -25,7 +25,7 @@ import { isKept, type KeptPost, newPostKey } from "../utils/keptPost";
 import { replyHistoryHead, submitDocumentCommand } from "./documentEdits";
 import { apiFetch, NETWORK_ERROR_CODE } from "./http";
 
-export type GuestSendOutcome =
+type GuestSendOutcome =
   | { status: "sent"; comment: TimelineComment | null }
   /** Nothing is settled: send it again later. `keep` is true when the host simply did not answer. */
   | { status: "retry"; error: unknown; keep: boolean }
@@ -85,11 +85,6 @@ function commentBody(row: OutboxRow): string {
   });
 }
 
-/**
- * One try at a guest's comment or reply. `replyTo` is the server's id for the
- * comment a reply answers. The row's own `id` rides along, so a repeat of a
- * send that landed returns what the first made.
- */
 export async function sendGuestPost(
   token: string,
   row: OutboxRow,
@@ -152,10 +147,6 @@ export async function sendGuestPost(
   }
 }
 
-/**
- * Sends a guest post now, or keeps it in the outbox when the host did not
- * answer. Anything else the host said throws, with the text still in the field.
- */
 async function sendOrKeep(
   token: string,
   row: OutboxRow,
@@ -188,7 +179,6 @@ export async function createComment(
     timelineSpans?: { start: number; end: number }[];
     actionTexts?: string[];
     editDecisionId?: string | null;
-    /** A guest's key for this comment; a retry of the same text passes the same one. */
     postKey?: string;
   },
 ): Promise<TimelineComment | KeptPost | null> {

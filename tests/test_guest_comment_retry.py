@@ -1,5 +1,3 @@
-"""A guest's comment or reply can be sent again without making a second one (#3891)."""
-
 from __future__ import annotations
 
 from pathlib import Path

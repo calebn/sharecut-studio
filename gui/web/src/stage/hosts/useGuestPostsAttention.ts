@@ -18,10 +18,6 @@ function whatOf(row: OutboxRow): string {
       })}`;
 }
 
-/**
- * A guest's kept comments and replies for the Needs attention group: how many
- * wait, and the ones the host refused with their words handed back.
- */
 export function useGuestPostsAttention(
   projectPath: string,
 ): GuestPostsAttention | undefined {

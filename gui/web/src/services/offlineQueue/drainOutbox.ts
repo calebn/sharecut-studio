@@ -14,12 +14,10 @@ import {
 import { errorMessage } from "../../utils/apiError";
 import { isLinkEnded } from "../../utils/linkEnded";
 
-/** The host's longest comment or reply, in characters. */
 const BODY_LIMIT = 8000;
 
 const PARENT_NOT_POSTED = "The comment it answers was not posted.";
 
-/** Why the host refused a post, in words for the person who wrote it. */
 export function refusalReasonOf(
   row: Pick<OutboxRow, "kind" | "body">,
   status: number,
@@ -52,12 +50,6 @@ async function withOutboxLock(
   );
 }
 
-/**
- * Sends the guest's kept comments and replies in the order they were written.
- * A host that does not answer ends the pass with every row still kept; a host
- * that refuses a row for good returns it to the guest and the pass goes on.
- * Never sends the same row twice: its id is the server's repeat key.
- */
 export function drainOutbox(token: string): Promise<void> {
   return withOutboxLock(token, async () => {
     const rows = await loadOutbox(token);

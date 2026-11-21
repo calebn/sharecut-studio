@@ -1,5 +1,3 @@
-/** The one IndexedDB key-value store the offline queues and the outbox share. */
-
 const DB_NAME = "podcast-daw-offline";
 const DB_VERSION = 1;
 export const STORE = "kv";
@@ -68,7 +66,6 @@ export async function idbSet(key: string, value: unknown): Promise<void> {
   });
 }
 
-/** One read-modify-write of a persisted list in a single transaction; `update` sees the parsed list. */
 export async function updateStoredList<Item, Result>(
   key: string,
   parse: (value: unknown) => Item[],

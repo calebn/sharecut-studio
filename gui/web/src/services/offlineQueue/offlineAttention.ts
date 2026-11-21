@@ -66,7 +66,6 @@ export function volatileOutcomeFor(
     ?.find((outcome) => outcome.command.command_id === commandId);
 }
 
-/** A guest's kept comments and replies wait to be sent like queued edits do. */
 async function withKeptPosts(
   token: string,
   saved: Promise<OfflineAttentionData>,
