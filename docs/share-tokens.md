@@ -515,7 +515,11 @@ receives each heard word's text and timing, so its Script follows playback and
 a tap on a word seeks; it receives no confidence or unsure-word detail, and
 selecting words, commenting and suggesting stay with the roles that hold them.
 Suppressed words never reach a guest of any role, and a share that holds no
-review role reads no words. A Viewer's `ignored` flag is kept because the
+review role reads no words. Guest document snapshots and edit updates preserve
+the cut boundary and visible cutaway words. Their word references carry only
+track and source IDs, preview index, text, and source times. The host preview
+retains its words and marks suppressed references so the guest projection can
+drop them before building an update. A Viewer's `ignored` flag is kept because the
 Script skips ignored words. Guest utterance rows carry only the supported
 identity, text, timeline, and word-overlay fields. Every projection retains
 the metadata the client compares to decide whether a loaded word overlay is
