@@ -928,7 +928,8 @@ there (an audition that reaches the end also clears its range), and Play again
 starts from 0. A snapshot that moves the end reschedules like a clip
 change. A chunk fetch that fails while the horizon extends is retried (after
 1 s, 2 s, then every 4 s) until 5 s of scheduled sound remain, and only then
-is the failure reported once. An extension that remains pending is reported at
+is the failure reported once. A retry reuses any chunk still downloading for
+the current playback schedule. An extension that remains pending is reported at
 the same point if it started before it. If the wake comes later during ordinary
 playback, the audio clock gives the extension until the scheduled edge or one
 audio-clock second after the wake, whichever is later. An audition that wakes

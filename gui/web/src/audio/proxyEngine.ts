@@ -132,6 +132,7 @@ export class ProxyEngine {
   private sentinel: ConstantSourceNode | null = null;
   private playbackRate = 1;
   private scheduleGeneration = 0;
+  private loadingBuffers = new Map<string, Promise<AudioBuffer | null>>();
   private originCtxTime = 0;
   private originTimelineSec = 0;
   private solo: Record<string, boolean> = {};
@@ -188,7 +189,7 @@ export class ProxyEngine {
     this.applyGains();
     // A volume or mute change only moves gains; new clips need new sources.
     if (changed) {
-      this.scheduleGeneration += 1;
+      this.beginScheduleGeneration();
       this.horizon = null;
       this.stopSources();
       if (this.playing) {
@@ -278,7 +279,7 @@ export class ProxyEngine {
     this.playing = false;
     this.sinkRunning = false;
     this.horizon = null;
-    this.scheduleGeneration += 1;
+    this.beginScheduleGeneration();
     this.stopSources();
     this.originTimelineSec = t;
     this.pruneBuffers(t - SKIP_BACK_KEEP_SEC, t + WINDOW_PAD_SEC);
@@ -289,7 +290,7 @@ export class ProxyEngine {
 
   seek(timelineSec: number): void {
     const wasPlaying = this.playing;
-    this.scheduleGeneration += 1;
+    this.beginScheduleGeneration();
     this.horizon = null;
     this.stopSources();
     this.originTimelineSec = timelineSec;
@@ -428,6 +429,21 @@ export class ProxyEngine {
       this.touchLru(key, 0);
       return existing;
     }
+    const loading = this.loadingBuffers;
+    const pending = loading.get(key);
+    if (pending) return pending;
+    const request = this.loadBuffer(ref, key, generation).finally(() => {
+      loading.delete(key);
+    });
+    loading.set(key, request);
+    return request;
+  }
+
+  private async loadBuffer(
+    ref: ImmutableChunkRef,
+    key: string,
+    generation: number,
+  ): Promise<AudioBuffer | null> {
     let ab: ArrayBuffer;
     try {
       ab = await this.fetchChunk(ref);
@@ -506,6 +522,11 @@ export class ProxyEngine {
     });
   }
 
+  private beginScheduleGeneration(): number {
+    this.loadingBuffers = new Map();
+    return ++this.scheduleGeneration;
+  }
+
   private slicesBetween(
     snapshot: ProxyPlaybackSnapshot,
     startSec: number,
@@ -542,7 +563,7 @@ export class ProxyEngine {
 
   private async scheduleAround(timelineSec: number): Promise<void> {
     this.horizon = null;
-    const generation = ++this.scheduleGeneration;
+    const generation = this.beginScheduleGeneration();
     const snapshot = this.snapshot;
     if (!snapshot || !this.playing) return;
     // A slice that straddles the target is still included; nothing before it can sound.
