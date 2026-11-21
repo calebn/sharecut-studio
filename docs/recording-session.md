@@ -147,8 +147,9 @@ standard error gives the recovery commands. Use `podcast review list-shares --pr
 if no earlier session IDs are known, then `podcast review revoke-share --project PROJECT --session-id SESSION_ID`
 for each earlier room to end. Keep the room JSON private because it contains invite links.
 The GUI treats that 409 as a made room: it lists the room, copies the guest link and tells the host
-that links to an earlier room may still work (End that room in Invite), and it does
-not mint again on its own. An old guest's open socket is closed by the periodic share
+that earlier links may still work. It directs the host to end earlier rooms in Invite
+and warns that creating another room may end the room just created. It does not
+mint again on its own. An old guest's open socket is closed by the periodic share
 recheck (within about 5 s while active, 30 s idle), and a joined old guest also fails
 `participant_active` after the remint. Re-invite (`--session-id`) only mints into the
 active room.

@@ -1147,7 +1147,7 @@ describe("record rooms", () => {
     expect(writeText).toHaveBeenCalledWith(guestRow.url);
     await waitFor(() =>
       expect(flow.error).toBe(
-        "Your new room is ready. Links to an earlier room may still work. End the earlier room in Invite to turn them off.",
+        "Your new room is ready. Earlier links may still work. End earlier rooms in Invite to turn them off. Creating another room may end this one.",
       ),
     );
   });
