@@ -31,6 +31,7 @@ from podcast_mcp.edits.trim_suggestion import check_suggested_trim
 from podcast_mcp.engines.audio_audit import clipping_indicated
 from podcast_mcp.engines.bleed_echo import EchoConfig, EchoPairProfile, echo_profiles
 from podcast_mcp.engines.clips_ops import clips_for_track, is_session_join
+from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.engines.session_timeline import SessionTimeline, shift_at
 from podcast_mcp.models import Clip, EditMode, EpisodeProject, TrackRole
@@ -395,7 +396,7 @@ def _auxiliary_tracks(
                 },
             }
             for span in spans
-            if min(end, span.timeline_end) > max(start, span.timeline_start)
+            if min(end, span.timeline_end) > max(start, span.timeline_start) + SPAN_EPS_S
         ]
         if placements:
             tracks.append(
