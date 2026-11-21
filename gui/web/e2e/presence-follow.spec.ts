@@ -508,6 +508,44 @@ test.describe("presence follow guest share", () => {
     });
   });
 
+  test("the Viewer header keeps Following clear of Appearance at 700 px", async ({
+    browser,
+  }) => {
+    await withHostGuestPages(
+      browser,
+      "viewer",
+      async (host, guest) => {
+        await goToStage(host, "prepare");
+        await followUntilPillVisible(guest);
+        const appearance = guest.getByRole("button", {
+          name: "Appearance",
+          exact: true,
+        });
+        const pill = followPill(guest).locator(".avatar-follow-pill");
+        await expect(pill).toBeVisible();
+        await expect(appearance).toBeVisible();
+        const [followingBox, appearanceBox] = await Promise.all([
+          pill.boundingBox(),
+          appearance.boundingBox(),
+        ]);
+        if (!followingBox || !appearanceBox)
+          throw new Error("Header controls did not render");
+        expect(followingBox.x + followingBox.width).toBeLessThanOrEqual(
+          appearanceBox.x + 0.5,
+        );
+        await appearance.click();
+        await expect(
+          guest.getByRole("menu", { name: "Appearance" }),
+        ).toBeVisible();
+        await guest.keyboard.press("Escape");
+        await expect(appearance).toBeFocused();
+        await pill.getByRole("button", { name: "Stop following Host" }).click();
+        await expect(pill).toHaveCount(0);
+      },
+      { width: 700, height: 900 },
+    );
+  });
+
   test("phone guest pill keeps Stop following in the shell and carries the detail", async ({
     browser,
   }) => {
