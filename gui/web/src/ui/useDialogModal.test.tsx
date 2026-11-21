@@ -52,6 +52,7 @@ function Fixture({ initiallyOpen = true }: { initiallyOpen?: boolean }) {
         <div role="dialog" aria-modal="true" aria-label="Test dialog">
           <button type="button" aria-label="Scrim" />
           <div ref={panelRef}>
+            <h2 id="dialog-origin">Dialog heading</h2>
             <button ref={closeRef} type="button">
               Close
             </button>
@@ -258,11 +259,12 @@ describe("useDialogModal", () => {
     expect(screen.getByRole("button", { name: "Last" })).toHaveFocus();
   });
 
-  it("keeps the app toast's buttons in the Tab cycle while the dialog traps focus", async () => {
+  it("keeps the dialog's share Undo in its Tab cycle", async () => {
     const user = userEvent.setup();
     const region = document.createElement("div");
     region.className =
       "ui-toast-region ui-toast-region--app ui-toast-region--actionable";
+    region.dataset.modalActionOrigin = "dialog-origin";
     const undo = document.createElement("button");
     undo.textContent = "Undo";
     region.append(undo);
@@ -287,29 +289,35 @@ describe("useDialogModal", () => {
     }
   });
 
-  it("leaves a plain status toast out of the Tab cycle", async () => {
-    const user = userEvent.setup();
-    const region = document.createElement("div");
-    region.className = "ui-toast-region ui-toast-region--app";
-    const dismiss = document.createElement("button");
-    dismiss.textContent = "Dismiss";
-    region.append(dismiss);
-    document.body.prepend(region);
-    try {
-      render(<Fixture />);
-      await waitFor(() => {
+  it.each([undefined, "outside-origin"])(
+    "keeps unrelated toast actions out of the Tab cycle (%s)",
+    async (origin) => {
+      const user = userEvent.setup();
+      const region = document.createElement("div");
+      region.className =
+        "ui-toast-region ui-toast-region--app ui-toast-region--actionable";
+      if (origin) region.dataset.modalActionOrigin = origin;
+      const action = document.createElement("button");
+      action.id = "outside-origin";
+      action.textContent = "Undo";
+      region.append(action);
+      document.body.prepend(region);
+      try {
+        render(<Fixture />);
+        await waitFor(() => {
+          expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+        });
+        await user.tab();
+        await user.tab();
+        expect(screen.getByRole("button", { name: "Last" })).toHaveFocus();
+        await user.tab();
+        expect(action).not.toHaveFocus();
         expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
-      });
-      await user.tab();
-      await user.tab();
-      expect(screen.getByRole("button", { name: "Last" })).toHaveFocus();
-      await user.tab();
-      expect(dismiss).not.toHaveFocus();
-      expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
-    } finally {
-      region.remove();
-    }
-  });
+      } finally {
+        region.remove();
+      }
+    },
+  );
 
   it("closes on Escape and restores focus", async () => {
     const user = userEvent.setup();

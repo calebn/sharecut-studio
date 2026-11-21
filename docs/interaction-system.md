@@ -194,8 +194,8 @@ There are three overlay primitives.
    #2199, #2221). If no clear position fits, the existing fallback can cover a
    control. See [Feedback toast](gui-mobile.md#feedback-toast) for the measured
    320x300 limit and the Dismiss or resize workaround. The toast region is
-   appended to the page body after the app, so it stays outside the tree an
-   open sheet makes inert and its Undo stays reachable.
+   appended to the page body after the app, outside the tree a dialog makes
+   inert. The Invite dialog includes its own share Undo in its Tab cycle.
    Escape dismisses the newest message when focus is outside a field and there
    is no selection or followed person to end first (`feedback.dismiss`, last in
    the Escape order), and Escape with focus inside the card dismisses it and
@@ -217,12 +217,12 @@ There are three overlay primitives.
    `announceStatus`. The toast's Undo is the same History step the Undo button
    runs. A change History does not record (a comment resolve) passes `reverse`
    instead, and the toast's Undo runs it; its `run` answers `true`, `false`, or a
-   string, the reason the change cannot be taken back, shown as the error. An Undo that expires on
-   a clock the server keeps (Stop sharing, End room) also passes `dwellMs`,
-   the window less a safety margin, and the server stays the authority: the
-   client has no commit timer. A toast that carries Undo or an action rides above a modal dialog's scrim
-   (one above `--z-command-palette`) and only such a toast's buttons join the dialog's Tab cycle after the panel (a plain status toast stays out of it), so the
-   Undo for a step the dialog just took stays pressable. `commands/undoToast.test.ts` walks
+   string, the reason the change cannot be taken back, shown as the error.
+   Stop sharing and End room set a deadline half a second before the server's
+   restore window closes. When the toast's source heading belongs to the
+   innermost modal dialog, the share Undo appears above its scrim. The dialog
+   includes the toast buttons after its panel in the Tab cycle.
+   `commands/undoToast.test.ts` walks
    every catalog command flagged `mutates` and fails on one with no proof.
 3. **Status and error are two styles of one component.** An error names the
    failure and the next step. A status names what changed. They never share one
@@ -245,7 +245,8 @@ There are three overlay primitives.
    paths or stack text in a toast, banner or empty state. A truncated sentence
    is a bug.
 8. **A toast clears itself.** It stays 6 seconds (10 with Undo) and waits
-   while hovered, focused, or with Undo unable to act. A card the browser
+   while hovered, focused, or with Undo unable to act. Share Undo uses the
+   server-backed deadline even while hovered, focused, or clipped. A card the browser
    reports as clipped waits at most 6 seconds more, so a short viewport or
    an expanded Safari toolbar never strands it. A ratio of 0.95 or more counts
    as fully shown.

@@ -202,6 +202,31 @@ def test_a_second_restorable_revoke_of_a_pending_link_keeps_it_pending(
     assert svc.restore(share["token"], now=at(4)) == {"restored": True, "token": share["token"]}
 
 
+@pytest.mark.parametrize("leased", [False, True], ids=["deadline", "lease"])
+def test_repeat_link_revoke_reports_no_undo_for_an_expired_or_leased_row(
+    minimal_project, sample_wav, tmp_workspace, effects, leased
+):
+    ws = _seed(minimal_project, sample_wav)
+    token = _review_share(ws)["token"]
+    svc = ShareService(ws)
+    svc.revoke(token, restorable_for=WINDOW, now=T0)
+    moment = at(1) if leased else at(WINDOW)
+    if leased:
+        claimed = get_share_registry().claim_due(
+            now=moment,
+            project_workspace=share_pending.workspace_key(ws),
+            group_id=token,
+            force=True,
+        )
+        assert len(claimed) == 1
+
+    assert svc.revoke(token, restorable_for=WINDOW, now=moment) == {
+        "revoked": True,
+        "token": token,
+    }
+    effects["object"].assert_not_called()
+
+
 def _vanish_after_first_read(monkeypatch: pytest.MonkeyPatch) -> None:
     """The pending row is there for one registry read, then a sweep finalizes it."""
     registry = get_share_registry()
@@ -263,6 +288,47 @@ def test_a_final_revoke_of_a_pending_link_finalizes_it_at_once(
     assert get_share_registry().list_pending() == []
     with pytest.raises(RestoreWindowClosedError):
         svc.restore(share["token"], now=at(1))
+
+
+def test_a_final_revoke_finalizes_a_review_link_parked_during_classification(
+    minimal_project, sample_wav, tmp_workspace, effects, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    token = _review_share(ws)["token"]
+    svc = ShareService(ws)
+    classify = svc._classify
+
+    def park_after_classifying(token):
+        state = classify(token)
+        ShareService(ws).revoke(token, restorable_for=WINDOW, now=T0)
+        return state
+
+    monkeypatch.setattr(svc, "_classify", park_after_classifying)
+    assert svc.revoke(token, now=at(1)) == {"revoked": True, "token": token}
+    assert get_share_registry().list_pending() == []
+    effects["object"].assert_called_once()
+
+
+def test_a_final_revoke_retires_a_review_link_restored_during_classification(
+    minimal_project, sample_wav, tmp_workspace, effects, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    side_service = ShareService(ws)
+    share = _review_share(ws)
+    token = share["token"]
+    side_service.revoke(token, restorable_for=WINDOW, now=T0)
+    svc = ShareService(ws)
+    classify = svc._classify
+
+    def restore_after_classifying(token):
+        state = classify(token)
+        side_service.restore(token, now=at(1))
+        return state
+
+    monkeypatch.setattr(svc, "_classify", restore_after_classifying)
+    assert svc.revoke(token, now=at(2)) == {"revoked": True, "token": token}
+    assert _sidecar(ws, share["id"])["revoked"] is True
+    effects["object"].assert_called_once()
 
 
 def test_default_revoke_is_final_and_leaves_no_pending_row(
@@ -391,6 +457,32 @@ def test_a_second_restorable_room_revoke_keeps_the_room_pending(
     effects["summary"].assert_not_called()
     back = svc.restore_room(room["session_id"], now=at(4))
     assert set(back["restored"]) == set(first["revoked"])
+
+
+@pytest.mark.parametrize("leased", [False, True], ids=["deadline", "lease"])
+def test_repeat_room_revoke_reports_no_undo_after_deadline_or_during_finalize(
+    minimal_project, sample_wav, tmp_workspace, effects, leased
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    session_id = room["session_id"]
+    svc = ShareService(ws)
+    first = svc.revoke_room(session_id, restorable_for=WINDOW, now=T0)
+    moment = at(1) if leased else at(WINDOW)
+    if leased:
+        claimed = get_share_registry().claim_due(
+            now=moment,
+            project_workspace=share_pending.workspace_key(ws),
+            group_id=session_id,
+            force=True,
+        )
+        assert len(claimed) == 2
+
+    assert svc.revoke_room(session_id, restorable_for=WINDOW, now=moment) == {
+        "session_id": session_id,
+        "revoked": first["revoked"],
+    }
+    effects["summary"].assert_not_called()
 
 
 def test_final_room_revoke_of_a_pending_room_finalizes_it(
@@ -795,6 +887,25 @@ def test_a_record_token_revoke_is_final_even_with_restorable_for(
         lookup_share(token, kind="record")
     with pytest.raises(KeyError):
         svc.restore(token, now=at(1))
+
+
+def test_a_restorable_revoke_of_a_parked_record_token_preserves_room_undo(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    session_id = room["session_id"]
+    token = room["guest"]["token"]
+    first = svc.revoke_room(session_id, restorable_for=WINDOW, now=T0)
+
+    assert svc.revoke(token, restorable_for=WINDOW, now=at(1)) == {
+        "revoked": True,
+        "token": token,
+    }
+    assert svc.revoke_room(session_id, restorable_for=WINDOW, now=at(2)) == first
+    assert sorted(svc.restore_room(session_id, now=at(3))["restored"]) == first["revoked"]
+    effects["summary"].assert_not_called()
 
 
 def test_room_park_after_one_token_was_revoked_parks_the_live_ones(

@@ -33,6 +33,7 @@ from podcast_mcp.services.collaboration.share_registry import (
     get_share_registry,
     lease_held,
     utc_now,
+    window_ended,
 )
 from podcast_mcp.services.media import (
     delete_all_proxies_if_unused,
@@ -54,13 +55,6 @@ def clamp_window(seconds: float) -> float:
     return min(max(seconds, 0.0), MAX_RESTORABLE_WINDOW.total_seconds())
 
 
-def group_of(ws: ProjectWorkspace, token: str) -> str | None:
-    for row in get_share_registry().list_pending(workspace_key(ws)):
-        if row["token"] == token:
-            return row["group_id"]
-    return None
-
-
 def pending_rows(ws: ProjectWorkspace, group_id: str) -> list[PendingRevoke]:
     return [
         row
@@ -74,6 +68,13 @@ def pending_row(ws: ProjectWorkspace, token: str) -> PendingRevoke | None:
         if row["token"] == token:
             return row
     return None
+
+
+def restorable_until(rows: Sequence[PendingRevoke], now: datetime | None) -> str | None:
+    moment = now or utc_now()
+    if not rows or any(window_ended(row, moment) or lease_held(row, moment) for row in rows):
+        return None
+    return rows[0]["restorable_until"]
 
 
 def has_pending(ws: ProjectWorkspace, group_id: str) -> bool:

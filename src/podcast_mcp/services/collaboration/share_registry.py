@@ -156,6 +156,11 @@ def lease_held(row: Mapping[str, Any] | sqlite3.Row, moment: datetime) -> bool:
     return held is not None and held > moment
 
 
+def window_ended(row: Mapping[str, Any] | sqlite3.Row, moment: datetime) -> bool:
+    until = parse_iso(row["restorable_until"])
+    return until is None or until <= moment
+
+
 def _iso(dt: datetime) -> str:
     return dt.astimezone(UTC).isoformat()
 
@@ -695,7 +700,7 @@ class SqliteShareRegistry:
                 workspace = _decode_workspace(row["project_workspace"])
                 if workspace is None:
                     continue
-                if (not force and not self._window_ended(row, moment)) or lease_held(row, moment):
+                if (not force and not window_ended(row, moment)) or lease_held(row, moment):
                     continue
                 leased_until = _iso(moment + lease)
                 self._conn.execute(
@@ -848,16 +853,11 @@ class SqliteShareRegistry:
         )
         return self._pending_view(parked, workspace)
 
-    @staticmethod
-    def _window_ended(row: sqlite3.Row, moment: datetime) -> bool:
-        until = parse_iso(row["restorable_until"])
-        return until is None or until <= moment
-
     def _require_restorable(self, rows: Sequence[sqlite3.Row], moment: datetime) -> None:
         for row in rows:
             if lease_held(row, moment):
                 raise RestoreWindowClosedError()
-            if not self._window_ended(row, moment):
+            if not window_ended(row, moment):
                 continue
             expires = parse_iso(json.loads(row["snapshot_json"]).get("expires_at"))
             if expires is not None and expires <= moment:

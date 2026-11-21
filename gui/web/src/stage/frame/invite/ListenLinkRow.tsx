@@ -28,7 +28,7 @@ export function ListenLinkRow({
   /** Phone: labels Copy as Share. It does not open the system share sheet. */
   share?: boolean;
   compact?: boolean;
-  /** Stops the link; the Invite sheet wraps it to remember where focus goes once the row is gone. */
+  /** Stops the link and supplies the heading that will receive focus. */
   onStop?: (token: string) => void;
 }) {
   const { listen } = shareRowsOf(options.rows);

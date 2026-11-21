@@ -134,6 +134,7 @@ export function useDialogModal({
       shortcutIds ? shortcutIds.split(" ") : [],
       focusInitial,
       stackKey,
+      openedPanel,
     );
     const raf = requestAnimationFrame(focusInitial);
     let escaped = false;
@@ -172,9 +173,13 @@ export function useDialogModal({
       // The app toast stays in reach while the dialog traps Tab: its Undo is the
       // one way back from a step the dialog just took (Stop sharing). It joins
       // the cycle after the panel, wherever it sits in the document.
-      const toast = document.querySelector<HTMLElement>(
-        ".ui-toast-region--app.ui-toast-region--actionable",
+      const region = document.querySelector<HTMLElement>(
+        ".ui-toast-region--app[data-modal-action-origin]",
       );
+      const origin = document.getElementById(
+        region?.dataset.modalActionOrigin ?? "",
+      );
+      const toast = panel.contains(origin) ? region : null;
       const toastItems = toast ? listFocusable(toast) : [];
       const firstItem = items[0];
       const lastItem = items[items.length - 1];

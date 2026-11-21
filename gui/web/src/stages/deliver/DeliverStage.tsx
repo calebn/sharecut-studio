@@ -86,7 +86,11 @@ export type DeliverStageProps = {
    * The host's Listen link row, in the Listen link section. It gets
    * `highlight` once an export is done, and `phone`. Without it the section is not shown.
    */
-  listen?: (state: { highlight: boolean; phone: boolean }) => ReactNode;
+  listen?: (state: {
+    highlight: boolean;
+    phone: boolean;
+    returnFocus: () => HTMLHeadingElement | null;
+  }) => ReactNode;
   /** The Podcast listing section, mounted after the Listen link. Without it the section is not shown. */
   feed?: ReactNode;
   /** Called when Undo brings a removed clip back, so a host can take the removal back too. */
@@ -180,6 +184,7 @@ export function DeliverStage({
   const [playing, setPlaying] = useState(false);
   const [rootEl, setRootEl] = useState<HTMLDivElement | null>(null);
   const inFlight = useRef(false);
+  const listenHeading = useRef<HTMLHeadingElement>(null);
   const phone = layout === "phone";
   const loading = state === "loading";
   const starts = useMemo(() => sentenceStarts(words), [words]);
@@ -401,10 +406,11 @@ export function DeliverStage({
             {!showLink || !listen ? null : state === "loading" ? (
               <Skeleton layout="list" rows={2} />
             ) : (
-              <DeliverSection title="Listen link">
+              <DeliverSection title="Listen link" headingRef={listenHeading}>
                 {listen({
                   highlight: shownState.phase === "done" && !namedFiles,
                   phone,
+                  returnFocus: () => listenHeading.current,
                 })}
               </DeliverSection>
             )}

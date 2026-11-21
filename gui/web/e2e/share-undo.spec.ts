@@ -89,9 +89,7 @@ function describeUndo(
         await page.getByRole("menuitem", { name: "Stop sharing" }).click();
 
         await expectFeedback(page, "Link stopped.");
-        await expect(
-          sheet.getByRole("group", { name: /Stop sharing this/ }),
-        ).toBeHidden();
+        await expect(sheet.getByRole("dialog")).toHaveCount(0);
         await expect(
           sheet.getByRole("button", { name: "More for Commenter link" }),
         ).toBeHidden();
@@ -162,7 +160,13 @@ test.describe("desktop 1280x900 beyond the happy path", () => {
       await page.getByRole("menuitem", { name: "Stop sharing" }).click();
       const stoppedAt = Date.now();
       await expectFeedback(page, "Link stopped.");
+      const undo = toast(page).getByRole("button", { name: "Undo" });
+      await undo.focus();
+      await undo.hover();
       await expect(toast(page)).toBeHidden({ timeout: 12_000 });
+      await expect(
+        sheet.getByRole("heading", { name: "Review links" }),
+      ).toBeFocused();
       // The toast leaves 500 ms before the server's window closes; wait the window out.
       await expect
         .poll(() => Date.now() >= stoppedAt + 10_500, {
@@ -177,6 +181,94 @@ test.describe("desktop 1280x900 beyond the happy path", () => {
       );
       expect(res.status()).toBe(410);
       expect(await usable(page, projectPath)).toEqual([]);
+    });
+  });
+
+  test("copy and a second stop leave the original Undo, which can retry a failed request", async ({
+    page,
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await openProject(page, projectPath);
+      const stopped = await createReviewShare(page, projectPath, "viewer");
+      const other = await createReviewShare(page, projectPath, "commenter");
+      const sheet = await openInvite(page, projectPath);
+      const review = sheet.getByRole("heading", { name: "Review links" });
+      const stop = async (role: string) => {
+        await sheet
+          .getByRole("button", { name: `More for ${role} link` })
+          .click();
+        await page.getByRole("menuitem", { name: "Stop sharing" }).click();
+      };
+      await stop("Viewer");
+      await expectFeedback(page, "Link stopped.");
+      await expect(review).toBeFocused();
+      await sheet.getByRole("button", { name: "Copy Commenter link" }).click();
+      await expect(
+        sheet.getByText("Link copied", { exact: true }),
+      ).toBeVisible();
+      await expect(toast(page)).toContainText("Link stopped.");
+      await stop("Commenter");
+      await expect(sheet.getByText("Undo is still available.")).toBeVisible();
+      expect(await guestStatus(page, stopped)).toBe(404);
+      expect(await guestStatus(page, other)).toBe(200);
+
+      await page.route(
+        `**/api/shares/${stopped}/restore`,
+        (route) => route.abort(),
+        { times: 1 },
+      );
+      const undo = toast(page).getByRole("button", { name: "Undo" });
+      await undo.click();
+      await expect(toast(page)).toContainText("Undo failed");
+      await expect(undo).toBeEnabled();
+      await undo.click();
+      await expectFeedback(page, "Link restored.");
+      await expect(review).toBeFocused();
+      expect(await guestStatus(page, stopped)).toBe(200);
+      expect(await guestStatus(page, other)).toBe(200);
+    });
+  });
+
+  test("closing Invite during a stop leaves the same project's Undo available", async ({
+    page,
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await openProject(page, projectPath);
+      const token = await createReviewShare(page, projectPath, "viewer");
+      const sheet = await openInvite(page, projectPath);
+      let signalHeld = () => {};
+      const held = new Promise<void>((resolve) => {
+        signalHeld = resolve;
+      });
+      let release = () => {};
+      const waitForClose = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route(
+        `**/api/shares/${token}/revoke`,
+        async (route) => {
+          signalHeld();
+          await waitForClose;
+          await route.continue();
+        },
+        { times: 1 },
+      );
+      try {
+        await sheet
+          .getByRole("button", { name: "More for Viewer link" })
+          .click();
+        await page.getByRole("menuitem", { name: "Stop sharing" }).click();
+        await held;
+        await sheet.getByRole("button", { name: "Close", exact: true }).click();
+        await expect(sheet).toBeHidden();
+      } finally {
+        release();
+      }
+      await expectFeedback(page, "Link stopped.");
+      expect(await guestStatus(page, token)).toBe(404);
+      await toast(page).getByRole("button", { name: "Undo" }).click();
+      await expectFeedback(page, "Link restored.");
+      expect(await guestStatus(page, token)).toBe(200);
     });
   });
 
@@ -218,9 +310,7 @@ test.describe("desktop 1280x900 beyond the happy path", () => {
 
       await sheet.getByRole("button", { name: "End room" }).click();
       await expectFeedback(page, "Room ended.");
-      await expect(
-        sheet.getByRole("button", { name: "Keep room" }),
-      ).toBeHidden();
+      await expect(sheet.getByRole("dialog")).toHaveCount(0);
       await expect(
         sheet.getByText("Record room", { exact: true }),
       ).toBeHidden();

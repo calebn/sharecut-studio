@@ -122,8 +122,9 @@ A revoke called with `restorable_for` (seconds) is undoable until that window en
 REST routes opt in with `restorable: true` (see [REST surface](#rest-surface)); the CLI, MCP and
 internal revokes (mint-time room revoke) never pass it. The window is
 clamped to 30 s, below the 60 s finalize lease (a non-finite window closes at once or caps at
-30 s). Only review links park as single links; a record token parks only with its room through
-`revoke_room`, and `revoke(record_token, restorable_for=...)` is a final revoke.
+30 s). Only review links park as single links. A record token parks with its room through
+`revoke_room`. Calling `revoke(record_token, restorable_for=...)` on a live token revokes it
+permanently. On a parked token, the same call reports success and preserves the room's Undo.
 
 - **Revoke**: `begin_pending_revoke` runs in one `BEGIN IMMEDIATE` transaction. It snapshots each
   active row into `pending_revokes`, deletes it, and inserts the usual `revoked` cooldown row, so
@@ -165,7 +166,7 @@ refused `403 authz_denied` and cannot undo its own revoke. The body always names
 
 | Route | Body and answer |
 | --- | --- |
-| `POST /api/shares/{token}/revoke` | `restorable?: boolean` (default `false`, a final revoke as before). With `true` the revoke is parked for 10 s and the answer adds `restorable_until` (ISO time) and `restore_ms` (the server's remaining milliseconds). A final revoke answers `{ revoked, token }` only |
+| `POST /api/shares/{token}/revoke` | `restorable?: boolean` (default `false`, a final revoke). With `true`, a new review-link revoke parks for up to 10 s and the answer adds `restorable_until` (ISO time) and `restore_ms` (remaining milliseconds). The response for a final revoke or a record token is `{ revoked, token }` |
 | `POST /api/shares/rooms/{session_id}/revoke` | Same opt-in; answers `{ session_id, revoked: [tokens] }`, plus `restorable_until` and `restore_ms` when parked |
 | `POST /api/shares/{token}/restore` | Review link: `{ restored: true, token }`. A link that is already live answers success again |
 | `POST /api/shares/rooms/{session_id}/restore` | Record room, every token or none: `{ session_id, restored: [tokens] }` |
@@ -173,10 +174,10 @@ refused `403 authz_denied` and cannot undo its own revoke. The body always names
 Restore refusals carry `X-Sharecut-Error-Code`: `410 restore_window_closed` (the window ended or
 the revoke was final), `410 share_expired` (the link's own `expires_at` passed), `409
 record_room_conflict` (another record room is live for the episode) and `404 share_not_found` /
-`record_room_not_found`. `restore_ms` is the server's remaining time; an answer without
-`restore_ms` offers no undo. Repeating a restorable revoke on a link or room that is already
-pending answers the existing window and leaves it pending.
-A record token has no single-link restore; undo its room.
+`record_room_not_found`. A repeated restorable revoke of a pending review link or room keeps
+the original deadline and reports it while the window is open and no finalize lease is held.
+Once the deadline is reached or a finalize lease is active, the retry succeeds and omits
+both `restorable_until` and `restore_ms`. Use the room's restore route to undo a room revoke.
 
 ## Host registry (sqlite)
 

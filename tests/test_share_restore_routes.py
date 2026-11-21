@@ -105,6 +105,9 @@ def test_restore_after_the_window_is_gone_410_and_the_revoke_is_final(
         f"/api/shares/{token}/revoke", json=_body(minimal_project, restorable=True)
     ).json()
     assert out["restore_ms"] == 0
+    again = client.post(f"/api/shares/{token}/revoke", json=_body(minimal_project, restorable=True))
+    assert again.status_code == 200
+    assert again.json() == {"revoked": True, "token": token}
     _refused(
         client.post(f"/api/shares/{token}/restore", json=_body(minimal_project)),
         410,
@@ -137,6 +140,13 @@ def test_room_restorable_revoke_and_restore(ws, client, minimal_project):
     assert out["session_id"] == sid
     assert set(out["revoked"]) == {room["guest"]["token"], room["producer"]["token"]}
     assert 0 < out["restore_ms"] <= 10_000 and out["restorable_until"]
+
+    token = room["guest"]["token"]
+    token_revoke = client.post(
+        f"/api/shares/{token}/revoke", json=_body(minimal_project, restorable=True)
+    )
+    assert token_revoke.status_code == 200
+    assert token_revoke.json() == {"revoked": True, "token": token}
 
     back = client.post(f"/api/shares/rooms/{sid}/restore", json=_body(minimal_project))
     assert back.status_code == 200
