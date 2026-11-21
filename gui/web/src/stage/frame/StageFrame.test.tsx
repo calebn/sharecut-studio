@@ -405,7 +405,7 @@ describe("StageFrame roles", () => {
     mount();
     act(() => raiseEditStakes("alpha"));
     expect(screen.getByRole("note")).toHaveTextContent(
-      "You can edit and comment. The host decides what ships.",
+      "Edit and comment. The host publishes.",
     );
     await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
     expect(screen.getByRole("note")).toHaveTextContent(STAKES);
@@ -444,9 +444,7 @@ describe("StageFrame roles", () => {
     );
     expect(
       screen.getByRole("dialog", { name: "Editor role" }),
-    ).toHaveTextContent(
-      "You can edit and comment. The host decides what ships.",
-    );
+    ).toHaveTextContent("Edit and comment. The host publishes.");
     localStorage.removeItem("sharecut.roleHintSeen.editor");
     useDawStore.setState({ shareCapabilities: null });
   });
@@ -500,7 +498,7 @@ describe("StageFrame roles", () => {
     expect(screen.queryByRole("note")).toBeNull();
     act(() => useDawStore.setState({ guestMode: "edit" }));
     expect(screen.getByRole("note")).toHaveTextContent(
-      "You can edit and comment. The host decides what ships.",
+      "Edit and comment. The host publishes.",
     );
     localStorage.removeItem("sharecut.roleHintSeen.editor");
   });
@@ -682,7 +680,7 @@ describe("StageFrame undo tip", () => {
     cut({ undo: head });
     const notes = screen.getAllByRole("note");
     expect(notes).toHaveLength(1);
-    expect(notes[0]).toHaveTextContent("You can edit and comment");
+    expect(notes[0]).toHaveTextContent("Edit and comment");
     expect(screen.queryByText("Two-finger tap to undo")).toBeNull();
   });
 

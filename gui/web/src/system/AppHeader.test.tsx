@@ -951,7 +951,7 @@ describe("AppHeader role explanation dialog", () => {
 });
 
 describe("AppHeader second bubble: the Editor's reminder", () => {
-  const ROLE_TEXT = "You can edit and comment. The host decides what ships.";
+  const ROLE_TEXT = "Edit and comment. The host publishes.";
   const STAKES_TEXT =
     "You changed the host's episode, and everyone sees it. Undo takes back only your own step.";
 

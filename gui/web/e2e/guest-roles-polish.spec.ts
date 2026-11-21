@@ -31,7 +31,7 @@ const STAKES =
 const FIRST_VISIT = {
   viewer: "You can listen along. The host decides.",
   commenter: "You can comment and suggest cuts. The host decides.",
-  editor: "You can edit and comment. The host decides what ships.",
+  editor: "Edit and comment. The host publishes.",
 } as const;
 const ROLE_LABEL = {
   viewer: "Viewer",

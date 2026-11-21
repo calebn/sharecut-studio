@@ -10,7 +10,7 @@ import {
 } from "../test/fixtures";
 import { TimelinePresence } from "./TimelinePresence";
 
-const SENTENCE = "You can edit and comment. The host decides what ships.";
+const SENTENCE = "Edit and comment. The host publishes.";
 
 describe("first-visit sentence and the presence announcer", () => {
   afterEach(() => {
