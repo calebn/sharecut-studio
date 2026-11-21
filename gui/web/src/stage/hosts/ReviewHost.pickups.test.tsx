@@ -627,6 +627,34 @@ describe("Review host pickups", () => {
     expect(screen.getAllByText("Insert Session 2 at 12:04")[0]).toBeVisible();
   });
 
+  it("clears an old Replace anyway prompt when a dropped pickup returns", async () => {
+    server.hold = true;
+    mount([REPLACE]);
+    press("Enter");
+    expect(await screen.findByText(/Replace anyway\?/)).toBeVisible();
+
+    act(() => {
+      server.suggestions = [INSERT];
+      applyDocumentSnapshot({ server_seq: ++server.seq, project: projectOf() });
+    });
+    expect(screen.queryByText(/Replace 5:00/)).toBeNull();
+
+    act(() => {
+      server.suggestions = [REPLACE];
+      applyDocumentSnapshot({ server_seq: ++server.seq, project: projectOf() });
+    });
+    expect(heading()).toBe("Replace 5:00–6:00 with Session 3");
+    expect(screen.queryByRole("button", { name: "Replace anyway" })).toBeNull();
+
+    press("Enter");
+    expect(await screen.findByText(/Replace anyway\?/)).toBeVisible();
+    expect(
+      sent("AcceptSessionSuggestion").map(
+        (call) => call.payload.override_audio_checks,
+      ),
+    ).toEqual([false, false]);
+  });
+
   it("has no accessibility violations on a held replace", async () => {
     server.hold = true;
     const { container } = mount([REPLACE]);
