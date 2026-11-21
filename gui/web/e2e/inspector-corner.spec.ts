@@ -3,10 +3,10 @@ import { rulerWidthPx } from "./deepZoom";
 import { controlGeometry } from "./inspectorResponsiveEvidence";
 import { createScriptRecordingIdentityProject } from "./scriptRecordingIdentityProject";
 import { withShareableProject } from "./shareableProject";
-import { inspectSelection, openProject } from "./stageNav";
+import { openProject } from "./stageNav";
 
 test.use({
-  viewport: { width: 844, height: 530 },
+  viewport: { width: 820, height: 1180 },
   hasTouch: true,
   reducedMotion: "reduce",
 });
@@ -45,8 +45,17 @@ test("tablet Timeline controls stay reachable beside the Inspector", async ({
       const corner = page.getByRole("group", { name: "Timeline view" });
       const card = page.getByRole("dialog", { name: "Inspector", exact: true });
       const clip = page.locator('[data-clip-id="other"] .clip-hit');
-      await clip.tap();
-      await inspectSelection(page);
+      const ruler = page.locator(".timeline-ruler");
+      const widthAtFit = await rulerWidthPx(page);
+      await ruler.tap({ position: { x: 0.9 * widthAtFit, y: 8 } });
+      await clip.press("Enter");
+      await expect(clip).toHaveAttribute("aria-pressed", "true");
+      await expect(card).toBeHidden();
+      const inspect = page.getByRole("button", {
+        name: "Inspect",
+        exact: true,
+      });
+      await inspect.tap();
       await expect(card).toBeVisible();
       await expect(corner).toBeVisible();
       await expectSeparate(card, corner);
@@ -59,16 +68,27 @@ test("tablet Timeline controls stay reachable beside the Inspector", async ({
       const close = card.getByRole("button", { name: "Close", exact: true });
       for (const control of [zoom, script, close]) {
         await expect
-          .poll(() => controlGeometry(control))
+          .poll(async () => {
+            const geometry = await controlGeometry(control);
+            return {
+              label: geometry.measured[0]?.label,
+              fullyVisible: geometry.fullyVisible,
+              hitsControl: geometry.hitsControl,
+              hit: geometry.hit,
+            };
+          })
           .toMatchObject({
             fullyVisible: true,
             hitsControl: true,
           });
       }
 
-      const width = await rulerWidthPx(page);
+      const clipWidth = () =>
+        clip.evaluate((element) => element.getBoundingClientRect().width);
+      const width = await clipWidth();
       await zoom.tap();
-      await expect.poll(() => rulerWidthPx(page)).toBeGreaterThan(width);
+      await expect.poll(clipWidth).toBeGreaterThan(width);
+      await expect(clip).toHaveAttribute("aria-pressed", "true");
       await expect(card).toBeVisible();
       await expectSeparate(card, corner);
 
@@ -82,9 +102,7 @@ test("tablet Timeline controls stay reachable beside the Inspector", async ({
       await expect(close).toBeFocused();
       await page.keyboard.press("Escape");
       await expect(card).toBeHidden();
-      await expect(
-        page.getByRole("button", { name: "Inspect", exact: true }),
-      ).toBeFocused();
+      await expect(inspect).toBeFocused();
     },
     undefined,
     createScriptRecordingIdentityProject,

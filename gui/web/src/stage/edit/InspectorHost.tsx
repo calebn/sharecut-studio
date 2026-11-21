@@ -232,25 +232,47 @@ const rounded = (rect: InspectorRect): InspectorRect => ({
   height: Math.round(rect.height),
 });
 
-type Placement = { anchor: InspectorRect; bounds: InspectorBounds };
+type Placement = {
+  anchor: InspectorRect;
+  bounds: InspectorBounds;
+  keepClear?: InspectorRect;
+};
+
+const sameRect = (a: InspectorRect | undefined, b: InspectorRect | undefined) =>
+  a === b ||
+  (a !== undefined &&
+    b !== undefined &&
+    a.x === b.x &&
+    a.y === b.y &&
+    a.width === b.width &&
+    a.height === b.height);
 
 const samePlacement = (a: Placement | null, b: Placement) =>
   a != null &&
   a.bounds.width === b.bounds.width &&
   a.bounds.height === b.bounds.height &&
-  a.anchor.x === b.anchor.x &&
-  a.anchor.y === b.anchor.y &&
-  a.anchor.width === b.anchor.width &&
-  a.anchor.height === b.anchor.height;
+  sameRect(a.anchor, b.anchor) &&
+  sameRect(a.keepClear, b.keepClear);
+
+function relativeRect(rect: DOMRect, frame: DOMRect): InspectorRect {
+  return {
+    x: rect.left - frame.left,
+    y: rect.top - frame.top,
+    width: rect.width,
+    height: rect.height,
+  };
+}
 
 function Card({
   sheet,
   heading,
   root,
+  keepCornerClear,
 }: {
   sheet: InspectorOpen;
   heading: InspectorHeading;
   root: HTMLElement | null;
+  keepCornerClear: boolean;
 }) {
   const selection = useDaw((s) => s.selection);
   const threadId = useDaw((s) =>
@@ -274,6 +296,13 @@ function Card({
   const box = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<Placement | null>(null);
+  const getCorner = useCallback(
+    () =>
+      keepCornerClear
+        ? root?.querySelector(":scope > .edit-timeline-col > .edit-corner")
+        : null,
+    [keepCornerClear, root],
+  );
   const measure = useCallback(() => {
     if (!root) return;
     const frame = root.getBoundingClientRect();
@@ -281,6 +310,7 @@ function Card({
       root.querySelector<HTMLElement>(".sys-actions--floating") ??
       anchor.ref.current;
     const targetRect = target?.getBoundingClientRect();
+    const corner = getCorner()?.getBoundingClientRect();
     const next: Placement = {
       bounds: {
         width: Math.round(frame.width),
@@ -289,17 +319,16 @@ function Card({
       // Armed with nothing selected there is no object to sit beside: the bottom edge.
       anchor: rounded(
         targetRect
-          ? {
-              x: targetRect.left - frame.left,
-              y: targetRect.top - frame.top,
-              width: targetRect.right - targetRect.left,
-              height: targetRect.bottom - targetRect.top,
-            }
+          ? relativeRect(targetRect, frame)
           : { x: frame.width / 2, y: frame.height, width: 0, height: 0 },
       ),
+      keepClear:
+        corner?.width && corner.height
+          ? relativeRect(corner, frame)
+          : undefined,
     };
     setPlacement((was) => (samePlacement(was, next) ? was : next));
-  }, [root, anchor.ref]);
+  }, [root, anchor.ref, getCorner]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a zoom, a new anchor node or a new selection moves the anchor
   useLayoutEffect(() => {
     measure();
@@ -315,7 +344,10 @@ function Card({
       window.removeEventListener("scroll", onScroll, true);
     };
   }, [measure, anchor.moves, anchor.visible]);
-  useResizeObserver(root, measure);
+  useResizeObserver(
+    [root, getCorner, () => getCorner()?.parentElement],
+    measure,
+  );
   const history = useTakeoverHistory();
   const takeover =
     placement !== null &&
@@ -362,6 +394,7 @@ function Card({
         sections={sections}
         anchor={placement.anchor}
         bounds={placement.bounds}
+        keepClear={placement.keepClear}
         onClose={close}
       />
     ) : (
@@ -554,7 +587,12 @@ export function InspectorHost({
       {shell === "phone" ? (
         <Phone sheet={sheet} heading={heading} />
       ) : (
-        <Card sheet={sheet} heading={heading} root={root} />
+        <Card
+          sheet={sheet}
+          heading={heading}
+          root={root}
+          keepCornerClear={shell === "tablet"}
+        />
       )}
     </div>
   );

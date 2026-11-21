@@ -247,4 +247,75 @@ describe("inspectorSheetMath card placement", () => {
       ).inline,
     ).toBe(8);
   });
+
+  it("keeps a clear card centred on its anchor", () => {
+    expect(
+      placeCard(
+        { x: 140, y: 130, width: 80, height: 40 },
+        { width: 820, height: 530 },
+        320,
+        140,
+        { x: 540, y: 260, width: 260, height: 54 },
+      ),
+    ).toEqual({ side: "below", inline: 20, block: 178, maxBlock: 318 });
+  });
+
+  it("slides left of the corner without changing the card's height or vertical placement", () => {
+    expect(
+      placeCard(
+        { x: 600, y: 130, width: 80, height: 40 },
+        { width: 820, height: 530 },
+        320,
+        140,
+        { x: 540, y: 260, width: 260, height: 54 },
+      ),
+    ).toEqual({ side: "below", inline: 212, block: 178, maxBlock: 318 });
+  });
+
+  it("chooses the closer horizontal position when the card fits on either side", () => {
+    expect(
+      placeCard({ x: 600, y: 130, width: 80, height: 40 }, desktop, 320, 140, {
+        x: 510,
+        y: 260,
+        width: 250,
+        height: 54,
+      }),
+    ).toEqual({ side: "below", inline: 768, block: 178, maxBlock: 480 });
+  });
+
+  it("caps the card's height above the corner when it cannot fit beside it", () => {
+    expect(
+      placeCard(
+        { x: 200, y: 120, width: 100, height: 20 },
+        { width: 500, height: 500 },
+        320,
+        140,
+        { x: 160, y: 310, width: 320, height: 58 },
+      ),
+    ).toEqual({ side: "below", inline: 90, block: 148, maxBlock: 154 });
+  });
+
+  it("uses the band below the corner when the band above would cover the anchor", () => {
+    expect(
+      placeCard(
+        { x: 200, y: 120, width: 100, height: 40 },
+        { width: 500, height: 600 },
+        320,
+        140,
+        { x: 100, y: 260, width: 380, height: 70 },
+      ),
+    ).toEqual({ side: "below", inline: 90, block: 338, maxBlock: 254 });
+  });
+
+  it("keeps the usual card placement when there is no usable space around the corner", () => {
+    expect(
+      placeCard(
+        { x: 200, y: 120, width: 100, height: 20 },
+        { width: 500, height: 430 },
+        320,
+        140,
+        { x: 160, y: 125, width: 320, height: 180 },
+      ),
+    ).toEqual({ side: "below", inline: 90, block: 148, maxBlock: 258 });
+  });
 });
