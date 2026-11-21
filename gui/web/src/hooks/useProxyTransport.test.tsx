@@ -55,7 +55,7 @@ vi.mock("../utils/audio", async (importOriginal) => ({
 vi.mock("../services/offlineQueue/offlineStore", () => ({
   loadOfflineSnapshot: vi.fn(async () => null),
   loadCommandQueue: vi.fn(async () => []),
-  mergeOfflineSnapshot: vi.fn(async () => undefined),
+  mergeOfflineSnapshot: vi.fn(async () => true),
 }));
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
@@ -762,6 +762,14 @@ describe("useProxyTransport", () => {
       useDawStore.getState().projectPath,
       chunk,
     );
+  });
+
+  it("does not prune cached audio after a stale manifest is refused by storage", async () => {
+    vi.mocked(mergeOfflineSnapshot).mockResolvedValueOnce(false);
+    renderHook(() => useProxyTransport());
+    await ready();
+    await vi.waitFor(() => expect(mergeOfflineSnapshot).toHaveBeenCalledOnce());
+    expect(pruneLinkAudio).not.toHaveBeenCalled();
   });
 
   it("prunes the link's audio to the chunks a live manifest names", async () => {

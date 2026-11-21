@@ -93,7 +93,7 @@ describe("retireOfflineSnapshot", () => {
     await mergeOfflineSnapshot(
       token,
       { project: { a: 0 }, manifest: {} },
-      { preserveDate: true },
+      { matchesSavedProject: () => true },
     );
     expect(await loadOfflineSnapshot(token)).toEqual({
       project: { a: 1 },
@@ -102,6 +102,26 @@ describe("retireOfflineSnapshot", () => {
     });
     await mergeOfflineSnapshot(token, { project: { a: 2 } });
     expect((await loadOfflineSnapshot(token))?.saved_at).toBeGreaterThan(1);
+  });
+
+  it("leaves a matching cached manifest in place when stale playback has another audio basis", async () => {
+    const token = "r-basis";
+    const saved = {
+      project: { a: 1 },
+      manifest: { input: "new" },
+      saved_at: 1,
+    };
+    await saveOfflineSnapshot(token, saved);
+    await expect(
+      mergeOfflineSnapshot(
+        token,
+        { project: { a: 0 }, manifest: { input: "old" } },
+        {
+          matchesSavedProject: (project) => (project as { a: number }).a === 0,
+        },
+      ),
+    ).resolves.toBe(false);
+    expect(await loadOfflineSnapshot(token)).toEqual(saved);
   });
 
   it("deletes the saved copy", async () => {

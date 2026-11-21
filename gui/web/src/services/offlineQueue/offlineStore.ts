@@ -450,15 +450,18 @@ export async function clearOfflineSnapshot(token: string): Promise<void> {
 export async function mergeOfflineSnapshot(
   token: string,
   patch: Omit<Partial<OfflineSnapshot>, "saved_at">,
-  { preserveDate = false }: { preserveDate?: boolean } = {},
-): Promise<void> {
-  if (isLinkEnded(token)) return;
-  await trackSnapshotWrite(
+  {
+    matchesSavedProject,
+  }: { matchesSavedProject?: (project: unknown) => boolean } = {},
+): Promise<boolean> {
+  if (isLinkEnded(token)) return false;
+  return trackSnapshotWrite(
     token,
     (async () => {
       const db = await openDb();
       try {
-        await new Promise<void>((resolve, reject) => {
+        return await new Promise<boolean>((resolve, reject) => {
+          let written = false;
           const tx = db.transaction(STORE, "readwrite");
           const store = tx.objectStore(STORE);
           const key = snapKey(token);
@@ -466,20 +469,29 @@ export async function mergeOfflineSnapshot(
           read.onsuccess = () => {
             if (isLinkEnded(token)) return;
             const previous = read.result as OfflineSnapshot | undefined;
+            if (
+              matchesSavedProject &&
+              previous?.project !== undefined &&
+              !matchesSavedProject(previous.project)
+            )
+              return;
             store.put(
               {
                 ...previous,
                 ...patch,
                 // The playback path can seed a copy, but a prior live snapshot owns its project and date.
-                ...(preserveDate && previous?.project !== undefined
+                ...(matchesSavedProject && previous?.project !== undefined
                   ? { project: previous.project }
                   : {}),
-                saved_at: preserveDate ? (previous?.saved_at ?? 0) : Date.now(),
+                saved_at: matchesSavedProject
+                  ? (previous?.saved_at ?? 0)
+                  : Date.now(),
               },
               key,
             );
+            written = true;
           };
-          tx.oncomplete = () => resolve();
+          tx.oncomplete = () => resolve(written);
           tx.onabort = () =>
             reject(tx.error ?? new Error("IndexedDB transaction aborted"));
           tx.onerror = () => reject(tx.error);
