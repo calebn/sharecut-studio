@@ -701,6 +701,7 @@ diagnosticTest(
         entries: { id: string; author?: string | null }[];
       };
       review: { comments: { id: string; body: string }[] };
+      timeline: { tracks: { media?: { path?: string } | null }[] };
       render: {
         proxy_manifests?: {
           revision: string;
@@ -853,9 +854,38 @@ diagnosticTest(
         previousGeneration?.project_basis.history_head_id === own?.id,
       ).toBe(false);
 
-      phase = "reload-guest";
-      await guest.reload();
-      await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+      const reloadFromManifest = async () => {
+        const response = guest.waitForResponse(
+          (candidate) =>
+            candidate.url().endsWith("/daw/proxy/manifest") && candidate.ok(),
+        );
+        await guest.reload();
+        await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+        return (await response).json() as Promise<{ revision: string }>;
+      };
+      phase = "reload-after-comment";
+      const unchanged = await reloadFromManifest();
+      expect(unchanged.revision).toBe(previousGeneration?.revision);
+      expect(read().bytes).toBe(before.bytes);
+
+      phase = "change-fixture-media";
+      const source = before.project.timeline.tracks.find(
+        (track) => track.media?.path,
+      )?.media?.path;
+      if (!source) throw new Error("The synthetic imported track has no media");
+      const mediaPath = fs.realpathSync(path.resolve(workspaceDir, source));
+      if (!mediaPath.startsWith(`${fs.realpathSync(workspaceDir)}${path.sep}`))
+        throw new Error(
+          "The synthetic media must be inside the test workspace",
+        );
+      const media = fs.readFileSync(mediaPath);
+      expect(media.byteLength).toBeGreaterThan(44);
+      media[media.length - 1] ^= 1;
+      fs.writeFileSync(mediaPath, media);
+
+      phase = "reload-after-media-change";
+      const rebuilt = await reloadFromManifest();
+      expect(rebuilt.revision).not.toBe(unchanged.revision);
       await expect
         .poll(
           () =>

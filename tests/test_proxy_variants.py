@@ -114,6 +114,44 @@ def test_history_free_complete_manifest_and_noop(workspace, monkeypatch, fast_en
     assert ws.path.read_bytes() == saved
 
 
+@pytest.mark.parametrize("legacy_revision", [False, True])
+def test_comment_only_saves_reuse_retained_manifest_generation(
+    workspace, fast_encode, save_comment, legacy_revision
+):
+    ws = workspace
+    previous = pv.ensure_proxy_manifest(ws)
+    if legacy_revision:
+        previous = previous.model_copy(update={"revision": "a" * 64})
+        ws.project.render.proxy_manifests = [previous]
+        ws.save()
+
+    for _ in range(2):
+        save_comment(ws.path)
+        after_comment = ws.path.read_bytes()
+        assert pv.ensure_proxy_manifest(ws) == previous
+        assert ws.path.read_bytes() == after_comment
+
+    saved = ProjectWorkspace.open(ws.path).project
+    assert saved.history.head_id() != previous.project_basis.history_head_id
+    assert len(saved.review.comments) == 2
+    assert saved.render.proxy_manifests == [previous]
+
+
+def test_rebuilding_without_retention_ignores_comment_history(workspace, fast_encode, save_comment):
+    ws = workspace
+    first = pv.ensure_proxy_manifest(ws)
+    with ws.transaction() as project:
+        project.render.proxy_manifests = []
+        ws.save()
+    save_comment(ws.path)
+
+    rebuilt = pv.ensure_proxy_manifest(ws)
+
+    assert rebuilt.revision == first.revision
+    assert rebuilt.project_basis.history_head_id != first.project_basis.history_head_id
+    assert rebuilt.project_basis.history_head_id == ws.project.history.head_id()
+
+
 def _assert_prepared_read_unchanged(ws, monkeypatch):
     reopened = ProjectWorkspace.open(ws.path)
     assert len(reopened.project.render.proxy_manifests) == 1
@@ -1328,6 +1366,7 @@ def test_comment_saved_while_building_does_not_fail_the_manifest(
 
     saved = ProjectWorkspace.open(ws.path).project
     assert [c.body for c in saved.review.comments] == ["note"]
+    assert generation.project_basis.history_head_id == saved.history.head_id()
     assert saved.render.proxy_manifests == [generation]
 
 

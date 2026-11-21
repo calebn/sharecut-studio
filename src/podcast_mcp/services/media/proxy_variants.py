@@ -498,6 +498,16 @@ def _save_confirmed(ws: ProjectWorkspace, expected: EpisodeProject) -> None:
             raise
 
 
+def _same_manifest_audio(left: ProxyManifestGeneration, right: ProxyManifestGeneration) -> bool:
+    return (
+        left.project_basis.render_hashes == right.project_basis.render_hashes
+        and left.project_basis.clips == right.project_basis.clips
+        and left.tracks == right.tracks
+        and left.artifacts == right.artifacts
+        and left.occurrences == right.occurrences
+    )
+
+
 def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGeneration | TrackProxy:
     with render_lock(ws.project):
         engine = FFmpegEngine()
@@ -565,12 +575,12 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                         bakes_mutes=False,
                     )
                 payload = {
-                    "project_basis": basis.model_dump(mode="json"),
+                    "project_basis": basis.model_dump(mode="json", exclude=_HEAD_FIELD),
                     "tracks": {k: v.model_dump(mode="json") for k, v in tracks.items()},
                     "artifacts": {k: v.model_dump(mode="json") for k, v in artifacts.items()},
                     "occurrences": {k: v.model_dump(mode="json") for k, v in occurrences.items()},
                 }
-                generation = ProxyManifestGeneration(
+                new_generation = ProxyManifestGeneration(
                     revision=_digest(payload),
                     project_basis=basis,
                     tracks=tracks,
@@ -578,9 +588,10 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                     occurrences=occurrences,
                 )
                 with ws.transaction() as current:
-                    if project_basis(current, defaults).model_dump(
+                    current_basis = project_basis(current, defaults)
+                    if current_basis.model_dump(exclude=_HEAD_FIELD) != basis.model_dump(
                         exclude=_HEAD_FIELD
-                    ) != basis.model_dump(exclude=_HEAD_FIELD):
+                    ):
                         raise CodedValueError(
                             "Proxy inputs changed; retry", code="proxy_inputs_changed"
                         )
@@ -594,6 +605,14 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                         track.proxy = _legacy_descriptor(artifact, track.proxy)
                     if track_id is None:
                         generations = current.render.proxy_manifests
+                        generation = next(
+                            (
+                                prior
+                                for prior in generations
+                                if _same_manifest_audio(prior, new_generation)
+                            ),
+                            new_generation.model_copy(update={"project_basis": current_basis}),
+                        )
                         if not generations or generations[0].revision != generation.revision:
                             current.render.proxy_manifests = [
                                 generation,
