@@ -426,7 +426,7 @@ def _prepare(
                         chunk_sha256=digests,
                     ),
                 )
-    wav = temporary / f"{len(list(temporary.iterdir()))}.wav"
+    wav = temporary / "render.wav"
     render_source_proxy_inputs(project, inputs, wav, engine=engine, defaults=defaults)
     duration = engine.probe(wav).require_duration_sec()
     count = proxy_media.chunk_count_for(duration, chunk_sec=proxy_media.CHUNK_SEC)
@@ -455,6 +455,7 @@ def _prepare(
             )
             with output.open("rb") as handle:
                 os.fsync(handle.fileno())
+        wav.unlink()
         digests = _measure(private, descriptor)
         _sync_directory(private)
         descriptor.hash = _content_hash(input_hash, descriptor, digests)

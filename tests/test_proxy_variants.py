@@ -541,12 +541,14 @@ def test_middle_chunk_failure_cleans_private_outputs(workspace, monkeypatch, fas
     ws = workspace
     monkeypatch.setattr(pm, "CHUNK_SEC", 0.5)
     calls = []
+    pcm_paths = set()
 
-    def failing(*args, **kwargs):
-        calls.append(args[2].name)
+    def failing(engine, wav, output, start, duration, **kwargs):
+        pcm_paths.add(wav)
+        calls.append(output.name)
         if len(calls) == 2:
             raise OSError("middle chunk")
-        fast_encode(*args, **kwargs)
+        fast_encode(engine, wav, output, start, duration, **kwargs)
 
     monkeypatch.setattr(pm, "_encode_chunk", failing)
     before = ws.path.read_bytes()
@@ -555,6 +557,7 @@ def test_middle_chunk_failure_cleans_private_outputs(workspace, monkeypatch, fas
     assert calls == ["00000.mp3", "00001.mp3"]
     assert ws.path.read_bytes() == before
     assert not list(ws.project.artifacts_dir().glob("proxy/*/*"))
+    assert not any(path.exists() for path in pcm_paths)
     monkeypatch.setattr(pm, "_encode_chunk", fast_encode)
     assert pv.ensure_proxy_manifest(ws).tracks["host"].chunk_count == 4
 
