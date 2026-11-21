@@ -77,10 +77,7 @@ def _subprocess_holds(lock_path: Path, tmp_path: Path) -> Iterator[Callable[[], 
     )
 
     def release_lock() -> None:
-        if proc.stdin is not None:
-            proc.stdin.close()
-            proc.stdin = None
-        proc.wait(timeout=CHILD_DEADLINE_SEC)
+        proc.communicate(timeout=CHILD_DEADLINE_SEC)
 
     try:
         assert proc.stdout is not None
@@ -88,7 +85,6 @@ def _subprocess_holds(lock_path: Path, tmp_path: Path) -> Iterator[Callable[[], 
         yield release_lock
     finally:
         release_lock()
-        proc.communicate(timeout=CHILD_DEADLINE_SEC)
 
 
 @pytest.mark.usefixtures("effects")
@@ -231,8 +227,7 @@ def test_two_processes_minting_concurrently_leave_a_usable_room(
     # B either finishes while A is paused or is legitimately blocked on A's lock.
     with contextlib.suppress(subprocess.TimeoutExpired):
         outputs["B"] = b.communicate(timeout=3.0)
-    a.stdin.close()
-    outputs["A"] = a.communicate(timeout=120)
+    outputs["A"] = a.communicate(input="\n", timeout=120)
     if "B" not in outputs:
         outputs["B"] = b.communicate(timeout=120)
     results: dict[str, dict] = {}

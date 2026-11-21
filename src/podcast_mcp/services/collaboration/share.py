@@ -96,6 +96,7 @@ from podcast_mcp.util.project_state import (
     FileRevision,
     LockContention,
     ProjectBusyError,
+    RecordRoomBusyError,
     file_revision,
     record_room_lock_path,
 )
@@ -168,8 +169,8 @@ def _is_review_token(
     return any(row.get("token") == token and _row_kind(row) == SHARE_KIND_REVIEW for row in rows)
 
 
-def _room_busy(path: Path, started: float) -> ProjectBusyError:
-    return ProjectBusyError(
+def _room_busy(path: Path, started: float) -> RecordRoomBusyError:
+    return RecordRoomBusyError(
         str(path),
         contention=LockContention(time.monotonic() - started, file_lock_holder_pid(path)),
     )
@@ -498,7 +499,7 @@ class ShareService:
         The GUI server and the CLI or MCP are separate processes, and each mint revokes the
         other's new room, so a thread lock alone leaves no usable link. The guard takes a
         per-workspace thread lock, then ``room.lock`` across processes. Together they wait at
-        most ``RECORD_ROOM_LOCK_TIMEOUT_SEC``, then raise ``ProjectBusyError``. Re-entrant.
+        most ``RECORD_ROOM_LOCK_TIMEOUT_SEC``, then raise ``RecordRoomBusyError``. Re-entrant.
 
         Taken before the land guard and the project commit lock, because a land-first mint
         takes both while holding this guard.

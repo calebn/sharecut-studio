@@ -11,7 +11,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
-from typing import Concatenate, ParamSpec, TypeVar
+from typing import ClassVar, Concatenate, ParamSpec, TypeVar
 
 from filelock import Timeout
 
@@ -83,6 +83,8 @@ class ProjectBusyError(Timeout):
     GUI's app-wide exception handler) maps it to the same ``project_busy`` code.
     """
 
+    lock_name: ClassVar[str] = "project commit"
+
     def __init__(self, lock_file: str, *, contention: LockContention | None = None) -> None:
         super().__init__(lock_file)
         self.contention = contention
@@ -98,8 +100,16 @@ class RenderBusyError(ProjectBusyError):
     maps a busy project lock to ``project_busy`` maps this one the same way (#488).
     """
 
+    lock_name = "render"
+
     def __str__(self) -> str:
         return "another render of this project is in progress; try again when it finishes"
+
+
+class RecordRoomBusyError(ProjectBusyError):
+    """The record room guard timed out."""
+
+    lock_name = "record room"
 
 
 def busy_message(exc: Timeout) -> str:
