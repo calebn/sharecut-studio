@@ -254,8 +254,7 @@ not `--color-timeline-vignette`, the empty stage's inset hover shadow
 
 **Unheard tracks.** A track this listener doesn't hear (a saved mute, a
 listen-only mute, or a track their solo silences) goes grey, as DAWs grey a
-muted region (#1102). `--color-track-muted` fills its header row, lane, phone
-initials chip and Mix-sheet row (light `--primitive-neutral-225`, dark
+muted region (#1102). `--color-track-muted` fills its timeline lane and Mix-sheet row (light `--primitive-neutral-225`, dark
 `--primitive-neutral-975`); text on it stays at least 4.5:1.
 `--color-clip-muted` (light `--primitive-neutral-650`, dark
 `--primitive-neutral-750`) is painted over each clip's lane colour as a
