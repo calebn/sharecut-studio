@@ -5,11 +5,13 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
 from podcast_mcp.export.audio import AUDIO_EXPORT_MEDIA
 from podcast_mcp.export.chapters import render_chapters_json
+from podcast_mcp.export.daw_format import DawFormat
 from podcast_mcp.export.names import BOUNCES_DIRNAME, sanitize_export_stem
 from podcast_mcp.export.transcript import TRANSCRIPT_FORMATS, TRANSCRIPT_MIME
 from podcast_mcp.feed.inputs import feed_path
@@ -25,7 +27,7 @@ from podcast_mcp.services.pipeline import (
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.fingerprint import file_stamp
 
-ExportedFileKind = Literal["audio", "transcript", "chapters", "feed", "bounce"]
+ExportedFileKind = Literal["audio", "transcript", "chapters", "feed", "bounce", "daw"]
 
 CLIPS_DIRNAME = "clips"
 _PARTIAL_TEMP = re.compile(r"\.\d+\.[0-9a-f]{32}\.partial\.")
@@ -101,9 +103,9 @@ class ExportFilesService:
     a symlink) is not found.
     """
 
-    def __init__(self, ws: ProjectWorkspace, *, bounces: bool = False) -> None:
+    def __init__(self, ws: ProjectWorkspace, *, host_files: bool = False) -> None:
         self.ws = ws
-        self.bounces = bounces
+        self.host_files = host_files
 
     def _found(self) -> list[ServedFile]:
         project = self.ws.project
@@ -132,6 +134,9 @@ class ExportFilesService:
                 stamp = file_stamp(resolved)
             except OSError:
                 return None
+            if kind == "daw":
+                saved_at = datetime.fromtimestamp(stamp.mtime_ns / 1_000_000_000, UTC)
+                label = f"Exported {saved_at.isoformat(sep=' ', timespec='milliseconds')[:-6]} UTC"
             return ServedFile(
                 relative,
                 kind,
@@ -161,7 +166,7 @@ class ExportFilesService:
             )
 
         audio_children(CLIPS_DIRNAME, "audio")
-        if self.bounces:
+        if self.host_files:
             audio_children(BOUNCES_DIRNAME, "bounce")
         wanted.extend(
             (f"{stem}.{fmt}", "transcript", TRANSCRIPT_MIME[fmt], fmt) for fmt in TRANSCRIPT_FORMATS
@@ -173,6 +178,18 @@ class ExportFilesService:
             for relative, kind, media_type, format in wanted
             if (found := served(relative, kind, media_type, format)) is not None
         ]
+        if self.host_files and export_root.is_dir() and not export_root.is_symlink():
+            packages = []
+            for directory in export_root.glob("daw-*"):
+                if directory.is_symlink() or not re.fullmatch(r"daw-[0-9a-f]{12}", directory.name):
+                    continue
+                for format in DawFormat:
+                    entry = served(
+                        f"{directory.name}/{format.archive_name}", "daw", "application/zip"
+                    )
+                    if entry:
+                        packages.append(entry)
+            found.extend(sorted(packages, key=lambda row: row.label or "", reverse=True))
         for variant in completed_variant_files(project):
             label = (
                 f"{variant.target.value.title()} ({TARGET_INTEGRATED_LUFS[variant.target]:g} LUFS) "
@@ -288,5 +305,7 @@ class ExportFilesService:
                 return "Chapters"
             case "feed":
                 return "Feed file"
+            case "daw":
+                return "Editable DAW session"
             case "bounce":
                 return "Unmastered export"

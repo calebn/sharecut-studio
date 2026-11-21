@@ -139,6 +139,7 @@ to UX partners; for UI copy, this table wins.
 | Listen for | The result of a split names what to listen to before relying on the tracks: overlapping speech and unsure stretches | "warnings" |
 | Unsure stretch | Time in a split where the speaker is unclear. The dialog says how long and asks the host to listen there before relying on the tracks | "low confidence" in UI copy (that term is for transcript words) |
 | Export (a mix or a selection) | Render the current mix or a selected range in place. Files are "Unmastered export"; the palette command is "Export full mix". Bounce is the developer word (MCP `bounce_audio_tool`, `podcast pipeline bounce`) | "Bounce" or "export mix" in UI copy |
+| Editable DAW session | A portable ZIP of the saved editable tracks, clips and source audio for another editor | “Master” for an editable timeline |
 | Deliverables | Mastered export set | "final export" |
 | Project default | Deliver's loudness choice that uses the project's configured master for the next Episode file export | "Podcast" for the configured default |
 | Unavailable export format | A previously selected format no longer offered by the current catalog. Episode file keeps its toggle checked and removable, labels it "unavailable", and omits the size estimate. Export explains "Remove unavailable formats before exporting." | Silently removing the choice or exporting only the remaining files |

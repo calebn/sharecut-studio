@@ -143,7 +143,7 @@ def test_canonical_audio_and_opt_in_bounce_remain_current_without_candidates(
     _wav(ws.project.export_dir() / "bounces" / "range.wav")
 
     assert [(row.id, row.current) for row in ExportFilesService(ws).list()] == [(canonical, True)]
-    service = ExportFilesService(ws, bounces=True)
+    service = ExportFilesService(ws, host_files=True)
     assert {row.id: row.current for row in service.list()} == {
         canonical: True,
         "bounces/range.wav": True,

@@ -214,7 +214,7 @@ export interface MergedEdits {
   entries: readonly HistoryEntryId[];
 }
 
-export type AnnouncedJobKind = "export" | "bounce";
+export type AnnouncedJobKind = "export" | "bounce" | "daw_export";
 export type JobStartToken = Readonly<{
   identity: symbol;
   projectEpoch: number;

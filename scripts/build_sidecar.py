@@ -24,7 +24,7 @@ BINARIES = ROOT / "gui" / "desktop" / "binaries"
 RUNTIME_NAME = "sharecut-runtime"
 LAUNCHER_RS = Path(__file__).resolve().parent / "sidecar_launcher.rs"
 SIDECAR_STEM = "sharecut-sidecar"
-GUI_EXTRAS = "gui"
+GUI_EXTRAS = ("gui", "aaf")
 PYTHON_VERSION = "3.12"
 LOCK_FILE = ROOT / "uv.lock"
 LOCK_CHECKED_PACKAGES = ("typer", "click")
@@ -388,7 +388,7 @@ def write_python_home_marker(runtime: Path, prefix: Path) -> None:
     (runtime / PYTHON_HOME_MARKER).write_text(rel.as_posix() + "\n", encoding="utf-8")
 
 
-FREEZE_SMOKE = "import datetime, encodings, math, uvicorn"
+FREEZE_SMOKE = "import datetime, encodings, math, uvicorn, aaf2"
 
 # An install without ``podcast_mcp/defaults`` reads ``{}`` as pipeline defaults (#1905).
 DEFAULTS_SMOKE = (
@@ -486,8 +486,7 @@ def install_locked_project(uv: str, venv_py: Path) -> None:
                 "export",
                 "--locked",
                 "--no-dev",
-                "--extra",
-                GUI_EXTRAS,
+                *(argument for extra in GUI_EXTRAS for argument in ("--extra", extra)),
                 "--no-emit-project",
                 "--no-hashes",
                 "-o",

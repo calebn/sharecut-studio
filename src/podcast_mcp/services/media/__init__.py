@@ -20,8 +20,10 @@ if TYPE_CHECKING:
         setup_bucket_cors,
     )
     from podcast_mcp.services.media.daw_session import (
+        daw_format_blocker,
         export_aaf_session,
         export_audition_session,
+        export_daw_archive,
         export_reaper_session,
     )
     from podcast_mcp.services.media.ingest import (
@@ -127,6 +129,7 @@ __all__ = [
     "coerce_enrollment",
     "cors_blocked_message",
     "cors_rule",
+    "daw_format_blocker",
     "delete_all_proxies_if_unused",
     "delete_object_store_object_if_unused",
     "ensure_and_upload_all_proxies",
@@ -135,6 +138,7 @@ __all__ = [
     "ensure_track_proxy",
     "export_aaf_session",
     "export_audition_session",
+    "export_daw_archive",
     "export_reaper_session",
     "guest_check",
     "gui_media_chunk_max_bytes",
@@ -169,6 +173,8 @@ __all__ = [
 
 _MODULE_BY_NAME = {
     "export_reaper_session": "daw_session",
+    "daw_format_blocker": "daw_session",
+    "export_daw_archive": "daw_session",
     "export_aaf_session": "daw_session",
     "export_audition_session": "daw_session",
     "WaveformStatusResult": "results",

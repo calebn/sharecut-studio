@@ -733,6 +733,28 @@ head. It runs only while that exact head and project opening remain current.
 A queued, unconfirmed or no-op response supplies no action-specific Undo.
 The host-only Restore action has no default shortcut or command-palette entry.
 
+## Export an editable DAW session from Deliver
+
+On a Linux or macOS host, open **Deliver → Editable DAW session**. Choose a
+**DAW format**, then **Export DAW session**. Each export reads the saved episode
+and creates a new ZIP. Download it in a browser or use **Reveal** in the desktop
+app. Extract the ZIP before opening the session. Keep the WAV media folder
+beside the RPP or SESX file. The AAF carries its audio inside the file.
+
+These experimental formats transfer editable clip placements and source audio.
+ShareCut transcripts, comments, undo history, plugin settings and rendered
+processing stay in ShareCut. Use the WAV in **Episode file** to keep the sound
+of the rendered mix. The destination-specific sections below describe trims,
+overlaps, fades and import evidence. The synthetic RPP opened, edited and
+played in REAPER 7.86 on Linux. The AAF passed those checks in Logic Pro 12.4
+and Ardour 8.12. Pro Tools remains unverified. An independent reader checked
+the SESX, and a native Audition check remains outstanding.
+
+The desktop sidecar includes the AAF writer. Other installations can enable it
+with the `aaf` extra. Deliver shows a reason before export when the host or
+writer is unavailable. Only the host can start the job or access DAW packages.
+Guest links never list these archives.
+
 ## Experimental editable REAPER export
 
 Use the saved episode to create a new portable session folder on Linux or macOS.
@@ -752,9 +774,7 @@ effect settings, and render-only features such as room tone, mute-region
 processing, and automatic join borrowing. Timing-mapped clips export as their
 separate source pieces. The exporter carries fade lengths using linear curves. Nonlinear fade shapes
 and rendered mix parity are outside this experimental export. Use Sharecut's rendered WAV
-exports when you need the rendered sound. For the experimental SESX session
-export, see the next section. This command does not provide the Deliver format
-picker.
+exports when you need the rendered sound.
 
 ## Experimental editable AAF export
 

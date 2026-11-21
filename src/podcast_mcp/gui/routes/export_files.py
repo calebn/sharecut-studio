@@ -23,9 +23,9 @@ EXPORT_FILE_GONE = guest_message_for_code("export_file_gone")
 _DOWNLOAD_HEADERS = {"X-Content-Type-Options": "nosniff"}
 
 
-def _open_listed(ws: ProjectWorkspace, file_id: str, *, bounces: bool) -> ServedFile:
+def _open_listed(ws: ProjectWorkspace, file_id: str, *, host_files: bool) -> ServedFile:
     try:
-        return ExportFilesService(ws, bounces=bounces).open(file_id)
+        return ExportFilesService(ws, host_files=host_files).open(file_id)
     except CodedFileNotFoundError as exc:
         if exc.code != "export_file_gone":
             raise
@@ -33,15 +33,15 @@ def _open_listed(ws: ProjectWorkspace, file_id: str, *, bounces: bool) -> Served
 
 
 def list_exported_files(
-    ws: ProjectWorkspace, *, ticketed: bool = False, bounces: bool = False
+    ws: ProjectWorkspace, *, ticketed: bool = False, host_files: bool = False
 ) -> dict[str, Any]:
     """``{files: [{id, name, kind, label, bytes, current, format}]}``; names only, never a host path.
 
     With *ticketed* each entry also carries a ``ticket`` that downloads that file as listed.
-    *bounces* adds the range exports and is for the host only.
+    *host_files* includes range exports and editable DAW packages.
     """
     files = []
-    for entry, version in ExportFilesService(ws, bounces=bounces).listed():
+    for entry, version in ExportFilesService(ws, host_files=host_files).listed():
         row = asdict(entry)
         if ticketed:
             row["ticket"] = export_ticket.mint(ws.path, entry.id, version)
@@ -55,7 +55,7 @@ def download_exported_file(
     file_id: str,
     *,
     ticket_version: str | None = None,
-    bounces: bool = False,
+    host_files: bool = False,
     acquire_slot: Callable[[], Callable[[], None] | None] | None = None,
 ) -> Response:
     """Stream the listed file *file_id* as an attachment, with Range and ETag.
@@ -67,7 +67,7 @@ def download_exported_file(
     """
     if request.app.state.jobs.export_running(ws.path):
         raise coded_http_error(409, EXPORT_RUNNING, code="export_running")
-    found = _open_listed(ws, file_id, bounces=bounces)
+    found = _open_listed(ws, file_id, host_files=host_files)
     if ticket_version is not None:
         export_ticket.require_unchanged(ticket_version, found.version)
     slot = acquire_slot() if acquire_slot is not None and found.kind == "audio" else None
@@ -88,7 +88,7 @@ def download_exported_file(
 def reveal_exported_file(request: Request, ws: ProjectWorkspace, file_id: str) -> dict[str, bool]:
     """Show the listed file *file_id* in this computer's file manager; loopback peers only."""
     require_loopback_peer(request)
-    found = _open_listed(ws, file_id, bounces=True)
+    found = _open_listed(ws, file_id, host_files=True)
     if not reveal_in_file_manager(found.path):
         raise coded_http_error(409, REVEAL_UNAVAILABLE, code="reveal_unavailable")
     return {"revealed": True}

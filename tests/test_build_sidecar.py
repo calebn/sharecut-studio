@@ -869,8 +869,7 @@ def test_uv_export_of_real_lock_pins_locked_typer(tmp_path: Path) -> None:
             "export",
             "--locked",
             "--no-dev",
-            "--extra",
-            "gui",
+            *(argument for extra in mod.GUI_EXTRAS for argument in ("--extra", extra)),
             "--no-emit-project",
             "--no-hashes",
             "-o",
@@ -879,4 +878,7 @@ def test_uv_export_of_real_lock_pins_locked_typer(tmp_path: Path) -> None:
         cwd=ROOT,
     )
     (typer_version,) = mod.locked_versions((ROOT / "uv.lock").read_text(), ("typer",))["typer"]
-    assert f"typer=={typer_version}" in out.read_text(encoding="utf-8")
+    requirements = out.read_text(encoding="utf-8")
+    assert f"typer=={typer_version}" in requirements
+    (aaf_version,) = mod.locked_versions((ROOT / "uv.lock").read_text(), ("pyaaf2",))["pyaaf2"]
+    assert f"pyaaf2=={aaf_version}" in requirements

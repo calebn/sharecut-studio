@@ -133,6 +133,8 @@ A share guest chooses the `reason` of their own suggestion. Share-guest commands
 
 `gui/web/src/types/project.generated.ts` is emitted from the Pydantic models in `gui/schemas.py`, and `types/documentCommands.generated.ts` from the document-command schema (`DocumentCommandType`, plus the `DocumentCommand` name table that call sites use instead of string literals). `scripts/export_project_types.py` writes both, Biome-formatted, from `make schema-export`; `--check` (run by `make generated-check` and the `frontend` CI job) fails on drift. `types/project.ts` re-exports the generated shapes and narrows the loose `dict[str, Any]` view fields. The generated types are optional for fields with a Pydantic default, so the server's always-sent fields are re-required in `project.ts`.
 
+Hosts can export the saved, editable timeline from Deliver. The DAW job shares the single pipeline slot, reads the episode without adoption, and publishes its ZIP to the host file inventory. [Deliver formats and native import evidence](daw-editing.md#export-an-editable-daw-session-from-deliver).
+
 ## One-off export variants
 
 The host `POST /api/export/deliverables` route forwards an optional `target` to the export job.
