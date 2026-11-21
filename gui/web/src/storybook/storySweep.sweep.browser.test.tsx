@@ -1,6 +1,7 @@
-import { composeStories } from "@storybook/react-vite";
+import { composeStories, composeStory } from "@storybook/react-vite";
 import axe from "axe-core";
 import { storyNameFromExport } from "storybook/internal/csf";
+import { composeStory as composeBareStory } from "storybook/preview-api";
 import {
   afterAll,
   afterEach,
@@ -52,6 +53,12 @@ const widthsFor = (story: ComposedStory) =>
 const atWidth = (width: number, what: string) => `${width}px wide: ${what}`;
 
 function expectShellFit(width: number) {
+  const { paddingTop, paddingRight, paddingBottom, paddingLeft } =
+    getComputedStyle(document.body);
+  expect(
+    [paddingTop, paddingRight, paddingBottom, paddingLeft],
+    atWidth(width, "the body does not pad the fullscreen frame"),
+  ).toEqual(["0px", "0px", "0px", "0px"]);
   const shell = document.querySelector(".stage-frame");
   if (!shell)
     throw new Error(atWidth(width, "Frame story renders no .stage-frame"));
@@ -188,7 +195,14 @@ describe("viewport policy", () => {
   });
 });
 
-let host: HTMLElement | undefined;
+// Portable stories normally clean up at the start of the next story. Load a
+// story with no project hooks to flush teardown while its owner is observed.
+const teardown = composeBareStory(
+  { render: () => null },
+  { title: "Sweep/Teardown" },
+  {},
+  {},
+);
 let networkErrors: string[] | undefined;
 function onBrowserLog({
   entry,
@@ -219,8 +233,6 @@ afterAll(async () => {
 
 afterEach(() => {
   networkErrors = undefined;
-  host?.remove();
-  host = undefined;
   document.documentElement.removeAttribute("data-theme");
 });
 
@@ -246,36 +258,92 @@ it("sweeps a non-empty set of stories in this shard", () => {
   expect(shardStories.length).toBeGreaterThan(0);
 });
 
+async function observeStory(
+  check: (host: HTMLElement, errors: readonly string[]) => Promise<void>,
+): Promise<string[]> {
+  const host = document.createElement("div");
+  host.id = "storybook-root";
+  document.body.appendChild(host);
+  const errors: string[] = [];
+  networkErrors = errors;
+  const onError = (event: ErrorEvent) => errors.push(event.message);
+  const onRejection = (event: PromiseRejectionEvent) =>
+    errors.push(String(event.reason));
+  const onResourceError = (event: Event) => {
+    if (event.target instanceof Element)
+      errors.push(`failed to load ${event.target.outerHTML.slice(0, 120)}`);
+  };
+  window.addEventListener("error", onResourceError, true);
+  window.addEventListener("error", onError);
+  window.addEventListener("unhandledrejection", onRejection);
+  const consoleError = vi
+    .spyOn(console, "error")
+    .mockImplementation((...args) => errors.push(args.map(String).join(" ")));
+  try {
+    await check(host, errors);
+  } finally {
+    try {
+      await teardown.load().finally(() => host.remove());
+      await settle();
+    } finally {
+      networkErrors = undefined;
+      window.removeEventListener("error", onResourceError, true);
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+      consoleError.mockRestore();
+    }
+  }
+  return errors;
+}
+
+it("rejects body padding even when a fixed shell fills the viewport", async () => {
+  await page.viewport(PHONE, HEIGHT);
+  const originalPadding = document.body.style.padding;
+  const shell = document.createElement("div");
+  shell.className = "stage-frame";
+  shell.style.cssText = "position:fixed;inset:0;display:block";
+  shell.innerHTML = '<main style="height:300px"><h1>Shell fixture</h1></main>';
+  document.body.appendChild(shell);
+  try {
+    expectShellFit(PHONE);
+    document.body.style.padding = "8px";
+    expect(() => expectShellFit(PHONE)).toThrow(/body does not pad/);
+  } finally {
+    document.body.style.padding = originalPadding;
+    shell.remove();
+  }
+});
+
+it("captures teardown and frame errors on the story that caused them", async () => {
+  const meta = { title: "Sweep/Fixture", component: () => null };
+  const failing = composeStory(
+    {
+      beforeEach: () => () => {
+        console.error("cleanup error");
+        requestAnimationFrame(() => console.error("next-frame cleanup error"));
+      },
+    },
+    meta,
+  );
+  const clean = composeStory({}, meta);
+  const firstErrors = await observeStory(async (host, errors) => {
+    await failing.run({ canvasElement: host, globals: { theme: "light" } });
+    expect(errors).toEqual([]);
+  });
+  const nextErrors = await observeStory(async (host) => {
+    await clean.run({ canvasElement: host, globals: { theme: "light" } });
+  });
+  expect(firstErrors).toEqual(["cleanup error", "next-frame cleanup error"]);
+  expect(nextErrors).toEqual([]);
+});
+
 for (const theme of THEMES) {
   describe(`stories in ${theme}`, () => {
     for (const base of shardStories) {
       it(`${base.title} / ${base.storyName}`, async () => {
-        const errors: string[] = [];
-        networkErrors = errors;
-        const onError = (event: ErrorEvent) => errors.push(event.message);
-        const onRejection = (event: PromiseRejectionEvent) =>
-          errors.push(String(event.reason));
-        const onResourceError = (event: Event) => {
-          if (event.target instanceof Element) {
-            errors.push(
-              `failed to load ${event.target.outerHTML.slice(0, 120)}`,
-            );
-          }
-        };
-        window.addEventListener("error", onResourceError, true);
-        window.addEventListener("error", onError);
-        window.addEventListener("unhandledrejection", onRejection);
-        const consoleError = vi
-          .spyOn(console, "error")
-          .mockImplementation((...args) => {
-            errors.push(args.map(String).join(" "));
-          });
-        try {
+        const errors = await observeStory(async (host, errors) => {
           const widths = widthsFor(base);
           await page.viewport(widths[0], HEIGHT);
-          host = document.createElement("div");
-          host.id = "storybook-root";
-          document.body.appendChild(host);
           await base.run({ canvasElement: host, globals: { theme } });
           if (base.tags.includes("wide-only")) {
             const reason = base.parameters.wideOnlyReason;
@@ -312,12 +380,11 @@ for (const theme of THEMES) {
               atWidth(width, "page, network, rejection or console errors"),
             ).toEqual([]);
           }
-        } finally {
-          window.removeEventListener("error", onResourceError, true);
-          window.removeEventListener("error", onError);
-          window.removeEventListener("unhandledrejection", onRejection);
-          consoleError.mockRestore();
-        }
+        });
+        expect(
+          errors,
+          "page, network, rejection or console errors through teardown",
+        ).toEqual([]);
       });
     }
   });

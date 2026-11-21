@@ -4,6 +4,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: { include: ["storybook/preview-api"] },
   test: {
     name: "stories",
     globals: true,
