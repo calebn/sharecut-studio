@@ -23,6 +23,21 @@ The transport bar, status bar, Menu, View menu and bottom dock tabs of earlier r
 | **Empty / error** | Known `?project=` but shell not yet: the frame with skeleton content, **Loading episode…**, Play/Stop focusable and showing “Loading…”. Zero tracks after load: the Import and Record Start tiles (160 x 96; dropped audio lands on them too), not the loading well, and Play/Stop show “Import audio to play.” |
 | **Out of scope** | Full mixer; a free-form pipeline editor (Prepare keeps only a short Advanced step list) |
 
+**When space is tight**
+
+The bar measures whether its controls fit when the container or its contents
+change. It first drops the total duration, then trims Following details and
+turns status labels into icons. Tighter levels hide the skip controls and
+other secondary actions. At the tightest level, open the expanded Player for
+Comment or Retry when those actions are available.
+
+Fixed layout rules also apply. At 22 rem or narrower, the A and B buttons give
+way to the Hear menu button. The same swap happens in a short frame, such as a
+phone in landscape. The short-frame bar hides skips, Stop following and the
+host's Comment. It keeps the Audio error and Retry, and a guest on the phone
+layout keeps Comment, unless the measured fit needs to hide those actions.
+The expanded Player keeps skips and the A and B buttons in a short frame.
+
 While a source preview plays, the Player shows **Pause**. Press it to stop the
 preview and leave the episode paused. When a preview ends, **Play** starts the
 episode from the position it held during the preview. Space when the timeline
