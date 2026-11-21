@@ -371,6 +371,8 @@ export type ReadyInput = {
   model: NeedTarget | null;
   /** Word timing is missing: the Transcribe row shows its Model need row. */
   approximateTiming: NeedTarget | null;
+  /** This device has no word aligner to get: the note stands alone and the row is done. */
+  wordTimingUnsupported?: boolean;
   /** A re-transcribe waits on whether to keep hand fixes. */
   keepFixes: { names: readonly string[] } | null;
   /**
@@ -886,20 +888,25 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
       input.transcribed)
   ) {
     const kept = terminalTranscribe?.kind === "omitted" || transcribe?.skipped;
+    const approximateDetail = kept
+      ? "Existing transcripts kept. Word timing is approximate, so cuts may clip word edges."
+      : "Transcribed. Word timing is approximate, so cuts may clip word edges.";
     rows.push(
       input.approximateTiming
         ? {
             id: "transcribe",
-            state: "needs-you",
+            state: input.wordTimingUnsupported ? "done" : "needs-you",
             title: ROW_TITLE.transcribe,
-            detail: kept
-              ? "Existing transcripts kept. Word timing is approximate, so cuts may clip word edges."
-              : "Transcribed. Word timing is approximate, so cuts may clip word edges.",
+            detail: approximateDetail,
             ...(terminalTranscribe?.kind === "omitted"
               ? { runDisposition: "omitted" as const }
               : {}),
-            model: input.approximateTiming,
-            modelGetAction: "get-word-timing",
+            ...(input.wordTimingUnsupported
+              ? {}
+              : {
+                  model: input.approximateTiming,
+                  modelGetAction: "get-word-timing" as const,
+                }),
           }
         : {
             id: "transcribe",
