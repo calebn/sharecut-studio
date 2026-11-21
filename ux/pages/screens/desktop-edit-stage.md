@@ -29,6 +29,8 @@ flowchart TB
 
 With timeline follow on, Left, Right, Home and End bring an off-screen playhead into view even while playback is paused. Scrolling takes over even during an automatic page flip. A manually parked timeline stays where you left it. When the time ruler has focus, the four arrows move one ruler tick. Shift with an arrow or Page Up and Page Down move ten ticks.
 
+A polite status message announces the **Back to playhead** pill once when it appears. If the same scroll ends Presence Follow, the app says "Stopped following".
+
 In the desktop transcript, Shift-click extends a range from the original word on the same track. Shift-click on another track selects that word and starts a new range. Mouse dragging ignores other tracks and resumes when the pointer returns to its starting track.
 
 ### Script (desktop/tablet)

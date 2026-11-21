@@ -684,6 +684,8 @@ Layout presets (`layout.default`, `layout.timeline`, `layout.text`, `layout.revi
 
 The desktop and tablet timeline follows the playhead during playback: when it nears the right edge, or is left of the view, the view pages so the playhead sits near the left. A scroll of your own (playing or paused), or a wheel, pinch or keyboard or palette zoom while audio plays, turns the follow off. A scroll during the same frame as an automatic page flip also turns it off. Play, a project switch or a timeline mounting turns it back on, so a round trip through another stage re-arms it. A seek during playback reveals an off-screen playhead and leaves the follow as it was. While paused with follow on, the playhead nudge and jump-to-start or end commands also reveal an off-screen playhead. **Back to playhead** (`view.followPlayhead`, palette, no key) turns it on and centers the playhead in the timeline only; with the follow off and the playhead out of view, a pill with the same name appears at the top right of the lanes. Presence Follow owns the viewport while a person is followed, and the phone's fixed playhead is unchanged.
 
+A polite status message announces the **Back to playhead** pill once when it appears. If the same scroll ends Presence Follow, the app says "Stopped following".
+
 The frame grid uses named rows (`header / banners / alerts / body inspector / player / tabs`); stages only change what the body holds, so banners and the Player bar never move (`stage/frame/StageFrame.test.tsx`).
 ## Interaction principles
 
