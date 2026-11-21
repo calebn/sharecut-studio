@@ -1435,6 +1435,22 @@ describe("commentEntriesOf", () => {
   const at = (id: string, start: number, over = {}) =>
     sampleComment({ id, timeline_start: start, ...over });
 
+  it("says on the row that a guest's comment is waiting or being sent", () => {
+    const entries = commentEntriesOf(
+      [at("a", 1), at("b", 2), at("c", 3)],
+      new Map(),
+      new Map([
+        ["a", "waiting"],
+        ["b", "sending"],
+      ]),
+    );
+    expect(entries.map((e) => e.content.row.value)).toEqual([
+      "Waiting to send",
+      "Sending…",
+      undefined,
+    ]);
+  });
+
   it("lists one comment item per comment with its row and card", () => {
     const [entry] = commentEntriesOf([
       at("c1", 65, {
