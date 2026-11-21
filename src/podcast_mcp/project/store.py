@@ -282,6 +282,7 @@ class WriteGrantKind(StrEnum):
     LEGACY_CLI = "legacy_cli"
     LEGACY_MCP = "legacy_mcp"
     LEGACY_COMMENT = "legacy_comment"
+    LEGACY_RECORD_LANDING = "legacy_record_landing"
 
 
 class UnscopedProjectWriteError(RuntimeError):

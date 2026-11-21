@@ -21,6 +21,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.project import store as project_store
 from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
@@ -3328,7 +3329,9 @@ def test_segment_reack_during_project_commit_rolls_back_stale_clip(
         race=race,
     )
 
-    result = RecordLandingService(ws).land(align=lambda _p: None)
+    with monkeypatch.context() as strict:
+        strict.setattr(project_store, "_guard_mode", "strict")
+        result = RecordLandingService(ws).land(align=lambda _p: None)
     assert result["clips"] == []
 
     assert not any(src.id == source_id for src in ws.project.sources)
@@ -4449,12 +4452,14 @@ def test_retried_rollback_after_media_repair_restores_prior_media(
     )
     _fail_rollback_once(monkeypatch)
 
-    RecordLandingService(ws).land(align=lambda _p: None)
-    assert len(uploader.land_rollbacks(session_id=sid)) == 1
-    for project in (ws.project, load_project(minimal_project)):
-        assert project.track_by_id(track_id).media.path == first_rel
+    with monkeypatch.context() as strict:
+        strict.setattr(project_store, "_guard_mode", "strict")
+        RecordLandingService(ws).land(align=lambda _p: None)
+        assert len(uploader.land_rollbacks(session_id=sid)) == 1
+        for project in (ws.project, load_project(minimal_project)):
+            assert project.track_by_id(track_id).media.path == first_rel
 
-    RecordLandingService(ws).land(align=lambda _p: None)
+        RecordLandingService(ws).land(align=lambda _p: None)
     assert uploader.land_rollbacks(session_id=sid) == []
     for project in (ws.project, load_project(minimal_project)):
         assert next(s.path for s in project.sources if s.id == source_id) == first_rel
