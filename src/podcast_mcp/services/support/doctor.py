@@ -77,7 +77,7 @@ def run_doctor_checks(
     """Run the same health checks as `podcast doctor` (no I/O besides reads).
 
     ``deep`` also hashes every segment's audio; without it the segment check only looks at
-    file presence and size, so setup and the support bundle stay cheap.
+    file presence and size, so the default CLI check and support bundle stay cheap.
     """
     report = DoctorReport()
     try:
