@@ -2417,6 +2417,50 @@ describe("playing a timeline longer than the first window", () => {
     engine.dispose();
   });
 
+  it("reuses a distant clip's decoded chunk after a late wake", async () => {
+    const handle = makeCtx();
+    const fetchChunk = vi.fn(
+      async (_ref: ImmutableChunkRef) => new ArrayBuffer(64),
+    );
+    const events = engineEvents();
+    const engine = new ProxyEngine(handle.ctx, fetchChunk, events);
+    const base = episode(400);
+    const first = {
+      ...base.clipsByTrack.host[0],
+      source_end: 20,
+      timeline_end: 20,
+    };
+    engine.setSnapshot({
+      ...base,
+      clipsByTrack: {
+        host: [
+          first,
+          { ...first, id: "repeat", timeline_start: 325, timeline_end: 345 },
+        ],
+      },
+    });
+    try {
+      engine.play(0);
+      await flush();
+      expect(fetchChunk).toHaveBeenCalledOnce();
+      expect(fetchChunk.mock.calls[0][0].index).toBe(0);
+      expect(soundingAt(handle.created, 0.5, 1)).toBe(1);
+
+      // Wake well past the old horizon, inside the second use of chunk zero.
+      await advanceTo(handle, 330);
+      expect(fetchChunk).toHaveBeenCalledOnce();
+      expect(handle.created).toHaveLength(2);
+      expect(handle.created[1].buffer).toBe(handle.created[0].buffer);
+      const [when, offset, duration] = handle.created[1].start.mock.calls[0];
+      expect(when).toBe(330);
+      expect(offset).toBeCloseTo(5, 9);
+      expect(duration).toBe(15);
+      expect(events.onFailure).not.toHaveBeenCalled();
+    } finally {
+      engine.dispose();
+    }
+  });
+
   it("places a clip that starts and one that ends exactly on a batch edge once each", async () => {
     const handle = makeCtx();
     const base = episode(240);
