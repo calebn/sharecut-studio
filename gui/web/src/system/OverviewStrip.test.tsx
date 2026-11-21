@@ -31,6 +31,8 @@ function setup(over: Partial<Parameters<typeof OverviewStrip>[0]> = {}) {
 }
 
 describe("OverviewStrip seeking", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("is a slider with the time as its text when it can seek", () => {
     const { strip } = setup();
     expect(strip).toHaveAttribute("aria-valuemin", "0");
@@ -72,23 +74,56 @@ describe("OverviewStrip seeking", () => {
     expect(onSeek.mock.calls).toEqual([[0.5]]);
   });
 
-  it("seeks continuously while dragged and reads the release click as nothing", () => {
+  it("seeks to the latest move per frame and flushes the final move before the release click", () => {
+    vi.useFakeTimers();
     const { strip, onSeek } = setup();
     fireEvent.pointerDown(strip, { pointerId: 1, clientX: 140 });
     fireEvent.pointerMove(strip, { pointerId: 1, clientX: 200 });
     fireEvent.pointerMove(strip, { pointerId: 1, clientX: 400 });
-    fireEvent.pointerUp(strip, { pointerId: 1, clientX: 400 });
-    fireEvent.click(strip, { clientX: 400, detail: 1 });
-    expect(onSeek.mock.calls).toEqual([[0.25], [0.75]]);
+    expect(onSeek).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    expect(onSeek.mock.calls).toEqual([[0.75]]);
+    fireEvent.pointerMove(strip, { pointerId: 1, clientX: 300 });
+    fireEvent.pointerUp(strip, { pointerId: 1, clientX: 300 });
+    fireEvent.click(strip, { clientX: 300, detail: 1 });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    expect(onSeek.mock.calls).toEqual([[0.75], [0.5]]);
   });
 
-  it("puts the playhead back where the drag started on Escape", () => {
+  it("puts the playhead back on Escape even when another move was queued", () => {
+    vi.useFakeTimers();
     const { strip, onSeek } = setup();
     fireEvent.pointerDown(strip, { pointerId: 1, clientX: 200 });
     fireEvent.pointerMove(strip, { pointerId: 1, clientX: 400 });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    fireEvent.pointerMove(strip, { pointerId: 1, clientX: 450 });
     fireEvent.keyDown(document.body, { key: "Escape" });
-    fireEvent.pointerUp(strip, { pointerId: 1, clientX: 400 });
+    fireEvent.pointerUp(strip, { pointerId: 1, clientX: 450 });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
     expect(onSeek.mock.calls).toEqual([[0.75], [0.25]]);
+  });
+
+  it("discards a pending seek when the same pointer starts another drag", () => {
+    vi.useFakeTimers();
+    const { strip, onSeek } = setup();
+    fireEvent.pointerDown(strip, { pointerId: 1, clientX: 200 });
+    fireEvent.pointerMove(strip, { pointerId: 1, clientX: 400 });
+    fireEvent.pointerDown(strip, { pointerId: 1, clientX: 300 });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    expect(onSeek).not.toHaveBeenCalled();
+    fireEvent.pointerMove(strip, { pointerId: 1, clientX: 260 });
+    fireEvent.pointerUp(strip, { pointerId: 1, clientX: 260 });
+    expect(onSeek.mock.calls).toEqual([[0.4]]);
   });
 
   it.each([
