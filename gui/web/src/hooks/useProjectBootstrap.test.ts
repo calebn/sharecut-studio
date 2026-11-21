@@ -236,6 +236,34 @@ describe("sequenced project bootstrap", () => {
     expect(hook.result.current.failure).toBeNull();
   });
 
+  it("resets the failed attempt when the enabled project path changes", async () => {
+    const firstPath = "/tmp/p.json";
+    const nextPath = "/tmp/next.json";
+    vi.mocked(loadDocumentState)
+      .mockRejectedValueOnce(new Error("first project failed"))
+      .mockImplementation(() => new Promise(() => {}));
+    const hook = renderHook(({ path }) => useProjectBootstrap(path, true), {
+      initialProps: { path: firstPath },
+    });
+
+    await waitFor(() => expect(hook.result.current.failure).not.toBeNull());
+    act(() => hook.result.current.retry());
+    expect(hook.result.current).toMatchObject({ attempt: 1, retrying: true });
+
+    hook.rerender({ path: nextPath });
+
+    expect(hook.result.current).toMatchObject({
+      attempt: 0,
+      failure: null,
+      retrying: false,
+    });
+    expect(loadDocumentState).toHaveBeenLastCalledWith(
+      nextPath,
+      "shell",
+      expect.any(AbortSignal),
+    );
+  });
+
   it("rejects a late shell from the first visit after returning to the same path", async () => {
     let finishOld!: (value: DocumentSnapshot) => void;
     let finishFresh!: (value: DocumentSnapshot) => void;
