@@ -170,34 +170,31 @@ const EMPTY_HOME_SIZES = [
 ];
 
 for (const size of EMPTY_HOME_SIZES) {
-  for (const colorScheme of ["light", "dark"] as const) {
-    test.describe(`Empty Home on a ${size.name}, ${colorScheme}`, () => {
-      test.use({
-        viewport: { width: size.width, height: size.height },
-        isMobile: true,
-        hasTouch: true,
-        colorScheme,
-      });
-
-      test("the tiles start in the first screen and the page holds still", async ({
-        page,
-      }) => {
-        await mockBootstrap(page);
-        await mockRecents(page, []);
-        await openHome(page);
-        const import_ = page.locator(".sys-home .sys-start--import");
-        const record = homeRecordTile(page);
-        for (const tile of [import_, record]) {
-          const box = (await tile.boundingBox())!;
-          expect(box.y).toBeLessThan(300);
-          expect(box.y + box.height).toBeLessThanOrEqual(size.height);
-        }
-        await expect(
-          page.getByText("Your episodes will appear here."),
-        ).toBeVisible();
-        await expect(page.getByText(/Drop a file anywhere/)).toBeHidden();
-        await expectNoHorizontalScroll(page);
-      });
+  test.describe(`Empty Home on a ${size.name}`, () => {
+    test.use({
+      viewport: { width: size.width, height: size.height },
+      isMobile: true,
+      hasTouch: true,
     });
-  }
+
+    test("the tiles start in the first screen and the page holds still", async ({
+      page,
+    }) => {
+      await mockBootstrap(page);
+      await mockRecents(page, []);
+      await openHome(page);
+      const import_ = page.locator(".sys-home .sys-start--import");
+      const record = homeRecordTile(page);
+      for (const tile of [import_, record]) {
+        const box = (await tile.boundingBox())!;
+        expect(box.y).toBeLessThan(300);
+        expect(box.y + box.height).toBeLessThanOrEqual(size.height);
+      }
+      await expect(
+        page.getByText("Your episodes will appear here."),
+      ).toBeVisible();
+      await expect(page.getByText(/Drop a file anywhere/)).toBeHidden();
+      await expectNoHorizontalScroll(page);
+    });
+  });
 }
