@@ -12,7 +12,7 @@ from pydantic_core import PydanticCustomError
 
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.redact import (
-    _mask_values,
+    compile_secret_redactor,
     mentions_host_path,
     redact_secrets,
     redact_share_paths,
@@ -405,12 +405,14 @@ def _reference_mask(text: str, secrets: list[str], min_prefix: int | None) -> st
     ],
 )
 @pytest.mark.parametrize("min_prefix", [None, 6])
-def test_mask_values_matches_the_one_span_at_a_time_reference(
+def test_secret_redactors_match_the_one_span_at_a_time_reference(
     text: str, min_prefix: int | None
 ) -> None:
     secrets = [TOKEN, "velvet-heron-pine", "quokka-umbra-x"]
 
-    assert _mask_values(text, secrets, min_prefix) == _reference_mask(text, secrets, min_prefix)
+    expected = _reference_mask(text, secrets, min_prefix)
+    assert redact_secrets(text, secrets, min_prefix=min_prefix) == expected
+    assert compile_secret_redactor(secrets, min_prefix=min_prefix)(text) == expected
 
 
 def test_redact_secrets_masks_dense_hits_in_linear_time() -> None:

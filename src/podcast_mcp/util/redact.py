@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -249,8 +249,10 @@ def sanitize(
     return out
 
 
-def _mask_values(text: str, secrets: Sequence[str], min_prefix: int | None) -> str:
-    spans: list[tuple[int, int]] = []
+def _compile_secret_patterns(
+    secrets: Sequence[str], min_prefix: int | None
+) -> tuple[re.Pattern[str], ...]:
+    patterns = []
     for secret in {s for s in secrets if s}:
         if min_prefix is not None and len(secret) > min_prefix:
             tail = "".join(f"(?:{re.escape(ch)}" for ch in secret[min_prefix:]) + ")?" * (
@@ -259,11 +261,16 @@ def _mask_values(text: str, secrets: Sequence[str], min_prefix: int | None) -> s
             pattern = re.escape(secret[:min_prefix]) + tail
         else:
             pattern = re.escape(secret)
-        spans.extend(m.span() for m in re.finditer(pattern, text))
+        patterns.append(re.compile(pattern))
+    return tuple(patterns)
+
+
+def _mask_values(text: str, patterns: Sequence[re.Pattern[str]]) -> str:
+    spans = sorted(match.span() for pattern in patterns for match in pattern.finditer(text))
     pieces: list[str] = []
     pos = 0
     run_start = run_end = -1
-    for start, end in sorted(spans):
+    for start, end in spans:
         if start <= run_end:
             run_end = max(run_end, end)
             continue
@@ -288,18 +295,30 @@ def redact_secrets(text: str, secrets: Sequence[str] = (), *, min_prefix: int | 
     least that long is masked too, and text that holds a secret only once percent-decoded
     is returned decoded and masked.
     """
-    if not text:
-        return text
-    out = _mask_values(text, secrets, min_prefix)
-    decoded = unquote(out)
-    decoded_masked = _mask_values(decoded, secrets, min_prefix)
-    if decoded_masked != decoded:
-        out = decoded_masked
-    out = _AUTH_HEADER.sub(r"\1<redacted>", out)
-    out = _SECRET_ASSIGN.sub(lambda m: f"{m.group(1)}=<redacted>", out)
-    out = _HOST_SESSION.sub(r"\1<redacted>", out)
-    out = redact_share_paths(out)
-    return _HEX_RUN.sub("<hex>", out)
+    return compile_secret_redactor(secrets, min_prefix=min_prefix)(text) if text else text
+
+
+def compile_secret_redactor(
+    secrets: Sequence[str], *, min_prefix: int | None = None
+) -> Callable[[str], str]:
+    """Prepare one secret redactor for use on multiple strings."""
+    patterns = _compile_secret_patterns(secrets, min_prefix)
+
+    def redact(text: str) -> str:
+        if not text:
+            return text
+        out = _mask_values(text, patterns)
+        decoded = unquote(out)
+        decoded_masked = _mask_values(decoded, patterns)
+        if decoded_masked != decoded:
+            out = decoded_masked
+        out = _AUTH_HEADER.sub(r"\1<redacted>", out)
+        out = _SECRET_ASSIGN.sub(lambda m: f"{m.group(1)}=<redacted>", out)
+        out = _HOST_SESSION.sub(r"\1<redacted>", out)
+        out = redact_share_paths(out)
+        return _HEX_RUN.sub("<hex>", out)
+
+    return redact
 
 
 def mentions_host_path(text: str) -> bool:
