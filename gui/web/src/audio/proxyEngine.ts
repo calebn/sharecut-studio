@@ -196,6 +196,8 @@ export class ProxyEngine {
         this.originTimelineSec = now;
         this.originCtxTime = this.ctx.currentTime;
         this.schedule(now);
+      } else {
+        this.prunePausedBuffers(now);
       }
     }
   }
@@ -282,7 +284,7 @@ export class ProxyEngine {
     this.beginScheduleGeneration();
     this.stopSources();
     this.originTimelineSec = t;
-    this.pruneBuffers(t - SKIP_BACK_KEEP_SEC, t + WINDOW_PAD_SEC);
+    this.prunePausedBuffers(t);
     leavePlaybackSession();
     void this.ctx.suspend();
     return t;
@@ -297,6 +299,8 @@ export class ProxyEngine {
     this.originCtxTime = this.ctx.currentTime;
     if (wasPlaying) {
       this.schedule(timelineSec);
+    } else {
+      this.prunePausedBuffers(timelineSec);
     }
   }
 
@@ -396,6 +400,14 @@ export class ProxyEngine {
         this.buffers.delete(evict);
       }
     }
+  }
+
+  private prunePausedBuffers(timelineSec: number): void {
+    if (this.buffers.size === 0) return;
+    this.pruneBuffers(
+      timelineSec - SKIP_BACK_KEEP_SEC,
+      timelineSec + WINDOW_PAD_SEC,
+    );
   }
 
   /**

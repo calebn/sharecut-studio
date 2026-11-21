@@ -3029,6 +3029,52 @@ describe("the decoded audio the engine holds", () => {
     r.engine.dispose();
   });
 
+  it("drops the old decoded window on a paused seek without fetching", async () => {
+    const r = rig(1200, ["host"]);
+    r.engine.play(0);
+    await flush();
+    r.engine.pause();
+    const initial = chunkIndexes(r.held().buffers, "host");
+    expect(initial).toContain(0);
+    const fetches = r.fetchChunk.mock.calls.length;
+
+    r.engine.seek(20);
+    expect(chunkIndexes(r.held().buffers, "host")).toEqual(initial);
+    r.engine.seek(360);
+    expect(r.held().bytes).toBe(0);
+    expectConsistent(r.held());
+    expect(r.fetchChunk.mock.calls).toHaveLength(fetches);
+
+    r.engine.play(360);
+    await flush();
+    expect(chunkIndexes(r.held().buffers, "host")).toContain(6);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("drops removed tracks from a changed paused snapshot and reuses retained audio", async () => {
+    const r = rig(1200, ["host", "guest"]);
+    r.engine.play(0);
+    await flush();
+    r.engine.pause();
+    const retained = chunkIndexes(r.held().buffers, "host");
+    expect(retained).toContain(0);
+    expect(chunkIndexes(r.held().buffers, "guest")).toContain(0);
+    const fetches = r.fetchChunk.mock.calls.length;
+
+    r.engine.setSnapshot(episode(1200, CHUNK_SEC, ["host"]));
+    expect(chunkIndexes(r.held().buffers, "guest")).toEqual([]);
+    expect(chunkIndexes(r.held().buffers, "host")).toEqual(retained);
+    expectConsistent(r.held());
+    expect(r.fetchChunk.mock.calls).toHaveLength(fetches);
+
+    r.engine.play(0);
+    await flush();
+    expect(r.fetchChunk.mock.calls).toHaveLength(fetches);
+    expect(soundingAt(r.handle.created, 0.5, 1)).toBe(1);
+    r.engine.dispose();
+  });
+
   it("keeps sounding while chunks behind the margin are released", async () => {
     const r = rig(7200, ["host"]);
     r.engine.play(0);
