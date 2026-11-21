@@ -27,6 +27,8 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import (
     IN_PROCESS_FFMPEG,
     IN_PROCESS_FFPROBE,
+    IN_PROCESS_LABEL,
+    IN_PROCESS_SOURCE,
     FFmpegPairResolutionError,
     in_process_problem,
     resolve_ffmpeg_pair,
@@ -328,9 +330,9 @@ def ffmpeg_probe_info() -> dict[str, Any]:
             problem = in_process_problem()
             info = {
                 "ok": problem is None,
-                "version": "in-process FFmpeg" if problem is None else problem,
+                "version": IN_PROCESS_LABEL if problem is None else problem,
                 "path": IN_PROCESS_FFMPEG,
-                "source": "in_process",
+                "source": IN_PROCESS_SOURCE,
             }
             return {"ffmpeg": info, "ffprobe": {**info, "path": IN_PROCESS_FFPROBE}}
         ffmpeg, ffprobe = pair.ffmpeg, pair.ffprobe
