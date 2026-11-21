@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from struct import unpack
+from threading import Barrier, Lock
+
 import pytest
 
+from ffmpeg_in_process_support import desktop_ffmpeg
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits import audition_context
 from podcast_mcp.edits.audition_context import build_audition_context
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import (
     Clip,
     MediaAsset,
@@ -454,6 +462,55 @@ def test_audition_context_visual_detail_mocks_diagnostics(
     ctx = build_audition_context(proj, 1.0, 3.0, detail="visual", defaults=load_defaults())
     assert ctx["visuals"]
     assert ctx["visuals"][0]["spectrogram_png"].endswith("_spec.png")
+
+
+@desktop_ffmpeg("composes concurrent audition requests from their own diagnostic plots")
+def test_concurrent_visual_auditions_publish_only_one_footer(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    if not FFmpegEngine().check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    proj = _two_track_project(minimal_project, sample_wav, tmp_workspace)
+    proj.tracks = proj.tracks[:1]
+    proj.clips[0].source_start = 0.0
+    proj.clips[0].source_end = 1.0
+    proj.clips = proj.clips[:1]
+    proj.transcripts = proj.transcripts[:1]
+    save_project(proj, minimal_project)
+
+    enrich = audition_context._enrich_visuals
+    both_rendered = Barrier(2, timeout=15)
+    publish_one_at_a_time = Lock()
+    waveform_sizes = []
+
+    def enrich_in_order(visuals, **kwargs):
+        both_rendered.wait()
+        with publish_one_at_a_time:
+            enrich(visuals, **kwargs)
+            png = Path(visuals[0]["waveform_png"])
+            waveform_sizes.append(unpack(">II", png.read_bytes()[16:24]))
+
+    monkeypatch.setattr(audition_context, "_enrich_visuals", enrich_in_order)
+    defaults = load_defaults()
+
+    def audition():
+        return build_audition_context(
+            load_project(minimal_project), 0.0, 1.0, detail="visual", defaults=defaults
+        )["visuals"][0]
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        requests = [workers.submit(audition) for _ in range(2)]
+        first, second = (request.result(timeout=20) for request in requests)
+
+    assert "annotate_error" not in first
+    assert "annotate_error" not in second
+    assert first["waveform_png"] == second["waveform_png"]
+    assert waveform_sizes[0][0] == 1200 and waveform_sizes[0][1] > 200
+    assert waveform_sizes[1] == waveform_sizes[0]
+    assert sorted(path.name for path in Path(first["waveform_png"]).parent.iterdir()) == [
+        "spectrogram_0.000_1.000.png",
+        "waveform_0.000_1.000.png",
+    ]
 
 
 def test_audition_context_visual_can_skip_png_rendering_for_hypothesis_evaluation(

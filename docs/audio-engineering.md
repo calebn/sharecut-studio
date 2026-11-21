@@ -28,11 +28,11 @@ recordings through each track's clips (`engines/lane_window.lane_window`, on the
 
 `render_spectrogram` (`showspectrumpic`, log-scaled) plots frequency
 (vertical axis) against time (horizontal axis), with color intensity showing energy.
-Full-file diagnostics keep the Hz legend (`legend=1`). **Windowed** spectrograms
-used by `audition_context` `detail=visual` render with `legend=0` so the x-axis is
-linear time across the image — JSON `visuals[].events[].x` (0–1) lines up with
-pixels. Visual rendering bounds FFmpeg decoder and filter work to one thread per
-render, so concurrent tracks and test workers cannot multiply image-render resources.
+Full-file diagnostics keep the Hz legend (`legend=1`). The windowed plots from
+`audition_context` `detail=visual` use the full image width for linear timeline
+seconds. JSON `visuals[].events[].x` (0–1) lines up with the same pixels. Visual
+rendering bounds FFmpeg decoder and filter work to one thread per render, so
+concurrent tracks and test workers cannot multiply image-render resources.
 What to look for:
 
 - **Thin horizontal bands at 50Hz/60Hz (and evenly spaced multiples above them)** — mains
@@ -1131,10 +1131,13 @@ captions and timing cannot be mistaken for measurements of a proposed cut. It
 measures the two rendered A/B WAVs directly instead, with owner-only waveform
 PNGs and per-side errors in `key.json`; see [filler-cut-quality.md](filler-cut-quality.md#golden-ear-protocol).
 
-`detail=visual` windowed spectrograms are linear in time (`legend=0`) with JSON
-`events[]` (`t` + plot-relative `x`). Overlay ticks use
-`FFmpegEngine.annotate_time_marks` (`drawbox`; `drawtext` only when the ffmpeg
-build includes it). Read the PNG paths; do not treat spectrograms as ASR.
+The host `detail=visual` PNGs show timeline-second ticks and a key for the
+plotted word, comment, pending edit, and hypothesis markers. The key names each
+plotted event by its ID when present. The full `events[]` list supplies `t` in
+timeline seconds and `x` relative to the plot width. Read the spectrogram for
+audio degradation. If FFmpeg lacks XBIN support, the tool keeps the colored
+event markers and sets `annotate_error` to `PlotAnnotationUnavailableError`.
+If composition fails, it keeps the original plot and reports `annotate_error`.
 
 The payload stays a briefing, not a kitchen sink: no LUFS, join scores, or per-word
 bleed maps in the same JSON (call those tools; the two boundary checks above are the

@@ -14,6 +14,7 @@ from ffmpeg_in_process_support import desktop_ffmpeg
 from podcast_mcp.engines.ffmpeg import (
     AudioProbe,
     FFmpegEngine,
+    PlotAnnotationUnavailableError,
     _annotate_vf,
     _effect_filter,
     _escape_drawtext,
@@ -1113,6 +1114,143 @@ def test_annotate_time_marks_writes_png(sample_wav: Path, tmp_path: Path):
     assert marked_height > base_height
 
 
+def _rgba_pixels(eng: FFmpegEngine, path: Path, width: int) -> np.ndarray:
+    rgba = subprocess.run(
+        [
+            eng.ffmpeg,
+            "-v",
+            "error",
+            "-i",
+            str(path),
+            "-frames:v",
+            "1",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgba",
+            "pipe:1",
+        ],
+        capture_output=True,
+        check=True,
+    ).stdout
+    return np.frombuffer(rgba, np.uint8).reshape(-1, width, 4)
+
+
+@desktop_ffmpeg("renders time-grid and endpoint pixels")
+def test_window_png_draws_visible_grid_and_last_column_mark(sample_wav: Path, tmp_path: Path):
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    original = eng.render_showwavespic(sample_wav, tmp_path / "wave.png")
+    width, height = unpack(">II", original.read_bytes()[16:24])
+    axis = eng.annotate_time_marks(
+        original, [], tmp_path / "axis.png", window_start=2.0, window_end=6.0
+    )
+    marked = eng.annotate_time_marks(
+        original,
+        [{"x": 1.0, "label": "note-47", "kind": "comment"}],
+        tmp_path / "endpoint.png",
+        window_start=2.0,
+        window_end=6.0,
+    )
+
+    original_pixels, axis_pixels, marked_pixels = (
+        _rgba_pixels(eng, path, width) for path in (original, axis, marked)
+    )
+    assert axis_pixels.shape[0] > height
+    assert axis_pixels[5, width // 4, 3] > original_pixels[5, width // 4, 3]
+    assert marked_pixels[5, -1, :2].min() > marked_pixels[5, -1, 2]
+    assert marked_pixels[5, -1, 3] > 0
+    np.testing.assert_array_equal(axis_pixels[:height, 170], original_pixels[:, 170])
+    np.testing.assert_array_equal(marked_pixels[:height, 170], original_pixels[:, 170])
+
+
+@desktop_ffmpeg("keeps endpoint labels visible on odd-width plots")
+def test_odd_width_window_png_fits_labels_in_the_last_full_cell(sample_wav: Path, tmp_path: Path):
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    width, height = 121, 200
+    png = eng.render_showwavespic(sample_wav, tmp_path / "wave.png", size=f"{width}x{height}")
+    eng.annotate_time_marks(
+        png,
+        [{"x": 1.0, "label": "n47", "kind": "comment"}],
+        png,
+        window_start=2.0,
+        window_end=6.0,
+    )
+
+    assert unpack(">I", png.read_bytes()[16:20]) == (width,)
+    pixels = _rgba_pixels(eng, png, width)
+    right_label = pixels[height : height + 16, 112:120, :3]
+    right_reference = pixels[height + 32 : height + 48, 112:120, :3]
+    assert (right_label[..., 2] > right_label[..., 0]).any()
+    assert (right_reference[..., :2].min(axis=-1) > right_reference[..., 2]).any()
+    assert not pixels[height:, 120:, :3].any()
+
+
+@desktop_ffmpeg("keeps colored event marks when FFmpeg lacks its text decoder")
+@pytest.mark.parametrize(
+    "stderr",
+    [b"Unknown input format: 'xbin'", b"Decoding requested, but no decoder found for: bintext"],
+)
+def test_window_png_keeps_visible_marks_without_xbin(sample_wav: Path, tmp_path: Path, stderr):
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    png = eng.render_showwavespic(sample_wav, tmp_path / "wave.png")
+    width, height = unpack(">II", png.read_bytes()[16:24])
+    original = _rgba_pixels(eng, png, width)
+
+    def ffmpeg_without_xbin(cmd, **kwargs):
+        if "xbin" in cmd:
+            raise subprocess.CalledProcessError(1, cmd, stderr=stderr)
+        return subprocess.run(cmd, **kwargs)
+
+    with (
+        patch("podcast_mcp.engines.ffmpeg.run", side_effect=ffmpeg_without_xbin),
+        pytest.raises(PlotAnnotationUnavailableError, match="XBIN"),
+    ):
+        eng.annotate_time_marks(
+            png,
+            [{"x": 1.0, "label": "note-47", "kind": "comment"}],
+            png,
+            window_start=2.0,
+            window_end=6.0,
+        )
+
+    assert unpack(">II", png.read_bytes()[16:24]) == (width, height)
+    pixels = _rgba_pixels(eng, png, width)
+    assert pixels[5, -1, :2].min() > pixels[5, -1, 2]
+    assert pixels[5, -1, 3] > 0
+    np.testing.assert_array_equal(pixels[:, 170], original[:, 170])
+    assert set(tmp_path.iterdir()) == {png}
+
+
+@desktop_ffmpeg("checks atomic audition plot publication")
+def test_window_png_keeps_the_source_when_annotation_is_incomplete(
+    sample_wav: Path, tmp_path: Path
+):
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    png = eng.render_showwavespic(sample_wav, tmp_path / "wave.png")
+    original = png.read_bytes()
+
+    def truncated_output(cmd, **_kwargs):
+        Path(cmd[-1]).write_bytes(original[:24])
+        return subprocess.CompletedProcess(cmd, 0)
+
+    with (
+        patch("podcast_mcp.engines.ffmpeg.run", side_effect=truncated_output),
+        pytest.raises(ValueError),
+    ):
+        eng.annotate_time_marks(png, [], png, window_start=2.0, window_end=6.0)
+
+    assert png.read_bytes() == original
+    assert set(tmp_path.iterdir()) == {png}
+
+
 def test_annotate_time_marks_missing_png(tmp_path: Path):
     eng = FFmpegEngine()
     with pytest.raises(FileNotFoundError, match="png not found"):
@@ -1205,8 +1343,6 @@ def test_annotate_retries_boxes_when_drawtext_overlay_fails(tmp_path: Path):
             png,
             [{"x": 0.2, "label": "cut1", "kind": "pending_edit"}],
             out,
-            window_start=1.0,
-            window_end=2.0,
         )
     assert result == out
     assert any("drawtext" in vf for vf in vfs)

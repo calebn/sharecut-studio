@@ -18,7 +18,8 @@ listens, and explicit clocks. Existing keys (``summary``, ``warnings``,
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Sequence
+import tempfile
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from statistics import median
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
@@ -35,6 +36,7 @@ from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.engines.session_timeline import SessionTimeline, shift_at
 from podcast_mcp.models import Clip, EditMode, EpisodeProject, TrackRole
+from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.text import count_noun
@@ -531,43 +533,57 @@ def build_audition_context(
             )
         )
 
-    dsp = (
-        _diagnostics_for_tracks(
-            project,
-            track_ids,
-            timeline_start,
-            timeline_end,
-            pngs=detail == "visual" if render_visual_pngs is None else render_visual_pngs,
-            defaults=defaults,
-        )
-        if include_dsp
-        else []
-    )
-    hypotheses.extend(_visual_hypotheses(window, dsp))
-    echo_skipped = False
-    if include_dsp:
-        hypotheses.extend(
-            _speech_cut_hypotheses(
-                project, track_ids, timeline_start, timeline_end, defaults=defaults
-            )
-        )
-        echo_hyps, echo_skipped = _echo_hypotheses(
-            project, window, timeline_start, timeline_end, defaults=defaults
-        )
-        hypotheses.extend(echo_hyps)
+    with contextlib.ExitStack() as plot_scratch:
+        staged_plot_dirs: dict[Path, Path] = {}
 
-    visuals: list[dict[str, Any]] | None = None
-    if detail == "visual":
-        visuals = dsp
-        _enrich_visuals(
-            visuals,
-            timeline_start=timeline_start,
-            timeline_end=timeline_end,
-            words_timeline=words_timeline,
-            comments=comments,
-            edits=edits,
-            hypotheses=hypotheses,
+        def stage_plots(directory: Path) -> Path:
+            staged_dir = Path(
+                plot_scratch.enter_context(
+                    tempfile.TemporaryDirectory(prefix=".audition-", dir=directory)
+                )
+            )
+            staged_plot_dirs[directory] = staged_dir
+            return staged_dir
+
+        dsp = (
+            _diagnostics_for_tracks(
+                project,
+                track_ids,
+                timeline_start,
+                timeline_end,
+                pngs=detail == "visual" if render_visual_pngs is None else render_visual_pngs,
+                stage_plots=stage_plots if detail == "visual" else None,
+                defaults=defaults,
+            )
+            if include_dsp
+            else []
         )
+        hypotheses.extend(_visual_hypotheses(window, dsp))
+        echo_skipped = False
+        if include_dsp:
+            hypotheses.extend(
+                _speech_cut_hypotheses(
+                    project, track_ids, timeline_start, timeline_end, defaults=defaults
+                )
+            )
+            echo_hyps, echo_skipped = _echo_hypotheses(
+                project, window, timeline_start, timeline_end, defaults=defaults
+            )
+            hypotheses.extend(echo_hyps)
+
+        visuals: list[dict[str, Any]] | None = None
+        if detail == "visual":
+            visuals = dsp
+            _enrich_visuals(
+                visuals,
+                timeline_start=timeline_start,
+                timeline_end=timeline_end,
+                words_timeline=words_timeline,
+                comments=comments,
+                edits=edits,
+                hypotheses=hypotheses,
+                staged_plot_dirs=staged_plot_dirs,
+            )
 
     suggested = _build_suggested_listen(hypotheses, window, track_ids)
     _attach_listen_refs(hypotheses, suggested)
@@ -1297,6 +1313,7 @@ def _diagnostics_for_tracks(
     timeline_end: float,
     *,
     pngs: bool = True,
+    stage_plots: Callable[[Path], Path] | None = None,
     defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
     from podcast_mcp.edits.audio_quality import DiagnosticsWindowError, audio_diagnostics_report
@@ -1317,6 +1334,7 @@ def _diagnostics_for_tracks(
                 start_sec=timeline_start,
                 end_sec=timeline_end,
                 pngs=pngs,
+                stage_plots=stage_plots,
                 defaults=defaults,
             )
             row: dict[str, Any] = {
@@ -1351,6 +1369,7 @@ def _enrich_visuals(
     comments: list[dict[str, Any]],
     edits: dict[str, Any],
     hypotheses: list[dict[str, Any]],
+    staged_plot_dirs: dict[Path, Path],
 ) -> None:
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
@@ -1379,21 +1398,29 @@ def _enrich_visuals(
         vis["plot"] = plot
         vis["events"] = events
         marks = _burn_marks(events)
-        for png in (vis.get("spectrogram_png"), vis.get("waveform_png")):
+        for key in ("spectrogram_png", "waveform_png"):
+            png = vis.get(key)
             if not png:
                 continue
             path = Path(png)
-            if not path.is_file():
+            staged_dir = staged_plot_dirs.get(path.parent)
+            if staged_dir is None:
                 continue
+            staged_path = staged_dir / path.name
             try:
                 eng.annotate_time_marks(
-                    path,
+                    staged_path,
                     marks,
-                    path,
+                    staged_path,
                     window_start=timeline_start,
                     window_end=timeline_end,
                 )
             except Exception as exc:
+                vis["annotate_error"] = type(exc).__name__
+            try:
+                publish_completed_file(staged_path, path)
+            except OSError as exc:
+                vis[key] = None
                 vis["annotate_error"] = type(exc).__name__
 
 
@@ -1402,13 +1429,10 @@ def _burn_marks(events: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     ordered = sorted(events, key=lambda e: (priority.get(str(e.get("kind")), 9), e.get("t", 0)))
     marks: list[dict[str, Any]] = []
     for ev in ordered[:MAX_BURNED_LABELS]:
-        label = ev.get("text") or ev.get("id") or ev.get("kind")
+        label = ev.get("id") or ev.get("text") or ev.get("kind")
         if label is None:
             continue
-        text = str(label)
-        if len(text) > 24:
-            text = text[:21] + "…"
-        marks.append({"x": float(ev["x"]), "label": text, "kind": ev.get("kind")})
+        marks.append({"x": float(ev["x"]), "label": str(label), "kind": ev.get("kind")})
     return marks
 
 
