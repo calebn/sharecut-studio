@@ -748,6 +748,11 @@ _MIN_BLEND_SEC = 0.020
 _BLEND_SLACK_SEC = 1e-9
 
 
+def crossfade_borrow_limit_sec(overlap_ms: int) -> float:
+    """Most a join can borrow per side before recording and mute limits apply."""
+    return max(overlap_ms / 2000.0, _BORROW_STEP_SEC)
+
+
 def _gap_room(project: EpisodeProject, left: Clip, right: Clip) -> float:
     """Room a cut's removed span leaves each side to borrow: half the source gap.
 
@@ -803,11 +808,11 @@ def crossfade_borrow_sec(
         _gap_room(project, left, right),
     )
     index = index or MuteIndex(project)
-    reach = max(ms / 2000.0, _BORROW_STEP_SEC)
+    reach = crossfade_borrow_limit_sec(ms)
     room = min(room, index.room_after(left, reach), index.room_before(right, reach))
     if 2 * room + _BLEND_SLACK_SEC < min(ms / 1000.0, _MIN_BLEND_SEC):
         return 0.0
-    steps = math.floor(min(max(ms / 2000.0, _BORROW_STEP_SEC), room) / _BORROW_STEP_SEC + 1e-9)
+    steps = math.floor(min(reach, room) / _BORROW_STEP_SEC + 1e-9)
     return round(steps * _BORROW_STEP_SEC, 6) if steps >= 1 else 0.0
 
 
