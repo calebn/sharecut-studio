@@ -18,9 +18,8 @@ export function noPreviewReason(mayRefresh: boolean): string {
 }
 
 /**
- * Short, self-explaining pill label for a transport audio error. The full
- * message stays in the pill's tooltip and accessible name; the label has to
- * make sense on touch, where a tooltip never shows.
+ * Short, self-explaining pill label for a transport audio error. The same
+ * label is used in the tooltip when the bar only has room for an icon.
  */
 export function audioErrorLabel(message: string): string {
   if (/^Failed to load audio/i.test(message)) {
