@@ -337,6 +337,44 @@ describe("social clip content", () => {
     );
   });
 
+  it.each([
+    { name: "End", start: 0.2, end: 0.5, limit: 0.3, outside: 0.299 },
+    { name: "Start", start: 1, end: 1.2, limit: 1.1, outside: 1.101 },
+    { name: "End", start: 0.104, end: 0.5, limit: 0.204, outside: 0.203 },
+  ])(
+    "accepts typed $name $limit at the derived minimum span",
+    async ({ name, start, end, limit, outside }) => {
+      open("host", clip.id, { ...clip, start, end });
+      await typeScrub(name, String(outside));
+      expect(updateSocialClip).not.toHaveBeenCalled();
+      fireEvent.keyDown(screen.getByRole("textbox", { name }), {
+        key: "Escape",
+      });
+
+      await typeScrub(name, String(limit));
+      expect(updateSocialClip).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/p.json",
+        clip.id,
+        name === "Start" ? limit : start,
+        name === "End" ? limit : end,
+      );
+    },
+  );
+
+  it.each([
+    { name: "Start", key: "ArrowUp" },
+    { name: "End", key: "ArrowDown" },
+  ])(
+    "keeps $name when nudged inward at the 0.1 s limit",
+    async ({ name, key }) => {
+      open("host", clip.id, { ...clip, start: 0.24, end: 0.34 });
+      await act(async () => {
+        fireEvent.keyDown(screen.getByRole("spinbutton", { name }), { key });
+      });
+      expect(updateSocialClip).not.toHaveBeenCalled();
+    },
+  );
+
   it("refuses an end before the minimum span with the range", async () => {
     open();
     await typeScrub("End", "20");
