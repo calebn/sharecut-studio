@@ -19,6 +19,7 @@ import { __resetThemeForTests, useTheme } from "../hooks/useTheme";
 import { ModelsSheet } from "../models";
 import { ModelsContext } from "../models/useModels";
 import { CommandPalette } from "../stage/dialogs/CommandPalette";
+import { withCommandSendOwnership } from "../state/commandSendOwnership";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { AppHeader } from "../system/AppHeader";
@@ -579,6 +580,35 @@ describe("Move…", () => {
       await within(sheet).findByText(/edits are still waiting to be saved/),
     ).toBeVisible();
     expect(moveProject).not.toHaveBeenCalled();
+  });
+
+  it("refuses new command admission while moving and restores it after a refusal", async () => {
+    const projectPath = "/tmp/move-fence-test/episode.sharecut";
+    tauri.on = true;
+    useDawStore.getState().hydrate(projectPath, minimalProject());
+    const pending = deferred<Awaited<ReturnType<typeof moveProject>>>();
+    vi.mocked(pickFolder).mockResolvedValue({ folder: "/Volumes/Archive" });
+    vi.mocked(moveProject).mockReturnValueOnce(pending.promise);
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+    await waitFor(() => expect(moveProject).toHaveBeenCalledOnce());
+
+    const save = vi.fn(async () => "saved");
+    await expect(
+      withCommandSendOwnership(projectPath, "shared", save),
+    ).rejects.toThrow(/episode is moving/i);
+    expect(save).not.toHaveBeenCalled();
+
+    await act(async () => pending.reject(new Error("The folder is in use.")));
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent(
+      "The folder is in use.",
+    );
+    await expect(
+      withCommandSendOwnership(projectPath, "shared", save),
+    ).resolves.toBe("saved");
+    expect(save).toHaveBeenCalledOnce();
   });
 
   it("says so when the computer has no folder dialog", async () => {
