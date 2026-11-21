@@ -9,8 +9,10 @@ import { useDawStore } from "../state/dawStore";
 import { hostCauseNow } from "../state/hostReach";
 import {
   appendOutbox,
+  loadOutbox,
   type OutboxAnchor,
   type OutboxRow,
+  requestOutboxDrain,
   serverIdOf,
 } from "../state/outboxStore";
 import { DocumentCommand } from "../types/documentCommands.generated";
@@ -85,6 +87,21 @@ function commentBody(row: OutboxRow): string {
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** An answer without what it should carry may still have landed, so it is treated like an unreadable one: kept and sent again. */
+function readLanded<Landed>(
+  value: unknown,
+  complete: (value: Record<string, unknown>) => boolean,
+): Landed {
+  if (!isRecord(value) || !complete(value)) {
+    throw new SyntaxError("The answer did not carry the post");
+  }
+  return value as Landed;
+}
+
 export async function sendGuestPost(
   token: string,
   row: OutboxRow,
@@ -103,7 +120,10 @@ export async function sendGuestPost(
             { guest: "/comments" },
             { method: "POST", headers: json, body: commentBody(row), signal },
           );
-          return (await res.json()) as { comment: TimelineComment };
+          return readLanded<{ comment: TimelineComment }>(
+            await res.json(),
+            (value) => isRecord(value.comment),
+          );
         },
       );
       mergeReturnedComment(data.comment);
@@ -134,10 +154,11 @@ export async function sendGuestPost(
             signal,
           },
         );
-        return (await res.json()) as {
-          comment_id: string;
-          reply: CommentReply;
-        };
+        return readLanded<{ comment_id: string; reply: CommentReply }>(
+          await res.json(),
+          (value) =>
+            typeof value.comment_id === "string" && isRecord(value.reply),
+        );
       },
     );
     mergeReturnedReply(data.comment_id, data.reply);
@@ -147,13 +168,24 @@ export async function sendGuestPost(
   }
 }
 
+async function hasKeptPosts(token: string): Promise<boolean> {
+  try {
+    return (await loadOutbox(token)).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 async function sendOrKeep(
   token: string,
   row: OutboxRow,
   replyTo?: string,
 ): Promise<TimelineComment | KeptPost | null> {
-  const away = hostCauseNow(token);
-  if (away !== null && (await appendOutbox(token, row))) {
+  const away = hostCauseNow(token) !== null;
+  // A post sent now would land ahead of the ones still waiting, so it waits its turn.
+  const behind = away ? false : await hasKeptPosts(token);
+  if ((away || behind) && (await appendOutbox(token, row))) {
+    if (behind) requestOutboxDrain(token);
     return { kept: true, id: row.id };
   }
   const outcome = await sendGuestPost(token, row, replyTo);

@@ -7,6 +7,7 @@ import {
   STORE,
   updateStoredList,
 } from "../../state/idbKv";
+import { clearOutbox } from "../../state/outboxStore";
 import { isLinkEnded } from "../../utils/linkEnded";
 import { chainQueuedEnvelopeBaseline } from "./queuedEnvelopeBaseline";
 
@@ -400,15 +401,16 @@ export function saveOfflineSnapshot(
 
 /**
  * The link ended: let the writes that had already begun finish, then delete the
- * saved copy. Never rejects; a failed delete leaves a copy that the dead-link
- * answer clears on the next open.
+ * saved copy and the kept and returned posts, whose words the cover has already
+ * handed back. Never rejects; a failed delete leaves them for the dead-link
+ * answer to clear on the next open.
  */
 export async function retireOfflineSnapshot(token: string): Promise<void> {
   try {
     while (snapshotWrites.has(token)) {
       await Promise.all([...(snapshotWrites.get(token) ?? [])]);
     }
-    await clearOfflineSnapshot(token);
+    await Promise.all([clearOfflineSnapshot(token), clearOutbox(token)]);
   } catch {
     // Nothing more can be done for a store that will not answer.
   }

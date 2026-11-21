@@ -134,6 +134,7 @@ describe("comment sheet sections", () => {
     expect(addCommentReply).toHaveBeenCalledWith("/tmp/p.json", "c1", {
       body: "Keep this section",
       author: expect.any(String),
+      postKey: expect.any(String),
     });
     expect(input).toHaveValue("");
   });

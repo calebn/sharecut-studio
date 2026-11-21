@@ -1,6 +1,6 @@
 /** Rows live under `outbox:<token>`; each `id` is the server's repeat key, so resending a send that landed is harmless. */
 
-import { idbGet, updateStoredList } from "./idbKv";
+import { idbDelete, idbGet, updateStoredList } from "./idbKv";
 
 export type OutboxAnchor = {
   timeline_start: number;
@@ -27,6 +27,19 @@ type ReturnedPost = OutboxRow & {
 
 const HEX_ID = /^[0-9a-f]{32}$/;
 const LANDED_ID = /^g-.+-([0-9a-f]{32})$/;
+
+let drainRequester: ((token: string) => void) | null = null;
+
+/** The guest sync registers what sends the outbox, so a post made behind waiting ones can ask for a pass. */
+export function setOutboxDrainRequester(
+  requester: ((token: string) => void) | null,
+): void {
+  drainRequester = requester;
+}
+
+export function requestOutboxDrain(token: string): void {
+  drainRequester?.(token);
+}
 
 export function waitingSlot(rowId: string): string {
   return `g-${rowId}`;
@@ -137,10 +150,25 @@ function parseOutboxRow(value: unknown): OutboxRow {
   };
 }
 
-function parseOutboxList(value: unknown): OutboxRow[] {
+/** A row that cannot be read is dropped alone, so one bad row never stops the rest. */
+function parseEach<Row>(
+  value: unknown,
+  parseRow: (row: unknown) => Row,
+  whole: string,
+): Row[] {
   if (value === undefined) return [];
-  if (!Array.isArray(value)) throw new Error("Invalid saved comment list");
-  return Array.from(value, parseOutboxRow);
+  if (!Array.isArray(value)) throw new Error(whole);
+  const rows: Row[] = [];
+  for (const item of value) {
+    try {
+      rows.push(parseRow(item));
+    } catch {}
+  }
+  return rows;
+}
+
+function parseOutboxList(value: unknown): OutboxRow[] {
+  return parseEach(value, parseOutboxRow, "Invalid saved comment list");
 }
 
 function parseReturnedRow(value: unknown): ReturnedPost {
@@ -155,9 +183,7 @@ function parseReturnedRow(value: unknown): ReturnedPost {
 }
 
 function parseReturnedList(value: unknown): ReturnedPost[] {
-  if (value === undefined) return [];
-  if (!Array.isArray(value)) throw new Error("Invalid saved refusal list");
-  return Array.from(value, parseReturnedRow);
+  return parseEach(value, parseReturnedRow, "Invalid saved refusal list");
 }
 
 export async function loadOutbox(token: string): Promise<OutboxRow[]> {
@@ -231,6 +257,42 @@ export async function removeOutbox(
   );
   await refreshOutboxView(token);
   return removed;
+}
+
+/** Takes a waiting comment out together with the waiting replies to it, which have nothing to answer once it is gone. */
+export async function removeOutboxWithReplies(
+  token: string,
+  id: string,
+): Promise<OutboxRow[]> {
+  if (typeof indexedDB === "undefined") return [];
+  const slot = waitingSlot(id);
+  const removed = await updateStoredList<OutboxRow, OutboxRow[]>(
+    outboxKey(token),
+    parseOutboxList,
+    (rows) => {
+      const goes = (row: OutboxRow) =>
+        row.id === id ||
+        (row.kind === "reply" &&
+          row.parent_comment_id !== undefined &&
+          slotOf(row.parent_comment_id) === slot);
+      return {
+        items: rows.filter((row) => !goes(row)),
+        result: rows.filter(goes),
+      };
+    },
+  );
+  await refreshOutboxView(token);
+  return removed;
+}
+
+/** Forgets every kept and returned post of a link that has ended. */
+export async function clearOutbox(token: string): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  await Promise.all([
+    idbDelete(outboxKey(token)),
+    idbDelete(returnedKey(token)),
+  ]);
+  await refreshOutboxView(token);
 }
 
 /** Written to the returned list first, so a crash between the two writes shows the row twice, never loses its text. */

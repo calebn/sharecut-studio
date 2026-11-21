@@ -66,6 +66,29 @@ export async function idbSet(key: string, value: unknown): Promise<void> {
   });
 }
 
+export async function idbDelete(key: string): Promise<void> {
+  if (typeof indexedDB === "undefined") {
+    return;
+  }
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(key);
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+  });
+}
+
 export async function updateStoredList<Item, Result>(
   key: string,
   parse: (value: unknown) => Item[],

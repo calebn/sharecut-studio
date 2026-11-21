@@ -5,6 +5,7 @@ import {
   loadOutbox,
   loadReturnedPosts,
   type OutboxRow,
+  removeOutbox,
 } from "../../state/outboxStore";
 import { stubIndexedDb } from "../../test/fakeIndexedDb";
 import { sampleComment } from "../../test/fixtures";
@@ -14,6 +15,8 @@ import { drainOutbox, refusalReasonOf } from "./drainOutbox";
 
 const send = vi.hoisted(() => vi.fn());
 vi.mock("../../api", () => ({ sendGuestPost: send }));
+const reach = vi.hoisted(() => ({ cause: null as "host" | "device" | null }));
+vi.mock("../../state/hostReach", () => ({ hostCauseNow: () => reach.cause }));
 
 const hex = (n: number) => n.toString(16).padStart(32, "0");
 const comment = (n: number): OutboxRow => ({
@@ -59,6 +62,7 @@ beforeEach(() => {
   send.mockReset();
   stubIndexedDb(rows);
   useDawStore.setState({ project: null });
+  reach.cause = null;
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -152,17 +156,78 @@ describe("drainOutbox", () => {
   });
 
   it("sends nothing for a link that ended", async () => {
-    await appendOutbox("tok", comment(1));
-    markLinkEnded("tok");
-    await drainOutbox("tok");
+    await appendOutbox("ended", comment(1));
+    markLinkEnded("ended");
+    await drainOutbox("ended");
     expect(send).not.toHaveBeenCalled();
-    expect(await ids()).toEqual([hex(1)]);
+    expect(await (await loadOutbox("ended")).map((r) => r.id)).toEqual([
+      hex(1),
+    ]);
   });
 
-  it("leaves the pass to the tab that holds the lock", async () => {
+  it("does not send a row that Don't send took out after the pass began", async () => {
+    for (const n of [1, 2, 3]) await appendOutbox("tok", comment(n));
+    send.mockImplementation(async (_token, row) => {
+      if (row.id === hex(1)) await removeOutbox("tok", hex(2));
+      return sent;
+    });
+    await drainOutbox("tok");
+    expect(send.mock.calls.map(([, row]) => row.id)).toEqual([hex(1), hex(3)]);
+    expect(await ids()).toEqual([]);
+  });
+
+  it("hands back a reply once its comment is gone from a project that has loaded, not on the first miss", async () => {
+    useDawStore.setState({ project: { comments: [] } as never });
+    await appendOutbox("tok", reply(1, `g-${hex(9)}`));
+    await appendOutbox("tok", comment(2));
+    send.mockResolvedValue(sent);
+    await drainOutbox("tok");
+    expect(await ids()).toEqual([hex(1)]);
+    await drainOutbox("tok");
+    expect(await ids()).toEqual([]);
+    expect(await loadReturnedPosts("tok")).toMatchObject([
+      { id: hex(1), reason: "The comment it answers is gone.", status: null },
+    ]);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a reply to a comment that still waits, however many passes go by", async () => {
+    useDawStore.setState({ project: { comments: [] } as never });
     await appendOutbox("tok", comment(1));
-    const request = vi.fn(async (_name, _opts, run) => run(null));
+    await appendOutbox("tok", reply(2, `g-${hex(1)}`));
+    send.mockResolvedValue(later);
+    for (let pass = 0; pass < 3; pass++) await drainOutbox("tok");
+    expect(await ids()).toEqual([hex(1), hex(2)]);
+    expect(await loadReturnedPosts("tok")).toEqual([]);
+  });
+
+  it("makes no real send while the host is known to be away, and sends when it is back", async () => {
+    await appendOutbox("tok", comment(1));
+    reach.cause = "host";
+    await drainOutbox("tok");
+    expect(send).not.toHaveBeenCalled();
+    reach.cause = null;
+    send.mockResolvedValue(sent);
+    await drainOutbox("tok");
+    expect(send).toHaveBeenCalledOnce();
+    expect(await ids()).toEqual([]);
+  });
+
+  it("leaves the pass to the tab that holds the lock, then runs one more when it lets go", async () => {
+    await appendOutbox("tok", comment(1));
+    send.mockResolvedValue(sent);
+    const queued: Array<() => Promise<void>> = [];
+    const request = vi.fn(
+      async (_name: string, ...rest: unknown[]): Promise<void> => {
+        if (rest.length === 2) {
+          await (rest[1] as (lock: null) => Promise<void>)(null);
+          return;
+        }
+        queued.push(rest[0] as () => Promise<void>);
+      },
+    );
     vi.stubGlobal("navigator", { ...navigator, locks: { request } });
+    await drainOutbox("tok");
     await drainOutbox("tok");
     expect(request).toHaveBeenCalledWith(
       "sharecut-outbox:tok",
@@ -170,6 +235,10 @@ describe("drainOutbox", () => {
       expect.any(Function),
     );
     expect(send).not.toHaveBeenCalled();
+    expect(queued).toHaveLength(1);
+    await queued[0]();
+    expect(send).toHaveBeenCalledOnce();
+    expect(await ids()).toEqual([]);
   });
 });
 

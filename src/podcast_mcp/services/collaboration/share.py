@@ -2240,9 +2240,12 @@ def share_add_reply(
     def add() -> Any:
         nonlocal created
         if stored_id is not None:
-            parent = next((c for c in ws.project.comments if c.id == comment_id), None)
-            prior = next((r for r in parent.replies if r.id == stored_id), None) if parent else None
-            if prior is not None and prior.author == who:
+            for parent in ws.project.comments:
+                prior = next((r for r in parent.replies if r.id == stored_id), None)
+                if prior is None:
+                    continue
+                if prior.author != who or parent.id != comment_id:
+                    raise CodedValueError("reply id already exists", code="comment_exists")
                 created = False
                 return CommentReplyResult(comment_id=comment_id, reply=prior)
         return CommentService(ws).add_reply(comment_id, body=body, author=who, reply_id=stored_id)

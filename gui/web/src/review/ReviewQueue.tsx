@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { focusComposerFromKey } from "../commands/composerFocus";
 import { useNowSec } from "../hooks/useNowSec";
 import { ModelNeedRow } from "../models";
 import {
@@ -325,7 +326,15 @@ function AttentionGroup({
   const { rows, pending, refineWaiverProject, posts } = attention;
   const reasonId = useId();
   const groupRef = useRef<HTMLDivElement>(null);
-  const leaving = useRef<{ id: string; index: number } | null>(null);
+  const leaving = useRef<{
+    id: string;
+    index: number;
+    toComposer?: boolean;
+  } | null>(null);
+  const focusOrder = [
+    ...(posts?.returned.map((post) => post.id) ?? []),
+    ...rows.map((row) => row.id),
+  ];
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
@@ -358,33 +367,56 @@ function AttentionGroup({
   });
   useEffect(
     () => () => {
-      if (leaving.current) vanished.current();
+      const mark = leaving.current;
+      if (!mark) return;
+      if (!mark.toComposer) {
+        vanished.current();
+        return;
+      }
+      // The field the words went back into may not have rendered yet.
+      let frames = 0;
+      const focusWhenReady = () => {
+        if (focusComposerFromKey()) return;
+        if (++frames > 10) vanished.current();
+        else requestAnimationFrame(focusWhenReady);
+      };
+      focusWhenReady();
     },
     [],
   );
+  const focusOrderKey = focusOrder.join("\n");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the key stands for the order it was joined from
   useEffect(() => {
     const mark = leaving.current;
-    if (!mark || rows.some((row) => row.id === mark.id)) return;
+    if (!mark || focusOrder.includes(mark.id)) return;
     leaving.current = null;
     if (!focusFellBack(document.activeElement)) return;
+    if (mark.toComposer && focusComposerFromKey()) return;
     const group = groupRef.current;
     if (!group) return;
-    const next = rows[Math.min(mark.index, rows.length - 1)];
-    const target = next
-      ? group.querySelector<HTMLElement>(
-          `[data-attention-row="${CSS.escape(next.id)}"] button`,
-        )
-      : null;
+    const nextId = focusOrder[Math.min(mark.index, focusOrder.length - 1)];
+    const target =
+      nextId === undefined
+        ? null
+        : group.querySelector<HTMLElement>(
+            `[data-attention-row="${CSS.escape(nextId)}"] button`,
+          );
     (target ?? group).focus();
-  }, [rows]);
+  }, [focusOrderKey]);
   const leaveAfter =
     (act: (row: AttentionRow) => void | Promise<void>) =>
     (row: AttentionRow) => {
       leaving.current = {
         id: row.id,
-        index: rows.findIndex((r) => r.id === row.id),
+        index: focusOrder.indexOf(row.id),
       };
       return act(row);
+    };
+  const leaveAfterPost =
+    (act: (id: string) => void, toComposer = false) =>
+    (id: string) => {
+      leaving.current = { id, index: focusOrder.indexOf(id), toComposer };
+      act(id);
     };
   const held = dismissHeld(attention);
   const failure = attention.unreadable
@@ -472,14 +504,16 @@ function AttentionGroup({
                 ? {
                     label: "Put it back",
                     name: `Put it back in the comment field: ${post.what.toLowerCase()}`,
-                    onAction: () => posts.onPutBack?.(post.id),
+                    onAction: () =>
+                      posts.onPutBack &&
+                      leaveAfterPost(posts.onPutBack, true)(post.id),
                   }
                 : undefined
             }
             tertiaryAction={{
               label: "Dismiss",
               name: `Dismiss ${post.what.toLowerCase()}`,
-              onAction: () => posts.onDismiss(post.id),
+              onAction: () => leaveAfterPost(posts.onDismiss)(post.id),
             }}
           />
           <p className="rv-returned-text">{post.text}</p>
@@ -604,6 +638,7 @@ export function ReviewQueue({
   useEffect(() => {
     if (showAttention || !attentionFocused.current) return;
     attentionFocused.current = false;
+    if (!focusFellBack(document.activeElement)) return;
     progressRef.current?.focus();
   }, [showAttention]);
   const filters = FILTERS.filter(({ id }) =>

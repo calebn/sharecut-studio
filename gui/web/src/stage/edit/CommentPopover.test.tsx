@@ -167,6 +167,7 @@ describe("the comment popover on the desktop and the tablet", () => {
     expect(addCommentReply).toHaveBeenCalledWith("/tmp/p.json", "c1", {
       body: "Keep this",
       author: expect.any(String),
+      postKey: expect.any(String),
     });
   });
 

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OutboxRow } from "../state/outboxStore";
 import { sampleComment } from "../test/fixtures";
 import { addCommentReply, createComment, sendGuestPost } from "./comments";
+import { subscribeLinkDoubt } from "./linkState";
 
 const merged = vi.hoisted(() => ({
   comment: vi.fn(),
@@ -12,11 +13,17 @@ vi.mock("../document/applyDocumentUpdate", () => ({
   mergeReturnedReply: merged.reply,
   mergeGuestActionDone: vi.fn(),
 }));
-const outbox = vi.hoisted(() => ({ appendOutbox: vi.fn(async () => true) }));
+const outbox = vi.hoisted(() => ({
+  appendOutbox: vi.fn(async () => true),
+  waiting: [] as unknown[],
+}));
 vi.mock("../state/outboxStore", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../state/outboxStore")>()),
   appendOutbox: outbox.appendOutbox,
+  loadOutbox: async () => outbox.waiting,
+  requestOutboxDrain: drain,
 }));
+const drain = vi.hoisted(() => vi.fn());
 const reach = vi.hoisted(() => ({ cause: null as "host" | "device" | null }));
 vi.mock("../state/hostReach", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../state/hostReach")>()),
@@ -63,6 +70,8 @@ beforeEach(() => {
   merged.comment.mockReset();
   merged.reply.mockReset();
   outbox.appendOutbox.mockClear();
+  outbox.waiting = [];
+  drain.mockClear();
   answer = async () => json(200, { comment: sampleComment({ id: "g-s-1" }) });
   vi.stubGlobal(
     "fetch",
@@ -271,5 +280,71 @@ describe("a guest's reply", () => {
         author: "Ana",
       }),
     ).toBeUndefined();
+  });
+});
+
+describe("a post made while older ones wait", () => {
+  it("waits its turn behind them and asks for a pass, even when the host answers", async () => {
+    outbox.waiting = [commentRow];
+    const kept = await createComment("share:tok", {
+      body: "Next",
+      author: "Ana",
+      timelineStart: 3,
+    });
+    expect(kept).toMatchObject({ kept: true });
+    expect(seen).toEqual([]);
+    expect(outbox.appendOutbox).toHaveBeenCalledOnce();
+    expect(drain).toHaveBeenCalledWith("tok");
+  });
+
+  it("sends at once when nothing waits", async () => {
+    await createComment("share:tok", {
+      body: "Now",
+      author: "Ana",
+      timelineStart: 3,
+    });
+    expect(seen).toHaveLength(1);
+    expect(drain).not.toHaveBeenCalled();
+  });
+
+  it("puts a reply behind a waiting comment too", async () => {
+    outbox.waiting = [commentRow];
+    const kept = await addCommentReply("share:tok", "c1", {
+      body: "Thanks",
+      author: "Ana",
+    });
+    expect(kept).toMatchObject({ kept: true });
+    expect(seen).toEqual([]);
+  });
+});
+
+describe("an answer that landed without its post", () => {
+  it("is kept to be sent again under the same key, not thrown as a type error", async () => {
+    answer = async () => json(200, {});
+    expect(await sendGuestPost("tok", commentRow)).toMatchObject({
+      status: "retry",
+      keep: true,
+    });
+    answer = async () => json(200, { comment_id: "c1" });
+    expect(await sendGuestPost("tok", replyRow, "c1")).toMatchObject({
+      status: "retry",
+      keep: true,
+    });
+    expect(merged.comment).not.toHaveBeenCalled();
+    expect(merged.reply).not.toHaveBeenCalled();
+  });
+});
+
+describe("a post sent to a link that is gone", () => {
+  it("is not kept, and puts the link in doubt so the cover hands the words back", async () => {
+    const doubted: string[] = [];
+    const stop = subscribeLinkDoubt((token) => doubted.push(token));
+    answer = async () => json(404, { detail: "Gone" }, "share_not_found");
+    expect(await sendGuestPost("tok", commentRow)).toMatchObject({
+      status: "retry",
+      keep: false,
+    });
+    stop();
+    expect(doubted).toEqual(["tok"]);
   });
 });
