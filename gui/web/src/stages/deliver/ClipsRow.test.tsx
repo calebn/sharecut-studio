@@ -155,19 +155,42 @@ describe("ClipsRow In and Out", () => {
     expect(onTrim).not.toHaveBeenCalled();
   });
 
-  it("puts the number back and reports nothing when Escape ends a drag", () => {
+  it("puts the number back and reports nothing when Escape ends an unfocused touch drag", () => {
     const onTrim = vi.fn();
     renderRow({ trimming: id, onTrim });
     const field = screen.getByRole("spinbutton", { name: `In of ${name}` });
     const before = field.getAttribute("aria-valuenow");
-    fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
-    fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
-    fireEvent.pointerMove(field, { clientX: 140, pointerId: 1 });
+    fireEvent.pointerDown(field, {
+      clientX: 100,
+      pointerId: 1,
+      pointerType: "touch",
+      button: 0,
+    });
+    fireEvent.pointerMove(field, {
+      clientX: 110,
+      pointerId: 1,
+      pointerType: "touch",
+    });
+    fireEvent.pointerMove(field, {
+      clientX: 140,
+      pointerId: 1,
+      pointerType: "touch",
+    });
     expect(field.getAttribute("aria-valuenow")).not.toBe(before);
-    fireEvent.keyDown(field, { key: "Escape" });
+    expect(field).not.toHaveFocus();
+    expect(
+      fireEvent.keyDown(document.activeElement ?? document.body, {
+        key: "Escape",
+      }),
+    ).toBe(false);
     expect(field.getAttribute("aria-valuenow")).toBe(before);
-    fireEvent.pointerUp(field, { clientX: 140, pointerId: 1 });
+    fireEvent.pointerUp(field, {
+      clientX: 140,
+      pointerId: 1,
+      pointerType: "touch",
+    });
     expect(onTrim).not.toHaveBeenCalled();
+    expect(fireEvent.keyDown(document.body, { key: "Escape" })).toBe(true);
   });
 
   it("leaves a word-snapped edge alone when it is opened and left", async () => {

@@ -23,6 +23,7 @@ import {
   roundTo,
   steppedValue,
 } from "./scrubMath";
+import { listenForDragEscape } from "./useGrab";
 
 type ScrubRange =
   | { variant?: "plain"; min?: number; max?: number }
@@ -81,6 +82,7 @@ type Drag = {
   raw: number;
   current: number;
   active: boolean;
+  escape?: AbortController;
 };
 
 type LevelResetSequence = {
@@ -216,6 +218,7 @@ export function ScrubField({
   useEffect(
     () => () => {
       flushDraft.current();
+      drag.current?.escape?.abort();
       if (drag.current?.active) latestCancel.current?.();
       drag.current = null;
     },
@@ -243,10 +246,11 @@ export function ScrubField({
 
   const cancelDrag = () => {
     if (!drag.current) return;
-    const { active } = drag.current;
+    const { active, escape } = drag.current;
     drag.current = null;
+    escape?.abort();
     clearLevelReset();
-    if (active) onCancel?.();
+    if (active) latestCancel.current?.();
   };
 
   const onPointerDown = (event: PointerEvent<HTMLSpanElement>) => {
@@ -271,6 +275,14 @@ export function ScrubField({
       if (!isHandleDrag(gesture.originX, event.clientX)) return;
       gesture.active = true;
       clearLevelReset();
+      if (event.pointerType === "touch") {
+        gesture.escape = new AbortController();
+        listenForDragEscape(
+          () => drag.current === gesture,
+          cancelDrag,
+          gesture.escape.signal,
+        );
+      }
       gesture.lastX = event.clientX;
       return;
     }
@@ -295,6 +307,7 @@ export function ScrubField({
     const gesture = drag.current;
     if (!gesture || event.pointerId !== gesture.pointerId) return;
     drag.current = null;
+    gesture.escape?.abort();
     if (!gesture.active) {
       if (readOnly) {
         clearLevelReset();
