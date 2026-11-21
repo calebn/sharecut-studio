@@ -27,7 +27,7 @@ flowchart TB
 | **Stage bar on Edit** | Choosing Edit again (Stage bar, Mod+3 or the palette) scrolls the Script and a scrolling Timeline to the playhead and says "Scrolled to playhead"; the Script also follows the playhead again. A phone Timeline keeps its fixed playhead and does not scroll. |
 | **Status** (Stage bar badges and Player bar) | Actionable badges (**Presence: You + N guests**, **Cut m:ss of m:ss** (dialogue source vs dialogue timeline length), pending, **Render: fresh/stale** from the same state as the transport pill, **Transcript: needs sync** only when stale); chips only switch tabs (when the current layout does not show that tab, they restore the default layout first); overflow-x on narrow |
 
-With timeline follow on, Left, Right, Home and End bring an off-screen playhead into view even while playback is paused. A manually parked timeline stays where you left it. When the time ruler has focus, the four arrows move one ruler tick. Shift with an arrow or Page Up and Page Down move ten ticks.
+With timeline follow on, Left, Right, Home and End bring an off-screen playhead into view even while playback is paused. Scrolling takes over even during an automatic page flip. A manually parked timeline stays where you left it. When the time ruler has focus, the four arrows move one ruler tick. Shift with an arrow or Page Up and Page Down move ten ticks.
 
 In the desktop transcript, Shift-click extends a range from the original word on the same track. Shift-click on another track selects that word and starts a new range. Mouse dragging ignores other tracks and resumes when the pointer returns to its starting track.
 

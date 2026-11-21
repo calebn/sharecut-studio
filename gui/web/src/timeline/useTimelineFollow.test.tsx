@@ -232,6 +232,18 @@ describe("TimelineFollow", () => {
     expect(flag()).toBe(true);
   });
 
+  it("suspends for a different scroll before the page-write frame clears", () => {
+    render(<Harness />);
+    tick(37);
+    expect(el.scrollLeft).toBe(310);
+    el.scrollLeft = 100;
+    scrollEvent();
+    expect(flag()).toBe(false);
+    expect(useDawStore.getState().scrollLeft).toBe(100);
+    tick(85);
+    expect(el.scrollLeft).toBe(100);
+  });
+
   it("a browser clamp after a resize does not clear the flag", () => {
     left = 2600;
     useDawStore.setState({ scrollLeft: 2600, playheadSec: 270 });

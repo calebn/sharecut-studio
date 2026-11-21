@@ -146,6 +146,52 @@ test.describe("desktop timeline follow", () => {
     expect(await scrollLeft(page)).not.toBe(parked);
   });
 
+  test("a different scroll in the page-flip frame suspends follow", async ({
+    page,
+  }) => {
+    await openZoomedTimeline(page);
+    await seekTo(page, 12);
+    const scroller = page.locator(".timeline-scroll");
+    await expect.poll(() => scrollLeft(page)).toBe(0);
+    await scroller.evaluate((el) => {
+      const scrollLeft = Object.getOwnPropertyDescriptor(
+        Element.prototype,
+        "scrollLeft",
+      );
+      if (!scrollLeft?.get || !scrollLeft.set)
+        throw new Error("native timeline scroll accessors are missing");
+      const read = scrollLeft.get;
+      const write = scrollLeft.set;
+      Object.defineProperty(el, "scrollLeft", {
+        configurable: true,
+        get: () => read.call(el),
+        set: (next: number) => {
+          const before = read.call(el);
+          write.call(el, next);
+          if (read.call(el) <= before) return;
+          Reflect.deleteProperty(el, "scrollLeft");
+          // The browser coalesces both offsets in one native scroll event.
+          queueMicrotask(() => {
+            el.addEventListener(
+              "scroll",
+              (event) => {
+                el.setAttribute("data-parked-scroll", String(event.isTrusted));
+              },
+              { once: true },
+            );
+            write.call(el, 0);
+          });
+        },
+      });
+    });
+    await playButton(page).click();
+
+    await expect(scroller).toHaveAttribute("data-parked-scroll", "true");
+    await expect(page.getByRole("button", { name: PILL })).toBeVisible();
+    expect(await scrollLeft(page)).toBe(0);
+    expect(await playheadInView(page)).toBe(false);
+  });
+
   test("Back to playhead hands focus to the timeline", async ({ page }) => {
     await openZoomedTimeline(page);
     await parkTheViewAwayFromThePlayhead(page);
