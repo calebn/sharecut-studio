@@ -21,7 +21,7 @@ export function holdFocusOk(): boolean {
   return scriptBodyFocused();
 }
 
-export function untilCutSettled(epoch: number): Promise<boolean> {
+export function untilCutSettled(editVisit: symbol): Promise<boolean> {
   return new Promise((resolve) => {
     const settle = (value: boolean) => {
       clearTimeout(timer);
@@ -30,7 +30,7 @@ export function untilCutSettled(epoch: number): Promise<boolean> {
     };
     const check = () => {
       const s = useDawStore.getState();
-      if (s.projectEpoch !== epoch) return settle(false);
+      if (s.editVisit !== editVisit) return settle(false);
       if (!s.rangeBusy && !transcriptLoading(s.project)) settle(true);
     };
     const timer = setTimeout(() => settle(false), WAIT_MS);

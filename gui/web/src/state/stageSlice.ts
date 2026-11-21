@@ -59,6 +59,7 @@ type StageOpenOptions = {
 
 export interface StageSliceState {
   stage: StageId;
+  editVisit: symbol | null;
   /** Zoom, scroll and pane offsets each stage left behind. */
   stageViews: Partial<Record<StageId, StageView>>;
   reviewSection: ReviewSection;
@@ -115,10 +116,12 @@ export interface StageSliceState {
 
 /** Stage state tied to one project; `hydrate` clears it when the project path changes. */
 export function stageProjectInitial(guestMode: string | null = null) {
+  const stage =
+    guestMode == null ? "edit" : stagesForRole(stageRoleOf(guestMode))[0]!;
   return {
-    stage: (guestMode == null
-      ? "edit"
-      : stagesForRole(stageRoleOf(guestMode))[0]) as StageId,
+    stage,
+    editVisit: stage === "edit" ? Symbol() : null,
+    afterCut: null,
     stageViews: {} as Partial<Record<StageId, StageView>>,
     openSheet: null as StageSheet | null,
     inviteAt: null as InviteGroup | null,
@@ -190,6 +193,8 @@ export const createStageSlice: StateCreator<
           : { pendingRecordTarget: null, recordScript: null }),
         ...(next === "review" ? {} : { pendingReviewItem: null }),
         stage: next,
+        editVisit: next === "edit" ? Symbol() : null,
+        afterCut: null,
         reviewSection: section,
         openSheet: sheet,
         inviteAt: null,

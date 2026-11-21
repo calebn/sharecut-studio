@@ -197,6 +197,7 @@ export async function runRangeAction(
         selection,
       );
     if (action === "cut" || action === "mute") {
+      const editVisit = state.editVisit;
       const applies =
         rangeEditMode(state.projectPath, state.shareCapabilities) === "edit";
       const cutToast =
@@ -238,30 +239,33 @@ export async function runRangeAction(
       else {
         if (live.selection === selection) live.setSelection(null);
         const shown = result.type === "Applied" ? cutToast : null;
-        live.setAfterCut(
-          shown?.follow &&
-            selection?.kind === "transcriptRange" &&
-            useDawStore.getState().selection === null &&
-            live.shellBreakpoint !== "phone"
-            ? {
-                ...shown.follow,
-                from: {
-                  trackId: selection.trackId,
-                  sourceId: selection.sourceId ?? null,
-                  wordIndex: selection.startWordIndex,
-                },
-                head: replyHistoryHead(result),
-                baseHead,
-                epoch,
-                focused,
-                holdUntil: Date.now() + WAIT_MS,
-                selected: null,
-                at: null,
-                startedAt: null,
-                direction: null,
-              }
-            : null,
-        );
+        const current = useDawStore.getState();
+        if (editVisit !== null && current.editVisit === editVisit) {
+          current.setAfterCut(
+            shown?.follow &&
+              selection?.kind === "transcriptRange" &&
+              current.selection === null &&
+              live.shellBreakpoint !== "phone"
+              ? {
+                  ...shown.follow,
+                  from: {
+                    trackId: selection.trackId,
+                    sourceId: selection.sourceId ?? null,
+                    wordIndex: selection.startWordIndex,
+                  },
+                  head: replyHistoryHead(result),
+                  baseHead,
+                  epoch,
+                  focused,
+                  holdUntil: Date.now() + WAIT_MS,
+                  selected: null,
+                  at: null,
+                  startedAt: null,
+                  direction: null,
+                }
+              : null,
+          );
+        }
         live.announceStatus(
           shown
             ? shown.message
