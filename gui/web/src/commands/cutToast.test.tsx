@@ -444,6 +444,25 @@ describe("Cut all on the toast", () => {
     expect(intervalsOf(1)).toBe(1);
   });
 
+  it("refuses a retained Cut all action after the project epoch changes", async () => {
+    seed();
+    select("host", 0, 1);
+    await runRangeAction("cut");
+    const action = toast()?.action;
+    expect(action?.label).toBe("Cut all");
+
+    // Keep the matching transcript so only the project-identity guard can refuse.
+    useDawStore.setState(({ projectEpoch }) => ({
+      projectEpoch: projectEpoch + 1,
+      feedbackToast: null,
+    }));
+    await action!.run();
+
+    expect(submitDocumentCommand).toHaveBeenCalledTimes(1);
+    expect(toast()?.tone).toBe("error");
+    expect(toast()?.message).toBe("Open the project again to cut these.");
+  });
+
   it("says why nothing was cut when no occurrence is left", async () => {
     seed();
     select("host", 0, 1);
