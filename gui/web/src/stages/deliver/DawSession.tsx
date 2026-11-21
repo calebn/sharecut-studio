@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { cancelPipelineRun, JobCancelledError } from "../../api";
 import { type DawFormat, loadDawFormats } from "../../api/dawExport";
 import { useNowSec } from "../../hooks/useNowSec";
+import { fileIdsOf } from "../../stage/hosts/bounceResultAction";
 import {
   dawStartPending,
   exportDawSession,
@@ -11,7 +12,7 @@ import { StatusRow } from "../../system/StatusRow";
 import { Button } from "../../ui";
 import { useDisabledReasonNote } from "../../ui/disabledReason";
 import { errorMessage } from "../../utils/apiError";
-import { isPipelineRunning } from "../../utils/pipeline";
+import { isPipelineRunning, lateCancelCopy } from "../../utils/pipeline";
 import {
   pipelineProgressPercent,
   pipelineUnitsLabel,
@@ -227,7 +228,11 @@ export function DawSession({
         />
       ) : null}
       {!busy && job?.status === "cancelled" ? (
-        <p className="dv-note">DAW export cancelled.</p>
+        <p className="dv-note">
+          {fileIdsOf(job).length === 1
+            ? lateCancelCopy("DAW session exported.")
+            : "DAW export cancelled."}
+        </p>
       ) : null}
       {run.phase === "failed" ? (
         <p className="dv-note" role="alert">
