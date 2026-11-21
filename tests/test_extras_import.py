@@ -76,18 +76,25 @@ def test_every_declared_extra_has_an_import_check() -> None:
     assert _declared_extras() == {*EXTRA_IMPORTS, ALL_EXTRA}
 
 
-def test_clean_env_redirects_user_caches(tmp_path: Path) -> None:
+def test_clean_env_redirects_user_caches(tmp_path: Path, monkeypatch) -> None:
     cache_root = tmp_path / "home" / ".cache"
+    monkeypatch.setenv("UV_CACHE_DIR", "/user/cache")
     env = _clean_env(cache_root)
 
     assert env["HOME"] == str(cache_root.parent)
     assert env["XDG_CACHE_HOME"] == str(cache_root)
+    assert env["UV_CACHE_DIR"] == str(cache_root / "uv")
     assert not set(_OUTER_ENV_VARS).intersection(env)
 
 
 # The outer runner is a locked `uv sync` env (`uv run` exports VIRTUAL_ENV; a shell may
 # export PYTHONPATH). Neither may reach the per-extra venv or its import probe.
-_OUTER_ENV_VARS = ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "UV_PROJECT_ENVIRONMENT")
+_OUTER_ENV_VARS = (
+    "VIRTUAL_ENV",
+    "PYTHONPATH",
+    "PYTHONHOME",
+    "UV_PROJECT_ENVIRONMENT",
+)
 
 
 def _clean_env(cache_root: Path) -> dict[str, str]:
@@ -98,6 +105,7 @@ def _clean_env(cache_root: Path) -> dict[str, str]:
         XDG_CACHE_HOME=str(cache_root),
         XDG_CONFIG_HOME=str(isolated_home / ".config"),
         XDG_DATA_HOME=str(isolated_home / ".local" / "share"),
+        UV_CACHE_DIR=str(cache_root / "uv"),
     )
     if os.name == "nt":
         env["USERPROFILE"] = str(isolated_home)

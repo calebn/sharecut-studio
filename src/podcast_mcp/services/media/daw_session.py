@@ -155,7 +155,7 @@ def _export_session(
     name = target.name
     if name in {"", ".", ".."}:
         raise CodedValueError(
-            "Choose a new directory for the REAPER session.", code="daw_export_bad_destination"
+            "Choose a new directory for the export.", code="daw_export_bad_destination"
         )
     stage = OwnedStage(target.parent.resolve(strict=True))
     try:
