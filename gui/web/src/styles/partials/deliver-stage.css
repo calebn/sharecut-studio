@@ -529,6 +529,16 @@
   background: var(--color-accent);
 }
 
+/* Keep the slider's full pointer target while outlining its visible grip. */
+.dv-trim-wave > .sys-wave-handle:focus-visible {
+  outline: none;
+}
+
+.dv-trim-wave > .sys-wave-handle:focus-visible > .dv-trim-knob {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
 @container (max-inline-size: 26rem) {
   .dv-file-action svg {
     display: none;

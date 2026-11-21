@@ -15,6 +15,9 @@ On a Deliver clip card, Escape cancels an active touch drag on the In or Out
 field even when the field lacks keyboard focus. The preview returns to the saved
 bound and lifting the finger does not commit that drag.
 
+Keyboard focus on either waveform trim slider outlines its visible grip. The full
+slider remains available for mouse and touch input.
+
 The exported-files listing marks saved clip audio current when a candidate's
 `exported_path` names that file using the workspace-relative path recorded by the
 export writer. This flag reflects the saved reference, not whether the audio
