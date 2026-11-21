@@ -6,6 +6,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { deferred } from "../src/test/deferred";
 import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
 import {
   createRecordRoom,
@@ -55,6 +56,25 @@ async function environment(page: Page) {
     coarse: matchMedia("(pointer: coarse)").matches,
     shortSide: Math.min(screen.width, screen.height),
   }));
+}
+
+async function holdClippingMic(page: Page): Promise<() => void> {
+  const grant = deferred();
+  await page.exposeFunction("waitForHeadphonesMic", () => grant.promise);
+  await page.addInitScript(() => {
+    const media = navigator.mediaDevices;
+    const getUserMedia = media.getUserMedia.bind(media);
+    media.getUserMedia = async (constraints) => {
+      await (
+        window as unknown as { waitForHeadphonesMic: () => Promise<void> }
+      ).waitForHeadphonesMic();
+      return getUserMedia(constraints);
+    };
+    AnalyserNode.prototype.getFloatTimeDomainData = (samples) => {
+      samples.fill(1);
+    };
+  });
+  return grant.resolve;
 }
 
 async function createRecordRoomFor(host: Page, projectPath: string) {
@@ -266,6 +286,54 @@ test.describe("headphones in the record room", () => {
       });
     });
   }
+
+  test("the 320px phone keeps the warning in view when the microphone finishes loading", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    const size = { width: 320, height: 568 };
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(
+        browser,
+        [HOST, { ...iPhone, viewport: size, screen: size }],
+        async ([host, guest]) => {
+          const room = await createRecordRoomFor(host as Page, projectPath);
+          const phone = guest as Page;
+          const grantMic = await holdClippingMic(phone);
+          await markSharecutE2e(phone);
+          await openRecordLink(phone, room.guest.token);
+          await fillDisplayNameField(phone, "Maya");
+          const sheet = phone
+            .getByRole("dialog")
+            .filter({ has: phone.getByRole("textbox", { name: "Your name" }) });
+          await sheet.getByRole("button", { name: "Allow microphone" }).click();
+          await sheet.locator(".sys-join-dialog").evaluate((panel) => {
+            panel.scrollTop = 0;
+          });
+          const choice = sheet.getByRole("button", { name: NOT_WEARING });
+          await expect(choice).toBeInViewport({ ratio: 1 });
+          const box = await choice.boundingBox();
+          if (!box) throw new Error("The headphone choice did not render");
+          // A locator click can scroll the sheet before dispatching the tap.
+          await phone.touchscreen.tap(
+            box.x + box.width / 2,
+            box.y + box.height / 2,
+          );
+          await expect(choice).toHaveAttribute("aria-pressed", "true");
+          const warning = sheet.getByText(NOTE);
+          await expect(warning).toBeInViewport({ ratio: 1 });
+          grantMic();
+          await expect(
+            sheet.getByText("Too loud. Move back a little."),
+          ).toBeVisible();
+          await expect(warning).toBeInViewport({ ratio: 1 });
+          await expect(choice).toBeInViewport({ ratio: 1 });
+          await join(phone, "Maya");
+        },
+      );
+    });
+  });
 
   test("a producer sees the marker and another guest does not", async ({
     browser,
