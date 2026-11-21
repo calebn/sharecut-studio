@@ -80,6 +80,14 @@ async function render(
       ...props,
     }),
   );
+  for (const [font, sample] of [
+    ['400 16px "IBM Plex Sans"', "Aligned dialogue"],
+    ['600 16px "IBM Plex Sans"', "You're not being recorded."],
+  ]) {
+    const faces = await document.fonts.load(font, sample);
+    expect(faces.length, `${font} face loaded`).toBeGreaterThan(0);
+    expect(faces.every((face) => face.status === "loaded")).toBe(true);
+  }
   await document.fonts.ready;
   await frame();
   await frame();
@@ -272,9 +280,15 @@ describe("the host studio's phone dock stays as develop had it", () => {
             0,
           );
           const last = buttons[buttons.length - 1] as Element;
+          const dockBox = rect(dock);
+          const statusBox = rect(status as Element);
+          const dockStyle = getComputedStyle(dock);
+          expect(statusBox.top).toBeGreaterThanOrEqual(dockBox.top);
+          expect(statusBox.bottom).toBeLessThanOrEqual(
+            dockBox.bottom - Number.parseFloat(dockStyle.paddingBottom) + 0.5,
+          );
           expect(
-            (status as Element).getBoundingClientRect().top >=
-              last.getBoundingClientRect().bottom,
+            statusBox.top >= rect(last).bottom,
             "saving line stacked under the button",
           ).toBe(narrow);
           return;
@@ -630,6 +644,26 @@ describe("the looking-in line under the Declined bar", () => {
               ".sys-declined-bar button",
             ) as Element;
             const join = rect(button);
+            expect(join.width).toBeGreaterThanOrEqual(44);
+            expect(join.height).toBeGreaterThanOrEqual(44);
+            if (width === 414 && height === 330 && label === "guest held") {
+              const bar = rect(
+                room.querySelector(".sys-declined-bar") as Element,
+              );
+              for (const selector of [
+                ".sys-declined-text",
+                ".sys-declined-line",
+                ".sys-declined-reason",
+              ]) {
+                const text = rect(room.querySelector(selector) as Element);
+                expect(text.top).toBeGreaterThanOrEqual(0);
+                expect(text.bottom).toBeLessThanOrEqual(height);
+                expect(text.left).toBeGreaterThanOrEqual(bar.left);
+                expect(text.right).toBeLessThanOrEqual(bar.right);
+                expect(text.top).toBeGreaterThanOrEqual(bar.top);
+                expect(text.bottom).toBeLessThanOrEqual(bar.bottom);
+              }
+            }
             for (const [x, y] of [
               [join.left + join.width / 2, join.top + join.height / 2],
               [join.left + 6, join.top + 6],
