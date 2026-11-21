@@ -90,8 +90,8 @@
   white-space: nowrap;
 }
 
-/* On a phone under text zoom the sizes stack instead of clipping. */
-@media (max-width: 30rem) {
+/* On a touch device under text zoom the sizes stack instead of clipping. */
+@media (pointer: coarse) {
   .sys-need-extra .ui-segmented {
     flex-wrap: wrap;
   }
