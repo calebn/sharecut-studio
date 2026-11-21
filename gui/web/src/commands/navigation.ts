@@ -2,6 +2,7 @@ import { flushSync } from "react-dom";
 import { patchComment } from "../api";
 import { seekLimitSec } from "../audio/proxyMath";
 import { followCapsOf, planGoTo } from "../presence/goToPlan";
+import { withSettledPreviewTransport } from "../presence/previewTransportPublication";
 import { rosterEntry } from "../presence/roster";
 import { canManageProjects, guestHearsMixOnly } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -20,6 +21,14 @@ import { cancelUserStageSwitch, markUserStageSwitch } from "./userStageSwitch";
 // replaces the handler; the hold-A restore must outlive that.
 let heldFrom: AuditionMode | null = null;
 
+function toggleEpisodePlayback(): ExecuteResult {
+  const state = useDawStore.getState();
+  const reason = transportAvailability(state).togglePlay;
+  if (reason !== undefined) return { status: "disabled", reason };
+  state.togglePlaying();
+  return { status: "ok" };
+}
+
 export function registerNavigationCommands(): void {
   registerCommand("transport.togglePlay", ({ episodeOnly }) => {
     const before = useDawStore.getState();
@@ -28,16 +37,13 @@ export function registerNavigationCommands(): void {
         before.setIsPlaying(false);
         return { status: "ok" };
       }
-      // Guest proxy recovery listens for a committed false-to-true episode play edge.
-      flushSync(() => before.setIsPlaying(false));
+      return withSettledPreviewTransport(() => {
+        // Guest proxy recovery listens for a committed false-to-true episode play edge.
+        flushSync(() => before.setIsPlaying(false));
+        return toggleEpisodePlayback();
+      });
     }
-    const s = useDawStore.getState();
-    const reason = transportAvailability(s).togglePlay;
-    if (reason !== undefined) {
-      return { status: "disabled", reason };
-    }
-    s.togglePlaying();
-    return { status: "ok" };
+    return toggleEpisodePlayback();
   });
 
   registerCommand("transport.stop", () => {

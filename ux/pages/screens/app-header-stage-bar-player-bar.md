@@ -28,6 +28,9 @@ preview and leave the episode paused. When a preview ends, **Play** starts the
 episode from the position it held during the preview. Space when the timeline
 or Script has focus and **Play / pause** in the palette do the same.
 
+If you are already following a playing episode, your Player keeps playing and
+tracks the resumed position when the other person plays again after a preview.
+
 When a guest cannot reach the server for an audio chunk, the Player shows
 **Audio failed to load**. **Retry** starts another playback attempt.
 
