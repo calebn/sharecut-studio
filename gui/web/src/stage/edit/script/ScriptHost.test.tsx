@@ -217,20 +217,28 @@ describe("ScriptHost selection", () => {
 });
 
 describe("ScriptHost following", () => {
-  it("turns follow off on the reader's own scroll and back on with Back to playhead", async () => {
+  it("ignores the return scroll but pauses Follow on fresh reader input", () => {
     seedScript({ playheadSec: 10.6, transcriptFollowPlayhead: true });
     render(<ScriptHost />);
     const body = document.querySelector(".sys-script-body") as HTMLElement;
+    const follow = screen.getByRole("button", { name: "Follow the playhead" });
     fireEvent.wheel(body);
     fireEvent.scroll(body);
-    expect(useDawStore.getState().transcriptFollowPlayhead).toBe(false);
-    await userEvent.click(
-      screen.getByRole("button", { name: "Back to playhead" }),
-    );
-    expect(useDawStore.getState().transcriptFollowPlayhead).toBe(true);
+    expect(follow).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to playhead" }));
+    fireEvent.scroll(body);
+    expect(follow).toHaveAttribute("aria-pressed", "true");
     expect(
       screen.queryByRole("button", { name: "Back to playhead" }),
     ).toBeNull();
+
+    fireEvent.wheel(body);
+    fireEvent.scroll(body);
+    expect(follow).toHaveAttribute("aria-pressed", "false");
+    expect(
+      screen.getByRole("button", { name: "Back to playhead" }),
+    ).toBeVisible();
   });
 
   it("marks the playing word and moves it with the playhead", () => {

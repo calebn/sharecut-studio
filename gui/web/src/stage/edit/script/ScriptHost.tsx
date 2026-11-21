@@ -140,8 +140,12 @@ export function ScriptHost({
   const seamRoll = useScriptSeamRoll(say);
   const speaker = useScriptSpeaker(model, mayIngest && ready, say);
 
+  const changeFollow = useStableCallback((follow: boolean) => {
+    if (follow) pane.current?.clearScrollIntent();
+    playback.onFollowChange(follow);
+  });
   const backToPlayhead = () => {
-    playback.onFollowChange(true);
+    changeFollow(true);
     const word = playback.playing[0] ?? playback.playheadWord;
     if (word === undefined) return false;
     win.scrollTo(word, "center");
@@ -248,7 +252,7 @@ export function ScriptHost({
         onShowCutTextChange={(show) =>
           useDawStore.getState().setShowCutAwayUtterances(show)
         }
-        onFollowChange={playback.onFollowChange}
+        onFollowChange={changeFollow}
         onBackToPlayhead={backToPlayhead}
         onUserScroll={playback.onUserScroll}
       />

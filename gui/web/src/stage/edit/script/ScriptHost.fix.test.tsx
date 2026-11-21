@@ -39,6 +39,7 @@ const field = () => screen.getByRole("textbox", { name: /^Fix text/ });
 function ScriptFixPaneBoundary({ wordVisible }: { wordVisible: boolean }) {
   const target = useRef<HTMLButtonElement>(null);
   const pane = useRef<ScriptPaneHandle | null>({
+    clearScrollIntent: () => undefined,
     scrollToWord: () => false,
     focusFind: () => false,
     focusWord: (index) => {

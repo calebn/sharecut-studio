@@ -37,6 +37,7 @@ export interface UserScrollIntentHandlers {
 export function useUserScrollIntent(): {
   handlers: UserScrollIntentHandlers;
   isUserScroll: () => boolean;
+  clear: () => void;
 } {
   const untilRef = useRef(Number.NEGATIVE_INFINITY);
   const eligibleInputSinceTouchStartRef = useRef(false);
@@ -80,5 +81,10 @@ export function useUserScrollIntent(): {
     [],
   );
 
-  return { handlers, isUserScroll };
+  const clear = useCallback(() => {
+    untilRef.current = Number.NEGATIVE_INFINITY;
+    eligibleInputSinceTouchStartRef.current = false;
+  }, []);
+
+  return { handlers, isUserScroll, clear };
 }

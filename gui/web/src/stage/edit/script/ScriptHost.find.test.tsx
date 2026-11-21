@@ -59,6 +59,7 @@ vi.mock("../../../system/ScriptPane", async (original) => {
       useImperativeHandle(
         ref,
         () => ({
+          clearScrollIntent: () => inner.current?.clearScrollIntent(),
           focusFind: () => inner.current?.focusFind() ?? false,
           focusWord: (index) => inner.current?.focusWord(index) ?? false,
           scrollToWord: (index, block) => {
