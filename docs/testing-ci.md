@@ -160,6 +160,10 @@ Tagged stories need the Storybook runtime and run in
 `e2e-storybook/coverage.spec.ts` instead. These checks do not certify the live
 palette, which also needs browser verification against the current catalog.
 
+Each sweep shard adds a `Stories (shard N/4)` test summary to the workflow run.
+Download `storybook-sweep-shard-N` within seven days for the Vitest JSON report
+and any browser failure screenshots. A failing test still fails its shard.
+
 Storybook specs open story frames through `storyUrl()` in
 `gui/web/e2e-storybook/storyUrl.ts`, which adds the `a11y.manual:!true` global.
 The Storybook a11y addon otherwise runs its own axe instance in every story
