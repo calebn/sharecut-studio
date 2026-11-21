@@ -75,6 +75,7 @@ describe("TimelineFollow", () => {
     useDawStore.setState({
       setScrollLeft: realSetScrollLeft,
       isPlaying: false,
+      followingClientId: null,
     });
     raf.fire(0);
     el.remove();
@@ -210,6 +211,28 @@ describe("TimelineFollow", () => {
     act(() => useDawStore.getState().setIsPlaying(true));
     expect(flag()).toBe(true);
     expect(domWrites).toEqual([]);
+  });
+
+  it("does not re-arm local follow when playback starts during Presence Follow", () => {
+    render(<Harness />);
+    act(() =>
+      useDawStore.setState({
+        isPlaying: false,
+        playheadSec: 100,
+        followingClientId: "leader",
+        timelineFollowPlayhead: false,
+      }),
+    );
+    act(() => useDawStore.getState().setIsPlaying(true));
+    expect(flag()).toBe(false);
+    expect(domWrites).toEqual([]);
+
+    act(() => {
+      useDawStore.setState({ isPlaying: false, followingClientId: null });
+      useDawStore.getState().setIsPlaying(true);
+    });
+    expect(flag()).toBe(true);
+    expect(el.scrollLeft).toBe(800);
   });
 
   it("does not page while the follow is suspended", () => {
