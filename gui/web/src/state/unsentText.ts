@@ -1,4 +1,8 @@
 import { useEffect, useRef } from "react";
+import {
+  loadOutbox,
+  loadReturnedPosts,
+} from "../services/offlineQueue/outboxStore";
 import { useDawStore } from "./dawStore";
 
 /** Something a guest typed and had not sent, and what to call it. */
@@ -34,12 +38,32 @@ export function useUnsentText(label: string, text: string | string[]): void {
 }
 
 /**
+ * The comments and replies this device keeps for a link, waiting or refused,
+ * for the cover a dead link leaves. An unreadable store hands back nothing.
+ */
+export async function collectKeptPosts(token: string): Promise<UnsentText[]> {
+  try {
+    const [waiting, refused] = await Promise.all([
+      loadOutbox(token),
+      loadReturnedPosts(token),
+    ]);
+    return [...waiting, ...refused].map((row) => ({
+      label: row.kind === "reply" ? "Your reply" : COMMENT_LABEL,
+      text: row.body,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Everything the guest typed and has not sent, in the order it is shown: the
  * comment composer first (its draft, or the text of a Post still in flight),
- * then the registered drafts. Blank entries are dropped; the text itself is
- * handed back exactly as typed. Call it before anything unmounts.
+ * then the registered drafts, then `kept`, the words this device is holding.
+ * Blank entries are dropped; the text itself is handed back exactly as typed.
+ * Call it before anything unmounts.
  */
-export function collectUnsent(): UnsentText[] {
+export function collectUnsent(kept: readonly UnsentText[] = []): UnsentText[] {
   const { composer } = useDawStore.getState();
   const found: UnsentText[] = [];
   const add = (label: string, text: string | undefined) => {
@@ -49,5 +73,6 @@ export function collectUnsent(): UnsentText[] {
   for (const { label, read } of readers) {
     for (const text of read()) add(label, text);
   }
+  for (const { label, text } of kept) add(label, text);
   return found;
 }

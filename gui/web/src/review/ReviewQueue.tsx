@@ -51,6 +51,8 @@ import {
   resultText,
   speakersOf,
   timeQueue,
+  waitingPostsLabelOf,
+  waitingPostsOf,
 } from "./reviewQueueModel";
 
 export type UnsureContext = {
@@ -320,7 +322,7 @@ function AttentionGroup({
   onFocusChange: (inside: boolean) => void;
   onVanished: () => void;
 }) {
-  const { rows, pending, refineWaiverProject } = attention;
+  const { rows, pending, refineWaiverProject, posts } = attention;
   const reasonId = useId();
   const groupRef = useRef<HTMLDivElement>(null);
   const leaving = useRef<{ id: string; index: number } | null>(null);
@@ -403,7 +405,10 @@ function AttentionGroup({
         <SystemIcon name="triangle-alert" size={16} />
         <span className="rv-group-name">{NEEDS_ATTENTION}</span>
         <span className="sys-mono rv-group-count">
-          {pending + rows.length || "!"}
+          {pending +
+            rows.length +
+            waitingPostsOf(posts) +
+            (posts?.returned.length ?? 0) || "!"}
         </span>
         {rows.length > 0 && attention.canDismiss ? (
           <Button
@@ -443,6 +448,43 @@ function AttentionGroup({
           />
         </div>
       ) : null}
+      {posts && waitingPostsOf(posts) > 0 ? (
+        <div className="rv-check">
+          <StatusRow
+            state="needs-you"
+            title={waitingPostsLabelOf(posts.waiting)}
+          />
+        </div>
+      ) : null}
+      {posts?.returned.map((post) => (
+        <div key={post.id} className="rv-check" data-attention-row={post.id}>
+          <StatusRow
+            state="needs-you"
+            title={`${post.what} was not posted`}
+            detail={post.reason}
+            action={{
+              label: "Copy",
+              name: `Copy ${post.what.toLowerCase()}`,
+              onAction: () => posts.onCopy(post.id),
+            }}
+            secondaryAction={
+              posts.onPutBack && post.canPutBack
+                ? {
+                    label: "Put it back",
+                    name: `Put it back in the comment field: ${post.what.toLowerCase()}`,
+                    onAction: () => posts.onPutBack?.(post.id),
+                  }
+                : undefined
+            }
+            tertiaryAction={{
+              label: "Dismiss",
+              name: `Dismiss ${post.what.toLowerCase()}`,
+              onAction: () => posts.onDismiss(post.id),
+            }}
+          />
+          <p className="rv-returned-text">{post.text}</p>
+        </div>
+      ))}
       {rows.map((row) => (
         <div key={row.id} className="rv-check" data-attention-row={row.id}>
           {row.suggestion && attention.suggestionActions ? (

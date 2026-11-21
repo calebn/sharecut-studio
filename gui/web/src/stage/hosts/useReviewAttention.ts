@@ -14,12 +14,14 @@ import {
 import { hasShareCapability, isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { conflictRowActions } from "./conflictRowActions";
+import { useGuestPostsAttention } from "./useGuestPostsAttention";
 
 /** The project's unsent and unapplied offline edits as the Review queue's Needs attention rows. */
 export function useReviewAttention(
   projectPath: string,
 ): ReviewAttention | undefined {
   const saved = useOfflineAttention(projectPath || null);
+  const posts = useGuestPostsAttention(projectPath);
   const canHear = useDawStore((s) =>
     hasShareCapability(s.shareCapabilities, "play"),
   );
@@ -41,6 +43,7 @@ export function useReviewAttention(
         saved.status === "dismissing",
       canDismiss: active.length > 0,
       refineWaiverProject: share ? undefined : projectPath,
+      posts,
       suggestionActions: share
         ? {
             ...conflictRowActions(projectPath),
@@ -58,5 +61,5 @@ export function useReviewAttention(
         ? undefined
         : () => runPointerCommand("stage.edit", { sheet: "history" }),
     };
-  }, [projectPath, saved, canHear]);
+  }, [projectPath, saved, canHear, posts]);
 }

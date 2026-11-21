@@ -6,10 +6,14 @@ import { errorMessage } from "../utils/apiError";
 import { useCallback, useState } from "react";
 import { addCommentReply, setCommentActionDone } from "../api";
 import { execute } from "../commands/execute";
-import type { CommentRole } from "../shareMode";
+import { type CommentRole, shareTokenFromKey } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
+import { hostCauseNow } from "../state/hostReach";
 import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
 import { commitCommentActor } from "../utils/commentAuthor";
+import { isKept } from "../utils/keptPost";
+import { keptLine } from "./keptLine";
 
 /** Sets a comment's resolved state through the command bus; throws the reason when it is refused. */
 export async function setCommentResolved(
@@ -97,7 +101,16 @@ export function useCommentActions(opts: {
       }
       const by = actor();
       return wrap(async () => {
-        await addCommentReply(projectPath, c.id, { body: text, author: by });
+        const sent = await addCommentReply(projectPath, c.id, {
+          body: text,
+          author: by,
+        });
+        const token = shareTokenFromKey(projectPath);
+        if (token && isKept(sent)) {
+          useDawStore
+            .getState()
+            .announceStatus(keptLine("Reply", hostCauseNow(token)));
+        }
       }, onError);
     },
     [actor, projectPath, wrap],

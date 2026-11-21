@@ -21,6 +21,7 @@ import {
   loadCommandQueue,
   mergeOfflineSnapshot,
 } from "../services/offlineQueue/offlineStore";
+import { loadOutbox } from "../services/offlineQueue/outboxStore";
 import { requestGuestDrainLazy } from "../services/offlineQueue/requestDrainLazy";
 import {
   mergeSessionAppliedDelta,
@@ -296,9 +297,9 @@ export function useGuestSync(
     // An empty queue has nothing to send, and a drain would show Saving for it.
     const offBack = subscribeHostBack((back) => {
       if (back !== token) return;
-      void loadCommandQueue(token).then(
-        (queue) => {
-          if (queue.length > 0) drain();
+      void Promise.all([loadCommandQueue(token), loadOutbox(token)]).then(
+        ([queue, kept]) => {
+          if (queue.length + kept.length > 0) drain();
         },
         () => drain(),
       );

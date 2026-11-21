@@ -3,15 +3,18 @@ import { dispatchComposer } from "../../commands/composer";
 import { registerComposerFocus } from "../../commands/composerFocus";
 import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import { commentTimeLabel } from "../../comments/commentTimeLabel";
+import { keptLine } from "../../comments/keptLine";
 import { playComment } from "../../comments/playComment";
 import {
   setCommentResolved,
   useCommentActions,
 } from "../../comments/useCommentActions";
+import { useOutbox } from "../../comments/useOutbox";
 import {
   commentPostedStatus,
   usePostComment,
 } from "../../comments/usePostComment";
+import { withWaitingPosts } from "../../comments/waitingPosts";
 import { useShortLayoutViewport } from "../../hooks/useShortLayoutViewport";
 import { stepUndecided } from "../../review/advance";
 import {
@@ -25,12 +28,20 @@ import type {
   ReviewSort,
 } from "../../review/reviewQueueModel";
 import {
+  type OutboxRow,
+  removeOutbox,
+  restoreOutbox,
+  waitingSlot,
+} from "../../services/offlineQueue/outboxStore";
+import {
   canComment,
   canReply,
   canSetAction,
   commentRole,
+  shareTokenFromKey,
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { hostCauseNow } from "../../state/hostReach";
 import { listenLayoutOf } from "../../state/stageRoutes";
 import { useUnsentText } from "../../state/unsentText";
 import { useDaw } from "../../state/useDaw";
@@ -112,7 +123,17 @@ export function useReviewComments(guest: boolean) {
   const short = useShortLayoutViewport();
   const docked = shell === "phone" && guest && !listen && !short;
   const duration = project?.timeline_duration_sec ?? Number.NaN;
-  const comments = project?.comments;
+  const token = guest ? shareTokenFromKey(projectPath) : null;
+  const outbox = useOutbox(token);
+  const projectComments = project?.comments;
+  const merged = useMemo(
+    () =>
+      token && projectComments
+        ? withWaitingPosts(projectComments, outbox)
+        : null,
+    [token, projectComments, outbox],
+  );
+  const comments = merged ? merged.comments : projectComments;
   const [flipped, setFlipped] = useState<ReadonlyMap<string, boolean>>(
     new Map(),
   );
@@ -198,8 +219,18 @@ export function useReviewComments(guest: boolean) {
   }, [mayComment]);
 
   const entries = useMemo(
-    () => commentEntriesOf(comments ?? [], flipped),
-    [comments, flipped],
+    () =>
+      commentEntriesOf(
+        comments ?? [],
+        flipped,
+        new Map(
+          [...(merged?.waiting ?? [])].map(([slot, { state }]) => [
+            slot,
+            state,
+          ]),
+        ),
+      ),
+    [comments, flipped, merged],
   );
 
   const flip = (id: string, to: boolean | null) =>
@@ -299,6 +330,22 @@ export function useReviewComments(guest: boolean) {
     );
   };
 
+  const dontSend = async (row: OutboxRow) => {
+    if (!token || outbox.sending.has(row.id)) return;
+    const removed = await removeOutbox(token, row.id);
+    if (!removed) return;
+    const noun = row.kind === "reply" ? "Reply" : "Comment";
+    useDawStore.getState().announceStatus(`${noun} not sent`, {
+      reverse: {
+        run: async () => {
+          await restoreOutbox(token, removed);
+          return true;
+        },
+        done: `${noun} put back`,
+      },
+    });
+  };
+
   const open = () => {
     const state = useDawStore.getState();
     if (state.composer.surface === "composer") composeRef.current?.focus();
@@ -373,12 +420,18 @@ export function useReviewComments(guest: boolean) {
       setName((typed) => (capCommentName(typed) ? typed : savedGuestName()));
     }
     setOptions((current) => ({ ...current, scope: [], actionLines: [] }));
-    useDawStore.getState().announceStatus(commentPostedStatus(result.comment));
-    setPosted({
-      text: result.comment
-        ? `Comment added at ${commentTimeLabel(result.comment)}`
-        : "Comment saved for later",
-    });
+    const say = useDawStore.getState().announceStatus;
+    if (result.kept && token) {
+      say(keptLine("Comment", hostCauseNow(token)));
+      setPosted({ text: "Comment kept for sending" });
+    } else {
+      say(commentPostedStatus(result.comment));
+      setPosted({
+        text: result.comment
+          ? `Comment added at ${commentTimeLabel(result.comment)}`
+          : "Comment saved for later",
+      });
+    }
     dispatchComposer({ type: "postDone", id });
     stage?.focus({ preventScroll: true });
   };
@@ -450,10 +503,27 @@ export function useReviewComments(guest: boolean) {
     const resolved = item.result !== undefined;
     const draft = replies[c.id] ?? "";
     const mine = asked === c.id;
+    const kept = merged?.waiting.get(c.id);
+    const keptReplies = merged?.waitingReplies.get(c.id) ?? [];
     return (
       <>
         <CommentCard
-          comment={commentCardOf(c, resolved, duration)}
+          comment={commentCardOf(c, resolved, duration, keptReplies)}
+          pending={
+            kept
+              ? {
+                  state: "queued",
+                  sending: kept.state === "sending",
+                  onDontSend: () => void dontSend(kept.row),
+                }
+              : undefined
+          }
+          onDontSendReply={(replyId) => {
+            const row = keptReplies.find(
+              (r) => waitingSlot(r.row.id) === replyId,
+            )?.row;
+            if (row) void dontSend(row);
+          }}
           onSelect={() => playComment(c)}
           onResolve={
             !guest && resolved ? () => void resolve(c.id, false) : undefined
@@ -462,7 +532,11 @@ export function useReviewComments(guest: boolean) {
             mayAction
               ? (actionId, done) => {
                   setAsked(c.id);
-                  void actions.toggleAction(c, actionId, done);
+                  void actions.toggleAction(
+                    { ...c, id: merged?.serverId(c.id) ?? c.id },
+                    actionId,
+                    done,
+                  );
                 }
               : undefined
           }
