@@ -957,17 +957,18 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
                         continue
                     if word.end <= word.start and _spans_overlap_clip(word_spans[word_index], left):
                         continue  # the timeline maps it onto the left clip (#621)
-                    cutaway_word_ids.append(
-                        {
-                            "track_id": track_id,
-                            "source_id": left_transcript.source_id,
-                            # Cutaway references are previews, never active word identities.
-                            "word_index": -1 - word_index,
-                            "text": word.text,
-                            "start": float(word.start),
-                            "end": float(word.end),
-                        }
-                    )
+                    reference = {
+                        "track_id": track_id,
+                        "source_id": left_transcript.source_id,
+                        # Cutaway references are previews, never active word identities.
+                        "word_index": -1 - word_index,
+                        "text": word.text,
+                        "start": float(word.start),
+                        "end": float(word.end),
+                    }
+                    if word.suppressed:
+                        reference["suppressed"] = True
+                    cutaway_word_ids.append(reference)
             rows.append(
                 {
                     "id": f"eb:{left.id}:{right.id}",

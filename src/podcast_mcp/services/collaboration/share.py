@@ -1209,6 +1209,28 @@ def guest_words(caps: Sequence[str] | None) -> GuestWords:
     return GuestWords.NONE
 
 
+_GUEST_CUTAWAY_WORD_FIELDS = ("track_id", "source_id", "word_index", "text", "start", "end")
+
+
+def _guest_edit_boundaries(boundaries: Any) -> list[dict[str, Any]]:
+    if not isinstance(boundaries, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for boundary in boundaries:
+        if not isinstance(boundary, dict):
+            continue
+        words = boundary.get("cutaway_word_ids")
+        visible = [
+            {key: word[key] for key in _GUEST_CUTAWAY_WORD_FIELDS}
+            for word in (words if isinstance(words, list) else [])
+            if isinstance(word, dict)
+            and word.get("suppressed", False) is False
+            and all(key in word for key in _GUEST_CUTAWAY_WORD_FIELDS)
+        ]
+        out.append({**boundary, "cutaway_word_ids": visible})
+    return out
+
+
 def sanitize_guest_project_view(
     view: dict[str, Any], *, words: GuestWords = GuestWords.NONE
 ) -> dict[str, Any]:
@@ -1259,6 +1281,8 @@ def sanitize_guest_project_view(
         out["edit_impact"] = dict(_GUEST_IMPACT_STUB)
     if full or "social_clips" in out:
         out["social_clips"] = []
+    if "edit_boundaries" in out:
+        out["edit_boundaries"] = _guest_edit_boundaries(out["edit_boundaries"])
     if isinstance(out.get("transcript"), dict):
         out["transcript"] = guest_transcript(out["transcript"], words=words)
         if words is GuestWords.NONE:
