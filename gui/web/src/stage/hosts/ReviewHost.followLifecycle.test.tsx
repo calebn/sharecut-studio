@@ -10,7 +10,7 @@ import { SHORT_VIEWPORT_MQ } from "../../hooks/useShortViewport";
 import { PHONE_MQ, TABLET_MQ } from "../../hooks/useViewportClass";
 import { useDawStore } from "../../state/dawStore";
 import type { ShellBreakpoint } from "../../state/types";
-import { minimalProject } from "../../test/fixtures";
+import { COMMENTER_CAPABILITIES, minimalProject } from "../../test/fixtures";
 import type { CombinedUtterance } from "../../types/project";
 import { ReviewHost } from "./ReviewHost";
 import { StageHost } from "./StageHost";
@@ -374,6 +374,54 @@ describe("guest Review transcript follow lifetime", () => {
         .top,
     ).toBe(130);
     expect(body().scrollTop).toBe(1190);
+  });
+
+  it("keeps a Script pick on its word after a layout remount and a ripple cut", () => {
+    const size = viewport("desktop");
+    const projectPath = "share:follow";
+    const original = project();
+    const row = original.transcript!.utterances[0];
+    row.words = row.words!.map((word, word_index) => ({ ...word, word_index }));
+    useDawStore
+      .getState()
+      .hydrate(projectPath, original, "comment", COMMENTER_CAPABILITIES);
+    useDawStore.setState({ stage: "review", selection: null });
+    render(<ReviewHost guestShare />);
+    const word = () =>
+      screen.getByRole("button", { name: /^three( \(selected\))?$/ });
+    fireEvent.keyDown(word(), { key: "Enter" });
+    expect(word()).toHaveAttribute("data-selected");
+    const prior = word();
+
+    size.shell("phone");
+    expect(prior.isConnected).toBe(false);
+    expect(word()).toHaveAttribute("data-selected");
+
+    act(() =>
+      useDawStore.getState().setProject({
+        ...original,
+        transcript: {
+          utterances: [
+            {
+              ...row,
+              text: "two three",
+              words: row.words!.slice(1).map((entry, word_index) => ({
+                ...entry,
+                word_index,
+                timeline_start: 10 + word_index,
+                timeline_end: 10.5 + word_index,
+              })),
+            },
+          ],
+        },
+      }),
+    );
+    expect(word()).toHaveAttribute("data-selected");
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "transcriptRange",
+      startWordIndex: 1,
+      endWordIndex: 1,
+    });
   });
 
   it("retains a same-project hydration pause but starts following on a project replacement through StageHost", () => {

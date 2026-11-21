@@ -10,6 +10,7 @@ import {
   ROLES,
   SECTION,
   SIZES,
+  settled,
   startWatch,
   stopWatch,
   type Watched,
@@ -217,6 +218,80 @@ test("a slow word detail leaves the same busy Script, whose held words do not se
     },
   );
 });
+
+for (const size of SIZES) {
+  const target = size.phone ? WIDE : SIZES[0];
+  test(`a guest's Script selection follows its words after resizing from ${size.width} to ${target.width}px`, async ({
+    browser,
+    page,
+  }) => {
+    await withGuest(
+      browser,
+      page,
+      { role: "commenter", size },
+      async (guest) => {
+        const { page: view } = guest;
+        const section = view.locator(SECTION);
+        const words = view.locator(`${WORD}[data-word-key^="guest:"]`);
+        const selected = view.locator(`${WORD}[data-selected]`);
+        const bar = view.getByRole("group", { name: "Selection actions" });
+        if (size.phone) await words.last().tap();
+        else await words.last().click();
+        await expect(selected).toHaveCount(1);
+        const picked = (await selected.innerText()).trim();
+        const originalTime = await seconds(view);
+        const originalKey = await selected.getAttribute("data-word-key");
+        if (!originalKey) throw new Error("The selected word has no key");
+        const originalSection = await section.elementHandle();
+        if (!originalSection) throw new Error("Script did not mount");
+
+        await view.setViewportSize(target);
+        await settled(view);
+        await expect
+          .poll(() => originalSection.evaluate((el) => el.isConnected))
+          .toBe(false);
+        await originalSection.dispose();
+        await expect(selected).toHaveText(picked);
+
+        const detail = deferred<void>();
+        guest.detail.waitFor = detail.promise;
+        try {
+          await hostEdit(page, guest.projectPath, "cut", 0);
+          await expect(section).toHaveAttribute("aria-busy", "true");
+        } finally {
+          detail.resolve();
+        }
+        await settled(view);
+        const survivor = words.last();
+        await expect(survivor).toHaveText(picked);
+        await expect(survivor).not.toHaveAttribute(
+          "data-word-key",
+          originalKey,
+        );
+        await expect(selected).toHaveText(picked);
+        const survivorKey = await survivor.getAttribute("data-word-key");
+        if (!survivorKey) throw new Error("The surviving word has no key");
+        await expect(selected).toHaveAttribute("data-word-key", survivorKey);
+
+        // The first ripple removed five seconds before the picked word.
+        await hostEdit(
+          page,
+          guest.projectPath,
+          "cut",
+          0,
+          Math.max(0, originalTime - 6),
+        );
+        await expect(
+          view.locator(`${WORD}[data-word-key="${survivorKey}"]`),
+        ).toHaveCount(0);
+        await settled(view);
+        await expect(words.last()).not.toHaveText(picked);
+        await expect(selected).toHaveCount(0);
+        await expect(bar).toHaveCount(0);
+      },
+    );
+  });
+}
 
 test("the guest Script keeps a cross-speaker selection announcement during refresh", async ({
   browser,
