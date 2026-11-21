@@ -39,6 +39,36 @@ describe("SheetHostPlacement", () => {
     host.detach();
   });
 
+  it("keeps a stowed column interactive", () => {
+    const doc = document.implementation.createHTMLDocument("Sheet owner");
+    const shell = doc.createElement("div");
+    shell.className = "stage-frame";
+    const main = doc.createElement("main");
+    shell.append(main);
+    doc.body.append(shell);
+
+    const host = createSheetHost(doc);
+    host.place(false, true);
+    expect(host.container.hasAttribute("inert")).toBe(true);
+
+    host.place(true, true);
+    expect(host.container.previousElementSibling).toBe(main);
+    expect(host.container.hasAttribute("inert")).toBe(false);
+  });
+
+  it("does not move the container when its placement is unchanged", () => {
+    const { host, button } = hostWithFocusedButton();
+    const observer = new MutationObserver(() => {});
+    observer.observe(document.body, { childList: true });
+    try {
+      host.place(false, false);
+      expect(observer.takeRecords()).toEqual([]);
+      expect(document.activeElement).toBe(button);
+    } finally {
+      observer.disconnect();
+    }
+  });
+
   it("drops focus held inside the host when it becomes inert", () => {
     const { host, button } = hostWithFocusedButton();
     expect(document.activeElement).toBe(button);
