@@ -116,7 +116,7 @@ for (const { cell: viewport, theme, reducedMotion } of withAppearance(
           });
           await expect(explanation).toBeVisible();
           await expect(explanation).toContainText(
-            "You can edit and comment. The host decides what ships.",
+            "Edit and comment. The host publishes.",
           );
           await guest!.keyboard.press("Escape");
           await expect(explanation).toHaveCount(0);

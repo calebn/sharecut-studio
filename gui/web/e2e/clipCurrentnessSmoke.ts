@@ -123,8 +123,7 @@ export function registerClipCurrentnessSmoke() {
                   .locator(".stage-frame-header")
                   .getByRole("note")
                   .filter({
-                    hasText:
-                      "You can edit and comment. The host decides what ships.",
+                    hasText: "Edit and comment. The host publishes.",
                   });
                 await expect(hint).toBeVisible();
                 await hint
