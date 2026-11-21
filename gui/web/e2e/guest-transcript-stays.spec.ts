@@ -171,15 +171,12 @@ test("a slow word detail leaves the same busy Script, whose held words do not se
   );
 });
 
-test("a failed word detail shows the cover with Retry, and Retry brings the words back", async ({
-  browser,
-  page,
-}) => {
-  await withGuest(
+for (const size of SIZES) {
+  test(`a failed word detail can be retried with the keyboard at ${size.width}px`, async ({
     browser,
     page,
-    { role: "viewer", size: WIDE },
-    async (guest) => {
+  }) => {
+    await withGuest(browser, page, { role: "viewer", size }, async (guest) => {
       const { page: view } = guest;
       const { from } = await startWatch(view);
       guest.detail.status = 500;
@@ -189,10 +186,11 @@ test("a failed word detail shows the cover with Retry, and Retry brings the word
       const retry = view.getByRole("button", { name: "Try again" });
       await expect(retry).toBeVisible({ timeout: 15_000 });
       expect(await view.locator(WORD).count()).toBe(0);
+      await expect(retry).toBeFocused();
 
       guest.detail.status = null;
       guest.detail.delayMs = 0;
-      await retry.click();
+      await view.keyboard.press("Enter");
       await expect(view.locator(WORD).first()).toBeVisible({ timeout: 15_000 });
       await expect(retry).toHaveCount(0);
       await painted(view);
@@ -202,6 +200,35 @@ test("a failed word detail shows the cover with Retry, and Retry brings the word
         "aria-busy",
         "true",
       );
+    });
+  });
+}
+
+test("a failed word detail leaves the focused comment field alone", async ({
+  browser,
+  page,
+}) => {
+  await withGuest(
+    browser,
+    page,
+    { role: "commenter", size: WIDE },
+    async ({ page: view, projectPath, detail }) => {
+      const comment = view.getByRole("textbox", {
+        name: "Comment",
+        exact: true,
+      });
+      await comment.fill("Keep this draft");
+      await expect(comment).toBeFocused();
+
+      detail.status = 500;
+      detail.delayMs = 400;
+      await hostEdit(page, projectPath, "cut", 0);
+
+      await expect(
+        view.getByRole("heading", { name: "The transcript didn't load" }),
+      ).toBeVisible({ timeout: 15_000 });
+      await expect(comment).toBeFocused();
+      await expect(comment).toHaveValue("Keep this draft");
     },
   );
 });

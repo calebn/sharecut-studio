@@ -1,7 +1,8 @@
-import type { ReactNode, Ref } from "react";
+import { type ReactNode, type Ref, useLayoutEffect, useRef } from "react";
 import type { ShellBreakpoint } from "../../state/types";
 import { Cover } from "../../system/Cover";
 import { Skeleton } from "../../system/Skeleton";
+import { RETRY_ACTION } from "../../system/useCoverPress";
 import type { StageId } from "../../types/stage";
 import type { HostState, LoadFailure } from "./hostModels";
 import { ShellFailureCover } from "./ShellFailureCover";
@@ -29,15 +30,30 @@ function regionTitle(stage: StageId): string {
 export function LoadFailureCover({
   stage,
   failure,
+  focusIfLost = false,
 }: {
   stage: StageId;
   failure?: LoadFailure | null;
+  focusIfLost?: boolean;
 }) {
+  const scope = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const cover = scope.current;
+    if (!focusIfLost || !cover) return;
+    const { activeElement, body } = cover.ownerDocument;
+    if (!activeElement || activeElement === body) {
+      cover
+        .querySelector<HTMLButtonElement>(
+          `[data-cover-action="${RETRY_ACTION}"]`,
+        )
+        ?.focus();
+    }
+  }, [focusIfLost]);
   if (failure?.source === "shell") {
     return <ShellFailureCover title={regionTitle(stage)} failure={failure} />;
   }
   return (
-    <div role="alert">
+    <div role="alert" ref={scope}>
       <Cover
         size="region"
         glyph="triangle-alert"
@@ -46,6 +62,7 @@ export function LoadFailureCover({
           failure
             ? {
                 label: "Try again",
+                actionId: RETRY_ACTION,
                 onClick: failure.onRetry,
                 busy: failure.recovering,
               }
