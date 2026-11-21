@@ -1,8 +1,10 @@
 import { act, fireEvent, render } from "@testing-library/react";
 import { useLayoutEffect, useRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import "../stage/edit/script/registerTranscriptSelectionFollower";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
+import { named, snapshot } from "../test/transcriptSelectionFixtures";
 import { useRangeGesture } from "./useRangeGesture";
 
 class TestPointerEvent extends MouseEvent {
@@ -276,6 +278,35 @@ describe("a range draft interrupted by the window", () => {
     });
     expect(useDawStore.getState().selection).toEqual(previous);
   });
+
+  it.each([
+    ["renumbered", { removed: [1, 2] }, ["w6", "w7", "w8"]],
+    ["cut", { removed: [7] }, null],
+    ["waiting for detail", { withWords: false }, null],
+  ] as const)(
+    "cancels a drag over saved words that were %s",
+    (_label, edit, expected) => {
+      const store = useDawStore.getState();
+      store.hydrate(
+        "/tmp/range-gesture.sharecut",
+        snapshot({ track: "destination" }),
+      );
+      store.setSelection({
+        kind: "transcriptRange",
+        trackId: "destination",
+        startWordIndex: 6,
+        endWordIndex: 8,
+      });
+      const view = setup();
+      draw(view);
+      const next = snapshot({ track: "destination", ...edit });
+      act(() => store.setProject(next));
+      fireEvent.blur(window);
+      const restored = useDawStore.getState().selection;
+      if (expected === null) expect(restored).toBeNull();
+      else expect(named(next, restored)).toEqual(expected);
+    },
+  );
 
   it("keeps the draft for a child's or a foreign pointer's lost capture", () => {
     useDawStore.setState({ selection: previous, rangeArmed: true });
