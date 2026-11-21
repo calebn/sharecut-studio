@@ -635,20 +635,54 @@ function pointerContext(
   });
 }
 
+async function collectResizeObserverLoops(page: PlayerPage, loops: string[]) {
+  await page.addInitScript(() => {
+    window.addEventListener("error", (event) => {
+      if (
+        event instanceof ErrorEvent &&
+        event.message.startsWith("ResizeObserver loop")
+      )
+        console.error(event.message);
+    });
+  });
+  page.on("console", (message) => {
+    const text = message.text();
+    if (message.type() === "error" && text.startsWith("ResizeObserver loop"))
+      loops.push(text);
+  });
+}
+
+test("the Player bar sweep records a native ResizeObserver loop", async ({
+  page,
+}) => {
+  const loops: string[] = [];
+  await collectResizeObserverLoops(page, loops);
+  await page.goto("about:blank");
+  await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.width = "1px";
+    document.body.append(probe);
+    const observer = new ResizeObserver(() => {
+      probe.style.width = "2px";
+    });
+    // Resize the observed box within the callback. Chromium reports the
+    // undelivered resize as a window ErrorEvent, without an exception.
+    observer.observe(probe);
+  });
+  await expect
+    .poll(() => loops)
+    .toEqual([expect.stringMatching(/^ResizeObserver loop/)]);
+});
+
 /** Opens the story for `args` (when it is not open) and shows them. */
 async function showArgs(
   page: PlayerPage,
   open: { story: string | null },
   args: BarArgs,
-  loops: string[],
 ) {
   const story = pillStory(args);
   if (open.story !== story) {
     open.story = story;
-    page.on("pageerror", (error) => loops.push(error.message));
-    page.on("console", (message) => {
-      if (message.type() === "error") loops.push(message.text());
-    });
     await page.goto(storyUrl(story, { theme: "light" }));
     await expect(page.locator(".sys-player")).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
@@ -767,10 +801,11 @@ async function runStates(
   await Promise.all(
     [false, true].map(async (following) => {
       const page = await context.newPage();
+      await collectResizeObserverLoops(page, loops);
       const open = { story: null as string | null };
       for (const [name, args] of states) {
         if (Boolean(args.following) !== following) continue;
-        await showArgs(page, open, args, loops);
+        await showArgs(page, open, args);
         for (const row of await page.evaluate(measurePlans, { plans }))
           rows.push({
             ...row,
@@ -781,10 +816,7 @@ async function runStates(
     }),
   );
   await context.close();
-  return {
-    rows,
-    loops: loops.filter((message) => /ResizeObserver loop/.test(message)),
-  };
+  return { rows, loops };
 }
 
 for (const pointer of ["fine", "coarse"] as const) {
@@ -907,7 +939,7 @@ for (const pointer of ["fine", "coarse"] as const) {
       "followcuts",
     ];
     for (const name of names) {
-      await showArgs(page, open, BAR_STATES[name], []);
+      await showArgs(page, open, BAR_STATES[name]);
       for (const row of await page.evaluate(measureLevels, { plans }))
         rows.push({ ...row, name });
     }
