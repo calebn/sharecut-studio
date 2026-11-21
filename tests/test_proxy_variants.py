@@ -779,6 +779,49 @@ def test_actual_ffmpeg_long_source_complete_chunks_and_boundary(workspace, monke
     assert pv.accepted_proxy_chunk_path(ws, "host", 1, expected_hash=artifact.hash).is_file()
 
 
+def test_proxy_manifest_releases_pcm_before_rendering_the_next_recording(
+    workspace, monkeypatch, gentle_wav
+):
+    ws = workspace
+    second = ws.project.workspace_path() / "raw/second.wav"
+    second.write_bytes(gentle_wav.read_bytes())
+    ws.project.sources = [
+        SourceRecording(id="first", path="raw/host.wav"),
+        SourceRecording(id="second", path="raw/second.wav"),
+    ]
+    ws.project.clips = [
+        Clip(
+            id=source_id,
+            track_id="host",
+            source_id=source_id,
+            source_start=0,
+            source_end=1,
+            timeline_start=start,
+        )
+        for source_id, start in (("first", 0), ("second", 1))
+    ]
+    ws.save()
+    render = pv.render_source_proxy_inputs
+    rendered = set()
+    live_pcm = []
+
+    def observe_render(project, inputs, output, **kwargs):
+        before = sum(path.exists() for path in rendered)
+        result = render(project, inputs, output, **kwargs)
+        rendered.add(output)
+        live_pcm.append((before, sum(path.exists() for path in rendered)))
+        return result
+
+    monkeypatch.setattr(pv, "render_source_proxy_inputs", observe_render)
+    generation = pv.ensure_proxy_manifest(ws)
+    for artifact in [generation.tracks["host"], *generation.artifacts.values()]:
+        chunk = pv.accepted_proxy_chunk_path(ws, "host", 0, expected_hash=artifact.hash)
+        assert FFmpegEngine().probe(chunk).require_duration_sec() > 0
+    assert set(generation.occurrences) == {"second"}
+    assert live_pcm == [(0, 1), (0, 1)]
+    assert not any(path.exists() for path in rendered)
+
+
 def test_same_content_relocation_reuses_occurrence_before_render(
     workspace, monkeypatch, fast_encode
 ):
