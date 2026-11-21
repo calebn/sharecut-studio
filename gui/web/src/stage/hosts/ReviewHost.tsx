@@ -103,6 +103,7 @@ function ReviewHostAdapter({
     guest && !loadFailure && roomForScript && detail.kind === "failed" ? (
       <LoadFailureCover
         stage="review"
+        focusIfLost
         failure={{
           source: "detail",
           onRetry: detail.retry,
