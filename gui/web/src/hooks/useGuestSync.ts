@@ -17,7 +17,10 @@ import {
   type PresenceCarryingFrame,
 } from "../presence/presenceFrames";
 import { usePresencePublisher } from "../presence/usePresencePublisher";
-import { mergeOfflineSnapshot } from "../services/offlineQueue/offlineStore";
+import {
+  loadCommandQueue,
+  mergeOfflineSnapshot,
+} from "../services/offlineQueue/offlineStore";
 import { requestGuestDrainLazy } from "../services/offlineQueue/requestDrainLazy";
 import {
   mergeSessionAppliedDelta,
@@ -290,8 +293,15 @@ export function useGuestSync(
     startPoll({ immediate: false });
     const drain = () => requestGuestDrainLazy(token);
     window.addEventListener("online", drain);
+    // An empty queue has nothing to send, and a drain would show Saving for it.
     const offBack = subscribeHostBack((back) => {
-      if (back === token) drain();
+      if (back !== token) return;
+      void loadCommandQueue(token).then(
+        (queue) => {
+          if (queue.length > 0) drain();
+        },
+        () => drain(),
+      );
     });
     const unwatch = watchHostReach();
     const drainTimer = window.setInterval(drain, SANITY_POLL_MS);
