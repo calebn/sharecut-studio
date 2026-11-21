@@ -516,10 +516,11 @@ a tap on a word seeks; it receives no confidence or unsure-word detail, and
 selecting words, commenting and suggesting stay with the roles that hold them.
 Suppressed words never reach a guest of any role, and a share that holds no
 review role reads no words. A Viewer's `ignored` flag is kept because the
-Script skips ignored words. Utterance rows keep their row-level fields
-(`locked_word_indices` among them) for every role on every route, because the
-client compares them to decide whether a loaded word overlay is still valid;
-cutting rows to an allowlist for guests is tracked in #3798. Reading follows
+Script skips ignored words. Guest utterance rows carry only the supported
+identity, text, timeline, and word-overlay fields. Every projection retains
+the metadata the client compares to decide whether a loaded word overlay is
+still valid, including `locked_word_indices`. The timed words themselves
+follow the guest's role and command grant. Reading follows
 the review role (`guest_reads_transcript_words`); selecting follows the
 document-command gate (`guest_selects_transcript_words`). Neither is a
 permission of its own. A share that holds no role in full runs no document command, on the browser route and the

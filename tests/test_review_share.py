@@ -480,6 +480,42 @@ def test_guest_transcript_fails_closed_on_a_non_enum_words_value(bad):
 
 
 @pytest.mark.parametrize("mode", ["NONE", "READING", "SELECTABLE"])
+def test_guest_utterance_rows_carry_only_allowlisted_keys(mode):
+    from podcast_mcp.gui.mapper import guest_transcript
+    from podcast_mcp.services.collaboration.share_capabilities import GuestWords
+
+    shared_fields = {
+        "track_id": "host",
+        "source_id": "second-take",
+        "speaker": "Host",
+        "start": 0.0,
+        "end": 1.0,
+        "text": "hello",
+        "timeline_start": 2.0,
+        "timeline_end": 3.0,
+        "timeline_spans": [{"start": 2.0, "end": 3.0}],
+        "mappable": True,
+        "edge_suppressed_word_indices": [3],
+        "ignored_word_indices": [4],
+        "locked_word_indices": [5],
+    }
+    transcript = {
+        "utterances": [
+            {
+                **shared_fields,
+                "words": _words_view(patch=True)["transcript"]["utterances"][0]["words"],
+                "future_row_metadata": {"unrelated_host_detail": "fixture marker"},
+            }
+        ]
+    }
+    [row] = guest_transcript(transcript, words=GuestWords[mode])["utterances"]
+
+    assert {key: value for key, value in row.items() if key != "words"} == shared_fields
+    assert ("words" in row) == (mode != "NONE")
+    assert "future_row_metadata" in transcript["utterances"][0]
+
+
+@pytest.mark.parametrize("mode", ["NONE", "READING", "SELECTABLE"])
 def test_guest_rows_keep_locked_word_indices_in_every_mode(mode):
     from podcast_mcp.gui.mapper import guest_transcript
     from podcast_mcp.services.collaboration.share_capabilities import GuestWords
