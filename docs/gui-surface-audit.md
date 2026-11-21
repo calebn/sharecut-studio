@@ -154,3 +154,12 @@ Before the runtime audit, local shipping confirmation passed six guest-review
 cases and five focused model, Share, and Bounce cases. The current review matrix
 has four cases after redundant 360px coverage was removed. The enlarged-field 320px regression fails against the
 old build before the layout fix. Eight beta-story coverage-policy tests pass.
+
+## Stage spec deviations
+
+- [#4112](https://github.com/calebn/sharecut-studio/issues/4112) requests empty Home
+  tiles at the top on phone and iPad. This differs from the fixed phone bar and
+  centered empty layout in [SCR-HOME](design/stages/spec-review-deliver.md).
+  The phone bar follows Recent when the list is populated. If loading takes
+  long enough to show the phone bar and the list resolves empty, focus follows
+  the active tile into the empty layout.

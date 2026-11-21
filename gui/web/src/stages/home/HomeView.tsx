@@ -215,6 +215,32 @@ export function HomeView({
   const empty = phase === "empty";
   const [slowLoad, setSlowLoad] = useState(false);
   const showBar = narrow && !empty && (phase !== "loading" || slowLoad);
+  const movedTileFocus = useRef<string | null>(null);
+  const startTiles = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    return () => {
+      const focused = node.ownerDocument.activeElement;
+      if (focused && node.contains(focused)) {
+        movedTileFocus.current = focused.matches(".sys-start--import")
+          ? ".sys-start--import"
+          : ".sys-start--record";
+      }
+    };
+  }, []);
+  useLayoutEffect(() => {
+    const selector = movedTileFocus.current;
+    movedTileFocus.current = null;
+    const root = host.current;
+    if (
+      selector &&
+      root &&
+      root.ownerDocument.activeElement === root.ownerDocument.body
+    ) {
+      root
+        .querySelector<HTMLButtonElement>(selector)
+        ?.focus({ preventScroll: true });
+    }
+  }, [empty, narrow, showBar]);
   useEffect(() => {
     if (phase !== "loading") setSlowLoad(false);
   }, [phase]);
@@ -299,6 +325,7 @@ export function HomeView({
         <main className="sys-home-main">
           {narrow && !empty ? null : (
             <div
+              ref={startTiles}
               className={
                 narrow ? "sys-home-tiles sys-start-pair" : "sys-home-tiles"
               }
@@ -354,7 +381,9 @@ export function HomeView({
         </main>
       </div>
       {showBar ? (
-        <div className="sys-home-bar sys-start-pair">{tiles}</div>
+        <div ref={startTiles} className="sys-home-bar sys-start-pair">
+          {tiles}
+        </div>
       ) : null}
       {dropActive ? <DropOverlay label="Drop to start an episode" /> : null}
       <p className="sr-only" role="status">
