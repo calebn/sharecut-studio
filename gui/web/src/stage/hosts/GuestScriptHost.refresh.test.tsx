@@ -1,4 +1,4 @@
-import { act, fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import {
@@ -448,6 +448,9 @@ describe("a selection across two speakers, which the store keeps as a timeline r
     const rerender = mount(live(spoken));
     drag(2, 7);
     const before = stored();
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent(/words selected/);
+    const announcement = status.textContent;
     expect(before?.kind).toBe("range");
     if (before?.kind !== "range") throw new Error("expected a range");
     useDawStore.setState({ playheadSec: 3 });
@@ -461,6 +464,7 @@ describe("a selection across two speakers, which the store keeps as a timeline r
         false,
       ),
     );
+    expect(status.textContent).toBe(announcement);
     const state = useDawStore.getState();
     expect(resolveCommentAnchor(state)).toEqual({
       source: "refreshing",
@@ -472,6 +476,7 @@ describe("a selection across two speakers, which the store keeps as a timeline r
 
     inProject(cut, true);
     rerender(live(cut));
+    expect(status.textContent).toBe(announcement);
     const after = stored();
     expect(after?.kind).toBe("range");
     if (after?.kind !== "range") throw new Error("expected a range");
@@ -481,5 +486,25 @@ describe("a selection across two speakers, which the store keeps as a timeline r
     expect(resolveCommentAnchor(useDawStore.getState())).toMatchObject({
       source: "selection",
     });
+  });
+
+  it("announces a genuine clear while the two-speaker range is refreshing", () => {
+    const rerender = mount(live(spoken));
+    drag(2, 7);
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent(/words selected/);
+    inProject(cut, false);
+    rerender(
+      shownTranscriptOf(
+        { utterances: headers(cut) } as never,
+        asSettled,
+        GRANT,
+        false,
+      ),
+    );
+    expect(status).toHaveTextContent(/words selected/);
+
+    act(() => useDawStore.getState().setSelection(null));
+    expect(status).toHaveTextContent("Selection cleared");
   });
 });

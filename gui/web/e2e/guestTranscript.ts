@@ -106,7 +106,11 @@ export function logGuestRequests(page: Page): string[] {
   return rows;
 }
 
-export type Detail = { delayMs: number; status: number | null };
+export type Detail = {
+  delayMs: number;
+  status: number | null;
+  waitFor?: Promise<void>;
+};
 
 export type Guest = {
   page: Page;
@@ -132,6 +136,7 @@ export async function withGuest(
       const page = await context.newPage();
       const detail: Detail = { delayMs: 0, status: null };
       await page.route(DETAIL, async (route) => {
+        if (detail.waitFor) await detail.waitFor;
         if (detail.delayMs > 0)
           await new Promise((resolve) => setTimeout(resolve, detail.delayMs));
         if (detail.status !== null)

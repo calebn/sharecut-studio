@@ -592,6 +592,8 @@ export type ScriptPaneProps = {
   readingPosition?: ScriptPaneReadingPositionBinding;
   /** Some lines are still being refreshed. The Script stays readable; assistive tech is told it is updating. */
   busy?: boolean;
+  /** Retain the previous selection announcement while its words reload. */
+  selectionRefreshing?: boolean;
   /**
    * A bar between the header and the turns: the Find bar. The host opens it on
    * Mod+F or on `onFind` and keeps its own state; the pane only gives it room.
@@ -929,6 +931,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       following = true,
       readingPosition,
       busy = false,
+      selectionRefreshing = false,
       findBar,
       handles = true,
       handleHint,
@@ -2033,7 +2036,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
 
     const selecting = draft !== null;
     useEffect(() => {
-      if (dragging || selecting) return;
+      if (dragging || selecting || selectionRefreshing) return;
       if (summary !== "") {
         hadSelection.current = true;
         setSpoken(summary);
@@ -2041,7 +2044,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         hadSelection.current = false;
         setSpoken("Selection cleared");
       }
-    }, [summary, dragging, selecting]);
+    }, [summary, dragging, selecting, selectionRefreshing]);
     useEffect(() => {
       if (!findStatus) return;
       setSpoken((previous) =>
