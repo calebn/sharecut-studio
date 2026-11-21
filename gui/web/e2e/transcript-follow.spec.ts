@@ -232,6 +232,31 @@ for (const viewport of viewports) {
       }
     });
 
+    test("highlights overlapping playing words in transcript order", async ({
+      page,
+    }) => {
+      const list = await openFollowedTranscript(page);
+      const playing = list.locator(".sys-script-word[data-playing]");
+
+      // The reference word spans 12–13.5 s; the guest word spans 13–14.5 s.
+      for (const [second, keys] of [
+        [12, ["reference::4"]],
+        [13, ["reference::4", "guest::4"]],
+        [14, ["guest::4"]],
+      ] as const) {
+        await seekTo(page, second);
+        await expect
+          .poll(
+            () =>
+              playing.evaluateAll((words) =>
+                words.map((word) => word.getAttribute("data-word-key")),
+              ),
+            { message: `playing words at ${second}s` },
+          )
+          .toEqual(keys);
+      }
+    });
+
     test("Back to playhead restores the current word after a manual scroll", async ({
       page,
     }) => {
