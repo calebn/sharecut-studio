@@ -45,8 +45,16 @@ export function useSocialSections(
     ];
 
   const editable = !isShareProjectKey(projectPath);
-  const minEnd = Math.min(clip.end, offsetByMinimumSpan(clip.start, 1));
-  const maxStart = Math.max(0, clip.start, offsetByMinimumSpan(clip.end, -1));
+  const minimumSpanRoundoff =
+    Number.EPSILON *
+    Math.max(MARKER_MIN_SPAN, Math.abs(clip.start), Math.abs(clip.end));
+  const canShorten =
+    clip.end - clip.start > MARKER_MIN_SPAN + minimumSpanRoundoff;
+  const minEnd = canShorten ? offsetByMinimumSpan(clip.start, 1) : clip.end;
+  const maxStart = Math.max(
+    0,
+    canShorten ? offsetByMinimumSpan(clip.end, -1) : clip.start,
+  );
   const maxEnd = duration > 0 ? Math.max(duration, clip.end) : undefined;
 
   const save = async (start: number, end: number) => {
