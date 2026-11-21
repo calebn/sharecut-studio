@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { stubIndexedDb } from "../../test/fakeIndexedDb";
+import { stubIndexedDb } from "../test/fakeIndexedDb";
 import {
   appendOutbox,
   loadOutbox,

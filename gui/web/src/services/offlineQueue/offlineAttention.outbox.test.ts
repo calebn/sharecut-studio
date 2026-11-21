@@ -1,8 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { appendOutbox } from "../../state/outboxStore";
 import { stubIndexedDb } from "../../test/fakeIndexedDb";
 import { useOfflineAttention } from "./offlineAttention";
-import { appendOutbox } from "./outboxStore";
 
 const rows = new Map<string, unknown>();
 

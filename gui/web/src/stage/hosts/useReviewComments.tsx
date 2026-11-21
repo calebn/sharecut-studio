@@ -28,12 +28,6 @@ import type {
   ReviewSort,
 } from "../../review/reviewQueueModel";
 import {
-  type OutboxRow,
-  removeOutbox,
-  restoreOutbox,
-  waitingSlot,
-} from "../../services/offlineQueue/outboxStore";
-import {
   canComment,
   canReply,
   canSetAction,
@@ -42,6 +36,12 @@ import {
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { hostCauseNow } from "../../state/hostReach";
+import {
+  type OutboxRow,
+  removeOutbox,
+  restoreOutbox,
+  waitingSlot,
+} from "../../state/outboxStore";
 import { listenLayoutOf } from "../../state/stageRoutes";
 import { useUnsentText } from "../../state/unsentText";
 import { useDaw } from "../../state/useDaw";

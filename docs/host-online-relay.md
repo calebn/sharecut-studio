@@ -659,7 +659,7 @@ Do not put `guest_*` names in the host manifest MCP column. Share agents never c
 | `play` | `guest_get_review_summary`, `guest_audio_info`, `guest_list_comments` |
 | `play` + `view` | `guest_pending_preview` (HTTP twin: `GET …/daw/pending-preview` + optional PNG); `guest_audition_context` (HTTP twin: `GET …/daw/audition-context` + image URLs) |
 | `+view` | `guest_get_project`, clips / pending / applied edits, transcript search, render status, `guest_get_session_presence` (live roster; agent twin of the DAW WS, no extra HTTP) |
-| `+comment` / `reply` | `guest_add_comment`, `guest_add_reply` |
+| `+comment` / `reply` | `guest_add_comment`, `guest_add_reply` (each takes an optional `comment_id` / `reply_id` of 32 lowercase hex: send the same key again to retry safely and get the comment or reply the first send made, with no second history entry; the stored id is derived from the share and the key, never the key itself) |
 | `+action` | `guest_set_action_done` |
 | Commenter or Editor | `guest_submit_document_command` (offered only when `document_command_types_for_caps` allows a command, so a Viewer or a share that holds no role in full gets none, as on the browser route) |
 | Editor | `guest_render_preview` (start render job), `guest_render_preview_job` (read status); `guest_upload_media` (HTTP twin: `POST …/daw/media/upload`). Offered only when `edit_commands_allowed` (the document-command gate) allows every Editor command |

@@ -18,7 +18,7 @@ vi.mock("../services/offlineQueue/offlineStore", () => ({
   mergeOfflineSnapshot: vi.fn(async () => undefined),
   loadCommandQueue: store.queue,
 }));
-vi.mock("../services/offlineQueue/outboxStore", () => ({
+vi.mock("../state/outboxStore", () => ({
   loadOutbox: store.outbox,
 }));
 vi.mock("../services/offlineQueue/requestDrainLazy", () => ({

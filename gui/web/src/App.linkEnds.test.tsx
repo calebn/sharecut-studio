@@ -21,9 +21,9 @@ import {
 import App from "./App";
 import { apiSend } from "./api/http";
 import { resetFeaturesCache } from "./extensions/features";
-import { appendOutbox } from "./services/offlineQueue/outboxStore";
 import { composerPatch, initialSession } from "./state/composerSession";
 import { useDawStore } from "./state/dawStore";
+import { appendOutbox } from "./state/outboxStore";
 import { useUnsentText } from "./state/unsentText";
 import { stubIndexedDb } from "./test/fakeIndexedDb";
 import { urlOf } from "./test/urlOf";

@@ -1,12 +1,9 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  appendOutbox,
-  returnOutboxRow,
-} from "../services/offlineQueue/outboxStore";
 import { stubIndexedDb } from "../test/fakeIndexedDb";
 import { composerPatch, initialSession } from "./composerSession";
 import { useDawStore } from "./dawStore";
+import { appendOutbox, returnOutboxRow } from "./outboxStore";
 import { collectKeptPosts, collectUnsent, useUnsentText } from "./unsentText";
 
 const anchor = { time: 1 } as never;
