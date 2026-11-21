@@ -977,13 +977,12 @@ export function barModelOf(
   const project = s.project;
   const rangeLike = facts.kind === "words" || facts.kind === "range";
   const resolution =
-    project && rangeLike
-      ? resolveSelectionRange(project, s.selection)
-      : { targets: [], reason: null };
+    project && rangeLike ? resolveSelectionRange(project, s.selection) : null;
   const target =
-    resolution.targets.length === 1 ? resolution.targets[0]! : null;
-  const descriptors =
-    project && rangeLike ? rangeActionDescriptors(s, target) : [];
+    resolution?.targets.length === 1 ? resolution.targets[0]! : null;
+  const descriptors = resolution
+    ? rangeActionDescriptors(s, target, resolution.refreshing)
+    : [];
   const descriptor = (action: string) =>
     descriptors.find((d) => d.action === action);
   const readOnly = facts.role === "readOnly";

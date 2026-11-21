@@ -602,11 +602,14 @@ describe("a range made from Script words while the words refresh", () => {
     useDawStore.setState({ project: wordFree(), selection: range });
   };
 
-  it("is refused by the action, as the bar shows it unavailable", async () => {
+  it("explains the temporary refusal in palette preflight and on invocation", async () => {
     choose(true);
+    expect(rangeActionReason("comment")).toBe(
+      "Refreshing the transcript. Try again in a moment.",
+    );
     expect(await runRangeAction("comment")).toEqual({
       status: "disabled",
-      reason: "Choose a range",
+      reason: "Refreshing the transcript. Try again in a moment.",
     });
   });
 

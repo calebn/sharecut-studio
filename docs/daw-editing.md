@@ -579,6 +579,9 @@ for each sibling (host only).
 Transcript passages retain pauses between selected words and map unique split
 or moved fragments to their destination lanes. Choose an occurrence for repeated
 recordings. Ambiguous repeated split fragments require timeline selection.
+When selected Script words are still refreshing, the Edit range controls and
+range commands ask you to try again in a moment. A range drawn on the timeline
+stays usable while the words load.
 An agent region stays a labelled preview until explicitly adopted with lanes.
 
 Host Play renders selected lanes; guest **Play full mix** uses a fresh published

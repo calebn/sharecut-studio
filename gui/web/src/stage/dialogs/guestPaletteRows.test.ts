@@ -165,6 +165,29 @@ describe("a guest link's palette", () => {
     expect(editor.get("range.arm")).toBe("Nothing to select yet");
   });
 
+  it("explains why existing Script words cannot be used during a refresh", () => {
+    rows("editor", "edit");
+    const project = useDawStore.getState().project!;
+    useDawStore.setState({
+      project: {
+        ...project,
+        meta: { ...project.meta, hydration: { transcript_words: false } },
+      },
+      selection: {
+        kind: "transcriptRange",
+        trackId: project.tracks[0]!.id,
+        startWordIndex: 1,
+        endWordIndex: 2,
+      },
+    });
+    const comment = paletteCommands(buildCommandContext()).find(
+      (row) => row.id === "range.comment",
+    );
+    expect(comment?.disabledReason).toBe(
+      "Refreshing the transcript. Try again in a moment.",
+    );
+  });
+
   it("leaves Select a range off a Viewer or Commenter link, which has no range surface, and keeps it for an Editor and the host", () => {
     for (const role of ["viewer", "commenter"] as const) {
       expect(rows(role, "review").map(([id]) => id)).not.toContain("range.arm");

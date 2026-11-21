@@ -1931,12 +1931,14 @@ describe("a range made from Script words while the words refresh", () => {
     markScriptRange(range);
     host(range, { project: wordFree() });
     const model = barModelOf(factsOf()!, useDawStore.getState(), false);
-    expect(model.primary?.disabledReason).toBe("Choose a range");
+    expect(model.primary?.disabledReason).toBe(
+      "Refreshing the transcript. Try again in a moment.",
+    );
   });
 
   it("leaves a range drawn on the timeline as it was", () => {
     host({ ...EDIT_SELECTIONS.rangeOnAllTracks }, { project: wordFree() });
     const model = barModelOf(factsOf()!, useDawStore.getState(), false);
-    expect(model.primary?.disabledReason).not.toBe("Choose a range");
+    expect(model.primary?.disabledReason).toBeUndefined();
   });
 });

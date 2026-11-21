@@ -5,9 +5,11 @@ import { commentDraftFromRange } from "../comments/commentAnchor";
 import { setClipboard } from "../edit/clipboard";
 import { exportRequestNow } from "../edit/exportRange";
 import {
+  type RangeResolution,
   rangeIsCurrent,
   resolveSelectionRange,
   seedRangeDraft,
+  TRANSCRIPT_REFRESHING,
 } from "../edit/rangeSelection";
 import { roomToneGaps } from "../edit/roomToneGaps";
 import { CUT_EDGE_FADE, extractClipsInRange } from "../edit/selectionClipboard";
@@ -71,12 +73,14 @@ export const PLAY_FULL_MIX_LABEL = "Play full mix";
 export function rangeActionDescriptors(
   state: RangeActionContext,
   target: ExactRangeTarget | null,
+  refreshing?: true,
 ): RangeDescriptor[] {
   const guest =
     isShareProjectKey(state.projectPath) || state.guestMode !== null;
   const mode = rangeEditMode(state.projectPath, state.shareCapabilities);
+  const noRangeReason = refreshing ? TRANSCRIPT_REFRESHING : "Choose a range";
   const base = !target
-    ? "Choose a range"
+    ? noRangeReason
     : !state.project
       ? "Open a project"
       : state.rangeBusy
@@ -133,15 +137,17 @@ let previewUrl: string | null = null;
 
 function resolveRangeAction(action: RangeAction, override?: ExactRangeTarget) {
   const state = useDawStore.getState();
-  const resolved = override
+  const resolved: RangeResolution = override
     ? { targets: [override], reason: null }
     : state.project
       ? resolveSelectionRange(state.project, state.selection)
       : { targets: [], reason: "Open a project" };
   const target = resolved.targets.length === 1 ? resolved.targets[0]! : null;
-  const descriptor = rangeActionDescriptors(state, target).find(
-    (d) => d.action === action,
-  )!;
+  const descriptor = rangeActionDescriptors(
+    state,
+    target,
+    resolved.refreshing,
+  ).find((d) => d.action === action)!;
   const reason =
     descriptor.reason ??
     (target && state.project
