@@ -79,6 +79,63 @@ describe("PlayerBar", () => {
     expect(screen.queryByRole("button", { name: "Hear options" })).toBeNull();
   });
 
+  describe("source preview", () => {
+    const previewAt = (episodePlaying: boolean, hasTrack = true) => {
+      useDawStore
+        .getState()
+        .hydrate(
+          "share:player-preview-test",
+          minimalProject({ tracks: hasTrack ? [sampleTrack()] : [] }),
+        );
+      const transport = useDawStore.getState();
+      transport.setPlayheadSec(12);
+      transport.setIsPlaying(episodePlaying);
+      transport.beginSourcePreview({
+        ownerId: "selected-range",
+        media: { kind: "rendered", url: "blob:range" },
+        startSec: 0,
+        endSec: 3,
+      });
+      return useDawStore.getState().sourcePreview!;
+    };
+
+    it("can pause a playing preview even when the episode has no tracks", async () => {
+      previewAt(false, false);
+      render(<PlayerBar />);
+      const pause = screen.getByRole("button", { name: "Pause" });
+      expect(pause).not.toHaveAttribute("aria-disabled");
+      await userEvent.click(pause);
+
+      expect(
+        screen.getByRole("button", { name: "Play" }),
+      ).toHaveAccessibleDescription("Import audio to play.");
+      expect(useDawStore.getState()).toMatchObject({
+        sourcePreview: null,
+        isPlaying: false,
+        playheadSec: 12,
+      });
+    });
+
+    it.each([false, true])(
+      "plays the episode from its held position after a preview ends (episode was playing: %s)",
+      async (episodePlaying) => {
+        const preview = previewAt(episodePlaying);
+        useDawStore
+          .getState()
+          .updateSourcePreview(preview.ownerId, preview.generation, 3, true);
+        render(<PlayerBar />);
+        await userEvent.click(screen.getByRole("button", { name: "Play" }));
+
+        expect(screen.getByRole("button", { name: "Pause" })).toBeVisible();
+        expect(useDawStore.getState()).toMatchObject({
+          sourcePreview: null,
+          isPlaying: true,
+          playheadSec: 12,
+        });
+      },
+    );
+  });
+
   describe("Comment", () => {
     const comment = () => screen.queryByRole("button", { name: "Comment" });
 
