@@ -2114,6 +2114,34 @@ describe("playing a timeline longer than the first window", () => {
       engine.dispose();
     });
 
+    it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+      "keeps the current playback clock and retry when given rate %s",
+      async (rate) => {
+        const { handle, engine, fetchChunk, failure } =
+          await playWithFlakyChunk(2);
+        await tick(handle, 76);
+        const attempts = () =>
+          fetchChunk.mock.calls.filter(
+            ([ref]) => ref.index === FLAKY_CHUNK_INDEX,
+          );
+        expect(attempts().length).toBeGreaterThan(0);
+        expect(failure).not.toHaveBeenCalled();
+        try {
+          engine.setPlaybackRate(rate);
+          handle.setTime(77);
+          expect(engine.currentTimeSec()).toBe(77);
+          for (let ctxSec = 78; ctxSec <= 141; ctxSec += 1) {
+            await tick(handle, ctxSec);
+            expect(soundingAt(handle.created, ctxSec + 0.5, 1)).toBe(1);
+          }
+          expect(attempts()).toHaveLength(3);
+          expect(failure).not.toHaveBeenCalled();
+        } finally {
+          engine.dispose();
+        }
+      },
+    );
+
     it("replaces a pending retry when an edit removes the unavailable audio", async () => {
       const { handle, engine, fetchChunk, failure } = await playWithFlakyChunk(
         Number.POSITIVE_INFINITY,
