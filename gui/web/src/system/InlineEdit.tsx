@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { Button } from "../ui/Button";
+import { BUSY_REASON } from "../ui/disabledReason";
 
 export type InlineEditEnd = "enter" | "escape" | "blur";
 
@@ -165,6 +166,7 @@ export function InlineEdit({
       </p>
       {conflict && (
         <Button
+          disabledReason={readOnly ? BUSY_REASON : undefined}
           onClick={() => {
             discard();
             field.current?.focus();
