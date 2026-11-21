@@ -645,12 +645,11 @@ export function ReviewQueue({
   const filters = FILTERS.filter(({ id }) =>
     id === "checks" ? canDecide && !guest : canDecide || id !== "suggestions",
   );
-  // A one-kind guest queue hides the filter controls and keeps its count for
-  // screen readers. With multiple kinds, it shows the controls and count.
   const showFilter = canDecide || !oneKind || filter !== "all";
   // Only a host resolves, so a guest's count of resolved comments shows once the
   // host has resolved one; until then the line is a screen-reader anchor.
   const resolvedSome = items.some((item) => item.result !== undefined);
+  // A quiet one-kind guest queue keeps its count available to screen readers.
   const quietLine = !canDecide && oneKind && !resolvedSome;
   const statusLine = canDecide
     ? (completeness.unavailableMessage ?? progressLine(items))
