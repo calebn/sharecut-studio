@@ -9,6 +9,10 @@ import type { PresenceCursor } from "../types/session";
 import { timelineTimeViewportWidth } from "../utils/timelineViewport";
 import { useStableCallback } from "../utils/useStableCallback";
 import { setPresenceCursorSink, zoomScrollToViewport } from "./followSync";
+import {
+  type PreviewTransportRequest,
+  stagePreviewTransport,
+} from "./previewTransportPublication";
 import { createPresenceThrottle, type PresenceSend } from "./publisher";
 
 type PresenceThrottle = ReturnType<typeof createPresenceThrottle>;
@@ -90,6 +94,7 @@ export function usePresencePublisher(
     if (!send) {
       return;
     }
+    let mounted = true;
     const push = (
       meta: Parameters<PresenceThrottle["push"]>[0],
       immediate = false,
@@ -105,7 +110,7 @@ export function usePresencePublisher(
       }
       push({ following: null });
     };
-    const publishTransport = (s: DawStore, immediate = false, seek = false) => {
+    const writeTransport = (s: DawStore, immediate: boolean, seek: boolean) => {
       if (s.followingClientId) {
         return;
       }
@@ -122,6 +127,24 @@ export function usePresencePublisher(
         },
         immediate,
       );
+    };
+    const writeSettledTransport = (request: PreviewTransportRequest) => {
+      const state = useDawStore.getState();
+      if (mounted && state.projectEpoch === request.projectEpoch) {
+        writeTransport(state, request.immediate, request.seek);
+      }
+    };
+    const publishTransport = (s: DawStore, immediate = false, seek = false) => {
+      if (s.followingClientId) return;
+      if (
+        !stagePreviewTransport(writeSettledTransport, {
+          projectEpoch: s.projectEpoch,
+          immediate,
+          seek,
+        })
+      ) {
+        writeTransport(s, immediate, seek);
+      }
     };
     const publishSelection = (s: DawStore) => {
       push({ selection: selectionToWire(s.selection, s.project?.envelopes) });
@@ -161,7 +184,6 @@ export function usePresencePublisher(
       });
     };
 
-    // Connect: publish everything once, in the order of the frames below.
     const initial = useDawStore.getState();
     publishFollowing(initial);
     publishTransport(initial, true);
@@ -206,6 +228,7 @@ export function usePresencePublisher(
       }
     });
     return () => {
+      mounted = false;
       unsubscribe();
       window.clearInterval(playbackTimer);
     };
