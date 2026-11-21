@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import struct
+import wave
 from collections.abc import Callable
 from pathlib import Path
 from shutil import copyfileobj
@@ -18,9 +18,10 @@ from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.owned_stage import OwnedStage
 from podcast_mcp.util.pinned_media import open_pinned_media
-from podcast_mcp.util.wav import rendered_wav_is_complete
+from podcast_mcp.util.wav import open_wav, rendered_wav_is_complete
 
 SessionWriter = Callable[[DawTimeline, Path], None]
+MAX_AAF_WAV_BYTES = 0xFFFFFFFF
 
 
 def _package_media(asset: DawMedia, destination: Path, engine: FFmpegEngine) -> None:
@@ -76,40 +77,28 @@ def _write_aaf_session(timeline: DawTimeline, stage_root: Path) -> None:
 
 def _valid_aaf_pcm(path: Path, asset: DawMedia) -> bool:
     try:
-        content = path.read_bytes()
-        if len(content) < 12 or content[:4] != b"RIFF" or content[8:12] != b"WAVE":
+        if path.stat().st_size > MAX_AAF_WAV_BYTES or not rendered_wav_is_complete(path):
             return False
-        fmt: bytes | None = None
-        data_size: int | None = None
-        offset = 12
-        while offset + 8 <= len(content):
-            chunk_id = content[offset : offset + 4]
-            chunk_size = struct.unpack_from("<I", content, offset + 4)[0]
-            start, end = offset + 8, offset + 8 + chunk_size
-            if end > len(content):
-                return False
-            if chunk_id == b"fmt ":
-                fmt = content[start:end]
-            elif chunk_id == b"data":
-                data_size = chunk_size
-            offset = end + (chunk_size & 1)
-        if fmt is None or len(fmt) < 16 or data_size is None:
-            return False
-        format_tag, channels, rate, _, block_align, bits = struct.unpack_from("<HHIIHH", fmt)
-        if format_tag == 0xFFFE:
-            if len(fmt) < 40 or fmt[24:40] != bytes.fromhex("0100000000001000800000aa00389b71"):
-                return False
-        elif format_tag != 1:
-            return False
-        width = bits // 8
-        return (
-            bits in (16, 24)
-            and channels == asset.channels
-            and rate == asset.sample_rate
-            and block_align == channels * width
-            and data_size == asset.frames * block_align
-        )
-    except (OSError, struct.error):
+        with open_wav(path) as audio:
+            return (
+                audio.getcomptype() == "NONE"
+                and audio.getsampwidth() in (2, 3)
+                and audio.getnchannels() == asset.channels
+                and audio.getframerate() == asset.sample_rate
+                and audio.getnframes() == asset.frames
+            )
+    except (EOFError, OSError, ValueError, wave.Error):
+        return False
+
+
+def _oversized_aaf_wav(path: Path) -> bool:
+    if path.stat().st_size <= MAX_AAF_WAV_BYTES:
+        return False
+    try:
+        with path.open("rb") as source:
+            header = source.read(12)
+        return header[:4] in (b"RIFF", b"RF64") and header[8:12] == b"WAVE"
+    except OSError:
         return False
 
 
@@ -119,6 +108,11 @@ def _prepare_aaf_media(asset: DawMedia, media_root: Path, engine: FFmpegEngine) 
     prepared = media_root / f"{stem}.wav"
     with open_pinned_media(asset.path) as source:
         atomic_write(staged_source, lambda output: copyfileobj(source, output))
+    if _oversized_aaf_wav(staged_source):
+        raise CodedValueError(
+            f"{asset.path.name} is too large for the AAF writer's WAV limit.",
+            code="aaf_export_pcm_too_large",
+        )
     if _valid_aaf_pcm(staged_source, asset):
         staged_source.replace(prepared)
     else:
@@ -132,16 +126,16 @@ def _prepare_aaf_media(asset: DawMedia, media_root: Path, engine: FFmpegEngine) 
             extra_args=["-map", "0:a:0", "-map_metadata", "-1"],
         )
         staged_source.unlink()
+    if prepared.stat().st_size > MAX_AAF_WAV_BYTES:
+        raise CodedValueError(
+            f"{asset.path.name} is too large for the AAF writer's WAV limit.",
+            code="aaf_export_pcm_too_large",
+        )
     if not _valid_aaf_pcm(prepared, asset):
         prepared.unlink(missing_ok=True)
         raise CodedValueError(
             f"Could not prepare {asset.path.name} as supported AAF PCM.",
             code="aaf_export_pcm_unsupported",
-        )
-    if prepared.stat().st_size > 0xFFFFFFFF:
-        raise CodedValueError(
-            f"{asset.path.name} is too large for the AAF writer's WAV limit.",
-            code="aaf_export_pcm_too_large",
         )
     return prepared
 
