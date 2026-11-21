@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { episodeDurationSec } from "../../audio/proxyMath";
+import { episodeEndSec } from "../../audio/proxyMath";
 import { seekTransport } from "../../commands/seek";
 import { useDawStore } from "../../state/dawStore";
 import type { ChapterMarker } from "../../types/project";
@@ -9,7 +9,12 @@ const NONE: ChapterMarker[] = [];
 
 export function usePlayerChapters() {
   const markers = useDawStore((s) => s.project?.chapters) ?? NONE;
-  const duration = useDawStore((s) => episodeDurationSec(s.project));
+  const clipsByTrack = useDawStore((s) => s.project?.clips.tracks);
+  const storedDuration = useDawStore((s) => s.project?.timeline_duration_sec);
+  const duration = useMemo(
+    () => (clipsByTrack ? episodeEndSec(storedDuration ?? 0, clipsByTrack) : 0),
+    [storedDuration, clipsByTrack],
+  );
   const sorted = useMemo(() => sortChapters(markers), [markers]);
   const current = useDawStore((s) => chapterIndexAt(sorted, s.playheadSec));
   const chapters = useMemo(
@@ -17,6 +22,7 @@ export function usePlayerChapters() {
     [sorted, duration],
   );
   return {
+    duration,
     chapters,
     current,
     seekTo: (index: number) => {

@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef } from "react";
-import { episodeDurationSec } from "../../audio/proxyMath";
 import { dispatchComposer } from "../../commands/composer";
 import { skipListen } from "../../commands/listenSeek";
 import { runPointerCommand } from "../../commands/pointer";
@@ -96,9 +95,8 @@ export function usePlayerProps(
   );
 
   const breakdown = useStaleRenderBreakdown(project);
-  const duration = episodeDurationSec(project);
+  const { duration, chapters, current: chapter, seekTo } = usePlayerChapters();
   const { onSeek, onScrub } = useSeekFraction(duration);
-  const { chapters, current: chapter, seekTo } = usePlayerChapters();
   const detail = useTranscriptDetail();
   const chaptersFillMiddle =
     listenMiddleOf(
