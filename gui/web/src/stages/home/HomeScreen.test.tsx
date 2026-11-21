@@ -492,6 +492,32 @@ describe("HomeScreen", () => {
       expect(open).not.toHaveBeenCalled();
     });
 
+    it.each(["", "   "])(
+      "asks for an episode folder when the path is %j",
+      async (path) => {
+        const user = userEvent.setup();
+        pick.mockResolvedValue({ unavailable: true });
+        render(<HomeScreen />);
+        const trigger = await screen.findByRole("button", {
+          name: "Open other…",
+        });
+        await user.click(trigger);
+        const field = await screen.findByRole("textbox", {
+          name: "Folder of the episode",
+        });
+        expect(field).toHaveFocus();
+        if (path) await user.type(field, path);
+        await user.keyboard("{Enter}");
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+          "Type or paste the path to the episode folder.",
+        );
+        expect(open).not.toHaveBeenCalled();
+        await user.keyboard("{Escape}");
+        expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+        expect(trigger).toHaveFocus();
+      },
+    );
+
     it("falls back to a path field when there is no picker", async () => {
       const user = userEvent.setup();
       pick.mockResolvedValue({ unavailable: true });
