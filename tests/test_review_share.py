@@ -2898,6 +2898,92 @@ def _bring_versions_back(minimal_project, versions: list) -> None:
     save_project(project, minimal_project)
 
 
+@pytest.mark.parametrize("check", ["admission", "presence", "idle"])
+def test_guest_daw_ws_retries_a_missing_review_version(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, check
+):
+    from starlette.websockets import WebSocketDisconnect
+
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.guest_ws_common.GUEST_SHARE_RECHECK_ON_FRAME_S", 0.0
+    )
+    if check == "idle":
+        monkeypatch.setattr("podcast_mcp.gui.routes.guest_ws_common.GUEST_SHARE_RECHECK_S", 0.05)
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Temporary missing version")
+    token = ShareService(ws).create(
+        review_version_id=version["id"], capabilities=capabilities_for_role("editor")
+    )["token"]
+    client = TestClient(create_app())
+    path = f"/api/review/{token}/daw/ws"
+
+    def receive_close(guest):
+        with pytest.raises(WebSocketDisconnect) as closed:
+            for _ in range(8):
+                assert guest.receive_json()["plane"] == "session"
+        return closed.value.code
+
+    if check == "admission":
+        versions = _drop_versions(minimal_project)
+    with client.websocket_connect(path) as guest:
+        if check != "admission":
+            assert {guest.receive_json()["plane"], guest.receive_json()["plane"]} == {
+                "session",
+                "document",
+            }
+            versions = _drop_versions(minimal_project)
+        if check == "presence":
+            guest.send_json({"type": "Presence", "client_seq": 2})
+        assert receive_close(guest) == 1013
+    _bring_versions_back(minimal_project, versions)
+    with client.websocket_connect(path) as guest:
+        assert {guest.receive_json()["plane"], guest.receive_json()["plane"]} == {
+            "session",
+            "document",
+        }
+        ShareService(ProjectWorkspace.open(minimal_project)).revoke(token)
+        guest.send_json({"type": "Presence", "client_seq": 2})
+        assert receive_close(guest) == 4403
+
+
+@pytest.mark.parametrize(
+    ("policy", "headers", "close_code"),
+    [
+        ("no-view", {}, 4403),
+        ("revoked", {}, 4403),
+        ("restricted", {"origin": "https://outside.example"}, 4403),
+        ("restricted", {}, 4401),
+    ],
+)
+def test_guest_daw_ws_authorization_denials_precede_missing_review_version(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, policy, headers, close_code
+):
+    from starlette.websockets import WebSocketDisconnect
+
+    monkeypatch.setenv("PODCAST_SHARE_ACCOUNTS", "1")
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Missing restricted version")
+    service = ShareService(ws)
+    token = service.create(
+        review_version_id=version["id"],
+        capabilities=["play"] if policy == "no-view" else ["play", "view"],
+        general_access="restricted" if policy == "restricted" else "link",
+    )["token"]
+    if policy == "revoked":
+        service.revoke(token)
+    _drop_versions(minimal_project)
+    client = TestClient(create_app())
+    with client.websocket_connect(f"/api/review/{token}/daw/ws", headers=headers) as guest:
+        with pytest.raises(WebSocketDisconnect) as closed:
+            guest.receive_json()
+    assert closed.value.code == close_code
+    if policy == "no-view":
+        assert (
+            closed.value.reason
+            == "This action isn't available on this link. Ask the host to update its access."
+        )
+
+
 @pytest.mark.parametrize("role", ["viewer", "commenter", "editor"])
 def test_a_link_whose_version_is_missing_is_refused_and_not_revoked(
     minimal_project, sample_wav, tmp_workspace, role
