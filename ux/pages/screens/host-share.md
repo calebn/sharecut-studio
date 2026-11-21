@@ -15,6 +15,9 @@
 
 **Undo** restores the same link or room and says “Link restored.” or “Room restored.” The toast explains a server refusal. If the request fails with time left, you can try the same Undo again. The button is reachable by keyboard and 44 px on touch. When the refreshed list removes the link or room, focus moves from the removed control to its heading in Invite or Deliver. When Undo finishes, focus returns to that heading if focus was lost or stayed in the toast and the heading is still available.
 
+If Invite warns that earlier links may still work, the new room is ready. Use
+**End room** on earlier rooms. Creating another room may end the one you just created.
+
 If the command line warns that earlier links may still work, the new room is ready.
 Use the warning’s recovery commands to end earlier rooms without creating another room.
 
