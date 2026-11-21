@@ -24,6 +24,15 @@ Comment and reply **body** text is capped at **8000** characters (`COMMENT_BODY_
 `POST /api/review/{token}/comments/{id}/actions/{aid}/done` (same as MCP
 `guest_set_action_done`).
 
+A guest's `POST /api/review/{token}/comments` takes an optional `comment_id` and
+`POST .../comments/{id}/replies` an optional `reply_id` (32 lowercase hex; anything else is a
+422), the same on MCP `guest_add_comment` and `guest_add_reply`. Sending the same key again
+returns the comment or reply the first send made, with no second history entry or notice. The
+stored id is `g-{share id}-{key}`, never the raw key, so a guest cannot repeat a host comment's
+id to read it back or collide with it; another guest name repeating the key is refused. The
+review page uses this to keep a comment typed while the host is away and send it once when the
+host answers (`gui-viewer.md`, "A guest's comment while the host is away").
+
 See [episode-format-v2.md](episode-format-v2.md) § Review comments.
 
 ## Comment MCP tools
