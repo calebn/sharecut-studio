@@ -333,6 +333,12 @@
     },
     {
       "gate": "host",
+      "handler": "podcast_mcp.gui.routes.pipeline:pipeline_setup_run",
+      "method": "POST",
+      "path": "/api/pipeline/setup-run"
+    },
+    {
+      "gate": "host",
       "handler": "podcast_mcp.gui.routes.pipeline:pipeline_status",
       "method": "GET",
       "path": "/api/pipeline/status"
