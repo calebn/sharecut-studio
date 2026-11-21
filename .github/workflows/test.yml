@@ -182,6 +182,30 @@ jobs:
           SHARECUT_AAFTOOL="$SHARECUT_AAFTOOL"
           pytest -q --no-cov tests/test_aaf_export.py
 
+      - name: Build pinned SESX reader for independent export checks
+        if: matrix.shard == 1
+        run: |
+          reader_info="$(bash scripts/build_sesx_test_reader.sh "$TMPDIR/sesx-reader")"
+          reader_path="$(printf '%s\n' "$reader_info" | sed -n '1p')"
+          rpp_site="$(printf '%s\n' "$reader_info" | sed -n '2p')"
+          printf 'SHARECUT_SESX_READER=%s\n' "$reader_path" >> "$GITHUB_ENV"
+          printf 'SHARECUT_SESX_RPP_SITE=%s\n' "$rpp_site" >> "$GITHUB_ENV"
+
+      - name: Run SESX tests with the independent reader
+        if: matrix.shard == 1
+        run: >-
+          env -u PYTEST_SHARD_INDEX -u PYTEST_SHARD_COUNT
+          SHARECUT_SESX_READER="$SHARECUT_SESX_READER"
+          pytest -q --no-cov tests/test_sesx_export.py
+
+      - name: Compare shared DAW export semantics
+        if: matrix.shard == 1
+        run: >-
+          env -u PYTEST_SHARD_INDEX -u PYTEST_SHARD_COUNT
+          SHARECUT_AAFTOOL="$SHARECUT_AAFTOOL"
+          SHARECUT_SESX_READER="$SHARECUT_SESX_READER"
+          pytest -q --no-cov tests/test_daw_export_semantics.py
+
       - name: Record pytest run context
         env:
           VALIDATED_COMPAT_BASE: ${{ inputs.compatibility-base || github.event.pull_request.base.sha || github.event.before || github.sha }}

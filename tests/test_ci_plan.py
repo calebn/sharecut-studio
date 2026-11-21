@@ -537,6 +537,41 @@ def test_aaf_independent_reader_runs_in_the_ffmpeg_pytest_shard() -> None:
     assert "pytest -q --no-cov tests/test_aaf_export.py" in shard[aaf_tests]["run"]
 
 
+def test_sesx_independent_reader_runs_in_the_ffmpeg_pytest_shard() -> None:
+    jobs = load_github_yaml(WORKFLOW)["jobs"]
+    shard = jobs["pytest-shard"]["steps"]
+    ffmpeg = next(
+        i for i, step in enumerate(shard) if step.get("uses") == "./.github/actions/setup-ffmpeg"
+    )
+    install = next(
+        i for i, step in enumerate(shard) if step.get("name") == "Install package and dev deps"
+    )
+    reader = next(
+        i for i, step in enumerate(shard) if "Build pinned SESX reader" in step.get("name", "")
+    )
+    sesx_tests = next(
+        i
+        for i, step in enumerate(shard)
+        if step.get("name") == "Run SESX tests with the independent reader"
+    )
+    assert shard[reader]["if"] == "matrix.shard == 1"
+    assert "scripts/build_sesx_test_reader.sh" in shard[reader]["run"]
+    assert ffmpeg < install < reader
+    assert shard[sesx_tests]["if"] == "matrix.shard == 1"
+    assert "env -u PYTEST_SHARD_INDEX -u PYTEST_SHARD_COUNT" in shard[sesx_tests]["run"]
+    assert "pytest -q --no-cov tests/test_sesx_export.py" in shard[sesx_tests]["run"]
+    comparison = next(
+        i
+        for i, step in enumerate(shard)
+        if step.get("name") == "Compare shared DAW export semantics"
+    )
+    assert shard[comparison]["if"] == "matrix.shard == 1"
+    assert "SHARECUT_AAFTOOL" in shard[comparison]["run"]
+    assert "SHARECUT_SESX_READER" in shard[comparison]["run"]
+    assert "SHARECUT_SESX_RPP_SITE" in shard[reader]["run"]
+    assert "tests/test_daw_export_semantics.py" in shard[comparison]["run"]
+
+
 ALERT_ACTION = ROOT / ".github" / "actions" / "nightly-alert" / "action.yml"
 
 

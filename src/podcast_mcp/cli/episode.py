@@ -66,6 +66,21 @@ def export_aaf(
     typer.echo(str(session))
 
 
+@episode_app.command("export-audition")
+def export_audition(
+    project: Path = typer.Option(..., "--project", help="Saved episode.sharecut"),
+    output: Path = typer.Option(..., "--output", help="New directory for the portable package"),
+) -> None:
+    """Export an experimental editable Audition session with WAV media."""
+    from podcast_mcp.services.media import export_audition_session
+
+    try:
+        session = export_audition_session(project, output)
+    except OSError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(str(session))
+
+
 @episode_app.command("reorder-track")
 def track_reorder(
     project: Path = typer.Option(..., "--project", help="episode.sharecut"),
