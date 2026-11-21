@@ -58,6 +58,8 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
+    env:
+      VITE_STORY_SHARD: ${{ matrix.shard }}/4
     steps:
       - uses: actions/checkout@v7
 
@@ -72,10 +74,37 @@ jobs:
         working-directory: gui/web
 
       - name: Sweep every story for axe violations and overflow
-        run: npm run test:stories
-        env:
-          VITE_STORY_SHARD: ${{ matrix.shard }}/4
+        run: >-
+          npm run test:stories -- --reporter=default --reporter=json
+          --outputFile.json=test-results/story-sweep/vitest.json
+          --attachmentsDir=test-results/story-sweep
         working-directory: gui/web
+
+      - uses: actions/setup-python@v7
+        if: always()
+        continue-on-error: true
+        with:
+          python-version: "3.12"
+
+      - name: Summarize story sweep tests
+        if: always()
+        continue-on-error: true
+        run: >-
+          python3 scripts/test_area_summary.py vitest --area stories
+          --label "shard $VITE_STORY_SHARD"
+          --report gui/web/test-results/story-sweep/vitest.json
+
+      - name: Upload story sweep report and failure screenshots
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: storybook-sweep-shard-${{ matrix.shard }}
+          path: |
+            gui/web/test-results/story-sweep/vitest.json
+            gui/web/test-results/story-sweep/failure-screenshots/**/*.png
+          retention-days: 7
+          if-no-files-found: ignore
 
   build:
     needs: image

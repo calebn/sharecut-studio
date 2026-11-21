@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from shlex import split
 
 import pytest
 
@@ -57,14 +58,57 @@ def test_storybook_pull_requests_run_only_the_render_smoke() -> None:
     for step in (smoke, full):
         assert step["working-directory"] == "gui/web"
         assert step.get("continue-on-error", False) is False
-    sweep = next(
-        step
-        for step in workflow["jobs"]["sweep"]["steps"]
-        if step.get("name") == "Sweep every story for axe violations and overflow"
-    )
-    assert sweep["run"] == "npm run test:stories"
-    assert sweep["working-directory"] == "gui/web"
-    assert sweep.get("continue-on-error", False) is False
+
+
+def test_storybook_sweep_retains_diagnostics_when_tests_fail() -> None:
+    sweep = load_github_yaml(WORKFLOW)["jobs"]["sweep"]
+    steps = sweep["steps"]
+    runner, python, summary, upload = steps[-4:]
+    assert sweep["strategy"]["fail-fast"] is False
+    assert sweep["env"]["VITE_STORY_SHARD"] == "${{ matrix.shard }}/4"
+    assert runner["working-directory"] == "gui/web"
+    assert "if" not in runner
+    assert runner.get("continue-on-error", False) is False
+    assert not sweep.get("continue-on-error", False)
+
+    assert python["uses"].startswith("actions/setup-python@")
+    for diagnostic in (python, summary, upload):
+        assert diagnostic["if"] == "always()"
+        assert diagnostic["continue-on-error"] is True
+    argv = split(summary["run"])
+    assert argv[:6] == [
+        "python3",
+        "scripts/test_area_summary.py",
+        "vitest",
+        "--area",
+        "stories",
+        "--label",
+    ]
+    assert argv[6] == "shard $VITE_STORY_SHARD"
+    assert argv[7] == "--report"
+    report = Path(argv[8])
+    assert report == Path("gui/web/test-results/story-sweep/vitest.json")
+    relative_report = report.relative_to("gui/web")
+    assert split(runner["run"]) == [
+        "npm",
+        "run",
+        "test:stories",
+        "--",
+        "--reporter=default",
+        "--reporter=json",
+        f"--outputFile.json={relative_report}",
+        f"--attachmentsDir={relative_report.parent}",
+    ]
+
+    assert upload["uses"] == "actions/upload-artifact@v7"
+    assert upload["with"]["name"] == "storybook-sweep-shard-${{ matrix.shard }}"
+    assert upload["with"]["path"].splitlines() == [
+        str(report),
+        str(report.parent / "failure-screenshots/**/*.png"),
+    ]
+    assert upload["with"]["retention-days"] == 7
+    assert upload["with"]["if-no-files-found"] == "ignore"
+    assert not upload["with"].get("include-hidden-files", False)
 
 
 def _assert_layout_wiring(workflow_path: Path, package_path: Path) -> None:
