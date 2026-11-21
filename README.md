@@ -70,7 +70,7 @@ The frontend CI suite uses a [locked exporter dependency group](docs/setup.md#fr
 
 ```bash
 podcast episode init --dir /path/to/my_episode
-podcast track add --project /path/to/my_episode/episode.sharecut --id host --file raw/host.wav --role dialogue
+podcast episode add-track --project /path/to/my_episode/episode.sharecut --id host --file raw/host.wav --role dialogue
 podcast pipeline run --project /path/to/my_episode/episode.sharecut
 ```
 
