@@ -1,5 +1,6 @@
 import os
 import threading
+from dataclasses import replace
 from io import BytesIO
 from zipfile import ZipFile
 
@@ -90,14 +91,16 @@ def test_second_export_is_refused_and_cancellation_leaves_no_files(tmp_path, mon
     app = create_app()
     client = TestClient(app)
     started, release = threading.Event(), threading.Event()
-    name, writer = daw_session._SESSION_WRITERS[DawFormat.RPP]
+    spec = daw_session._SESSION_WRITERS[DawFormat.RPP]
 
     def waiting_writer(timeline, target):
         started.set()
         assert release.wait(10)
-        writer(timeline, target)
+        spec.write(timeline, target)
 
-    monkeypatch.setitem(daw_session._SESSION_WRITERS, DawFormat.RPP, (name, waiting_writer))
+    monkeypatch.setitem(
+        daw_session._SESSION_WRITERS, DawFormat.RPP, replace(spec, write=waiting_writer)
+    )
     args = {"path": str(ws.path), "format": "rpp"}
     try:
         response = client.post("/api/export/daw", json=args)
@@ -116,15 +119,16 @@ def test_second_export_is_refused_and_cancellation_leaves_no_files(tmp_path, mon
 def test_host_session_rows_show_newest_first_and_exclude_unlisted_files(tmp_path):
     ws = create_daw_export_project(tmp_path)
     folder = ws.project.export_dir()
-    for number, stamp in [(1, 2), (2, 1)]:
+    for number, stamp in [(1, 2_000_000_000), (2, 2_000_000_099), (3, 2_000_000_000)]:
         directory = folder / f"daw-{number:012x}"
         directory.mkdir(parents=True)
         package = directory / "session-rpp.zip"
         package.write_bytes(b"ZIP")
-        os.utime(package, (stamp, stamp))
+        os.utime(package, ns=(stamp, stamp))
         (directory / "private.zip").write_bytes(b"unlisted")
     rows = ExportFilesService(ws, host_files=True).list()
     assert [(row.id, row.label) for row in rows] == [
+        ("daw-000000000002/session-rpp.zip", "Exported 1970-01-01 00:00:02.000 UTC"),
         ("daw-000000000001/session-rpp.zip", "Exported 1970-01-01 00:00:02.000 UTC"),
-        ("daw-000000000002/session-rpp.zip", "Exported 1970-01-01 00:00:01.000 UTC"),
+        ("daw-000000000003/session-rpp.zip", "Exported 1970-01-01 00:00:02.000 UTC"),
     ]

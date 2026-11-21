@@ -12,7 +12,8 @@ import { DawSession } from "./DawSession";
 vi.mock("../../api/dawExport", () => ({
   loadDawFormats: vi.fn(),
 }));
-vi.mock("../../stage/hosts/runDawExport", () => ({
+vi.mock("../../stage/hosts/runDawExport", async (original) => ({
+  ...(await original<typeof import("../../stage/hosts/runDawExport")>()),
   exportDawSession: vi.fn(),
 }));
 vi.mock("../../api", async (original) => ({
@@ -98,6 +99,8 @@ it("drops the old receipt when the open episode changes during export", async ()
   expect(button()).toHaveAccessibleDescription("Exporting the saved timeline…");
   view.rerender(<DawSession {...props} projectPath="/two" key="two" />);
   run.resolve("daw-abc/session-rpp.zip");
+  await run.promise;
+  expect(props.reload).not.toHaveBeenCalled();
   expect(screen.getByLabelText("DAW format")).toHaveValue("");
   expect(button()).toHaveAccessibleDescription("Choose a DAW format.");
   expect(screen.queryByText("DAW session exported.")).toBeNull();

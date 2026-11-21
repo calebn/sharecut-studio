@@ -2,7 +2,10 @@ import { useEffect, useId, useRef, useState } from "react";
 import { cancelPipelineRun, JobCancelledError } from "../../api";
 import { type DawFormat, loadDawFormats } from "../../api/dawExport";
 import { useNowSec } from "../../hooks/useNowSec";
-import { exportDawSession } from "../../stage/hosts/runDawExport";
+import {
+  dawStartPending,
+  exportDawSession,
+} from "../../stage/hosts/runDawExport";
 import { useDawStore } from "../../state/dawStore";
 import { StatusRow } from "../../system/StatusRow";
 import { Button } from "../../ui";
@@ -62,8 +65,13 @@ export function DawSession({
   const [readFailed, setReadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [run, setRun] = useState<Run>({ phase: "idle" });
-  const active = useRef<AbortController | null>(null);
-  useEffect(() => () => active.current?.abort(), []);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const checking = format !== undefined;
   useEffect(() => {
     if (!checking) return;
@@ -79,9 +87,7 @@ export function DawSession({
     return () => watch.abort();
   }, [projectPath, checking, attempt]);
   const activity = useDawStore((s) => s.activityJob);
-  const starting = useDawStore((s) =>
-    Array.from(s.jobResultStarts.values()).includes("daw_export"),
-  );
+  const starting = useDawStore(dawStartPending);
   const job =
     activity?.kind === "daw_export" && activity.project_path === projectPath
       ? activity
@@ -129,23 +135,20 @@ export function DawSession({
           : (formats[format] ?? undefined)));
   const reason = useDisabledReasonNote(blocker, "dv-note");
   async function start() {
-    if (!format || blocker || active.current) return;
-    const watch = new AbortController();
-    active.current = watch;
+    if (!format || blocker) return;
     setRun({ phase: "running" });
     try {
       const id = await exportDawSession(projectPath, format);
-      if (!watch.signal.aborted) setRun({ phase: "done", id });
+      if (mounted.current) setRun({ phase: "done", id });
     } catch (error) {
-      if (!watch.signal.aborted)
+      if (mounted.current)
         setRun(
           error instanceof JobCancelledError
             ? { phase: "idle" }
             : { phase: "failed", message: errorMessage(error) },
         );
     } finally {
-      if (!watch.signal.aborted) reload();
-      active.current = null;
+      if (mounted.current) reload();
     }
   }
   const rows = filesOfKinds(files, ["daw"], filesRunning);

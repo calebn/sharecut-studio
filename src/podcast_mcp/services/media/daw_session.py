@@ -5,6 +5,7 @@ from __future__ import annotations
 import wave
 from collections.abc import Callable
 from contextlib import ExitStack
+from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 from shutil import copyfileobj
@@ -176,10 +177,19 @@ def _prepare_aaf_media(asset: DawMedia, media_root: Path, engine: FFmpegEngine) 
     return prepared
 
 
-_SESSION_WRITERS: dict[DawFormat, tuple[str, SessionWriter]] = {
-    DawFormat.RPP: ("session.rpp", _write_reaper_session),
-    DawFormat.AAF: (AAF_SESSION_NAME, _write_aaf_session),
-    DawFormat.SESX: (AUDITION_SESSION_NAME, _write_audition_session),
+@dataclass(frozen=True)
+class SessionFormat:
+    filename: str
+    write: SessionWriter
+    linked_media: bool
+
+
+_SESSION_WRITERS = {
+    DawFormat.RPP: SessionFormat("session.rpp", _write_reaper_session, linked_media=True),
+    DawFormat.AAF: SessionFormat(AAF_SESSION_NAME, _write_aaf_session, linked_media=False),
+    DawFormat.SESX: SessionFormat(
+        AUDITION_SESSION_NAME, _write_audition_session, linked_media=True
+    ),
 }
 
 
@@ -205,9 +215,9 @@ def _export_session(
         )
     stage = OwnedStage(target.parent.resolve(strict=True))
     try:
-        session_name, writer = _SESSION_WRITERS[format]
-        writer(timeline, stage.path)
-        session = stage.path / session_name
+        spec = _SESSION_WRITERS[format]
+        spec.write(timeline, stage.path)
+        session = stage.path / spec.filename
         if not session.is_file():
             raise CodedValueError(
                 "The session writer did not produce its expected file.",
@@ -216,7 +226,7 @@ def _export_session(
         stage.publish(name)
     finally:
         stage.close()
-    return stage.root / name / session_name
+    return stage.root / name / spec.filename
 
 
 def export_reaper_session(project_path: Path, destination: Path) -> Path:
@@ -260,9 +270,9 @@ def export_daw_archive(
     root = workspace.project.export_dir()
     root.mkdir(parents=True, exist_ok=True)
     directory = f"daw-{job_id}"
-    name, writer = _SESSION_WRITERS[format]
-    members = [name]
-    if format != DawFormat.AAF:
+    spec = _SESSION_WRITERS[format]
+    members = [spec.filename]
+    if spec.linked_media:
         members.extend(asset.package_name for asset in timeline.media)
 
     with (
@@ -274,7 +284,7 @@ def export_daw_archive(
         progress.set_phase("media", "Preparing session audio")
         media = OwnedStage(root)
         stages.callback(media.close)
-        writer(timeline, media.path)
+        spec.write(timeline, media.path)
         progress.advance(message="Session audio ready")
         progress.set_phase("archive", "Packing the session and audio")
         package = OwnedStage(root)
