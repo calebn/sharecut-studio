@@ -10,6 +10,8 @@
 
 .sys-need-line {
   display: flex;
+  /* Under text zoom the Get or Cancel control drops below the name instead of crushing it. */
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
   min-block-size: 4rem;
@@ -23,7 +25,7 @@
 
 .sys-need-text {
   display: flex;
-  flex: 1 1 auto;
+  flex: 1 1 10rem;
   flex-direction: column;
   min-inline-size: 0;
 }
@@ -70,20 +72,24 @@
 }
 
 .sys-need-extra {
-  padding-inline-start: calc(1.25rem + var(--space-4));
+  /* Aligned under the name; at big text sizes the indent gives way so the sizes keep their room. */
+  padding-inline-start: min(calc(1.25rem + var(--space-4)), 9vw);
 }
 
 .sys-need-extra .ui-segmented {
   display: flex;
+  flex-wrap: wrap;
   block-size: auto;
 }
 
 .sys-need-extra .ui-segmented > .ui-control {
-  flex: 1 1 0;
+  /* Side by side while two fit; under text zoom they stack instead of clipping. */
+  flex: 1 1 8rem;
   flex-direction: column;
   gap: 0;
   min-block-size: var(--touch-min);
-  min-inline-size: 0;
+  min-inline-size: min-content;
+  padding-inline: var(--space-1);
   white-space: nowrap;
 }
 
