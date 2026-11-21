@@ -1733,7 +1733,9 @@ and revalidates captured inputs before accepting the generation. The revalidatio
 compares render hashes and clips (not the history head) and the project without
 its `review`, `history` and `document_sync` sections, so a comment saved
 mid-build, whether through the share path or the host GUI's document command, does
-not refuse the generation while an audible edit still does. Within the final
+not refuse the generation while an audible edit still does. Each basis read
+shares the gate's clip and transcript projections across tracks and checks media
+paths and file revisions again at publication. Within the final
 validation pass on POSIX, captures share a fresh content digest only for the same
 resolved path and full file stamp, including change time. Windows keeps a content
 read per capture. Each binding still checks its own sealed files. The build adds

@@ -44,7 +44,8 @@ from podcast_mcp.engines.session_timeline import (
     map_timeline_spans_over_clips,
 )
 from podcast_mcp.engines.ungated_audio import raw_evidence_layout_reason, raw_timeline_samples
-from podcast_mcp.models import Clip, EpisodeProject, TranscriptGateScope, TranscriptWord
+from podcast_mcp.models import Clip, EpisodeProject, Transcript, TranscriptGateScope, TranscriptWord
+from podcast_mcp.util.batch_scope import frozen
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import bool_runs, bridge_short_dips, frame_rms_db_stream
 from podcast_mcp.util.intervals import (
@@ -993,6 +994,48 @@ def _source_clock_spans(
     return merge_intervals((float(start), float(end)) for start, end in mapped)
 
 
+def _gate_lane_clips(
+    project: EpisodeProject, track_id: str
+) -> tuple[dict[str | None, Clip], list[dict[str, Any]]]:
+    def build() -> tuple[dict[str | None, Clip], list[dict[str, Any]]]:
+        spans = SessionTimeline(project).lane_clip_spans(track_id)
+        source_clips = {span.clip.source_id: span.clip for span in spans}
+        return source_clips, [
+            span.clip.model_dump(
+                mode="json",
+                exclude={"bleed_restore"}
+                | (
+                    {"off_speaker_mute_regions"}
+                    if not span.clip.off_speaker_mute_regions
+                    else set()
+                ),
+            )
+            for span in spans
+        ]
+
+    return frozen(("bleed_gate_lane_clips", id(project), track_id), build, keep=project)
+
+
+def _gate_words(source_id: str | None, transcript: Transcript) -> list[dict[str, Any]]:
+    return frozen(
+        ("bleed_gate_words", source_id, id(transcript)),
+        lambda: [
+            {
+                "source_id": source_id,
+                "start": word.start,
+                "end": word.end,
+                "suppressed": word.suppressed,
+                "status": word.audibility_status,
+                "dominant_track": word.dominant_track,
+                "locked": word.audibility_locked,
+                "ignored": word.ignored,
+            }
+            for word in transcript.words
+        ],
+        keep=transcript,
+    )
+
+
 def bleed_gate_payload(
     project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig
 ) -> dict[str, Any]:
@@ -1008,12 +1051,12 @@ def bleed_gate_payload(
         lane = project.track_by_id(tid)
         if lane is None:
             continue
-        clips = SessionTimeline(project).lane_clip_spans(tid)
+        source_clips, clip_rows = _gate_lane_clips(project, tid)
         paths: list[Path] = []
         with suppress(OSError, ValueError):
             paths = (
-                [resolve_clip_audio_path(project, lane, span.clip) for span in clips]
-                if clips
+                [resolve_clip_audio_path(project, lane, clip) for clip in source_clips.values()]
+                if source_clips
                 else [track_audio_path(project, tid)]
             )
         media: list[dict[str, Any]] = []
@@ -1030,32 +1073,12 @@ def bleed_gate_payload(
             {
                 "track_id": tid,
                 "media": media,
-                "clips": [
-                    span.clip.model_dump(
-                        mode="json",
-                        exclude={"bleed_restore"}
-                        | (
-                            {"off_speaker_mute_regions"}
-                            if not span.clip.off_speaker_mute_regions
-                            else set()
-                        ),
-                    )
-                    for span in clips
-                ],
+                "clips": clip_rows,
                 "transcribed_source_ids": [source_id for source_id, _ in words],
                 "words": [
-                    {
-                        "source_id": source_id,
-                        "start": word.start,
-                        "end": word.end,
-                        "suppressed": word.suppressed,
-                        "status": word.audibility_status,
-                        "dominant_track": word.dominant_track,
-                        "locked": word.audibility_locked,
-                        "ignored": word.ignored,
-                    }
+                    row
                     for source_id, transcript in words
-                    for word in transcript.words
+                    for row in _gate_words(source_id, transcript)
                 ],
             }
         )
