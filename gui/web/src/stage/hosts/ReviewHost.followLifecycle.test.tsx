@@ -48,6 +48,32 @@ function join(path = "share:follow") {
   useDawStore.setState({ stage: "review", playheadSec: 10.1 });
 }
 
+function joinCommenter() {
+  const original = project();
+  const row = original.transcript!.utterances[0];
+  row.words = row.words!.map((word, word_index) => ({ ...word, word_index }));
+  useDawStore
+    .getState()
+    .hydrate(
+      "share:follow",
+      original,
+      "comment",
+      COMMENTER_CAPABILITIES,
+      null,
+      true,
+    );
+  useDawStore.setState({ stage: "review", selection: null });
+  return { original, row };
+}
+
+const thirdWord = () =>
+  screen.getByRole("button", { name: /^three( \(selected\))?$/ });
+
+function pickThirdWord() {
+  fireEvent.keyDown(thirdWord(), { key: "Enter" });
+  expect(thirdWord()).toHaveAttribute("data-selected");
+}
+
 function viewport(initialShell: ShellBreakpoint) {
   let shell = initialShell;
   let layoutShort = false;
@@ -378,24 +404,14 @@ describe("guest Review transcript follow lifetime", () => {
 
   it("keeps a Script pick on its word after a layout remount and a ripple cut", () => {
     const size = viewport("desktop");
-    const projectPath = "share:follow";
-    const original = project();
-    const row = original.transcript!.utterances[0];
-    row.words = row.words!.map((word, word_index) => ({ ...word, word_index }));
-    useDawStore
-      .getState()
-      .hydrate(projectPath, original, "comment", COMMENTER_CAPABILITIES);
-    useDawStore.setState({ stage: "review", selection: null });
+    const { original, row } = joinCommenter();
     render(<ReviewHost guestShare />);
-    const word = () =>
-      screen.getByRole("button", { name: /^three( \(selected\))?$/ });
-    fireEvent.keyDown(word(), { key: "Enter" });
-    expect(word()).toHaveAttribute("data-selected");
-    const prior = word();
+    pickThirdWord();
+    const prior = thirdWord();
 
     size.shell("phone");
     expect(prior.isConnected).toBe(false);
-    expect(word()).toHaveAttribute("data-selected");
+    expect(thirdWord()).toHaveAttribute("data-selected");
 
     act(() =>
       useDawStore.getState().setProject({
@@ -416,12 +432,61 @@ describe("guest Review transcript follow lifetime", () => {
         },
       }),
     );
-    expect(word()).toHaveAttribute("data-selected");
+    expect(thirdWord()).toHaveAttribute("data-selected");
     expect(useDawStore.getState().selection).toMatchObject({
       kind: "transcriptRange",
       startWordIndex: 1,
       endWordIndex: 1,
     });
+  });
+
+  it("clears an owned Script pick when the short desktop layout hides Script", () => {
+    const size = viewport("desktop");
+    joinCommenter();
+    render(<ReviewHost guestShare />);
+    pickThirdWord();
+
+    size.short("layout", true);
+    expect(screen.queryByRole("region", { name: "Script" })).toBeNull();
+    expect(useDawStore.getState().selection).toBeNull();
+
+    size.short("layout", false);
+    expect(thirdWord()).not.toHaveAttribute("data-selected");
+  });
+
+  it.each([
+    ["role", { guestMode: "edit" }],
+    ["transcript grant", { shareTranscriptWords: false }],
+  ] as const)("clears an owned Script pick when its %s changes", (_, next) => {
+    viewport("desktop");
+    joinCommenter();
+    render(<ReviewHost guestShare />);
+    pickThirdWord();
+
+    act(() => useDawStore.setState(next));
+    expect(useDawStore.getState().selection).toBeNull();
+  });
+
+  it("keeps an external selection written as the transcript grant changes", () => {
+    viewport("desktop");
+    joinCommenter();
+    render(<ReviewHost guestShare />);
+    pickThirdWord();
+
+    const external = {
+      kind: "transcriptRange",
+      trackId: "t1",
+      sourceId: "s1",
+      startWordIndex: 1,
+      endWordIndex: 1,
+    } as const;
+    act(() =>
+      useDawStore.setState({
+        selection: external,
+        shareTranscriptWords: false,
+      }),
+    );
+    expect(useDawStore.getState().selection).toBe(external);
   });
 
   it("retains a same-project hydration pause but starts following on a project replacement through StageHost", () => {

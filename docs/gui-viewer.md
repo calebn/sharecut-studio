@@ -263,7 +263,7 @@ adding a row to the timeline. The edit can split a waveform into new clip
 layers. Each new layer measures its initial height before paint so it can draw
 cached tiles immediately, then uses the resize observer for later changes.
 
-Correcting the text of selected words in place (same count, same numbers) keeps the selection, for a host and an Editor guest alike; a correction that merges or splits words follows the ordinary rule above. A review guest's Script does not use this: it follows in the Script itself from the ends it remembers.
+Correcting the text of selected words in place (same count, same numbers) keeps the selection, for a host and an Editor guest alike; a correction that merges or splits words follows the ordinary rule above. Guest Review follows the selection from the word endpoints it remembers. Switching between the phone and wide layouts keeps those endpoints for the current Review session. After a host edit, the selection follows the same words when they can be identified and clears when they cannot.
 
 Keyboard word actions: Enter on a focused, unselected word selects it and
 seeks; Enter or F2 on a selected word opens Fix text for a hydrated host

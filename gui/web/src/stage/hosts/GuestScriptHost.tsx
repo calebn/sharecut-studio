@@ -1,4 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
 import { seekTransport } from "../../commands/seek";
 import type { ShownTranscript } from "../../document/shownTranscript";
@@ -32,7 +39,7 @@ import {
 } from "./guestScript";
 import {
   followSelection,
-  type RememberedSelection,
+  GuestSelectionMemory,
   selectionEndOf,
 } from "./guestSelection";
 
@@ -41,11 +48,13 @@ const HELD_NOTICE_GAP_MS = 250;
 
 export type GuestScriptHostProps = {
   reading?: GuestReading;
+  selectionMemory?: GuestSelectionMemory;
   shown: ShownTranscript;
 };
 
 function GuestScriptHostAdapter({
   reading: providedReading,
+  selectionMemory,
   shown,
 }: GuestScriptHostProps) {
   const reading = useGuestReading(providedReading);
@@ -62,18 +71,25 @@ function GuestScriptHostAdapter({
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const short = useShortViewport();
   const role = stageRoleOf(guestMode);
-  const { script, scriptRevision } = useMemo(
-    () => ({ script: guestScriptOf(shown.rows), scriptRevision: Symbol() }),
-    [shown.rows],
-  );
-  const [selectionRevision, setSelectionRevision] = useState(scriptRevision);
+  const script = useMemo(() => guestScriptOf(shown.rows), [shown.rows]);
+  const [localMemory] = useState(() => new GuestSelectionMemory());
+  const remembered = selectionMemory ?? localMemory;
+  const [selectionRows, setSelectionRows] = useState(() => {
+    const mine = remembered.get();
+    return mine && mine.stored === useDawStore.getState().selection
+      ? mine.verifiedRows
+      : shown.rows;
+  });
   const { turns, wordStarts, words, empty } = script;
   const rangeMode = rangeEditMode(projectPath, capabilities);
   const mayRange = rangeMode !== "none";
+  const listening =
+    playerPlacementOf({ stage: "review", shell, role, short }) === "dock";
+  const hidden = !isHostRole(role) && ((short && !listening) || !mayRange);
+  const wasHidden = useRef(hidden);
   const model = useMemo(() => guestScriptModelOf(script), [script]);
   const range = useScriptSelection(model, mayRange, NOOP);
   const selectRange = range.onSelect;
-  const remembered = useRef<RememberedSelection | null>(null);
   const lastNotice = useRef(Number.NEGATIVE_INFINITY);
   const heldNotice = useCallback(() => {
     // One tap reaches both the seek and the select path: say it once.
@@ -84,30 +100,23 @@ function GuestScriptHostAdapter({
       .getState()
       .announceStatus(TRANSCRIPT_REFRESHING, { tone: "error" });
   }, []);
-  const remember = useCallback(
-    (selection: WordsSelection) => {
-      const stored = useDawStore.getState().selection;
-      const anchor = selectionEndOf(script, selection.anchor);
-      const head = selectionEndOf(script, selection.head);
-      remembered.current =
-        stored && anchor && head ? { stored, anchor, head } : null;
-    },
-    [script],
-  );
-  // Remembered only when the store took the selection: a write that changed
-  // nothing must not pair an older selection with this gesture's ends.
   const write = useCallback(
-    (selection: WordsSelection) => {
+    (selection: WordsSelection, verifiedRows: ShownTranscript["rows"]) => {
       const prior = useDawStore.getState().selection;
       selectRange?.(selection);
       const taken = useDawStore.getState().selection;
       if (taken === prior) return false;
-      // The object the store holds is the one marked and the one remembered.
       markScriptRange(taken);
-      remember(selection);
+      const anchor = selectionEndOf(script, selection.anchor);
+      const head = selectionEndOf(script, selection.head);
+      remembered.set(
+        taken && anchor && head
+          ? { stored: taken, anchor, head, verifiedRows }
+          : null,
+      );
       return true;
     },
-    [selectRange, remember],
+    [remembered, script, selectRange],
   );
   const onSelect = useCallback(
     (selection: WordsSelection) => {
@@ -115,45 +124,69 @@ function GuestScriptHostAdapter({
         heldNotice();
         return;
       }
-      if (write(selection)) setSelectionRevision(scriptRevision);
+      if (write(selection, shown.rows)) setSelectionRows(shown.rows);
     },
-    [script, scriptRevision, write, heldNotice],
+    [script, shown.rows, write, heldNotice],
   );
-  // An edit renumbers words: a selection of ours follows its words or goes.
-  // It writes with no gesture, so it never announces and waits for live words.
-  useEffect(() => {
-    const mine = remembered.current;
-    if (!mine) return;
+  useLayoutEffect(() => {
+    const turnedOff = hidden && !wasHidden.current;
+    wasHidden.current = hidden;
+    if (!hidden) return;
+    const mine = remembered.get();
+    remembered.set(null);
+    const { selection, setSelection } = useDawStore.getState();
+    if (
+      (mine && selection === mine.stored) ||
+      (turnedOff &&
+        (selection?.kind === "transcriptRange" || selection?.kind === "range"))
+    )
+      setSelection(null);
+  }, [hidden, remembered]);
+  // Reconcile before React paints a range keyed to the old rows.
+  useLayoutEffect(() => {
+    const mine = remembered.get();
+    if (hidden || !mine) return;
     const state = useDawStore.getState();
     if (state.selection !== mine.stored) {
-      remembered.current = null;
+      remembered.set(null);
       return;
     }
     const next = followSelection(mine, script);
     if (next.kind === "clear") {
-      remembered.current = null;
+      remembered.set(null);
       state.setSelection(null);
-    } else if (next.kind === "move") {
-      write({ kind: "words", anchor: next.anchor, head: next.head });
+      return;
     }
-    if (isScriptRange(state.selection) && !shown.refreshing) {
-      setSelectionRevision(scriptRevision);
+    if (next.kind === "wait") return;
+    if (
+      next.kind === "move" &&
+      !write(
+        { kind: "words", anchor: next.anchor, head: next.head },
+        mine.verifiedRows,
+      )
+    )
+      return;
+    const verified = remembered.get();
+    if (verified && !shown.refreshing) {
+      if (verified.verifiedRows !== shown.rows)
+        remembered.set({ ...verified, verifiedRows: shown.rows });
+      if (isScriptRange(verified.stored)) setSelectionRows(shown.rows);
     }
-  }, [script, scriptRevision, shown.refreshing, write]);
-  // The Script gives way to a cover mid-refresh: the words come back under new
-  // numbers with nothing watching the selection, so it goes with the Script.
+  }, [hidden, remembered, script, shown.rows, shown.refreshing, write]);
   const refreshingNow = useRef(shown.refreshing);
-  useEffect(() => {
+  useLayoutEffect(() => {
     refreshingNow.current = shown.refreshing;
   }, [shown.refreshing]);
-  useEffect(
+  useLayoutEffect(
     () => () => {
-      const mine = remembered.current;
+      const mine = remembered.get();
       const state = useDawStore.getState();
-      if (mine && refreshingNow.current && state.selection === mine.stored)
+      if (mine && refreshingNow.current && state.selection === mine.stored) {
+        remembered.set(null);
         state.setSelection(null);
+      }
     },
-    [],
+    [remembered],
   );
   const positionKey = useDawStore(
     useCallback(
@@ -169,19 +202,6 @@ function GuestScriptHostAdapter({
       playheadWord: last === "" ? undefined : Number(last),
     };
   }, [positionKey]);
-  // The phone Listen layout keeps the Script at any height, the keyboard's included.
-  const listening =
-    playerPlacementOf({ stage: "review", shell, role, short }) === "dock";
-  const hidden = isHostRole(role) ? false : (short && !listening) || !mayRange;
-  const wasHidden = useRef(hidden);
-  useEffect(() => {
-    const turnedOff = hidden && !wasHidden.current;
-    wasHidden.current = hidden;
-    if (!turnedOff) return;
-    const { selection, setSelection } = useDawStore.getState();
-    if (selection?.kind === "transcriptRange" || selection?.kind === "range")
-      setSelection(null);
-  }, [hidden]);
   if (isHostRole(role) || (short && !listening)) return null;
   return (
     <div ref={setRoot} className="stage-host-guest-script">
@@ -198,7 +218,7 @@ function GuestScriptHostAdapter({
         selectionRefreshing={
           mayRange &&
           selectedScriptRange &&
-          (selectionRevision !== scriptRevision ||
+          (selectionRows !== shown.rows ||
             (shown.refreshing && range.selection === null))
         }
         onSeek={(seconds) => void seekTransport(seconds)}
