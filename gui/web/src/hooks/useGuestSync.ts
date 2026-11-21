@@ -29,6 +29,7 @@ import { createRosterRequester } from "../session/rosterRequest";
 import type { WsSender } from "../session/wsSend";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { subscribeHostBack, watchHostReach } from "../state/hostReach";
 import { SANITY_POLL_MS } from "../state/syncCadence";
 import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import type { ProjectView, TimelineComment } from "../types/project";
@@ -289,10 +290,16 @@ export function useGuestSync(
     startPoll({ immediate: false });
     const drain = () => requestGuestDrainLazy(token);
     window.addEventListener("online", drain);
+    const offBack = subscribeHostBack((back) => {
+      if (back === token) drain();
+    });
+    const unwatch = watchHostReach();
     const drainTimer = window.setInterval(drain, SANITY_POLL_MS);
     return () => {
       closed = true;
       window.removeEventListener("online", drain);
+      offBack();
+      unwatch();
       window.clearInterval(drainTimer);
       stopPoll();
       socket.stop();

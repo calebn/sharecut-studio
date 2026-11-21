@@ -1,4 +1,5 @@
 import type { OfflineConflict } from "../../services/offlineQueue/offlineStore";
+import type { HostCause } from "../../state/hostReach";
 
 /** What a host can say about the last change, derived from the send and queue state. */
 export type SaveState =
@@ -6,6 +7,7 @@ export type SaveState =
   | { kind: "saved" }
   | { kind: "waiting"; count: number }
   | { kind: "unreachable"; count: number }
+  | { kind: "away"; cause: HostCause; count: number }
   | {
       kind: "unknown";
       reason: string;
@@ -23,6 +25,8 @@ type SaveStateInput = {
   conflicts: readonly OfflineConflict[];
   /** A share guest is reading the saved copy because the host cannot be reached. */
   unreachable: boolean;
+  /** A share guest's open page stopped reaching the host, and why; null while it is reached. */
+  away: HostCause | null;
   /** The saved edits on this device could not be read. */
   unreadable: boolean;
   /** A read of the queue has succeeded at least once. */
@@ -47,12 +51,18 @@ export function latestSaveOutcome(
  * damaged: then nothing can be saved, so that refusal turns the light red until it is
  * dismissed or a later command saves.
  *
- * Busy or settling wins because an edit on its way, or one whose outcome is not
- * yet read back, is the freshest fact. Then an unreadable queue, an unknown
- * outcome, and edits waiting; the rest is saved. Null until the queue has been
+ * An unreadable queue still reads as failed. Away comes ahead of busy and
+ * settling: while the host cannot be reached the poll and the drain timer keep
+ * flipping busy, and the light must not churn between Saving and Saved. Busy or
+ * settling wins over what is left because an edit on its way, or one whose
+ * outcome is not yet read back, is the freshest fact. Then an unknown outcome,
+ * and edits waiting; the rest is saved. Null until the queue has been
  * read once, so a project never claims "Saved" before it knows.
  */
 export function saveStateOf(input: SaveStateInput): SaveState | null {
+  if (input.away && !input.unreadable) {
+    return { kind: "away", cause: input.away, count: input.pending };
+  }
   if (input.busy || input.settling) return { kind: "saving" };
   if (input.unreadable) return { kind: "failed", cause: "unreadable" };
   if (!input.loaded) return null;

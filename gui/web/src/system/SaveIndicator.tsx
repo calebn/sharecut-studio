@@ -1,10 +1,13 @@
+import type { HostCause } from "../state/hostReach";
 import { SystemIcon } from "./SystemIcon";
 
 export type SaveIndicatorProps = {
-  state: "saved" | "saving" | "offline" | "unreachable" | "failed";
+  state: "saved" | "saving" | "offline" | "unreachable" | "away" | "failed";
+  /** Away: whether this device or the host stopped answering. */
+  cause?: HostCause;
   /** Saved: show the check for the 2 s after a save. */
   justSaved?: boolean;
-  /** Offline or unreachable: edits waiting to send. */
+  /** Offline, unreachable or away: edits waiting to send. */
   waiting?: number;
   /**
    * Narrow chrome: glyph, a count and Retry only. The App header gets the same
@@ -23,6 +26,7 @@ export function SaveIndicator({
   state,
   justSaved,
   waiting,
+  cause = "host",
   compact,
   onRetry,
   onDownload,
@@ -66,6 +70,31 @@ export function SaveIndicator({
       <span className={`sys-save sys-save--offline${size}`} role="status">
         <SystemIcon name="cloud-off" size={16} className="sys-tone-warning" />
         <span className="sys-save-text">{text}</span>
+        {waiting ? (
+          <span aria-hidden="true" className="sys-save-count">
+            {waiting}
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+  if (state === "away") {
+    const label =
+      cause === "device" ? "You're offline" : "Can't reach the host";
+    const sentence = `${label}. This page keeps trying.`;
+    return (
+      <span
+        className={`sys-save sys-save--away${size}`}
+        role="status"
+        title={sentence}
+      >
+        <SystemIcon name="cloud-off" size={16} className="sys-tone-warning" />
+        <span className="sys-save-text">
+          <span aria-hidden="true">
+            {waiting ? `${label} · ${waiting} waiting` : label}
+          </span>
+          <span className="sr-only">{sentence}</span>
+        </span>
         {waiting ? (
           <span aria-hidden="true" className="sys-save-count">
             {waiting}
