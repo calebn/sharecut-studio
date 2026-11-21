@@ -1,7 +1,7 @@
 import { type KeyboardEvent, type MouseEvent, useRef, useState } from "react";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { clamp } from "../utils/math";
-import { formatTimeShort } from "../utils/time";
+import { formatTimeShort, playheadNudgeStepSec } from "../utils/time";
 import { bucketPeaks } from "./peakBuckets";
 import { swallowsDuringDrag, useGrab } from "./useGrab";
 import { pointerRatio } from "./wavePointer";
@@ -31,8 +31,7 @@ export type OverviewStripProps = {
   duration?: number;
 };
 
-const KEY_STEP_SEC = 1;
-const KEY_STEP_BIG_SEC = 10;
+const PAGE_STEP_SEC = 10;
 
 /**
  * A whole-episode miniature. With `onSeek` it is a slider: a click or a drag
@@ -91,8 +90,8 @@ export function OverviewStrip({
       return;
     }
     const from = playhead ?? 0;
-    const largeStep = KEY_STEP_BIG_SEC / duration;
-    const arrowStep = event.shiftKey ? largeStep : KEY_STEP_SEC / duration;
+    const pageStep = PAGE_STEP_SEC / duration;
+    const arrowStep = playheadNudgeStepSec(event.shiftKey) / duration;
     let target: number;
     switch (event.key) {
       case "ArrowRight":
@@ -104,10 +103,10 @@ export function OverviewStrip({
         target = from - arrowStep;
         break;
       case "PageUp":
-        target = from + largeStep;
+        target = from + pageStep;
         break;
       case "PageDown":
-        target = from - largeStep;
+        target = from - pageStep;
         break;
       case "Home":
         target = 0;
