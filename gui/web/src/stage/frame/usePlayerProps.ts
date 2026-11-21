@@ -3,7 +3,6 @@ import { dispatchComposer } from "../../commands/composer";
 import { skipListen } from "../../commands/listenSeek";
 import { runPointerCommand } from "../../commands/pointer";
 import { useTranscriptDetail } from "../../document/useTranscriptDetail";
-import { togglePlayerPlayback } from "../../hooks/playerPlayback";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { rosterDisplayName } from "../../presence/colors";
 import { followDetail } from "../../presence/followSync";
@@ -205,7 +204,7 @@ export function usePlayerProps(
           mode: hearModeOf(auditionMode),
           onMode: (mode) => setAudition(auditionOf(mode)),
         },
-    onPlayPause: togglePlayerPlayback,
+    onPlayPause: () => runPointerCommand("transport.togglePlay"),
     onSkip: (seconds) => skipListen(seconds, duration),
     onHearOriginal: guest ? undefined : onHearOriginal,
     // Only a link that may comment gets the button; the command opens the
@@ -232,7 +231,7 @@ export function usePlayerProps(
     onCollapse: () => onFormChange("bar"),
     onRetry: () => {
       useDawStore.getState().setAudioError(null);
-      runPointerCommand("transport.togglePlay");
+      runPointerCommand("transport.togglePlay", { episodeOnly: true });
     },
     onChapter: seekTo,
     onUnfollow: () => runPointerCommand("presence.unfollow"),

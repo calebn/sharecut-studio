@@ -1,3 +1,4 @@
+import { flushSync } from "react-dom";
 import { patchComment } from "../api";
 import { seekLimitSec } from "../audio/proxyMath";
 import { followCapsOf, planGoTo } from "../presence/goToPlan";
@@ -20,7 +21,16 @@ import { cancelUserStageSwitch, markUserStageSwitch } from "./userStageSwitch";
 let heldFrom: AuditionMode | null = null;
 
 export function registerNavigationCommands(): void {
-  registerCommand("transport.togglePlay", () => {
+  registerCommand("transport.togglePlay", ({ episodeOnly }) => {
+    const before = useDawStore.getState();
+    if (episodeOnly !== true && before.sourcePreview) {
+      if (before.sourcePreview.playing) {
+        before.setIsPlaying(false);
+        return { status: "ok" };
+      }
+      // Guest proxy recovery listens for a committed false-to-true episode play edge.
+      flushSync(() => before.setIsPlaying(false));
+    }
     const s = useDawStore.getState();
     const reason = transportAvailability(s).togglePlay;
     if (reason !== undefined) {
