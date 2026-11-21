@@ -177,7 +177,7 @@ for (const size of EMPTY_HOME_SIZES) {
       hasTouch: true,
     });
 
-    test("the tiles start in the first screen and the page holds still", async ({
+    test("the tiles start in the first screen and the page does not scroll sideways", async ({
       page,
     }) => {
       await mockBootstrap(page);
@@ -195,6 +195,32 @@ for (const size of EMPTY_HOME_SIZES) {
       ).toBeVisible();
       await expect(page.getByText(/Drop a file anywhere/)).toBeHidden();
       await expectNoHorizontalScroll(page);
+    });
+  });
+}
+
+for (const width of [390, 360]) {
+  test.describe(`Empty Home at ${width}px wide`, () => {
+    test.use({
+      viewport: { width, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+    });
+
+    test("both tiles stay inside the page at a 32px root", async ({ page }) => {
+      await mockBootstrap(page);
+      await mockRecents(page, []);
+      await openHome(page);
+      await setRootFontSize(page, 32);
+      await expectNoHorizontalScroll(page);
+      for (const tile of [
+        page.locator(".sys-home .sys-start--import"),
+        homeRecordTile(page),
+      ]) {
+        const box = (await tile.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(width);
+      }
     });
   });
 }

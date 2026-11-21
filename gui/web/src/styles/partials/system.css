@@ -3189,7 +3189,7 @@ html:not([data-shell="phone"])
 
 .sys-home-tiles {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-5);
 }
 
@@ -3303,10 +3303,17 @@ html:not([data-shell="phone"])
   gap: var(--space-5);
 }
 
-.sys-home-bar {
+.sys-home[data-narrow]:not([data-phase="empty"]) .sys-home-main {
+  padding-block-end: 0;
+}
+
+.sys-home[data-narrow]:not([data-phase="empty"]) .sys-home-tiles {
   position: sticky;
   inset-block-end: 0;
   z-index: var(--z-content);
+  order: 1;
+  margin-block-start: auto;
+  margin-inline: calc(-1 * var(--space-5));
   padding: var(--space-4) var(--space-5);
   padding-block-end: max(var(--space-4), env(safe-area-inset-bottom));
   border-block-start: 1px solid var(--color-border-subtle);
