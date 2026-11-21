@@ -149,8 +149,16 @@ ready and the pipeline slot is free, including while another episode is open. A 
 episode uses the Whisper variant being downloaded or the current Studio default. Setup
 downloads still start only when requested. The queue belongs to the local Studio host
 and can resume when it next opens. A Run request through the same Studio host
-reports the pending setup intent. Standalone CLI and MCP import and pipeline commands
-keep their explicit run behavior.
+reports the pending setup intent. If a run stops because a model is still missing, the
+episode stops showing **Waiting for setup** and Run works as usual. Studio tries the
+queued run again after its next download, or once more when it next starts, and the
+episode shows **Waiting for setup** again while that download runs. A model
+installed with `podcast bootstrap` is picked up when Studio next restarts or when you
+press Run. A queued run that ends for any other reason is removed, so start it again
+with Run. A queued run survives an unmounted drive, except that a project file stored directly at the top of a drive is dropped if the drive is unmounted; press Run to start it again. If only the project
+file is deleted from a folder that is still there, the run is dropped. If the episode's
+folder is moved or deleted, the entry stays but never starts: import the episode again
+from its new place. Standalone CLI and MCP import and pipeline commands keep their explicit run behavior.
 
 **Download progress and failures.** A download reports bytes against a total when its source gives one: the CDN or upstream stream uses `Content-Length`, a pinned Hugging Face snapshot (the word aligner and the catalog Whisper sizes) sums the files a dry run says it will fetch, and an unpinned Whisper size has no byte source, so it shows the registry's size text with no percentage. On a terminal `podcast bootstrap` draws a byte bar; piped, it prints `[get] <id> (<size>)` before each model and `[ok]` / `[fail]` after (see [cli-progress.md](cli-progress.md#podcast-bootstrap)). A failure is one of `http` (with the status), `pin_mismatch`, `network` or `disk`, worded in plain text that names no path, URL or environment variable; the cause with its traceback is logged at warning level (`podcast bootstrap` keeps it off the terminal unless `PODCAST_DEBUG=1`). In the CLI, a `pin_mismatch` ends with the `podcast bootstrap ... --upgrade` command that fetches the model again. Studio reports that the downloaded model is not the expected version and offers an in-app retry. Anything else is a bug: it is logged and reported as "<model> could not be installed." with no detail, in the `[fail]` line, the job and the progress events. A Studio bootstrap job carries `download` (`component`, `bytes`, `total`; null between downloads) and, once a component failed, `failure` (`kind`, `status`, `plain`). For a known failure its `error` is that `plain` text; for an unexpected one `error` is the generic text and `failure` is null. Cancelling a job stops a CDN stream within about a megabyte. A Hugging Face download is asked to stop at its next byte update, which the library delivers from its download threads. That the exception ends a transfer already running in one is checked only against a stand-in for the hub, so a large file may finish first.
 

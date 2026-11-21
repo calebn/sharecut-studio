@@ -81,6 +81,7 @@ class SetupRunQueue:
         self.jobs = jobs
         self.path = path or settings.config_dir() / "setup-runs.json"
         self._launch_project = initial_project.resolve() if initial_project else None
+        self._parked: dict[Path, tuple[str | None, str | None]] = {}
 
     def _read(self) -> list[SetupRun]:
         try:
@@ -100,7 +101,10 @@ class SetupRunQueue:
     def waiting(self, project_path: Path | str) -> bool:
         path = Path(project_path).resolve()
         try:
-            return any(entry.path == path and self._owns(entry) for entry in self._read())
+            parked = self._parked.get(path) == self._model_epoch()
+            return not parked and any(
+                entry.path == path and self._owns(entry) for entry in self._read()
+            )
         except (OSError, ValueError):
             logger.warning("Could not read queued setup runs")
             return False
@@ -115,6 +119,10 @@ class SetupRunQueue:
         ):
             return download.whisper_model
         return None
+
+    def _model_epoch(self) -> tuple[str | None, str | None]:
+        download = self.jobs.get_bootstrap_job()
+        return (None, None) if download is None else (download.id, download.status)
 
     def _resolve_model(self, entry: SetupRun, downloading_model: str | None) -> SetupRun:
         config = merge_pipeline_config(entry.config)
@@ -148,6 +156,7 @@ class SetupRunQueue:
             launch_project=self._launch_project,
         )
         with hold_shared_file_lock(self.path.with_suffix(".lock"), timeout=2):
+            self._parked.pop(path, None)
             entries = self._read()
             existing = next((entry for entry in entries if entry.path == path), None)
             if existing is not None:
@@ -175,15 +184,24 @@ class SetupRunQueue:
                 return
             if not self._owns(entry):
                 continue
-            run = self._resolve_model(entry, self._downloading_whisper_model())
-            if not _models_ready(run):
-                continue
+            epoch = self._model_epoch()
             try:
                 project = load_project(entry.path)
+            except FileNotFoundError:
+                if entry.path.parent.is_dir():
+                    self._parked.pop(entry.path, None)
+                    self._remove(entry)
+                continue
             except (OSError, ValueError):
                 continue
             if project.created_at != entry.created_at or not _needs_transcription(project):
+                self._parked.pop(entry.path, None)
                 self._remove(entry)
+                continue
+            if self._parked.get(entry.path) == epoch:
+                continue
+            run = self._resolve_model(entry, self._downloading_whisper_model())
+            if not _models_ready(run):
                 continue
             if stop.is_set():
                 return
@@ -199,7 +217,10 @@ class SetupRunQueue:
             while job.status in LIVE_JOB_STATUSES:
                 if stop.wait(_POLL_SECONDS):
                     return
-            if job.error_code != "model_needed":
+            if job.error_code == "model_needed":
+                self._parked[entry.path] = epoch
+            else:
+                self._parked.pop(entry.path, None)
                 self._remove(entry)
             return
 

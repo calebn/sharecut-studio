@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import errno
+import shutil
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -259,3 +261,307 @@ def test_studio_starts_the_waiting_episode_after_the_person_opens_another(
         assert app.state.jobs.wait(job, timeout=3).status == "ok"
 
     assert opened == [imported_project]
+
+
+def _failing_start(jobs: JobManager, monkeypatch: pytest.MonkeyPatch, code: str | None) -> list:
+    calls: list = []
+
+    def start(project_path, **_opts):
+        calls.append(project_path)
+        if code is None:
+            return Job(id=f"run-{len(calls)}", kind="pipeline", status="ok")
+        return Job(id=f"run-{len(calls)}", kind="pipeline", status="error", error_code=code)
+
+    monkeypatch.setattr(jobs, "start", start)
+    return calls
+
+
+def test_a_run_that_keeps_failing_model_needed_is_not_restarted_every_poll(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    path = tmp_path / "setup-runs.json"
+    queue = SetupRunQueue(jobs, path)
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    queue.enqueue(imported_project)
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: True)
+    calls = _failing_start(jobs, monkeypatch, "model_needed")
+    for _ in range(3):
+        queue._dispatch(threading.Event())
+    assert len(calls) == 1
+    assert len(queue._read()) == 1
+
+    SetupRunQueue(jobs, path)._dispatch(threading.Event())
+    assert len(calls) == 2
+
+
+def test_a_parked_run_retries_after_a_studio_download_changes(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    queue = SetupRunQueue(jobs, tmp_path / "setup-runs.json")
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    queue.enqueue(imported_project)
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: True)
+    calls = _failing_start(jobs, monkeypatch, "model_needed")
+    download = Job.bootstrap("fetch", ["whisper"], whisper_model="small.en")
+    monkeypatch.setattr(jobs, "get_bootstrap_job", lambda: download)
+    queue._dispatch(threading.Event())
+    queue._dispatch(threading.Event())
+    assert len(calls) == 1
+
+    download.status = "ok"
+    queue._dispatch(threading.Event())
+    queue._dispatch(threading.Event())
+    assert len(calls) == 2
+
+    download = Job.bootstrap("fetch-2", ["whisper"], whisper_model="small.en")
+    queue._dispatch(threading.Event())
+    assert len(calls) == 3
+
+    calls_ok = _failing_start(jobs, monkeypatch, None)
+    download = Job.bootstrap("fetch-3", ["whisper"], whisper_model="small.en")
+    queue._dispatch(threading.Event())
+    assert len(calls_ok) == 1
+    assert not queue.waiting(imported_project)
+
+
+@pytest.mark.parametrize("ready", [True, False])
+def test_an_episode_that_is_gone_is_dropped(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ready: bool
+) -> None:
+    jobs = JobManager()
+    queue = SetupRunQueue(jobs, tmp_path / "setup-runs.json")
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    queue.enqueue(imported_project)
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: ready)
+    calls = _failing_start(jobs, monkeypatch, None)
+    imported_project.unlink()
+    queue._dispatch(threading.Event())
+    assert not queue.waiting(imported_project)
+    assert queue._read() == []
+    assert calls == []
+
+
+def test_a_moved_episode_folder_leaves_a_dead_entry_that_never_starts(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    queue = SetupRunQueue(jobs, tmp_path / "setup-runs.json")
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    queue.enqueue(imported_project)
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: True)
+    calls = _failing_start(jobs, monkeypatch, None)
+    shutil.move(imported_project.parent, tmp_path / "moved")
+    for _ in range(3):
+        queue._dispatch(threading.Event())
+    assert len(queue._read()) == 1
+    assert calls == []
+
+
+def test_an_unreachable_episode_stays_queued(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    queue = SetupRunQueue(jobs, tmp_path / "setup-runs.json")
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    queue.enqueue(imported_project)
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: True)
+    calls = _failing_start(jobs, monkeypatch, None)
+
+    def unreachable(_path):
+        raise OSError(errno.EIO, "Input/output error")
+
+    monkeypatch.setattr(queue_module, "load_project", unreachable)
+    queue._dispatch(threading.Event())
+    assert queue.waiting(imported_project)
+    assert calls == []
+
+
+def _queued_and_ready(
+    jobs: JobManager, path: Path, project: Path, monkeypatch: pytest.MonkeyPatch
+) -> SetupRunQueue:
+    queue = SetupRunQueue(jobs, path)
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    queue.enqueue(project)
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: True)
+    return queue
+
+
+def test_a_parked_episode_that_is_gone_is_still_dropped(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    queue = _queued_and_ready(jobs, tmp_path / "setup-runs.json", imported_project, monkeypatch)
+    _failing_start(jobs, monkeypatch, "model_needed")
+    queue._dispatch(threading.Event())
+    assert queue._parked
+    imported_project.unlink()
+    queue._dispatch(threading.Event())
+    assert queue._read() == []
+    assert queue._parked == {}
+
+
+def test_a_parked_episode_is_not_reported_as_waiting_and_can_be_run(
+    imported_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    started = []
+    monkeypatch.setattr(
+        PipelineService,
+        "run",
+        lambda service, **_kw: (
+            started.append(service.ws.path)
+            or SimpleNamespace(last_step="transcribe_tracks", job_result=dict)
+        ),
+    )
+    app = create_app(served_project=imported_project, host_mcp=False)
+    client = TestClient(app, client=("127.0.0.1", 5000))
+    assert client.post("/api/pipeline/setup-run", json={"path": str(imported_project)}).json() == {
+        "queued": True
+    }
+    queue = app.state.setup_runs
+    assert queue.waiting(imported_project)
+    queue._parked[imported_project.resolve()] = queue._model_epoch()
+    assert not queue.waiting(imported_project)
+    assert not client.get("/api/pipeline/status").json().get("waiting_for_setup")
+    res = client.post("/api/pipeline/run", json={"path": str(imported_project)})
+    assert res.headers.get("x-sharecut-error-code") != "pipeline_setup_waiting"
+
+
+def test_a_parked_episode_waits_again_when_a_download_changes(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    queue = _queued_and_ready(jobs, tmp_path / "setup-runs.json", imported_project, monkeypatch)
+    _failing_start(jobs, monkeypatch, "model_needed")
+    download = Job.bootstrap("fetch", ["whisper"], whisper_model="small.en")
+    monkeypatch.setattr(jobs, "get_bootstrap_job", lambda: download)
+    queue._dispatch(threading.Event())
+    assert not queue.waiting(imported_project)
+    download.status = "ok"
+    assert queue.waiting(imported_project)
+
+
+def test_a_run_that_fails_for_another_reason_is_removed(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    queue = _queued_and_ready(jobs, tmp_path / "setup-runs.json", imported_project, monkeypatch)
+    calls = _failing_start(jobs, monkeypatch, "pipeline_failed")
+    queue._dispatch(threading.Event())
+    assert len(calls) == 1
+    assert queue._read() == []
+
+
+def test_the_download_state_is_captured_before_the_run_starts(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    queue = _queued_and_ready(jobs, tmp_path / "setup-runs.json", imported_project, monkeypatch)
+    download = Job.bootstrap("fetch", ["whisper"], whisper_model="small.en")
+    monkeypatch.setattr(jobs, "get_bootstrap_job", lambda: download)
+    calls = []
+
+    def start(project_path, **_opts):
+        calls.append(project_path)
+        if len(calls) == 1:
+            download.status = "ok"
+        return Job(
+            id=f"run-{len(calls)}", kind="pipeline", status="error", error_code="model_needed"
+        )
+
+    monkeypatch.setattr(jobs, "start", start)
+    for _ in range(4):
+        queue._dispatch(threading.Event())
+    assert len(calls) == 2
+
+
+def test_an_unreadable_project_file_keeps_the_entry(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    queue = _queued_and_ready(jobs, tmp_path / "setup-runs.json", imported_project, monkeypatch)
+    calls = _failing_start(jobs, monkeypatch, None)
+    imported_project.write_text("not a project")
+    queue._dispatch(threading.Event())
+    assert queue.waiting(imported_project)
+    assert calls == []
+
+
+def test_enqueueing_again_clears_the_park(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    queue = _queued_and_ready(jobs, tmp_path / "setup-runs.json", imported_project, monkeypatch)
+    calls = _failing_start(jobs, monkeypatch, "model_needed")
+    queue._dispatch(threading.Event())
+    assert queue.enqueue(imported_project)
+    queue._dispatch(threading.Event())
+    assert len(calls) == 2
+
+
+def test_a_parked_episode_that_is_now_transcribed_is_removed(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    queue = _queued_and_ready(jobs, tmp_path / "setup-runs.json", imported_project, monkeypatch)
+    calls = _failing_start(jobs, monkeypatch, "model_needed")
+    queue._dispatch(threading.Event())
+    assert queue._parked
+    monkeypatch.setattr(queue_module, "_needs_transcription", lambda _project: False)
+    queue._dispatch(threading.Event())
+    assert queue._read() == []
+    assert queue._parked == {}
+    download = Job.bootstrap("fetch", ["whisper"], whisper_model="small.en")
+    monkeypatch.setattr(jobs, "get_bootstrap_job", lambda: download)
+    assert not queue.waiting(imported_project)
+    assert len(calls) == 1
+
+
+def test_an_unmounted_volume_keeps_the_run_until_it_is_back(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    episode = tmp_path / "volume" / "library" / "episode.sharecut"
+    episode.parent.mkdir(parents=True)
+    shutil.copy(imported_project, episode)
+    jobs = JobManager()
+    queue = _queued_and_ready(jobs, tmp_path / "setup-runs.json", episode, monkeypatch)
+    calls = _failing_start(jobs, monkeypatch, None)
+    saved = episode.read_bytes()
+    shutil.rmtree(tmp_path / "volume" / "library")
+    queue._dispatch(threading.Event())
+    assert queue.waiting(episode)
+    assert calls == []
+
+    episode.parent.mkdir()
+    episode.write_bytes(saved)
+    queue._dispatch(threading.Event())
+    assert calls == [episode]
+    assert queue._read() == []
+
+
+def test_a_project_file_deleted_from_a_reachable_folder_is_dropped(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    episode = tmp_path / "volume" / "library" / "episode.sharecut"
+    episode.parent.mkdir(parents=True)
+    shutil.copy(imported_project, episode)
+    jobs = JobManager()
+    queue = _queued_and_ready(jobs, tmp_path / "setup-runs.json", episode, monkeypatch)
+    episode.unlink()
+    queue._dispatch(threading.Event())
+    assert queue._read() == []
+
+
+def test_a_replaced_episode_is_dropped_while_models_are_missing(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    queue = _queued_and_ready(jobs, tmp_path / "setup-runs.json", imported_project, monkeypatch)
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    project = load_project(imported_project)
+    project.meta.created_at = "2001-01-01T00:00:00Z"
+    save_project(project, imported_project)
+    queue._dispatch(threading.Event())
+    assert queue._read() == []
