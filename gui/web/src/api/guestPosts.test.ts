@@ -165,12 +165,7 @@ describe("sendGuestPost", () => {
       "retry",
       true,
     ],
-    [
-      "a 404 with no code",
-      async () => json(404, {}),
-      "refused",
-      undefined,
-    ],
+    ["a 404 with no code", async () => json(404, {}), "refused", undefined],
     [
       "a link that no longer comments",
       async () => json(403, {}, "share_capability_required"),
