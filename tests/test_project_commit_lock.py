@@ -14,14 +14,17 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from fastapi.testclient import TestClient
 from filelock import FileLock, Timeout
 
-from podcast_mcp.models import load_project
+from podcast_mcp.gui.server import create_app
+from podcast_mcp.models import ReviewMixVersion, load_project
 from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import review_versions
 from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.document import CommentService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
@@ -416,6 +419,44 @@ def test_document_submit_waits_for_another_process_holding_the_commit_lock(
     assert svc.store.commands_after(0) == []
     assert svc.submit(cmd)["ok"]
     assert [c.body for c in load_project(minimal_project).comments] == ["wait"]
+
+
+def test_guest_project_reads_saved_history_during_another_process_commit(
+    minimal_project, sample_wav, monkeypatch
+):
+    ws = ProjectWorkspace.open(minimal_project)
+    lock_path = project_commit_lock_path(ws.project)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    version = ReviewMixVersion(
+        id="guest-view",
+        label="Guest view",
+        created_at="2026-01-01T00:00:00Z",
+        audio_relpath="artifacts/review.wav",
+    )
+    (ws.project.workspace_path() / version.audio_relpath).write_bytes(sample_wav.read_bytes())
+    with ws.transaction() as project:
+        project.review.versions.append(version)
+        project.review.active_version_id = version.id
+        ws.history().record(project, "start")
+        ws.save()
+    token = ShareService(ws).create(review_version_id=version.id, capabilities=["play", "view"])[
+        "token"
+    ]
+    head = ws.project.history.head_id()
+    monkeypatch.setattr(project_state, "PROJECT_COMMIT_LOCK_TIMEOUT_SEC", 0.3)
+    ready, release = _CTX.Event(), _CTX.Event()
+    holder = _CTX.Process(target=_hold_lock, args=(str(lock_path), ready, release))
+    holder.start()
+    try:
+        assert ready.wait(30)
+        response = TestClient(create_app()).get(f"/api/review/{token}/daw/project")
+        assert response.status_code == 200
+        history = response.json()["history"]
+        assert history["head_id"] == head
+        assert not history["can_undo"] and not history["can_redo"]
+    finally:
+        release.set()
+        reap(holder, 30)
 
 
 def test_stale_workspace_keeps_a_commit_from_another_process(minimal_project):
