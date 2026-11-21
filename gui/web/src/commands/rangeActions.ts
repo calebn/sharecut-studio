@@ -2,6 +2,8 @@ import { replyHistoryHead, submitDocumentCommand } from "../api/documentEdits";
 import { hostFetch } from "../api/documentTransport";
 import { apiSend } from "../api/http";
 import { commentDraftFromRange } from "../comments/commentAnchor";
+import { documentAuthority } from "../document/authorityState";
+import { snapshotFromResult } from "../document/projectPatch";
 import { setClipboard } from "../edit/clipboard";
 import { exportRequestNow } from "../edit/exportRange";
 import {
@@ -241,8 +243,14 @@ export async function runRangeAction(
         const shown = result.type === "Applied" ? cutToast : null;
         const current = useDawStore.getState();
         if (editVisit !== null && current.editVisit === editVisit) {
+          const seq =
+            typeof result.server_seq === "number"
+              ? result.server_seq
+              : snapshotFromResult(result)?.server_seq;
           current.setAfterCut(
             shown?.follow &&
+              (seq === undefined ||
+                seq >= documentAuthority.editHeadChangeSeq) &&
               selection?.kind === "transcriptRange" &&
               current.selection === null &&
               live.shellBreakpoint !== "phone"

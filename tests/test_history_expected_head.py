@@ -195,6 +195,20 @@ def _preview_render(project_path: Path, decision_id: str) -> None:
     )
 
 
+def test_document_snapshot_separates_the_edit_from_its_preview(minimal_project):
+    _seed(minimal_project)
+    svc = DocumentSyncService.open(minimal_project)
+    edit_head = _host_reject(svc)["history_head_id"]
+    _preview_render(minimal_project, "render-1")
+    preview_head = _status(minimal_project).head_id
+    assert preview_head != edit_head
+
+    for projection in ("shell", "detail", "full", "comments"):
+        history = svc.document_snapshot(projection=projection)["history"]
+        assert history["head_id"] == preview_head
+        assert history["edit_head_id"] == edit_head
+
+
 def test_a_second_undo_after_two_approvals_each_followed_by_a_preview_reverts_the_first(
     minimal_project,
 ):
@@ -470,19 +484,26 @@ def test_a_guest_view_carries_the_opaque_head_and_no_history_labels(
     _seed(minimal_project)
     _agent_edit(minimal_project)
     token = _editor_share(published_share)
-    head = _status(minimal_project).head_id
+    edit_head = _status(minimal_project).head_id
+    _preview_render(minimal_project, "render-1")
+    preview_head = _status(minimal_project).head_id
+    assert preview_head != edit_head
 
     state = TestClient(create_app()).get(f"/api/review/{token}/daw/document/state").json()
 
-    assert state["project"]["history"]["head_id"] == head
+    assert state["project"]["history"]["head_id"] == preview_head
+    assert state["project"]["history"]["edit_head_id"] == edit_head
     assert state["project"]["history"]["groups"] == []
+    assert state["history"]["head_id"] == preview_head
+    assert state["history"]["edit_head_id"] == edit_head
     assert "agent cut" not in str(state)
 
 
-def test_guest_history_sanitizers_keep_only_the_head():
+def test_guest_history_sanitizers_keep_opaque_heads_only():
     host_history = {
         "cursor": 3,
         "head_id": "a1b2c3d4e5f6",
+        "edit_head_id": "b1c2d3e4f5a6",
         "can_undo": True,
         "can_redo": False,
         "groups": [{"kind": "mutation", "title": "cut /Users/host/secret.wav"}],
@@ -494,8 +515,12 @@ def test_guest_history_sanitizers_keep_only_the_head():
 
     for history in (view["history"], event["snapshot"]["history"]):
         assert history["head_id"] == "a1b2c3d4e5f6"
+        assert history["edit_head_id"] == "b1c2d3e4f5a6"
         assert history["groups"] == [] and history["entries"] == []
         assert "secret" not in str(history)
+
+    host_history["edit_head_id"] = "/Users/host/secret.wav"
+    assert "edit_head_id" not in sanitize_guest_project_view({"history": host_history})["history"]
 
 
 def test_a_guest_undo_refuses_an_agent_edit_the_guest_never_saw(minimal_project, published_share):

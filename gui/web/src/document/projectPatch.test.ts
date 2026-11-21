@@ -6,7 +6,11 @@ import {
   sampleComment,
   sampleTrack,
 } from "../test/fixtures";
-import { HISTORY_ROOT_ID, type ProjectView } from "../types/project";
+import {
+  HISTORY_ROOT_ID,
+  type ProjectView,
+  parseHistoryEntryId,
+} from "../types/project";
 import { transcriptSpanText } from "../utils/transcript";
 import {
   commentFromCommandResult,
@@ -21,6 +25,19 @@ import {
 } from "./projectPatch";
 
 describe("mergeProjectPatch", () => {
+  it("does not carry a previous edit head into a patch with a different raw head", () => {
+    const { history } = minimalProject();
+    const previous = minimalProject({
+      history: { ...history, edit_head_id: HISTORY_ROOT_ID },
+    });
+    const head = parseHistoryEntryId("next-edit")!;
+    const applied = projectFromDocumentSnapshot(previous, {
+      patch: { history: { ...history, head_id: head } },
+    });
+    expect(applied?.history.head_id).toBe(head);
+    expect(applied?.history.edit_head_id).toBeUndefined();
+  });
+
   it("keeps identity for keys omitted from the patch", () => {
     const prev = minimalProject();
     const next = mergeProjectPatch(prev, {
@@ -1915,6 +1932,28 @@ describe("projectFromDocumentSnapshot", () => {
     });
     expect(next?.history.groups).toEqual([{ kind: "snapshot", title: "old" }]);
     expect(next?.history.cursor).toBe(1);
+  });
+
+  it("keeps an edit head for same-head shell and flag updates only", () => {
+    const { history } = minimalProject();
+    const preview = parseHistoryEntryId("render-preview")!;
+    const previous = minimalProject({
+      history: {
+        ...history,
+        head_id: preview,
+        edit_head_id: HISTORY_ROOT_ID,
+      },
+    });
+    const shell = projectFromDocumentSnapshot(previous, {
+      project: minimalProject({ history: { ...history, head_id: preview } }),
+      history: { can_redo: true },
+    });
+    expect(shell?.history.edit_head_id).toBe(HISTORY_ROOT_ID);
+    expect(shell?.history.can_redo).toBe(true);
+    const moved = projectFromDocumentSnapshot(shell, {
+      history: { head_id: parseHistoryEntryId("next-edit")! },
+    });
+    expect(moved?.history.edit_head_id).toBeUndefined();
   });
 
   it("applies history groups on top of a shell project snapshot", () => {

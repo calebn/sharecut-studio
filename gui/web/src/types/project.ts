@@ -554,11 +554,25 @@ export interface ProjectView
     cursor: number;
     /** The entry the project holds now; unlike `cursor`, it never names a different entry. */
     head_id: HistoryEntryId;
+    /** The current edit head, excluding preview-render entries. */
+    edit_head_id?: HistoryEntryId;
     can_undo: boolean;
     can_redo: boolean;
     groups: HistoryGroup[];
   };
   transcript: { utterances: CombinedUtterance[] } | null;
+}
+
+export function historyEditChanged(
+  previous: ProjectView["history"] | undefined,
+  next: ProjectView["history"] | undefined,
+): boolean {
+  return (
+    previous?.head_id !== next?.head_id &&
+    (previous?.edit_head_id === undefined ||
+      next?.edit_head_id === undefined ||
+      previous.edit_head_id !== next.edit_head_id)
+  );
 }
 
 export type Selection =

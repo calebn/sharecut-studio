@@ -28,7 +28,7 @@ from podcast_mcp.services.collaboration.share_capabilities import (
 )
 from podcast_mcp.services.document_sync import DocumentSyncService, host_document_event
 
-HISTORY_KEYS = {"cursor", "can_undo", "can_redo", "entries", "groups", "head_id"}
+HISTORY_KEYS = {"cursor", "can_undo", "can_redo", "entries", "groups", "head_id", "edit_head_id"}
 
 
 @pytest.fixture(autouse=True)

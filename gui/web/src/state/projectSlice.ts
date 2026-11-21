@@ -11,6 +11,7 @@ import type { PipelineJobSnapshot } from "../types/pipeline";
 import type { ProjectView } from "../types/project";
 import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
+import { afterCutAfterProject } from "./afterCutSlice";
 import { presenceProjectInitial } from "./presenceSlice";
 import {
   chapterFollowPatch,
@@ -248,6 +249,7 @@ export const createProjectSlice: StateCreator<
         : {
             heldTrim: null,
             project,
+            afterCut: afterCutAfterProject(state, project),
             ...chapterFollowPatch(state, project),
             ...transcriptSelectionFollowPatch(state, project),
             ...zoomReclampPatch(state, sessionSecOf({ project })),

@@ -4,6 +4,7 @@ import { useDawStore } from "../state/dawStore";
 import { enqueueInbound, pendingInboundCount } from "../sync/inboundQueue";
 import { minimalProject } from "../test/fixtures";
 import { DocumentCommand } from "../types/documentCommands.generated";
+import { HISTORY_ROOT_ID, parseHistoryEntryId } from "../types/project";
 import { documentClientId } from "../utils/documentClient";
 import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
 import {
@@ -40,6 +41,76 @@ const track = (id: string) => ({
 });
 
 describe("applyDocumentSnapshot", () => {
+  it("orders delayed edits against editorial moves, including legacy snapshots", () => {
+    resetDocumentSeqForTests();
+    const initial = minimalProject();
+    useDawStore.getState().hydrate("/tmp/p.json", initial);
+    applyDocumentSnapshot({
+      server_seq: 1,
+      project: minimalProject({
+        history: { ...initial.history, edit_head_id: HISTORY_ROOT_ID },
+      }),
+    });
+    const cut = parseHistoryEntryId("cut")!;
+    const historyAfterCut = {
+      ...initial.history,
+      head_id: cut,
+      edit_head_id: cut,
+    };
+    const cutToken = "a".repeat(64);
+    applyDocumentSnapshot({
+      state_token: cutToken,
+      server_seq: 2,
+      project: minimalProject({ history: historyAfterCut }),
+    });
+    expect(documentAuthority.editHeadChangeSeq).toBe(2);
+
+    const preview = parseHistoryEntryId("render-preview")!;
+    applyDocumentSnapshot({
+      server_seq: 3,
+      delta: {
+        audience: "host",
+        projection: "shell",
+        base_seq: 2,
+        base_token: cutToken,
+        operations: [
+          {
+            type: "replace",
+            section: "history",
+            parent: null,
+            value: {
+              cursor: 2,
+              head_id: preview,
+              edit_head_id: cut,
+              can_undo: true,
+              can_redo: false,
+            },
+          },
+        ],
+      },
+    });
+    expect(useDawStore.getState().project?.history).toMatchObject({
+      head_id: preview,
+      edit_head_id: cut,
+    });
+    expect(documentAuthority.editHeadChangeSeq).toBe(2);
+
+    const nextPreview = parseHistoryEntryId("next-preview")!;
+    const legacyHistory = { ...initial.history, head_id: nextPreview };
+    applyDocumentSnapshot({
+      server_seq: 4,
+      project: minimalProject({ history: legacyHistory }),
+    });
+    expect(documentAuthority.editHeadChangeSeq).toBe(4);
+    applyDocumentSnapshot({
+      server_seq: 5,
+      project: minimalProject({
+        history: { ...legacyHistory, edit_head_id: cut },
+      }),
+    });
+    expect(documentAuthority.editHeadChangeSeq).toBe(4);
+  });
+
   it("applies a chained comments ExternalMutate without shell recovery", () => {
     resetDocumentSeqForTests();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
