@@ -21,6 +21,7 @@ import {
   placesOf,
   rangeHint,
   roundTo,
+  roundWithinBounds,
   steppedValue,
 } from "./scrubMath";
 import { listenForDragEscape } from "./useGrab";
@@ -49,6 +50,8 @@ export type ScrubFieldProps = ScrubRange & {
   pixelsPerStep?: number;
   /** Alt gives a tenth of the step, so a whole-number field that wants Alt needs one more place. */
   decimals?: number;
+  /** Keeps exact min and max selectable alongside the rounded values. */
+  exactBounds?: boolean;
   /** Reset target shown by the dot and, for level fields, a double activation. */
   defaultValue?: number;
   readOnly?: boolean;
@@ -112,6 +115,7 @@ export function ScrubField({
   multiplicative = false,
   pixelsPerStep = 1,
   decimals = multiplicative ? 2 : placesOf(step),
+  exactBounds = false,
   defaultValue,
   readOnly = false,
   busy = false,
@@ -130,12 +134,18 @@ export function ScrubField({
   max,
 }: ScrubFieldProps) {
   const grid = 10 ** decimals;
-  const bounds = {
-    min:
-      min === undefined ? undefined : Math.ceil(min * grid - 1e-9) / grid || 0,
-    max:
-      max === undefined ? undefined : Math.floor(max * grid + 1e-9) / grid || 0,
-  };
+  const bounds = exactBounds
+    ? { min, max, exact: true }
+    : {
+        min:
+          min === undefined
+            ? undefined
+            : Math.ceil(min * grid - 1e-9) / grid || 0,
+        max:
+          max === undefined
+            ? undefined
+            : Math.floor(max * grid + 1e-9) / grid || 0,
+      };
   const errorId = useId();
   const box = useRef<HTMLSpanElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -145,12 +155,20 @@ export function ScrubField({
   const refocus = useRef(false);
   const latestCancel = useRef(onCancel);
   const [rejected, setRejected] = useState(false);
-  const [draft, setDraftState] = useState<string | null>(null);
+  const [draftState, setDraftState] = useState<{
+    text: string;
+    unchanged: boolean;
+  } | null>(null);
+  const draft = draftState?.text ?? null;
   const setDraft = (next: string | null) => {
     if (draftRef.current === null) openedText.current = next;
     draftRef.current = next;
     if (next === null) setRejected(false);
-    setDraftState(next);
+    setDraftState(
+      next === null
+        ? null
+        : { text: next, unchanged: next === openedText.current },
+    );
   };
 
   const clearLevelReset = () => {
@@ -201,7 +219,7 @@ export function ScrubField({
       (integerOnly && !Number.isInteger(parsed))
     )
       return null;
-    return clamp(roundTo(parsed, decimals), bounds);
+    return roundWithinBounds(parsed, decimals, bounds);
   };
 
   const flushDraft = useRef(() => {});
@@ -237,7 +255,9 @@ export function ScrubField({
   const typed = draft === null ? null : parseScrub(draft, unit);
   const fractional = integerOnly && typed !== null && !Number.isInteger(typed);
   const typedError =
-    draft !== null && (typed === null || !inBounds(typed, bounds) || fractional)
+    draftState !== null &&
+    !(exactBounds && skipUnchanged && draftState.unchanged) &&
+    (typed === null || !inBounds(typed, bounds) || fractional)
       ? fractional && typed !== null && inBounds(typed, bounds)
         ? "Enter a whole number"
         : rangeHint(bounds, unit)
@@ -297,9 +317,11 @@ export function ScrubField({
       bounds,
     );
     gesture.lastX = event.clientX;
-    const rounded = roundTo(gesture.raw, decimals);
+    const rounded = exactBounds
+      ? roundWithinBounds(gesture.raw, decimals, bounds)
+      : roundTo(gesture.raw, decimals);
     const next = snap
-      ? clamp(roundTo(snap(rounded), decimals), bounds)
+      ? roundWithinBounds(snap(rounded), decimals, bounds)
       : rounded;
     if (next === gesture.current) return;
     gesture.current = next;
@@ -339,9 +361,10 @@ export function ScrubField({
       setDraft(nextDraft);
       return;
     }
+    const start = gesture.start ?? base;
     if (
       readOnly ||
-      gesture.current === roundTo(gesture.start ?? base, decimals)
+      gesture.current === (exactBounds ? start : roundTo(start, decimals))
     )
       onCancel?.();
     else onCommit(gesture.current);
@@ -489,11 +512,9 @@ export function ScrubField({
       if (event.repeat) return;
       commitStep(
         multiplicative
-          ? clamp(
-              roundTo(
-                base * step ** (direction * factorScale(event)),
-                decimals,
-              ),
+          ? roundWithinBounds(
+              base * step ** (direction * factorScale(event)),
+              decimals,
               bounds,
             )
           : steppedValue(base, direction, step, event, decimals, bounds),
@@ -516,7 +537,8 @@ export function ScrubField({
   const finishEdit = (how: "enter" | "escape" | "blur") => {
     const text = draftRef.current;
     if (text === null) return;
-    if (readOnly) {
+    const unchanged = skipUnchanged && text === openedText.current;
+    if (readOnly || (exactBounds && unchanged)) {
       refocus.current = how !== "blur";
       setDraft(null);
       return;
@@ -528,8 +550,7 @@ export function ScrubField({
     }
     refocus.current = how !== "blur";
     setDraft(null);
-    if (how === "escape" || next === null) return;
-    if (skipUnchanged && text === openedText.current) return;
+    if (how === "escape" || next === null || unchanged) return;
     if (next !== value || (commitUnchanged && how === "enter")) onCommit(next);
   };
 

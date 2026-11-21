@@ -36,6 +36,19 @@ export function useSocialSections(
     ];
 
   const editable = !isShareProjectKey(projectPath);
+  const normalMinEnd = clip.start + MARKER_MIN_SPAN;
+  const shortClip = clip.end < normalMinEnd;
+  const minEnd = shortClip ? clip.end : normalMinEnd;
+  const maxStart = Math.max(
+    0,
+    shortClip ? clip.start : clip.end - MARKER_MIN_SPAN,
+  );
+  const maxEnd =
+    duration > minEnd
+      ? duration
+      : shortClip && duration > 0
+        ? minEnd
+        : undefined;
 
   const save = async (start: number, end: number) => {
     if (start === clip.start && end === clip.end) return;
@@ -57,6 +70,7 @@ export function useSocialSections(
       decimals={2}
       min={min}
       max={max}
+      exactBounds={shortClip}
       skipUnchanged
       readOnly={!editable || busy}
       busy={busy}
@@ -76,8 +90,6 @@ export function useSocialSections(
       updateSocialClipDetails(projectPath, clip.id, { title: next }),
     );
   };
-
-  const minEnd = clip.start + MARKER_MIN_SPAN;
 
   return [
     {
@@ -104,16 +116,12 @@ export function useSocialSections(
         {
           id: "start",
           label: "Start",
-          control: edge("start", 0, Math.max(0, clip.end - MARKER_MIN_SPAN)),
+          control: edge("start", 0, maxStart),
         },
         {
           id: "end",
           label: "End",
-          control: edge(
-            "end",
-            minEnd,
-            duration > minEnd ? duration : undefined,
-          ),
+          control: edge("end", minEnd, maxEnd),
         },
         ...(clip.score > 0
           ? [
