@@ -1037,6 +1037,42 @@ test("System/Player at a few widths the bar shows exactly these controls (#2576)
   }
 });
 
+test("System/Player caps the Following label at 18ch when the bar has room", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1400, height: 400 });
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  const name = "Rosalind Margaret Alexandra Penelope";
+  await showArgs(
+    page,
+    { story: null },
+    hostBar({ following: { ...FOLLOWING, name } }),
+  );
+  await expect(page.locator(".sys-player-host")).toHaveAttribute(
+    "data-fit",
+    "0",
+  );
+  const label = page.locator(".sys-player-following .sys-player-pill-text");
+  await expect(label).toHaveText(`Following ${name}`);
+  const measured = await label.evaluate((text) => {
+    const probe = document.createElement("span");
+    probe.style.cssText =
+      "position:absolute;visibility:hidden;inline-size:18ch";
+    text.append(probe);
+    try {
+      return {
+        width: text.getBoundingClientRect().width,
+        cap: probe.getBoundingClientRect().width,
+        clipped: text.scrollWidth > text.clientWidth,
+      };
+    } finally {
+      probe.remove();
+    }
+  });
+  expect(measured.width).toBeCloseTo(measured.cap, 1);
+  expect(measured.clipped).toBe(true);
+});
+
 test("System/Player each fit level gives up one more thing, in order (#2576)", async ({
   page,
 }) => {
