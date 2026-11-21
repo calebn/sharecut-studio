@@ -43,7 +43,7 @@ function focusAttention() {
  * The project's save state from the sends this tab has in flight and the
  * offline queue and conflicts the Needs attention rows list. A share guest's
  * queue is the edits waiting to reach the host; a guest reading the saved copy
- * is unreachable. A guest whose open page stopped reaching the host is away.
+ * is unreachable.
  */
 export function useSaveState(): {
   state: SaveState | null;

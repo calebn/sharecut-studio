@@ -122,7 +122,6 @@ function sameRequest(a: BootstrapRequest, b: BootstrapRequest) {
 /** How long a cover with no automatic retry counts an unanswered attempt as trying. */
 const ATTEMPT_PATIENCE_MS = 30_000;
 
-/** How often a page showing the saved copy asks the host again. */
 const COPY_RETRY_MS = 30_000;
 
 /** Attempts for one link kept in flight: the newest and the two before it. */
@@ -330,11 +329,6 @@ function AppInner({ bootName }: { bootName: string | null }) {
     return () => window.clearTimeout(timer);
   }, [autoRetryMs, attempt]);
 
-  // The saved copy leaves itself: while the guest reads it, the same attempt
-  // runs again on a timer, when the browser is back online, when the host
-  // answers after being away and when the cover's Try now is pressed. An answer
-  // swaps the copy for the live episode under the same studio; a failure leaves
-  // the copy where it is.
   const readsCopy =
     reviewToken !== null &&
     shareKey !== null &&

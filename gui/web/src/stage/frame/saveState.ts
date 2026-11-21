@@ -25,7 +25,6 @@ type SaveStateInput = {
   conflicts: readonly OfflineConflict[];
   /** A share guest is reading the saved copy because the host cannot be reached. */
   unreachable: boolean;
-  /** A share guest's open page stopped reaching the host, and why; null while it is reached. */
   away: HostCause | null;
   /** The saved edits on this device could not be read. */
   unreadable: boolean;

@@ -130,7 +130,6 @@ export async function apiSend(
   return res;
 }
 
-/** A request that got no answer from the host: the transport failed or it timed out. */
 function isNoAnswer(error: unknown): boolean {
   return (
     isTransportFailure(error) ||

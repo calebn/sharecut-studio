@@ -21,7 +21,6 @@ export function useReadsSavedCopy(): boolean {
 
 const reopenListeners = new Set<() => void>();
 
-/** The saved copy's cover asked to try the host again; the page that owns the link's answer listens. */
 export function requestSavedCopyReopen(): void {
   for (const listener of [...reopenListeners]) listener();
 }

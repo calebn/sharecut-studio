@@ -1,19 +1,15 @@
 import { useSyncExternalStore } from "react";
 
-/** Why the host cannot be reached: this device has no connection, or the host did not answer. */
 export type HostCause = "device" | "host";
 
-/** Consecutive transport failures that make a page away from its host. */
 const AWAY_AFTER = 2;
 /** How soon one failure is checked again, so a lone blip clears and a real loss confirms. */
 const CONFIRM_MS = 1500;
-/** How often an away page asks again, so it returns without a press. */
 const WHILE_AWAY_MS = 5000;
 
-export type HostReachSnapshot = {
+type HostReachSnapshot = {
   token: string | null;
   cause: HostCause | null;
-  /** Counts each time the page was away and a request got an answer. */
   backSeq: number;
 };
 
@@ -61,8 +57,7 @@ function stopTimers() {
   awayTimer = null;
 }
 
-/** One cheap request; its outcome reaches the store through the request layer. */
-export function probeHostReach(): void {
+function probeHostReach(): void {
   if (probe === null || token === null || probing || watchers === 0) return;
   const current = token;
   probing = true;
@@ -83,7 +78,6 @@ function adopt(next: string) {
   publish();
 }
 
-/** An open page keeps asking while it is away; with no open page the cover's own retries ask. */
 export function watchHostReach(): () => void {
   watchers += 1;
   return () => {
@@ -91,12 +85,10 @@ export function watchHostReach(): () => void {
   };
 }
 
-/** Registered by the request layer, which owns the cheap request. */
 export function setHostReachProbe(next: Probe | null): void {
   probe = next;
 }
 
-/** A review request got no answer: the transport failed or it timed out. */
 export function noteReviewTransportFailure(forToken: string): void {
   adopt(forToken);
   failures += 1;
@@ -115,7 +107,6 @@ export function noteReviewTransportFailure(forToken: string): void {
   if (away !== wasAway) publish();
 }
 
-/** A review request got an HTTP answer, whatever its status. */
 export function noteReviewAnswer(forToken: string): void {
   adopt(forToken);
   failures = 0;
@@ -137,7 +128,6 @@ export function resetHostReach(): void {
   publish();
 }
 
-/** Called each time an away page is answered again. */
 export function subscribeHostBack(
   listener: (token: string) => void,
 ): () => void {
@@ -173,7 +163,6 @@ function getSnapshot(): HostReachSnapshot {
   return snapshot;
 }
 
-/** Whether this review page is away from its host; null while it is reached. */
 export function useHostCause(forToken: string | null): HostCause | null {
   const current = useSyncExternalStore(subscribe, getSnapshot, () => NOT_AWAY);
   return current.token !== null && current.token === forToken
@@ -181,7 +170,6 @@ export function useHostCause(forToken: string | null): HostCause | null {
     : null;
 }
 
-/** How many times this page was away and then answered; changes only then. */
 export function useHostBackCount(forToken: string | null): number {
   return useSyncExternalStore(
     subscribe,

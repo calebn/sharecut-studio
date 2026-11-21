@@ -29,9 +29,8 @@ export function DawProvider({
   const hydrate = useDawStore((s) => s.hydrate);
   const hydratedPath = useRef<string | null>(null);
   useEffect(() => {
-    // The same project with new access (the saved copy became the live
-    // episode) keeps what the studio holds: the project the shell loaded since,
-    // the composer's text and the playhead. Only the access changes.
+    // Same project, new access (saved copy became live): keep the loaded
+    // project, composer text and playhead; only the access changes.
     if (hydratedPath.current === projectPath) {
       useDawStore.setState({
         guestMode,
