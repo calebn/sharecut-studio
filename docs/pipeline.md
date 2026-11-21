@@ -838,7 +838,10 @@ outside the window is not refused. Any crossfade join of a clip in the window, w
 its neighbour is on, adds the overlap and the borrow to the key's `joins` (`crossfade_ms_at_join`,
 the larger of the shorter fade and half the longer, and the `join_borrow_sec` of `join_render_fields`);
 these account for the rendered neighbour's edge-piece length and for mutes that limit
-borrow, including on clips outside the window. A join with no overlap adds nothing. The key also carries `base_profile`, the digest
+borrow, including on clips outside the window. A join with no overlap adds nothing.
+When two adjacent clips end before the window and the left clip's borrowed tail
+can reach into it, the cut runs uncached. A whole-track render can include that tail
+even though the key window excludes both authored clips. The key also carries `base_profile`, the digest
 (`cut_proof.BatchBase.stamp`) of the batch-base profile inputs of every dialogue track (its
 clips, mutes, fades and more). The stamp is computed once per batch, at its first check and before anything is
 applied, so a clip edit applied inside the batch does not move it, and neither does any edit to a

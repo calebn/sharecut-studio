@@ -14,8 +14,8 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import cut_application, cut_policy, cut_safety, verdict_cache
 from podcast_mcp.edits.cut_application import approve_edits, precompute_verdicts
 from podcast_mcp.edits.cut_speech import LaneSourceExtent
-from podcast_mcp.engines.audio import sources
-from podcast_mcp.engines.timeline_render import placed_track_audio
+from podcast_mcp.engines.audio import placed_sources, sources
+from podcast_mcp.engines.timeline_render import placed_track_audio, track_grid
 from podcast_mcp.models import (
     Clip,
     ClipJoinMode,
@@ -872,3 +872,74 @@ def test_the_rendered_tail_of_a_timed_neighbour_changes_the_crossfade_key(
 
     right.join_in_mode = ClipJoinMode.FADE
     assert observe(20.0) == observe(22.4)
+
+
+@pytest.mark.parametrize("separate_track", [False, True])
+def test_a_crossfade_entirely_before_the_window_can_borrow_into_it(
+    tmp_path: Path, separate_track: bool
+) -> None:
+    project = _project(tmp_path)
+    edit = project.edit_decisions[1]
+    span = (edit.start, edit.end)
+    defaults = _KEY_ARGS["defaults"]
+    lo = span[0] - verdict_cache.check_reach_sec(project, edit, span, defaults)
+    edge = lo - 0.012
+    track = project.tracks[0]
+    if separate_track:
+        track = track.model_copy(update={"id": "peer"})
+        project.tracks.append(track)
+    left = Clip(
+        id="left",
+        track_id=track.id,
+        source_start=1,
+        source_end=3,
+        timeline_start=edge - 2,
+        fade_out_ms=40,
+    )
+    right = Clip(
+        id="right",
+        track_id=track.id,
+        source_start=6,
+        source_end=6.08,
+        timeline_start=edge - 0.08,
+        fade_in_ms=40,
+        join_in_mode=ClipJoinMode.CROSSFADE,
+    )
+    project.clips = [
+        left,
+        right,
+        Clip(
+            id="window",
+            track_id="host",
+            source_start=lo + 1,
+            source_end=39,
+            timeline_start=lo + 1,
+        ),
+    ]
+    assert max(left.timeline_end, right.timeline_end) < lo
+    assert span[0] - verdict_cache.check_reach_sec(project, edit, span, defaults) == lo
+
+    def observe(fade_in: int) -> tuple[float, str | None]:
+        right.fade_in_ms = fade_in
+        graph = placed_track_audio(
+            project,
+            track,
+            [left, right],
+            grid=track_grid(project, track, [left, right]),
+        )
+        leaf = next(
+            entry
+            for entry in placed_sources(graph.audio, crossfade_curve="tri")
+            if entry.source.clip_id == right.id
+        )
+        key = verdict_cache.verdict_key(project, edit, **{**_KEY_ARGS, "span": span})
+        return leaf.ramps[0].end, key
+
+    long_end, long_key = observe(40)
+    short_end, short_key = observe(20)
+    assert short_end < lo < long_end
+    assert short_key is not None
+    assert long_key is None
+
+    right.join_in_mode = ClipJoinMode.FADE
+    assert observe(40)[1] == observe(20)[1] == short_key
