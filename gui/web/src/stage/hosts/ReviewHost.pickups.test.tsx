@@ -458,6 +458,52 @@ describe("Review host pickups", () => {
       expect(screen.queryByRole("button", { name: "Next take" })).toBeNull();
     });
 
+    it("waits for fresh take details when a dropped pickup returns", async () => {
+      mount([REPLACE]);
+      expect(
+        await within(switcher()).findByText("“Words of take 1”"),
+      ).toBeVisible();
+
+      act(() => {
+        server.suggestions = [INSERT];
+        applyDocumentSnapshot({
+          server_seq: ++server.seq,
+          project: projectOf(),
+        });
+      });
+      expect(screen.queryByRole("button", { name: "Next take" })).toBeNull();
+
+      let release = () => {};
+      const pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const fetch = wire.fetch.getMockImplementation()!;
+      wire.fetch.mockImplementation(async (url: string) => {
+        if (String(url).includes("/api/session-suggestion/takes?"))
+          await pending;
+        return fetch(url);
+      });
+
+      try {
+        act(() => {
+          server.suggestions = [REPLACE];
+          applyDocumentSnapshot({
+            server_seq: ++server.seq,
+            project: projectOf(),
+          });
+        });
+        await waitFor(() =>
+          expect(fetched("/api/session-suggestion/takes?")).toHaveLength(2),
+        );
+        expect(within(switcher()).queryByText("“Words of take 1”")).toBeNull();
+      } finally {
+        release();
+      }
+      expect(
+        await within(switcher()).findByText("“Words of take 1”"),
+      ).toBeVisible();
+    });
+
     it("Next sends SelectSessionTake with that take, the card reads it from the next patch, and Accept places it", async () => {
       mount([REPLACE]);
       await userEvent.click(screen.getByRole("button", { name: "Next take" }));
