@@ -180,6 +180,41 @@ def _next_document_event(queue, loop, timeout_s: float = 2.0) -> dict:
     return loop.run_until_complete(wait())
 
 
+def test_preview_refresh_pushes_fresh_mix_to_document_subscribers(
+    minimal_project: Path,
+) -> None:
+    import asyncio
+
+    from podcast_mcp.engines.play_audit import premix_is_stale
+    from podcast_mcp.services.document import EpisodeService
+    from podcast_mcp.services.document_sync import document_hub_key
+    from podcast_mcp.services.pipeline import PipelineService
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    project = load_project(minimal_project)
+    finite_primary_recording(project, 2)
+    save_project(project, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    pipeline = PipelineService(ws)
+    assert pipeline.render_preview()["ok"] is True
+    EpisodeService(ws).set_track_volume("host", -3.0)
+    assert premix_is_stale(ws.project, ws.effective_config()) is True
+
+    key = document_hub_key(ws.project)
+    loop = asyncio.new_event_loop()
+    queue = get_hub().subscribe(key, loop)
+    try:
+        assert pipeline.render_preview()["ok"] is True
+        assert premix_is_stale(ws.project, ws.effective_config()) is False
+        event = _next_document_event(queue, loop)
+    finally:
+        get_hub().unsubscribe(key, queue)
+        loop.close()
+
+    assert event["type"] == "Applied"
+    assert event["snapshot"]["project"]["render_status"]["premix"]["is_stale"] is False
+
+
 def test_run_pushes_proposed_pending_edits_to_document_subscribers(
     minimal_project: Path, monkeypatch
 ) -> None:
