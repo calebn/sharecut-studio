@@ -202,6 +202,44 @@ describe("HomeView empty, loading and drop", () => {
     ).toHaveLength(1);
   });
 
+  it("puts the tiles at the top and names the drop on a narrow empty Home", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ width: 390 } as DOMRect);
+    try {
+      setup({ phase: "empty", projects: [] });
+      const tiles = document.querySelector(".sys-home-main .sys-home-tiles");
+      expect(tiles).toContainElement(
+        screen.getByRole("button", { name: /^Import audio/ }),
+      );
+      expect(tiles).toContainElement(
+        screen.getByRole("button", { name: /^Record/ }),
+      );
+      expect(document.querySelector(".sys-home-bar")).toBeNull();
+      expect(screen.getByText("Drop a file anywhere to start.")).toBeVisible();
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it("keeps the phone bar and no drop line once there are recents", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ width: 390 } as DOMRect);
+    try {
+      setup();
+      expect(document.querySelector(".sys-home-bar")).not.toBeNull();
+      expect(screen.queryByText(/Drop a file anywhere/)).toBeNull();
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it("leaves the drop line to the Import tile on a wide empty Home", () => {
+    setup({ phase: "empty", projects: [] });
+    expect(screen.queryByText(/Drop a file anywhere/)).toBeNull();
+  });
+
   it("keeps Import audio default when there are recents", () => {
     setup();
     expect(

@@ -3271,8 +3271,23 @@ html:not([data-shell="phone"])
   }
 }
 
-.sys-home[data-phase="empty"] .sys-home-main {
-  justify-content: center;
+@container sys-home (min-width: 60rem) {
+  .sys-home[data-phase="empty"] .sys-home-main {
+    justify-content: center;
+  }
+}
+
+.sys-home-drop {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  text-align: center;
+}
+
+@media (pointer: coarse) {
+  .sys-home-drop {
+    display: none;
+  }
 }
 
 .sys-home[data-narrow] .sys-home-column {
