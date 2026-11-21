@@ -56,22 +56,16 @@ DEFAULT_FIRST_RUN_COMPONENTS: tuple[str, ...] = tuple(s.id for s in models_for("
 ALL_GUI_COMPONENTS: tuple[str, ...] = tuple(s.id for s in MODELS)
 
 
-def _in_process_linked() -> bool:
-    from podcast_mcp.util import native_ffmpeg
-
-    return native_ffmpeg.is_available()
-
-
 def _unsupported_model_hint(host: host_platform.HostPlatform, model_id: str) -> str | None:
     if host.transcription == "unavailable":
         return (
             host_platform.TRANSCRIPTION_UNAVAILABLE
             if model_id == "whisper"
-            else host_platform.MEDIA_UNAVAILABLE
+            else host_platform.ANALYSIS_UNAVAILABLE
         )
     if host.transcription == "whisper_cpp":
         if model_id != "whisper":
-            return host_platform.MEDIA_UNAVAILABLE
+            return host_platform.ANALYSIS_UNAVAILABLE
         if not native_whisper.is_installed():
             return host_platform.TRANSCRIPTION_UNAVAILABLE
     return None
@@ -104,7 +98,7 @@ def model_status(
     base = model_base(model_id, variant)
     host = host_platform.current()
     if host.media_tools == "unavailable" or (
-        host.media_tools == "in_process" and not _in_process_linked()
+        host.media_tools == "in_process" and in_process_problem() is not None
     ):
         return {**base, "state": "unsupported", "hint": host_platform.MEDIA_UNAVAILABLE}
     if model_id != "rnnoise":
@@ -149,9 +143,11 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     except FFmpegPairResolutionError as exc:
         ffmpeg_pair = None
         ffmpeg_error = str(exc)
-    ffmpeg_ok = ffmpeg_pair is not None and ffmpeg_pair.is_available()
-    if ffmpeg_pair is not None and ffmpeg_pair.is_in_process and not ffmpeg_ok:
+    if ffmpeg_pair is not None and ffmpeg_pair.is_in_process:
         ffmpeg_error = in_process_problem()
+        ffmpeg_ok = ffmpeg_error is None
+    else:
+        ffmpeg_ok = ffmpeg_pair is not None and ffmpeg_pair.is_available()
     ffmpeg_state = (
         "unsupported"
         if host.media_tools == "unavailable"

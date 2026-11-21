@@ -27,6 +27,7 @@ AuditionPlayer = Literal["afplay", "ffplay"]
 
 MEDIA_UNAVAILABLE = "ShareCut can't process audio on this device yet."
 TRANSCRIPTION_UNAVAILABLE = "ShareCut can't transcribe audio on this device yet."
+ANALYSIS_UNAVAILABLE = "ShareCut can't time words or tell speakers apart on this device yet."
 
 
 @dataclass(frozen=True)
