@@ -1460,6 +1460,32 @@ test("System/Player the expanded Player keeps the skip buttons and A and B in a 
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
 });
 
+test("System/Player shows the compact Hear trigger on keyboard focus (#3998)", async ({
+  page,
+}) => {
+  const host = await phoneBar(page, BAR_STATES.followcuts);
+  await expect(host).toHaveAttribute("data-fit", /^[678]$/);
+  const trigger = host.getByRole("button", { name: "Hear options" });
+  const hearEdit = host.getByRole("button", { name: "B", exact: true });
+  await expect(trigger).toHaveCSS("clip-path", "inset(50%)");
+
+  await hearEdit.focus();
+  await page.keyboard.press("Tab");
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveCSS("clip-path", "none");
+  await expect(trigger).toHaveCSS("outline-style", "solid");
+
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu", { name: "Hear" });
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(hearEdit).toBeFocused();
+  await expect(trigger).toHaveCSS("clip-path", "inset(50%)");
+});
+
 for (const triggerShape of ["visually hidden", "narrow and tall"] as const) {
   test(`System/Player the Hear menu opens beside the bar with a ${triggerShape} chevron (#2576)`, async ({
     page,

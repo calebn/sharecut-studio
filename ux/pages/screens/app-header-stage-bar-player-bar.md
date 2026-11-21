@@ -31,6 +31,8 @@ turns status labels into icons. Tighter levels hide the skip controls and
 other secondary actions. If the bar hides a focused skip button or Stop
 following, keyboard focus moves to Play. At the tightest level, open the
 expanded Player for Comment or Retry when those actions are available.
+When the bar hides the Hear options chevron but still shows A and B, Tab to
+Hear options to reveal it and press Enter to open the menu.
 
 Fixed layout rules also apply. At 22 rem or narrower, the A and B buttons give
 way to the Hear menu button. The same swap happens in a short frame, such as a
