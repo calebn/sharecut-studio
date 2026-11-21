@@ -41,7 +41,7 @@ from typer.core import TyperGroup
 from podcast_mcp import settings
 from podcast_mcp.cli.handoff import try_hand_off
 from podcast_mcp.util.coded_error import CodedError, describe_error
-from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError, busy_message
+from podcast_mcp.util.project_state import ProjectBusyError, busy_message
 
 _DEBUG_ENV_VAR = "PODCAST_DEBUG"
 _DEBUG_HINT = f"(set {_DEBUG_ENV_VAR}=1 for the traceback)"
@@ -74,8 +74,7 @@ def _host_busy_message(exc: Timeout) -> str:
     details = [busy_message(exc) + "."]
     contention = exc.contention
     if contention is not None:
-        kind = "render" if isinstance(exc, RenderBusyError) else "project commit"
-        details.append(f"Waited {contention.waited_seconds:.1f}s for the {kind} lock.")
+        details.append(f"Waited {contention.waited_seconds:.1f}s for the {exc.lock_name} lock.")
     if contention is not None and contention.holder_pid is not None:
         details.append(
             f"Kernel-observed holder PID {contention.holder_pid} at timeout; the holder may change."
