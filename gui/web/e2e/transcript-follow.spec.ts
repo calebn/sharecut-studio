@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { USER_SCROLL_INTENT_MS } from "../src/hooks/useUserScrollIntent";
 import { e2eProjectPath } from "./env";
 import { seekTo } from "./playback";
 import { openPanel, openProject } from "./stageNav";
@@ -229,6 +230,43 @@ for (const viewport of viewports) {
         const playing = list.locator(".sys-script-word[data-playing]").first();
         await expect(playing).toBeInViewport({ ratio: 1 });
       }
+    });
+
+    test("Back to playhead restores the current word after a manual scroll", async ({
+      page,
+    }) => {
+      const list = await openFollowedTranscript(page);
+      await seekTo(page, 27);
+      const word = list.locator('[data-word-key="reference::9"]');
+      await expect(word).toHaveAttribute("data-playing", "");
+      await expect(word).toBeInViewport({ ratio: 1 });
+      const followingTop = await settledScrollTop(list);
+      expect(followingTop).toBeGreaterThan(0);
+
+      await list.hover();
+      await page.mouse.wheel(0, -followingTop - 100);
+      const back = page.getByRole("button", {
+        name: "Back to playhead",
+        exact: true,
+      });
+      await expect(back).toBeVisible();
+      expect(await settledScrollTop(list)).toBeLessThan(followingTop);
+      await expect(word).not.toBeInViewport();
+      await expect(word).toHaveAttribute("data-playing", "");
+
+      // Return after a reading pause, once the previous wheel intent expires.
+      const until = await page.evaluate(
+        (duration) => performance.now() + duration,
+        USER_SCROLL_INTENT_MS,
+      );
+      await page.waitForFunction((end) => performance.now() >= end, until);
+      await back.click();
+      await expect(word).toBeInViewport({ ratio: 1 });
+      await expect(back).toBeHidden();
+      await expect(word).toHaveAttribute("data-playing", "");
+      await expect(
+        page.getByRole("button", { name: "Follow the playhead" }),
+      ).toHaveAttribute("aria-pressed", "true");
     });
 
     test("a suppressed word at the playhead never moves the list", async ({
