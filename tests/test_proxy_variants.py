@@ -127,6 +127,25 @@ def test_project_basis_tracks_selected_secondary_recording(workspace, monkeypatc
     assert second.render_hashes["host"] != first.render_hashes["host"]
 
 
+def test_project_basis_tracks_selected_restored_clip_id(workspace, monkeypatch):
+    clip = _choice(workspace, clip_id="first")
+    project = workspace.project
+    defaults = load_defaults()
+
+    # Keep engine digests fixed so only the selected occurrence ID can affect the key.
+    monkeypatch.setattr(pv, "proxy_render_hash", lambda *_args, **_kwargs: "proxy")
+    monkeypatch.setattr(pv, "track_render_hash", lambda *_args, **_kwargs: "track")
+
+    assert pv.select_manifest(project).restored == ("first",)
+    first = pv.project_basis(project, defaults)
+
+    clip.id = "second"
+    assert pv.select_manifest(project).restored == ("second",)
+    second = pv.project_basis(project, defaults)
+
+    assert second.render_hashes["host"] != first.render_hashes["host"]
+
+
 def test_restored_occurrence_reads_non_dialogue_origin_and_lane(workspace):
     ws = workspace
     host = ws.project.track_by_id("host")
