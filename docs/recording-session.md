@@ -984,6 +984,10 @@ Rollback note: a build older than this command cannot replay a `RoomToneCountdow
 
 ## Session target
 
+In Edit and Record, replacement ranges are bounded by the project’s canonical
+timeline duration. A range may extend beyond the last clip if it still ends
+within that duration.
+
 Every room has a `target`: where its session lands on the episode timeline. A room starts at `end` (the default); `start` puts the session at the front of the episode (see Sessions that start the episode below);
 `insert` and `replace` stage the session as a suggestion instead of landing it (see Staged sessions below). `begin_record_session`, `ShareService.create_record_room`
 (`POST /api/shares/record` `target`, `podcast review share --kind record --target`, `create_record_room_tool`
