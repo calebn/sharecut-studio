@@ -14,7 +14,12 @@ async function pendingIds(page: Page): Promise<string[]> {
   return project.pending_edits.map((edit) => edit.id);
 }
 
-const APPROVED = { ok: true, command: { payload: { result: { count: 1 } } } };
+const APPROVED = {
+  ok: true,
+  type: "Applied",
+  review_result: { count: 1, held: [] },
+  command: { payload: { result: { count: 1 } } },
+};
 
 test("explicit interactive approval sends one command without an override flag", async ({
   page,
