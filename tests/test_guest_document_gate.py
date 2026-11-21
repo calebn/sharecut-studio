@@ -632,7 +632,7 @@ def links_with_a_legacy_publish_step(minimal_project, sample_wav) -> dict[str, s
     published = snapshot_from_project(project)
     unpublished = published.model_copy(update={"review": {"comments": []}})
     mgr = HistoryManager(ProjectStore(minimal_project))
-    mgr.record(project, "before publish review version", force=True, snapshot=unpublished)
+    mgr.record(project, "before publish review version", snapshot=unpublished)
     mgr.record(project, "after publish review version", force=True, snapshot=published)
     save_project(project, minimal_project)
     return {
@@ -672,6 +672,17 @@ def test_undo_and_redo_never_end_a_link(minimal_project, sample_wav, actor):
             },
         )
         assert wrote.status_code == 200, wrote.text
+    else:
+        DocumentSyncService.open(minimal_project).submit(
+            DocumentCommand(
+                type="AddChapter",
+                payload={"title": "Host chapter", "time": 1.0},
+                client_id="host",
+                client_seq=None,
+                role="viewer",
+            ),
+            range_policy="apply",
+        )
     listed = share_list_state(minimal_project)
 
     def move(command_type: str) -> None:

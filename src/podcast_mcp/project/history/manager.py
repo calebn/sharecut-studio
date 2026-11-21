@@ -2,10 +2,17 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from functools import cache
 from typing import Literal
 
 from podcast_mcp.models.episode import EpisodeProject
-from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
+from podcast_mcp.models.history import (
+    HistoryEntry,
+    HistoryNavigation,
+    ProjectHistory,
+    ProjectStateSnapshot,
+    StepOwners,
+)
 from podcast_mcp.models.project_format import apply_editable_snapshot
 from podcast_mcp.project.history.author import current_history_author
 from podcast_mcp.project.store import (
@@ -119,6 +126,24 @@ class HistoryManager:
     ) -> ProjectStateSnapshot:
         return read_history_snapshot(project, entry)
 
+    def _navigation(self, project: EpisodeProject, history: ProjectHistory) -> HistoryNavigation:
+        @cache
+        def snapshot(index: int) -> ProjectStateSnapshot:
+            return self._read_snapshot(project, history.entries[index])
+
+        def legacy_publication(index: int) -> bool:
+            entry = history.entries[index]
+            if entry.operation is not None or entry.label != "after publish review version":
+                return False
+            # Old publications used this label. Only skip one whose saved edit state
+            # matches its predecessor; keep unverified rows reachable as normal steps.
+            try:
+                return snapshots_equal(snapshot(index - 1), snapshot(index))
+            except (OSError, ValueError):
+                return False
+
+        return history.navigation(legacy_publication)
+
     def record(
         self,
         project: EpisodeProject,
@@ -141,7 +166,7 @@ class HistoryManager:
         expected_head_id: str | None = None,
         guest: str | None = None,
     ) -> HistoryStatus:
-        """Step back one entry in memory and the history index; with ``expected_head_id``, only
+        """Step back one edit in memory and the history index; with ``expected_head_id``, only
         while that entry is the head. A ``guest`` (their ``share:<id>``) may take back only a
         step they wrote (``nothing_of_yours_to_undo``). Does not commit:
         ``ProjectWorkspace.undo`` or the caller does."""
@@ -155,7 +180,7 @@ class HistoryManager:
         expected_head_id: str | None = None,
         guest: str | None = None,
     ) -> HistoryStatus:
-        """Step forward one entry in memory and the history index; with ``expected_head_id``, only
+        """Step forward past legacy publish-only entries; with ``expected_head_id``, only
         while that entry is the head. A ``guest`` may bring back only a step they undid
         (``nothing_of_yours_to_redo``). Does not commit."""
         with project_commit_lock(project):
@@ -213,18 +238,18 @@ class HistoryManager:
         history = self._load_index(project)
         if not _behind_render_only(history, expected_head_id):
             _require_head(history, "undo", expected_head_id)
-        origin = history.undo_origin()
-        if origin <= 0:
+        origin = self._navigation(project, history).undo_origin
+        if origin is None:
             raise CodedValueError("Nothing to undo", code="nothing_to_undo")
         taken_back = history.entries[origin]
         if guest is not None and taken_back.author != guest:
             raise CodedValueError("Nothing of yours to undo", code="nothing_of_yours_to_undo")
-        taken_back.undone_by = guest or current_history_author()
-        history.cursor = origin - 1
-        entry = history.entries[history.cursor]
+        entry = history.entries[origin - 1]
         apply_snapshot_to_project(
             project, self._read_snapshot(project, entry), keep_review_versions=True
         )
+        taken_back.undone_by = guest or current_history_author()
+        history.cursor = origin - 1
         project.history = history
         self._save_index(project)
         return self.status(project)
@@ -234,16 +259,16 @@ class HistoryManager:
     ) -> HistoryStatus:
         history = self._load_index(project)
         _require_head(history, "redo", expected_head_id)
-        if not history.can_redo():
+        navigation = self._navigation(project, history)
+        if navigation.redo_index is None:
             raise CodedValueError("Nothing to redo", code="nothing_to_redo")
-        target = history.redo_target()
-        if guest is not None and (target is None or target.undone_by != guest):
+        if guest is not None and history.step_owners(navigation).redo != guest:
             raise CodedValueError("Nothing of yours to redo", code="nothing_of_yours_to_redo")
-        history.cursor += 1
-        entry = history.entries[history.cursor]
+        entry = history.entries[navigation.redo_index]
         apply_snapshot_to_project(
             project, self._read_snapshot(project, entry), keep_review_versions=True
         )
+        history.cursor = navigation.redo_index
         project.history = history
         self._save_index(project)
         return self.status(project)
@@ -265,12 +290,17 @@ class HistoryManager:
         self, project: EpisodeProject, action: Literal["undo", "redo", "goto"]
     ) -> HistoryEntry | None:
         """The entry the next ``action`` takes back or brings back; a goto names none."""
+        if action == "goto":
+            return None
         history = self._load_index(project)
-        if action == "undo":
-            return history.undo_target()
-        if action == "redo" and history.can_redo():
-            return history.entries[history.cursor + 1]
-        return None
+        navigation = self._navigation(project, history)
+        index = navigation.undo_origin if action == "undo" else navigation.redo_index
+        return history.entries[index] if index is not None else None
+
+    def step_owners(self, project: EpisodeProject) -> StepOwners:
+        """The guest ownership of the same steps that ordinary Undo and Redo will move."""
+        history = self._load_index(project)
+        return history.step_owners(self._navigation(project, history))
 
     def tip_entry_index(self, project: EpisodeProject, operation: str) -> int | None:
         """Index of the newest ``operation`` entry when the cursor sits at the tip and only
@@ -291,14 +321,15 @@ class HistoryManager:
 
     def status(self, project: EpisodeProject) -> HistoryStatus:
         history = self._load_index(project)
+        navigation = self._navigation(project, history)
         label = None
         if 0 <= history.cursor < len(history.entries):
             label = history.entries[history.cursor].label
         return HistoryStatus(
             cursor=history.cursor,
             total=len(history.entries),
-            can_undo=history.can_undo(),
-            can_redo=history.can_redo(),
+            can_undo=navigation.undo_origin is not None,
+            can_redo=navigation.redo_index is not None,
             current_label=label,
             head_id=history.head_id(),
         )

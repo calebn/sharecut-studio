@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, NamedTuple
 
@@ -29,6 +30,12 @@ class StepOwners(NamedTuple):
     redo: str | None
 
 
+class HistoryNavigation(NamedTuple):
+    undo_origin: int | None
+    redo_index: int | None
+    redo_owner_index: int | None
+
+
 class ProjectHistory(BaseModel):
     """Undo/redo stack; cursor points at the active snapshot entry."""
 
@@ -39,41 +46,45 @@ class ProjectHistory(BaseModel):
         """True before any snapshot has been recorded (no entries, no cursor)."""
         return not self.entries and self.cursor < 0
 
-    def undo_origin(self) -> int:
-        """The cursor an Undo steps back from, skipping automatic ``render_preview`` entries.
+    def navigation(self, skip: Callable[[int], bool] | None = None) -> HistoryNavigation:
+        """Find the next edit in each direction, optionally skipping verified legacy rows.
 
-        Auto refresh-mix lands after the edit that caused it, so Undo on the preview head
-        reverts that edit in one step. A preview below the tip is skipped too, so Undo of
-        the second of two edits does not stop on the first edit's preview (#1675)."""
-        i = self.cursor
-        while 0 < i < len(self.entries) and self.entries[i].operation == "render_preview":
-            i -= 1
-        return i
+        Undo steps back from the edit that caused an automatic preview (#1675). Redo
+        can land on a preview before reaching the edit that governs guest ownership.
+        """
+        if not 0 <= self.cursor < len(self.entries):
+            return HistoryNavigation(None, None, None)
+
+        origin = self.cursor
+        while origin > 0:
+            if self.entries[origin].operation != "render_preview" and not (skip and skip(origin)):
+                break
+            origin -= 1
+
+        redo_index = None
+        redo_owner = None
+        for index in range(self.cursor + 1, len(self.entries)):
+            if skip and skip(index):
+                continue
+            if redo_index is None:
+                redo_index = index
+            if self.entries[index].operation != "render_preview":
+                redo_owner = index
+                break
+        return HistoryNavigation(origin if origin > 0 else None, redo_index, redo_owner)
 
     def can_undo(self) -> bool:
-        return self.undo_origin() > 0
+        return self.navigation().undo_origin is not None
 
     def can_redo(self) -> bool:
-        return self.cursor >= 0 and self.cursor < len(self.entries) - 1
+        return self.navigation().redo_index is not None
 
-    def undo_target(self) -> HistoryEntry | None:
-        """The entry an Undo takes back: the latest one that is not an automatic preview."""
-        origin = self.undo_origin()
-        return self.entries[origin] if 0 < origin < len(self.entries) else None
-
-    def redo_target(self) -> HistoryEntry | None:
-        """The entry a Redo brings back: the first one after the cursor that is not an
-        automatic preview. A press moves one entry, so it may land on a preview first."""
-        if not self.can_redo():
-            return None
-        return next(
-            (e for e in self.entries[self.cursor + 1 :] if e.operation != "render_preview"), None
-        )
-
-    def step_owners(self) -> StepOwners:
+    def step_owners(self, navigation: HistoryNavigation | None = None) -> StepOwners:
         """The author of the step Undo takes back and the one who undid the step Redo brings
         back. A guest may move a step only when it is theirs; ``None`` is never a guest's."""
-        undo, redo = self.undo_target(), self.redo_target()
+        origin, _, redo_owner = navigation or self.navigation()
+        undo = self.entries[origin] if origin is not None else None
+        redo = self.entries[redo_owner] if redo_owner is not None else None
         return StepOwners(undo.author if undo else None, redo.undone_by if redo else None)
 
     def edit_head_id(self) -> str:
