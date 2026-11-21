@@ -65,8 +65,11 @@ from podcast_mcp.services.collaboration.share_registry import (
     share_hard_expired,
     share_is_usable,
 )
-from podcast_mcp.services.document import CommentService, run_comment_mutation_with_file_revisions
-from podcast_mcp.services.document.comment_results import CommentReplyResult
+from podcast_mcp.services.document import (
+    CommentReplyResult,
+    CommentService,
+    run_comment_mutation_with_file_revisions,
+)
 from podcast_mcp.services.document_sync import (
     document_command_types_for_caps,
     document_poll_meta,
