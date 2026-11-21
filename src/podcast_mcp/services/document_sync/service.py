@@ -147,15 +147,18 @@ def dump_projection_locked(
     *,
     projection: str,
     audience: str = "host",
-) -> dict[str, Any]:
-    """Dump a ProjectView slice under the document submit lock."""
+) -> tuple[dict[str, Any], StepOwners]:
+    """Dump a ProjectView slice and its history ownership from one saved revision."""
 
     from podcast_mcp.gui.assembler import dump_project_projection
 
     guest_or_host: Literal["host", "guest"] = "guest" if audience == "guest" else "host"
-    with document_submit_lock(ws.project):
-        ws.reload()
-        return dump_project_projection(ws, projection=projection, audience=guest_or_host)
+    with ws.transaction():
+        dumped = dump_project_projection(ws, projection=projection, audience=guest_or_host)
+        owners = (
+            ws.history().step_owners(ws.project) if "history" in dumped else StepOwners(None, None)
+        )
+        return dumped, owners
 
 
 def _file_wire(revision: FileRevision | None) -> dict[str, int] | None:
@@ -645,6 +648,9 @@ class DocumentSyncService:
                 )
                 return {"server_seq": server_seq, "resync": True}
 
+    def _history_owners(self) -> StepOwners:
+        return self.ws.history().step_owners(self.ws.project)
+
     def _publish_applied(
         self,
         row: dict[str, Any],
@@ -652,6 +658,7 @@ class DocumentSyncService:
         *,
         server_seq: int | None = None,
         guest_snapshot: dict[str, Any] | None = None,
+        history_owners: StepOwners | None = None,
     ) -> dict[str, Any]:
         """Fan out ``Applied`` for journal ``row``. Call under the project lock (and, for a
         write, the journal write lock) so in-process subscribers see events in
@@ -664,7 +671,7 @@ class DocumentSyncService:
             "snapshot": api_snap,
             "server_seq": row["server_seq"] if server_seq is None else server_seq,
         }
-        published = {**event, "_history_owners": self.ws.project.history.step_owners()}
+        published = {**event, "_history_owners": history_owners or self._history_owners()}
         if guest_snapshot is not None:
             published["_guest_snapshot"] = guest_snapshot
         get_hub().publish(self._project_key, published)
@@ -677,7 +684,7 @@ class DocumentSyncService:
         with self._project_ownership():
             return {
                 "snapshot": self.document_snapshot(projection=projection),
-                "_history_owners": self.ws.project.history.step_owners(),
+                "_history_owners": self._history_owners(),
             }
 
     @contextmanager
@@ -852,7 +859,7 @@ class DocumentSyncService:
 
                     return {
                         **sanitize_guest_document_event(reply),
-                        "_history_owners": self.ws.project.history.step_owners(),
+                        "_history_owners": self._history_owners(),
                     }
                 return reply
 
@@ -918,7 +925,10 @@ class DocumentSyncService:
                     )
                     api_snap = {"server_seq": row["server_seq"], "resync": True}
                     guest_snapshot = api_snap
-            event = self._publish_applied(row, api_snap, guest_snapshot=guest_snapshot)
+            history_owners = self._history_owners()
+            event = self._publish_applied(
+                row, api_snap, guest_snapshot=guest_snapshot, history_owners=history_owners
+            )
         # A ripple that would cut other speech changed nothing; its submitter (host or
         # guest) gets the confirmation to show, beside the sanitized event.
         confirmation = result_payload.get("needs_confirmation")
@@ -950,7 +960,7 @@ class DocumentSyncService:
                         ),
                     }
                 ),
-                "_history_owners": self.ws.project.history.step_owners(),
+                "_history_owners": history_owners,
                 **asks,
                 **moved,
             }

@@ -1477,12 +1477,10 @@ def share_daw_project_view(token: str, *, phase: str | None = None) -> dict[str,
 
     row, ws = require_share_cap(token, CAP_VIEW)
     projection = parse_view_projection(phase)
-    dumped = dump_projection_locked(ws, projection=projection.value, audience="guest")
+    dumped, owners = dump_projection_locked(ws, projection=projection.value, audience="guest")
     view = sanitize_guest_project_view(dumped)
     if "history" in view:
-        view["history"] = _with_viewer_flags(
-            view["history"], ws.project.history.step_owners(), share_author(row)
-        )
+        view["history"] = _with_viewer_flags(view["history"], owners, share_author(row))
     return view
 
 

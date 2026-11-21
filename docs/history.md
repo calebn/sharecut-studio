@@ -78,7 +78,7 @@ episode/
         └── def456.json
 ```
 
-Each snapshot stores a **full copy** of editable v2 sections (not diffs), so undo/redo and arbitrary cursor jumps are O(1):
+Each snapshot stores a **full copy** of editable v2 sections. A history move restores its destination directly:
 
 - `sources`, `timeline` (tracks + clips), `editorial`, `transcripts` (per_track + combined)
 - `mix`, `social`, `feed` (podcast listing pins, guid and first export time; see [podcast-feed.md](podcast-feed.md)), `review` (timeline comments; the review versions travel in each snapshot but a history move does not restore them), `render_last_completed_step`
@@ -87,7 +87,9 @@ Undo/redo restores the snapshot and **`ProjectStore.commit()`** writes `episode.
 
 ### Review versions are not history steps
 
-A published review version is made once, like the feed's guid, and is not undoable state. Undo, Redo and go-to-step restore `review.comments` from the snapshot but keep the project's own `review.versions` and `review.active_version_id` (`apply_editable_snapshot(..., keep_review_versions=True)`), and never read the snapshot's `versions`. `snapshots_equal` ignores both fields, like `render_last_completed_step`, so a change that touches only review versions records no step, whoever makes it, once the history has an entry (when it is empty, the first such change records the episode's starting entry, which Undo cannot move below): publishing, choosing the active version, encoding the review mp3, uploading it to the object store and clearing the key all run through `ProjectWorkspace.mutate` with the same checkpoint, rollback and commit and no `before` / `after` entry, so making a share link adds no step and the next edit's Undo is one press. A mutation that changes a version and anything else is an edit and records a step. Histories an older build wrote may hold `before` / `after publish review version` entries; moving onto one changes no review data. Only the failed-commit restore and `apply_auto` put the snapshot's whole review section back.
+A published review version is made once, like the feed's guid, and is not undoable state. Undo, Redo and go-to-step restore `review.comments` from the snapshot and keep the project's own `review.versions` and `review.active_version_id` (`apply_editable_snapshot(..., keep_review_versions=True)`). `snapshots_equal` ignores both fields, like `render_last_completed_step`, so a change that touches only review versions records no step once the history has an entry. On empty history, the first such change records the episode's starting entry. Publishing, choosing the active version, encoding the review mp3, uploading it to the object store and clearing the key all use `ProjectWorkspace.mutate` with its checkpoint, rollback and commit. A mutation that changes a version and also changes undoable state records a step. Only the failed-commit restore and `apply_auto` put the snapshot's whole review section back.
+
+For older saved histories, Undo and Redo skip a legacy `after publish review version` step when its undoable snapshot matches its predecessor. A row with a real edit remains a step even if it has that label. Only adjacent candidates need a snapshot comparison during traversal. The saved rows remain available in the History list and can still be reached by a direct cursor jump.
 
 An Undo or Redo with nothing to move to raises `CodedValueError` with code `nothing_to_undo` or `nothing_to_redo` (host route 400, MCP `error_code`, guest 400 with "There is nothing to undo." / "There is nothing to redo."; a guest whose latest step is someone else's gets `nothing_of_yours_to_undo` / `nothing_of_yours_to_redo`, below), and a refused Undo leaves the in-memory cursor where it was.
 
@@ -267,10 +269,10 @@ revert an agent edit it never received. A guest command reply carries
 
 Every `HistoryEntry` records its `author` (project format 2.3): `host` (the app's own person and the CLI), `agent` (an MCP tool call), `system` (a job's own steps, including the `after merging concurrent edits` entry) or `share:<registry id>` (a guest, stamped by the guest's workspace itself, so no guest route passes it). `undone_by` records who took the step back. Both are `null` on a step an older build wrote, which is never a guest's. The value rides a ContextVar read once where an entry is built (`project/history/author.py`).
 
-A guest's Undo takes back only the step they wrote, and their Redo brings back only a step they undid. The rule is pure on `ProjectHistory` (`undo_target`, `redo_target`, `step_owners`):
+A guest's Undo takes back only the step they wrote, and their Redo brings back only a step they undid. `HistoryManager` verifies legacy publish-only rows against their snapshots, then uses the same `ProjectHistory` navigation for ownership, availability and moves:
 
-- Undo judges the latest entry that is not a `render_preview` (the automatic mix that lands after an edit never blocks). It must be the guest's own. A host edit, another guest's step, a comment or suggestion decision by someone else, a pipeline step, a merge entry and a pre-2.3 entry all block, because a whole-snapshot stack cannot skip a step without removing it too.
-- Redo judges the first entry after the cursor that is not a `render_preview`. Its `undone_by` must be the guest's own `share:<id>`. When the host undid a guest's edit, the guest cannot redo it.
+- Undo judges the latest entry after skipping automatic `render_preview` and verified legacy publish-only steps. It must be the guest's own. A host edit, another guest's step, a comment or suggestion decision by someone else, a pipeline step, a merge entry and an older edit without an author all block, because a whole-snapshot stack cannot skip a real step without removing it too.
+- Redo judges the first entry after the cursor after skipping automatic `render_preview` and verified legacy publish-only steps. Its `undone_by` must be the guest's own `share:<id>`. When the host undid a guest's edit, the guest cannot redo it.
 - A refusal is `CodedValueError` code `nothing_of_yours_to_undo` ("There is nothing of yours to undo. The latest change is someone else's.", HTTP 400, guest MCP the same text) or `nothing_of_yours_to_redo` ("There is nothing of yours to redo. Redo brings back only what you undid."). It runs after the stale-head and `nothing_to_*` checks and before anything is applied, so the project file and `history/index.json` are untouched. The host, host MCP and CLI pass no guest and behave as before.
 - A guest's own `before <label>` entry records `system`. It is a snapshot of whatever was saved before the guest's edit, so a second Undo cannot take back an unrecorded host change.
 - `goto` stays host only.

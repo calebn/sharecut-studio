@@ -742,7 +742,9 @@ def _version(version_id: str) -> ReviewMixVersion:
     )
 
 
-def _history_with_a_publish_step(project_path: Path) -> HistoryManager:
+def _history_with_a_publish_step(
+    project_path: Path, *, edit_after_publish: bool = True
+) -> HistoryManager:
     """The old publish saved its after entry when its before matched the preceding edit."""
     mgr = HistoryManager(ProjectStore(project_path))
     proj = load_project(project_path)
@@ -753,8 +755,9 @@ def _history_with_a_publish_step(project_path: Path) -> HistoryManager:
     proj.review.versions = [_version("ver-1")]
     proj.review.active_version_id = "ver-1"
     mgr.record(proj, "after publish review version", force=True)
-    proj.review.comments.append(_review_comment("c2"))
-    mgr.record(proj, "after add second comment")
+    if edit_after_publish:
+        proj.review.comments.append(_review_comment("c2"))
+        mgr.record(proj, "after add second comment")
     save_project(proj, project_path)
     return mgr
 
@@ -796,6 +799,35 @@ def test_a_publish_label_with_an_edit_still_undoes_and_redoes(minimal_project):
     assert _review_state(ws.project) == (["ver-1"], "ver-1", [])
     assert ws.redo().current_label == "after publish review version"
     assert _review_state(ws.project) == (["ver-1"], "ver-1", ["c1"])
+
+
+def test_legacy_undo_and_redo_with_only_the_publication_after_an_edit(minimal_project):
+    _history_with_a_publish_step(minimal_project, edit_after_publish=False)
+    ws = ProjectWorkspace.open(minimal_project)
+
+    assert ws.undo().cursor == 0
+    assert _review_state(ws.project) == (["ver-1"], "ver-1", [])
+    redone = ws.redo()
+    assert redone.cursor == 1
+    assert not redone.can_redo
+    with pytest.raises(CodedValueError) as refused:
+        ws.redo(expected_head_id=redone.head_id)
+    assert refused.value.code == "nothing_to_redo"
+    assert load_project(minimal_project).history.head_id() == redone.head_id
+
+
+def test_an_unreadable_legacy_publication_is_not_skipped(minimal_project):
+    _history_with_a_publish_step(minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    entry = ws.project.history.entries[2]
+    at_first_edit = ws.goto(1)
+    (ws.project.workspace_path() / entry.snapshot_file).unlink()
+    before = minimal_project.read_bytes()
+
+    with pytest.raises(FileNotFoundError):
+        ws.redo(expected_head_id=at_first_edit.head_id)
+    assert ws.project.history.head_id() == at_first_edit.head_id
+    assert minimal_project.read_bytes() == before
 
 
 def test_goto_keeps_the_review_versions_and_follows_the_comments(minimal_project):
