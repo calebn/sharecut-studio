@@ -345,6 +345,13 @@ The `pytest-quality` job's docs-sync step, on pull requests only, runs `scripts/
 
 The `pytest-shard` jobs also run `actions/setup-node`, so Python tests that invoke Node have the runtime available in CI.
 
+The AAF exporter tests run in the FFmpeg-backed `pytest-shard` workflow with the
+optional `aaf` extra. Shard 1 builds the pinned official LibAAF v1 `aaftool` from
+source and sets `SHARECUT_AAFTOOL`, so `tests/test_aaf_export.py` checks the
+emitted package with an independent reader during eligible PR runs. The
+`pytest-quality` job does not run this exporter suite because it has no pinned
+FFmpeg pair.
+
 The path-filtered `.github/workflows/release-wheel.yml` builds the web assets, then the sdist and wheel, installs the wheel into a clean venv, and runs `scripts/check_wheel_web_build.py --podcast`. Changes under `contracts/` and `.agents/defaults/` also trigger this workflow because those directories are force-included in the wheel as `podcast_mcp/contracts` and `podcast_mcp/defaults`. It fails unless the wheel ships `index.html` plus every file it references, the installed package loads its contracts and its default YAMLs (an install without them reads an empty pipeline config), and the installed `podcast gui` serves that `index.html` at `/`. The source archive excludes installed frontend dependencies, including hardlinked files under `gui/web/node_modules`. CI inspects archive members and rejects generated dependency trees or hardlinks. `tests/test_wheel_web_build.py` covers the build hook in the ordinary `pytest` job without npm ([setup.md § Web build in wheels](setup.md#web-build-in-wheels)).
 
 The `extras-import` workflow (on `pyproject.toml` changes, `workflow_dispatch`, and a weekly schedule) installs every optional extra into a fresh venv without `uv.lock` and imports its modules (`tests/test_extras_import.py`, marker `extras_install`, enabled by `PODCAST_CHECK_EXTRAS=1`). The locked suite cannot see an upstream release that breaks `pip install "podcast-mcp[extra]"`; the weekly run does. The main `pytest` job skips it because the env var is unset ([setup.md § Pip extras](setup.md#pip-extras)).

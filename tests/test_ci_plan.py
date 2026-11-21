@@ -508,6 +508,27 @@ def test_changes_job_feeds_frontend_and_the_browser_suites() -> None:
     }
 
 
+def test_aaf_independent_reader_runs_in_the_ffmpeg_pytest_shard() -> None:
+    jobs = load_github_yaml(WORKFLOW)["jobs"]
+    quality = jobs["pytest-quality"]
+    assert not any("LibAAF" in step.get("name", "") for step in quality["steps"])
+
+    shard = jobs["pytest-shard"]["steps"]
+    ffmpeg = next(
+        i for i, step in enumerate(shard) if step.get("uses") == "./.github/actions/setup-ffmpeg"
+    )
+    install = next(
+        i for i, step in enumerate(shard) if step.get("name") == "Install package and dev deps"
+    )
+    reader = next(
+        i for i, step in enumerate(shard) if "Build pinned LibAAF reader" in step.get("name", "")
+    )
+    assert "aaf" in shard[install]["with"]["extras"].split()
+    assert shard[reader]["if"] == "matrix.shard == 1"
+    assert "scripts/build_libaaf_test_tool.sh" in shard[reader]["run"]
+    assert ffmpeg < install < reader
+
+
 ALERT_ACTION = ROOT / ".github" / "actions" / "nightly-alert" / "action.yml"
 
 
