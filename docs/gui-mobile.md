@@ -543,7 +543,7 @@ pending range proposals; Viewers keep the five actions visible with disabled rea
 
 | Old home | Phone home now |
 |----------|----------------|
-| Listen hero (play, time, scrub) | Player bar on every stage but Record, swipe up for the Player sheet; a phone Viewer or Commenter link has the Listen dock instead, which does not expand. A Viewer or Commenter guest and passive listening land in Review (an Editor guest lands in Edit) |
+| Listen hero (play, time, scrub) | Player bar on every stage but Record, tap the time to expand the Player; a phone Viewer or Commenter link has the Listen dock instead, which does not expand. A Viewer or Commenter guest and passive listening land in Review (an Editor guest lands in Edit) |
 | Mode nav (Listen, Timeline, Text, More) | Stage tab bar: Record, Prepare, Edit, Review, Deliver (`stage.*`, Mod+1 to Mod+5). Edit holds the Timeline and Script surfaces behind a waveform and text icon switch; selection and playhead carry across |
 | Comment / Fit | Comment at the playhead in the Player (the bar, or the dock on a phone Commenter link); Fit in the Edit corner |
 | Track headers (Mute, Solo) | Lane gutter tap (the whole 56px rail; the avatar is the affordance) → track sheet (**M**/**S** toggles and the saved **Volume** fader; drag the Volume envelope layer for envelopes). The mix sheet adjusts all tracks without changing selection. The phone rail shows the avatar only (its ring shows the playing level); there is no touch drag to reorder, so reorder with the track sheet's Move up and Move down. On a tablet with a coarse pointer the header's **M** and **S** are 44px touch targets like the track sheet's (#1028) |
