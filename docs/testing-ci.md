@@ -407,6 +407,7 @@ with axe before the collected results are asserted.
 | comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Not run | Pass | Not run |
 | returns invalidated Undo focus to the visible current Inspector Close | `gui/web/e2e-compat/feedback-inspector-focus.spec.ts` | Core flow | Pass | Pass | Not run |
 | outside focus stays on header Undo when a peer invalidates toast Undo | `gui/web/e2e-compat/feedback-inspector-focus.spec.ts` | Core flow | Pass | Pass | Not run |
+| I reveals and focuses the Inspector for a clip panned off the Timeline | `gui/web/e2e-compat/inspector-anchor.spec.ts` | Core flow | Pass | Pass | Not run |
 | native envelope owner cancels locally and ignores synthetic foreign events | `gui/web/e2e-compat/envelope-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | 568x320 phone envelope controls scroll into reach and preserve saved points | `gui/web/e2e-compat/envelope-short-phone.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 667x375 phone envelope controls stay in reach and preserve saved points | `gui/web/e2e-compat/envelope-short-phone.spec.ts` | CSS / layout | Pass | Pass | Not run |
