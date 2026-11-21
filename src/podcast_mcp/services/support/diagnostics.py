@@ -575,9 +575,11 @@ class DiagnosticsService:
                 sorted(get_share_registry().known_tokens()), min_prefix=TOKEN_PREFIX_MIN
             )
 
+            def redact_collected_text(text: str) -> str:
+                return sanitize(redact_tokens(text), **redaction)
+
             def redact_report_text(text: str) -> str:
-                masked = redact_tokens(sanitize(text, **redaction))
-                return sanitize(masked, **redaction)
+                return redact_collected_text(sanitize(text, **redaction))
 
             safe_payload = _redact_report_value(payload, redact_report_text)
             if unopened is not None:
@@ -586,7 +588,7 @@ class DiagnosticsService:
                     "statement": redact_report_text(NOT_OPENED_STATEMENT),
                 }
             report_text = json.dumps(safe_payload, indent=2)
-            logs = {name: redact_tokens(body) for name, body in logs.items()}
+            logs = {name: redact_collected_text(body) for name, body in logs.items()}
             fixed = len(report_text.encode("utf-8")) + len(README.encode("utf-8"))
             log_budget = max(0, MAX_BUNDLE_BYTES - fixed - 64_000)
             logs = _truncate_logs(logs, budget=log_budget)
