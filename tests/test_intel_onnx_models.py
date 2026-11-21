@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -17,9 +18,12 @@ from podcast_mcp.engines.models.word_aligner import resolve_word_aligner_dir, wo
 from podcast_mcp.engines.speaker_id import SpeakerBackendUnavailable, resolve_speaker_backend
 from podcast_mcp.engines.word_align import WordAligner
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.services.jobs import JobManager
-from podcast_mcp.services.pipeline import ensure_word_aligner_for_run
+from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
+from podcast_mcp.services.jobs import Job, JobManager
+from podcast_mcp.services.jobs.setup_runs import SetupRunQueue
+from podcast_mcp.services.pipeline import config_store, ensure_word_aligner_for_run
 from podcast_mcp.util import host_platform
+from test_host_mcp_http import _initialize, _post_mcp, _rpc_payload
 
 
 @pytest.fixture
@@ -140,3 +144,124 @@ def test_bootstrap_reports_intel_override_in_cli_and_gui(
     assert hint in status["error"]
     assert hint in status["failure"]["plain"]
     assert str(local_path) not in status["error"]
+
+
+FORCED_ALIGNMENT = {"transcribe": {"forced_alignment": {"enabled": True}}}
+OVERRIDE_SETTING = "PODCAST_MCP_WORD_ALIGNER_MODEL"
+OVERRIDE_CODE = "model_override_unsupported"
+
+
+def test_owner_run_preserves_the_intel_override_refusal(
+    intel_runtime: None, minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(OVERRIDE_SETTING, "/tmp/custom-word-aligner")
+    terminal = CliRunner().invoke(
+        app,
+        [
+            "pipeline",
+            "run",
+            "--project",
+            str(minimal_project),
+            "--only",
+            "transcribe_tracks",
+            "--set",
+            "transcribe.forced_alignment.enabled=true",
+        ],
+    )
+    assert terminal.exit_code == 1
+    assert f"unset {OVERRIDE_SETTING}" in terminal.stderr
+    assert OVERRIDE_CODE in terminal.stderr
+
+    gui = create_app(served_project=minimal_project)
+    payload = {
+        "path": str(minimal_project),
+        "only_step": "transcribe_tracks",
+        "config": FORCED_ALIGNMENT,
+        "use_working_set": False,
+    }
+
+    with TestClient(gui, client=("127.0.0.1", 5000)) as client:
+        response = client.post("/api/pipeline/run", json=payload)
+        assert response.status_code == 409
+        assert response.headers["x-sharecut-error-code"] == OVERRIDE_CODE
+        assert f"unset {OVERRIDE_SETTING}" in response.json()["detail"]
+        assert gui.state.jobs.get_job() is None
+
+        _initialize(client)
+        rpc = _post_mcp(
+            client,
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {
+                    "name": "pipeline_run",
+                    "arguments": {key: value for key, value in payload.items() if key != "path"},
+                },
+            },
+        )
+        result = _rpc_payload(rpc)["result"]["structuredContent"]
+        assert result["error_code"] == OVERRIDE_CODE
+        assert f"unset {OVERRIDE_SETTING}" in result["error"]
+        assert gui.state.jobs.get_job() is None
+
+        monkeypatch.delenv(OVERRIDE_SETTING)
+        monkeypatch.setattr(
+            "podcast_mcp.gui.routes.pipeline_jobs.ensure_whisper_cached_for_run",
+            lambda **_kwargs: None,
+        )
+        monkeypatch.setattr(
+            gui.state.jobs, "start", lambda *_args, **_kwargs: Job(id="accepted", kind="pipeline")
+        )
+        admitted = client.post(
+            "/api/pipeline/run",
+            json={**payload, "config": {"transcribe": {"forced_alignment": {"enabled": False}}}},
+        )
+        assert admitted.status_code == 200
+        assert admitted.json()["job"]["id"] == "accepted"
+
+
+def test_setup_intent_refuses_invalid_configuration_at_admission_and_replay(
+    intel_runtime: None,
+    minimal_project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = load_project(minimal_project)
+    project.tracks = [
+        Track(
+            id="host", label="Host", role=TrackRole.DIALOGUE, media=MediaAsset(path="raw/host.wav")
+        )
+    ]
+    project.clips = [
+        Clip(id="host-clip", track_id="host", source_start=0, source_end=1, timeline_start=0)
+    ]
+    save_project(project, minimal_project)
+    config_store().put(minimal_project, config=FORCED_ALIGNMENT)
+    gui = create_app(served_project=minimal_project, host_mcp=False)
+    jobs = JobManager()
+    queue = SetupRunQueue(jobs, tmp_path / "setup-runs.json")
+    gui.state.jobs = jobs
+    gui.state.setup_runs = queue
+    client = TestClient(gui, client=("127.0.0.1", 5000))
+    request = {"path": str(minimal_project)}
+
+    monkeypatch.setenv(OVERRIDE_SETTING, "/tmp/custom-word-aligner")
+    refused = client.post("/api/pipeline/setup-run", json=request)
+    assert refused.status_code == 409
+    assert refused.headers["x-sharecut-error-code"] == OVERRIDE_CODE
+    assert f"unset {OVERRIDE_SETTING}" in refused.json()["detail"]
+    assert not queue.waiting(minimal_project)
+
+    monkeypatch.delenv(OVERRIDE_SETTING)
+    queued = client.post("/api/pipeline/setup-run", json=request)
+    assert queued.status_code == 202
+    assert queued.json() == {"queued": True}
+
+    monkeypatch.setenv(OVERRIDE_SETTING, "/tmp/custom-word-aligner")
+    queue._dispatch(threading.Event())
+    job = client.get("/api/pipeline/status").json()["job"]
+    assert job["status"] == "error"
+    assert job["error_code"] == OVERRIDE_CODE
+    assert f"unset {OVERRIDE_SETTING}" in job["error"]
+    assert not queue.waiting(minimal_project)

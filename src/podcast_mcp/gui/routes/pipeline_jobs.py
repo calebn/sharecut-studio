@@ -12,8 +12,10 @@ from podcast_mcp.gui.routes.deps import bad_request_error, coded_exception_error
 from podcast_mcp.services.jobs import Job, JobManager
 from podcast_mcp.services.pipeline import (
     STEP_NAMES,
+    OnnxOverrideUnsupportedError,
     ensure_whisper_cached_for_run,
     ensure_word_aligner_for_run,
+    ensure_word_aligner_override_supported_for_run,
     skip_steps_from_enabled,
     transcribe_run_config,
 )
@@ -96,16 +98,22 @@ def start_pipeline_job(
     if persist is not None:
         persist()
 
-    ensure_whisper_cached_for_run(
-        config=run_config,
-        from_step=from_step,
-        only_step=only_step,
-        skip_steps=skip_steps,
-        memoize=True,  # early 409 only; PipelineService.run re-hashes before its checkpoint
-    )
-    ensure_word_aligner_for_run(
-        run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
-    )
+    try:
+        ensure_word_aligner_override_supported_for_run(
+            run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
+        )
+        ensure_whisper_cached_for_run(
+            config=run_config,
+            from_step=from_step,
+            only_step=only_step,
+            skip_steps=skip_steps,
+            memoize=True,  # early 409 only; PipelineService.run re-hashes before its checkpoint
+        )
+        ensure_word_aligner_for_run(
+            run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
+        )
+    except OnnxOverrideUnsupportedError as exc:
+        raise coded_http_error(409, str(exc), code=exc.code) from exc
 
     try:
         return jobs.start(

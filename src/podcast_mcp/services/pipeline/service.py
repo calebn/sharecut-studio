@@ -220,6 +220,7 @@ class PipelineService:
         from podcast_mcp.services.pipeline.config import (
             ensure_whisper_cached_for_run,
             ensure_word_aligner_for_run,
+            ensure_word_aligner_override_supported_for_run,
         )
 
         revision = intent.saved_revision if intent is not None else self.ws.loaded_file_revision
@@ -245,6 +246,13 @@ class PipelineService:
                 targets_unchanged = False
 
         try:
+            ensure_word_aligner_override_supported_for_run(
+                defaults,
+                resolved=True,
+                from_step=from_step,
+                only_step=only_step,
+                skip_steps=skip_steps,
+            )
             ensure_whisper_cached_for_run(
                 config=defaults,
                 resolved=True,

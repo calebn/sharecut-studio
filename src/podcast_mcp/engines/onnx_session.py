@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.util import host_platform
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.hardware import (
     CPU_PROVIDER,
     HardwareProfile,
@@ -30,8 +31,8 @@ _failed: set[tuple[str, str]] = set()
 _failed_lock = threading.Lock()
 
 
-class OnnxOverrideUnsupportedError(RuntimeError):
-    pass
+class OnnxOverrideUnsupportedError(CodedError, RuntimeError):
+    code = "model_override_unsupported"
 
 
 def onnx_override_restriction(variable: str) -> str | None:
