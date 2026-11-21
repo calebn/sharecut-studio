@@ -21,6 +21,64 @@ const noop = () => undefined;
 const replyField = { body: "", onBodyChange: noop, onSubmit: noop };
 const failed = { state: "failed", onRetry: noop, onRemove: noop } as const;
 
+describe("a comment the host has not taken yet", () => {
+  it("says it waits, and offers one way to call it back", async () => {
+    const onDontSend = vi.fn();
+    render(
+      <CommentCard comment={base} pending={{ state: "queued", onDontSend }} />,
+    );
+    expect(screen.getByText("Waiting to send")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Don't send: comment by Rosa" }),
+    );
+    expect(onDontSend).toHaveBeenCalledOnce();
+  });
+
+  it("says Sending… and cannot be called back once it is on its way", () => {
+    render(
+      <CommentCard
+        comment={base}
+        pending={{ state: "queued", sending: true, onDontSend: noop }}
+      />,
+    );
+    expect(screen.getByText("Sending…")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Don't send: comment by Rosa" }),
+    ).toBeDisabled();
+  });
+
+  it("marks a waiting reply in the thread and calls it back by its id", async () => {
+    const onDontSendReply = vi.fn();
+    render(
+      <CommentCard
+        comment={{
+          ...base,
+          replies: [
+            { id: "r1", author: "Sam", body: "On it", pending: "queued" },
+          ],
+        }}
+        onDontSendReply={onDontSendReply}
+      />,
+    );
+    const thread = screen.getByRole("list", { name: "1 reply" });
+    expect(within(thread).getByText("Waiting to send")).toBeVisible();
+    await userEvent.click(
+      within(thread).getByRole("button", { name: "Don't send: reply by Sam" }),
+    );
+    expect(onDontSendReply).toHaveBeenCalledWith("r1");
+  });
+
+  it("has no axe violations", async () => {
+    const { container } = render(
+      <CommentCard
+        comment={base}
+        pending={{ state: "queued", onDontSend: noop }}
+      />,
+    );
+    await expectNoA11yViolations(container);
+  });
+});
+
 describe("CommentCard", () => {
   it("shows who, when and what, and jumps the playhead on select", async () => {
     const onSelect = vi.fn();

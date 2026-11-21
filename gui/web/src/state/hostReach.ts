@@ -193,6 +193,11 @@ export function useHostCause(forToken: string | null): HostCause | null {
     : null;
 }
 
+export function hostCauseNow(forToken: string): HostCause | null {
+  if (deviceOffline()) return "device";
+  return snapshot.token === forToken ? snapshot.cause : null;
+}
+
 export function useHostBackCount(forToken: string | null): number {
   return useSyncExternalStore(
     subscribe,

@@ -44,6 +44,7 @@ export {
   createComment,
   deleteComment,
   patchComment,
+  sendGuestPost,
   setCommentActionDone,
 } from "./api/comments";
 export {

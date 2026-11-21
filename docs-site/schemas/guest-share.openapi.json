@@ -10407,6 +10407,19 @@
             "title": "Body",
             "type": "string"
           },
+          "comment_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A repeat of this key returns the comment it already made.",
+            "title": "Comment Id"
+          },
           "edit_decision_id": {
             "anyOf": [
               {
@@ -10486,6 +10499,19 @@
             "maxLength": 8000,
             "title": "Body",
             "type": "string"
+          },
+          "reply_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A repeat of this key returns the reply it already made.",
+            "title": "Reply Id"
           }
         },
         "required": [

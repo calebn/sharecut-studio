@@ -4,6 +4,7 @@ import { useDawStore } from "../state/dawStore";
 import { flushInbound } from "../sync/inboundQueue";
 import type {
   CombinedUtterance,
+  CommentReply,
   ProjectView,
   TimelineComment,
 } from "../types/project";
@@ -373,6 +374,24 @@ export function mergeReturnedComment(comment: TimelineComment): void {
   if (index < 0) comments.push(comment);
   else comments[index] = comment;
   applyDocumentSnapshot({ comments }, { force: true });
+}
+export function mergeReturnedReply(
+  commentId: string,
+  reply: CommentReply,
+): void {
+  const previous = useDawStore.getState().projectEditBasis();
+  if (!previous) return;
+  applyDocumentSnapshot(
+    {
+      comments: previous.comments.map((comment) =>
+        comment.id !== commentId ||
+        comment.replies.some((item) => item.id === reply.id)
+          ? comment
+          : { ...comment, replies: [...comment.replies, reply] },
+      ),
+    },
+    { force: true },
+  );
 }
 export function mergeGuestActionDone(
   commentId: string,

@@ -8,6 +8,7 @@ import {
 import type { DocumentCommandType } from "../../types/documentCommands.generated";
 import { isPermanentRejection } from "../../utils/apiError";
 import { reconcileCommandBeforeReplay } from "../commandQueue";
+import { drainOutbox } from "./drainOutbox";
 import {
   loadCommandQueue,
   loadHostCommandQueue,
@@ -191,11 +192,15 @@ function queueReplaySource(ns: QueueNamespace): ReplaySource {
 
 /**
  * Drain persisted share-guest commands in stored insertion order after
- * reconnect. `client_seq` numbers one client's edits and restarts with each
+ * reconnect, then the guest's kept comments and replies. `client_seq` numbers one client's edits and restarts with each
  * tab, so it does not order rows from different clients.
  */
-export function drainOfflineQueue(token: string): Promise<void> {
-  return replayQueuedCommands(queueReplaySource(guestNamespace(token)));
+export async function drainOfflineQueue(token: string): Promise<void> {
+  try {
+    await replayQueuedCommands(queueReplaySource(guestNamespace(token)));
+  } finally {
+    await drainOutbox(token);
+  }
 }
 
 /** Drain persisted host commands in insertion order after reconnect. */

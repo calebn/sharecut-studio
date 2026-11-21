@@ -1,3 +1,5 @@
+import type { WaitingReply } from "../../comments/waitingPosts";
+import { waitingSlot } from "../../state/outboxStore";
 import type { CommentCardData } from "../../system/CommentCard";
 import type { TimelineComment } from "../../types/project";
 
@@ -17,6 +19,7 @@ export function commentCardOf(
   c: TimelineComment,
   resolved: boolean,
   durationSec: number,
+  waitingReplies: readonly WaitingReply[] = [],
 ): CommentCardData {
   return {
     id: c.id,
@@ -27,7 +30,16 @@ export function commentCardOf(
     body: c.body,
     resolved,
     resolvedBy: c.resolved_by ?? undefined,
-    replies: c.replies.map(({ id, author, body }) => ({ id, author, body })),
+    replies: [
+      ...c.replies.map(({ id, author, body }) => ({ id, author, body })),
+      ...waitingReplies.map(({ row, state }) => ({
+        id: waitingSlot(row.id),
+        author: row.author,
+        body: row.body,
+        pending:
+          state === "sending" ? ("sending" as const) : ("queued" as const),
+      })),
+    ],
     actions: c.action_items.map((a) => ({
       id: a.id,
       text: a.text,

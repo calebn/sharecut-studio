@@ -684,6 +684,39 @@ describe("PendingEditBody", () => {
     );
   });
 
+  it("asks again under the same key after a failure, and says the question is kept when the host is away", async () => {
+    const user = userEvent.setup();
+    useDawStore
+      .getState()
+      .hydrate(
+        shareProjectKey("tok"),
+        { ...minimalProject(), pending_edits: [sessionCut] },
+        "comment",
+        ["play", "view", "comment", "reply"],
+      );
+    createComment
+      .mockRejectedValueOnce(new Error("Try again"))
+      .mockResolvedValueOnce({ kept: true, id: "k" });
+    render(<PendingEditBody edit={sessionCut} />);
+    const field = screen.getByPlaceholderText(
+      "Ask for more context before deciding…",
+    );
+    await user.type(field, "Why this cut?");
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(createComment).toHaveBeenCalledTimes(1));
+    await user.click(await screen.findByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(createComment).toHaveBeenCalledTimes(2));
+    const keys = createComment.mock.calls.map(([, opts]) => opts.postKey);
+    expect(keys[0]).toMatch(/^[0-9a-f]{32}$/);
+    expect(keys[1]).toBe(keys[0]);
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Comment kept. It sends when you can reach the host.",
+      ),
+    );
+    await waitFor(() => expect(field).toHaveValue(""));
+  });
+
   it("says nothing about a footer in the empty Ask copy", () => {
     render(<PendingEditBody edit={sessionCut} verbsOnBar />);
     const region = screen.getByRole("region", { name: "Ask about this edit" });
@@ -811,6 +844,7 @@ describe("PendingEditBody", () => {
       expect(addCommentReply).toHaveBeenCalledWith("/tmp/p.json", "c1", {
         body: "Looks fine to me",
         author: "Host",
+        postKey: expect.stringMatching(/^[0-9a-f]{32}$/),
       }),
     );
     expect(createComment).not.toHaveBeenCalled();

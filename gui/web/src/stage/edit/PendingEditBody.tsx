@@ -21,6 +21,7 @@ import {
   registerPendingDecider,
 } from "../../commands/pendingDecision";
 import { useCommentActions } from "../../comments";
+import { keptLine } from "../../comments/keptLine";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { TrackToggleRow } from "../../inspector/TrackToggleRow";
 import {
@@ -37,8 +38,10 @@ import {
   canReviewPendingEdit,
   commentRole,
   isShareProjectKey,
+  shareTokenFromKey,
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { hostCauseNow } from "../../state/hostReach";
 import { useUnsentText } from "../../state/unsentText";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
@@ -58,6 +61,7 @@ import {
   resolveCommentActor,
   sessionDisplayName,
 } from "../../utils/commentAuthor";
+import { isKept, newPostKey } from "../../utils/keptPost";
 import {
   pendingReasonLabel,
   pendingTypeLabel,
@@ -180,6 +184,8 @@ export function PendingEditBody({
   const [askBody, setAskBody] = useState("");
   useUnsentText("Your note", askBody);
   const replyField = useRef<HTMLTextAreaElement | null>(null);
+  // Asking again with the same words after a failure keeps the key, so a try that landed is not made twice.
+  const askAttempt = useRef<{ signature: string; key: string } | null>(null);
   const focusReplyOnMount = useRef(false);
   const setReplyField = useCallback((node: HTMLTextAreaElement | null) => {
     replyField.current = node;
@@ -442,7 +448,14 @@ export function PendingEditBody({
       const tlEnd = isSplit ? tlStart : (edit.timeline_end ?? edit.source_end);
       if (tlStart == null || tlEnd == null)
         throw new Error("This edit has no timeline position.");
-      await createComment(projectPath, {
+      const signature = JSON.stringify([projectPath, edit.id, text]);
+      const postKey =
+        askAttempt.current?.signature === signature
+          ? askAttempt.current.key
+          : newPostKey();
+      askAttempt.current = { signature, key: postKey };
+      const sent = await createComment(projectPath, {
+        postKey,
         body: text,
         author: resolveCommentActor(author, role),
         timelineStart: tlStart,
@@ -451,6 +464,13 @@ export function PendingEditBody({
         timelineSpans: edit.exact_range?.intervals,
         editDecisionId: edit.id,
       });
+      askAttempt.current = null;
+      const token = shareTokenFromKey(projectPath);
+      if (token && isKept(sent)) {
+        useDawStore
+          .getState()
+          .announceStatus(keptLine("Comment", hostCauseNow(token)));
+      }
       setAskBody("");
       if (replyField.current) replyField.current.focus();
       else if (mayReply) focusReplyOnMount.current = true;

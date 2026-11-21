@@ -22,6 +22,7 @@ if TYPE_CHECKING:
         run_comment_mutation_with_file_revisions,
         with_comment_write_grant,
     )
+    from podcast_mcp.services.document.comment_results import CommentReplyResult
     from podcast_mcp.services.document.cross_process_sync import (
         cross_process_bridge,
         cross_process_lease,
@@ -103,6 +104,7 @@ __all__ = [
     "BoundaryTarget",
     "ClipGeometry",
     "ClipService",
+    "CommentReplyResult",
     "CommentService",
     "EditService",
     "EmptyHistoryDiffResult",
@@ -168,6 +170,7 @@ _MODULE_BY_NAME = {
     "TrimBoundaryTarget": "boundary",
     "ClipService": "clip",
     "CommentService": "comment",
+    "CommentReplyResult": "comment_results",
     "run_comment_mutation_with_file_revisions": "comment",
     "cross_process_bridge": "cross_process_sync",
     "cross_process_lease": "cross_process_sync",

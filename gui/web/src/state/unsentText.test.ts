@@ -1,8 +1,10 @@
 import { renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { stubIndexedDb } from "../test/fakeIndexedDb";
 import { composerPatch, initialSession } from "./composerSession";
 import { useDawStore } from "./dawStore";
-import { collectUnsent, useUnsentText } from "./unsentText";
+import { appendOutbox, returnOutboxRow } from "./outboxStore";
+import { collectKeptPosts, collectUnsent, useUnsentText } from "./unsentText";
 
 const anchor = { time: 1 } as never;
 
@@ -89,5 +91,52 @@ describe("collectUnsent", () => {
     const { unmount } = renderHook(() => useUnsentText("Your reply", "x"));
     unmount();
     expect(collectUnsent()).toEqual([]);
+  });
+});
+
+describe("the comments this device keeps for a link", () => {
+  const rows = new Map<string, unknown>();
+  const hex = (n: number) => n.toString(16).padStart(32, "0");
+  beforeEach(() => {
+    rows.clear();
+    stubIndexedDb(rows);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("hands back waiting and refused words after the composer's own, as typed", async () => {
+    await appendOutbox("tok", {
+      id: hex(1),
+      kind: "comment",
+      body: "  kept  words ",
+      author: "Ana",
+      created_at: 1,
+      anchor: {
+        timeline_start: 1,
+        timeline_end: null,
+        timeline_spans: null,
+        track_ids: [],
+        edit_decision_id: null,
+      },
+    });
+    await appendOutbox("tok", {
+      id: hex(2),
+      kind: "reply",
+      body: "a reply",
+      author: "Ana",
+      created_at: 2,
+      parent_comment_id: "c1",
+    });
+    await returnOutboxRow("tok", hex(2), "No.", 403);
+    composeWith({ draft: "typing now" });
+    expect(collectUnsent(await collectKeptPosts("tok"))).toEqual([
+      { label: "Your comment", text: "typing now" },
+      { label: "Your comment", text: "  kept  words " },
+      { label: "Your reply", text: "a reply" },
+    ]);
+  });
+
+  it("hands back nothing when the saved comments cannot be read", async () => {
+    rows.set("outbox:tok", "damaged");
+    expect(await collectKeptPosts("tok")).toEqual([]);
   });
 });

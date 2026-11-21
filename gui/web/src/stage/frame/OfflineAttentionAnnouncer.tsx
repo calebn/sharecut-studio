@@ -1,6 +1,7 @@
+import { useOutbox } from "../../comments/useOutbox";
 import { useOfflineAttentionAnnouncement } from "../../hooks/useOfflineAttentionAnnouncement";
 import { useOfflineAttention } from "../../services/offlineQueue/offlineAttention";
-import { isShareProjectKey } from "../../shareMode";
+import { isShareProjectKey, shareTokenFromKey } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 
 /**
@@ -17,6 +18,7 @@ export function OfflineAttentionAnnouncer() {
     status,
     loaded,
   } = useOfflineAttention(projectPath);
+  const posts = useOutbox(shareTokenFromKey(projectPath));
   const activeConflicts = allConflicts.filter(
     (conflict) => !conflict.dismissed,
   );
@@ -24,6 +26,8 @@ export function OfflineAttentionAnnouncer() {
   useOfflineAttentionAnnouncement({
     projectPath,
     pending: isShareProjectKey(projectPath) ? 0 : pending,
+    waitingPosts: posts.rows.length,
+    returnedPosts: posts.returned.length,
     conflictCount,
     unreadable: status === "unreadable" || status === "retrying",
     dismissFailed: status === "dismiss-failed",

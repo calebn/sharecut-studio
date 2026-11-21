@@ -4,11 +4,13 @@ import {
   documentActivityBusy,
   subscribeDocumentActivity,
 } from "../../state/documentSendOrder";
+import { loadOutbox } from "../../state/outboxStore";
 import {
   dismissConflicts,
   dismissHostConflicts,
   loadGuestAttention,
   loadHostAttention,
+  type OfflineAttentionData,
   type OfflineConflict,
 } from "./offlineStore";
 
@@ -64,10 +66,18 @@ export function volatileOutcomeFor(
     ?.find((outcome) => outcome.command.command_id === commandId);
 }
 
+async function withKeptPosts(
+  token: string,
+  saved: Promise<OfflineAttentionData>,
+): Promise<OfflineAttentionData> {
+  const [attention, kept] = await Promise.all([saved, loadOutbox(token)]);
+  return { ...attention, pending: attention.pending + kept.length };
+}
+
 function read(projectPath: string): Promise<[number, OfflineConflict[]]> {
   const token = shareTokenFromKey(projectPath);
   const stored = token
-    ? loadGuestAttention(token)
+    ? withKeptPosts(token, loadGuestAttention(token))
     : loadHostAttention(projectPath);
   return stored.then(({ pending, conflicts }) => {
     return [pending, withVolatileOutcomes(projectPath, conflicts)] as [

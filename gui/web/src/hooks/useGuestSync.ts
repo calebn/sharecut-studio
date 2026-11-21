@@ -33,6 +33,7 @@ import type { WsSender } from "../session/wsSend";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { subscribeHostBack, watchHostReach } from "../state/hostReach";
+import { loadOutbox, setOutboxDrainRequester } from "../state/outboxStore";
 import { SANITY_POLL_MS } from "../state/syncCadence";
 import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import type { ProjectView, TimelineComment } from "../types/project";
@@ -92,6 +93,8 @@ const FALLBACK_POLL_MS = 1500;
  * can run useProjectPoll only while it is live (useGuestSync polls on its own while
  * it is down), giving a guest one project poll at a time (#657).
  */
+setOutboxDrainRequester(requestGuestDrainLazy);
+
 export function useGuestSync(
   projectPath: string,
   applyAgentSession: (state: SessionState) => void,
@@ -296,9 +299,9 @@ export function useGuestSync(
     // An empty queue has nothing to send, and a drain would show Saving for it.
     const offBack = subscribeHostBack((back) => {
       if (back !== token) return;
-      void loadCommandQueue(token).then(
-        (queue) => {
-          if (queue.length > 0) drain();
+      void Promise.all([loadCommandQueue(token), loadOutbox(token)]).then(
+        ([queue, kept]) => {
+          if (queue.length + kept.length > 0) drain();
         },
         () => drain(),
       );

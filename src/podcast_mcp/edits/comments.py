@@ -278,14 +278,22 @@ def add_reply(
     *,
     body: str,
     author: str,
+    reply_id: str | None = None,
 ) -> CommentReply:
     text = _require_body(body, kind="reply")
     who = (author or "").strip()
     if not who:
         raise CodedValueError("author is required", code="missing_argument")
     comment = get_comment(project, comment_id)
+    rid = (reply_id or "").strip() or _new_id()
+    if reply_id:
+        existing = next((item for item in comment.replies if item.id == rid), None)
+        if existing is not None:
+            if existing.author != who:
+                raise CodedValueError("reply id already exists", code="comment_exists")
+            return existing
     reply = CommentReply(
-        id=_new_id(),
+        id=rid,
         body=text,
         author=who,
         created_at=_now_iso(),

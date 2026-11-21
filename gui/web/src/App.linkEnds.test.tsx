@@ -23,7 +23,9 @@ import { apiSend } from "./api/http";
 import { resetFeaturesCache } from "./extensions/features";
 import { composerPatch, initialSession } from "./state/composerSession";
 import { useDawStore } from "./state/dawStore";
+import { appendOutbox } from "./state/outboxStore";
 import { useUnsentText } from "./state/unsentText";
+import { stubIndexedDb } from "./test/fakeIndexedDb";
 import { urlOf } from "./test/urlOf";
 
 /**
@@ -219,6 +221,48 @@ describe("a review link turned off while the episode is open", () => {
       );
     });
     expect(spy.mock.calls.length).toBe(seen);
+  });
+
+  it("hands back the comments and replies this device was keeping, after what was typed", async () => {
+    const rows = new Map<string, unknown>();
+    stubIndexedDb(rows);
+    const key = (n: number) => n.toString(16).padStart(32, "0");
+    await appendOutbox("ends-kept", {
+      id: key(1),
+      kind: "comment",
+      body: "waiting comment",
+      author: "Ana",
+      created_at: 1,
+      anchor: {
+        timeline_start: 1,
+        timeline_end: null,
+        timeline_spans: null,
+        track_ids: [],
+        edit_decision_id: null,
+      },
+    });
+    await appendOutbox("ends-kept", {
+      id: key(2),
+      kind: "reply",
+      body: "waiting reply",
+      author: "Ana",
+      created_at: 2,
+      parent_comment_id: "c1",
+    });
+    stubHost({ project: [OPEN, DEAD], meta: DEAD });
+    await openEpisode("ends-kept");
+    fireEvent.change(screen.getByRole("textbox", { name: "Reply" }), {
+      target: { value: "typed reply" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await screen.findByRole("heading", {
+      name: "This link doesn't open anything",
+    });
+    expect(
+      screen.getByRole("textbox", { name: "These were not posted" }),
+    ).toHaveValue(
+      "Your reply:\ntyped reply\n\nYour comment:\nwaiting comment\n\nYour reply:\nwaiting reply",
+    );
   });
 
   it("gives up the audio only once the cover is on screen, and the cover never waits for it", async () => {

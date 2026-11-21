@@ -1,10 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { createComment } from "../api";
 import { isGuestSession } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { TimelineComment } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { saveCommentAuthor } from "../utils/commentAuthor";
+import { isKept, newPostKey } from "../utils/keptPost";
 import { resolveCommentAnchor } from "./commentAnchor";
 import { commentTimeLabel } from "./commentTimeLabel";
 
@@ -17,7 +18,7 @@ export type CommentInput = {
 };
 
 export type PostResult =
-  | { ok: true; comment: TimelineComment | null }
+  | { ok: true; comment: TimelineComment | null; kept?: true }
   | { ok: false };
 
 export function commentPostedStatus(comment: TimelineComment | null): string {
@@ -29,7 +30,8 @@ export function commentPostedStatus(comment: TimelineComment | null): string {
 /**
  * Posts a comment at the anchor `resolveCommentAnchor` names at the moment of
  * posting. The composer session decides what becomes of the draft.
- * `comment` is null when an offline host queued it.
+ * `comment` is null when an offline host queued it or, with `kept`, when a
+ * guest's comment waits in the outbox for the host to answer.
  */
 export function usePostComment(): {
   error: string | null;
@@ -37,6 +39,9 @@ export function usePostComment(): {
   post: (input: CommentInput) => Promise<PostResult>;
 } {
   const [error, setError] = useState<string | null>(null);
+  // The same text posted again after a failure keeps its key, so a try that
+  // landed without its answer is not made twice.
+  const attempt = useRef<{ signature: string; key: string } | null>(null);
   const post = useCallback(async (input: CommentInput): Promise<PostResult> => {
     setError(null);
     const author = input.author.trim();
@@ -57,18 +62,34 @@ export function usePostComment(): {
       if (!isGuestSession(state.projectPath, state.guestMode)) {
         saveCommentAuthor(author);
       }
+      const trackIds = input.trackIds?.length
+        ? input.trackIds
+        : (draft.trackIds ?? []);
+      const signature = JSON.stringify([
+        state.projectPath,
+        body,
+        author,
+        draft.startSec,
+        draft.endSec,
+        trackIds,
+      ]);
+      if (attempt.current?.signature !== signature) {
+        attempt.current = { signature, key: newPostKey() };
+      }
       const comment = await createComment(state.projectPath, {
         body,
         author,
         timelineStart: draft.startSec,
         timelineEnd: draft.endSec,
-        trackIds: input.trackIds?.length
-          ? input.trackIds
-          : (draft.trackIds ?? []),
+        trackIds,
         timelineSpans: draft.intervals,
         actionTexts: input.actionTexts ?? [],
+        postKey: attempt.current.key,
       });
-      return { ok: true, comment };
+      attempt.current = null;
+      return isKept(comment)
+        ? { ok: true, comment: null, kept: true }
+        : { ok: true, comment };
     } catch (e) {
       setError(errorMessage(e));
       return { ok: false };

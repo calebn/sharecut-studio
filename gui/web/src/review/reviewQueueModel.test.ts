@@ -23,6 +23,7 @@ import {
   resultText,
   speakersOf,
   sumSaved,
+  waitingPostsLabelOf,
 } from "./reviewQueueModel";
 
 const item = (over: Partial<ReviewItem>): ReviewItem => ({
@@ -588,6 +589,50 @@ describe("attention rows", () => {
     const waiting = attention({ pending: 2, rows: [] });
     expect(attentionVisible(waiting, "all")).toBe(true);
     expect(attentionLabelOf(waiting)).toBe("Needs attention. 2 pending");
+  });
+
+  it("names kept comments and replies in the label, and shows for them alone", () => {
+    expect(waitingPostsLabelOf({ comments: 1, replies: 0 })).toBe(
+      "1 comment waiting to send",
+    );
+    expect(waitingPostsLabelOf({ comments: 2, replies: 1 })).toBe(
+      "2 comments and 1 reply waiting to send",
+    );
+    expect(waitingPostsLabelOf({ comments: 0, replies: 3 })).toBe(
+      "3 replies waiting to send",
+    );
+    const posts = (over: object) => ({
+      waiting: { comments: 0, replies: 0 },
+      returned: [],
+      onCopy: () => undefined,
+      onDismiss: () => undefined,
+      ...over,
+    });
+    const kept = attention({
+      rows: [],
+      posts: posts({ waiting: { comments: 1, replies: 0 } }),
+    });
+    expect(attentionVisible(kept, "all")).toBe(true);
+    expect(attentionLabelOf(kept)).toBe("Needs attention. 1 waiting to send");
+    const refused = attention({
+      rows: [],
+      posts: posts({
+        returned: [
+          {
+            id: "k",
+            what: "Your reply",
+            reason: "No.",
+            text: "x",
+            canPutBack: false,
+          },
+        ],
+      }),
+    });
+    expect(attentionVisible(refused, "all")).toBe(true);
+    expect(attentionLabelOf(refused)).toBe("Needs attention. 1 not posted");
+    expect(
+      attentionVisible(attention({ rows: [], posts: posts({}) }), "all"),
+    ).toBe(false);
   });
 
   it("shows only under All and Checks, and only with something to say", () => {

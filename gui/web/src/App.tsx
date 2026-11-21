@@ -38,10 +38,15 @@ import { HomeScreen } from "./stages/home/HomeScreen";
 import { composerPatch, initialSession } from "./state/composerSession";
 import { useDawStore } from "./state/dawStore";
 import { useHostBackCount } from "./state/hostReach";
+import { clearOutbox } from "./state/outboxStore";
 import { subscribeSavedCopyReopen } from "./state/savedCopy";
 import { cleanShareName } from "./state/shareName";
 import { DawProvider } from "./state/store";
-import { collectUnsent, type UnsentText } from "./state/unsentText";
+import {
+  collectKeptPosts,
+  collectUnsent,
+  type UnsentText,
+} from "./state/unsentText";
 import type { ProjectView } from "./types/project";
 import { ErrorScreen } from "./ui";
 import { peekOpenStage } from "./utils/openIntent";
@@ -440,11 +445,18 @@ function AppInner({ bootName }: { bootName: string | null }) {
         if (controller.signal.aborted || standing() !== "newest") return;
         const failure = classifyBootstrapFailure(e, navigator.onLine !== false);
         if (failure.kind === "bad-link") {
+          let unsent: UnsentText[] | undefined;
           if (e instanceof ApiError && e.code === "share_not_found") {
+            const kept = await collectKeptPosts(reviewToken);
+            unsent = collectUnsent(kept);
             void clearOfflineSnapshot(reviewToken).catch(() => undefined);
+            void clearOutbox(reviewToken).catch(() => undefined);
             void forgetLinkAudio(reviewToken);
           }
-          outcome = { kind: "error", error: { failure } };
+          outcome = {
+            kind: "error",
+            error: unsent?.length ? { failure, unsent } : { failure },
+          };
           return;
         }
         // A saved copy that cannot be read is no saved copy: the guest still
@@ -499,29 +511,30 @@ function AppInner({ bootName }: { bootName: string | null }) {
     if (attempts.current.newest?.reviewToken !== token) return;
     markLinkEnded(token);
     abortAll(attempts.current.flight);
-    // Collecting what was typed and unmounting the studio is one step: a key
-    // pressed between the two would land in a field that is about to go.
-    // This runs in a promise callback, never during a render.
-    const unsent = collectUnsent();
-    flushSync(() => {
-      const store = useDawStore.getState();
-      store.setIsPlaying(false);
-      useDawStore.setState(composerPatch(initialSession));
-      setBootstrap((state) =>
-        state.guest?.key === shareProjectKey(token)
-          ? {
-              ...state,
-              status: "settled",
-              guest: null,
-              cached: null,
-              error: { failure: { kind: "bad-link" }, unsent },
-            }
-          : state,
-      );
+    void collectKeptPosts(token).then((kept) => {
+      if (attempts.current.newest?.reviewToken !== token) return;
+      // Collecting what was typed and unmounting the studio is one step: a key
+      // pressed between the two would land in a field that is about to go.
+      const unsent = collectUnsent(kept);
+      flushSync(() => {
+        const store = useDawStore.getState();
+        store.setIsPlaying(false);
+        useDawStore.setState(composerPatch(initialSession));
+        setBootstrap((state) =>
+          state.guest?.key === shareProjectKey(token)
+            ? {
+                ...state,
+                status: "settled",
+                guest: null,
+                cached: null,
+                error: { failure: { kind: "bad-link" }, unsent },
+              }
+            : state,
+        );
+      });
+      void retireOfflineSnapshot(token);
+      void forgetLinkAudio(token);
     });
-    void retireOfflineSnapshot(token);
-    // Started after the cover is on screen and never waited for.
-    void forgetLinkAudio(token);
   };
   useDeadLinkWatch(shareKey ? reviewToken : null, endSession);
 
