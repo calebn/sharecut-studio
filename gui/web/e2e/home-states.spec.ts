@@ -1,5 +1,5 @@
 import path from "node:path";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { dismissSetupCard, expectHome, homeRecordTile, openHome } from "./home";
 import { expectNoHorizontalScroll, mockBootstrap } from "./modelsMock";
@@ -192,4 +192,196 @@ test("a Recent card named Recording does not make Home's Record tile ambiguous",
   const created = page.waitForRequest("**/api/project/create");
   await homeRecordTile(page).click();
   await created;
+});
+
+async function expectFitsVisualViewport(page: Page): Promise<void> {
+  const overflow = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth -
+      (window.visualViewport?.width ?? window.innerWidth),
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+}
+
+async function expectLabelWhole(label: Locator): Promise<void> {
+  const [scroll, client] = await label.evaluate((el) => [
+    el.scrollWidth,
+    el.clientWidth,
+  ]);
+  expect(scroll).toBeLessThanOrEqual(client);
+}
+
+const EMPTY_HOME_SIZES = [
+  { name: "phone", width: 390, height: 844 },
+  { name: "iPad", width: 820, height: 1180 },
+];
+
+for (const size of EMPTY_HOME_SIZES) {
+  test.describe(`Empty Home on a ${size.name}`, () => {
+    test.use({
+      viewport: { width: size.width, height: size.height },
+      isMobile: true,
+      hasTouch: true,
+    });
+
+    test("the tiles start in the first screen and the page does not scroll sideways", async ({
+      page,
+    }) => {
+      await mockBootstrap(page);
+      await mockRecents(page, []);
+      await openHome(page);
+      const import_ = page.locator(".sys-home .sys-start--import");
+      const record = homeRecordTile(page);
+      for (const tile of [import_, record]) {
+        const box = (await tile.boundingBox())!;
+        expect(box.y).toBeLessThan(300);
+        expect(box.y + box.height).toBeLessThanOrEqual(size.height);
+      }
+      await expect(
+        page.getByText("Your episodes will appear here."),
+      ).toBeVisible();
+      await expect(page.getByText(/Drop a file anywhere/)).toBeHidden();
+      await expectNoHorizontalScroll(page);
+    });
+  });
+}
+
+for (const width of [390, 360]) {
+  test.describe(`Empty Home at ${width}px wide`, () => {
+    test.use({
+      viewport: { width, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+    });
+
+    test("both tiles stay inside the page with whole labels at a 32px root", async ({
+      page,
+    }) => {
+      await mockBootstrap(page);
+      await mockRecents(page, []);
+      await openHome(page);
+      await setRootFontSize(page, 32);
+      await expectFitsVisualViewport(page);
+      for (const tile of [
+        page.locator(".sys-home .sys-start--import"),
+        homeRecordTile(page),
+      ]) {
+        const box = (await tile.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(width);
+        await expectLabelWhole(tile.locator(".sys-start-title"));
+      }
+    });
+  });
+}
+
+test.describe("Home with many recents on a phone", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  test("a focused last Recent row is not hidden under the bottom bar", async ({
+    page,
+  }) => {
+    await mockBootstrap(page);
+    await mockRecents(
+      page,
+      Array.from({ length: 8 }, (_, i) => ({
+        ...RECENT,
+        path: `${EPISODE}.${i}`,
+        name: `Episode ${i}`,
+      })),
+    );
+    await openHome(page);
+    const last = page.getByRole("button", { name: /^Episode 7/ });
+    await last.focus();
+    await expect
+      .poll(async () => {
+        const box = (await last.boundingBox())!;
+        const bar = (await page.locator(".sys-home-bar").boundingBox())!;
+        return box.y + box.height <= bar.y;
+      })
+      .toBe(true);
+  });
+});
+
+test.describe("Home while the Recent list loads on a phone", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  test("an empty result never shows the tiles at the bottom first", async ({
+    page,
+  }) => {
+    await mockBootstrap(page);
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(
+      (url) => url.pathname === "/api/projects/recent",
+      async (route) => {
+        await held;
+        await route.fulfill({ json: { projects: [] } });
+      },
+    );
+    await dismissSetupCard(page);
+    await page.goto("/?home=1");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "ShareCut" }),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      const seen: number[] = [];
+      (window as unknown as { __tileTops: number[] }).__tileTops = seen;
+      const sample = () => {
+        const tile = document.querySelector(".sys-home .sys-start--import");
+        if (tile) seen.push(tile.getBoundingClientRect().top);
+      };
+      new MutationObserver(sample).observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    });
+    await expect(page.locator(".sys-home .sys-start--import")).toHaveCount(0);
+    release();
+    await expect(page.locator(".sys-home .sys-start--import")).toBeVisible();
+    await page.waitForTimeout(300);
+    const tops = await page.evaluate(
+      () => (window as unknown as { __tileTops: number[] }).__tileTops,
+    );
+    expect(tops.length).toBeGreaterThan(0);
+    for (const top of tops) expect(top).toBeLessThan(300);
+  });
+});
+
+test.describe("Home when the Recent list never answers on a phone", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  test("Import and Record become reachable once the load is slow", async ({
+    page,
+  }) => {
+    await mockBootstrap(page);
+    await page.route(
+      (url) => url.pathname === "/api/projects/recent",
+      () => new Promise<void>(() => {}),
+    );
+    await dismissSetupCard(page);
+    await page.goto("/?home=1");
+    await expect(page.getByText("Still loading…")).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(
+      page.locator(".sys-home-bar .sys-start--import"),
+    ).toBeVisible();
+    await expect(homeRecordTile(page)).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
 });

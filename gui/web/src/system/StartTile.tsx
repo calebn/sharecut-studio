@@ -4,7 +4,7 @@ import { verbOf } from "./verbDisplay";
 
 type StartTileProps = {
   kind: "import" | "record";
-  /** Tile height in px; `160x96` is the 160 px wide, 96 px tall tile of an empty Edit; `phone-bar` is the 72 px half of the thumb-zone bar. */
+  /** Tile height in px; `160x96` is the 160 px wide, 96 px tall tile of an empty Edit; `phone-bar` is the 72 px half of Home's phone tile pair. */
   size: 240 | 220 | 160 | 80 | "160x96" | "phone-bar";
   state?: "rest" | "drag-hover" | "disabled";
   /** Shown in place of the line when `state` is `disabled`. */

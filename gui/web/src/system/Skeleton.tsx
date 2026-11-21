@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { useAfter } from "../hooks/useAfter";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { Button } from "../ui";
@@ -40,6 +40,8 @@ export type SkeletonProps = {
   /** The guest layout's header, drawn in place of its grey header block. It is told the phase. */
   head?: (phase: SkeletonPhase) => ReactNode;
   onRetry?: () => void;
+  /** Called once the skeleton reaches its slow state. */
+  onSlow?: () => void;
 };
 
 /** The guest frame: header, Player card, the Queue column and the center column. */
@@ -79,6 +81,7 @@ export function Skeleton({
   rows = 4,
   head,
   onRetry,
+  onSlow,
 }: SkeletonProps) {
   const controlled = elapsedMs !== undefined;
   // Only time carried in from another screen skips ahead; a screen that starts
@@ -94,6 +97,9 @@ export function Skeleton({
       : blocks || pastBlank
         ? "blocks"
         : "blank";
+  useEffect(() => {
+    if (phase === "slow") onSlow?.();
+  }, [phase, onSlow]);
   const headed = layout === "guest" && head !== undefined;
   const shell = useViewportClass();
   // The skeleton stays mounted through a retry, so nothing else shows the press
