@@ -409,3 +409,11 @@ def test_a_host_whose_paths_never_move_stores_every_path_as_written(container_ho
         assert host_platform.to_stored(absolute) == absolute
         assert host_platform.from_stored(absolute) == absolute
         assert host_platform.from_stored("Documents/Episode") == "Documents/Episode"
+
+
+@pytest.mark.parametrize("row", host_platform.ROWS, ids=lambda row: row.name)
+def test_a_row_that_runs_media_tools_in_process_cannot_spawn_processes(
+    row: HostPlatform,
+) -> None:
+    if row.media_tools == "in_process":
+        assert row.can_spawn_processes is False
