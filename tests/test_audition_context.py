@@ -881,6 +881,23 @@ def test_event_x_and_visual_event_priority():
     assert len(many) == 7
 
 
+def test_visual_mark_labels_use_event_ids_instead_of_their_bodies():
+    from podcast_mcp.edits.audition_context import _burn_marks
+
+    marks = _burn_marks(
+        [
+            {"kind": "comment", "id": "note-47", "text": "Review this", "t": 3.0, "x": 0.25},
+            {"kind": "pending_edit", "id": "cut-52", "text": "Pending", "t": 3.0, "x": 0.25},
+            {"kind": "word", "text": "hello", "t": 3.5, "x": 0.375},
+        ]
+    )
+    assert {(mark["kind"], mark["label"], mark["x"]) for mark in marks} == {
+        ("comment", "note-47", 0.25),
+        ("pending_edit", "cut-52", 0.25),
+        ("word", "hello", 0.375),
+    }
+
+
 def test_audition_context_muted_track_speaking(minimal_project, sample_wav, tmp_workspace):
     proj = _two_track_project(minimal_project, sample_wav, tmp_workspace, skew_sec=0.0)
     host = proj.track_by_id("host")
