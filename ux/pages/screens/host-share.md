@@ -15,6 +15,9 @@
 
 **Undo** restores the same link or room and says “Link restored.” or “Room restored.” The toast explains a server refusal. If the request fails with time left, you can try the same Undo again. The button is reachable by keyboard and 44 px on touch. When the refreshed list removes the link or room, focus moves from the removed control to its heading in Invite or Deliver. When Undo finishes, focus returns to that heading if focus was lost or stayed in the toast and the heading is still available.
 
+If the command line warns that earlier links may still work, the new room is ready.
+Use the warning’s recovery commands to end earlier rooms without creating another room.
+
 **Deliver** keeps only the **Listen link** row, in the right column after the Episode file (phone: after the Episode file, before Chapters), with the same behavior as the sheet's Listen group. After Deliver confirms that a Project default export matches the current settings and episode, **Copy** is outlined as the follow-up. While the settings check is unavailable, the successful export still shows its summary and files and **Copy** keeps its usual appearance. A one-off named loudness export keeps the existing Listen link. Export stays the only filled button until a file exists, then Reveal or Download takes over. The design system drops the old ⌘⇧C chord, so Copy listen link has no key and no palette command; the row's **Copy** is the way.
 
 In Deliver, a selected audio format that becomes unavailable stays checked and

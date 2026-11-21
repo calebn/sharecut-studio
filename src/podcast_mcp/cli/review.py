@@ -299,7 +299,23 @@ def _cli_create_record_share(
         )
     except RecordStaleLinksError as exc:
         typer.echo(json.dumps(exc.room, indent=2))
-        raise
+        if exc.unverified:
+            earlier = (
+                "Earlier rooms could not be checked. Their invite links may still work. "
+                "Run podcast review list-shares --project PROJECT to find their session IDs."
+            )
+        else:
+            stale_ids = ", ".join(exc.stale_session_ids)
+            earlier = f"Earlier rooms may still have working links: {stale_ids}."
+        typer.echo(
+            f"Error: New record room {exc.session_id} is ready. {earlier} "
+            "To end an earlier room, run podcast review revoke-share "
+            "--project PROJECT --session-id SESSION_ID. "
+            "Replace PROJECT with the project file and SESSION_ID with an earlier room's ID. "
+            f"Creating another room ends every room it can, including this one. (code {exc.code})",
+            err=True,
+        )
+        raise typer.Exit(1) from None
     except (KeyError, ValueError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc

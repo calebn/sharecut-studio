@@ -141,8 +141,12 @@ and MCP refusal), carrying the new session id and links and the old session ids 
 live; minting again retries the revoke, or revoke those session ids. When neither
 listing of the earlier rooms succeeds, the error carries `unverified: true` and an
 empty `stale_session_ids`: earlier links may still work, and minting again checks
-them and ends any that are live, including the new room. The GUI treats
-that 409 as a made room: it lists the room, copies the guest link and tells the host
+them and ends any that are live, including the new room. The CLI writes the new room
+and its links as JSON to standard output and exits with status 1. The warning on
+standard error gives the recovery commands. Use `podcast review list-shares --project PROJECT`
+if no earlier session IDs are known, then `podcast review revoke-share --project PROJECT --session-id SESSION_ID`
+for each earlier room to end. Keep the room JSON private because it contains invite links.
+The GUI treats that 409 as a made room: it lists the room, copies the guest link and tells the host
 that links to an earlier room may still work (End that room in Invite), and it does
 not mint again on its own. An old guest's open socket is closed by the periodic share
 recheck (within about 5 s while active, 30 s idle), and a joined old guest also fails

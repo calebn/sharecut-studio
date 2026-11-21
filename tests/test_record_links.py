@@ -1024,9 +1024,13 @@ def test_stale_links_error_surfaces_on_gui_cli_and_mcp(
     result = CliRunner().invoke(
         cli_app, ["review", "share", "--project", str(ws.path), "--kind", "record"]
     )
-    assert result.exit_code != 0
-    assert "record_stale_links" in result.output
-    assert old["session_id"] in result.output
+    assert result.exit_code == 1
+    minted = json.loads(result.stdout)
+    assert "(code record_stale_links)" in result.stderr
+    assert old["session_id"] in result.stderr
+    assert "podcast review revoke-share --project PROJECT --session-id SESSION_ID" in result.stderr
+    assert "including this one" in result.stderr
+    assert all(minted[role]["url"] not in result.stderr for role in ("guest", "producer"))
 
     with pytest.raises(RecordStaleLinksError) as raised:
         create_record_room_tool(str(ws.path))
@@ -1261,3 +1265,50 @@ def test_gui_409_marks_a_mint_whose_room_listings_both_fail_as_unverified(
     assert detail["unverified"] is True
     assert detail["stale_session_ids"] == []
     assert detail["room"]["session_id"] in detail["message"]
+
+
+def test_cli_lists_recovery_steps_when_earlier_record_rooms_cannot_be_checked(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    older = ShareService(ws).create_record_room()
+
+    def listing_fails(self, session_id):
+        raise RuntimeError("listing boom")
+
+    runner = CliRunner()
+    with monkeypatch.context() as fault:
+        fault.setattr(ShareService, "_live_other_record_rooms", listing_fails)
+        result = runner.invoke(
+            cli_app, ["review", "share", "--project", str(ws.path), "--kind", "record"]
+        )
+
+    assert result.exit_code == 1
+    minted = json.loads(result.stdout)
+    assert "(code record_stale_links)" in result.stderr
+    assert minted["session_id"] != older["session_id"]
+    assert minted["session_id"] in result.stderr
+    assert "podcast review list-shares --project PROJECT" in result.stderr
+    assert "podcast review revoke-share --project PROJECT --session-id SESSION_ID" in result.stderr
+    assert "including this one" in result.stderr
+    assert "listing boom" not in result.stderr
+    assert all(minted[role]["url"] not in result.stderr for role in ("guest", "producer"))
+
+    listing = runner.invoke(cli_app, ["review", "list-shares", "--project", str(ws.path)])
+    assert listing.exit_code == 0
+    assert {row["session_id"] for row in json.loads(listing.stdout) if row["kind"] == "record"} == {
+        older["session_id"],
+        minted["session_id"],
+    }
+
+    ended = runner.invoke(
+        cli_app,
+        ["review", "revoke-share", "--project", str(ws.path), "--session-id", older["session_id"]],
+    )
+    assert ended.exit_code == 0
+    assert json.loads(ended.stdout)["session_id"] == older["session_id"]
+    with pytest.raises(KeyError):
+        lookup_share(older["guest"]["token"], kind="record")
+    assert (
+        lookup_share(minted["guest"]["token"], kind="record")["session_id"] == minted["session_id"]
+    )
