@@ -92,13 +92,10 @@ def pipeline_run(
         if unattended is not None
         else bool(working.unattended if working is not None else False)
     )
-    from podcast_mcp.services.jobs import SetupRunQueue, studio_job_manager
-    from podcast_mcp.util.coded_error import CodedError
+    from podcast_mcp.services.jobs import studio_job_manager
 
     jobs = studio_job_manager()
     if jobs is not None:
-        if SetupRunQueue(jobs).waiting(ws.path):
-            raise CodedError("Waiting for setup", code="pipeline_setup_waiting")
         ensure_whisper_cached_for_run(
             config=run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
         )
