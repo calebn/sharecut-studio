@@ -19,12 +19,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
+from podcast_mcp.cli.main import app
 from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import share as share_module
 from podcast_mcp.services.collaboration.review_shares import list_shares
 from podcast_mcp.services.collaboration.share import ShareService, _row_live, lookup_share
+from podcast_mcp.util import project_state
 from podcast_mcp.util.project_state import ProjectBusyError, record_room_lock_path
 from test_share_restorable_revoke import (  # noqa: F401  (effects and the autouse fixtures)
     _review_share,
@@ -74,8 +77,9 @@ def _subprocess_holds(lock_path: Path, tmp_path: Path) -> Iterator[Callable[[], 
     )
 
     def release_lock() -> None:
-        assert proc.stdin is not None
-        proc.stdin.close()
+        if proc.stdin is not None:
+            proc.stdin.close()
+            proc.stdin = None
         proc.wait(timeout=CHILD_DEADLINE_SEC)
 
     try:
@@ -83,8 +87,7 @@ def _subprocess_holds(lock_path: Path, tmp_path: Path) -> Iterator[Callable[[], 
         assert proc.stdout.readline().strip() == "held"
         yield release_lock
     finally:
-        if proc.stdin is not None and not proc.stdin.closed:
-            proc.stdin.close()
+        release_lock()
         proc.communicate(timeout=CHILD_DEADLINE_SEC)
 
 
@@ -102,6 +105,38 @@ def test_mint_is_refused_while_another_process_holds_the_room_lock(
         release()
         room = ShareService(ws).create_record_room()
     assert _usable_rooms(ws) == {room["session_id"]}
+
+
+@pytest.mark.parametrize("kind", ["record room", "project commit"])
+def test_cli_names_the_lock_that_prevents_the_command(minimal_project, tmp_path, monkeypatch, kind):
+    ws = ProjectWorkspace.open(minimal_project)
+    monkeypatch.setenv("PODCAST_NO_STUDIO_HANDOFF", "1")
+    monkeypatch.setattr(share_module, "RECORD_ROOM_LOCK_TIMEOUT_SEC", SMALL_TIMEOUT)
+    monkeypatch.setattr(project_state, "PROJECT_COMMIT_LOCK_TIMEOUT_SEC", SMALL_TIMEOUT)
+    if kind == "record room":
+        lock_path = record_room_lock_path(Path(ws.project.workspace_dir))
+        args = ["review", "share", "--kind", "record"]
+    else:
+        lock_path = project_state.project_commit_lock_path(ws.project)
+        args = ["comment", "add", "--start", "0", "--body", "Example comment", "--author", "Host"]
+    args += ["--project", str(minimal_project)]
+
+    runner = CliRunner()
+    with _subprocess_holds(lock_path, tmp_path):
+        busy = runner.invoke(app, args)
+        assert busy.exit_code == 1
+        assert not busy.stdout
+        assert f"for the {kind} lock." in busy.stderr
+        assert str(lock_path) not in busy.stderr
+
+    succeeded = runner.invoke(app, args)
+    assert succeeded.exit_code == 0
+    if kind == "record room":
+        room = json.loads(succeeded.stdout)
+        assert _usable_rooms(ws) == {room["session_id"]}
+    else:
+        [comment] = ProjectWorkspace.open(minimal_project).project.comments
+        assert comment.body == "Example comment"
 
 
 @pytest.mark.usefixtures("effects")
