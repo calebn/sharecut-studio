@@ -517,7 +517,7 @@ export function registerPaletteReconnectSmoke() {
                             ({ socketId, sequence, frame }) =>
                               !!active &&
                               socketId === active.id &&
-                              sequence > (active.helloSequence ?? Infinity) &&
+                              sequence > (closed?.closeSequence ?? Infinity) &&
                               frame.meta?.following === leaderId &&
                               !Number.isFinite(frame.playhead_sec) &&
                               !Number.isFinite(
