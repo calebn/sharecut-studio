@@ -152,8 +152,8 @@ tagged `storybook-only` before assigning shards, so each shard counts only
 stories it runs. Chromium’s network log contributes failed HTTP requests to
 the error check for the active story, with the request URL when available.
 Fullscreen shell stories also check that the browser body adds no padding.
-The sweep keeps observing each story through unmount and the following frames
-so cleanup errors are reported against that story.
+Browser errors emitted during unmount and the following frames stay with that
+story. Storybook can retry a cleanup hook that rejects when the next story starts.
 Tagged stories need the Storybook runtime and run in
 `e2e-storybook/coverage.spec.ts` instead. These checks do not certify the live
 palette, which also needs browser verification against the current catalog.
