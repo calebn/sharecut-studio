@@ -403,7 +403,6 @@ describe("stable callback source governance", () => {
       "system/useFocusRescue.ts:resolve",
       "system/useGrab.ts:abort",
       "system/useGrab.ts:canGrab",
-      "system/useGrab.ts:escapeDrag",
       "system/useGrab.ts:onEnd",
       "system/useGrab.ts:onMove",
       "system/useGrab.ts:onStart",

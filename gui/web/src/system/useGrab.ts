@@ -4,6 +4,23 @@ import { listenForInterrupt } from "../hooks/useInterruptCancel";
 import { useStableCallback } from "../utils/useStableCallback";
 import { capturePointer } from "./wavePointer";
 
+export function listenForDragEscape(
+  isDragging: () => boolean,
+  cancel: () => void,
+  signal: AbortSignal,
+): void {
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key !== "Escape" || !isDragging()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      cancel();
+    },
+    { capture: true, signal },
+  );
+}
+
 export type GrabPointer = {
   clientX: number;
   clientY: number;
@@ -122,12 +139,6 @@ export function useGrab<G>(options: GrabOptions<G>) {
     dragged.current = true;
     onEnd(grab.grip, false, performance.now());
   });
-  const escapeDrag = useStableCallback((event: globalThis.KeyboardEvent) => {
-    if (event.key !== "Escape" || !held.current?.moved) return;
-    event.preventDefault();
-    event.stopPropagation();
-    abort();
-  });
 
   useLayoutEffect(
     () => () => {
@@ -155,7 +166,7 @@ export function useGrab<G>(options: GrabOptions<G>) {
     };
     stopWatching();
     const { signal } = (watching.current = new AbortController());
-    document.addEventListener("keydown", escapeDrag, { capture: true, signal });
+    listenForDragEscape(() => held.current?.moved === true, abort, signal);
     listenForInterrupt(abort, signal);
     capturePointer(event);
   };
