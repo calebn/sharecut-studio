@@ -324,6 +324,51 @@ describe("text on screen posts at its pin when the layout changes", () => {
     });
   });
 
+  it("keeps a closed draft off the Listen layout when it returns", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    startPlaying();
+    mount();
+    await user.click(commentAt());
+    await user.type(field(), "too loud here");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(playing()).toBe(true);
+
+    act(() => useDawStore.setState({ playheadSec: 40 }));
+    setShell("desktop");
+    expect(value()).toBe("too loud here");
+    await user.type(field(), " on the left");
+    expect(playing()).toBe(true);
+
+    setShell("phone");
+    expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    expect(playing()).toBe(true);
+    await user.click(commentAt());
+    expect(value()).toBe("too loud here on the left");
+    expect(playing()).toBe(false);
+    await user.click(postButton());
+    expect(createComment.mock.calls[0]?.[1]).toMatchObject({
+      timelineStart: 5,
+    });
+  });
+
+  it("keeps a draft the guest left open across the layout change", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    startPlaying();
+    mount();
+    await user.click(commentAt());
+    await user.type(field(), "keep this open");
+
+    setShell("desktop");
+    expect(value()).toBe("keep this open");
+    setShell("phone");
+    expect(value()).toBe("keep this open");
+    expect(playing()).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(playing()).toBe(true);
+  });
+
   it("keeps the playhead for an empty field when the layout stops being Listen", async () => {
     const user = userEvent.setup();
     join("comment");
