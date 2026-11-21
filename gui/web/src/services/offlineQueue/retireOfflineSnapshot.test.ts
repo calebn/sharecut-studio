@@ -16,6 +16,7 @@ function database() {
   return {
     close() {},
     transaction(_store: string, mode: string) {
+      let wrote = false;
       const tx = {
         error: null,
         oncomplete: () => {},
@@ -30,11 +31,12 @@ function database() {
               };
               queueMicrotask(() => {
                 req.onsuccess();
-                queueMicrotask(() => tx.oncomplete());
+                if (!wrote) queueMicrotask(() => tx.oncomplete());
               });
               return req;
             },
             put(value: unknown, key: string) {
+              wrote = true;
               const held = gate;
               void held.then(() => {
                 rows.set(key, structuredClone(value));
@@ -85,6 +87,15 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("retireOfflineSnapshot", () => {
+  it("keeps the saved date when only the playback path refreshes the copy", async () => {
+    const token = "r-date";
+    await saveOfflineSnapshot(token, { project: { a: 1 }, saved_at: 1 });
+    await mergeOfflineSnapshot(token, { manifest: {} }, { preserveDate: true });
+    expect((await loadOfflineSnapshot(token))?.saved_at).toBe(1);
+    await mergeOfflineSnapshot(token, { project: { a: 2 } });
+    expect((await loadOfflineSnapshot(token))?.saved_at).toBeGreaterThan(1);
+  });
+
   it("deletes the saved copy", async () => {
     await saveOfflineSnapshot("r-plain", { project: { a: 1 }, saved_at: 1 });
     expect(await loadOfflineSnapshot("r-plain")).toBeDefined();

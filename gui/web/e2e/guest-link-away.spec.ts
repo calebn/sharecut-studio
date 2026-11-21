@@ -169,7 +169,7 @@ test.describe("a page that opened on the saved copy", () => {
       await expect(
         guest.getByRole("heading", { name: "The host's computer is asleep" }),
       ).toBeVisible();
-      await expect(light(guest)).toContainText("Saved copy");
+      await expect(light(guest)).toContainText("Saved copy from");
       await guest.evaluate(() => {
         (window as unknown as { __page: number }).__page = 1;
       });

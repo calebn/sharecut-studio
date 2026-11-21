@@ -79,6 +79,9 @@ The region's title is "The transcript didn't load" on Review and "Could not load
 
 - Any other answer from the host counts as reaching it, a 403, a 404, a 429, a 500 or a busy 503 included. A relay answering 502, 504 or a 503 that does not say the host is busy is no answer from the host. A request the page cancelled itself counts as neither. Only the guest's own requests for the link count, never the audio, which the player judges itself.
 - The light shows the words with " · N waiting" when edits wait to be sent. On a phone it shows the cloud and the count, and the sentence stays in the light's title and for assistive technology. The sentence is one live region and carries the count (for example "Can't reach the host, 2 waiting. This page keeps trying."), so it is said again when the count changes.
+- The saved copy indicator includes the date Studio last saved the episode when the browser has that date. Compact headers include it in the spoken status. The live episode uses its live save status once the host answers.
+
+
 - While the page is away the light never shows "Saving" or "Saved" and the page says neither: the check that runs every 30 seconds does not show as a save. A Saved copy light and an unreadable queue keep their own words.
 - The page asks again by itself (at once when it turns away, then every 5 seconds while away, and at once when the browser reports the connection back). The first answer ends it: the light returns to "Saved" (or "N waiting" when edits wait), the page sends what waited, and the status line reads "Saved" once. Nothing else is announced.
 

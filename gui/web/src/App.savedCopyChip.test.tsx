@@ -5,6 +5,7 @@ import { resetFeaturesCache } from "./extensions/features";
 import { useHeaderProps } from "./stage/frame/useHeaderProps";
 import { useReadsSavedCopy } from "./state/savedCopy";
 import { AppHeader } from "./system/AppHeader";
+import { stubIndexedDb } from "./test/fakeIndexedDb";
 import { minimalProject } from "./test/fixtures";
 import { urlOf } from "./test/urlOf";
 
@@ -77,6 +78,22 @@ afterEach(() => {
 });
 
 describe("the header on a saved copy the guest opened because the link was not reached", () => {
+  it("dates the saved copy with the stored snapshot time", async () => {
+    stubLinkFirstReadFails();
+    stubIndexedDb(new Map());
+    const date = new Date(2026, 10, 17, 12);
+    offline.load.mockResolvedValue({
+      project: minimalProject(),
+      saved_at: date.getTime(),
+    });
+    render(<App />);
+    expect(
+      await screen.findByText(
+        `Saved copy from ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date)}`,
+      ),
+    ).toBeVisible();
+  });
+
   it("shows no role chip, so an Editor link is not called Viewer", async () => {
     stubLinkFirstReadFails();
     render(<App />);

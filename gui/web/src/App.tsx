@@ -39,7 +39,10 @@ import { composerPatch, initialSession } from "./state/composerSession";
 import { useDawStore } from "./state/dawStore";
 import { useHostBackCount } from "./state/hostReach";
 import { clearOutbox } from "./state/outboxStore";
-import { subscribeSavedCopyReopen } from "./state/savedCopy";
+import {
+  SavedCopyDateContext,
+  subscribeSavedCopyReopen,
+} from "./state/savedCopy";
 import { cleanShareName } from "./state/shareName";
 import { DawProvider } from "./state/store";
 import {
@@ -92,7 +95,11 @@ type GuestAccess = {
   /** The episode's name, when the link's answer or its saved copy gave one. */
   name: string | null;
 };
-type CachedGuestProject = { key: string; project: ProjectView };
+type CachedGuestProject = {
+  key: string;
+  project: ProjectView;
+  savedAt: number | null;
+};
 type BootstrapRequest = {
   projectPath: string | null;
   reviewToken: string | null;
@@ -478,7 +485,11 @@ function AppInner({ bootName }: { bootName: string | null }) {
               author: null,
               name: cleanShareName(cachedProject.meta?.name),
             },
-            cached: { key, project: cachedProject },
+            cached: {
+              key,
+              project: cachedProject,
+              savedAt: saved?.saved_at ?? null,
+            },
           };
           return;
         }
@@ -593,7 +604,15 @@ function AppInner({ bootName }: { bootName: string | null }) {
         shareName={shareName}
       >
         <Suspense fallback={projectLoading()}>
-          <DawApp guestShare />
+          <SavedCopyDateContext.Provider
+            value={
+              cachedGuestProject?.key === shareKey
+                ? cachedGuestProject.savedAt
+                : null
+            }
+          >
+            <DawApp guestShare />
+          </SavedCopyDateContext.Provider>
         </Suspense>
       </DawProvider>
     );
