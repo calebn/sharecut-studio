@@ -5,7 +5,7 @@ import type { HostCause } from "../../state/hostReach";
 export type SaveState =
   | { kind: "saving" }
   | { kind: "saved" }
-  | { kind: "waiting"; count: number }
+  | { kind: "waiting"; count: number; guest?: boolean }
   | { kind: "unreachable"; count: number }
   | { kind: "away"; cause: HostCause; count: number }
   | {
@@ -21,6 +21,7 @@ type SaveStateInput = {
   busy: boolean;
   /** Edits in the offline queue, not yet applied. */
   pending: number;
+  guest?: boolean;
   /** Outcomes the Needs attention group lists, newest last. */
   conflicts: readonly OfflineConflict[];
   /** A share guest is reading the saved copy because the host cannot be reached. */
@@ -84,6 +85,12 @@ export function saveStateOf(input: SaveStateInput): SaveState | null {
       recovery: latestOutcome.recovery,
     };
   }
-  if (input.pending > 0) return { kind: "waiting", count: input.pending };
+  if (input.pending > 0) {
+    return {
+      kind: "waiting",
+      count: input.pending,
+      ...(input.guest ? { guest: true } : {}),
+    };
+  }
   return { kind: "saved" };
 }

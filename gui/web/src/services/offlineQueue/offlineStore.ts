@@ -214,16 +214,15 @@ function parseConflictList(value: unknown): OfflineConflict[] {
 export type OfflineAttentionData = {
   pending: number;
   conflicts: OfflineConflict[];
+  queuedCommandIds?: readonly string[];
 };
 
-export type DismissalResult = {
-  pending: number;
-  conflicts: OfflineConflict[];
-};
+export type DismissalResult = OfflineAttentionData;
 
 function readOfflineAttention(
   queueKeyValue: string,
   conflictKeyValue: string,
+  includeQueuedIds = false,
 ): Promise<OfflineAttentionData> {
   const dbPromise = openDb();
   return dbPromise.then(
@@ -237,7 +236,13 @@ function readOfflineAttention(
         let conflicts: OfflineConflict[] | undefined;
         const finish = () => {
           if (queue === undefined || conflicts === undefined) return;
-          resolve({ pending: queue.length, conflicts });
+          resolve({
+            pending: queue.length,
+            conflicts,
+            ...(includeQueuedIds
+              ? { queuedCommandIds: queue.map((row) => row.command_id) }
+              : {}),
+          });
         };
         queueRequest.onsuccess = () => {
           try {
@@ -687,6 +692,7 @@ function dismissOfflineOutcomes(
   queueKeyValue: string,
   conflictKeyValue: string,
   captured: readonly OfflineConflict[],
+  includeQueuedIds = false,
 ): Promise<DismissalResult> {
   const identities = new Set(captured.map(outcomeIdentity));
   return openDb().then(
@@ -741,6 +747,9 @@ function dismissOfflineOutcomes(
           result = {
             pending: nextQueue.length,
             conflicts: nextConflicts,
+            ...(includeQueuedIds
+              ? { queuedCommandIds: nextQueue.map((row) => row.command_id) }
+              : {}),
           };
           try {
             store.put(parseCommandList(nextQueue), queueKeyValue);
@@ -792,7 +801,12 @@ export function dismissConflicts(
   token: string,
   captured: readonly OfflineConflict[],
 ): Promise<DismissalResult> {
-  return dismissOfflineOutcomes(queueKey(token), conflictKey(token), captured);
+  return dismissOfflineOutcomes(
+    queueKey(token),
+    conflictKey(token),
+    captured,
+    true,
+  );
 }
 
 export function dismissHostConflicts(
@@ -825,7 +839,7 @@ export function loadHostAttention(
 export function loadGuestAttention(
   token: string,
 ): Promise<OfflineAttentionData> {
-  return readOfflineAttention(queueKey(token), conflictKey(token));
+  return readOfflineAttention(queueKey(token), conflictKey(token), true);
 }
 
 export function settleHostCommandOutcome(

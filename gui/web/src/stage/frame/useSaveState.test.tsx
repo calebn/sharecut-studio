@@ -386,12 +386,12 @@ describe("useSaveState", () => {
       expect(offlineStore.loadHostCommandCount).not.toHaveBeenCalled();
     });
 
-    it("counts the comments waiting in the guest queue", async () => {
+    it("describes queued guest edits as waiting to send", async () => {
       hydrateGuest(["comment"]);
       offlineStore.loadCommandQueue.mockResolvedValue(queued(2));
       render(<SaveDot />);
       await settle();
-      expect(screen.getByRole("status")).toHaveTextContent("2 waiting");
+      expect(screen.getByRole("status")).toHaveTextContent("2 waiting to send");
     });
 
     it("turns to Retry when the saved edits cannot be read", async () => {
@@ -458,7 +458,7 @@ describe("useSaveState", () => {
         const status = screen.getByRole("status");
         expect(status).toHaveTextContent("Can't reach the host · 2 waiting");
         expect(status).toHaveTextContent(
-          "Can't reach the host, 2 waiting. This page keeps trying.",
+          "Can't reach the host, 2 waiting to send. This page keeps trying.",
         );
         const end = beginDocumentSend("share:tok-1448", "c1");
         await settle();

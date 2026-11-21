@@ -53,13 +53,15 @@ export function useSaveState(): {
   const guest = isShareProjectKey(projectPath);
   const unreachable = useReadsSavedCopy();
   const busy = useDocumentBusy(projectPath);
-  const hostCause = useHostCause(shareTokenFromKey(projectPath));
+  const token = shareTokenFromKey(projectPath);
+  const hostCause = useHostCause(token);
   const attention = useOfflineAttention(projectPath || null);
   const state = !projectPath
     ? null
     : saveStateOf({
         busy,
-        pending: attention.pending,
+        pending: attention.pending + attention.waitingPosts,
+        guest,
         conflicts: attention.conflicts,
         unreachable,
         away: unreachable ? null : hostCause,
