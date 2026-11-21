@@ -1,8 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
+import { executePointerCommand } from "../../commands/pointer";
 import { registerDawCommands } from "../../commands/register";
+import { useDawKeymapListener } from "../../keymap/listener";
 import { useDawStore } from "../../state/dawStore";
 import {
   minimalProject,
@@ -29,6 +37,16 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 const audition = () => useDawStore.getState().auditionMode;
+
+function PlayerWithTimeline() {
+  useDawKeymapListener();
+  return (
+    <>
+      <div role="region" aria-label="Timeline" tabIndex={-1} />
+      <PlayerBar />
+    </>
+  );
+}
 
 describe("PlayerBar", () => {
   it("hears the original while A is held and goes back to the mode it left", async () => {
@@ -80,6 +98,7 @@ describe("PlayerBar", () => {
   });
 
   describe("source preview", () => {
+    const inputs = ["Player", "Space", "palette"] as const;
     const previewAt = (episodePlaying: boolean, hasTrack = true) => {
       useDawStore
         .getState()
@@ -96,8 +115,58 @@ describe("PlayerBar", () => {
         startSec: 0,
         endSec: 3,
       });
+      transport.setTimelineFocused(true);
       return useDawStore.getState().sourcePreview!;
     };
+    const press = async (input: (typeof inputs)[number], label: string) => {
+      if (input === "Player") {
+        await userEvent.click(screen.getByRole("button", { name: label }));
+      } else if (input === "Space") {
+        screen.getByRole("region", { name: "Timeline" }).focus();
+        await userEvent.keyboard(" ");
+      } else {
+        await act(async () => {
+          await executePointerCommand("transport.togglePlay");
+        });
+      }
+    };
+
+    it.each(inputs)(
+      "pauses a preview with %s and leaves the episode paused",
+      async (input) => {
+        previewAt(false);
+        render(<PlayerWithTimeline />);
+        expect(screen.getByRole("button", { name: "Pause" })).toBeVisible();
+        await press(input, "Pause");
+
+        expect(screen.getByRole("button", { name: "Play" })).toBeVisible();
+        expect(useDawStore.getState()).toMatchObject({
+          sourcePreview: null,
+          isPlaying: false,
+          playheadSec: 12,
+        });
+      },
+    );
+
+    it.each(inputs)(
+      "resumes the episode with %s after a preview ends",
+      async (input) => {
+        const preview = previewAt(true);
+        useDawStore
+          .getState()
+          .updateSourcePreview(preview.ownerId, preview.generation, 3, true);
+        render(<PlayerWithTimeline />);
+        expect(screen.getByRole("button", { name: "Play" })).toBeVisible();
+        await press(input, "Play");
+
+        expect(screen.getByRole("button", { name: "Pause" })).toBeVisible();
+        expect(useDawStore.getState()).toMatchObject({
+          sourcePreview: null,
+          isPlaying: true,
+          playheadSec: 12,
+        });
+      },
+    );
 
     it("can pause a playing preview even when the episode has no tracks", async () => {
       previewAt(false, false);
@@ -134,6 +203,20 @@ describe("PlayerBar", () => {
         });
       },
     );
+
+    it("retries episode audio while a source preview is held", async () => {
+      previewAt(false);
+      useDawStore.getState().setAudioError("Audio playback failed");
+      render(<PlayerBar />);
+      await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+      expect(useDawStore.getState()).toMatchObject({
+        sourcePreview: null,
+        audioError: null,
+        isPlaying: true,
+        playheadSec: 12,
+      });
+    });
   });
 
   describe("Comment", () => {

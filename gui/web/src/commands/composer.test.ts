@@ -34,6 +34,32 @@ beforeEach(() => {
 });
 
 describe("dispatchComposer against the real transport", () => {
+  it("pauses the episode for a Listen comment when a source preview has ended", () => {
+    const state = useDawStore.getState();
+    state.setIsPlaying(true);
+    state.beginSourcePreview({
+      ownerId: "selected-range",
+      media: { kind: "rendered", url: "blob:range" },
+      startSec: 0,
+      endSec: 3,
+    });
+    const preview = useDawStore.getState().sourcePreview!;
+    state.updateSourcePreview(preview.ownerId, preview.generation, 3, true);
+
+    dispatchComposer({
+      type: "open",
+      anchor: at(5),
+      replacePin: false,
+      listen: true,
+    });
+    expect(playing()).toBe(false);
+    expect(useDawStore.getState().sourcePreview).toBeNull();
+    expect(useDawStore.getState().composer.draft?.resume).toBe(true);
+
+    dispatchComposer({ type: "close" });
+    expect(playing()).toBe(true);
+  });
+
   it("plays on when the guest may no longer comment mid-compose", () => {
     useDawStore.setState({ isPlaying: true, playStartSec: 0 });
     dispatchComposer({
