@@ -367,6 +367,30 @@ test.describe("Home when the Recent list never answers on a phone", () => {
     hasTouch: true,
   });
 
+  test("keeps keyboard focus when slow Recents resolves empty", async ({
+    page,
+  }) => {
+    await mockBootstrap(page);
+    let release = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(
+      (url) => url.pathname === "/api/projects/recent",
+      async (route) => {
+        await pending;
+        await route.fulfill({ json: { projects: [] } });
+      },
+    );
+    await dismissSetupCard(page);
+    await page.goto("/?home=1");
+    const record = page.locator(".sys-home-bar .sys-start--record");
+    await expect(record).toBeVisible({ timeout: 10_000 });
+    await record.focus();
+    release();
+    await expect(page.locator("main .sys-start--record")).toBeFocused();
+  });
+
   test("Import and Record become reachable once the load is slow", async ({
     page,
   }) => {
