@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -81,6 +81,77 @@ describe("TabList", () => {
     await userEvent.keyboard("{ArrowRight}");
     expect(screen.getByRole("tab", { name: "Next" })).toHaveFocus();
     expect(select).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips ARIA-disabled tabs and cancels only tab navigation keys", () => {
+    const selectUnavailable = vi.fn();
+    render(
+      <TabList label="Available panels">
+        <Tab
+          selected={false}
+          aria-disabled="true"
+          panelId="panel"
+          onClick={selectUnavailable}
+        >
+          Unavailable first
+        </Tab>
+        <Tab selected panelId="panel">
+          First
+        </Tab>
+        <Tab
+          selected={false}
+          aria-disabled="true"
+          panelId="panel"
+          onClick={selectUnavailable}
+        >
+          Unavailable middle
+        </Tab>
+        <Tab selected={false} panelId="panel">
+          Last
+        </Tab>
+        <Tab
+          selected={false}
+          aria-disabled="true"
+          panelId="panel"
+          onClick={selectUnavailable}
+        >
+          Unavailable last
+        </Tab>
+      </TabList>,
+    );
+    const first = screen.getByRole("tab", { name: "First" });
+    const last = screen.getByRole("tab", { name: "Last" });
+    act(() => first.focus());
+    expect(fireEvent.keyDown(first, { key: "q" })).toBe(true);
+    expect(first).toHaveFocus();
+
+    expect(fireEvent.keyDown(first, { key: "ArrowRight" })).toBe(false);
+    expect(last).toHaveFocus();
+    expect(fireEvent.keyDown(last, { key: "ArrowLeft" })).toBe(false);
+    expect(first).toHaveFocus();
+    expect(fireEvent.keyDown(first, { key: "End" })).toBe(false);
+    expect(last).toHaveFocus();
+    expect(fireEvent.keyDown(last, { key: "Home" })).toBe(false);
+    expect(first).toHaveFocus();
+    expect(selectUnavailable).not.toHaveBeenCalled();
+  });
+
+  it("lets keys from a focused non-tab descendant pass through", () => {
+    const select = vi.fn();
+    render(
+      <TabList label="Panels">
+        <Tab selected panelId="panel" onClick={select}>
+          First
+        </Tab>
+        <button type="button">Other control</button>
+      </TabList>,
+    );
+    const control = screen.getByRole("button", { name: "Other control" });
+    act(() => control.focus());
+
+    expect(fireEvent.keyDown(control, { key: "ArrowRight" })).toBe(true);
+    expect(control).toHaveFocus();
+    expect(select).not.toHaveBeenCalled();
   });
 
   it("falls back to the first enabled tab without issuing a selection command", () => {
