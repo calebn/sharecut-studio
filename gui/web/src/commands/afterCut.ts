@@ -46,10 +46,12 @@ export function registerAfterCutCommands(): void {
     const state = useDawStore.getState();
     if (!state.rangeBusy && !transcriptLoading(state.project))
       return jump(shift);
-    const queued = state.afterCut;
-    return untilCutSettled(state.projectEpoch).then((settled) => {
-      if (settled) return holdFocusOk() ? jump(shift) : NONE;
+    const { afterCut: queued, editVisit } = state;
+    if (editVisit === null) return NONE;
+    return untilCutSettled(editVisit).then((settled) => {
       const live = useDawStore.getState();
+      if (live.editVisit !== editVisit) return NONE;
+      if (settled) return holdFocusOk() ? jump(shift) : NONE;
       if (queued && live.afterCut === queued) live.setAfterCut(null);
       return NONE;
     });
