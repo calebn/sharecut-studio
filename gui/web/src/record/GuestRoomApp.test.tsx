@@ -455,32 +455,37 @@ describe("GuestRoomApp", () => {
     ).toBeLessThan(3);
   });
 
-  it("waits for a changed join result and preserves a retry under an unchanged error", async () => {
+  it("allows another join after the room repeats the same refusal", async () => {
     stubBootstrap();
     render(<GuestRoomApp token="guest-tok" />);
     await readyToJoin(getUserMedia);
     const socket = sockets[0];
     socket.holdConsent = true;
+    const refuse = () =>
+      act(() =>
+        socket.onmessage?.({
+          data: JSON.stringify({
+            plane: "record",
+            type: "Error",
+            code: "rate_limited",
+          }),
+        }),
+      );
     await userEvent.click(joinButton());
     expect(screen.getByRole("button", { name: "Joining…" })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
-    act(() =>
-      socket.onmessage?.({
-        data: JSON.stringify({
-          plane: "record",
-          type: "Error",
-          code: "invalid_state",
-        }),
-      }),
-    );
+    refuse();
     await waitFor(() => expect(joinButton()).toBeEnabled());
     await userEvent.click(joinButton());
     expect(screen.getByRole("button", { name: "Joining…" })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
+    refuse();
+    await waitFor(() => expect(joinButton()).toBeEnabled());
+    await userEvent.click(joinButton());
     act(() => socket.onmessage?.(snapshotMessage({}, true)));
     await screen.findByRole("button", { name: "Leave room" });
     expect(
@@ -490,7 +495,7 @@ describe("GuestRoomApp", () => {
       socket.sent.filter(
         (message) => JSON.parse(message).command_type === "Consent",
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
   });
 
   it("raises no saving alert when the connection drops before this guest recorded anything", async () => {
