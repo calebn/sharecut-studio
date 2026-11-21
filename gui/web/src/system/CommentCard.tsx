@@ -14,13 +14,25 @@ export type CommentCardData = {
   body: string;
   resolved: boolean;
   resolvedBy?: string;
-  replies: { id: string; author: string; body: string }[];
+  replies: {
+    id: string;
+    author: string;
+    body: string;
+    /** A reply the host has not taken yet. */
+    pending?: "queued" | "sending";
+  }[];
   actions: { id: string; text: string; done: boolean; doneBy?: string }[];
 };
 
 /** Offline-queue state. It comes from a different source than the comment, so it is a prop, not data. */
 export type CommentPending =
-  | { state: "queued" }
+  | {
+      state: "queued";
+      /** The send is on its way; it can no longer be called back. */
+      sending?: boolean;
+      /** Absent: the comment waits with no way to call it back. */
+      onDontSend?: () => void;
+    }
   | { state: "failed"; onRetry: () => void; onRemove: () => void };
 
 export type ReplyComposerProps = Pick<
@@ -48,14 +60,19 @@ export type CommentCardProps = {
   onToggleAction?: (id: string, done: boolean) => void;
   /** Absent: no reply field (viewer). */
   reply?: ReplyComposerProps;
+  /** Calls back a reply that has not been sent yet. */
+  onDontSendReply?: (replyId: string) => void;
 };
 
 const RESOLVE = verbOf("resolve");
 const REMOVE = verbOf("remove");
 const PENDING_TEXT = {
   queued: "Waiting to send",
+  sending: "Sending…",
   failed: "Not sent",
 } as const;
+const DONT_SEND = "Don't send";
+const SENDING_REASON = "It's on its way, so it can't be called back.";
 
 const repliesText = (count: number) =>
   count === 1 ? "1 reply" : `${count} replies`;
@@ -69,6 +86,7 @@ export function CommentCard({
   onResolve,
   onToggleAction,
   reply,
+  onDontSendReply,
 }: CommentCardProps) {
   const settled = pending === undefined;
   const canResolve = settled && onResolve !== undefined;
@@ -92,7 +110,13 @@ export function CommentCard({
               className={`sys-comment-pending sys-tone-${pending.state === "queued" ? "warning" : "danger"}`}
             >
               <StatusGlyph state={pending.state} size={14} text={false} />
-              {PENDING_TEXT[pending.state]}
+              {
+                PENDING_TEXT[
+                  pending.state === "queued" && pending.sending
+                    ? "sending"
+                    : pending.state
+                ]
+              }
             </span>
           ) : null}
         </span>
@@ -119,6 +143,18 @@ export function CommentCard({
       ) : (
         <div className="sys-comment-main">{head}</div>
       )}
+      {pending?.state === "queued" && pending.onDontSend ? (
+        <div className="sys-comment-retry">
+          <Button
+            variant="link"
+            aria-label={`${DONT_SEND}: comment by ${c.author}`}
+            disabledReason={pending.sending ? SENDING_REASON : undefined}
+            onClick={() => pending.onDontSend?.()}
+          >
+            {DONT_SEND}
+          </Button>
+        </div>
+      ) : null}
       {pending?.state === "failed" ? (
         <div className="sys-comment-retry">
           <Button
@@ -162,6 +198,30 @@ export function CommentCard({
             <li key={r.id}>
               <span className="sys-comment-author">{r.author}</span>
               <span className="sys-comment-body">{r.body}</span>
+              {r.pending ? (
+                <>
+                  <span className="sys-comment-pending sys-tone-warning">
+                    <StatusGlyph state="queued" size={14} text={false} />
+                    {
+                      PENDING_TEXT[
+                        r.pending === "sending" ? "sending" : "queued"
+                      ]
+                    }
+                  </span>
+                  {onDontSendReply ? (
+                    <Button
+                      variant="link"
+                      aria-label={`${DONT_SEND}: reply by ${r.author}`}
+                      disabledReason={
+                        r.pending === "sending" ? SENDING_REASON : undefined
+                      }
+                      onClick={() => onDontSendReply(r.id)}
+                    >
+                      {DONT_SEND}
+                    </Button>
+                  ) : null}
+                </>
+              ) : null}
             </li>
           ))}
         </ul>

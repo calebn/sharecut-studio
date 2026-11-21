@@ -41,7 +41,11 @@ import { useHostBackCount } from "./state/hostReach";
 import { subscribeSavedCopyReopen } from "./state/savedCopy";
 import { cleanShareName } from "./state/shareName";
 import { DawProvider } from "./state/store";
-import { collectUnsent, type UnsentText } from "./state/unsentText";
+import {
+  collectKeptPosts,
+  collectUnsent,
+  type UnsentText,
+} from "./state/unsentText";
 import type { ProjectView } from "./types/project";
 import { ErrorScreen } from "./ui";
 import { peekOpenStage } from "./utils/openIntent";
@@ -499,29 +503,32 @@ function AppInner({ bootName }: { bootName: string | null }) {
     if (attempts.current.newest?.reviewToken !== token) return;
     markLinkEnded(token);
     abortAll(attempts.current.flight);
-    // Collecting what was typed and unmounting the studio is one step: a key
-    // pressed between the two would land in a field that is about to go.
-    // This runs in a promise callback, never during a render.
-    const unsent = collectUnsent();
-    flushSync(() => {
-      const store = useDawStore.getState();
-      store.setIsPlaying(false);
-      useDawStore.setState(composerPatch(initialSession));
-      setBootstrap((state) =>
-        state.guest?.key === shareProjectKey(token)
-          ? {
-              ...state,
-              status: "settled",
-              guest: null,
-              cached: null,
-              error: { failure: { kind: "bad-link" }, unsent },
-            }
-          : state,
-      );
+    void collectKeptPosts(token).then((kept) => {
+      if (attempts.current.newest?.reviewToken !== token) return;
+      // Collecting what was typed and unmounting the studio is one step: a key
+      // pressed between the two would land in a field that is about to go.
+      // This runs in a promise callback, never during a render.
+      const unsent = collectUnsent(kept);
+      flushSync(() => {
+        const store = useDawStore.getState();
+        store.setIsPlaying(false);
+        useDawStore.setState(composerPatch(initialSession));
+        setBootstrap((state) =>
+          state.guest?.key === shareProjectKey(token)
+            ? {
+                ...state,
+                status: "settled",
+                guest: null,
+                cached: null,
+                error: { failure: { kind: "bad-link" }, unsent },
+              }
+            : state,
+        );
+      });
+      void retireOfflineSnapshot(token);
+      // Started after the cover is on screen and never waited for.
+      void forgetLinkAudio(token);
     });
-    void retireOfflineSnapshot(token);
-    // Started after the cover is on screen and never waited for.
-    void forgetLinkAudio(token);
   };
   useDeadLinkWatch(shareKey ? reviewToken : null, endSession);
 

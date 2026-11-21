@@ -377,6 +377,27 @@ export type AttentionRow = {
   suggestion?: ConflictSuggestion;
 };
 
+/** A guest comment or reply the host refused for good, handed back with its text and the reason. */
+export type ReturnedPostRow = {
+  id: string;
+  /** "Your comment at 0:12" or "Your reply". */
+  what: string;
+  reason: string;
+  text: string;
+  /** A comment can go back into the comment field; a reply has no field of its own to return to. */
+  canPutBack: boolean;
+};
+
+/** A guest's comments and replies that are kept for sending, and those the host did not take. */
+export type GuestPostsAttention = {
+  waiting: { comments: number; replies: number };
+  returned: readonly ReturnedPostRow[];
+  onCopy: (id: string) => void;
+  onDismiss: (id: string) => void;
+  /** Absent while the comment field holds words of its own. */
+  onPutBack?: (id: string) => void;
+};
+
 /** Offline edits that did not apply or have not been sent, shown as Check rows above the groups. */
 export type ReviewAttention = {
   /** Host edits queued but not yet applied. */
@@ -389,6 +410,8 @@ export type ReviewAttention = {
   canDismiss: boolean;
   /** The host's project, set so a refine-gate refusal can be waived from its row. */
   refineWaiverProject?: string;
+  /** A share guest's kept comments and replies. */
+  posts?: GuestPostsAttention;
   onDismissAll: () => void;
   onRetry: () => void;
   onSendNow?: () => void;
@@ -446,6 +469,26 @@ export const attentionRowsOf = (
 export const pendingLabelOf = (pending: number): string =>
   `${pending} ${plural(pending, "edit")} waiting to send`;
 
+export const waitingPostsOf = (
+  posts: GuestPostsAttention | undefined,
+): number => (posts ? posts.waiting.comments + posts.waiting.replies : 0);
+
+/** "1 comment waiting to send", "2 comments and 1 reply waiting to send". */
+export const waitingPostsLabelOf = (waiting: {
+  comments: number;
+  replies: number;
+}): string => {
+  const parts = [
+    waiting.comments > 0
+      ? `${waiting.comments} ${plural(waiting.comments, "comment")}`
+      : "",
+    waiting.replies > 0
+      ? `${waiting.replies} ${plural(waiting.replies, "reply", "replies")}`
+      : "",
+  ].filter(Boolean);
+  return `${parts.join(" and ")} waiting to send`;
+};
+
 export const attentionVisible = (
   attention: ReviewAttention | undefined,
   filter: ReviewFilter,
@@ -453,6 +496,8 @@ export const attentionVisible = (
   !!attention &&
   (filter === "all" || filter === "checks") &&
   (attention.pending > 0 ||
+    waitingPostsOf(attention.posts) > 0 ||
+    (attention.posts?.returned.length ?? 0) > 0 ||
     attention.rows.length > 0 ||
     attention.unreadable ||
     attention.dismissFailed);
@@ -460,6 +505,8 @@ export const attentionVisible = (
 export const attentionLabelOf = (attention: ReviewAttention): string =>
   attentionRegionLabel({
     pending: attention.pending,
+    waitingPosts: waitingPostsOf(attention.posts),
+    returnedPosts: attention.posts?.returned.length ?? 0,
     conflictCount: attention.rows.length,
     unreadable: attention.unreadable,
     dismissFailed: attention.dismissFailed,

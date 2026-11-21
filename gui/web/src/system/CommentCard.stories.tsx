@@ -53,6 +53,34 @@ export const Queued: Story = {
   args: { pending: { state: "queued" } },
 };
 
+export const WaitingWithDontSend: Story = {
+  args: { pending: { state: "queued", onDontSend: fn() } },
+  play: playInCanvas(async ({ args, canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: /^Don't send/ }),
+    );
+    if (args.pending?.state !== "queued") throw new Error("expected queued");
+    await expect(args.pending.onDontSend).toHaveBeenCalled();
+  }),
+};
+
+export const Sending: Story = {
+  args: { pending: { state: "queued", sending: true, onDontSend: fn() } },
+};
+
+export const WaitingReply: Story = {
+  args: {
+    comment: {
+      ...COMMENT_WITH_ACTIONS,
+      replies: [
+        { id: "r1", author: "Maya", body: "Agreed." },
+        { id: "r2", author: "Sam", body: "Fixing it now.", pending: "queued" },
+      ],
+    },
+    onDontSendReply: fn(),
+  },
+};
+
 export const Failed: Story = {
   args: {
     pending: { state: "failed", onRetry: fn(), onRemove: fn() },

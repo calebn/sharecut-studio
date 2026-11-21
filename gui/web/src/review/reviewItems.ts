@@ -523,11 +523,13 @@ const firstLine = (body: string) => body.trim().split("\n", 1)[0] ?? "";
 /**
  * One item per comment. A resolved one is already decided, so it sits in
  * Decided. `optimistic` holds the state a pending resolve or reopen is
- * moving a comment to, until the project shows it.
+ * moving a comment to, until the project shows it. `kept` names the comments
+ * a guest wrote that the host has not taken yet, and says so on their row.
  */
 export function commentEntriesOf(
   comments: readonly TimelineComment[],
   optimistic: ReadonlyMap<string, boolean> = new Map(),
+  kept: ReadonlyMap<string, "waiting" | "sending"> = new Map(),
 ): ReviewEntry[] {
   return comments.map((c): ReviewEntry => {
     const placed = Number.isFinite(c.timeline_start);
@@ -548,8 +550,11 @@ export function commentEntriesOf(
           snippet: firstLine(c.body),
           time,
           author: { name: c.author },
-          value:
-            replies > 0
+          value: kept.has(c.id)
+            ? kept.get(c.id) === "sending"
+              ? "Sending…"
+              : "Waiting to send"
+            : replies > 0
               ? `${replies} ${replies === 1 ? "reply" : "replies"}`
               : undefined,
         },
