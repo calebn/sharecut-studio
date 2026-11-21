@@ -3,6 +3,7 @@ import { useResizeObserver } from "../ui/useResizeObserver";
 import { clamp } from "../utils/math";
 import { formatTimeShort } from "../utils/time";
 import { bucketPeaks } from "./peakBuckets";
+import { sliderSeekTarget } from "./sliderSeek";
 import { swallowsDuringDrag, useGrab } from "./useGrab";
 import { pointerRatio } from "./wavePointer";
 
@@ -90,22 +91,17 @@ export function OverviewStrip({
       event.stopPropagation();
       return;
     }
-    const from = playhead ?? 0;
-    const step = (event.shiftKey ? KEY_STEP_BIG_SEC : KEY_STEP_SEC) / duration;
-    const target =
-      event.key === "ArrowLeft"
-        ? from - step
-        : event.key === "ArrowRight"
-          ? from + step
-          : event.key === "Home"
-            ? 0
-            : event.key === "End"
-              ? 1
-              : null;
+    const target = sliderSeekTarget(
+      event,
+      playhead ?? 0,
+      1,
+      KEY_STEP_SEC / duration,
+      KEY_STEP_BIG_SEC / duration,
+    );
     if (target === null) return;
     event.preventDefault();
     event.stopPropagation();
-    onSeek(clamp(target, 0, 1));
+    if (!grab.dragging()) onSeek(target);
   };
   const seconds = Math.round(clamp(playhead ?? 0, 0, 1) * duration);
   const seekable = onSeek !== undefined && duration > 0;
