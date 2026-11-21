@@ -172,13 +172,18 @@ There are three overlay primitives.
    Close and Escape only. Focus returns to the control that opened the overlay.
    Closing a selection Inspector leaves layout intent unchanged. Current intent
    and viewport determine whether editor panels return or remain stowed.
-5. **One confirm primitive each.** `askConfirm` is the confirm dialog and
+5. **Inspect reveals its Timeline selection.** On desktop and tablet, opening
+   the Inspector scrolls a Timeline anchor that is out of view horizontally
+   back into view and moves focus into the Inspector. The playhead stays in
+   place. Panning the anchor away later hides the card until the anchor
+   returns.
+6. **One confirm primitive each.** `askConfirm` is the confirm dialog and
    `InlineConfirm` the in-place confirm; the one confirm-shaped dialog that
    is not `askConfirm` is listed under Shipped gaps. Split cuts at once
    on every shell, with Undo on the toast. A dialog anchored beside its
    control (the join editor) passes `anchor`; it is non-modal, in the top
    layer, and closes when a modal opens.
-6. **Confirms say the consequence.** The primary names the outcome ("Remove
+7. **Confirms say the consequence.** The primary names the outcome ("Remove
    track"), the secondary is "Keep", and the body names what is lost. A
    `window.confirm` fails lint (`no-alert`).
 

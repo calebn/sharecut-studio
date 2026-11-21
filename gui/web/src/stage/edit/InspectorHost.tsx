@@ -13,6 +13,7 @@ import {
   useState,
 } from "react";
 import { SelectionSheetBody } from "../../inspector/SelectionSheetBody";
+import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { BarId } from "../../system/editActionSets";
 import {
@@ -29,6 +30,8 @@ import {
 } from "../../system/inspectorSheetMath";
 import { openerControl } from "../../ui/pressedControl";
 import { useResizeObserver } from "../../ui/useResizeObserver";
+import { clamp } from "../../utils/math";
+import { timelineHeaderOffsetWidth } from "../../utils/timelineViewport";
 import { useHistoryControls } from "../frame/useHistoryControls";
 import { CommentPopover } from "./CommentPopover";
 import { commentTarget } from "./commentSections";
@@ -263,6 +266,30 @@ function relativeRect(rect: DOMRect, frame: DOMRect): InspectorRect {
   };
 }
 
+function revealTimelineAnchor(target: HTMLElement | null) {
+  const scroller = target?.closest<HTMLElement>(".timeline-scroll");
+  if (!target || !scroller) return;
+  const { clientLeft, clientWidth, scrollLeft, scrollWidth } = scroller;
+  const scrollLimit = scrollWidth - clientWidth;
+  if (scrollLimit <= 0) return;
+
+  const viewportStart = scroller.getBoundingClientRect().left + clientLeft;
+  const left = viewportStart + timelineHeaderOffsetWidth(scroller);
+  const right = viewportStart + clientWidth;
+  const rect = target.getBoundingClientRect();
+  if (rect.right > left && rect.left < right) return;
+
+  const alignLeft = rect.left - left;
+  const alignRight = rect.right - right;
+  const delta =
+    rect.right <= left
+      ? Math.max(alignLeft, alignRight)
+      : Math.min(alignLeft, alignRight);
+  useDawStore
+    .getState()
+    .setScrollLeft(clamp(scrollLeft + delta, 0, scrollLimit));
+}
+
 function Card({
   sheet,
   heading,
@@ -283,6 +310,9 @@ function Card({
   );
   const popoverId = sheet.rangeActionsInSheet ? null : threadId;
   const anchor = useSelectionAnchor(root, selection, true);
+  useLayoutEffect(() => {
+    if (root) revealTimelineAnchor(anchor.ref.current);
+  }, [root, anchor.ref]);
   const [anchorTrackId, setAnchorTrackId] = useState<string | null>(null);
   useLayoutEffect(() => {
     setAnchorTrackId(
