@@ -420,6 +420,58 @@ def test_cache_hit_reports_current_request_edit_head(prepared):
     assert json.loads(generation_receipt)["edit_head_id"] == "root"
 
 
+def test_guest_comment_during_variant_export_keeps_result_current(prepared, monkeypatch):
+    ws, engine, _ = prepared
+    _seed_canonical_outputs(ws)
+    comment_url = role_urls(ws)["commenter"].removesuffix("/daw/export") + "/comments"
+    ws = ProjectWorkspace.open(ws.path)
+    generation_head = ws.project.history.edit_head_id()
+    export_audio = engine.export_audio
+    encoded = threading.Event()
+    resume = threading.Event()
+
+    def encode(*args, **kwargs):
+        export_audio(*args, **kwargs)
+        encoded.set()
+        assert resume.wait(5)
+
+    monkeypatch.setattr(engine, "export_audio", encode)
+    client = TestClient(create_app(), client=("127.0.0.1", 61234))
+    job_id = start(client, ws.path, target="podcast", formats=[{"ext": "mp3"}])
+    try:
+        assert encoded.wait(5)
+        response = client.post(
+            comment_url,
+            json={
+                "body": "Guest note during export",
+                "author": "Guest",
+                "timeline_start": 0,
+                "comment_id": "8" * 32,
+            },
+        )
+        assert response.status_code == 200, response.text
+        comment_id = response.json()["comment"]["id"]
+        commented = ProjectWorkspace.open(ws.path)
+        current_head = commented.project.history.edit_head_id()
+        assert current_head != generation_head
+        after_comment = _canonical_snapshot(commented)
+    finally:
+        resume.set()
+
+    job = done(client, ws.path, job_id)
+    assert job["status"] == "ok", job["error"]
+    assert job["result"]["edit_head_id"] == current_head
+    saved = ProjectWorkspace.open(ws.path)
+    assert any(comment.id == comment_id for comment in saved.project.comments)
+    assert _canonical_snapshot(saved) == after_comment
+    file_id = next(file_id for file_id in job["result"]["file_ids"] if file_id.endswith(".mp3"))
+    receipt_path = (saved.project.export_dir() / file_id).with_name("receipt.json")
+    assert json.loads(receipt_path.read_bytes())["edit_head_id"] == generation_head
+    download = client.get(f"{FILES}/{file_id}", params={"path": str(ws.path)})
+    assert download.status_code == 200
+    assert download.content == b"encoded variant"
+
+
 def test_missing_encoder_output_is_a_coded_refusal(sample_wav, tmp_path, monkeypatch):
     project = EpisodeProject.create("test_episode", str(tmp_path / "isolated audit media folder"))
     project.ensure_dirs()
