@@ -846,6 +846,17 @@ for (const size of SIZES) {
             );
             expect(zip.status()).toBe(200);
             const members = zipMembers(await zip.body());
+            const preview = report.locator("details").filter({
+              has: page.getByText("Preview what's included", { exact: true }),
+            });
+            const disclosure = preview.locator("summary");
+            await expect(preview.getByRole("list")).toBeHidden();
+            await press(disclosure, size.touch);
+            await expect(preview.getByRole("list")).toBeVisible();
+            expect(
+              (await preview.getByRole("listitem").allTextContents()).sort(),
+            ).toEqual(Object.keys(members).sort());
+
             const json = JSON.parse(members["report.json"] ?? "{}");
             expect(json.project).toBeNull();
             expect(json.episode_not_opened.code).toBe(STATE_CODES[state]);
