@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from podcast_mcp.models import (
     MediaAsset,
@@ -16,6 +17,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.services.document.transcript_flag_results import WordSuppressedResult
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 
@@ -107,6 +109,24 @@ def _submit(project_path: Path, command_type: str, payload: dict) -> dict:
     )
     assert retry["command"]["payload"]["result"] == result
     return result
+
+
+def test_word_suppressed_result_rejects_an_extra_field() -> None:
+    payload = {
+        "track_id": "host",
+        "source_id": "take-a",
+        "word_index": 0,
+        "suppressed": True,
+        "text": "café",
+    }
+    assert WordSuppressedResult.model_validate(payload).model_dump() == payload
+
+    with pytest.raises(ValidationError) as caught:
+        WordSuppressedResult.model_validate({**payload, "extra_field": True})
+
+    assert [(error["type"], error["loc"]) for error in caught.value.errors()] == [
+        ("extra_forbidden", ("extra_field",))
+    ]
 
 
 def test_suppressed_reply_on_single_take_names_the_take_and_keeps_non_ascii_text(
