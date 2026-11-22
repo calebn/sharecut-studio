@@ -536,18 +536,19 @@ describe("TimelineCreateMenu phone form", () => {
     const { rerender } = render(renderPhone());
     const dialog = await screen.findByRole("dialog");
     const close = screen.getByRole("button", { name: "Close" });
-    await waitFor(() => expect(close).toHaveFocus());
+    const title = screen.getByRole("heading");
+    await waitFor(() => expect(title).toHaveFocus());
     const chapter = screen.getByRole("button", { name: "Add chapter here" });
     rerender(renderPhone());
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect(screen.getByRole("button", { name: "Close" })).toBe(close);
-    expect(close).toHaveFocus();
+    expect(title).toHaveFocus();
     rerender(renderPhone());
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect(screen.getByRole("button", { name: "Add chapter here" })).toBe(
       chapter,
     );
-    expect(close).toHaveFocus();
+    expect(title).toHaveFocus();
     fireEvent.click(chapter);
     expect(router.close).toHaveBeenCalledOnce();
     expect(executePointerCommand).toHaveBeenCalledExactlyOnceWith(
@@ -630,11 +631,7 @@ describe("TimelineCreateMenu phone form", () => {
     const user = userEvent.setup();
     const { rerender } = mount(true);
     await screen.findByRole("dialog");
-    // The Sheet focuses Close a frame after it mounts; wait for that, or it
-    // lands after the blur below and the keys go to the button, not the keymap.
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
-    );
+    await waitFor(() => expect(screen.getByRole("heading")).toHaveFocus());
     (document.activeElement as HTMLElement | null)?.blur();
     await user.keyboard(" ");
     await user.keyboard("{Control>}z{/Control}");
