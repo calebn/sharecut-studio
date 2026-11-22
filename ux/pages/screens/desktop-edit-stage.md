@@ -33,6 +33,11 @@ A polite status message announces the **Back to playhead** pill once when it app
 
 In the desktop transcript, Shift-click extends a range from the original word on the same track. Shift-click on another track selects that word and starts a new range. Mouse dragging ignores other tracks and resumes when the pointer returns to its starting track.
 
+With words from one track selected, **Clear selection** in the Script header
+closes their actions and returns focus to the word, or to Find if the word is
+no longer shown. Escape also clears the selection from the Script. The button
+returns when **Fix text** closes.
+
 ### Script (desktop/tablet)
 
 | Command | Key | Effect |

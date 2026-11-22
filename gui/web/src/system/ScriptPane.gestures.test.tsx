@@ -566,6 +566,32 @@ describe("ScriptPane touch", () => {
     expect(onFixText).toHaveBeenCalledTimes(1);
   });
 
+  it("starts a fresh tap after the selected word is cleared", () => {
+    const { onSelect, onFixText, rerender } = setup();
+    const tap = () => {
+      fireEvent.pointerDown(stop(12), { ...FINGER, ...centre(12) });
+      fireEvent.pointerUp(stop(12), { ...FINGER, ...centre(12) });
+      fireEvent.click(stop(12), { detail: 1 });
+    };
+    const pane = (selection: ScriptPaneProps["selection"]) => (
+      <ScriptPane
+        turns={SCRIPT_TURNS}
+        selection={selection}
+        onSelect={onSelect}
+        onFixText={onFixText}
+      />
+    );
+
+    tap();
+    rerender(pane(words(12, 12)));
+    advance(100);
+    rerender(pane(null));
+    tap();
+
+    expect(onSelect.mock.calls).toEqual([[words(12, 12)], [words(12, 12)]]);
+    expect(onFixText).not.toHaveBeenCalled();
+  });
+
   it("a pen double tap starts Fix text like a finger's, and a pen click does not", () => {
     const { onFixText } = setup();
     const PEN = { pointerId: 9, pointerType: "pen", isPrimary: true } as const;

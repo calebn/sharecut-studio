@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { registerPrimaryEditingCommands } from "../../../commands/editing";
 import { useDawStore } from "../../../state/dawStore";
 import { seedScript } from "../../../test/scriptHostKit";
 import { ScriptHost } from "./ScriptHost";
@@ -29,6 +30,9 @@ describe("ScriptHost Escape order", () => {
     expect(
       screen.getByRole("textbox", { name: "Fix text" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear selection" }),
+    ).toBeNull();
 
     keymap.mockClear();
     await userEvent.keyboard("{Escape}");
@@ -46,5 +50,27 @@ describe("ScriptHost Escape order", () => {
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("search")).toBeNull();
     window.removeEventListener("keydown", keymap);
+  });
+
+  it("clears the selected word through the visible command and returns keyboard focus", async () => {
+    registerPrimaryEditingCommands();
+    const user = userEvent.setup();
+    render(<ScriptHost />);
+    const clear = () =>
+      screen.queryByRole("button", { name: "Clear selection" });
+    expect(clear()).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "friends" }));
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "transcriptRange",
+    });
+    const action = clear();
+    expect(action).toBeInTheDocument();
+    action?.focus();
+    await user.keyboard("{Enter}");
+
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(screen.getByRole("button", { name: "friends" })).toHaveFocus();
+    expect(clear()).toBeNull();
   });
 });

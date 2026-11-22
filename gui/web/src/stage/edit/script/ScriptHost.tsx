@@ -11,6 +11,7 @@ import type {
   WordsSelection,
 } from "../../../system/scriptPieces";
 import { useCoachTip } from "../../../system/useCoachTip";
+import { CommandButton } from "../../../ui/CommandButton";
 import { useStableCallback } from "../../../utils/useStableCallback";
 import { scriptGuestOf } from "./scriptGuest";
 import { useScriptCarets } from "./useScriptCarets";
@@ -152,6 +153,7 @@ export function ScriptHost({
     (layoutProp ?? (breakpoint === "phone" ? "phone" : "desktop")) === "phone";
   const mayReplace = mayFix && ready && loading !== true;
   const mayCut = mode === "edit" && ready && loading !== true;
+  const selectedWords = selection.selectedWords;
 
   return (
     <div ref={hostEl} style={{ display: "contents" }}>
@@ -174,6 +176,20 @@ export function ScriptHost({
         following={playback.following}
         guest={scriptGuestOf(projectPath, guestMode, mode)}
         unsureCount={unsure.length}
+        headerAction={
+          selectedWords && fix.editing === null ? (
+            <CommandButton
+              commandId="edit.clearSelection"
+              args={{ from: "script" }}
+              variant="link"
+              className="sys-script-tool"
+              onClick={() => {
+                if (!pane.current?.focusWord(selectedWords.head))
+                  pane.current?.focusFind();
+              }}
+            />
+          ) : undefined
+        }
         findBar={
           find.open ? (
             <FindBar

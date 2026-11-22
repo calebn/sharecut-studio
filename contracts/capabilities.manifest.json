@@ -278,10 +278,17 @@
       ],
       "surfaces": {
         "command": "edit.clearSelection",
+        "gui": [
+          "editScriptHeader"
+        ],
         "keyboard": "Escape"
       },
       "omit": {},
-      "tooltip": "Clear selection"
+      "tooltip": "Clear selection",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
     },
     {
       "id": "daw.feedback.dismiss",

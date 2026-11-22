@@ -29,7 +29,10 @@ import {
   selectedClipIdsOf,
   selectedTrackIdsOf,
 } from "../state/selection";
-import { localSelectionWriteSignal } from "../state/selectionSlice";
+import {
+  clearScriptSelection,
+  localSelectionWriteSignal,
+} from "../state/selectionSlice";
 import {
   SOLO_OFF_ANNOUNCEMENT,
   SOLO_ON_ANNOUNCEMENT,
@@ -288,8 +291,12 @@ export function registerPrimaryEditingCommands(): void {
       : { status: "disabled", reason: "No track to create on" },
   );
 
-  registerCommand("edit.clearSelection", () => {
+  registerCommand("edit.clearSelection", (args) => {
     const s = useDawStore.getState();
+    if (args.from === "script") {
+      clearScriptSelection(s);
+      return { status: "ok" };
+    }
     if (s.rangeArmed) {
       s.setRangeArmed(false);
       return { status: "ok" };
