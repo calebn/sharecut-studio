@@ -218,7 +218,12 @@ def propose_tighten_edits(
         project, {*dialogue_track_ids(project), *(t.track_id for t in project.transcripts)}
     )
     peer_indexes = peer_speech_indexes(project)
-    copy_lags = PeerCopyLags(project)
+    acoustic_enabled = AcousticGapConfig.from_tighten(cfg.get("tighten")).enabled
+    can_scan = acoustic_enabled and any(
+        transcript.source_id is None and transcript.track_id in audio_caches
+        for transcript in project.transcripts
+    )
+    copy_lags = PeerCopyLags(project) if can_scan else None
     max_workers = cfg.get("performance", {}).get("max_workers")
 
     def _gather(transcript: Transcript) -> tuple[list[_CutCandidate], dict[str, int]]:
