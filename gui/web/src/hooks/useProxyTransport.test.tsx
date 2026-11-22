@@ -24,6 +24,7 @@ import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { hostProxyManifest } from "../test/proxyManifest";
 import { ApiError } from "../utils/apiError";
+import { RECONNECT_FOR_SAVED_AUDIO } from "../utils/audioErrorLabel";
 import { useAudioTransport } from "./useAudioTransport";
 import { useProxyTransport } from "./useProxyTransport";
 
@@ -707,6 +708,63 @@ describe("useProxyTransport", () => {
     );
     expect(engine.setSnapshot).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { from: "saved copy", flag: {}, expected: RECONNECT_FOR_SAVED_AUDIO },
+    {
+      from: "saved copy",
+      flag: { bakesMutes: null },
+      expected: "Invalid proxy manifest flag",
+    },
+    { from: "host", flag: {}, expected: "Invalid proxy manifest flag" },
+  ])(
+    "reports $expected for an occurrence from $from",
+    async ({ from, flag, expected }) => {
+      const base = manifestFor();
+      const artifactId = "b".repeat(64);
+      const manifest = {
+        ...base,
+        project_basis: {
+          ...base.project_basis,
+          clips: {
+            c1: {
+              track_id: "host",
+              origin_track_id: "host",
+              source_id: null,
+              source_start: 0,
+              source_end: 1,
+              timeline_start: 0,
+              timeline_end: 1,
+            },
+          },
+        },
+        artifacts: { [artifactId]: { ...base.tracks.host, hash: artifactId } },
+        occurrences: { c1: { artifactId, outputTrackId: "host", ...flag } },
+      };
+      if (from === "host") {
+        const api = await vi.importActual<typeof import("../api")>("../api");
+        vi.mocked(loadProxyManifest).mockImplementation(api.loadProxyManifest);
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(async () => Response.json(manifest)),
+        );
+      } else {
+        vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
+        vi.mocked(loadOfflineSnapshot).mockResolvedValue({
+          manifest,
+          saved_at: Date.now(),
+        });
+      }
+
+      renderHook(() => useProxyTransport());
+
+      await vi.waitFor(() =>
+        expect(useDawStore.getState().audioError).toBe(expected),
+      );
+      expect(engine.setSnapshot).not.toHaveBeenCalled();
+      expect(engine.play).not.toHaveBeenCalled();
+    },
+  );
 
   it("never matches a cached manifest whose render hashes are stem hashes", async () => {
     const current = structuredClone(useDawStore.getState().project!);

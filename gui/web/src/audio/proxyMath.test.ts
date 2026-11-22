@@ -10,6 +10,7 @@ import {
   chunkIndexForSource,
   episodeEndSec,
   isQueuedMoveOverlay,
+  LegacyProxyOccurrencesError,
   manifestChunkRefs,
   offsetInChunk,
   type ProxyManifest,
@@ -687,12 +688,39 @@ describe("manifest boundary and occurrence scheduling", () => {
       },
     };
     expect(parseProxyManifest(valid)).toEqual(valid);
-    expect(() =>
-      parseProxyManifest({
-        ...valid,
-        occurrences: { c1: { artifactId, outputTrackId: "host" } },
-      }),
-    ).toThrow();
+    const legacyBinding = { artifactId, outputTrackId: "host" };
+    const legacy = { ...valid, occurrences: { c1: legacyBinding } };
+    expect(() => parseProxyManifest(legacy)).toThrow(
+      LegacyProxyOccurrencesError,
+    );
+
+    for (const malformed of [
+      { ...legacy, revision: null },
+      {
+        ...legacy,
+        occurrences: { c1: { ...legacyBinding, artifactId: "unknown" } },
+      },
+      {
+        ...legacy,
+        occurrences: { c1: { ...legacyBinding, bakesMutes: null } },
+      },
+      {
+        ...legacy,
+        project_basis: {
+          ...legacy.project_basis,
+          clips: {
+            ...legacy.project_basis.clips,
+            c2: legacy.project_basis.clips.c1,
+          },
+        },
+        occurrences: { ...legacy.occurrences, c2: valid.occurrences.c1 },
+      },
+    ]) {
+      expect(() => parseProxyManifest(malformed)).toThrow();
+      expect(() => parseProxyManifest(malformed)).not.toThrow(
+        LegacyProxyOccurrencesError,
+      );
+    }
   });
 
   it("resolves only the bound occurrence before geometry and routes to the clip's lane", () => {

@@ -16,6 +16,7 @@ import {
   chunkRefKey,
   type ImmutableChunkRef,
   isQueuedMoveOverlay,
+  LegacyProxyOccurrencesError,
   manifestChunkRefs,
   type ProxyManifest,
   parseProxyManifest,
@@ -36,6 +37,7 @@ import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { audioContextCtor } from "../utils/audio";
+import { RECONNECT_FOR_SAVED_AUDIO } from "../utils/audioErrorLabel";
 import { sortedVolumePoints } from "../utils/envelopes";
 import { isSavedCopyFresh } from "../utils/savedCopyAge";
 
@@ -298,7 +300,13 @@ export function useProxyTransport(): boolean {
             if (!current()) return;
             if (!snapshot?.manifest || !isSavedCopyFresh(snapshot.saved_at))
               throw error;
-            manifest = parseProxyManifest(snapshot.manifest);
+            try {
+              manifest = parseProxyManifest(snapshot.manifest);
+            } catch (savedError) {
+              if (savedError instanceof LegacyProxyOccurrencesError)
+                throw new Error(RECONNECT_FOR_SAVED_AUDIO);
+              throw savedError;
+            }
             cachedFallback = true;
           }
         }

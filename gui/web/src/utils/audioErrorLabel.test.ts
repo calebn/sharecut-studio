@@ -7,6 +7,7 @@ import {
 
 describe("audioErrorLabel", () => {
   it("names the known transport audio problems", () => {
+    expect(audioErrorLabel("Reconnect for audio")).toBe("Reconnect for audio");
     expect(audioErrorLabel("Failed to load audio (mix)")).toBe(
       "Audio failed to load",
     );
