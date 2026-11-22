@@ -163,3 +163,14 @@ old build before the layout fix. Eight beta-story coverage-policy tests pass.
   The phone bar follows Recent when the list is populated. If loading takes
   long enough to show the phone bar and the list resolves empty, focus follows
   the active tile into the empty layout.
+
+- [#2963](https://github.com/calebn/sharecut-studio/issues/2963) tracks outdated
+  Timeline header entries in the [stage inventory](design/stages/inventory.md).
+  `CMP-TRACK-HEADERS` describes an initials chip, a reorder handle, and an FX
+  badge. The current header uses an avatar with a live level ring, shows an
+  avatar rail on phone, and keeps the track name as the select button's
+  accessible name. The FX chain is in the track inspector.
+  For `INT-REORDER`, dragging starts on the header with a fine pointer.
+  Shift+Up or Shift+Down on the track select button also moves a track, as do
+  the Move track up and Move track down actions. The current stories are
+  `Reordering` and `DropLine` in `system/TrackHeader.stories.tsx`.
