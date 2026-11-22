@@ -22,6 +22,7 @@ from podcast_mcp.edits.transcript_refine_status import (
     TranscriptRefineRequiredError,
 )
 from podcast_mcp.models import SessionSuggestion
+from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.service_base import mutate_unless_cut_speech_held
 from podcast_mcp.util.coded_error import CodedValueError
@@ -132,23 +133,24 @@ class SessionSuggestionService:
         row = find_session_suggestion(self.ws.project, suggestion_id)
         self._require_refine_clear(row)
         title = f"Added Session {row.session_number}"
-        return mutate_unless_cut_speech_held(
-            self.ws,
-            title,
-            "accept_session_suggestion",
-            lambda p: accept_session_suggestion(
-                p,
-                suggestion_id,
-                take_index=take_index,
-                override_audio_checks=override_audio_checks,
-                defaults=self.ws.effective_config(),
-            ),
-            {
-                "suggestion_id": suggestion_id,
-                "session_id": row.session_id,
-                "session_number": row.session_number,
-            },
-        )
+        with write_grant(WriteGrantKind.LEGACY_SESSION_ACCEPT):
+            return mutate_unless_cut_speech_held(
+                self.ws,
+                title,
+                "accept_session_suggestion",
+                lambda p: accept_session_suggestion(
+                    p,
+                    suggestion_id,
+                    take_index=take_index,
+                    override_audio_checks=override_audio_checks,
+                    defaults=self.ws.effective_config(),
+                ),
+                {
+                    "suggestion_id": suggestion_id,
+                    "session_id": row.session_id,
+                    "session_number": row.session_number,
+                },
+            )
 
     def _require_refine_clear(self, row: SessionSuggestion) -> None:
         if row.kind == "replace":

@@ -38,6 +38,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.models.episode import RangeInterval
+from podcast_mcp.project import store as project_store
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.document import EditService, HistoryService, SessionSuggestionService
@@ -739,7 +740,7 @@ def test_pending_timeline_edits_inside_the_range_hold_the_accept(ws, window) -> 
     assert _everything(ws) == before
 
 
-def test_the_chosen_takes_live_comments_land_at_the_range_start(ws) -> None:
+def test_the_chosen_takes_live_comments_land_at_the_range_start(ws, monkeypatch) -> None:
     sid = _stage_replace(
         ws,
         2.0,
@@ -747,7 +748,9 @@ def test_the_chosen_takes_live_comments_land_at_the_range_start(ws) -> None:
         {0: [("host", 0.0, 1.0)], 1: [("host", 0.0, 3.0)]},
         comments={0: [("a", 100)], 1: [("b", 1500), ("c", 250)]},
     )
-    result = SessionSuggestionService(ws).accept(sid, take_index=1)
+    with monkeypatch.context() as strict:
+        strict.setattr(project_store, "_guard_mode", "strict")
+        result = SessionSuggestionService(ws).accept(sid, take_index=1)
     ws.reload()
     placed = {c.id: c.timeline_start for c in ws.project.comments}
     assert placed == {"live-1-0": pytest.approx(3.5), "live-1-1": pytest.approx(2.25)}
