@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 from unittest.mock import patch
 
 import pytest
@@ -740,7 +741,10 @@ def test_pending_timeline_edits_inside_the_range_hold_the_accept(ws, window) -> 
     assert _everything(ws) == before
 
 
-def test_the_chosen_takes_live_comments_land_at_the_range_start(ws, monkeypatch) -> None:
+@pytest.mark.parametrize("via_dispatcher", [False, True], ids=["direct", "dispatcher-grant"])
+def test_the_chosen_takes_live_comments_land_at_the_range_start(
+    ws, monkeypatch, via_dispatcher: bool
+) -> None:
     sid = _stage_replace(
         ws,
         2.0,
@@ -748,9 +752,16 @@ def test_the_chosen_takes_live_comments_land_at_the_range_start(ws, monkeypatch)
         {0: [("host", 0.0, 1.0)], 1: [("host", 0.0, 3.0)]},
         comments={0: [("a", 100)], 1: [("b", 1500), ("c", 250)]},
     )
-    with monkeypatch.context() as strict:
+    dispatcher = project_store.WriteGrantKind.DISPATCHER
+    grant = project_store.write_grant(dispatcher) if via_dispatcher else nullcontext()
+    expected_kind = (
+        dispatcher if via_dispatcher else project_store.WriteGrantKind.LEGACY_SESSION_ACCEPT
+    )
+    before = project_store.write_counts().get(expected_kind.value, 0)
+    with monkeypatch.context() as strict, grant:
         strict.setattr(project_store, "_guard_mode", "strict")
         result = SessionSuggestionService(ws).accept(sid, take_index=1)
+    assert project_store.write_counts()[expected_kind.value] == before + 1
     ws.reload()
     placed = {c.id: c.timeline_start for c in ws.project.comments}
     assert placed == {"live-1-0": pytest.approx(3.5), "live-1-1": pytest.approx(2.25)}
