@@ -159,6 +159,12 @@ class TimelineClipSpan(TimelineSourceSpan):
 
 
 @dataclass(frozen=True)
+class AnchoredTimelineSpan:
+    start: TimelineSec
+    end: TimelineSec | None
+
+
+@dataclass(frozen=True)
 class _TrackIndex:
     by_timeline: tuple[_Span, ...]  # sorted by timeline_start
     by_source: tuple[_Span, ...]  # sorted by source_start
@@ -703,18 +709,52 @@ class SessionTimeline:
             out.append(TimelineSec(best) if best is not None else None)
         return out
 
-    @staticmethod
-    def _source_point(idx: _TrackIndex | None, sec: float) -> float | None:
+    @classmethod
+    def _source_point(cls, idx: _TrackIndex | None, sec: float) -> float | None:
         """Earliest timeline position of source ``sec`` (a clip's ``source_end`` counts)."""
         if idx is None:
             return sec
-        best: float | None = None
+        match = cls._source_point_match(idx, sec)
+        return match[0] if match is not None else None
+
+    @staticmethod
+    def _source_point_match(idx: _TrackIndex, sec: float) -> tuple[float, _Span] | None:
+        best: tuple[float, _Span] | None = None
         for span in _candidates_source(idx, sec, sec):
             if span.source_start - _EPS <= sec < span.source_end + _EPS:
                 tl = span.timeline_start + (sec - span.source_start)
-                if best is None or tl < best:
-                    best = tl
+                if best is None or tl < best[0]:
+                    best = tl, span
         return best
+
+    def anchor_source_spans(
+        self, track_id: str, spans: Sequence[tuple[SourceSec, SourceSec]]
+    ) -> list[AnchoredTimelineSpan | None]:
+        """Map each start as a source point and keep its end inside the same played piece.
+
+        Missing starts map to None. A mapped point with no positive extent has no end.
+        """
+        idx = self._index(track_id)
+        out: list[AnchoredTimelineSpan | None] = []
+        for start, end in spans:
+            t_start, t_end = float(start), float(end)
+            if idx is not None:
+                match = self._source_point_match(idx, start)
+                if match is None:
+                    out.append(None)
+                    continue
+                t_start, span = match
+                if start >= span.source_start:
+                    t_end = span.timeline_start + (min(end, span.source_end) - span.source_start)
+                else:
+                    t_end = t_start
+            extent = (
+                TimelineSec(t_end)
+                if math.isfinite(end) and math.isfinite(t_end) and t_end > t_start
+                else None
+            )
+            out.append(AnchoredTimelineSpan(TimelineSec(t_start), extent))
+        return out
 
     def timeline_to_source(self, track_id: str, sec: TimelineSec) -> SourceSec | None:
         """Source position of a timeline second, or None if it falls in a gap."""
