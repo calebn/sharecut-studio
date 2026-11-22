@@ -117,6 +117,7 @@ export type {
 export {
   exportedFileHref,
   listExportedFiles,
+  readGuestExportedFiles,
   revealExportedFile,
 } from "./api/exportedFiles";
 export type { ExportFormats } from "./api/exportJobs";

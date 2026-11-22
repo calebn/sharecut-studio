@@ -36,11 +36,11 @@ export function GuestDeliver({ loadFailure }: Props) {
   const state = hostStateOf(project, loadFailure);
   const role = stageRoleOf(guestMode);
   const canDownload = canEditStage(role);
-  const files = useDeliverFiles(
-    canDownload ? projectPath : null,
-    "download",
-    project?.history.head_id,
-  );
+  const files = useDeliverFiles(canDownload ? projectPath : null, {
+    access: "download",
+    refreshKey: project?.history.head_id,
+    watchGuestPublication: state === "ready" && canDownload,
+  });
   return (
     <HostBody
       stage="deliver"

@@ -14815,7 +14815,7 @@
     },
     "/api/review/{token}/daw/export/files": {
       "get": {
-        "description": "Names, labels and sizes of the exported files; no host paths. Starts no render job.",
+        "description": "List exports, or return only a revision when the publication stamp still matches.",
         "parameters": [
           {
             "in": "path",
@@ -14824,6 +14824,23 @@
             "schema": {
               "title": "Token",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
             }
           }
         ],

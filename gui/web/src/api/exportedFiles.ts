@@ -56,6 +56,25 @@ export async function listExportedFiles(
   return body.files;
 }
 
+type GuestInventory = { files?: ExportedFileEntry[]; revision?: string };
+
+export async function readGuestExportedFiles(
+  projectKey: string,
+  after: string,
+  signal: AbortSignal,
+): Promise<{ files: ExportedFileEntry[] | null; revision: string | null }> {
+  const res = await apiFetch(
+    projectKey,
+    { guest: `/daw/export/files?after=${encodeURIComponent(after)}` },
+    { signal, cache: "no-store" },
+  );
+  const body = (await res.json()) as GuestInventory;
+  const revision = typeof body.revision === "string" ? body.revision : null;
+  if (Array.isArray(body.files)) return { files: body.files, revision };
+  if (after && revision === after) return { files: null, revision };
+  throw new Error("The exported files list was not readable.");
+}
+
 /**
  * A plain link to one file. The browser downloads it itself, so it shows progress and resumes.
  * A guest's token is already in the path; the host's link carries the listing's ticket and

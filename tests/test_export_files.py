@@ -702,6 +702,63 @@ def test_an_editor_lists_and_downloads_without_the_render_opt_in(world, monkeypa
     assert (clip.status_code, clip.content) == (200, WAV[:512])
 
 
+@pytest.mark.parametrize("container", [".", "clips", "variants"])
+def test_a_guest_refresh_lists_only_after_export_publication(world, container, monkeypatch) -> None:
+    output = world.ws.project.export_dir() / container
+    output.mkdir(parents=True, exist_ok=True)
+    base = GUEST.format(token=world.tokens["editor"])
+    listed = world.client.get(base, params={"after": ""})
+    assert listed.status_code == 200
+    revision = listed.json()["revision"]
+    assert len(revision) == 64
+    assert listed.json()["files"]
+
+    calls = 0
+    original = ExportFilesService.listed
+
+    def count_list(service):
+        nonlocal calls
+        calls += 1
+        return original(service)
+
+    monkeypatch.setattr(ExportFilesService, "listed", count_list)
+    same = world.client.get(base, params={"after": revision})
+    assert same.json() == {"revision": revision}
+    assert calls == 0
+
+    staged = world.ws.project.export_dir().parent / "staged-export"
+    if container == "variants":
+        staged.mkdir()
+    else:
+        staged.write_bytes(WAV)
+    staged.replace(output / "next-export.wav")
+
+    next_listing = world.client.get(base, params={"after": revision})
+    assert next_listing.status_code == 200
+    assert next_listing.json()["revision"] != revision
+    assert "files" in next_listing.json()
+    assert calls == 1
+
+
+def test_a_publication_during_listing_is_seen_on_the_next_check(world, folder, monkeypatch) -> None:
+    base = GUEST.format(token=world.tokens["editor"])
+    original = ExportFilesService.listed
+    published = folder / "clips" / "new.wav"
+
+    def list_then_publish(service):
+        listing = original(service)
+        published.write_bytes(WAV)
+        return listing
+
+    monkeypatch.setattr(ExportFilesService, "listed", list_then_publish)
+    initial = world.client.get(base, params={"after": ""}).json()
+    assert "clips/new.wav" not in _ids(initial["files"])
+
+    monkeypatch.setattr(ExportFilesService, "listed", original)
+    refreshed = world.client.get(base, params={"after": initial["revision"]}).json()
+    assert "clips/new.wav" in _ids(refreshed["files"])
+
+
 def test_an_editor_never_sees_or_opens_a_bounce(world) -> None:
     base = GUEST.format(token=world.tokens["editor"])
 
@@ -717,7 +774,7 @@ def test_a_lesser_role_is_refused_on_both_routes(world, role) -> None:
     base = GUEST.format(token=world.tokens[role])
     stem = sanitize_export_stem(world.ws.project.name)
 
-    for url in (base, f"{base}/{stem}.mp3"):
+    for url in (base, f"{base}?after=", f"{base}/{stem}.mp3"):
         res = world.client.get(url)
         assert (res.status_code, res.headers[CODE]) == (403, "share_capability_required")
         assert MP3 not in res.content
@@ -736,6 +793,7 @@ def test_an_editor_is_refused_an_unlisted_id_and_a_revoked_link(world) -> None:
 
     world.share.revoke(world.tokens["editor"])
     assert world.client.get(base).headers[CODE] == "share_not_found"
+    assert world.client.get(base, params={"after": ""}).headers[CODE] == "share_not_found"
 
 
 def test_an_editor_download_is_a_409_while_an_export_runs(world) -> None:

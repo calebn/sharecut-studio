@@ -1,10 +1,11 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const listed = vi.hoisted(() => ({ list: vi.fn() }));
+const listed = vi.hoisted(() => ({ list: vi.fn(), guest: vi.fn() }));
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   listExportedFiles: listed.list,
+  readGuestExportedFiles: listed.guest,
 }));
 
 import { useExportedFiles } from "./useExportedFiles";
@@ -23,7 +24,19 @@ const PATH = "/tmp/ep/episode.sharecut";
 beforeEach(() => {
   listed.list.mockReset();
   listed.list.mockResolvedValue([ENTRY]);
+  listed.guest
+    .mockReset()
+    .mockResolvedValue({ files: [ENTRY], revision: "first" });
 });
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+const advance = (ms: number) =>
+  act(async () => vi.advanceTimersByTimeAsync(ms));
+const GUEST_PATH = "share:guest";
 
 describe("useExportedFiles", () => {
   it("lists the folder and gives each row a link only for download access", async () => {
@@ -73,5 +86,89 @@ describe("useExportedFiles", () => {
     );
     expect(none.result.current.load).toBe("loading");
     expect(listed.list).not.toHaveBeenCalled();
+  });
+
+  it("checks only when visible and after the preceding guest read settles", async () => {
+    vi.useFakeTimers();
+    const visibility = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("hidden");
+    const { result } = renderHook(() =>
+      useExportedFiles(GUEST_PATH, {
+        access: "download",
+        watchGuestPublication: true,
+      }),
+    );
+    await advance(30_000);
+    expect(result.current.currentLoad).toBe("ready");
+    expect(listed.guest).toHaveBeenCalledTimes(1);
+
+    visibility.mockReturnValue("visible");
+    let fail = () => {};
+    listed.guest.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          fail = () => reject(new Error("temporary failure"));
+        }),
+    );
+    await advance(30_000);
+    expect(listed.guest).toHaveBeenCalledTimes(2);
+    expect(listed.guest.mock.lastCall?.[1]).toBe("first");
+    await advance(60_000);
+    expect(listed.guest).toHaveBeenCalledTimes(2);
+    expect(result.current.currentLoad).toBe("ready");
+    expect(result.current.files[0]?.name).toBe("a.wav");
+
+    await act(async () => fail());
+    expect(result.current.currentLoad).toBe("ready");
+    listed.guest.mockResolvedValueOnce({
+      files: [{ ...ENTRY, name: "new.wav" }],
+      revision: "second",
+    });
+    await advance(30_000);
+    expect(result.current.files[0]?.name).toBe("new.wav");
+    expect(result.current.currentLoad).toBe("ready");
+  });
+
+  it("a foreground refresh cancels quiet work and cannot be superseded by it", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const { result, rerender } = renderHook(
+      ({ path }) =>
+        useExportedFiles(path, {
+          access: "download",
+          watchGuestPublication: true,
+        }),
+      { initialProps: { path: GUEST_PATH as string | null } },
+    );
+    await advance(0);
+    let finishQuiet = () => {};
+    listed.guest.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishQuiet = () =>
+            resolve({
+              files: [{ ...ENTRY, name: "stale.wav" }],
+              revision: "stale",
+            });
+        }),
+    );
+    await advance(30_000);
+    const quietSignal = listed.guest.mock.lastCall?.[2] as AbortSignal;
+    expect(quietSignal.aborted).toBe(false);
+    listed.guest.mockResolvedValueOnce({
+      files: [{ ...ENTRY, name: "fresh.wav" }],
+      revision: "fresh",
+    });
+    act(() => result.current.reload());
+    await advance(0);
+    expect(quietSignal.aborted).toBe(true);
+    expect(listed.guest.mock.lastCall?.[1]).toBe("");
+    await act(async () => finishQuiet());
+    expect(result.current.files[0]?.name).toBe("fresh.wav");
+    rerender({ path: null });
+    await advance(60_000);
+    expect(listed.guest).toHaveBeenCalledTimes(3);
+    expect(result.current.files).toEqual([]);
   });
 });
