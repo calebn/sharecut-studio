@@ -667,6 +667,7 @@ export type ScriptPaneProps = {
   onSpeaker?: (turnId: string, anchor: HTMLElement) => void;
   onFind?: () => void;
   onFindTargetChange?: (target: HTMLButtonElement | null) => void;
+  headerAction?: ReactNode;
   /** Jump to the next word the transcript is unsure of. */
   onNextUnsure?: () => void;
   /** Jump back to the previous unsure word (Alt+Up on a word; Alt+Down goes to the next). */
@@ -819,10 +820,12 @@ function HandleHint({
   hint,
   places,
   body,
+  exclude,
 }: {
   hint: CoachHint;
   places: HandlePlaces;
   body: RefObject<HTMLElement | null>;
+  exclude: RefObject<HTMLElement | null>;
 }) {
   const bubble = useRef<HTMLSpanElement>(null);
   const [at, setAt] = useState<{ top: number; left: number } | null>(null);
@@ -837,6 +840,8 @@ function HandleHint({
     );
     const paneBox = pane.getBoundingClientRect();
     const bodyBox = el.getBoundingClientRect();
+    const viewTop = Math.max(0, paneBox.top);
+    const viewBottom = Math.min(paneBox.bottom, window.innerHeight);
     // The grips in the pane's own space: the body's offset in, its scroll out.
     const dy = bodyBox.top - paneBox.top - el.scrollTop;
     const dx = bodyBox.left - paneBox.left - el.scrollLeft;
@@ -844,32 +849,43 @@ function HandleHint({
       y: b.y + dy,
       height: b.height,
     });
-    const top = placeHandleHint({
-      start: band(places.start),
-      end: band(places.end),
-      view: {
-        top: Math.max(0, -paneBox.top),
-        height:
-          Math.min(paneBox.bottom, window.innerHeight) -
-          Math.max(paneBox.top, 0),
-      },
-      tipHeight: tip.offsetHeight,
-      reach: 1.25 * rem,
-      gap: 0.25 * rem,
-    });
+    const placeFrom = (from: number) =>
+      placeHandleHint({
+        start: band(places.start),
+        end: band(places.end),
+        view: {
+          top: from - paneBox.top,
+          height: Math.max(0, viewBottom - from),
+        },
+        tipHeight: tip.offsetHeight,
+        reach: 1.25 * rem,
+        gap: 0.25 * rem,
+      });
+    let top = placeFrom(viewTop);
+    const left = Math.max(
+      0,
+      Math.min(places.end.x + dx, pane.clientWidth - tip.offsetWidth),
+    );
+    const blocking = exclude.current?.getBoundingClientRect();
+    if (
+      top !== null &&
+      blocking &&
+      paneBox.left + left < blocking.right &&
+      paneBox.left + left + tip.offsetWidth > blocking.left &&
+      paneBox.top + top < blocking.bottom &&
+      paneBox.top + top + tip.offsetHeight > blocking.top
+    ) {
+      top = placeFrom(Math.max(viewTop, blocking.bottom));
+    }
     if (top === null) {
       setAt(null);
       onRelease?.();
       return;
     }
-    const left = Math.max(
-      0,
-      Math.min(places.end.x + dx, pane.clientWidth - tip.offsetWidth),
-    );
     setAt((prev) =>
       prev && prev.top === top && prev.left === left ? prev : { top, left },
     );
-  }, [places, body, onRelease]);
+  }, [places, body, onRelease, exclude]);
   useLayoutEffect(place, [place]);
   useEffect(() => {
     const el = body.current;
@@ -959,6 +975,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       onSpeaker,
       onFind,
       onFindTargetChange,
+      headerAction,
       onNextUnsure,
       onPreviousUnsure,
       onShowCutTextChange,
@@ -970,6 +987,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
   ) {
     const [focused, setFocused] = useState<number | null>(null);
     const bodyRef = useRef<HTMLDivElement>(null);
+    const headerActionRef = useRef<HTMLDivElement>(null);
     const registry = useRef(new Map<number, HTMLElement>());
     const marginRegistry = useRef(new Map<string, HTMLElement>());
     const caretRef = useRef<number | null>(null);
@@ -1017,6 +1035,9 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     const [spoken, setSpoken] = useState("");
     const hadSelection = useRef(false);
     const lastTap = useRef<{ index: number; at: number } | null>(null);
+    useLayoutEffect(() => {
+      if (selectionHost === null) lastTap.current = null;
+    }, [selectionHost]);
     /** The selection a pointer gesture is making; it stands in for the prop until the gesture ends. */
     const [draft, setDraft] = useState<WordsSelection | null>(null);
 
@@ -2227,6 +2248,11 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         ) : null}
         {showHeader ? (
           <div className="sys-script-header">
+            {headerAction != null ? (
+              <div ref={headerActionRef} className="sys-script-tools">
+                {headerAction}
+              </div>
+            ) : null}
             <div className="sys-script-tools">
               {onFind ? (
                 <button
@@ -2553,7 +2579,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           </div>
         )}
         {handlesShown && places && handleHint?.shown ? (
-          <HandleHint hint={handleHint} places={places} body={bodyRef} />
+          <HandleHint
+            hint={handleHint}
+            places={places}
+            body={bodyRef}
+            exclude={headerActionRef}
+          />
         ) : null}
         <div className="sr-only" role="status" aria-live="polite">
           {spoken}

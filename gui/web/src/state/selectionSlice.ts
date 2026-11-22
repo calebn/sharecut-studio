@@ -218,6 +218,14 @@ export const NO_SELECTION: Pick<DawStore, "selection" | "inspectorKey"> = {
   inspectorKey: null,
 };
 
+export function clearScriptSelection({
+  setSelection,
+  setAfterCut,
+}: Pick<DawStore, "setSelection" | "setAfterCut">): void {
+  setSelection(null);
+  setAfterCut(null);
+}
+
 /** `next` exactly as given: a click or a set of tracks already worked out the whole selection. */
 function exactSelection(
   next: Selection,

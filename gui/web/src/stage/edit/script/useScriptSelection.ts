@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { makeRangeTarget } from "../../../edit/rangeSelection";
 import { useDawStore } from "../../../state/dawStore";
+import { clearScriptSelection } from "../../../state/selectionSlice";
 import type {
   ScriptCaret,
   ScriptSelection,
@@ -17,6 +18,7 @@ const NO_CARETS: readonly ScriptCaret[] = [];
 
 export type ScriptSelectionProps = {
   selection: ScriptSelection | null;
+  selectedWords: WordsSelection | null;
   carets: readonly ScriptCaret[];
   /** Left out when the viewer may not select: the pane then reads only. */
   onSelect: ((selection: WordsSelection) => void) | undefined;
@@ -84,9 +86,7 @@ export function useScriptSelection(
     setCaret(before);
   });
   const onClearSelection = useStableCallback(() => {
-    const { setSelection, setAfterCut } = useDawStore.getState();
-    setSelection(null);
-    setAfterCut(null);
+    clearScriptSelection(useDawStore.getState());
   });
   const onSeamSelect = useStableCallback((id: string) => {
     const { project, setSelection } = useDawStore.getState();
@@ -103,6 +103,12 @@ export function useScriptSelection(
 
   return {
     selection,
+    selectedWords:
+      mayRange &&
+      stored?.kind === "transcriptRange" &&
+      selection?.kind === "words"
+        ? selection
+        : null,
     carets,
     onSelect: mayRange ? onSelect : undefined,
     onCaret,
