@@ -144,8 +144,9 @@ describe("StageHost gating", () => {
       async (url: string) =>
         new Response(
           JSON.stringify(
-            url.endsWith("/daw/export/files")
+            url.endsWith("/daw/export/files?after=")
               ? {
+                  revision: "first",
                   files: [
                     {
                       id: "ep.mp3",
