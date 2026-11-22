@@ -2897,6 +2897,32 @@ describe("GuestRoomApp", () => {
     ]);
   });
 
+  it("returns to the declined view after choosing Not now again", async () => {
+    stubBootstrap();
+    render(<GuestRoomApp token="guest-tok" />);
+    await readyToJoin(getUserMedia);
+    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+    act(() =>
+      sockets[0].onmessage?.(snapshotMessage({ state: "lobby" }, false)),
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Join recording" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Join the room" }),
+    ).toBeVisible();
+
+    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+
+    expect(
+      screen.queryByRole("heading", { name: "Join the room" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("You're not being recorded.")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Join recording" }),
+    ).toBeEnabled();
+  });
+
   describe("Not now before the room answers", () => {
     const consentFrames = (socket: FakeSocket) =>
       socket.sent
