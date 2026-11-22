@@ -25,7 +25,7 @@ type Seeded = {
   social: { clip_candidates: Record<string, unknown>[] };
 };
 
-function markerProject(prefix: string) {
+function markerProject(prefix: string, qualityBoundary = false) {
   const fixture = createRelocatedE2eProject(prefix);
   const project = JSON.parse(
     fs.readFileSync(fixture.projectPath, "utf8"),
@@ -37,10 +37,21 @@ function markerProject(prefix: string) {
       track_id: project.timeline.tracks[0].id,
       start: 18,
       end: 24,
-      score: 0.8,
+      score: qualityBoundary ? 0.09 : 0.8,
       title_suggestion: "Inventory social",
     },
   ];
+  if (qualityBoundary) {
+    project.social.clip_candidates.push({
+      id: "manual-e2e",
+      track_id: project.timeline.tracks[0].id,
+      start: 30,
+      end: 35,
+      score: 0,
+      reasons: ["manual"],
+      title_suggestion: "Manual social",
+    });
+  }
   fs.writeFileSync(
     fixture.projectPath,
     `${JSON.stringify(project, null, 2)}\n`,
@@ -112,6 +123,41 @@ test("Quality meter dots stay distinct in light, dark and forced colors", async 
     },
     undefined,
     markerProject,
+  );
+});
+
+test("Quality distinguishes zero filled dots from a manually added clip", async ({
+  page,
+}) => {
+  await page.setViewportSize(SHELLS[1].viewport);
+  await withShareableProject(
+    async (projectPath) => {
+      await openHostShare(page, projectPath);
+      const inspector = page.locator(".sys-inspector");
+
+      await page
+        .getByRole("button", { name: /^Clip idea Inventory social/ })
+        .click();
+      await inspectSelectionByKey(page);
+      const meter = inspector.getByRole("img", { name: "Quality 0 of 5" });
+      await expect(meter).toBeVisible();
+      await expect(meter.locator(".sys-dots-dot")).toHaveCount(5);
+      await expect(meter.locator("[data-filled]")).toHaveCount(0);
+
+      await page.getByRole("button", { name: /Manual social/ }).click();
+      await inspectSelectionByKey(page);
+      await expect(
+        inspector.getByRole("textbox", { name: "Title" }),
+      ).toHaveValue("Manual social");
+      await expect(
+        inspector.getByRole("img", { name: /^Quality/ }),
+      ).toHaveCount(0);
+      await expect(inspector.getByText("Quality", { exact: true })).toHaveCount(
+        0,
+      );
+    },
+    undefined,
+    (prefix) => markerProject(prefix, true),
   );
 });
 
