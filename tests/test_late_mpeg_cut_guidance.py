@@ -18,7 +18,7 @@ from podcast_mcp.util.coded_error import CodedValueError
 
 
 @pytest.mark.refine_gate
-def test_cli_late_mpeg_cut_explains_recovery_without_changing_project(tmp_path):
+def test_cli_lists_saved_late_mpeg_clips_but_holds_cuts_that_need_audio(tmp_path):
     project = EpisodeProject.create("Legacy transport", str(tmp_path))
     project.ensure_dirs()
     source = tmp_path / "raw" / "late.ts"
@@ -98,6 +98,13 @@ def test_cli_late_mpeg_cut_explains_recovery_without_changing_project(tmp_path):
     assert done.exit_code == 0, done.output
     with pytest.raises(LateMpegAudioError):
         engine.audio_start_sec(source)
+    saved_project = path.read_bytes()
+    listed = runner.invoke(app, ["edit", "list-clips", "--project", str(path)])
+    assert listed.exit_code == 0, listed.output
+    clips = json.loads(listed.stdout)
+    assert clips["clip_count"] == 1
+    assert "host" in clips["tracks"]
+    assert path.read_bytes() == saved_project
     before = files(tmp_path)
 
     result = runner.invoke(

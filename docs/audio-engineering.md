@@ -1162,6 +1162,11 @@ way in. Every windowed read of a media file passes `FFmpegEngine.audio_start_sec
 the shared `probe_media` cache. A WAV, a fill or a native decode starts at its audio and passes 0.
 `tests/test_timebase_guards.py` and `tests/test_late_start_clock.py` keep a call from omitting it. ffmpeg rebases an audio-only read of MPEG transport and program streams (`mpegts`, `mpeg`) to pts 0 while input `-ss` keeps the container clock, so no lead is right for both. `probe` sets `rebases_audio_reads` (and `duration_estimated`) when such a file's audio starts above the gate. Ingest refuses it, and `audio_start_sec` raises `invalid_audio` so no read of an already-saved source lands on a misplaced clock.
 
+A project saved before this ingest check can still open and list its saved clips
+with `podcast edit list-clips`. That listing reads saved geometry. To restore
+audio operations for a refused recording, re-encode the original recording and
+add the re-encoded file as a track so Studio can measure its audio extent.
+
 ### Audio extent admission
 
 When a cut's completed-effect check encounters a late-start MPEG recording already
