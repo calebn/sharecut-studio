@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+from contextlib import nullcontext
 from typing import Any
 
 from podcast_mcp.edits.audio_check_override import mcp_host_override
@@ -22,7 +23,7 @@ from podcast_mcp.edits.transcript_refine_status import (
     TranscriptRefineRequiredError,
 )
 from podcast_mcp.models import SessionSuggestion
-from podcast_mcp.project.store import WriteGrantKind, write_grant
+from podcast_mcp.project.store import WriteGrantKind, active_write_grant, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.service_base import mutate_unless_cut_speech_held
 from podcast_mcp.util.coded_error import CodedValueError
@@ -133,7 +134,12 @@ class SessionSuggestionService:
         row = find_session_suggestion(self.ws.project, suggestion_id)
         self._require_refine_clear(row)
         title = f"Added Session {row.session_number}"
-        with write_grant(WriteGrantKind.LEGACY_SESSION_ACCEPT):
+        grant = (
+            nullcontext()
+            if active_write_grant() is not None
+            else write_grant(WriteGrantKind.LEGACY_SESSION_ACCEPT)
+        )
+        with grant:
             return mutate_unless_cut_speech_held(
                 self.ws,
                 title,
