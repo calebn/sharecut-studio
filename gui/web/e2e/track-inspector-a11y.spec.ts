@@ -141,3 +141,32 @@ for (const { shell, viewport } of SHELLS) {
     });
   }
 }
+
+test("a focused Timeline track header reorders tracks with Shift+Arrow", async ({
+  page,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await openHostShare(page, projectPath);
+      await openPhoneTimeline(page);
+
+      const headers = trackHeaderButtons(page);
+      await expect(headers).toHaveCount(2);
+      const first = envelopeTrack(projectPath).label;
+      const header = trackHeaderButton(page, first);
+      await expect(headers.first()).toHaveAccessibleName(first);
+
+      await header.focus();
+      await expect(header).toBeFocused();
+      await page.keyboard.press("Shift+ArrowDown");
+      await expect(headers.last()).toHaveAccessibleName(first);
+      await expect(header).toBeFocused();
+
+      await page.keyboard.press("Shift+ArrowUp");
+      await expect(headers.first()).toHaveAccessibleName(first);
+      await expect(header).toBeFocused();
+    },
+    undefined,
+    emptyEnvelopeProject,
+  );
+});
