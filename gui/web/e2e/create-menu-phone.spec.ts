@@ -2,7 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { openProject } from "./stageNav";
-import { setTheme, type Theme } from "./theme";
+import { setTheme, type Theme, withAppearance } from "./theme";
 import { type Point, touch } from "./touchTimeline";
 
 /*
@@ -99,15 +99,16 @@ test("a tap outside the Sheet closes it and does not move the playhead", async (
   expect(await playheadSec(page)).toBe(before);
 });
 
-for (const { width, theme } of [
-  { width: 390, theme: "light" },
-  { width: 360, theme: "light" },
-  { width: 360, theme: "dark" },
-] as const) {
+for (const { cell: width, theme, reducedMotion } of withAppearance([
+  390, 360,
+])) {
   test(`${width}px ${theme}: touch opening keeps the Close ring hidden until keyboard navigation`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({
+      reducedMotion: reducedMotion ? "reduce" : "no-preference",
+    });
     await openSheet(page, theme);
     const close = sheet(page).getByRole("button", {
       name: "Close",
