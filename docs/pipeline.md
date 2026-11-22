@@ -52,7 +52,7 @@ The switch is on by default, so a run on a project whose dialogue tracks have no
 
 The step runs in a default run unless the switch is off or a staged step list leaves it unchecked. It can be run alone from the CLI (`--only`) or MCP `pipeline_run`, and the GUI Advanced switch under Clean and level turns it on or off; the History undo above reverts it. One track can also be extracted or cleared on its own with `ExtractRoomToneBed` / `ClearExtractedRoomToneBed` ([audio-engineering.md § Extracted room-tone bed](audio-engineering.md#extracted-room-tone-bed)).
 
-A per-track Clear (`ClearExtractedRoomToneBed`) lasts only until the next pipeline run with `room_tone.extract_bed` on: the step sees a bedless track and cuts a bed again. To keep a track bedless, turn the switch off for runs that include it.
+A per-track Clear (`ClearExtractedRoomToneBed`) removes the current extracted bed. It saves no per-track opt-out. A later run that includes room-tone extraction tries the now-bedless dialogue track again and can add a new bed if it finds clean room tone. To prevent automatic extraction on that run, turn off **Cut a room-tone bed from each track's quiet stretch** under **Clean and level** in Prepare’s Advanced settings or pass `--set room_tone.extract_bed=false` in the CLI. This skips automatic extraction for the entire run. You can still use Extract room tone on an individual track.
 
 | Setting | Default | Meaning |
 |---|---|---|
