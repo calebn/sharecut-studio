@@ -78,6 +78,37 @@ async function openProject(page: Page): Promise<void> {
   await openStageProject(page, e2eProjectPath);
 }
 
+test.describe("Script overview on a touch screen", () => {
+  test.use({ hasTouch: true, viewport: { width: 1280, height: 800 } });
+
+  test("the 32px overview seeks from its 44px touch target", async ({
+    page,
+  }) => {
+    await openProject(page);
+    await page.keyboard.press("Shift+T");
+
+    const overview = page
+      .locator(".edit-overview")
+      .getByRole("slider", { name: "Episode overview" });
+    await expect(overview).toBeVisible();
+    const target = await overview.boundingBox();
+    const face = await overview.locator(".sys-overview-face").boundingBox();
+    expect(target).not.toBeNull();
+    expect(face).not.toBeNull();
+    expect(face!.height).toBe(32);
+    expect(target!.height).toBeGreaterThanOrEqual(44);
+    expect(face!.y - target!.y).toBeGreaterThan(2);
+
+    const end = Number(await overview.getAttribute("aria-valuemax"));
+    expect(end).toBeGreaterThan(0);
+    await expect(overview).toHaveAttribute("aria-valuenow", "0");
+    await page.touchscreen.tap(target!.x + target!.width / 2, target!.y + 2);
+    await expect
+      .poll(async () => Number(await overview.getAttribute("aria-valuenow")))
+      .toBeCloseTo(end / 2, 0);
+  });
+});
+
 /** Playback needs a rendered mix; the fixture ships none. */
 async function renderPreview(page: Page): Promise<void> {
   const started = await page.request.post("/api/pipeline/render-preview", {
