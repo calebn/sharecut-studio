@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.project.io import ensure_utf8_path
+from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME, ensure_utf8_path
 
 CODE = "X-Sharecut-Error-Code"
 LOOPBACK = ("127.0.0.1", 50000)
@@ -61,14 +61,35 @@ def test_open_refuses_and_pins_nothing(client, bad_project):
     assert client.get("/api/projects/recent").status_code == 200
 
 
-def test_pick_result_refused(client, bad_project, monkeypatch):
+@pytest.mark.parametrize("open_folder", [False, True], ids=["file", "folder"])
+def test_open_refuses_non_utf8_path_before_adopting_legacy_file(
+    client, bad_project, open_folder: bool
+):
+    retired = bad_project.rename(bad_project.with_name(RETIRED_PROJECT_FILENAME))
+    before = retired.read_bytes()
+    target = retired.parent if open_folder else retired
+    _refused(_post(client, "/api/project/open", path=str(target)))
+    assert retired.read_bytes() == before
+    assert not bad_project.exists()
+    assert client.app.state.served_project is None
+
+
+@pytest.mark.parametrize("legacy", [False, True], ids=["current", "retired"])
+def test_pick_result_refused(client, bad_project, monkeypatch, legacy: bool):
     from podcast_mcp.gui.host_file_dialog import HostPickResult
     from podcast_mcp.gui.routes import project as mod
 
+    selected = bad_project
+    if legacy:
+        selected = bad_project.rename(bad_project.with_name(RETIRED_PROJECT_FILENAME))
+    before = selected.read_bytes()
     monkeypatch.setattr(
-        mod, "pick_episode_project_path", lambda: HostPickResult(path=str(bad_project))
+        mod, "pick_episode_project_path", lambda: HostPickResult(path=str(selected))
     )
     _refused(client.post("/api/project/pick"))
+    assert selected.read_bytes() == before
+    if legacy:
+        assert not bad_project.exists()
 
 
 def test_resolve_project_refuses_without_pinning(bad_project):

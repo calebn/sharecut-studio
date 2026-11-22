@@ -97,9 +97,7 @@ def _unpin_served_if_allowed(request: Request) -> None:
 
 def _require_episode_path(path_raw: str) -> Path:
     try:
-        resolved = require_episode_project_file(path_raw)
-        ensure_utf8_path(resolved)
-        return resolved
+        return require_episode_project_file(path_raw, require_utf8=True)
     except ValueError as exc:
         raise coded_exception_error(400, exc, code="project_path_invalid") from exc
     except FileNotFoundError as exc:

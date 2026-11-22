@@ -94,18 +94,20 @@ def ensure_utf8_path(path: Path | str) -> None:
         ) from None
 
 
-def require_episode_project_file(path: Path | str) -> Path:
+def require_episode_project_file(path: Path | str, *, require_utf8: bool = False) -> Path:
     """Resolve *path* (file or workspace dir) and require episode.sharecut basename.
 
     Used by host GUI ``POST /api/project/open`` and ``pick`` and by the copy operations,
     so it adopts a retired entry file name (see :func:`adopt_retired_entry_file`). CLI
     ``--project``, MCP, and :func:`open_project` still load any project file path the
-    caller passes.
+    caller passes. With ``require_utf8``, validate the resolved path before adoption.
     """
     original = Path(path).expanduser()
     resolved = resolve_project_path(path)
     if resolved.name != EPISODE_PROJECT_FILENAME:
         raise ValueError(f"expected {EPISODE_PROJECT_FILENAME}, got {resolved.name!r}")
+    if require_utf8:
+        ensure_utf8_path(resolved)
     adopt_retired_entry_file(resolved)
     if not resolved.is_file():
         if original.is_dir():
