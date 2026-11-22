@@ -103,9 +103,17 @@ function text(value: unknown): string {
   return value;
 }
 
+const INVALID_MUTE_FLAG = "Invalid proxy manifest flag";
+
+/** The old occurrence shape cannot be used to build a playback schedule. */
+export class LegacyProxyOccurrencesError extends Error {
+  constructor() {
+    super(INVALID_MUTE_FLAG);
+  }
+}
+
 function flag(value: unknown): boolean {
-  if (typeof value !== "boolean")
-    throw new Error("Invalid proxy manifest flag");
+  if (typeof value !== "boolean") throw new Error(INVALID_MUTE_FLAG);
   return value;
 }
 
@@ -186,21 +194,35 @@ export function parseProxyManifest(value: unknown): ProxyManifest {
       throw new Error("Invalid occurrence artifact identity");
     return artifact;
   });
-  const occurrences = mapValues(raw.occurrences, (value, id) => {
+  const revision = text(raw.revision);
+  const bindings = Object.entries(record(raw.occurrences));
+  const occurrences: [string, ProxyOccurrence][] = [];
+  for (const [key, value] of bindings) {
+    const id = text(key);
     const binding = record(value);
     const artifactId = text(binding.artifactId);
     const outputTrackId = text(binding.outputTrackId);
-    const bakesMutes = flag(binding.bakesMutes);
-    if (!artifacts[artifactId] || !project_basis.clips[id])
+    if (
+      !Object.hasOwn(artifacts, artifactId) ||
+      !Object.hasOwn(project_basis.clips, id)
+    )
       throw new Error("Invalid proxy occurrence binding");
-    return { artifactId, outputTrackId, bakesMutes };
-  });
+    if (Object.hasOwn(binding, "bakesMutes")) {
+      const bakesMutes = flag(binding.bakesMutes);
+      occurrences.push([id, { artifactId, outputTrackId, bakesMutes }]);
+    }
+  }
+  if (occurrences.length !== bindings.length) {
+    // Older writers omitted the flag on every occurrence. Mixed entries are malformed.
+    if (!occurrences.length) throw new LegacyProxyOccurrencesError();
+    throw new Error(INVALID_MUTE_FLAG);
+  }
   return {
-    revision: text(raw.revision),
+    revision,
     project_basis,
     tracks,
     artifacts,
-    occurrences,
+    occurrences: Object.fromEntries(occurrences),
   };
 }
 

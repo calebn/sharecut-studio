@@ -6,6 +6,7 @@ import { MIX_MISSING_LABEL } from "./staleRender";
  * a second pill (#1113).
  */
 export const NO_PREVIEW_ERROR = MIX_MISSING_LABEL;
+export const RECONNECT_FOR_SAVED_AUDIO = "Reconnect for audio";
 
 /**
  * What the missing mix means for Full mix and who can fix it; a guest cannot
@@ -22,6 +23,7 @@ export function noPreviewReason(mayRefresh: boolean): string {
  * label is used in the tooltip when the bar only has room for an icon.
  */
 export function audioErrorLabel(message: string): string {
+  if (message === RECONNECT_FOR_SAVED_AUDIO) return message;
   if (/^Failed to load audio/i.test(message)) {
     return "Audio failed to load";
   }

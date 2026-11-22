@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { HistoryButtonsProps } from "../../system/HistoryButtons";
 import { Player } from "../../system/Player";
+import { RECONNECT_FOR_SAVED_AUDIO } from "../../utils/audioErrorLabel";
+import { FRAME_ALERT_PRIORITY, useFrameAlert } from "./useFrameAlert";
 import { usePlayerProps } from "./usePlayerProps";
 
 /**
@@ -20,5 +22,26 @@ export function PlayerBar({
   const props = usePlayerProps(form, (next) =>
     setExpanded(next === "expanded"),
   );
-  return <Player {...props} history={history} />;
+  const recovery = props.errorLabel === RECONNECT_FOR_SAVED_AUDIO;
+  useFrameAlert(
+    FRAME_ALERT_PRIORITY.needsYou,
+    recovery && props.onRetry
+      ? {
+          state: "needs-you",
+          title: RECONNECT_FOR_SAVED_AUDIO,
+          action: {
+            label: "Retry",
+            name: "Retry audio",
+            onAction: props.onRetry,
+          },
+        }
+      : null,
+  );
+  return (
+    <Player
+      {...props}
+      state={recovery ? "ready" : props.state}
+      history={history}
+    />
+  );
 }
