@@ -57,6 +57,7 @@ type Props = {
   onClose: () => void;
   backgroundPolicy: BottomSheetBackgroundPolicy;
   title?: string;
+  focusTitleOnOpen?: boolean;
   /** Size while not expanded. */
   size?: BottomSheetSize;
   /** Size while expanded. */
@@ -92,6 +93,7 @@ export function BottomSheet({
   onClose,
   backgroundPolicy,
   title,
+  focusTitleOnOpen = false,
   size = "half",
   expandedSize = "full",
   children,
@@ -109,6 +111,7 @@ export function BottomSheet({
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const swipe = useDrawerSwipe(panelRef, open ? drawer : undefined);
   const chromeRef = useRef<HTMLDivElement>(null);
   const hasDrawer = drawer != null;
@@ -161,7 +164,7 @@ export function BottomSheet({
     open,
     onClose: dismiss,
     panelRef,
-    initialFocusRef: closeRef,
+    initialFocusRef: focusTitleOnOpen && title ? headingRef : closeRef,
     mode: "sheet",
     stackKey: title ?? "bottom-sheet",
   });
@@ -260,7 +263,12 @@ export function BottomSheet({
             </button>
           ) : null}
           {title ? (
-            <h2 id={titleId} className="bottom-sheet-title">
+            <h2
+              id={titleId}
+              className="bottom-sheet-title"
+              ref={headingRef}
+              tabIndex={focusTitleOnOpen ? -1 : undefined}
+            >
               {title}
             </h2>
           ) : (

@@ -43,6 +43,7 @@ export type SheetProps = {
   panelClassName?: string;
   /** Centered and end forms only: the control that takes focus on open, instead of Close. */
   initialFocusRef?: RefObject<HTMLElement | null>;
+  focusTitleOnOpen?: boolean;
 };
 
 function BackButton({
@@ -107,6 +108,7 @@ export function Sheet({
   onDetentChange,
   panelClassName,
   initialFocusRef,
+  focusTitleOnOpen,
 }: SheetProps) {
   const heading = step ? step.title : title;
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -178,6 +180,7 @@ export function Sheet({
         onClose={onClose}
         backgroundPolicy="interactive"
         title={heading}
+        focusTitleOnOpen={focusTitleOnOpen}
         back={
           step
             ? {

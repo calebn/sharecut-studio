@@ -264,6 +264,10 @@ html[data-shell="phone"] .bottom-sheet-root {
   overflow-wrap: anywhere;
 }
 
+.bottom-sheet-title[tabindex="-1"]:focus {
+  outline: none;
+}
+
 .bottom-sheet-title-spacer {
   flex: 1;
 }

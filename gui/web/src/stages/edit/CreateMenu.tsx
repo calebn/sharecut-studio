@@ -184,7 +184,13 @@ function CreateMenuView(props: CreateMenuProps) {
   const title = track ? `${time} · ${track}` : time;
   if (props.phone) {
     return (
-      <Sheet form="bottom" detent="fit" title={title} onClose={onClose}>
+      <Sheet
+        form="bottom"
+        detent="fit"
+        title={title}
+        onClose={onClose}
+        focusTitleOnOpen
+      >
         {rows.map((row, index) => (
           <Fragment key={row.id}>
             <button

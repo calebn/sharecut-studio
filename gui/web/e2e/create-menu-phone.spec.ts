@@ -97,6 +97,23 @@ test("a tap outside the Sheet closes it and does not move the playhead", async (
   expect(await playheadSec(page)).toBe(before);
 });
 
+test("touch opening keeps the Close ring hidden until keyboard navigation", async ({
+  page,
+}) => {
+  await openSheet(page);
+  const close = sheet(page).getByRole("button", { name: "Close", exact: true });
+  const title = sheet(page).getByRole("heading");
+  await expect(title).toBeFocused();
+  await expect(title).toHaveCSS("outline-style", "none");
+  await expect(close.and(page.locator(":focus-visible"))).toHaveCount(0);
+
+  await page.keyboard.press("Tab");
+  await expect(close.and(page.locator(":focus-visible"))).toBeFocused();
+  await page.keyboard.press("Tab");
+  const firstAction = sheet(page).getByRole("button", { name: "Split here" });
+  await expect(firstAction.and(page.locator(":focus-visible"))).toBeFocused();
+});
+
 test("the keymap is held while the Sheet is open, and Escape closes it", async ({
   page,
 }) => {
