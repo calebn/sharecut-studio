@@ -13,6 +13,8 @@ import subprocess
 import sys
 import threading
 import time
+import wave
+from contextlib import suppress
 
 import anyio
 import pytest
@@ -39,9 +41,11 @@ def _export_cmd(slow_export, formats: str) -> list[str]:
 # Runs the real CLI in a child process with mastering stubbed: the stub returns the fixture's
 # 15 min master after an ffmpeg that takes ``mastering_sec`` of wall time (0 skips it).
 _CLI_DRIVER = """
+import os
 import resource
 import signal
 import sys
+from contextlib import suppress
 from pathlib import Path
 
 # A terminal job starts with the default actions, whatever the test runner inherited, and a
@@ -53,21 +57,41 @@ resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 from podcast_mcp.cli.main import app
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.pipeline import steps
-from podcast_mcp.util.process import run
+from podcast_mcp.util import process
 
-master, mastering_sec, mastering_out, *argv = sys.argv[1:]
+master, mastering_sec, mastering_out, export_dir, ready_fd, *argv = sys.argv[1:]
+mastering_sec = float(mastering_sec)
+ready_fd = int(ready_fd)
+ffmpeg = FFmpegEngine().ffmpeg
+spawn = process._spawn
+
+
+def spawn_with_ready_pid(cmd, **kwargs):
+    child = spawn(cmd, **kwargs)
+    output = Path(cmd[-1])
+    expected = (
+        output == Path(mastering_out)
+        if mastering_sec > 0
+        else output.parent == Path(export_dir) and output.name.endswith(".partial.mp3")
+    )
+    if cmd[0] == ffmpeg and expected:
+        process._spawn = spawn
+        with os.fdopen(ready_fd, "wb", buffering=0) as ready, suppress(BrokenPipeError):
+            ready.write(f"{child.pid}\\n".encode("ascii"))
+    return child
 
 
 def ensure_current_master(project, defaults):
-    if float(mastering_sec) > 0:
-        run(
-            [FFmpegEngine().ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc",
-             "-t", mastering_sec, "-af", "arealtime", mastering_out],
+    if mastering_sec > 0:
+        process.run(
+            [ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc",
+             "-t", str(mastering_sec), "-af", "arealtime", mastering_out],
             check=True,
         )
     return Path(master)
 
 
+process._spawn = spawn_with_ready_pid
 steps.ensure_current_master = ensure_current_master
 app(argv, prog_name="podcast")
 """
@@ -79,22 +103,34 @@ class _TerminalCli:
 
     def __init__(self, slow_export, tmp_path, *, mastering_sec: float = 0) -> None:
         self.mastering_out = tmp_path / "mastering-in-progress.wav"
-        self.proc = subprocess.Popen(
-            [
-                sys.executable,
-                "-c",
-                _CLI_DRIVER,
-                str(slow_export.master),
-                str(mastering_sec),
-                str(self.mastering_out),
-                *_export_cmd(slow_export, MP3_FORMATS),
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            start_new_session=True,
-        )
         self.marker = str(tmp_path)
+        self.phase = "mastering" if mastering_sec > 0 else "encoding"
+        ready_read, ready_write = os.pipe()
+        self._ffmpeg_ready = os.fdopen(ready_read, "rb", buffering=0)
+        try:
+            self.proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    _CLI_DRIVER,
+                    str(slow_export.master),
+                    str(mastering_sec),
+                    str(self.mastering_out),
+                    str(slow_export.export_dir),
+                    str(ready_write),
+                    *_export_cmd(slow_export, MP3_FORMATS),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
+                pass_fds=(ready_write,),
+            )
+        except BaseException:
+            self._ffmpeg_ready.close()
+            raise
+        finally:
+            os.close(ready_write)
 
     def alive(self) -> bool:
         if self.proc.poll() is None:
@@ -102,35 +138,31 @@ class _TerminalCli:
         out, err = self.proc.communicate()
         raise AssertionError(f"CLI exited {self.proc.returncode} early: {out} {err}")
 
-    def wait_until_mastering(self) -> None:
-        deadline = time.monotonic() + 30
-        while not self.mastering_out.exists():
-            assert self.alive() and time.monotonic() < deadline, "mastering never started"
-            time.sleep(0.02)
+    def wait_for_ffmpeg(self) -> int:
+        try:
+            with self._ffmpeg_ready as ready:
+                assert select.select([ready], [], [], 30)[0], f"{self.phase} FFmpeg did not start"
+                record = ready.read(32)
+                assert record, f"CLI closed its startup pipe before {self.phase} FFmpeg"
+                pid = int(record)
+                assert pid > 0, f"Invalid {self.phase} FFmpeg PID: {pid}"
+                return pid
+        except BaseException as failure:
+            try:
+                if self.proc.poll() is None:
+                    with suppress(ProcessLookupError):
+                        self.signal_group(signal.SIGHUP)
+                code, out, err = self.finish(timeout=15)
+                failure.add_note(f"CLI exit {code}\nstdout: {out}\nstderr: {err}")
+            except (OSError, subprocess.TimeoutExpired) as cleanup_error:
+                failure.add_note(f"CLI cleanup: {cleanup_error}")
+            raise
 
     def ctrl_c(self) -> None:
         self.signal_group(signal.SIGINT)
 
     def signal_group(self, signum: int) -> None:
         os.killpg(self.proc.pid, signum)
-
-    def ffmpeg_children(self) -> list[int]:
-        """PIDs of the ffmpeg processes the CLI is running, once there is one."""
-        deadline = time.monotonic() + 10
-        while True:
-            ps = subprocess.run(
-                [*_PS, "-axo", "pid=,ppid=,command="], capture_output=True, text=True, check=True
-            )
-            rows = (line.split(None, 2) for line in ps.stdout.splitlines())
-            pids = [
-                int(pid)
-                for pid, ppid, command in rows
-                if int(ppid) == self.proc.pid and "ffmpeg" in command and self.marker in command
-            ]
-            if pids:
-                return pids
-            assert self.alive() and time.monotonic() < deadline, "the CLI started no ffmpeg"
-            time.sleep(0.02)
 
     def end_by(self, signum: int, ffmpeg_pids: list[int]) -> tuple[int, list[int]]:
         """Send ``signum`` to the CLI's group; return its exit code and which of
@@ -161,6 +193,7 @@ def test_terminal_ctrl_c_mid_encode_cancels_the_export_and_keeps_the_previous_on
     slow_export, tmp_path
 ) -> None:
     cli = _TerminalCli(slow_export, tmp_path)
+    cli.wait_for_ffmpeg()
     slow_export.wait_until_encoding(alive=cli.alive)
     cli.ctrl_c()
     code, out, err = cli.finish()
@@ -177,13 +210,15 @@ def test_terminal_ctrl_c_during_mastering_lets_the_master_finish_then_cancels(
     slow_export, tmp_path
 ) -> None:
     cli = _TerminalCli(slow_export, tmp_path, mastering_sec=1.5)
-    cli.wait_until_mastering()
+    cli.wait_for_ffmpeg()
     cli.ctrl_c()
     code, _out, err = cli.finish()
 
     assert code == 130, err
     assert "Export cancelled. Files from an earlier export are unchanged." in err
     assert slow_export.files() == slow_export.previous
+    with wave.open(str(cli.mastering_out), "rb") as master:
+        assert master.getnframes() == round(1.5 * master.getframerate())
 
 
 def test_second_terminal_ctrl_c_quits_at_once_and_kills_ffmpeg(slow_export, tmp_path) -> None:
@@ -196,8 +231,7 @@ def test_second_terminal_ctrl_c_quits_at_once_and_kills_ffmpeg(slow_export, tmp_
     errors = stderr.errors if stderr is not None else "strict"
     try:
         assert stderr is not None
-        cli.wait_until_mastering()
-        ffmpeg_pids = cli.ffmpeg_children()
+        ffmpeg_pids = [cli.wait_for_ffmpeg()]
         cli.ctrl_c()
         acknowledgement = b"Cancelling. Press Ctrl+C again to quit now.\n"
         deadline = time.monotonic() + 5
@@ -256,8 +290,9 @@ def test_terminal_signal_that_ends_the_cli_mid_encode_takes_its_ffmpeg_with_it(
     """Terminal closed (SIGHUP), ``kill %1`` (SIGTERM), Ctrl+\\ (SIGQUIT): ffmpeg runs in a
     session of its own, so the CLI must kill it before it dies by the signal."""
     cli = _TerminalCli(slow_export, tmp_path)
+    pid = cli.wait_for_ffmpeg()
     slow_export.wait_until_encoding(alive=cli.alive)
-    code, ffmpeg_left = cli.end_by(signum, cli.ffmpeg_children())
+    code, ffmpeg_left = cli.end_by(signum, [pid])
 
     assert code == -signum
     assert ffmpeg_left == []
@@ -270,8 +305,7 @@ def test_terminal_closed_during_mastering_takes_the_mastering_ffmpeg_with_it(
     slow_export, tmp_path
 ) -> None:
     cli = _TerminalCli(slow_export, tmp_path, mastering_sec=60)
-    cli.wait_until_mastering()
-    code, ffmpeg_left = cli.end_by(signal.SIGHUP, cli.ffmpeg_children())
+    code, ffmpeg_left = cli.end_by(signal.SIGHUP, [cli.wait_for_ffmpeg()])
 
     assert code == -signal.SIGHUP
     assert ffmpeg_left == []
