@@ -1197,7 +1197,9 @@ chooser lab until the owner made it the default (2026-10-07).
   cannot run is not in the menu, and a command that refuses says why in the
   live region. Slide onto an item and lift to pick it, or lift anywhere and
   tap one; on a phone the rows are a bottom Sheet, which shows no highlight
-  under a sliding finger but still picks on that lift. A lift that never moved past
+  under a sliding finger but still picks on that lift. The sheet starts focus on
+  its title. Tab moves to Close and then to the actions, with visible keyboard focus.
+  A lift that never moved past
   `TOUCH_SLOP_PX` picks nothing, whatever lies under the finger: round 8's
   live proof found that at 844x390 the menu opened under the finger and a
   lift saved Add chapter. The scrim, Escape and a second finger close it.
