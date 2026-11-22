@@ -838,8 +838,10 @@ track plays within 6 s of the cut plus the longest fade, and for a pause at leas
 out to the words its check observes. The longest fade is the cut crossfade, the pad fade, or the
 fade of a clip on the cut's track whose edge touches the cut (`cut_quality.fade_reach_sec`).
 The window is on the timeline, so a clip placed away from its source time counts where it plays.
-A cut is never cached when a clip fade over 1 s, on any track, runs into its window. A long fade
-outside the window is not refused. Any crossfade join of a clip in the window, whichever side
+A cut is never cached when a clip fade over 1 s, on any track, runs into its window.
+An unchanged long fade outside the window does not prevent cache reuse. Editing a dialogue
+clip's fade between warming and approval changes the batch-base stamp described below, even when
+the fade is outside the cut's window. Any crossfade join of a clip in the window, whichever side
 its neighbour is on, adds the overlap and the borrow to the key's `joins` (`crossfade_ms_at_join`,
 the larger of the shorter fade and half the longer, and the `join_borrow_sec` of `join_render_fields`);
 these account for the rendered neighbour's edge-piece length and for mutes that limit
