@@ -164,4 +164,36 @@ export async function checkNativeMixEdits(page: Page, projectPath: string) {
   await expect
     .poll(async () => (await savedMix(page, projectPath))[0].db)
     .toBe(first.db);
+
+  const reopened = await openPhoneMix(page);
+  const volume = reopened.getByRole("spinbutton", {
+    name: `Volume ${first.label}`,
+    exact: true,
+  });
+  await expect(volume).toHaveAttribute("aria-valuenow", String(first.db));
+  await volume.focus();
+  const cancelBox = (await volume.boundingBox())!;
+  const x = cancelBox.x + cancelBox.width * 0.6;
+  const y = cancelBox.y + cancelBox.height * 0.5;
+  let gainWrites = 0;
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/api/document/command" &&
+      request.postDataJSON()?.type === "SetTrackFader"
+    ) {
+      gainWrites += 1;
+    }
+  });
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x - 60, y, { steps: 8 });
+  await expect(volume).not.toHaveAttribute("aria-valuenow", String(first.db));
+  expect((await savedMix(page, projectPath))[0].db).toBe(first.db);
+  await page.keyboard.press("Escape");
+  await expect(volume).toHaveAttribute("aria-valuenow", String(first.db));
+  await page.mouse.up();
+  expect((await savedMix(page, projectPath))[0].db).toBe(first.db);
+  expect(gainWrites).toBe(0);
+  await reopened.getByRole("button", { name: "Close" }).click();
 }
