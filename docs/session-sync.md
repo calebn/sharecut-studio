@@ -708,7 +708,7 @@ The implementation measurement on a 10,000-clip project produced 4,412-byte and 
 
 For an unsnapped pending-edit range save that keeps the same track scope,
 `pendingDrafts.ts` keys the optimistic draft by edit and edge. When the
-command carries a baseline, only a changed edge is held, so a peer update to
+command carries a baseline, only changed edges are held, so a peer update to
 the other edge remains visible. Two queued saves to different edges can stay
 visible together. Acknowledging or refusing either command releases its own
 draft.
