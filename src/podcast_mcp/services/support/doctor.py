@@ -322,8 +322,6 @@ def _load_project(project: EpisodeProject | Path | None) -> EpisodeProject | Non
 
 def ffmpeg_probe_info() -> dict[str, Any]:
     """Basename-only ffmpeg/ffprobe paths plus version strings."""
-    from podcast_mcp.util.process import TimeoutExpired, run
-
     try:
         pair = resolve_ffmpeg_pair()
         if pair.is_in_process:
@@ -343,16 +341,7 @@ def ffmpeg_probe_info() -> dict[str, Any]:
             name: {"ok": False, "version": str(exc), "path": name, "source": "unavailable"}
             for name in ("ffmpeg", "ffprobe")
         }
-    probe_ok, probe_ver = False, "ffprobe not found"
-    try:
-        r = run([ffprobe, "-version"], capture_output=True, text=True, timeout=10)
-        if r.returncode == 0:
-            probe_ok = True
-            probe_ver = (r.stdout or "").splitlines()[0] if r.stdout else "ok"
-        else:
-            probe_ver = r.stderr or "ffprobe failed"
-    except (FileNotFoundError, OSError, TimeoutExpired):
-        probe_ver = "ffprobe not found"
+    probe_ok, probe_ver = engine.check_ffprobe_version()
     return {
         "ffmpeg": {
             "ok": ok,

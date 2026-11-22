@@ -27,7 +27,6 @@ FFMPEG_ARGV: dict[str, int] = {
     "engines/source_proxy_audio.py": 1,
     "engines/timeline_render.py": 1,
     "services/media/proxy_media.py": 1,
-    "services/support/doctor.py": 1,
 }
 
 
