@@ -11,6 +11,7 @@ import type {
 } from "../../stages/deliver/exportedFileModel";
 import {
   type ExportedFilesLoad,
+  type ExportedFilesOptions,
   useExportedFiles,
 } from "../../stages/deliver/useExportedFiles";
 import { useDawStore } from "../../state/dawStore";
@@ -32,17 +33,17 @@ export function hostFileAccess(): FileAccess {
  */
 export function useDeliverFiles(
   projectPath: string | null,
-  access: FileAccess,
-  refreshKey?: string,
+  options: ExportedFilesOptions,
 ): DeliverFiles & {
   load: ExportedFilesLoad;
   currentLoad: ExportedFilesLoad;
   reload: () => void;
 } {
-  const { files, load, currentLoad, reload } = useExportedFiles(projectPath, {
-    access,
-    refreshKey,
-  });
+  const { access } = options;
+  const { files, load, currentLoad, reload } = useExportedFiles(
+    projectPath,
+    options,
+  );
   return useMemo(
     () => ({
       files,

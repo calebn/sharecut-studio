@@ -6,6 +6,7 @@ takes a path from the client.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
@@ -65,6 +66,7 @@ from podcast_mcp.services.collaboration import (
     require_share_edit,
     share_review_source,
 )
+from podcast_mcp.services.document import ExportFilesService
 from podcast_mcp.services.jobs import (
     GUEST_EXPORT_KINDS,
     GUEST_PIPELINE_KINDS,
@@ -342,10 +344,18 @@ def get_daw_export_status(request: Request, ws: ExportStatusWorkspace) -> dict[s
 
 
 @router.get("/api/review/{token}/daw/export/files")
-def get_daw_export_files(ws: ExportFilesWorkspace) -> dict[str, Any]:
-    """Names, labels and sizes of the exported files; no host paths. Starts no render job."""
+def get_daw_export_files(
+    token: str, ws: ExportFilesWorkspace, after: Annotated[str | None, Query(max_length=64)] = None
+) -> dict[str, Any]:
+    """List exports, or return only a revision when the publication stamp still matches."""
     with guest_boundary(log, "review export files"):
-        return list_exported_files(ws)
+        if after is None:
+            return list_exported_files(ws)
+        stamp = ExportFilesService(ws).publication_stamp()
+        revision = hashlib.sha256(repr((token, ws.path, stamp)).encode()).hexdigest()
+        if after == revision:
+            return {"revision": revision}
+        return {"revision": revision, **list_exported_files(ws)}
 
 
 @router.get("/api/review/{token}/daw/export/files/{file_id:path}")

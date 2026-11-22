@@ -44,7 +44,9 @@ describe("hostFileAccess", () => {
 
 describe("useDeliverFiles", () => {
   it("reveals the file pressed through the host in the app", async () => {
-    const { result } = renderHook(() => useDeliverFiles(PATH, "reveal"));
+    const { result } = renderHook(() =>
+      useDeliverFiles(PATH, { access: "reveal" }),
+    );
     await waitFor(() => expect(result.current.load).toBe("ready"));
     result.current.onReveal?.(result.current.files[0] as never);
     expect(mocks.reveal).toHaveBeenCalledWith(PATH, "ep.mp3");
@@ -53,7 +55,9 @@ describe("useDeliverFiles", () => {
   it("gives downloads a link and says the download started", async () => {
     const announce = vi.fn();
     useDawStore.setState({ announceStatus: announce } as never);
-    const { result } = renderHook(() => useDeliverFiles(PATH, "download"));
+    const { result } = renderHook(() =>
+      useDeliverFiles(PATH, { access: "download" }),
+    );
     await waitFor(() => expect(result.current.load).toBe("ready"));
     expect(result.current.files[0]?.href).toContain("/api/export/files/ep.mp3");
     result.current.onStarted?.(result.current.files[0] as never);
@@ -64,7 +68,7 @@ describe("useDeliverFiles", () => {
   });
 
   it("reads nothing for a null path", () => {
-    renderHook(() => useDeliverFiles(null, "download"));
+    renderHook(() => useDeliverFiles(null, { access: "download" }));
     expect(mocks.list).not.toHaveBeenCalled();
   });
 });

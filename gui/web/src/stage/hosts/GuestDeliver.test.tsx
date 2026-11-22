@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const listed = vi.hoisted(() => ({ list: vi.fn() }));
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
-  listExportedFiles: listed.list,
+  readGuestExportedFiles: listed.list,
 }));
 vi.mock("../../stages/deliver/FeedPanel", () => ({ FeedPanel: () => null }));
 
@@ -54,7 +54,9 @@ function asGuest(guestMode: "edit" | "comment" | "view") {
 
 beforeEach(() => {
   stubViewportShell("desktop");
-  listed.list.mockReset().mockResolvedValue(FILES);
+  listed.list
+    .mockReset()
+    .mockResolvedValue({ files: FILES, revision: "first" });
 });
 
 afterEach(() => {
@@ -81,7 +83,7 @@ describe("GuestDeliver files", () => {
   });
 
   it("says so when the host has exported nothing yet", async () => {
-    listed.list.mockResolvedValue([]);
+    listed.list.mockResolvedValue({ files: [], revision: "first" });
     asGuest("edit");
     render(<GuestDeliver />);
     expect(

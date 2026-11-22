@@ -46,3 +46,5 @@ On a phone the Stage bar is the bottom tab bar, Edit shows one of Timeline or Sc
 
 On an Editor link, Deliver shows the host's exported files as downloads. The Files
 section shows when the list is loading and offers Retry if the request fails.
+While Deliver stays open and visible, the list quietly picks up files published
+by the host without a reload.

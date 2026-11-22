@@ -7,6 +7,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from stat import S_ISDIR
 from typing import Literal
 
 from podcast_mcp.export.audio import AUDIO_EXPORT_MEDIA
@@ -25,7 +26,7 @@ from podcast_mcp.services.pipeline import (
     export_config_snapshot,
 )
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
-from podcast_mcp.util.fingerprint import file_stamp
+from podcast_mcp.util.fingerprint import FileStamp, file_stamp
 
 ExportedFileKind = Literal["audio", "transcript", "chapters", "feed", "bounce", "daw"]
 
@@ -100,6 +101,14 @@ def _same_text(path: Path, expected: str) -> bool:
         return False
 
 
+def _directory_stamp(path: Path, *, follow_symlinks: bool) -> FileStamp | None:
+    try:
+        stamp = path.stat(follow_symlinks=follow_symlinks)
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    return file_stamp(stamp) if S_ISDIR(stamp.st_mode) else None
+
+
 class ExportFilesService:
     """Lists and opens only files that an export writer produces, found by their own names.
 
@@ -111,6 +120,15 @@ class ExportFilesService:
     def __init__(self, ws: ProjectWorkspace, *, host_files: bool = False) -> None:
         self.ws = ws
         self.host_files = host_files
+
+    def publication_stamp(self) -> tuple[FileStamp | None, ...]:
+        """A cheap hint that an atomic export publication changed the folder entries."""
+        root = self.ws.project.export_dir()
+        return (
+            _directory_stamp(root, follow_symlinks=True),
+            _directory_stamp(root / CLIPS_DIRNAME, follow_symlinks=False),
+            _directory_stamp(root / "variants", follow_symlinks=False),
+        )
 
     def _found(self) -> list[ServedFile]:
         project = self.ws.project

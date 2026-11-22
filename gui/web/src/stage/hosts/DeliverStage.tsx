@@ -272,11 +272,10 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     revision: project?.history.head_id,
   });
   const reloadTranscript = transcriptFlow.reload;
-  const files = useDeliverFiles(
-    projectPath,
-    hostFileAccess(),
-    `${projectEpoch}|${project?.history.head_id}|${exportDoneAt}|${transcriptFlow.written}`,
-  );
+  const files = useDeliverFiles(projectPath, {
+    access: hostFileAccess(),
+    refreshKey: `${projectEpoch}|${project?.history.head_id}|${exportDoneAt}|${transcriptFlow.written}`,
+  });
   const exportRunning = exportFlow.run.kind === "running";
   const receipt = "receipt" in exportFlow.run ? exportFlow.run.receipt : null;
   const exportDone =
