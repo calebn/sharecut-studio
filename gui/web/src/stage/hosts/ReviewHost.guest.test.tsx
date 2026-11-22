@@ -14,6 +14,7 @@ import { useDawStore } from "../../state/dawStore";
 import { collectUnsent } from "../../state/unsentText";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { composing, noComposer } from "../../test/composerStore";
+import { deferred } from "../../test/deferred";
 import {
   minimalProject,
   pendingEditView,
@@ -22,6 +23,7 @@ import {
   sessionSuggestionView,
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
+import { PlayerBar } from "../frame/PlayerBar";
 import { ReviewHost } from "./ReviewHost";
 
 const postGuest = vi.hoisted(() => vi.fn());
@@ -683,6 +685,41 @@ describe("Review queue for a guest", () => {
       expect(docked()).toBe(false);
       expect(screen.getByRole("textbox", { name: "Comment" })).toBe(el);
       expect(el.isConnected).toBe(true);
+    });
+
+    it("reopens a phone Comment draft without an error from a post that failed after Close", async () => {
+      const user = userEvent.setup();
+      const request = deferred();
+      createComment.mockReturnValueOnce(request.promise);
+      stubViewportShell("phone");
+      useDawStore.setState({ shellBreakpoint: "phone" });
+      join("comment");
+      render(
+        <>
+          <ReviewHost guestShare />
+          <PlayerBar placement="dock" />
+        </>,
+      );
+
+      const comment = () =>
+        screen.getByRole("button", { name: "Comment at 0:00" });
+      await user.click(comment());
+      await user.type(field(), "Keep this draft");
+      await user.click(post());
+      expect(createComment).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("button", { name: "Posting…" })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+
+      await user.click(screen.getByRole("button", { name: "Close" }));
+      expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+      await act(async () => request.reject(new Error("Server said no")));
+
+      await user.click(comment());
+      expect(field()).toHaveValue("Keep this draft");
+      expect(post()).not.toHaveAttribute("aria-disabled", "true");
+      expect(screen.queryByRole("alert")).toBeNull();
     });
 
     it("leaves a guest on a tablet undocked", () => {
