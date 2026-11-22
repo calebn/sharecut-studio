@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { openProject } from "./stageNav";
+import { setTheme, type Theme } from "./theme";
 import { type Point, touch } from "./touchTimeline";
 
 /*
@@ -47,8 +48,9 @@ async function trailingPad(page: Page): Promise<Point> {
   return pad;
 }
 
-async function openSheet(page: Page): Promise<void> {
+async function openSheet(page: Page, theme?: Theme): Promise<void> {
   await openProject(page, e2eProjectPath);
+  if (theme) await setTheme(page, theme);
   await openPhoneTimeline(page);
   const at = await trailingPad(page);
   const cdp = await page.context().newCDPSession(page);
@@ -97,22 +99,32 @@ test("a tap outside the Sheet closes it and does not move the playhead", async (
   expect(await playheadSec(page)).toBe(before);
 });
 
-test("touch opening keeps the Close ring hidden until keyboard navigation", async ({
-  page,
-}) => {
-  await openSheet(page);
-  const close = sheet(page).getByRole("button", { name: "Close", exact: true });
-  const title = sheet(page).getByRole("heading");
-  await expect(title).toBeFocused();
-  await expect(title).toHaveCSS("outline-style", "none");
-  await expect(close.and(page.locator(":focus-visible"))).toHaveCount(0);
+for (const { width, theme } of [
+  { width: 390, theme: "light" },
+  { width: 360, theme: "light" },
+  { width: 360, theme: "dark" },
+] as const) {
+  test(`${width}px ${theme}: touch opening keeps the Close ring hidden until keyboard navigation`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await openSheet(page, theme);
+    const close = sheet(page).getByRole("button", {
+      name: "Close",
+      exact: true,
+    });
+    const title = sheet(page).getByRole("heading");
+    await expect(title).toBeFocused();
+    await expect(title).toHaveCSS("outline-style", "none");
+    await expect(close.and(page.locator(":focus-visible"))).toHaveCount(0);
 
-  await page.keyboard.press("Tab");
-  await expect(close.and(page.locator(":focus-visible"))).toBeFocused();
-  await page.keyboard.press("Tab");
-  const firstAction = sheet(page).getByRole("button", { name: "Split here" });
-  await expect(firstAction.and(page.locator(":focus-visible"))).toBeFocused();
-});
+    await page.keyboard.press("Tab");
+    await expect(close.and(page.locator(":focus-visible"))).toBeFocused();
+    await page.keyboard.press("Tab");
+    const firstAction = sheet(page).getByRole("button", { name: "Split here" });
+    await expect(firstAction.and(page.locator(":focus-visible"))).toBeFocused();
+  });
+}
 
 test("the keymap is held while the Sheet is open, and Escape closes it", async ({
   page,
