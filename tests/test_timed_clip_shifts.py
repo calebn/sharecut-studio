@@ -60,6 +60,25 @@ def test_a_gate_scope_window_over_a_timed_clip_equals_the_same_pieces_untimed() 
     assert [(s.start_s, s.end_s) for s in scopes] == [(15.0, 30.0), (31.0, 34.0)]
 
 
+def test_a_gate_scope_skips_a_timed_piece_at_the_source_length_limit() -> None:
+    source_start = 10.0
+    # At source second 10, the bound rounds up and the mapped piece spans over 1 ns.
+    step_at = source_start + 1e-9
+    timed = _project(
+        _clip(
+            source_id="src",
+            source_start=source_start,
+            source_end=12.0,
+            timeline_start=0.0,
+            timing={"steps": [{"at": step_at, "delta_sec": 0.25}]},
+        )
+    )
+
+    scopes = gate_scope_for_window(timed, "host", 0.0, 3.0)
+
+    assert [(s.source_id, s.start_s, s.end_s) for s in scopes] == [("src", step_at, 12.0)]
+
+
 def test_an_untimed_window_keeps_a_sub_microsecond_overlap() -> None:
     plain = _project(
         Clip(id="a", track_id="host", source_start=10, source_end=40, timeline_start=100)
