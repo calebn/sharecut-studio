@@ -700,7 +700,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["quiet", "noise", "silence"],
     when: "canManageProjects",
     notes:
-      "Ask every recorded device to capture 1 minute of room tone (lobby or stopped)",
+      "Ask guests for 1 minute of quiet between takes. Record your own in Devices.",
   },
   "record.setTarget": {
     id: "record.setTarget",

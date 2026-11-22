@@ -153,7 +153,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Create record room | `record.createRoom` | Loaded host project | Mint guest + producer links in place and copy the guest link |
 | Copy guest link | `record.copyGuestLink` | Loaded host project | Copy the open record room's guest link |
 | Start recording | `record.start` | Host project management |  |
-| Capture room tone | `record.roomTone` | Host project management | Ask every recorded device to capture 1 minute of room tone (lobby or stopped) |
+| Capture room tone | `record.roomTone` | Host project management | Ask guests for 1 minute of quiet between takes. Record your own in Devices. |
 | Set session target | `record.setTarget` | Host project management | Choose where this session lands (before the first take): the start or the end of the episode, or staged as an insert or replace |
 | Pause recording | `record.pause` | Host project management |  |
 | Resume recording | `record.resume` | Host project management |  |
