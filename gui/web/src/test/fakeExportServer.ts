@@ -144,6 +144,8 @@ export function fakeExportServer() {
     fileAnswer: null as Answer | null,
     holdFiles: null as Promise<void> | null,
     revealRequests: [] as { path: string; id: string }[],
+    revealAnswer: null as Answer | null,
+    holdReveal: null as Promise<void> | null,
     feed: READY as FeedView,
     shareListRequests: 0,
     shareRequests: [] as Record<string, unknown>[],
@@ -264,7 +266,8 @@ export function fakeExportServer() {
       }
       if (url.includes("/api/export/files/reveal")) {
         server.revealRequests.push(body);
-        return json(null, { ok: true });
+        await server.holdReveal;
+        return json(server.revealAnswer, { revealed: true });
       }
       if (url.includes("/api/export/files")) {
         server.fileRequests.push(
