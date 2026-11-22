@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { openHostProject } from "./overlayReachability";
-import { armRange, setScrub } from "./stageNav";
+import { armRange, goToStage, setScrub } from "./stageNav";
 
 const fields = (page: Page) =>
   page.getByRole("region", { name: "Range fields" });
@@ -31,6 +31,26 @@ test.describe("typed range from scratch on desktop", () => {
     await expect(page.locator(".range-overlay").first()).toBeVisible();
     await expect(field(page, "In")).toHaveAttribute("aria-valuenow", "3");
     await expect(field(page, "Out")).toHaveAttribute("aria-valuenow", "5");
+  });
+
+  test("leaving Edit and returning preserves the uncommitted range draft", async ({
+    page,
+  }) => {
+    await openHostProject(page);
+    const history = await undoButton(page).evaluate((el) => el.outerHTML);
+    await armRange(page);
+    await expect(field(page, "In")).toHaveAttribute("aria-valuenow", "0");
+    await expect(field(page, "Out")).toHaveAttribute("aria-valuenow", "5");
+
+    await goToStage(page, "review");
+    await expect(fields(page)).toBeHidden();
+    await goToStage(page, "edit");
+
+    await expect(fields(page)).toBeVisible();
+    await expect(field(page, "In")).toHaveAttribute("aria-valuenow", "0");
+    await expect(field(page, "Out")).toHaveAttribute("aria-valuenow", "5");
+    await expect(page.locator(".range-overlay")).toHaveCount(0);
+    expect(await undoButton(page).evaluate((el) => el.outerHTML)).toBe(history);
   });
 
   test("Esc drops the draft without touching History", async ({ page }) => {
