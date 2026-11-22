@@ -40,14 +40,15 @@ def resolve_project_path(path: Path | str) -> Path:
     return p
 
 
-def adopt_retired_entry_file(location: Path | str) -> Path:
+def adopt_retired_entry_file(location: Path | str, *, require_utf8: bool = False) -> Path:
     """Rename a workspace's retired ``episode.project.json`` to ``episode.sharecut``.
 
     *location* is the workspace folder or either entry path. The bytes are untouched.
     When ``episode.sharecut`` already exists it wins and the retired file is left alone,
     with a warning when the retired file is newer (an older build saved after the rename).
     Losing a race to another process doing the same rename counts as success. A failed
-    rename raises ``project_old_filename``.
+    rename raises ``project_old_filename``. With ``require_utf8``, validate the target
+    before renaming.
     """
     entry = resolve_project_path(location)
     if entry.name != EPISODE_PROJECT_FILENAME:
@@ -58,6 +59,8 @@ def adopt_retired_entry_file(location: Path | str) -> Path:
     if entry.exists():
         _warn_if_retired_is_newer(entry, retired)
         return entry
+    if require_utf8:
+        ensure_utf8_path(entry)
     try:
         os.rename(retired, entry)
     except OSError as exc:
@@ -106,9 +109,7 @@ def require_episode_project_file(path: Path | str, *, require_utf8: bool = False
     resolved = resolve_project_path(path)
     if resolved.name != EPISODE_PROJECT_FILENAME:
         raise ValueError(f"expected {EPISODE_PROJECT_FILENAME}, got {resolved.name!r}")
-    if require_utf8:
-        ensure_utf8_path(resolved)
-    adopt_retired_entry_file(resolved)
+    adopt_retired_entry_file(resolved, require_utf8=require_utf8)
     if not resolved.is_file():
         if original.is_dir():
             raise CodedFileNotFoundError(
@@ -116,6 +117,8 @@ def require_episode_project_file(path: Path | str, *, require_utf8: bool = False
                 code="project_not_found",
             )
         raise project_not_found(resolved)
+    if require_utf8:
+        ensure_utf8_path(resolved)
     return resolved
 
 
