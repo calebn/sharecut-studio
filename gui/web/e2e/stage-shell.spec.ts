@@ -606,7 +606,7 @@ for (const width of [1024, 1440]) {
 test.describe("Stage shell on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
-  test("Deliver reports a phone-width Script cut and Undo without reloading", async ({
+  test("Deliver reports a phone-width Script cut before and after reopening", async ({
     page,
   }) => {
     await withShareableProject(async (projectPath) => {
@@ -638,6 +638,13 @@ test.describe("Stage shell on a phone", () => {
       const editsSaved = deliverPage(page)
         .getByRole("listitem")
         .filter({ hasText: "Edits saved" });
+      await expect(
+        editsSaved.getByText(`${savedSeconds.toFixed(1)} s`, { exact: true }),
+      ).toBeVisible();
+
+      await openHome(page, { dismissSetup: false });
+      await openStageProject(page, projectPath, { stage: "deliver" });
+      expect(await removedSeconds()).toBeCloseTo(savedSeconds);
       await expect(
         editsSaved.getByText(`${savedSeconds.toFixed(1)} s`, { exact: true }),
       ).toBeVisible();
