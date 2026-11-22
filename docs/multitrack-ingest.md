@@ -410,7 +410,7 @@ include each enrolled name. With no enrollment, the names go to the voices in th
 they first speak. With enrollment, an enrolled name keeps the voice seeded from its
 spans (the clustering can still refine it) and the other names take the remaining
 voices in order of first speech. Without `--name`, enrolled speakers come first and the
-rest are `Speaker N`. An enrollment window that the end of the audio cuts to under 50 ms (800 samples at 16 kHz) is dropped, not embedded as a sliver; a shorter-than-a-second window of 50 ms or more is still embedded; a speaker whose spans all lie past the end is refused with `enrollment_past_end`. A span longer than the recording costs about as much as one that ends a window past it. An enrolled name with no spans is refused with `enrollment_empty` before any audio is read. Spans must be finite with 0 <= start < end; a bad span, including one with start equal to end, is refused with `enrollment_span_invalid` before any audio is read. The ECAPA ONNX speaker model is required (downloaded in the Split speakers dialog); the CI mock is refused.
+rest are `Speaker N`. An enrollment window that the end of the audio cuts to under 50 ms (800 samples at 16 kHz) is dropped, not embedded as a sliver; a shorter-than-a-second window of 50 ms or more is still embedded; a speaker whose spans all lie past the end is refused with `enrollment_past_end`. A span longer than the recording costs about as much as one that ends a window past it. An enrolled name with no spans is refused with `enrollment_empty` before any audio is read. Spans must be finite with 0 <= start < end; a bad span, including one with start equal to end, is refused with `enrollment_span_invalid` before any audio is read. The ECAPA ONNX speaker model is required. In Studio, the Prepare Source card offers the model download when needed. The speaker split refuses the CI mock backend.
 
 **Data shape.** `engines/speaker_split.py` returns a `SpeakerAttribution`: turns that
 cover the recording with no gaps, each with its speakers (most likely first, two or
@@ -445,40 +445,38 @@ more is crosstalk) and a confidence. `edits/speaker_split.py` applies it in one
   mute. It is off by default: the open lane already carries the bed, so every fill adds
   another copy of it to the mix. A gated recording has no room tone and stays silent.
 
-**In ShareCut Studio.** **Split speakers…** sits beside **Replace audio…** in the track
-inspector (host only) and in the command palette (`track.splitSpeakers`). It is disabled
-with its reason beside it when the track has no audio or is already a lane of a split
-(the project view's `TrackView.speaker_split_id`). The dialog asks for the speaker
-count (2 to 8) and optional names; a blank name becomes `Speaker N`, and the engine
-numbers unnamed speakers by who talks first. It posts `POST /api/speaker/split
-{ path, track_id, speaker_count, names?, enrollment? }`, which starts a `kind=split_speakers`
-pipeline-slot job over `SpeakerService.split_speakers` with `dry_run=False`, the
-`owner` crosstalk mode and no room-tone fill. The route validates first
-(`SpeakerService.check_split`: the count, the names, a real embedding backend, a
-splittable track), so a refusal is a 400 or 409 and no job starts. `enrollment` is
-`{name: [[start, end]]}` in **source** seconds, the same as `--enroll` and the MCP
-`enrollment`, and reaches `split_speakers` unchanged through `coerce_enrollment` (the one
-JSON-to-spans conversion the route, job and MCP share); with `names` given, every
-enrolled name must be one of them; without it the enrolled names become the first
-speakers. In the dialog, each speaker has **Use selection**: select a few seconds of that
-person talking on the track (the exact range selection), and the range is kept as that
-speaker's voice sample, mapped from timeline to source seconds through the track's clip.
-**Listen** replays it and **Clear** drops it. A range that crosses a cut, sits off the
-track or is under a second is refused with its reason beside the button. The playhead
-alone cannot mark a sample, since a point has no length. The result also says to undo
-and run again with a sample per speaker when two tracks sound like one person. The
-crosstalk modes and `--room-tone-fill` stay on the CLI and MCP. The job's progress
-counts embedded windows, so the bar moves for the whole attribution; Cancel stops it
-between windows and, once attribution is done, before the project is touched. The
-result is the service's: `lanes[{track_id, name, muted_sec}]`, `crosstalk_sec`,
-`crosstalk_regions`, `low_confidence_sec` and `low_confidence_regions` (turns under
-`LOW_CONFIDENCE` = 0.5) and `history_head_id` (the `after split speakers` entry).
-Studio refreshes the project, announces "Split Room into 3 tracks: Ana, Ben and Cy."
-with an Undo bound to that history entry, and keeps the dialog open on the result:
-the new tracks with how much of the recording each plays, then what to listen for
-(overlapping speech that plays once, and stretches the attribution is unsure of) and
-**Undo split**. Redo is the ordinary Redo. The split is one
-undo step, `before split speakers` / `after split speakers`.
+**In ShareCut Studio.** In the host's **Prepare** stage, find the recording under
+**Sources**. **Split speakers…** in the track inspector or command palette
+(`track.splitSpeakers`) opens **Prepare** at that recording's card. When the card
+offers a split, set **Number of voices** to 2 through 8 and select **Split**.
+The card shows **Finding voices** during the job. **Cancel splitting** requests
+cancellation. The job checks for cancellation during attribution and before
+it applies the split. If the speaker model is missing, the card offers **Get
+the speaker model** and retries after download.
+
+Studio refreshes **Sources** with the new voices named `Speaker N` in
+first-speech order. On each card, select **Hear** to audition the voice and
+fill in **Speaker name**. The completion message names the new tracks and offers
+**Undo** for the split. The split is one undo step, with history entries
+`before split speakers` and `after split speakers`.
+
+The card sends `path`, `track_id`, and `speaker_count` to
+`POST /api/speaker/split`, with `names` and `enrollment` set to `null`.
+The endpoint also accepts optional names and enrollment samples. The
+`{name: [[start, end]]}` enrollment map uses source seconds, as do CLI
+`--enroll` and MCP `enrollment`. With explicit
+names, include every enrolled name. Without them, enrolled names come first.
+CLI and MCP also accept crosstalk and room-tone fill options.
+
+The endpoint checks the track, count, names, enrollment, and embedding backend
+before starting the `split_speakers` pipeline-slot job. The job applies
+`SpeakerService.split_speakers` with the `owner` crosstalk mode and room-tone
+fill off. Progress advances as the service embeds the windows and finishes
+attribution. The result includes `lanes[{track_id, name, muted_sec}]`,
+`crosstalk_sec`, `crosstalk_regions`,
+`low_confidence_sec`, `low_confidence_regions`, and `history_head_id`. The
+`*_regions` fields count regions. Low-confidence turns have confidence below
+`LOW_CONFIDENCE` (0.5).
 
 **Attribution.** Silero frames (20 ms) → 1 s windows every 0.25 s that are at least 30%
 voiced → embeddings → spherical k-means seeded from the enrollment spans (or k-means++)
