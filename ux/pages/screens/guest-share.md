@@ -212,6 +212,10 @@ the header still takes the step back, but for the host's Stop sharing and End ro
 
 **Hand edits on an Editor link:** an Editor selects words or a range and presses **Cut**, or **Mute** in More, and the edit applies on the host's episode; the toast reads "Cut "uncle" · 0.3 s · 1 more" or "Range mute applied. Use Undo to restore it." with Undo, which takes back only the Editor's own step. **Fix text** (bar, F2, double-tap) and **Find and replace** work as for the host; a Commenter or Viewer link has neither. On a cut seam, **Keep** puts back an approved cut, and on a cut the Editor made with the bar it is disabled with "This cut can't be put back on its own. Undo takes back your own latest change; for anything else, ask the host." When the server holds an edit, the page says so in one sentence that names whose cut it was and why ("Reference's cut at 0:02.5 was not applied because that part of the recording is no longer in one piece on the timeline. Nothing was changed. Select it again to try another cut."); it is not filed under Needs attention as it happens (only a command replayed after an offline spell is) and never names a file, a check or a setting.
 
+Hold messages and held rows use short labels. An oversized edit label reads as
+"That edit". A long speaker or track name uses "someone else" or "Another track",
+while the refusal still explains the hold and what to try next.
+
 When a guest Cut finishes after the active project changes, its old refusal
 does not replace feedback for the project now open. A completed Paste focuses
 its lane only if the originating project is still current when the scheduled
