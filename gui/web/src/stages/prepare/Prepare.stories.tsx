@@ -313,7 +313,7 @@ export const NewAudioWaiting: Story = {
     docs: {
       description: {
         story:
-          'Audio added to a project that already ran. Prepare shows the plan before anything starts: each Getting ready row says what it does and keeps ("Priya only · 3 kept", "All 4 tracks, Priya joins", "Whole episode"). The stage hand-off is the one primary, "Process new audio", and goes back to "Review N suggestions" when the run is done. The new Source card reads "New · not processed yet" and the session "New audio waiting". Skip on a row leaves it out of this run only; nothing is saved. Advanced is the only tool beside the hand-off.',
+          'Audio added to a project that already ran. Prepare shows the plan before anything starts: each Getting ready row says what it does and keeps ("Priya only · 3 kept", "All 4 tracks, Priya joins", "Whole episode"). The stage hand-off is the one primary, "Process new audio", and starts the run. Afterward, the primary action is "Review N suggestions" when suggestions are pending or "Edit" when none are pending. The new Source card reads "New · not processed yet" and the session "New audio waiting". Skip on a row leaves it out of this run only; nothing is saved. Advanced is the only tool beside the hand-off.',
       },
     },
   },
