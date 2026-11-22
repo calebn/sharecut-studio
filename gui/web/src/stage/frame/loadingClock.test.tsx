@@ -1,9 +1,12 @@
 import { act, render, renderHook } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useLoadingClock } from "./loadingClock";
+import { resetLoadingClockForTests, useLoadingClock } from "./loadingClock";
 
-beforeEach(() => vi.useFakeTimers());
+beforeEach(() => {
+  vi.useFakeTimers();
+  resetLoadingClockForTests();
+});
 afterEach(() => vi.useRealTimers());
 
 const waited = (view: { result: { current: number } }) => view.result.current;
@@ -48,6 +51,21 @@ describe("useLoadingClock", () => {
     second.unmount();
     const later = renderHook(() => useLoadingClock());
     expect(waited(later)).toBe(0);
+  });
+
+  it("starts fresh when the clock moves back between loading screens", () => {
+    const first = renderHook(() => useLoadingClock());
+    act(() => void vi.advanceTimersByTime(300));
+    first.unmount();
+
+    // Leave the clock after the old start but before the last release.
+    vi.setSystemTime(Date.now() - 100);
+    const next = renderHook(() => useLoadingClock());
+    expect(waited(next)).toBe(0);
+
+    act(() => void vi.advanceTimersByTime(50));
+    const fallback = renderHook(() => useLoadingClock());
+    expect(waited(fallback)).toBe(50);
   });
 
   it("holds one start through the double mount of StrictMode", () => {
