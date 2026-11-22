@@ -454,6 +454,23 @@ def test_cli_refuses_a_same_file_alias_without_suggesting_a_direct_write(studio:
     assert alias.read_bytes() == studio.project.read_bytes() == before
 
 
+def test_cli_reads_a_hardlink_in_another_folder_without_handoff(
+    studio: StudioRun, tmp_path: Path
+) -> None:
+    other = tmp_path / "other-folder"
+    other.mkdir()
+    alias = other / studio.project.name
+    alias.hardlink_to(studio.project)
+    before = studio.project.read_bytes()
+
+    result = podcast("info", "--project", str(alias))
+
+    assert result.returncode == 0, result.stderr
+    assert studio.commands == []
+    assert alias.samefile(studio.project)
+    assert alias.read_bytes() == studio.project.read_bytes() == before
+
+
 @pytest.mark.parametrize("form", ["separate", "inline", "repeated", "env_differs"])
 def test_cli_alias_write_is_not_executed_or_replayed(studio: StudioRun, form: str) -> None:
     alias = studio.project.with_name("project-alias.json")
