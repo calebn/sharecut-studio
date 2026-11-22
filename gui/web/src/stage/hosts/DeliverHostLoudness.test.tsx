@@ -160,6 +160,73 @@ function choice(name: string | RegExp) {
   );
 }
 
+describe("Reveal in desktop Deliver", () => {
+  async function revealButton() {
+    vi.stubGlobal("isTauri", true);
+    server.files = [ENTRIES[0]];
+    render(<Host />);
+    return screen.findByRole("button", { name: /^Reveal episode\.mp3/ });
+  }
+
+  it.each([
+    {
+      code: "reveal_unavailable",
+      status: 409,
+      message:
+        "This computer couldn't open its file manager. Open the episode's folder directly.",
+    },
+    {
+      code: "constructor",
+      status: 500,
+      message: "Studio couldn't show that export file. Try again.",
+    },
+  ])("gives plain recovery for $code", async ({ code, status, message }) => {
+    server.revealAnswer = { code, status, body: { detail: "Internal detail" } };
+    await userEvent.click(await revealButton());
+
+    await waitFor(() => {
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        message,
+        tone: "error",
+      });
+    });
+    expect(useDawStore.getState().statusAnnouncement).toBe(message);
+    expect(server.revealRequests).toEqual([
+      { path: PATH, id: "canonical.mp3" },
+    ]);
+  });
+
+  it.each([
+    {
+      destination: "another episode",
+      navigate: () => act(() => asHost("/tmp/other/episode.sharecut")),
+    },
+    { destination: "a later visit to Deliver", navigate: revisitDeliver },
+  ])(
+    "drops a late refusal after moving to $destination",
+    async ({ navigate }) => {
+      const pending = deferred();
+      server.holdReveal = pending.promise;
+      server.revealAnswer = {
+        status: 404,
+        code: "export_file_gone",
+        body: { detail: "That file is no longer available." },
+      };
+      await userEvent.click(await revealButton());
+      expect(server.revealRequests).toEqual([
+        { path: PATH, id: "canonical.mp3" },
+      ]);
+      navigate();
+      const before = useDawStore.getState().statusAnnouncementSeq;
+
+      await act(async () => pending.resolve());
+
+      expect(useDawStore.getState().feedbackToast).toBeNull();
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(before);
+    },
+  );
+});
+
 async function startBroadcast() {
   const button = await exportReady();
   await userEvent.click(choice(/^Broadcast/));

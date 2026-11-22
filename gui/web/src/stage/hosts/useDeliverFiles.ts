@@ -1,6 +1,7 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { useMemo } from "react";
 import { revealExportedFile } from "../../api";
+import { useMountedRef } from "../../hooks/useMountedRef";
 import type {
   DeliverFiles,
   NamedExportFiles,
@@ -14,13 +15,21 @@ import {
   useExportedFiles,
 } from "../../stages/deliver/useExportedFiles";
 import { useDawStore } from "../../state/dawStore";
-import { errorMessage } from "../../utils/apiError";
+import { ApiError } from "../../utils/apiError";
 import { type ExportReceipt, exportTargetLabel } from "./exportReceipt";
 
 const STARTED = "Download started. Check your downloads.";
-
-const announce = (message: string, tone?: "error") =>
-  useDawStore.getState().announceStatus(message, { toast: false, tone });
+const REVEAL_ERRORS = new Map([
+  [
+    "export_file_gone",
+    "That export file is gone. Export it again to show it in its folder.",
+  ],
+  [
+    "reveal_unavailable",
+    "This computer couldn't open its file manager. Open the episode's folder directly.",
+  ],
+]);
+const REVEAL_FAILED = "Studio couldn't show that export file. Try again.";
 
 export function hostFileAccess(): FileAccess {
   return isTauri() ? "reveal" : "download";
@@ -43,6 +52,7 @@ export function useDeliverFiles(
     access,
     refreshKey,
   });
+  const mounted = useMountedRef();
   return useMemo(
     () => ({
       files,
@@ -50,15 +60,29 @@ export function useDeliverFiles(
       currentLoad,
       reload,
       access,
-      onStarted: () => announce(STARTED),
+      onStarted: () =>
+        useDawStore.getState().announceStatus(STARTED, { toast: false }),
       onReveal: (file: ExportedFile) => {
         if (projectPath === null) return;
-        revealExportedFile(projectPath, file.id).catch((error) =>
-          announce(errorMessage(error), "error"),
-        );
+        const { projectEpoch } = useDawStore.getState();
+        revealExportedFile(projectPath, file.id).catch((error: unknown) => {
+          const state = useDawStore.getState();
+          if (
+            !mounted.current ||
+            state.stage !== "deliver" ||
+            state.projectPath !== projectPath ||
+            state.projectEpoch !== projectEpoch
+          )
+            return;
+          const message =
+            error instanceof ApiError && error.code !== null
+              ? REVEAL_ERRORS.get(error.code)
+              : undefined;
+          state.announceStatus(message ?? REVEAL_FAILED, { tone: "error" });
+        });
       },
     }),
-    [files, load, currentLoad, reload, access, projectPath],
+    [files, load, currentLoad, reload, access, projectPath, mounted],
   );
 }
 
