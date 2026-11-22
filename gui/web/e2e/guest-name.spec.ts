@@ -103,7 +103,7 @@ async function reached(control: Locator): Promise<boolean> {
 async function withGuest(
   browser: import("@playwright/test").Browser,
   size: { width: number; height: number },
-  run: (guest: Page, host: Page, dock: Locator) => Promise<void>,
+  run: (guest: Page, host: Page, dock: Locator, token: string) => Promise<void>,
   colorScheme: "light" | "dark" = "light",
 ) {
   await withShareableProject(async (projectPath) => {
@@ -124,7 +124,7 @@ async function withGuest(
         const token = await createReviewShare(host, projectPath, "commenter");
         await openGuestShare(guest, token);
         await openComposer(guest, size);
-        await run(guest, host, composer(guest));
+        await run(guest, host, composer(guest), token);
       },
     );
   });
@@ -216,7 +216,7 @@ test("a phone guest can post anonymously, save a name, and fall back to it later
   await withGuest(
     browser,
     { width: 390, height: 844 },
-    async (guest, host, dock) => {
+    async (guest, host, dock, token) => {
       const size = { width: 390 };
       const { field, name, post } = fields(dock);
       await field.fill("Anonymous note");
@@ -229,7 +229,7 @@ test("a phone guest can post anonymously, save a name, and fall back to it later
       await post.tap();
       await expectPosted(guest, size, field);
 
-      await guest.reload();
+      await openGuestShare(guest, token);
       await openComposer(guest, size);
       await expect(fields(dock).known).toContainText("Alex");
       await dock.getByRole("button", { name: /Change name/ }).tap();
