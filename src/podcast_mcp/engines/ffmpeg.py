@@ -73,6 +73,7 @@ from podcast_mcp.models import (
     ProcessingEffect,
     Track,
 )
+from podcast_mcp.util import process
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.binaries import (
     IN_PROCESS_LABEL,
@@ -853,6 +854,17 @@ class FFmpegEngine:
             problem = in_process_problem()
             return (True, IN_PROCESS_LABEL) if problem is None else (False, problem)
         return True, "FFmpeg/FFprobe " + ".".join(map(str, pair.version))
+
+    def check_ffprobe_version(self) -> tuple[bool, str]:
+        try:
+            result = process.run(
+                [self.ffprobe, "-version"], capture_output=True, text=True, timeout=10
+            )
+        except (OSError, TimeoutExpired):
+            return False, "ffprobe not found"
+        if result.returncode == 0:
+            return True, result.stdout.splitlines()[0] if result.stdout else "ok"
+        return False, result.stderr or "ffprobe failed"
 
     def audio_start_sec(self, path: Path) -> float:
         """How far ``path``'s first audio sample sits past its container start."""
