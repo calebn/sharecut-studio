@@ -2248,14 +2248,26 @@ describe("playing a timeline longer than the first window", () => {
       engine.setPlaybackRate(rate);
       engine.play(0);
       await flush();
-      for (
-        let ctxSec = STEP_SEC;
+      const maxSteps = Math.ceil(untilTimelineSec / (rate * STEP_SEC));
+      let steps = 0;
+      while (
+        steps < maxSteps &&
         engine.currentTimeSec() < untilTimelineSec &&
-        failedAtTimelineSec === null;
-        ctxSec += STEP_SEC
+        failedAtTimelineSec === null
       ) {
+        steps += 1;
         await vi.advanceTimersByTimeAsync(STEP_SEC * 1000);
-        await advanceTo(handle, ctxSec);
+        await advanceTo(handle, steps * STEP_SEC);
+      }
+      const reachedTimelineSec = engine.currentTimeSec();
+      const reachedTarget =
+        Number.isFinite(reachedTimelineSec) &&
+        reachedTimelineSec >= untilTimelineSec;
+      if (failedAtTimelineSec === null && !reachedTarget) {
+        engine.dispose();
+        throw new Error(
+          `Retry simulation at ${rate}x stopped on step ${steps} at ${reachedTimelineSec} s without reaching ${untilTimelineSec} s or reporting failure`,
+        );
       }
       return { engine, attempts, requested, failedAtTimelineSec };
     }
@@ -2298,7 +2310,7 @@ describe("playing a timeline longer than the first window", () => {
       expect(attempts.length).toBeGreaterThan(2);
       // The first attempt's batch is chunks 0-3; a retry must neither widen it
       // nor shrink it so far that a chunk already fetched is asked for again.
-      expect([...requested].sort()).toEqual([0, 1, 3]);
+      expect(requested.toSorted((a, b) => a - b)).toEqual([0, 1, 3]);
       engine.dispose();
     });
 
