@@ -195,6 +195,38 @@ def test_guest_hold_reaches_the_editor_in_words(world):
     ]
 
 
+def test_guest_hold_falls_back_from_an_oversized_track_label(world):
+    label = "Reference" * 556
+    renamed = world.host("SetTrackMeta", {"track_id": "reference", "label": label, "speaker": ""})
+    assert renamed.status_code == 200
+    ids = _stage_cut_then_move_its_audio(world)
+    before = world.path.read_bytes()
+
+    refused = world.guest("editor", "ApproveEdits", {"ids": ids})
+    assert refused.status_code == 400
+    assert refused.headers["x-sharecut-error-code"] == "cut_scope_changed"
+    assert refused.json()["detail"] == (
+        "That edit was not applied because that part of the recording is no longer "
+        "in one piece on the timeline. Nothing was changed. Select it again to try another cut."
+    )
+    assert world.path.read_bytes() == before
+
+    payload = {"ids": ids, "hold_blocked": True}
+    guest = world.guest("editor", "ApproveEdits", payload)
+    assert guest.status_code == 200
+    assert guest.json()["review_result"]["held"] == [
+        {
+            "id": ids[0],
+            "label": "That edit",
+            "reason": "that part of the recording is no longer in one piece on the timeline",
+        }
+    ]
+    host = world.host("ApproveEdits", payload)
+    assert host.status_code == 200
+    assert host.json()["review_result"]["held"][0]["label"] == f"{label}'s cut at 0:02.5"
+    assert load_project(world.path).track_by_id("reference").label == label
+
+
 def test_guest_mcp_editor_hold_reads_the_plain_acoustic_sentence(world):
     out = world.mcp("mcp", "EditSelectedRange", {"action": "cut", "targets": [world.target(UNCLE)]})
     result = out["result"]

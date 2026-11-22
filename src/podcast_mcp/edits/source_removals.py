@@ -76,6 +76,7 @@ HOLD_NEXT_STEPS: Mapping[str, str] = {
     "media_extent_unavailable": _RETRY_LATER,
 }
 _UNNAMED_EDIT = "That edit"
+_GUEST_LABEL_MAX = 200
 PEER_SPEECH_PLAIN = "someone else is speaking there and would be cut off"
 GENERIC_HOLD_REASON = "it could not be applied"
 _GUEST_HOLD_CODES: Mapping[str, str] = {
@@ -130,10 +131,11 @@ def speakers_by_track(project: EpisodeProject) -> dict[str, str]:
 
 
 def plain_label(label: str | None) -> str:
-    """A cut's name as a sentence start; a name that looks like a path is withheld."""
+    """A short, path-free cut label as a sentence start."""
     if not label or mentions_host_path(label):
         return _UNNAMED_EDIT
-    return label[:1].upper() + label[1:]
+    sentence_label = label[:1].upper() + label[1:]
+    return sentence_label if len(sentence_label) <= _GUEST_LABEL_MAX else _UNNAMED_EDIT
 
 
 class ScopeChangedAtApproval(CodedError, ValueError):
@@ -198,25 +200,30 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         )
         return why + self._lane_suffix(hold)
 
-    def _lane_suffix(self, hold: CutScopeHold) -> str:
+    def _lane_suffix(self, hold: CutScopeHold, *, for_guest: bool = False) -> str:
         if not hold.unavailable_lanes:
             return ""
-        problems = "; ".join(
-            _lane_problem(lane, self.speakers.get(lane.track_id, lane.track_id))
-            for lane in hold.unavailable_lanes
-        )
-        return f" ({problems})"
+        problems = []
+        for lane in hold.unavailable_lanes:
+            name = self.speakers.get(lane.track_id, lane.track_id)
+            if for_guest and len(name) > _GUEST_LABEL_MAX and not mentions_host_path(name):
+                name = "Another track"
+            problems.append(_lane_problem(lane, name))
+        return f" ({'; '.join(problems)})"
 
     def plain_reason_for(self, hold: CutScopeHold) -> str:
         if hold.reason == "peer_speech":
             names = [self.speakers.get(peer, _UNNAMED_PEER) for peer in hold.peers]
-            names = [_UNNAMED_PEER if mentions_host_path(n) else n for n in names]
+            names = [
+                _UNNAMED_PEER if len(name) > _GUEST_LABEL_MAX or mentions_host_path(name) else name
+                for name in names
+            ]
             who = " and ".join(dict.fromkeys(names)) or _UNNAMED_PEER
             verb = "are" if len(set(names)) > 1 else "is"
             why = f"{who} {verb} speaking there and would be cut off"
         else:
             why = PLAIN_HOLD_REASONS[hold.reason]
-        return why + self._lane_suffix(hold)
+        return why + self._lane_suffix(hold, for_guest=True)
 
     def guest_message(self) -> str:
         sentences = dict.fromkeys(

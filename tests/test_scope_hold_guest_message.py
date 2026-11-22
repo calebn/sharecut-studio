@@ -138,6 +138,28 @@ def test_an_unreadable_lane_is_named_in_the_reason():
     )
 
 
+def test_an_oversized_peer_name_preserves_the_reason_and_next_step():
+    name = "Guest" * 1000
+    refusal = _refusal("peer_speech", speakers={"guest": name})
+    assert refusal.guest_message() == (
+        f"{LABEL} was not applied because someone else is speaking there and would be cut off. "
+        "Nothing was changed. Leave a comment for the host."
+    )
+    assert name in str(refusal)
+
+
+def test_an_oversized_lane_name_preserves_the_reason_and_next_step():
+    name = "Guest" * 1000
+    lanes = [LaneUnavailable("guest", "media_extent_unavailable")]
+    refusal = _refusal("scope_unavailable", lanes=lanes, speakers={"guest": name})
+    assert refusal.guest_message() == (
+        f"{LABEL} was not applied because the other speakers' audio could not be checked "
+        "(Another track has a recording whose length is unknown). Nothing was changed. "
+        "Try again in a moment, or leave a comment for the host."
+    )
+    assert name in str(refusal)
+
+
 @pytest.mark.parametrize("name", ["C:\\Users\\x", "/home/x"])
 def test_a_path_in_a_speaker_name_is_never_shown(name):
     message = _refusal("speaker_bleed", label=f"{name}'s cut at 0:02.5").guest_message()
@@ -152,11 +174,10 @@ def test_a_path_in_a_speaker_name_is_never_shown(name):
     )
 
 
-def test_a_path_in_a_lane_name_falls_back_to_the_fixed_sentence():
+@pytest.mark.parametrize("name", ["/home/x", "/home/" + "x" * 5000])
+def test_a_path_in_a_lane_name_falls_back_to_the_fixed_sentence(name):
     lanes = [LaneUnavailable("guest", "media_extent_unavailable")]
-    message = _refusal(
-        "scope_unavailable", lanes=lanes, speakers={"guest": "/home/x"}
-    ).guest_message()
+    message = _refusal("scope_unavailable", lanes=lanes, speakers={"guest": name}).guest_message()
     assert message == (
         "That edit was not applied. Nothing was changed. "
         "Select it again to try another cut, or leave a comment for the host."
