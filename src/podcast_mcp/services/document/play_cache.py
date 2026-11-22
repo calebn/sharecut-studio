@@ -48,17 +48,23 @@ class _PlayCache:
         self.project = workspace.project
         self._defaults = workspace.effective_config()
 
-    def _play_cache_dir(self, *protected: Path) -> Path:
+    def _play_cache_dir(self, *protected: Path, prune_existing: bool = True) -> Path:
         """Keep old generated auditions bounded without touching active outputs."""
         out_dir = self.project.artifacts_dir() / "play_cache"
         out_dir.mkdir(parents=True, exist_ok=True)
         with hold_shared_file_lock(
             play_cache_lock_path(out_dir), timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC
         ):
-            now = time.time()
-            candidates: list[tuple[float, Path]] = []
             for path in protected:
                 self._refresh_cache_access(path, out_dir)
+            if (
+                not prune_existing
+                and protected
+                and all(not path.is_symlink() and path.is_file() for path in protected)
+            ):
+                return out_dir
+            now = time.time()
+            candidates: list[tuple[float, Path]] = []
             for path in out_dir.glob("*.wav"):
                 if path.is_symlink() or not path.is_file():
                     continue
@@ -113,10 +119,12 @@ class _PlayCache:
         start: float,
         end: float,
         edit_hash: str,
+        *,
+        rerender: bool = False,
     ) -> Path:
         out_dir = self.project.artifacts_dir() / "play_cache"
         path = out_dir / f"processed_{track_id}_{start:.2f}_{end:.2f}_{edit_hash}.wav"
-        self._play_cache_dir(path)
+        self._play_cache_dir(path, prune_existing=rerender)
         return path
 
     def _latest_export_wav(self) -> Path:

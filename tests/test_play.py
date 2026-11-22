@@ -436,6 +436,61 @@ def test_play_processed_segment_render(minimal_project, sample_wav, tmp_workspac
     assert result.tier in ("segment_render", "segment_cache")
 
 
+def test_processed_segment_cache_hit_renews_lease_without_eviction_scan(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+) -> None:
+    import podcast_mcp.services.document.play_cache as play_module
+
+    project = load_project(minimal_project)
+    raw = tmp_workspace / "raw"
+    raw.mkdir(exist_ok=True)
+    (raw / "host.wav").write_bytes(sample_wav.read_bytes())
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav"),
+        )
+    ]
+    save_project(project, minimal_project)
+    service = PlayService(ProjectWorkspace.open(minimal_project))
+    request = PlayRequest(source="processed:host", start_sec=0.0, end_sec=1.0)
+    first = service.play(request, dry_run=True, publish_audition=False)
+    assert first.tier == "segment_render"
+    wav = first.wav_path
+    expected_audio = wav.read_bytes()
+    assert _wav_duration_sec(wav) == pytest.approx(1.0)
+    saved_mtime = wav.stat().st_mtime_ns
+    os.utime(wav, ns=(1_000_000_000, saved_mtime))
+    expired = wav.parent / "processed_expired.wav"
+    expired.write_bytes(b"expired")
+    _pin_cache_last_used(monkeypatch, {expired: 8 * 86400})
+
+    with patch.object(
+        play_module, "_cache_last_used", wraps=play_module._cache_last_used
+    ) as last_used:
+        reused = service.play(request, dry_run=True, publish_audition=False)
+        assert reused.tier == "segment_cache"
+        assert reused.wav_path == wav
+        last_used.assert_not_called()
+
+    assert wav.stat().st_atime_ns > 1_000_000_000
+    assert wav.stat().st_mtime_ns == saved_mtime
+    assert wav.read_bytes() == expected_audio
+    assert expired.exists()
+    miss = PlayRequest(source="processed:host", start_sec=0.0, end_sec=0.5)
+    assert service.play(miss, dry_run=True, publish_audition=False).tier == "segment_render"
+    assert not expired.exists()
+    assert wav.exists()
+
+    expired.write_bytes(b"expired")
+    forced = PlayRequest(source="processed:host", start_sec=0.0, end_sec=1.0, rerender=True)
+    assert service.play(forced, dry_run=True, publish_audition=False).tier == "segment_render"
+    assert not expired.exists()
+    assert wav.read_bytes() == expected_audio
+
+
 def _wav_duration_sec(path: Path) -> float:
     import wave
 

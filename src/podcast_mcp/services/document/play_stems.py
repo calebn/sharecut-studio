@@ -350,7 +350,9 @@ class _PlayStems(_PlayCache):
                     return out, "stem", timeline_start, timeline_end
             out.unlink(missing_ok=True)
 
-        cache = self._segment_cache_path(track_id, timeline_start, timeline_end, edit_hash)
+        cache = self._segment_cache_path(
+            track_id, timeline_start, timeline_end, edit_hash, rerender=rerender
+        )
         if cache.is_file() and not rerender:
             return cache, "segment_cache", timeline_start, timeline_end
 
@@ -359,7 +361,9 @@ class _PlayStems(_PlayCache):
         render_project = snapshot_project(self.project)
         render_hash = track_render_hash(render_project, track_id, defaults=self._defaults)
         if render_hash != edit_hash:
-            cache = self._segment_cache_path(track_id, timeline_start, timeline_end, render_hash)
+            cache = self._segment_cache_path(
+                track_id, timeline_start, timeline_end, render_hash, rerender=rerender
+            )
             if cache.is_file() and not rerender:
                 return cache, "segment_cache", timeline_start, timeline_end
         render_track_segment(
@@ -476,7 +480,7 @@ class _PlayStems(_PlayCache):
         render_track.transcript_gate = True
         render_track.transcript_gate_scope = None
         fingerprint = track_render_hash(render_project, track_id, defaults=self._defaults)
-        cache = self._segment_cache_path(track_id, start, end, fingerprint)
+        cache = self._segment_cache_path(track_id, start, end, fingerprint, rerender=rerender)
         if not cache.is_file() or rerender:
             render_atomic(
                 cache,
