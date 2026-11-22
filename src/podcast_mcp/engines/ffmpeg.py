@@ -1410,9 +1410,8 @@ class FFmpegEngine:
                 )
 
         split_labels = [""] * n
-        # A one-rate filter downstream (arnndn, loudnorm) makes FFmpeg resample each recording
-        # before ``atrim``, but only while no delay pins the rate in between. Naming the
-        # resample here puts every piece at that rate whether or not the graph has delays.
+        # A delay can stop FFmpeg from negotiating the forced rate back through atrim.
+        # An explicit resample before trimming keeps each recording on the forced grid.
         forced = graph_rate(af_chain)
         resample = f"aresample={forced}" if forced else ""
         for input_index, path in enumerate(source_ranges):

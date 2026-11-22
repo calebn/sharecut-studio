@@ -539,26 +539,20 @@ def track_grid(
     window: tuple[float, float] | None = None,
     forced_rate: int | None = None,
 ) -> TrackGrid | None:
-    """The grid for ``clips``, or None when their recordings do not share one sample rate.
+    """Choose the sample grid for a track's stem and its windows.
 
-    ``forced_rate`` (from ``graph_rate``) is the rate the render's pieces run at when the chain
-    holds a one-rate filter such as ``arnndn``: FFmpeg then resamples every recording to it
-    before ``atrim`` (#2456), so the grid is on that rate whatever the recordings' own, and
-    mixed-rate recordings share it. Cutting on the recordings' rate instead leaves the pieces
-    to ``atrim`` at the forced rate, which rounds each start and end on its own again.
+    If ``graph_rate`` supplies ``forced_rate``, FFmpeg resamples every recording
+    before ``atrim``. The grid uses that rate even for mixed-rate recordings.
 
-    A recording that cannot be probed has no rate either; the render reports it. None is only
-    for rate reasons; ``audio_start_sec`` can raise ``LateMpegAudioError`` (MPEG-TS/PS) or
-    ``CodedValueError`` (probe failed), and that propagates, as the render would fail on it
-    anyway.
-    ``atrim`` runs at each recording's own rate and ``concat`` resamples to a negotiated
-    one, so a single integer grid only exists for one rate. Such a track keeps float
-    placement, with delays still on whole samples. A ``window`` decides from every clip of
-    the track, not only the clips it overlaps, so a window and the stem always take the same
-    placement rule; it only limits the seek table.
+    Otherwise, the grid uses a rate shared by the recordings and fills.
+    Return None when rates differ, a required rate is unavailable, or the
+    rate exceeds the grid limit. The render then uses float placement with
+    sample-rounded delays. Errors from ``audio_start_sec`` propagate.
 
-    ``eng`` is optional: the container lead is read from the probe cache, not through the
-    engine, so a caller that must not resolve FFmpeg on a cache hit passes none.
+    A ``window`` limits the seek table. Without a forced rate, the rate check
+    also considers clips outside the window so the window and stem use the
+    same placement rule. Without ``eng``, use the shared ``audio_start_sec``
+    probe for the container lead.
     """
     lead_of = eng.audio_start_sec if eng is not None else audio_start_sec
     # The grid-or-float choice reads every clip of the track, so a window takes the same
