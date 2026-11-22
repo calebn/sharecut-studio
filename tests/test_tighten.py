@@ -105,6 +105,29 @@ def _original_pause_project(tmp_path):
     return proj
 
 
+@pytest.mark.parametrize("acoustic_enabled", [False, True])
+def test_proposal_copies_peer_lag_inputs_only_when_acoustic_scan_can_run(
+    tmp_path, acoustic_enabled
+):
+    from unittest.mock import patch
+
+    from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
+    from podcast_mcp.edits.tighten import propose
+
+    project = _original_pause_project(tmp_path)
+    defaults = load_defaults()
+    defaults["tighten"]["acoustic_gap_filler"] = {
+        "enabled": acoustic_enabled,
+        "word_probe": False,
+    }
+
+    with patch.object(propose, "PeerCopyLags", wraps=PeerCopyLags) as copy_lags:
+        result = propose.propose_tighten_edits(project, defaults)
+
+    assert result.decisions
+    assert copy_lags.call_count == int(acoustic_enabled)
+
+
 def test_apply_tighten_decisions_applies_a_pause_trim_that_needs_no_review(tmp_path):
     proj = _original_pause_project(tmp_path)
     proj.edit_decisions = [
