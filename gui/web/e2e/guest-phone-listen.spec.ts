@@ -14,6 +14,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import { parseTimecodeSec } from "./timecode";
 import { withBrowserPages } from "./twoBrowserPages";
 
 /**
@@ -254,7 +255,7 @@ for (const profile of PROFILES) {
       );
     });
 
-    test(`Comment, type and Post leave nothing covered, pause for the comment and return focus on ${where}`, async ({
+    test(`Comment pauses playback and Post resumes it, returns focus and leaves nothing covered on ${where}`, async ({
       browser,
     }) => {
       await withPhoneGuest(
@@ -290,9 +291,17 @@ for (const profile of PROFILES) {
           for (const control of [field, name, post])
             await expectReached(control);
           await expectNoHorizontalScroll(guest, size.width);
+          const elapsed = guest.locator(".sys-listen-dock-elapsed");
+          const pausedAt = parseTimecodeSec(await elapsed.innerText());
           await post.tap({ timeout: 10_000 });
           await expect(composer(guest)).toHaveCount(0);
           await expect(commentsRow(guest)).toContainText("Comment added at");
+          await expect(
+            guest.getByRole("button", { name: "Pause", exact: true }),
+          ).toBeVisible();
+          await expect
+            .poll(async () => parseTimecodeSec(await elapsed.innerText()))
+            .toBeGreaterThan(pausedAt);
           await expectPageAxeClean(guest);
           await expect(commentButton(guest)).toBeFocused();
         },
