@@ -27,7 +27,6 @@
     "gui/web/e2e/touchTimeline.ts": 4,
     "tests/conftest.py": 1,
     "tests/test_cross_process_sync.py": 12,
-    "tests/test_export_cancel.py": 2,
     "tests/test_gui_api.py": 16,
     "tests/test_gui_speaker_split.py": 1,
     "tests/test_session_sync.py": 2,
