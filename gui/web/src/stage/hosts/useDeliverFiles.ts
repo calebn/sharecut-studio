@@ -1,7 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { useMemo } from "react";
 import { revealExportedFile } from "../../api";
-import { useMountedRef } from "../../hooks/useMountedRef";
 import type {
   DeliverFiles,
   NamedExportFiles,
@@ -52,7 +51,6 @@ export function useDeliverFiles(
     access,
     refreshKey,
   });
-  const mounted = useMountedRef();
   return useMemo(
     () => ({
       files,
@@ -64,25 +62,37 @@ export function useDeliverFiles(
         useDawStore.getState().announceStatus(STARTED, { toast: false }),
       onReveal: (file: ExportedFile) => {
         if (projectPath === null) return;
-        const { projectEpoch } = useDawStore.getState();
-        revealExportedFile(projectPath, file.id).catch((error: unknown) => {
-          const state = useDawStore.getState();
+        const {
+          projectEpoch,
+          projectPath: openPath,
+          stage,
+        } = useDawStore.getState();
+        let current = stage === "deliver" && openPath === projectPath;
+        const stop = useDawStore.subscribe((state) => {
           if (
-            !mounted.current ||
             state.stage !== "deliver" ||
             state.projectPath !== projectPath ||
             state.projectEpoch !== projectEpoch
-          )
-            return;
-          const message =
-            error instanceof ApiError && error.code !== null
-              ? REVEAL_ERRORS.get(error.code)
-              : undefined;
-          state.announceStatus(message ?? REVEAL_FAILED, { tone: "error" });
+          ) {
+            current = false;
+            stop();
+          }
         });
+        void revealExportedFile(projectPath, file.id)
+          .catch((error: unknown) => {
+            if (!current) return;
+            const message =
+              error instanceof ApiError && error.code !== null
+                ? REVEAL_ERRORS.get(error.code)
+                : undefined;
+            useDawStore
+              .getState()
+              .announceStatus(message ?? REVEAL_FAILED, { tone: "error" });
+          })
+          .finally(stop);
       },
     }),
-    [files, load, currentLoad, reload, access, projectPath, mounted],
+    [files, load, currentLoad, reload, access, projectPath],
   );
 }
 
