@@ -210,7 +210,7 @@ for (const theme of ["light", "dark"] as const) {
   }
 }
 
-test("a phone guest can leave the name blank and change it later", async ({
+test("a phone guest can post anonymously, save a name, and fall back to it later", async ({
   browser,
 }) => {
   await withGuest(
@@ -229,9 +229,25 @@ test("a phone guest can leave the name blank and change it later", async ({
       await post.tap();
       await expectPosted(guest, size, field);
 
-      const rows = await hostComments(host, 2);
-      expect(rows.join("\n")).toContain("Alex");
-      expect(rows.join("\n")).toContain("Guest");
+      await guest.reload();
+      await openComposer(guest, size);
+      await expect(fields(dock).known).toContainText("Alex");
+      await dock.getByRole("button", { name: /Change name/ }).tap();
+      await name.fill("");
+      await field.fill("Note with a cleared name field");
+      await post.tap();
+      await expectPosted(guest, size, field);
+      await expect(fields(dock).known).toContainText("Alex");
+      await expect(name).toHaveCount(0);
+
+      const rows = await hostComments(host, 3);
+      expect(rows.find((row) => row.includes("Anonymous note"))).toContain(
+        "Guest",
+      );
+      expect(rows.find((row) => row.includes("Named note"))).toContain("Alex");
+      expect(
+        rows.find((row) => row.includes("Note with a cleared name field")),
+      ).toContain("Alex");
     },
   );
 });
