@@ -100,22 +100,37 @@ export const PreviewModes: Story = {
   },
 };
 
+const splitPreviewReason =
+  "A split does not change the mix until you delete a side.";
+
 export const SkipUnavailable: Story = {
   args: {
     previewMode: "current",
     onPreviewModeChange: fn(),
-    suggestDisabledReason:
-      "A split does not change the mix until you delete a side.",
+    suggestDisabledReason: splitPreviewReason,
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(
-      canvas.getByRole("button", { name: "Suggested" }),
-    ).toHaveAttribute("aria-disabled", "true");
-    await expect(canvas.getByRole("button", { name: "A/B" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    const current = canvas.getByRole("button", { name: "Current" });
+    current.focus();
+
+    for (const name of ["Suggested", "A/B"]) {
+      const mode = canvas.getByRole("button", { name });
+      await expect(mode).toHaveAttribute("aria-disabled", "true");
+      await expect(mode).toHaveAccessibleDescription(splitPreviewReason);
+
+      await userEvent.tab();
+      await expect(mode).toHaveFocus();
+      await userEvent.keyboard("{Enter}");
+      await userEvent.keyboard("[Space]");
+      await userEvent.click(mode);
+      await expect(args.onPreviewModeChange).not.toHaveBeenCalled();
+    }
+
+    await expect(current).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(current);
+    await expect(args.onPreviewModeChange).toHaveBeenCalledTimes(1);
+    await expect(args.onPreviewModeChange).toHaveBeenCalledWith("current");
   },
 };
 
