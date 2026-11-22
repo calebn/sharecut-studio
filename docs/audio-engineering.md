@@ -639,9 +639,10 @@ A track with no recorded bed has its fills picked from its own audio on every ed
 
 `RoomToneBedService.extract_room_tone_bed` registers the result with `place_extracted_room_tone` (`track.room_tone`, the `room-tone-{track}` source and `track.room_tone_origin`) in one history step, and only on a track whose bed is absent or was itself extracted from audio that has since changed. A recorded or assigned bed is never replaced (`has_bed`).
 
-An Extract reply can also report `missing_track` for an unknown track ID,
-`not_dialogue_track` for a track outside dialogue, or `missing_media` when the
-track has no media or its file is missing. `already_extracted` keeps the existing
+Extract rejects an unknown track ID during track selection. The lower-level
+planner and registration step can report `missing_track` if the track is absent
+there. Extract can also report `not_dialogue_track` for a track outside dialogue
+or `missing_media` when the track has no media or its file is missing. `already_extracted` keeps the existing
 bed when the source and extractor still match. `source_changed` means the source
 no longer matches the extraction plan at registration, so the new bed is not
 registered.
