@@ -152,12 +152,15 @@ def test_prepared_renderer_preserves_complete_baseline_context(
         return render(context, *args, **kwargs)
 
     monkeypatch.setattr(proxy, "render_source_with_chain", render_complete_context)
+    parse = Mock(wraps=EpisodeProject.model_validate_json)
+    monkeypatch.setattr(EpisodeProject, "model_validate_json", parse)
     output = tmp_path / "complete-context.wav"
     proxy.render_source_proxy_inputs(
         project, captured, output, engine=engine, defaults=load_defaults()
     )
     np.testing.assert_array_equal(_samples(output), np.full(16000, 3000))
     assert project.model_dump_json() == expected
+    parse.assert_called_once_with(captured.dependencies.project_json, by_name=True)
 
 
 @pytest.mark.parametrize(

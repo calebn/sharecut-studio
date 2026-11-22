@@ -915,6 +915,7 @@ class SourceProxyInputs:
         *,
         defaults: EffectiveConfig,
         read_digest: Callable[[Path], str] | None = None,
+        _snapshot: EpisodeProject | None = None,
     ) -> None:
         self.dependencies.validate(project, defaults=defaults, read_digest=read_digest)
         if (
@@ -922,7 +923,11 @@ class SourceProxyInputs:
             engine.ffprobe,
         ) != self.engine_commands or ffmpeg_policy() != self.identity_payload["ffmpeg_policy"]:
             raise _inputs_changed()
-        snapshot = EpisodeProject.model_validate_json(self.dependencies.project_json, by_name=True)
+        snapshot = _snapshot
+        if snapshot is None:
+            snapshot = EpisodeProject.model_validate_json(
+                self.dependencies.project_json, by_name=True
+            )
         context = snapshot.track_by_id(self.context_track_id)
         if context is None:
             raise _inputs_changed()
@@ -1030,7 +1035,7 @@ def render_source_proxy_inputs(
             )
 
         def validate() -> None:
-            inputs.validate(project, engine, defaults=defaults)
+            inputs.validate(project, engine, defaults=defaults, _snapshot=snapshot)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(prefix=".source-proxy-", dir=output_path.parent) as temporary:
