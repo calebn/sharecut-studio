@@ -20,6 +20,7 @@ from __future__ import annotations
 import contextlib
 import tempfile
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from statistics import median
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
@@ -47,6 +48,13 @@ if TYPE_CHECKING:
     from podcast_mcp.engines.prosody import ProsodyParams
 
 DetailLevel = Literal["summary", "full", "visual"]
+
+
+@dataclass(frozen=True)
+class _VisualWord:
+    start: TimelineSec
+    text: str
+    end: TimelineSec | None
 
 
 class _PlacementRange(TypedDict):
@@ -257,7 +265,7 @@ def build_visual_events(
     track_id: str,
     window_start: float,
     window_end: float,
-    words: Sequence[tuple[float, str]],
+    words: Sequence[_VisualWord],
     comments: Sequence[dict[str, Any]],
     pending_edits: Sequence[dict[str, Any]],
     hypotheses: Sequence[dict[str, Any]],
@@ -265,7 +273,8 @@ def build_visual_events(
     """Time-grounded sidecar events for one track visual (timeline clock)."""
     hyp_windows = [h.get("window") or {} for h in hypotheses if track_id in (h.get("tracks") or [])]
     word_events: list[dict[str, Any]] = []
-    for i, (t, text) in enumerate(words):
+    for i, word in enumerate(words):
+        t = float(word.start)
         if t < window_start or t > window_end:
             continue
         in_hyp = any(
@@ -275,15 +284,18 @@ def build_visual_events(
         keep = i == 0 or in_hyp
         if not keep:
             continue
-        word_events.append(
-            {
-                "t": t,
-                "x": event_x(t, window_start, window_end),
-                "kind": "word",
-                "track_id": track_id,
-                "text": text,
-            }
-        )
+        event: dict[str, Any] = {
+            "t": t,
+            "x": event_x(t, window_start, window_end),
+            "kind": "word",
+            "track_id": track_id,
+            "text": word.text,
+        }
+        if word.end is not None:
+            t_end = min(word.end, window_end)
+            if t_end > t:
+                event.update(t_end=t_end, x_end=event_x(t_end, window_start, window_end))
+        word_events.append(event)
 
     other: list[dict[str, Any]] = []
     for c in comments:
@@ -449,7 +461,7 @@ def build_audition_context(
     tracks_out: list[dict[str, Any]] = []
     source_at_mid: dict[str, float | None] = {}
     alignment_shift: dict[str, tuple[float, ...]] = {}
-    words_timeline: dict[str, list[tuple[float, str]]] = {}
+    words_timeline: dict[str, list[_VisualWord]] = {}
     whisper_only_tracks: list[str] = []
 
     for tid in track_ids:
@@ -464,13 +476,15 @@ def build_audition_context(
             alignment_shift[tid] = _alignment_shifts(first, mid, src_mid)
         words = _words_in_source_spans(project, tid, spans)
         text = " ".join(w.text for w in words).strip()
-        mapped_words: list[tuple[float, str]] = []
-        for w in words:
-            tl = st.source_to_timeline(tid, SourceSec(w.start))
-            if tl is None:
-                continue
-            mapped_words.append((float(tl), w.text))
-        words_timeline[tid] = mapped_words
+        if detail == "visual":
+            anchors = st.anchor_source_spans(
+                tid, [(SourceSec(w.start), SourceSec(w.end)) for w in words]
+            )
+            words_timeline[tid] = [
+                _VisualWord(anchor.start, word.text, anchor.end)
+                for word, anchor in zip(words, anchors, strict=True)
+                if anchor is not None
+            ]
         track_info: dict[str, Any] = {
             "track_id": tid,
             "kind": "transcript_caption",
@@ -1365,7 +1379,7 @@ def _enrich_visuals(
     *,
     timeline_start: float,
     timeline_end: float,
-    words_timeline: dict[str, list[tuple[float, str]]],
+    words_timeline: dict[str, list[_VisualWord]],
     comments: list[dict[str, Any]],
     edits: dict[str, Any],
     hypotheses: list[dict[str, Any]],

@@ -26,6 +26,7 @@ from podcast_mcp.models import (
 from podcast_mcp.models.clip_timing import ClipTiming, TimingStep
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import PlayService
+from podcast_mcp.util.timebase import TimelineSec
 from prosody_helpers import seed_prosody_profile, single_track_prosody_project
 
 
@@ -513,6 +514,85 @@ def test_concurrent_visual_auditions_publish_only_one_footer(
     ]
 
 
+@pytest.mark.parametrize(
+    ("placements", "timing", "word_span", "window", "expected"),
+    [
+        ([(1, 4, 10)], None, (1.5, 2), (10, 13), (10.5, 11)),
+        ([(1, 2, 10), (4, 5, 11), (1, 4, 15)], None, (1.5, 3), (10, 16), (10.5, 11)),
+        ([(1, 4, 10), (1, 2, 10)], None, (1.5, 3.5), (10, 13), (10.5, 12.5)),
+        ([(1, 4, 10)], None, (1.5, 3), (10, 11.5), (10.5, 11.5)),
+        ([(1, 4, 10)], None, (1.5, 1.5), (10, 13), (10.5, None)),
+        ([(1, 2, 10), (1.75, 4, 13)], None, (2, 3), (10, 15), (11, None)),
+        (
+            [(1, 4, 10)],
+            ClipTiming(steps=[TimingStep(at=2.0, delta_sec=0.25)]),
+            (1.5, 3),
+            (10, 13),
+            (10.5, 11),
+        ),
+    ],
+    ids=[
+        "ordinary",
+        "cut-repeat",
+        "tied-starts",
+        "plot-edge",
+        "point",
+        "cut-edge-point",
+        "timing-gap",
+    ],
+)
+def test_visual_word_end_stays_in_the_piece_containing_its_start(
+    placements,
+    timing,
+    word_span,
+    window,
+    expected,
+    minimal_project,
+    tmp_workspace,
+    sample_wav,
+    monkeypatch,
+):
+    project = _two_track_project(minimal_project, sample_wav, tmp_workspace)
+    project.clips = [
+        Clip(
+            id=f"host-{i}",
+            track_id="host",
+            source_start=start,
+            source_end=end,
+            timeline_start=timeline_start,
+            timing=timing,
+        )
+        for i, (start, end, timeline_start) in enumerate(placements)
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="marker", start=word_span[0], end=word_span[1])],
+        )
+    ]
+    monkeypatch.setattr(
+        "podcast_mcp.edits.audio_quality.audio_diagnostics_report", lambda *a, **k: {}
+    )
+    context = build_audition_context(
+        project, *window, detail="visual", render_visual_pngs=False, defaults=load_defaults()
+    )
+    host = next(visual for visual in context["visuals"] if visual["track_id"] == "host")
+    [marker] = [event for event in host["events"] if event["kind"] == "word"]
+
+    start, end = expected
+    assert marker["text"] == "marker"
+    assert marker["t"] == start
+    assert marker["x"] == pytest.approx((start - window[0]) / (window[1] - window[0]), abs=1e-6)
+    if end is None:
+        assert "t_end" not in marker
+        assert "x_end" not in marker
+    else:
+        assert marker["t_end"] == end
+        assert marker["x_end"] == pytest.approx(
+            (end - window[0]) / (window[1] - window[0]), abs=1e-6
+        )
+
+
 def test_audition_context_visual_can_skip_png_rendering_for_hypothesis_evaluation(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -890,7 +970,10 @@ def test_event_x_and_visual_event_priority():
     assert event_x(6.0, 2.0, 6.0) == 1.0
     assert event_x(1.0, 2.0, 6.0) == 0.0
 
-    words = [(2.1, "hello"), (3.0, "inside"), (5.5, "later")]
+    words = [
+        audition_context._VisualWord(TimelineSec(t), text, TimelineSec(t + 0.25))
+        for t, text in [(2.1, "hello"), (3.0, "inside"), (5.5, "later")]
+    ]
     events = build_visual_events(
         track_id="host",
         window_start=2.0,
@@ -922,7 +1005,9 @@ def test_event_x_and_visual_event_priority():
     assert "hello" in word_texts
     assert "inside" in word_texts
 
-    flooded = [(2.0 + i * 0.05, f"w{i}") for i in range(40)]
+    flooded = [
+        audition_context._VisualWord(TimelineSec(2.0 + i * 0.05), f"w{i}", None) for i in range(40)
+    ]
     many = build_visual_events(
         track_id="host",
         window_start=2.0,
