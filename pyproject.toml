@@ -19,7 +19,7 @@ dependencies = [
     # Imported directly by the opt-in forced aligner (#714); faster-whisper already
     # installs both, so this only makes the dependency explicit (deptry DEP003).
     "onnxruntime>=1.17.0; sys_platform != 'ios' and (sys_platform != 'darwin' or platform_machine != 'x86_64')",
-    "onnxruntime==1.23.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "onnxruntime==1.32.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "huggingface-hub>=2.0",
     "numpy>=1.26.0",
     "rich>=13.7.0",
