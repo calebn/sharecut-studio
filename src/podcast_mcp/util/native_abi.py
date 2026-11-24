@@ -41,6 +41,7 @@ def _errno_text(result: int) -> str:
 
 
 def _fd(stream: BinaryIO | None) -> int:
+    """The stream's fd (-1 for none); raises OSError/ValueError (io.UnsupportedOperation is both)."""
     if stream is None:
         return -1
     stream.flush()
@@ -121,7 +122,10 @@ class NativeBackend:
         encoded = [tool, *(os.fsencode(arg) for arg in argv[1:])]
         if any(b"\0" in arg for arg in encoded):
             raise ValueError("argv contains a NUL byte")
-        in_fd, out_fd, err_fd = (_fd(stream) for stream in streams)
+        try:
+            in_fd, out_fd, err_fd = (_fd(stream) for stream in streams)
+        except (OSError, ValueError) as exc:
+            return self._fail(streams, f"stream has no usable fileno: {exc}")
         array = (ctypes.c_char_p * (len(encoded) + 1))(*encoded, None)
         session = self._fns["start"](len(encoded), array, in_fd, out_fd, err_fd)
         if session < 1:
@@ -143,8 +147,7 @@ class NativeBackend:
         try:
             code = self._fns["wait"](session)
         finally:
-            done.set()
-            watcher.join()
+            done.set()  # the daemon watcher exits on its next tick; no join (it would add a poll)
         if not 0 <= code <= 255:
             reason = _errno_text(code) if code < 0 else f"exit code {code}"
             return self._fail(streams, f"{abi.prefix}wait failed: {reason}")
@@ -154,7 +157,9 @@ class NativeBackend:
         """Poll until ``done``; on ``cancel`` call the native cancel once and stop."""
         while not done.is_set():
             if cancel.wait(CANCEL_POLL_SEC):
-                self._fns["cancel"](session)
+                # A cancel racing a reaped id is the specified no-op (docs/desktop-packaging.md).
+                if not done.is_set():
+                    self._fns["cancel"](session)
                 return
 
     def _fail(self, streams: Streams, reason: str) -> int:
