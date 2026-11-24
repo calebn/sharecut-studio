@@ -66,6 +66,14 @@ _RELAY_RATE_FAMILIES: tuple[tuple[str, str, str, str], ...] = (
     ("PODCAST_RELAY_WS_MSG", "relay websocket messages", "120", "30"),
     ("PODCAST_RELAY_WS_PRESENCE", "relay presence messages", "900", "60"),
     ("PODCAST_RELAY_REGISTER", "relay tunnel registrations", "60", "20"),
+    (
+        "PODCAST_RELAY_ENROLL_SUBNET",
+        "relay enrollments per client subnet (/24, or /48 for IPv6)",
+        "0.0035",
+        "5",
+    ),
+    ("PODCAST_RELAY_ENROLL_GLOBAL", "relay enrollments across all clients", "10", "60"),
+    ("PODCAST_RELAY_RENEW", "relay lease renewals per install", "6", "6"),
 )
 
 _RATE_ROWS: tuple[Variable, ...] = tuple(
@@ -280,6 +288,110 @@ VARIABLES: tuple[Variable, ...] = (
         ),
         ("PODCAST_RELAY_HOST_TOKENS", "Relay-side map of host_id:secret entries (relay process)."),
         ("PODCAST_RELAY_RATE_LIMIT", "Relay-side rate limiting; 0 disables (relay process)."),
+        (
+            "PODCAST_RELAY_SIGNING_KEY",
+            "Path to the relay's Ed25519 private key (PEM). Setting it turns on enrollment and"
+            " leases; unset, the relay accepts host tokens only (relay process).",
+        ),
+        ("PODCAST_RELAY_SIGNING_KID", "Key id stamped on new leases (relay process).", "k1"),
+        (
+            "PODCAST_RELAY_PUBLIC_KEYS",
+            "Extra kid:base64url public keys whose leases the relay still accepts, for key"
+            " rotation overlap (relay process).",
+        ),
+        (
+            "PODCAST_RELAY_MASTER_KEY",
+            "Secret of at least 32 characters the per-install share-claim keys derive from;"
+            " required when a signing key is set, and keep it when the key rotates (relay"
+            " process).",
+        ),
+        (
+            "PODCAST_RELAY_EPOCH",
+            "Lease epoch the relay accepts; raise it to cut off every older lease (relay process).",
+            "1",
+        ),
+        (
+            "PODCAST_RELAY_MIN_BUILD",
+            "Oldest app build (dotted number) allowed to enroll or connect (relay process).",
+        ),
+        (
+            "PODCAST_RELAY_DENY_FILE",
+            "File of denied install ids, one per line; reread every 5 s and live tunnels of"
+            " denied installs are closed (relay process).",
+        ),
+        (
+            "PODCAST_RELAY_ENROLL_POW_BITS",
+            "Leading zero bits of the enrollment proof of work (relay process).",
+            "20",
+        ),
+        (
+            "PODCAST_RELAY_USAGE_DB",
+            "SQLite file for the relay's monthly usage counters, for example beside the deny file."
+            " Unset keeps them in memory and a restart forgets them (relay process).",
+        ),
+        (
+            "PODCAST_RELAY_INSTALL_MAX_SHARES",
+            "Live shares one enrolled install may advertise; 0 is no cap (relay process).",
+            "5",
+        ),
+        (
+            "PODCAST_RELAY_INSTALL_MONTHLY_BYTES",
+            "Bytes one enrolled install may proxy per calendar month, both directions; 0 is no cap"
+            " (relay process).",
+            "20000000000",
+        ),
+        (
+            "PODCAST_RELAY_SESSION_BYTES_PER_SEC",
+            "Byte rate one host connection may sustain toward guests; 0 is no cap (relay process).",
+            "4194304",
+        ),
+        (
+            "PODCAST_RELAY_GLOBAL_BYTES_PER_SEC",
+            "Byte rate the whole relay may sustain, so many identities cannot starve real ones;"
+            " 0 is no cap (relay process).",
+            "67108864",
+        ),
+        (
+            "PODCAST_RELAY_IDLE_SEC",
+            "Seconds with no traffic before the relay ends a guest stream; 0 is no cutoff"
+            " (relay process).",
+            "120",
+        ),
+        (
+            "PODCAST_RELAY_LEGACY_TIER",
+            "With a signing key set, 0 refuses hosts that still present a host token (relay"
+            " process).",
+            "1",
+        ),
+        (
+            "PODCAST_RELAY_LEGACY_MAX_SHARES",
+            "Live shares a legacy host-token host may advertise when a signing key is set"
+            " (relay process).",
+            "1",
+        ),
+        (
+            "PODCAST_RELAY_LEGACY_MAX_TUNNELS",
+            "Concurrent tunnels one legacy host token may hold when a signing key is set; 0 is no"
+            " cap (relay process).",
+            "4",
+        ),
+        (
+            "PODCAST_RELAY_LEGACY_MONTHLY_BYTES",
+            "Bytes all tunnels of one legacy host token may proxy per calendar month; 0 is no cap"
+            " (relay process).",
+            "2000000000",
+        ),
+        (
+            "PODCAST_RELAY_LEGACY_IP_MONTHLY_BYTES",
+            "Bytes all legacy hosts behind one address may proxy per calendar month; 0 is no cap"
+            " (relay process).",
+            "4000000000",
+        ),
+        (
+            "PODCAST_RELAY_CSP_ENFORCE",
+            "1 sends the guest page Content-Security-Policy instead of Report-Only (relay"
+            " process).",
+        ),
         (
             "PODCAST_RELAY_ALLOW_OPEN_TUNNEL",
             "Let the relay start with no host tokens, local/dev only (1, true, yes, on).",

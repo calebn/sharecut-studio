@@ -19,6 +19,7 @@ MsgType = Literal[
     "ping",
     "pong",
     "error",
+    "limit",
 ]
 
 

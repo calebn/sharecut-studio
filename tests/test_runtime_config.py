@@ -11,6 +11,7 @@ from podcast_mcp.config.runtime import (
     load_host_runtime_config,
     load_object_store_config,
     load_relay_config,
+    note_relay_does_not_enroll,
     persisted_relay_host_id,
     ready_relay_config,
     relay_host_id_path,
@@ -307,18 +308,36 @@ def test_persisted_host_id_uses_winner_of_create_race(
     assert persisted_relay_host_id(cfg) == "winner-id"
 
 
-def test_ready_relay_config_requires_host_token(
+def test_ready_relay_config_needs_a_host_token_or_a_named_relay(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("PODCAST_RELAY_URL", "wss://relay.example.test/tunnel")
     monkeypatch.setenv("PODCAST_RELAY_PUBLIC_BASE_URL", "https://relay.example.test")
-
-    assert ready_relay_config() is None
-
     monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", "tok")
     ready = ready_relay_config()
     assert ready is not None
-    assert (ready.relay_url, ready.host_token) == ("wss://relay.example.test/tunnel", "tok")
+    assert ready.host_token == "tok"
+
+    monkeypatch.delenv("PODCAST_RELAY_HOST_TOKEN")
+    assert ready_relay_config() is None
+
+    monkeypatch.setenv("PODCAST_RELAY_URL", "wss://relay.example.test/tunnel")
+    named = ready_relay_config()
+    assert named is not None
+    assert (named.relay_url, named.host_token) == ("wss://relay.example.test/tunnel", "")
+
+
+def test_a_named_relay_that_does_not_enroll_is_not_ready_without_a_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PODCAST_RELAY_URL", "wss://relay.example.test/tunnel")
+    monkeypatch.setenv("PODCAST_RELAY_PUBLIC_BASE_URL", "https://relay.example.test")
+    assert ready_relay_config() is not None
+
+    note_relay_does_not_enroll("wss://relay.example.test/tunnel")
+
+    assert ready_relay_config() is None
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", "tok")
+    assert ready_relay_config() is not None
 
 
 def test_ready_relay_config_overrides_local_gui_url(monkeypatch: pytest.MonkeyPatch) -> None:

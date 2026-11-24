@@ -430,6 +430,28 @@ def load_relay_config(
     )
 
 
+_NON_ENROLLING_RELAYS: set[str] = set()
+
+
+def note_relay_does_not_enroll(relay_url: str) -> None:
+    """Remember, until restart, a named relay that answered 404 to enrollment (it has no signing key)."""
+    _NON_ENROLLING_RELAYS.add(relay_url)
+
+
+def forget_non_enrolling_relays() -> None:
+    _NON_ENROLLING_RELAYS.clear()
+
+
+def _relay_url_is_explicit() -> bool:
+    """A host signs in on its own only to a relay it named, never to the loopback default."""
+    if settings.text(_RELAY_ENV["relay_url"]):
+        return True
+    try:
+        return bool(_clean(_read_mapping(default_relay_config_path()).get("relay_url")))
+    except RuntimeConfigError:
+        return False
+
+
 def ready_relay_config(*, local_gui_url: str | None = None) -> RelayConfig | None:
     """``relay_configured`` is checked first so an unconfigured host never mints a host-id file."""
     if not relay_configured():
@@ -438,7 +460,10 @@ def ready_relay_config(*, local_gui_url: str | None = None) -> RelayConfig | Non
         cfg = load_relay_config(local_gui_url=local_gui_url)
     except ValueError:
         return None
-    return cfg if cfg.host_token else None
+    if cfg.host_token:
+        return cfg
+    named = _relay_url_is_explicit() and cfg.relay_url not in _NON_ENROLLING_RELAYS
+    return cfg if named else None
 
 
 def load_host_runtime_config(

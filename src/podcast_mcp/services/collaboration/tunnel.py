@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from podcast_mcp.config.runtime import RelayConfig, load_relay_config
 from podcast_mcp.models import load_project
 from podcast_mcp.project.io import adopt_retired_entry_file
+from podcast_mcp.services.collaboration.enrollment import Credentials, Enrollment
 from podcast_mcp.services.collaboration.review_shares import list_usable_shares
 from podcast_mcp.services.collaboration.tunnel_failure import (
     FailureKind,
@@ -166,6 +167,10 @@ def _map_local_path(path_suffix: str, share_token: str) -> str:
     return assert_allowed_local_gui_path(mapped, share_token)
 
 
+def _enrollment_for(cfg: RelayConfig) -> Enrollment | None:
+    return None if cfg.host_token else Enrollment(cfg)
+
+
 def _relay_host(relay_url: str) -> str:
     """``host[:port]`` of the relay URL; user info and path never reach a status line."""
     parsed = urlparse(relay_url)
@@ -183,8 +188,11 @@ class TunnelClient:
         *,
         listeners: list[StatusListener] | None = None,
         sleep: Callable[[float], Awaitable[None]] | None = None,
+        enrollment: Enrollment | None = None,
     ) -> None:
         self._cfg = cfg
+        self._enrollment = enrollment if enrollment is not None else _enrollment_for(cfg)
+        self._credentials: Credentials | None = None
         self._project_path = project_path
         self._sleep = sleep
         self._send: Callable[[dict[str, Any]], Awaitable[None]] | None = None
@@ -214,10 +222,15 @@ class TunnelClient:
             if row.get("token")
         ]
         self._tracker.add_secrets([row["token"] for row in rows])
-        secret = self._cfg.host_token
+        secret = self._cfg.host_token or (self._credentials.claim_key if self._credentials else "")
         if not secret:
             return rows
-        return attach_share_claims(rows, host_id=self._cfg.host_id, secret=secret)
+        return attach_share_claims(rows, host_id=self._host_id, secret=secret)
+
+    @property
+    def _host_id(self) -> str:
+        """The id the relay knows this host by: the install id it assigned, else the host id."""
+        return self._credentials.install_id if self._credentials else self._cfg.host_id
 
     def _build_shares(self) -> list[dict[str, Any]]:
         try:
@@ -547,6 +560,9 @@ class TunnelClient:
         import websockets  # type: ignore[import-untyped]
 
         cfg = self._cfg
+        if self._enrollment is not None:
+            self._credentials = await self._enrollment.credentials()
+            self._tracker.add_secrets([self._credentials.lease, self._credentials.claim_key])
         shares = await asyncio.to_thread(self._build_shares)
 
         async with websockets.connect(
@@ -566,8 +582,8 @@ class TunnelClient:
             writer = SerializedWsWriter(write, close)
             send = writer.send
 
-            share_count = await self._register(ws, send, shares)
-            self._tracker.connected(share_count=share_count)
+            share_count, limit = await self._register(ws, send, shares)
+            self._tracker.connected(share_count=share_count, limit=limit)
             self._send = send
             try:
                 async with httpx.AsyncClient() as http_client:
@@ -594,22 +610,41 @@ class TunnelClient:
             TunnelFailure(FailureKind.ERROR, f"Relay rejected {expected}: unexpected reply")
         )
 
-    async def _register(self, ws: Any, send: Any, shares: list[dict[str, Any]]) -> int:
-        """Hello, then register ``shares``. Returns how many shares the relay accepted."""
+    async def _register(
+        self, ws: Any, send: Any, shares: list[dict[str, Any]]
+    ) -> tuple[int, str | None]:
+        """Hello, then register ``shares``. Returns how many the relay accepted and any limit."""
         cfg = self._cfg
+        credentials = {"lease": self._credentials.lease} if self._credentials else {}
         await send(
             msg(
                 "hello",
                 host_token=cfg.host_token,
-                host_id=cfg.host_id,
+                host_id=self._host_id,
                 protocol_version=PROTOCOL_VERSION,
+                **credentials,
             )
         )
-        self._expect_ack(json.loads(await ws.recv()), "hello")
+        try:
+            self._expect_ack(json.loads(await ws.recv()), "hello")
+        except TunnelError as exc:
+            if exc.failure.stale_lease and self._enrollment is not None:
+                self._enrollment.mark_stale()
+            raise
         await send(msg("register", shares=shares))
         reg_ack = self._expect_ack(json.loads(await ws.recv()), "register")
         accepted = reg_ack.get("share_count")
-        return accepted if isinstance(accepted, int) else len(shares)
+        return (
+            accepted if isinstance(accepted, int) else len(shares),
+            str(reg_ack.get("limited") or "") or None,
+        )
+
+    def _apply_limit(self, kind: Any) -> None:
+        """Show or clear the relay's limit while connected; a repeat of the same limit is quiet."""
+        limit = str(kind or "") or None
+        status = self._tracker.status
+        if status.phase is TunnelPhase.CONNECTED and status.limit != limit:
+            self._tracker.connected(share_count=status.share_count or 0, limit=limit)
 
     async def _serve_messages(self, ws: Any, http_client: Any, send: Any) -> None:
         tasks: set[asyncio.Task[None]] = set()
@@ -656,6 +691,10 @@ class TunnelClient:
                 elif mtype == "ping":
                     log.debug("Relay ping answered")
                     await send(msg("pong"))
+                elif mtype == "limit":
+                    self._apply_limit(raw.get("kind"))
+                elif mtype == "register":
+                    self._apply_limit(raw.get("limited"))
                 elif mtype == "error":
                     log.error("Relay error: %s", self._tracker.redact(str(raw.get("detail"))))
                 else:
@@ -695,11 +734,18 @@ class TunnelClient:
         stays Failed so the host still sees why.
         """
         heartbeat = asyncio.create_task(heartbeat_loop(self._tracker, HEARTBEAT_INTERVAL_SEC))
+        renewals = (
+            asyncio.create_task(self._enrollment.keep_fresh())
+            if self._enrollment is not None
+            else None
+        )
         try:
             await self._reconnect_loop(max_attempts, initial_delay_sec, max_delay_sec)
         finally:
             heartbeat.cancel()
-            await asyncio.gather(heartbeat, return_exceptions=True)
+            if renewals is not None:
+                renewals.cancel()
+            await asyncio.gather(*(t for t in (heartbeat, renewals) if t), return_exceptions=True)
             if self._tracker.status.phase is not TunnelPhase.FAILED:
                 self._tracker.stopped()
 
