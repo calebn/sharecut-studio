@@ -7,11 +7,12 @@ import { canRetimePendingEdit } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow, PendingEditView } from "../types/project";
 import { useResizeObserver } from "../ui/useResizeObserver";
-import { errorMessage } from "../utils/apiError";
+import { ApiError, errorMessage } from "../utils/apiError";
 import { markerVariant, pendingKind } from "../utils/editMarkerRegistry";
 import { pendingEditTrackIds } from "../utils/edits";
 import {
   pendingReasonLabel,
+  pendingRetimeRefusal,
   pendingTypeLabel,
 } from "../utils/pendingEditLabels";
 import { formatTimeMs } from "../utils/time";
@@ -357,6 +358,18 @@ function PendingEditRegion({
       useDawStore.getState().projectEpoch === capture.projectEpoch
     );
   };
+  const boundsAreCaptured = (current: PendingEditView, capture: DragCapture) =>
+    current.source_start === capture.sourceStart &&
+    current.source_end === capture.sourceEnd;
+  const isOwnSavedBounds = (current: PendingEditView, capture: DragCapture) => {
+    const active = currentGesture.current;
+    return (
+      active.kind === "settling" &&
+      active.controller === capture.controller &&
+      current.source_start === active.preview.sourceStart &&
+      current.source_end === active.preview.sourceEnd
+    );
+  };
   const freshProjectAndEdit = (capture: DragCapture) => {
     const state = useDawStore.getState();
     const current = state.project?.pending_edits.find(
@@ -404,8 +417,9 @@ function PendingEditRegion({
         state.shareAuthor,
         current?.author,
       ) &&
-      current?.source_start === capture.sourceStart &&
-      current.source_end === capture.sourceEnd &&
+      current !== undefined &&
+      (boundsAreCaptured(current, capture) ||
+        isOwnSavedBounds(current, capture)) &&
       current.track_id === capture.trackId &&
       samePlacement
     );
@@ -602,6 +616,7 @@ function PendingEditRegion({
     // The Action bar's Cut and Keep read this: they must not decide the bounds being replaced.
     useDawStore.getState().setPendingRetimeInFlight(active.editId);
     let resolvingSnapTicks = true;
+    let sent = false;
     try {
       const focusSec =
         active.edge === "start" ? preview.sourceStart : preview.sourceEnd;
@@ -641,6 +656,7 @@ function PendingEditRegion({
         return;
       }
       resolvingSnapTicks = false;
+      sent = true;
       await onCommitSpan(
         active.projectPath,
         active.projectEpoch,
@@ -651,15 +667,32 @@ function PendingEditRegion({
         resolvedPreview.sourceEnd,
       );
     } catch (error) {
-      if (
+      const live = useDawStore.getState();
+      let message: string | null = null;
+      if (sent) {
+        if (
+          live.projectPath === active.projectPath &&
+          live.projectEpoch === active.projectEpoch
+        ) {
+          message =
+            error instanceof ApiError &&
+            error.status !== null &&
+            error.status >= 400 &&
+            error.status < 500
+              ? pendingRetimeRefusal(error, active.edge)
+              : errorMessage(error);
+        }
+      } else if (
         !active.controller.signal.aborted &&
         gestureIsCurrent(active) &&
         freshProjectAndEdit(active)
       ) {
-        const message = resolvingSnapTicks
+        message = resolvingSnapTicks
           ? "Nearby waveform snap points could not be loaded. Try again."
           : errorMessage(error);
-        useDawStore.getState().announceStatus(message, { tone: "error" });
+      }
+      if (message !== null) {
+        live.announceStatus(message, { tone: "error" });
       }
     } finally {
       commitPendingRef.current = false;

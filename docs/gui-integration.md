@@ -450,7 +450,10 @@ body, and a split has no field to focus. The sheet's own Approve and Reject butt
 a comment-linked pending edit and on a phone sheet with no bar dock (the compact drawer, the
 full sheet at a tight height). The bar's primary verb is Cut, Shorten or Lower only for a cut, shorten or lower suggestion that is neither a split nor an exact range (`pendingOffersCut`); every other pending edit, including a split or exact range that carries an accept action, gets Approve and Reject, which run `ApproveEdits` and `RejectEdits`. The bar's Cut runs `ApproveEdits` for a cut action and `ApplySuggestedActions` for shorten or lower. An exact range's Approve and Reject are disabled for anyone but the host or an Editor, with the reason in visible text.
 Busy, queued and refused-by-the-refine-gate notices reach the status line and the Inspector's
-recovery form, and a failed edge drag is announced in the status line.
+recovery form. A pending edit's edge drag that the host refuses (409, 400 or another 4xx) keeps the drag settling
+while the save is in flight, then announces one plain sentence in the status line and error toast saying the edge was not
+saved and is back where it was (`pendingRetimeRefusal`, by error code; the server's own text is never shown), and the edge
+returns to its saved place. It stays silent only when the project changed meanwhile.
 
 ### Provisional recording timeline
 

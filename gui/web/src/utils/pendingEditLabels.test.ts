@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { sampleTrack } from "../test/fixtures";
 import type { PendingKind } from "../types/project";
+import { ApiError } from "./apiError";
 import {
   pendingListRowLabel,
   pendingReasonLabel,
+  pendingRetimeRefusal,
   pendingTypeLabel,
 } from "./pendingEditLabels";
 
@@ -105,5 +107,59 @@ describe("pendingListRowLabel", () => {
         tracks,
       ),
     ).toBe('Dani\'s cut at 30:26.1 · Filler word "um"');
+  });
+});
+
+describe("pendingRetimeRefusal", () => {
+  const generic = (edge: string) =>
+    `That edit's ${edge} was not saved, so it is back where it was. Move the edge again or pick a different range.`;
+
+  it.each([
+    [
+      "exact_range_locked",
+      409,
+      "This range is exact and can't be moved by its edges. Select the range again.",
+    ],
+    ["edit_not_found", 404, "That suggestion is gone, so nothing was saved."],
+    [
+      "pending_edit_not_found",
+      404,
+      "That suggestion is gone, so nothing was saved.",
+    ],
+    [
+      "range_end_before_start",
+      400,
+      "The end must come after the start, so the end is back where it was. Move the edge again.",
+    ],
+    [
+      "pending_edit_changed",
+      409,
+      "That edit changed while you were moving it. Check the new range and try again.",
+    ],
+    ["something_new", 409, generic("end")],
+    [null, 400, generic("end")],
+    [null, 409, generic("end")],
+    [null, 422, generic("end")],
+  ])("says the same for code %s with status %s", (code, status, sentence) => {
+    const error = new ApiError("server detail", code, status);
+    expect(pendingRetimeRefusal(error, "end")).toBe(sentence);
+  });
+
+  it("names the edge that was dragged", () => {
+    const error = new ApiError("x", null, 409);
+    expect(pendingRetimeRefusal(error, "start")).toBe(generic("start"));
+    expect(pendingRetimeRefusal(error, "end")).toBe(generic("end"));
+    const crossed = new ApiError("x", "range_end_before_start", 400);
+    expect(pendingRetimeRefusal(crossed, "start")).toContain(
+      "the start is back",
+    );
+  });
+
+  it("never shows the server's own text", () => {
+    for (const code of [null, "exact_range_locked", "pending_edit_changed"]) {
+      const error = new ApiError("Traceback: podcast edit retime", code, 409);
+      expect(pendingRetimeRefusal(error, "end")).not.toContain("Traceback");
+      expect(pendingRetimeRefusal(error, "end")).not.toContain("podcast");
+    }
   });
 });

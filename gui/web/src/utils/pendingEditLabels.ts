@@ -1,6 +1,7 @@
 /** Plain-language names for a pending edit's type and reason code. */
 
 import type { PendingEditView, PendingKind, TrackView } from "../types/project";
+import type { ApiError } from "./apiError";
 import { knownPendingKind, markerLabel } from "./editMarkerRegistry";
 import { capitalize } from "./format";
 import { isTightenClass, type TightenClass } from "./tightenHits";
@@ -86,3 +87,26 @@ export function pendingReasonLabel(
 /** Shown when Approve/Reject was saved but is still waiting to send. */
 export const PENDING_REVIEW_QUEUED_MESSAGE =
   "Still sending. It will retry automatically; if the host refuses it, it shows under Needs attention.";
+
+/**
+ * One plain sentence for a refused save of a dragged pending-edit edge: what was not saved and
+ * what to do next. The server's own text is never shown.
+ */
+export function pendingRetimeRefusal(
+  error: ApiError,
+  edge: "start" | "end",
+): string {
+  switch (error.code) {
+    case "exact_range_locked":
+      return "This range is exact and can't be moved by its edges. Select the range again.";
+    case "edit_not_found":
+    case "pending_edit_not_found":
+      return "That suggestion is gone, so nothing was saved.";
+    case "range_end_before_start":
+      return `The end must come after the start, so the ${edge} is back where it was. Move the edge again.`;
+    case "pending_edit_changed":
+      return "That edit changed while you were moving it. Check the new range and try again.";
+    default:
+      return `That edit's ${edge} was not saved, so it is back where it was. Move the edge again or pick a different range.`;
+  }
+}
