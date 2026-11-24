@@ -1489,3 +1489,17 @@ def test_a_member_vanishing_mid_stream_closes_the_connection_short_of_its_length
     assert "Content-Encoding" not in res.headers
     assert head.startswith(b"PK")
     assert 8 + len(cut.value.partial) < declared
+
+
+@pytest.mark.parametrize(
+    ("name", "header"),
+    [
+        ("ep-export.zip", 'attachment; filename="ep-export.zip"'),
+        (
+            "Café Ünï-export.zip",
+            "attachment; filename=\"Caf_ _n_-export.zip\"; filename*=utf-8''Caf%C3%A9%20%C3%9Cn%C3%AF-export.zip",
+        ),
+    ],
+)
+def test_the_archive_name_has_an_ascii_fallback_beside_its_utf8_name(name, header) -> None:
+    assert export_files_routes._attachment(name) == header
