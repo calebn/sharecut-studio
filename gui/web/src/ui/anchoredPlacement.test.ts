@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  areaRects,
   inlineSizeCaps,
   placeAnchored,
   placeAnchoredExcluding,
@@ -326,5 +327,79 @@ describe("visualViewportBox", () => {
 
   it("uses the whole viewport without chrome", () => {
     expect(visualViewportBox(null).height).toBe(window.innerHeight);
+  });
+});
+
+describe("placeAnchoredExcluding around several rectangles", () => {
+  const view = { left: 0, top: 0, width: 844, height: 530 };
+  const within = { left: 0, top: 0, right: 844, bottom: 530 };
+  const clip = { left: 644, top: 200, right: 744, bottom: 258 };
+  const bar = { width: 284, height: 46 };
+  const corner = { left: 470.8, top: 251, right: 832, bottom: 305 };
+  const opts = {
+    margin: 8,
+    gap: 8,
+    align: "center",
+    prefer: "above",
+    clearTop: 160,
+  } as const;
+
+  it("slides the bar left of the Timeline view corner at 844x530", () => {
+    const placed = placeAnchoredExcluding(
+      clip,
+      bar,
+      view,
+      [corner],
+      within,
+      opts,
+    );
+    expect(placed.left).toBeCloseTo(178.8, 5);
+    expect(placed).toMatchObject({ top: 266, side: "below" });
+  });
+
+  it("clears every rectangle when one corridor is taken by another", () => {
+    const sibling = { left: 100, top: 260, right: 400, bottom: 320 };
+    expect(
+      placeAnchoredExcluding(clip, bar, view, [corner, sibling], within, opts),
+    ).toMatchObject({ left: 552, top: 328, side: "below", maxHeight: 194 });
+  });
+
+  it("places exactly as placeAnchored when the list is empty or clear", () => {
+    const normal = placeAnchored(clip, bar, view, opts);
+    expect(placeAnchoredExcluding(clip, bar, view, [], within, opts)).toEqual(
+      normal,
+    );
+    const far = { left: 0, top: 0, right: 100, bottom: 40 };
+    expect(
+      placeAnchoredExcluding(clip, bar, view, [far], within, opts),
+    ).toEqual(normal);
+  });
+
+  it("keeps the normal placement when no position clears the whole set", () => {
+    const wall = { left: 0, top: 160, right: 844, bottom: 530 };
+    expect(
+      placeAnchoredExcluding(clip, bar, view, [wall], within, opts),
+    ).toEqual(placeAnchored(clip, bar, view, opts));
+  });
+});
+
+describe("areaRects", () => {
+  const withRect = (rect: DOMRect) => {
+    const element = document.createElement("div");
+    element.getBoundingClientRect = () => rect;
+    return element;
+  };
+
+  it("keeps rendered boxes and skips missing and zero-area ones", () => {
+    const rects = areaRects([
+      null,
+      undefined,
+      withRect(new DOMRect(0, 0, 0, 40)),
+      withRect(new DOMRect(0, 0, 40, 0)),
+      withRect(new DOMRect(10, 20, 300, 50)),
+    ]);
+    expect(rects.map((r) => [r.left, r.top, r.width, r.height])).toEqual([
+      [10, 20, 300, 50],
+    ]);
   });
 });

@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands, execute } from "../../commands/execute";
@@ -128,6 +135,49 @@ describe("the Inspector card on the desktop and the tablet", () => {
       const card = screen.getByRole("dialog", { name: "Inspector" });
       expect(card.style.insetBlockStart).toBe("175px");
       expect(card.style.maxBlockSize).toBe("217px");
+    } finally {
+      root.remove();
+    }
+  });
+
+  it("places the card again when the Action bar moves under it", async () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    const root = document.createElement("div");
+    root.getBoundingClientRect = () => new DOMRect(20, 50, 360, 400);
+    const lane = document.createElement("div");
+    lane.className = "lane-row";
+    lane.dataset.trackId = "host";
+    lane.getBoundingClientRect = () => new DOMRect(200, 100, 40, 60);
+    const bar = document.createElement("div");
+    bar.className = "sys-actions--floating";
+    bar.style.top = "177px";
+    bar.getBoundingClientRect = () =>
+      new DOMRect(100, Number.parseFloat(bar.style.top), 200, 40);
+    root.append(lane, bar);
+    document.body.append(root);
+
+    try {
+      render(
+        <InspectorHost
+          shell="desktop"
+          root={root}
+          regionRef={() => undefined}
+          sheet={{
+            open: true,
+            rangeActionsInSheet: false,
+            close: vi.fn(),
+            dismiss: vi.fn(),
+          }}
+        />,
+      );
+      const card = screen.getByRole("dialog", { name: "Inspector" });
+      expect(card.style.insetBlockStart).toBe("175px");
+
+      await act(async () => {
+        bar.style.top = "227px";
+      });
+
+      await waitFor(() => expect(card.style.insetBlockStart).toBe("225px"));
     } finally {
       root.remove();
     }
