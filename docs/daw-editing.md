@@ -390,23 +390,11 @@ their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment
   held keyboard previews keep their last valid geometry and arrows and show the
   error. Release saves only the last valid value. A lane without a moving edge keeps the
   existing time-splice behavior.
-- A held trim has a run token and a detachable project-store
-  display layer. It belongs to the path, epoch, document generation, sequence
-  and authority where it began. Every repeat uses its clean origin. Document
-  publication or hydration cancels the hold immediately, preserving supplied
-  geometry, comments and pending edits. Writers read the clean editing basis
-  before transforming or capturing rollback inputs. Timeline trim, fade and roll handles also
-  validate against that basis and refuse synthetic preview tails. Roll joins
-  recheck their captured partners after loading the boundary token. A canceled
-  splice removes synthetic tails and restores deleted rows without reconstructing source,
-  fade, join or mute fields. An unchanged pending mix does not cancel a hold;
-  a genuine mix publication does. Republishing the same project without an
-  active hold is a no-op. A current release or selection-change
-  unmount freezes the exact preview and saves once. The saving layer remains
-  until settlement or publication, so preview-only tails never become edit
-  targets during boundary loading. Submission rechecks ownership after loading
-  the boundary. Settlement removes only its own token. Stale tokens cannot
-  remove a newer hold. Invalid document lifetime never restores old geometry.
+- Writers read `projectEditBasis()`, the displayed project, before transforming
+  it or capturing rollback inputs. Timeline trim and fade handles validate each
+  step against that basis before publishing their gesture-local draft. A roll
+  rechecks its captured join partners after loading the boundary context.
+  Republishing the same project is a no-op.
 - **Gap** moves nothing else. A gap trim moves only the grabbed edge (the front edge
   moves on the timeline too) and stops at the neighbouring clip. A gap delete or cut
   leaves silence on the edited tracks. A gap paste replaces the pasted span on the
