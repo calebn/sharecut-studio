@@ -6,18 +6,16 @@ import asyncio
 import base64
 import contextlib
 import json
-import socket
 import threading
 import time
-from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import AsyncMock, patch
 
 import pytest
-import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient, get
+from tests.relay_live import live_relay
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect as ws_connect
 
@@ -26,39 +24,6 @@ from podcast_mcp.util.relay_protocol.share_claims import attach_share_claims
 from podcast_mcp.util.ws_delivery import TextWsStream as GuestWsStream
 from podcast_relay.app import _parse_host_tokens, create_relay_app, main
 from podcast_relay.state import RelayState, TunnelSession
-
-
-@contextlib.contextmanager
-def _live_relay(
-    monkeypatch: pytest.MonkeyPatch, *, host_token: str = "secret", app: FastAPI | None = None
-) -> Iterator[str]:
-    """Run relay on a real uvicorn port.
-
-    Nested guest+tunnel WebSockets deadlock under Starlette TestClient's single
-    portal; live uvicorn is required for bidirectional bridge coverage.
-    """
-    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", host_token)
-    app = app if app is not None else create_relay_app()
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        port = sock.getsockname()[1]
-    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
-    startup_complete = threading.Event()
-
-    class ReadyServer(uvicorn.Server):
-        async def startup(self, sockets: list[socket.socket] | None = None) -> None:
-            await super().startup(sockets=sockets)
-            startup_complete.set()
-
-    server = ReadyServer(config)
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    try:
-        assert startup_complete.wait(timeout=2) and server.started, "relay uvicorn failed to start"
-        yield f"ws://127.0.0.1:{port}"
-    finally:
-        server.should_exit = True
-        thread.join(timeout=5)
 
 
 def _ws_send(ws, payload: dict) -> None:
@@ -120,7 +85,7 @@ def test_tunnel_handshake_failure_closes_connection_before_yield(monkeypatch):
 
     monkeypatch.setattr(__name__ + ".ws_connect", tracked_connect)
     monkeypatch.setattr(__name__ + "._ws_recv", lambda tunnel: {"ok": False})
-    with _live_relay(monkeypatch) as base:
+    with live_relay(monkeypatch) as base:
         with pytest.raises(AssertionError):
             with _tunnel_hello_register(
                 base, host_id="failed-handshake", token="token", capabilities=["view"]
@@ -280,7 +245,7 @@ def test_live_proxy_preserves_host_retry_after(monkeypatch, status, retry_header
     ):
         monkeypatch.setenv(name, "")
     body = b'{"error":"host-busy"}'
-    with _live_relay(monkeypatch) as base:
+    with live_relay(monkeypatch) as base:
         with (
             _tunnel_hello_register(
                 base, host_id="retry-host", token="retry-share", capabilities=["view"]
@@ -621,7 +586,7 @@ def test_guest_daw_ws_host_offline(monkeypatch):
 
 
 def test_guest_daw_ws_emits_ws_open(monkeypatch):
-    with _live_relay(monkeypatch) as base:
+    with live_relay(monkeypatch) as base:
         with _tunnel_hello_register(
             base,
             host_id="host-ws",
@@ -664,7 +629,7 @@ def test_guest_daw_ws_emits_ws_open(monkeypatch):
 
 
 def test_record_ws_bridged(monkeypatch):
-    with _live_relay(monkeypatch) as base:
+    with live_relay(monkeypatch) as base:
         with _tunnel_hello_register(
             base,
             host_id="host-rec",
@@ -714,7 +679,7 @@ def test_record_ws_bridged(monkeypatch):
 
 def test_record_ws_relays_invite_closed_error_before_4403(monkeypatch):
     """The guest UI keeps "Invite link closed" only if the Error frame precedes the 4403 close."""
-    with _live_relay(monkeypatch) as base:
+    with live_relay(monkeypatch) as base:
         with _tunnel_hello_register(
             base,
             host_id="host-rec-closed",
@@ -762,7 +727,7 @@ def test_record_ws_relays_invite_closed_error_before_4403(monkeypatch):
 
 
 def test_guest_daw_ws_requires_view_cap(monkeypatch):
-    with _live_relay(monkeypatch) as base:
+    with live_relay(monkeypatch) as base:
         with _tunnel_hello_register(
             base,
             host_id="host-noview",
@@ -797,7 +762,7 @@ def test_guest_daw_ws_concurrency_limit(monkeypatch):
 
 def test_guest_daw_ws_empty_caps_allowed(monkeypatch):
     """Empty capabilities list skips the view check (host enforces)."""
-    with _live_relay(monkeypatch) as base:
+    with live_relay(monkeypatch) as base:
         with _tunnel_hello_register(
             base,
             host_id="host-emptycaps",
@@ -840,7 +805,7 @@ def test_guest_daw_ws_concurrency_rejected_live(monkeypatch):
     from podcast_relay.limits import get_relay_limiters, reset_relay_limiters_for_tests
 
     reset_relay_limiters_for_tests()
-    with _live_relay(monkeypatch) as base:
+    with live_relay(monkeypatch) as base:
         with _tunnel_hello_register(
             base,
             host_id="host-rej",
@@ -868,7 +833,7 @@ def test_guest_daw_ws_msg_rate_limit_drops(monkeypatch):
     from podcast_relay.limits import reset_relay_limiters_for_tests
 
     reset_relay_limiters_for_tests()
-    with _live_relay(monkeypatch) as base:
+    with live_relay(monkeypatch) as base:
         with _tunnel_hello_register(
             base,
             host_id="host-msg",
@@ -912,7 +877,7 @@ def test_relay_presence_frames_use_presence_bucket(monkeypatch):
     assert is_presence_ws_text('{"type":"Presence","x":1}')
     assert is_presence_ws_text('{"type":"RosterRequest"}')
     assert not is_presence_ws_text('{"type":"Command"}')
-    with _live_relay(monkeypatch) as base:
+    with live_relay(monkeypatch) as base:
         with _tunnel_hello_register(
             base,
             host_id="host-presence",
@@ -950,7 +915,7 @@ def test_relay_presence_frames_drop_when_bucket_exhausted(monkeypatch):
     from podcast_relay.limits import reset_relay_limiters_for_tests
 
     reset_relay_limiters_for_tests()
-    with _live_relay(monkeypatch) as base:
+    with live_relay(monkeypatch) as base:
         with _tunnel_hello_register(
             base,
             host_id="host-presence-deny",
@@ -1134,7 +1099,7 @@ def test_blocked_guest_overflow_preserves_healthy_guest_delivery(monkeypatch):
 
     monkeypatch.setattr(WebSocket, "send_text", blocked_send)
     monkeypatch.setattr(WsFrameQueue, "put_nowait", observe_put)
-    with _live_relay(monkeypatch, app=app) as base:
+    with live_relay(monkeypatch, app=app) as base:
         with _tunnel_hello_register(
             base, host_id="bounded-guests", token="slow-bounded", capabilities=["view"]
         ) as tunnel:
@@ -1197,7 +1162,7 @@ def test_shared_tunnel_send_deadline_closes_and_releases_streams(monkeypatch):
         await real_send(websocket, data, mode=mode)
 
     monkeypatch.setattr(WebSocket, "send_json", blocked_send)
-    with _live_relay(monkeypatch, app=app) as base:
+    with live_relay(monkeypatch, app=app) as base:
         with _tunnel_hello_register(
             base, host_id="bounded-tunnel", token="deadline-bounded", capabilities=["view"]
         ) as tunnel:
@@ -1357,8 +1322,8 @@ async def test_guest_ws_identity_survives_relay_reconnect(monkeypatch):
         with ws_connect(url, open_timeout=5, close_timeout=5) as guest:
             return json.loads(guest.recv(timeout=5))
 
-    with _live_relay(monkeypatch, app=gui) as gui_base:
-        with _live_relay(monkeypatch) as relay_base:
+    with live_relay(monkeypatch, app=gui) as gui_base:
+        with live_relay(monkeypatch) as relay_base:
             client = TunnelClient(
                 RelayConfig(
                     host_token="secret",
@@ -1393,7 +1358,7 @@ async def test_guest_ws_identity_survives_relay_reconnect(monkeypatch):
 
 
 def test_record_ws_observe_query_rides_ws_open(monkeypatch):
-    with _live_relay(monkeypatch) as base:
+    with live_relay(monkeypatch) as base:
         with _tunnel_hello_register(
             base,
             host_id="host-rec-observe",
