@@ -199,7 +199,6 @@ DECISION_KEYS = [
     "exact_range",
     "proposal_origin",
     "boundary_intent",
-    "bound_pad",
 ]
 
 
@@ -228,7 +227,6 @@ def _edit(track_id, start, end, reason, scope, *, author=None, cut_speech=None) 
         "exact_range": None,
         "proposal_origin": "programmatic",
         "boundary_intent": "programmatic",
-        "bound_pad": None,
     }
 
 
