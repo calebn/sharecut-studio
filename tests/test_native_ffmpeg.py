@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import ctypes
 import errno
 import importlib.util
@@ -12,7 +11,6 @@ import os
 import subprocess
 import tempfile
 import threading
-import time
 from dataclasses import replace
 from typing import Any
 
@@ -62,7 +60,6 @@ class FakeNative:
         honour_cancel: bool = True,
         out: bytes = b"",
         err: bytes = b"",
-        start_delay: float = 0.0,
     ) -> None:
         self.code = code
         self.start_result = start_result
@@ -70,7 +67,6 @@ class FakeNative:
         self.honour_cancel = honour_cancel
         self.out = out
         self.err = err
-        self.start_delay = start_delay
         self.argvs: list[list[bytes]] = []
         self.fds: list[tuple[int, int, int]] = []
         self.stdin_data = b""
@@ -79,7 +75,6 @@ class FakeNative:
         self.release = threading.Event()
         self.finished = threading.Event()
         self.waited: list[int] = []
-        self.start_durations: list[float] = []
         self.started = threading.Semaphore(0)
         self._next = 1
         self.sc_ffmpeg_abi_version = ctypes.CFUNCTYPE(ctypes.c_int)(lambda: version)
@@ -88,7 +83,6 @@ class FakeNative:
         self.sc_ffmpeg_cancel = ctypes.CFUNCTYPE(None, ctypes.c_int64)(self._cancel)
 
     def _start(self, argc: int, argv: Any, in_fd: int, out_fd: int, err_fd: int) -> int:
-        began = time.monotonic()
         if self.start_result is not None:
             return self.start_result
         assert argv[argc] is None
@@ -104,14 +98,11 @@ class FakeNative:
         session_id = self._next
         self._next += 1
         self.sessions[session_id] = session
-        self.start_durations.append(time.monotonic() - began)
         self.started.release()
         return session_id
 
     def _ffmpeg(self, session: Session, in_fd: int, out_fd: int, err_fd: int) -> None:
         try:
-            if self.start_delay:
-                threading.Event().wait(self.start_delay)
             if in_fd >= 0:
                 chunks = []
                 while chunk := os.read(in_fd, 65536):
@@ -168,6 +159,24 @@ class Blocking(FakeNative):
         self.waited.append(session_id)
         session.thread.join(BOUND_SEC)
         return -9 if session.cancelled.is_set() and self.code == 0 else self.code
+
+
+class Gated(FakeNative):
+    """The tool runs only once ``release`` is set."""
+
+    def _ffmpeg(self, session: Session, in_fd: int, out_fd: int, err_fd: int) -> None:
+        self.release.wait(BOUND_SEC)
+        super()._ffmpeg(session, in_fd, out_fd, err_fd)
+
+
+class CountingEvent(threading.Event):
+    def __init__(self) -> None:
+        super().__init__()
+        self.waits = 0
+
+    def wait(self, timeout: float | None = None) -> bool:
+        self.waits += 1
+        return super().wait(timeout)
 
 
 class SlowWait(Blocking):
@@ -561,7 +570,7 @@ def test_the_cancel_poll_constant_is_pinned() -> None:
 
 def test_cancel_reaches_native_within_a_few_polls() -> None:
     fake = Blocking()
-    cancel = threading.Event()
+    cancel = CountingEvent()
     runner = threading.Thread(
         target=NativeFFmpegBackend(fake).run,
         args=([IN_PROCESS_FFMPEG], Streams(None, None, None), cancel),
@@ -569,23 +578,32 @@ def test_cancel_reaches_native_within_a_few_polls() -> None:
     )
     runner.start()
     assert fake.started.acquire(timeout=BOUND_SEC)
-    began = time.monotonic()
     cancel.set()
     assert fake.cancelled.wait(BOUND_SEC)
-    assert time.monotonic() - began < 10 * native_ffmpeg._CANCEL_POLL_SEC
+    assert 1 <= cancel.waits <= 10
     runner.join(BOUND_SEC)
     assert not runner.is_alive()
 
 
 def test_start_never_waits_for_the_tool() -> None:
-    fake = FakeNative(start_delay=0.4)
-    began = time.monotonic()
-    code = NativeFFmpegBackend(fake).run(
-        [IN_PROCESS_FFMPEG], Streams(None, None, None), threading.Event()
+    fake = Gated()
+    codes: list[int] = []
+    runner = threading.Thread(
+        target=lambda: codes.append(
+            NativeFFmpegBackend(fake).run(
+                [IN_PROCESS_FFMPEG], Streams(None, None, None), threading.Event()
+            )
+        ),
+        daemon=True,
     )
-    assert code == 0
-    assert time.monotonic() - began >= 0.4
-    assert fake.start_durations and fake.start_durations[0] < 0.25
+    runner.start()
+    assert fake.started.acquire(timeout=BOUND_SEC)
+    assert not fake.finished.is_set()
+    assert not codes
+    fake.release.set()
+    runner.join(BOUND_SEC)
+    assert not runner.is_alive()
+    assert codes == [0]
 
 
 def test_a_dlopen_failure_is_unavailable_not_an_error(
@@ -690,26 +708,35 @@ def test_install_native_backend_installs_once_and_serves_spawns(
 def test_install_native_backend_is_safe_to_race(
     host: None, monkeypatch: pytest.MonkeyPatch, uninstall: None
 ) -> None:
-    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: FakeNative())
-    gate = threading.Barrier(2, timeout=0.3)
-    real = native_ffmpeg.is_available
 
-    def gated() -> bool:
-        with contextlib.suppress(threading.BrokenBarrierError):
-            gate.wait()
-        return real()
+    def slow_open(*args: Any, **kwargs: Any) -> FakeNative:
+        threading.Event().wait(0.05)
+        return FakeNative()
 
-    monkeypatch.setattr(native_ffmpeg, "is_available", gated)
+    monkeypatch.setattr(ctypes, "CDLL", slow_open)
+    installs: list[object] = []
+    real_using = process.using_in_process_backend
+
+    def counting(backend: Any) -> Any:
+        installs.append(backend)
+        return real_using(backend)
+
+    monkeypatch.setattr(process, "using_in_process_backend", counting)
+    gate = threading.Barrier(2, timeout=BOUND_SEC)
     results: list[bool] = []
-    threads = [
-        threading.Thread(target=lambda: results.append(native_ffmpeg.install_native_backend()))
-        for _ in range(2)
-    ]
+
+    def racer() -> None:
+        gate.wait()
+        results.append(native_ffmpeg.install_native_backend())
+
+    threads = [threading.Thread(target=racer) for _ in range(2)]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join(BOUND_SEC)
     assert results == [True, True]
+    assert len(installs) == 1
+    assert native_ffmpeg._installed is not None
 
 
 def test_install_native_backend_declines_without_the_library(host: None, uninstall: None) -> None:
