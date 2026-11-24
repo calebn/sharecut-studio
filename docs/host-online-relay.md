@@ -12,8 +12,8 @@ Guest browser / MCP client
   Caddy + podcast-relay (operator host or local Compose)
         │  proxy via tunnel
         ▼
-  host tunnel (your laptop, outbound only): Studio brings it up itself,
-  or you run `podcast tunnel`
+  host tunnel (your laptop, outbound only), which Studio brings up itself
+  or you run as `podcast tunnel`
         │
         ▼
   podcast gui  ←→  episode.sharecut + artifacts
@@ -36,7 +36,7 @@ or iPad.
 `TunnelSupervisor` (`services/collaboration/tunnel_supervisor.py`) runs in the GUI
 process, entered from the GUI lifespan when the `tunnel.status` feature is present. It
 runs `TunnelClient` in-process against the real listen port, so a packaged app that
-binds an ephemeral port needs no `local_gui_url`: the supervisor replaces it with
+binds an ephemeral port needs no `local_gui_url`, because the supervisor replaces it with
 `http://127.0.0.1:<listen port>`. The tunnel still proxies to the GUI over loopback
 HTTP, so the relayed header and the path allowlist stay in force.
 
@@ -99,7 +99,7 @@ enforced-by:
 
 Studio connects on open when the project has a live link and on a mint, polls every
 2 s, lingers 120 s after the last link ends, and yields to a live `podcast tunnel`.
-Open for the owner: the connection at launch is egress with no click, allowed here
+Open for the owner. The connection at launch is egress with no click, allowed here
 because the host set up relay settings themselves. The owner can ask for "only on
 mint", a one-row change in `plan` (require a change observed since start).
 
@@ -256,8 +256,8 @@ docker compose -f deploy/relay/docker-compose.yml up --build
 # 2. Start the local GUI authority
 podcast gui --project /path/to/episode.sharecut --no-open
 
-# 3. Open the tunnel (advertises your project's share tokens). Skip this when you
-#    use Studio: it brings the tunnel up itself once relay settings exist.
+# 3. Open the tunnel (advertises your project's share tokens). Studio does this
+#    itself once relay settings exist, so skip it when you use Studio.
 podcast tunnel \
   --project /path/to/episode.sharecut \
   --relay-url ws://127.0.0.1:8080/tunnel \

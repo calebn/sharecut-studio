@@ -182,15 +182,13 @@ export function createRecoveryOf(
   return { kind: "error" };
 }
 
-const NOT_SET_UP_WARNING =
-  "Link created, but online sharing isn't set up on this computer, so guests can't open it yet. How to set it up is in docs/host-online-relay.md.";
-
 const WARNING_COPY: Readonly<
   Record<string, (warning: HostShareWarning) => string>
 > = {
   object_store_cors: (warning) =>
     `Link created, but its bucket has no CORS rule for ${warning.origin ?? "the share origin"}, so guests stream through your connection until you add one. The rule to paste is in docs/host-online-relay.md.`,
-  online_sharing_not_set_up: () => NOT_SET_UP_WARNING,
+  online_sharing_not_set_up: () =>
+    "Link created, but online sharing isn't set up on this computer, so guests can't open it yet. How to set it up is in docs/host-online-relay.md.",
 };
 
 /** The line to show after a mint that came back with a warning the host can act on, else null. */

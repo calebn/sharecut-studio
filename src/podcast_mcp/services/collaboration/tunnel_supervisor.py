@@ -1,4 +1,4 @@
-"""TunnelSupervisor - brings the host tunnel up inside the Studio process on its own.
+"""TunnelSupervisor brings the host tunnel up inside the Studio process on its own.
 
 ``plan`` is the whole policy: given one snapshot of the world it names the single tunnel that
 should exist. The supervisor only converges to it, so a missed tick costs latency, never a wrong
@@ -194,8 +194,6 @@ class TunnelSupervisor:
         while True:
             try:
                 await self._tick()
-            except asyncio.CancelledError:
-                raise
             except Exception as exc:
                 log.warning("Studio tunnel supervisor tick failed: %s", type(exc).__name__)
             await asyncio.sleep(POLL_SEC)
