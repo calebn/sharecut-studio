@@ -371,6 +371,9 @@ jobs:
           npm run build
 
       - name: Freeze extension sidecar without credentials
+        env:
+          PODCAST_OWNER_CDN_BASE: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
+          PODCAST_REQUIRE_OWNER_CDN: "1"
         run: |
           export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
           rustc --version
@@ -453,6 +456,9 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      PODCAST_OWNER_CDN_BASE: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
+      PODCAST_REQUIRE_OWNER_CDN: "1"
     steps:
       # This runs before checkout and therefore cannot execute candidate source.
       - name: Require trusted source for signing
