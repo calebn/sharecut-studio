@@ -791,6 +791,15 @@ def ensure_ffmpeg_payload(runtime: Path, triple: str) -> None:
     subprocess.run(command, check=True, timeout=600)
 
 
+def stage_owner_cdn() -> None:
+    """Record the owner CDN base in the source tree so the wheel built next carries it."""
+    command = [sys.executable, str(ROOT / "scripts/owner_cdn.py")]
+    if base := os.environ.get("PODCAST_OWNER_CDN_BASE", "").strip():
+        subprocess.run([*command, "write", "--base", base], check=True, timeout=60)
+    if os.environ.get("PODCAST_REQUIRE_OWNER_CDN") == "1":
+        subprocess.run([*command, "check", "--require"], check=True, timeout=60)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     binaries: Path = args.out
@@ -859,6 +868,7 @@ def main(argv: list[str] | None = None) -> int:
     runtime.mkdir(parents=True, exist_ok=True)
     clear_freeze_complete(runtime)
     copy_web_dist(runtime, rebuild=args.rebuild_web)
+    stage_owner_cdn()
     freeze_python(runtime, extension_wheels_dir=args.extension_wheels_dir)
     ensure_ffmpeg_payload(runtime, triple)
     compile_launchers(binaries, triple)

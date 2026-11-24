@@ -912,3 +912,39 @@ def test_uv_export_of_real_lock_pins_locked_typer(tmp_path: Path) -> None:
     assert f"typer=={typer_version}" in requirements
     (aaf_version,) = mod.locked_versions((ROOT / "uv.lock").read_text(), ("pyaaf2",))["pyaaf2"]
     assert f"pyaaf2=={aaf_version}" in requirements
+
+
+def _owner_cdn_calls(monkeypatch, mod):
+    calls = []
+    monkeypatch.setattr(mod.subprocess, "run", lambda argv, **kwargs: calls.append(argv))
+    return calls
+
+
+def test_sidecar_writes_the_owner_cdn_base_only_when_one_is_set(monkeypatch):
+    mod = _load_build_sidecar()
+    monkeypatch.delenv("PODCAST_OWNER_CDN_BASE", raising=False)
+    monkeypatch.delenv("PODCAST_REQUIRE_OWNER_CDN", raising=False)
+    calls = _owner_cdn_calls(monkeypatch, mod)
+    mod.stage_owner_cdn()
+    assert calls == []
+    monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", "https://cdn.example.test")
+    mod.stage_owner_cdn()
+    assert len(calls) == 1
+    assert str(ROOT / "scripts/owner_cdn.py") in calls[0]
+    assert calls[0][-3:] == ["write", "--base", "https://cdn.example.test"]
+
+
+def test_official_sidecar_build_requires_the_generated_base(monkeypatch):
+    mod = _load_build_sidecar()
+    monkeypatch.setenv("PODCAST_REQUIRE_OWNER_CDN", "1")
+    monkeypatch.delenv("PODCAST_OWNER_CDN_BASE", raising=False)
+    calls = _owner_cdn_calls(monkeypatch, mod)
+    mod.stage_owner_cdn()
+    assert [call[-2:] for call in calls] == [["check", "--require"]]
+    calls.clear()
+    monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", "https://cdn.example.test")
+    mod.stage_owner_cdn()
+    assert [call[-3:] if "write" in call else call[-2:] for call in calls] == [
+        ["write", "--base", "https://cdn.example.test"],
+        ["check", "--require"],
+    ]
