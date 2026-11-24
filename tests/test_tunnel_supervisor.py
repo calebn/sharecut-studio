@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 from filelock import FileLock
+from tests.polling import until, yield_to_loop
 from tests.record_links import make_project, mint_record_link
 
 from podcast_mcp.config.runtime import RelayConfig
@@ -160,17 +161,6 @@ def rig(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Rig:
     return Rig(make_project(tmp_workspace), monkeypatch)
 
 
-async def _settle() -> None:
-    for _ in range(3):
-        await asyncio.sleep(0)
-
-
-async def _until(check: Any, *, timeout: float = 5.0) -> None:
-    async with asyncio.timeout(timeout):
-        while not check():
-            await asyncio.sleep(0.01)
-
-
 @asynccontextmanager
 async def _stopped_after(supervisor: TunnelSupervisor) -> AsyncIterator[None]:
     try:
@@ -186,7 +176,7 @@ async def test_starts_once_then_readvertises_on_link_change(rig: Rig) -> None:
 
     async with _stopped_after(supervisor):
         await supervisor._tick()
-        await _settle()
+        await yield_to_loop()
         mint_record_link(rig.project)
         await supervisor._tick()
         mint_record_link(rig.project)
@@ -224,7 +214,7 @@ async def test_fatal_rejection_parks_until_config_changes(
     async with _stopped_after(supervisor):
         for _ in range(10):
             await supervisor._tick()
-            await _settle()
+            await yield_to_loop()
         assert len(rig.clients) == 1
         assert supervisor.plan == Idle(IdleReason.REJECTED)
 
@@ -265,12 +255,12 @@ async def test_second_supervisor_yields_while_lock_held(
 
     async with AsyncExitStack() as stack:
         await stack.enter_async_context(first.running())
-        await _until(lambda: len(rig.clients) == 1)
+        await until(lambda: len(rig.clients) == 1)
         async with second.running():
-            await _until(lambda: second.plan == Idle(IdleReason.ELSEWHERE))
+            await until(lambda: second.plan == Idle(IdleReason.ELSEWHERE))
             assert len(rig.clients) == 1
             await first._shutdown()
-            await _until(lambda: isinstance(second.plan, Serve))
+            await until(lambda: isinstance(second.plan, Serve))
 
     assert len(rig.clients) == 2
 
@@ -283,12 +273,12 @@ async def test_not_capable_host_starts_nothing(rig: Rig, monkeypatch: pytest.Mon
 
     with host_platform.using(host_platform.IOS):
         async with supervisor.running():
-            await asyncio.sleep(0.1)
+            await yield_to_loop(10)
             assert supervisor.plan == Idle(IdleReason.NOT_CAPABLE)
     assert rig.clients == []
 
     async with rig.supervisor().running():
-        await _until(lambda: len(rig.clients) == 1)
+        await until(lambda: len(rig.clients) == 1)
 
 
 @pytest.mark.asyncio
@@ -300,14 +290,14 @@ async def test_request_stop_from_another_thread_stops_client(
     supervisor = rig.supervisor()
 
     async with supervisor.running():
-        await _until(lambda: len(rig.clients) == 1 and rig.clients[0].runs == 1)
+        await until(lambda: len(rig.clients) == 1 and rig.clients[0].runs == 1)
         serving = supervisor._serving
         assert serving is not None
         threading.Thread(target=supervisor.request_stop).start()
-        await _until(lambda: serving.task.done())
+        await until(lambda: serving.task.done())
         assert serving.task.cancelled()
-        await _until(lambda: _lock_is_free(serving.relay))
-        await asyncio.sleep(0.05)
+        await until(lambda: _lock_is_free(serving.relay))
+        await yield_to_loop(10)
         assert len(rig.clients) == 1
 
 

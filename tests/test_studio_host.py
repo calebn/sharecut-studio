@@ -328,7 +328,7 @@ def test_relayed_output_loses_terminal_control_characters() -> None:
 def test_quit_signal_cancels_handed_off_commands_before_uvicorn_drains() -> None:
     from types import SimpleNamespace
 
-    from podcast_mcp.gui.bind import _cancel_handed_off_commands_on_exit
+    from podcast_mcp.gui.bind import _stop_background_work_on_exit
     from podcast_mcp.gui.routes import handoff
 
     state = handoff.StudioHostState("127.0.0.1")
@@ -338,7 +338,7 @@ def test_quit_signal_cancels_handed_off_commands_before_uvicorn_drains() -> None
     seen: list[int] = []
     server = SimpleNamespace(handle_exit=lambda sig, frame: seen.append(sig))
 
-    _cancel_handed_off_commands_on_exit(server, app)
+    _stop_background_work_on_exit(server, app)
     server.handle_exit(2, None)
 
     assert run.cancel.is_set()
