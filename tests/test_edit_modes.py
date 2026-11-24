@@ -37,6 +37,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import EditService, TimelineService
 from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
+from podcast_mcp.services.document.delete_clips_results import DeleteClipsHeld
 from podcast_mcp.services.document_sync import (
     INTERACTIVE_COMMAND,
     DocumentCommand,
@@ -331,7 +332,7 @@ def test_deleting_touching_clips_on_two_tracks_asks_for_an_unselected_clips_word
 
     out = service.delete_clips(["h1", "gB"], mode=EditMode.RIPPLE)
 
-    (track,) = out["needs_confirmation"]["speech"]["tracks"]
+    (track,) = out.needs_confirmation["speech"]["tracks"]
     assert track["track_id"] == "host"
     assert [(w["text"], w["timeline_start"]) for w in track["words"]] == [("world", 9.0)]
     assert _geometry(episode) == before
@@ -578,7 +579,7 @@ def test_ripple_delete_clip_over_another_speakers_words_asks_first(episode):
     before = _geometry(episode)
 
     out = service.delete_clips(["h2"], mode=EditMode.RIPPLE)
-    assert out["needs_confirmation"]["message"] == GUEST_WORDS + CUT_REVIEW
+    assert out.needs_confirmation["message"] == GUEST_WORDS + CUT_REVIEW
     assert _geometry(episode) == before
 
     service.delete_clips(
@@ -667,7 +668,7 @@ def test_a_ripple_range_cut_naming_no_tracks_asks_before_cutting_anyones_speech(
 def test_ripple_delete_clip_closes_the_span_on_every_track(episode):
     out = TimelineService(ProjectWorkspace.open(episode)).delete_clips(["h1"], mode=EditMode.RIPPLE)
 
-    assert out["operation"] == "ripple_delete_clips"
+    assert out.operation == "ripple_delete_clips"
     _assert_in_sync(episode, (8.5, 10.2, 19.0), -8.0)
 
 
@@ -739,7 +740,7 @@ def test_ripple_paste_opens_time_on_every_track(episode):
 def test_gap_mode_leaves_an_exact_gap_and_moves_nothing_downstream(episode, run, host_after):
     out = run(episode)
 
-    assert "needs_confirmation" not in out
+    assert not isinstance(out, DeleteClipsHeld)
     geometry = _geometry(episode)
     assert [row for row in geometry if row[0] == "guest"] == [("guest", 0.0, 20.0, 0.0)]
     assert [row for row in geometry if row[0] == "host"] == host_after
@@ -857,7 +858,7 @@ def test_a_commenters_ripple_suggestion_records_that_approval_must_confirm(episo
     suggestion = TimelineService(service.ws).delete_clips(
         ["h2"], mode=EditMode.RIPPLE, propose=True
     )
-    (edit,) = suggestion["edits"]
+    (edit,) = suggestion.edits
     assert edit["scope"] == "session"
     assert [w["text"] for w in edit["cut_speech"]["tracks"][0]["words"]] == ["so", "the", "plan"]
     before = _geometry(episode)

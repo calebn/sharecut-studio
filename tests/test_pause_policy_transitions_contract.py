@@ -706,7 +706,7 @@ def test_exact_occurrence_and_direct_clip_actions_preserve_the_other_source_copy
         assert applied["proposed"] is False
     else:
         applied = TimelineService(service.ws).delete_clips(["selected-copy"], mode=EditMode.GAP)
-        assert applied["operation"] == "delete_clips"
+        assert applied.operation == "delete_clips"
     saved = load_project(ws.path)
     assert [
         (c.id, c.track_id, c.source_id, c.source_start, c.source_end, c.timeline_start)

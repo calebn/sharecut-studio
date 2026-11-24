@@ -491,8 +491,8 @@ def test_delete_clips_propose_ripple(minimal_project, dialogue_wav):
     out = TimelineService(ws).delete_clips(
         [clip_id], mode=EditMode.RIPPLE, propose=True, reason="guest:ripple"
     )
-    assert out["operation"] == "propose_delete_clips"
-    assert out["mode"] == "ripple"
+    assert out.operation == "propose_delete_clips"
+    assert out.mode == "ripple"
     assert any(e.reason == "guest:ripple" for e in ws.project.edit_decisions)
 
 

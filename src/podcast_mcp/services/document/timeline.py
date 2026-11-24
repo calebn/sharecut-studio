@@ -64,6 +64,11 @@ from podcast_mcp.services.document.bleed_inspection import (
 from podcast_mcp.services.document.chapter_results import DeletedChapter, RemovedChapter
 from podcast_mcp.services.document.clip_fade import apply_clip_fade, apply_clips_fade
 from podcast_mcp.services.document.clip_gain import apply_clip_gain, apply_clips_gain
+from podcast_mcp.services.document.delete_clips_results import (
+    DeleteClipsApplied,
+    DeleteClipsHeld,
+    DeleteClipsProposal,
+)
 from podcast_mcp.services.document.join_analysis import _JoinAnalysis
 from podcast_mcp.services.document.join_mode_results import SetClipJoinResult, SetJoinModeResult
 from podcast_mcp.services.document.service_base import CutMutatingService
@@ -93,6 +98,12 @@ from .boundary import (
 
 log = logging.getLogger(__name__)
 T = TypeVar("T")
+
+
+def _delete_clips_result(out: dict[str, Any]) -> DeleteClipsApplied | DeleteClipsHeld:
+    if "needs_confirmation" in out:
+        return DeleteClipsHeld(**out)
+    return DeleteClipsApplied(**out)
 
 
 class TimelineService(CutMutatingService, _JoinAnalysis):
@@ -561,7 +572,7 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         reason: str | None = None,
         author: str | None = None,
         application_intent: CutIntent = CutIntent.PROGRAMMATIC,
-    ) -> dict:
+    ) -> DeleteClipsProposal | DeleteClipsApplied | DeleteClipsHeld:
         """Delete clips: ripple closes their spans on every track; gap leaves silence.
 
         A proposal appends one pending remove per clip. A suggested ripple that would
@@ -570,7 +581,7 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         ripple = mode is EditMode.RIPPLE
         if propose:
 
-            def suggest(p: EpisodeProject) -> dict:
+            def suggest(p: EpisodeProject) -> DeleteClipsProposal:
                 plan_delete_clips(p, clip_ids)
                 by_id = {c.id: c for c in p.clips}
                 edits = []
@@ -597,29 +608,35 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
                             p, plan_delete_clips(p, [cid]), defaults=self.ws.effective_config()
                         )
                     edits.append(decision.model_dump(mode="json", exclude={"bound_pad"}))
-                return {"operation": "propose_delete_clips", "mode": mode.value, "edits": edits}
+                return DeleteClipsProposal(
+                    operation="propose_delete_clips", mode=mode.value, edits=edits
+                )
 
             label = "ripple delete clips" if ripple else "delete clips"
             return self.ws.mutate(f"before {label}", f"after {label}", suggest)
         if not ripple:
             with self.ws.transaction() as project:
-                return self._apply_cut(
-                    "delete clips",
-                    plan_delete_clips(project, clip_ids),
-                    clip_ids=tuple(clip_ids),
-                    operation="delete_clips",
-                    application_intent=application_intent,
-                    ripple=False,
-                    params={"clip_ids": list(clip_ids), "mode": mode.value},
+                return _delete_clips_result(
+                    self._apply_cut(
+                        "delete clips",
+                        plan_delete_clips(project, clip_ids),
+                        clip_ids=tuple(clip_ids),
+                        operation="delete_clips",
+                        application_intent=application_intent,
+                        ripple=False,
+                        params={"clip_ids": list(clip_ids), "mode": mode.value},
+                    )
                 )
         with self.ws.transaction() as project:
-            return self._apply_cut(
-                "ripple delete clips",
-                plan_delete_clips(project, clip_ids),
-                clip_ids=tuple(clip_ids),
-                operation="ripple_delete_clips",
-                application_intent=application_intent,
-                params={"clip_ids": list(clip_ids), "mode": mode.value},
+            return _delete_clips_result(
+                self._apply_cut(
+                    "ripple delete clips",
+                    plan_delete_clips(project, clip_ids),
+                    clip_ids=tuple(clip_ids),
+                    operation="ripple_delete_clips",
+                    application_intent=application_intent,
+                    params={"clip_ids": list(clip_ids), "mode": mode.value},
+                )
             )
 
     def duplicate_segment(
