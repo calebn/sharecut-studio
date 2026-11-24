@@ -95,6 +95,20 @@ Four tools mirror the CLI for a host agent: `segment_list_tool`, `segment_show_t
 
 `segment_insert_tool` submits `InsertSegment` on the document plane as `mcp:host`, so the edit is journaled, reaches an open Studio tab and is one undo step. It is applied, not held as a pending proposal: pending proposals in this codebase are `EditDecision` records of type remove, mute or split, which the host approves or rejects, and an insert that opens time and adds tracks and sources has no such record. Call it with `dry_run=true` first. The report holds `timeline_duration_before_sec` and `timeline_duration_after_sec`, `clips_moved`, `clips_added` (split halves included), `chapters_moved`, `chapter_added`, `comments_moved`, `pending_edits_moved`, `tracks_added` and the lane to track map. It is computed on a copy of the project with the library audio hash-checked and probed in place (read-only), so a clip whose audio is more than 50 ms shorter than its declared duration is refused as the real insert refuses it (`segment_media_invalid`), and nothing is written, journaled or added to `raw/`. The project is read where it is: a workspace still under its retired entry-file name (see `project-format.md`) is not renamed by a dry run, `segment_save_tool` or `podcast segment save`. The CLI JSON and MCP reports give clip counts. They omit the IDs of the new clips. The real insert result carries `dry_run: false`. A `time_range` such as `0:00-1:15` takes minutes and seconds below 60 and at most 24 hours (`segment_range_invalid`).
 
+## Studio routes
+
+Studio reads the library through five host-only routes (`gui/routes/segments.py`). They sit behind the host gate and the Host/Origin binding like `/api/feed`, are never on the guest allowlist, and call the same services as the CLI and the host MCP tools, so a refusal carries the same code in the `X-Sharecut-Error-Code` header.
+
+| Route | What it does |
+|---|---|
+| `GET /api/segments` | The newest version of each segment with its version numbers, then a `damaged` row for each unreadable one. |
+| `GET /api/segments/{id}` | One segment, as `podcast segment show --json`. `segment_unknown` is 404. |
+| `GET /api/segments/{id}/audio?clip=N&version=V` | One clip's FLAC for a preview (`no-store`). The segment is read with its hashes checked first, so changed media is `segment_hash_mismatch` and a clip or version that is not there is 404. A segment with several lanes previews one clip at a time; a mixed preview is not built. |
+| `POST /api/segments` | Save clips (`clip_ids`) or a range (`time_range`, such as `0:00-0:22`) of the episode at `path`, with `name`, optional `kind` and `role`. Returns `{status, id, version}`. The episode is not changed. |
+| `DELETE /api/segments/{id}` | Remove every version, damaged or not. Episodes that used it keep their copies. |
+
+`segment_busy` is 409, `segment_unknown` is 404 and every other refusal is 400. `gui/web/src/api/segments.ts` is the typed client. Inserting a segment is not a route: Studio submits the `InsertSegment` document command like any other edit.
+
 ## Show kit
 
 A kit is an ordered list of library segments with where each goes, for example an intro at the start and an outro at the end. A new episode applies it in one command. The kit is offered, never applied by itself: nothing in the app applies a kit unless someone runs `kit apply` or calls `kit_apply_tool`. Inserting at `start` ripples later audio, as every insert does.

@@ -924,6 +924,36 @@
     },
     {
       "gate": "host",
+      "handler": "podcast_mcp.gui.routes.segments:list_segments",
+      "method": "GET",
+      "path": "/api/segments"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.segments:save_segment_route",
+      "method": "POST",
+      "path": "/api/segments"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.segments:remove_segment",
+      "method": "DELETE",
+      "path": "/api/segments/{segment_id}"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.segments:get_segment",
+      "method": "GET",
+      "path": "/api/segments/{segment_id}"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.segments:segment_audio",
+      "method": "GET",
+      "path": "/api/segments/{segment_id}/audio"
+    },
+    {
+      "gate": "host",
       "handler": "podcast_mcp.gui.routes.document:session_suggestion_hear",
       "method": "GET",
       "path": "/api/session-suggestion/hear"

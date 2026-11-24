@@ -30,6 +30,7 @@ EXEMPT: dict[tuple[str, str], str] = {}
 
 NEW_PREFIXES = (
     "/api/feed",
+    "/api/segments",
     "/api/speaker",
     "/api/boundary",
     "/api/session-suggestion",
