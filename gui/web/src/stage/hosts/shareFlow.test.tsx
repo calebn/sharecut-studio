@@ -1110,6 +1110,9 @@ describe("stopping a link", () => {
   });
 });
 
+const NOT_SET_UP_COPY =
+  "Link created, but online sharing isn't set up on this computer, so guests outside this network can't open it yet. How to set it up is in docs/host-online-relay.md.";
+
 describe("record rooms", () => {
   const room = {
     session_id: "sess1",
@@ -1148,6 +1151,41 @@ describe("record rooms", () => {
     await waitFor(() =>
       expect(flow.error).toBe(
         "Your new room is ready. Earlier links may still work. End earlier rooms in Invite to turn them off. Creating another room may end this one.",
+      ),
+    );
+  });
+
+  it("tells the host when a new room's links cannot be opened from outside this network", async () => {
+    setClipboard({ writeText: vi.fn().mockResolvedValue(undefined) });
+    createHostRecordRoom.mockResolvedValue({
+      ...room,
+      guest: {
+        ...guestRow,
+        warnings: [{ code: "online_sharing_not_set_up" }],
+      },
+    });
+    listHostShares.mockResolvedValue(listed([guestRow, producerRow]));
+    mount();
+    act(() => flow.createRecord());
+    await waitFor(() => expect(flow.error).toBe(NOT_SET_UP_COPY));
+  });
+
+  it("puts the not-set-up line before the earlier-links line", async () => {
+    setClipboard({ writeText: vi.fn().mockResolvedValue(undefined) });
+    createHostRecordRoom.mockResolvedValue({
+      ...room,
+      linksStale: true,
+      guest: {
+        ...guestRow,
+        warnings: [{ code: "online_sharing_not_set_up" }],
+      },
+    });
+    listHostShares.mockResolvedValue(listed([guestRow, producerRow]));
+    mount();
+    act(() => flow.createRecord());
+    await waitFor(() =>
+      expect(flow.error).toBe(
+        `${NOT_SET_UP_COPY} Your new room is ready. Earlier links may still work. End earlier rooms in Invite to turn them off. Creating another room may end this one.`,
       ),
     );
   });
@@ -1276,6 +1314,19 @@ describe("record rooms", () => {
     expect(writeText).toHaveBeenCalledWith(replacement.url);
     expect(announcement()).toBe("Guest link replaced and copied");
     await waitFor(() => expect(flow.rows).toHaveLength(2));
+  });
+
+  it("tells the host when a replaced invite cannot be opened from outside this network", async () => {
+    setClipboard({ writeText: vi.fn().mockResolvedValue(undefined) });
+    replaceHostRecordInvite.mockResolvedValue({
+      ...guestRow,
+      token: "replacement-guest-token",
+      warnings: [{ code: "online_sharing_not_set_up" }],
+    });
+    listHostShares.mockResolvedValue(listed([guestRow]));
+    mount();
+    act(() => flow.replaceInvite("closed-guest-token"));
+    await waitFor(() => expect(flow.error).toBe(NOT_SET_UP_COPY));
   });
 
   it("names a replaced producer invite", async () => {

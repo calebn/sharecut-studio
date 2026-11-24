@@ -533,12 +533,12 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
           announce("Record links created");
         }
         await load(scope);
-        if (room.linksStale && isCurrent(scope)) {
-          setError((now) =>
-            now
-              ? `${now} ${STALE_ROOM_LINKS_WARNING}`
-              : STALE_ROOM_LINKS_WARNING,
-          );
+        const notes = [
+          shareWarning(room.guest),
+          room.linksStale ? STALE_ROOM_LINKS_WARNING : null,
+        ].filter((note) => note !== null);
+        if (notes.length > 0 && isCurrent(scope)) {
+          setError((now) => [now, ...notes].filter(Boolean).join(" "));
         }
       } catch (err) {
         if (isCurrent(scope)) setError(errorMessage(err));
@@ -587,6 +587,10 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
             announce("Record invite replaced");
           }
           await load(scope);
+          const warning = shareWarning(share);
+          if (warning && isCurrent(scope)) {
+            setError((now) => (now ? `${now} ${warning}` : warning));
+          }
         } catch (err) {
           if (isCurrent(scope)) setError(errorMessage(err));
         } finally {

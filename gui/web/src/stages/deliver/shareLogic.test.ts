@@ -263,7 +263,7 @@ describe("shareWarning", () => {
       hostShareRow({ warnings: [{ code: "online_sharing_not_set_up" }] }),
     );
     expect(copy).toBe(
-      "Link created, but online sharing isn't set up on this computer, so guests can't open it yet. How to set it up is in docs/host-online-relay.md.",
+      "Link created, but online sharing isn't set up on this computer, so guests outside this network can't open it yet. How to set it up is in docs/host-online-relay.md.",
     );
   });
   it("reads the first warning it has copy for", () => {

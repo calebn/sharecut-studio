@@ -188,7 +188,7 @@ const WARNING_COPY: Readonly<
   object_store_cors: (warning) =>
     `Link created, but its bucket has no CORS rule for ${warning.origin ?? "the share origin"}, so guests stream through your connection until you add one. The rule to paste is in docs/host-online-relay.md.`,
   online_sharing_not_set_up: () =>
-    "Link created, but online sharing isn't set up on this computer, so guests can't open it yet. How to set it up is in docs/host-online-relay.md.",
+    "Link created, but online sharing isn't set up on this computer, so guests outside this network can't open it yet. How to set it up is in docs/host-online-relay.md.",
 };
 
 export function shareWarning(share: HostShareRow): string | null {
