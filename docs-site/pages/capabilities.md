@@ -39,7 +39,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Follow | session | `presence.follow` | — (not industry-standard; avatar click) | — | `presence.avatarStack` | `get_session_presence_tool` | — | — | — | none · none |
 | Go to where they are | session | `presence.goTo` | — (not industry-standard; avatar menu) | — | `presence.goTo` | — | — (viewer navigation: an agent has no viewport to move) | — | — | none · none |
 | Stop following | session | `presence.unfollow` | `Escape` | — | `presence.followPill` | — | — | — | — | none · none |
-| Clear selection | session | `edit.clearSelection` | `Escape` | — | `scriptHeader` | — | — | — | — | none · none |
+| Clear selection | session | `edit.clearSelection` | `Escape` | — | `scriptHeader`, `actionBar.clearSelection` | — | — | — | — | none · none |
 | Dismiss message | session | `feedback.dismiss` | `Escape` | — | — | — | — | — | — | — |
 | Next occurrence | session | `edit.nextOccurrence` | `Tab` | — | — | — | — | — | — | — |
 | Create here | view | `create.menu` | `Shift+F10` | — | — | — | — | — | — | — |

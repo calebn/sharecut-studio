@@ -441,7 +441,11 @@ function Dock({
   moreRequest,
 }: FormProps) {
   const grip = items.some((item) => item.id === "inspect");
-  const folded = foldDock(items, more, primary !== undefined);
+  const folded = foldDock(
+    items,
+    more,
+    (primary !== undefined ? 1 : 0) + (trailing ? 1 : 0),
+  );
   const gated = folded.items.find((item) => item.disabledReason);
   const { note, describedBy } = useDisabledReasonNote(
     gated?.disabledReason,
@@ -482,10 +486,10 @@ function Dock({
         </div>
         {center ? <div className="sys-dock-slot">{center}</div> : null}
         <div className="sys-dock-slot sys-dock-slot--end">
-          {trailing}
           {primary ? (
             <PrimaryButton look="dock" item={primary} onVerb={onVerb} />
           ) : null}
+          {trailing}
         </div>
       </div>
     </>
@@ -498,6 +502,7 @@ function Floating({
   items,
   more = [],
   primary,
+  trailing,
   ariaLabel,
   onVerb,
   moreRequest,
@@ -545,6 +550,9 @@ function Floating({
         />
         {primary ? (
           <PrimaryButton look="floating" item={primary} onVerb={onVerb} />
+        ) : null}
+        {trailing ? (
+          <span className="sys-actions-trailing">{trailing}</span>
         ) : null}
       </div>
       {note}

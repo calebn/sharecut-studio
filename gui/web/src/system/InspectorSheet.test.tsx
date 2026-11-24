@@ -804,7 +804,11 @@ describe("InspectorSheet dock detent with a Close in the dock", () => {
     ));
     const first = phone({ dock });
     expect(dock).toHaveBeenLastCalledWith(true);
-    expect(screen.getAllByRole("button", { name: "Close" })).toHaveLength(1);
+    expect(
+      within(
+        first.container.querySelector(".sys-inspector-dock") as HTMLElement,
+      ).getAllByRole("button", { name: "Close" }),
+    ).toHaveLength(1);
     await expectNoA11yViolations(first.container);
     first.unmount();
     phone({ detent: "half", dock });
@@ -820,6 +824,10 @@ describe("InspectorSheet dock detent with a Close in the dock", () => {
     moveTo(500, 100);
     expect(sheet).toHaveAttribute("data-dragging");
     expect(dock).toHaveBeenLastCalledWith(false);
-    expect(screen.queryAllByRole("button", { name: "Close" })).toHaveLength(0);
+    expect(
+      within(
+        document.querySelector(".sys-inspector-dock") as HTMLElement,
+      ).queryAllByRole("button", { name: "Close" }),
+    ).toHaveLength(0);
   });
 });

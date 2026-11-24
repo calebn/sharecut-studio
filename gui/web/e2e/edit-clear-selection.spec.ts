@@ -67,7 +67,7 @@ async function dragRange(page: Page, touch: boolean): Promise<void> {
   await expect(clearIn(page)).toBeVisible();
 }
 
-async function expectReachable(page: Page, clear: Locator, touch: boolean) {
+async function expectReachable(clear: Locator, touch: boolean) {
   await expect(clear).toBeInViewport({ ratio: 1 });
   if (!touch) return;
   const bounds = await clear.boundingBox();
@@ -85,7 +85,7 @@ for (const { name, width, height, touch } of LAYOUTS) {
       const clip = await selectClip(page, touch);
       await withDocumentCommandTypes(page, async (commands) => {
         const clear = clearIn(page);
-        await expectReachable(page, clear, touch);
+        await expectReachable(clear, touch);
         await press(clear, touch);
         await expect(clip).toHaveAttribute("aria-pressed", "false");
         await expect(clearIn(page)).toHaveCount(0);
@@ -108,7 +108,7 @@ for (const { name, width, height, touch } of LAYOUTS) {
       await dragRange(page, touch);
       await withDocumentCommandTypes(page, async (commands) => {
         const clear = clearIn(page);
-        await expectReachable(page, clear, touch);
+        await expectReachable(clear, touch);
         await press(clear, touch);
         await expect(clearIn(page)).toHaveCount(0);
         await expect(page.locator(".lane-row .range-overlay")).toHaveCount(0);
@@ -135,7 +135,7 @@ test.describe("Clear selection at 200% text", () => {
       content: "html { font-size: 200%; }",
     });
     const clear = clearIn(page);
-    await expectReachable(page, clear, true);
+    await expectReachable(clear, true);
     await clear.tap();
     await expect(clip).toHaveAttribute("aria-pressed", "false");
     await enlarged.evaluate((node) => node.parentNode?.removeChild(node));

@@ -657,6 +657,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "presence.goTo": "daw.presence.goTo",
   "presence.followPill": "daw.presence.unfollow",
   scriptHeader: "daw.edit.clearSelection",
+  "actionBar.clearSelection": "daw.edit.clearSelection",
   timeline: "daw.edit.bladeCut",
   "timeline.createMenu": "daw.comment.draftAt",
   clipInspector: "daw.edit.moveClips",

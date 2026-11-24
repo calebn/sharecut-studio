@@ -65,19 +65,20 @@ export function slotsOf(items: readonly BarItem[]): BarItem[][] {
 }
 
 /**
- * The dock keeps `DOCK_VERB_SLOTS` verbs, the primary taking the last, and moves
- * the rest, in bar order, to the head of More. Inspect is the dock's grip and
- * More is drawn by the dock, so neither takes a slot.
+ * The dock keeps `DOCK_VERB_SLOTS` verbs less the `reserved` slots the primary
+ * and an end control take, and moves the rest, in bar order, to the head of
+ * More. Inspect is the dock's grip and More is drawn by the dock, so neither
+ * takes a slot.
  */
 export function foldDock(
   items: readonly BarItem[],
   more: readonly BarItem[],
-  hasPrimary: boolean,
+  reserved: number,
 ): { items: BarItem[]; more: BarItem[] } {
   const slots = slotsOf(
     items.filter((item) => item.id !== "more" && item.id !== "inspect"),
   );
-  const room = DOCK_VERB_SLOTS - (hasPrimary ? 1 : 0);
+  const room = DOCK_VERB_SLOTS - reserved;
   const kept = slots.slice(0, room).flat();
   const moved = slots.slice(room).flat();
   const splitRows = (rows: readonly BarItem[]) =>

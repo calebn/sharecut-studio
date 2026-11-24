@@ -279,7 +279,8 @@
       "surfaces": {
         "command": "edit.clearSelection",
         "gui": [
-          "scriptHeader"
+          "scriptHeader",
+          "actionBar.clearSelection"
         ],
         "keyboard": "Escape"
       },

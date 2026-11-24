@@ -74,7 +74,7 @@ export type InspectorCardProps = InspectorBase & {
 export type InspectorPhoneProps = InspectorBase & {
   form: "phone";
   /** The first detent. */
-  dock?: ReactNode;
+  dock?: ReactNode | ((atRest: boolean) => ReactNode);
   detent: InspectorDetent;
   onDetentChange: (detent: InspectorDetent) => void;
   /** Dragged down past the dock: the host clears the selection. */
@@ -335,6 +335,7 @@ function Phone({
   const samples = useRef<Sample[]>([]);
   const drag = useRef<Drag | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
+  const atRest = detent === "dock" && dragging === null;
   // A sheet that drops to the dock reopens at the top of its fields.
   useEffect(() => {
     if (detent !== "dock") return;
@@ -453,11 +454,10 @@ function Phone({
           <span className="sys-inspector-grip-bar" aria-hidden="true" />
         </div>
         <div className="sys-sheet sys-inspector-surface">
-          <div className="sys-inspector-dock">{dock}</div>
-          <div
-            className="sys-inspector-content"
-            inert={detent === "dock" && dragging === null}
-          >
+          <div className="sys-inspector-dock">
+            {typeof dock === "function" ? dock(atRest) : dock}
+          </div>
+          <div className="sys-inspector-content" inert={atRest}>
             <Header
               icon={icon}
               mark={mark}

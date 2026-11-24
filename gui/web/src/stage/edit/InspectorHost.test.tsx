@@ -1530,7 +1530,10 @@ describe("the Inspector sheet on the phone", () => {
     expect(grip).toHaveAttribute("aria-valuetext", "Full height");
     fireEvent.keyDown(grip, { key: "Home" });
     expect(grip).toHaveAttribute("aria-valuetext", "Dock");
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    const dock = document.querySelector<HTMLElement>(".sys-inspector-dock");
+    fireEvent.click(
+      within(dock as HTMLElement).getByRole("button", { name: "Close" }),
+    );
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(useDawStore.getState().selection).toMatchObject(TRACK);
   });
@@ -1676,7 +1679,10 @@ describe("the phone Inspector's Close at the dock detent", () => {
   const sheetEl = () => screen.getByRole("dialog", { name: "Inspector" });
   const grip = () => screen.getByRole("slider", { name: "Sheet height" });
   const toDock = () => fireEvent.keyDown(grip(), { key: "Home" });
-  const closes = () => screen.queryAllByRole("button", { name: "Close" });
+  const closes = () =>
+    screen
+      .queryAllByRole("button", { name: "Close" })
+      .filter((button) => !button.closest("[inert]"));
 
   async function openPhone() {
     stubViewportShell("phone");
