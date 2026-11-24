@@ -431,10 +431,7 @@ def load_relay_config(
 
 
 def ready_relay_config(*, local_gui_url: str | None = None) -> RelayConfig | None:
-    """The relay config when online sharing can work, else None.
-
-    ``relay_configured`` is checked first so an unconfigured host never mints a host-id file.
-    """
+    """``relay_configured`` is checked first so an unconfigured host never mints a host-id file."""
     if not relay_configured():
         return None
     try:

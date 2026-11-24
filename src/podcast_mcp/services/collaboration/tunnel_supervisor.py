@@ -41,8 +41,6 @@ STOP_TIMEOUT_SEC = 5.0
 
 
 class IdleReason(StrEnum):
-    """Why this Studio runs no tunnel. Exactly one per Idle."""
-
     NOT_CAPABLE = "not_capable"
     NOT_LISTENING = "not_listening"
     NOT_SET_UP = "not_set_up"
@@ -72,8 +70,6 @@ Plan = Idle | Serve
 
 @dataclass(frozen=True, slots=True)
 class Inputs:
-    """One blocking snapshot of the world. Pure data."""
-
     listen_port: int | None
     relay: RelayConfig | None
     project: Path | None
@@ -83,7 +79,6 @@ class Inputs:
 
 
 def plan(inputs: Inputs, *, rejected: RelayConfig | None, last_live_at: float | None) -> Plan:
-    """The tunnel that should exist now. The first matching row wins."""
     if inputs.listen_port is None:
         return Idle(IdleReason.NOT_LISTENING)
     if inputs.relay is None:
@@ -153,7 +148,6 @@ class TunnelSupervisor:
 
     @asynccontextmanager
     async def running(self) -> AsyncIterator[None]:
-        """Run the converge loop for the life of the server, then stop the client and free the lock."""
         if not host_platform.current().can_host_tunnel:
             self._plan = Idle(IdleReason.NOT_CAPABLE)
             yield

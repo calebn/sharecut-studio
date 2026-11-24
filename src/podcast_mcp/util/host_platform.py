@@ -60,7 +60,7 @@ class HostPlatform:
     audition_player: AuditionPlayer | None
     homebrew_ffmpeg: bool
     executable_suffix: str
-    # Whether this host may hold an outbound host tunnel to the relay. A sandboxed or unknown host may not.
+    # Sandboxed and unknown hosts may not hold an outbound tunnel.
     can_host_tunnel: bool
     # HOME is the app container and data follows Apple's Library and Documents layout.
     app_container: bool = False

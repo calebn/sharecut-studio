@@ -108,7 +108,7 @@ _REFUSED_VERSIONS: set[tuple[str, str]] = set()
 
 
 def online_sharing_warnings() -> list[dict[str, str]]:
-    """A mint warning when guests could not reach a link yet; never raises, and never blocks the mint."""
+    """Never raises, so a failed check cannot block the mint."""
     try:
         ready = ready_relay_config() is not None
     except Exception:

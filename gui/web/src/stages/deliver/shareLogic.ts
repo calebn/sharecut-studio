@@ -191,7 +191,6 @@ const WARNING_COPY: Readonly<
     "Link created, but online sharing isn't set up on this computer, so guests can't open it yet. How to set it up is in docs/host-online-relay.md.",
 };
 
-/** The line to show after a mint that came back with a warning the host can act on, else null. */
 export function shareWarning(share: HostShareRow): string | null {
   for (const warning of share.warnings ?? []) {
     const copy = WARNING_COPY[warning.code];

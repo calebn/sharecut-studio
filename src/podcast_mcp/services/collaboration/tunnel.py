@@ -224,11 +224,10 @@ class TunnelClient:
             return []
 
     async def readvertise(self, project_path: Path) -> bool:
-        """Point the advertisement at ``project_path``.
+        """Send one ``register`` frame on the live session and return True.
 
-        With a registered session, sends one ``register`` frame that replaces what the relay
-        routes, and returns True. With none, returns False and the next connect advertises
-        ``project_path``. The relay's ``register`` ack arrives in ``_serve_messages`` and is ignored.
+        With no session, return False and the next connect advertises ``project_path``. The
+        relay's ``register`` ack arrives in ``_serve_messages`` and is ignored.
         """
         self._project_path = project_path
         send = self._send
