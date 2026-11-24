@@ -448,8 +448,8 @@ def test_oauth_public_origin_redirect(monkeypatch) -> None:
     from podcast_mcp.services.share_auth.oauth_credentials import _default_redirect
 
     monkeypatch.delenv("PODCAST_GOOGLE_OAUTH_REDIRECT_URI", raising=False)
-    monkeypatch.setenv("PODCAST_PUBLIC_ORIGIN", "https://sudo.science")
-    assert _default_redirect("google") == "https://sudo.science/auth/callback/google"
+    monkeypatch.setenv("PODCAST_PUBLIC_ORIGIN", "https://share.example.test")
+    assert _default_redirect("google") == "https://share.example.test/auth/callback/google"
 
 
 def test_parse_google_top_level_and_bad_json(tmp_path, monkeypatch) -> None:

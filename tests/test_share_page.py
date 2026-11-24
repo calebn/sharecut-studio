@@ -45,7 +45,7 @@ def test_build_share_head_tags_with_audio():
     head = build_share_head_tags(
         title="Shot of Truth - Eladio",
         description="Review mix: Vicky",
-        page_url="https://sudo.science/r/tok",
+        page_url="https://share.example.test/r/tok",
         audio_url="https://cdn.example/mix.mp3",
     )
     assert "<title>Shot of Truth - Eladio</title>" in head
@@ -119,20 +119,20 @@ def test_render_share_spa_html_uses_episode_name(
     html = render_share_spa_html(
         share["token"],
         index_html=shell,
-        public_origin="https://sudo.science",
+        public_origin="https://share.example.test",
     )
     assert "<title>Shot of Truth - Eladio</title>" in html
     assert "Review mix: Vicky review pass" in html
-    assert f'content="https://sudo.science/api/review/{share["token"]}/audio"' in html
-    assert f'content="https://sudo.science/r/{share["token"]}"' in html
+    assert f'content="https://share.example.test/api/review/{share["token"]}/audio"' in html
+    assert f'content="https://share.example.test/r/{share["token"]}"' in html
 
 
 def test_share_public_origin_prefers_relay(monkeypatch):
     monkeypatch.setattr(
         "podcast_mcp.services.collaboration.share_page.load_relay_config",
-        lambda **_kwargs: type("Relay", (), {"public_base_url": "https://sudo.science"})(),
+        lambda **_kwargs: type("Relay", (), {"public_base_url": "https://share.example.test"})(),
     )
-    assert share_public_origin("http://127.0.0.1:8765/") == "https://sudo.science"
+    assert share_public_origin("http://127.0.0.1:8765/") == "https://share.example.test"
 
 
 def test_share_public_origin_fallbacks(monkeypatch):
@@ -256,7 +256,7 @@ def test_render_share_spa_html_empty_label_and_audio_type(
     html = render_share_spa_html(
         share["token"],
         index_html="<html><head><title>web</title></head></html>",
-        public_origin="https://sudo.science",
+        public_origin="https://share.example.test",
     )
     assert "Review of Named Ep" in html
     assert "og:audio" in html
@@ -268,7 +268,7 @@ def test_render_share_spa_html_empty_label_and_audio_type(
     html2 = render_share_spa_html(
         share["token"],
         index_html="<html><head><title>web</title></head></html>",
-        public_origin="https://sudo.science",
+        public_origin="https://share.example.test",
     )
     assert "og:audio" in html2
 
@@ -320,6 +320,6 @@ def test_render_share_spa_html_fallback_token(monkeypatch):
     html = render_share_spa_html(
         "missing-tok",
         index_html="<html><head><title>web</title></head></html>",
-        public_origin="https://sudo.science",
+        public_origin="https://share.example.test",
     )
     assert "<title>Podcast review</title>" in html
