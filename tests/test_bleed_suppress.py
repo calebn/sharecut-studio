@@ -12,6 +12,10 @@ from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report, run
 from podcast_mcp.edits.transcript_search import search_transcript
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.transcribe import TranscriptionEngine
+from podcast_mcp.engines.transcript_sync import (
+    combined_inputs_key,
+    rebuild_combined_if_inputs_moved,
+)
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -276,14 +280,17 @@ def test_suppress_bleed_exclude_word_keys(tmp_path: Path):
 
 
 @_GUEST_TO_HOST_MEASURED
-def test_suppress_bleed_rebuilds_combined(tmp_path: Path):
+def test_suppress_bleed_leaves_combined_to_the_mutation_hook(tmp_path: Path):
     project = _two_track_project(tmp_path)
+    key = combined_inputs_key(project)
     with patch(
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_fake_rms,
     ):
         suppress_bleed_words(project, dry_run=False, track_id="host", defaults=load_defaults())
 
+    assert any("bleed" in u.text for u in project.combined_transcript.utterances)
+    rebuild_combined_if_inputs_moved(project, key, defaults=load_defaults())
     host_text = " ".join(
         u.text for u in project.combined_transcript.utterances if u.track_id == "host"
     )

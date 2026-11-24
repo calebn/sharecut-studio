@@ -45,6 +45,7 @@ from combined_contract_helpers import (
     assert_contract,
     case_params,
     json_of,
+    merged,
     observe,
     open_workspace,
     run_case,
@@ -105,7 +106,7 @@ from podcast_mcp.services.document.boundary import (
     boundary_context,
 )
 from podcast_mcp.services.media import SpeakerService, TranscriptPrecorrectService
-from podcast_mcp.services.pipeline import PipelineService
+from podcast_mcp.services.pipeline import PipelineService, rerender_preview
 from podcast_mcp.services.record.landing import RecordLandingService
 from podcast_mcp.util.hashing import sha256_file
 from test_record_start_target import _land, _start_room, _take
@@ -129,6 +130,12 @@ def _replace(ws: ProjectWorkspace) -> Any:
     service = TranscriptService(ws)
     token = service.preview_transcript_replacement("welcome", "greetings")["preview_token"]
     return service.replace_transcript_matches("welcome", "greetings", token)
+
+
+def _every_word_suppressed(project: EpisodeProject) -> None:
+    for transcript in project.transcripts:
+        for i, word in enumerate(transcript.words):
+            transcript.words[i] = word.model_copy(update={"suppressed": True})
 
 
 WORD_CASES = [
@@ -190,12 +197,36 @@ WORD_CASES = [
         lambda ws: AnalysisService(ws).suppress_low_audibility(word_keys=[_word_key("guest", 0)]),
         ("hello there friend", "welcome back", "for having me"),
         s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
     Case(
         "suppress_bleed_keys",
         lambda ws: AnalysisService(ws).suppress_bleed(word_keys=[_word_key("guest", 1)]),
         ("hello there friend", "welcome back", "thanks having me"),
         s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "suppress_low_audibility_heuristic",
+        lambda ws: AnalysisService(ws).suppress_low_audibility(),
+        (),
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "suppress_low_audibility_nothing_to_change",
+        lambda ws: AnalysisService(ws).suppress_low_audibility(),
+        (),
+        arrange=_every_word_suppressed,
+        s3_changes=True,
+        s3_untouched=(State.STALE, State.NONE),
+    ),
+    Case(
+        "suppress_bleed_heuristic_nothing_flagged",
+        lambda ws: AnalysisService(ws).suppress_bleed(),
+        FRESH_TEXTS,
+        s3_changes=True,
+        s3_untouched=(State.STALE, State.NONE),
     ),
     Case(
         "set_words_ignored",
@@ -804,6 +835,17 @@ RECONCILE_CASES = [
         s3_changes=True,
     ),
 ]
+
+
+@pytest.mark.parametrize("state", list(State), ids=lambda state: f"{state}-rebuilt")
+def test_a_render_preview_outside_a_commit_rebuilds_combined_after_its_reconcile(
+    state: State, tmp_path: Path, ten_second_silence_wav: Path
+) -> None:
+    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, state)
+    project = ws.checkpoint()
+    rerender_preview(project, defaults=ws.effective_config())
+    assert texts(project.combined_transcript) == ()
+    assert project.combined_transcript == merged(project)
 
 
 def _glossary_context(monkeypatch: pytest.MonkeyPatch) -> None:
