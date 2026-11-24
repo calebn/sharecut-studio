@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.chapter_results import DeletedChapter, RemovedChapter
     from podcast_mcp.services.document.clip import ClipService
+    from podcast_mcp.services.document.clip_fade_results import SetClipFadeResult
     from podcast_mcp.services.document.comment import (
         CommentService,
         run_comment_mutation_with_file_revisions,
@@ -172,6 +173,7 @@ __all__ = [
     "SegmentInsertPreview",
     "ServedFile",
     "SessionSuggestionService",
+    "SetClipFadeResult",
     "SetClipJoinResult",
     "SetJoinModeResult",
     "SplitAtTimeResult",
@@ -282,6 +284,7 @@ _MODULE_BY_NAME = {
     "DuplicateSegmentResult": "timeline_segment_results",
     "PasteSegmentResult": "timeline_segment_results",
     "SetClipJoinResult": "join_mode_results",
+    "SetClipFadeResult": "clip_fade_results",
     "SetJoinModeResult": "join_mode_results",
     "SplitClipResult": "split_results",
     "SplitAtTimeResult": "split_results",
