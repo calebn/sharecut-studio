@@ -98,7 +98,9 @@ ios-ffmpeg-sim:
 	./scripts/ios/build_ffmpeg.sh sim
 	uv run python scripts/ios/ffmpeg_framework.py assemble
 
-ios-ffmpeg: ios-ffmpeg-device ios-ffmpeg-sim
+ios-ffmpeg:
+	$(MAKE) ios-ffmpeg-device
+	$(MAKE) ios-ffmpeg-sim
 
 ios-whisper-device:
 	./scripts/ios/build_whisper.sh device

@@ -643,10 +643,23 @@ def test_makefile_targets_and_gitignore() -> None:
             rf"^{target}:\n\t\./scripts/ios/build_ffmpeg\.sh {argument}$", makefile, re.M
         )
     assert "ios-ffmpeg" in phony.split()
-    assert re.search(r"^ios-ffmpeg: ios-ffmpeg-device ios-ffmpeg-sim$", makefile, re.M)
+    assert re.search(r"^ios-ffmpeg:\s*$", makefile, re.M)
     ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     for name in ("src", "build", "out"):
         assert f"gui/desktop/src-tauri/ios-ffmpeg/{name}/" in ignored
+
+
+def test_ios_ffmpeg_runs_both_builds_serially() -> None:
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    match = re.search(r"^ios-ffmpeg:([^\n]*)\n((?:\t[^\n]*\n)*)", makefile, re.M)
+    assert match is not None
+    prerequisites = match.group(1).split()
+    assert "ios-ffmpeg-device" not in prerequisites
+    assert "ios-ffmpeg-sim" not in prerequisites
+    recipe = match.group(2)
+    device = recipe.find("$(MAKE) ios-ffmpeg-device")
+    sim = recipe.find("$(MAKE) ios-ffmpeg-sim")
+    assert 0 <= device < sim
 
 
 def test_source_offer_matches_the_contract() -> None:

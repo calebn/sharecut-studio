@@ -17,7 +17,7 @@ On a Mac with Xcode and both iOS SDKs:
 
     make ios-ffmpeg-device     # arm64 iPhone
     make ios-ffmpeg-sim        # arm64 Simulator
-    make ios-ffmpeg            # both
+    make ios-ffmpeg            # both, one after the other
 
 Both call `scripts/ios/build_ffmpeg.sh <device|sim>`. It reads every pin (archives, sha256, configure options, patches) from `contracts/ffmpeg-build.json`. It stops before any configure step if a configure-options list is missing or invalid, and passes each option as one argument. It verifies the downloads before extracting, applies the patches to a copy of the tree, builds lame, opus and FFmpeg for arm64 only (there is no x86_64 Simulator build), links the core, glue and wrappers into `FFmpeg.framework`, and exports only the four `sc_ffmpeg_` symbols. Output is `gui/desktop/src-tauri/ios-ffmpeg/out/<device|sim>/FFmpeg.framework`; sources and build trees live next to it under `src/` and `build/`. All three directories are ignored by git. The script copies nothing into the app tree. `scripts/ios/ffmpeg_framework.py assemble` (the second line of each `make ios-ffmpeg-*` recipe) then writes `gui/desktop/src-tauri/ios-payload/FFmpeg.xcframework` from the slices that exist, with the framework's own `ios/ffmpeg/PrivacyInfo.xcprivacy` added to each (its categories and reason codes are copied from the app manifest, not derived from the framework's imports, and are unconfirmed until the Mac privacy check and App Store validation have seen them); the Xcode project links that. `ffmpeg_framework.py check --sdk iphoneos|iphonesimulator` stops a build when the slice is missing.
 
