@@ -178,6 +178,10 @@ function EditWorkspaceAdapter({
   );
 
   const phone = arrangement === "phone";
+  const [scriptClear, setScriptClear] = useState(false);
+  const scriptShown = phone
+    ? editSurface === "text"
+    : !scriptCollapsed || scriptFocus;
   // Memoized: a new element would re-render the timeline it is slotted into.
   const headers = useMemo(
     () => (
@@ -250,6 +254,7 @@ function EditWorkspaceAdapter({
         layout={phone ? "phone" : "desktop"}
         onTranscribe={transcribe}
         onFindTargetChange={findTarget.attach}
+        onHeaderClearChange={setScriptClear}
       />
     </div>
   );
@@ -260,7 +265,11 @@ function EditWorkspaceAdapter({
     <RangeFields numeric={!phone} />
   );
   const actionBar = (
-    <EditActionBar form={phone ? "dock" : "floating"} root={root} />
+    <EditActionBar
+      form={phone ? "dock" : "floating"}
+      root={root}
+      clear={!(scriptShown && scriptClear)}
+    />
   );
   const corner = (
     <EditCorner

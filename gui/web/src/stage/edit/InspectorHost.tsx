@@ -78,7 +78,7 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
       if (
         event.button !== 0 ||
         !control ||
-        !control.closest(".sys-inspector-header") ||
+        !control.closest(".sys-inspector-header, .sys-inspector-dock") ||
         !box.current?.contains(control) ||
         !(owner instanceof HTMLElement) ||
         !box.current.contains(owner)
@@ -592,6 +592,10 @@ function Phone({
     dockShown && !takeover,
   );
   const focus = useInspectorFocus(box, true);
+  const closeInspector = () => {
+    focus.close();
+    sheet.close();
+  };
   return (
     <div
       ref={box}
@@ -609,10 +613,7 @@ function Phone({
           history={history}
           label="Inspector"
           sections={sections}
-          onClose={() => {
-            focus.close();
-            sheet.close();
-          }}
+          onClose={closeInspector}
         />
       ) : (
         <InspectorSheet
@@ -621,14 +622,17 @@ function Phone({
           label="Inspector"
           sections={sections}
           dock={
-            dockShown ? (
-              <EditActionBar
-                form="dock"
-                root={null}
-                inInspector
-                onRan={raiseForFields}
-              />
-            ) : null
+            dockShown
+              ? (atRest) => (
+                  <EditActionBar
+                    form="dock"
+                    root={null}
+                    inInspector
+                    onRan={raiseForFields}
+                    onClose={atRest ? closeInspector : undefined}
+                  />
+                )
+              : null
           }
           detent={detent}
           onDetentChange={(next) => {
@@ -636,10 +640,7 @@ function Phone({
             setDetent(next);
           }}
           onDismiss={sheet.dismiss}
-          onClose={() => {
-            focus.close();
-            sheet.close();
-          }}
+          onClose={closeInspector}
         />
       )}
     </div>

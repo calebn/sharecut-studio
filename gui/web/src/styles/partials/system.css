@@ -5143,6 +5143,16 @@ button.sys-scope:hover {
   white-space: nowrap;
 }
 
+@container app (max-width: 22.5rem) {
+  .sys-actions--dock {
+    padding-inline: var(--space-1);
+  }
+
+  .sys-actions--dock .sys-actions-object-name {
+    display: none;
+  }
+}
+
 .sys-actions-count {
   display: inline-flex;
   flex: none;

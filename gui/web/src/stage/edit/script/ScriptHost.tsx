@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { fixTextAvailability } from "../../../commands/fixTextAvailability";
 import { canIngestMedia, rangeEditMode } from "../../../shareMode";
 import { FindBar, type FindBarHandle } from "../../../stages/edit/FindBar";
@@ -39,6 +45,8 @@ export type ScriptHostProps = {
   /** The empty state's "Transcribe this episode". */
   onTranscribe?: () => void;
   onFindTargetChange?: (target: HTMLButtonElement | null) => void;
+  /** Whether the header shows its Clear selection, so the Action bar can leave it out. */
+  onHeaderClearChange?: (shown: boolean) => void;
 };
 
 /**
@@ -52,6 +60,7 @@ export function ScriptHost({
   status: statusProp,
   onTranscribe,
   onFindTargetChange,
+  onHeaderClearChange,
 }: ScriptHostProps) {
   const projectPath = useDawStore((s) => s.projectPath);
   const projectEpoch = useDawStore((s) => s.projectEpoch);
@@ -162,6 +171,19 @@ export function ScriptHost({
   const mayReplace = mayFix && ready && loading !== true;
   const mayCut = mode === "edit" && ready && loading !== true;
 
+  const headerAction =
+    fix.editing === null && mode !== "none"
+      ? clearSelectionAction(selection.selection, pane)
+      : undefined;
+  const headerClear = headerAction !== undefined;
+  const reportHeaderClear = useStableCallback((shown: boolean) =>
+    onHeaderClearChange?.(shown),
+  );
+  useLayoutEffect(() => {
+    reportHeaderClear(headerClear);
+    return () => reportHeaderClear(false);
+  }, [headerClear, reportHeaderClear]);
+
   return (
     <div ref={hostEl} style={{ display: "contents" }}>
       <ScriptPane
@@ -183,11 +205,7 @@ export function ScriptHost({
         following={playback.following}
         guest={scriptGuestOf(projectPath, guestMode, mode)}
         unsureCount={unsure.length}
-        headerAction={
-          fix.editing === null && mode !== "none"
-            ? clearSelectionAction(selection.selection, pane)
-            : undefined
-        }
+        headerAction={headerAction}
         findBar={
           find.open ? (
             <FindBar

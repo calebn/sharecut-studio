@@ -293,7 +293,8 @@ export function registerPrimaryEditingCommands(): void {
 
   registerCommand("edit.clearSelection", (args) => {
     const s = useDawStore.getState();
-    if (args.from === "script") {
+    if (args.from === "script" || args.from === "bar") {
+      s.setRangeArmed(false);
       clearScriptSelection(s);
       return { status: "ok" };
     }

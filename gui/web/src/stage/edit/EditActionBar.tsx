@@ -1,4 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   EXPORT_CANCELLING_REASON,
@@ -7,6 +14,7 @@ import {
 import { barModelOf, editFactsOf, runEditVerb } from "../../commands/editVerbs";
 import { makeRangeTarget } from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
+import type { Selection } from "../../types/project";
 import {
   ActionBar,
   SelectionCount,
@@ -14,6 +22,9 @@ import {
 } from "../../system/ActionBar";
 import type { BarId } from "../../system/editActionSets";
 import { ScopeChip } from "../../system/ScopeChip";
+import { SystemIcon } from "../../system/SystemIcon";
+import { CloseButton } from "../../ui/CloseButton";
+import { CommandButton } from "../../ui/CommandButton";
 import { dialogueTrackIds } from "../../utils/bladeTracks";
 import { useBounceRun } from "../hosts/bounceRunnerContext";
 import { scopeOf } from "./barScope";
@@ -44,17 +55,76 @@ function toggleRangeScope(narrow: { current: readonly string[] | null }) {
     });
 }
 
+function focusOwnerOf(
+  selection: Selection,
+  root: HTMLElement | null,
+): HTMLElement | null {
+  const scope: ParentNode = root ?? document;
+  if (selection?.kind === "clip")
+    return scope.querySelector<HTMLElement>(
+      `[data-clip-id="${CSS.escape(selection.id)}"] .clip-hit`,
+    );
+  if (selection?.kind === "seam")
+    return scope.querySelector<HTMLElement>(
+      `[data-seam-id="${CSS.escape(selection.id)}"]`,
+    );
+  return null;
+}
+
+function ClearButton({
+  floating,
+  selection,
+  root,
+}: {
+  floating: boolean;
+  selection: Selection;
+  root: HTMLElement | null;
+}) {
+  const keepFocus = () => {
+    const owner = focusOwnerOf(selection, root);
+    queueMicrotask(() => {
+      const target = owner?.isConnected ? owner : root;
+      if (!target?.isConnected) return;
+      if (target === root && !target.hasAttribute("tabindex"))
+        target.tabIndex = -1;
+      target.focus({ preventScroll: true });
+    });
+  };
+  return (
+    <CommandButton
+      commandId="edit.clearSelection"
+      args={{ from: "bar" }}
+      bare
+      className={
+        floating ? "sys-icon-btn sys-actions-icon" : "sys-actions-dock-btn"
+      }
+      aria-label="Clear selection"
+      title="Clear selection (Esc)"
+      onClick={keepFocus}
+    >
+      <SystemIcon name="x" size={floating ? 16 : 20} />
+      {floating ? null : <span className="sys-actions-dock-label">Clear</span>}
+    </CommandButton>
+  );
+}
+
 function EditActionBarImpl({
   form,
   root,
   onRan,
   inInspector = false,
+  clear = false,
+  onClose,
 }: {
   form: EditActionBarForm;
   root: HTMLElement | null;
   onRan?: (id: BarId) => void;
   /** The dock of the open Inspector sheet, whose own grip stands for Inspect. */
   inInspector?: boolean;
+  /** Ends the bar with Clear selection. Only the stage's own bar asks for it. */
+  clear?: boolean;
+  /** Ends the Inspector dock with Close. Read only with `inInspector`. */
+  onClose?: () => void;
 }) {
   const { selection, project, projectPath, shareCapabilities, moreRequest } =
     useDawStore(
@@ -168,6 +238,18 @@ function EditActionBarImpl({
       kindLeading
     );
 
+  const trailing: ReactNode = inInspector ? (
+    onClose ? (
+      <CloseButton
+        className="sys-actions-dock-btn"
+        data-inspector-close=""
+        onClick={onClose}
+      />
+    ) : undefined
+  ) : clear && selection ? (
+    <ClearButton floating={floating} selection={selection} root={root} />
+  ) : undefined;
+
   return (
     <ActionBar
       placement={
@@ -190,6 +272,7 @@ function EditActionBarImpl({
       }
       more={model.more}
       primary={model.primary ?? undefined}
+      trailing={trailing}
       moreRequest={moreRequest}
       onVerb={onVerb}
     />
