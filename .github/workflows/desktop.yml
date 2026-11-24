@@ -211,6 +211,8 @@ jobs:
       - name: Repeat payload verification through the sidecar builder
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          PODCAST_OWNER_CDN_BASE: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
         run: |
           @'
           import os
