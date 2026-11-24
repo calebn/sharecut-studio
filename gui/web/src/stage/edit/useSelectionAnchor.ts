@@ -11,6 +11,7 @@ import { useDawStore } from "../../state/dawStore";
 import type { Selection } from "../../types/project";
 import type { AnchorExclusion } from "../../ui/useAnchoredPanel";
 import { timelineChromeBottom } from "../../utils/timelineChrome";
+import { timelineCorner } from "./timelineCorner";
 
 const esc = (value: string) => CSS.escape(value);
 
@@ -126,7 +127,7 @@ export function useSelectionAnchor(
               ?.querySelector<HTMLElement>(".sys-script-header") ?? null)
           : null;
       excludeRef.current = header;
-      withinRef.current = header ? within : null;
+      withinRef.current = within;
       setExcluded(header);
       setNode(found);
     };
@@ -172,6 +173,14 @@ export function useSelectionAnchor(
     [zoomPxPerSec, node, selection, excluded, root],
   );
 
+  const exclusion = useMemo<AnchorExclusion>(
+    () => ({
+      elements: () => [excludeRef.current, timelineCorner(root)],
+      withinRef,
+    }),
+    [root],
+  );
+
   const clearTop = useCallback(() => {
     const scroll = ref.current?.closest(".timeline-scroll");
     return scroll ? timelineChromeBottom(scroll) : 0;
@@ -180,7 +189,7 @@ export function useSelectionAnchor(
   return {
     ref,
     clearTop,
-    exclusion: { ref: excludeRef, withinRef },
+    exclusion,
     moves,
     visible: enabled && node !== null && visible,
   };

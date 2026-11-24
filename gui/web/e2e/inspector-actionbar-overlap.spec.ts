@@ -61,9 +61,10 @@ for (const { width, height, other, role } of cases) {
             message: `The Action bar's overlap with ${other} in CSS square pixels`,
           })
           .toBe(0);
-        console.log(
-          `${width}x${height} touch bar x ${other} overlap px2: ${await overlapArea(bar, neighbour)}`,
-        );
+        test.info().annotations.push({
+          type: `bar x ${other} overlap px2`,
+          description: String(await overlapArea(bar, neighbour)),
+        });
       },
       undefined,
       createScriptRecordingIdentityProject,
@@ -113,9 +114,10 @@ for (const { width, height, touch } of layouts) {
                 message: `${width}x${height} ${name} overlap in CSS square pixels`,
               })
               .toBe(0);
-            console.log(
-              `${width}x${height} ${touch ? "touch" : "mouse"} ${name} overlap px2: ${await overlapArea(first, second)}`,
-            );
+            test.info().annotations.push({
+              type: `${name} overlap px2`,
+              description: String(await overlapArea(first, second)),
+            });
           }
         },
         undefined,

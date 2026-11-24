@@ -412,7 +412,10 @@ live region speaks the new edit's own message; the visible text is the count.
 6. **The tablet Inspector leaves room for Timeline controls.** When it would
    cover the Timeline view group, the card moves beside it if there is room.
    Otherwise the card uses a clear area above or below the group if it can
-   show its header and fields there.
+   show its header and fields there. The floating Action bar leaves the group
+   clear the same way, beside it first, then above or below it, and the card
+   never covers the bar: where the card's minimum height would reach the bar,
+   the card slides beside the bar instead.
 
 ## Where primitives and tokens live
 
@@ -461,7 +464,8 @@ not apply is answered "n/a" with the reason in the PR.
       disabled with a reason otherwise.
 - [ ] If it opens an overlay, it uses `Menu`, `Dialog` or `InlineConfirm`;
       use one overlay at a time. Follow the shell's placement rule. On tablet,
-      the Inspector card leaves the Timeline view controls clear when both fit.
+      the Inspector card and the floating Action bar leave the Timeline view
+      controls clear when both fit, and the card leaves the bar clear.
 - [ ] If it opens a menu on touch, the same descriptor opens on right click
       and on the keyboard.
 - [ ] If it mutates, it goes through the document command path and

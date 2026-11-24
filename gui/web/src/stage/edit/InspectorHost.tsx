@@ -28,6 +28,7 @@ import {
   type InspectorRect,
   scaledMinBlock,
 } from "../../system/inspectorSheetMath";
+import { areaRects } from "../../ui/anchoredPlacement";
 import { openerControl } from "../../ui/pressedControl";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 import { clamp } from "../../utils/math";
@@ -42,6 +43,7 @@ import { focusFirstControl } from "./inspectorFocus";
 import { type InspectorHeading, inspectorHeading } from "./inspectorHeading";
 import { rangeSection } from "./rangeSection";
 import { useSelectionSections } from "./selectionSections";
+import { timelineCorner } from "./timelineCorner";
 import type { InspectorOpen, InspectorShell } from "./useInspectorOpen";
 import { bandLocator, useKeepTargetClear } from "./useKeepTargetClear";
 import { useRevealEditedLane } from "./useRevealEditedLane";
@@ -238,7 +240,7 @@ const rounded = (rect: InspectorRect): InspectorRect => ({
 type Placement = {
   anchor: InspectorRect;
   bounds: InspectorBounds;
-  keepClear?: InspectorRect;
+  keepClear: readonly InspectorRect[];
 };
 
 const sameRect = (a: InspectorRect | undefined, b: InspectorRect | undefined) =>
@@ -255,7 +257,8 @@ const samePlacement = (a: Placement | null, b: Placement) =>
   a.bounds.width === b.bounds.width &&
   a.bounds.height === b.bounds.height &&
   sameRect(a.anchor, b.anchor) &&
-  sameRect(a.keepClear, b.keepClear);
+  a.keepClear.length === b.keepClear.length &&
+  a.keepClear.every((rect, i) => sameRect(rect, b.keepClear[i]));
 
 function relativeRect(rect: DOMRect, frame: DOMRect): InspectorRect {
   return {
@@ -327,10 +330,7 @@ function Card({
   const panel = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<Placement | null>(null);
   const getCorner = useCallback(
-    () =>
-      keepCornerClear
-        ? root?.querySelector(":scope > .edit-timeline-col > .edit-corner")
-        : null,
+    () => (keepCornerClear ? timelineCorner(root) : null),
     [keepCornerClear, root],
   );
   const measure = useCallback(() => {
@@ -340,7 +340,6 @@ function Card({
       root.querySelector<HTMLElement>(".sys-actions--floating") ??
       anchor.ref.current;
     const targetRect = target?.getBoundingClientRect();
-    const corner = getCorner()?.getBoundingClientRect();
     const next: Placement = {
       bounds: {
         width: Math.round(frame.width),
@@ -352,10 +351,9 @@ function Card({
           ? relativeRect(targetRect, frame)
           : { x: frame.width / 2, y: frame.height, width: 0, height: 0 },
       ),
-      keepClear:
-        corner?.width && corner.height
-          ? relativeRect(corner, frame)
-          : undefined,
+      keepClear: areaRects([getCorner()]).map((rect) =>
+        relativeRect(rect, frame),
+      ),
     };
     setPlacement((was) => (samePlacement(was, next) ? was : next));
   }, [root, anchor.ref, getCorner]);
@@ -378,6 +376,15 @@ function Card({
     [root, getCorner, () => getCorner()?.parentElement],
     measure,
   );
+  // The bar re-places itself on its own resizes, which this card never hears.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new selection or anchor node can mount a different bar
+  useLayoutEffect(() => {
+    const bar = root?.querySelector(".sys-actions--floating");
+    if (!bar || typeof MutationObserver === "undefined") return;
+    const observer = new MutationObserver(measure);
+    observer.observe(bar, { attributes: true, attributeFilter: ["style"] });
+    return () => observer.disconnect();
+  }, [root, measure, anchor.moves, anchor.visible]);
   const history = useTakeoverHistory();
   const takeover =
     placement !== null &&

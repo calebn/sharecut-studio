@@ -86,23 +86,39 @@ export function placeAnchored(
   return { left, top, maxHeight, maxWidth, side, covered };
 }
 
+export function areaRects(
+  elements: readonly (Element | null | undefined)[],
+): DOMRect[] {
+  return elements
+    .flatMap((element) => (element ? [element.getBoundingClientRect()] : []))
+    .filter((rect) => rect.right > rect.left && rect.bottom > rect.top);
+}
+
+/**
+ * `placeAnchored`, moved off every `excluded` box: beside each, then above
+ * all, then below all, the first position that clears the whole set. Where
+ * none does, the normal placement stands.
+ */
 export function placeAnchoredExcluding(
   anchor: AnchorRect,
   panel: PanelSize,
   viewport: PlacementViewport,
-  excluded: AnchorRect,
+  excluded: readonly AnchorRect[],
   within: AnchorRect,
   options: PlacementOptions,
 ): AnchoredPlacement {
   const placed = placeAnchored(anchor, panel, viewport, options);
   const width = Math.min(panel.width, placed.maxWidth);
   const height = Math.min(panel.height, placed.maxHeight);
-  const overlaps =
-    placed.left < excluded.right &&
-    placed.left + width > excluded.left &&
-    placed.top < excluded.bottom &&
-    placed.top + height > excluded.top;
-  if (!overlaps) return placed;
+  const hits = (left: number, top: number, w: number, h: number) =>
+    excluded.some(
+      (rect) =>
+        left < rect.right &&
+        left + w > rect.left &&
+        top < rect.bottom &&
+        top + h > rect.top,
+    );
+  if (!hits(placed.left, placed.top, width, height)) return placed;
 
   const { margin, gap } = options;
   const leftEdge = Math.max(viewport.left, within.left) + margin;
@@ -115,10 +131,12 @@ export function placeAnchoredExcluding(
     left >= leftEdge &&
     left + panel.width <= rightEdge &&
     top >= topEdge &&
-    top + panel.height <= bottomEdge;
+    top + panel.height <= bottomEdge &&
+    !hits(left, top, panel.width, panel.height);
   const keepsAbove =
     placed.side !== "above" || placed.top + panel.height <= anchor.top - gap;
-  const sides = [excluded.left - gap - panel.width, excluded.right + gap]
+  const sides = excluded
+    .flatMap((rect) => [rect.left - gap - panel.width, rect.right + gap])
     .filter((left) => keepsAbove && fits(left, placed.top))
     .sort((a, b) => Math.abs(a - placed.left) - Math.abs(b - placed.left));
   if (sides[0] !== undefined) return { ...placed, left: sides[0] };
@@ -127,27 +145,27 @@ export function placeAnchoredExcluding(
     leftEdge,
     Math.min(placed.left, rightEdge - panel.width),
   );
-  const above = excluded.top - gap - panel.height;
+  const highest = Math.min(...excluded.map((rect) => rect.top));
+  const above = highest - gap - panel.height;
   if (fits(clampedLeft, above) && above + panel.height <= anchor.top - gap) {
     return {
       ...placed,
       left: clampedLeft,
       top: above,
       side: "above",
-      maxHeight: excluded.top - gap - topEdge,
+      maxHeight: highest - gap - topEdge,
     };
   }
 
-  const below = Math.min(
-    bottomEdge,
-    Math.max(topEdge, anchor.bottom + gap, excluded.bottom + gap),
-  );
+  const lowest = Math.max(...excluded.map((rect) => rect.bottom));
+  const below = Math.max(topEdge, anchor.bottom + gap, lowest + gap);
+  if (below > bottomEdge) return placed;
   return {
     ...placed,
     left: clampedLeft,
     top: below,
     side: "below",
-    maxHeight: Math.max(0, bottomEdge - below),
+    maxHeight: bottomEdge - below,
     maxWidth: Math.max(0, rightEdge - leftEdge),
   };
 }

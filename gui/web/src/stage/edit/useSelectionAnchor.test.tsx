@@ -41,11 +41,11 @@ describe("words selection header exclusion", () => {
       { initialProps: { enabled: true } },
     );
     const header = root.querySelector("#own");
-    expect(result.current.exclusion.ref.current).toBe(header);
+    expect(result.current.exclusion.elements()[0]).toBe(header);
     expect(result.current.moves).toContain(header);
     expect(result.current.exclusion.withinRef.current).toBe(root);
     rerender({ enabled: false });
-    expect(result.current.exclusion.ref.current).toBeNull();
+    expect(result.current.exclusion.elements()[0]).toBeNull();
   });
 
   it("does not apply a Script header to a missing word's timeline fallback", () => {
@@ -55,7 +55,7 @@ describe("words selection header exclusion", () => {
       useSelectionAnchor(root, selection, true),
     );
     expect(result.current.ref.current?.id).toBe("lane");
-    expect(result.current.exclusion.ref.current).toBeNull();
+    expect(result.current.exclusion.elements()[0]).toBeNull();
   });
 
   it("keeps a headerless words anchor unconstrained", () => {
@@ -65,7 +65,7 @@ describe("words selection header exclusion", () => {
       useSelectionAnchor(root, selection, true),
     );
     expect(result.current.ref.current?.id).toBe("word");
-    expect(result.current.exclusion.ref.current).toBeNull();
+    expect(result.current.exclusion.elements()[0]).toBeNull();
   });
 
   it("refreshes a replaced header even when the selected word node is unchanged", async () => {
@@ -79,7 +79,7 @@ describe("words selection header exclusion", () => {
     next.className = "sys-script-header";
     act(() => root.querySelector("#old")?.replaceWith(next));
     await waitFor(() =>
-      expect(result.current.exclusion.ref.current).toBe(next),
+      expect(result.current.exclusion.elements()[0]).toBe(next),
     );
     expect(result.current.ref.current).toBe(word);
     expect(result.current.moves).toContain(next);
@@ -178,7 +178,7 @@ describe("the box the header exclusion is judged within", () => {
       box(243, 114, 38, 28),
       bar,
       viewport,
-      box(8, 53, 374, 45),
+      [box(8, 53, 374, 45)],
       box(0, 0, 390, 844),
       { margin: MARGIN, gap: MARGIN, align: "center", prefer: "above" },
     );
