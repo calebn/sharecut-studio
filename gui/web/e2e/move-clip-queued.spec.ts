@@ -19,6 +19,7 @@ type MoveCommand = {
 };
 
 type Frames = Array<number | "missing">;
+type Sampled = { frames: Frames; releasedAt: number | null };
 
 function leftOf(block: Locator): Promise<number> {
   return block.evaluate((el) =>
@@ -56,31 +57,29 @@ async function serverStart(page: Page, projectPath: string, clipId: string) {
 function recordFrames(page: Page, clipId: string) {
   return page.evaluate((id) => {
     const select = `[data-testid="timeline-clip"][data-clip-id="${CSS.escape(id)}"]`;
-    const frames: Frames = [];
+    const sampled: Sampled = { frames: [], releasedAt: null };
+    const { frames } = sampled;
+    window.addEventListener(
+      "pointerup",
+      () => {
+        sampled.releasedAt ??= frames.length;
+      },
+      { capture: true, once: true },
+    );
     const sample = () => {
       const el = document.querySelector<HTMLElement>(select);
       frames.push(el ? Number.parseFloat(el.style.left) : "missing");
       requestAnimationFrame(sample);
     };
     requestAnimationFrame(sample);
-    (window as unknown as { __moveFrames: Frames }).__moveFrames = frames;
+    (window as unknown as { __moveFrames: Sampled }).__moveFrames = sampled;
   }, clipId);
 }
 
 function frames(page: Page) {
   return page.evaluate(
-    () => (window as unknown as { __moveFrames: Frames }).__moveFrames,
+    () => (window as unknown as { __moveFrames: Sampled }).__moveFrames,
   );
-}
-
-function distinct(values: number[]) {
-  const runs: number[] = [];
-  for (const value of values) {
-    if (runs.length === 0 || Math.abs(value - runs[runs.length - 1]!) > 0.5) {
-      runs.push(value);
-    }
-  }
-  return runs;
 }
 
 test("a clip move that queues offline stays where it was dropped, then saves once online", async ({
@@ -123,36 +122,40 @@ test("a clip move that queues offline stays where it was dropped, then saves onc
     )!.timeline_start;
     expect(target).toBeGreaterThan(originStart!);
     await expect.poll(() => hostOfflineQueueCount(page, projectPath)).toBe(1);
+    await expect
+      .poll(async () => Math.abs((await leftOf(block)) - origin), {
+        message: "the queued move holds its dropped position",
+      })
+      .toBeGreaterThan(20);
     const dropped = await leftOf(block);
-    expect(
-      Math.abs(dropped - origin),
-      "the queued move holds its dropped position",
-    ).toBeGreaterThan(20);
     expect(await serverStart(page, projectPath, clipId)).toBe(originStart);
 
     offline = false;
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    await expect.poll(() => commands.length).toBe(2);
+    await expect.poll(() => commands.length).toBeGreaterThanOrEqual(2);
     expect(commands[1]?.command_id).toBe(commands[0]?.command_id);
     await expect.poll(() => hostOfflineQueueCount(page, projectPath)).toBe(0);
     await expect
       .poll(() => serverStart(page, projectPath, clipId))
       .toBeCloseTo(target, 6);
     expect(commands, "exactly one retry").toHaveLength(2);
+    expect(commands.map((c) => c.command_id)).toEqual(
+      Array(2).fill(commands[0]!.command_id),
+    );
     await expect(block).toHaveCount(1);
     expect(await leftOf(block)).toBeCloseTo(dropped, 0);
 
-    const seen = await frames(page);
+    const { frames: seen, releasedAt } = await frames(page);
     expect(seen, "the block never disappears").not.toContain("missing");
-    const painted = seen as number[];
+    expect(releasedAt, "pointerup was sampled").not.toBeNull();
+    const afterRelease = seen.slice(releasedAt!) as number[];
     expect(
-      painted.some((x) => Math.abs(x - origin) <= 0.5),
+      afterRelease.length,
+      "frames were sampled after release",
+    ).toBeGreaterThan(0);
+    expect(
+      afterRelease.filter((x) => Math.abs(x - dropped) > 0.5),
       "the block never paints its origin after release",
-    ).toBe(false);
-    const runs = distinct(painted);
-    expect(runs.length, "one visible update after release").toBeLessThanOrEqual(
-      2,
-    );
-    expect(runs.at(-1)).toBeCloseTo(dropped, 0);
+    ).toEqual([]);
   });
 });
