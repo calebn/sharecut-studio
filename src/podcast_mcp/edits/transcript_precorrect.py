@@ -181,7 +181,6 @@ def run_glossary_pass(
     *,
     dry_run: bool = True,
     progress: ProgressReporter | None = None,
-    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     preserve = set(ctx.preserve_tokens)
     applied: list[dict[str, Any]] = []
@@ -232,7 +231,6 @@ def run_glossary_pass(
                     phrases=phrases,
                     keep_evidence=True,
                     source_id=tr.source_id,
-                    defaults=defaults,
                 )
                 for item in word_fixes:
                     applied.append(
@@ -391,7 +389,6 @@ def run_cross_track_sync(
                     words=[{"word_index": loser_idx, "text": source_text}],
                     keep_evidence=True,
                     source_id=tr.source_id,
-                    defaults=defaults,
                 )
 
             if (idx + 1) % 50 == 0:
@@ -489,9 +486,7 @@ def run_precorrect_transcript(
         prefer_parent=True,
         progress=progress,
     ) as task:
-        glossary_report = run_glossary_pass(
-            project, ctx, dry_run=dry_run, progress=None, defaults=defaults
-        )
+        glossary_report = run_glossary_pass(project, ctx, dry_run=dry_run, progress=None)
         task.advance(1, message="Glossary done")
 
         speaker_report: dict[str, Any] = {"ran": False, "skipped_reason": None}

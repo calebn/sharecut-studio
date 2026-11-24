@@ -572,9 +572,7 @@ class TranscriptService(WorkspaceService):
             word_index,
             word_index,
             expected_text,
-            lambda p: correct_word(
-                p, track_id, word_index, new_text, source_id, defaults=self.ws.effective_config()
-            ),
+            lambda p: correct_word(p, track_id, word_index, new_text, source_id),
             source_id,
         )
 
@@ -602,7 +600,6 @@ class TranscriptService(WorkspaceService):
                 end_word_index,
                 new_text,
                 source_id,
-                defaults=self.ws.effective_config(),
             ),
             source_id,
         )
@@ -624,14 +621,7 @@ class TranscriptService(WorkspaceService):
                 word_index,
                 word_index,
                 expected_text,
-                lambda p: set_word_suppressed(
-                    p,
-                    track_id,
-                    word_index,
-                    suppressed,
-                    source_id,
-                    defaults=self.ws.effective_config(),
-                ),
+                lambda p: set_word_suppressed(p, track_id, word_index, suppressed, source_id),
                 source_id,
             )
         )
@@ -712,7 +702,7 @@ class TranscriptService(WorkspaceService):
         corrections: list[dict[str, Any]],
     ) -> int:
         def mutate(p) -> int:
-            return verify_words(p, track_id, corrections, defaults=self.ws.effective_config())
+            return verify_words(p, track_id, corrections)
 
         return self.ws.mutate(
             "before verify transcript",
@@ -730,9 +720,7 @@ class TranscriptService(WorkspaceService):
         """History-safe batch: word + phrase corrections in one undo step."""
 
         def mutate(p) -> int:
-            return apply_transcript_corrections(
-                p, track_id, words=words, phrases=phrases, defaults=self.ws.effective_config()
-            )
+            return apply_transcript_corrections(p, track_id, words=words, phrases=phrases)
 
         return self.ws.mutate(
             "before transcript cleanup",

@@ -1667,7 +1667,7 @@ def test_transcribe_tracks_rechecks_same_span_phrase_correction(
     original_fingerprint = transcript.silence_filter_fingerprint
     assert transcript.words[0].suspect_hallucination
 
-    correct_phrase(proj, "host", 0, 0, "fixed", defaults=load_defaults())
+    correct_phrase(proj, "host", 0, 0, "fixed")
     assert (transcript.words[0].start, transcript.words[0].end) == (0.0, 0.5)
     assert not transcript.words[0].suspect_hallucination
     with (

@@ -279,9 +279,15 @@ class Case:
     configure: Callable[[pytest.MonkeyPatch], None] | None = None
     """Sets the run's pipeline defaults, for a command that reads them."""
     s2_changes: tuple[State, ...] = ()
+    """Entry states whose outcome the S2 hook changed to ``REBUILT``; the id keeps the pre-S2 outcome."""
     s3_changes: bool = False
+    """The command's own ``rebuild_combined`` call is deleted by S3, so a ``None``-state ``REBUILT`` id gets ``s3-changes``."""
+    s3_untouched: tuple[State, ...] = ()
+    """Entry states whose outcome S3 changed to ``UNTOUCHED`` (the hook leaves ``None`` alone); the id keeps the pre-S3 outcome."""
 
     def outcome(self, state: State) -> Outcome:
+        if state in self.s3_untouched:
+            return UNTOUCHED
         if state in self.s2_changes:
             return REBUILT
         return self.entry_outcome(state)

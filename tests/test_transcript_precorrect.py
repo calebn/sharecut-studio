@@ -131,7 +131,7 @@ def test_glossary_pass_finds_phrase_and_word() -> None:
             ],
         )
     ]
-    report = run_glossary_pass(p, _ctx(), dry_run=True, defaults=load_defaults())
+    report = run_glossary_pass(p, _ctx(), dry_run=True)
     assert report["count"] == 2
     kinds = {f["kind"] for f in report["fixes"]}
     assert kinds == {"phrase", "word"}
@@ -146,7 +146,7 @@ def test_glossary_ignores_empty_phrase_rule() -> None:
         )
     ]
     ctx = _ctx(replacements=[ReplacementRule("", "ignored", "phrase")])
-    report = run_glossary_pass(p, ctx, dry_run=True, defaults=load_defaults())
+    report = run_glossary_pass(p, ctx, dry_run=True)
     assert report["count"] == 0
 
 
@@ -167,7 +167,7 @@ def test_glossary_homophone_phrase_replacement() -> None:
             ReplacementRule("in sight fear", "inciting fear", "phrase"),
         ]
     )
-    report = run_glossary_pass(p, ctx, dry_run=False, defaults=load_defaults())
+    report = run_glossary_pass(p, ctx, dry_run=False)
     assert report["count"] == 1
     assert p.transcripts[0].words[0].text == "inciting"
     assert p.transcripts[0].words[-1].text == "fear"
@@ -188,7 +188,7 @@ def test_glossary_skips_suppressed_words() -> None:
             ],
         )
     ]
-    report = run_glossary_pass(p, _ctx(), dry_run=True, defaults=load_defaults())
+    report = run_glossary_pass(p, _ctx(), dry_run=True)
     assert report["count"] == 0
 
 
@@ -200,7 +200,7 @@ def test_glossary_skip_span_excludes_word() -> None:
             words=[TranscriptWord(text="teh", start=6.5, end=7.0)],
         )
     ]
-    report = run_glossary_pass(p, _ctx(), dry_run=True, defaults=load_defaults())
+    report = run_glossary_pass(p, _ctx(), dry_run=True)
     assert report["count"] == 0
 
 
@@ -212,7 +212,7 @@ def test_glossary_apply_mutates_transcript() -> None:
             words=[TranscriptWord(text="teh", start=11.0, end=11.5)],
         )
     ]
-    run_glossary_pass(p, _ctx(), dry_run=False, defaults=load_defaults())
+    run_glossary_pass(p, _ctx(), dry_run=False)
     assert p.transcripts[0].words[0].text == "the"
 
 
@@ -403,7 +403,7 @@ def test_glossary_phrase_homophone_match_type() -> None:
         replacements=[ReplacementRule("logos bible", "Logos Bible", "phrase")],
         preserve_tokens=[],
     )
-    report = run_glossary_pass(p, ctx, dry_run=True, defaults=load_defaults())
+    report = run_glossary_pass(p, ctx, dry_run=True)
     assert report["count"] == 1
     assert report["fixes"][0]["text"] == "Logos Bible"
 
@@ -424,7 +424,7 @@ def test_glossary_preserve_token_blocks_phrase_span() -> None:
         replacements=[ReplacementRule("keep verdad here", "kept", "phrase")],
         preserve_tokens=["verdad"],
     )
-    report = run_glossary_pass(p, ctx, dry_run=True, defaults=load_defaults())
+    report = run_glossary_pass(p, ctx, dry_run=True)
     assert report["count"] == 0
 
 
@@ -439,9 +439,7 @@ def test_glossary_pass_reports_progress_every_50_words() -> None:
         )
     ]
     progress = RecordingProgress()
-    run_glossary_pass(
-        p, _ctx(replacements=[]), dry_run=True, progress=progress, defaults=load_defaults()
-    )
+    run_glossary_pass(p, _ctx(replacements=[]), dry_run=True, progress=progress)
     updates = [
         e
         for e in progress.events
@@ -586,7 +584,7 @@ def test_glossary_apply_keeps_evidence() -> None:
             ],
         )
     ]
-    run_glossary_pass(p, _ctx(), dry_run=False, defaults=load_defaults())
+    run_glossary_pass(p, _ctx(), dry_run=False)
     word = p.transcripts[0].words[0]
     assert word.text == "the"
     assert word.alignment_score == 0.004
@@ -1458,7 +1456,7 @@ def test_glossary_pass_fixes_the_take_that_holds_the_match() -> None:
             ],
         ),
     ]
-    report = run_glossary_pass(p, _ctx(), dry_run=False, defaults=load_defaults())
+    report = run_glossary_pass(p, _ctx(), dry_run=False)
     assert report["count"] == 1
     assert [w.text for w in p.transcripts[0].words] == ["hello"]
     assert [w.text for w in p.transcripts[1].words] == ["x", "the"]

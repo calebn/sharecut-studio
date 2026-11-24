@@ -1,8 +1,9 @@
 """Pin ``combined_transcript`` after each command that can rewrite it (#1849 S0).
 
-Characterization only: every expectation is what unmodified ``develop`` does, measured by
-running the command (``tests/combined_contract_helpers.py::observe``), not what the design
-wants. Each command runs through its real entry point from three entry states.
+Every expectation is what ``develop`` does, measured by running the command
+(``tests/combined_contract_helpers.py::observe``), not what the design wants. A row changed by a
+later slice (S2 hook, S3 call-site deletion) is re-pinned to the measured new behavior and keeps
+its id, with ``Case.s2_changes`` or ``Case.s3_untouched`` naming the states that moved. Each command runs through its real entry point from three entry states.
 
 * ``fresh``: combined equals ``merge_transcripts`` of the project.
 * ``stale``: combined deliberately differs from the merge (a pipeline that paused at a gate,
@@ -136,18 +137,21 @@ WORD_CASES = [
         lambda ws: TranscriptService(ws).correct_word("host", 0, "HELLO"),
         ("HELLO there friend", "welcome back", "thanks for having me"),
         s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
     Case(
         "correct_phrase",
         lambda ws: TranscriptService(ws).correct_phrase("host", 3, 4, "good day"),
         ("hello there friend", "good day", "thanks for having me"),
         s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
     Case(
         "suppress_word",
         lambda ws: TranscriptService(ws).set_word_suppressed("guest", 3, True),
         ("hello there friend", "welcome back", "thanks for having"),
         s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
     Case(
         "transcript_cleanup",
@@ -156,6 +160,7 @@ WORD_CASES = [
         ),
         ("hello THERE friend", "welcome back", "thanks for having me"),
         s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
     Case(
         "word_timing",
