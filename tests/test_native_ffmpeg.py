@@ -475,6 +475,35 @@ def test_build_id_is_thread_safe(host: None, monkeypatch: pytest.MonkeyPatch) ->
     assert set(results) == {"9.0.2+abcd"}
 
 
+def test_the_backend_keeps_its_library_alive() -> None:
+    import weakref
+
+    class Lib:
+        def __init__(self) -> None:
+            self.sc_ffmpeg_abi_version = ctypes.CFUNCTYPE(ctypes.c_int)(
+                lambda: native_ffmpeg.ABI_VERSION
+            )
+            self.sc_ffmpeg_start = ctypes.CFUNCTYPE(
+                ctypes.c_int64,
+                ctypes.c_int,
+                ctypes.POINTER(ctypes.c_char_p),
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_int,
+            )(lambda *args: 1)
+            self.sc_ffmpeg_wait = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int64)(lambda session: 0)
+            self.sc_ffmpeg_cancel = ctypes.CFUNCTYPE(None, ctypes.c_int64)(lambda session: None)
+            self.sc_ffmpeg_build_id = ctypes.CFUNCTYPE(ctypes.c_char_p)(lambda: b"9.0.2+abcd")
+
+    lib = Lib()
+    ref = weakref.ref(lib)
+    backend = NativeFFmpegBackend(lib)
+    del lib
+    assert ref() is not None
+    del backend
+    assert ref() is None
+
+
 def test_a_library_missing_one_symbol_is_unavailable() -> None:
     fake = FakeNative()
     del fake.sc_ffmpeg_cancel
