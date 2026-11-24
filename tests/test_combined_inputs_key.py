@@ -1,4 +1,4 @@
-"""``combined_inputs_key`` moves exactly when ``merge_transcripts`` output can change (#1849 S1)."""
+"""``combined_inputs_key`` moves with the inputs ``merge_transcripts`` reads (#1849 S1)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.engines.transcript_sync import combined_inputs_key
+from podcast_mcp.engines.transcript_sync import CombinedInputsKey, combined_inputs_key
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -121,3 +121,82 @@ def test_noop_keeps_the_key(project: EpisodeProject) -> None:
     project.transcripts[0].words[0].suppressed = False
     project.transcripts = list(project.transcripts)
     assert combined_inputs_key(project) == before
+
+
+def test_key_is_hashable_and_equal_keys_hash_equal(project: EpisodeProject) -> None:
+    first = combined_inputs_key(project)
+    second = combined_inputs_key(project)
+    assert hash(first) == hash(second)
+    assert {first: 1}[second] == 1
+
+
+def test_key_holds_the_transcripts_it_names(project: EpisodeProject) -> None:
+    key = combined_inputs_key(project)
+    assert isinstance(key, CombinedInputsKey)
+    assert len(key.held) == len(project.transcripts)
+    assert all(h is t for h, t in zip(key.held, project.transcripts, strict=True))
+    old_first = project.transcripts[0]
+    project.transcripts = [Transcript(track_id="host", words=[]), project.transcripts[1]]
+    assert key.held[0] is old_first
+    assert id(old_first) == key.transcripts[0][0]
+
+
+def test_replaced_transcript_with_same_ids_moves_the_key(project: EpisodeProject) -> None:
+    before = combined_inputs_key(project)
+    old_id = id(project.transcripts[0])
+    project.transcripts[0] = Transcript(
+        track_id="host", words=_words(("hello", 0.0, 0.4), ("there", 0.5, 0.9))
+    )
+    assert id(project.transcripts[0]) != old_id
+    assert combined_inputs_key(project) != before
+
+
+def test_old_transcript_identity_cannot_be_reused_while_key_lives(
+    project: EpisodeProject,
+) -> None:
+    before = combined_inputs_key(project)
+    old_ids = {id(t) for t in project.transcripts}
+    project.transcripts = []
+    replacements = [
+        Transcript(track_id="host", words=_words(("changed", 0.0, 0.4))) for _ in range(64)
+    ]
+    assert old_ids.isdisjoint(id(t) for t in replacements)
+    project.transcripts = replacements[:1]
+    assert combined_inputs_key(project) != before
+
+
+def test_speaker_none_to_value_moves_the_key(project: EpisodeProject) -> None:
+    project.timeline.tracks[0].speaker = None
+    before = combined_inputs_key(project)
+    project.timeline.tracks[0].speaker = "Host"
+    assert combined_inputs_key(project) != before
+
+
+def test_speaker_value_to_none_moves_the_key(project: EpisodeProject) -> None:
+    before = combined_inputs_key(project)
+    project.timeline.tracks[0].speaker = None
+    assert combined_inputs_key(project) != before
+
+
+def test_in_place_transcript_track_id_write_moves_the_key(project: EpisodeProject) -> None:
+    before = combined_inputs_key(project)
+    project.transcripts[0].track_id = "guest"
+    assert combined_inputs_key(project) != before
+
+
+def test_in_place_transcript_source_id_write_moves_the_key(project: EpisodeProject) -> None:
+    before = combined_inputs_key(project)
+    project.transcripts[0].source_id = "take-2"
+    assert combined_inputs_key(project) != before
+
+
+def test_reordering_transcripts_moves_the_key(project: EpisodeProject) -> None:
+    before = combined_inputs_key(project)
+    project.transcripts.reverse()
+    assert combined_inputs_key(project) != before
+
+
+def test_removing_a_track_moves_the_key(project: EpisodeProject) -> None:
+    before = combined_inputs_key(project)
+    project.timeline.tracks = project.timeline.tracks[:1]
+    assert combined_inputs_key(project) != before

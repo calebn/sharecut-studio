@@ -9,6 +9,7 @@ shifted or remapped. Consumers that need timeline positions map through
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.ranges import overlaps_remove_range
@@ -18,21 +19,40 @@ from podcast_mcp.engines.session_timeline import (
     word_source_span,
 )
 from podcast_mcp.engines.transcribe import TranscriptionEngine
-from podcast_mcp.models import ArchivedTranscriptWord, Clip, EpisodeProject, TranscriptKey
+from podcast_mcp.models import (
+    ArchivedTranscriptWord,
+    Clip,
+    EpisodeProject,
+    Transcript,
+    TranscriptKey,
+)
 from podcast_mcp.models.words_revision import set_words, words_revision
 from podcast_mcp.util.intervals import merge_intervals
 
-CombinedInputsKey = tuple[
-    int, tuple[tuple[int, str, str | None], ...], tuple[tuple[str, str | None], ...]
-]
+
+@dataclass(frozen=True, slots=True)
+class CombinedInputsKey:
+    """Identity of the inputs ``merge_transcripts`` reads.
+
+    Covers the words revision, each transcript's object identity with its track_id and source_id,
+    and each track's id and speaker, in order. Word and archive edits are seen only through the
+    words revision (``set_word``, ``set_words``, in-place word assignment); a plain-list ``words``
+    rewritten with ``model_copy(update=)`` is not. ``held`` keeps the transcript objects alive so
+    their ids cannot be reused while the key exists; it is excluded from equality and hashing.
+    """
+
+    revision: int
+    transcripts: tuple[tuple[int, str, str | None], ...]
+    tracks: tuple[tuple[str, str | None], ...]
+    held: tuple[Transcript, ...] = field(compare=False, repr=False)
 
 
 def combined_inputs_key(project: EpisodeProject) -> CombinedInputsKey:
-    """Everything ``merge_transcripts`` reads, as a value that moves when any of it does."""
-    return (
-        words_revision(),
-        tuple((id(t), t.track_id, t.source_id) for t in project.transcripts),
-        tuple((tr.id, tr.speaker) for tr in project.tracks),
+    return CombinedInputsKey(
+        revision=words_revision(),
+        transcripts=tuple((id(t), t.track_id, t.source_id) for t in project.transcripts),
+        tracks=tuple((tr.id, tr.speaker) for tr in project.tracks),
+        held=tuple(project.transcripts),
     )
 
 
