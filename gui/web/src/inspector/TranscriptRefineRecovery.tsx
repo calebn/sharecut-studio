@@ -4,14 +4,14 @@ import { Button } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import {
   errorMessage,
+  REFINE_GATE_GUI_MESSAGE,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "../utils/apiError";
 
+export { REFINE_GATE_GUI_MESSAGE };
+
 /** The reason saved when the host chooses Cut anyway; the host types nothing. */
 export const CUT_ANYWAY_REASON = "Cut anyway, chosen by the host";
-
-export const REFINE_GATE_GUI_MESSAGE =
-  "The transcript isn't checked yet. Cut anyway, or check it first.";
 
 type Props = {
   projectPath: string;
