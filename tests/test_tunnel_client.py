@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from tests.polling import until
 from tests.record_links import make_project, mint_record_link
 
 from podcast_mcp.services.collaboration.tunnel import (
@@ -1111,8 +1112,7 @@ async def _live_session(client: TunnelClient, ws: _LiveRelayWs):
         http_cls.return_value = http
         task = asyncio.create_task(client._run_once())
         try:
-            while client._send is None:
-                await asyncio.sleep(0.01)
+            await until(lambda: client._send is not None)
             yield
         finally:
             task.cancel()

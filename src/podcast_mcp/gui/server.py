@@ -20,6 +20,7 @@ from starlette.responses import Response
 
 from podcast_mcp import __version__, settings
 from podcast_mcp.config.runtime import normalize_exact_origin
+from podcast_mcp.extensions.features import FEATURE_TUNNEL_STATUS
 from podcast_mcp.extensions.loader import apply_gui_extensions, load_extensions
 from podcast_mcp.gui.audio import PENDING_PREVIEW_HEADER_NAMES
 from podcast_mcp.gui.host_session import HostSessions
@@ -270,6 +271,8 @@ async def _gui_lifespan(app: FastAPI) -> AsyncIterator[None]:
                 from podcast_mcp.gui.host_mcp import host_mcp_lifespan
 
                 await stack.enter_async_context(host_mcp_lifespan(app))
+            if app.state.tunnel is not None:
+                await stack.enter_async_context(app.state.tunnel.running())
             port = getattr(app.state, "listen_port", None)
             if port is not None:
                 host = getattr(app.state, "listen_host", None)
@@ -369,6 +372,14 @@ def create_app(
 
     registry = load_extensions()
     apply_gui_extensions(app, registry)
+    app.state.tunnel = None
+    if registry.has(FEATURE_TUNNEL_STATUS):
+        from podcast_mcp.services.collaboration.tunnel_supervisor import TunnelSupervisor
+
+        app.state.tunnel = TunnelSupervisor(
+            listen_port=lambda: getattr(app.state, "listen_port", None),
+            served_project=lambda: getattr(app.state, "served_project", None),
+        )
 
     @app.get("/api/features")
     def api_features() -> dict[str, Any]:
