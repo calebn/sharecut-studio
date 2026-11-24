@@ -737,8 +737,12 @@ cuts, the trim's own and each peer's:
   the reach compares the cut with each clip's source edges, as approval does. A pause that
   splits a clip with a long fade on its far edge is applied: the split gives the new edge
   only the micro fade, so nothing moves into the window. A long fade on the clip edge at the
-  pause widens the reach, and approval still holds it with `cut_scope_changed`. Actual
-  activity on simultaneous lanes bounds quiet, including tails beyond word timing.
+  pause widens the reach, and approval still holds it with `cut_scope_changed`. A manual
+  clip fade of `LONG_FADE_SEC` (1 s) or more is never itself assessed as a ramp the cut
+  introduced (`cut_effects._is_manual_long_fade`): the render shortens a fade to half its
+  clip, so splitting a clip near one changes its ramp, and that ramp lies over speech by
+  design. The cut's own removed span, judged on the recording, still decides (#3732).
+  Actual activity on simultaneous lanes bounds quiet, including tails beyond word timing.
   Renderer-selected paths identify media across source aliases. Lane mutes, clip mutes,
   ignored regions, repeated images, registered beds, and known pad receipts earn no
   duration. Current clip fields cannot distinguish a history-free replacement with

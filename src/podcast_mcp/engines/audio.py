@@ -179,6 +179,8 @@ class GainRamp:
     end: float
     rising: bool
     curve: str
+    # True for the fade a source's own edge carries (a clip fade), False for a join crossfade.
+    clip_fade: bool = False
 
 
 @dataclass(frozen=True)
@@ -210,6 +212,7 @@ def placed_sources(audio: Audio, *, crossfade_curve: str) -> list[PlacedSource]:
                             at + fade_duration(length, node.fade_in_sec),
                             True,
                             AFADE_CURVE_NAMES[node.fade_in_curve],
+                            clip_fade=True,
                         )
                     )
                 if node.fade_out_sec > 0:
@@ -219,6 +222,7 @@ def placed_sources(audio: Audio, *, crossfade_curve: str) -> list[PlacedSource]:
                             at + length,
                             False,
                             AFADE_CURVE_NAMES[node.fade_out_curve],
+                            clip_fade=True,
                         )
                     )
                 result.append(

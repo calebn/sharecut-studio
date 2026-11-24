@@ -76,7 +76,10 @@ READ_SEC = 6.0
 # profile as it stood before the batch (#2357); before, a check after an applied cut read the
 # profile of the track as that cut left it. The store lives in one process, so this guards only a
 # process in which the constant changes (tests); the profile is in the key as ``base_profile``.
-SEMANTICS = "batch-base-profile"
+# "...-unjudged-long-fades": a clip fade of ``LONG_FADE_SEC`` or more is not a ramp the check
+# assesses as an effect of a cut (#3732); a verdict made before judged it and may hold a cut it
+# would now apply.
+SEMANTICS = "batch-base-profile-unjudged-long-fades"
 PAUSE_REACH_FLOOR_SEC = 13.0
 LONG_FADE_NO_CACHE_SEC = 1.0
 # The render rounds the seam, borrow and window start independently to frames.

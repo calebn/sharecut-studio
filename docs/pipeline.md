@@ -838,7 +838,7 @@ track plays within 6 s of the cut plus the longest fade, and for a pause at leas
 out to the words its check observes. The longest fade is the cut crossfade, the pad fade, or the
 fade of a clip on the cut's track whose edge touches the cut (`cut_quality.fade_reach_sec`).
 The window is on the timeline, so a clip placed away from its source time counts where it plays.
-A cut is never cached when a clip fade over 1 s, on any track, runs into its window.
+A cut is never cached when a clip fade over 1 s, on any track, runs into its window. `verdict_cache.SEMANTICS` names the rule that judges a stored verdict, so a change to what a check assesses (such as leaving a manual long fade out of the assessed effects) ends the reuse of verdicts made before it.
 An unchanged long fade outside the window does not prevent cache reuse. Editing a dialogue
 clip's fade between warming and approval changes the batch-base stamp described below, even when
 the fade is outside the cut's window. Any crossfade join of a clip in the window, whichever side

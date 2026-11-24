@@ -69,7 +69,13 @@ def oracle_placed_sources(audio: Audio, *, crossfade_curve: str) -> list[PlacedS
                 own = []
                 if node.fade_in_sec > 0:
                     own.append(
-                        GainRamp(at, at + fade_duration(length, node.fade_in_sec), True, "tri")
+                        GainRamp(
+                            at,
+                            at + fade_duration(length, node.fade_in_sec),
+                            True,
+                            "tri",
+                            clip_fade=True,
+                        )
                     )
                 if node.fade_out_sec > 0:
                     own.append(
@@ -78,6 +84,7 @@ def oracle_placed_sources(audio: Audio, *, crossfade_curve: str) -> list[PlacedS
                             at + length,
                             False,
                             "tri",
+                            clip_fade=True,
                         )
                     )
                 result.append(
