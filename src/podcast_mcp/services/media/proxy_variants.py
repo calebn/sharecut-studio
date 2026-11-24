@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import os
@@ -374,6 +375,50 @@ def _accepted(project: EpisodeProject) -> list[ProxyPublishedArtifact]:
     ]
 
 
+_CHUNK_FILE = re.compile(r"\d{5}\.mp3\Z")
+
+
+def _sweep_evicted(ws: ProjectWorkspace) -> None:
+    with ws.transaction() as project:
+        live = {(a.context_track_id, a.hash) for a in _accepted(project)}
+        live |= {(t.id, t.proxy.hash) for t in project.tracks if t.proxy is not None}
+        try:
+            root = _proxy_root(project)
+            contexts = sorted(root.iterdir())
+        except (OSError, CodedKeyError):
+            return
+        for context in contexts:
+            try:
+                if (
+                    context.is_symlink()
+                    or not context.is_dir()
+                    or not _SAFE_ID.fullmatch(context.name)
+                ):
+                    continue
+                for candidate in sorted(context.iterdir()):
+                    if (
+                        (context.name, candidate.name) in live
+                        or candidate.is_symlink()
+                        or not candidate.is_dir()
+                        or not _HASH.fullmatch(candidate.name)
+                    ):
+                        continue
+                    directory = artifact_directory(project, context.name, candidate.name)
+                    entries = list(directory.iterdir())
+                    if not all(
+                        entry.is_file()
+                        and not entry.is_symlink()
+                        and _CHUNK_FILE.fullmatch(entry.name)
+                        for entry in entries
+                    ):
+                        continue
+                    for entry in entries:
+                        entry.unlink()
+                    directory.rmdir()
+            except (OSError, CodedKeyError):
+                continue
+
+
 @dataclass(frozen=True)
 class _EncodedChunks:
     directory: Path
@@ -670,13 +715,19 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                                 generation,
                                 *[g for g in generations if g.revision != generation.revision],
                             ][:2]
-                    if current.model_dump(mode="json") != before:
+                    committed = current.model_dump(mode="json") != before
+                    if committed:
                         _save_confirmed(ws, current.model_copy(deep=True))
                     if track_id is None:
-                        return generation
-                    track = current.track_by_id(track_id)
-                    assert track is not None and track.proxy is not None
-                    return track.proxy.model_copy(deep=True)
+                        result: ProxyManifestGeneration | TrackProxy = generation
+                    else:
+                        track = current.track_by_id(track_id)
+                        assert track is not None and track.proxy is not None
+                        result = track.proxy.model_copy(deep=True)
+                if committed:
+                    with contextlib.suppress(Exception):
+                        _sweep_evicted(ws)
+                return result
         finally:
             for item in prepared:
                 if item.private_directory is not None:

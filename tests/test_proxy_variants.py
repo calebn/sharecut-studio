@@ -586,7 +586,7 @@ def test_generation_eviction_rejects_old_and_disk_only_bytes(workspace, fast_enc
             ws, "host", 0, expected_hash=generation.tracks["host"].hash
         ).is_file()
     old = generations[0].tracks["host"]
-    assert _chunk(ws, old).is_file()
+    assert not pv.artifact_directory(ws.project, "host", old.hash).exists()
     with pytest.raises(CodedKeyError) as error:
         pv.accepted_proxy_chunk_path(ws, "host", 0, expected_hash=old.hash)
     assert error.value.code == "proxy_generation_unavailable"
@@ -624,10 +624,16 @@ def test_eviction_sweep_keeps_the_legacy_descriptor_private_directories_and_syml
     ws = workspace
     generations = [_regenerate(ws, frequency) for frequency in (100, 200)]
     legacy = generations[0].tracks["host"]
-    with ws.transaction():
-        ws.project.tracks[0].proxy = pv.TrackProxy(**legacy.model_dump(include=set(pv.TrackProxy.model_fields)))
-        ws.save()
     root = pv.artifact_directory(ws.project, "host", legacy.hash).parent
+    stale = root / ("a" * 64)
+    stale.mkdir()
+    (stale / "00000.mp3").write_bytes(b"x")
+    with ws.transaction():
+        ws.project.tracks[0].proxy = pv.TrackProxy(
+            **legacy.model_dump(include=set(pv.TrackProxy.model_fields))
+        )
+        ws.project.tracks[0].proxy.hash = "a" * 64
+        ws.save()
     private = root / ".proxy-inflight"
     private.mkdir()
     (private / "00000.mp3").write_bytes(b"x")
@@ -635,11 +641,24 @@ def test_eviction_sweep_keeps_the_legacy_descriptor_private_directories_and_syml
     outside.mkdir()
     (outside / "keep.txt").write_text("keep")
     (root / ("b" * 64)).symlink_to(outside, target_is_directory=True)
-    _regenerate(ws, 300)
-    assert pv.artifact_directory(ws.project, "host", legacy.hash).is_dir()
+    extra = root / ("c" * 64)
+    extra.mkdir()
+    (extra / "00000.mp3").write_bytes(b"x")
+    (extra / "notes.txt").write_text("keep")
+    unreferenced = root / ("d" * 64)
+    unreferenced.mkdir()
+    (unreferenced / "00000.mp3").write_bytes(b"x")
+    (unreferenced / "00001.mp3").write_bytes(b"y")
+    pv._sweep_evicted(ws)
+    assert (stale / "00000.mp3").is_file()
     assert (private / "00000.mp3").is_file()
     assert (outside / "keep.txt").read_text() == "keep"
     assert (root / ("b" * 64)).is_symlink()
+    assert (extra / "notes.txt").read_text() == "keep"
+    assert (extra / "00000.mp3").is_file()
+    assert not unreferenced.exists()
+    for generation in generations:
+        assert pv.artifact_directory(ws.project, "host", generation.tracks["host"].hash).is_dir()
 
 
 def test_evicted_16_undo_reference_cannot_bootstrap_again(workspace, monkeypatch, fast_encode):
@@ -675,7 +694,7 @@ def test_evicted_16_undo_reference_cannot_bootstrap_again(workspace, monkeypatch
     restored = pv.ensure_proxy_manifest(ws)
     assert len(restored.tracks["host"].hash) == 64
     assert restored.tracks["host"].hash != imported.hash
-    assert pm.proxy_dir(ws, "host", imported.hash).is_dir()
+    assert not pm.proxy_dir(ws, "host", imported.hash).exists()
 
 
 @pytest.mark.parametrize("landed", [False, True])
@@ -957,7 +976,6 @@ def test_different_byte_rerender_gets_new_url_after_eviction(workspace, monkeypa
     ws = workspace
     first = pv.ensure_proxy_manifest(ws)
     old = first.tracks["host"]
-    old_bytes = _chunk(ws, old).read_bytes()
     for frequency in (100, 200):
         with ws.transaction():
             ws.project.processing_chains = [
@@ -981,7 +999,7 @@ def test_different_byte_rerender_gets_new_url_after_eviction(workspace, monkeypa
     current = pv.ensure_proxy_manifest(ws)
     assert current.tracks["host"].input_hash == old.input_hash
     assert current.tracks["host"].hash != old.hash
-    assert _chunk(ws, old).read_bytes() == old_bytes
+    assert not pv.artifact_directory(ws.project, "host", old.hash).exists()
     with pytest.raises(CodedKeyError) as error:
         pv.accepted_proxy_chunk_path(ws, "host", 0, expected_hash=old.hash)
     assert error.value.code == "proxy_generation_unavailable"
@@ -1312,8 +1330,7 @@ def test_atomic_rename_race_preserves_existing_empty_directory(workspace, monkey
 def test_standalone_changed_inputs_get_new_content_hash(workspace, fast_encode):
     ws = workspace
     first = pm.ensure_track_proxy(ws, "host")
-    old = pm.proxy_dir(ws, "host", first.hash) / "00000.mp3"
-    before = old.read_bytes()
+    old = pm.proxy_dir(ws, "host", first.hash)
     with ws.transaction():
         ws.project.processing_chains = [
             ProcessingChain(
@@ -1325,7 +1342,7 @@ def test_standalone_changed_inputs_get_new_content_hash(workspace, fast_encode):
     current = pm.ensure_track_proxy(ws, "host")
     assert current.hash != first.hash
     assert len(current.hash) == 64
-    assert old.read_bytes() == before
+    assert not old.exists()
     assert ws.project.render.proxy_manifests == []
 
 
