@@ -5,7 +5,7 @@ from typing import Any
 
 from podcast_mcp.util.coded_error import CodedValueError
 
-SUPPORTED_PROJECT_VERSION = "2.4"
+SUPPORTED_PROJECT_VERSION = "2.5"
 
 Step = Callable[[dict[str, Any]], None]
 
@@ -26,6 +26,14 @@ def _add_guest_post_receipts(data: dict[str, Any]) -> None:
     """2.3 to 2.4: old projects have no guest retry receipts; the model defaults to empty."""
 
 
+def _add_bound_pad_pick(data: dict[str, Any]) -> None:
+    """2.4 to 2.5: ``EditDecision.bound_pad`` is new and absent means the pad is not bound yet.
+
+    A pending cut without it picks its room tone when it applies, as before, and is bound
+    the next time the cuts are proposed or edited.
+    """
+
+
 # One entry per released format: the version it moves to, and the edit that moves a document
 # there. Shared by `podcast episode upgrade` and the in-memory migration in `load_project`.
 STEPS: dict[str, tuple[str, Step]] = {
@@ -33,6 +41,7 @@ STEPS: dict[str, tuple[str, Step]] = {
     "2.1": ("2.2", _add_transcript_asr_language),
     "2.2": ("2.3", _add_history_entry_authors),
     "2.3": ("2.4", _add_guest_post_receipts),
+    "2.4": ("2.5", _add_bound_pad_pick),
 }
 
 

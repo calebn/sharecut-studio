@@ -1,5 +1,5 @@
 {
-  "project_version": "2.4",
+  "project_version": "2.5",
   "schemas": {
     "serialization": {
       "$defs": {
@@ -315,6 +315,148 @@
             "digest",
             "measured_lufs",
             "speech_gated"
+          ],
+          "type": "object"
+        },
+        "BoundPad": {
+          "additionalProperties": false,
+          "properties": {
+            "geometry": {
+              "type": "string"
+            },
+            "lanes": {
+              "additionalProperties": {
+                "$ref": "#/$defs/BoundPadLane"
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "geometry"
+          ],
+          "type": "object"
+        },
+        "BoundPadLane": {
+          "additionalProperties": false,
+          "properties": {
+            "bed_failure": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "bed_rejected_checks": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "digest": {
+              "type": "string"
+            },
+            "end": {
+              "type": "number"
+            },
+            "file_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "kind": {
+              "enum": [
+                "own",
+                "bed",
+                "synth"
+              ],
+              "type": "string"
+            },
+            "near_sec": {
+              "type": "number"
+            },
+            "near_source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "rel_path": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "request_sec": {
+              "type": "number"
+            },
+            "rms_db": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "seed_sec": {
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "speech_prob": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "start",
+            "end",
+            "near_sec",
+            "request_sec",
+            "seed_sec",
+            "digest"
           ],
           "type": "object"
         },
@@ -922,6 +1064,17 @@
               ],
               "default": null
             },
+            "bound_pad": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BoundPad"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "boundary_intent": {
               "$ref": "#/$defs/CutIntent",
               "default": "programmatic"
@@ -1187,7 +1340,7 @@
               "$ref": "#/$defs/TranscriptsSection"
             },
             "version": {
-              "default": "2.4",
+              "default": "2.5",
               "type": "string"
             }
           },
@@ -4509,6 +4662,148 @@
           ],
           "type": "object"
         },
+        "BoundPad": {
+          "additionalProperties": false,
+          "properties": {
+            "geometry": {
+              "type": "string"
+            },
+            "lanes": {
+              "additionalProperties": {
+                "$ref": "#/$defs/BoundPadLane"
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "geometry"
+          ],
+          "type": "object"
+        },
+        "BoundPadLane": {
+          "additionalProperties": false,
+          "properties": {
+            "bed_failure": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "bed_rejected_checks": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "digest": {
+              "type": "string"
+            },
+            "end": {
+              "type": "number"
+            },
+            "file_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "kind": {
+              "enum": [
+                "own",
+                "bed",
+                "synth"
+              ],
+              "type": "string"
+            },
+            "near_sec": {
+              "type": "number"
+            },
+            "near_source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "rel_path": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "request_sec": {
+              "type": "number"
+            },
+            "rms_db": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "seed_sec": {
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "speech_prob": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "start",
+            "end",
+            "near_sec",
+            "request_sec",
+            "seed_sec",
+            "digest"
+          ],
+          "type": "object"
+        },
         "ChapterMarker": {
           "properties": {
             "image_url": {
@@ -5113,6 +5408,17 @@
               ],
               "default": null
             },
+            "bound_pad": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BoundPad"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "boundary_intent": {
               "$ref": "#/$defs/CutIntent",
               "default": "programmatic"
@@ -5378,7 +5684,7 @@
               "$ref": "#/$defs/TranscriptsSection"
             },
             "version": {
-              "default": "2.4",
+              "default": "2.5",
               "type": "string"
             }
           },
@@ -8391,6 +8697,8 @@
     "AutomationEnvelope": "ignore",
     "AutomationPoint": "ignore",
     "BalanceBasis": "ignore",
+    "BoundPad": "forbid",
+    "BoundPadLane": "forbid",
     "ChapterMarker": "ignore",
     "Clip": "ignore",
     "ClipBleedRestore": "ignore",

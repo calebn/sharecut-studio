@@ -1,5 +1,5 @@
 {
-  "version": "2.4",
+  "version": "2.5",
   "meta": {
     "name": "synthetic bleed 60s",
     "workspace_dir": ".",

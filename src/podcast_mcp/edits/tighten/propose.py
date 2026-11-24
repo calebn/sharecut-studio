@@ -115,7 +115,7 @@ def _edit_payload(
     decision: EditDecision, audio_check: dict[str, str] | None = None
 ) -> dict[str, Any]:
     """One proposal row: the decision, its plain-words label, suggested action and review kind, its audio check."""
-    row = decision.model_dump()
+    row = decision.model_dump(exclude={"bound_pad"})
     row.update(review_fields(decision.reason))
     if audio_check is not None:
         row["audio_check"] = audio_check

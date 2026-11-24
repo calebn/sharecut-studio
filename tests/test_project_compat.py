@@ -111,7 +111,7 @@ def test_format_2_3_opens_without_receipts_and_keeps_document_recovery(v23_proje
     before = v23_project.read_bytes()
     project = compat.load_project(v23_project)
 
-    assert project.version == "2.4"
+    assert project.version == "2.5"
     assert project.document_sync.guest_post_receipts == {}
     assert project.document_sync.last_command is not None
     assert project.document_sync.last_command.command_id == "remembered-command"
@@ -121,7 +121,7 @@ def test_format_2_3_opens_without_receipts_and_keeps_document_recovery(v23_proje
 def test_format_2_0_opens_through_load_project_and_stays_2_0_on_disk(v20_workspace) -> None:
     before = (v20_workspace / compat.PROJECT).read_bytes()
     project = compat.load_project(v20_workspace / compat.PROJECT)
-    assert project.version == "2.4"
+    assert project.version == "2.5"
     assert [t.id for t in project.timeline.tracks] == ["reference", "guest"]
     assert (v20_workspace / compat.PROJECT).read_bytes() == before
 
@@ -161,7 +161,7 @@ def test_format_2_0_is_read_by_the_cli(v20_workspace) -> None:
         app, ["info", "--project", str(v20_workspace / compat.PROJECT), "--json"]
     )
     assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout)["version"] == "2.4"
+    assert json.loads(result.stdout)["version"] == "2.5"
     assert (v20_workspace / compat.PROJECT).read_bytes() == before
 
 

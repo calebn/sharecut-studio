@@ -162,6 +162,20 @@ def test_the_preview_copy_and_the_later_approve_play_one_pad(tmp_path: Path) -> 
     assert _played(preview)[SECOND] == _played(project)[SECOND]
 
 
+def test_the_suggested_preview_plays_the_pad_a_later_approve_lays(tmp_path: Path) -> None:
+    from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
+    from podcast_mcp.util.project_state import snapshot_project
+
+    project = _two_pending(tmp_path)
+    bind_pending_pad_picks(project, defaults=DEFAULTS)
+    scratch = snapshot_project(project)
+
+    apply_for_suggested(scratch, resolve_pending_preview(scratch, SECOND), defaults=DEFAULTS)
+    _approve(project, FIRST, SECOND)
+
+    assert _tiles(scratch, SECOND) == _tiles(project, SECOND)
+
+
 def test_binding_twice_changes_nothing(tmp_path: Path) -> None:
     project = _two_pending(tmp_path)
     assert bind_pending_pad_picks(project, defaults=DEFAULTS) == 2
@@ -404,3 +418,28 @@ def test_a_service_edit_of_a_pending_cut_binds_it_and_saves_the_binding(tmp_path
     assert saved[SECOND].bound_pad is not None
     assert saved[FIRST].bound_pad is not None
     assert pad_binding.usable_lanes(saved[SECOND])["host"].kind == "own"
+
+
+def test_the_pipeline_analysis_leaves_its_pending_cuts_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from podcast_mcp.pipeline import steps
+
+    project = _two_pending(tmp_path)
+    monkeypatch.setattr(steps, "_record_level_profiles", lambda _project: None)
+    monkeypatch.setattr(
+        steps,
+        "propose_tighten_edits",
+        lambda *_args, **_kwargs: SimpleNamespace(summary=lambda: "2 proposed"),
+    )
+    monkeypatch.setattr("podcast_mcp.pipeline.meta.step_noop_reason", lambda *_args: None)
+    monkeypatch.setattr(
+        "podcast_mcp.edits.transcript_refine_status.REFINE_GATE.assert_clear",
+        lambda *_args, **_kwargs: None,
+    )
+
+    steps.analyze_fillers_pauses(project, DEFAULTS)
+
+    assert all(pad_binding.usable_lanes(e) for e in project.edit_decisions)
