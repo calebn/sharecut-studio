@@ -578,9 +578,10 @@ def test_cancel_reaches_native_within_a_few_polls() -> None:
     )
     runner.start()
     assert fake.started.acquire(timeout=BOUND_SEC)
+    waits_before_cancel = cancel.waits
     cancel.set()
     assert fake.cancelled.wait(BOUND_SEC)
-    assert 1 <= cancel.waits <= 10
+    assert cancel.waits - waits_before_cancel <= 10
     runner.join(BOUND_SEC)
     assert not runner.is_alive()
 
@@ -599,6 +600,7 @@ def test_start_never_waits_for_the_tool() -> None:
     runner.start()
     assert fake.started.acquire(timeout=BOUND_SEC)
     assert not fake.finished.is_set()
+    assert runner.is_alive()
     assert not codes
     fake.release.set()
     runner.join(BOUND_SEC)
@@ -708,7 +710,6 @@ def test_install_native_backend_installs_once_and_serves_spawns(
 def test_install_native_backend_is_safe_to_race(
     host: None, monkeypatch: pytest.MonkeyPatch, uninstall: None
 ) -> None:
-
     def slow_open(*args: Any, **kwargs: Any) -> FakeNative:
         threading.Event().wait(0.05)
         return FakeNative()
