@@ -1,4 +1,4 @@
-import { expect, type Page, type Route } from "@playwright/test";
+import { expect, type Locator, type Page, type Route } from "@playwright/test";
 import { hostOfflineQueueCount } from "./offlineQueue";
 import { withShareableProject } from "./shareableProject";
 import { openProject } from "./stageNav";
@@ -92,6 +92,57 @@ function frames(page: Page) {
   );
 }
 
+async function openZoomedClip(page: Page, projectPath: string) {
+  await openProject(page, projectPath);
+  const block = page
+    .locator(".lane-row")
+    .first()
+    .locator('[data-testid="timeline-clip"]');
+  await expect(block).toHaveCount(1);
+  const slider = page.getByRole("slider", { name: "Timeline position" });
+  await slider.press("Home");
+  await slider.focus();
+  let presses = 0;
+  while ((await block.boundingBox())!.width < 160 && presses < 24) {
+    presses += (await zoomTimelineIn(page, { maxSteps: 1 })).steps;
+    await slider.press("Home");
+  }
+  return block;
+}
+
+/** Presses the clip's out handle and drags it `dx` px left; returns the pointer release. */
+async function pressTrimOut(
+  page: Page,
+  block: Locator,
+  dx: number,
+): Promise<() => Promise<void>> {
+  await block.locator(".clip-hit").click();
+  const handle = block.locator(".trim-handle.out");
+  await expect(handle).toHaveCSS("opacity", "1");
+  const box = (await handle.boundingBox())!;
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.down();
+  await page.mouse.move(at.x - dx, at.y, { steps: 10 });
+  return () => page.mouse.up();
+}
+
+/** Counts the boundary-context loads and keeps every refusal's status. */
+function watchBoundaryLoads(page: Page) {
+  const loads: { expectedEnd: number | null; status: number }[] = [];
+  page.on("response", async (response) => {
+    if (!response.url().includes("/api/boundary/context")) return;
+    const sent = response.request().postDataJSON() as {
+      expected_geometry?: { source_end: number }[];
+    };
+    loads.push({
+      expectedEnd: sent.expected_geometry?.[0]?.source_end ?? null,
+      status: response.status(),
+    });
+  });
+  return loads;
+}
+
 /**
  * Trim a clip's out edge while its command cannot reach the server, and check
  * the painted bounds on every frame until the one retry lands.
@@ -107,36 +158,16 @@ export async function expectQueuedTrimHoldsUntilItSyncs(page: Page) {
       commands.push(command);
       return offline ? route.abort("failed") : route.continue();
     });
-    await openProject(page, projectPath);
-    const block = page
-      .locator(".lane-row")
-      .first()
-      .locator('[data-testid="timeline-clip"]');
-    await expect(block).toHaveCount(1);
-    const slider = page.getByRole("slider", { name: "Timeline position" });
-    await slider.press("Home");
-    await slider.focus();
-    let presses = 0;
-    while ((await block.boundingBox())!.width < 160 && presses < 24) {
-      presses += (await zoomTimelineIn(page, { maxSteps: 1 })).steps;
-      await slider.press("Home");
-    }
+    const block = await openZoomedClip(page, projectPath);
     const savedLayout = await layout(page);
     const savedClips = await serverClips(page, projectPath);
 
-    await block.locator(".clip-hit").click();
-    const handle = block.locator(".trim-handle.out");
-    await expect(handle).toHaveCSS("opacity", "1");
-    const box = (await handle.boundingBox())!;
-    const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    await page.mouse.move(at.x, at.y);
-    await page.mouse.down();
-    await page.mouse.move(at.x - 60, at.y, { steps: 10 });
+    const release = await pressTrimOut(page, block, 60);
     await expect(block).toHaveClass(/trim-dragging/);
     await expect.poll(() => layout(page)).not.toBe(savedLayout);
     const dragged = await layout(page);
     await recordFrames(page);
-    await page.mouse.up();
+    await release();
 
     await expect.poll(() => commands.length).toBe(1);
     expect(commands[0]!.payload.edge).toBe("out");
@@ -195,5 +226,60 @@ export async function expectQueuedTrimHoldsUntilItSyncs(page: Page) {
       afterRelease.slice(firstHeld).filter((frame) => frame !== held),
       "once held, the bounds never change again, not even when the retry lands",
     ).toEqual([]);
+  });
+}
+
+/**
+ * While a trim waits to send, a second drag on the same clip must not ask the
+ * host about geometry it does not hold yet (a stale boundary, refused with a
+ * 409). It says the clip is waiting, sends nothing, and works once the first
+ * trim has landed.
+ */
+export async function expectSecondTrimWaitsForTheQueuedOne(page: Page) {
+  await withShareableProject(async (projectPath) => {
+    const commands: TrimCommand[] = [];
+    let offline = true;
+    await page.route("**/api/document/command?*", async (route: Route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      const command = route.request().postDataJSON() as TrimCommand;
+      if (command.type !== "TrimClipEdge") return route.continue();
+      commands.push(command);
+      return offline ? route.abort("failed") : route.continue();
+    });
+    const loads = watchBoundaryLoads(page);
+    const block = await openZoomedClip(page, projectPath);
+
+    await (await pressTrimOut(page, block, 60))();
+    await expect.poll(() => commands.length).toBe(1);
+    await expect.poll(() => hostOfflineQueueCount(page, projectPath)).toBe(1);
+    const toasts = page.getByRole("region", { name: "Status messages" });
+    await expect(
+      toasts.getByText("Trim kept. It sends when you can reach the host."),
+    ).toBeVisible();
+    const held = await layout(page);
+
+    await (await pressTrimOut(page, block, 30))();
+    await expect(
+      toasts.getByText(
+        "This clip is waiting to send. Trim it again once it has.",
+      ),
+    ).toBeVisible();
+    await expect(block).not.toHaveClass(/trim-dragging/);
+    expect(await layout(page), "the queued trim stays shown").toBe(held);
+    expect(commands, "no second trim was sent").toHaveLength(1);
+    expect(loads, "no second boundary was loaded").toHaveLength(1);
+    expect(loads.map((load) => load.status)).toEqual([200]);
+
+    offline = false;
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    await expect.poll(() => hostOfflineQueueCount(page, projectPath)).toBe(0);
+    await expect.poll(() => layout(page)).toBe(held);
+
+    await (await pressTrimOut(page, block, 30))();
+    await expect.poll(() => commands.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(commands.map((c) => c.command_id)).size).toBe(2);
+    await expect.poll(() => layout(page)).not.toBe(held);
+    expect(loads.map((load) => load.status)).toEqual([200, 200]);
+    await expect(page.getByText(/Clip edit failed/)).toHaveCount(0);
   });
 }
