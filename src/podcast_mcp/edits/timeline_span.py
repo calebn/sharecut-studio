@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.models import EditDecision, EditDecisionType, EpisodeProject
-from podcast_mcp.util.source_spans import source_span_timeline_bounds as source_span_timeline_bounds
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 
 
