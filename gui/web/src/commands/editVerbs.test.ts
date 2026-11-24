@@ -32,7 +32,6 @@ import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
 import {
   barModelOf,
-  decideSelectedPending,
   currentEditFacts as factsOf,
   runEditVerb,
   runMute,
@@ -1338,6 +1337,21 @@ describe("Inspect and More", () => {
       }
     });
 
+    it("on an exact range it opens the Inspector and announces no focus failure", async () => {
+      const project = editFixtureProject();
+      project.pending_edits[0] = {
+        ...project.pending_edits[0]!,
+        exact_range: { kind: "exact_range", clips: [] } as never,
+      };
+      host(EDIT_SELECTIONS.suggestion, { project });
+      await runEditVerb("inspect", factsOf()!);
+      const live = useDawStore.getState();
+      expect(inspectorOpenFor(live.selection, live.inspectorKey)).toBe(true);
+      // The focus retry budget is 2 s of animation frames; wait past it.
+      await new Promise((resolve) => setTimeout(resolve, 2300));
+      expect(announced()).toBe("");
+    }, 6000);
+
     it("on a split it opens the Inspector without moving focus to a field", async () => {
       const project = editFixtureProject();
       project.pending_edits[0] = {
@@ -2362,9 +2376,9 @@ describe("Approve and Keep on a suggestion", () => {
     vi.mocked(api.approveEdits).mockImplementationOnce(
       () => new Promise((resolve) => (release = resolve as never)),
     );
-    const first = decideSelectedPending("approve");
+    const first = runEditVerb("approve", factsOf()!);
     expect(useDawStore.getState().pendingDecisionInFlight).toBe("pending-cut");
-    expect((await decideSelectedPending("approve")).status).toBe("disabled");
+    expect((await runEditVerb("approve", factsOf()!)).status).toBe("disabled");
     expect(api.approveEdits).toHaveBeenCalledTimes(1);
     release(reviewed);
     await first;
@@ -2394,8 +2408,8 @@ describe("deciding an exact range proposal", () => {
     ["a guest share without edit", share("edit", ["view", "play", "suggest"])],
   ] as const)("sends nothing for %s", async (_name, extra) => {
     exact(extra);
-    expect((await decideSelectedPending("approve")).status).toBe("disabled");
-    expect((await decideSelectedPending("reject")).status).toBe("disabled");
+    expect((await runEditVerb("approve", factsOf()!)).status).toBe("disabled");
+    expect((await runEditVerb("keep", factsOf()!)).status).toBe("disabled");
     expect(api.approveEdits).toHaveBeenCalledTimes(0);
     expect(api.rejectEdits).toHaveBeenCalledTimes(0);
   });
@@ -2407,10 +2421,10 @@ describe("deciding an exact range proposal", () => {
     exact(extra);
     vi.mocked(api.approveEdits).mockResolvedValue(reviewed);
     vi.mocked(api.rejectEdits).mockResolvedValue(reviewed);
-    expect((await decideSelectedPending("approve")).status).toBe("ok");
+    expect((await runEditVerb("approve", factsOf()!)).status).toBe("ok");
     expect(api.approveEdits).toHaveBeenCalledTimes(1);
     exact(extra);
-    expect((await decideSelectedPending("reject")).status).toBe("ok");
+    expect((await runEditVerb("keep", factsOf()!)).status).toBe("ok");
     expect(api.rejectEdits).toHaveBeenCalledTimes(1);
   });
 });

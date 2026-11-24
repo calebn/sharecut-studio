@@ -1,17 +1,17 @@
 import { expect, type Page, type TestInfo, test } from "@playwright/test";
-import { postDocumentCommand } from "../e2e/documentCommand";
-import { e2eProjectPath } from "../e2e/env";
-import {
-  createRelocatedE2eProject,
-  removeRelocatedE2eProject,
-} from "../e2e/liveProject";
 import {
   chromeBoxes,
   expectHitTestable,
   selectionBar,
   settle,
   suggestOnFirstDialogueTrack,
-} from "../e2e/pendingActionbar";
+} from "../e2e/actionBar";
+import { postDocumentCommand } from "../e2e/documentCommand";
+import { e2eProjectPath } from "../e2e/env";
+import {
+  createRelocatedE2eProject,
+  removeRelocatedE2eProject,
+} from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
 import { openProject } from "../e2e/stageNav";

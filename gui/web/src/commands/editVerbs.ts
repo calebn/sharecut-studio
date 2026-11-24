@@ -319,20 +319,6 @@ async function seekPending(facts: EditFacts): Promise<ExecuteResult> {
   return seekTransport(at);
 }
 
-export function decideSelectedPending(
-  action: "approve" | "reject",
-): Promise<DecisionResult> {
-  const s = useDawStore.getState();
-  const id = selectedPendingId(s);
-  const edit = s.project?.pending_edits.find((e) => e.id === id);
-  return decidePending(
-    action === "approve" && edit && appliesOwnAction(edit)
-      ? "suggested"
-      : action,
-    true,
-  );
-}
-
 function appliesOwnAction(
   edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
 ): boolean {
@@ -342,14 +328,9 @@ function appliesOwnAction(
   );
 }
 
-type DecisionResult = ExecuteResult & {
-  queued?: true;
-};
-
 async function decidePending(
   action: "approve" | "reject" | "suggested",
-  showQueued = false,
-): Promise<DecisionResult> {
+): Promise<ExecuteResult> {
   const s = useDawStore.getState();
   const selection = s.selection;
   if (selection?.kind !== "pending" || !s.project)
@@ -396,8 +377,6 @@ async function decidePending(
       action === "approve"
         ? await approveEdits(projectPath, [edit.id], false, true)
         : await rejectEdits(projectPath, [edit.id]);
-    if (showQueued && outcome.queued && sameProject())
-      return { status: "ok", queued: true };
     if (sameProject()) finishPendingReview(capture, outcome);
     return OK;
   } catch (error) {

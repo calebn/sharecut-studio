@@ -7,9 +7,9 @@ import {
   type TestInfo,
   test,
 } from "@playwright/test";
+import { selectionBar } from "./actionBar";
 import { createRelocatedE2eProject } from "./liveProject";
 import { markerGestureProbe } from "./markerGestureProbe";
-import { selectionBar } from "./pendingActionbar";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openPanel, openProject, phone } from "./stageNav";

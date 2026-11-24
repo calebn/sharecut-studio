@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { decideOnBar } from "./pendingActionbar";
+import { decideOnBar } from "./actionBar";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { withShareableProject } from "./shareableProject";
 

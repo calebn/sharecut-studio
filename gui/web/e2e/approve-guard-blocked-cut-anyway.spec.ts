@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
+import { decideOnBar } from "./actionBar";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
-import { decideOnBar } from "./pendingActionbar";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openProject } from "./stageNav";
 

@@ -835,6 +835,79 @@ describe("PendingEditOverlayView", () => {
     );
   });
 
+  it("floats the label of a selected narrow edit on its own lane without hover or focus", async () => {
+    render(
+      <PendingEditOverlayView
+        edits={[edit]}
+        trackId="host"
+        zoomPxPerSec={10}
+        timelineWidthPx={1000}
+        selectedId="cut_1"
+        projectPath="/tmp/p.json"
+        clipsByTrack={{}}
+        canAdjust
+        onSelect={vi.fn()}
+        onCommitSpan={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        document.body.querySelector(".pending-label--floating"),
+      ).not.toBeNull(),
+    );
+  });
+
+  it("re-measures the floating label's clamp when the Inspector column opens", async () => {
+    const column = document.createElement("div");
+    column.className = "bottom-sheet--column";
+    document.body.append(column);
+    let columnLeft = 5000;
+    const rect = (left: number) => ({
+      x: left,
+      y: 40,
+      left,
+      top: 40,
+      right: left + 20,
+      bottom: 60,
+      width: 20,
+      height: 20,
+      toJSON: () => ({}),
+    });
+    const spy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        return this === column ? rect(columnLeft) : rect(900);
+      });
+    try {
+      render(
+        <PendingEditOverlayView
+          edits={[edit]}
+          trackId="host"
+          zoomPxPerSec={10}
+          timelineWidthPx={1000}
+          selectedId="cut_1"
+          projectPath="/tmp/p.json"
+          clipsByTrack={{}}
+          canAdjust
+          onSelect={vi.fn()}
+          onCommitSpan={vi.fn()}
+        />,
+      );
+      const floating = () =>
+        document.body.querySelector<HTMLElement>(".pending-label--floating");
+      await waitFor(() => expect(floating()).not.toBeNull());
+      const before = Number.parseFloat(floating()!.style.left);
+      columnLeft = 400;
+      act(() => useDawStore.setState({ inspectorKey: "pending:cut_1" }));
+      await waitFor(() =>
+        expect(Number.parseFloat(floating()!.style.left)).toBeLessThan(before),
+      );
+    } finally {
+      spy.mockRestore();
+      column.remove();
+    }
+  });
+
   it("keeps a minimum end-edge hit target inside the timeline width", () => {
     const endCut = {
       ...edit,

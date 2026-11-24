@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { decideOnBar, selectionBar } from "./actionBar";
 import { waiveRefineGate } from "./documentCommand";
 import { e2eProjectPath } from "./env";
-import { decideOnBar, selectionBar } from "./pendingActionbar";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { phone } from "./stageNav";
 
