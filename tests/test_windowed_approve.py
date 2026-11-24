@@ -493,12 +493,13 @@ def test_a_stored_verdict_made_under_other_semantics_is_not_reused(
     project = _project(tmp_path)
     defaults = load_defaults()
     ids = [e.id for e in project.edit_decisions]
+    current = verdict_cache.SEMANTICS
     monkeypatch.setattr(verdict_cache, "SEMANTICS", "older")
     precompute_verdicts(project, ids, defaults=defaults)
     older = len(verdict_cache._STORE)
     assert older > 0
 
-    monkeypatch.setattr(verdict_cache, "SEMANTICS", "batch-base-profile")
+    monkeypatch.setattr(verdict_cache, "SEMANTICS", current)
     hits = _count_hits(monkeypatch)
     precompute_verdicts(project, ids, defaults=defaults)
 
@@ -1299,30 +1300,114 @@ def test_a_gated_lane_stamp_may_probe_but_a_second_stamp_finds_the_probe_cached(
     assert len(spawned) == after_first  # a probe made once is not made again
 
 
-def _held_with_fade(tmp_path: Path, fade_ms: int) -> list[dict]:
+def _approve_with_fade(
+    tmp_path: Path,
+    fade_ms: int,
+    *,
+    tail: float = 51.5,
+    edits: tuple[tuple[float, float], ...] | None = None,
+) -> tuple[dict, EpisodeProject]:
+    """Approve the host cuts of ``edits`` (default: the two at 43.0 and 44.5) with a fade-out of
+    ``fade_ms`` on the clip that ends at ``tail``, a few seconds after them."""
     project = _project(tmp_path)
-    project.edit_decisions = [e for e in project.edit_decisions if e.start in (43.0, 44.5)]
+    if edits is None:
+        project.edit_decisions = [e for e in project.edit_decisions if e.start in (43.0, 44.5)]
+    else:
+        project.edit_decisions = [
+            EditDecision(
+                id=f"x{i}",
+                track_id="host",
+                type=EditDecisionType.REMOVE,
+                start=start,
+                end=end,
+                reason="filler:um",
+                applied=False,
+                boundary_mode="vocal_transcript_guided",
+            )
+            for i, (start, end) in enumerate(edits)
+        ]
     clips = {c.id: c for c in project.clips}
-    clips["host1"].source_end = 51.5
-    clips["host2"].source_start = clips["host2"].timeline_start = 51.5
+    clips["host1"].source_end = tail
+    clips["host2"].source_start = clips["host2"].timeline_start = tail
     clips["host1"].fade_out_ms = fade_ms
-    return _approve(project)["held"]
+    return _approve(project), project
+
+
+def _held_with_fade(tmp_path: Path, fade_ms: int) -> list[dict]:
+    """The holds for a cut inside a word (unsafe on the unfaded audio) near a ``fade_ms`` fade."""
+    return _approve_with_fade(tmp_path, fade_ms, edits=((45.1, 45.25),))[0]["held"]
+
+
+@pytest.mark.parametrize("fade_ms", [1000, 4000, 6000])
+def test_a_cut_near_a_long_fade_is_applied_when_it_passes_on_the_unfaded_audio(
+    tmp_path: Path, fade_ms: int
+) -> None:
+    result, _ = _approve_with_fade(tmp_path, fade_ms)
+    assert result["held"] == []
+    assert result["count"] == 2
+
+
+def test_the_applied_project_keeps_the_long_fade_it_was_given(tmp_path: Path) -> None:
+    result, project = _approve_with_fade(tmp_path, 6000)
+    assert result["count"] == 2
+    ending = [c for c in project.clips if c.track_id == "host" and c.source_end == 51.5]
+    assert [c.fade_out_ms for c in ending] == [6000]
+    assert all(c.fade_out_ms == 20 for c in project.clips if c.id == "host0")
+
+
+def test_a_long_fade_that_the_split_would_shorten_does_not_hold_the_cut(tmp_path: Path) -> None:
+    # The render shortens a fade to half its clip, so the pieces left by the cuts (8.15 s and
+    # 6.65 s) play a 6 s fade shorter than asked. Only the cut itself is judged.
+    result, _ = _approve_with_fade(tmp_path, 6000, tail=51.5)
+    assert result["held"] == []
+    assert result["count"] == 2
+
+
+def test_a_cut_unsafe_on_the_unfaded_audio_is_still_held_next_to_a_long_fade(
+    tmp_path: Path,
+) -> None:
+    held = _held_with_fade(tmp_path, 6000)
+    assert [h["edit_id"] for h in held] == ["x0"]
+    assert "voiced edge" in held[0]["reason"] and held[0]["code"] == "acoustic_edge"
 
 
 def test_a_held_cut_names_the_long_fade_that_reaches_it(tmp_path: Path) -> None:
     held = _held_with_fade(tmp_path, 6000)
-    assert held, "the fixture must hold the cuts near a long fade"
+    assert held, "the fixture must hold a cut near a long fade"
     assert all("a 6 s fade runs near the cut" in h["reason"] for h in held)
 
 
 def test_a_held_cut_with_a_short_fade_does_not_mention_a_fade(tmp_path: Path) -> None:
     held = _held_with_fade(tmp_path, 20)
+    assert held
     assert all("fade" not in h["reason"] for h in held)
+
+
+def test_the_unsafe_cut_is_held_for_the_same_reasons_with_and_without_a_long_fade(
+    tmp_path: Path,
+) -> None:
+    short = _held_with_fade(tmp_path / "a", 20)
+    long = _held_with_fade(tmp_path / "b", 6000)
+    note = "; a 6 s fade runs near the cut)"
+    assert [h["reason"] for h in long] == [h["reason"].removesuffix(")") + note for h in short]
+
+
+def test_a_fade_just_under_the_long_threshold_is_still_judged_on_its_shortened_ramp(
+    tmp_path: Path,
+) -> None:
+    # A 999 ms fade on a clip that the cut leaves 1.35 s long is shortened to half of that, and the
+    # changed ramp lands on kept speech: it is not a long manual fade, so it holds the cut as before.
+    held, _ = _approve_with_fade(tmp_path / "short", 999, tail=46.2, edits=((44.5, 44.85),))
+    long, _ = _approve_with_fade(tmp_path / "long", 1000, tail=46.2, edits=((44.5, 44.85),))
+    assert [h["edit_id"] for h in held["held"]] == ["x0"]
+    assert "interior speech" in held["held"][0]["reason"]
+    assert "fade" not in held["held"][0]["reason"]
+    assert long["held"] == [] and long["count"] == 1
 
 
 def test_the_hold_reason_still_leads_with_the_checks_that_failed(tmp_path: Path) -> None:
     held = _held_with_fade(tmp_path, 6000)
-    assert all("interior speech" in h["reason"] and h["code"] for h in held)
+    assert all("voiced edge" in h["reason"] and h["code"] for h in held)
 
 
 def test_the_fade_note_survives_for_delivery_and_a_bare_acoustic_edge_hold() -> None:
