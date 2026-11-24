@@ -14,7 +14,7 @@ from podcast_mcp.edits.breath_detect import (
     detect_adjacent_breath,
     extend_cut_for_breaths,
 )
-from podcast_mcp.edits.cut_placement import CutRejected
+from podcast_mcp.edits.cut_placement import CutRejected, CutScopeHold
 from podcast_mcp.edits.cut_quality import (
     CutRisk,
     assess_cut_risk,
@@ -1433,6 +1433,33 @@ def test_fillers_cut_clustered_fillers():
     analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
     reasons = {e.reason for e in project.edit_decisions}
     assert reasons == {"filler:um", "filler:uh"}
+
+
+def test_a_held_tighten_remove_is_skipped_at_resolve_not_raised(monkeypatch):
+    words = [
+        TranscriptWord(text="so", start=0.0, end=0.2),
+        TranscriptWord(text="um", start=0.3, end=0.5),
+        TranscriptWord(text="yeah", start=1.5, end=1.8),
+    ]
+    project = _project_with_transcript(words)
+    defaults = {
+        "tighten": {
+            "filler_words": ["um"],
+            "max_pause_sec": 99.0,
+            "min_filler_cluster": 1,
+        }
+    }
+    monkeypatch.setattr(
+        "podcast_mcp.edits.tighten.apply.inspect_source_remove",
+        lambda project, decision, **_: CutScopeHold(decision.id, (), "source_geometry"),
+    )
+    skips: dict[str, int] = {}
+    decisions = analyze_fillers_and_pauses(
+        project, project.transcripts[0], defaults, skip_counts=skips
+    )
+    assert decisions == []
+    assert project.edit_decisions == []
+    assert skips["source_geometry"] == 1
 
 
 def test_fillers_leave_in_when_risky():
