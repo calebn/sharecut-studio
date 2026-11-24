@@ -2,17 +2,24 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import http.client
 import io
+import socket
 import subprocess
+import threading
 import time
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import uvicorn
 from fastapi import HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.testclient import TestClient
+from tests.polling import wait_for
 
 from podcast_mcp.export.chapters import render_chapters_json
 from podcast_mcp.export.names import sanitize_export_stem
@@ -1382,3 +1389,103 @@ def test_the_gzip_middleware_is_told_never_to_compress_an_archive() -> None:
     gzip = next(m for m in create_app().user_middleware if m.cls is GZipMiddleware)
 
     assert "application/zip" in gzip.kwargs["exclude_content_types"]
+
+
+async def _call_asgi(app, path: str, *, vanish_after: int) -> list[dict]:
+    sent: list[dict] = []
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.4"},
+        "http_version": "1.1",
+        "method": "GET",
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": b"",
+        "headers": [(b"host", b"testserver")],
+        "client": ("testclient", 50000),
+        "server": ("testserver", 80),
+        "scheme": "http",
+        "root_path": "",
+        "state": {},
+    }
+
+    async def receive() -> dict:
+        await asyncio.Event().wait()
+        return {"type": "http.disconnect"}
+
+    async def send(message: dict) -> None:
+        if message["type"] == "http.response.body" and len(sent) > vanish_after:
+            raise OSError("client went away")
+        sent.append(message)
+
+    with pytest.raises(OSError, match="went away"):
+        await app(scope, receive, send)
+    return sent
+
+
+def test_a_client_that_disconnects_mid_archive_gives_its_slot_back(
+    world, one_stream_per_link
+) -> None:
+    token = world.tokens["editor"]
+    path = ARCHIVE_GUEST.format(token=token)
+
+    sent = asyncio.run(_call_asgi(world.app, path, vanish_after=1))
+
+    assert [m["type"] for m in sent] == ["http.response.start", "http.response.body"]
+    release = audio_slot(token)
+    assert release is not None
+    release()
+
+
+@contextlib.contextmanager
+def _serving(app):
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    sock.listen()
+    server = uvicorn.Server(uvicorn.Config(app, log_level="critical"))
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    thread.start()
+    try:
+        assert wait_for(lambda: server.started), "uvicorn did not start"
+        yield sock.getsockname()[1]
+    finally:
+        server.should_exit = True
+        thread.join(timeout=10)
+        sock.close()
+
+
+def test_a_member_vanishing_mid_stream_closes_the_connection_short_of_its_length(
+    world, monkeypatch
+) -> None:
+    stem = sanitize_export_stem(world.ws.project.name)
+    url = ARCHIVE_GUEST.format(token=world.tokens["editor"])
+    real = export_files_routes.stored_zip_chunks
+    first_piece_sent = threading.Event()
+    member_gone = threading.Event()
+
+    def waiting(members):
+        chunks = real(members)
+        yield next(chunks)
+        first_piece_sent.set()
+        assert wait_for(member_gone.is_set)
+        yield from chunks
+
+    monkeypatch.setattr(export_files_routes, "stored_zip_chunks", waiting)
+
+    with _serving(world.app) as port:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        conn.request("GET", url, headers={"Accept-Encoding": "gzip"})
+        res = conn.getresponse()
+        declared = int(res.headers["Content-Length"])
+        head = res.read(8)
+        assert wait_for(first_piece_sent.is_set)
+        (world.ws.project.export_dir() / f"{stem}.wav").unlink()
+        member_gone.set()
+        with pytest.raises(http.client.IncompleteRead) as cut:
+            res.read()
+        conn.close()
+
+    assert (res.status, res.headers["Content-Type"]) == (200, "application/zip")
+    assert "Content-Encoding" not in res.headers
+    assert head.startswith(b"PK")
+    assert 8 + len(cut.value.partial) < declared
