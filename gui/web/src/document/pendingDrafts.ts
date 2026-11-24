@@ -349,6 +349,32 @@ export function finishDocumentDraft(commandId: string): void {
   for (const [key, value] of current())
     if (value.commandId === commandId) drafts.delete(key);
 }
+/**
+ * Finish every trim draft the project already holds. A trim the host took from
+ * another tab never reaches this tab's own drain, so nothing else would end its
+ * draft, and the next Undo would be trimmed again by it. A draft for a clip
+ * that is not there yet stays: the command that brings the clip may still wait.
+ */
+export function finishTrimDraftsHeldBy(project: ProjectView): void {
+  const clips = new Set(
+    Object.values(project.clips.tracks).flatMap((lane) =>
+      lane.map((clip) => clip.id),
+    ),
+  );
+  for (const { commandId, draft } of [...current().values()])
+    if (
+      draft.kind === "trim" &&
+      clips.has(draft.clipId) &&
+      patchClipTrim(
+        project,
+        draft.clipId,
+        draft.edge,
+        draft.sourceSec,
+        draft.mode,
+      ) === project
+    )
+      finishDocumentDraft(commandId);
+}
 export function holdDocumentDraftUntil(commandId: string, seq: number): void {
   current();
   heldAcks.set(commandId, seq);
