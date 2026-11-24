@@ -12,6 +12,7 @@ from podcast_mcp.config.runtime import (
     load_object_store_config,
     load_relay_config,
     persisted_relay_host_id,
+    ready_relay_config,
     relay_host_id_path,
 )
 
@@ -304,3 +305,44 @@ def test_persisted_host_id_uses_winner_of_create_race(
 
     monkeypatch.setattr(rc.os, "open", _lose_race)
     assert persisted_relay_host_id(cfg) == "winner-id"
+
+
+def test_ready_relay_config_requires_host_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_RELAY_URL", "wss://relay.example.test/tunnel")
+    monkeypatch.setenv("PODCAST_RELAY_PUBLIC_BASE_URL", "https://relay.example.test")
+
+    assert ready_relay_config() is None
+
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", "tok")
+    ready = ready_relay_config()
+    assert ready is not None
+    assert (ready.relay_url, ready.host_token) == ("wss://relay.example.test/tunnel", "tok")
+
+
+def test_ready_relay_config_overrides_local_gui_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", "tok")
+
+    ready = ready_relay_config(local_gui_url="http://127.0.0.1:43123")
+
+    assert ready is not None
+    assert ready.local_gui_url == "http://127.0.0.1:43123"
+
+
+def test_ready_relay_config_is_none_for_an_invalid_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", "tok")
+    monkeypatch.setenv("PODCAST_RELAY_URL", "ws://relay.example.test/tunnel")
+
+    assert ready_relay_config() is None
+
+
+def test_ready_relay_config_none_writes_no_host_id_file() -> None:
+    assert ready_relay_config() is None
+    assert not relay_host_id_path().exists()
+
+
+def test_relay_config_repr_omits_host_token() -> None:
+    cfg = RelayConfig(host_token="s3cret-token", host_id="h1")
+
+    assert "s3cret-token" not in repr(cfg)

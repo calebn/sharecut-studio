@@ -53,7 +53,7 @@ class ObjectStoreConfig:
 @dataclass
 class RelayConfig:
     relay_url: str = DEFAULT_RELAY_URL
-    host_token: str = ""
+    host_token: str = field(default="", repr=False)
     public_base_url: str = DEFAULT_PUBLIC_BASE_URL
     local_gui_url: str = DEFAULT_LOCAL_GUI_URL
     # Stable per-install identity (see persisted_relay_host_id); a fresh uuid per
@@ -428,6 +428,20 @@ def load_relay_config(
         local_gui_url=local_gui_url,
         environ=env,
     )
+
+
+def ready_relay_config(*, local_gui_url: str | None = None) -> RelayConfig | None:
+    """The relay config when online sharing can work, else None.
+
+    ``relay_configured`` is checked first so an unconfigured host never mints a host-id file.
+    """
+    if not relay_configured():
+        return None
+    try:
+        cfg = load_relay_config(local_gui_url=local_gui_url)
+    except ValueError:
+        return None
+    return cfg if cfg.host_token else None
 
 
 def load_host_runtime_config(
