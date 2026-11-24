@@ -78,6 +78,10 @@ if TYPE_CHECKING:
         PENDING_PREVIEW_PAD_MIN_SEC,
         PendingPreviewSpan,
     )
+    from podcast_mcp.services.document.roll_join_results import (
+        RollAppliedResult,
+        RollUnchangedResult,
+    )
     from podcast_mcp.services.document.room_tone_bed import RoomToneBedReply, RoomToneBedService
     from podcast_mcp.services.document.segment_capture import parse_range, save_segment
     from podcast_mcp.services.document.segment_drift import report_segment_drift
@@ -171,7 +175,9 @@ __all__ = [
     "PopulatedHistoryDiffResult",
     "ProposeSplitResult",
     "RemovedChapter",
+    "RollAppliedResult",
     "RollBoundaryTarget",
+    "RollUnchangedResult",
     "RoomToneBedReply",
     "RoomToneBedService",
     "SegmentInsertApplied",
@@ -293,6 +299,8 @@ _MODULE_BY_NAME = {
     "PasteSegmentResult": "timeline_segment_results",
     "SetClipJoinResult": "join_mode_results",
     "SetClipFadeResult": "clip_fade_results",
+    "RollAppliedResult": "roll_join_results",
+    "RollUnchangedResult": "roll_join_results",
     "SetJoinModeResult": "join_mode_results",
     "SplitClipResult": "split_results",
     "SplitAtTimeResult": "split_results",

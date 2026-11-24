@@ -201,11 +201,15 @@ def trim_clip_edge(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def roll_clip_join(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TimelineService(ws).roll_clip_join(
-        str(p["left_clip_id"]),
-        str(p["right_clip_id"]),
-        float(p["delta_sec"]),
-        expected_token=str(p["expected_token"]),
+    return (
+        TimelineService(ws)
+        .roll_clip_join(
+            str(p["left_clip_id"]),
+            str(p["right_clip_id"]),
+            float(p["delta_sec"]),
+            expected_token=str(p["expected_token"]),
+        )
+        .model_dump()
     )
 
 

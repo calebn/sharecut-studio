@@ -73,6 +73,10 @@ from podcast_mcp.services.document.delete_clips_results import (
 )
 from podcast_mcp.services.document.join_analysis import _JoinAnalysis
 from podcast_mcp.services.document.join_mode_results import SetClipJoinResult, SetJoinModeResult
+from podcast_mcp.services.document.roll_join_results import (
+    RollAppliedResult,
+    RollUnchangedResult,
+)
 from podcast_mcp.services.document.service_base import CutMutatingService
 from podcast_mcp.services.document.split_results import (
     ProposeSplitResult,
@@ -379,15 +383,21 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         delta_sec: float,
         *,
         expected_token: str,
-    ) -> dict:
+    ) -> RollAppliedResult | RollUnchangedResult:
         if not math.isfinite(delta_sec):
             raise CodedValueError("delta_sec must be finite", code="delta_sec_not_finite")
         target = RollBoundaryTarget(left_clip_id=left_clip_id, right_clip_id=right_clip_id)
 
-        def apply(p: EpisodeProject) -> dict:
+        def apply(p: EpisodeProject) -> RollAppliedResult:
             assert_boundary_token(p, target, expected_token, defaults=self.ws.effective_config())
-            return roll_clip_join(
-                p, left_clip_id, right_clip_id, delta_sec, defaults=self.ws.effective_config()
+            return RollAppliedResult(
+                **roll_clip_join(
+                    p,
+                    left_clip_id,
+                    right_clip_id,
+                    delta_sec,
+                    defaults=self.ws.effective_config(),
+                )
             )
 
         with self.ws.transaction() as project:
@@ -396,7 +406,7 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
             )
             bounded = min(max(delta_sec, current.limits.min), current.limits.max)
             if abs(bounded) < 1e-12:
-                return {"operation": "roll_clip_join", "unchanged": True}
+                return RollUnchangedResult(operation="roll_clip_join", unchanged=True)
             return self.ws.mutate(
                 "before roll clip join",
                 "after roll clip join",
