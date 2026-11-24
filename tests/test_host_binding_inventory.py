@@ -32,6 +32,7 @@ NEW_PREFIXES = (
     "/api/feed",
     "/api/speaker",
     "/api/segments",
+    "/api/kits",
     "/api/boundary",
     "/api/session-suggestion",
     "/api/pending-preview",
