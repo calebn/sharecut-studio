@@ -11,7 +11,7 @@ import copy
 import json
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -173,7 +173,7 @@ def _count_ffmpeg_window_reads(result: TightenBenchmarkResult) -> Iterator[None]
 
 @contextmanager
 def _count_rebuild_combined(result: TightenBenchmarkResult) -> Iterator[None]:
-    import podcast_mcp.engines.transcript_sync as transcript_sync
+    from podcast_mcp.edits import cut_application, edit_log, strip_silence, timeline_ops
 
     original_rebuild = rebuild_combined
 
@@ -181,7 +181,9 @@ def _count_rebuild_combined(result: TightenBenchmarkResult) -> Iterator[None]:
         result.rebuild_combined_calls += 1
         original_rebuild(proj, **kwargs)
 
-    with patch.object(transcript_sync, "rebuild_combined", counting_rebuild):
+    with ExitStack() as stack:
+        for module in (timeline_ops, cut_application, strip_silence, edit_log):
+            stack.enter_context(patch.object(module, "rebuild_combined", counting_rebuild))
         yield
 
 
@@ -249,7 +251,7 @@ def _assert_ripple_apply_shape(result: TightenBenchmarkResult) -> None:
     assert result.ffmpeg_window_calls == 0
     assert result.decisions_proposed > 0
     assert result.decisions_applied > 0
-    assert result.rebuild_combined_calls <= MAX_REBUILDS_PER_DECISION * result.decisions_applied
+    assert 0 < result.rebuild_combined_calls <= MAX_REBUILDS_PER_DECISION * result.decisions_applied
     assert len(set(result.clip_counts.values())) == 1
 
 
