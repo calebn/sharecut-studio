@@ -40,6 +40,7 @@ import {
   WIRED_VERBS,
 } from "./editVerbs";
 import { clearRegisteredCommands, execute, registerCommand } from "./execute";
+import { EXACT_RANGE_REVIEW_REASON } from "./pendingDecision";
 import { executePointerCommand } from "./pointer";
 import { _resetSingleFlightsForTests, registerDawCommands } from "./register";
 import { EDITING_OFF_REASON } from "./seamCommands";
@@ -2127,6 +2128,16 @@ describe("deciding a suggestion without the overlay bar", () => {
     await execute("edit.delete");
     expect(useDawStore.getState().pendingRefineGate).toBeNull();
   });
+
+  it("does not set the refine gate when the refused suggestion is no longer selected", async () => {
+    host(EDIT_SELECTIONS.suggestion);
+    vi.mocked(api.approveEdits).mockImplementationOnce(async () => {
+      useDawStore.getState().setSelection(null);
+      throw new ApiError("blocked", TRANSCRIPT_REFINE_REQUIRED_CODE, 409);
+    });
+    await execute("edit.delete");
+    expect(useDawStore.getState().pendingRefineGate).toBeNull();
+  });
 });
 
 describe("Approve and Keep on a suggestion", () => {
@@ -2285,6 +2296,19 @@ describe("the Action bar's Approve and Reject on every pending edit", () => {
     expect(keepOf()?.disabledReason).toBe(reason);
   });
 
+  it("refuses X and Backspace on an exact range with the bar's reason", async () => {
+    withEdit(exact, share("comment", COMMENTER_CAPABILITIES));
+    for (const id of ["edit.keep", "edit.delete"]) {
+      const result = await execute(id);
+      expect(result).toMatchObject({
+        status: "disabled",
+        reason: EXACT_RANGE_REVIEW_REASON,
+      });
+    }
+    expect(api.approveEdits).not.toHaveBeenCalled();
+    expect(api.rejectEdits).not.toHaveBeenCalled();
+  });
+
   it("gates Keep for a reviewer-less link on an ordinary suggestion, ahead of busy", () => {
     withEdit(
       {},
@@ -2357,7 +2381,6 @@ describe("the Action bar's Approve and Reject on every pending edit", () => {
         "an exact range that suggests shortening",
         { ...exact, suggested_action: "shorten" },
       ],
-      ["a suggestion to leave alone", { suggested_action: "leave" }],
       ["a suggestion with no action", { suggested_action: null }],
     ] as const)(
       "Backspace approves %s and never applies its suggested action",
@@ -2369,6 +2392,17 @@ describe("the Action bar's Approve and Reject on every pending edit", () => {
         expect(api.applySuggestedActions).toHaveBeenCalledTimes(0);
       },
     );
+
+    it("Backspace applies a leave suggestion's own action and never cuts", async () => {
+      withEdit({ suggested_action: "leave" });
+      vi.mocked(api.applySuggestedActions).mockResolvedValue({
+        historyHead: "h2",
+        summary: "Applied 1 leave.",
+      } as never);
+      await execute("edit.delete");
+      expect(api.applySuggestedActions).toHaveBeenCalledTimes(1);
+      expect(api.approveEdits).toHaveBeenCalledTimes(0);
+    });
 
     it("X rejects an exact range proposal", async () => {
       withEdit(exact);

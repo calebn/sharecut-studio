@@ -65,7 +65,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `ArrowUp` | Move track up (`track.moveUp`) | editStageMoveSelectedTrackUp | Inspector track selected |
 | `ArrowDown` | Move track down (`track.moveDown`) | editStageMoveSelectedTrackDown | Inspector track selected |
 | `Shift+F10` | Create here (`create.menu`) | Timeline focused | Shift+F10: create menu at the focused target or the playhead; the Menu key too |
-| `Backspace` | Cut selection (`edit.delete`) | editStageStructural | Backspace or Delete: on a cut, shorten or lower suggestion this is its Cut (its own action); on a split, an exact range or a suggestion with no accept action it approves, and there is no separate bare accept key; X keeps or rejects |
+| `Backspace` | Cut selection (`edit.delete`) | editStageStructural | Backspace or Delete: on a cut, shorten, lower or leave suggestion this applies its own action (a leave keeps the audio); on a split, an exact range or a suggestion with no accept action it approves, and there is no separate bare accept key; X keeps or rejects |
 | `Mod+Backspace` | Ripple delete clip (`edit.rippleDelete`) | editStageStructural | Mod+Backspace |
 | `Mod+K` | Split at playhead (`edit.bladeCut`) | editStageStructural | Mod+K: split at the playhead — Mod+K splits; K alone pauses and returns |
 | `Mod+A` | Select all tracks (`track.selectAll`) | Timeline focused | Mod+A: Logic-style track targeting |

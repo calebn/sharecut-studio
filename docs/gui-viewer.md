@@ -748,7 +748,7 @@ Inline chapter names use `edit.addChapter` with an explicit trimmed title. The p
    edge. Timeline commits use the exact displayed bounds. A clipped or
    ambiguous source endpoint disables that affected edge; another eligible
    outer edge remains adjustable. Selection exposes Cut/Keep on the Action bar (Approve/Reject there for a split, an exact
-   range or a suggestion with no accept action) beside the
+   range, a leave or a suggestion with no accept action; #4337 slice 2) beside the
    region; narrow labels and actions are anchored in a viewport overlay so they
    do not widen timeline scroll or cover the handles. The action panel stays
    above sticky track headers and below sheets. It scrolls when its contents

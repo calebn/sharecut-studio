@@ -58,7 +58,8 @@ accept action, and where the sheet has that bar it drops its own Approve and Rej
 buttons. The timeline card no longer repeats them on the Edit stage. Where the phone
 sheet has no bar dock (the compact drawer, and the full sheet at a tight height) the
 sheet body keeps Approve and Reject. An exact range's Approve and Reject are disabled
-for a Commenter or a Viewer, with the reason shown as text on the bar. The peek
+with the reason shown as text on the bar for anyone the bar reaches who may not decide it
+(today the host and Editors reach it, and both may). The peek
 strip's body shows no verbs, but the card docks into the strip's chrome and shows
 them. Elsewhere the card stays beside the selected region and follows the
 timeline when the marker lane or the bottom panel changes size.
