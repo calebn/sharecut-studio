@@ -1570,7 +1570,7 @@ def test_edit_join_quality_proposed_cut(minimal_project, sample_wav) -> None:
 def test_edit_join_label_play(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with (
-        patch("podcast_mcp.services.document.timeline.assess_existing_join") as assess,
+        patch("podcast_mcp.services.document.join_analysis.assess_existing_join") as assess,
         patch("podcast_mcp.services.document.play.PlayService.play", return_value=None) as play,
     ):
         assess.return_value.to_dict.return_value = {

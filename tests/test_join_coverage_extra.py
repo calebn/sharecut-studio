@@ -340,7 +340,7 @@ def test_edit_join_label_and_train(minimal_project: Path, sample_wav: Path) -> N
     )
     save_project(project, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
-    with patch("podcast_mcp.services.document.timeline.assess_existing_join") as assess:
+    with patch("podcast_mcp.services.document.join_analysis.assess_existing_join") as assess:
         assess.return_value.to_dict.return_value = {
             "track_id": "host",
             "risk": 0.5,
