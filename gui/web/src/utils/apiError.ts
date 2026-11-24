@@ -2,6 +2,9 @@ import type { PipelineJobSnapshot } from "../types/pipeline";
 
 export const PROJECT_WRITE_FAILED_CODE = "project_write_failed";
 export const TRANSCRIPT_REFINE_REQUIRED_CODE = "transcript_refine_required";
+
+export const REFINE_GATE_GUI_MESSAGE =
+  "The transcript isn't checked yet. Cut anyway, or check it first.";
 export const CUT_SCOPE_CHANGED_CODE = "cut_scope_changed";
 
 export const TRANSCRIPT_REFINE_REFUSAL =

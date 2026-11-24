@@ -30,7 +30,6 @@ import {
   resolveSelectionRange,
 } from "../edit/rangeSelection";
 import { keepPlan, type Seam, seamById } from "../edit/seam";
-import { REFINE_GATE_GUI_MESSAGE } from "../inspector/TranscriptRefineRecovery";
 import {
   canApplyPass12,
   canManageProjects,
@@ -53,6 +52,7 @@ import { BUSY_REASON } from "../ui/disabledReason";
 import {
   ApiError,
   errorMessage,
+  REFINE_GATE_GUI_MESSAGE,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "../utils/apiError";
 import { commitCommentActor } from "../utils/commentAuthor";

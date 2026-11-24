@@ -3,7 +3,6 @@ import * as api from "../api";
 import { playPendingPreview } from "../audio/pendingPreview";
 import type { EditFacts } from "../edit/editSelection";
 import { markScriptRange } from "../edit/rangeSelection";
-import { REFINE_GATE_GUI_MESSAGE } from "../inspector/TranscriptRefineRecovery";
 import { useDawStore } from "../state/dawStore";
 import { inspectorOpenFor } from "../state/selection";
 import { barDisplay } from "../system/editActionSets";
@@ -22,7 +21,11 @@ import {
 } from "../test/fixtures";
 import { HISTORY_ROOT_ID } from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
-import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
+import {
+  ApiError,
+  REFINE_GATE_GUI_MESSAGE,
+  TRANSCRIPT_REFINE_REQUIRED_CODE,
+} from "../utils/apiError";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
 import {
