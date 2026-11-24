@@ -27,7 +27,7 @@ When a host reviews an unsure transcript word in the Queue, its card shows up to
 
 ### Phone guest: Listen
 
-A Viewer or Commenter link on a phone shows the app header (the role chip is an icon only), the transcript (or, when the link has none, the chapter list or a cover) filling the middle, one 3 rem comments row (only while the link holds comments, suggestions or something needing attention), and the Listen dock. On a Commenter link no text field is on screen until the guest taps **Comment**; a Viewer link never has one.
+A Viewer or Commenter link on a phone shows the app header (the role chip is an icon only), the transcript (or, when the link has none, the chapter list or a cover) filling the middle, one 3 rem comments row (only while the link holds comments, suggestions or something needing attention), and the Listen dock. On a Commenter link no text field is on screen until the guest taps **Comment**; a Viewer link never has one. A Commenter link's Script header holds **Clear selection** while words are selected.
 
 ```
 ┌─ Project title            ◉ ☾ ⌕ ┐

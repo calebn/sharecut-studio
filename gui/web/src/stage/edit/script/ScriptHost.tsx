@@ -11,8 +11,8 @@ import type {
   WordsSelection,
 } from "../../../system/scriptPieces";
 import { useCoachTip } from "../../../system/useCoachTip";
-import { CommandButton } from "../../../ui/CommandButton";
 import { useStableCallback } from "../../../utils/useStableCallback";
+import { clearSelectionAction } from "./clearSelectionAction";
 import { scriptGuestOf } from "./scriptGuest";
 import { useScriptCarets } from "./useScriptCarets";
 import { useScriptFind } from "./useScriptFind";
@@ -157,11 +157,13 @@ export function ScriptHost({
   };
   useEffect(() => playheadScrollRegistry.register("script", backToPlayhead));
 
+  const refocus = useStableCallback((head: number) => {
+    if (!pane.current?.focusWord(head)) pane.current?.focusFind();
+  });
   const phone =
     (layoutProp ?? (breakpoint === "phone" ? "phone" : "desktop")) === "phone";
   const mayReplace = mayFix && ready && loading !== true;
   const mayCut = mode === "edit" && ready && loading !== true;
-  const selectedWords = selection.selectedWords;
 
   return (
     <div ref={hostEl} style={{ display: "contents" }}>
@@ -185,18 +187,9 @@ export function ScriptHost({
         guest={scriptGuestOf(projectPath, guestMode, mode)}
         unsureCount={unsure.length}
         headerAction={
-          selectedWords && fix.editing === null ? (
-            <CommandButton
-              commandId="edit.clearSelection"
-              args={{ from: "script" }}
-              variant="link"
-              className="sys-script-tool"
-              onClick={() => {
-                if (!pane.current?.focusWord(selectedWords.head))
-                  pane.current?.focusFind();
-              }}
-            />
-          ) : undefined
+          fix.editing === null
+            ? clearSelectionAction(selection.selection, refocus)
+            : undefined
         }
         findBar={
           find.open ? (

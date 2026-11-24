@@ -2197,13 +2197,15 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
 
     // On a phone the header would hold only the caption and the follow pin:
     // the Role chip says what the link allows, and scrolling stops following
-    // (Back to playhead returns). A Viewer keeps the caption, as one line.
+    // (Back to playhead returns). A Viewer keeps the caption, as one line. A
+    // guest who may select keeps the header so Clear selection has its slot
+    // and nothing shifts when a selection starts.
     const phoneGuest = guest !== undefined && layout === "phone";
     const readable =
       status.kind === "ready" ||
       status.kind === "transcribing" ||
       status.kind === "outOfDate";
-    const showHeader = readable && !phoneGuest;
+    const showHeader = readable && (!phoneGuest || onSelect !== undefined);
     const captionOnly = readable && phoneGuest && guest === "viewer";
     const guestLabelId = useId();
     const describedBy =
