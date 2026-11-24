@@ -1581,7 +1581,7 @@ def test_edit_join_label_play(minimal_project, sample_wav) -> None:
         out = TimelineService(ws).join_label(
             track_id="host", join_sec=1.0, verdict="pass", play=True
         )
-    assert out["played"] is True
+    assert out.played is True
     play.assert_called_once()
 
 
