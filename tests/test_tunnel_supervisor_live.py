@@ -125,12 +125,12 @@ def test_share_minted_after_connect_routes_without_reconnect(relay, project, ope
     with open_studio() as studio:
         session = wait_for(lambda: _session(relay, first))
         assert session is not None
-        workspace = load_project(project).workspace_path()
-        before = usable_share_tokens(workspace)
+        episode = load_project(project)
+        before = usable_share_tokens(episode)
 
         res = httpx.post(f"{studio.url}/api/shares/record", json={"path": str(project)}, timeout=10)
         assert res.status_code == 200, res.text
-        minted = usable_share_tokens(workspace) - before
+        minted = usable_share_tokens(episode) - before
         assert minted
 
         assert wait_for(lambda: all(_session(relay, t) is session for t in minted))
