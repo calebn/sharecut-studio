@@ -19,6 +19,10 @@ from podcast_mcp.engines.reconciliation_state import (
     mark_reconciliation_stale,
 )
 from podcast_mcp.engines.render_invalidations import record_after_audio_mutation
+from podcast_mcp.engines.transcript_sync import (
+    combined_inputs_key,
+    rebuild_combined_if_inputs_moved,
+)
 from podcast_mcp.models import EpisodeProject, ProjectStateSnapshot, RenderSection
 from podcast_mcp.project.history.author import SYSTEM_AUTHOR, history_author
 from podcast_mcp.project.history.manager import (
@@ -124,6 +128,7 @@ def _run_mutation_locked(
         on_not_landed=lambda: pre_mutate.restore(project),
         on_failure=on_failure,
     ):
+        inputs_before = combined_inputs_key(project)
         result = mutate(project)
         override = active_override()
         if override is not None:
@@ -137,6 +142,7 @@ def _run_mutation_locked(
             operation=operation,
             defaults=defaults,
         )
+        rebuild_combined_if_inputs_moved(project, inputs_before, defaults=defaults)
         # record() and commit() each take the re-entrant lock; this outer hold makes
         # record(after) + commit one cross-process step so no other commit lands between them.
         with project_commit_lock(project):

@@ -200,3 +200,9 @@ def test_removing_a_track_moves_the_key(project: EpisodeProject) -> None:
     before = combined_inputs_key(project)
     project.timeline.tracks = project.timeline.tracks[:1]
     assert combined_inputs_key(project) != before
+
+
+def test_track_id_only_write_moves_the_key(project: EpisodeProject) -> None:
+    before = combined_inputs_key(project)
+    project.transcripts[1].track_id = "host"
+    assert combined_inputs_key(project) != before

@@ -36,7 +36,6 @@ import pytest
 from combined_contract_helpers import (
     FRESH_TEXTS,
     SOURCE_SEC,
-    STALE_COMBINED,
     UNTOUCHED,
     Case,
     Command,
@@ -760,7 +759,7 @@ TRANSCRIBE_CASES = [
     Case(
         "transcribe_via_mutate",
         _transcribe_host,
-        (),
+        ("greetings friend", "thanks for having me"),
         configure=_no_whisper_model,
         fresh=UNTOUCHED,
         stale=UNTOUCHED,
@@ -832,15 +831,15 @@ def test_speaker_label_window_rebuilds_memory_and_saves_nothing(
 def test_transcribe_h2_changes_words_and_leaves_a_fresh_combined_behind(
     state: State, tmp_path: Path, ten_second_silence_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A transcribe that went through ``ws.mutate`` never rebuilds: fresh stops being fresh."""
+    """A transcribe through ``ws.mutate`` moves the words, so the hook rebuilds a fresh combined."""
     _no_whisper_model(monkeypatch)
     ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, state)
     seen = observe(ws, _transcribe_host)
     assert texts(seen.entry) == FRESH_TEXTS
-    assert texts(seen.memory) == FRESH_TEXTS
-    assert texts(seen.expected_rebuilt) == ("greetings friend", "thanks for having me")
+    assert texts(seen.memory) == ("greetings friend", "thanks for having me")
+    assert seen.memory == seen.expected_rebuilt
     assert seen.moved
-    assert seen.snapshot == seen.entry
+    assert seen.snapshot == seen.memory
 
 
 def _seed_canned(with_combined: bool) -> dict[str, Any]:
@@ -900,8 +899,8 @@ def test_set_track_meta_patches_the_stored_speaker_in_place_without_a_rebuild(
 ) -> None:
     """Renaming a speaker rewrites the stored utterances' labels and nothing else.
 
-    A fresh combined ends up equal to a rebuild. A stale one keeps its stale text under the
-    new label, which is neither its entry value nor a rebuild. A missing one stays missing.
+    A fresh combined ends up equal to a rebuild. A stale one is rebuilt by the hook because the
+    speaker moved the merge inputs. A missing one stays missing.
     """
     ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, state)
     seen = observe(ws, lambda w: EpisodeService(w).set_track_meta("host", speaker="Dr Host"))
@@ -912,10 +911,8 @@ def test_set_track_meta_patches_the_stored_speaker_in_place_without_a_rebuild(
         assert expected is not None
         assert tuple(u.speaker for u in expected.utterances) == ("Dr Host", "Dr Host", "Guest")
     else:
-        expected = STALE_COMBINED.model_copy(deep=True)
-        expected.utterances[0].speaker = "Dr Host"
+        expected = seen.expected_rebuilt
         assert expected != seen.entry
-        assert expected != seen.expected_rebuilt
     assert_channels(seen, expected)
 
 

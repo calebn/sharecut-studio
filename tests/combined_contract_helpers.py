@@ -282,15 +282,20 @@ class Case:
     s3_changes: bool = False
 
     def outcome(self, state: State) -> Outcome:
+        if state in self.s2_changes:
+            return REBUILT
+        return self.entry_outcome(state)
+
+    def entry_outcome(self, state: State) -> Outcome:
         return {State.FRESH: self.fresh, State.STALE: self.stale, State.NONE: self.none}[state]
 
     def id_for(self, state: State) -> str:
-        parts = [self.name, str(state), str(self.outcome(state))]
+        parts = [self.name, str(state), str(self.entry_outcome(state))]
         if self.quirk:
             parts.append(self.quirk)
         if state in self.s2_changes:
             parts.append("s2-changes")
-        if self.s3_changes and state is State.NONE and self.outcome(state) is REBUILT:
+        if self.s3_changes and state is State.NONE and self.entry_outcome(state) is REBUILT:
             parts.append("s3-changes")
         return "-".join(parts)
 
