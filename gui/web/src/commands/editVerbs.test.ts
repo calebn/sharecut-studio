@@ -2223,6 +2223,173 @@ describe("deciding an exact range proposal", () => {
   });
 });
 
+describe("the Action bar's Approve and Reject on every pending edit", () => {
+  const reviewed = { queued: false, count: 1, historyHead: null } as never;
+  const withEdit = (over: Record<string, unknown>, extra = {}) => {
+    const project = editFixtureProject();
+    project.pending_edits[0] = { ...project.pending_edits[0]!, ...over };
+    host(EDIT_SELECTIONS.suggestion, { project, ...extra });
+  };
+  const exact = { exact_range: { kind: "exact_range", clips: [] } as never };
+  const share = (guestMode: string, capabilities: string[]) => ({
+    projectPath: "share:tok",
+    guestMode,
+    shareCapabilities: [...capabilities],
+  });
+  const model = () => barModelOf(factsOf()!, useDawStore.getState());
+  const keepOf = () => model().items.find((i) => i.id === "keep");
+
+  it.each([
+    ["cut", { suggested_action: "cut" }, "cut", "Keep"],
+    ["shorten", { suggested_action: "shorten" }, "shorten", "Keep"],
+    ["lower", { suggested_action: "lower" }, "lower", "Keep"],
+    ["split", { type: "split", suggested_action: "cut" }, "approve", "Reject"],
+    ["leave", { suggested_action: "leave" }, "approve", "Reject"],
+    ["no action", { suggested_action: null }, "approve", "Reject"],
+    ["exact range", exact, "approve", "Reject"],
+    [
+      "exact range that suggests shortening",
+      { ...exact, suggested_action: "shorten" },
+      "approve",
+      "Reject",
+    ],
+  ] as const)("words a %s suggestion", (_name, over, primary, reject) => {
+    withEdit(over);
+    expect(model().primary?.id).toBe(primary);
+    expect(keepOf()?.label).toBe(reject);
+    expect(model().primary?.disabledReason).toBeUndefined();
+  });
+
+  it.each([
+    ["the host", {}, undefined],
+    ["an Editor", share("edit", EDITOR_CAPABILITIES), undefined],
+    [
+      "a Commenter",
+      share("comment", COMMENTER_CAPABILITIES),
+      "Only the host or an Editor can review exact range proposals.",
+    ],
+    [
+      "a Viewer",
+      share("view", VIEWER_CAPABILITIES),
+      "Only the host or an Editor can review exact range proposals.",
+    ],
+    [
+      "a suggest-only guest",
+      share("edit", ["view", "play", "suggest"]),
+      "Only the host or an Editor can review exact range proposals.",
+    ],
+  ] as const)("gates an exact range for %s", (_name, extra, reason) => {
+    withEdit(exact, extra);
+    expect(model().primary?.id).toBe("approve");
+    expect(model().primary?.disabledReason).toBe(reason);
+    expect(keepOf()?.disabledReason).toBe(reason);
+  });
+
+  it("gates Keep for a reviewer-less link on an ordinary suggestion, ahead of busy", () => {
+    withEdit(
+      {},
+      {
+        ...share("comment", COMMENTER_CAPABILITIES),
+        pendingDecisionInFlight: "pending-cut",
+      },
+    );
+    expect(model().primary?.disabledReason).toBe(
+      "This link cannot decide suggestions",
+    );
+    expect(keepOf()?.disabledReason).toBe(
+      "This link cannot decide suggestions",
+    );
+  });
+
+  it("holds an exact range's Approve and Reject while a decision is in flight", () => {
+    withEdit(exact, { pendingDecisionInFlight: "pending-cut" });
+    expect(model().primary?.disabledReason).toBe(BUSY_REASON);
+    expect(keepOf()?.disabledReason).toBe(BUSY_REASON);
+  });
+
+  it.each([
+    ["a Commenter", share("comment", COMMENTER_CAPABILITIES)],
+    ["a suggest-only guest", share("edit", ["view", "play", "suggest"])],
+  ] as const)(
+    "never sends a disabled exact range Approve or Reject from %s",
+    async (_name, extra) => {
+      withEdit(exact, extra);
+      expect((await runEditVerb("approve", factsOf()!)).status).toBe(
+        "disabled",
+      );
+      expect((await runEditVerb("keep", factsOf()!)).status).toBe("disabled");
+      expect(api.approveEdits).toHaveBeenCalledTimes(0);
+      expect(api.rejectEdits).toHaveBeenCalledTimes(0);
+      expect(api.applySuggestedActions).toHaveBeenCalledTimes(0);
+    },
+  );
+
+  it("approves an exact range that suggests shortening, never applying the suggested action", async () => {
+    withEdit({ ...exact, suggested_action: "shorten" });
+    vi.mocked(api.approveEdits).mockResolvedValue(reviewed);
+    await runEditVerb(model().primary!.id, factsOf()!);
+    expect(api.approveEdits).toHaveBeenCalledTimes(1);
+    expect(api.applySuggestedActions).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows a viewer an exact range's disabled Approve and Reject, and an ordinary suggestion nothing", () => {
+    withEdit(exact, share("view", VIEWER_CAPABILITIES));
+    expect(model().items.map((i) => i.id)).toEqual(["hear", "comment", "keep"]);
+    expect(model().primary?.id).toBe("approve");
+    withEdit({}, share("view", VIEWER_CAPABILITIES));
+    expect(model().items.map((i) => i.id)).toEqual(["hear", "comment"]);
+    expect(model().primary).toBeNull();
+  });
+
+  it("offers no Adjust bounds on a split or an exact range", () => {
+    withEdit({});
+    expect(model().more.map((i) => i.id)).toContain("adjustBounds");
+    withEdit({ type: "split" });
+    expect(model().more.map((i) => i.id)).not.toContain("adjustBounds");
+    withEdit(exact);
+    expect(model().more.map((i) => i.id)).not.toContain("adjustBounds");
+  });
+
+  describe("Backspace and X", () => {
+    it.each([
+      ["a split", { type: "split", suggested_action: "cut" }],
+      [
+        "an exact range that suggests shortening",
+        { ...exact, suggested_action: "shorten" },
+      ],
+      ["a suggestion to leave alone", { suggested_action: "leave" }],
+      ["a suggestion with no action", { suggested_action: null }],
+    ] as const)(
+      "Backspace approves %s and never applies its suggested action",
+      async (_name, over) => {
+        withEdit(over);
+        vi.mocked(api.approveEdits).mockResolvedValue(reviewed);
+        await execute("edit.delete");
+        expect(api.approveEdits).toHaveBeenCalledTimes(1);
+        expect(api.applySuggestedActions).toHaveBeenCalledTimes(0);
+      },
+    );
+
+    it("X rejects an exact range proposal", async () => {
+      withEdit(exact);
+      vi.mocked(api.rejectEdits).mockResolvedValue(reviewed);
+      await execute("edit.keep");
+      expect(api.rejectEdits).toHaveBeenCalledTimes(1);
+    });
+
+    it("Backspace still applies a shorten suggestion's own action", async () => {
+      withEdit({ suggested_action: "shorten" });
+      vi.mocked(api.applySuggestedActions).mockResolvedValue({
+        historyHead: "h2",
+        summary: "Shortened",
+      } as never);
+      await execute("edit.delete");
+      expect(api.applySuggestedActions).toHaveBeenCalledTimes(1);
+      expect(api.approveEdits).toHaveBeenCalledTimes(0);
+    });
+  });
+});
+
 describe("focusing Start after Inspect", () => {
   afterEach(() => vi.unstubAllGlobals());
 

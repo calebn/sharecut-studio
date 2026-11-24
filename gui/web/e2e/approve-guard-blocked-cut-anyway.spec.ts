@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
+import { decideOnBar } from "./pendingActionbar";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openProject } from "./stageNav";
 
@@ -46,10 +47,7 @@ test("explicit interactive approval sends one command without an override flag",
       });
     });
 
-    await page
-      .getByRole("region", { name: "Pending edit actions" })
-      .getByRole("button", { name: "Approve", exact: true })
-      .click();
+    await decideOnBar(page, "Approve");
 
     await expect.poll(() => approvals.length).toBe(1);
     expect(approvals[0]).not.toHaveProperty("confirm_cut_speech");

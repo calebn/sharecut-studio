@@ -288,6 +288,10 @@ async function wheelInspectorToward(page: Page, button: Locator) {
 test("pending card: a marker added while it floats leaves the one-row lane where it was and the card clear of it", async ({
   page,
 }) => {
+  test.fixme(
+    true,
+    "The pending edit's Approve and Reject moved to the Action bar on the Edit stage; this overlay-bar case is replaced when slice 3 of #4337 removes the bar.",
+  );
   test.setTimeout(40_000);
   await page.setViewportSize({ width: 1280, height: 540 });
   await openWithSuggestion(page);
@@ -334,6 +338,10 @@ test("pending card: a marker added while it floats leaves the one-row lane where
 test("pending review: inline Approve and Reject stay reachable after 720 to 360 to 260", async ({
   page,
 }) => {
+  test.fixme(
+    true,
+    "The pending edit's Approve and Reject moved to the Action bar on the Edit stage; this overlay-bar case is replaced when slice 3 of #4337 removes the bar.",
+  );
   test.setTimeout(60_000);
   await page.route("**/api/document/command**", async (route) => {
     const body: unknown = route.request().postDataJSON();

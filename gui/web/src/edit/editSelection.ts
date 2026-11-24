@@ -53,6 +53,8 @@ export interface EditFacts {
   readonly pendingOffersCut: boolean;
   /** The pending edit is an exact range proposal. */
   readonly exactRange: boolean;
+  /** The pending edit is a split. */
+  readonly pendingSplit: boolean;
   readonly commentResolved: boolean;
   readonly clipboardHasAudio: boolean;
   readonly role: EditRole;
@@ -270,6 +272,7 @@ export function editFacts(
     suggestedAction: pending?.suggested_action ?? null,
     pendingOffersCut: pending !== null && pendingOffersCut(pending),
     exactRange: pending?.exact_range != null,
+    pendingSplit: pending?.type === "split",
     commentResolved:
       selection?.kind === "comment" &&
       (project.comments.find((comment) => comment.id === selection.id)

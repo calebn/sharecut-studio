@@ -58,6 +58,7 @@ export const EDIT_ORDER: readonly BarId[] = [
 ];
 
 const READ_ONLY_BAR: readonly BarId[] = ["hear", "comment"];
+const READ_ONLY_EXACT_RANGE_BAR: readonly BarId[] = ["hear", "comment", "keep"];
 const READ_ONLY_WORD_BAR: readonly BarId[] = ["hear", "comment", "more"];
 const READ_ONLY_WORD_MORE: readonly MoreRowId[] = ["copy"];
 
@@ -173,6 +174,10 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
   },
 };
 
+/** A split has no bounds to adjust and an exact range proposal is not retimable. */
+const hasNoBounds = (facts: EditFacts) =>
+  facts.kind === "suggestion" && (facts.exactRange || facts.pendingSplit);
+
 const GUARDS: Readonly<Record<Guard, (facts: EditFacts) => boolean>> = {
   holdsCut: (facts) => facts.holdsCut,
   hasGap: (facts) => facts.hasGap,
@@ -180,14 +185,13 @@ const GUARDS: Readonly<Record<Guard, (facts: EditFacts) => boolean>> = {
   clipboardHasAudio: (facts) => facts.clipboardHasAudio,
 };
 
-/** The verb a pending edit's table default names. `leave` and an absent default offer no accept verb. */
+/** The verb a cut, shorten or lower suggestion's table default names; every other suggestion is Approve. */
 const SUGGESTION_PRIMARY: Readonly<
-  Record<NonNullable<PendingSuggestedAction>, VerbId | null>
+  Record<Exclude<NonNullable<PendingSuggestedAction>, "leave">, VerbId>
 > = {
   cut: "cut",
   shorten: "shorten",
   lower: "lower",
-  leave: null,
 };
 
 export type ResolvedBar = {
@@ -205,9 +209,11 @@ function primaryOf(facts: EditFacts): VerbId | null {
     case "range":
       return "cut";
     case "suggestion":
-      return facts.suggestedAction
-        ? SUGGESTION_PRIMARY[facts.suggestedAction]
-        : null;
+      return facts.pendingOffersCut && facts.suggestedAction
+        ? SUGGESTION_PRIMARY[
+            facts.suggestedAction as keyof typeof SUGGESTION_PRIMARY
+          ]
+        : "approve";
     case "social":
       return "approve";
     case "comment":
@@ -217,7 +223,18 @@ function primaryOf(facts: EditFacts): VerbId | null {
   }
 }
 
+/** An exact range proposal keeps its disabled Approve and Reject in front of a viewer, as the overlay always showed them. */
+const readOnlyExactRange = (facts: EditFacts) =>
+  facts.role === "readOnly" && facts.kind === "suggestion" && facts.exactRange;
+
 export function resolveBar(facts: EditFacts): ResolvedBar {
+  if (readOnlyExactRange(facts))
+    return {
+      leading: null,
+      bar: READ_ONLY_EXACT_RANGE_BAR,
+      more: [],
+      primary: "approve",
+    };
   if (facts.role === "readOnly")
     return facts.kind === "words"
       ? {
@@ -230,7 +247,10 @@ export function resolveBar(facts: EditFacts): ResolvedBar {
   const set = ACTION_SETS[facts.kind];
   const allowed = <Id extends string>(rule: Rule<Id>) =>
     !rule.when || GUARDS[rule.when](facts);
-  const more = set.more.filter(allowed).map((rule) => rule.id);
+  const more = set.more
+    .filter(allowed)
+    .filter((rule) => rule.id !== "adjustBounds" || !hasNoBounds(facts))
+    .map((rule) => rule.id);
   const ids = set.bar
     .filter(allowed)
     .map((rule) => rule.id)

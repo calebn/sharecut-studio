@@ -20,6 +20,7 @@ const facts = (over: Partial<EditFacts>): EditFacts => ({
   suggestedAction: null,
   pendingOffersCut: false,
   exactRange: false,
+  pendingSplit: false,
   commentResolved: false,
   clipboardHasAudio: false,
   role: "host",
@@ -128,7 +129,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
   ],
   [
     "cut suggestion",
-    { kind: "suggestion", suggestedAction: "cut" },
+    { kind: "suggestion", suggestedAction: "cut", pendingOffersCut: true },
     {
       leading: null,
       bar: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
@@ -138,7 +139,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
   ],
   [
     "sound suggestion",
-    { kind: "suggestion", suggestedAction: "lower" },
+    { kind: "suggestion", suggestedAction: "lower", pendingOffersCut: true },
     {
       leading: null,
       bar: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
@@ -153,12 +154,12 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
       leading: null,
       bar: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
       more: ["adjustBounds", "seek"],
-      primary: null,
+      primary: "approve",
     },
   ],
   [
     "pause suggestion",
-    { kind: "suggestion", suggestedAction: "shorten" },
+    { kind: "suggestion", suggestedAction: "shorten", pendingOffersCut: true },
     {
       leading: null,
       bar: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
@@ -173,8 +174,58 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
       leading: null,
       bar: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
       more: ["adjustBounds", "seek"],
-      primary: null,
+      primary: "approve",
     },
+  ],
+  [
+    "split suggestion that carries a cut action",
+    {
+      kind: "suggestion",
+      suggestedAction: "cut",
+      pendingOffersCut: false,
+      pendingSplit: true,
+    },
+    {
+      leading: null,
+      bar: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
+      more: ["seek"],
+      primary: "approve",
+    },
+  ],
+  [
+    "exact range proposal that suggests shortening",
+    {
+      kind: "suggestion",
+      suggestedAction: "shorten",
+      pendingOffersCut: false,
+      exactRange: true,
+    },
+    {
+      leading: null,
+      bar: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
+      more: ["seek"],
+      primary: "approve",
+    },
+  ],
+  [
+    "exact range proposal, read-only guest",
+    { kind: "suggestion", exactRange: true, role: "readOnly" },
+    {
+      leading: null,
+      bar: ["hear", "comment", "keep"],
+      more: [],
+      primary: "approve",
+    },
+  ],
+  [
+    "ordinary suggestion, read-only guest",
+    {
+      kind: "suggestion",
+      suggestedAction: "cut",
+      pendingOffersCut: true,
+      role: "readOnly",
+    },
+    { leading: null, bar: ["hear", "comment"], more: [], primary: null },
   ],
   [
     "open comment",

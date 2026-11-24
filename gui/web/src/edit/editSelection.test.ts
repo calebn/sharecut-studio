@@ -178,6 +178,7 @@ describe("editFacts", () => {
     suggestedAction: null,
     pendingOffersCut: false,
     exactRange: false,
+    pendingSplit: false,
     commentResolved: false,
     clipboardHasAudio: false,
     role: "host",
