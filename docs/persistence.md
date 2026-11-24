@@ -101,6 +101,18 @@ The timeline stem hash includes the persisted choices explicitly.
 Affected renders revalidate all bus, fill, and gate-evidence revisions before
 publication. A refused publication retains the previous artifact and hash.
 
+`editorial.edit_decisions[].bound_pad` (project format 2.5) stores the room tone a pending
+padded cut plays on each lane: per lane the sample's source span and kind (own audio, recorded
+bed or synthesised file with its relative path), the seam and request it answered, the tile
+seed and a digest of the pool, bed, synthesis parameters and recording it read, plus a digest
+of the cut fields it was bound for. It lives in the episode project and rides the history
+snapshots with the rest of `editorial`; it introduces no sidecar, and a synthesised file it
+names is the one the pick already wrote under the workspace. `EditService` binds it when cuts
+are proposed or edited (`edits/pad_binder.py`), and apply and preview read it
+(`edits/pad_binding.py`). It is advisory state: a binding that no longer matches is ignored
+and picked again, and an applied cut keeps only its `pad_samples` in the edit log.
+See [filler-cut-quality.md](filler-cut-quality.md#decision-a-cut-plays-the-room-tone-it-was-bound-to).
+
 ```mermaid
 flowchart TB
   subgraph host [Host_laptop]
