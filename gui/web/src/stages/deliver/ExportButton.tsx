@@ -2,8 +2,8 @@ import { SystemIcon } from "../../system/SystemIcon";
 import { hintOf, iconOf, verbOf } from "../../system/verbDisplay";
 import { Button } from "../../ui";
 import { useDisabledReasonNote } from "../../ui/disabledReason";
+import { ArchiveLink } from "./ArchiveLink";
 import type { AfterExport } from "./deliverFiles";
-import { archiveLabel } from "./exportedFileModel";
 
 type Props = {
   exporting: boolean;
@@ -53,16 +53,12 @@ function AfterExportPrimary({
           Download all
         </Button>
       ) : (
-        <a
-          className="ui-control modifier-action primary dv-export"
-          href={after.archive.href}
-          download={after.archive.name}
-          aria-label={archiveLabel(after.archive)}
-          onClick={() => after.onStarted?.()}
-        >
-          <SystemIcon name="download" size={18} />
-          Download all
-        </a>
+        <ArchiveLink
+          archive={after.archive}
+          className="primary dv-export"
+          iconSize={18}
+          onStarted={after.onStarted}
+        />
       );
     case "reveal":
       return (

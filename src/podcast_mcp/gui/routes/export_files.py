@@ -20,6 +20,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     ArchivePlan,
     ExportFilesService,
+    ListedFiles,
     ServedFile,
     plan_archive,
 )
@@ -41,7 +42,7 @@ def _open_listed(ws: ProjectWorkspace, file_id: str, *, host_files: bool) -> Ser
         raise coded_http_error(404, EXPORT_FILE_GONE, code="export_file_gone") from exc
 
 
-def _plan(ws: ProjectWorkspace, listed: list[tuple[Any, ServedFile]]) -> ArchivePlan | None:
+def _plan(ws: ProjectWorkspace, listed: ListedFiles) -> ArchivePlan | None:
     return plan_archive(listed, stem=sanitize_export_stem(ws.project.name))
 
 
