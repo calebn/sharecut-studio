@@ -411,9 +411,7 @@ def test_label_track_home_speaker_short_region_breaks(tmp_path, sample_wav) -> N
         "podcast_mcp.engines.speaker_id.load_all_profiles",
         return_value=profiles,
     ):
-        report = label_track_home_speaker(
-            proj, cfg, MockSpeakerBackend(), dry_run=True, defaults=load_defaults()
-        )
+        report = label_track_home_speaker(proj, cfg, MockSpeakerBackend(), dry_run=True)
     assert report["words_would_suppress"] == 0
 
 
@@ -534,7 +532,6 @@ def test_label_track_home_speaker_skips_missing_transcript(tmp_path, sample_wav)
             MockSpeakerBackend(),
             track_ids=["host", "guest"],
             dry_run=True,
-            defaults=load_defaults(),
         )
     assert report["tracks"]
 
@@ -543,9 +540,7 @@ def test_label_track_home_speaker_no_profiles(tmp_path) -> None:
     from podcast_mcp.engines.speaker_id import label_track_home_speaker
 
     proj = EpisodeProject.create("x", str(tmp_path))
-    out = label_track_home_speaker(
-        proj, SpeakerIdConfig(), MockSpeakerBackend(), dry_run=True, defaults=load_defaults()
-    )
+    out = label_track_home_speaker(proj, SpeakerIdConfig(), MockSpeakerBackend(), dry_run=True)
     assert out["error"] == "no profiles"
 
 
@@ -627,9 +622,7 @@ def test_label_track_home_speaker_count_warning(tmp_path, sample_wav) -> None:
             side_effect=_score,
         ),
     ):
-        out = label_track_home_speaker(
-            proj, cfg, MockSpeakerBackend(), dry_run=True, defaults=load_defaults()
-        )
+        out = label_track_home_speaker(proj, cfg, MockSpeakerBackend(), dry_run=True)
     assert out["speaker_count_warning"] is not None
 
 
@@ -684,9 +677,7 @@ def test_label_track_home_speaker_ignores_uncertain_windows(tmp_path, sample_wav
             return_value=uncertain,
         ),
     ):
-        report = label_track_home_speaker(
-            proj, cfg, MockSpeakerBackend(), dry_run=True, defaults=load_defaults()
-        )
+        report = label_track_home_speaker(proj, cfg, MockSpeakerBackend(), dry_run=True)
     assert report["words_would_suppress"] == 0
 
 

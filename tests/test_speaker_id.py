@@ -304,9 +304,7 @@ def test_run_speaker_attribution_dry_run(tmp_path, sample_wav) -> None:
             ),
         ),
     ):
-        report = run_speaker_attribution(
-            proj, ctx, dry_run=True, backend=MockSpeakerBackend(), defaults=load_defaults()
-        )
+        report = run_speaker_attribution(proj, ctx, dry_run=True, backend=MockSpeakerBackend())
     assert report["attributions_would_change"] == 1
     assert report["attributions_changed"] == 0
     assert report["windows_scored"] == 1
@@ -341,11 +339,8 @@ def test_run_speaker_attribution_apply_respects_lock(tmp_path, sample_wav) -> No
                 margin=0.8,
             ),
         ),
-        patch("podcast_mcp.engines.transcript_sync.rebuild_combined"),
     ):
-        report = run_speaker_attribution(
-            proj, ctx, dry_run=False, backend=MockSpeakerBackend(), defaults=load_defaults()
-        )
+        report = run_speaker_attribution(proj, ctx, dry_run=False, backend=MockSpeakerBackend())
     assert report["attributions_would_change"] == 1
     word = proj.transcript_for_track("host").words[0]
     assert word.suppressed is False
@@ -827,9 +822,7 @@ def test_run_speaker_skips_enroll_when_profile_exists(tmp_path, sample_wav) -> N
             return_value=[],
         ),
     ):
-        report = run_speaker_attribution(
-            proj, ctx, dry_run=True, backend=MockSpeakerBackend(), defaults=load_defaults()
-        )
+        report = run_speaker_attribution(proj, ctx, dry_run=True, backend=MockSpeakerBackend())
     enroll.assert_not_called()
     assert report["profiles"]
 
@@ -1335,9 +1328,7 @@ def test_home_speaker_gate_snapshots_stem_once(tmp_path, sample_wav) -> None:
         patch.object(_WavWindowReader, "open", wraps=_WavWindowReader.open) as open_snapshot,
         patch("podcast_mcp.engines.speaker_id.load_mono_window") as bounded_decode,
     ):
-        label_track_home_speaker(
-            project, cfg, MockSpeakerBackend(), track_ids=["host"], defaults=load_defaults()
-        )
+        label_track_home_speaker(project, cfg, MockSpeakerBackend(), track_ids=["host"])
     open_snapshot.assert_called_once()
     bounded_decode.assert_not_called()
 
@@ -1366,7 +1357,6 @@ def test_home_speaker_gate_apply_respects_lock(tmp_path, sample_wav) -> None:
         patch("podcast_mcp.engines.speaker_id._speech_regions", return_value=[(1.0, 1.5)]),
         patch("podcast_mcp.engines.speaker_id.score_window", return_value=bleed),
         patch("podcast_mcp.engines.speaker_id._classify_role", return_value=("bleed", "guest")),
-        patch("podcast_mcp.engines.transcript_sync.rebuild_combined"),
     ):
         report = label_track_home_speaker(
             project,
@@ -1374,7 +1364,6 @@ def test_home_speaker_gate_apply_respects_lock(tmp_path, sample_wav) -> None:
             MockSpeakerBackend(),
             track_ids=["host"],
             dry_run=False,
-            defaults=load_defaults(),
         )
     word = project.transcript_for_track("host").words[0]
     assert word.suppressed is False

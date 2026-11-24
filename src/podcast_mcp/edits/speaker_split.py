@@ -23,7 +23,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.timeline_ops import mute_room_tone_fill
 from podcast_mcp.engines.clips_ops import clips_for_track, new_clip_id
 from podcast_mcp.engines.mute_regions import add_source_mute, merge_mute_regions
@@ -31,7 +30,6 @@ from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.speaker_split import SpeakerAttribution
 from podcast_mcp.engines.track_ids import slug_track_id
-from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
     Clip,
     ClipMuteRegion,
@@ -278,7 +276,6 @@ def move_lane_span(
     move: LaneSpanMove,
     *,
     fade_ms: int = SPLIT_FADE_MS,
-    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Mute ``move`` on ``from_lane`` and reopen it on ``to_lane`` with split fade geometry."""
     start, end = move.source_start, move.source_end
@@ -302,7 +299,6 @@ def move_lane_span(
     for clip in clips_for_track(project, move.to_lane):
         _rebuild_leftover_mutes(project, clip, start, end, duration, fade_ms)
     words_moved = _transfer_transcript_words(project, move.from_lane, move.to_lane, start, end)
-    rebuild_combined(project, defaults=defaults)
     record_invalidation(project, track_ids=[move.from_lane, move.to_lane])
     return {
         "from_lane": move.from_lane,
@@ -388,7 +384,6 @@ def split_track_by_speaker(
     crosstalk_mode: SpeakerSplitCrosstalk = "owner",
     room_tone_fill: bool = False,
     fade_ms: int = SPLIT_FADE_MS,
-    defaults: EffectiveConfig,
 ) -> dict:
     """Turn ``track_id`` into one lane per speaker of ``attribution``; mutates ``project``.
 
@@ -454,7 +449,6 @@ def split_track_by_speaker(
                 add_source_mute(clip, region)
     _split_transcripts(project, split, track_id)
     project.editorial.speaker_splits.append(split)
-    rebuild_combined(project, defaults=defaults)
     record_invalidation(project, track_ids=[*lanes, *([crosstalk_lane] if crosstalk_lane else [])])
     crosstalk = split.crosstalk_spans()
     unsure = unsure_spans(split)

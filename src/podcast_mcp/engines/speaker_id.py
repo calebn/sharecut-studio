@@ -972,7 +972,6 @@ def label_track_home_speaker(
     track_ids: list[str] | None = None,
     dry_run: bool = True,
     progress: ProgressReporter | None = None,
-    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Slide windows over speech regions and suppress non-home speaker spans."""
     profiles = load_all_profiles(project)
@@ -1081,11 +1080,6 @@ def label_track_home_speaker(
             f"exceed expected_speaker_count ({expected})"
         )
 
-    if not dry_run and suppressed:
-        from podcast_mcp.engines.transcript_sync import rebuild_combined
-
-        rebuild_combined(project, defaults=defaults)
-
     return {
         "dry_run": dry_run,
         "backend": backend.name(),
@@ -1106,7 +1100,6 @@ def run_speaker_attribution(
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
     backend: SpeakerBackend | None = None,
-    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     cfg = ctx.speaker_id
     eng = backend or resolve_speaker_backend()
@@ -1189,11 +1182,6 @@ def run_speaker_attribution(
             task.advance_to(len(windows))
         else:
             task.advance(0)
-
-    if not dry_run and changed:
-        from podcast_mcp.engines.transcript_sync import rebuild_combined
-
-        rebuild_combined(project, defaults=defaults)
 
     return {
         "ran": True,

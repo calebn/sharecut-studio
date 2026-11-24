@@ -501,7 +501,6 @@ def run_precorrect_transcript(
                     dry_run=dry_run,
                     policy=policy,
                     progress=None,
-                    defaults=defaults,
                 )
                 result.speaker_ran = True
             except ImportError as exc:
