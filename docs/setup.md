@@ -978,9 +978,11 @@ and runs `scripts/check_wheel_web_build.py --podcast <venv>/bin/podcast`. The sc
 fails unless the wheel holds `index.html` plus every file it references, ships
 `contracts/` as `podcast_mcp/contracts` and `.agents/defaults/` as `podcast_mcp/defaults`
 (the installed package loads both), has no `podcast_online*` entries, lists only
-`collaboration` under `podcast_mcp.extensions`, ships the `podcast_relay/static` files (the installed
-package also starts the CLI, MCP tools and GUI app with `podcast_online` blocked) and
-`podcast gui` serves that same `index.html` at `/`. Run it on a local wheel:
+`collaboration` under `podcast_mcp.extensions`, ships the `podcast_relay/static` files, and
+`podcast gui` serves that same `index.html` at `/`. With `--podcast`, it also runs the installed
+package with `podcast_online` blocked: the CLI starts, the MCP tools register, the extension loader
+loads only collaboration (a venv that also has the private provider fails this by design) and the
+GUI app builds. Run it on a local wheel:
 
 ```bash
 (cd gui/web && npm ci && npm run build)

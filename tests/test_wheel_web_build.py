@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -18,9 +19,13 @@ import podcast_mcp
 from podcast_mcp.gui.static_assets import packaged_gui_dist
 
 _ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(_ROOT / "scripts"))
-
-import check_wheel_web_build as check  # noqa: E402
+_SPEC = importlib.util.spec_from_file_location(
+    "check_wheel_web_build", _ROOT / "scripts" / "check_wheel_web_build.py"
+)
+assert _SPEC is not None and _SPEC.loader is not None
+check = importlib.util.module_from_spec(_SPEC)
+sys.modules["check_wheel_web_build"] = check
+_SPEC.loader.exec_module(check)
 
 _GOOD_ENTRY_POINTS = (
     "[console_scripts]\npodcast = podcast_mcp.cli.main:app\n\n"
@@ -198,6 +203,7 @@ def test_wheel_boundary_rejects_a_podcast_online_entry(tmp_path: Path, entry: st
         "./podcast_online/__init__.py",
         "/podcast_online/__init__.py",
         "podcast_mcp/podcast_online/__init__.py",
+        "./podcast_online-0.1.dist-info/RECORD",
     ],
 )
 def test_wheel_boundary_normalizes_archive_paths(tmp_path: Path, entry: str) -> None:
@@ -306,15 +312,54 @@ def test_blocked_online_probe_starts_cli_mcp_and_gui() -> None:
     assert "podcast_online blocked" in result.stdout
 
 
-def test_blocked_online_probe_fails_when_the_package_is_imported() -> None:
+def _run_probe(
+    tmp_path: Path, probe: str, *, planted: Path | None = None, **env: str
+) -> subprocess.CompletedProcess[str]:
+    """Run a probe in a child whose path can also reach a planted directory."""
+    path = [str(planted)] if planted else []
+    path += [str(_ROOT / "src"), *os.environ.get("PYTHONPATH", "").split(os.pathsep)]
+    child_env = {**os.environ, "PYTHONPATH": os.pathsep.join(p for p in path if p), **env}
+    return subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=child_env,
+        cwd=tmp_path,
+    )
+
+
+def test_blocked_online_probe_fails_when_the_package_is_imported(tmp_path: Path) -> None:
+    """A real importable podcast_online exists, so only the sys.modules block can stop it."""
+    planted = tmp_path / "planted"
+    (planted / "podcast_online").mkdir(parents=True)
+    (planted / "podcast_online/__init__.py").write_text("", encoding="utf-8")
     probe = check.BLOCK_ONLINE_PROBE.replace(
         "from podcast_mcp.cli.main import app",
         "import podcast_online\nfrom podcast_mcp.cli.main import app",
     )
-    result = subprocess.run(
-        [sys.executable, "-c", probe], capture_output=True, text=True, check=False
-    )
+    result = _run_probe(tmp_path, probe, planted=planted)
     assert result.returncode != 0
+    assert "podcast_online" in result.stderr
+
+
+def test_blocked_online_probe_fails_on_a_skipped_extension_entry_point(tmp_path: Path) -> None:
+    planted = tmp_path / "planted"
+    dist = planted / "broken-1.0.dist-info"
+    dist.mkdir(parents=True)
+    (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: broken\nVersion: 1.0\n")
+    (dist / "entry_points.txt").write_text(
+        "[podcast_mcp.extensions]\nbroken = no_such_module_zz:create\n", encoding="utf-8"
+    )
+    result = _run_probe(tmp_path, check.BLOCK_ONLINE_PROBE, planted=planted)
+    assert result.returncode != 0
+    assert "skip extension entry point broken" in result.stderr
+
+
+def test_blocked_online_probe_fails_when_collaboration_does_not_load(tmp_path: Path) -> None:
+    result = _run_probe(tmp_path, check.BLOCK_ONLINE_PROBE, PODCAST_EXTENSIONS="")
+    assert result.returncode != 0
+    assert "share.routes" in result.stderr
 
 
 def _fake_venv(root: Path, *, exit_code: int, stderr: str = "") -> Path:
