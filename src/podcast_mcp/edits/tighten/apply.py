@@ -10,6 +10,7 @@ from podcast_mcp.edits.acoustic_gap import (
     AcousticGapConfig,
 )
 from podcast_mcp.edits.audio_cache import build_track_audio_caches
+from podcast_mcp.edits.cut_application import record_suggested_cut_speech
 from podcast_mcp.edits.cut_placement import CutRejected
 from podcast_mcp.edits.filler_pacing import (
     pause_trim_is_imperceptible,
@@ -34,7 +35,6 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 
 if TYPE_CHECKING:
     pass
-from podcast_mcp.edits.cut_application import record_suggested_cut_speech
 from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.cut_safety import inspect_source_remove
 from podcast_mcp.edits.pause_floor import peer_speech_indexes
@@ -223,7 +223,7 @@ def _decision_for_analyzed(result: _AnalyzedCut) -> EditDecision:
 def _apply_analyzed_cut(
     project: EpisodeProject, result: _AnalyzedCut, *, defaults: EffectiveConfig
 ) -> EditDecision:
-
+    """Append the decision; the caller must have passed `_resolve_analyzed_cuts`."""
     decision = _decision_for_analyzed(result)
     if decision.review_required and (is_pause_reason(decision.reason) or result.peers_speaking):
         record_suggested_cut_speech(project, decision, defaults=defaults)
