@@ -242,7 +242,6 @@ type Placement = {
   anchor: InspectorRect;
   bounds: InspectorBounds;
   keepClear: readonly InspectorRect[];
-  hangFrom: readonly InspectorRect[];
 };
 
 const sameRect = (a: InspectorRect | undefined, b: InspectorRect | undefined) =>
@@ -260,9 +259,7 @@ const samePlacement = (a: Placement | null, b: Placement) =>
   a.bounds.height === b.bounds.height &&
   sameRect(a.anchor, b.anchor) &&
   a.keepClear.length === b.keepClear.length &&
-  a.keepClear.every((rect, i) => sameRect(rect, b.keepClear[i])) &&
-  a.hangFrom.length === b.hangFrom.length &&
-  a.hangFrom.every((rect, i) => sameRect(rect, b.hangFrom[i]));
+  a.keepClear.every((rect, i) => sameRect(rect, b.keepClear[i]));
 
 function relativeRect(rect: DOMRect, frame: DOMRect): InspectorRect {
   return {
@@ -271,14 +268,6 @@ function relativeRect(rect: DOMRect, frame: DOMRect): InspectorRect {
     width: rect.width,
     height: rect.height,
   };
-}
-
-const PENDING_BAR = ".pending-actionbar";
-
-/** A selected pending edit's review bar while it floats on screen. It lives in document.body, outside the Edit root. */
-function floatingPendingBar(): HTMLElement | null {
-  const bar = document.querySelector<HTMLElement>(PENDING_BAR);
-  return bar?.getAttribute("aria-hidden") === "true" ? null : bar;
 }
 
 function revealTimelineAnchor(target: HTMLElement | null) {
@@ -366,9 +355,6 @@ function Card({
       keepClear: areaRects([getCorner()]).map((rect) =>
         relativeRect(rect, frame),
       ),
-      hangFrom: areaRects([floatingPendingBar()]).map((rect) =>
-        relativeRect(rect, frame),
-      ),
     };
     setPlacement((was) => (samePlacement(was, next) ? was : next));
   }, [root, anchor.ref, getCorner]);
@@ -388,24 +374,13 @@ function Card({
     };
   }, [measure, anchor.moves, anchor.visible]);
   useResizeObserver(
-    [
-      root,
-      getCorner,
-      () => getCorner()?.parentElement,
-      () => document.querySelector(PENDING_BAR),
-    ],
+    [root, getCorner, () => getCorner()?.parentElement],
     measure,
   );
   useStyleObserver(
     () => root,
     () => [root?.querySelector(".sys-actions--floating")],
     measure,
-  );
-  useStyleObserver(
-    () => document.body,
-    () => [document.querySelector(PENDING_BAR)],
-    measure,
-    selection?.kind === "pending",
   );
   const history = useTakeoverHistory();
   const takeover =
@@ -454,7 +429,6 @@ function Card({
         anchor={placement.anchor}
         bounds={placement.bounds}
         keepClear={placement.keepClear}
-        hangFrom={placement.hangFrom}
         onClose={close}
       />
     ) : (

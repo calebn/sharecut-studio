@@ -100,7 +100,6 @@ export const FROZEN: readonly (readonly [string, readonly string[]])[] = [
   ["--menu-available-width", ["calc(100dvw - 2 * var(--menu-edge-margin))"]],
   ["--menu-edge-margin", ["var(--space-3)"]],
   ["--menu-anchor-gap", ["var(--space-1)"]],
-  ["--pending-review-feedback-max-height", ["30dvh"]],
   ["--shadow-playhead-playing", ["0 0 0.5rem var(--color-timeline-playhead)"]],
   [
     "--bg-ruler-glow",

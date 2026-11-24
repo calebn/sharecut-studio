@@ -67,10 +67,8 @@ const meta: Meta<typeof PendingEditOverlayView> = {
     projectPath,
     clipsByTrack: {},
     canAdjust: true,
-    canApply: true,
     onSelect: fn(),
     onCommitSpan: fn(),
-    onReviewAction: fn(async () => ({ queued: false })),
   },
 };
 

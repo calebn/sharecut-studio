@@ -7,15 +7,13 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StrictMode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { updatePendingEdit, waiveTranscriptRefine } from "../api";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { updatePendingEdit } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
 import {
   _resetHistoryMovesForTests,
   registerHistoryCommands,
 } from "../commands/history";
-import { registerPendingDecider } from "../commands/pendingDecision";
 import { executePointerCommand } from "../commands/pointer";
 import { registerDawCommands } from "../commands/register";
 import { applyDocumentResult } from "../document/applyDocumentUpdate";
@@ -25,10 +23,6 @@ import {
 } from "../document/authorityState";
 import { FeedbackToast } from "../feedback/FeedbackToast";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
-import {
-  CUT_ANYWAY_REASON,
-  REFINE_GATE_GUI_MESSAGE,
-} from "../inspector/TranscriptRefineRecovery";
 import { QUEUED_NOTICE_POLL_MS } from "../inspector/useQueuedReviewNotice";
 import {
   submitLiveHistoryCommand,
@@ -45,31 +39,15 @@ import {
   minimalProject,
 } from "../test/fixtures";
 import { decide } from "../test/pendingDecision";
-import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import type { PendingEditView } from "../types/project";
-import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
-import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { PendingEditOverlayView } from "./PendingEditOverlayView";
-import {
-  type PendingActionPlacement,
-  placePendingActionbar,
-} from "./pendingActionPlacement";
 
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   updatePendingEdit: vi.fn(async () => undefined),
-  waiveTranscriptRefine: vi.fn(async () => undefined),
 }));
-vi.mock("./pendingActionPlacement", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("./pendingActionPlacement")>();
-  return {
-    ...actual,
-    placePendingActionbar: vi.fn(actual.placePendingActionbar),
-  };
-});
 vi.mock("../hooks/useWaveformSnapTicks", () => ({
   useWaveformSnapTicks: vi.fn(() => ({
     ticks: [],
@@ -139,22 +117,26 @@ function setup(zoomPxPerSec: number, edits: PendingEditView[] = [edit]) {
 describe("PendingEditOverlay handles", () => {
   beforeEach(() => {
     vi.mocked(updatePendingEdit).mockClear();
-    vi.mocked(waiveTranscriptRefine).mockClear();
     vi.mocked(useWaveformSnapTicks).mockReturnValue(snapResource([]));
     HTMLElement.prototype.setPointerCapture = vi.fn();
     useDawStore
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
-    useDawStore.setState({ stage: "review" });
+    useDawStore.setState({
+      stage: "review",
+      statusAnnouncement: "",
+      feedbackToast: null,
+      pendingRetimeInFlight: null,
+    });
   });
 
   it.each([
-    ["/tmp/p.json", null, null, true],
-    [shareProjectKey("tok"), "edit", ["view", "edit"], true],
-    [shareProjectKey("tok"), "comment", COMMENTER_CAPABILITIES, false],
+    ["/tmp/p.json", null, null],
+    [shareProjectKey("tok"), "edit", ["view", "edit"]],
+    [shareProjectKey("tok"), "comment", COMMENTER_CAPABILITIES],
   ] as const)(
     "presents exact islands without source handles at %s in mode %s",
-    async (path, guestMode, capabilities, canReview) => {
+    async (path, guestMode, capabilities) => {
       const exact = {
         ...edit,
         source_start: null,
@@ -207,21 +189,6 @@ describe("PendingEditOverlay handles", () => {
           name: /0:11.000 – 0:12.000 · 0:13.000 – 0:14.000 · host, guest/,
         }).length,
       ).toBeGreaterThan(0);
-      expect(screen.queryByRole("button", { name: "Edit timing" })).toBeNull();
-      await waitFor(() => {
-        const buttons = screen.getAllByRole("button", { name: "Approve" });
-        for (const button of buttons) {
-          if (canReview) expect(button).toBeEnabled();
-          else expect(button).toBeDisabled();
-        }
-      });
-      if (!canReview)
-        expect(
-          screen.getByText(
-            "Only the host or an Editor can review exact range proposals.",
-            { selector: "p" },
-          ),
-        ).toBeVisible();
       expect(updatePendingEdit).not.toHaveBeenCalled();
     },
   );
@@ -284,85 +251,6 @@ describe("PendingEditOverlay handles", () => {
     expect(updatePendingEdit).not.toHaveBeenCalled();
   });
 
-  it("Edit timing focuses the selected inspector source field", async () => {
-    const field = document.createElement("input");
-    field.id = pendingEditTimingFieldId("cut_1", "start");
-    const scrollIntoView = vi.fn();
-    field.scrollIntoView = scrollIntoView;
-    document.body.appendChild(field);
-    useDawStore
-      .getState()
-      .setSelection({ kind: "pending", id: "cut_1", trackId: "host" });
-    render(
-      <PendingEditOverlayView
-        edits={[edit]}
-        trackId="host"
-        zoomPxPerSec={10}
-        timelineWidthPx={1000}
-        selectedId="cut_1"
-        projectPath="/tmp/p.json"
-        clipsByTrack={{}}
-        canAdjust
-        canApply
-        onSelect={vi.fn()}
-        onCommitSpan={vi.fn()}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
-      />,
-    );
-    const timingButton = document.querySelector(
-      ".pending-timing-action",
-    ) as HTMLButtonElement;
-    fireEvent.click(timingButton);
-    await waitFor(() => expect(document.activeElement).toBe(field));
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
-    field.remove();
-  });
-
-  it("drops Edit timing while the Inspector sheet holds the timing, and brings it back after", async () => {
-    const view = (
-      <PendingEditOverlayView
-        edits={[edit]}
-        trackId="host"
-        zoomPxPerSec={10}
-        timelineWidthPx={1000}
-        selectedId="cut_1"
-        projectPath="/tmp/p.json"
-        clipsByTrack={{}}
-        canAdjust
-        canApply
-        onSelect={vi.fn()}
-        onCommitSpan={vi.fn()}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
-      />
-    );
-    const sheetRoot = document.createElement("div");
-    sheetRoot.className = "bottom-sheet-root";
-    const panel = document.createElement("div");
-    panel.className = "sys-inspector--phone";
-    sheetRoot.append(panel);
-    // jsdom lays nothing out: the sheet rests 100 px tall on an 800 px slot.
-    sheetRoot.getBoundingClientRect = () => ({ bottom: 800 }) as DOMRect;
-    Object.defineProperty(panel, "offsetHeight", { value: 100 });
-    document.body.append(sheetRoot);
-    try {
-      const docked = render(view);
-      await waitFor(() =>
-        expect(
-          screen.getByRole("region", { name: "Pending edit actions" }),
-        ).toHaveTextContent("Approve"),
-      );
-      expect(screen.queryByRole("button", { name: "Edit timing" })).toBeNull();
-      docked.unmount();
-    } finally {
-      sheetRoot.remove();
-    }
-
-    render(view);
-    expect(
-      await screen.findByRole("button", { name: "Edit timing" }),
-    ).toBeInTheDocument();
-  });
-
   it("shows coarse edge handles only when the selected region and lane fit them", async () => {
     document.documentElement.style.setProperty("--touch-min", "2.75rem");
     const rect = vi
@@ -407,10 +295,8 @@ describe("PendingEditOverlay handles", () => {
           ],
         }}
         canAdjust
-        canApply
         onSelect={vi.fn()}
         onCommitSpan={vi.fn()}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
       />,
     );
     const region = view.container.querySelector(
@@ -424,26 +310,6 @@ describe("PendingEditOverlay handles", () => {
     );
     rect.mockRestore();
     document.documentElement.style.removeProperty("--touch-min");
-  });
-
-  it("omits Edit timing when the selected edit cannot be adjusted", () => {
-    const { container } = render(
-      <PendingEditOverlayView
-        edits={[edit]}
-        trackId="host"
-        zoomPxPerSec={10}
-        timelineWidthPx={1000}
-        selectedId="cut_1"
-        projectPath="/tmp/p.json"
-        clipsByTrack={{}}
-        canAdjust={false}
-        canApply
-        onSelect={vi.fn()}
-        onCommitSpan={vi.fn()}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
-      />,
-    );
-    expect(container.querySelector(".pending-timing-action")).toBeNull();
   });
 
   it("commits a drag of 3 px or more after resolving snap ticks", async () => {
@@ -551,7 +417,6 @@ describe("PendingEditOverlay handles", () => {
         projectPath="/tmp/p.json"
         clipsByTrack={{}}
         canAdjust
-        canApply
         onSelect={vi.fn()}
         onCommitSpan={() => {
           expect(
@@ -560,16 +425,13 @@ describe("PendingEditOverlay handles", () => {
           ).toBe("43px");
           onCommitSpan();
         }}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
       />,
     );
     const end = container.querySelector(".pending-handle.end") as HTMLElement;
     fireEvent.pointerDown(end, { clientX: 100, pointerId: 21 });
     fireEvent.pointerMove(end, { clientX: 130, pointerId: 21 });
     fireEvent.pointerUp(end, { clientX: 130, pointerId: 21 });
-    expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
-      "Checking nearby snap points",
-    );
+    expect(useDawStore.getState().pendingRetimeInFlight).toBe("cut_1");
     expect(resolveTicks).toHaveBeenCalledWith(5, expect.any(AbortSignal));
     fireEvent.lostPointerCapture(end, { pointerId: 21 });
     expect(onCommitSpan).not.toHaveBeenCalled();
@@ -595,19 +457,20 @@ describe("PendingEditOverlay handles", () => {
         projectPath="/tmp/p.json"
         clipsByTrack={{}}
         canAdjust
-        canApply
         onSelect={vi.fn()}
         onCommitSpan={onCommitSpan}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
       />,
     );
     const end = container.querySelector(".pending-handle.end") as HTMLElement;
     fireEvent.pointerDown(end, { clientX: 100, pointerId: 22 });
     fireEvent.pointerMove(end, { clientX: 130, pointerId: 22 });
     fireEvent.pointerUp(end, { clientX: 130, pointerId: 22 });
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Nearby waveform snap points could not be loaded. Try again.",
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Nearby waveform snap points could not be loaded. Try again.",
+      ),
     );
+    expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
     expect(onCommitSpan).not.toHaveBeenCalled();
     expect(updatePendingEdit).not.toHaveBeenCalled();
   });
@@ -632,10 +495,8 @@ describe("PendingEditOverlay handles", () => {
         projectPath="/tmp/p.json"
         clipsByTrack={{}}
         canAdjust
-        canApply
         onSelect={vi.fn()}
         onCommitSpan={onCommitSpan}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
       />,
     );
     const end = container.querySelector(".pending-handle.end") as HTMLElement;
@@ -667,10 +528,8 @@ describe("PendingEditOverlay handles", () => {
       projectPath: "/tmp/p.json",
       clipsByTrack: {},
       canAdjust: true,
-      canApply: true,
       onSelect: vi.fn(),
       onCommitSpan,
-      onReviewAction: vi.fn(async () => ({ queued: false })),
     };
     const view = render(
       <PendingEditOverlayView {...props} selectedId="cut_1" />,
@@ -709,10 +568,8 @@ describe("PendingEditOverlay handles", () => {
         projectPath="/tmp/p.json"
         clipsByTrack={{}}
         canAdjust
-        canApply
         onSelect={vi.fn()}
         onCommitSpan={onCommitSpan}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
       />,
     );
     const end = container.querySelector(".pending-handle.end") as HTMLElement;
@@ -773,15 +630,13 @@ describe("PendingEditOverlayView", () => {
     useDawStore
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
-    useDawStore.setState({ stage: "review" });
-  });
-
-  const selectPending = () =>
-    useDawStore.getState().setSelection({
-      kind: "pending",
-      id: edit.id,
-      trackId: edit.track_id,
+    useDawStore.setState({
+      stage: "review",
+      statusAnnouncement: "",
+      feedbackToast: null,
+      pendingRetimeInFlight: null,
     });
+  });
 
   it("renders from props and passes axe", async () => {
     const onSelect = vi.fn();
@@ -796,10 +651,8 @@ describe("PendingEditOverlayView", () => {
         projectPath="/tmp/p.json"
         clipsByTrack={{}}
         canAdjust
-        canApply
         onSelect={onSelect}
         onCommitSpan={onCommitSpan}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
       />,
     );
     expect(container.querySelector(".pending-overlay.selected")).not.toBeNull();
@@ -810,113 +663,6 @@ describe("PendingEditOverlayView", () => {
     expect(button.getAttribute("aria-pressed")).toBe("true");
     await expectNoA11yViolations(container);
   });
-
-  it("moves the single review actionbar into the Inspector sheet's body and restores focus when it closes", async () => {
-    const root = document.createElement("div");
-    root.className = "bottom-sheet-root";
-    const panel = document.createElement("div");
-    panel.className = "sys-inspector--phone";
-    const chrome = document.createElement("div");
-    chrome.className = "sys-inspector-scroll";
-    panel.append(chrome);
-    root.append(panel);
-    document.body.append(root);
-    selectPending();
-    const onReviewAction = vi.fn(async () => ({ queued: false }));
-    const { container, unmount } = render(
-      <PendingEditOverlayView
-        edits={[edit]}
-        trackId="host"
-        zoomPxPerSec={10}
-        timelineWidthPx={1000}
-        selectedId="cut_1"
-        projectPath="/tmp/p.json"
-        clipsByTrack={{}}
-        canAdjust
-        canApply
-        onSelect={vi.fn()}
-        onCommitSpan={vi.fn()}
-        onReviewAction={onReviewAction}
-      />,
-    );
-    await waitFor(() => {
-      const bar = chrome.querySelector<HTMLElement>(
-        ".pending-actionbar--docked",
-      );
-      expect(bar).not.toBeNull();
-      return bar;
-    });
-    await expectNoA11yViolations(chrome);
-    const approve = screen.getByRole("button", { name: "Approve" });
-    expect(chrome.contains(approve)).toBe(true);
-    approve.focus();
-    panel.classList.remove("sys-inspector--phone");
-    await act(() => window.dispatchEvent(new Event("resize")));
-    await waitFor(() =>
-      expect(chrome.querySelector(".pending-actionbar")).toBeNull(),
-    );
-    const floatingApprove = screen.getByRole("button", { name: "Approve" });
-    expect(container.ownerDocument.body.contains(floatingApprove)).toBe(true);
-    await waitFor(() => expect(floatingApprove).toHaveFocus());
-    await userEvent.click(floatingApprove);
-    await waitFor(() =>
-      expect(onReviewAction).toHaveBeenCalledWith(
-        "/tmp/p.json",
-        expect.any(Number),
-        "cut_1",
-        "approve",
-      ),
-    );
-    unmount();
-    root.remove();
-  });
-
-  it.each([
-    ["the phone's Inspector sheet", "sys-inspector--phone", true],
-    [
-      "a confirmation sheet that is not the inspector",
-      "bottom-sheet--fit",
-      false,
-    ],
-  ])(
-    "docks the review actionbar in %s: %s",
-    async (_name, sheetClass, docks) => {
-      const root = document.createElement("div");
-      root.className = "bottom-sheet-root";
-      const panel = document.createElement("div");
-      panel.className = `bottom-sheet bottom-sheet--half ${sheetClass}`;
-      const chrome = document.createElement("div");
-      chrome.className = "sys-inspector-scroll";
-      panel.append(chrome);
-      root.append(panel);
-      document.body.append(root);
-      selectPending();
-      const { unmount } = render(
-        <PendingEditOverlayView
-          edits={[edit]}
-          trackId="host"
-          zoomPxPerSec={10}
-          timelineWidthPx={1000}
-          selectedId="cut_1"
-          projectPath="/tmp/p.json"
-          clipsByTrack={{}}
-          canAdjust
-          canApply
-          onSelect={vi.fn()}
-          onCommitSpan={vi.fn()}
-          onReviewAction={vi.fn(async () => ({ queued: false }))}
-        />,
-      );
-      await waitFor(() =>
-        expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy(),
-      );
-      expect(chrome.querySelector(".pending-actionbar--docked") !== null).toBe(
-        docks,
-      );
-      unmount();
-      root.remove();
-    },
-  );
 
   it("commits an end-handle drag as mapped source seconds", async () => {
     const onSelect = vi.fn();
@@ -931,10 +677,8 @@ describe("PendingEditOverlayView", () => {
         projectPath="/tmp/p.json"
         clipsByTrack={{}}
         canAdjust
-        canApply
         onSelect={onSelect}
         onCommitSpan={onCommitSpan}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
       />,
     );
     const end = container.querySelector(".pending-handle.end") as HTMLElement;
@@ -991,10 +735,8 @@ describe("PendingEditOverlayView", () => {
         projectPath="/tmp/p.json"
         clipsByTrack={{ host: [originClip] }}
         canAdjust
-        canApply
         onSelect={onSelect}
         onCommitSpan={onCommitSpan}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
       />,
     );
     const end = container.querySelector(".pending-handle.end") as HTMLElement;
@@ -1005,9 +747,7 @@ describe("PendingEditOverlayView", () => {
     expect(
       vi.mocked(useWaveformSnapTicks).mock.results.at(-1)?.value.resolveTicks,
     ).toHaveBeenCalled();
-    expect(
-      await screen.findByText("Checking nearby snap points…"),
-    ).toBeInTheDocument();
+    expect(useDawStore.getState().pendingRetimeInFlight).toBe("cut_1");
 
     await act(async () => {
       useDawStore.getState().setProject(
@@ -1022,14 +762,11 @@ describe("PendingEditOverlayView", () => {
         }),
       );
     });
-    await waitFor(() =>
-      expect(screen.queryByText("Checking nearby snap points…")).toBeNull(),
-    );
     await act(async () => {
       resolveTicks([]);
     });
     await waitFor(() =>
-      expect(screen.queryByText("Checking nearby snap points…")).toBeNull(),
+      expect(useDawStore.getState().pendingRetimeInFlight).toBeNull(),
     );
     expect(onCommitSpan).not.toHaveBeenCalled();
     expect(updatePendingEdit).not.toHaveBeenCalled();
@@ -1053,10 +790,8 @@ describe("PendingEditOverlayView", () => {
           projectPath="/tmp/p.json"
           clipsByTrack={{}}
           canAdjust
-          canApply
           onSelect={onSelect}
           onCommitSpan={onCommitSpan}
-          onReviewAction={vi.fn(async () => ({ queued: false }))}
         />,
       );
       const end = container.querySelector(".pending-handle.end") as HTMLElement;
@@ -1085,10 +820,8 @@ describe("PendingEditOverlayView", () => {
         projectPath="/tmp/p.json"
         clipsByTrack={{}}
         canAdjust
-        canApply
         onSelect={vi.fn()}
         onCommitSpan={vi.fn()}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
       />,
     );
     expect(document.body.querySelector(".pending-label--floating")).toBeNull();
@@ -1123,10 +856,8 @@ describe("PendingEditOverlayView", () => {
         timelineWidthPx={1200}
         clipsByTrack={{}}
         canAdjust
-        canApply
         onSelect={vi.fn()}
         onCommitSpan={vi.fn()}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
       />,
     );
     const region = container.querySelector(".pending-overlay") as HTMLElement;
@@ -1157,638 +888,11 @@ describe("PendingEditOverlayView", () => {
         projectPath="/tmp/p.json"
         clipsByTrack={{}}
         canAdjust
-        canApply
         onSelect={onSelect}
         onCommitSpan={onCommitSpan}
-        onReviewAction={vi.fn(async () => ({ queued: false }))}
       />,
     );
     expect(container.querySelector(".pending-handle")).toBeNull();
-  });
-
-  it("shows queued review feedback and keeps the selected region", async () => {
-    selectPending();
-    const onReviewAction = vi.fn(async () => ({ queued: true }));
-    render(
-      <PendingEditOverlayView
-        edits={[edit]}
-        trackId="host"
-        zoomPxPerSec={10}
-        timelineWidthPx={1000}
-        selectedId="cut_1"
-        projectPath="/tmp/p.json"
-        clipsByTrack={{}}
-        canAdjust
-        canApply
-        onSelect={vi.fn()}
-        onCommitSpan={vi.fn()}
-        onReviewAction={onReviewAction}
-      />,
-    );
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Approve" })).toBeVisible(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-    expect(
-      await screen.findByText(PENDING_REVIEW_QUEUED_MESSAGE),
-    ).toBeInTheDocument();
-    expect(onReviewAction).toHaveBeenCalledWith(
-      "/tmp/p.json",
-      expect.any(Number),
-      "cut_1",
-      "approve",
-    );
-    expect(document.querySelector(".pending-overlay.selected")).not.toBeNull();
-  });
-
-  it("shows review failures as an alert", async () => {
-    selectPending();
-    render(
-      <PendingEditOverlayView
-        edits={[edit]}
-        trackId="host"
-        zoomPxPerSec={10}
-        timelineWidthPx={1000}
-        selectedId="cut_1"
-        projectPath="/tmp/p.json"
-        clipsByTrack={{}}
-        canAdjust
-        canApply
-        onSelect={vi.fn()}
-        onCommitSpan={vi.fn()}
-        onReviewAction={vi.fn(async () => {
-          throw new Error("Host rejected the review command");
-        })}
-      />,
-    );
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Reject" })).toBeVisible(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Host rejected the review command",
-    );
-  });
-
-  it("resets region action state when the project epoch changes with the same edit id", async () => {
-    let finishReview!: (result: { queued: boolean }) => void;
-    const onReviewAction = vi.fn(
-      () =>
-        new Promise<{ queued: boolean }>((resolve) => {
-          finishReview = resolve;
-        }),
-    );
-    selectPending();
-    const props = {
-      edits: [edit],
-      trackId: "host",
-      zoomPxPerSec: 10,
-      timelineWidthPx: 1000,
-      selectedId: "cut_1",
-      projectPath: "/tmp/p.json",
-      clipsByTrack: {},
-      canAdjust: true,
-      canApply: true,
-      onSelect: vi.fn(),
-      onCommitSpan: vi.fn(),
-      onReviewAction,
-    } as const;
-    const view = render(<PendingEditOverlayView {...props} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
-    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
-
-    useDawStore
-      .getState()
-      .hydrate("/tmp/copied.json", minimalProject({ pending_edits: [edit] }));
-    useDawStore.setState({ stage: "review" });
-    useDawStore.getState().setSelection({
-      kind: "pending",
-      id: edit.id,
-      trackId: edit.track_id,
-    });
-    view.rerender(
-      <PendingEditOverlayView {...props} projectPath="/tmp/copied.json" />,
-    );
-
-    const freshApprove = await screen.findByRole("button", { name: "Approve" });
-    expect(freshApprove).toBeEnabled();
-    await act(async () => {
-      finishReview({ queued: false });
-    });
-    await waitFor(() => expect(freshApprove).toBeEnabled());
-    expect(screen.queryByRole("alert")).toBeNull();
-  });
-
-  it("routes the transcript-refine error to the host waiver recovery", async () => {
-    selectPending();
-    const onReviewAction = vi
-      .fn()
-      .mockRejectedValueOnce(
-        new ApiError(
-          "technical gate detail",
-          TRANSCRIPT_REFINE_REQUIRED_CODE,
-          409,
-        ),
-      )
-      .mockResolvedValue({ queued: false });
-    render(
-      <PendingEditOverlayView
-        edits={[edit]}
-        trackId="host"
-        zoomPxPerSec={10}
-        timelineWidthPx={1000}
-        selectedId="cut_1"
-        projectPath="/tmp/p.json"
-        clipsByTrack={{}}
-        canAdjust
-        canApply
-        onSelect={vi.fn()}
-        onCommitSpan={vi.fn()}
-        onReviewAction={onReviewAction}
-      />,
-    );
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Approve" })).toBeVisible(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      REFINE_GATE_GUI_MESSAGE,
-    );
-    expect(
-      await screen.findByRole("region", { name: "Transcript refine recovery" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByLabelText("Waiver reason")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Waiver recorded. Retry approval to apply pending edits.",
-    );
-    expect(waiveTranscriptRefine).toHaveBeenCalledWith(
-      "/tmp/p.json",
-      CUT_ANYWAY_REASON,
-    );
-    expect(onReviewAction).toHaveBeenCalledOnce();
-    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
-    await waitFor(() => expect(onReviewAction).toHaveBeenCalledTimes(2));
-  });
-});
-
-function mount() {
-  const root = document.createElement("div");
-  root.className = "bottom-sheet-root";
-  const panel = document.createElement("div");
-  panel.className = "sys-inspector--phone";
-  const chrome = document.createElement("div");
-  chrome.className = "sys-inspector-scroll";
-  const body = chrome;
-  panel.append(chrome);
-  root.append(panel);
-  document.body.append(root);
-  useDawStore
-    .getState()
-    .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
-  useDawStore.setState({ stage: "review" });
-  useDawStore.setState({
-    selection: { kind: "pending", id: edit.id, trackId: "host" },
-  });
-  const onReviewAction = vi.fn(async () => {
-    throw new ApiError("refine first", TRANSCRIPT_REFINE_REQUIRED_CODE, 409);
-  });
-  const view = render(
-    <PendingEditOverlayView
-      edits={[edit]}
-      trackId="host"
-      zoomPxPerSec={10}
-      timelineWidthPx={1000}
-      selectedId={edit.id}
-      projectPath="/tmp/p.json"
-      clipsByTrack={{}}
-      canAdjust
-      canApply
-      onSelect={vi.fn()}
-      onCommitSpan={vi.fn()}
-      onReviewAction={onReviewAction}
-    />,
-    { wrapper: StrictMode },
-  );
-  return { root, panel, chrome, body, view, onReviewAction };
-}
-async function undock(panel: HTMLElement) {
-  panel.classList.remove("sys-inspector--phone");
-  await act(() => window.dispatchEvent(new Event("resize")));
-  await waitFor(() =>
-    expect(document.querySelector(".pending-actionbar--docked")).toBeNull(),
-  );
-}
-it("keeps the same review draft and focus at the dock, half and full detents", async () => {
-  const { root, panel, body, view, onReviewAction } = mount();
-  const fields = document.createElement("button");
-  fields.textContent = "Inspector field";
-  body.append(fields);
-  try {
-    await waitFor(() =>
-      expect(body.querySelector(".pending-actionbar")).not.toBeNull(),
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
-    const reason = await screen.findByRole("button", {
-      name: "Cut anyway",
-    });
-    reason.focus();
-    const host = reason.closest(".pending-actionbar-host");
-    for (const detent of ["dock", "half", "full"] as const) {
-      panel.setAttribute("data-detent", detent);
-      await act(() => window.dispatchEvent(new Event("resize")));
-      await waitFor(() => expect(body).toContainElement(reason));
-      expect(body.firstElementChild).toBe(host);
-      expect(reason).toHaveFocus();
-      expect(document.querySelectorAll(".pending-actionbar-host")).toHaveLength(
-        1,
-      );
-    }
-    body.remove();
-    const replacement = document.createElement("div");
-    replacement.className = "sys-inspector-scroll";
-    panel.append(replacement);
-    await act(() => window.dispatchEvent(new Event("resize")));
-    await waitFor(() => expect(replacement).toContainElement(reason));
-    expect(replacement.firstElementChild).toBe(host);
-    expect(reason).toHaveFocus();
-    expect(onReviewAction).toHaveBeenCalledTimes(1);
-    view.unmount();
-    expect(document.querySelector(".pending-actionbar-host")).toBeNull();
-  } finally {
-    view.unmount();
-    root.remove();
-  }
-});
-
-it("retains the Cut anyway focus when the portal destination changes", async () => {
-  const { root, panel, chrome, view } = mount();
-  try {
-    await waitFor(() =>
-      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
-    const reason = await screen.findByRole("button", {
-      name: "Cut anyway",
-    });
-    reason.focus();
-    expect(reason).toHaveFocus();
-    await undock(panel);
-    const moved = screen.getByRole("button", { name: "Cut anyway" });
-    expect(moved).toHaveFocus();
-    expect(moved).toBe(reason);
-    panel.classList.add("sys-inspector--phone");
-    await act(() => window.dispatchEvent(new Event("resize")));
-    await waitFor(() => expect(chrome.contains(reason)).toBe(true));
-    expect(reason).toHaveFocus();
-  } finally {
-    view.unmount();
-    root.remove();
-  }
-});
-it("does not steal focus from body after the user has left a review button", async () => {
-  const { root, panel, chrome, view } = mount();
-  try {
-    await waitFor(() =>
-      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
-    );
-    const approve = screen.getByRole("button", { name: "Approve" });
-    approve.focus();
-    approve.blur();
-    expect(document.body).toHaveFocus();
-    await undock(panel);
-
-    expect(document.body).toHaveFocus();
-  } finally {
-    view.unmount();
-    root.remove();
-  }
-});
-it("retains focus in an external control during portal destination change", async () => {
-  const { root, panel, chrome, view } = mount();
-  const outside = document.createElement("input");
-  document.body.append(outside);
-  try {
-    await waitFor(() =>
-      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
-    );
-    screen.getByRole("button", { name: "Approve" }).focus();
-    outside.focus();
-    await undock(panel);
-    expect(outside).toHaveFocus();
-  } finally {
-    view.unmount();
-    root.remove();
-    outside.remove();
-  }
-});
-
-it("recovers the same review subtree after the sheet body is detached and replaced", async () => {
-  const { root, panel, chrome, view, onReviewAction } = mount();
-  try {
-    await waitFor(() =>
-      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
-    const reason = await screen.findByRole("button", {
-      name: "Cut anyway",
-    });
-    reason.focus();
-    chrome.remove();
-    await act(() => window.dispatchEvent(new Event("resize")));
-    await waitFor(() => expect(document.body.contains(reason)).toBe(true));
-    expect(document.body).toHaveFocus();
-    const replacement = document.createElement("div");
-    replacement.className = "sys-inspector-scroll";
-    panel.append(replacement);
-    await act(() => window.dispatchEvent(new Event("resize")));
-    await waitFor(() => expect(replacement.contains(reason)).toBe(true));
-    expect(reason).toHaveFocus();
-    expect(onReviewAction).toHaveBeenCalledTimes(1);
-    view.unmount();
-    expect(document.querySelector(".pending-actionbar-host")).toBeNull();
-  } finally {
-    view.unmount();
-    root.remove();
-  }
-});
-
-it("keeps a waiver save busy across relocation and shows its failure on the same form", async () => {
-  const saving = deferred<void>();
-  vi.mocked(waiveTranscriptRefine).mockClear();
-  vi.mocked(waiveTranscriptRefine).mockReturnValueOnce(saving.promise);
-  const { root, panel, chrome, view } = mount();
-  try {
-    await waitFor(() =>
-      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
-    const reason = await screen.findByRole("button", {
-      name: "Cut anyway",
-    });
-    reason.focus();
-    const save = reason;
-    await userEvent.click(save);
-    expect(save).toBeDisabled();
-    await undock(panel);
-    expect(screen.getByRole("button", { name: "Cut anyway" })).toBe(reason);
-    expect(reason).toBeDisabled();
-    expect(save).toBeDisabled();
-    await act(async () =>
-      saving.reject(new Error("Waiver could not be saved")),
-    );
-    expect(await screen.findByText("Waiver could not be saved")).toBeVisible();
-    expect(reason).toBeEnabled();
-    expect(save).toBeEnabled();
-    expect(waiveTranscriptRefine).toHaveBeenCalledExactlyOnceWith(
-      "/tmp/p.json",
-      CUT_ANYWAY_REASON,
-    );
-  } finally {
-    view.unmount();
-    root.remove();
-  }
-});
-
-describe("pending actions panel placement state", () => {
-  const selector = ".pending-actionbar";
-  const placementAt = (maxHeight: number): PendingActionPlacement => ({
-    left: 40,
-    top: 90,
-    maxHeight,
-  });
-  let frames: Map<number, FrameRequestCallback>;
-  let nextFrame: number;
-  let sheetRoot: HTMLElement | null = null;
-
-  beforeEach(() => {
-    frames = new Map();
-    nextFrame = 1;
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
-      frames.set(nextFrame, cb);
-      return nextFrame++;
-    });
-    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
-      frames.delete(id);
-    });
-    vi.mocked(useWaveformSnapTicks).mockReturnValue(snapResource([]));
-    vi.mocked(placePendingActionbar).mockClear();
-    useDawStore
-      .getState()
-      .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
-    useDawStore.setState({ stage: "review" });
-  });
-
-  afterEach(() => {
-    sheetRoot?.remove();
-    sheetRoot = null;
-    vi.mocked(placePendingActionbar).mockReset();
-    vi.restoreAllMocks();
-  });
-
-  const flush = () =>
-    act(() => {
-      const due = [...frames.values()];
-      frames.clear();
-      for (const cb of due) cb(0);
-    });
-  const panel = () => document.querySelector<HTMLElement>(selector);
-  const state = () => panel()?.getAttribute("data-placement");
-  const viewOf = (selectedId: string | null, zoomPxPerSec = 10) => (
-    <PendingEditOverlayView
-      edits={[edit]}
-      trackId="host"
-      zoomPxPerSec={zoomPxPerSec}
-      timelineWidthPx={1000}
-      selectedId={selectedId}
-      projectPath="/tmp/p.json"
-      clipsByTrack={{}}
-      canAdjust
-      canApply
-      onSelect={vi.fn()}
-      onCommitSpan={vi.fn()}
-      onReviewAction={vi.fn(async () => ({ queued: false }))}
-    />
-  );
-  const mountSelected = (selectedId: string | null = "cut_1") =>
-    render(viewOf(selectedId));
-
-  const expectHidden = () => {
-    expect(panel()?.getAttribute("aria-hidden")).toBe("true");
-    expect(panel()?.style.visibility).toBe("hidden");
-    expect(
-      panel()?.style.getPropertyValue("--pending-actionbar-max-height"),
-    ).toBe("");
-  };
-
-  it("is pending and hidden before the first measurement, without the max-height var", () => {
-    mountSelected();
-    expect(state()).toBe("pending");
-    expectHidden();
-  });
-
-  it("turns placed only when a second pass reproduces the first", () => {
-    vi.mocked(placePendingActionbar).mockReturnValue(placementAt(300));
-    mountSelected();
-    flush();
-    expect(state()).toBe("pending");
-    expect(panel()?.getAttribute("aria-hidden")).toBe("false");
-    expect(
-      panel()?.style.getPropertyValue("--pending-actionbar-max-height"),
-    ).toBe("300px");
-    flush();
-    expect(state()).toBe("placed");
-    expect(frames.size).toBe(0);
-  });
-
-  it("stays pending while consecutive passes still move the panel", () => {
-    vi.mocked(placePendingActionbar)
-      .mockReturnValueOnce(placementAt(0))
-      .mockReturnValueOnce(placementAt(300))
-      .mockReturnValue(placementAt(300));
-    mountSelected();
-    flush();
-    flush();
-    expect(state()).toBe("pending");
-    flush();
-    expect(state()).toBe("placed");
-  });
-
-  it("goes back to pending as soon as a resize is scheduled, then settles", () => {
-    vi.mocked(placePendingActionbar).mockReturnValue(placementAt(300));
-    mountSelected();
-    flush();
-    flush();
-    expect(state()).toBe("placed");
-    // Dispatched outside act so React has not committed the reset yet.
-    window.dispatchEvent(new Event("resize"));
-    expect(state()).toBe("pending");
-    act(() => {});
-    expect(state()).toBe("pending");
-    expect(panel()?.dataset.placement).toBe("pending");
-    flush();
-    expect(state()).toBe("pending");
-    flush();
-    expect(state()).toBe("placed");
-  });
-
-  it("stays pending and stops verifying when geometry never converges", () => {
-    let n = 0;
-    vi.mocked(placePendingActionbar).mockImplementation(() =>
-      placementAt(100 + n++),
-    );
-    mountSelected();
-    for (let i = 0; i < 12; i++) flush();
-    expect(vi.mocked(placePendingActionbar)).toHaveBeenCalledTimes(6);
-    expect(state()).toBe("pending");
-    expect(frames.size).toBe(0);
-  });
-
-  it("keeps the pass budget across ResizeObserver updates until a pass settles", () => {
-    stubResizeObserver();
-    try {
-      const observed = () =>
-        act(() => {
-          for (const ro of FakeResizeObserver.all) ro.fire();
-        });
-      let n = 0;
-      vi.mocked(placePendingActionbar).mockImplementation(() =>
-        placementAt(100 + n++),
-      );
-      mountSelected();
-      flush();
-      flush();
-      observed();
-      for (let i = 0; i < 12; i++) {
-        flush();
-        observed();
-      }
-      for (let i = 0; i < 12; i++) flush();
-      expect(vi.mocked(placePendingActionbar)).toHaveBeenCalledTimes(6);
-      expect(state()).toBe("pending");
-      expect(frames.size).toBe(0);
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  it("returns to pending when the panel is deselected and selected again", () => {
-    vi.mocked(placePendingActionbar).mockReturnValue(placementAt(300));
-    const { rerender } = mountSelected();
-    flush();
-    flush();
-    expect(state()).toBe("placed");
-    rerender(viewOf(null));
-    rerender(viewOf("cut_1"));
-    expect(state()).toBe("pending");
-    flush();
-    expect(state()).toBe("pending");
-    flush();
-    expect(state()).toBe("placed");
-  });
-
-  it("returns to pending when the span's left or width changes", () => {
-    vi.mocked(placePendingActionbar).mockReturnValue(placementAt(300));
-    const { rerender } = mountSelected();
-    flush();
-    flush();
-    expect(state()).toBe("placed");
-    rerender(viewOf("cut_1", 20));
-    expect(state()).toBe("pending");
-    flush();
-    expect(state()).toBe("pending");
-    flush();
-    expect(state()).toBe("placed");
-  });
-
-  it("does not confirm a pass measured before the previous max-height was applied", () => {
-    vi.mocked(placePendingActionbar).mockReturnValue(placementAt(300));
-    mountSelected();
-    flush();
-    panel()?.style.removeProperty("--pending-actionbar-max-height");
-    flush();
-    expect(state()).toBe("pending");
-    panel()?.style.setProperty("--pending-actionbar-max-height", "300px");
-    flush();
-    expect(state()).toBe("placed");
-  });
-
-  it("settles as none when there is no room, and keeps the panel hidden", () => {
-    vi.mocked(placePendingActionbar).mockReturnValue(null);
-    mountSelected();
-    flush();
-    expect(state()).toBe("pending");
-    flush();
-    expect(state()).toBe("none");
-    expectHidden();
-  });
-
-  it("has no state when the panel is not rendered", () => {
-    mountSelected(null);
-    flush();
-    expect(panel()).toBeNull();
-  });
-
-  it("reports docked inside the phone Inspector sheet", () => {
-    const root = document.createElement("div");
-    root.className = "bottom-sheet-root";
-    const sheet = document.createElement("div");
-    sheet.className = "bottom-sheet bottom-sheet--half sys-inspector--phone";
-    const scroll = document.createElement("div");
-    scroll.className = "sys-inspector-scroll";
-    sheet.append(scroll);
-    root.append(sheet);
-    document.body.append(root);
-    sheetRoot = root;
-    useDawStore.getState().setSelection({
-      kind: "pending",
-      id: edit.id,
-      trackId: edit.track_id,
-    });
-    mountSelected();
-    flush();
-    flush();
-    expect(state()).toBe("docked");
   });
 });
 
@@ -1841,19 +945,8 @@ describe("single pending review feedback", () => {
       });
   });
 
-  async function review(
-    entrypoint: "inspector" | "overlay",
-    label: "Approve" | "Reject",
-  ) {
-    if (entrypoint === "inspector") {
-      await decide(label === "Approve" ? "cut" : "keep");
-      return;
-    }
-    await waitFor(
-      () => expect(screen.getByRole("button", { name: label })).toBeEnabled(),
-      { timeout: 10_000 },
-    );
-    await userEvent.click(screen.getByRole("button", { name: label }));
+  async function review(label: "Approve" | "Reject") {
+    await decide(label === "Approve" ? "cut" : "keep");
   }
 
   async function reviewToast(message: string) {
@@ -1864,25 +957,13 @@ describe("single pending review feedback", () => {
     return screen.findByText(message, undefined, { timeout: 10_000 });
   }
 
-  function mountReview(entrypoint: "inspector" | "overlay") {
-    if (entrypoint === "inspector")
-      useDawStore
-        .getState()
-        .setSelection({ kind: "pending", id: edit.id, trackId: "host" });
+  function mountReview() {
+    useDawStore
+      .getState()
+      .setSelection({ kind: "pending", id: edit.id, trackId: "host" });
     render(
       <>
-        {entrypoint === "inspector" ? (
-          <PendingEditBody edit={edit} />
-        ) : (
-          <PendingEditOverlay
-            edits={[edit]}
-            trackId="host"
-            zoomPxPerSec={10}
-            timelineWidthPx={1000}
-            selectedId={edit.id}
-            onSelect={vi.fn()}
-          />
-        )}
+        <PendingEditBody edit={edit} />
         <FeedbackToast />
       </>,
     );
@@ -1929,7 +1010,7 @@ describe("single pending review feedback", () => {
     };
   }
 
-  describe.each(["inspector", "overlay"] as const)("%s", (entrypoint) => {
+  describe("the Inspector", () => {
     it.each([
       ["Approve", "ApproveEdits", "Approved 1 pending edit"],
       ["Reject", "RejectEdits", "Rejected 1 pending edit"],
@@ -1939,8 +1020,8 @@ describe("single pending review feedback", () => {
         const user = userEvent.setup();
         const reply = reviewReply(1, head);
         vi.mocked(submitQueuedDocumentCommand).mockResolvedValue(reply);
-        mountReview(entrypoint);
-        await review(entrypoint, label);
+        mountReview();
+        await review(label);
         expect(await reviewToast(message)).toBeVisible();
         expect(useDawStore.getState().feedbackToast?.undo).toBe(head);
         expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
@@ -1983,8 +1064,8 @@ describe("single pending review feedback", () => {
           applyDocumentResult(reply, activateDocumentScope(path));
           return reply;
         });
-        mountReview(entrypoint);
-        await review(entrypoint, label);
+        mountReview();
+        await review(label);
         expect(await reviewToast(message)).toBeVisible();
         expect(useDawStore.getState().feedbackToast?.undo).toBeNull();
         expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
@@ -1999,8 +1080,8 @@ describe("single pending review feedback", () => {
       async (label) => {
         const outbox = queuedReviewOutbox();
         try {
-          mountReview(entrypoint);
-          await review(entrypoint, label);
+          mountReview();
+          await review(label);
           await waitFor(() => expect(outbox.commands).toHaveLength(1), {
             timeout: 10_000,
           });
@@ -2012,8 +1093,8 @@ describe("single pending review feedback", () => {
             { timeout: 10_000 },
           );
           expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
-          expect(useDawStore.getState().feedbackToast?.message ?? null).toBe(
-            entrypoint === "inspector" ? PENDING_REVIEW_QUEUED_MESSAGE : null,
+          expect(useDawStore.getState().feedbackToast?.message).toBe(
+            PENDING_REVIEW_QUEUED_MESSAGE,
           );
           expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
         } finally {
@@ -2030,7 +1111,7 @@ describe("single pending review feedback", () => {
       const outbox = queuedReviewOutbox();
       vi.useFakeTimers();
       try {
-        mountReview("inspector");
+        mountReview();
         await act(async () => {});
         expect(screen.queryByText("Checking queued timing…")).toBeNull();
         expect(outbox.commands).toEqual([]);
@@ -2070,7 +1151,7 @@ describe("single pending review feedback", () => {
   );
 });
 
-describe("overlay Cut and Keep", () => {
+describe("the pending-edit overlay carries no review bar", () => {
   const path = "/tmp/p.json";
   const overlayProps = (target: PendingEditView) => ({
     edits: [target],
@@ -2084,35 +1165,12 @@ describe("overlay Cut and Keep", () => {
   beforeEach(() => {
     clearRegisteredCommands();
     resetDocumentAuthority();
-    vi.mocked(submitQueuedDocumentCommand)
-      .mockReset()
-      .mockResolvedValue({
-        history_head_id: "h",
-        review_result: { count: 1 },
-        command: { payload: { result: { summary: "Applied" } } },
-        snapshot: {
-          server_seq: 1,
-          project: minimalProject({ pending_edits: [] }),
-        },
-      } as never);
-    useDawStore
-      .getState()
-      .hydrate(path, minimalProject({ pending_edits: [edit] }));
-    useDawStore.setState({ stage: "review" });
+    vi.mocked(updatePendingEdit).mockReset();
+    useDawStore.setState({ statusAnnouncement: "", feedbackToast: null });
     activateDocumentScope(path);
-    useDawStore.setState({
-      selection: { kind: "pending", id: edit.id, trackId: "host" },
-      statusAnnouncement: "",
-    });
   });
 
-  // Let the review finish (reply applied, selection cleared) so nothing writes into the next test.
-  const settled = () =>
-    waitFor(() => {
-      expect(useDawStore.getState().selection).toBeNull();
-    });
-
-  function mount(target: PendingEditView, stage: "edit" | "review" = "review") {
+  function mount(target: PendingEditView, stage: "edit" | "review" = "edit") {
     useDawStore
       .getState()
       .hydrate(path, minimalProject({ pending_edits: [target] }));
@@ -2131,7 +1189,7 @@ describe("overlay Cut and Keep", () => {
       track_ids: ["host"],
     } as never,
   };
-  const reviewable = [
+  const shapes = [
     ["a cut suggestion", { suggested_action: "cut" as const }],
     ["a shorten suggestion", { suggested_action: "shorten" as const }],
     ["a lower suggestion", { suggested_action: "lower" as const }],
@@ -2141,62 +1199,29 @@ describe("overlay Cut and Keep", () => {
     ["an exact range proposal", exactRange],
   ] as const;
 
-  it.each(reviewable)(
-    "leaves %s to the Action bar on the Edit stage, and shows the bar off it",
-    async (_name, extra) => {
-      mount({ ...edit, ...extra }, "edit");
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 600));
-      });
-      expect(
-        screen.queryByRole("region", { name: "Pending edit actions" }),
-      ).toBeNull();
-      expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
-      cleanup();
-      mount({ ...edit, ...extra }, "review");
-      expect(
-        await screen.findByRole("region", { name: "Pending edit actions" }),
-      ).toBeVisible();
-    },
-  );
-
-  it("leaves an exact range proposal to the Action bar for a viewer who cannot review it", async () => {
-    const target = { ...edit, ...exactRange };
-    useDawStore
-      .getState()
-      .hydrate("share:tok", minimalProject({ pending_edits: [target] }));
-    useDawStore.setState({
-      stage: "edit",
-      shareCapabilities: COMMENTER_CAPABILITIES,
-      selection: { kind: "pending", id: target.id, trackId: "host" },
-    });
-    render(<PendingEditOverlay {...overlayProps(target)} />);
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-    });
-    expect(
-      screen.queryByRole("region", { name: "Pending edit actions" }),
-    ).toBeNull();
+  it.each(
+    shapes.flatMap(([name, extra]) =>
+      (["edit", "review"] as const).map(
+        (stage) => [name, extra, stage] as const,
+      ),
+    ),
+  )("draws no actions for %s on the %s stage", async (_name, extra, stage) => {
+    mount({ ...edit, ...extra }, stage);
+    await act(async () => {});
+    expect(screen.queryByRole("region")).toBeNull();
+    for (const name of [
+      "Approve",
+      "Reject",
+      "Cut",
+      "Keep",
+      "Shorten",
+      "Lower",
+      "Edit timing",
+    ])
+      expect(screen.queryByRole("button", { name })).toBeNull();
   });
 
-  it("keeps its own bar for a cut suggestion the viewer cannot review", async () => {
-    const target = { ...edit, suggested_action: "cut" as const };
-    useDawStore
-      .getState()
-      .hydrate("share:tok", minimalProject({ pending_edits: [target] }));
-    useDawStore.setState({
-      stage: "edit",
-      shareCapabilities: ["view"],
-      selection: { kind: "pending", id: target.id, trackId: "host" },
-    });
-    render(<PendingEditOverlay {...overlayProps(target)} />);
-    expect(
-      await screen.findByRole("region", { name: "Pending edit actions" }),
-    ).toBeVisible();
-  });
-
-  describe("an edge drag on a suggestion whose verbs are on the Action bar", () => {
+  describe("an edge drag on a suggestion", () => {
     const cutEdit = { ...edit, suggested_action: "cut" as const };
 
     function dragEnd(container: HTMLElement) {
@@ -2208,7 +1233,6 @@ describe("overlay Cut and Keep", () => {
 
     beforeEach(() => {
       HTMLElement.prototype.setPointerCapture = vi.fn();
-      vi.mocked(updatePendingEdit).mockReset();
     });
 
     it("holds Cut and Keep (the retime flag) from release until the retime settles", async () => {
@@ -2219,7 +1243,7 @@ describe("overlay Cut and Keep", () => {
       });
       const save = deferred<undefined>();
       vi.mocked(updatePendingEdit).mockReturnValue(save.promise as never);
-      mount(cutEdit, "edit");
+      mount(cutEdit);
       dragEnd(document.body);
       expect(useDawStore.getState().pendingRetimeInFlight).toBe(cutEdit.id);
       await act(async () => ticks.resolve([]));
@@ -2238,7 +1262,7 @@ describe("overlay Cut and Keep", () => {
           throw new Error("offline");
         }),
       });
-      mount(cutEdit, "edit");
+      mount(cutEdit);
       dragEnd(document.body);
       await waitFor(() =>
         expect(useDawStore.getState().pendingRetimeInFlight).toBeNull(),
@@ -2248,213 +1272,27 @@ describe("overlay Cut and Keep", () => {
       );
     });
 
-    it("announces a failed retime in the status line, since the hidden bar cannot", async () => {
-      vi.mocked(useWaveformSnapTicks).mockReturnValue(snapResource([]));
-      vi.mocked(updatePendingEdit).mockRejectedValue(
-        new Error("retime refused"),
-      );
-      mount(cutEdit, "edit");
-      dragEnd(document.body);
-      await waitFor(() =>
-        expect(useDawStore.getState().statusAnnouncement).toBe(
-          "retime refused",
-        ),
-      );
-      expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
-      expect(useDawStore.getState().pendingRetimeInFlight).toBeNull();
-    });
-
-    it("leaves the status line alone where the overlay bar shows the error itself", async () => {
-      vi.mocked(useWaveformSnapTicks).mockReturnValue(snapResource([]));
-      vi.mocked(updatePendingEdit).mockRejectedValue(
-        new Error("retime refused"),
-      );
-      mount({ ...cutEdit, suggested_action: null }, "review");
-      dragEnd(document.body);
-      expect(await screen.findByRole("alert")).toHaveTextContent(
-        "retime refused",
-      );
-      expect(useDawStore.getState().statusAnnouncement).toBe("");
-    });
-  });
-
-  it.each([
-    ["a cut suggestion", "cut" as const, "Cut"],
-    ["a shorten suggestion", "shorten" as const, "Shorten"],
-    ["a lower suggestion", "lower" as const, "Lower"],
-  ])(
-    "off the Edit stage, names the buttons as the bar does, and Keep, for %s",
-    async (_name, action, label) => {
-      mount({ ...edit, suggested_action: action });
-      expect(await screen.findByRole("button", { name: label })).toBeVisible();
-      expect(screen.getByRole("button", { name: "Keep" })).toBeVisible();
-      expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
-    },
-  );
-
-  it.each([
-    ["a split", { type: "split", suggested_action: "cut" as const }],
-    ["a suggestion to leave alone", { suggested_action: "leave" as const }],
-    ["a suggestion with no action", { suggested_action: null }],
-    [
-      "an exact range proposal",
-      {
-        suggested_action: "cut" as const,
-        exact_range: {
-          intervals: [{ start: 0, end: 2 }],
-          clips: [],
-          track_ids: ["host"],
-        } as never,
+    it.each([
+      ["a cut suggestion", { suggested_action: "cut" as const }],
+      ["a suggestion with no action", { suggested_action: null }],
+      ["a suggestion to leave alone", { suggested_action: "leave" as const }],
+    ] as const)(
+      "announces a failed retime of %s in the status line",
+      async (_name, extra) => {
+        vi.mocked(useWaveformSnapTicks).mockReturnValue(snapResource([]));
+        vi.mocked(updatePendingEdit).mockRejectedValue(
+          new Error("retime refused"),
+        );
+        mount({ ...cutEdit, ...extra });
+        dragEnd(document.body);
+        await waitFor(() =>
+          expect(useDawStore.getState().statusAnnouncement).toBe(
+            "retime refused",
+          ),
+        );
+        expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
+        expect(useDawStore.getState().pendingRetimeInFlight).toBeNull();
       },
-    ],
-  ])(
-    "keeps Approve and Reject for %s off the Edit stage",
-    async (_name, extra) => {
-      mount({ ...edit, ...extra });
-      expect(
-        await screen.findByRole("button", { name: "Approve" }),
-      ).toBeVisible();
-      expect(screen.getByRole("button", { name: "Reject" })).toBeVisible();
-      expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();
-    },
-  );
-
-  it("Cut approves a cut suggestion and Keep rejects it", async () => {
-    mount({ ...edit, suggested_action: "cut" });
-    await userEvent.click(await screen.findByRole("button", { name: "Cut" }));
-    await waitFor(() =>
-      expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
-        path,
-        "ApproveEdits",
-        { ids: [edit.id] },
-        { refineRecoveryInline: true },
-      ),
     );
-    await settled();
-    cleanup();
-    vi.mocked(submitQueuedDocumentCommand).mockClear();
-    mount({ ...edit, suggested_action: "cut" });
-    await userEvent.click(await screen.findByRole("button", { name: "Keep" }));
-    await waitFor(() =>
-      expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
-        path,
-        "RejectEdits",
-        { ids: [edit.id] },
-        undefined,
-      ),
-    );
-    await settled();
-  });
-
-  it.each([
-    ["Approve", "ApproveEdits"],
-    ["Reject", "RejectEdits"],
-  ] as const)(
-    "%s on a split off the Edit stage decides once with the in-flight hold set before the request",
-    async (name, command) => {
-      let inFlightWhenSent: string | null = null;
-      vi.mocked(submitQueuedDocumentCommand).mockImplementationOnce(
-        async () => {
-          inFlightWhenSent = useDawStore.getState().pendingDecisionInFlight;
-          return {
-            history_head_id: "h",
-            review_result: { count: 1 },
-            snapshot: {
-              server_seq: 1,
-              project: minimalProject({ pending_edits: [] }),
-            },
-          } as never;
-        },
-      );
-      mount({ ...edit, type: "split", suggested_action: "cut" });
-      const button = await screen.findByRole("button", { name });
-      await userEvent.dblClick(button);
-      await settled();
-      expect(submitQueuedDocumentCommand).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(submitQueuedDocumentCommand).mock.calls[0]?.[1]).toBe(
-        command,
-      );
-      expect(inFlightWhenSent).toBe(edit.id);
-      expect(useDawStore.getState().pendingDecisionInFlight).toBeNull();
-    },
-  );
-
-  it("Cut on a shorten suggestion applies its own action, as the Action bar's Cut does", async () => {
-    mount({ ...edit, suggested_action: "shorten" });
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Shorten" }),
-    );
-    await waitFor(() =>
-      expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
-        path,
-        "ApplySuggestedActions",
-        { ids: [edit.id] },
-        undefined,
-      ),
-    );
-    await settled();
-    expect(submitQueuedDocumentCommand).not.toHaveBeenCalledWith(
-      path,
-      "ApproveEdits",
-      expect.anything(),
-      expect.anything(),
-    );
-  });
-
-  it("runs Cut through the open sheet when it shows this edit", async () => {
-    const cutEdit = { ...edit, suggested_action: "cut" as const };
-    mount(cutEdit);
-    useDawStore.setState({
-      selection: { kind: "pending", id: edit.id, trackId: "host" },
-    });
-    render(<PendingEditBody edit={cutEdit} verbsOnBar />);
-    await waitFor(() =>
-      expect(screen.queryByText("Checking queued timing…")).toBeNull(),
-    );
-    await userEvent.click(await screen.findByRole("button", { name: "Cut" }));
-    await waitFor(() =>
-      expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
-        path,
-        "ApproveEdits",
-        { ids: [edit.id] },
-        { refineRecoveryInline: true },
-      ),
-    );
-    await settled();
-    expect(submitQueuedDocumentCommand).toHaveBeenCalledTimes(1);
-  });
-
-  it("shows the busy reason in the overlay when the sheet's timing is still queued", async () => {
-    const cutEdit = { ...edit, suggested_action: "cut" as const };
-    mount(cutEdit);
-    const release = registerPendingDecider(
-      edit.id,
-      async () => "Checking queued timing…",
-      () => "Checking queued timing…",
-    );
-    await userEvent.click(await screen.findByRole("button", { name: "Cut" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Checking queued timing…",
-    );
-    expect(submitQueuedDocumentCommand).not.toHaveBeenCalled();
-    release();
-  });
-
-  it("shows a failed shorten Cut once, in the status line, not again in the overlay", async () => {
-    vi.mocked(submitQueuedDocumentCommand).mockRejectedValue(
-      new Error("The host said no"),
-    );
-    mount({ ...edit, suggested_action: "shorten" });
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Shorten" }),
-    );
-    await waitFor(() =>
-      expect(useDawStore.getState().statusAnnouncement).toBe(
-        "The host said no",
-      ),
-    );
-    await waitFor(() => expect(screen.queryByText("Shortening…")).toBeNull());
-    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

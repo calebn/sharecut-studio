@@ -68,11 +68,6 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
     reason: "the create menu's scrim closes it",
   },
   {
-    file: "timeline/PendingEditOverlayView.tsx",
-    marker: 'aria-label="Pending edit actions"',
-    reason: "the portaled action card only stops presses reaching the lanes",
-  },
-  {
     file: "timeline/TrimHint.tsx",
     marker: 'role="presentation"',
     reason: "the portaled trim tip only stops presses reaching the lanes",
