@@ -612,7 +612,7 @@ export function withNudgeReverted(
 /**
  * Previews that live as a local draft over the latest project. A pending-edit
  * nudge is one: its save registers a `pendingRange` draft that holds the value
- * while a queued save waits. Trim is held by `heldTrim`.
+ * while a queued save waits.
  */
 export function previewsAsDraft(field: NudgeField): boolean {
   return (

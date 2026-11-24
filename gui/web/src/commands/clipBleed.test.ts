@@ -141,7 +141,6 @@ beforeEach(async () => {
       clips: { tracks: { host: [clip] }, clip_count: 1 },
     }),
     guestMode: null,
-    heldTrim: null,
     joinMutationInFlight: false,
     timelineDragging: false,
     rangeBusy: false,
@@ -227,7 +226,6 @@ describe("edit.restoreClipBleed", () => {
     "join",
     "drag",
     "busy",
-    "trim",
     "placement",
     "refresh",
     "geometry",
@@ -253,19 +251,6 @@ describe("edit.restoreClipBleed", () => {
         useDawStore.setState({ joinMutationInFlight: true });
       if (change === "drag") useDawStore.setState({ timelineDragging: true });
       if (change === "busy") useDawStore.setState({ rangeBusy: true });
-      if (change === "trim")
-        expect(
-          useDawStore.getState().changeHeldTrim({
-            kind: "begin",
-            token: Symbol("trim"),
-            target: {
-              trackId: clip.track_id,
-              clipId: clip.id,
-              edge: "in",
-              mode: "gap",
-            },
-          }),
-        ).toEqual({ kind: "accepted" });
       if (change === "placement")
         expect(beginClipPlacement(clip.id)).not.toBeNull();
       if (change === "refresh") {
