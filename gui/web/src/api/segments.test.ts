@@ -64,7 +64,7 @@ describe("segment routes", () => {
     expect(result).toEqual({ status: "added", id: "a-1", version: 1 });
     const init = vi.mocked(apiFetch).mock.calls[0][2];
     expect(init?.method).toBe("POST");
-    expect(JSON.parse(String(init?.body))).toEqual({
+    expect(JSON.parse(init?.body as string)).toEqual({
       path: "/p/ep.sharecut",
       name: "Intro",
       clip_ids: ["c1"],
