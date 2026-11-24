@@ -74,13 +74,14 @@ class NativeFFmpegBackend(native_abi.NativeBackend):
 
     - Native ``dup()``s each fd >= 0 during ``start`` and closes its dups when the session ends;
       the caller owns its own fds and native never closes them. Streams are flushed first.
-      ``start`` never blocks: it returns a session id at once.
-    - ``cancel`` must return promptly, stop the session and close the session's originals (each at
-      most once) at once, even if ``wait`` returns later; libav closes its own copies.
+      ``start`` never waits for the tool: it returns a session id without running it.
+    - ``cancel`` must return without waiting for the tool, stop the session and close the session's
+      originals (each at most once) at once, even if ``wait`` returns later; libav closes its own
+      copies. The tool has ``_KILL_GRACE_SEC`` (``process.py``) after ``kill`` to return from ``wait``.
     - A caller's pipe reader sees EOF only when the native's dups are closed AND the caller-side
       write end is released. ``process`` releases that end when ``wait`` returns, or, for a tool
-      that ignores the cancel, closes the caller's stdin write end after five seconds, so a
-      read blocked on it ends then. The caller's stdout and stderr read ends are not released
+      that ignores the cancel, closes the caller's stdin write end when ``_KILL_GRACE_SEC`` ends,
+      so a read blocked on it ends then. The caller's stdout and stderr read ends are not released
       there: a reader sees EOF only when the native's dups are closed.
     - A native error is never success: it becomes exit code 1 with one stderr line.
     """
