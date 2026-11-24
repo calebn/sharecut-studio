@@ -63,7 +63,11 @@ def rebuild_combined(project: EpisodeProject, *, defaults: EffectiveConfig) -> N
 def rebuild_combined_if_inputs_moved(
     project: EpisodeProject, key_before: CombinedInputsKey, *, defaults: EffectiveConfig
 ) -> None:
-    if project.combined_transcript is None or combined_inputs_key(project) == key_before:
+    if (
+        project.combined_transcript is None
+        or not project.transcripts
+        or combined_inputs_key(project) == key_before
+    ):
         return
     merged = TranscriptionEngine(defaults=defaults).merge_transcripts(project)
     if merged != project.combined_transcript:
