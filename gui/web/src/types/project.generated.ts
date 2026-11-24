@@ -414,6 +414,16 @@ export interface SegmentRef {
   content_sha256: string;
 }
 
+/** Save clips of an episode into the segment library as a copy. */
+export interface SegmentSaveRequest {
+  path: string;
+  name: string;
+  kind?: string | null;
+  clip_ids?: Array<string> | null;
+  time_range?: string | null;
+  role?: TrackRole | null;
+}
+
 /** Typed command submit - agent, viewer, and CLI use the same shape. */
 export interface SessionCommandRequest {
   client_id: string;
@@ -497,6 +507,8 @@ export interface TimingStep {
   delta_sec: number;
   quiet?: QuietSpan | null;
 }
+
+export type TrackRole = "dialogue" | "music" | "sfx" | "intro" | "outro";
 
 export interface TrackView {
   range_media_seal?: string;

@@ -7,7 +7,7 @@ from pydantic import AfterValidator, BaseModel, Field, field_validator, model_va
 
 from podcast_mcp.export.daw_format import DawFormat
 from podcast_mcp.feed.model import FeedEdit
-from podcast_mcp.models.episode import ExactRangeTarget
+from podcast_mcp.models.episode import ExactRangeTarget, TrackRole
 from podcast_mcp.models.feed import PinAuthor
 from podcast_mcp.project.transcript_context import (
     VOCABULARY_MAX_ENTRIES,
@@ -480,6 +480,17 @@ class FeedWriteRequest(BaseModel):
     """Write the episode's feed file."""
 
     path: str
+
+
+class SegmentSaveRequest(BaseModel):
+    """Save clips of an episode into the segment library as a copy."""
+
+    path: str
+    name: str
+    kind: str | None = None
+    clip_ids: list[str] | None = None
+    time_range: str | None = None
+    role: TrackRole | None = None
 
 
 class TranscriptExportRequest(BaseModel):
