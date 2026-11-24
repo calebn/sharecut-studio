@@ -215,7 +215,6 @@ class Observed:
         if self.memory == self.expected_rebuilt and self.memory != self.entry:
             return Outcome.REBUILT
         if self.memory == self.entry:
-            # Unchanged is also what a rebuild leaves when it moves nothing (a fresh entry).
             return Outcome.UNTOUCHED if self.memory != self.expected_rebuilt else Outcome.REBUILT
         raise AssertionError(f"neither rebuilt nor untouched: {self.memory!r}")
 
@@ -341,7 +340,6 @@ def assert_channels(seen: Observed, expect: CombinedTranscript | None) -> None:
     assert seen.memory == expect
     assert seen.saved == expect
     assert seen.snapshot == expect
-    # combined.json is written only for a non-empty combined and never removed.
     has_utterances = expect is not None and bool(expect.utterances)
     assert seen.combined_json == (json_of(expect) if has_utterances else seen.entry_json)
     if seen.moved:
