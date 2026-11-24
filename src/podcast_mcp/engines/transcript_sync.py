@@ -19,8 +19,21 @@ from podcast_mcp.engines.session_timeline import (
 )
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import ArchivedTranscriptWord, Clip, EpisodeProject, TranscriptKey
-from podcast_mcp.models.words_revision import set_words
+from podcast_mcp.models.words_revision import set_words, words_revision
 from podcast_mcp.util.intervals import merge_intervals
+
+CombinedInputsKey = tuple[
+    int, tuple[tuple[int, str, str | None], ...], tuple[tuple[str, str | None], ...]
+]
+
+
+def combined_inputs_key(project: EpisodeProject) -> CombinedInputsKey:
+    """Everything ``merge_transcripts`` reads, as a value that moves when any of it does."""
+    return (
+        words_revision(),
+        tuple((id(t), t.track_id, t.source_id) for t in project.transcripts),
+        tuple((tr.id, tr.speaker) for tr in project.tracks),
+    )
 
 
 def rebuild_combined(project: EpisodeProject, *, defaults: EffectiveConfig) -> None:
