@@ -15,6 +15,7 @@ from podcast_mcp.util.coded_error import guest_message_for_code
 
 TICKET_TTL_SEC = 30 * 60
 _MAX_EXPIRES_DIGITS = 12
+ARCHIVE_SUBJECT = "\0archive"
 
 _KEY = secrets.token_bytes(32)
 

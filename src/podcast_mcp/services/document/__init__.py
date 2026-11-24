@@ -30,9 +30,11 @@ if TYPE_CHECKING:
     from podcast_mcp.services.document.edit import EditService, with_audio_check
     from podcast_mcp.services.document.episode import EpisodeService
     from podcast_mcp.services.document.export_files import (
+        ArchivePlan,
         ExportedFile,
         ExportFilesService,
         ServedFile,
+        plan_archive,
     )
     from podcast_mcp.services.document.feed import (
         SHOW_KEY,
@@ -100,6 +102,7 @@ __all__ = [
     "SHOW_KEY",
     "AlignAcceptService",
     "AnalysisService",
+    "ArchivePlan",
     "BoundaryEdit",
     "BoundaryTarget",
     "ClipGeometry",
@@ -148,6 +151,7 @@ __all__ = [
     "describe_fields",
     "insert_saved_segment",
     "parse_range",
+    "plan_archive",
     "preview_segment_insert",
     "preview_segment_insert_on",
     "queue_room_tone_pools",
@@ -182,6 +186,8 @@ _MODULE_BY_NAME = {
     "EpisodeService": "episode",
     "ExportFilesService": "export_files",
     "ExportedFile": "export_files",
+    "ArchivePlan": "export_files",
+    "plan_archive": "export_files",
     "ServedFile": "export_files",
     "FeedFieldPinResult": "feed_results",
     "FeedService": "feed",
