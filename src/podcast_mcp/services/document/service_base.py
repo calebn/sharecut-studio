@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, TypeVar
 
 from podcast_mcp.edits.cut_speech import (
     UnconfirmedCutSpeech,
 )
+from podcast_mcp.edits.pad_binder import bind_pending_pad_picks
 from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.engines import room_tone
 from podcast_mcp.models import CutIntent, EditMode, EpisodeProject
@@ -18,6 +19,8 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.tracks import resolve_track
 
 log = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 class WorkspaceService:
@@ -29,6 +32,16 @@ class WorkspaceService:
 
 
 class CutMutatingService(WorkspaceService):
+    def _binding(self, fn: Callable[[EpisodeProject], T]) -> Callable[[EpisodeProject], T]:
+        """``fn``, then bind the room tone each pending padded cut will play (#3600)."""
+
+        def bound(project: EpisodeProject) -> T:
+            result = fn(project)
+            bind_pending_pad_picks(project, defaults=self.ws.effective_config())
+            return result
+
+        return bound
+
     @contextmanager
     def _record_pools_after_success(self) -> Iterator[None]:
         """After a body that applied without raising, queue the project's missing room-tone pools.
