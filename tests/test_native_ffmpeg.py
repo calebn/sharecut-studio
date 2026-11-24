@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import ctypes
 import errno
 import importlib.util
@@ -467,15 +466,24 @@ def test_a_stream_whose_flush_raises_fails_with_one_stderr_line_and_starts_nothi
 
 def test_the_cancel_watcher_thread_exits_once_run_returns() -> None:
     before = set(threading.enumerate())
-    NativeFFmpegBackend(FakeNative()).run(
+    seen: list[threading.Thread] = []
+
+    class SeesWatcher(FakeNative):
+        def _wait(self, session_id: int) -> int:
+            # run has started the watcher before it waits, so it must be alive right here.
+            seen.extend(
+                t
+                for t in threading.enumerate()
+                if t not in before and t.name == "native-ffmpeg-cancel" and t.is_alive()
+            )
+            return super()._wait(session_id)
+
+    NativeFFmpegBackend(SeesWatcher()).run(
         [IN_PROCESS_FFMPEG], Streams(None, None, None), threading.Event()
     )
-    watchers = [
-        t for t in threading.enumerate() if t not in before and t.name == "native-ffmpeg-cancel"
-    ]
-    for watcher in watchers:
-        watcher.join(BOUND_SEC)
-    assert not any(watcher.is_alive() for watcher in watchers)
+    assert len(seen) == 1
+    seen[0].join(BOUND_SEC)
+    assert not seen[0].is_alive()
 
 
 def test_cancel_set_before_start_is_seen_by_the_watcher() -> None:
@@ -759,37 +767,8 @@ def test_a_missing_symbol_is_missing_not_installed(
         assert config.component_status()["ffmpeg"]["state"] == "installed"
 
 
-def test_cancel_hits_only_its_own_overlapping_session() -> None:
-    fake = Blocking()
-    backend = NativeFFmpegBackend(fake)
-    cancels = {"a": threading.Event(), "b": threading.Event()}
-    codes: dict[str, int] = {}
-
-    def go(name: str) -> None:
-        codes[name] = backend.run(
-            [IN_PROCESS_FFMPEG, name], Streams(None, None, None), cancels[name]
-        )
-
-    threads = [threading.Thread(target=go, args=(name,), daemon=True) for name in cancels]
-    for thread in threads:
-        thread.start()
-    assert fake.started.acquire(timeout=BOUND_SEC)
-    assert fake.started.acquire(timeout=BOUND_SEC)
-    by_name = {session.argv[1]: session for session in fake.sessions.values()}
-    assert set(by_name) == {b"a", b"b"}
-    cancels["a"].set()
-    assert by_name[b"a"].cancelled.wait(BOUND_SEC)
-    assert by_name[b"a"].finished.wait(BOUND_SEC)
-    assert not by_name[b"b"].cancelled.is_set()
-    assert not by_name[b"b"].finished.is_set()
-    cancels["b"].set()
-    for thread in threads:
-        thread.join(BOUND_SEC)
-    assert codes == {"a": 1, "b": 1}
-    assert sorted(fake.waited) == sorted(fake.sessions)
-
-
-def test_cancelling_one_of_two_sessions_reaches_native_once_for_that_id_only() -> None:
+@pytest.mark.parametrize("b_ends", ["released", "cancelled"])
+def test_cancel_hits_only_its_own_overlapping_session(b_ends: str) -> None:
     fake = PerSession()
     backend = NativeFFmpegBackend(fake)
     cancels = {"a": threading.Event(), "b": threading.Event()}
@@ -806,23 +785,50 @@ def test_cancelling_one_of_two_sessions_reaches_native_once_for_that_id_only() -
     assert fake.started.acquire(timeout=BOUND_SEC)
     assert fake.started.acquire(timeout=BOUND_SEC)
     by_name = {session.argv[1]: (sid, session) for sid, session in fake.sessions.items()}
-    (a_id, a), (_, b) = by_name[b"a"], by_name[b"b"]
+    assert set(by_name) == {b"a", b"b"}
+    (a_id, a), (b_id, b) = by_name[b"a"], by_name[b"b"]
     cancels["a"].set()
+    assert a.cancelled.wait(BOUND_SEC)
     assert a.finished.wait(BOUND_SEC)
     threads[0].join(BOUND_SEC)
     assert codes == {"a": 1}
     assert not b.cancelled.is_set()
     assert not b.finished.is_set()
-    b.release.set()
-    threads[1].join(BOUND_SEC)
-    assert codes == {"a": 1, "b": 0}
     assert fake.cancel_calls == [a_id]
+    if b_ends == "released":
+        b.release.set()
+        expected_b = 0
+    else:
+        cancels["b"].set()
+        expected_b = 1
+    threads[1].join(BOUND_SEC)
+    assert codes == {"a": 1, "b": expected_b}
+    assert fake.cancel_calls == [a_id] + ([b_id] if b_ends == "cancelled" else [])
+    assert sorted(fake.waited) == sorted(fake.sessions)
+
+
+def test_a_cancel_that_races_the_end_of_the_session_is_not_forwarded() -> None:
+    fake = FakeNative()
+    done = threading.Event()
+
+    class CancelAfterDone(threading.Event):
+        def wait(self, timeout: float | None = None) -> bool:
+            done.set()  # the session ends while the watcher is mid-poll, then cancel is seen
+            return True
+
+    NativeFFmpegBackend(fake)._watch(7, CancelAfterDone(), done)
+    assert fake.cancel_calls == []
 
 
 @pytest.mark.parametrize("mode", ["read", "write"])
 def test_cancel_wakes_a_native_thread_blocked_in_a_pipe_call_and_its_dups_close(mode: str) -> None:
     pipe_r, pipe_w = os.pipe()
     kicked = threading.Event()
+    closed: set[int] = set()  # fds already closed, so the cleanup never closes a reused number
+
+    def close_writer() -> None:
+        os.close(pipe_w)
+        closed.add(pipe_w)
 
     def kick_then_signal(kick: Any) -> Any:
         # The cancel callback may still be running after the native thread has been woken and
@@ -837,7 +843,7 @@ def test_cancel_wakes_a_native_thread_blocked_in_a_pipe_call_and_its_dups_close(
 
     if mode == "read":
         # stdin: the dup blocks in os.read until every writer is gone; unblock closes the writer.
-        fake = WokenByCancel(mode, kick_then_signal(lambda: os.close(pipe_w)))
+        fake = WokenByCancel(mode, kick_then_signal(close_writer))
         streams = Streams(os.fdopen(pipe_r, "rb"), None, None)
         caller_fds = [pipe_r]
     else:
@@ -892,8 +898,9 @@ def test_cancel_wakes_a_native_thread_blocked_in_a_pipe_call_and_its_dups_close(
         for stream in streams:
             if stream is not None:
                 stream.close()
+        closed.update(caller_fds)  # the streams own these and have just closed them
         for fd in (pipe_r, pipe_w):
-            with contextlib.suppress(OSError):
+            if fd not in closed:
                 os.close(fd)
 
 
