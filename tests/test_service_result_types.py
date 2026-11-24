@@ -49,7 +49,7 @@ DICT_RETURNS: dict[str, int] = {
     "document/segment_insert.py": 1,
     "document/service_base.py": 4,
     "document/session_suggestion.py": 9,
-    "document/timeline.py": 14,
+    "document/timeline.py": 13,
     "document/transcript.py": 4,
     "document_sync/capabilities.py": 1,
     "document_sync/commands.py": 1,
