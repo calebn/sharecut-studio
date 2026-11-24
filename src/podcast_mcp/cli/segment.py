@@ -188,7 +188,10 @@ def segment_drift_cmd(
     project: Path = typer.Argument(..., help="Path to episode.sharecut"),
     as_json: bool = typer.Option(False, "--json", help="The report as JSON"),
 ) -> None:
-    """Show which inserted segments have drifted from the library. Changes nothing."""
+    """Show which inserted segments have drifted from the library. Changes nothing.
+
+    Judged from segment.json and file sizes, so "current" does not mean the audio was verified.
+    """
     rows = report_segment_drift(project, SegmentStore())
     if as_json:
         typer.echo(_json(rows))
