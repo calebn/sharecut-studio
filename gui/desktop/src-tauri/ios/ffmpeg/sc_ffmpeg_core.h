@@ -8,6 +8,10 @@
 #define SC_EXPORT __attribute__((visibility("default")))
 
 SC_EXPORT int sc_ffmpeg_abi_version(void);
+/* A static NUL-terminated string, never NULL, never freed, the same for the life of the process; thread-safe.
+   1 to 128 bytes of [A-Za-z0-9._+-]: the FFmpeg release, then a digest of this build's inputs. "unknown" when
+   the build could not compute one (scripts/ios/build_ffmpeg.sh passes -DSC_BUILD_ID). */
+SC_EXPORT const char *sc_ffmpeg_build_id(void);
 SC_EXPORT int64_t sc_ffmpeg_start(int argc, const char *const *argv, int in_fd, int out_fd, int err_fd);
 SC_EXPORT int sc_ffmpeg_wait(int64_t session);
 SC_EXPORT void sc_ffmpeg_cancel(int64_t session);

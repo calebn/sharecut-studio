@@ -63,7 +63,13 @@ DO_FLAGS = [
     "do_show_stream_tags",
     "do_show_packet_tags",
 ]
-EXPORTED = ["sc_ffmpeg_abi_version", "sc_ffmpeg_start", "sc_ffmpeg_wait", "sc_ffmpeg_cancel"]
+EXPORTED = [
+    "sc_ffmpeg_abi_version",
+    "sc_ffmpeg_build_id",
+    "sc_ffmpeg_start",
+    "sc_ffmpeg_wait",
+    "sc_ffmpeg_cancel",
+]
 
 
 def contract() -> dict:
@@ -133,6 +139,7 @@ def configure_probe(tmp_path: Path):
     script = tmp_path / "scripts" / "ios" / SCRIPT.name
     script.parent.mkdir(parents=True)
     shutil.copy2(SCRIPT, script)
+    shutil.copytree(GLUE_DIR, tmp_path / "gui" / "desktop" / "src-tauri" / "ios" / "ffmpeg")
     recipe = contract()
     base = tmp_path / "gui" / "desktop" / "src-tauri" / "ios-ffmpeg"
     source = base / "src"
@@ -156,7 +163,7 @@ def configure_probe(tmp_path: Path):
     stubs.write_text(
         'xcrun() { case "$3" in --show-sdk-path) echo /sdk ;; -f) echo /usr/bin/true ;; esac; }\n'
         'nice() { shift 2; "$@"; }\n'
-        "make() { return 0; }\n",
+        'make() { if [ "$1" = install ]; then mkdir -p "$PREFIX/lib"; touch "$PREFIX/lib/libmp3lame.a" "$PREFIX/lib/libopus.a"; fi; }\n',
         encoding="utf-8",
     )
     contract_file = tmp_path / "contracts" / CONTRACT.name
@@ -182,7 +189,9 @@ def configure_probe(tmp_path: Path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX shell")
-@pytest.mark.parametrize("key", ["lame_configure", "opus_configure", "ffmpeg_configure"])
+@pytest.mark.parametrize(
+    "key", ["lame_configure", "opus_configure", "ffmpeg_configure", "ios_ffmpeg_configure"]
+)
 def test_build_stops_before_configure_if_an_options_pin_is_missing(configure_probe, key) -> None:
     recipe, run = configure_probe
     del recipe[key]
@@ -264,11 +273,13 @@ SCRIPT_FRAGMENTS = [
     "-ffile-prefix-map=$ROOT=/repo",
     "-ffile-prefix-map=$SYSROOT=/sdk",
     "-fdebug-prefix-map=$ROOT=/repo",
-    'CFLAGS="$CFLAGS_CONFIGURE" > "$BUILD/lame-configure.log"',
-    'CFLAGS="$CFLAGS_CONFIGURE" > "$BUILD/opus-configure.log"',
+    'CFLAGS="$CFLAGS_CONFIGURE" > "$BUILD/$name-configure.log"',
+    'build_dep lame "$LAME_DIR" libmp3lame.a "${LAME_FLAGS[@]}"',
+    'build_dep opus "$OPUS_DIR" libopus.a "${OPUS_FLAGS[@]}"',
     "$(pin lame_configure)",
     "$(pin opus_configure)",
     "$(pin ffmpeg_configure)",
+    "$(pin ios_ffmpeg_configure)",
     "s#\\Q$ENV{SC_SYSROOT}\\E#SDK#g",
     "s#\\Q$ENV{SC_ROOT}\\E#REPO#g",
     "PLAIN_FLAGS=${TOOL_FLAGS//-include sc_fftools_stdio.h/}",
@@ -279,7 +290,8 @@ SCRIPT_FRAGMENTS = [
     "-Dprogram_name=ffprobe_program_name",
     "-Dprogram_birth_year=ffprobe_program_birth_year",
     "-Dshow_help_default=ffprobe_show_help_default",
-    "printf '_sc_ffmpeg_abi_version\\n_sc_ffmpeg_start\\n_sc_ffmpeg_wait\\n_sc_ffmpeg_cancel\\n'",
+    "printf '_sc_ffmpeg_abi_version\\n_sc_ffmpeg_build_id\\n_sc_ffmpeg_start\\n_sc_ffmpeg_wait\\n_sc_ffmpeg_cancel\\n'",
+    '"-DSC_BUILD_ID=\\"$BUILD_ID\\""',
     "-install_name @rpath/FFmpeg.framework/FFmpeg",
     "-Wl,-dead_strip -Wl,-x",
     "-lz -lm -liconv",
@@ -297,6 +309,68 @@ SCRIPT_FRAGMENTS = [
 @pytest.mark.parametrize("fragment", SCRIPT_FRAGMENTS)
 def test_build_script_keeps_each_load_bearing_line(fragment: str) -> None:
     assert fragment in SCRIPT.read_text(encoding="utf-8")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX shell")
+def test_build_gives_ffmpeg_the_ios_only_options_after_the_shared_ones(configure_probe) -> None:
+    recipe, run = configure_probe
+
+    done, logs = run()
+
+    assert done.returncode == 37, done.stderr
+    shared, ios = recipe["ffmpeg_configure"], recipe["ios_ffmpeg_configure"]
+    args = logs["ffmpeg"]
+    first = args.index(shared[0])
+    assert args[first : first + len(shared) + len(ios)] == shared + ios
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX shell")
+@pytest.mark.parametrize("name", ["ffmpeg", "lame", "opus"])
+def test_build_names_the_archive_and_stops_when_it_lacks_the_pinned_directory(
+    configure_probe, name
+) -> None:
+    recipe, run = configure_probe
+    pinned = recipe["sources"][name]
+    archive = run.source / pinned["archive"]
+    other = run.source.parent / "other-configure"
+    other.write_text("#!/bin/bash\n", encoding="utf-8")
+    with tarfile.open(archive, "w:xz" if archive.suffix == ".xz" else "w:gz") as tar:
+        tar.add(other, arcname="not-" + pinned["directory"] + "/configure")
+    pinned["sha256"] = sha256(archive)
+
+    done, logs = run()
+
+    assert done.returncode == 1
+    assert f"{archive} does not contain {pinned['directory']}" in done.stderr
+    assert logs == {}, f"configure ran for {', '.join(logs)}"
+    assert not (run.source / pinned["directory"]).exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX shell")
+def test_build_reuses_the_lame_and_opus_prefix_until_an_input_changes(configure_probe) -> None:
+    recipe, run = configure_probe
+
+    done, logs = run()
+    assert done.returncode == 37, done.stderr
+    assert "lame: building" in done.stdout and "opus: building" in done.stdout
+    build = run.source.parent / "build" / "device"
+    (build / "lame-configure.log").write_text("marker\n", encoding="utf-8")
+    (build / "opus-configure.log").write_text("marker\n", encoding="utf-8")
+
+    done, logs = run()
+    assert done.returncode == 37, done.stderr
+    assert "lame: reusing" in done.stdout and "opus: reusing" in done.stdout
+    assert logs["lame"] == ["marker"] and logs["opus"] == ["marker"]
+
+    recipe["opus_configure"].append("--disable-asm")
+    done, logs = run()
+    assert done.returncode == 37, done.stderr
+    assert "lame: reusing" in done.stdout and "opus: building" in done.stdout
+    assert logs["lame"] == ["marker"] and "--disable-asm" in logs["opus"]
+
+    recipe["lame_configure"].append("--disable-gtktest")
+    done, logs = run()
+    assert "lame: building" in done.stdout and "--disable-gtktest" in logs["lame"]
 
 
 @pytest.mark.skipif(sys.platform == "darwin", reason="a Mac has xcrun")
@@ -368,7 +442,7 @@ def test_pin_check_rejects_a_patch_that_differs_from_its_pin(tmp_path: Path) -> 
 
 def test_exported_names_match_the_core_header() -> None:
     header = (GLUE_DIR / "sc_ffmpeg_core.h").read_text(encoding="utf-8")
-    assert re.findall(r"SC_EXPORT \w+\s+\**(sc_ffmpeg_\w+)\(", header) == EXPORTED
+    assert re.findall(r"SC_EXPORT [\w\s]+?\**(sc_ffmpeg_\w+)\(", header) == EXPORTED
 
 
 def test_contract_pins_the_patches_by_sha256() -> None:
@@ -388,6 +462,12 @@ def test_contract_keeps_the_desktop_pins_the_ios_script_reads() -> None:
     recipe = contract()
     for key in ("lame_configure", "opus_configure", "ffmpeg_configure", "version"):
         assert key in recipe
+    assert recipe["ios_ffmpeg_configure"] == [
+        "--disable-network",
+        "--disable-protocols",
+        "--enable-protocol=file,pipe,fd",
+    ]
+    assert not {"--disable-protocols", "--disable-network"} & set(recipe["ffmpeg_configure"])
     for name in ("ffmpeg", "lame", "opus"):
         assert {"url", "sha256", "archive", "directory"} <= set(recipe["sources"][name])
     assert "--enable-gpl" not in recipe["ffmpeg_configure"]

@@ -27,7 +27,13 @@ FFMPEG_SIZE_BUDGET = 25 * 1024 * 1024
 FFMPEG_BINARY = Path("Frameworks") / "FFmpeg.framework" / "FFmpeg"
 FFMPEG_PRIVACY_MANIFEST = Path("Frameworks") / "FFmpeg.framework" / "PrivacyInfo.xcprivacy"
 FFMPEG_EXPORTS = frozenset(
-    {"sc_ffmpeg_abi_version", "sc_ffmpeg_start", "sc_ffmpeg_wait", "sc_ffmpeg_cancel"}
+    {
+        "sc_ffmpeg_abi_version",
+        "sc_ffmpeg_build_id",
+        "sc_ffmpeg_start",
+        "sc_ffmpeg_wait",
+        "sc_ffmpeg_cancel",
+    }
 )
 WHISPER_EMBEDDED = True
 WHISPER_SIZE_BUDGET = 12 * 1024 * 1024

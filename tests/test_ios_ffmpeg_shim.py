@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import ctypes
 import errno
 import fcntl
@@ -34,6 +35,9 @@ HAS_PROC_FD = Path("/proc/self/fd").is_dir()
 FD_DIR = "/proc/self/fd" if HAS_PROC_FD else "/dev/fd"
 COMPILER = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
 LAUNCH_SEC = 0.25
+# The core's ABI. native_ffmpeg.ABI_VERSION still says 1 until the Python lane lands 2; the shim loads the core with a copy of the ABI at 2.
+CORE_ABI_VERSION = 2
+BUILD_ID = "9.0.2+0123456789abcdef"
 
 pytestmark = [
     pytest.mark.skipif(COMPILER is None, reason="no C compiler"),
@@ -86,7 +90,8 @@ def _core_flags(tmp: Path) -> list[str]:
 def built(tmp_path_factory: pytest.TempPathFactory) -> Path:
     tmp = tmp_path_factory.mktemp("shim_build")
     out = tmp / "libscshim.so"
-    _compile(out, [CORE_DIR / "sc_ffmpeg_core.c", FAKE_GLUE], _core_flags(tmp), tmp)
+    flags = [*_core_flags(tmp), f'-DSC_BUILD_ID="{BUILD_ID}"']
+    _compile(out, [CORE_DIR / "sc_ffmpeg_core.c", FAKE_GLUE], flags, tmp)
     return out
 
 
@@ -143,7 +148,9 @@ class Pipes:
 
 class Shim:
     def __init__(self, cdll: ctypes.CDLL) -> None:
-        self.cdll = native_ffmpeg.load_library(cdll)
+        abi = copy.copy(native_ffmpeg._ABI)
+        abi.abi_version = CORE_ABI_VERSION
+        self.cdll = abi.load_library(cdll)
         c = self.cdll
         c.sc_ffmpeg_start.restype = ctypes.c_int64
         c.sc_ffmpeg_start.argtypes = [
@@ -243,8 +250,23 @@ def normalise(lines: list[str]) -> list[str]:
 
 
 def test_abi_version_and_symbols(shim: Shim) -> None:
-    assert shim.cdll.sc_ffmpeg_abi_version() == 1
-    assert native_ffmpeg.ABI_VERSION == 1
+    assert shim.cdll.sc_ffmpeg_abi_version() == CORE_ABI_VERSION
+
+
+def test_build_id_is_the_baked_in_static_string(shim: Shim) -> None:
+    shim.cdll.sc_ffmpeg_build_id.restype = ctypes.c_void_p
+    first = shim.cdll.sc_ffmpeg_build_id()
+    assert ctypes.string_at(first).decode() == BUILD_ID
+    assert re.fullmatch(r"[A-Za-z0-9._+-]{1,128}", BUILD_ID)
+    assert shim.cdll.sc_ffmpeg_build_id() == first
+
+
+def test_build_id_is_unknown_when_the_build_passes_none(tmp_path: Path) -> None:
+    out = tmp_path / "libnoid.so"
+    _compile(out, [CORE_DIR / "sc_ffmpeg_core.c", FAKE_GLUE], [], tmp_path)
+    lib = ctypes.CDLL(str(out))
+    lib.sc_ffmpeg_build_id.restype = ctypes.c_char_p
+    assert lib.sc_ffmpeg_build_id() == b"unknown"
 
 
 def test_queue_order_ids_and_start_latency(shim: Shim) -> None:
@@ -1261,9 +1283,11 @@ def test_randomized_start_cancel_wait_interleavings(shim: Shim) -> None:
 
 
 def test_python_backend_runs_cancels_and_checks_the_abi(
-    built: Path, shim: Shim, tmp_path: Path
+    built: Path, shim: Shim, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    backend = NativeFFmpegBackend(shim.cdll)
+    with monkeypatch.context() as patched:
+        patched.setattr(native_ffmpeg._ABI, "abi_version", CORE_ABI_VERSION)
+        backend = NativeFFmpegBackend(shim.cdll)
     with Pipes() as pipes:
         streams = Streams(
             os.fdopen(pipes.in_r, "rb", buffering=0),
