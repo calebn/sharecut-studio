@@ -69,6 +69,8 @@ export interface StageSliceState {
   inviteAt: InviteGroup | null;
   scriptCollapsed: boolean;
   scriptFocus: boolean;
+  /** The Script header shows its own Clear selection, so the Action bar leaves Clear to it. */
+  scriptHeaderClear: boolean;
   /** The landing stage has been chosen for this project, by rule or by the person. */
   landingSettled: boolean;
   /**
@@ -110,6 +112,7 @@ export interface StageSliceState {
   openInvite: (at?: InviteGroup) => void;
   setScriptCollapsed: (on: boolean) => void;
   setScriptFocus: (on: boolean) => void;
+  setScriptHeaderClear: (shown: boolean) => void;
   setPanelScroll: (stage: StageId, key: string, top: number) => void;
   markLandingSettled: () => void;
 }
@@ -223,6 +226,7 @@ export const createStageSlice: StateCreator<
     editSurface: "lanes",
     scriptCollapsed: readScriptCollapsed(),
     scriptFocus: readScriptFocus(),
+    scriptHeaderClear: false,
     openStage,
     setPendingRecordTarget: (pendingRecordTarget) =>
       set({ pendingRecordTarget }),
@@ -250,6 +254,7 @@ export const createStageSlice: StateCreator<
       set({ scriptCollapsed });
       writeScriptCollapsed(scriptCollapsed);
     },
+    setScriptHeaderClear: (scriptHeaderClear) => set({ scriptHeaderClear }),
     setScriptFocus: (scriptFocus) => {
       set({ scriptFocus });
       writeScriptFocus(scriptFocus);

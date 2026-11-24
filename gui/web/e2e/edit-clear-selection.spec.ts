@@ -173,6 +173,12 @@ test.describe("the 320 px dock keeps every control reachable", () => {
       .locator(".sys-dock-slot--start")
       .evaluate((slot) => slot.scrollWidth <= slot.clientWidth + 1);
     expect(fits, "the verbs fit without scrolling").toBe(true);
+    const name = dock.locator(".sys-actions-object-name");
+    await expect(name, "the dock names its object").toHaveCount(1);
+    await expect(
+      name,
+      "the narrow container rule hides the object's name",
+    ).toBeHidden();
     for (const button of await dock.getByRole("button").all())
       await expect(button).toBeInViewport({ ratio: 1 });
   }

@@ -204,6 +204,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "cancels a delayed model-action focus handoff when a press or focus move happens before the action is ready; it starts no gesture, captures no pointer and never consumes the event; focusin also covers keyboard navigation",
   "stage/edit/useViewAnchor.ts":
     "a new press cancels View focus recovery while the panel closes or while Find mounts; it starts no gesture and intercepts no pointer action",
+  "stages/edit/FixTextField.tsx":
+    "the Cancel button's press arms a short-lived discard so the blur it causes does not save the draft; it starts no gesture, takes no pointer capture and disarms on pointer cancel, focus, finish or after half a second",
   "stage/edit/InspectorHost.tsx":
     "the Close control's capture-phase pointer observer runs before default focus transfer and matches focus restoration to the press; it starts no gesture and takes no pointer capture, while InspectorSheet and useGrab own the detent drag",
   "stage/edit/ScriptDivider.tsx":

@@ -14,16 +14,16 @@ import { EditSurfaceSwitch } from "./PhoneEditSurfaceView";
  * their rows: on a phone the Timeline and Script switch, then the corner (zoom,
  * the eye, the Script toggle and, on touch, the range toggle, which a short
  * frame takes off the lanes), Mix and, on a phone, the Action bar the dock
- * would otherwise spend the lanes' height on. On the lanes surface that bar
- * ends with Clear selection, since the Script header that clears words is not
- * on screen there.
+ * would otherwise spend the lanes' height on. The bar ends with Clear
+ * selection unless the Script surface is up and its header already clears.
  */
 export function ToolsSheet() {
-  const { surface, setOpenSheet, mixAllowed } = useDawStore(
+  const { surface, setOpenSheet, mixAllowed, headerClear } = useDawStore(
     useShallow((s) => ({
       surface: s.editSurface,
       setOpenSheet: s.setOpenSheet,
       mixAllowed: canEditMix(s.projectPath, s.guestMode, s.shareCapabilities),
+      headerClear: s.scriptHeaderClear,
     })),
   );
   const phone = useViewportClass() === "phone";
@@ -41,7 +41,7 @@ export function ToolsSheet() {
         <EditActionBar
           form="dock"
           root={null}
-          clear={surface === "lanes"}
+          clear={!(surface === "text" && headerClear)}
           onRan={() => setOpenSheet(null)}
           onCleared={() => setOpenSheet(null)}
         />

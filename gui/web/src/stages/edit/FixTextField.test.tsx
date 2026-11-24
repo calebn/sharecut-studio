@@ -336,6 +336,85 @@ describe("FixTextField", () => {
       expect(onDone.mock.calls).toEqual([["tiny space", "blur", "small room"]]);
     });
 
+    it("commits on blur once the armed press goes stale without a click", async () => {
+      vi.useFakeTimers();
+      try {
+        const { field, onDone } = withCancel();
+        fireEvent.change(field, { target: { value: "tiny space" } });
+        fireEvent.pointerDown(
+          screen.getByRole("button", { name: "Cancel fix" }),
+        );
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1000);
+        });
+        await act(async () => {
+          fireEvent.blur(field);
+          await Promise.resolve();
+        });
+        expect(onDone.mock.calls).toEqual([
+          ["tiny space", "blur", "small room"],
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("still discards on a blur that lands inside the arm window", async () => {
+      vi.useFakeTimers();
+      try {
+        const { field, onDone } = withCancel();
+        fireEvent.change(field, { target: { value: "tiny space" } });
+        fireEvent.pointerDown(
+          screen.getByRole("button", { name: "Cancel fix" }),
+        );
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(100);
+          field.blur();
+          await Promise.resolve();
+        });
+        expect(onDone.mock.calls).toEqual([[null, "escape", "small room"]]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("does not arm a press made while a save is in flight", async () => {
+      const user = userEvent.setup();
+      let settle: (reason: string) => void = () => undefined;
+      const onDone = vi.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            settle = resolve;
+          }),
+      );
+      render(
+        <>
+          <FixTextField
+            value="small room"
+            label="Fix"
+            cancelLabel="Cancel fix"
+            onDone={onDone}
+          />
+          <button type="button">Elsewhere</button>
+        </>,
+      );
+      await user.keyboard("tiny space{Enter}");
+      fireEvent.pointerDown(screen.getByRole("button", { name: "Cancel fix" }));
+      await act(async () => {
+        settle("Offline.");
+        await Promise.resolve();
+      });
+      expect(await screen.findByRole("alert")).toHaveTextContent("Offline.");
+      await act(async () => {
+        screen.getByRole("textbox").blur();
+        await Promise.resolve();
+      });
+      expect(onDone.mock.calls).toEqual([
+        ["tiny space", "enter", "small room"],
+        ["tiny space", "blur", "small room"],
+      ]);
+    });
+
     it("stays out of the tab order and keeps focus in the input on press", () => {
       const { field } = withCancel();
       const cancel = screen.getByRole("button", { name: "Cancel fix" });

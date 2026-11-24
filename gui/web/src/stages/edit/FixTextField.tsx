@@ -56,6 +56,8 @@ type FixTextFieldProps = {
   cancelLabel?: string;
 };
 
+const CANCEL_ARM_MS = 500;
+
 const squash = (text: string) => text.trim().replace(/\s+/g, " ");
 
 const messageOf = (reason: unknown) =>
@@ -93,6 +95,7 @@ export function FixTextField({
   const input = useRef<HTMLInputElement>(null);
   const finished = useRef(false);
   const cancelArmed = useRef(false);
+  const armTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const errorId = useId();
 
   useLayoutEffect(() => {
@@ -100,9 +103,22 @@ export function FixTextField({
     input.current?.select();
   }, []);
 
-  const finish = useStableCallback(async (via: FixTextVia) => {
-    if (finished.current) return;
+  const disarm = useStableCallback(() => {
+    clearTimeout(armTimer.current);
     cancelArmed.current = false;
+  });
+
+  const arm = useStableCallback(() => {
+    clearTimeout(armTimer.current);
+    cancelArmed.current = true;
+    armTimer.current = setTimeout(disarm, CANCEL_ARM_MS);
+  });
+
+  useEffect(() => () => clearTimeout(armTimer.current), []);
+
+  const finish = useStableCallback(async (via: FixTextVia) => {
+    disarm();
+    if (finished.current) return;
     const text = squash(draft);
     if (via === "escape") {
       finished.current = true;
@@ -158,9 +174,7 @@ export function FixTextField({
         }
       });
     };
-    const onFocus = () => {
-      cancelArmed.current = false;
-    };
+    const onFocus = () => disarm();
     el.addEventListener("blur", onBlur);
     el.addEventListener("focus", onFocus);
     return () => {
@@ -168,15 +182,12 @@ export function FixTextField({
       el.removeEventListener("blur", onBlur);
       el.removeEventListener("focus", onFocus);
     };
-  }, [finish]);
+  }, [finish, disarm]);
 
   useEffect(() => {
-    const disarm = () => {
-      cancelArmed.current = false;
-    };
     document.addEventListener("visibilitychange", disarm);
     return () => document.removeEventListener("visibilitychange", disarm);
-  }, []);
+  }, [disarm]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return;
@@ -234,11 +245,9 @@ export function FixTextField({
             onMouseDown={(event) => event.preventDefault()}
             onPointerDown={(event) => {
               event.stopPropagation();
-              cancelArmed.current = true;
+              if (!busy) arm();
             }}
-            onPointerCancel={() => {
-              cancelArmed.current = false;
-            }}
+            onPointerCancel={disarm}
             onClick={() => {
               if (!busy) void finish("escape");
             }}

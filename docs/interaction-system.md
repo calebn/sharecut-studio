@@ -172,11 +172,12 @@ There are three overlay primitives.
    Close and Escape only. Focus returns to the control that opened the overlay.
    Closing a selection Inspector leaves layout intent unchanged. Current intent
    and viewport determine whether editor panels return or remain stowed.
-   Four exits sound alike and differ in what they drop:
+   Five exits sound alike and differ in what they drop:
 
    | Control | Drops | Keeps |
    | --- | --- | --- |
-   | Clear selection (Action bar, Script header, Esc after the Inspector) | The selection, the armed range, and the Inspector with them | Saved corrections and edits |
+   | Clear selection (Action bar, Esc after the Inspector) | The selection, the armed range, and the Inspector with them | Saved corrections and edits |
+   | Clear selection (Script header, words selected) | The selected words | An armed range draft, saved corrections and edits |
    | Close (Inspector header, or the dock at the dock detent) | The Inspector panel | The selection |
    | Cancel fix (Fix text field, Esc) | The typed draft | The words, still selected |
    | Leaving the Fix text field | Nothing: it saves the draft | The selection |

@@ -754,6 +754,33 @@ describe("EditActionBar in the Inspector dock", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["a clip", EDIT_SELECTIONS.clip],
+    ["a range", EDIT_SELECTIONS.rangeOnAllTracks],
+  ])(
+    "keeps the same verbs for %s whether or not Close is up",
+    (_name, selection) => {
+      host(selection);
+      const verbs = (withClose: boolean) => {
+        const { unmount } = render(
+          <EditActionBar
+            form="dock"
+            root={null}
+            inInspector
+            onClose={withClose ? () => undefined : undefined}
+          />,
+        );
+        const labels = screen
+          .getAllByRole("button")
+          .filter((button) => button.getAttribute("aria-label") !== "Close")
+          .map((button) => button.textContent);
+        unmount();
+        return labels;
+      };
+      expect(verbs(false)).toEqual(verbs(true));
+    },
+  );
+
   it("shows neither without onClose", () => {
     host(EDIT_SELECTIONS.clip);
     render(<EditActionBar form="dock" root={null} inInspector clear />);

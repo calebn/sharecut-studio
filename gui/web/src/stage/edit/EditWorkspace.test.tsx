@@ -579,6 +579,12 @@ describe("EditWorkspace Clear selection", () => {
     seeded();
     render(<EditWorkspace />);
     act(() => useDawStore.getState().setSelection(words));
+    expect(
+      within(screen.getByRole("region", { name: "Script" })).getAllByRole(
+        "button",
+        { name: "Clear selection" },
+      ),
+    ).toHaveLength(1);
     expect(clears()).toHaveLength(1);
     expect(inBar("Selection actions")).toHaveLength(0);
     expect(inBar("Edit actions")).toHaveLength(0);
@@ -592,6 +598,9 @@ describe("EditWorkspace Clear selection", () => {
     word.focus();
     await userEvent.keyboard("{F2}");
     expect(screen.getByRole("textbox", { name: /^Fix text/ })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Cancel fix" }),
+    ).toBeInTheDocument();
     expect(clears()).toHaveLength(0);
   });
 
@@ -619,6 +628,7 @@ describe("EditWorkspace Clear selection", () => {
         target: target as NonNullable<typeof target>,
       }),
     );
+    expect(inBar("Selection actions")).toHaveLength(1);
     expect(clears()).toHaveLength(1);
   });
 

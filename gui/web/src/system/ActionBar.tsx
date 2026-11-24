@@ -53,6 +53,7 @@ export type ActionBarProps = {
   /** After the verbs where a guest has no primary. */
   readonly trailing?: ReactNode;
   readonly leadingSlots?: number;
+  readonly reserveEnd?: boolean;
   readonly ariaLabel?: string;
   readonly moreRequest?: number;
   readonly onVerb: (id: BarId, arg?: string) => void;
@@ -438,6 +439,7 @@ function Dock({
   center,
   trailing,
   leadingSlots = 0,
+  reserveEnd = false,
   ariaLabel,
   onVerb,
   moreRequest,
@@ -446,7 +448,8 @@ function Dock({
   const folded = foldDock(
     items,
     more,
-    (primary !== undefined ? 1 : 0) + (trailing ? 1 + leadingSlots : 0),
+    (primary !== undefined ? 1 : 0) +
+      (trailing || reserveEnd ? 1 + leadingSlots : 0),
   );
   const gated = folded.items.find((item) => item.disabledReason);
   const { note, describedBy } = useDisabledReasonNote(
