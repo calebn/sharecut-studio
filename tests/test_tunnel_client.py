@@ -540,9 +540,9 @@ async def test_proxy_http_strips_forwarded_headers():
             "headers": {
                 "accept": "text/html",
                 "x-forwarded-proto": "https",
-                "x-forwarded-host": "sudo.science",
+                "x-forwarded-host": "share.example.test",
                 "forwarded": "proto=https",
-                "host": "sudo.science",
+                "host": "share.example.test",
             },
             "share_token": "tok",
             "body_b64": "",
