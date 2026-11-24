@@ -1039,7 +1039,9 @@ describe("PendingEditBody", () => {
     const live = useDawStore.getState();
     expect(live.pendingRefineGate).toBe("ed1");
     expect(live.feedbackToast?.action?.label).toBe("Open Inspect");
-    act(() => live.feedbackToast?.action?.run());
+    act(() => {
+      void live.feedbackToast?.action?.run();
+    });
     expect(useDawStore.getState().inspectorKey).not.toBeNull();
     render(<PendingEditBody edit={sessionCut} />);
     await user.click(await screen.findByRole("button", { name: "Cut anyway" }));
