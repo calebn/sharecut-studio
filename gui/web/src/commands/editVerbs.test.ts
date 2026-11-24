@@ -1989,12 +1989,11 @@ describe("deciding a suggestion without the overlay bar", () => {
   it("sends one command when Cut is invoked twice with no sheet mounted", async () => {
     host(EDIT_SELECTIONS.suggestion);
     vi.mocked(api.approveEdits).mockImplementationOnce(never);
-    const first = execute("edit.delete");
+    void execute("edit.delete");
     const second = await execute("edit.delete");
     expect(second.status).toBe("disabled");
     expect(api.approveEdits).toHaveBeenCalledTimes(1);
     expect(useDawStore.getState().pendingDecisionInFlight).toBe("pending-cut");
-    void first;
   });
 
   it("ignores a second X while the first Keep is in flight, then lets the next through", async () => {
