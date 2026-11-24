@@ -234,12 +234,11 @@ def test_proxy_chunk_key_format():
     assert proxy_chunk_key("host", "abc123", 3) == "proxy/host/abc123/00003.mp3"
 
 
-def test_proxy_publication_preserves_old_directories(minimal_project, monkeypatch):
+def test_proxy_publication_removes_unreferenced_old_directories(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
     monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
     first = ensure_track_proxy(ws, "host")
     old = proxy_dir(ws, "host", first.hash)
-    before = {path.name: path.read_bytes() for path in old.iterdir()}
     ws.project.processing_chains = [
         ProcessingChain(
             track_id="host",
@@ -249,7 +248,8 @@ def test_proxy_publication_preserves_old_directories(minimal_project, monkeypatc
     ws.save()
     second = ensure_track_proxy(ws, "host")
     assert second.hash != first.hash
-    assert {path.name: path.read_bytes() for path in old.iterdir()} == before
+    assert not old.exists()
+    assert proxy_dir(ws, "host", second.hash).is_dir()
 
 
 def test_upload_no_object_store_config(minimal_project, monkeypatch):

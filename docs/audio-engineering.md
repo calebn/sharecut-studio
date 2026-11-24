@@ -1743,7 +1743,11 @@ Existing clip fades and output gains apply once in the client after decoding.
 
 `services/media/proxy_variants.py` owns complete manifest publication under the
 render lock. `RenderSection.proxy_manifests` retains the current and one previous
-complete generation. Within one build, artifacts that use the same recording
+complete generation. After each save that commits, the builder deletes the chunk
+directories under `artifacts/proxy/<track>/<hash>/` that no retained generation and
+no `track.proxy` descriptor references. It skips symlinks, `.proxy-*` private
+directories and any directory holding more than `NNNNN.mp3` files, and a failed
+delete is retried by the next save. Within one build, artifacts that use the same recording
 path can share an MP3 encode when their complete rendered WAV bytes, encoder
 identity, and chunk settings match. Each fresh artifact stages its own chunk files
 and verifies their digests before publication. The builder removes each
