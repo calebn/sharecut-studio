@@ -345,6 +345,8 @@ A process-wide memo that outlives one call and is not one of these three (an adm
 
 ### Exact-source word timing
 
+`services/document/join_analysis.py` holds the read-only join analysis (`join_quality`, `join_qa_sweep`, `join_label`, `join_train`) as a `_JoinAnalysis` mixin of `TimelineService`; `join_results.py` types the label and train results.
+
 `edits/transcript_timing.py` owns raw transcript identity, dependency guards, source bounds, overlap warnings and evidence invalidation. `services/document/transcript_timing.py` resolves the existing recording and current waveform metadata; `EditService` supplies the transaction and single history mutation. The Wordbar receives an on-demand context through a thin GUI route and saves through `SetTranscriptWordTiming`. Its raw preview is a local owned descriptor in the existing transport slice/controller, with separate source progress and no session transport publication. The shared waveform renderer accepts an explicit viewport for local source-clock editors. Existing timeline mapping and public raw/processed/mix semantics are unchanged.
 
 ### Captured fade dependencies
