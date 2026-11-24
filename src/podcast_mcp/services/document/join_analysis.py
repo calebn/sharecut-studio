@@ -12,6 +12,7 @@ from podcast_mcp.edits.join_continuity import (
     assess_project_joins,
 )
 from podcast_mcp.edits.join_labels import record_label
+from podcast_mcp.services.document.join_results import JoinLabelResult, JoinTrainResult
 from podcast_mcp.services.document.service_base import WorkspaceService
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -69,7 +70,7 @@ class _JoinAnalysis(WorkspaceService):
         play: bool = False,
         cut_start: float | None = None,
         cut_end: float | None = None,
-    ) -> dict:
+    ) -> JoinLabelResult:
         from .play import PlayService
 
         tid = self._resolve(track_id, speaker)
@@ -111,14 +112,14 @@ class _JoinAnalysis(WorkspaceService):
                 )
             )
             played = True
-        return {"label": label.to_dict(), "played": played, "features": features}
+        return JoinLabelResult(label=label.to_dict(), played=played, features=features)
 
     def join_train(
         self,
         *,
         labels_path: Path | None = None,
         out_path: Path | None = None,
-    ) -> dict:
+    ) -> JoinTrainResult:
         from podcast_mcp.edits.join_labels import load_labels
         from podcast_mcp.edits.join_ranker import save_ranker, train_join_ranker
 
@@ -129,4 +130,4 @@ class _JoinAnalysis(WorkspaceService):
         model = train_join_ranker(labels)
         dest = out_path or (self.ws.project.artifacts_dir() / "join_ranker.json")
         save_ranker(model, dest)
-        return {"model": model.to_dict(), "path": str(dest), "n_labels": len(labels)}
+        return JoinTrainResult(model=model.to_dict(), path=str(dest), n_labels=len(labels))

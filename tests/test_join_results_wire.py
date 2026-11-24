@@ -272,6 +272,7 @@ def test_service_join_label_wire(ws):
     result = TimelineService(ws).join_label(
         track_id="host", join_sec=0.8, verdict="fail", note="n", timebase="timeline"
     )
+    result = result.model_dump()
     assert list(result) == RESULT_KEYS
     assert list(result["label"]) == LABEL_KEYS
     assert list(result["label"]["features"]) == ["risk", "detectors"]
@@ -294,6 +295,7 @@ def test_service_join_label_pinned_text(ws):
     result = TimelineService(ws).join_label(
         track_id="host", join_sec=0.8, verdict="pass", timebase="timeline"
     )
+    result = result.model_dump()
     text = json.dumps(_norm_result(result))
     assert text.startswith(
         '{"label": {"ts": "<ts>", "track_id": "host", "timebase": "timeline", "join_sec": 0.8, '
@@ -320,6 +322,7 @@ def test_service_join_label_pinned_text(ws):
 
 def test_service_join_label_default_timebase_is_source(ws):
     result = TimelineService(ws).join_label(track_id="host", join_sec=0.8, verdict="pass")
+    result = result.model_dump()
     assert result["label"]["timebase"] == "source"
     assert result["features"]["timebase"] == "source"
     assert result["features"]["mode"] == "existing_join"
@@ -330,6 +333,7 @@ def test_service_join_label_by_speaker(ws):
     result = TimelineService(ws).join_label(
         speaker="Host", join_sec=0.8, verdict="pass", timebase="timeline"
     )
+    result = result.model_dump()
     assert result["label"]["track_id"] == "host"
     assert json.dumps(_norm_result(result)) == json.dumps(
         _result(_label(join_sec=0.8, timebase="timeline", verdict="pass"), EXISTING)
@@ -340,6 +344,7 @@ def test_service_join_label_cut_range(ws):
     result = TimelineService(ws).join_label(
         track_id="host", join_sec=0.8, verdict="pass", cut_start=0.8, cut_end=1.2
     )
+    result = result.model_dump()
     assert list(result) == RESULT_KEYS
     assert list(result["features"]) == FEATURES_KEYS
     expected = _result(
@@ -353,6 +358,7 @@ def test_service_join_label_int_join_sec_is_float(ws):
     result = TimelineService(ws).join_label(
         track_id="host", join_sec=1, verdict="pass", timebase="timeline"
     )
+    result = result.model_dump()
     assert isinstance(result["label"]["join_sec"], float)
     assert json.dumps(result["label"]["join_sec"]) == "1.0"
     assert isinstance(result["features"]["join_sec"], float)
@@ -365,6 +371,7 @@ def test_service_join_label_play_true(ws):
         result = TimelineService(ws).join_label(
             track_id="host", join_sec=0.8, verdict="pass", timebase="timeline", play=True
         )
+        result = result.model_dump()
     assert list(result) == RESULT_KEYS
     assert result["played"] is True
     assert json.dumps(_norm_result(result)) == json.dumps(
@@ -487,6 +494,7 @@ def _ranker_path(ws: ProjectWorkspace) -> str:
 
 def test_service_join_train_without_labels(ws):
     result = TimelineService(ws).join_train()
+    result = result.model_dump()
     assert list(result) == TRAIN_KEYS
     assert list(result["model"]) == MODEL_KEYS
     assert json.dumps(result) == (
@@ -501,6 +509,7 @@ def test_service_join_train_after_one_label(ws):
     svc = TimelineService(ws)
     svc.join_label(track_id="host", join_sec=0.8, verdict="fail", timebase="timeline")
     result = svc.join_train()
+    result = result.model_dump()
     assert list(result) == TRAIN_KEYS
     assert json.dumps(result) == (
         f'{{"model": {TRAINED_MODEL_ONE}, "path": {json.dumps(_ranker_path(ws))}, "n_labels": 1}}'
@@ -512,6 +521,7 @@ def test_service_join_train_after_four_labels_feature_names(ws):
     for verdict in ("pass", "fail", "pass", "fail"):
         svc.join_label(track_id="host", join_sec=0.8, verdict=verdict, timebase="timeline")
     result = svc.join_train()
+    result = result.model_dump()
     assert list(result["model"]) == MODEL_KEYS
     assert result["n_labels"] == 4
     assert result["model"]["n_train"] == 4
@@ -538,6 +548,7 @@ def test_service_join_train_after_four_labels_feature_names(ws):
 def test_service_join_train_labels_file_and_out_path(ws, tmp_path):
     out = tmp_path / "ranker_out.json"
     result = TimelineService(ws).join_train(labels_path=_labels_file(tmp_path), out_path=out)
+    result = result.model_dump()
     assert list(result) == TRAIN_KEYS
     assert json.dumps(result) == (
         f'{{"model": {TRAINED_MODEL_FILE}, "path": {json.dumps(str(out))}, "n_labels": 4}}'
@@ -550,6 +561,7 @@ def test_service_join_train_labels_file_and_out_path(ws, tmp_path):
 def test_service_join_train_missing_labels_file(ws, tmp_path):
     out = tmp_path / "sub.json"
     result = TimelineService(ws).join_train(labels_path=tmp_path / "absent.jsonl", out_path=out)
+    result = result.model_dump()
     assert json.dumps(result) == (
         f'{{"model": {TRAINED_MODEL_NONE}, "path": {json.dumps(str(out))}, "n_labels": 0}}'
     )
@@ -557,6 +569,7 @@ def test_service_join_train_missing_labels_file(ws, tmp_path):
 
 def test_service_join_train_labels_file_default_out(ws, tmp_path):
     result = TimelineService(ws).join_train(labels_path=_labels_file(tmp_path))
+    result = result.model_dump()
     assert result["path"] == _ranker_path(ws)
     assert result["n_labels"] == 4
     assert json.dumps(result["model"]) == TRAINED_MODEL_FILE

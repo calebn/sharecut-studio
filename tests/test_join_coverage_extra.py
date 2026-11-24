@@ -349,10 +349,10 @@ def test_edit_join_label_and_train(minimal_project: Path, sample_wav: Path) -> N
         out = TimelineService(ws).join_label(
             track_id="host", join_sec=1.0, verdict="fail", note="t", play=False
         )
-    assert out["label"]["verdict"] == "fail"
+    assert out.label["verdict"] == "fail"
     trained = TimelineService(ws).join_train()
-    assert trained["n_labels"] >= 1
-    assert Path(trained["path"]).is_file()
+    assert trained.n_labels >= 1
+    assert Path(trained.path).is_file()
 
 
 def test_assess_existing_click_hires_path(minimal_project: Path, sample_wav: Path) -> None:

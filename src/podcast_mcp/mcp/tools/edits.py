@@ -334,7 +334,7 @@ def join_label_tool(
         cut_start=cut_start,
         cut_end=cut_end,
     )
-    return to_json(out)
+    return to_json(out.model_dump())
 
 
 def list_edit_decisions_tool(

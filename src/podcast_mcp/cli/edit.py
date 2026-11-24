@@ -567,7 +567,7 @@ def edit_join_label_cmd(
         note=note,
         play=play,
     )
-    typer.echo(json.dumps(out, indent=2))
+    typer.echo(json.dumps(out.model_dump(), indent=2))
 
 
 @edit_app.command("join-train")
@@ -578,7 +578,7 @@ def edit_join_train_cmd(
 ) -> None:
     ws = ProjectWorkspace.open(project)
     result = TimelineService(ws).join_train(labels_path=labels, out_path=out)
-    typer.echo(json.dumps(result, indent=2))
+    typer.echo(json.dumps(result.model_dump(), indent=2))
 
 
 @edit_app.command("strip-silence")
