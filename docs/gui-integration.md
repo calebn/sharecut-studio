@@ -455,7 +455,10 @@ with a permanent 4xx (400, 404, 409, 422 and the like), the status line and erro
 not saved and is back where it was (`pendingRetimeRefusal`, chosen by error code), and the edge returns to its saved place. The
 refusal is answered there, so it adds no Needs attention row (`refusalInline` on `updatePendingEdit`); a missing or damaged project file keeps its own blocking item. A project-level 400 or 404
 (`project_version_newer`, `project_version_unsupported`, `project_not_found`, `project_unreadable`) names that cause instead of
-"move the edge again". A 408 or 429 (retry later), a 5xx or a transport error with the save kept in the offline queue stays silent
+"move the edge again"; only the missing and damaged file cases also keep a Needs attention row, while `project_version_newer` and
+`project_version_unsupported` only announce (status line and toast, no row). A refusal because the range changed after the
+suggestion was made (`cut_scope_changed`) says it needs review again, and a 401, a 403 or a dead share link says the viewer can no
+longer change the edit and should sign in again or ask the host for access. A 408 or 429 (retry later), a 5xx or a transport error with the save kept in the offline queue stays silent
 and retries; the same failure when the save could not be kept says plainly that it could not be saved right now. None of these
 sentences contain the server's own text. The drag stays silent only when the project changed meanwhile. Keyboard nudges of a pending
 edit's bounds are not covered by this.
