@@ -217,7 +217,9 @@ LONG_FADE_SEC = 1.0
 
 def long_fade_reach_sec(project: EpisodeProject, edit: EditDecision) -> float | None:
     """The longest manual clip fade of ``LONG_FADE_SEC`` or more that ramps within its own length
-    of the cut on the edit's track, if any; the checks read that faded audio."""
+    of the cut on the edit's track, if any. Its ramp is not assessed as an effect of the cut
+    (``cut_effects``); a cut held for another reason names it, since the ramp is part of the
+    audio around the cut."""
     lo, hi = edit.start, edit.end
     on_timeline = edit.timebase == "timeline"
     longest = 0.0

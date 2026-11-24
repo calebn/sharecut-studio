@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from podcast_mcp.edits.cut_policy import (
     CutJoin,
 )
+from podcast_mcp.edits.cut_quality import LONG_FADE_SEC
 from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
 from podcast_mcp.engines.audio import GainRamp, MuteSampleEnvelope, PlacedSource, SourceAudio
 from podcast_mcp.engines.session_timeline import (
@@ -167,6 +168,8 @@ def completed_audio_effects(
                 (source.src_end, source.src_end, CutJoin.SPLICE, False, None),
             ]
             for ramp in leaf.ramps:
+                if _is_manual_long_fade(ramp, source):
+                    continue
                 local = replace(
                     ramp,
                     start=max(
@@ -236,6 +239,19 @@ def completed_audio_effects(
             ):
                 append(leaf, start, end, CutJoin.SPLICE, before_leaf=leaf)
     return tuple(effects)
+
+
+def _is_manual_long_fade(ramp: GainRamp, source: SourceAudio) -> bool:
+    """Whether ``ramp`` is the clip fade of ``LONG_FADE_SEC`` or more that its source was asked for.
+
+    A manual long fade is shaped over speech on purpose, so it is not a ramp a cut must find
+    in dead air. A cut inside or near it can still change the ramp: the render shortens a fade
+    to half its clip, so splitting the clip shortens it. That changed ramp is not a finding;
+    the cut's own removed span, assessed on the recording, is. The requested length decides,
+    not the shortened ramp, so a long fade a split cut short stays one.
+    """
+    requested = source.fade_in_sec if ramp.rising else source.fade_out_sec
+    return ramp.clip_fade and requested >= LONG_FADE_SEC
 
 
 def _same_envelope(
