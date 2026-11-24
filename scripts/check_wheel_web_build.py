@@ -4,7 +4,10 @@
 Checks that ``index.html`` and every ``./`` file it references sit under the
 packaged web root, that the runtime-loaded ``contracts/*.json`` ship as
 ``podcast_mcp/contracts`` and the default YAMLs as ``podcast_mcp/defaults`` (#1879).
-With ``--podcast``, also loads those contracts and defaults from the installed package,
+It also asserts the FOSS boundary on the built wheel: no ``podcast_online*`` entries, only
+``collaboration`` under ``podcast_mcp.extensions`` in ``entry_points.txt``, and the relay
+offline page's static files. With ``--podcast``, also starts the CLI, the MCP tools and the GUI
+app with ``podcast_online`` blocked, loads those contracts and defaults from the installed package,
 then starts that installed ``podcast gui`` and requires ``/`` to return the wheel's
 ``index.html`` and each asset to load.
 
@@ -15,6 +18,7 @@ then starts that installed ``podcast gui`` and requires ``/`` to return the whee
 from __future__ import annotations
 
 import argparse
+import configparser
 import re
 import subprocess
 import time
@@ -43,6 +47,43 @@ RUNTIME_CONTRACTS = (
     "timeline-zoom.json",
     "trim-edge-limits.json",
 )
+# podcast_relay/static files the relay's offline page serves (src/podcast_relay/offline.py).
+RELAY_STATIC = tuple(
+    f"podcast_relay/static/{name}" for name in ("brand-tokens.css", "offline.css", "offline.html")
+)
+EXTENSIONS_GROUP = "podcast_mcp.extensions"
+FOSS_EXTENSIONS = {"collaboration"}
+# Runs in the installed interpreter with the private provider made unimportable; ``None`` in
+# sys.modules makes ``import podcast_online`` raise ImportError, so any hard dependency fails.
+BLOCK_ONLINE_PROBE = """
+import sys
+sys.modules["podcast_online"] = None
+sys.argv = ["podcast", "--help"]
+import contextlib
+import io
+from podcast_mcp.cli.main import app
+with contextlib.redirect_stdout(io.StringIO()):
+    try:
+        app()
+    except SystemExit as exc:
+        assert exc.code in (0, None), exc.code
+import asyncio
+from mcp.client import Client
+from podcast_mcp.mcp.server import mcp
+from podcast_mcp.gui.server import create_app
+
+async def tool_names():
+    async with Client(mcp) as client:
+        return {tool.name for tool in (await client.list_tools()).tools}
+
+tools = asyncio.run(tool_names())
+assert len(tools) >= 10, sorted(tools)
+gui = create_app()
+assert gui.routes
+assert sys.modules["podcast_online"] is None
+print(f"podcast_online blocked: CLI starts, {len(tools)} MCP tools, GUI app has {len(gui.routes)} routes")
+"""
+
 _LOAD_CONTRACTS = """
 import sys
 from podcast_mcp.config import defaults as config
@@ -101,6 +142,47 @@ def wheel_defaults(wheel: Path) -> None:
     missing = [n for n in RUNTIME_DEFAULTS if f"{PACKAGED_DEFAULTS}/{n}" not in names]
     if missing:
         raise SystemExit(f"{wheel.name}: defaults missing {missing}")
+
+
+def wheel_boundary(wheel: Path) -> None:
+    """Require the FOSS boundary: no private provider, collaboration-only extensions, relay static."""
+    with zipfile.ZipFile(wheel) as archive:
+        names = set(archive.namelist())
+        entry_files = sorted(n for n in names if n.endswith(".dist-info/entry_points.txt"))
+        entry_points = archive.read(entry_files[0]).decode("utf-8") if entry_files else None
+    online = sorted(n for n in names if n.startswith("podcast_online"))
+    if online:
+        raise SystemExit(f"{wheel.name}: private podcast_online entries in the wheel: {online}")
+    if entry_points is None:
+        raise SystemExit(
+            f"{wheel.name}: no dist-info/entry_points.txt to read {EXTENSIONS_GROUP} from"
+        )
+    parser = configparser.ConfigParser(delimiters=("=",), interpolation=None)
+    parser.optionxform = str  # type: ignore[assignment,method-assign]
+    parser.read_string(entry_points)
+    declared = set(parser[EXTENSIONS_GROUP]) if parser.has_section(EXTENSIONS_GROUP) else set()
+    if declared != FOSS_EXTENSIONS:
+        raise SystemExit(
+            f"{wheel.name}: entry_points.txt [{EXTENSIONS_GROUP}] lists {sorted(declared)}, "
+            f"expected exactly {sorted(FOSS_EXTENSIONS)}"
+        )
+    missing = [n for n in RELAY_STATIC if n not in names]
+    if missing:
+        raise SystemExit(f"{wheel.name}: relay static files missing {missing}")
+
+
+def installed_without_online(podcast: Path) -> None:
+    """Start the CLI, MCP tools and GUI app in the installed package with ``podcast_online`` blocked."""
+    python = podcast.parent / "python"
+    result = subprocess.run(
+        [str(python), "-I", "-c", BLOCK_ONLINE_PROBE],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise SystemExit(f"installed package needs podcast_online:\n{result.stderr}")
+    print(result.stdout.strip())
 
 
 def installed_contracts(podcast: Path) -> None:
@@ -174,7 +256,13 @@ def main() -> None:
     )
     wheel_defaults(args.wheel)
     print(f"{args.wheel.name}: {len(RUNTIME_DEFAULTS)} default YAMLs under {PACKAGED_DEFAULTS}")
+    wheel_boundary(args.wheel)
+    print(
+        f"{args.wheel.name}: no podcast_online, only {sorted(FOSS_EXTENSIONS)} under "
+        f"{EXTENSIONS_GROUP}, {len(RELAY_STATIC)} relay static files"
+    )
     if args.podcast:
+        installed_without_online(args.podcast)
         installed_contracts(args.podcast)
         serve_check(args.podcast, args.port, index, refs)
 
