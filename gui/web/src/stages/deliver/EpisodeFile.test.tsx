@@ -101,17 +101,19 @@ it("keeps the file primary while an export runs again", () => {
   expect(screen.getByRole("button", { name: "Export again" })).toBeDisabled();
 });
 
-it("makes Download the primary after a browser export and downloads the main file", async () => {
+it("makes Download all the primary after a browser export and downloads the archive", async () => {
   const onStarted = vi.fn();
   renderAfter(DONE, "download", { onStarted });
-  const link = screen.getByRole("link", { name: /^Download main file/ });
+  const link = screen.getByRole("link", { name: /^Download all 3 files/ });
   expect(link).toHaveClass("primary");
-  expect(link).toHaveAttribute("download");
+  expect(link).toHaveAttribute("download", "field-notes-export.zip");
+  await userEvent.click(link);
+  expect(onStarted).toHaveBeenCalledTimes(1);
   expect(screen.getByRole("button", { name: "Export again" })).not.toHaveClass(
     "primary",
   );
   expect(
-    screen.getAllByRole("link", { name: /^Download / }).length,
+    screen.getAllByRole("link", { name: /^Download field-notes/ }).length,
   ).toBeGreaterThan(1);
 });
 

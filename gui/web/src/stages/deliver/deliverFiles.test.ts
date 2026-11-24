@@ -21,6 +21,7 @@ describe("filesOfKinds", () => {
       file("ep.chapters.json", "chapters"),
       file("ep.feed.xml", "feed"),
     ],
+    archive: null,
     access: "download",
     onReveal,
     onStarted,
@@ -51,17 +52,28 @@ describe("filesOfKinds", () => {
 
 describe("afterExportOf", () => {
   const stale = { ...file("old.mp3", "audio"), current: false };
+  const archive = { name: "ep-export.zip", count: 2, bytes: 9, href: "#all" };
   const source = (
     files: ExportedFile[],
     access: DeliverFiles["access"] = "reveal",
-  ): DeliverFiles => ({ files, access });
+  ): DeliverFiles => ({
+    files,
+    access,
+    archive: access === "download" ? archive : null,
+  });
 
-  it("offers the first current audio file once the export is finished", () => {
+  it("offers the first current audio file to reveal once the export is finished", () => {
     const got = afterExportOf(
       source([file("ep.srt", "transcript"), file("ep.mp3", "audio")]),
       true,
     );
-    expect(got?.file.id).toBe("ep.mp3");
+    expect(got).toMatchObject({ kind: "reveal", file: { id: "ep.mp3" } });
+  });
+
+  it("offers the archive to download, whatever audio the listing holds", () => {
+    const onStarted = vi.fn();
+    const got = afterExportOf({ ...source([], "download"), onStarted }, true);
+    expect(got).toEqual({ kind: "archive", archive, onStarted });
   });
 
   it("offers nothing before an export finishes or without files", () => {
@@ -71,19 +83,18 @@ describe("afterExportOf", () => {
     expect(afterExportOf(source([]), true)).toBeUndefined();
   });
 
-  it("skips stale audio and non-audio files", () => {
+  it("skips stale audio and non-audio files to reveal", () => {
     expect(
       afterExportOf(source([stale, file("ep.srt", "transcript")]), true),
     ).toBeUndefined();
   });
 
-  it("needs a link to download in a browser", () => {
-    const noLink = source([file("ep.mp3", "audio")], "download");
-    expect(afterExportOf(noLink, true)).toBeUndefined();
-    const linked = source(
-      [{ ...file("ep.mp3", "audio"), href: "#ep" }],
-      "download",
-    );
-    expect(afterExportOf(linked, true)?.access).toBe("download");
+  it("offers nothing to download when the server lists no archive", () => {
+    expect(
+      afterExportOf(
+        { ...source([file("ep.mp3", "audio")], "download"), archive: null },
+        true,
+      ),
+    ).toBeUndefined();
   });
 });

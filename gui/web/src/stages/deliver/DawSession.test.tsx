@@ -20,7 +20,7 @@ vi.mock("../../api", async (original) => ({
   ...(await original<typeof import("../../api")>()),
   cancelPipelineRun: vi.fn(),
 }));
-const files = { files: [], access: "download" } as const;
+const files = { files: [], archive: null, access: "download" } as const;
 const props = {
   projectPath: "/one",
   files,

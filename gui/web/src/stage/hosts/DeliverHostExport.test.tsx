@@ -537,6 +537,12 @@ describe("Export on the Deliver stage", () => {
         current: true,
       },
     ];
+    server.archive = {
+      name: "ep-export.zip",
+      count: 2,
+      bytes: 55_000_200,
+      ticket: "archive-ticket",
+    };
     render(<Host />);
     await pressExport();
     await act(async () => server.settle(EXPORT_FINISHED));
@@ -554,7 +560,12 @@ describe("Export on the Deliver stage", () => {
     expect(
       screen.queryByRole("button", { name: /Reveal|Show in folder/ }),
     ).toBeNull();
-    expect(screen.queryByText("Download all")).toBeNull();
+    const all = screen.getByRole("link", { name: /^Download all 2 files/ });
+    expect(all.getAttribute("href")).toBe(
+      `/api/export/archive?path=${encodeURIComponent(PATH)}&ticket=archive-ticket`,
+    );
+    expect(all.getAttribute("href")).not.toContain("token");
+    expect(all).toHaveClass("primary");
     expect(server.fileRequests).toContain(PATH);
   });
 

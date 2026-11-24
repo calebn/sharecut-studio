@@ -619,7 +619,9 @@ describe("what each part of the page shows", () => {
   });
 
   it("lists the files the folder holds, whatever the last export did", () => {
-    const none = setup({ files: { files: [], access: "download" } });
+    const none = setup({
+      files: { files: [], archive: null, access: "download" },
+    });
     expect(none.container.querySelector(".dv-files")).toBeNull();
     none.unmount();
     for (const exportState of [NEVER, DONE, FAILED]) {
@@ -795,9 +797,40 @@ describe("the primary button after an export", () => {
       files: exportedFilesOf(REQUEST, "download"),
     });
     expect(container.querySelectorAll(".primary")).toHaveLength(1);
+    const all = screen.getByRole("link", { name: /^Download all 3 files/ });
+    expect(all).toHaveClass("primary");
+    expect(all).toHaveAttribute("href", "#archive");
+    expect(all).toHaveAttribute("download", "field-notes-export.zip");
+  });
+
+  it("is Download all in a browser and Reveal in folder in the app", () => {
+    const browser = setup({
+      exportState: DONE,
+      files: exportedFilesOf(REQUEST, "download"),
+    });
     expect(
-      screen.getByRole("link", { name: /^Download main file/ }),
+      screen.getByRole("link", { name: /^Download all/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Reveal in folder" }),
+    ).toBeNull();
+    browser.unmount();
+    setup({ exportState: DONE, files: exportedFilesOf(REQUEST, "reveal") });
+    expect(
+      screen.getByRole("button", { name: "Reveal in folder" }),
     ).toHaveClass("primary");
+    expect(screen.queryByRole("link", { name: /^Download all/ })).toBeNull();
+  });
+
+  it("has no after-export primary in a browser when the server lists no archive", () => {
+    setup({
+      exportState: DONE,
+      files: { ...exportedFilesOf(REQUEST, "download"), archive: null },
+    });
+    expect(screen.getByRole("button", { name: /^Export/ })).toHaveClass(
+      "primary",
+    );
+    expect(screen.queryByRole("link", { name: /^Download all/ })).toBeNull();
   });
 });
 
@@ -2834,7 +2867,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoDownloadExport againmp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Chapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoDownload allExport againmp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Chapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: error": {
           "buttons": [],
@@ -3549,7 +3582,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Listen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveDownloadExport again0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Listen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveDownload allExport again0:00 / 52:001515AB",
         },
         "phone: error": {
           "buttons": [],

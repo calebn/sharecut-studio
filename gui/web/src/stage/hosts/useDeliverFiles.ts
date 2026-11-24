@@ -48,13 +48,14 @@ export function useDeliverFiles(
   reload: () => void;
 } {
   const { access } = options;
-  const { files, load, currentLoad, reload } = useExportedFiles(
+  const { files, archive, load, currentLoad, reload } = useExportedFiles(
     projectPath,
     options,
   );
   return useMemo(
     () => ({
       files,
+      archive,
       load,
       currentLoad,
       reload,
@@ -93,7 +94,7 @@ export function useDeliverFiles(
           .finally(stop);
       },
     }),
-    [files, load, currentLoad, reload, access, projectPath],
+    [files, archive, load, currentLoad, reload, access, projectPath],
   );
 }
 
