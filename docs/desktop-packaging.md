@@ -500,10 +500,11 @@ void     sc_ffmpeg_cancel(int64_t session);
   a program.
 - **Linking.** The app target's existing `settings: base:` block in
   `gui/desktop/src-tauri/ios/project.yml` carries `OTHER_LDFLAGS: ["$(inherited)",
-  "-Wl,-export_dynamic"]`, which makes the globals of the app executable itself visible to
-  `dlsym`, and so to `CDLL(None)`. The four `sc_ffmpeg_*` names are not in the app executable. They
-  come from `FFmpeg.framework`, which is linked with `-exported_symbols_list` naming exactly those
-  four (`scripts/ios/build_ffmpeg.sh`), so the framework exports nothing else: `sc_out`, `sc_err`
+  "-Wl,-export_dynamic"]`. For ld64 that flag keeps the global symbols of the app executable
+  itself from being removed (dead-stripping and LTO); it does not name the framework's symbols.
+  The four `sc_ffmpeg_*` names are not in the app executable. They come from `FFmpeg.framework`,
+  which is linked with `-exported_symbols_list` naming exactly those four
+  (`scripts/ios/build_ffmpeg.sh`), so the framework exports nothing else: `sc_out`, `sc_err`
   and `sc_tool_exit` are hidden by construction, and `bundle_checks.check_ffmpeg_framework` fails
   on any extra export. Do not add a second `settings:` key to that target: YAML silently keeps
   only the last.
