@@ -180,9 +180,9 @@ def kit_offer_cmd(
         typer.echo(
             f"  {kit['id']}  v{kit['version']}  {len(kit['entries'])} segments  {kit['name']}"
         )
-    for kit in report["unusable"]:
-        count = kit["missing"]
+    for bad in report["unusable"]:
+        count = bad["missing"]
         typer.echo(
-            f"  {kit['id']}  v{kit['version']}  UNUSABLE  {count} "
-            f"{'segment' if count == 1 else 'segments'}  {kit['problem']}"
+            f"  {bad['id']}  v{bad['version']}  UNUSABLE  {count} "
+            f"{'segment' if count == 1 else 'segments'}  {bad['problem']}"
         )
