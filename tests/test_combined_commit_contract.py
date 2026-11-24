@@ -58,6 +58,7 @@ from pause_policy_public_helpers import defaults as pause_defaults
 from podcast_mcp.edits.range_edits import RangeAction
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.engines.play_audit import write_stem_hash
+from podcast_mcp.engines.speaker_id import SpeakerProfile, WindowScore
 from podcast_mcp.models import (
     ArchivedTranscriptWord,
     Clip,
@@ -67,6 +68,8 @@ from podcast_mcp.models import (
     ProcessingChain,
     ProcessingEffect,
 )
+from podcast_mcp.project.transcript_context import SpeakerIdConfig as CtxSpeakerIdConfig
+from podcast_mcp.project.transcript_context import TranscriptContext
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     AnalysisService,
@@ -79,6 +82,7 @@ from podcast_mcp.services.document.boundary import (
     TrimBoundaryTarget,
     boundary_context,
 )
+from podcast_mcp.services.media import SpeakerService
 
 Command = Callable[[ProjectWorkspace], Any]
 
@@ -101,6 +105,8 @@ class Case:
     """False when the command works on a project with no transcripts at all."""
     arrange: Callable[[EpisodeProject], None] | None = None
     """Reshapes the entry project before it is saved."""
+    prepare: Command | None = None
+    """A command that runs first, so there is something for this one to undo."""
     configure: Callable[[pytest.MonkeyPatch], None] | None = None
     """Sets the run's pipeline defaults, for a command that reads them."""
 
@@ -301,6 +307,16 @@ def _gate_host_with_fresh_stem(ws: ProjectWorkspace) -> Any:
     return ws.mutate("before gate", "after gate", gate)
 
 
+def _cut_welcome(ws: ProjectWorkspace) -> Any:
+    return EditService(ws).cut_range(
+        3.0, 4.0, mode=EditMode.RIPPLE, track_ids=["host"], use_inaudible_opt=False
+    )
+
+
+def _revert_last_cut(ws: ProjectWorkspace) -> Any:
+    return EditService(ws).revert_applied([ws.project.editorial.edit_log[-1].id])
+
+
 TIMELINE_CASES = [
     Case(
         "ripple_delete_words",
@@ -369,6 +385,7 @@ TIMELINE_CASES = [
         quirk="h1",
         words=False,
     ),
+    Case("revert_applied_cut", _revert_last_cut, FRESH_TEXTS, prepare=_cut_welcome),
     Case(
         "selected_range_cut",
         _selected_range("cut"),
@@ -400,6 +417,69 @@ TIMELINE_CASES = [
     Case("roll_clip_join", _roll, FRESH_TEXTS, quirk="h1", words=False, arrange=_split_host),
 ]
 
+
+def _speaker_seams(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Score every host window as the guest's voice, so speaker id labels and suppresses it.
+
+    The scorer, the stored profiles and the speech regions are the model-backed inputs. The
+    rest of speaker id (word updates and the combined rebuild) runs for real.
+    """
+
+    def score(project, track_id, start, end, cfg, backend, **_kwargs):
+        owner = "guest" if track_id == "host" else track_id
+        return WindowScore(
+            track_id=track_id,
+            start_sec=start,
+            end_sec=end,
+            scores={"host": 0.1, "guest": 0.9},
+            best_track_id=owner,
+            best_identity=owner,
+            margin=0.8,
+        )
+
+    def profile(track_id: str) -> SpeakerProfile:
+        return SpeakerProfile(
+            speaker_id=track_id,
+            track_id=track_id,
+            embedding=[1.0 if track_id == "host" else 0.0, 0.0 if track_id == "host" else 1.0],
+            enrollment_sec=30.0,
+            stem_hash="contract",
+            home_track_id=track_id,
+        )
+
+    profiles = {tid: profile(tid) for tid in ("host", "guest")}
+    context = TranscriptContext(speaker_id=CtxSpeakerIdConfig(min_margin=0.1, auto_suppress=True))
+    engine = "podcast_mcp.engines.speaker_id"
+    monkeypatch.setattr(f"{engine}.score_window", score)
+    monkeypatch.setattr(f"{engine}.load_all_profiles", lambda _project: profiles)
+    monkeypatch.setattr(f"{engine}.enroll_track", lambda _p, tid, *_a, **_k: profiles[tid])
+    monkeypatch.setattr(f"{engine}._speech_regions", lambda _p, tid: [(0.0, 1.5)] * (tid == "host"))
+    monkeypatch.setattr(
+        "podcast_mcp.services.media.speaker.load_transcript_context", lambda _p: context
+    )
+
+
+def _host_friend_is_bleed(project: EpisodeProject) -> None:
+    host = project.transcripts[0]
+    host.words[2] = host.words[2].model_copy(update={"audibility_status": "bleed"})
+
+
+SPEAKER_CASES = [
+    Case(
+        "speaker_home_gate",
+        lambda ws: SpeakerService(ws).gate_track(track_id="host", dry_run=False),
+        ("welcome back", "thanks for having me"),
+        configure=_speaker_seams,
+    ),
+    Case(
+        "speaker_attribute_bleed_windows",
+        lambda ws: SpeakerService(ws).attribute(dry_run=False),
+        ("hello there", "welcome back", "thanks for having me"),
+        arrange=_host_friend_is_bleed,
+        configure=_speaker_seams,
+    ),
+]
+
 RECONCILE_CASES = [
     Case(
         "reconcile_transcript_on_silent_media",
@@ -414,7 +494,7 @@ RECONCILE_CASES = [
     ),
 ]
 
-ALL_CASES = [*WORD_CASES, *TIMELINE_CASES, *RECONCILE_CASES]
+ALL_CASES = [*WORD_CASES, *TIMELINE_CASES, *RECONCILE_CASES, *SPEAKER_CASES]
 
 
 def _params(cases: list[Case]) -> list[Any]:
@@ -426,7 +506,14 @@ def _run(
 ) -> Observed:
     if case.configure is not None:
         case.configure(monkeypatch)
-    ws = open_workspace(tmp_path / "ep", wav, state, with_words=case.words, arrange=case.arrange)
+    ws = open_workspace(
+        tmp_path / "ep",
+        wav,
+        state,
+        with_words=case.words,
+        arrange=case.arrange,
+        prepare=case.prepare,
+    )
     return observe(ws, case.run)
 
 
@@ -470,3 +557,23 @@ def test_combined_after_command(
 ) -> None:
     seen = _run(case, state, tmp_path, ten_second_silence_wav, monkeypatch)
     assert_contract(case, state, seen)
+
+
+@pytest.mark.parametrize("state", list(State), ids=lambda state: f"{state}-rebuilt-in-memory-only")
+def test_speaker_label_window_rebuilds_memory_and_saves_nothing(
+    state: State, tmp_path: Path, ten_second_silence_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``SpeakerService.label`` changes words without ``ws.mutate``, so no commit lands.
+
+    The window's words are updated and combined is rebuilt on the open project only: the
+    saved file, ``combined.json`` and history keep what they held on entry.
+    """
+    _speaker_seams(monkeypatch)
+    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, state)
+    seen = observe(ws, lambda w: SpeakerService(w).label("host", 0.0, 1.5, dry_run=False))
+    assert texts(seen.memory) == ("welcome back", "thanks for having me")
+    assert seen.memory == seen.expected_rebuilt
+    assert not seen.moved
+    assert seen.saved == seen.entry
+    assert seen.snapshot == seen.entry
+    assert seen.combined_json == seen.entry_json
