@@ -81,6 +81,7 @@ EDIT_KEYS = [
     "exact_range",
     "proposal_origin",
     "boundary_intent",
+    "bound_pad",
 ]
 CLIP_BY_TRACK_ID = (
     '{"operation": "split_clips_at", "affected_tracks": ["host"], "clip_count": 3, '
@@ -182,7 +183,7 @@ AT_PROPOSE_DEFAULTS = (
     '"next_burst_sec": null, "scope": "session", "cut_speech": null, '
     '"track_ids": ["host", "guest"], "timebase": "timeline", "source_id": null, '
     '"source_timeline_span": null, "exact_range": null, '
-    '"proposal_origin": "programmatic", "boundary_intent": "programmatic"}, '
+    '"proposal_origin": "programmatic", "boundary_intent": "programmatic", "bound_pad": null}, '
     '"edits": [{"id": "split_00000001", "track_id": "host", "type": "split", '
     '"start": 0.5, "end": 0.5, "crossfade_ms": 0, "reason": "guest:suggest_split", '
     '"author": null, "review_required": true, "applied": false, '
@@ -190,7 +191,7 @@ AT_PROPOSE_DEFAULTS = (
     '"replace_gap_sec": null, "next_burst_sec": null, "scope": "session", '
     '"cut_speech": null, "track_ids": ["host", "guest"], "timebase": "timeline", '
     '"source_id": null, "source_timeline_span": null, "exact_range": null, '
-    '"proposal_origin": "programmatic", "boundary_intent": "programmatic"}]}'
+    '"proposal_origin": "programmatic", "boundary_intent": "programmatic", "bound_pad": null}]}'
 )
 AT_PROPOSE_REASON_AUTHOR_EXTRA = (
     '{"operation": "propose_split", "edit": {"id": "split_00000001", '
@@ -200,7 +201,7 @@ AT_PROPOSE_REASON_AUTHOR_EXTRA = (
     '"replace_gap_sec": null, "next_burst_sec": null, "scope": "session", '
     '"cut_speech": null, "track_ids": ["host"], "timebase": "timeline", '
     '"source_id": null, "source_timeline_span": null, "exact_range": null, '
-    '"proposal_origin": "programmatic", "boundary_intent": "programmatic"}, '
+    '"proposal_origin": "programmatic", "boundary_intent": "programmatic", "bound_pad": null}, '
     '"edits": [{"id": "split_00000001", "track_id": "host", "type": "split", '
     '"start": 0.5, "end": 0.5, "crossfade_ms": 0, "reason": "why", '
     '"author": "bob", "review_required": true, "applied": false, '
@@ -208,7 +209,7 @@ AT_PROPOSE_REASON_AUTHOR_EXTRA = (
     '"replace_gap_sec": null, "next_burst_sec": null, "scope": "session", '
     '"cut_speech": null, "track_ids": ["host"], "timebase": "timeline", '
     '"source_id": null, "source_timeline_span": null, "exact_range": null, '
-    '"proposal_origin": "programmatic", "boundary_intent": "programmatic"}, '
+    '"proposal_origin": "programmatic", "boundary_intent": "programmatic", "bound_pad": null}, '
     '{"id": "split_00000002", "track_id": "host", "type": "split", "start": 1.5, '
     '"end": 1.5, "crossfade_ms": 0, "reason": "why", "author": "bob", '
     '"review_required": true, "applied": false, "cut_confidence": null, '
@@ -216,7 +217,7 @@ AT_PROPOSE_REASON_AUTHOR_EXTRA = (
     '"next_burst_sec": null, "scope": "session", "cut_speech": null, '
     '"track_ids": ["host"], "timebase": "timeline", "source_id": null, '
     '"source_timeline_span": null, "exact_range": null, '
-    '"proposal_origin": "programmatic", "boundary_intent": "programmatic"}]}'
+    '"proposal_origin": "programmatic", "boundary_intent": "programmatic", "bound_pad": null}]}'
 )
 
 
