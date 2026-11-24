@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Generator, Mapping
 from dataclasses import asdict
 from typing import Any
@@ -152,10 +153,11 @@ class _ArchiveResponse(StreamingResponse):
 
 
 def _attachment(name: str) -> str:
-    quoted = quote(name)
-    if quoted != name:
-        return f"attachment; filename*=utf-8''{quoted}"
-    return f'attachment; filename="{name}"'
+    fallback = re.sub(r'[^\x20-\x7e]|["\\]', "_", name)
+    header = f'attachment; filename="{fallback}"'
+    if fallback != name:
+        header += f"; filename*=utf-8''{quote(name)}"
+    return header
 
 
 def download_export_archive(
