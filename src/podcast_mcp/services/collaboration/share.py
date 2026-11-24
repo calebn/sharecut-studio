@@ -16,6 +16,7 @@ from typing import Any, TypedDict
 
 from filelock import Timeout
 
+from podcast_mcp.config.runtime import ready_relay_config
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.pending_preview import DEFAULT_PAD_SEC, PendingPreviewSpan
 from podcast_mcp.engines.play_audit import premix_path
@@ -104,6 +105,16 @@ from podcast_mcp.util.project_state import (
 log = logging.getLogger(__name__)
 _REFUSED_ADOPTIONS: set[Path] = set()
 _REFUSED_VERSIONS: set[tuple[str, str]] = set()
+
+
+def online_sharing_warnings() -> list[dict[str, str]]:
+    """A mint warning when guests could not reach a link yet; never raises, and never blocks the mint."""
+    try:
+        ready = ready_relay_config() is not None
+    except Exception:
+        log.debug("online sharing check failed; skipping warning", exc_info=True)
+        return []
+    return [] if ready else [{"code": "online_sharing_not_set_up"}]
 
 
 def _missing_version_refusal(row: dict[str, Any], version_id: str) -> CodedKeyError:
@@ -352,7 +363,7 @@ class ShareService:
             public_base_url=public_base_url,
             version_label=ver.label,
         )
-        warnings = self._object_store_warnings(row, public_base_url)
+        warnings = [*self._object_store_warnings(row, public_base_url), *online_sharing_warnings()]
         if warnings:
             presented["warnings"] = warnings
         return presented
@@ -549,11 +560,14 @@ class ShareService:
                 session_id=session_id,
             )
             register_share_globally(row)
-        return present_share(
+        presented = present_share(
             row,
             public_base_url=public_base_url,
             invite_closed=False,
         )
+        if warnings := online_sharing_warnings():
+            presented["warnings"] = warnings
+        return presented
 
     def replace_closed_record_invite(
         self,
