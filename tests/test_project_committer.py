@@ -16,12 +16,7 @@ _STORE_CTOR = re.compile(r"\bProjectStore\(")
 _COMMITTERS = {"services/app/workspace.py"}
 
 # Each of these still builds its own ProjectStore and moves in a later slice.
-_STORE_CTOR_OUT_OF_SCOPE = {
-    "project/io.py",
-    "pipeline/steps.py",
-    "services/record/service.py",
-    "services/media/transcript_precorrect.py",
-}
+_STORE_CTOR_OUT_OF_SCOPE = {"project/io.py", "services/record/service.py"}
 
 
 def _sources(pattern: re.Pattern[str]) -> set[str]:
