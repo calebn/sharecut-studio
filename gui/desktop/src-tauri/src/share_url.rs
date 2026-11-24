@@ -486,7 +486,9 @@ mod tests {
     #[test]
     fn rejects_other_schemes_and_hosts() {
         assert!(!is_allowed_share_url("http://evil.example/"));
-        assert!(!is_allowed_share_url("https://other.example.test/r/witty-red-rabbit"));
+        assert!(!is_allowed_share_url(
+            "https://other.example.test/r/witty-red-rabbit"
+        ));
         assert!(!is_allowed_share_url("https://example.com/r/x"));
         assert!(!is_allowed_share_url("file:///etc/passwd"));
         assert!(!is_allowed_share_url("javascript:alert(1)"));
