@@ -8,22 +8,23 @@ import {
 import {
   chromeBoxes,
   expectHitTestable,
+  selectionBar,
   settle,
   suggestOnFirstDialogueTrack,
 } from "../e2e/pendingActionbar";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { inspectSelectionByKey, openProject } from "../e2e/stageNav";
+import { openProject } from "../e2e/stageNav";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 import { save } from "../e2e/touchTimeline";
 
 const CLIENT_ID = "e2e-actionbar-ruler";
-type Outcome = "docked" | "floating" | "inline";
+type Outcome = "docked" | "floating" | "cramped";
 
 /**
- * Where the review actions end up: docked in the compact sheet on the phone;
- * floating between the sticky ruler and the bottom panel; or, when the card
- * cannot fit between ruler and panel, left to the inspector's inline controls.
+ * Where the review actions end up: docked above the compact sheet on the phone;
+ * floating between the sticky ruler and the bottom panel; or, when the screen
+ * is too short for both, floating over the panel with the verbs still reachable.
  */
 const VIEWPORTS: Record<
   string,
@@ -41,7 +42,7 @@ const VIEWPORTS: Record<
   "desktop-1195": { width: 1195, height: 820, outcome: "floating" },
   "desktop-360": { width: 1280, height: 360, outcome: "floating" },
   "desktop-500": { width: 1280, height: 500, outcome: "floating" },
-  "desktop-short": { width: 1280, height: 220, outcome: "inline" },
+  "desktop-short": { width: 1280, height: 220, outcome: "cramped" },
 };
 
 let projectPath: string;
@@ -103,10 +104,9 @@ async function expectCardOutcome(
     .click({
       position: { x: 4, y: 4 },
     });
-  if (outcome !== "floating") await inspectSelectionByKey(page);
-  const bar = page.locator(".pending-actionbar");
-  await expect(bar).toBeAttached();
-  if (outcome !== "inline")
+  const bar = selectionBar(page);
+  await expect(bar).toBeVisible();
+  if (outcome !== "cramped")
     await page.locator(".timeline-scroll").evaluate((el) => {
       el.scrollTop = el.scrollHeight;
     });
@@ -114,39 +114,26 @@ async function expectCardOutcome(
   save(info, `${browserName}-${name}-${theme}.png`, await page.screenshot());
 
   if (outcome === "docked") {
-    await expect(bar).toHaveClass(/pending-actionbar--docked/);
-    expect(
-      await bar.evaluate((el) => ({
-        inspectorSheet: el.closest(".sys-inspector") !== null,
-        phoneSheet: el.closest(".sys-inspector--phone") !== null,
-      })),
-    ).toEqual({ inspectorSheet: true, phoneSheet: true });
-    await expectHitTestable(bar.getByRole("button", { name: "Approve" }));
-    await expectHitTestable(bar.getByRole("button", { name: "Reject" }));
-    return;
+    await expect(bar).toHaveClass(/sys-actions--dock/);
+  } else {
+    await expect(bar).toHaveClass(/sys-actions--floating/);
+    const { top, bottom } = await bar.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    });
+    const { ruler, marker, panel } = await chromeBoxes(page);
+    expect(top).toBeGreaterThanOrEqual(
+      Math.max(ruler.bottom, marker.bottom) - 0.5,
+    );
+    if (outcome === "floating")
+      expect(bottom).toBeLessThanOrEqual(panel.top + 0.5);
   }
-  await expect(bar).not.toHaveClass(/pending-actionbar--docked/);
-  if (outcome === "inline") {
-    await expect(bar).toBeHidden();
-    for (const name of ["Approve", "Reject"]) {
-      const button = page.getByRole("button", { name });
-      await button.scrollIntoViewIfNeeded();
-      await expectHitTestable(button);
-    }
-    return;
-  }
-  await expect(bar).toBeVisible();
-  const { top, bottom } = await bar.evaluate((el) => {
-    const rect = el.getBoundingClientRect();
-    return { top: rect.top, bottom: rect.bottom };
-  });
-  const { ruler, marker, panel } = await chromeBoxes(page);
-  expect(top).toBeGreaterThanOrEqual(
-    Math.max(ruler.bottom, marker.bottom) - 0.5,
+  await expectHitTestable(
+    bar.getByRole("button", { name: "Approve", exact: true }),
   );
-  expect(bottom).toBeLessThanOrEqual(panel.top + 0.5);
-  await expectHitTestable(bar.getByRole("button", { name: "Approve" }));
-  await expectHitTestable(bar.getByRole("button", { name: "Reject" }));
+  await expectHitTestable(
+    bar.getByRole("button", { name: "Reject", exact: true }),
+  );
 }
 
 const appearances = new Map(
@@ -156,21 +143,11 @@ const appearances = new Map(
   ]),
 );
 
-function named(outcome: Outcome): string[] {
-  return Object.keys(VIEWPORTS).filter(
-    (name) => VIEWPORTS[name].outcome === outcome,
-  );
-}
-
 function run(name: string) {
   return async (
     { page, browserName }: { page: Page; browserName: string },
     info: TestInfo,
   ) => {
-    test.fixme(
-      true,
-      "The pending edit's Approve and Reject moved to the Action bar on the Edit stage; this overlay-bar case is replaced when slice 3 of #4337 removes the bar.",
-    );
     await expectCardOutcome(
       { page, browserName },
       info,
@@ -180,18 +157,11 @@ function run(name: string) {
   };
 }
 
-for (const name of named("docked")) {
+for (const name of Object.keys(VIEWPORTS)) {
   test.describe(`pending actions at ${name}`, () => {
-    test("docks in the inspector sheet", run(name));
-  });
-}
-for (const name of named("floating")) {
-  test.describe(`pending actions at ${name}`, () => {
-    test("floats between the ruler and the bottom panel", run(name));
-  });
-}
-for (const name of named("inline")) {
-  test.describe(`pending actions at ${name}`, () => {
-    test("leaves Approve and Reject to the inspector", run(name));
+    test(
+      "the Action bar keeps Approve and Reject reachable beside the selection",
+      run(name),
+    );
   });
 }

@@ -60,7 +60,7 @@ async function openWithSuggestion(page: Page): Promise<void> {
     .locator("[data-pending-id]")
     .last()
     .click({ position: { x: 4, y: 4 } });
-  await expect(page.locator(".pending-actionbar")).toBeVisible();
+  await expect(actionBar(page)).toBeVisible();
 }
 
 async function boxOf(locator: Locator): Promise<Box> {
@@ -70,8 +70,13 @@ async function boxOf(locator: Locator): Promise<Box> {
   });
 }
 
+const actionBar = (page: Page): Locator =>
+  page.locator(".sys-actions--floating");
+const verb = (page: Page, name: "Approve" | "Reject"): Locator =>
+  actionBar(page).getByRole("button", { name, exact: true });
+
 async function cardTop(page: Page): Promise<number> {
-  return (await boxOf(page.locator(".pending-actionbar"))).top;
+  return (await boxOf(actionBar(page))).top;
 }
 
 async function wheelInspectorToward(page: Page, button: Locator) {
@@ -285,13 +290,9 @@ async function wheelInspectorToward(page: Page, button: Locator) {
   }
 }
 
-test("pending card: a marker added while it floats leaves the one-row lane where it was and the card clear of it", async ({
+test("Action bar: a marker added while it floats leaves the one-row lane where it was and the bar clear of it", async ({
   page,
 }) => {
-  test.fixme(
-    true,
-    "The pending edit's Approve and Reject moved to the Action bar on the Edit stage; this overlay-bar case is replaced when slice 3 of #4337 removes the bar.",
-  );
   test.setTimeout(40_000);
   await page.setViewportSize({ width: 1280, height: 540 });
   await openWithSuggestion(page);
@@ -324,7 +325,7 @@ test("pending card: a marker added while it floats leaves the one-row lane where
   await expect
     .poll(async () => {
       const { ruler, marker } = await chromeBoxes(page);
-      const card = await boxOf(page.locator(".pending-actionbar"));
+      const card = await boxOf(actionBar(page));
       const region = await boxOf(page.locator(".pending-overlay.selected"));
       return {
         belowChrome: card.top >= Math.max(ruler.bottom, marker.bottom) - 0.5,
@@ -335,13 +336,9 @@ test("pending card: a marker added while it floats leaves the one-row lane where
     .toEqual({ belowChrome: true, clearOfRegion: true });
 });
 
-test("pending review: inline Approve and Reject stay reachable after 720 to 360 to 260", async ({
+test("Action bar: Approve and Reject stay reachable after 720 to 360 to 260", async ({
   page,
 }) => {
-  test.fixme(
-    true,
-    "The pending edit's Approve and Reject moved to the Action bar on the Edit stage; this overlay-bar case is replaced when slice 3 of #4337 removes the bar.",
-  );
   test.setTimeout(60_000);
   await page.route("**/api/document/command**", async (route) => {
     const body: unknown = route.request().postDataJSON();
@@ -363,31 +360,15 @@ test("pending review: inline Approve and Reject stay reachable after 720 to 360 
   });
   await page.setViewportSize({ width: 1280, height: 720 });
   await openWithSuggestion(page);
-  await page
-    .locator(".pending-actionbar")
-    .getByRole("button", { name: "Approve", exact: true })
-    .click();
-  const refusal = page.getByRole("alert").first();
-  await expect(refusal).toBeVisible();
-  await expect(refusal).toHaveText(
-    "The transcript isn't checked yet. Cut anyway, or check it first.",
-  );
-  await expect(
-    page
-      .locator(".pending-actionbar")
-      .getByRole("button", { name: "Cut anyway", exact: true }),
-  ).toBeVisible();
+  await verb(page, "Approve").click();
+  const refusal = page.getByRole("region", { name: "Status messages" });
+  await expect(refusal).toContainText(/transcript isn.t checked yet/i);
 
   await page.setViewportSize({ width: 1280, height: 360 });
   await settle(page);
-  const floating = page.locator(".pending-actionbar");
-  await expect(floating).toBeVisible();
-  await expectHitTestable(
-    floating.getByRole("button", { name: "Approve", exact: true }),
-  );
-  await expectHitTestable(
-    floating.getByRole("button", { name: "Reject", exact: true }),
-  );
+  await expect(actionBar(page)).toBeVisible();
+  await expectHitTestable(verb(page, "Approve"));
+  await expectHitTestable(verb(page, "Reject"));
 
   await page.setViewportSize({ width: 1280, height: 260 });
   await settle(page);
