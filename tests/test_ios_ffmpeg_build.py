@@ -141,16 +141,16 @@ def configure_probe(tmp_path: Path):
     for name in ("lame", "opus", "ffmpeg"):
         pinned = recipe["sources"][name]
         archive = source / pinned["archive"]
-        archive.write_bytes(name.encode())
-        pinned["sha256"] = sha256(archive)
-        directory = source / pinned["directory"]
-        directory.mkdir()
-        configure = directory / "configure"
+        configure = tmp_path / f"{name}-configure"
         configure.write_text(
             "#!/bin/bash\nprintf '%s\\n' \"$@\"\n" + ("exit 37\n" if name == "ffmpeg" else ""),
             encoding="utf-8",
         )
         configure.chmod(0o755)
+        mode = "w:xz" if archive.suffix == ".xz" else "w:gz"
+        with tarfile.open(archive, mode) as tar:
+            tar.add(configure, arcname=f"{pinned['directory']}/configure")
+        pinned["sha256"] = sha256(archive)
 
     stubs = tmp_path / "tools.sh"
     stubs.write_text(
@@ -177,6 +177,7 @@ def configure_probe(tmp_path: Path):
         }
         return done, logs
 
+    run.source = source
     return recipe, run
 
 
@@ -220,6 +221,39 @@ def test_build_passes_each_pinned_option_as_one_argument(configure_probe) -> Non
         flags = recipe[f"{name}_configure"]
         first = args.index(flags[0])
         assert args[first : first + len(flags)] == flags
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX shell")
+def test_build_replaces_a_pre_existing_source_directory(configure_probe) -> None:
+    recipe, run = configure_probe
+    stale = run.source / recipe["sources"]["lame"]["directory"]
+    stale.mkdir()
+    (stale / "sentinel").write_text("stale", encoding="utf-8")
+
+    done, logs = run()
+
+    assert done.returncode == 37, done.stderr
+    assert not (stale / "sentinel").exists()
+    assert (stale / "configure").is_file()
+    assert set(logs) == {"lame", "opus", "ffmpeg"}
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX shell")
+@pytest.mark.parametrize("pinned", ["", "/", "a/b", ".", ".."])
+def test_build_rejects_a_source_directory_pin_that_is_not_one_path_component(
+    configure_probe, pinned
+) -> None:
+    recipe, run = configure_probe
+    keep = run.source / "keep"
+    keep.write_text("keep", encoding="utf-8")
+    recipe["sources"]["opus"]["directory"] = pinned
+
+    done, logs = run()
+
+    assert done.returncode != 0
+    assert logs == {}, f"configure ran for {', '.join(logs)}"
+    assert keep.read_text(encoding="utf-8") == "keep"
+    assert (run.source / recipe["sources"]["opus"]["archive"]).is_file()
 
 
 SCRIPT_FRAGMENTS = [
