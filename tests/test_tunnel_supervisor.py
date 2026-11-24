@@ -255,11 +255,14 @@ async def test_a_failed_share_read_leaves_the_advertisement_alone(
     async with supervisor.running():
         await until(lambda: len(rig.clients) == 1 and rig.clients[0].runs == 1)
 
+        reads: list[None] = []
+
         def unreadable(_episode: Any) -> frozenset[str]:
+            reads.append(None)
             raise OSError("database is locked")
 
         monkeypatch.setattr(sup, "usable_share_tokens", unreadable)
-        await asyncio.sleep(0.2)
+        await until(lambda: len(reads) >= 3)
 
         assert rig.clients[0].readvertised == []
         assert isinstance(supervisor.plan, Serve)
