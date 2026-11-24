@@ -210,14 +210,6 @@ class Observed:
     redo_json: dict[str, Any] | None = None
     result: Any = field(default=None, repr=False)
 
-    def outcome(self) -> Outcome:
-        """Classify ``memory``; every other place is asserted against the same value."""
-        if self.memory == self.expected_rebuilt and self.memory != self.entry:
-            return Outcome.REBUILT
-        if self.memory == self.entry:
-            return Outcome.UNTOUCHED if self.memory != self.expected_rebuilt else Outcome.REBUILT
-        raise AssertionError(f"neither rebuilt nor untouched: {self.memory!r}")
-
 
 def observe(
     ws: ProjectWorkspace, command: Callable[[ProjectWorkspace], Any], *, undo_redo: bool = True
@@ -286,13 +278,21 @@ class Case:
     """A command that runs first, so there is something for this one to undo."""
     configure: Callable[[pytest.MonkeyPatch], None] | None = None
     """Sets the run's pipeline defaults, for a command that reads them."""
+    s2_changes: tuple[State, ...] = ()
+    s3_changes: bool = False
 
     def outcome(self, state: State) -> Outcome:
         return {State.FRESH: self.fresh, State.STALE: self.stale, State.NONE: self.none}[state]
 
     def id_for(self, state: State) -> str:
-        quirk = f"-{self.quirk}" if self.quirk and self.outcome(state) is not self.fresh else ""
-        return f"{self.name}-{state}-{self.outcome(state)}{quirk}"
+        parts = [self.name, str(state), str(self.outcome(state))]
+        if self.quirk:
+            parts.append(self.quirk)
+        if state in self.s2_changes:
+            parts.append("s2-changes")
+        if self.s3_changes and state is State.NONE and self.outcome(state) is REBUILT:
+            parts.append("s3-changes")
+        return "-".join(parts)
 
 
 def case_params(cases: list[Case]) -> list[Any]:
@@ -327,6 +327,7 @@ def _expected_texts(case: Case, state: State) -> tuple[str, ...] | None:
 
 def assert_contract(case: Case, state: State, seen: Observed) -> None:
     expect = _expected(case, state, seen)
+    assert seen.moved
     if case.outcome(state) is REBUILT:
         assert texts(seen.memory) == _expected_texts(case, state)
         if case.speakers is not None:
@@ -335,13 +336,19 @@ def assert_contract(case: Case, state: State, seen: Observed) -> None:
     assert_channels(seen, expect)
 
 
+def combined_json_after(
+    expect: CombinedTranscript | None, entry_json: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    has_utterances = expect is not None and bool(expect.utterances)
+    return json_of(expect) if has_utterances else entry_json
+
+
 def assert_channels(seen: Observed, expect: CombinedTranscript | None) -> None:
     """``expect`` is what memory, the file, the after snapshot and a redo must all hold."""
     assert seen.memory == expect
     assert seen.saved == expect
     assert seen.snapshot == expect
-    has_utterances = expect is not None and bool(expect.utterances)
-    assert seen.combined_json == (json_of(expect) if has_utterances else seen.entry_json)
+    assert seen.combined_json == combined_json_after(expect, seen.entry_json)
     if seen.moved:
         assert seen.undo_memory == seen.entry
         assert seen.undo_saved == seen.entry
