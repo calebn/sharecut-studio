@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 import time
 from collections.abc import AsyncIterator, Callable
@@ -227,7 +228,7 @@ async def test_a_failed_share_read_leaves_the_advertisement_alone(
 
 @pytest.mark.asyncio
 async def test_fatal_rejection_parks_until_config_changes(
-    rig: Rig, monkeypatch: pytest.MonkeyPatch
+    rig: Rig, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     mint_record_link(rig.project)
     rig.fail = True
@@ -239,6 +240,9 @@ async def test_fatal_rejection_parks_until_config_changes(
             await yield_to_loop()
         assert len(rig.clients) == 1
         assert supervisor.plan == Idle(IdleReason.REJECTED)
+        assert [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING] == [
+            "Studio tunnel ended and is parked until the relay config changes: TunnelError"
+        ]
 
         monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", "new-tok")
         await supervisor._tick()

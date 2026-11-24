@@ -232,8 +232,15 @@ class TunnelSupervisor:
             return
         self._serving = None
         serving.lock.release()
-        if not serving.task.cancelled() and serving.task.exception() is not None:
+        if serving.task.cancelled():
+            return
+        error = serving.task.exception()
+        if error is not None:
             self._rejected = serving.relay
+            log.warning(
+                "Studio tunnel ended and is parked until the relay config changes: %s",
+                type(error).__name__,
+            )
 
     async def _converge(self, desired: Plan) -> None:
         serving = self._serving
