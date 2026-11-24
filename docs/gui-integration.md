@@ -437,28 +437,20 @@ change conflicts before save; an offline command is labelled queued for sync.
 Cancel and an unchanged Apply create no project history. Pointer cancellation,
 lost capture, window blur, Escape, and unmount discard a drag preview and
 release capture, listeners, and drag locks.
-Pending commits block another gesture on that handle and show saving feedback.
-Rejected commits show a scrollable alert with Dismiss and focus restoration.
+Pending commits block another gesture on that handle and hold Cut and Keep until they settle.
+A rejected commit is announced in the status line.
 Focused component tests, live-project touch and geometry tests, and word-bearing
 Storybook browser tests cover these behaviors at desktop and phone widths.
 
-Pending edit review actions keep one state and command owner. On phones and
-sideways compact layouts, the selected action card portals into the compact
-inspector's body, above its fields, so Cut and Keep on the Action bar (Approve and Reject there for a split, an exact range or a suggestion with no accept action) remain available while the
-inspector body scrolls. Timing is in the fields beneath it.
-Outside compact mode, the card floats beside the selected timeline region,
-between the sticky ruler and marker lane and the bottom panel. It re-places
-itself on scroll, window resize, and any size change of the region, the card,
-the compact sheet, the marker lane, or the bottom panel, so a comment that
-grows the marker lane or a Script divider drag moves it without a scroll. While the
-tablet's regular inspector sheet is open, the card stays out of the canvas
-(the sheet covers it) and the Action bar's Cut and Keep carry the review, and the sheet's own Approve and Reject buttons appear for a comment-linked pending edit and on a phone sheet with no bar dock (the compact drawer, the full sheet at a tight height). The bar's primary verb is Cut, Shorten or Lower only for a cut, shorten or lower suggestion that is neither a split nor an exact range (`pendingOffersCut`); every other pending edit, including a split or exact range that carries an accept action, gets Approve and Reject, which run `ApproveEdits` and `RejectEdits`. The bar's Cut runs `ApproveEdits` for a cut action and `ApplySuggestedActions` for shorten or lower. An exact range's Approve and Reject are disabled for anyone but the host or an Editor, with the reason in visible text.
-The card keeps the same portal host across relocation, preserving recovery
-drafts and busy/error state. Relocation restores the currently focused control
-only if it was inside the card; body and external control focus stay unchanged.
-The host falls back to the body when compact chrome is absent and is removed
-when the region unmounts.
-Long supplementary errors scroll within the pinned card.
+Pending edit review actions keep one state and command owner, and the Action bar carries
+them: the timeline overlay draws only a pending edit's edge handles and its label, never a
+card of verbs, and the Inspector card keeps clear of the floating Action bar alone. Inspect on
+the bar opens the Inspector with Source start focused; the timing fields sit in the Inspector
+body, and a split has no field to focus. The sheet's own Approve and Reject buttons appear for
+a comment-linked pending edit and on a phone sheet with no bar dock (the compact drawer, the
+full sheet at a tight height). The bar's primary verb is Cut, Shorten or Lower only for a cut, shorten or lower suggestion that is neither a split nor an exact range (`pendingOffersCut`); every other pending edit, including a split or exact range that carries an accept action, gets Approve and Reject, which run `ApproveEdits` and `RejectEdits`. The bar's Cut runs `ApproveEdits` for a cut action and `ApplySuggestedActions` for shorten or lower. An exact range's Approve and Reject are disabled for anyone but the host or an Editor, with the reason in visible text.
+Busy, queued and refused-by-the-refine-gate notices reach the status line and the Inspector's
+recovery form, and a failed edge drag is announced in the status line.
 
 ### Provisional recording timeline
 
