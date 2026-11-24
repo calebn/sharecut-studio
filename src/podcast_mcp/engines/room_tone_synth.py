@@ -45,7 +45,6 @@ from podcast_mcp.engines.gate_fill import (
     synthesise_noise,
 )
 from podcast_mcp.engines.room_tone import (
-    MIN_SAMPLE_SEC,
     POOL_SAMPLE_SEC,
     OwnQuietSample,
     RecordedBedSample,
@@ -159,7 +158,8 @@ def room_tone_for_gap(
     The synthesised source is registered on ``project``.
     """
 
-    def span(request_sec: float, min_sample_sec: float = MIN_SAMPLE_SEC) -> RoomToneSelection:
+    def span(request_sec: float, min_sample_sec: float | None = None) -> RoomToneSelection:
+        longer = {} if min_sample_sec is None else {"min_sample_sec": min_sample_sec}
         return room_tone_span(
             project,
             track_id,
@@ -169,7 +169,7 @@ def room_tone_for_gap(
             duration_sec=request_sec,
             avoid=avoid,
             also_taken=also_taken,
-            min_sample_sec=min_sample_sec,
+            **longer,
         )
 
     selection = span(duration_sec)
