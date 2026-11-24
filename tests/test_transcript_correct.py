@@ -281,7 +281,7 @@ def test_apply_transcript_corrections_word_and_phrase() -> None:
     assert words[-1].end == 3.0
 
 
-def test_apply_transcript_corrections_leaves_combined_to_the_mutation_hook() -> None:
+def test_apply_transcript_corrections_does_not_touch_combined_itself() -> None:
     p = EpisodeProject.create("bulk", "/tmp")
     p.transcripts = [
         Transcript(

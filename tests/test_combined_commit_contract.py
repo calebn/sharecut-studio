@@ -87,8 +87,8 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.project.transcript_context import ReplacementRule, TranscriptContext
 from podcast_mcp.project.transcript_context import SpeakerIdConfig as CtxSpeakerIdConfig
-from podcast_mcp.project.transcript_context import TranscriptContext
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     AnalysisService,
@@ -104,7 +104,7 @@ from podcast_mcp.services.document.boundary import (
     TrimBoundaryTarget,
     boundary_context,
 )
-from podcast_mcp.services.media import SpeakerService
+from podcast_mcp.services.media import SpeakerService, TranscriptPrecorrectService
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.services.record.landing import RecordLandingService
 from podcast_mcp.util.hashing import sha256_file
@@ -157,6 +157,15 @@ WORD_CASES = [
         "transcript_cleanup",
         lambda ws: TranscriptService(ws).apply_transcript_cleanup(
             "host", words=[{"word_index": 1, "text": "THERE"}]
+        ),
+        ("hello THERE friend", "welcome back", "thanks for having me"),
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "verify_transcript",
+        lambda ws: TranscriptService(ws).verify_transcript(
+            "host", [{"word_index": 1, "text": "THERE"}]
         ),
         ("hello THERE friend", "welcome back", "thanks for having me"),
         s3_changes=True,
@@ -790,8 +799,81 @@ RECONCILE_CASES = [
     ),
 ]
 
+
+def _glossary_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    _precorrect_context(monkeypatch, [ReplacementRule("welcome", "greetings", "word")])
+
+
+def _precorrect_context(monkeypatch: pytest.MonkeyPatch, rules: list[ReplacementRule]) -> None:
+    ctx = TranscriptContext(replacements=rules, speaker_id=CtxSpeakerIdConfig(mode="never"))
+    monkeypatch.setattr(
+        "podcast_mcp.services.media.transcript_precorrect.load_transcript_context",
+        lambda _workspace: ctx,
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.edits.transcript_precorrect.load_transcript_context", lambda _workspace: ctx
+    )
+
+
+class _EchoPairs:
+    def echo_pairs(self) -> list[Any]:
+        return [Mock(source_track_id="host", bleed_track_id="guest")]
+
+
+def _guest_has_the_clearer_copy(monkeypatch: pytest.MonkeyPatch) -> None:
+    _precorrect_context(monkeypatch, [])
+    pair = {
+        "track_a": "host",
+        "source_a": None,
+        "word_index_a": 0,
+        "text_a": "hello",
+        "status_a": "bleed",
+        "track_b": "guest",
+        "source_b": None,
+        "word_index_b": 0,
+        "text_b": "hullo",
+        "status_b": "audible",
+        "overlap_sec": 0.4,
+        "text_match": False,
+    }
+    module = "podcast_mcp.edits.transcript_precorrect"
+    monkeypatch.setattr(f"{module}.build_track_rms_caches", lambda *_a, **_k: _EchoPairs())
+    monkeypatch.setattr(f"{module}.compute_word_audibility_map", lambda *_a, **_k: [])
+    monkeypatch.setattr(
+        f"{module}.overlap_duplicate_report", lambda *_a, **_k: {"pairs": [dict(pair)]}
+    )
+
+
+PRECORRECT_CASES = [
+    Case(
+        "precorrect_glossary_hit",
+        lambda ws: TranscriptPrecorrectService(ws).precorrect(dry_run=False),
+        ("hello there friend", "greetings back", "thanks for having me"),
+        configure=_glossary_context,
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "precorrect_cross_track_sync",
+        lambda ws: TranscriptPrecorrectService(ws).precorrect(dry_run=False),
+        ("hullo there friend", "welcome back", "thanks for having me"),
+        configure=_guest_has_the_clearer_copy,
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "pipeline_precorrect_step",
+        _run_step("precorrect_transcript", {}),
+        ("hello there friend", "greetings back", "thanks for having me"),
+        configure=_glossary_context,
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+]
+
 ALL_CASES = [
     *WORD_CASES,
+    *PRECORRECT_CASES,
     *TIMELINE_CASES,
     *PIPELINE_CASES,
     *TRANSCRIBE_CASES,

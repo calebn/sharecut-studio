@@ -333,7 +333,21 @@ class PipelineRunner:
                     step_prog.set_phase("running", title)
                     try:
                         inputs_before = combined_inputs_key(project)
-                        summary = _run_step_published(project, name, fn, step_defaults, persist)
+                        try:
+                            summary = _run_step_published(project, name, fn, step_defaults, persist)
+                        except BaseException:
+                            try:
+                                with project_state_lock(project):
+                                    rebuild_combined_if_inputs_moved(
+                                        project, inputs_before, defaults=self.defaults
+                                    )
+                            except Exception:
+                                logger.exception(
+                                    "pipeline step %s failed, and rebuilding the combined "
+                                    "transcript failed too",
+                                    name,
+                                )
+                            raise
                         with project_state_lock(project):
                             rebuild_combined_if_inputs_moved(
                                 project, inputs_before, defaults=self.defaults
