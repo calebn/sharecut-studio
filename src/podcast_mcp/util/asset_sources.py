@@ -23,6 +23,7 @@ from podcast_mcp import settings
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.contracts import load_contract
 from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.owner_cdn import owner_base, owner_url
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,10 @@ class AssetSourceError(RuntimeError):
 
 class NoDownloadSourceError(AssetSourceError):
     """No CDN base and no upstream URL: nothing to try."""
+
+
+class OwnerCdnUnsetError(NoDownloadSourceError):
+    """The asset is served only from the owner CDN, and this build has no owner CDN base."""
 
 
 class AssetIntegrityError(AssetSourceError):
@@ -283,11 +288,18 @@ def upstream_http_url(asset_id: str) -> str | None:
     return None
 
 
+def owner_http_url(asset_id: str) -> str | None:
+    path = asset_entry(asset_id).get("owner_path")
+    return owner_url(path) if isinstance(path, str) and path else None
+
+
 def ordered_http_urls(asset_id: str, *, relative_path: str) -> list[str]:
     urls: list[str] = []
     cdn = cdn_url_for(asset_id, relative_path)
     if cdn:
         urls.append(cdn)
+    if owner := owner_http_url(asset_id):
+        urls.append(owner)
     upstream = upstream_http_url(asset_id)
     if upstream:
         urls.append(upstream)
@@ -322,8 +334,8 @@ def _content_length(resp: Any) -> int | None:
 
 
 def _source_label(url: str) -> str:
-    base = bootstrap_cdn_base()
-    if base and (url == base or url.startswith(f"{base}/")):
+    bases = (bootstrap_cdn_base(), owner_base())
+    if any(base and url.startswith(f"{base}/") for base in bases):
         return "cdn"
     return "upstream"
 

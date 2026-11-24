@@ -9,7 +9,11 @@ from typing import Literal
 from podcast_mcp.engines.models.whisper import WhisperPinMismatchError
 from podcast_mcp.engines.models.word_aligner import WordAlignerPinMismatchError
 from podcast_mcp.engines.onnx_session import OnnxOverrideUnsupportedError
-from podcast_mcp.util.asset_sources import AssetIntegrityError, AssetSourceError
+from podcast_mcp.util.asset_sources import (
+    AssetIntegrityError,
+    AssetSourceError,
+    OwnerCdnUnsetError,
+)
 from podcast_mcp.util.coded_error import CodedError
 
 FailureKind = Literal["http", "pin_mismatch", "network", "disk", "configuration"]
@@ -108,7 +112,7 @@ def classify(exc: BaseException, *, label: str, fix: str) -> InstallFailure | No
     URL attempt (``AssetSourceError``) is the source being unreachable, so it reads as
     ``network``; a ``ValueError`` is not classified.
     """
-    if isinstance(exc, OnnxOverrideUnsupportedError):
+    if isinstance(exc, OnnxOverrideUnsupportedError | OwnerCdnUnsetError):
         return InstallFailure("configuration", None, str(exc))
     found = _reason(exc)
     if found is None:

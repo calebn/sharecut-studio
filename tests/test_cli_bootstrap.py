@@ -273,6 +273,7 @@ def _stock_speaker_download(monkeypatch: pytest.MonkeyPatch) -> _ModelOpener:
 
     monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
     monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
+    monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", "https://cdn.sharecut.studio")
     payload = b"model-bytes"
     sha = hashlib.sha256(payload).hexdigest()
     real = speaker_ecapa.asset_entry
@@ -284,7 +285,7 @@ def _stock_speaker_download(monkeypatch: pytest.MonkeyPatch) -> _ModelOpener:
     return opener
 
 
-def test_bare_bootstrap_installs_speaker_on_a_stock_build(
+def test_bare_bootstrap_installs_speaker_on_an_official_build(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     opener = _stock_speaker_download(monkeypatch)
@@ -300,7 +301,7 @@ def test_bare_bootstrap_installs_speaker_on_a_stock_build(
     assert "Bootstrap complete." in result.stdout
 
 
-def test_bootstrap_speaker_named_explicitly_installs_on_a_stock_build(
+def test_bootstrap_speaker_named_explicitly_installs_on_an_official_build(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     opener = _stock_speaker_download(monkeypatch)
@@ -308,6 +309,24 @@ def test_bootstrap_speaker_named_explicitly_installs_on_a_stock_build(
     assert result.exit_code == 0
     assert len(opener.requested) == 1
     assert "[ok] speaker-ecapa:" in result.stdout
+
+
+def test_bare_bootstrap_on_a_source_build_names_the_speaker_source_and_finishes_the_rest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opener = _stock_speaker_download(monkeypatch)
+    monkeypatch.delenv("PODCAST_OWNER_CDN_BASE")
+    whisper, rnnoise, problem, aligner = _network_installers_patched()
+    with whisper, rnnoise, problem, aligner:
+        result = runner.invoke(app, ["bootstrap"])
+    assert result.exit_code == 1
+    assert opener.requested == []
+    assert "[fail] speaker-ecapa: " in result.stderr
+    assert "PODCAST_MCP_SPEAKER_ECAPA_MODEL" in result.stderr
+    assert "PODCAST_OWNER_CDN_BASE" in result.stderr
+    assert "docs/setup.md#speaker-model" in result.stderr
+    assert "[ok] rnnoise:" in result.stdout
+    assert "Bootstrap complete." not in result.stdout
 
 
 def test_bootstrap_failure_of_one_model_does_not_skip_the_rest(

@@ -17,6 +17,7 @@
           "repo": { "type": "string" },
           "revision": { "type": "string" },
           "url": { "type": "string" },
+          "owner_path": { "type": "string" },
           "license": { "type": "string" },
           "cdn_prefix": { "type": "string" },
           "filename": { "type": "string" },
