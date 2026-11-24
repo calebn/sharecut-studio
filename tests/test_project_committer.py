@@ -15,9 +15,8 @@ _STORE_CTOR = re.compile(r"\bProjectStore\(")
 # through a callback the workspace hands it, so nothing under project/history commits itself.
 _COMMITTERS = {"services/app/workspace.py"}
 
-# project/io.py is the sanctioned read-only loader; the record service still builds its own
-# ProjectStore and moves in a later slice.
-_STORE_CTOR_OUT_OF_SCOPE = {"project/io.py", "services/record/service.py"}
+# project/io.py is the sanctioned read-only loader; everything else reads through it.
+_STORE_CTOR_OUT_OF_SCOPE = {"project/io.py"}
 
 
 def _sources(pattern: re.Pattern[str]) -> set[str]:
