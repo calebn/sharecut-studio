@@ -5,6 +5,11 @@ from typing import Any
 from podcast_mcp.models.history import ProjectStateSnapshot
 
 
+def _plain_decision(decision: dict[str, Any]) -> dict[str, Any]:
+    """The decision without ``bound_pad``: a rebind of the same cut is not an edit to it."""
+    return {k: v for k, v in decision.items() if k != "bound_pad"}
+
+
 def _clip_key(clip: dict) -> str:
     return str(clip.get("id", ""))
 
@@ -34,8 +39,8 @@ def diff_snapshots(
         if fields:
             changed_clips.append({"id": k, "fields": fields})
 
-    b_dec = {d["id"]: d for d in before.editorial.get("edit_decisions", [])}
-    a_dec = {d["id"]: d for d in after.editorial.get("edit_decisions", [])}
+    b_dec = {d["id"]: _plain_decision(d) for d in before.editorial.get("edit_decisions", [])}
+    a_dec = {d["id"]: _plain_decision(d) for d in after.editorial.get("edit_decisions", [])}
     decisions_added = [a_dec[k] for k in sorted(a_dec.keys() - b_dec.keys())]
     decisions_removed = [b_dec[k] for k in sorted(b_dec.keys() - a_dec.keys())]
     # Generated hits keep their id across re-proposal (#999), so moved edges show here.

@@ -115,7 +115,7 @@ def update_pending_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, An
         expected=PendingEditBaseline(**expected) if expected is not None else None,
         boundary_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
     )
-    return {"edit": edit.model_dump()}
+    return {"edit": edit.model_dump(exclude={"bound_pad"})}
 
 
 def restore_applied_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
