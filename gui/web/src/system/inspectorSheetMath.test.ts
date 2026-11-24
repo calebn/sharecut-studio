@@ -318,6 +318,48 @@ describe("inspectorSheetMath card placement", () => {
   });
 });
 
+describe("inspectorSheetMath card placement around a hangFrom area", () => {
+  const bounds = { width: 844, height: 425 };
+  const anchor = { x: 38, y: 129, width: 282, height: 46 };
+
+  it("slides beside the area when there is room", () => {
+    const place = placeCard(
+      anchor,
+      bounds,
+      320,
+      140,
+      [],
+      [{ x: 59, y: 129, width: 240, height: 119 }],
+    );
+    expect(place.inline).toBe(307);
+    expect(place.block).toBe(183);
+  });
+
+  it("hangs below the anchor and the area together when nothing beside is clear", () => {
+    const place = placeCard(
+      anchor,
+      bounds,
+      320,
+      140,
+      [],
+      [{ x: 59, y: 129, width: 700, height: 119 }],
+    );
+    expect(place).toMatchObject({ side: "below", block: 256, maxBlock: 161 });
+  });
+
+  it("ignores an area that does not touch the anchor's columns", () => {
+    const place = placeCard(
+      anchor,
+      bounds,
+      320,
+      140,
+      [],
+      [{ x: 500, y: 129, width: 300, height: 119 }],
+    );
+    expect(place).toEqual(placeCard(anchor, bounds, 320, 140, []));
+  });
+});
+
 describe("inspectorSheetMath card placement around the Action bar", () => {
   type Box = { x: number; y: number; width: number; height: number };
   const overlap = (

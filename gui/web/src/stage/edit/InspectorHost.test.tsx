@@ -229,7 +229,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
       bar.style.top = barTop;
       bar.style.visibility = barHidden ? "hidden" : "visible";
       bar.getBoundingClientRect = () =>
-        new DOMRect(59, Number.parseFloat(bar.style.top), 240, 119);
+        new DOMRect(59, Number.parseFloat(bar.style.top), 700, 119);
       document.body.append(root, bar);
       return {
         bar,
@@ -241,7 +241,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
       };
     }
 
-    it("hangs the card below the review bar as well as the Action bar", () => {
+    it("hangs the card below the review bar when nothing beside it is clear", () => {
       const { root, remove } = pendingFixture("178px", false);
       try {
         render(<InspectorHost {...hostProps(root)} />);

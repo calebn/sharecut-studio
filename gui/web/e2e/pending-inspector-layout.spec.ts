@@ -51,7 +51,6 @@ async function clickApproveUntilError(root: Locator): Promise<void> {
   const error = root.locator(".modifier-error");
   const approve = root.getByRole("button", { name: "Approve", exact: true });
   await expect(approve).toBeVisible();
-  await approve.scrollIntoViewIfNeeded();
   await expect
     .poll(async () =>
       approve.evaluate((button) => {
