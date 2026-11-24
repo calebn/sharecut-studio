@@ -239,6 +239,26 @@ Write a placeholder in examples, for example `../<your-overlay>/config/profile.j
 that shares its name with a tracked directory (`../docs`) is not caught, so the rule guards
 against accidents, not deliberate obfuscation.
 
+Three more owner-identity checks run in the same scan; each failure names the file and line and
+never echoes the value:
+
+- **Apple Team ID.** A 10-character uppercase alphanumeric token (at least one letter and one digit)
+  fails when it is the value of an `appID`, `teamID`, `TeamIdentifier`, `DEVELOPMENT_TEAM`,
+  `APPLE_TEAM_ID` or `APPLE_DEVELOPMENT_TEAM` assignment or key (including `${VAR:-<id>}` defaults
+  and plist `<key>`/`<string>` pairs), or leads a `<TEAMID>.<reverse-dns>` identifier. Only the
+  distribution surfaces are scanned: `config/`, `distribution/`, `scripts/`, `.github/`, anything under
+  `gui/*/src-tauri/`, `*.plist`, `*.entitlements` and `apple-app-site-association`. Placeholders
+  (`AAAAAAAAAA`, `TEAMID`, `${{ secrets.X }}`, `{{template}}`) and bare 10-character tokens such as
+  hashes never match, and tests and docs are not scanned. Keep the real Team ID in the private
+  overlay or secrets.
+- **Owner container image.** `ghcr.io/<owner>/` fails anywhere in the tree unless the owner starts with
+  `example` or is listed in `_UPSTREAM_IMAGE_OWNERS` with a reason (an intentional upstream image).
+  Placeholders such as `ghcr.io/<owner>/` and `ghcr.io/${{ github.repository }}` do not match.
+- **Owner host as a test fixture.** `sudo.science` and `cdn.sharecut.studio` fail in test sources
+  (`tests/`, `test_*`, `*.test.*`, and Rust under `src-tauri`). Use `*.example.test`. A test that must
+  pin a production URL is listed in `_OWNER_HOST_FIXTURE_ALLOWLIST` with a reason; a test asserts
+  every entry exists and has one.
+
 Before changing repository visibility, clone a fresh `--mirror`, fetch
 `refs/pull/*/head`, and scan that mirror. The regular workflow prevents new committed
 credentials; the publication audit also covers old pull-request commits and other remote refs.
