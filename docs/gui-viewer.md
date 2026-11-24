@@ -238,7 +238,9 @@ Correcting the text of selected words in place (same count, same numbers) keeps 
 Keyboard word actions: Enter on a focused, unselected word selects it and
 seeks; Enter or F2 on a selected word opens Fix text for a hydrated host
 project or an Editor link. F2 does nothing on a Commenter or Viewer link, or while a correction is saving.
-Enter in the Fix text field saves and Escape cancels.
+Enter in the Fix text field saves, Escape or the **Cancel fix** button beside it discards, and leaving the field any other way saves.
+
+The Edit Action bar ends with **Clear selection** for any selection the Script header does not already clear (`EditActionBar` `clear`, set by `EditWorkspace` from `ScriptHost`'s `onHeaderClearChange`). It runs `edit.clearSelection` with `from: "bar"`, which drops the armed range, the selection, the after-cut hint and the Inspector in one press, sends no document command, and returns focus to the selected clip or seam, or to the stage. A short phone frame holds the bar in the Tools sheet; on the lanes surface that bar ends with Clear too, and Clear closes the sheet. The dock holds at most five verb slots (`foldDock`); an end control, Clear or the Inspector dock's Close, takes one (a range's scope chip takes one more while an end control is set, `leadingSlots`), and at 360 px or narrower the dock shows the object's icon without its name.
 
 ## Responsive shells
 
