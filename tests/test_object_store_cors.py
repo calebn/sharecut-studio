@@ -144,8 +144,7 @@ def test_create_warns_the_host_when_the_bucket_blocks_guests(
     _store(monkeypatch)
     monkeypatch.setattr(cors, "_fetch_headers", lambda url, origin: {})
     share = _share(minimal_project, sample_wav)
-    (warning,) = share["warnings"]
-    assert warning["code"] == "object_store_cors"
+    (warning,) = [w for w in share["warnings"] if w["code"] == "object_store_cors"]
     assert warning["origin"] == ORIGIN
     assert warning["rule"][0]["AllowedOrigins"] == [ORIGIN]
     assert ORIGIN in warning["message"]
@@ -156,7 +155,7 @@ def test_create_has_no_warning_when_cors_is_in_place_or_unknown(
 ) -> None:
     _store(monkeypatch)
     share = _share(minimal_project, sample_wav)  # probe answers "unknown" in tests
-    assert "warnings" not in share
+    assert [w["code"] for w in share.get("warnings", [])] == ["online_sharing_not_set_up"]
 
 
 def _raise_http(code: int, headers: dict[str, str]):
