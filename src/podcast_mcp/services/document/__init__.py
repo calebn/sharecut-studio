@@ -60,6 +60,10 @@ if TYPE_CHECKING:
         HistoryMoveResult,
         PopulatedHistoryDiffResult,
     )
+    from podcast_mcp.services.document.join_results import (
+        JoinLabelResult,
+        JoinTrainResult,
+    )
     from podcast_mcp.services.document.kit_apply import KitApplyReport, submit_kit_apply
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
     from podcast_mcp.services.document.play_pending import (
@@ -138,6 +142,8 @@ __all__ = [
     "HistoryMoveResult",
     "HistoryService",
     "InsertGapResult",
+    "JoinLabelResult",
+    "JoinTrainResult",
     "KitApplyReport",
     "ListedFiles",
     "MoveClipsResult",
@@ -252,6 +258,8 @@ _MODULE_BY_NAME = {
     "RoomToneBedService": "room_tone_bed",
     "TimelineService": "timeline",
     "InsertGapResult": "timeline_move_results",
+    "JoinLabelResult": "join_results",
+    "JoinTrainResult": "join_results",
     "MoveClipsResult": "timeline_move_results",
     "MoveSegmentResult": "timeline_move_results",
     "DuplicateSegmentResult": "timeline_segment_results",
