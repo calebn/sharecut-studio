@@ -31,12 +31,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+from unittest.mock import Mock, patch
 
 import pytest
 
 from combined_contract_helpers import (
     FRESH_TEXTS,
     SOURCE_SEC,
+    STALE_COMBINED,
     Observed,
     Outcome,
     State,
@@ -64,16 +66,21 @@ from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.engines.speaker_id import SpeakerProfile, WindowScore
 from podcast_mcp.engines.speaker_split import SpeakerAttribution, SpeakerTurn
+from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (
     ArchivedTranscriptWord,
     Clip,
     CombinedTranscript,
+    EditDecision,
+    EditDecisionType,
     EditMode,
     EpisodeProject,
     ProcessingChain,
     ProcessingEffect,
     SessionSuggestion,
     StagedTake,
+    Transcript,
+    TranscriptWord,
 )
 from podcast_mcp.project.transcript_context import SpeakerIdConfig as CtxSpeakerIdConfig
 from podcast_mcp.project.transcript_context import TranscriptContext
@@ -81,6 +88,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     AnalysisService,
     EditService,
+    EpisodeService,
     SessionSuggestionService,
     TimelineService,
     TranscriptService,
@@ -92,7 +100,9 @@ from podcast_mcp.services.document.boundary import (
     boundary_context,
 )
 from podcast_mcp.services.media import SpeakerService
+from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.services.record.landing import RecordLandingService
+from podcast_mcp.util.hashing import sha256_file
 from test_record_start_target import _land, _start_room, _take
 from test_segments_insert import _save as _save_segment
 
@@ -110,6 +120,7 @@ class Case:
     run: Command
     texts: tuple[str, ...]
     """The combined utterance texts after the command, from a ``fresh`` or ``stale`` entry."""
+    fresh: Outcome = REBUILT
     stale: Outcome = REBUILT
     none: Outcome = REBUILT
     quirk: str = ""
@@ -125,10 +136,12 @@ class Case:
     configure: Callable[[pytest.MonkeyPatch], None] | None = None
     """Sets the run's pipeline defaults, for a command that reads them."""
 
+    def outcome(self, state: State) -> Outcome:
+        return {State.FRESH: self.fresh, State.STALE: self.stale, State.NONE: self.none}[state]
+
     def id_for(self, state: State) -> str:
-        outcome = {State.FRESH: REBUILT, State.STALE: self.stale, State.NONE: self.none}[state]
-        quirk = f"-{self.quirk}" if self.quirk and state is not State.FRESH else ""
-        return f"{self.name}-{state}-{outcome}{quirk}"
+        quirk = f"-{self.quirk}" if self.quirk and self.outcome(state) is not self.fresh else ""
+        return f"{self.name}-{state}-{self.outcome(state)}{quirk}"
 
 
 def _word_key(track_id: str, index: int) -> dict[str, Any]:
@@ -352,6 +365,77 @@ def _land_take(ws: ProjectWorkspace) -> Any:
 
 def _discard_last_take(ws: ProjectWorkspace) -> Any:
     return RecordLandingService(ws).delete_take(1)
+
+
+def _host_has_a_focus_cut(project: EpisodeProject) -> None:
+    """An approved focus cut over the host's "welcome back", waiting for the focus step."""
+    project.edit_decisions = [
+        EditDecision(
+            id="focus-contract",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=3.0,
+            end=4.0,
+            reason="focus:contract",
+            review_required=False,
+            applied=False,
+            scope="session",
+            boundary_mode="exact",
+        )
+    ]
+
+
+def _host_with_a_stored_loop(project: EpisodeProject) -> None:
+    """Both stored transcripts match their audio, and the host's holds a repetition loop."""
+    for transcript in project.transcripts:
+        transcript.audio_sha256 = sha256_file(
+            project.workspace_path() / "raw" / f"{transcript.track_id}.wav"
+        )
+    project.transcripts[0].words = [
+        *(
+            TranscriptWord(text=f"word{i}", start=294.0 + i * 0.3, end=294.2 + i * 0.3)
+            for i in range(20)
+        ),
+        *(
+            TranscriptWord(text=t, start=299.84 + i * 0.0005, end=299.8405 + i * 0.0005)
+            for i, t in enumerate((["And", "I", "know", "that"] * 56)[:221])
+        ),
+    ]
+
+
+def _reuse_without_models(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The reuse path loads no Whisper or aligner model, and Whisper must not run."""
+    from podcast_mcp.services.pipeline import config
+
+    monkeypatch.setattr(config, "ensure_whisper_cached_for_run", lambda **_: None)
+    monkeypatch.setattr(config, "ensure_word_aligner_for_run", lambda *_, **__: None)
+    monkeypatch.setattr(
+        TranscriptionEngine,
+        "transcribe_file",
+        Mock(side_effect=AssertionError("Whisper must not run")),
+    )
+
+
+def _no_whisper_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("podcast_mcp.services.document.transcript.require_model", lambda *_a: None)
+
+
+def _transcribe_host(ws: ProjectWorkspace) -> Any:
+    """Re-transcribe the host: a stand-in engine hands back new words, the rest runs for real."""
+    new = Transcript(
+        track_id="host",
+        words=[
+            TranscriptWord(text="greetings", start=0.0, end=0.4),
+            TranscriptWord(text="friend", start=0.5, end=0.9),
+        ],
+    )
+    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as engine:
+        engine.return_value.transcribe_all_dialogue.return_value = [new]
+        return TranscriptService(ws).transcribe("host")
+
+
+def _run_step(step: str, config: dict[str, Any]) -> Command:
+    return lambda ws: PipelineService(ws).run(only_step=step, config=config)
 
 
 def _stage_take_on_host(kind: Literal["insert", "replace"]) -> Command:
@@ -670,6 +754,40 @@ SPEAKER_CASES = [
     ),
 ]
 
+PIPELINE_CASES = [
+    Case(
+        "pipeline_reuse_repairs_stored_loop",
+        _run_step("transcribe_tracks", {}),
+        (
+            "thanks for having me",
+            "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19",
+        ),
+        none=UNTOUCHED,
+        quirk="h2",
+        arrange=_host_with_a_stored_loop,
+        configure=_reuse_without_models,
+    ),
+    Case(
+        "pipeline_focus_apply_step",
+        _run_step("focus_from_transcript", {"focus": {"enabled": True, "auto_apply": True}}),
+        ("hello there friend", "thanks for having me"),
+        arrange=_host_has_a_focus_cut,
+    ),
+]
+
+TRANSCRIBE_CASES = [
+    Case(
+        "transcribe_via_mutate",
+        _transcribe_host,
+        (),
+        configure=_no_whisper_model,
+        fresh=UNTOUCHED,
+        stale=UNTOUCHED,
+        none=UNTOUCHED,
+        quirk="h2",
+    ),
+]
+
 RECONCILE_CASES = [
     Case(
         "reconcile_transcript_on_silent_media",
@@ -684,7 +802,14 @@ RECONCILE_CASES = [
     ),
 ]
 
-ALL_CASES = [*WORD_CASES, *TIMELINE_CASES, *RECONCILE_CASES, *SPEAKER_CASES]
+ALL_CASES = [
+    *WORD_CASES,
+    *TIMELINE_CASES,
+    *PIPELINE_CASES,
+    *TRANSCRIBE_CASES,
+    *RECONCILE_CASES,
+    *SPEAKER_CASES,
+]
 
 
 def _params(cases: list[Case]) -> list[Any]:
@@ -708,8 +833,7 @@ def _run(
 
 
 def _expected(case: Case, state: State, seen: Observed) -> CombinedTranscript | None:
-    outcome = {State.FRESH: REBUILT, State.STALE: case.stale, State.NONE: case.none}[state]
-    return seen.expected_rebuilt if outcome is REBUILT else seen.entry
+    return seen.expected_rebuilt if case.outcome(state) is REBUILT else seen.entry
 
 
 def _expected_texts(case: Case, state: State) -> tuple[str, ...] | None:
@@ -720,12 +844,16 @@ def _expected_texts(case: Case, state: State) -> tuple[str, ...] | None:
 
 def assert_contract(case: Case, state: State, seen: Observed) -> None:
     expect = _expected(case, state, seen)
-    outcome = {State.FRESH: REBUILT, State.STALE: case.stale, State.NONE: case.none}[state]
-    if outcome is REBUILT:
+    if case.outcome(state) is REBUILT:
         assert texts(seen.memory) == _expected_texts(case, state)
         if case.speakers is not None:
             assert seen.memory is not None
             assert tuple(u.speaker for u in seen.memory.utterances) == case.speakers
+    assert_channels(seen, expect)
+
+
+def assert_channels(seen: Observed, expect: CombinedTranscript | None) -> None:
+    """``expect`` is what memory, the file, the after snapshot and a redo must all hold."""
     assert seen.memory == expect
     assert seen.saved == expect
     assert seen.snapshot == expect
@@ -770,3 +898,89 @@ def test_speaker_label_window_rebuilds_memory_and_saves_nothing(
     assert seen.saved == seen.entry
     assert seen.snapshot == seen.entry
     assert seen.combined_json == seen.entry_json
+
+
+def test_transcribe_h2_changes_words_and_leaves_a_fresh_combined_behind(
+    tmp_path: Path, ten_second_silence_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A transcribe that went through ``ws.mutate`` never rebuilds: fresh stops being fresh."""
+    _no_whisper_model(monkeypatch)
+    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, State.FRESH)
+    seen = observe(ws, _transcribe_host)
+    assert texts(seen.entry) == FRESH_TEXTS
+    assert texts(seen.memory) == FRESH_TEXTS
+    assert texts(seen.expected_rebuilt) == ("greetings friend", "thanks for having me")
+    assert seen.moved
+    assert seen.snapshot == seen.entry
+
+
+def _seed_canned(with_combined: bool) -> dict[str, Any]:
+    canned: dict[str, Any] = {
+        "per_track": [
+            {
+                "track_id": "host",
+                "words": [{"text": "seeded", "start": 0.0, "end": 0.4, "confidence": 0.9}],
+            }
+        ]
+    }
+    if with_combined:
+        canned["combined"] = {
+            "utterances": [
+                {
+                    "track_id": "host",
+                    "speaker": "Canned",
+                    "start": 0.0,
+                    "end": 0.4,
+                    "text": "canned combined",
+                }
+            ]
+        }
+    return canned
+
+
+@pytest.mark.parametrize(
+    ("with_combined", "expected"),
+    [(True, ("canned combined",)), (False, ("seeded",))],
+    ids=["canned-combined-kept", "no-canned-combined-merged"],
+)
+@pytest.mark.parametrize("state", list(State), ids=lambda state: f"from-{state}")
+def test_seed_sets_combined_once_without_a_history_step(
+    state: State,
+    with_combined: bool,
+    expected: tuple[str, ...],
+    tmp_path: Path,
+    ten_second_silence_wav: Path,
+) -> None:
+    """``seed`` saves through ``ws.save`` outside ``run_mutation``: canned combined, else a merge."""
+    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, state)
+    seen = observe(ws, lambda w: TranscriptService(w).seed(_seed_canned(with_combined)))
+    assert texts(seen.memory) == expected
+    assert seen.saved == seen.memory
+    assert seen.combined_json == json_of(seen.memory)
+    assert not seen.moved
+    assert seen.snapshot == seen.entry
+
+
+@pytest.mark.parametrize("state", list(State), ids=lambda state: f"{state}")
+def test_set_track_meta_patches_the_stored_speaker_in_place_without_a_rebuild(
+    state: State, tmp_path: Path, ten_second_silence_wav: Path
+) -> None:
+    """Renaming a speaker rewrites the stored utterances' labels and nothing else.
+
+    A fresh combined ends up equal to a rebuild. A stale one keeps its stale text under the
+    new label, which is neither its entry value nor a rebuild. A missing one stays missing.
+    """
+    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, state)
+    seen = observe(ws, lambda w: EpisodeService(w).set_track_meta("host", speaker="Dr Host"))
+    if state is State.NONE:
+        expected = None
+    elif state is State.FRESH:
+        expected = seen.expected_rebuilt
+        assert expected is not None
+        assert tuple(u.speaker for u in expected.utterances) == ("Dr Host", "Dr Host", "Guest")
+    else:
+        expected = STALE_COMBINED.model_copy(deep=True)
+        expected.utterances[0].speaker = "Dr Host"
+        assert expected != seen.entry
+        assert expected != seen.expected_rebuilt
+    assert_channels(seen, expected)
