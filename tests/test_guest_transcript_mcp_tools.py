@@ -524,8 +524,8 @@ def test_each_tool_has_the_rate_kind_of_its_registry_row() -> None:
         assert not row.needs_guest_render
 
 
-def test_a_codeless_refusal_stays_generic() -> None:
-    assert guest_message_for_code("job_not_found") == GENERIC_GUEST_MESSAGE
+def test_a_refusal_without_copy_stays_generic() -> None:
+    assert guest_message_for_code("job_running") == GENERIC_GUEST_MESSAGE
 
 
 @pytest.mark.parametrize("tool", sorted(ARGS))

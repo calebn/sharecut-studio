@@ -147,11 +147,11 @@ class GuestJobScope:
 
 @contextmanager
 def _http_refusals() -> Iterator[None]:
-    """A twin core refuses with ``GuestRefusal``; this route answers with its status and text."""
+    """A twin core refuses with ``GuestRefusal``; answer with its status and code copy."""
     try:
         yield
     except GuestRefusal as exc:
-        raise coded_http_error(exc.status, str(exc), code=exc.code) from exc
+        raise coded_http_error(exc.status, exc.guest_message(), code=exc.code) from exc
 
 
 @contextmanager

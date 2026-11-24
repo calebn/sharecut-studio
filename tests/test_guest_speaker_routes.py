@@ -44,7 +44,7 @@ from podcast_mcp.util.proxy_paths import is_allowed_local_gui_path
 OPS_LOGGER = "podcast_mcp.services.collaboration.guest_project_ops"
 CODE = "x-sharecut-error-code"
 RELAYED = {"x-sharecut-relayed": "1"}
-NOT_FOUND = {"detail": "Job not found"}
+NOT_FOUND = {"detail": guest_message_for_code("job_not_found")}
 PREFIX = "/api/review/{token}/daw/speaker"
 PROJECTION = {"id", "status", "current", "total", "message", "error"}
 PLANTED = "/opt/host/models/ecapa.onnx"

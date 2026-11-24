@@ -15,6 +15,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
+from podcast_mcp.util.coded_error import guest_message_for_code
 
 CODE = "x-sharecut-error-code"
 CAPABILITY_MESSAGE = "This action isn't available on this link. Ask the host to update its access."
@@ -130,5 +131,5 @@ def test_a_job_of_another_project_or_kind_is_404(world, monkeypatch) -> None:
         monkeypatch.setattr(world.app.state.jobs, "get_job", lambda _id, job=job: job)
         res = world.client.get(f"/api/review/{token}/daw/render-preview/j1")
         assert res.status_code == 404
-        assert res.json() == {"detail": "Job not found"}
+        assert res.json() == {"detail": guest_message_for_code("job_not_found")}
         assert res.headers[CODE] == "job_not_found"

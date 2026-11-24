@@ -31,11 +31,11 @@ from podcast_mcp.services.jobs import (
 )
 from podcast_mcp.services.jobs.job import GUEST_JOB_VIEW, GuestJobView
 from podcast_mcp.services.pipeline import config_store
-from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE, guest_message_for_code
 
 CODE = "x-sharecut-error-code"
 RELAYED = {"x-sharecut-relayed": "1"}
-NOT_FOUND = {"detail": "Job not found"}
+NOT_FOUND = {"detail": guest_message_for_code("job_not_found")}
 PREFIX = "/api/review/{token}/daw/pipeline"
 
 
@@ -739,7 +739,9 @@ def test_bad_step_names_answer_the_owner_codes(runner, field, code) -> None:
 
     assert res.status_code == owner.status_code == 400
     assert res.headers[CODE] == owner.headers[CODE] == code
-    assert res.json() == owner.json()
+    assert res.json() == {"detail": guest_message_for_code(code)}
+    assert owner.json()["detail"].startswith("Unknown ")
+    assert "nope" in owner.json()["detail"]
     assert runner.calls == []
 
 

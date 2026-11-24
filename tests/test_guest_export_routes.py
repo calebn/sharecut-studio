@@ -26,13 +26,13 @@ from podcast_mcp.services.collaboration.share_capabilities import (
     share_review_source,
 )
 from podcast_mcp.services.jobs import GUEST_EXPORT_KINDS, GUEST_PIPELINE_KINDS, Job
-from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE, guest_message_for_code
 from podcast_mcp.util.proxy_paths import is_allowed_local_gui_path
 
 OPS_LOGGER = "podcast_mcp.services.collaboration.guest_project_ops"
 CODE = "x-sharecut-error-code"
 RELAYED = {"x-sharecut-relayed": "1"}
-NOT_FOUND = {"detail": "Job not found"}
+NOT_FOUND = {"detail": guest_message_for_code("job_not_found")}
 PREFIX = "/api/review/{token}/daw/export"
 PROJECTION = {"id", "status", "current", "total", "message", "error"}
 

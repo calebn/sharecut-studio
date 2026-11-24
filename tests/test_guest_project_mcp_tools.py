@@ -19,7 +19,10 @@ from podcast_mcp.engines.speaker_split import RATE, SpeakerAttribution, SpeakerT
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration.guest_project_ops import GUEST_MOVE_LANE_SPAN_KEYS
+from podcast_mcp.services.collaboration.guest_project_ops import (
+    GUEST_MOVE_LANE_SPAN_KEYS,
+    GuestRefusal,
+)
 from podcast_mcp.services.collaboration.guest_routes import GUEST_OWNER_ROUTES
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService, lookup_share
@@ -42,7 +45,12 @@ from podcast_mcp.services.remote_mcp.allowlist import (
 from podcast_mcp.services.remote_mcp.limits import classify_mcp_rpc
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 from podcast_mcp.services.remote_mcp.tools import TOOL_HANDLERS, _arguments_model, list_tool_defs
-from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE, guest_message_for_code
+from podcast_mcp.util.coded_error import (
+    _GUEST_MESSAGES,
+    GENERIC_GUEST_MESSAGE,
+    guest_message_for_code,
+)
+from podcast_mcp.util.redact import mentions_host_path
 from script_loader import load_script
 
 CODE = "x-sharecut-error-code"
@@ -280,7 +288,7 @@ def test_a_job_of_another_kind_or_project_is_not_found(world, family) -> None:
         job = _job(world, kind)
         for op in ("job", "job_cancel"):
             code, text = mcp_refusal(call_tool(world, f"guest_{family}_{op}", {"job_id": job.id}))
-            assert (code, text) == ("job_not_found", GENERIC_GUEST_MESSAGE)
+            assert (code, text) == ("job_not_found", guest_message_for_code("job_not_found"))
     elsewhere = Job(
         id="elsewhere-1",
         kind=FAMILY_KINDS[family],
@@ -538,11 +546,10 @@ def test_every_registry_row_joins_its_tool_on_rate_kind_and_flag() -> None:
     assert flagged == set(STARTS) | {"guest_render_preview"}
 
 
-def test_the_new_copy_is_fixed_and_the_job_codes_stay_generic() -> None:
-    for code in ("pipeline_retime_with_force", "pipeline_job_unavailable"):
+def test_the_new_copy_is_fixed_and_job_running_stays_generic() -> None:
+    for code in ("pipeline_retime_with_force", "pipeline_job_unavailable", "job_not_found"):
         assert guest_message_for_code(code) != GENERIC_GUEST_MESSAGE
-    for code in ("job_not_found", "job_running"):
-        assert guest_message_for_code(code) == GENERIC_GUEST_MESSAGE
+    assert guest_message_for_code("job_running") == GENERIC_GUEST_MESSAGE
 
 
 def test_force_with_retime_words_is_the_owner_code_with_fixed_copy(world) -> None:
@@ -588,3 +595,86 @@ def test_every_new_handler_has_resolvable_argument_hints(tool) -> None:
     model = _arguments_model(TOOL_HANDLERS[tool])
 
     assert model is None or set(model.model_fields) <= {"req"}
+
+
+NEW_GUEST_COPY_CODES = (
+    "job_not_found",
+    "pipeline_config_invalid",
+)
+PLANTED_HOST_TEXT = "/Users/host/secret-episode/raw.wav PLANTED-1686"
+GUEST_RUN_URL = "/api/review/{token}/daw/pipeline/run"
+
+
+def _plant_run_config(monkeypatch, error: Exception) -> None:
+    def planted(*_args, **_kwargs):
+        raise error
+
+    for target in (
+        "podcast_mcp.services.collaboration.guest_project_ops.transcribe_run_config",
+        "podcast_mcp.gui.routes.pipeline_jobs.transcribe_run_config",
+    ):
+        monkeypatch.setattr(target, planted)
+
+
+@pytest.mark.parametrize("code", NEW_GUEST_COPY_CODES)
+def test_every_new_guest_copy_entry_is_approved_and_hides_host_paths(code) -> None:
+    assert code in _GUEST_MESSAGES
+    assert not mentions_host_path(_GUEST_MESSAGES[code])
+    assert guest_message_for_code(code) != GENERIC_GUEST_MESSAGE
+
+
+def test_the_job_not_found_copy_is_pinned() -> None:
+    assert _GUEST_MESSAGES["job_not_found"] == "That job isn't available. Refresh and try again."
+
+
+@pytest.mark.parametrize(
+    ("error", "status", "code"),
+    [
+        (GuestRefusal(409, PLANTED_HOST_TEXT, code="model_needed"), 409, "model_needed"),
+        (GuestRefusal(404, PLANTED_HOST_TEXT, code="job_not_found"), 404, "job_not_found"),
+        (GuestRefusal(400, PLANTED_HOST_TEXT, code="no_copy_for_this"), 400, "no_copy_for_this"),
+    ],
+    ids=["guest_refusal", "guest_refusal_job", "guest_refusal_uncopied_code"],
+)
+def test_a_guest_http_refusal_shows_approved_copy_never_host_text(
+    world, monkeypatch, error, status, code
+) -> None:
+    _plant_run_config(monkeypatch, error)
+
+    res = world.client.post(GUEST_RUN_URL.format(token=world.tokens["editor"]), json={})
+
+    assert res.status_code == status
+    assert res.headers["x-sharecut-error-code"] == code
+    assert res.json() == {"detail": guest_message_for_code(code)}
+    assert "PLANTED-1686" not in res.text
+
+
+def test_an_uncoded_value_error_from_the_run_config_is_logged_and_refused_as_invalid_config(
+    world, monkeypatch, caplog
+) -> None:
+    _plant_run_config(monkeypatch, ValueError(PLANTED_HOST_TEXT))
+    caplog.set_level(logging.INFO)
+
+    res = world.client.post(GUEST_RUN_URL.format(token=world.tokens["editor"]), json={})
+
+    assert res.status_code == 400
+    assert res.headers["x-sharecut-error-code"] == "pipeline_config_invalid"
+    assert res.json() == {"detail": guest_message_for_code("pipeline_config_invalid")}
+    assert "PLANTED-1686" not in res.text
+    assert any(PLANTED_HOST_TEXT in str(r.exc_info[1]) for r in caplog.records if r.exc_info)
+    owner = world.client.post("/api/pipeline/run", json={"path": str(world.ws.path)})
+    assert owner.status_code == 400
+    assert "PLANTED-1686" in owner.json()["detail"]
+
+
+@pytest.mark.parametrize("code", ["model_needed", "pipeline_config_invalid", "job_not_found"])
+def test_http_and_remote_mcp_give_the_same_copy_for_a_guest_refusal_code(
+    world, monkeypatch, code
+) -> None:
+    _plant_run_config(monkeypatch, GuestRefusal(400, PLANTED_HOST_TEXT, code=code))
+
+    http = world.client.post(GUEST_RUN_URL.format(token=world.tokens["editor"]), json={})
+    mcp_code, mcp_text = mcp_refusal(call_tool(world, "guest_pipeline_run"))
+
+    assert http.headers["x-sharecut-error-code"] == mcp_code == code
+    assert http.json()["detail"] == mcp_text == guest_message_for_code(code)

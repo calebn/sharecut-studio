@@ -2,8 +2,8 @@
 
 Each function is the body of a ``transcript_*`` row of ``GUEST_OWNER_ROUTES``, taking the share's
 workspace and the already-validated fields of its request. A refusal is a ``GuestRefusal``: the
-HTTP adapter sends its status, text and code as they are, and a guest MCP tool sends the code with
-the fixed guest copy. Nothing here takes a path from a client.
+HTTP adapter sends its status and code with the approved guest copy for that code, and a guest MCP
+tool sends the code with the same copy. Nothing here takes a path from a client.
 """
 
 from __future__ import annotations

@@ -33,7 +33,7 @@ from podcast_mcp.services.remote_mcp.allowlist import (
     tools_for_capabilities,
 )
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
-from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE, guest_message_for_code
 
 
 def _seed_premix(minimal_project, sample_wav):
@@ -971,7 +971,7 @@ def test_guest_job_lookups_and_upload_arguments_are_refusals(
     token = share["token"]
 
     text, structured = _tool_error(_call(token, "guest_render_preview_job", {"job_id": "nope"}))
-    assert text == GENERIC_GUEST_MESSAGE
+    assert text == guest_message_for_code("job_not_found")
     assert structured is not None
     assert structured["error_code"] == "job_not_found"
 

@@ -144,9 +144,9 @@ script generates Rust constants from that same public profile.
 `util/tool_refusal.py` owns refusal recognition along the explicit exception
 cause chain. `util/coded_error.py` owns the sparse code-to-copy table used for
 guest messages; host diagnostics never select guest copy. Unknown codes use
-`GENERIC_GUEST_MESSAGE`, and the path detector checks approved messages as a
-defense in depth. Coded errors keep their host message and code, including
-through document conflict wrapping and pickling. File-lock timeouts take
+`GENERIC_GUEST_MESSAGE`, including over guest HTTP for a `GuestRefusal`. The path
+detector checks approved messages as a defense in depth. Coded errors keep their
+host message and code, including through document conflict wrapping and pickling. File-lock timeouts take
 precedence over SQLite busy or locked errors, which take precedence over coded
 refusals. Guest lock and SQLite busy failures use the same `project_busy` copy;
 owner messages retain their existing lock or SQLite wording.
