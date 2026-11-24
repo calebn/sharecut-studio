@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import posixpath
 import re
 import subprocess
 import time
@@ -53,35 +54,52 @@ RELAY_STATIC = tuple(
 )
 EXTENSIONS_GROUP = "podcast_mcp.extensions"
 FOSS_EXTENSIONS = {"collaboration"}
+# Names the probe's lower bound on registered MCP tools (the host registers ~200).
+MIN_MCP_TOOLS = 10
+PROBE_TIMEOUT_SEC = 300
 # Runs in the installed interpreter with the private provider made unimportable; ``None`` in
 # sys.modules makes ``import podcast_online`` raise ImportError, so any hard dependency fails.
-BLOCK_ONLINE_PROBE = """
+BLOCK_ONLINE_PROBE = f"""
 import sys
 sys.modules["podcast_online"] = None
 sys.argv = ["podcast", "--help"]
+import asyncio
 import contextlib
 import io
+import logging
+from mcp.client import Client
 from podcast_mcp.cli.main import app
+from podcast_mcp.extensions.features import FEATURE_SHARE_ROUTES
+from podcast_mcp.extensions.loader import load_extensions
+from podcast_mcp.gui.server import create_app
+from podcast_mcp.mcp.server import mcp
+
 with contextlib.redirect_stdout(io.StringIO()):
     try:
         app()
     except SystemExit as exc:
         assert exc.code in (0, None), exc.code
-import asyncio
-from mcp.client import Client
-from podcast_mcp.mcp.server import mcp
-from podcast_mcp.gui.server import create_app
 
 async def tool_names():
     async with Client(mcp) as client:
-        return {tool.name for tool in (await client.list_tools()).tools}
+        return {{tool.name for tool in (await client.list_tools()).tools}}
 
 tools = asyncio.run(tool_names())
-assert len(tools) >= 10, sorted(tools)
+assert len(tools) >= {MIN_MCP_TOOLS}, sorted(tools)
+
+skipped = []
+class Skipped(logging.Handler):
+    def emit(self, record):
+        if record.getMessage().startswith("skip extension entry point"):
+            skipped.append(record.getMessage())
+logging.getLogger("podcast_mcp.extensions.loader").addHandler(Skipped())
+registry = load_extensions()
+assert not skipped, skipped
+assert registry.has(FEATURE_SHARE_ROUTES), registry.feature_ids()
+
 gui = create_app()
 assert gui.routes
-assert sys.modules["podcast_online"] is None
-print(f"podcast_online blocked: CLI starts, {len(tools)} MCP tools, GUI app has {len(gui.routes)} routes")
+print(f"podcast_online blocked: CLI starts, {{len(tools)}} MCP tools, collaboration loads, GUI app has {{len(gui.routes)}} routes")
 """
 
 _LOAD_CONTRACTS = """
@@ -144,23 +162,33 @@ def wheel_defaults(wheel: Path) -> None:
         raise SystemExit(f"{wheel.name}: defaults missing {missing}")
 
 
+def _declared_extensions(wheel: Path, archive: zipfile.ZipFile, names: set[str]) -> set[str]:
+    """Union of the ``podcast_mcp.extensions`` keys over every dist-info in the wheel."""
+    declared: set[str] = set()
+    for name in sorted(n for n in names if n.endswith(".dist-info/entry_points.txt")):
+        parser = configparser.ConfigParser(delimiters=("=",), interpolation=None)
+        parser.optionxform = str  # type: ignore[assignment,method-assign]
+        try:
+            parser.read_string(archive.read(name).decode("utf-8"))
+        except (configparser.Error, UnicodeDecodeError) as exc:
+            raise SystemExit(f"{wheel.name}: cannot parse {name}: {exc}") from exc
+        if parser.has_section(EXTENSIONS_GROUP):
+            declared |= set(parser[EXTENSIONS_GROUP])
+    return declared
+
+
 def wheel_boundary(wheel: Path) -> None:
     """Require the FOSS boundary: no private provider, collaboration-only extensions, relay static."""
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
-        entry_files = sorted(n for n in names if n.endswith(".dist-info/entry_points.txt"))
-        entry_points = archive.read(entry_files[0]).decode("utf-8") if entry_files else None
-    online = sorted(n for n in names if n.startswith("podcast_online"))
+        declared = _declared_extensions(wheel, archive, names)
+    # Installers drop "." and empty components, so ./podcast_online/x still installs as podcast_online/x.
+    parts = {n: posixpath.normpath(n.lstrip("/")).split("/") for n in names}
+    online = sorted(
+        n for n, p in parts.items() if p[0].startswith("podcast_online") or "podcast_online" in p
+    )
     if online:
         raise SystemExit(f"{wheel.name}: private podcast_online entries in the wheel: {online}")
-    if entry_points is None:
-        raise SystemExit(
-            f"{wheel.name}: no dist-info/entry_points.txt to read {EXTENSIONS_GROUP} from"
-        )
-    parser = configparser.ConfigParser(delimiters=("=",), interpolation=None)
-    parser.optionxform = str  # type: ignore[assignment,method-assign]
-    parser.read_string(entry_points)
-    declared = set(parser[EXTENSIONS_GROUP]) if parser.has_section(EXTENSIONS_GROUP) else set()
     if declared != FOSS_EXTENSIONS:
         raise SystemExit(
             f"{wheel.name}: entry_points.txt [{EXTENSIONS_GROUP}] lists {sorted(declared)}, "
@@ -172,16 +200,24 @@ def wheel_boundary(wheel: Path) -> None:
 
 
 def installed_without_online(podcast: Path) -> None:
-    """Start the CLI, MCP tools and GUI app in the installed package with ``podcast_online`` blocked."""
+    """Start the CLI, MCP tools, extensions and GUI app in the installed package without ``podcast_online``."""
     python = podcast.parent / "python"
-    result = subprocess.run(
-        [str(python), "-I", "-c", BLOCK_ONLINE_PROBE],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [str(python), "-I", "-c", BLOCK_ONLINE_PROBE],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=PROBE_TIMEOUT_SEC,
+        )
+    except subprocess.TimeoutExpired:
+        raise SystemExit(
+            f"podcast_online-blocked probe timed out after {PROBE_TIMEOUT_SEC}s"
+        ) from None
     if result.returncode != 0:
-        raise SystemExit(f"installed package needs podcast_online:\n{result.stderr}")
+        tail = result.stderr[-2000:]
+        cause = "needs podcast_online" if "podcast_online" in result.stderr else "failed"
+        raise SystemExit(f"installed package {cause} in the podcast_online-blocked probe:\n{tail}")
     print(result.stdout.strip())
 
 
