@@ -226,12 +226,8 @@ def list_usable_shares(project: EpisodeProject) -> list[dict[str, Any]]:
     return [row for row in list_shares(project) if share_is_usable(row)]
 
 
-def usable_share_tokens(workspace: Path) -> frozenset[str]:
-    return frozenset(
-        str(row["token"])
-        for row in list_shares_for_workspace(workspace)
-        if row.get("token") and share_is_usable(row)
-    )
+def usable_share_tokens(project: EpisodeProject) -> frozenset[str]:
+    return frozenset(str(row["token"]) for row in list_usable_shares(project) if row.get("token"))
 
 
 def revoke_share(project: EpisodeProject, token: str) -> bool:

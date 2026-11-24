@@ -19,7 +19,7 @@ from pathlib import Path
 from filelock import FileLock, Timeout
 
 from podcast_mcp.config.runtime import RelayConfig, ready_relay_config
-from podcast_mcp.models import load_project
+from podcast_mcp.models import EpisodeProject, load_project
 from podcast_mcp.services.collaboration.review_shares import usable_share_tokens
 from podcast_mcp.services.collaboration.tunnel import TunnelClient
 from podcast_mcp.services.collaboration.tunnel_status import (
@@ -136,7 +136,7 @@ class TunnelSupervisor:
         self._serving: _Serving | None = None
         self._rejected: RelayConfig | None = None
         self._last_live_at: float | None = None
-        self._workspaces: dict[Path, Path] = {}
+        self._episodes: dict[Path, EpisodeProject] = {}
         self._loop_task: asyncio.Task[None] | None = None
         self._stop_task: asyncio.Task[None] | None = None
         self._event_loop: asyncio.AbstractEventLoop | None = None
@@ -220,11 +220,11 @@ class TunnelSupervisor:
 
     def _links(self, project: Path) -> frozenset[str]:
         try:
-            workspace = self._workspaces.get(project)
-            if workspace is None:
-                workspace = load_project(project).workspace_path()
-                self._workspaces[project] = workspace
-            return usable_share_tokens(workspace)
+            episode = self._episodes.get(project)
+            if episode is None:
+                episode = load_project(project)
+                self._episodes[project] = episode
+            return usable_share_tokens(episode)
         except Exception as exc:
             log.warning("Studio tunnel supervisor cannot read shares: %s", type(exc).__name__)
             return frozenset()

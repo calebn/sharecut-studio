@@ -89,4 +89,4 @@ def test_usable_share_tokens_skips_revoked_and_expired(tmp_workspace: Path) -> N
     mint(expires_at="2020-01-01T00:00:00Z")
     assert revoke_share(project, revoked)
 
-    assert usable_share_tokens(project.workspace_path()) == frozenset({live})
+    assert usable_share_tokens(project) == frozenset({live})
