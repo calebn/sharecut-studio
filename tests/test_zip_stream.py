@@ -157,3 +157,45 @@ def test_entry_dates_are_the_file_time_clamped_to_1980(tmp_path: Path) -> None:
         "recent.txt": (2021, 3, 4, 5, 6, 8),
         "ancient.txt": (1980, 1, 1, 0, 0, 0),
     }
+
+
+def _step(chunks, count: int = 1) -> None:
+    for _ in range(count):
+        next(chunks)
+
+
+def test_a_member_truncated_while_it_is_read_stops_the_stream(tmp_path: Path) -> None:
+    only = padded(tmp_path, "big.bin", 5000)
+    chunks = stored_zip_chunks([only], chunk_size=1000)
+    _step(chunks, 2)
+
+    with only.path.open("r+b") as live:
+        live.truncate(1500)
+
+    with pytest.raises(ZipMemberChanged, match="ended early"):
+        list(chunks)
+
+
+def test_a_member_that_grows_while_it_is_read_stops_the_stream(tmp_path: Path) -> None:
+    only = padded(tmp_path, "big.bin", 3000)
+    chunks = stored_zip_chunks([only], chunk_size=1000)
+    _step(chunks, 2)
+
+    with only.path.open("ab") as live:
+        live.write(b"more")
+
+    with pytest.raises(ZipMemberChanged, match="grew"):
+        list(chunks)
+
+
+def test_a_same_size_rewrite_during_the_read_stops_the_stream(tmp_path: Path) -> None:
+    only = padded(tmp_path, "big.bin", 3000)
+    chunks = stored_zip_chunks([only], chunk_size=1000)
+    _step(chunks, 2)
+
+    only.path.write_bytes(b"x" * 3000)
+    later = only.mtime_ns + 5_000_000_000
+    os.utime(only.path, ns=(later, later))
+
+    with pytest.raises(ZipMemberChanged, match="changed"):
+        list(chunks)

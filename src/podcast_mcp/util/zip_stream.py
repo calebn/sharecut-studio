@@ -16,7 +16,7 @@ import zipfile
 from collections.abc import Generator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, BinaryIO
 
 from podcast_mcp.util.pinned_media import open_pinned_media
 
@@ -118,13 +118,19 @@ def _entry(member: ZipMember) -> zipfile.ZipInfo:
     return info
 
 
+def _require_planned(source: BinaryIO, member: ZipMember, what: str) -> None:
+    stat = os.fstat(source.fileno())
+    if (stat.st_size, stat.st_mtime_ns) != (member.size, member.mtime_ns):
+        raise ZipMemberChanged(f"{member.name} {what}")
+
+
 def stored_zip_chunks(
     members: Sequence[ZipMember], *, chunk_size: int = 1 << 20
 ) -> Generator[bytes]:
     """Stream a stored zip of *members* in order, one member open at a time.
 
     Each member opens through ``open_pinned_media`` and is checked against its planned
-    ``(size, mtime_ns)``. Raises ``ZipMemberChanged`` on a mismatch, a short read or a long
+    ``(size, mtime_ns)`` before and after it is read. Raises ``ZipMemberChanged`` on a mismatch, a short read or a long
     read, and ``RuntimeError`` before the last chunk if the total differs from
     ``stored_zip_length``. The generator closes the open member when it is closed or fails.
     """
@@ -137,9 +143,7 @@ def stored_zip_chunks(
                 open_pinned_media(member.path) as source,
                 archive.open(_entry(member), "w", force_zip64=_forces_zip64(member.size)) as target,
             ):
-                opened = os.fstat(source.fileno())
-                if (opened.st_size, opened.st_mtime_ns) != (member.size, member.mtime_ns):
-                    raise ZipMemberChanged(f"{member.name} changed after it was listed")
+                _require_planned(source, member, "changed after it was listed")
                 remaining = member.size
                 while remaining:
                     data = source.read(min(chunk_size, remaining))
@@ -152,6 +156,7 @@ def stored_zip_chunks(
                     yield piece
                 if source.read(1):
                     raise ZipMemberChanged(f"{member.name} grew while it was read")
+                _require_planned(source, member, "changed while it was read")
             piece = sink.take()
             if piece:
                 sent += len(piece)
