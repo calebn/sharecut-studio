@@ -336,7 +336,10 @@ export function decideSelectedPending(
 function appliesOwnAction(
   edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
 ): boolean {
-  return pendingOffersCut(edit) && edit.suggested_action !== "cut";
+  return (
+    edit.suggested_action === "leave" ||
+    (pendingOffersCut(edit) && edit.suggested_action !== "cut")
+  );
 }
 
 type DecisionResult = ExecuteResult & {
@@ -354,7 +357,11 @@ async function decidePending(
   const edit = s.project.pending_edits.find((e) => e.id === selection.id);
   if (!edit || edit.applied) return disabled("That suggestion is gone");
   if (!canReviewPendingEdit(s.projectPath, s.shareCapabilities))
-    return disabled("This link cannot decide suggestions");
+    return disabled(
+      edit.exact_range
+        ? EXACT_RANGE_REVIEW_REASON
+        : "This link cannot decide suggestions",
+    );
   if (pendingDecisionBusy(s, edit.id)) return disabled(BUSY_REASON);
   const { projectPath, projectEpoch } = s;
   const sameProject = () => {
@@ -401,7 +408,9 @@ async function decidePending(
         error.code === TRANSCRIPT_REFINE_REQUIRED_CODE;
       const live = useDawStore.getState();
       // The sheet's recovery form reads this: the refusal came from the bar, not the sheet.
-      if (gated) live.setPendingRefineGate(edit.id);
+      const stillSelected =
+        live.selection?.kind === "pending" && live.selection.id === edit.id;
+      if (gated && stillSelected) live.setPendingRefineGate(edit.id);
       live.announceStatus(gated ? REFINE_GATE_GUI_MESSAGE : reason, {
         tone: "error",
         ...(gated

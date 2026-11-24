@@ -421,7 +421,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     noRepeat: true,
     when: "editStageStructural",
     notes:
-      "Backspace or Delete: on a cut, shorten or lower suggestion this is its Cut (its own action); on a split, an exact range or a suggestion with no accept action it approves, and there is no separate bare accept key; X keeps or rejects",
+      "Backspace or Delete: on a cut, shorten, lower or leave suggestion this applies its own action (a leave keeps the audio); on a split, an exact range or a suggestion with no accept action it approves, and there is no separate bare accept key; X keeps or rejects",
   },
   {
     id: "edit.rippleDelete",
