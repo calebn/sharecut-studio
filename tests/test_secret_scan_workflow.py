@@ -9,6 +9,8 @@ import subprocess
 import tomllib
 from pathlib import Path
 
+import pytest
+
 from github_yaml import load_github_yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +43,52 @@ _IPV4_LITERAL = re.compile(rb"(?<![A-Za-z0-9])(?<!\d\.)(?:\d{1,3}\.){3}\d{1,3}(?
 _SIBLING_SCAN_SUFFIXES = (".md", ".mdc", ".yml", ".yaml", ".toml", ".json", ".txt", ".sh")
 _SIBLING_SCAN_NAMES = frozenset({"Makefile"})
 _SIBLING_PATH = re.compile(rb"(?<![\w./~-])(?:\.\./)+([A-Za-z0-9_@][A-Za-z0-9_@.-]*)")
+
+# Apple Developer Team ID (10 uppercase alphanumerics). A bare 10-character token is far too common
+# (hashes, keys, identifiers), so the check is keyed to context and to the files that carry
+# distribution identity: an assignment/key naming the team, or the ``<TEAMID>.<reverse-dns>`` form
+# used by appID / keychain / app-group identifiers. Placeholders (one repeated character such as
+# AAAAAAAAAA, ``${...}`` and ``{{...}}`` templates, words such as TEAMID) never match the shape.
+_TEAM_ID = rb"(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*[0-9])[A-Z0-9]{10}(?![A-Za-z0-9])"
+_TEAM_ID_ASSIGNMENT = re.compile(
+    rb"(?i:app(?:le)?[_-]?ids?|team[_-]?ids?|teamidentifier|development[_-]?team|appleteam\w*)"
+    rb"[\"'<>/\w]*?(?:\s*[:=]|:-|\s*>\s*<string>|</key>\s*<string>)\s*[\"']?(" + _TEAM_ID + rb")"
+)
+_TEAM_ID_BUNDLE = re.compile(
+    rb"(?<![A-Za-z0-9])(" + _TEAM_ID + rb")\.[a-z][a-z0-9-]*\.[a-z][a-z0-9.-]*"
+)
+_TEAM_ID_SCAN_ROOTS = frozenset({"config", "distribution", "scripts", ".github"})
+_TEAM_ID_SCAN_NAMES = frozenset({"apple-app-site-association"})
+_TEAM_ID_SCAN_SUFFIXES = (
+    ".plist",
+    ".entitlements",
+    ".yml",
+    ".yaml",
+    ".json",
+    ".sh",
+    ".py",
+    ".toml",
+)
+# ``ghcr.io/<owner>/`` anywhere in the tree names a container image published by that owner, so a
+# default pointing at one would ship the owner's registry to every user. Placeholders (``<owner>``,
+# ``${{ ... }}``, ``example*``) do not match. A real upstream image is listed by owner with a reason.
+_OWNER_IMAGE = re.compile(rb"ghcr\.io/([A-Za-z0-9][A-Za-z0-9._-]*)/", re.IGNORECASE)
+_UPSTREAM_IMAGE_OWNERS: dict[str, str] = {}
+_PLACEHOLDER_IMAGE_OWNER_PREFIX = "example"
+# Hosts the owner runs. In test sources they are generic fixtures that tie a test to the owner's
+# deployment; use ``*.example.test``. Files that must pin a production URL are listed with a reason.
+_OWNER_FIXTURE_HOSTS = (b"sudo." + b"science", b"cdn.sharecut." + b"studio")
+_OWNER_HOST_FIXTURE_ALLOWLIST: dict[str, str] = {
+    "tests/test_asset_sources.py": (
+        "pins the production bootstrap CDN base against the private distribution profile"
+    ),
+    "tests/test_cli_bootstrap.py": "asserts the exact production speaker-model download URL",
+    "tests/test_desktop_pack_scripts.py": (
+        "asserts the desktop shell source never embeds the production CDN base"
+    ),
+    "tests/test_speaker_ecapa_onnx.py": "asserts the exact production speaker-model URLs",
+}
+_TEST_SOURCE_SUFFIXES = (".py", ".rs", ".ts", ".tsx")
 
 
 def test_secret_scan_covers_changes_and_scheduled_history() -> None:
@@ -220,6 +268,56 @@ def _sibling_path_candidates(relative: Path, content: bytes) -> list[tuple[int, 
     return found
 
 
+def _is_team_id_surface(relative: Path) -> bool:
+    """Distribution config, Tauri/iOS identity files, AASA, scripts and workflows."""
+    if relative.name in _TEAM_ID_SCAN_NAMES or relative.suffix in (".plist", ".entitlements"):
+        return True
+    if relative.parts[0] == "gui" and "src-tauri" in relative.parts:
+        return relative.suffix in _TEAM_ID_SCAN_SUFFIXES
+    return relative.parts[0] in _TEAM_ID_SCAN_ROOTS and relative.suffix in _TEAM_ID_SCAN_SUFFIXES
+
+
+def _team_id_lines(relative: Path, content: bytes) -> list[int]:
+    """Return line numbers holding a real-looking Team ID in a named or ``<TEAM>.<bundle>`` form."""
+    if not _is_team_id_surface(relative) or b"\0" in content:
+        return []
+    lines: set[int] = set()
+    for pattern in (_TEAM_ID_ASSIGNMENT, _TEAM_ID_BUNDLE):
+        for match in pattern.finditer(content):
+            if len(set(match.group(1))) > 1:  # AAAAAAAAAA is the Simulator placeholder
+                lines.add(content.count(b"\n", 0, match.start(1)) + 1)
+    return sorted(lines)
+
+
+def _owner_image_lines(content: bytes) -> list[int]:
+    lines: list[int] = []
+    for match in _OWNER_IMAGE.finditer(content):
+        owner = match.group(1).decode().lower()
+        if owner.startswith(_PLACEHOLDER_IMAGE_OWNER_PREFIX) or owner in _UPSTREAM_IMAGE_OWNERS:
+            continue
+        lines.append(content.count(b"\n", 0, match.start()) + 1)
+    return lines
+
+
+def _owner_host_fixture_lines(relative: Path, content: bytes) -> list[int]:
+    posix = relative.as_posix()
+    is_test_source = relative.suffix in _TEST_SOURCE_SUFFIXES and (
+        relative.parts[0] == "tests"
+        or relative.name.startswith("test_")
+        or ".test." in relative.name
+        or (relative.suffix == ".rs" and "src-tauri" in relative.parts)
+    )
+    if not is_test_source or posix in _OWNER_HOST_FIXTURE_ALLOWLIST:
+        return []
+    return sorted(
+        {
+            content.count(b"\n", 0, match.start()) + 1
+            for host in _OWNER_FIXTURE_HOSTS
+            for match in re.finditer(re.escape(host), content)
+        }
+    )
+
+
 def _public_tree_violations(root: Path) -> list[str]:
     # Public IPv4 literals are caught by _public_ipv4_literals; skipped blobs get _SERVER_IPV4_MARKERS.
     forbidden = (
@@ -272,6 +370,12 @@ def _public_tree_violations(root: Path) -> list[str]:
             sibling_candidates.append((relative, line, name))
         for literal in _public_ipv4_literals(relative, content):
             hits.append(f"{relative}: public IPv4 literal {literal}")
+        for line in _team_id_lines(relative, content):
+            hits.append(f"{relative}:{line}: Apple Team ID outside a placeholder")
+        for line in _owner_image_lines(content):
+            hits.append(f"{relative}:{line}: owner container-image reference")
+        for line in _owner_host_fixture_lines(relative, content):
+            hits.append(f"{relative}:{line}: owner host used as a test fixture")
         markers: tuple[bytes, ...] = forbidden
         if _skips_ipv4_scan(relative, content):
             markers = (*forbidden, *_SERVER_IPV4_MARKERS)
@@ -539,3 +643,145 @@ def test_public_tree_sibling_scan_skips_source_code_traversal_fixtures(tmp_path:
 def test_public_tree_has_no_sibling_repo_paths() -> None:
     hits = [hit for hit in _public_tree_violations(ROOT) if "sibling-repo path" in hit]
     assert not hits, "sibling-repo paths remain:\n" + "\n".join(hits)
+
+
+# A seeded Team ID: the real shape (10 uppercase alphanumerics, mixed), never a real team.
+_SEEDED_TEAM = "Q7" + "ZK3M9" + "PX2"
+_TEAM_VIOLATION = "{path}:{line}: Apple Team ID outside a placeholder"
+_GHCR = "ghcr" + ".io/"
+_IMAGE_VIOLATION = "{path}:{line}: owner container-image reference"
+_HOST_VIOLATION = "{path}:{line}: owner host used as a test fixture"
+
+
+def test_public_tree_reports_apple_team_id_in_each_distribution_surface(tmp_path: Path) -> None:
+    _tracked_repo(
+        tmp_path,
+        {
+            "config/distribution.prod.json": f'{{"appleTeamId": "{_SEEDED_TEAM}"}}\n',
+            "gui/desktop/src-tauri/tauri.conf.json": f'{{"developmentTeam": "{_SEEDED_TEAM}"}}\n',
+            "gui/desktop/src-tauri/Info.plist": (
+                f"<dict>\n<key>TeamIdentifier</key>\n<string>{_SEEDED_TEAM}</string>\n</dict>\n"
+            ),
+            "docs-site/.well-known/apple-app-site-association": (
+                f'{{"applinks": {{"details": [{{"appIDs": ["{_SEEDED_TEAM}.com.acme.app"]}}]}}}}\n'
+            ),
+            "scripts/build.sh": f"export DEVELOPMENT_TEAM={_SEEDED_TEAM}\n",
+            ".github/workflows/ship.yml": f"env:\n  APPLE_TEAM_ID: {_SEEDED_TEAM}\n",
+        },
+    )
+
+    violations = sorted(_public_tree_violations(tmp_path))
+    assert violations == sorted(
+        [
+            _TEAM_VIOLATION.format(path=".github/workflows/ship.yml", line=2),
+            _TEAM_VIOLATION.format(path="config/distribution.prod.json", line=1),
+            _TEAM_VIOLATION.format(path="docs-site/.well-known/apple-app-site-association", line=1),
+            _TEAM_VIOLATION.format(path="gui/desktop/src-tauri/Info.plist", line=3),
+            _TEAM_VIOLATION.format(path="gui/desktop/src-tauri/tauri.conf.json", line=1),
+            _TEAM_VIOLATION.format(path="scripts/build.sh", line=1),
+        ]
+    )
+    assert not any(_SEEDED_TEAM in violation for violation in violations)
+
+
+def test_public_tree_reports_team_id_prefixed_bundle_id_and_default_assignment(
+    tmp_path: Path,
+) -> None:
+    _tracked_repo(
+        tmp_path,
+        {
+            "scripts/a.sh": f"id={_SEEDED_TEAM}.com.acme.app\n",
+            "scripts/b.sh": f'export APPLE_DEVELOPMENT_TEAM="${{APPLE_DEVELOPMENT_TEAM:-{_SEEDED_TEAM}}}"\n',
+        },
+    )
+
+    assert sorted(_public_tree_violations(tmp_path)) == [
+        _TEAM_VIOLATION.format(path="scripts/a.sh", line=1),
+        _TEAM_VIOLATION.format(path="scripts/b.sh", line=1),
+    ]
+
+
+def test_public_tree_allows_team_id_placeholders_and_unrelated_ten_char_tokens(
+    tmp_path: Path,
+) -> None:
+    _tracked_repo(
+        tmp_path,
+        {
+            "scripts/sim.sh": 'export APPLE_DEVELOPMENT_TEAM="${APPLE_DEVELOPMENT_TEAM:-AAAAAAAAAA}"\n',
+            "scripts/doc.sh": "APPLE_TEAM_ID=TEAMID\nDEVELOPMENT_TEAM={{apple.development-team}}\n",
+            ".github/workflows/ship.yml": (
+                "env:\n  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}\n  KEY: ABCDEFGHJK\n"
+            ),
+            "scripts/other.py": f'DIGEST = "{_SEEDED_TEAM}"\nname = "{_SEEDED_TEAM}.txt"\n',
+            "gui/desktop/src-tauri/tauri.conf.json": '{"identifier": "com.example.app"}\n',
+            # Same shape outside the scanned distribution surfaces: not a Team ID context.
+            "docs/notes.md": f"APPLE_TEAM_ID={_SEEDED_TEAM}\n",
+            "tests/test_x.py": f'TEAM = "{_SEEDED_TEAM}"\nteamID = "{_SEEDED_TEAM}"\n',
+        },
+    )
+
+    assert _public_tree_violations(tmp_path) == []
+
+
+def test_public_tree_reports_owner_container_image_default(tmp_path: Path) -> None:
+    _tracked_repo(
+        tmp_path,
+        {
+            "scripts/run.sh": f'IMAGE="${{IMAGE:-{_GHCR}acme-owner/studio:latest}}"\n',
+            "deploy/compose.yml": f"services:\n  a:\n    image: {_GHCR.upper()}Acme-Owner/relay\n",
+            ".github/workflows/x.yml": f"env:\n  IMAGE: {_GHCR}${{{{ github.repository }}}}\n",
+            "docs/pull.md": f"docker pull {_GHCR}<owner>/studio and {_GHCR}example/x\n",
+        },
+    )
+
+    assert sorted(_public_tree_violations(tmp_path)) == [
+        _IMAGE_VIOLATION.format(path="deploy/compose.yml", line=3),
+        _IMAGE_VIOLATION.format(path="scripts/run.sh", line=1),
+    ]
+
+
+def test_public_tree_allows_container_image_owner_listed_with_a_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert all(reason.strip() for reason in _UPSTREAM_IMAGE_OWNERS.values())
+    _tracked_repo(tmp_path, {"scripts/run.sh": f"docker pull {_GHCR}upstream-org/tool:1\n"})
+    assert _public_tree_violations(tmp_path) == [
+        _IMAGE_VIOLATION.format(path="scripts/run.sh", line=1)
+    ]
+
+    monkeypatch.setitem(_UPSTREAM_IMAGE_OWNERS, "upstream-org", "upstream project's own image")
+    assert _public_tree_violations(tmp_path) == []
+
+
+def test_public_tree_reports_owner_host_fixture_in_test_sources(tmp_path: Path) -> None:
+    owner = "sudo." + "science"
+    cdn = "cdn.sharecut." + "studio"
+    _tracked_repo(
+        tmp_path,
+        {
+            "tests/test_a.py": f'ORIGIN = "https://{owner}"\n',
+            "gui/desktop/src-tauri/src/share_url.rs": f'    assert!(!ok("https://{owner}/r/t"));\n',
+            "gui/web/src/a.test.ts": f'const base = "https://{cdn}/assets";\n',
+            "tests/test_share_page.py": 'ORIGIN = "https://share.example.test"\n',
+            "README.md": f"[privacy](https://{owner}/privacy.html)\n",
+        },
+    )
+
+    assert sorted(_public_tree_violations(tmp_path)) == [
+        _HOST_VIOLATION.format(path="gui/desktop/src-tauri/src/share_url.rs", line=1),
+        _HOST_VIOLATION.format(path="gui/web/src/a.test.ts", line=1),
+        _HOST_VIOLATION.format(path="tests/test_a.py", line=1),
+    ]
+
+
+def test_owner_host_fixture_allowlist_entries_carry_reasons_and_exist() -> None:
+    for relative, reason in _OWNER_HOST_FIXTURE_ALLOWLIST.items():
+        assert reason.strip(), relative
+        assert (ROOT / relative).is_file(), relative
+    assert "tests/test_asset_sources.py" in _OWNER_HOST_FIXTURE_ALLOWLIST
+
+
+def test_public_tree_has_no_team_id_owner_image_or_owner_host_fixture() -> None:
+    markers = ("Apple Team ID", "owner container-image", "owner host used")
+    hits = [hit for hit in _public_tree_violations(ROOT) if any(m in hit for m in markers)]
+    assert not hits, "boundary markers remain:\n" + "\n".join(hits)
