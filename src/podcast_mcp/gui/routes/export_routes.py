@@ -19,6 +19,7 @@ from podcast_mcp.gui.routes.deps import (
     resolve_project,
 )
 from podcast_mcp.gui.routes.export_files import (
+    download_export_archive,
     download_exported_file,
     list_exported_files,
     reveal_exported_file,
@@ -165,6 +166,25 @@ def list_export_files(
         ticketed=True,
         host_files=True,
     )
+
+
+@router.head("/api/export/archive", include_in_schema=False)
+@router.get("/api/export/archive")
+def download_export_archive_route(
+    request: Request,
+    path: str = Query(...),
+    ticket: str | None = Query(None),
+) -> Response:
+    """Download every current listed file as one zip. A ticket from the listing stands in
+    for the host session token, for this archive only."""
+    ticket_version = None
+    if ticket is None:
+        require_host(request)
+    else:
+        refuse_relayed(request)
+        ticket_version = export_ticket.verified_version(ticket, path, export_ticket.ARCHIVE_SUBJECT)
+    ws = ProjectWorkspace.open(resolve_project(path, request), adopt=False)
+    return download_export_archive(request, ws, ticket_version=ticket_version)
 
 
 @router.head("/api/export/files/{file_id:path}", include_in_schema=False)

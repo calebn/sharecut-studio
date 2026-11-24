@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import subprocess
 import time
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,6 +16,7 @@ from fastapi.testclient import TestClient
 from podcast_mcp.export.chapters import render_chapters_json
 from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.gui.host_reveal import reveal_in_file_manager
+from podcast_mcp.gui.routes import export_files as export_files_routes
 from podcast_mcp.gui.routes import export_ticket
 from podcast_mcp.gui.routes.share_common import audio_slot
 from podcast_mcp.gui.server import create_app
@@ -36,11 +39,12 @@ from podcast_mcp.services.document import (
     TranscriptService,
     plan_archive,
 )
+from podcast_mcp.services.document.export_files import ExportedFileKind
 from podcast_mcp.services.jobs import Job
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.host_platform import GENERIC_POSIX, IOS, LINUX, MACOS, WINDOWS
-from podcast_mcp.util.zip_stream import stored_zip_length
+from podcast_mcp.util.zip_stream import ZipMemberChanged, stored_zip_length
 
 CODE = "x-sharecut-error-code"
 GUEST = "/api/review/{token}/daw/export/files"
@@ -1025,7 +1029,7 @@ def test_the_head_route_stays_out_of_the_openapi_schema(remote) -> None:
     assert set(paths["/api/export/files/{file_id}"]) == {"get"}
 
 
-def _row(id: str, kind: str, size: int, current: bool, mtime_ns: int = 7) -> tuple:
+def _row(id: str, kind: ExportedFileKind, size: int, current: bool, mtime_ns: int = 7) -> tuple:
     entry = ExportedFile(id, Path(id).name, kind, "label", size, current)
     return entry, ServedFile(id, kind, Path("/export") / id, "x/y", mtime_ns, size)
 
@@ -1087,3 +1091,187 @@ def test_the_archive_plan_is_none_when_nothing_current_can_be_packed() -> None:
     assert plan_archive([], stem="s") is None
     stale = [_row("ep.mp3", "audio", 10, False), _row("range.wav", "bounce", 3, True)]
     assert plan_archive(stale, stem="s") is None
+
+
+ARCHIVE = "/api/export/archive"
+
+
+def _archive_entry(client: TestClient, ws: ProjectWorkspace) -> dict:
+    res = client.get("/api/export/files", params={"path": str(ws.path)}, headers=SESSION)
+    assert res.status_code == 200
+    return res.json()["archive"]
+
+
+def _archive_params(ws: ProjectWorkspace, archive: dict) -> dict[str, str]:
+    return {"path": str(ws.path), "ticket": archive["ticket"]}
+
+
+def _zip_members(body: bytes) -> dict[str, bytes]:
+    with zipfile.ZipFile(io.BytesIO(body)) as zf:
+        assert zf.testzip() is None
+        assert {info.compress_type for info in zf.infolist()} <= {zipfile.ZIP_STORED}
+        return {name: zf.read(name) for name in zf.namelist()}
+
+
+def test_download_all_packs_exactly_the_current_listing(ws, folder, remote) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    (folder / "daw-0123456789ab").mkdir()
+    (folder / "daw-0123456789ab" / "session-reaper.zip").write_bytes(b"daw")
+    (folder / "clips" / f"cold-open_c2.1234.{'a' * 32}.partial.wav").write_bytes(WAV)
+    archive = _archive_entry(remote, ws)
+
+    res = remote.get(ARCHIVE, params=_archive_params(ws, archive))
+
+    members = _zip_members(res.content)
+    assert list(members) == [
+        f"{stem}.mp3",
+        f"{stem}.wav",
+        f"{stem}.md",
+        f"{stem}.srt",
+        f"{stem}.chapters.json",
+    ]
+    assert members[f"{stem}.mp3"] == MP3
+    assert members[f"{stem}.wav"] == WAV
+    assert members[f"{stem}.chapters.json"] == (folder / f"{stem}.chapters.json").read_bytes()
+    assert members[f"{stem}.md"] == (folder / f"{stem}.md").read_bytes()
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/zip"
+    assert res.headers["content-length"] == str(len(res.content)) == str(archive["bytes"])
+    assert res.headers["content-disposition"] == f'attachment; filename="{stem}-export.zip"'
+    assert (archive["name"], archive["count"]) == (f"{stem}-export.zip", 5)
+
+
+def test_a_stale_row_is_left_out_of_the_archive(ws, folder, remote) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    proj = load_project(ws.path)
+    proj.chapters = [ChapterMarker(time=0.0, title="Renamed")]
+    save_project(proj, ws.path)
+    archive = _archive_entry(remote, ws)
+
+    res = remote.get(ARCHIVE, params=_archive_params(ws, archive))
+
+    assert f"{stem}.chapters.json" not in _zip_members(res.content)
+    assert archive["count"] == 4
+
+
+def test_the_listing_offers_the_archive_only_when_something_current_exists(
+    ws, client, folder
+) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+
+    host = client.get("/api/export/files", params={"path": str(ws.path)}).json()["archive"]
+
+    assert set(host) == {"name", "count", "bytes", "ticket"}
+    assert (host["name"], host["count"]) == (f"{stem}-export.zip", 5)
+    for path in folder.rglob("*"):
+        if path.is_file():
+            path.unlink()
+    nothing = client.get("/api/export/files", params={"path": str(ws.path)}).json()
+    assert nothing == {"files": [], "archive": None}
+
+
+def test_download_all_head_answers_the_length_with_no_body(ws, folder, remote) -> None:
+    archive = _archive_entry(remote, ws)
+    params = _archive_params(ws, archive)
+
+    head = remote.head(ARCHIVE, params=params)
+    get = remote.get(ARCHIVE, params=params)
+
+    assert (head.status_code, head.content) == (200, b"")
+    assert head.headers["content-length"] == str(archive["bytes"]) == get.headers["content-length"]
+    assert head.headers["content-disposition"] == get.headers["content-disposition"]
+    assert remote.head(ARCHIVE, params={"path": str(ws.path)}).status_code == 403
+
+
+def test_download_all_waits_for_a_running_export_and_is_gone_when_nothing_is_current(
+    ws, folder, remote
+) -> None:
+    archive = _archive_entry(remote, ws)
+    params = _archive_params(ws, archive)
+    _run_export(remote.app, ws)
+
+    running = remote.get(ARCHIVE, params=params)
+    _run_export(remote.app, ws, status="done")
+    for path in folder.rglob("*"):
+        if path.is_file():
+            path.unlink()
+    gone = remote.get(ARCHIVE, params=params)
+
+    assert (running.status_code, running.headers[CODE], running.json()["detail"]) == (
+        409,
+        "export_running",
+        RUNNING,
+    )
+    assert (gone.status_code, gone.headers[CODE], gone.json()["detail"]) == (
+        404,
+        "export_file_gone",
+        GONE,
+    )
+
+
+def test_an_archive_ticket_opens_the_archive_and_nothing_else(
+    ws, folder, remote, monkeypatch
+) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    archive = _archive_entry(remote, ws)
+    ticket = archive["ticket"]
+    params = {"path": str(ws.path)}
+    file_ticket = _tickets(remote, ws)[f"{stem}.mp3"]
+
+    on_file = remote.get(f"/api/export/files/{stem}.mp3", params={**params, "ticket": ticket})
+    on_null_id = remote.get("/api/export/files/%00archive", params={**params, "ticket": ticket})
+    file_on_archive = remote.get(ARCHIVE, params={**params, "ticket": file_ticket})
+    forged = remote.get(ARCHIVE, params={**params, "ticket": ticket[:-1] + "0x"})
+    elsewhere = remote.get(ARCHIVE, params={"path": str(ws.path.parent), "ticket": ticket})
+    listing = remote.get("/api/export/files", params={**params, "ticket": ticket})
+    relayed = remote.get(
+        ARCHIVE, params={**params, "ticket": ticket}, headers={"x-sharecut-relayed": "1"}
+    )
+
+    assert [r.status_code for r in (on_file, file_on_archive, forged)] == [403] * 3
+    assert (on_null_id.status_code, on_null_id.headers[CODE]) == (404, "export_file_gone")
+    assert (elsewhere.status_code, listing.status_code, relayed.status_code) == (403, 403, 403)
+    assert on_file.headers[CODE] == file_on_archive.headers[CODE] == "export_ticket_invalid"
+
+    (folder / f"{stem}.mp3").write_bytes(MP3 + b"more")
+    changed = remote.get(ARCHIVE, params={**params, "ticket": ticket})
+    assert (changed.status_code, changed.headers[CODE]) == (410, "export_file_changed")
+
+    monkeypatch.setattr(
+        export_ticket, "_now", lambda: time.time() + export_ticket.TICKET_TTL_SEC + 5
+    )
+    expired = remote.get(ARCHIVE, params={**params, "ticket": ticket})
+    assert (expired.status_code, expired.headers[CODE]) == (410, "export_ticket_expired")
+
+
+def test_symlinked_members_and_folders_are_never_packed(ws, folder, remote, tmp_path) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    secret = tmp_path / "secret.txt"
+    secret.write_bytes(b"secret")
+    (folder / f"{stem}.srt").unlink()
+    (folder / f"{stem}.srt").symlink_to(secret)
+    (folder / "clips" / "linked.wav").symlink_to(folder / f"{stem}.wav")
+    archive = _archive_entry(remote, ws)
+
+    res = remote.get(ARCHIVE, params=_archive_params(ws, archive))
+
+    assert f"{stem}.srt" not in _zip_members(res.content)
+    assert b"secret" not in res.content
+    assert "clips/linked.wav" not in _zip_members(res.content)
+
+
+def test_a_member_rewritten_mid_stream_fails_the_download(ws, folder, remote, monkeypatch) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    archive = _archive_entry(remote, ws)
+    real = export_files_routes.stored_zip_chunks
+
+    def rewriting(members):
+        chunks = real(members)
+        yield next(chunks)
+        (folder / f"{stem}.wav").write_bytes(WAV + b"more")
+        yield from chunks
+
+    monkeypatch.setattr(export_files_routes, "stored_zip_chunks", rewriting)
+
+    with pytest.raises(ZipMemberChanged):
+        remote.get(ARCHIVE, params=_archive_params(ws, archive))

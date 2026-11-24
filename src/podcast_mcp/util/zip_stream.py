@@ -13,7 +13,7 @@ import io
 import os
 import time
 import zipfile
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -122,7 +122,7 @@ def _entry(member: ZipMember) -> zipfile.ZipInfo:
 
 def stored_zip_chunks(
     members: Sequence[ZipMember], *, chunk_size: int = 1 << 20
-) -> Iterator[bytes]:
+) -> Generator[bytes]:
     """Stream a stored zip of *members* in order, one member open at a time.
 
     Each member opens through ``open_pinned_media`` and is checked against its planned
