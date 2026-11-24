@@ -738,13 +738,12 @@ class TimelineService(CutMutatingService):
     def duplicate_segment(
         self, source_start: float, source_end: float, insert_at: float
     ) -> DuplicateSegmentResult:
+        config = self.ws.effective_config
         return self.ws.mutate(
             "before duplicate segment",
             "after duplicate segment",
             lambda p: DuplicateSegmentResult(
-                **duplicate_segment(
-                    p, source_start, source_end, insert_at, defaults=self.ws.effective_config()
-                )
+                **duplicate_segment(p, source_start, source_end, insert_at, defaults=config())
             ),
         )
 
@@ -761,18 +760,12 @@ class TimelineService(CutMutatingService):
         mode: EditMode,
     ) -> PasteSegmentResult:
         """Paste clips: ripple opens time on every track; gap pastes over in place."""
+        config = self.ws.effective_config
         return self.ws.mutate(
             "before paste segment",
             "after paste segment",
             lambda p: PasteSegmentResult(
-                **paste_segment(
-                    p,
-                    insert_at,
-                    duration,
-                    extracts,
-                    mode=mode,
-                    defaults=self.ws.effective_config(),
-                )
+                **paste_segment(p, insert_at, duration, extracts, mode=mode, defaults=config())
             ),
             operation="paste_segment",
             params={"insert_at": insert_at, "duration": duration, "mode": mode.value},
