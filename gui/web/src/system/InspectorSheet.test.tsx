@@ -796,3 +796,30 @@ describe("InspectorSheet takeover", () => {
     await expectNoA11yViolations(document.body);
   });
 });
+
+describe("InspectorSheet dock detent with a Close in the dock", () => {
+  it("hands the dock whether the sheet is at rest, and stays axe clean with one Close", async () => {
+    const dock = vi.fn((atRest: boolean) => (
+      <button type="button">{atRest ? "Close" : "Hear"}</button>
+    ));
+    const first = phone({ dock });
+    expect(dock).toHaveBeenLastCalledWith(true);
+    expect(screen.getAllByRole("button", { name: "Close" })).toHaveLength(1);
+    await expectNoA11yViolations(first.container);
+    first.unmount();
+    phone({ detent: "half", dock });
+    expect(dock).toHaveBeenLastCalledWith(false);
+  });
+
+  it("hands the dock not-at-rest while the sheet is dragged", () => {
+    const dock = vi.fn((atRest: boolean) => (
+      <button type="button">{atRest ? "Close" : "Hear"}</button>
+    ));
+    const { sheet } = phone({ dock });
+    fireEvent.pointerDown(grip(), at(700));
+    moveTo(500, 100);
+    expect(sheet).toHaveAttribute("data-dragging");
+    expect(dock).toHaveBeenLastCalledWith(false);
+    expect(screen.queryAllByRole("button", { name: "Close" })).toHaveLength(0);
+  });
+});

@@ -384,6 +384,17 @@ describe("ScriptHost Fix text", () => {
     expect(useDawStore.getState().selection).not.toBeNull();
   });
 
+  it("closes on the Cancel fix button without a call, focusing the word and keeping the selection", async () => {
+    await openWith("{F2}");
+    await userEvent.type(field(), "zzz");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel fix" }));
+    await act(async () => {});
+    expect(submitWordCorrection).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(word("friends (selected)")).toHaveFocus();
+    expect(useDawStore.getState().selection).not.toBeNull();
+  });
+
   it("returns focus to the word after a saved fix", async () => {
     await openWith("{Enter}");
     await userEvent.type(field(), "!{Enter}");

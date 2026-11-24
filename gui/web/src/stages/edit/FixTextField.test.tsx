@@ -290,4 +290,107 @@ describe("FixTextField", () => {
 
     expect(onDone).not.toHaveBeenCalled();
   });
+  describe("Cancel button", () => {
+    const withCancel = (over = {}) =>
+      setup("small room", { cancelLabel: "Cancel fix", ...over });
+
+    it("renders no Cancel unless the host names it", () => {
+      setup();
+      expect(screen.queryByRole("button", { name: "Cancel fix" })).toBeNull();
+    });
+
+    it("discards the draft on a click and never commits", async () => {
+      const user = userEvent.setup();
+      const { onDone } = withCancel();
+      await user.keyboard("tiny space");
+      await user.click(screen.getByRole("button", { name: "Cancel fix" }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(onDone.mock.calls).toEqual([[null, "escape", "small room"]]);
+    });
+
+    it("discards when the input blurs before the click lands", async () => {
+      const { field, onDone } = withCancel();
+      fireEvent.change(field, { target: { value: "tiny space" } });
+      const cancel = screen.getByRole("button", { name: "Cancel fix" });
+      fireEvent.pointerDown(cancel);
+      await act(async () => {
+        field.blur();
+        await Promise.resolve();
+      });
+      fireEvent.click(cancel);
+      expect(onDone.mock.calls).toEqual([[null, "escape", "small room"]]);
+    });
+
+    it("commits on blur again once the press is abandoned", async () => {
+      const { field, onDone } = withCancel();
+      fireEvent.change(field, { target: { value: "tiny space" } });
+      const cancel = screen.getByRole("button", { name: "Cancel fix" });
+      fireEvent.pointerDown(cancel);
+      fireEvent.pointerCancel(cancel);
+      await act(async () => {
+        fireEvent.blur(field);
+        await Promise.resolve();
+      });
+      expect(onDone.mock.calls).toEqual([["tiny space", "blur", "small room"]]);
+    });
+
+    it("stays out of the tab order and keeps focus in the input on press", () => {
+      const { field } = withCancel();
+      const cancel = screen.getByRole("button", { name: "Cancel fix" });
+      expect(cancel).toHaveAttribute("tabindex", "-1");
+      expect(fireEvent.mouseDown(cancel)).toBe(false);
+      expect(field).toHaveFocus();
+    });
+
+    it("does nothing while the host is saving", async () => {
+      const user = userEvent.setup();
+      const onDone = vi.fn(() => new Promise<void>(() => undefined));
+      render(
+        <FixTextField
+          value="small room"
+          label="Fix"
+          cancelLabel="Cancel fix"
+          onDone={onDone}
+        />,
+      );
+      await user.keyboard("tiny space{Enter}");
+      const cancel = screen.getByRole("button", { name: "Cancel fix" });
+      expect(cancel).toHaveAttribute("aria-disabled", "true");
+      await user.click(cancel);
+      expect(onDone).toHaveBeenCalledTimes(1);
+    });
+
+    it("discards after a refused commit", async () => {
+      const user = userEvent.setup();
+      const onDone = vi.fn().mockResolvedValueOnce("Offline.");
+      render(
+        <FixTextField
+          value="small room"
+          label="Fix"
+          cancelLabel="Cancel fix"
+          onDone={onDone}
+        />,
+      );
+      await user.keyboard("tiny space{Enter}");
+      expect(await screen.findByRole("alert")).toHaveTextContent("Offline.");
+      await user.click(screen.getByRole("button", { name: "Cancel fix" }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(onDone.mock.calls).toEqual([
+        ["tiny space", "enter", "small room"],
+        [null, "escape", "small room"],
+      ]);
+    });
+
+    it("leaves a plain blur committing", async () => {
+      const user = userEvent.setup();
+      const { onDone } = withCancel();
+      await user.keyboard("tiny space");
+      await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+      expect(onDone.mock.calls).toEqual([["tiny space", "blur", "small room"]]);
+    });
+  });
 });

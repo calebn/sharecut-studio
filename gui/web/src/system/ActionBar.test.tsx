@@ -21,7 +21,7 @@ describe("foldDock", () => {
   const rows = itemsOf(["mute", "moveToSpeaker", "copy"]);
 
   it("gives the primary the fifth slot and moves Record to the head of More", () => {
-    const folded = foldDock(words, rows, true);
+    const folded = foldDock(words, rows, 1);
     expect(ids(folded.items)).toEqual(["hear", "keep", "comment", "fixText"]);
     expect(ids(folded.more)).toEqual([
       "record",
@@ -32,7 +32,7 @@ describe("foldDock", () => {
   });
 
   it("keeps five verbs when there is no primary", () => {
-    const folded = foldDock(words, rows, false);
+    const folded = foldDock(words, rows, 0);
     expect(ids(folded.items)).toEqual([
       "hear",
       "keep",
@@ -56,7 +56,7 @@ describe("foldDock", () => {
         "remove",
       ]),
       [],
-      true,
+      1,
     );
     expect(ids(folded.items)).toEqual(["hear", "keep", "split", "comment"]);
     expect(ids(folded.more)).toEqual(["fixText", "record", "export", "remove"]);
@@ -74,7 +74,7 @@ describe("foldDock", () => {
         "more",
       ]),
       itemsOf(["adjustBounds"]),
-      true,
+      1,
     );
     expect(ids(folded.items)).toEqual([
       "hearBefore",
@@ -84,6 +84,29 @@ describe("foldDock", () => {
       "fixText",
     ]);
     expect(ids(folded.more)).toEqual(["remove", "adjustBounds"]);
+  });
+});
+
+describe("foldDock reserving end slots", () => {
+  const verbs = itemsOf([
+    "hear",
+    "keep",
+    "split",
+    "comment",
+    "fixText",
+    "record",
+    "more",
+  ]);
+
+  it("counts a primary and an end control as two slots", () => {
+    const folded = foldDock(verbs, [], 2);
+    expect(ids(folded.items)).toEqual(["hear", "keep", "split"]);
+    expect(ids(folded.more)).toEqual(["comment", "fixText", "record"]);
+  });
+
+  it("counts an end control alone as one slot", () => {
+    const folded = foldDock(verbs, [], 1);
+    expect(ids(folded.items)).toEqual(["hear", "keep", "split", "comment"]);
   });
 });
 
@@ -302,6 +325,33 @@ describe("ActionBar floating", () => {
     ).not.toHaveAttribute("aria-describedby");
   });
 
+  it("draws a trailing control last in the row, after the primary", () => {
+    sizes.mockReturnValue(40);
+    widths.mockReturnValue(200);
+    const anchor = document.createElement("div");
+    anchor.getBoundingClientRect = () =>
+      ({ left: 100, right: 300, top: 300, bottom: 330 }) as DOMRect;
+    render(
+      <ActionBar
+        placement={{ form: "floating", anchorRef: { current: anchor } }}
+        items={itemsOf(["hear", "comment"])}
+        primary={{ id: "cut" }}
+        trailing={<button type="button">Clear selection</button>}
+        onVerb={vi.fn()}
+      />,
+    );
+    const bar = screen.getByRole("group", { name: "Actions" });
+    const names = within(bar)
+      .getAllByRole("button")
+      .map((b) => b.textContent);
+    expect(names.at(-1)).toBe("Clear selection");
+    expect(names.indexOf("Cut")).toBeLessThan(names.length - 1);
+    expect(
+      within(bar).getByRole("button", { name: "Clear selection" })
+        .parentElement,
+    ).toHaveClass("sys-actions-trailing");
+  });
+
   it("sits 8 px above the selection", () => {
     const bar = floatAt(300, 330);
     expect(bar.style.top).toBe("252px");
@@ -384,7 +434,7 @@ describe("foldDock with a split item", () => {
     const folded = foldDock(
       [{ id: "hear" }, exportSplit, { id: "more" }],
       itemsOf(["copy"]),
-      false,
+      0,
     );
     expect(folded.items.map(key)).toEqual(["hear", "export"]);
     expect(folded.more.map(key)).toEqual(["export:options", "copy"]);
@@ -399,7 +449,7 @@ describe("foldDock with a split item", () => {
         { id: "remove" },
       ],
       [],
-      true,
+      1,
     );
     expect(folded.items.map(key)).toEqual(["hear", "keep", "split", "comment"]);
     expect(folded.more.map(key)).toEqual([

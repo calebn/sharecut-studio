@@ -1670,3 +1670,55 @@ describe("the phone sheet keeps a picked band clear of itself", () => {
     document.body.replaceChildren();
   });
 });
+
+describe("the phone Inspector's Close at the dock detent", () => {
+  const CLIP = { kind: "clip", id: "c1", trackId: "host" } as const;
+  const sheetEl = () => screen.getByRole("dialog", { name: "Inspector" });
+  const grip = () => screen.getByRole("slider", { name: "Sheet height" });
+  const toDock = () => fireEvent.keyDown(grip(), { key: "Home" });
+  const closes = () => screen.queryAllByRole("button", { name: "Close" });
+
+  async function openPhone() {
+    stubViewportShell("phone");
+    useDawStore.setState({ selection: CLIP });
+    const from = opener();
+    render(<EditWorkspace />);
+    await inspect();
+    return from;
+  }
+
+  it("shows exactly one Close, in the dock, and one in the header at half", async () => {
+    const from = await openPhone();
+    expect(sheetEl()).toHaveAttribute("data-detent", "half");
+    expect(closes()).toHaveLength(1);
+    expect(closes()[0]?.closest(".sys-inspector-header")).not.toBeNull();
+    toDock();
+    expect(sheetEl()).toHaveAttribute("data-detent", "dock");
+    expect(closes()).toHaveLength(1);
+    expect(closes()[0]?.closest(".sys-inspector-dock")).not.toBeNull();
+    from.remove();
+  });
+
+  it("closes the panel, keeps the selection and returns focus to the opener", async () => {
+    const from = await openPhone();
+    toDock();
+    fireEvent.click(closes()[0] as HTMLElement);
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    expect(useDawStore.getState().selection).toMatchObject(CLIP);
+    expect(useDawStore.getState().inspectorKey).toBeNull();
+    expect(from).toHaveFocus();
+    from.remove();
+  });
+
+  it("returns focus to the opener after a pointer press on the dock Close", async () => {
+    const from = await openPhone();
+    toDock();
+    const close = closes()[0] as HTMLElement;
+    close.focus();
+    fireEvent.pointerDown(close, { button: 0, pointerId: 3 });
+    fireEvent.click(close, { detail: 1 });
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    expect(from).toHaveFocus();
+    from.remove();
+  });
+});
