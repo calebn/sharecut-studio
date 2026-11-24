@@ -29,7 +29,7 @@ export type HostShareKind = "review" | "record";
 
 export type HostShareWarning = {
   code: string;
-  message: string;
+  message?: string;
   origin?: string;
   rule?: unknown;
 };

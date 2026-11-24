@@ -3,7 +3,6 @@ import { hostShareRow } from "../../test/fixtures";
 import type { TunnelStatus } from "../../types/tunnel";
 import { ApiError } from "../../utils/apiError";
 import {
-  corsWarning,
   createRecoveryOf,
   LISTEN_CHOICES,
   reachOf,
@@ -13,6 +12,7 @@ import {
   SHARE_DEFAULTS,
   shareCopyKey,
   shareRowsOf,
+  shareWarning,
 } from "./shareLogic";
 
 const tunnel = (state: TunnelStatus["state"]): TunnelStatus => ({
@@ -227,9 +227,9 @@ describe("createRecoveryOf", () => {
   });
 });
 
-describe("corsWarning", () => {
+describe("shareWarning", () => {
   it("names the origin the bucket has no CORS rule for", () => {
-    const copy = corsWarning(
+    const copy = shareWarning(
       hostShareRow({
         warnings: [
           {
@@ -245,17 +245,38 @@ describe("corsWarning", () => {
   });
   it("falls back to the share origin and ignores other warnings", () => {
     expect(
-      corsWarning(
+      shareWarning(
         hostShareRow({
           warnings: [{ code: "object_store_cors", message: "m" }],
         }),
       ),
     ).toMatch(/no CORS rule for the share origin/);
     expect(
-      corsWarning(
+      shareWarning(
         hostShareRow({ warnings: [{ code: "other", message: "m" }] }),
       ),
     ).toBeNull();
-    expect(corsWarning(hostShareRow())).toBeNull();
+    expect(shareWarning(hostShareRow())).toBeNull();
+  });
+  it("says online sharing is not set up, and leaves the copy for a ready host out", () => {
+    const copy = shareWarning(
+      hostShareRow({ warnings: [{ code: "online_sharing_not_set_up" }] }),
+    );
+    expect(copy).toBe(
+      "Link created, but online sharing isn't set up on this computer, so guests can't open it yet. How to set it up is in docs/host-online-relay.md.",
+    );
+  });
+  it("reads the first warning it has copy for", () => {
+    expect(
+      shareWarning(
+        hostShareRow({
+          warnings: [
+            { code: "other" },
+            { code: "online_sharing_not_set_up" },
+            { code: "object_store_cors" },
+          ],
+        }),
+      ),
+    ).toMatch(/isn't set up on this computer/);
   });
 });
