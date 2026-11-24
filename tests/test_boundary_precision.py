@@ -115,7 +115,7 @@ def test_visible_geometry_and_stale_apply_leave_history_untouched(
         )
     service = TimelineService(ws)
     history_before = len(ws.project.history.entries)
-    assert service.roll_clip_join("left", "right", 0, expected_token=original.token)["unchanged"]
+    assert service.roll_clip_join("left", "right", 0, expected_token=original.token).unchanged
     assert len(load_project(minimal_project).history.entries) == history_before
     other = ProjectWorkspace.open(minimal_project)
     other.project.clips[0].source_end = 5.25
