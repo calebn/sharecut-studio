@@ -6,14 +6,19 @@ Nothing is loaded at import; a native error is never reported as success.
 from __future__ import annotations
 
 import contextlib
+import ctypes
+import errno
 import logging
+import re
 import threading
 from typing import Any
 
 from podcast_mcp.util import native_abi, process
 from podcast_mcp.util.process import IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE
 
-ABI_VERSION = 1
+ABI_VERSION = 2
+UNKNOWN_BUILD_ID = "unknown"
+_BUILD_ID = re.compile(r"[A-Za-z0-9._+-]{1,128}")
 _CANCEL_POLL_SEC = native_abi.CANCEL_POLL_SEC
 
 _log = logging.getLogger(__name__)
@@ -30,12 +35,27 @@ _ABI = native_abi.NativeABI(
     abi_version=ABI_VERSION,
     log=_log,
     unavailable=NativeFFmpegUnavailable,
+    extra={"build_id": ctypes.CFUNCTYPE(ctypes.c_char_p)},
 )
 
 
 def load_library(lib: Any = None) -> Any:
     """The ``sc_ffmpeg_*`` functions of ``lib`` (default: this process), ABI version checked."""
     return _ABI.load_library(lib)
+
+
+def build_id() -> str:
+    """The native core's build id; raises ``NativeFFmpegUnavailable`` when absent or invalid."""
+    raw = _ABI.bind(_ABI.load_library())["build_id"]()
+    if raw is None:
+        raise NativeFFmpegUnavailable(errno.ENOSYS, "sc_ffmpeg_build_id returned NULL")
+    try:
+        text = raw.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise NativeFFmpegUnavailable(errno.ENOSYS, "sc_ffmpeg_build_id is not ASCII") from exc
+    if _BUILD_ID.fullmatch(text) is None or text == UNKNOWN_BUILD_ID:
+        raise NativeFFmpegUnavailable(errno.ENOSYS, "sc_ffmpeg_build_id is not a valid build id")
+    return text
 
 
 def is_available() -> bool:
@@ -57,6 +77,11 @@ def install_native_backend() -> bool:
         if _installed is not None:
             return True
         if not is_available():
+            return False
+        try:
+            build_id()
+        except NativeFFmpegUnavailable as exc:
+            _log.warning("native ffmpeg backend not installed: %s", exc)
             return False
         stack = contextlib.ExitStack()
         try:

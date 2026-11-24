@@ -63,6 +63,7 @@ class NativeABI:
         abi_version: int,
         log: logging.Logger,
         unavailable: type[OSError],
+        extra: Mapping[str, Any] | None = None,
     ) -> None:
         self.prefix = prefix
         self.tools = tools
@@ -70,10 +71,11 @@ class NativeABI:
         self.abi_version = abi_version
         self.log = log
         self.unavailable = unavailable
+        self.extra: Mapping[str, Any] = dict(extra or {})
 
-    def bind(self, lib: Any) -> dict[str, Any]:
+    def _bind_table(self, lib: Any, table: Mapping[str, Any]) -> dict[str, Any]:
         bound: dict[str, Any] = {}
-        for suffix, prototype in _PROTOTYPES.items():
+        for suffix, prototype in table.items():
             name = self.prefix + suffix
             try:
                 function = getattr(lib, name)
@@ -85,18 +87,22 @@ class NativeABI:
             bound[suffix] = prototype(address)
         return bound
 
+    def bind(self, lib: Any) -> dict[str, Any]:
+        return {**self._bind_table(lib, _PROTOTYPES), **self._bind_table(lib, self.extra)}
+
     def load_library(self, lib: Any = None) -> Any:
         """The native functions of ``lib`` (default: this process), ABI version checked."""
         if lib is None:
             if host_platform.current().media_tools != "in_process":
                 raise self.unavailable(errno.ENOSYS, "this host has no in-process media tools")
             lib = ctypes.CDLL(None)
-        version = self.bind(lib)["abi_version"]()
+        version = self._bind_table(lib, _PROTOTYPES)["abi_version"]()
         if version != self.abi_version:
             raise self.unavailable(
                 errno.ENOSYS,
                 f"{self.prefix.rstrip('_')} ABI version {version}, expected {self.abi_version}",
             )
+        self._bind_table(lib, self.extra)
         return lib
 
     def is_available(self) -> bool:

@@ -37,6 +37,7 @@ BASE_FILE = "ggml-base.en-q5_1.bin"
 def ios(host: Callable[..., None], monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    monkeypatch.setattr(native_ffmpeg, "build_id", lambda: "9.0.2+test")
     monkeypatch.setattr(native_ffmpeg, "is_installed", lambda: True)
     monkeypatch.setattr(native_whisper, "is_installed", lambda: True)
     monkeypatch.delenv("WHISPER_CPP_MODEL", raising=False)

@@ -30,6 +30,7 @@ from podcast_mcp.util.binaries import (
     IN_PROCESS_LABEL,
     IN_PROCESS_SOURCE,
     FFmpegPairResolutionError,
+    in_process_build_id,
     in_process_problem,
     resolve_ffmpeg_pair,
 )
@@ -329,6 +330,7 @@ def ffmpeg_probe_info() -> dict[str, Any]:
             info = {
                 "ok": problem is None,
                 "version": IN_PROCESS_LABEL if problem is None else problem,
+                "build_id": in_process_build_id() if problem is None else None,
                 "path": IN_PROCESS_FFMPEG,
                 "source": IN_PROCESS_SOURCE,
             }

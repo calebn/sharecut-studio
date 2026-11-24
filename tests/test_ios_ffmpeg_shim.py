@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-import copy
 import ctypes
 import errno
 import fcntl
@@ -17,12 +16,13 @@ import sys
 import textwrap
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from podcast_mcp.util import native_ffmpeg
+from podcast_mcp.util import host_platform, native_ffmpeg
 from podcast_mcp.util.native_ffmpeg import NativeFFmpegBackend, NativeFFmpegUnavailable
 from podcast_mcp.util.process import IN_PROCESS_FFMPEG, Streams
 
@@ -35,7 +35,6 @@ HAS_PROC_FD = Path("/proc/self/fd").is_dir()
 FD_DIR = "/proc/self/fd" if HAS_PROC_FD else "/dev/fd"
 COMPILER = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
 LAUNCH_SEC = 0.25
-# The core's ABI. native_ffmpeg.ABI_VERSION still says 1 until the Python lane lands 2; the shim loads the core with a copy of the ABI at 2.
 CORE_ABI_VERSION = 2
 BUILD_ID = "9.0.2+0123456789abcdef"
 
@@ -148,9 +147,7 @@ class Pipes:
 
 class Shim:
     def __init__(self, cdll: ctypes.CDLL) -> None:
-        abi = copy.copy(native_ffmpeg._ABI)
-        abi.abi_version = CORE_ABI_VERSION
-        self.cdll = abi.load_library(cdll)
+        self.cdll = native_ffmpeg._ABI.load_library(cdll)
         c = self.cdll
         c.sc_ffmpeg_start.restype = ctypes.c_int64
         c.sc_ffmpeg_start.argtypes = [
@@ -259,6 +256,12 @@ def test_build_id_is_the_baked_in_static_string(shim: Shim) -> None:
     assert ctypes.string_at(first).decode() == BUILD_ID
     assert re.fullmatch(r"[A-Za-z0-9._+-]{1,128}", BUILD_ID)
     assert shim.cdll.sc_ffmpeg_build_id() == first
+
+
+def test_python_build_id_reads_the_shim_id(shim: Shim, monkeypatch: pytest.MonkeyPatch) -> None:
+    with host_platform.using(replace(host_platform.IOS, media_tools="in_process")):
+        monkeypatch.setattr(ctypes, "CDLL", lambda name: shim.cdll)
+        assert native_ffmpeg.build_id() == BUILD_ID
 
 
 def test_build_id_is_unknown_when_the_build_passes_none(tmp_path: Path) -> None:
@@ -1285,9 +1288,7 @@ def test_randomized_start_cancel_wait_interleavings(shim: Shim) -> None:
 def test_python_backend_runs_cancels_and_checks_the_abi(
     built: Path, shim: Shim, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    with monkeypatch.context() as patched:
-        patched.setattr(native_ffmpeg._ABI, "abi_version", CORE_ABI_VERSION)
-        backend = NativeFFmpegBackend(shim.cdll)
+    backend = NativeFFmpegBackend(shim.cdll)
     with Pipes() as pipes:
         streams = Streams(
             os.fdopen(pipes.in_r, "rb", buffering=0),
@@ -1342,7 +1343,7 @@ def test_python_backend_runs_cancels_and_checks_the_abi(
             textwrap.dedent(
                 """
                 #include <stdint.h>
-                int sc_ffmpeg_abi_version(void) { return 2; }
+                int sc_ffmpeg_abi_version(void) { return 1; }
                 int64_t sc_ffmpeg_start(int a, const char *const *v, int i, int o, int e) { return -1; }
                 int sc_ffmpeg_wait(int64_t s) { return 0; }
                 void sc_ffmpeg_cancel(int64_t s) {}
@@ -1352,7 +1353,7 @@ def test_python_backend_runs_cancels_and_checks_the_abi(
         [],
         tmp_path,
     )
-    with pytest.raises(NativeFFmpegUnavailable, match="ABI version 2"):
+    with pytest.raises(NativeFFmpegUnavailable, match="ABI version 1, expected 2"):
         native_ffmpeg.load_library(ctypes.CDLL(str(old)))
     partial = tmp_path / "partial.so"
     _compile(partial, ["int sc_ffmpeg_abi_version(void) { return 1; }\n"], [], tmp_path)

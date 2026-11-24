@@ -55,6 +55,7 @@ IN_PROCESS_NOT_LINKED = "ShareCut's in-process FFmpeg is not linked in this buil
 IN_PROCESS_NOT_INSTALLED = (
     "ShareCut's in-process FFmpeg is linked but its backend is not installed."
 )
+IN_PROCESS_BAD_BUILD_ID = "ShareCut's in-process FFmpeg is linked but reports no valid build id."
 IN_PROCESS_PAIR = FFmpegPair(
     IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, IN_PROCESS_VERSION, IN_PROCESS_SOURCE
 )
@@ -72,12 +73,43 @@ def _in_process_installed() -> bool:
     return native_ffmpeg.is_installed()
 
 
+def _native_build_id() -> str:
+    from podcast_mcp.util import native_ffmpeg
+
+    return native_ffmpeg.build_id()
+
+
+def in_process_build_id() -> str:
+    """The linked core's build id, else the unlinked sentinel; a bad id raises, never falls back."""
+    if _in_process_linked():
+        return _native_build_id()
+    return IN_PROCESS_BUILD_ID
+
+
+_ID_VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)(?!\d)")
+
+
+def in_process_version() -> tuple[int, int, int]:
+    """The leading ``major.minor.patch`` of the linked core's build id, else ``(0, 0, 0)``."""
+    if not _in_process_linked():
+        return IN_PROCESS_VERSION
+    found = _ID_VERSION.match(_native_build_id())
+    if found is None:
+        return IN_PROCESS_VERSION
+    major, minor, patch = found.groups()
+    return int(major), int(minor), int(patch)
+
+
 def in_process_problem() -> str | None:
-    """Why the in-process pair cannot run now: not linked, linked but not installed, or ``None``."""
+    """Why the in-process pair cannot run now, or ``None``: not linked, not installed, bad build id."""
     if not _in_process_linked():
         return IN_PROCESS_NOT_LINKED
     if not _in_process_installed():
         return IN_PROCESS_NOT_INSTALLED
+    try:
+        _native_build_id()
+    except OSError:
+        return IN_PROCESS_BAD_BUILD_ID
     return None
 
 
