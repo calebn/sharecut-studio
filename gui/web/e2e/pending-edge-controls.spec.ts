@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { selectionBar } from "./actionBar";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { pinFixedLaneHeight } from "./laneHeight";
@@ -6,7 +7,6 @@ import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "./liveProject";
-import { selectionBar } from "./pendingActionbar";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { resizeViewport } from "./resizeViewport";
@@ -226,7 +226,6 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();
-  await expect(selectionBar(page)).toHaveCount(1);
   await expect(selectionBar(page)).toBeVisible();
   const sourceStart = page.getByLabel("Source start", { exact: true });
   await sourceStart.tap();
@@ -241,6 +240,9 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   expect((await sourceStartBox.boundingBox())?.height).toBeGreaterThanOrEqual(
     44,
   );
+  // The selected narrow region on its own lane floats its label with no hover or focus, since
+  // no bar holds the label any more; hovering it must not add a second one.
+  await expect(page.locator(".pending-label--floating")).toHaveCount(1);
   await dragRegion.first().hover();
   await expect(page.locator(".pending-label--floating")).toHaveCount(1);
 
@@ -267,12 +269,14 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   }
 
   await page.mouse.move(15, 15);
+  // Only the selected narrow cut floats its label; the unselected tiny cuts do not stack theirs.
   expect(
     await page.locator(".pending-label--floating").count(),
     "unselected tiny cuts do not stack floating labels",
-  ).toBe(0);
+  ).toBe(1);
+  await expect(regions.nth(2)).not.toHaveClass(/selected/);
   await regions.nth(2).hover();
-  await expect(page.locator(".pending-label--floating")).toHaveCount(1);
+  await expect(page.locator(".pending-label--floating")).toHaveCount(2);
 
   const wideRegion = page.locator(
     `.pending-overlay[data-pending-id="${wideEdit!.id}"]`,

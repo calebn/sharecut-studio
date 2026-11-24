@@ -1,6 +1,6 @@
 import { expect, type Page, type Response, test } from "@playwright/test";
+import { selectionBar } from "./actionBar";
 import { withSharedProject } from "./guestLink";
-import { selectionBar } from "./pendingActionbar";
 import { openGuestShare } from "./shareNavigation";
 
 const DESKTOP = { viewport: { width: 1280, height: 800 } };

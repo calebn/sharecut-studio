@@ -44,6 +44,7 @@ export function focusPendingTimingField(editId: string): void {
   if (
     !edit ||
     edit.type === "split" ||
+    edit.exact_range ||
     !canSuggestStructural(
       initial.projectPath,
       initial.guestMode,

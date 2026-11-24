@@ -8,6 +8,7 @@ import {
   test,
 } from "@playwright/test";
 import { SKIP_SEC } from "../src/utils/time";
+import { settle } from "./actionBar";
 import {
   driveKeepAlive,
   fireOsAction,
@@ -16,7 +17,6 @@ import {
   readOsRecorder,
   suspendContext,
 } from "./osMediaSessionRecorder";
-import { settle } from "./pendingActionbar";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare, openGuestShare } from "./shareNavigation";
 import { parseTimecodeSec } from "./timecode";

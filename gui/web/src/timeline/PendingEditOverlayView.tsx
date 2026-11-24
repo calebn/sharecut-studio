@@ -87,7 +87,7 @@ function rootRem(): number {
 }
 
 /**
- * The chrome that bounds where the card may float. Its size changes without a
+ * The chrome that bounds where the floating label may sit. Its size changes without a
  * scroll or resize (a comment grows the marker lane; the Player grows to its
  * expanded form), so the overlay observes each one.
  */
@@ -118,7 +118,7 @@ function labelFor(edit: PendingEditView): string {
   return `${pendingTypeLabel(edit.type)} ${durationLabel} · ${status}`;
 }
 
-/** Where the card may reach on the inline end: the viewport, or the Inspector column's edge (#1696). */
+/** Where the floating label may reach on the inline end: the viewport, or the Inspector column's edge (#1696). */
 function floatRight(): number {
   return (
     document.querySelector(".bottom-sheet--column")?.getBoundingClientRect()
@@ -450,13 +450,17 @@ function PendingEditRegion({
   }, [gesture.kind, selected]);
 
   const labelInPortal =
-    width < LABEL_INLINE_WIDTH_REM * rootRem() &&
-    (labelActive || (selected && !isOriginLane));
+    width < LABEL_INLINE_WIDTH_REM * rootRem() && (labelActive || selected);
   useResizeObserver(
     [regionRef, ...floatBounds],
     () => scheduleResizeUpdateRef.current?.(),
     selected || labelInPortal,
   );
+  const inspectorKey = useDawStore((s) => s.inspectorKey);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the Inspector column opening moves the label's right clamp
+  useEffect(() => {
+    scheduleResizeUpdateRef.current?.();
+  }, [inspectorKey]);
   useEffect(() => {
     if ((!selected && !labelInPortal) || !regionRef.current) {
       return;

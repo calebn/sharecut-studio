@@ -1,10 +1,4 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { postDocumentCommand } from "../e2e/documentCommand";
-import { e2eProjectPath } from "../e2e/env";
-import {
-  createRelocatedE2eProject,
-  removeRelocatedE2eProject,
-} from "../e2e/liveProject";
 import {
   type Box,
   chromeBoxes,
@@ -12,7 +6,13 @@ import {
   isHitTestable,
   settle,
   suggestOnFirstDialogueTrack,
-} from "../e2e/pendingActionbar";
+} from "../e2e/actionBar";
+import { postDocumentCommand } from "../e2e/documentCommand";
+import { e2eProjectPath } from "../e2e/env";
+import {
+  createRelocatedE2eProject,
+  removeRelocatedE2eProject,
+} from "../e2e/liveProject";
 import { switchE2eProject } from "../e2e/shareableProject";
 import { inspectSelectionByKey, openProject } from "../e2e/stageNav";
 

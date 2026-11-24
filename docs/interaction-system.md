@@ -92,9 +92,11 @@ Reordering these sections preserves their component identity and local drafts
 (`#2163`, `stage/edit/selectionSurface.test.tsx`).
 The span and tracks typed for a range not yet formed live in `rangeDraft`; it is
 draft UI state, not a selection, and `commitRange` turns it into one.
-`utils/pendingReviewPass.ts` owns single-review completion for the inspector and
-timeline overlay. `timeline/PendingEditOverlay.test.tsx` covers delayed document
-adoption and reply-head Undo through both entry points.
+`utils/pendingReviewPass.ts` owns single-review completion for the Action bar
+verbs (`commands/editVerbs.ts`), the Inspector's review body and the review
+queue. `timeline/PendingEditOverlay.test.tsx` covers the overlay's handle drag
+and floating label; delayed document adoption and reply-head Undo are covered in
+`commands/editVerbs.test.ts` and `stage/edit/PendingEditBody.test.tsx`.
 
 ## Targets
 
