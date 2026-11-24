@@ -80,6 +80,10 @@ from podcast_mcp.services.document.timeline_move_results import (
     MoveClipsResult,
     MoveSegmentResult,
 )
+from podcast_mcp.services.document.timeline_segment_results import (
+    DuplicateSegmentResult,
+    PasteSegmentResult,
+)
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -731,12 +735,16 @@ class TimelineService(CutMutatingService):
                 params={"clip_ids": list(clip_ids), "mode": mode.value},
             )
 
-    def duplicate_segment(self, source_start: float, source_end: float, insert_at: float) -> dict:
+    def duplicate_segment(
+        self, source_start: float, source_end: float, insert_at: float
+    ) -> DuplicateSegmentResult:
         return self.ws.mutate(
             "before duplicate segment",
             "after duplicate segment",
-            lambda p: duplicate_segment(
-                p, source_start, source_end, insert_at, defaults=self.ws.effective_config()
+            lambda p: DuplicateSegmentResult(
+                **duplicate_segment(
+                    p, source_start, source_end, insert_at, defaults=self.ws.effective_config()
+                )
             ),
         )
 
@@ -751,13 +759,20 @@ class TimelineService(CutMutatingService):
         extracts: list[dict],
         *,
         mode: EditMode,
-    ) -> dict:
+    ) -> PasteSegmentResult:
         """Paste clips: ripple opens time on every track; gap pastes over in place."""
         return self.ws.mutate(
             "before paste segment",
             "after paste segment",
-            lambda p: paste_segment(
-                p, insert_at, duration, extracts, mode=mode, defaults=self.ws.effective_config()
+            lambda p: PasteSegmentResult(
+                **paste_segment(
+                    p,
+                    insert_at,
+                    duration,
+                    extracts,
+                    mode=mode,
+                    defaults=self.ws.effective_config(),
+                )
             ),
             operation="paste_segment",
             params={"insert_at": insert_at, "duration": duration, "mode": mode.value},
