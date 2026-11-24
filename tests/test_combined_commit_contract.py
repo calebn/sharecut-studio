@@ -53,11 +53,13 @@ from combined_contract_helpers import (
 from pause_policy_public_helpers import (
     RATE,
     add_bed,
-    configure,
     pause,
     room,
     voice,
     write_wav,
+)
+from pause_policy_public_helpers import (
+    configure as configure_pause_policy,
 )
 from pause_policy_public_helpers import defaults as pause_defaults
 from podcast_mcp.edits.audio_check_override import audio_check_override
@@ -70,6 +72,7 @@ from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.engines.speaker_id import SpeakerProfile, WindowScore
 from podcast_mcp.engines.speaker_split import SpeakerAttribution, SpeakerTurn
 from podcast_mcp.engines.transcribe import TranscriptionEngine
+from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
     ArchivedTranscriptWord,
     Clip,
@@ -133,16 +136,19 @@ WORD_CASES = [
         "correct_word",
         lambda ws: TranscriptService(ws).correct_word("host", 0, "HELLO"),
         ("HELLO there friend", "welcome back", "thanks for having me"),
+        s3_changes=True,
     ),
     Case(
         "correct_phrase",
         lambda ws: TranscriptService(ws).correct_phrase("host", 3, 4, "good day"),
         ("hello there friend", "good day", "thanks for having me"),
+        s3_changes=True,
     ),
     Case(
         "suppress_word",
         lambda ws: TranscriptService(ws).set_word_suppressed("guest", 3, True),
         ("hello there friend", "welcome back", "thanks for having"),
+        s3_changes=True,
     ),
     Case(
         "transcript_cleanup",
@@ -150,26 +156,31 @@ WORD_CASES = [
             "host", words=[{"word_index": 1, "text": "THERE"}]
         ),
         ("hello THERE friend", "welcome back", "thanks for having me"),
+        s3_changes=True,
     ),
     Case(
         "word_timing",
         _set_timing,
         FRESH_TEXTS,
+        s3_changes=True,
     ),
     Case(
         "replace_matches",
         _replace,
         ("hello there friend", "greetings back", "thanks for having me"),
+        s3_changes=True,
     ),
     Case(
         "suppress_low_audibility_keys",
         lambda ws: AnalysisService(ws).suppress_low_audibility(word_keys=[_word_key("guest", 0)]),
         ("hello there friend", "welcome back", "for having me"),
+        s3_changes=True,
     ),
     Case(
         "suppress_bleed_keys",
         lambda ws: AnalysisService(ws).suppress_bleed(word_keys=[_word_key("guest", 1)]),
         ("hello there friend", "welcome back", "thanks having me"),
+        s3_changes=True,
     ),
     Case(
         "set_words_ignored",
@@ -178,6 +189,7 @@ WORD_CASES = [
         stale=UNTOUCHED,
         none=UNTOUCHED,
         quirk="h2",
+        s2_changes=(State.STALE,),
     ),
 ]
 
@@ -315,11 +327,11 @@ def _record_start_take(*, land_first: bool = False) -> Command:
     """A start-of-episode record room with a take uploaded, or two landed."""
 
     def record(ws: ProjectWorkspace) -> Any:
-        room, svc, guest = _start_room(ws)
-        _take(ws, room, svc, guest, 0, 2.5, 880.0)
+        record_room, svc, guest = _start_room(ws)
+        _take(ws, record_room, svc, guest, 0, 2.5, 880.0)
         if land_first:
             _land(ws)
-            _take(ws, room, svc, guest, 1, 1.5, 660.0)
+            _take(ws, record_room, svc, guest, 1, 1.5, 660.0)
             _land(ws)
 
     return record
@@ -595,7 +607,7 @@ TIMELINE_CASES = [
         _approve_padded_filler,
         ("hello friend", "welcome back", "thanks for having me"),
         arrange=_host_with_a_padded_filler_cut,
-        configure=lambda monkeypatch: configure(monkeypatch, pause_defaults()),
+        configure=lambda monkeypatch: configure_pause_policy(monkeypatch, pause_defaults()),
     ),
     Case(
         "fill_room_tone",
@@ -690,6 +702,7 @@ SPEAKER_CASES = [
         FRESH_TEXTS,
         speakers=("Ana", "Ben", "Guest"),
         configure=_split_seams,
+        s3_changes=True,
     ),
     Case(
         "move_lane_span",
@@ -703,12 +716,14 @@ SPEAKER_CASES = [
         speakers=("Ben", "Ben", "Guest"),
         prepare=_split_host,
         configure=_split_seams,
+        s3_changes=True,
     ),
     Case(
         "speaker_home_gate",
         lambda ws: SpeakerService(ws).gate_track(track_id="host", dry_run=False),
         ("welcome back", "thanks for having me"),
         configure=_speaker_seams,
+        s3_changes=True,
     ),
     Case(
         "speaker_attribute_bleed_windows",
@@ -716,6 +731,7 @@ SPEAKER_CASES = [
         ("hello there", "welcome back", "thanks for having me"),
         arrange=_host_friend_is_bleed,
         configure=_speaker_seams,
+        s3_changes=True,
     ),
 ]
 
@@ -750,6 +766,7 @@ TRANSCRIBE_CASES = [
         stale=UNTOUCHED,
         none=UNTOUCHED,
         quirk="h2",
+        s2_changes=(State.FRESH, State.STALE),
     ),
 ]
 
@@ -758,12 +775,14 @@ RECONCILE_CASES = [
         "reconcile_transcript_on_silent_media",
         lambda ws: AnalysisService(ws).reconcile_transcript(dry_run=False),
         (),
+        s3_changes=True,
     ),
     Case(
         "auto_reconcile_after_audio_edit",
         _gate_host_with_fresh_stem,
         ("thanks for having me",),
         arrange=_host_stem,
+        s3_changes=True,
     ),
 ]
 
@@ -809,12 +828,13 @@ def test_speaker_label_window_rebuilds_memory_and_saves_nothing(
     assert seen.combined_json == seen.entry_json
 
 
+@pytest.mark.parametrize("state", [State.FRESH], ids=lambda state: f"{state}-s2-changes")
 def test_transcribe_h2_changes_words_and_leaves_a_fresh_combined_behind(
-    tmp_path: Path, ten_second_silence_wav: Path, monkeypatch: pytest.MonkeyPatch
+    state: State, tmp_path: Path, ten_second_silence_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A transcribe that went through ``ws.mutate`` never rebuilds: fresh stops being fresh."""
     _no_whisper_model(monkeypatch)
-    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, State.FRESH)
+    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, state)
     seen = observe(ws, _transcribe_host)
     assert texts(seen.entry) == FRESH_TEXTS
     assert texts(seen.memory) == FRESH_TEXTS
@@ -870,7 +890,11 @@ def test_seed_sets_combined_once_without_a_history_step(
     assert seen.snapshot == seen.entry
 
 
-@pytest.mark.parametrize("state", list(State), ids=lambda state: f"{state}")
+@pytest.mark.parametrize(
+    "state",
+    list(State),
+    ids=lambda state: f"{state}-s2-changes" if state is State.STALE else f"{state}",
+)
 def test_set_track_meta_patches_the_stored_speaker_in_place_without_a_rebuild(
     state: State, tmp_path: Path, ten_second_silence_wav: Path
 ) -> None:
@@ -893,3 +917,96 @@ def test_set_track_meta_patches_the_stored_speaker_in_place_without_a_rebuild(
         assert expected != seen.entry
         assert expected != seen.expected_rebuilt
     assert_channels(seen, expected)
+
+
+@pytest.mark.parametrize("state", [State.STALE], ids=lambda state: f"{state}")
+def test_empty_rebuild_leaves_the_stale_combined_json_file_in_place(
+    state: State, tmp_path: Path, ten_second_silence_wav: Path
+) -> None:
+    case = next(c for c in TIMELINE_CASES if c.name == "gap_delete_lane_without_transcript")
+    seen = observe(
+        open_workspace(tmp_path / "ep", ten_second_silence_wav, state, arrange=case.arrange),
+        case.run,
+    )
+    assert texts(seen.memory) == ()
+    assert texts(seen.saved) == ()
+    assert texts(seen.snapshot) == ()
+    assert seen.entry_json is not None
+    assert seen.combined_json == seen.entry_json
+    assert seen.combined_json != json_of(seen.memory)
+
+
+DRY_RUN_CASES = [
+    pytest.param(
+        lambda ws: AnalysisService(ws).reconcile_transcript(dry_run=True),
+        None,
+        id="reconcile_transcript",
+    ),
+    pytest.param(
+        lambda ws: SpeakerService(ws).split_speakers(
+            "host", speaker_count=2, names=["Ana", "Ben"], dry_run=True
+        ),
+        _split_seams,
+        id="split_speakers",
+    ),
+    pytest.param(
+        lambda ws: SpeakerService(ws).gate_track(track_id="host", dry_run=True),
+        _speaker_seams,
+        id="gate_track",
+    ),
+    pytest.param(
+        lambda ws: SpeakerService(ws).attribute(dry_run=True),
+        _speaker_seams,
+        id="attribute",
+    ),
+]
+
+
+def _assert_combined_untouched(seen: Any) -> None:
+    assert seen.memory == seen.entry
+    assert seen.saved == seen.entry
+    assert seen.snapshot == seen.entry
+    assert seen.combined_json == seen.entry_json
+    assert not seen.moved
+
+
+@pytest.mark.parametrize("state", list(State), ids=lambda state: f"{state}-untouched")
+@pytest.mark.parametrize(("command", "configure_run"), DRY_RUN_CASES)
+def test_dry_run_leaves_combined_untouched(
+    command: Command,
+    configure_run: Any,
+    state: State,
+    tmp_path: Path,
+    ten_second_silence_wav: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if configure_run is not None:
+        configure_run(monkeypatch)
+    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, state)
+    seen = observe(ws, command)
+    _assert_combined_untouched(seen)
+
+
+def _rebuild_then_fail(ws: ProjectWorkspace) -> Any:
+    def mutate(project: EpisodeProject) -> None:
+        project.transcripts[0].words[0].text = "BROKEN"
+        rebuild_combined(project, defaults=ws.effective_config())
+        raise RuntimeError("mutation failed after rebuilding combined")
+
+    return ws.mutate("before failure", "after failure", mutate)
+
+
+@pytest.mark.parametrize("state", list(State), ids=lambda state: f"{state}-untouched")
+def test_failed_mutation_leaves_combined_untouched(
+    state: State, tmp_path: Path, ten_second_silence_wav: Path
+) -> None:
+    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, state)
+    words_before = [w.text for w in ws.project.transcripts[0].words]
+
+    def failing(w: ProjectWorkspace) -> Any:
+        with pytest.raises(RuntimeError, match="mutation failed"):
+            _rebuild_then_fail(w)
+
+    seen = observe(ws, failing)
+    _assert_combined_untouched(seen)
+    assert [w.text for w in ws.project.transcripts[0].words] == words_before
