@@ -1,4 +1,5 @@
 import { withSessionTokenQuery } from "../sessionAuth";
+import type { SegmentSaveRequest as GeneratedSaveRequest } from "../types/project.generated";
 import { apiFetch, HOST_KEY } from "./http";
 
 export type SegmentKind = "intro" | "outro" | "sponsor" | "sting" | "other";
@@ -32,15 +33,9 @@ export interface DamagedSegmentRow {
 
 export type SegmentListRow = SegmentRow | DamagedSegmentRow;
 
-export interface SegmentSaveRequest {
-  path: string;
-  name: string;
+export type SegmentSaveRequest = Omit<GeneratedSaveRequest, "kind"> & {
   kind?: SegmentKind | null;
-  clip_ids?: string[] | null;
-  /** A timeline range such as `0:00-0:22`. */
-  time_range?: string | null;
-  role?: string | null;
-}
+};
 
 export interface SegmentSaveResult {
   status: "added" | "new_version" | "unchanged";
