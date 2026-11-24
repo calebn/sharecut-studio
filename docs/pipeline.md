@@ -469,8 +469,8 @@ Word-timed splitting, sentence/phrase break preference, the minimum on-screen ti
 
 Each completed step still commits its canonical state and `last_completed_step`
 synchronously for crash resume. Unchanged history-index and transcript-cache mirrors
-skip duplicate writes; bulk word corrections rebuild the combined transcript once
-per batch. History trims oldest undo entries toward a 400-snapshot limit while
+skip duplicate writes; a bulk word correction leaves the combined transcript to the mutation hook, which
+re-merges it once per mutation when one exists and its inputs moved. History trims oldest undo entries toward a 400-snapshot limit while
 preserving the redo tail.
 
 Step **order** is always strictly sequential (each step's input is the previous

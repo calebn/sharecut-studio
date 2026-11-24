@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import shutil
 from pathlib import Path
 from typing import Any
@@ -294,29 +293,71 @@ def test_pipeline_step_keeps_none_combined(
     assert ws.project.combined_transcript is None
 
 
-def test_failed_pipeline_step_does_not_rebuild_combined(
+def _edit_then_fail(project: EpisodeProject) -> None:
+    _edit_word(project)
+    raise RuntimeError("step failed")
+
+
+def _run_failing_step(ws: ProjectWorkspace) -> None:
+    with write_grant(WriteGrantKind.DISPATCHER):
+        with pytest.raises(RuntimeError, match="step failed"):
+            PipelineService(ws).run(only_step="analyze_prosody", config={})
+
+
+@pytest.mark.parametrize("state", MOVING, ids=str)
+def test_failed_pipeline_step_rebuilds_combined_for_the_words_it_published(
+    state: State, tmp_path: Path, ten_second_silence_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, state)
+    _patch_step(monkeypatch, _edit_then_fail)
+    _run_failing_step(ws)
+    assert ws.project.transcripts[0].words[0].text == "howdy"
+    expected = merged(ws.project)
+    assert ws.project.combined_transcript == expected
+    assert ws.project.combined_transcript != STALE_COMBINED
+
+
+def test_failed_pipeline_step_that_moved_nothing_leaves_combined_alone(
     tmp_path: Path, ten_second_silence_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, State.STALE)
-    hook_calls: list[Any] = []
-    original = runner.rebuild_combined_if_inputs_moved
 
-    def hook_spy(*a: Any, **k: Any) -> None:
-        hook_calls.append(a)
-        original(*a, **k)
-
-    monkeypatch.setattr(runner, "rebuild_combined_if_inputs_moved", hook_spy)
-
-    def edit_then_fail(project: EpisodeProject) -> None:
-        _edit_word(project)
+    def clip_then_fail(project: EpisodeProject) -> None:
+        _edit_clip_only(project)
         raise RuntimeError("step failed")
 
-    _patch_step(monkeypatch, edit_then_fail)
+    _patch_step(monkeypatch, clip_then_fail)
+    _run_failing_step(ws)
+    assert ws.project.combined_transcript == STALE_COMBINED
+
+
+def test_failed_pipeline_step_keeps_none_combined(
+    tmp_path: Path, ten_second_silence_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, State.NONE)
+    _patch_step(monkeypatch, _edit_then_fail)
+    _run_failing_step(ws)
+    assert ws.project.combined_transcript is None
+
+
+def test_rebuild_failure_after_a_failed_step_never_masks_the_step_error(
+    tmp_path: Path, ten_second_silence_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, State.STALE)
+    attempts: list[EpisodeProject] = []
+
+    def broken(self: TranscriptionEngine, project: EpisodeProject) -> Any:
+        attempts.append(project)
+        raise ValueError("merge failed")
+
+    monkeypatch.setattr(TranscriptionEngine, "merge_transcripts", broken)
+    _patch_step(monkeypatch, _edit_then_fail)
     with write_grant(WriteGrantKind.DISPATCHER):
-        with contextlib.suppress(RuntimeError):
+        with pytest.raises(RuntimeError, match="step failed") as raised:
             PipelineService(ws).run(only_step="analyze_prosody", config={})
-    assert hook_calls == []
-    assert saved_combined(ws) == STALE_COMBINED
+    assert attempts
+    assert raised.value.__context__ is None
+    assert ws.project.combined_transcript == STALE_COMBINED
 
 
 def _edit_clip_and_bump_revision(project: EpisodeProject) -> None:
