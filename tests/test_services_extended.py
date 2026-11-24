@@ -1893,11 +1893,27 @@ def test_edit_preview_inaudible_cut_timeline_mode(minimal_project, sample_wav) -
 
 def test_edit_split_clip_and_fill_room_tone(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    split_report = {"operation": "split_clip", "clip_id": "full"}
+    split_report = {
+        "operation": "split_clips_at",
+        "affected_tracks": ["host"],
+        "clip_count": 2,
+        "timeline_duration_sec": 1.0,
+        "at_time": 1.0,
+        "skipped_track_ids": [],
+        "split_source_by_track": {"host": 1.0},
+        "split_pieces": [
+            {
+                "track_id": "host",
+                "original_clip_id": "full",
+                "left_clip_id": "a",
+                "right_clip_id": "b",
+            }
+        ],
+    }
     fill_report = {"operation": "fill_with_room_tone", "filled_sec": 0.5}
     with patch("podcast_mcp.services.document.timeline.split_clips_at", return_value=split_report):
         out = TimelineService(ws).split_clip(at_time=1.0, speaker="Host")
-    assert out == split_report
+    assert out.model_dump() == split_report
     with patch(
         "podcast_mcp.services.document.timeline.fill_with_room_tone", return_value=fill_report
     ):

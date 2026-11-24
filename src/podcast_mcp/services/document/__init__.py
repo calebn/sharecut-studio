@@ -90,6 +90,11 @@ if TYPE_CHECKING:
         SegmentInsertPreview,
     )
     from podcast_mcp.services.document.session_suggestion import SessionSuggestionService
+    from podcast_mcp.services.document.split_results import (
+        ProposeSplitResult,
+        SplitAtTimeResult,
+        SplitClipResult,
+    )
     from podcast_mcp.services.document.timeline import TimelineService
     from podcast_mcp.services.document.timeline_move_results import (
         InsertGapResult,
@@ -158,6 +163,7 @@ __all__ = [
     "PlayRequest",
     "PlayService",
     "PopulatedHistoryDiffResult",
+    "ProposeSplitResult",
     "RemovedChapter",
     "RollBoundaryTarget",
     "RoomToneBedReply",
@@ -168,6 +174,8 @@ __all__ = [
     "SessionSuggestionService",
     "SetClipJoinResult",
     "SetJoinModeResult",
+    "SplitAtTimeResult",
+    "SplitClipResult",
     "TimelineService",
     "TranscriptEmptyError",
     "TranscriptService",
@@ -275,6 +283,9 @@ _MODULE_BY_NAME = {
     "PasteSegmentResult": "timeline_segment_results",
     "SetClipJoinResult": "join_mode_results",
     "SetJoinModeResult": "join_mode_results",
+    "SplitClipResult": "split_results",
+    "SplitAtTimeResult": "split_results",
+    "ProposeSplitResult": "split_results",
     "TranscriptService": "transcript",
     "TranscriptEmptyError": "transcript",
     "ExportBusyError": "transcript",

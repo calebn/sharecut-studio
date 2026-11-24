@@ -456,8 +456,8 @@ def test_ripple_delete_clip_suggest(minimal_project, dialogue_wav):
 def test_split_clip_all_dialogue_tracks(minimal_project, dialogue_wav):
     ws = _seed_dialogue_clips(minimal_project, dialogue_wav)
     out = TimelineService(ws).split_clip(5.0)
-    assert out["operation"] == "split_clips_at"
-    assert set(out["affected_tracks"]) == {"host", "guest"}
+    assert out.operation == "split_clips_at"
+    assert set(out.affected_tracks) == {"host", "guest"}
 
 
 def test_update_pending_split_and_skipped_track(minimal_project, dialogue_wav):
