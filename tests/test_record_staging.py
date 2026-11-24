@@ -1723,6 +1723,7 @@ def test_saved_project_matches_store_load(minimal_project, sample_wav, tmp_works
 def test_saved_project_sees_edit_saved_after_build(minimal_project, sample_wav, tmp_workspace):
     ws = _seed(minimal_project, sample_wav)
     svc = _record_service(ws)
+    assert "late" not in {t.id for t in svc._saved_project().tracks}
     edited = load_project(minimal_project)
     edited.tracks.append(Track(id="late", label="Late", role=TrackRole.MUSIC))
     save_project(edited, minimal_project)
