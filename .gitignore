@@ -98,3 +98,6 @@ scripts/find_*.sh
 .lab-runs/
 gui/web/node_modules
 .vitest/
+
+# Generated at build time by scripts/owner_cdn.py
+/contracts/owner-cdn.json

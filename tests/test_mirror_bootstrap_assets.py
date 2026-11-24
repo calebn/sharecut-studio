@@ -133,3 +133,18 @@ def test_default_dry_run_plans_pinned_turbo(tmp_path: Path, monkeypatch, capsys)
     assert turbo["revision"] == "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
     assert turbo["action"] == "manual_or_huggingface_hub"
     assert not out_dir.exists()
+
+
+def test_dry_run_skips_assets_that_only_have_an_owner_path(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    script = Path(__file__).resolve().parents[1] / "scripts" / "mirror_bootstrap_assets.py"
+    main = runpy.run_path(str(script))["main"]
+    monkeypatch.setattr(
+        sys, "argv", ["mirror_bootstrap_assets.py", "--dry-run", "--out-dir", str(tmp_path / "m")]
+    )
+    assert main() == 0
+    out = capsys.readouterr()
+    planned = {row["name"] for row in json.loads(out.out)}
+    assert "rnnoise" in planned and "speaker-ecapa" not in planned
+    assert "speaker-ecapa" in out.err

@@ -16,7 +16,11 @@ from podcast_mcp.engines.models import speaker_ecapa
 from podcast_mcp.engines.models.ecapa_features import ecapa_features
 from podcast_mcp.services.pipeline.bootstrap import component_status, run_bootstrap
 from podcast_mcp.util import asset_sources
-from podcast_mcp.util.asset_sources import AssetSourceError
+from podcast_mcp.util.asset_sources import (
+    AssetSourceError,
+    NoDownloadSourceError,
+    OwnerCdnUnsetError,
+)
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -129,6 +133,7 @@ def test_bootstrap_downloads_verifies_and_skips_when_cached(
 
 DIRECT_URL = "https://cdn.sharecut.studio/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx"
 ASSETS_URL = "https://cdn.sharecut.studio/assets/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx"
+OWNER_BASE = "https://cdn.sharecut.studio"
 
 
 class _FakeOpener:
@@ -155,9 +160,31 @@ def _forbidden(url: str) -> urllib.error.HTTPError:
     return urllib.error.HTTPError(url, 403, "Forbidden", None, io.BytesIO(b""))  # type: ignore[arg-type]
 
 
-def test_stock_build_downloads_from_the_direct_url_and_verifies_the_pin(
+def test_source_build_without_a_base_has_no_source_and_says_how_to_set_one(
     model_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
+    monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
+    opener = _serve(monkeypatch, {})
+    with pytest.raises(OwnerCdnUnsetError) as raised:
+        speaker_ecapa.bootstrap_speaker_ecapa()
+    message = str(raised.value)
+    for needle in (
+        "PODCAST_MCP_SPEAKER_ECAPA_MODEL",
+        "PODCAST_OWNER_CDN_BASE",
+        "PODCAST_BOOTSTRAP_CDN_BASE",
+        "docs/setup.md#speaker-model",
+    ):
+        assert needle in message
+    assert isinstance(raised.value, NoDownloadSourceError)
+    assert opener.requested == []
+    assert "docs/setup.md#speaker-model" in (speaker_ecapa.speaker_ecapa_problem() or "")
+
+
+def test_official_build_downloads_from_the_owner_url_and_verifies_the_pin(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", OWNER_BASE)
     monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
     monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
     _pin_to(monkeypatch, b"model-bytes")
@@ -173,6 +200,7 @@ def test_production_base_403_falls_through_to_the_direct_url(
     model_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("PODCAST_BOOTSTRAP_CDN_BASE", "https://cdn.sharecut.studio/assets")
+    monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", OWNER_BASE)
     monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
     _pin_to(monkeypatch, b"model-bytes")
     opener = _serve(monkeypatch, {ASSETS_URL: _forbidden(ASSETS_URL), DIRECT_URL: b"model-bytes"})
@@ -185,6 +213,7 @@ def test_production_base_403_falls_through_to_the_direct_url(
 def test_wrong_bytes_are_rejected_and_leave_no_file(
     model_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", OWNER_BASE)
     monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
     monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
     _pin_to(monkeypatch, b"model-bytes")
@@ -205,6 +234,7 @@ def test_component_status_is_opt_in_and_never_gates_first_run(model_dir: Path) -
 def test_gui_bootstrap_accepts_the_component(
     model_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", OWNER_BASE)
     monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
     monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
     _pin_to(monkeypatch, b"model-bytes")
@@ -289,6 +319,7 @@ def test_cli_bootstrap_component_reports_a_failure(
 
     from podcast_mcp.cli.setup_cmd import setup_app
 
+    monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", OWNER_BASE)
     monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
     _serve(monkeypatch, {DIRECT_URL: _forbidden(DIRECT_URL)})
     result = CliRunner().invoke(setup_app, ["bootstrap", "--component", "speaker-ecapa"])
@@ -367,6 +398,7 @@ def _swap_in_place_keeping_mtime(target: Path, payload: bytes) -> None:
 def test_bootstrap_skip_check_rehashes_a_file_a_status_poll_remembered(
     model_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", OWNER_BASE)
     _pin_to(monkeypatch, b"pinned")
     target = speaker_ecapa.speaker_ecapa_path()
     target.write_bytes(b"pinned")

@@ -80,19 +80,44 @@ def test_ordered_http_urls_prefers_cdn(monkeypatch: pytest.MonkeyPatch) -> None:
 # The production distribution profile (private overlay) sets this base. The test
 # sets it itself and cannot see the overlay, so keep the two in step by hand.
 PRODUCTION_CDN_BASE = "https://cdn.sharecut.studio/assets"
+OWNER_BASE = "https://cdn.sharecut.studio"
+SPEAKER_FILE = "ecapa-voxceleb-embedding.onnx"
 
 
-def test_speaker_model_url_under_the_production_base(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_speaker_model_mirror_url_under_the_production_base(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("PODCAST_BOOTSTRAP_CDN_BASE", PRODUCTION_CDN_BASE)
-    speaker = asset_entry("speaker-ecapa")["filename"]
+    monkeypatch.delenv("PODCAST_OWNER_CDN_BASE", raising=False)
     rnnoise = asset_entry("rnnoise")["filename"]
-    assert ordered_http_urls("speaker-ecapa", relative_path=speaker) == [
-        "https://cdn.sharecut.studio/assets/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx",
-        "https://cdn.sharecut.studio/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx",
+    assert ordered_http_urls("speaker-ecapa", relative_path=SPEAKER_FILE) == [
+        f"{PRODUCTION_CDN_BASE}/models/speaker-ecapa/{SPEAKER_FILE}"
     ]
     assert ordered_http_urls("rnnoise", relative_path=rnnoise)[0] == (
-        "https://cdn.sharecut.studio/assets/models/rnnoise/somnolent-hogwash.rnnn"
+        f"{PRODUCTION_CDN_BASE}/models/rnnoise/somnolent-hogwash.rnnn"
     )
+
+
+def test_speaker_model_has_no_source_without_a_mirror_or_an_owner_base(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
+    monkeypatch.delenv("PODCAST_OWNER_CDN_BASE", raising=False)
+    assert ordered_http_urls("speaker-ecapa", relative_path=SPEAKER_FILE) == []
+
+
+def test_speaker_model_owner_url_follows_the_mirror_and_uses_the_pinned_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", OWNER_BASE)
+    monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
+    owner_url = f"{OWNER_BASE}/models/speaker-ecapa/{SPEAKER_FILE}"
+    assert ordered_http_urls("speaker-ecapa", relative_path=SPEAKER_FILE) == [owner_url]
+    monkeypatch.setenv("PODCAST_BOOTSTRAP_CDN_BASE", PRODUCTION_CDN_BASE)
+    assert ordered_http_urls("speaker-ecapa", relative_path=SPEAKER_FILE) == [
+        f"{PRODUCTION_CDN_BASE}/models/speaker-ecapa/{SPEAKER_FILE}",
+        owner_url,
+    ]
 
 
 def test_ordered_http_urls_upstream_only(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -212,12 +237,13 @@ def test_every_http_asset_names_an_https_url_and_speaker_is_pinned() -> None:
     http_assets = {name: meta for name, meta in assets.items() if meta["kind"] == "http"}
     assert {"rnnoise", "speaker-ecapa"} <= set(http_assets)
     for name, meta in http_assets.items():
-        assert str(meta.get("url", "")).startswith("https://"), name
+        if "owner_path" in meta:
+            assert "url" not in meta, name
+        else:
+            assert str(meta.get("url", "")).startswith("https://"), name
     speaker = http_assets["speaker-ecapa"]
     assert re.fullmatch(r"[0-9a-f]{64}", speaker["sha256"])
-    assert speaker["url"] == (
-        "https://cdn.sharecut.studio/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx"
-    )
+    assert speaker["owner_path"] == f"models/speaker-ecapa/{SPEAKER_FILE}"
 
 
 def test_load_manifest_returns_isolated_copies() -> None:

@@ -67,7 +67,10 @@ def main() -> int:
         if prefix is None:
             continue
         if kind == "http":
-            url = meta["url"]
+            url = meta.get("url")
+            if url is None:
+                print(f"skip {name}: no upstream url to mirror (owner CDN only)", file=sys.stderr)
+                continue
             filename = meta.get("filename") or Path(url).name
             dest = out_dir / prefix / filename
             planned.append({"name": name, "url": url, "dest": str(dest)})
