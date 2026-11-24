@@ -270,6 +270,22 @@ function relativeRect(rect: DOMRect, frame: DOMRect): InspectorRect {
   };
 }
 
+const PENDING_BAR = ".pending-actionbar";
+
+/** A selected pending edit's review bar while it floats on screen. It lives in document.body, outside the Edit root. */
+function floatingPendingBar(): HTMLElement | null {
+  const bar = document.querySelector<HTMLElement>(PENDING_BAR);
+  return bar?.getAttribute("aria-hidden") === "true" ? null : bar;
+}
+
+function unionRect(rects: readonly DOMRect[]): DOMRect {
+  const left = Math.min(...rects.map((rect) => rect.left));
+  const top = Math.min(...rects.map((rect) => rect.top));
+  const right = Math.max(...rects.map((rect) => rect.right));
+  const bottom = Math.max(...rects.map((rect) => rect.bottom));
+  return new DOMRect(left, top, right - left, bottom - top);
+}
+
 function revealTimelineAnchor(target: HTMLElement | null) {
   const scroller = target?.closest<HTMLElement>(".timeline-scroll");
   if (!target || !scroller) return;
@@ -340,7 +356,10 @@ function Card({
     const target =
       root.querySelector<HTMLElement>(".sys-actions--floating") ??
       anchor.ref.current;
-    const targetRect = target?.getBoundingClientRect();
+    const rects = [target, floatingPendingBar()].flatMap((el) =>
+      el ? [el.getBoundingClientRect()] : [],
+    );
+    const controls = rects.length ? unionRect(rects) : null;
     const next: Placement = {
       bounds: {
         width: Math.round(frame.width),
@@ -348,8 +367,8 @@ function Card({
       },
       // Armed with nothing selected there is no object to sit beside: the bottom edge.
       anchor: rounded(
-        targetRect
-          ? relativeRect(targetRect, frame)
+        controls
+          ? relativeRect(controls, frame)
           : { x: frame.width / 2, y: frame.height, width: 0, height: 0 },
       ),
       keepClear: areaRects([getCorner()]).map((rect) =>
@@ -374,13 +393,24 @@ function Card({
     };
   }, [measure, anchor.moves, anchor.visible]);
   useResizeObserver(
-    [root, getCorner, () => getCorner()?.parentElement],
+    [
+      root,
+      getCorner,
+      () => getCorner()?.parentElement,
+      () => document.querySelector(PENDING_BAR),
+    ],
     measure,
   );
   useStyleObserver(
     () => root,
     () => [root?.querySelector(".sys-actions--floating")],
     measure,
+  );
+  useStyleObserver(
+    () => document.body,
+    () => [document.querySelector(PENDING_BAR)],
+    measure,
+    selection?.kind === "pending",
   );
   const history = useTakeoverHistory();
   const takeover =
