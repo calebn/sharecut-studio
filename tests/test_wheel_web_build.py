@@ -359,7 +359,8 @@ def test_blocked_online_probe_fails_on_a_skipped_extension_entry_point(tmp_path:
 def test_blocked_online_probe_fails_when_collaboration_does_not_load(tmp_path: Path) -> None:
     result = _run_probe(tmp_path, check.BLOCK_ONLINE_PROBE, PODCAST_EXTENSIONS="")
     assert result.returncode != 0
-    assert "share.routes" in result.stderr
+    assert "AssertionError" in result.stderr
+    assert "skip extension entry point" not in result.stderr
 
 
 def _fake_venv(root: Path, *, exit_code: int, stderr: str = "") -> Path:
