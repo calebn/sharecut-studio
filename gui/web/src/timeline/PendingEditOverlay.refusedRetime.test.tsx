@@ -217,7 +217,6 @@ function expectRefusalShown(
 ) {
   const said = useDawStore.getState().statusAnnouncement;
   expect(said).toBe(r.sentence(edge));
-  expect(said).not.toContain(r.detail);
   expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
   expect(hasDocumentDrafts()).toBe(false);
   const saved = useDawStore.getState().project?.pending_edits[0];

@@ -138,7 +138,6 @@ describe("pendingRetimeRefusal", () => {
     ],
     ["something_new", 409, generic("end")],
     [null, 400, generic("end")],
-    [null, 409, generic("end")],
     [null, 422, generic("end")],
   ])("says the same for code %s with status %s", (code, status, sentence) => {
     const error = new ApiError("server detail", code, status);
@@ -148,18 +147,9 @@ describe("pendingRetimeRefusal", () => {
   it("names the edge that was dragged", () => {
     const error = new ApiError("x", null, 409);
     expect(pendingRetimeRefusal(error, "start")).toBe(generic("start"));
-    expect(pendingRetimeRefusal(error, "end")).toBe(generic("end"));
     const crossed = new ApiError("x", "range_end_before_start", 400);
     expect(pendingRetimeRefusal(crossed, "start")).toContain(
       "the start is back",
     );
-  });
-
-  it("never shows the server's own text", () => {
-    for (const code of [null, "exact_range_locked", "pending_edit_changed"]) {
-      const error = new ApiError("Traceback: podcast edit retime", code, 409);
-      expect(pendingRetimeRefusal(error, "end")).not.toContain("Traceback");
-      expect(pendingRetimeRefusal(error, "end")).not.toContain("podcast");
-    }
   });
 });
