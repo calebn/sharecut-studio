@@ -256,12 +256,15 @@ def read_all(child: Any) -> bytes:
 
 @contextlib.contextmanager
 def reaping():
-    """Release every fake built inside the block and join its session threads, each bounded."""
     global _LIVE
     outer, fakes = _LIVE, []
     _LIVE = fakes
+    failed = False
     try:
         yield fakes
+    except BaseException:
+        failed = True
+        raise
     finally:
         _LIVE = outer
         threads = []
@@ -277,7 +280,8 @@ def reaping():
         for thread in threads:
             thread.join(max(0.0, deadline - time.monotonic()))
         stuck = [t.name for t in threads if t.is_alive()]
-        assert not stuck, f"fake session threads outlived their test: {stuck}"
+        if stuck and not failed:
+            pytest.fail(f"fake session threads outlived their test: {stuck}")
 
 
 @pytest.fixture(autouse=True)
@@ -295,7 +299,6 @@ def test_a_fake_left_unreleased_leaves_no_session_thread_behind() -> None:
         thread = fake.sessions[1].thread
         assert thread is not None and thread.is_alive() and thread.name == SESSION_THREAD
     assert not thread.is_alive()
-    assert not [t for t in threading.enumerate() if t.name == SESSION_THREAD and t is thread]
 
 
 @pytest.fixture
@@ -683,7 +686,7 @@ def test_the_stream_is_flushed_before_start() -> None:
                 [IN_PROCESS_FFMPEG], Streams(None, spy, None), threading.Event()
             )
             assert fake.flushed_at_start is not None
-            assert fake.flushed_at_start >= 1  # the count when native start ran
+            assert fake.flushed_at_start >= 1
         finally:
             spy.close()
 

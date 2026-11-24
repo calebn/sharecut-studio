@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 from tests.strict_yaml import DuplicateKeyError, load_strict, load_template
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -517,6 +518,11 @@ def test_the_loader_rejects_a_duplicate_key_the_text_tests_skip() -> None:
         load_template(dup)
     with pytest.raises(DuplicateKeyError):
         load_strict("a: 1\nb:\n  c: 1\n  c: 2\n")
+
+
+def test_the_loader_refuses_a_merge_key() -> None:
+    with pytest.raises(yaml.YAMLError):
+        load_strict("b: &b {x: 1}\nm:\n  <<: *b\n  x: 2\n")
 
 
 def test_minimum_os_is_one_value_everywhere() -> None:
