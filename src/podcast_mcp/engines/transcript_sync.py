@@ -78,9 +78,6 @@ def apply_source_transcript_removes(
     project: EpisodeProject,
     removes_by_track: dict[str, list[tuple[float, float]]]
     | dict[TranscriptKey, list[tuple[float, float]]],
-    *,
-    rebuild: bool = True,
-    defaults: EffectiveConfig,
 ) -> None:
     """Archive words overlapping source-time removes; keep surviving times unchanged."""
     if not removes_by_track:
@@ -98,8 +95,6 @@ def apply_source_transcript_removes(
             else:
                 kept.append(word)
         set_words(tr, kept)
-    if rebuild:
-        rebuild_combined(project, defaults=defaults)
 
 
 def timeline_removes_to_source_ranges(
@@ -177,9 +172,6 @@ def apply_batch_transcript_removes(
     project: EpisodeProject,
     removes: list[tuple[float, float]],
     clips_by_track: Mapping[str, list[Clip]],
-    *,
-    rebuild: bool = True,
-    defaults: EffectiveConfig,
 ) -> None:
     """Archive the words under timeline ``removes`` of each lane's pre-edit clips.
 
@@ -189,4 +181,4 @@ def apply_batch_transcript_removes(
     for clips in clips_by_track.values():
         for key, ranges in timeline_removes_by_transcript(project, clips, removes).items():
             removes_by_track.setdefault(key, []).extend(ranges)
-    apply_source_transcript_removes(project, removes_by_track, rebuild=rebuild, defaults=defaults)
+    apply_source_transcript_removes(project, removes_by_track)

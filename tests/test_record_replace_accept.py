@@ -811,10 +811,7 @@ def test_the_combined_transcript_is_rebuilt_once(ws) -> None:
     def counted(*args, **kwargs):
         calls.append(1)
 
-    with (
-        patch("podcast_mcp.edits.session_suggestions.rebuild_combined", counted),
-        patch("podcast_mcp.engines.transcript_sync.rebuild_combined", counted),
-    ):
+    with patch("podcast_mcp.edits.session_suggestions.rebuild_combined", counted):
         SessionSuggestionService(ws).accept(sid)
     assert len(calls) == 1
 
@@ -871,7 +868,9 @@ def _project_with_comment_and_words(ws) -> EpisodeProject:
     return ws.project
 
 
-def test_other_callers_of_the_removal_primitive_still_remap_and_rebuild(ws) -> None:
+def test_other_callers_of_the_removal_primitive_still_remap_and_leave_the_combined_alone(
+    ws,
+) -> None:
     project = _project_with_comment_and_words(ws)
     removal = RippleRemoval.of([TrackExtent("host", 2.0, 4.0)])
     calls: list[int] = []
@@ -879,12 +878,12 @@ def test_other_callers_of_the_removal_primitive_still_remap_and_rebuild(ws) -> N
         "podcast_mcp.engines.transcript_sync.rebuild_combined", lambda *a, **k: calls.append(1)
     ):
         _write_ripple_delete(project, removal, defaults=ws.effective_config())
-    assert len(calls) == 1
+    assert calls == []
     assert "inside" not in {c.id for c in project.comments}
     assert [c.time for c in project.editorial.chapters] == [1.0, 2.0, 2.0, 4.0]
 
 
-def test_the_public_range_removal_keeps_comments_and_rebuilds_only_when_asked(ws) -> None:
+def test_the_public_range_removal_keeps_comments_and_leaves_the_combined_alone(ws) -> None:
     project = _project_with_comment_and_words(ws)
     removal = RippleRemoval.of([TrackExtent("host", 2.0, 4.0)])
     calls: list[int] = []

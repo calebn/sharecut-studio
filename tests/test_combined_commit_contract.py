@@ -28,6 +28,7 @@ knowingly change them:
 from __future__ import annotations
 
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal
 from unittest.mock import Mock, patch
@@ -388,22 +389,36 @@ def _discard_last_take(ws: ProjectWorkspace) -> Any:
     return RecordLandingService(ws).delete_take(1)
 
 
-def _host_has_a_focus_cut(project: EpisodeProject) -> None:
-    """An approved focus cut over the host's "welcome back", waiting for the focus step."""
-    project.edit_decisions = [
-        EditDecision(
-            id="focus-contract",
-            track_id="host",
-            type=EditDecisionType.REMOVE,
-            start=3.0,
-            end=4.0,
-            reason="focus:contract",
-            review_required=False,
-            applied=False,
-            scope="session",
-            boundary_mode="exact",
-        )
-    ]
+def _host_has_a_cut(
+    reason: str, scope: str = "session", kind: EditDecisionType = EditDecisionType.REMOVE
+) -> Callable[[EpisodeProject], None]:
+    """An approved cut over the host's "welcome back", waiting for the step or the approval."""
+
+    def arrange(project: EpisodeProject) -> None:
+        project.edit_decisions = [
+            EditDecision(
+                id="cut-contract",
+                track_id="host",
+                type=kind,
+                start=3.0,
+                end=4.0,
+                reason=reason,
+                review_required=False,
+                applied=False,
+                scope=scope,
+                boundary_mode="exact",
+            )
+        ]
+
+    return arrange
+
+
+_host_has_a_focus_cut = _host_has_a_cut("focus:contract")
+
+
+def _approve_cut(ws: ProjectWorkspace) -> Any:
+    with audio_check_override("contract", "test"):
+        return EditService(ws).approve(["cut-contract"])
 
 
 def _host_with_a_stored_loop(project: EpisodeProject) -> None:
@@ -535,6 +550,8 @@ TIMELINE_CASES = [
             3.0, 4.0, mode=EditMode.RIPPLE, track_ids=["host"], use_inaudible_opt=False
         ),
         ("hello there friend", "thanks for having me"),
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
     Case(
         "gap_delete_words",
@@ -542,6 +559,53 @@ TIMELINE_CASES = [
             3.0, 4.0, mode=EditMode.GAP, track_ids=["host"], use_inaudible_opt=False
         ),
         ("hello there friend", "thanks for having me"),
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "ripple_delete_clip_words",
+        lambda ws: TimelineService(ws).delete_clips(["host-l"], mode=EditMode.RIPPLE),
+        ("thanks for having me",),
+        arrange=_host_in_two_clips,
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "gap_delete_clip_words",
+        lambda ws: TimelineService(ws).delete_clips(["host-l"], mode=EditMode.GAP),
+        ("thanks for having me",),
+        arrange=_host_in_two_clips,
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "approve_session_cut",
+        _approve_cut,
+        ("hello there friend", "thanks for having me"),
+        arrange=_host_has_a_cut("filler:contract"),
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "approve_track_scope_cut",
+        _approve_cut,
+        ("hello there friend", "thanks for having me"),
+        arrange=_host_has_a_cut("filler:contract", "track"),
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "apply_auto_edits",
+        lambda ws: EditService(ws).apply_auto(),
+        ("hello there friend", "thanks for having me"),
+        arrange=_host_has_a_cut("filler:contract"),
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "strip_silence_without_voice",
+        lambda ws: AnalysisService(ws).strip_silence(track_id="host"),
+        ("thanks for having me",),
     ),
     Case(
         "gap_delete_lane_without_transcript",
@@ -597,6 +661,15 @@ TIMELINE_CASES = [
         words=False,
     ),
     Case("revert_applied_cut", _revert_last_cut, FRESH_TEXTS, prepare=_cut_welcome),
+    Case(
+        "revert_applied_mute",
+        _revert_last_cut,
+        FRESH_TEXTS,
+        quirk="h1",
+        arrange=_host_has_a_cut("filler:contract", kind=EditDecisionType.MUTE),
+        prepare=_approve_cut,
+        may_commit_nothing=True,
+    ),
     Case(
         "land_start_session_take",
         _land_take,
@@ -800,6 +873,16 @@ PIPELINE_CASES = [
         _run_step("focus_from_transcript", {"focus": {"enabled": True, "auto_apply": True}}),
         ("hello there friend", "thanks for having me"),
         arrange=_host_has_a_focus_cut,
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "pipeline_tighten_apply_step",
+        _run_step("tighten_from_transcript", {"tighten": {"enabled": True, "auto_apply": True}}),
+        ("hello there friend", "thanks for having me"),
+        arrange=_host_has_a_cut("filler:contract"),
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
 ]
 

@@ -16,7 +16,7 @@ from podcast_mcp.engines.level_profile import (
 )
 from podcast_mcp.engines.ranges import merge_timeline_ranges, subtract_ranges_from_intervals
 from podcast_mcp.engines.silence import SilenceInterval, quiet_intervals
-from podcast_mcp.engines.transcript_sync import apply_source_transcript_removes
+from podcast_mcp.engines.transcript_sync import apply_source_transcript_removes, rebuild_combined
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, FadeCurve
 from podcast_mcp.util.coded_error import CodedValueError
@@ -134,7 +134,8 @@ def strip_silence(
         cursor = max(cursor, src_end)
     if cursor < duration - 1e-6:
         removed_ranges.append((cursor, duration))
-    apply_source_transcript_removes(project, {track_id: removed_ranges}, defaults=defaults)
+    apply_source_transcript_removes(project, {track_id: removed_ranges})
+    rebuild_combined(project, defaults=defaults)
 
     removed_sec = duration - sum(e - s for s, e in kept)
     return {

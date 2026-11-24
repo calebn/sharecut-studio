@@ -255,7 +255,7 @@ def test_the_candidate_owns_the_sections_a_cut_writes_and_shares_the_rest(tmp_pa
     assert candidate.review.versions is project.review.versions
     assert candidate.sources is not project.sources
     assert candidate.sources == project.sources
-    assert candidate.transcript_data.combined is not project.transcript_data.combined
+    assert candidate.transcript_data is not project.transcript_data
     assert candidate.timeline is not project.timeline
     assert candidate.timeline.clips is not project.timeline.clips
     assert candidate.editorial is not project.editorial
