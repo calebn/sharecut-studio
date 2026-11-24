@@ -1,10 +1,10 @@
 # Episode project format
 
-**Canonical spec:** [episode-format-v2.md](episode-format-v2.md) (version `2.4`. Versions `2.0` through `2.3` open and are saved as `2.4`. The `podcast episode upgrade` command copies those workspaces to new `2.4` ones).
+**Canonical spec:** [episode-format-v2.md](episode-format-v2.md) (version `2.5`. Versions `2.0` through `2.4` open and are saved as `2.5`. The `podcast episode upgrade` command copies those workspaces to new `2.5` ones).
 
 Primary file: `episode.sharecut` in the episode workspace directory.
 
-The file is the same version `2.4` JSON document. `EPISODE_PROJECT_FILENAME` (`src/podcast_mcp/models/episode.py`, mirrored in `gui/web/src/utils/projectFile.ts`) is the source for engine code. The previous name `episode.project.json` is not read as a project. Studio adopts it at the first real open: opening a project (Home, `--project`, MCP, the GUI open and pick routes, a share guest's open, `podcast gui`, `podcast tunnel`) renames `episode.project.json` to `episode.sharecut` in place (same bytes, logged once) before the first read. Discovery and polls never rename: the Studio hand-off lookup, the meta polls, Recents listing and the handoff ping only map the old name to `episode.sharecut`. Recents list an entry stored under the old name as `episode.sharecut` once that file exists in its folder, merged with an existing `episode.sharecut` entry (the newer `opened_at` wins), and they write nothing while listing; an entry whose folder still holds only the old file is listed under the old name and opens normally. Copy and relocate operations (golden-ear, workspace relocation) adopt the source first, so the source folder is renamed before it is copied. The rename is one-way: an older build can no longer open the folder. When both files exist, `episode.sharecut` is used and the old file is left alone. If the old file is newer, Studio logs a warning (once per file per process), because an older build saved after the rename and those edits are not loaded; copy them over by hand if you need them. If the rename fails (a read-only folder, for example), the open returns the coded error `project_old_filename` and the file must be renamed by hand; a share guest's open that cannot rename finds the project missing (`project_not_found`) instead.
+The file is the same version `2.5` JSON document. `EPISODE_PROJECT_FILENAME` (`src/podcast_mcp/models/episode.py`, mirrored in `gui/web/src/utils/projectFile.ts`) is the source for engine code. The previous name `episode.project.json` is not read as a project. Studio adopts it at the first real open: opening a project (Home, `--project`, MCP, the GUI open and pick routes, a share guest's open, `podcast gui`, `podcast tunnel`) renames `episode.project.json` to `episode.sharecut` in place (same bytes, logged once) before the first read. Discovery and polls never rename: the Studio hand-off lookup, the meta polls, Recents listing and the handoff ping only map the old name to `episode.sharecut`. Recents list an entry stored under the old name as `episode.sharecut` once that file exists in its folder, merged with an existing `episode.sharecut` entry (the newer `opened_at` wins), and they write nothing while listing; an entry whose folder still holds only the old file is listed under the old name and opens normally. Copy and relocate operations (golden-ear, workspace relocation) adopt the source first, so the source folder is renamed before it is copied. The rename is one-way: an older build can no longer open the folder. When both files exist, `episode.sharecut` is used and the old file is left alone. If the old file is newer, Studio logs a warning (once per file per process), because an older build saved after the rename and those edits are not loaded; copy them over by hand if you need them. If the rename fails (a read-only folder, for example), the open returns the coded error `project_old_filename` and the file must be renamed by hand; a share guest's open that cannot rename finds the project missing (`project_not_found`) instead.
 
 Studio's Open and Pick actions reject a resolved project path that cannot be
 represented as UTF-8 before trying the rename. Rename the workspace folder to
@@ -26,7 +26,7 @@ my_episode/
 
 - **tracks** — Logical lanes (`host`, `guest_1`, `music_bed`, `intro`, …)
 - **clips** — Timeline placements. A clip an Insert made from a saved segment carries `segment_ref` (`segment_id`, `version`, `content_sha256`), absent on every other clip; see [segments.md](segments.md#insert). Clip models ignore unknown fields, so an older build that opens such a project drops `segment_ref` on its next save, without an error. That field shipped inside `2.0`, before the version bump to `2.1`.
-- **edit_decisions** — Non-destructive cuts (remove ranges with crossfade ms)
+- **edit_decisions** — Non-destructive cuts (remove ranges with crossfade ms; a pending padded cut also keeps `bound_pad`, the room tone it plays)
 - **automation_envelopes** — Volume keyframes per track
 - **processing_chains** — FFmpeg effect params per track
 - **pipeline_runs** — Step execution history
@@ -137,8 +137,8 @@ it cannot attest that a private installer was delivered. Follow the
 
 ## Upgrade after a real format break
 
-`podcast episode upgrade` upgrades workspaces from `2.0` through `2.3` to `2.4` (`2.1` added
-`timeline.join_fade_max_ms`, `2.2` added `Transcript.asr_language`, `2.3` added `history.entries[].author` and `undone_by`, and `2.4` added `document_sync.guest_post_receipts`). The guard invokes this fixed command for every released fixture
+`podcast episode upgrade` upgrades workspaces from `2.0` through `2.4` to `2.5` (`2.1` added
+`timeline.join_fade_max_ms`, `2.2` added `Transcript.asr_language`, `2.3` added `history.entries[].author` and `undone_by`, `2.4` added `document_sync.guest_post_receipts`, and `2.5` added `editorial.edit_decisions[].bound_pad`). The guard invokes this fixed command for every released fixture
 older than the current version:
 
 ```bash
