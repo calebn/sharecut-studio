@@ -76,6 +76,7 @@ function SeamDiamond({
   return (
     <span
       className="seam-mark"
+      data-seam-id={seam.id}
       style={{ left: (seam.joinSec + rolledSec) * zoomPxPerSec }}
     >
       <SeamMark

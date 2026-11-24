@@ -178,7 +178,8 @@ function EditWorkspaceAdapter({
   );
 
   const phone = arrangement === "phone";
-  const [scriptClear, setScriptClear] = useState(false);
+  const scriptClear = useDawStore((s) => s.scriptHeaderClear);
+  const setScriptClear = useDawStore((s) => s.setScriptHeaderClear);
   const scriptShown = phone
     ? editSurface === "text"
     : !scriptCollapsed || scriptFocus;

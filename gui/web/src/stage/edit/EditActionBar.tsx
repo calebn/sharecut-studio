@@ -59,7 +59,7 @@ function focusOwnerOf(
     );
   if (selection?.kind === "seam")
     return scope.querySelector<HTMLElement>(
-      `[data-seam-id="${CSS.escape(selection.id)}"]`,
+      `[data-seam-id="${CSS.escape(selection.id)}"] .sys-seam-hit`,
     );
   return null;
 }
@@ -95,7 +95,7 @@ function ClearButton({
         floating ? "sys-icon-btn sys-actions-icon" : "sys-actions-dock-btn"
       }
       aria-label="Clear selection"
-      title="Clear selection (Esc)"
+      title="Clear selection"
       onClick={keepFocus}
     >
       <SystemIcon name="x" size={floating ? 16 : 20} />
@@ -275,6 +275,7 @@ function EditActionBarImpl({
       primary={model.primary ?? undefined}
       trailing={trailing}
       leadingSlots={model.leading === "scope" ? 1 : 0}
+      reserveEnd={inInspector}
       moreRequest={moreRequest}
       onVerb={onVerb}
     />

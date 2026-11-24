@@ -1,6 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
+import { EditActionBar } from "../stage/edit/EditActionBar";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import {
@@ -112,6 +117,40 @@ describe("SeamLayer", () => {
     expect(
       screen.getByRole("button", { name: /^Split at 0:04\.0/ }),
     ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("hands focus back to the diamond it was selected from when the bar clears it", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    useDawStore.setState({
+      selection: { kind: "seam", id: "eb:L:R", trackId: TRACK },
+    });
+    function Stage() {
+      const [root, setRoot] = useState<HTMLElement | null>(null);
+      return (
+        <div ref={setRoot}>
+          <SeamLayer
+            trackId={TRACK}
+            zoomPxPerSec={100}
+            rollPreview={null}
+            onRollPreview={() => undefined}
+            isMoving={() => false}
+            onSelectSeam={() => undefined}
+          />
+          <EditActionBar form="dock" root={root} clear />
+        </div>
+      );
+    }
+    render(<Stage />);
+    const bar = screen.getByRole("group", { name: "Edit actions" });
+    await userEvent.click(
+      within(bar).getByRole("button", { name: "Clear selection" }),
+    );
+    await act(async () => {});
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /^Split at 0:04\.0/ }),
+    ).toHaveFocus();
   });
 
   it("registers as the roll hit target of its right clip for touch", () => {

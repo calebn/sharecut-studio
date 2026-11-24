@@ -42,6 +42,7 @@ beforeEach(() => {
     rangeArmed: false,
     editSurface: "lanes",
     openSheet: null,
+    scriptHeaderClear: false,
   });
 });
 
@@ -81,15 +82,28 @@ describe("ToolsSheet", () => {
     expect(useDawStore.getState().openSheet).toBeNull();
   });
 
-  it("leaves Clear to the Script header on the Script surface", () => {
+  it("leaves Clear to the Script header on the Script surface while the header shows it", () => {
     useDawStore.setState({
       selection: EDIT_SELECTIONS.clip as never,
       editSurface: "text",
+      scriptHeaderClear: true,
     });
     render(<ToolsSheet />);
     expect(
       screen.queryByRole("button", { name: "Clear selection" }),
     ).toBeNull();
+  });
+
+  it("ends the bar with Clear for a clip selected on the Script surface, which the header does not clear", () => {
+    useDawStore.setState({
+      selection: EDIT_SELECTIONS.clip as never,
+      editSurface: "text",
+      scriptHeaderClear: false,
+    });
+    render(<ToolsSheet />);
+    expect(
+      screen.getByRole("button", { name: "Clear selection" }),
+    ).toBeInTheDocument();
   });
 
   it("holds the surface switch, the corner and Mix, and is axe-clean", async () => {
