@@ -734,6 +734,28 @@ describe("ScriptPane read only", () => {
     ).toHaveAccessibleDescription("Read only");
   });
 
+  it("keeps a phone guest's header row, with its header action, while that guest may select", () => {
+    render(
+      <ScriptPane
+        turns={MARKED}
+        guest="commenter"
+        layout="phone"
+        following={false}
+        onFollowChange={() => undefined}
+        onSelect={vi.fn()}
+        headerAction={<button type="button">Clear selection</button>}
+        playing={3}
+      />,
+    );
+    expect(document.querySelector(".sys-script-header")).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Clear selection" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Follow the playhead" }),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the header row on a phone for a link or a host that carries no guest label", () => {
     render(
       <ScriptPane

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { submitDocumentCommand } from "../../api/documentEdits";
+import { registerPrimaryEditingCommands } from "../../commands/editing";
 import {
   rangeActionDescriptors,
   runRangeAction,
@@ -45,6 +46,7 @@ beforeEach(() => {
   setClipboard(null);
   stubViewportShell("desktop");
   seekTransport.mockReset();
+  registerPrimaryEditingCommands();
   layout();
 });
 
@@ -139,6 +141,52 @@ describe("GuestScriptHost range selection", () => {
       startWordIndex: 4,
       endWordIndex: 5,
     });
+  });
+
+  it("a commenter clears a selection through the visible Clear selection and keeps keyboard focus on the word", async () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    render(<StoredGuestScriptHost />);
+    const clear = () =>
+      screen.queryByRole("button", { name: "Clear selection" });
+    expect(clear()).toBeNull();
+    drag(0, 3);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Clear selection" }),
+    );
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(stop(3)).toHaveFocus();
+    expect(clear()).toBeNull();
+    expect(submitDocumentCommand).not.toHaveBeenCalled();
+  });
+
+  it("a commenter on a phone sees the same Clear selection", async () => {
+    stubViewportShell("phone");
+    as("comment", COMMENTER_CAPABILITIES);
+    render(<StoredGuestScriptHost />);
+    drag(0, 3);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Clear selection" }),
+    );
+    expect(useDawStore.getState().selection).toBeNull();
+  });
+
+  it("an editor sees Clear selection after a drag across two lanes", () => {
+    as("edit", EDITOR_CAPABILITIES);
+    render(<StoredGuestScriptHost />);
+    drag(0, 7);
+    expect(useDawStore.getState().selection?.kind).toBe("range");
+    expect(
+      screen.getByRole("button", { name: "Clear selection" }),
+    ).toBeInTheDocument();
+  });
+
+  it("a viewer has no Clear selection", () => {
+    as("view", VIEWER_CAPABILITIES);
+    render(<StoredGuestScriptHost />);
+    drag(0, 3);
+    expect(
+      screen.queryByRole("button", { name: "Clear selection" }),
+    ).toBeNull();
   });
 
   it("Escape clears the selection and a click on a word selects again", async () => {
