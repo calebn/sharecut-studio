@@ -258,7 +258,7 @@ describe("shareWarning", () => {
     ).toBeNull();
     expect(shareWarning(hostShareRow())).toBeNull();
   });
-  it("says online sharing is not set up, and leaves the copy for a ready host out", () => {
+  it("says online sharing is not set up", () => {
     const copy = shareWarning(
       hostShareRow({ warnings: [{ code: "online_sharing_not_set_up" }] }),
     );

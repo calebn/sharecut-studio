@@ -309,14 +309,19 @@ def tunnel_status_path(cfg: RelayConfig) -> Path:
     return tunnel_status_dir() / f"{hashlib.sha256(identity).hexdigest()[:16]}.json"
 
 
+def _studio_sibling(cfg: RelayConfig, suffix: str) -> Path:
+    path = tunnel_status_path(cfg)
+    return path.with_name(f"{path.stem}-studio{suffix}")
+
+
 def studio_status_path(cfg: RelayConfig) -> Path:
     """The Studio's own snapshot, beside the CLI's ``<id16>.json`` so neither writes the other's."""
-    return tunnel_status_path(cfg).with_name(f"{tunnel_status_path(cfg).stem}-studio.json")
+    return _studio_sibling(cfg, ".json")
 
 
 def studio_lock_path(cfg: RelayConfig) -> Path:
     """The lock a Studio holds while it serves this identity. Not ``*.json``, so no reader sees it."""
-    return tunnel_status_path(cfg).with_name(f"{tunnel_status_path(cfg).stem}-studio.lock")
+    return _studio_sibling(cfg, ".lock")
 
 
 def _inactive_record(state: TunnelState, reason: str) -> dict[str, Any]:
