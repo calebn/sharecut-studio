@@ -501,8 +501,9 @@ void     sc_ffmpeg_cancel(int64_t session);
 - **Linking.** The app target's existing `settings: base:` block in
   `gui/desktop/src-tauri/ios/project.yml` carries `OTHER_LDFLAGS: ["$(inherited)",
   "-Wl,-export_dynamic"]`. For ld64 that flag keeps the global symbols of the app executable
-  itself from being removed (dead-stripping and LTO); it does not name the framework's symbols.
-  Whether it is what lets `CDLL(None)` find them on a device is proved on a Mac.
+  itself from being removed by LTO; it does not name the framework's symbols.
+  Whether it is what lets `CDLL(None)` find them on a device is not yet proved; that needs a Mac
+  (see "Not proved here" below).
   The four `sc_ffmpeg_*` names are not in the app executable. They come from `FFmpeg.framework`,
   which is linked with `-exported_symbols_list` naming exactly those four
   (`scripts/ios/build_ffmpeg.sh`), so the framework exports nothing else: `sc_out`, `sc_err`
