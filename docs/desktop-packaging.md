@@ -379,11 +379,11 @@ void     sc_ffmpeg_cancel(int64_t session);
 
 - **Binding.** ctypes `CDLL(None)` is the standard loader; it only finds the symbols. Python
   rebuilds each prototype with `CFUNCTYPE` from the function's address, so that `start` returns a
-  full `int64` and no shared `CDLL` function object has its `restype` or `argtypes` changed. A
-  `CDLL` call already releases the GIL, so a blocked `wait` does not stop the cancel watcher. The
-  module loads nothing at import. `is_available()` returns `False` on a
-  host whose `media_tools` is not `in_process` before any ctypes call; elsewhere it looks the four
-  names up in this process (`dlopen(NULL)`) and calls `sc_ffmpeg_abi_version` only. A missing
+  full `int64` and no shared `CDLL` function object has its `restype` or `argtypes` changed. A call
+  through a `CDLL` function or a `CFUNCTYPE` prototype releases the GIL, so a blocked `wait` does
+  not stop the cancel watcher. The module loads nothing at import. `is_available()` returns `False`
+  on a host whose `media_tools` is not `in_process` before any ctypes call; elsewhere it looks the
+  four names up in this process (`dlopen(NULL)`) and calls `sc_ffmpeg_abi_version` only. A missing
   symbol or a version other than 1 is unavailable, and nothing is installed.
 - **argv.** `argv[0]` is the tool name, `ffmpeg` or `ffprobe` (Python maps the sentinel). The array
   has `argc` strings and a NULL slot. Native copies every string before `start` returns.
@@ -391,66 +391,62 @@ void     sc_ffmpeg_cancel(int64_t session);
   dup behind on failure. It returns `-errno` from the `open`, `F_DUPFD` or `fdopen` that creates the
   discard stream (typically `-EMFILE`) and retries on every start until that stream exists. At most
   16 sessions wait in the queue (the running one is not counted): a further `start` returns
-  `-EAGAIN`. `start` registers the session and returns at once; it never waits for the tool to run
-  or finish, because the bridge starts its cancel watcher only after `start` returns. Sessions run
-  one at a time in start order. All four functions may be called from any thread, exactly one
-  `wait` per id succeeds (a second returns `-ESRCH`), and `cancel` may run at any time, during or
-  after `wait`. `wait` returns an exit code
-  in 0..255 or `-errno` (`-ESRCH` for an unknown or already-waited id). `cancel` is idempotent and a no-op for an unknown id. It asks the session to
-  stop, closes the session's original dups of the caller's in, out and err fds, and returns
+  `-EAGAIN`. `start` registers the session and returns; it never waits for the tool (it holds the
+  core mutex only briefly), because the bridge starts its cancel watcher only after `start` returns.
+  Sessions run one at a time in start order. All four functions may be called from any thread,
+  exactly one `wait` per id succeeds (a second returns `-ESRCH`), and `cancel` may run at any time,
+  during or after `wait`. `wait` returns an exit code in 0..255 or `-errno` (`-ESRCH` for an unknown
+  or already-waited id). `cancel` is idempotent and a no-op for an unknown id. It asks the session
+  to stop, closes the session's original dups of the caller's in, out and err fds, and returns
   without waiting for the tool. `cancel` of a queued session removes it from the queue, so its
-  `wait` returns 255 and the tool never runs. A cancelled running ffmpeg session returns the
-  tool's own code (it may be 0), not 255; Python reports `-9` for either. From that moment the session's stdout and stderr
-  streams (`sc_out()`, `sc_err()`) are
-  redirected to a discard stream, so no new output reaches the caller. The streams the worker
-  already holds stay open until the tool returns. For a running session `cancel` also sends
-  `SIGUSR2` once to the worker thread, which unblocks `SIGUSR2` in its own signal mask at start.
-  The core installs a no-op `SIGUSR2` handler without `SA_RESTART` at the first `start`. The
-  handler is process-wide, so the host must not use `SIGUSR2` for anything else, and a host thread
-  that receives it sees `EINTR` from interruptible calls. The signal makes a `read(2)` or
-  `write(2)` blocked on a pipe on the worker thread fail with `EINTR`, and libav's retry loop
-  then checks the interrupt latch and returns. The kick is best effort only. It reaches the
-  worker thread alone: real ffmpeg runs demux and mux I/O on its own scheduler threads, so a read
-  blocked there is not woken by the kick. The kick is sent once per cancel and is lost if it lands
-  just before the tool enters the blocking call, and a tool blocked in something other than a
-  pipe read or write is not woken. On the Simulator, ffmpeg on a blocked `pipe:0` or a long
-  lavfi job returned from `wait` about 1 s after cancel, but ffprobe on `pipe:0` that is never
-  written did not return until the caller closed its write end, because ffprobe sets no libav
-  interrupt callback and retries the read. The Simulator returns above were observed once, at the probe stage, and are not a
-  guarantee. One rule sets the timing: `cancel` returns at once, and from
-  `kill` Python gives the tool `_KILL_GRACE_SEC` (`process.py`) to return from `wait`. If it has
-  not, Python reports `-9`, releases the caller's stdin writer and stops waiting, whatever the tool
-  is doing (the stdout and stderr read ends stay open). That release is the backstop, and it
-  releases only the caller's stdin pipe:
-  a demux or mux thread blocked on a stdout or stderr write is not covered by any path until the
-  caller reads or the native returns. A write the tool makes through the
-  discard stream never blocks. A caller's
-  reader of a pipe sees EOF only when the native's dups are closed (when the tool returns) and the
-  caller-side write end is released. `wait` does not release a caller's stdin writer: the caller
-  closes it (`communicate` and `__exit__` do), or, if the tool ignores the cancel, Python
-  releases it when the `_KILL_GRACE_SEC` grace ends. The release never waits on a caller's write
-  or flush that is
-  blocked on a full pipe: such a call stays blocked until the native reads or returns. A caller's
-  `close` of the stdin writer likewise does not wait for a write in flight (after its own flush):
-  it points the descriptor at /dev/null and returns, and the descriptor number is freed only when
-  that write has returned, so a write never lands on a reused descriptor. A write started after the
-  close raises `ValueError`, or `BrokenPipeError` once Python has released the pipe at the grace
-  period (the broken flag is checked first). A
-  native that ignores `cancel` does not hang `run` or `wait` (Python reports `-9` after the grace)
-  but a stdout or stderr reader gets no EOF until its session ends (a stdin reader gets it at the grace). Limitations: two overlapping sessions must not be given
-  the same pipe, and a thread of a finished session must not call the tool's exit path later. There
-  are no callbacks. A NUL in argv is rejected only inside the backend (exit 1, where `subprocess`
-  raises `ValueError`): an accepted, fail-closed divergence.
-- **Argv policy.** Python passes argv through unchanged except for `argv[0]`; native does every
-  `-`, `pipe:N` and `fd:N` rewrite, so a caller passes `-` or `pipe:0/1/2`, never a real descriptor
-  number. For `ffmpeg` the core inserts `-nostdin` at `argv[1]`. A bare `-` is mapped by
-  position: after `-i` it is the input, after `-progress` the output, and as the last argument it
-  is the output for `ffmpeg` and the input for `ffprobe`. `pipe:N` / `fd:N` (N = 0, 1 or 2) in
-  those positions are rewritten the same way to a private dup numbered >= 3, never 0..2, and a `-`
-  anywhere else is rejected. The last argument is rewritten even right after `-metadata`.
-  Each other argument is normalised for scanning: backslashes and quotes are dropped, ASCII is
-  lower-cased, runs of `/` collapse to one and `/./` segments are removed. On that copy the core
-  rejects:
+  `wait` returns 255 and the tool never runs; a rejected session cancelled while queued returns 255
+  too, because cancel wins. A cancelled running ffmpeg session returns the tool's own code (it may
+  be 0), not 255. Python reports `-9` for a cancelled session in all three cases. From that moment
+  the session's stdout and stderr streams (`sc_out()`, `sc_err()`) are redirected to a discard
+  stream, so no new output reaches the caller. The streams the worker already holds stay open until
+  the tool returns. For a running session `cancel` also sends `SIGUSR2` once to the worker thread,
+  which unblocks `SIGUSR2` in its own signal mask at start. The core installs a no-op `SIGUSR2`
+  handler without `SA_RESTART` at the first `start`. The handler is process-wide, so the host must
+  not use `SIGUSR2` for anything else, and a host thread that receives it sees `EINTR` from
+  interruptible calls. The signal makes a `read(2)` or `write(2)` blocked on a pipe on the worker
+  thread fail with `EINTR`, and libav's retry loop then checks the interrupt latch and returns. The
+  kick is best effort only. It reaches the worker thread alone: real ffmpeg runs demux and mux I/O
+  on its own scheduler threads, so a read blocked there is not woken by the kick. The kick is sent
+  once per cancel and is lost if it lands just before the tool enters the blocking call, and a tool
+  blocked in something other than a pipe read or write is not woken. On the Simulator, ffmpeg on a
+  blocked `pipe:0` or a long lavfi job returned from `wait` about 1 s after cancel, but ffprobe on
+  `pipe:0` that is never written did not return until the caller closed its write end, because
+  ffprobe sets no libav interrupt callback and retries the read. Simulator timings are measurements,
+  not a guarantee. One rule sets the timing: `cancel` returns at once, and the tool has
+  `_KILL_GRACE_SEC` (`process.py`), counted from Python's `kill`, to return from `wait`. If it has
+  not, Python reports `-9`, closes the caller's stdin write end and stops waiting, whatever the tool
+  is doing; the stdout and stderr read ends stay open. That release is the backstop. It frees only
+  the caller's stdin pipe: a demux or mux thread blocked on a stdout or stderr write is not covered
+  by any path until the caller reads or the native returns. A write the tool makes through the
+  discard stream never blocks. A caller's reader of a pipe sees EOF only when the native's dups are
+  closed (when the tool returns) and the caller-side write end is released. `wait` does not release
+  a caller's stdin writer: the caller closes it (`communicate` and `__exit__` do), or the backstop
+  does. The release never waits on a caller's write or flush that is blocked on a full pipe: such a
+  call stays blocked until the native reads or returns. A caller's `close` of the stdin writer
+  likewise does not wait for a write in flight (after its own flush): it points the descriptor at
+  /dev/null and returns, and the descriptor number is freed only when that write has returned, so a
+  write never lands on a reused descriptor. A write started after the close raises `ValueError`, or
+  `BrokenPipeError` once the backstop has released the pipe (the broken flag is checked first). A
+  native that ignores `cancel` does not hang `run` or `wait` (Python reports `-9` when the backstop
+  fires) but a stdout or stderr reader gets no EOF until its session ends (a stdin reader gets it
+  from the backstop). Limitations: two overlapping sessions must not be given the same pipe, and a
+  thread of a finished session must not call the tool's exit path later. There are no callbacks. A
+  NUL in argv is rejected only inside the backend (exit 1, where `subprocess` raises `ValueError`):
+  an accepted, fail-closed divergence.
+- **Argv policy.** Python passes argv through unchanged except for `argv[0]`; native does every `-`,
+  `pipe:N` and `fd:N` rewrite, so a caller passes `-` or `pipe:0/1/2`, never a real descriptor
+  number. For `ffmpeg` the core inserts `-nostdin` at `argv[1]`. A bare `-` is mapped by position:
+  after `-i` it is the input, after `-progress` the output, and as the last argument it is the
+  output for `ffmpeg` and the input for `ffprobe`. `pipe:N` / `fd:N` (N = 0, 1 or 2) in those
+  positions are rewritten the same way to a private dup numbered >= 3, never 0..2, and a `-`
+  anywhere else is rejected. The last argument is rewritten even right after `-metadata`. Each other
+  argument is normalised for scanning: backslashes and quotes are dropped, ASCII is lower-cased,
+  runs of `/` collapse to one and `/./` segments are removed. On that copy the core rejects:
   - `-stdin`, `-stdin:<spec>`, `-filter_script[:spec]`, `-filter_complex_script*` and every
     `-/...` option except exactly `-/filter_complex`, whose file operand is scanned like any other
     argument (the render engine emits it for long graphs).
@@ -471,27 +467,27 @@ void     sc_ffmpeg_cancel(int64_t session);
   first `=`, so titles and albums pass; a token with no `=` is scanned in full, and
   `-metadatax` or `-metadata=v` exempt nothing. A stream that was not provided is rejected too.
 
-  This is hygiene against accidental fd and stdin use for argv built by the app's engines. It is
-  not a security boundary against free-form argv: `export` `extra_args` from MCP or the CLI is the
-  one free-form route, and the user's own agent controls it. `unix:` and `tcp:` URLs and global
-  options such as `-protocol_whitelist`, `-safe`, `-allowed_extensions` and `-report` are not
-  policed, so the glue must never widen ffmpeg's defaults. A blocking read on `fd:N` / `pipe:N` is
-  woken by the `SIGUSR2` kick of `cancel` (best effort, see Sessions); the bridge still closes the
-  writer. A rejected session
-  still returns a valid id; its `wait` returns `1` after one `sc_ffmpeg: ...` line on stderr and
-  the tool never runs. Cancelling a queued session makes `wait` return `255` and the tool never
-  runs. An exit code outside 0..255 becomes `1`, and `sc_tool_exit` codes are masked with `0xff`.
-  `start` returns `-EINVAL` for `argc < 1`, `argc > 4096`, a NULL entry or an `argv[0]` that is
-  not `ffmpeg` or `ffprobe`, and `-EBADF` for an fd below -1 (a closed fd >= 0 fails the dup with `-EBADF` too). The first `start` sets
-  `SIGPIPE` to ignored for the whole process and leaves it that way.
+  This is hygiene against accidental fd and stdin use for argv built by the app's engines. It is not
+  a security boundary against free-form argv: `export` `extra_args` from MCP or the CLI is the one
+  free-form route, and the user's own agent controls it. `unix:` and `tcp:` URLs and global options
+  such as `-protocol_whitelist`, `-safe`, `-allowed_extensions` and `-report` are not policed, so
+  the glue must never widen ffmpeg's defaults. A blocking read on `fd:N` / `pipe:N` is woken by the
+  `SIGUSR2` kick of `cancel` (best effort, see Sessions); the bridge still closes the writer. A
+  rejected session still returns a valid id; its `wait` returns `1` after one `sc_ffmpeg: ...` line
+  on stderr and the tool never runs, unless it is cancelled while queued, when `wait` returns `255`
+  (cancel wins). An exit code outside 0..255 becomes `1`, and `sc_tool_exit` codes are masked with
+  `0xff`. `start` returns `-EINVAL` for `argc < 1`, `argc > 4096`, a NULL entry or an `argv[0]` that
+  is not `ffmpeg` or `ffprobe`, and `-EBADF` for an fd below -1 (a closed fd >= 0 fails the dup with
+  `-EBADF` too). The first `start` sets `SIGPIPE` to ignored for the whole process and leaves it
+  that way.
 - **File descriptors.** `-1` means none. Native `dup()`s each fd >= 0 before `start` returns and
   closes its dups when the session ends; the caller owns and closes its own fds and native never
   closes them. A dup shares the file offset, so a caller reading a tempfile stderr back must
   `seek(0)` first. `out_fd` and `err_fd` may be the same descriptor: native dups each separately,
-  both dups share one file offset, and stdout is buffered while stderr is not, so the order of
-  lines between them is not preserved. With `in_fd == -1` ffmpeg still runs; only an argument that
-  names a stream that was not provided is rejected. A stream without a usable `fileno()` (or whose `flush()` fails) is exit code
-  `1` with one stderr line, and nothing starts.
+  both dups share one file offset, and stdout is buffered while stderr is not, so the order of lines
+  between them is not preserved. With `in_fd == -1` ffmpeg still runs; only an argument that names a
+  stream that was not provided is rejected. A stream without a usable `fileno()` (or whose `flush()`
+  fails) is exit code `1` with one stderr line, and nothing starts.
 - **Log level.** `-loglevel` sets libav's process-global log level and callback. Native resets
   both at the start of each session that is not rejected, so a session's `-loglevel` does not
   carry into the next one, but any other libav use in the process sees the change meanwhile.
@@ -500,10 +496,10 @@ void     sc_ffmpeg_cancel(int64_t session);
   a program.
 - **Linking.** The app target's existing `settings: base:` block in
   `gui/desktop/src-tauri/ios/project.yml` carries `OTHER_LDFLAGS: ["$(inherited)",
-  "-Wl,-export_dynamic"]` so the linker exports every global symbol of the app image to `dlsym`, not only the four. The
-  four `sc_ffmpeg_*` names are the only supported ABI; other globals, such as `sc_out`, `sc_err`
-  and `sc_tool_exit`, may be visible too and are internal and may change. Do not add a
-  second `settings:` key to that target: YAML silently keeps only the last.
+  "-Wl,-export_dynamic"]` so the linker exports every global symbol of the app image to `dlsym`, not
+  only the four. The four `sc_ffmpeg_*` names are the only supported ABI; other globals, such as
+  `sc_out`, `sc_err` and `sc_tool_exit`, may be visible too and are internal and may change. Do not
+  add a second `settings:` key to that target: YAML silently keeps only the last.
 - **FFmpeg framework.** The template links and embeds `ios-payload/FFmpeg.xcframework` with
   `embed: true`, `codeSign: true` and `link: true`, exactly as it does Python, so one dependency
   line serves the device and the Simulator and the framework is a load-time dependency of the
@@ -547,10 +543,13 @@ void     sc_whisper_cancel(int64_t session);
   or `-of`, so no accepted path spells fd 0 (the check reads the path text and does not resolve
   symlinks); a refused argv is exit `1` with one `sc_whisper:` line.
 - **Sessions.** `start` returns an id >= 1 or `-errno`; `wait` returns an exit code in 0..255 or
-  `-errno`; `cancel` is called once by Python when the caller cancels. The fd, cancel and
-  error contract is the same as FFmpeg's (File descriptors, Sessions and Errors above): `-1`
-  means no fd, a `start` that returns 0 or less, a `wait` outside 0..255 or an unknown tool is exit code `1`
-  with one `whisper: <reason>` line on stderr, and a native error is never reported as success.
+  `-errno`; `cancel` is called once by Python when the caller cancels. The session core is shared
+  with FFmpeg, so the fd rules (`-1` means no fd), the queue and the Errors rule are those of the
+  FFmpeg bullets above: a `start` that returns 0 or less, a `wait` outside 0..255 or an unknown tool
+  is exit code `1` with one `whisper: <reason>` line on stderr, and a native error is never reported
+  as success. The cancel exit code differs: `sc_whisper_core.c` sets `SC_CANCEL_FORCES_255` to 1, so
+  a cancelled running whisper session returns `255`, where a cancelled running ffmpeg session
+  returns the tool's own code. Python reports `-9` in both cases.
 - **Which framework.** The four symbols come from `Whisper.framework`
   (`studio.sharecut.whisper`), a separate framework from `FFmpeg.framework`. It exports exactly
   those four names and nothing else (`bundle_checks.check_whisper_framework` fails on a missing or
@@ -560,16 +559,18 @@ void     sc_whisper_cancel(int64_t session);
 - **Ids and cancel.** Session ids are never reused in a process. `cancel` on a session that has
   already finished is a harmless no-op, and so is one for an unknown id. A second `cancel` on a
   session that is still running is harmless too: the latch is already set, and it only sends the
-  worker another `SIGUSR2`. A session rejected by the argv policy is the exception: cancelling it
-  sets no latch and sends no `SIGUSR2`, and it still reports `1`.
-  Cancelling a queued session makes `wait` return `255` and the tool never runs.
-- **Threads.** `start` and `wait` for one session are called from one worker thread; `cancel`
-  comes from another: Python's `run` forwards a cancel from its watcher thread. Calling `wait` twice for one id gives `-ESRCH` the second time.
+  worker another `SIGUSR2`. A running session rejected by the argv policy is the exception:
+  cancelling it sets no latch and sends no `SIGUSR2`, and it still reports `1`. Cancelling a queued
+  session makes `wait` return `255` and the tool never runs, a rejected one included: cancel wins
+  over its `1`.
+- **Threads.** Python's `run` calls `start` and `wait` for one session from one worker thread and
+  forwards a cancel from its watcher thread. The native functions accept any thread, as for FFmpeg,
+  and a second `wait` for one id gives `-ESRCH`.
 - **Cancel deadline.** After `cancel` the native tool must return from `wait` within
-  five seconds. Python reports `-9` at that deadline and detaches the session, but the
-  native worker is still running the tool: the single worker stays busy and the next session
-  waits in the queue behind it. A tool that cannot be interrupted inside that time therefore
-  delays every later session, not only its own.
+  `_KILL_GRACE_SEC` (`process.py`), counted from Python's `kill`. At that point Python reports `-9`
+  and detaches the session, but the native worker is still running the tool: the single worker stays
+  busy and the next session waits in the queue behind it. A tool that cannot be interrupted inside
+  that time therefore delays every later session, not only its own.
 - **Capacity.** At most 16 sessions wait in the queue; a further `start` returns `-EAGAIN`, which
   Python reports as exit `1` with `whisper: sc_whisper_start failed: ...`.
 - **argv[0].** `start` returns `-EINVAL` unless `argv[0]` is exactly `whisper-cli` (as for `argc <
@@ -619,8 +620,9 @@ above and nothing else.
   `WHISPER_EMBEDDED` in `scripts/ios/bundle_checks.py` turns the requirement off, and then a
   `Whisper.framework` in the bundle fails.
 - **Not proved here.** The iOS compile, `xcrun nm` over the slices, loading both frameworks in the
-  Simulator, cancel latency inside the 5 s grace, memory on a device and App Store validation
-  need a Mac and an owner key.
+  Simulator, cancel latency inside the `_KILL_GRACE_SEC` grace, what `-Wl,-export_dynamic` exports
+  (the FFmpeg Linking bullet says every global symbol; that is Apple linker behaviour not checked
+  here), memory on a device and App Store validation need a Mac and an owner key.
 
 <a id="ios-release"></a>
 **iOS release (#3810, stage 2).** `scripts/ios/ios_release.py` builds a release `.ipa` for the
