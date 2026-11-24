@@ -1131,6 +1131,25 @@ async def test_readvertise_sends_one_register_on_live_session(record_project):
 
 
 @pytest.mark.asyncio
+async def test_readvertise_sends_nothing_when_the_shares_cannot_be_read(
+    record_project, monkeypatch
+):
+    mint_record_link(record_project)
+    client = TunnelClient(RelayConfig(host_token="t", relay_url="ws://relay"), record_project)
+    ws = _LiveRelayWs()
+
+    async with _live_session(client, ws):
+        monkeypatch.setattr(
+            "podcast_mcp.services.collaboration.tunnel.load_project",
+            MagicMock(side_effect=OSError("mid-save")),
+        )
+
+        assert await client.readvertise(record_project) is False
+
+    assert [m["type"] for m in ws.sent] == ["hello", "register"]
+
+
+@pytest.mark.asyncio
 async def test_readvertise_without_session_returns_false_and_next_connect_uses_new_project(
     record_project, tmp_path
 ):
