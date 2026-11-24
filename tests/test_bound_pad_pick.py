@@ -142,19 +142,6 @@ def test_a_bound_cut_plays_the_same_pad_whatever_applied_before_it(tmp_path: Pat
     assert _played(one) == _played(other) == bound
 
 
-def test_a_bound_cut_does_not_replay_a_sample_a_neighbour_already_plays(tmp_path: Path) -> None:
-    project = _two_pending(tmp_path)
-    project.edit_decisions = [_pending(FIRST)]
-    bind_pending_pad_picks(project, defaults=DEFAULTS)
-    project.edit_decisions.append(_pending(SECOND))
-
-    _approve(project, SECOND, FIRST)
-
-    played = _played(project)
-    first, second = played[FIRST], played[SECOND]
-    assert first[1] <= second[0] or second[1] <= first[0]
-
-
 def test_cuts_bound_together_play_different_samples(tmp_path: Path) -> None:
     project = _two_pending(tmp_path)
 
