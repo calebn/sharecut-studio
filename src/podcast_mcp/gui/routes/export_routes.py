@@ -202,7 +202,12 @@ def download_export_file(
 
     A ticket from the listing stands in for the host session token, for this file only.
     """
-    ticket_version = _ticket_or_host(request, path, ticket, file_id)
+    ticket_version = None
+    if ticket is None:
+        require_host(request)
+    else:
+        refuse_relayed(request)
+        ticket_version = export_ticket.verified_version(ticket, path, file_id)
     ws = ProjectWorkspace.open(resolve_project(path, request), adopt=False)
     return download_exported_file(
         request, ws, file_id, ticket_version=ticket_version, host_files=True

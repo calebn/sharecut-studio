@@ -53,6 +53,7 @@ HOST_CALL = "require_host"
 HOST_HELPERS: dict[str, str] = {
     "_host_project": "podcast_mcp.gui.routes.waveform",
     "_session_heard": "podcast_mcp.gui.routes.document",
+    "_ticket_or_host": "podcast_mcp.gui.routes.export_routes",
 }
 AUTHZ_CALLS = frozenset({"require_authz", "authorize_client"})
 GUEST_MODULES = frozenset(
