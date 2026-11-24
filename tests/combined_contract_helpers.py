@@ -16,6 +16,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (
@@ -256,3 +258,95 @@ def json_of(value: CombinedTranscript | None) -> dict[str, Any] | None:
 
 def texts(value: CombinedTranscript | None) -> tuple[str, ...] | None:
     return None if value is None else tuple(u.text for u in value.utterances)
+
+
+Command = Callable[[ProjectWorkspace], Any]
+REBUILT, UNTOUCHED = Outcome.REBUILT, Outcome.UNTOUCHED
+
+
+@dataclass(frozen=True)
+class Case:
+    """One command family: how to run it and what it leaves in each entry state."""
+
+    name: str
+    run: Command
+    texts: tuple[str, ...]
+    """The combined utterance texts after the command, from a ``fresh`` or ``stale`` entry."""
+    fresh: Outcome = REBUILT
+    stale: Outcome = REBUILT
+    none: Outcome = REBUILT
+    quirk: str = ""
+    """``h1`` or ``h2`` when the outcome is one of the two named quirks of today's behavior."""
+    words: bool = True
+    """False when the command works on a project with no transcripts at all."""
+    arrange: Callable[[EpisodeProject], None] | None = None
+    """Reshapes the entry project before it is saved."""
+    speakers: tuple[str, ...] | None = None
+    """The utterance speaker labels after the command, where the labels are what it changes."""
+    prepare: Command | None = None
+    """A command that runs first, so there is something for this one to undo."""
+    configure: Callable[[pytest.MonkeyPatch], None] | None = None
+    """Sets the run's pipeline defaults, for a command that reads them."""
+
+    def outcome(self, state: State) -> Outcome:
+        return {State.FRESH: self.fresh, State.STALE: self.stale, State.NONE: self.none}[state]
+
+    def id_for(self, state: State) -> str:
+        quirk = f"-{self.quirk}" if self.quirk and self.outcome(state) is not self.fresh else ""
+        return f"{self.name}-{state}-{self.outcome(state)}{quirk}"
+
+
+def case_params(cases: list[Case]) -> list[Any]:
+    return [pytest.param(case, state, id=case.id_for(state)) for case in cases for state in State]
+
+
+def run_case(
+    case: Case, state: State, tmp_path: Path, wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> Observed:
+    if case.configure is not None:
+        case.configure(monkeypatch)
+    ws = open_workspace(
+        tmp_path / "ep",
+        wav,
+        state,
+        with_words=case.words,
+        arrange=case.arrange,
+        prepare=case.prepare,
+    )
+    return observe(ws, case.run)
+
+
+def _expected(case: Case, state: State, seen: Observed) -> CombinedTranscript | None:
+    return seen.expected_rebuilt if case.outcome(state) is REBUILT else seen.entry
+
+
+def _expected_texts(case: Case, state: State) -> tuple[str, ...] | None:
+    if state is State.NONE and not case.words:
+        return ()
+    return case.texts
+
+
+def assert_contract(case: Case, state: State, seen: Observed) -> None:
+    expect = _expected(case, state, seen)
+    if case.outcome(state) is REBUILT:
+        assert texts(seen.memory) == _expected_texts(case, state)
+        if case.speakers is not None:
+            assert seen.memory is not None
+            assert tuple(u.speaker for u in seen.memory.utterances) == case.speakers
+    assert_channels(seen, expect)
+
+
+def assert_channels(seen: Observed, expect: CombinedTranscript | None) -> None:
+    """``expect`` is what memory, the file, the after snapshot and a redo must all hold."""
+    assert seen.memory == expect
+    assert seen.saved == expect
+    assert seen.snapshot == expect
+    # combined.json is written only for a non-empty combined and never removed.
+    has_utterances = expect is not None and bool(expect.utterances)
+    assert seen.combined_json == (json_of(expect) if has_utterances else seen.entry_json)
+    if seen.moved:
+        assert seen.undo_memory == seen.entry
+        assert seen.undo_saved == seen.entry
+        assert seen.redo_memory == expect
+        assert seen.redo_saved == expect
+        assert seen.redo_json == seen.combined_json
