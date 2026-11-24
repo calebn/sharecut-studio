@@ -309,6 +309,16 @@ def tunnel_status_path(cfg: RelayConfig) -> Path:
     return tunnel_status_dir() / f"{hashlib.sha256(identity).hexdigest()[:16]}.json"
 
 
+def studio_status_path(cfg: RelayConfig) -> Path:
+    """The Studio's own snapshot, beside the CLI's ``<id16>.json`` so neither writes the other's."""
+    return tunnel_status_path(cfg).with_name(f"{tunnel_status_path(cfg).stem}-studio.json")
+
+
+def studio_lock_path(cfg: RelayConfig) -> Path:
+    """The lock a Studio holds while it serves this identity. Not ``*.json``, so no reader sees it."""
+    return tunnel_status_path(cfg).with_name(f"{tunnel_status_path(cfg).stem}-studio.lock")
+
+
 def _inactive_record(state: TunnelState, reason: str) -> dict[str, Any]:
     return {
         "schema": RECORD_SCHEMA,
@@ -372,6 +382,9 @@ _RULES: tuple[_Rule, ...] = (
 )
 
 
+_LIVE_STATES = frozenset({TunnelState.ONLINE, TunnelState.CONNECTING, TunnelState.RECONNECTING})
+
+
 def _kind_of(phase: TunnelPhase) -> _Kind:
     if phase in _LIVE_PHASES:
         return _Kind.LIVE
@@ -397,22 +410,30 @@ class _Entry(NamedTuple):
     phase: TunnelPhase
 
 
+def _load_entry(path: Path) -> _Entry | None:
+    try:
+        record = load_json_object(path)
+        phase = TunnelPhase(record["phase"]) if record is not None else None
+    except (ValueError, KeyError):
+        log.debug("Skipping unreadable tunnel status %s", path)
+        return None
+    if record is None or phase is None or record.get("schema") != RECORD_SCHEMA:
+        return None
+    return _Entry(path, record, phase)
+
+
 def _load_entries(directory: Path) -> list[_Entry]:
     try:
         paths = sorted(directory.glob("*.json"))
     except OSError:
         return []
-    entries = []
-    for path in paths:
-        try:
-            record = load_json_object(path)
-            phase = TunnelPhase(record["phase"]) if record is not None else None
-        except (ValueError, KeyError):
-            log.debug("Skipping unreadable tunnel status %s", path)
-            continue
-        if record is not None and phase is not None and record.get("schema") == RECORD_SCHEMA:
-            entries.append(_Entry(path, record, phase))
-    return entries
+    return [entry for entry in map(_load_entry, paths) if entry is not None]
+
+
+def _judge(entry: _Entry, now: float, pid_alive: Callable[[int], bool]) -> tuple[_Rule, _Age]:
+    age = _age_of(now - float(entry.record.get("updated_at") or 0.0))
+    process = _process_of(entry.record, pid_alive)
+    return next(r for r in _RULES if r.matches(_kind_of(entry.phase), process, age)), age
 
 
 def _prune(path: Path) -> None:
@@ -455,9 +476,7 @@ def read_tunnel_status(
     clock = time.time() if now is None else now
     views = []
     for entry in entries:
-        age = _age_of(clock - float(entry.record.get("updated_at") or 0.0))
-        process = _process_of(entry.record, pid_alive)
-        rule = next(r for r in _RULES if r.matches(_kind_of(entry.phase), process, age))
+        rule, age = _judge(entry, clock, pid_alive)
         if age is _Age.ABANDONED:
             _prune(entry.path)
         views.append(_view(entry, rule))
@@ -468,6 +487,21 @@ def read_tunnel_status(
             -float(v.get("updated_at") or v.get("since") or 0.0),
         ),
     )
+
+
+def status_file_is_live(
+    path: Path, *, now: float | None = None, pid_alive: Callable[[int], bool] = pid_is_alive
+) -> bool:
+    """Whether ``path`` holds a tunnel that guests can reach or that is trying to connect.
+
+    Reads through ``_RULES`` like the status route, and never prunes.
+    """
+    entry = _load_entry(path)
+    if entry is None:
+        return False
+    rule, _ = _judge(entry, time.time() if now is None else now, pid_alive)
+    state = rule.state or _STATE_BY_PHASE[entry.phase]
+    return state in _LIVE_STATES
 
 
 async def heartbeat_loop(
