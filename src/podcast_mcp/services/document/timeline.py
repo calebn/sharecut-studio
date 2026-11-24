@@ -86,6 +86,11 @@ from podcast_mcp.services.document.timeline_segment_results import (
     DuplicateSegmentResult,
     PasteSegmentResult,
 )
+from podcast_mcp.services.document.trim_edge_results import (
+    TrimAppliedResult,
+    TrimHeldResult,
+    TrimUnchangedResult,
+)
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -336,7 +341,7 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         mode: EditMode,
         expected_token: str,
         application_intent: CutIntent = CutIntent.PROGRAMMATIC,
-    ) -> dict:
+    ) -> TrimAppliedResult | TrimUnchangedResult | TrimHeldResult:
         """Move one clip edge; a ripple keeps every track in sync and guards their speech."""
         if not math.isfinite(source_sec):
             raise CodedValueError("source_sec must be finite", code="source_sec_not_finite")
@@ -347,20 +352,25 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
             )
             plan = plan_trim(project, clip_id, edge, source_sec, mode)
             if plan.unchanged:
-                return {"operation": "trim_clip_edge", "unchanged": True}
+                return TrimUnchangedResult(operation="trim_clip_edge", unchanged=True)
             from podcast_mcp.edits.cut_application import apply_trim
 
-            return self._mutate_timeline_cut(
+            out = self._mutate_timeline_cut(
                 "trim clip edge",
                 "trim_clip_edge",
-                lambda p: apply_trim(
-                    p,
-                    plan,
-                    application_intent=application_intent,
-                    defaults=self.ws.effective_config(),
+                lambda p: TrimAppliedResult(
+                    **apply_trim(
+                        p,
+                        plan,
+                        application_intent=application_intent,
+                        defaults=self.ws.effective_config(),
+                    )
                 ),
                 {"clip_id": clip_id, "edge": edge, "source_sec": source_sec, "mode": mode.value},
             )
+            if isinstance(out, dict):
+                return TrimHeldResult(**out)
+            return out
 
     def roll_clip_join(
         self,

@@ -182,13 +182,17 @@ def set_clips_fade(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def trim_clip_edge(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TimelineService(ws).trim_clip_edge(
-        p["clip_id"],
-        p["edge"],
-        float(p["source_sec"]),
-        mode=EditMode(p["mode"]),
-        expected_token=str(p["expected_token"]),
-        application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
+    return (
+        TimelineService(ws)
+        .trim_clip_edge(
+            p["clip_id"],
+            p["edge"],
+            float(p["source_sec"]),
+            mode=EditMode(p["mode"]),
+            expected_token=str(p["expected_token"]),
+            application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
+        )
+        .model_dump()
     )
 
 
