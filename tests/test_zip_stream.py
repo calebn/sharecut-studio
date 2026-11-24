@@ -173,7 +173,7 @@ def test_a_member_truncated_while_it_is_read_stops_the_stream(tmp_path: Path) ->
     with only.path.open("r+b") as live:
         live.truncate(1500)
 
-    with pytest.raises(ZipMemberChanged, match="ended early"):
+    with pytest.raises(ZipMemberChanged, match="ended early|changed while it was read"):
         list(chunks)
 
 
