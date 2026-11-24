@@ -401,14 +401,17 @@ void     sc_ffmpeg_cancel(int64_t session);
   without waiting for the tool. `cancel` of a queued session removes it from the queue, so its
   `wait` returns 255 and the tool never runs; a rejected session cancelled while queued returns 255
   too, because cancel wins. A cancelled running ffmpeg session returns the tool's own code (it may
-  be 0), not 255. Python reports `-9` for a cancelled session in all three cases. From that moment
-  the session's stdout and stderr streams (`sc_out()`, `sc_err()`) are redirected to a discard
-  stream, so no new output reaches the caller. The streams the worker already holds stay open until
-  the tool returns. For a running session `cancel` also sends `SIGUSR2` once to the worker thread,
-  which unblocks `SIGUSR2` in its own signal mask at start. The core installs a no-op `SIGUSR2`
-  handler without `SA_RESTART` at the first `start`. The handler is process-wide, so the host must
-  not use `SIGUSR2` for anything else, and a host thread that receives it sees `EINTR` from
-  interruptible calls. The signal makes a `read(2)` or `write(2)` blocked on a pipe on the worker
+  be 0), not 255, and a code outside 0..255 becomes `1`. Python reports `-9` for a cancelled
+  session in all three cases. From that moment the session's stdout and stderr streams (`sc_out()`,
+  `sc_err()`) are redirected to a discard stream, so no new output reaches the caller. The streams
+  the worker already holds stay open until the tool returns. For a running session `cancel` also
+  sends `SIGUSR2` once to the worker thread, which unblocks `SIGUSR2` in its own signal mask at
+  start. A running session rejected by the argv policy is the exception: cancelling it sets no
+  latch, redirects nothing and sends no `SIGUSR2`, and it still reports `1`. The core installs a
+  no-op `SIGUSR2` handler without `SA_RESTART` at the first `start`. The handler is process-wide,
+  so the host must not use `SIGUSR2` for anything else, and a host thread that receives it sees
+  `EINTR` from interruptible calls. The signal makes a `read(2)` or `write(2)` blocked on a pipe on
+  the worker
   thread fail with `EINTR`, and libav's retry loop then checks the interrupt latch and returns. The
   kick is best effort only. It reaches the worker thread alone: real ffmpeg runs demux and mux I/O
   on its own scheduler threads, so a read blocked there is not woken by the kick. The kick is sent
@@ -488,23 +491,28 @@ void     sc_ffmpeg_cancel(int64_t session);
   between them is not preserved. With `in_fd == -1` ffmpeg still runs; only an argument that names a
   stream that was not provided is rejected. A stream without a usable `fileno()` (or whose `flush()`
   fails) is exit code `1` with one stderr line, and nothing starts.
-- **Log level.** `-loglevel` sets libav's process-global log level and callback. Native resets
-  both at the start of each session that is not rejected, so a session's `-loglevel` does not
-  carry into the next one, but any other libav use in the process sees the change meanwhile.
+- **Log level.** `-loglevel` sets only libav's process-global log level; native installs the log
+  callback in `sc_glue_reset`. Native resets the level to info and reinstalls the callback at the
+  start of each session that is not rejected, so a session's `-loglevel` does not carry into the
+  next one, but any other libav use in the process sees the change meanwhile.
 - **Errors.** A `start` that returns 0 or less, a `wait` outside 0..255 or an unknown tool is exit code `1` with
   one line on stderr. A native error is never reported as success, and the backend never starts
   a program.
 - **Linking.** The app target's existing `settings: base:` block in
   `gui/desktop/src-tauri/ios/project.yml` carries `OTHER_LDFLAGS: ["$(inherited)",
-  "-Wl,-export_dynamic"]` so the linker exports every global symbol of the app image to `dlsym`, not
-  only the four. The four `sc_ffmpeg_*` names are the only supported ABI; other globals, such as
-  `sc_out`, `sc_err` and `sc_tool_exit`, may be visible too and are internal and may change. Do not
-  add a second `settings:` key to that target: YAML silently keeps only the last.
+  "-Wl,-export_dynamic"]`, which makes the globals of the app executable itself visible to
+  `dlsym`, and so to `CDLL(None)`. The four `sc_ffmpeg_*` names are not in the app executable. They
+  come from `FFmpeg.framework`, which is linked with `-exported_symbols_list` naming exactly those
+  four (`scripts/ios/build_ffmpeg.sh`), so the framework exports nothing else: `sc_out`, `sc_err`
+  and `sc_tool_exit` are hidden by construction, and `bundle_checks.check_ffmpeg_framework` fails
+  on any extra export. Do not add a second `settings:` key to that target: YAML silently keeps
+  only the last.
 - **FFmpeg framework.** The template links and embeds `ios-payload/FFmpeg.xcframework` with
   `embed: true`, `codeSign: true` and `link: true`, exactly as it does Python, so one dependency
   line serves the device and the Simulator and the framework is a load-time dependency of the
   app. The four symbols are reached through `CDLL(None)`; whether that finds them in a linked
-  framework on a device is proved on a Mac. The framework is arm64 only, so the Simulator target
+  framework on a device, and whether the flag above is needed for it, is proved on a Mac. The
+  framework is arm64 only, so the Simulator target
   excludes `x86_64` (`EXCLUDED_ARCHS[sdk=iphonesimulator*]`, beside the existing device line).
   `ios-payload/Whisper.xcframework` is linked, embedded and signed the same way, on the line after
   FFmpeg's.
@@ -543,13 +551,14 @@ void     sc_whisper_cancel(int64_t session);
   or `-of`, so no accepted path spells fd 0 (the check reads the path text and does not resolve
   symlinks); a refused argv is exit `1` with one `sc_whisper:` line.
 - **Sessions.** `start` returns an id >= 1 or `-errno`; `wait` returns an exit code in 0..255 or
-  `-errno`; `cancel` is called once by Python when the caller cancels. The session core is shared
-  with FFmpeg, so the fd rules (`-1` means no fd), the queue and the Errors rule are those of the
-  FFmpeg bullets above: a `start` that returns 0 or less, a `wait` outside 0..255 or an unknown tool
-  is exit code `1` with one `whisper: <reason>` line on stderr, and a native error is never reported
-  as success. The cancel exit code differs: `sc_whisper_core.c` sets `SC_CANCEL_FORCES_255` to 1, so
-  a cancelled running whisper session returns `255`, where a cancelled running ffmpeg session
-  returns the tool's own code. Python reports `-9` in both cases.
+  `-errno`; `cancel` is called once by Python when the caller cancels. It is the same code as
+  FFmpeg's session core, a separate instance in this framework, so the fd rules (`-1` means no fd),
+  the queue and the Errors rule are those of the FFmpeg bullets above: a `start` that returns 0 or
+  less, a `wait` outside 0..255 or an unknown tool is exit code `1` with one `whisper: <reason>`
+  line on stderr, and a native error is never reported as success. The cancel exit code differs:
+  `sc_whisper_core.c` sets `SC_CANCEL_FORCES_255` to 1, so a cancelled running whisper session
+  returns `255`, where a cancelled running ffmpeg session returns the tool's own code. Python
+  reports `-9` in both cases.
 - **Which framework.** The four symbols come from `Whisper.framework`
   (`studio.sharecut.whisper`), a separate framework from `FFmpeg.framework`. It exports exactly
   those four names and nothing else (`bundle_checks.check_whisper_framework` fails on a missing or
@@ -620,9 +629,10 @@ above and nothing else.
   `WHISPER_EMBEDDED` in `scripts/ios/bundle_checks.py` turns the requirement off, and then a
   `Whisper.framework` in the bundle fails.
 - **Not proved here.** The iOS compile, `xcrun nm` over the slices, loading both frameworks in the
-  Simulator, cancel latency inside the `_KILL_GRACE_SEC` grace, what `-Wl,-export_dynamic` exports
-  (the FFmpeg Linking bullet says every global symbol; that is Apple linker behaviour not checked
-  here), memory on a device and App Store validation need a Mac and an owner key.
+  Simulator, cancel latency inside the `_KILL_GRACE_SEC` grace, whether `-Wl,-export_dynamic`
+  on the app target is needed for `CDLL(None)` to find the framework symbols (the framework export
+  lists are checked by `bundle_checks.py`, the dynamic lookup is not), memory on a device
+  and App Store validation need a Mac and an owner key.
 
 <a id="ios-release"></a>
 **iOS release (#3810, stage 2).** `scripts/ios/ios_release.py` builds a release `.ipa` for the
