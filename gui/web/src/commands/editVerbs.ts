@@ -30,6 +30,7 @@ import {
   resolveSelectionRange,
 } from "../edit/rangeSelection";
 import { keepPlan, type Seam, seamById } from "../edit/seam";
+import { REFINE_GATE_GUI_MESSAGE } from "../inspector/TranscriptRefineRecovery";
 import {
   canApplyPass12,
   canManageProjects,
@@ -49,7 +50,11 @@ import type { BarItem, SPLIT_OPTIONS_ARG } from "../system/actionBarSlots";
 import { type BarId, resolveBar } from "../system/editActionSets";
 import type { HistoryEntryId, ProjectView, Selection } from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
-import { errorMessage } from "../utils/apiError";
+import {
+  ApiError,
+  errorMessage,
+  TRANSCRIPT_REFINE_REQUIRED_CODE,
+} from "../utils/apiError";
 import { commitCommentActor } from "../utils/commentAuthor";
 import { joinModeOf } from "../utils/editMarkerRegistry";
 import {
@@ -320,11 +325,21 @@ async function decidePending(
   if (!edit || edit.applied) return disabled("That suggestion is gone");
   if (!canReviewPendingEdit(s.projectPath, s.shareCapabilities))
     return disabled("This link cannot decide suggestions");
+  if (s.pendingDecisionInFlight !== null) return disabled(BUSY_REASON);
+  const { projectPath, projectEpoch } = s;
+  const sameProject = () => {
+    const live = useDawStore.getState();
+    return (
+      live.projectPath === projectPath && live.projectEpoch === projectEpoch
+    );
+  };
+  s.setPendingDecisionInFlight(edit.id);
   try {
     if (action === "suggested") {
       const busy = sheetBusyReason(edit.id);
       if (busy) return disabled(busy);
-      const outcome = await applySuggestedActions(s.projectPath, [edit.id]);
+      const outcome = await applySuggestedActions(projectPath, [edit.id]);
+      if (!sameProject()) return OK;
       const live = useDawStore.getState();
       if (outcome.queued) {
         live.announceStatus("Saved. It sends when you reconnect.");
@@ -338,17 +353,38 @@ async function decidePending(
     }
     const sheet = await decideThroughSheet(edit.id, action);
     if (sheet) return sheet;
-    const capture = capturePendingReview(action, s.projectPath, edit);
+    const capture = capturePendingReview(action, projectPath, edit);
     const outcome =
       action === "approve"
-        ? await approveEdits(s.projectPath, [edit.id], false, true)
-        : await rejectEdits(s.projectPath, [edit.id]);
-    finishPendingReview(capture, outcome);
+        ? await approveEdits(projectPath, [edit.id], false, true)
+        : await rejectEdits(projectPath, [edit.id]);
+    if (sameProject()) finishPendingReview(capture, outcome);
     return OK;
   } catch (error) {
     const reason = errorMessage(error);
-    useDawStore.getState().announceStatus(reason, { tone: "error" });
+    if (sameProject()) {
+      const gated =
+        error instanceof ApiError &&
+        error.code === TRANSCRIPT_REFINE_REQUIRED_CODE;
+      useDawStore
+        .getState()
+        .announceStatus(gated ? REFINE_GATE_GUI_MESSAGE : reason, {
+          tone: "error",
+          ...(gated
+            ? {
+                action: {
+                  label: "Open Inspect",
+                  run: () => useDawStore.getState().setInspectorOpen(true),
+                },
+              }
+            : {}),
+        });
+    }
     return { status: "disabled", reason, told: true };
+  } finally {
+    const live = useDawStore.getState();
+    if (live.pendingDecisionInFlight === edit.id)
+      live.setPendingDecisionInFlight(null);
   }
 }
 
@@ -1020,6 +1056,12 @@ export function barModelOf(
         !canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)
       )
         return { id, disabledReason: EDITING_OFF_REASON };
+      if (
+        id === "keep" &&
+        facts.kind === "suggestion" &&
+        s.pendingDecisionInFlight !== null
+      )
+        return { id, disabledReason: BUSY_REASON };
       if (id === "fixText" && facts.kind !== "chapter") {
         const available = fixTextAvailability(s);
         return available.ok ? item : { id, disabledReason: available.reason };
@@ -1142,9 +1184,11 @@ export function barModelOf(
       (facts.kind === "suggestion" &&
       !canReviewPendingEdit(s.projectPath, s.shareCapabilities)
         ? "This link cannot decide suggestions"
-        : facts.kind === "comment" && !canManageProjects(s.projectPath)
-          ? "Only the host can resolve a comment"
-          : undefined);
+        : facts.kind === "suggestion" && s.pendingDecisionInFlight !== null
+          ? BUSY_REASON
+          : facts.kind === "comment" && !canManageProjects(s.projectPath)
+            ? "Only the host can resolve a comment"
+            : undefined);
     primary = {
       id,
       ...(cut && cut.label !== "Cut" ? { label: cut.label } : {}),

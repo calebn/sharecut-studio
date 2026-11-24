@@ -389,6 +389,8 @@ export interface DawState {
    * (commands/seamCommands.ts); a project switch clears it.
    */
   joinMutationInFlight: boolean;
+  /** The suggestion whose Cut or Keep is in flight from the Action bar or a key, or null. */
+  pendingDecisionInFlight: string | null;
   /**
    * The selected seam's right clip as the length Scrub is drafting it, or
    * null: the join blend reads its tier and label from it.
@@ -572,6 +574,7 @@ export interface DawState {
   setModelsSheetOpen: (on: boolean) => void;
   setSettingsSheetOpen: (on: boolean) => void;
   setJoinMutationInFlight: (on: boolean) => void;
+  setPendingDecisionInFlight: (editId: string | null) => void;
   setJoinDraft: (draft: ClipRow | null) => void;
   setRippleTrim: (trim: RippleTrim | null) => void;
   setHighlightStaleRender: (on: boolean) => void;

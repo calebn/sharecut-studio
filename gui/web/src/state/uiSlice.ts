@@ -398,6 +398,8 @@ type UiSlice = Pick<
   | "setSettingsSheetOpen"
   | "joinMutationInFlight"
   | "setJoinMutationInFlight"
+  | "pendingDecisionInFlight"
+  | "setPendingDecisionInFlight"
   | "joinDraft"
   | "setJoinDraft"
   | "rippleTrim"
@@ -425,6 +427,7 @@ export function uiProjectInitial() {
     chapterAddPending: false,
     timelineFollowPlayhead: true,
     joinMutationInFlight: false,
+    pendingDecisionInFlight: null as string | null,
     joinDraft: null,
     rippleTrim: null,
     rangeArmed: false,
@@ -960,6 +963,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set((s) => ({ chrome: { ...s.chrome, settingsSheetOpen: on } })),
     setJoinMutationInFlight: (joinMutationInFlight) =>
       set({ joinMutationInFlight }),
+    setPendingDecisionInFlight: (pendingDecisionInFlight) =>
+      set({ pendingDecisionInFlight }),
     setJoinDraft: (joinDraft) => set({ joinDraft }),
     setRippleTrim: (rippleTrim) => set({ rippleTrim }),
     fitToWindow: (viewportWidth) => {
