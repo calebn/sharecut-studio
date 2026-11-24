@@ -191,8 +191,12 @@ def _token(path: Path, clip: str, edge: str, mode: EditMode) -> str:
 
 
 def _service_trim(path: Path, clip: str, edge: str, sec: float, mode: EditMode, **kw) -> dict:
-    return TimelineService(ProjectWorkspace.open(path)).trim_clip_edge(
-        clip, edge, sec, mode=mode, expected_token=_token(path, clip, edge, mode), **kw
+    return (
+        TimelineService(ProjectWorkspace.open(path))
+        .trim_clip_edge(
+            clip, edge, sec, mode=mode, expected_token=_token(path, clip, edge, mode), **kw
+        )
+        .model_dump(mode="json")
     )
 
 
