@@ -65,6 +65,19 @@ def test_registry_mcp_cli_spa_helpers() -> None:
     assert called == ["mcp", "cli"]
 
 
+def test_registry_registrars_contribute_the_named_feature() -> None:
+    from podcast_mcp.extensions.features import FEATURE_ONLINE_ACCOUNT
+    from podcast_mcp.extensions.registry import FeatureRegistry
+
+    reg = FeatureRegistry()
+    reg.add_mcp_registrar(lambda _mcp: None, source="t", feature_id=FEATURE_ONLINE_ACCOUNT)
+    reg.add_cli_registrar(lambda _app: None, source="t", feature_id=FEATURE_ONLINE_ACCOUNT)
+    assert reg.feature_ids() == [FEATURE_ONLINE_ACCOUNT]
+    assert [c.payload["kind"] for c in reg.get(FEATURE_ONLINE_ACCOUNT)] == ["mcp", "cli"]
+    assert len(reg.mcp_registrars) == 1
+    assert len(reg.cli_registrars) == 1
+
+
 def test_caps_module_exports() -> None:
     from podcast_mcp.extensions import caps
 
