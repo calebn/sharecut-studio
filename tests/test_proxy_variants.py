@@ -592,6 +592,56 @@ def test_generation_eviction_rejects_old_and_disk_only_bytes(workspace, fast_enc
     assert error.value.code == "proxy_generation_unavailable"
 
 
+def _regenerate(ws, frequency):
+    with ws.transaction():
+        ws.project.processing_chains = [
+            ProcessingChain(
+                track_id="host",
+                effects=[ProcessingEffect(effect="highpass", params={"frequency": frequency})],
+            )
+        ]
+        ws.save()
+    return pv.ensure_proxy_manifest(ws)
+
+
+def test_evicted_generation_directory_is_deleted_and_retained_ones_stay(workspace, fast_encode):
+    ws = workspace
+    generations = [_regenerate(ws, frequency) for frequency in (100, 200, 300)]
+    evicted = generations[0].tracks["host"]
+    assert not pv.artifact_directory(ws.project, "host", evicted.hash).exists()
+    for generation in generations[1:]:
+        retained = generation.tracks["host"]
+        assert pv.accepted_proxy_chunk_path(ws, "host", 0, expected_hash=retained.hash).is_file()
+    root = pv.artifact_directory(ws.project, "host", generations[2].tracks["host"].hash).parent
+    assert sorted(path.name for path in root.iterdir()) == sorted(
+        generation.tracks["host"].hash for generation in generations[1:]
+    )
+
+
+def test_eviction_sweep_keeps_the_legacy_descriptor_private_directories_and_symlinks(
+    workspace, fast_encode, tmp_path
+):
+    ws = workspace
+    generations = [_regenerate(ws, frequency) for frequency in (100, 200)]
+    legacy = generations[0].tracks["host"]
+    with ws.transaction():
+        ws.project.tracks[0].proxy = pv.TrackProxy(**legacy.model_dump(include=set(pv.TrackProxy.model_fields)))
+        ws.save()
+    root = pv.artifact_directory(ws.project, "host", legacy.hash).parent
+    private = root / ".proxy-inflight"
+    private.mkdir()
+    (private / "00000.mp3").write_bytes(b"x")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "keep.txt").write_text("keep")
+    (root / ("b" * 64)).symlink_to(outside, target_is_directory=True)
+    _regenerate(ws, 300)
+    assert pv.artifact_directory(ws.project, "host", legacy.hash).is_dir()
+    assert (private / "00000.mp3").is_file()
+    assert (outside / "keep.txt").read_text() == "keep"
+    assert (root / ("b" * 64)).is_symlink()
+
+
 def test_evicted_16_undo_reference_cannot_bootstrap_again(workspace, monkeypatch, fast_encode):
     ws = workspace
     render = pv.render_source_proxy_inputs
