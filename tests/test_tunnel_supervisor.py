@@ -124,20 +124,39 @@ def test_plan_gate_table(
 
 
 class FakeClient:
-    """Stands in for TunnelClient: ``run`` parks (or fails), ``readvertise`` records its calls."""
+    """Stands in for TunnelClient: ``run`` parks (or fails), ``readvertise`` records its calls.
 
-    def __init__(self, cfg: RelayConfig, project: Path, fail: bool, answers: list[bool]) -> None:
+    ``cleanup`` is how long a cancelled ``run`` keeps unwinding, like a slow websocket close.
+    """
+
+    def __init__(
+        self,
+        cfg: RelayConfig,
+        project: Path,
+        fail: bool,
+        answers: list[bool],
+        cleanup: asyncio.Event,
+    ) -> None:
         self.cfg = cfg
         self.runs = 0
+        self.cancelling = False
+        self.stopped = False
         self.readvertised: list[Path] = []
         self._fail = fail
         self._answers = answers
+        self._cleanup = cleanup
 
     async def run(self) -> None:
         self.runs += 1
         if self._fail:
             raise TunnelError(TunnelFailure(FailureKind.AUTH, "rejected"))
-        await asyncio.Event().wait()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancelling = True
+            await self._cleanup.wait()
+            self.stopped = True
+            raise
 
     async def readvertise(self, project: Path) -> bool:
         self.readvertised.append(project)
@@ -150,6 +169,8 @@ class Rig:
         self.clients: list[FakeClient] = []
         self.fail = False
         self.answers: list[bool] = []
+        self.cleanup = asyncio.Event()
+        self.cleanup.set()
         monkeypatch.setenv("PODCAST_RELAY_URL", "wss://relay.example.test/tunnel")
         monkeypatch.setenv("PODCAST_RELAY_PUBLIC_BASE_URL", "https://relay.example.test")
         monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", "tok")
@@ -163,7 +184,7 @@ class Rig:
         clock: Callable[[], float] = time.time,
     ) -> TunnelSupervisor:
         def factory(cfg: RelayConfig, project: Path, _listeners: list[Any]) -> FakeClient:
-            client = FakeClient(cfg, project, self.fail, self.answers)
+            client = FakeClient(cfg, project, self.fail, self.answers, self.cleanup)
             self.clients.append(client)
             return client
 
@@ -186,7 +207,7 @@ async def _stopped_after(supervisor: TunnelSupervisor) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        await supervisor._shutdown()
+        await supervisor._stop()
 
 
 @pytest.mark.asyncio
@@ -275,6 +296,49 @@ async def test_a_gui_bound_beyond_loopback_starts_nothing(rig: Rig) -> None:
 
 
 @pytest.mark.asyncio
+async def test_the_lock_is_held_until_a_slow_client_has_ended(
+    rig: Rig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sup, "STOP_TIMEOUT_SEC", 0.05)
+    mint_record_link(rig.project)
+    rig.cleanup.clear()
+    supervisor = rig.supervisor()
+
+    await supervisor._tick()
+    await yield_to_loop()
+    serving = supervisor._serving
+    assert serving is not None
+    await supervisor._stop()
+
+    assert rig.clients[0].cancelling
+    assert not _lock_is_free(serving.relay)
+    rig.cleanup.set()
+    await until(lambda: _lock_is_free(serving.relay))
+    assert rig.clients[0].stopped
+
+
+@pytest.mark.asyncio
+async def test_quitting_while_the_loop_is_stopping_the_client_waits_for_it(
+    rig: Rig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sup, "POLL_SEC", 0.01)
+    token = mint_record_link(rig.project)
+    now = [1000.0]
+    rig.cleanup.clear()
+    supervisor = rig.supervisor(clock=lambda: now[0])
+
+    async with supervisor.running():
+        await until(lambda: len(rig.clients) == 1 and rig.clients[0].runs == 1)
+        assert revoke_share(load_project(rig.project), token)
+        now[0] += sup.LINGER_SEC + 1
+        await until(lambda: rig.clients[0].cancelling)
+        supervisor.request_stop()
+        asyncio.get_running_loop().call_later(0.05, rig.cleanup.set)
+
+    assert rig.clients[0].stopped
+
+
+@pytest.mark.asyncio
 async def test_fatal_rejection_parks_until_config_changes(
     rig: Rig, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -333,7 +397,7 @@ async def test_second_supervisor_yields_while_lock_held(
         async with second.running():
             await until(lambda: second.plan == Idle(IdleReason.ELSEWHERE))
             assert len(rig.clients) == 1
-            await first._shutdown()
+            first.request_stop()
             await until(lambda: isinstance(second.plan, Serve))
 
     assert len(rig.clients) == 2

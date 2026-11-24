@@ -124,7 +124,6 @@ class _Serving:
     relay: RelayConfig
     client: TunnelClient
     task: asyncio.Task[None]
-    lock: FileLock
     advertised: tuple[Path, frozenset[str]]
 
 
@@ -155,9 +154,8 @@ class TunnelSupervisor:
         self._last_live_at: float | None = None
         self._episodes: dict[Path, EpisodeProject] = {}
         self._loop_task: asyncio.Task[None] | None = None
-        self._stop_task: asyncio.Task[None] | None = None
         self._event_loop: asyncio.AbstractEventLoop | None = None
-        self._stopping = False
+        self._stop_requested = asyncio.Event()
 
     @property
     def plan(self) -> Plan:
@@ -169,45 +167,37 @@ class TunnelSupervisor:
             self._plan = Idle(IdleReason.NOT_CAPABLE)
             yield
             return
-        if not self._stopping:
-            self._event_loop = asyncio.get_running_loop()
+        self._event_loop = asyncio.get_running_loop()
+        if not self._stop_requested.is_set():
             self._loop_task = asyncio.create_task(self._loop())
         try:
             yield
         finally:
-            await self._shutdown()
+            self._stop_requested.set()
+            if self._loop_task is not None:
+                await asyncio.gather(self._loop_task, return_exceptions=True)
 
     def request_stop(self) -> None:
         """Stop from any thread, so proxied guest streams close before uvicorn waits on them."""
-        self._stopping = True
         loop = self._event_loop
         if loop is None:
+            self._stop_requested.set()
             return
         with suppress(RuntimeError):
-            loop.call_soon_threadsafe(self._begin_stop)
-
-    def _begin_stop(self) -> None:
-        if self._loop_task is not None:
-            self._loop_task.cancel()
-        if self._stop_task is None:
-            self._stop_task = asyncio.ensure_future(self._stop())
-
-    async def _shutdown(self) -> None:
-        self._stopping = True
-        if self._loop_task is not None:
-            self._loop_task.cancel()
-            await asyncio.gather(self._loop_task, return_exceptions=True)
-        if self._stop_task is not None:
-            await asyncio.gather(self._stop_task, return_exceptions=True)
-        await self._stop()
+            loop.call_soon_threadsafe(self._stop_requested.set)
 
     async def _loop(self) -> None:
-        while True:
-            try:
-                await self._tick()
-            except Exception as exc:
-                log.warning("Studio tunnel supervisor tick failed: %s", type(exc).__name__)
-            await asyncio.sleep(POLL_SEC)
+        """Owns the teardown: the client has ended, and its lock is going, when this returns."""
+        try:
+            while not self._stop_requested.is_set():
+                try:
+                    await self._tick()
+                except Exception as exc:
+                    log.warning("Studio tunnel supervisor tick failed: %s", type(exc).__name__)
+                with suppress(TimeoutError):
+                    await asyncio.wait_for(self._stop_requested.wait(), POLL_SEC)
+        finally:
+            await self._stop()
 
     async def _tick(self) -> None:
         self._reap()
@@ -246,7 +236,6 @@ class TunnelSupervisor:
         if serving is None or not serving.task.done():
             return
         self._serving = None
-        serving.lock.release()
         if serving.task.cancelled():
             return
         error = serving.task.exception()
@@ -290,25 +279,25 @@ class TunnelSupervisor:
             StatusFileListener(studio_status_path(desired.relay)),
         ]
         client = self._client_factory(desired.relay, desired.project, listeners)
+        task = asyncio.create_task(client.run())
+        task.add_done_callback(lambda _: lock.release())
         self._serving = _Serving(
             relay=desired.relay,
             client=client,
-            task=asyncio.create_task(client.run()),
-            lock=lock,
+            task=task,
             advertised=(desired.project, desired.links),
         )
         return True
 
     async def _stop(self) -> None:
+        """Cancel the client and wait for it. The Studio lock goes with the task, not with this
+        wait, so a client that outlasts the timeout still keeps a second one from starting."""
         serving, self._serving = self._serving, None
         if serving is None:
             return
-        try:
-            serving.task.cancel()
-            _, pending = await asyncio.wait({serving.task}, timeout=STOP_TIMEOUT_SEC)
-            if pending:
-                log.warning("Studio tunnel did not stop within %.0f s", STOP_TIMEOUT_SEC)
-            elif not serving.task.cancelled():
-                serving.task.exception()
-        finally:
-            serving.lock.release()
+        serving.task.cancel()
+        _, pending = await asyncio.wait({serving.task}, timeout=STOP_TIMEOUT_SEC)
+        if pending:
+            log.warning("Studio tunnel did not stop within %.0f s", STOP_TIMEOUT_SEC)
+        elif not serving.task.cancelled():
+            serving.task.exception()
