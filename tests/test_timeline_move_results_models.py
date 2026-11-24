@@ -35,3 +35,15 @@ def test_int_stays_int() -> None:
     dumped = seg.model_dump()
     assert all(type(dumped[k]) is int for k in ("source_start", "source_end", "insert_at"))
     assert MoveClipsResult(operation="move_clips", **BASE, clip_ids=["a"]).clip_count == 1
+
+
+@pytest.mark.unscoped_ok
+def test_empty_project_duration_is_none(minimal_project) -> None:
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import TimelineService
+
+    ws = ProjectWorkspace.open(minimal_project)
+    assert not ws.project.clips
+    result = TimelineService(ws).insert_gap(0.0, 1.0)
+    assert result.timeline_duration_sec is None
+    assert result.model_dump()["timeline_duration_sec"] is None
