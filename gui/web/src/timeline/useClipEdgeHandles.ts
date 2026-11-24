@@ -13,7 +13,7 @@ import {
 } from "../commands/focusedClipHandle";
 import { keptLine } from "../comments/keptLine";
 import { hasPendingLaneGeometry } from "../document/pendingDrafts";
-import { saveClipEdge, TRIM_MODE } from "../edit/clipEdgeSave";
+import { saveClipEdge, TRIM_MODE, TRIM_WAITS_LINE } from "../edit/clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "../edit/clipHandleSteps";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
@@ -62,9 +62,6 @@ type Draft = {
   | { kind: "fade"; edge: TrimEdge; preview: ClipFadePreview }
   | { kind: "trim"; edge: TrimEdge; preview: ClipTrimPreview }
 );
-
-const TRIM_WAITS_LINE =
-  "This clip is waiting to send. Trim it again once it has.";
 
 function sameGeometry(a: ClipRow, b: ClipRow): boolean {
   return (

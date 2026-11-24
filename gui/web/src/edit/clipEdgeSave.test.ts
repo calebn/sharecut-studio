@@ -7,10 +7,13 @@ import {
   _resetHistoryMovesForTests,
   registerHistoryCommands,
 } from "../commands/history";
+import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
+import { resetDocumentAuthority } from "../document/authorityState";
+import { beginDocumentDraft } from "../document/pendingDrafts";
 import { useDawStore } from "../state/dawStore";
-import { clipRow, minimalProject } from "../test/fixtures";
+import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
-import { saveClipEdge } from "./clipEdgeSave";
+import { saveClipEdge, TRIM_WAITS_LINE } from "./clipEdgeSave";
 import { saveNudge } from "./nudge";
 
 vi.mock("../api", async (importOriginal) => ({
@@ -127,4 +130,39 @@ it("a nudged fade length carries the clip's curves in its baseline and leaves th
     fade_in_curve: "equal_power",
     fade_out_curve: "linear",
   });
+});
+
+it("a trim from any entry waits while an earlier trim of the lane is queued: no boundary load, no command, the same line", async () => {
+  const clip = clipRow({
+    id: "c1",
+    track_id: "t1",
+    source_start: 0,
+    source_end: 10,
+    timeline_start: 0,
+    timeline_end: 10,
+  });
+  const project = minimalProject({
+    project_path: "/tmp/ep",
+    tracks: [sampleTrack({ id: "t1" })],
+    clips: { tracks: { t1: [clip] }, clip_count: 1 },
+  });
+  resetDocumentAuthority("/tmp/ep");
+  useDawStore.getState().hydrate("/tmp/ep", project);
+  applyDocumentSnapshot({ server_seq: 1, project });
+  beginDocumentDraft("queued", "TrimClipEdge", {
+    clip_id: "c1",
+    edge: "out",
+    source_sec: 8,
+    mode: "ripple",
+    expected_token: "token",
+  });
+  await expect(
+    saveClipEdge("/tmp/ep", clip, {
+      kind: "trim",
+      edge: "out",
+      mode: "ripple",
+      sourceSec: 6,
+    }),
+  ).rejects.toThrow(TRIM_WAITS_LINE);
+  expect(fetch).not.toHaveBeenCalled();
 });

@@ -5,6 +5,7 @@
  */
 import { clipFadeBaseline, setClipFade, trimClipEdge } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
+import { hasPendingLaneGeometry } from "../document/pendingDrafts";
 import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow, HistoryEntryId } from "../types/project";
 import type { EditMode, TrimEdge } from "../utils/clipEdgePreview";
@@ -15,6 +16,10 @@ import type { EditMode, TrimEdge } from "../utils/clipEdgePreview";
  * set it.
  */
 export const TRIM_MODE: EditMode = "ripple";
+
+/** Said where a trim cannot start: the host does not yet hold the lane the person sees. */
+export const TRIM_WAITS_LINE =
+  "This clip is waiting to send. Trim it again once it has.";
 
 export type ClipEdgeChange =
   | { kind: "fade"; inMs: number; outMs: number }
@@ -62,6 +67,7 @@ async function send(
     );
     return { undo };
   }
+  if (hasPendingLaneGeometry(clip.track_id)) throw new Error(TRIM_WAITS_LINE);
   const { id, source_start, source_end, timeline_start, source_id } = clip;
   const boundary = await loadBoundaryContext(
     projectPath,
