@@ -37,15 +37,18 @@ or iPad.
 process, entered from the GUI lifespan when the `tunnel.status` feature is present. It
 runs `TunnelClient` in-process against the real listen port, so a packaged app that
 binds an ephemeral port needs no `local_gui_url`, because the supervisor replaces it with
-`http://127.0.0.1:<listen port>`. The tunnel still proxies to the GUI over loopback
-HTTP, so the relayed header and the path allowlist stay in force.
+`http://<bound address>:<listen port>`. The tunnel still proxies to the GUI over loopback
+HTTP, so the relayed header and the path allowlist stay in force. That is why Studio
+only starts it for a GUI bound to a loopback address (`127.0.0.1`, or `::1` as
+`http://[::1]:<port>`); a GUI started with `--host` on a LAN address or a wildcard
+stays off the relay.
 
 One pure function, `plan`, names the tunnel that should exist, and the supervisor
 converges to it every `POLL_SEC` (2 s). The first matching row wins:
 
 | Situation | Plan | Network |
 |-----------|------|---------|
-| Host cannot hold a tunnel (`host_platform.current().can_host_tunnel` is false: iOS, unknown) | `Idle(not_capable)` | none, no loop |
+| Host cannot hold a tunnel (`host_platform.current().can_host_tunnel` is false: iOS, unknown), or the GUI is bound beyond loopback | `Idle(not_capable)` | none |
 | No listen port yet (a bare `TestClient`) | `Idle(not_listening)` | none |
 | No `relay.yaml` or relay env, or no host token | `Idle(not_set_up)` | none, no host-id file written |
 | The client ended on its own for this exact config (the relay refused it, or the client failed to start) | `Idle(rejected)` until the config changes, with one warning naming the error type | none |
