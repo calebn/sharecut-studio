@@ -48,7 +48,7 @@ converges to it every `POLL_SEC` (2 s). The first matching row wins:
 | Host cannot hold a tunnel (`host_platform.current().can_host_tunnel` is false: iOS, unknown) | `Idle(not_capable)` | none, no loop |
 | No listen port yet (a bare `TestClient`) | `Idle(not_listening)` | none |
 | No `relay.yaml` or relay env, or no host token | `Idle(not_set_up)` | none, no host-id file written |
-| The relay refused this exact config (auth, bad URL) | `Idle(rejected)` until the config changes | none |
+| The client ended on its own for this exact config (the relay refused it, or the client failed to start) | `Idle(rejected)` until the config changes, with one warning naming the error type | none |
 | No served project | `Idle(no_project)` | none |
 | A live `podcast tunnel` file for this identity | `Idle(elsewhere)` | none, the CLI is untouched |
 | No usable link for 120 s | `Idle(no_live_links)` | closed |
