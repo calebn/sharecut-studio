@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
+import sys
 import tarfile
 import zipfile
 from pathlib import Path
 
+import pytest
 from hatchling.builders.sdist import SdistBuilder
 from hatchling.builders.wheel import WheelBuilder
 
@@ -15,6 +18,14 @@ import podcast_mcp
 from podcast_mcp.gui.static_assets import packaged_gui_dist
 
 _ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_ROOT / "scripts"))
+
+import check_wheel_web_build as check  # noqa: E402
+
+_GOOD_ENTRY_POINTS = (
+    "[console_scripts]\npodcast = podcast_mcp.cli.main:app\n\n"
+    "[podcast_mcp.extensions]\ncollaboration = podcast_mcp.extensions.collaboration:create\n"
+)
 
 
 def _source_tree(root: Path, *, web_build: bool) -> Path:
@@ -137,3 +148,129 @@ def test_wheel_leaves_out_the_private_provider_and_keeps_relay_static(tmp_path: 
     }
     assert static
     assert static <= names
+
+
+def _synthetic_wheel(
+    path: Path,
+    *,
+    extra: tuple[str, ...] = (),
+    entry_points: str | None = _GOOD_ENTRY_POINTS,
+    static: tuple[str, ...] = check.RELAY_STATIC,
+) -> Path:
+    """A zip shaped like a FOSS wheel, with the parts each boundary check reads."""
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("podcast_mcp/__init__.py", "")
+        if entry_points is not None:
+            archive.writestr("podcast_mcp-0.1.dist-info/entry_points.txt", entry_points)
+        for name in (*static, *extra):
+            archive.writestr(name, "x")
+    return path
+
+
+def test_wheel_boundary_passes_on_a_foss_wheel(tmp_path: Path) -> None:
+    wheel = _synthetic_wheel(tmp_path / "good.whl")
+    check.wheel_boundary(wheel)
+
+
+def test_relay_static_list_matches_the_source_tree() -> None:
+    on_disk = {
+        f"podcast_relay/static/{path.name}"
+        for path in (_ROOT / "src/podcast_relay/static").iterdir()
+        if path.is_file()
+    }
+    assert set(check.RELAY_STATIC) == on_disk
+
+
+@pytest.mark.parametrize(
+    "entry", ["podcast_online/__init__.py", "podcast_online-0.1.dist-info/RECORD"]
+)
+def test_wheel_boundary_rejects_a_podcast_online_entry(tmp_path: Path, entry: str) -> None:
+    wheel = _synthetic_wheel(tmp_path / "online.whl", extra=(entry,))
+    with pytest.raises(SystemExit) as raised:
+        check.wheel_boundary(wheel)
+    assert "podcast_online" in str(raised.value)
+    assert entry in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    "entry_points",
+    [
+        None,
+        "[console_scripts]\npodcast = podcast_mcp.cli.main:app\n",
+        _GOOD_ENTRY_POINTS + "online = podcast_online.extension:create\n",
+        "[podcast_mcp.extensions]\nonline = podcast_online.extension:create\n",
+        "[podcast_mcp.extensions]\n",
+    ],
+)
+def test_wheel_boundary_rejects_wrong_entry_points(
+    tmp_path: Path, entry_points: str | None
+) -> None:
+    wheel = _synthetic_wheel(tmp_path / "ep.whl", entry_points=entry_points)
+    with pytest.raises(SystemExit) as raised:
+        check.wheel_boundary(wheel)
+    assert "podcast_mcp.extensions" in str(raised.value) or "entry_points" in str(raised.value)
+
+
+def test_wheel_boundary_rejects_missing_relay_static(tmp_path: Path) -> None:
+    wheel = _synthetic_wheel(tmp_path / "static.whl", static=check.RELAY_STATIC[:-1])
+    with pytest.raises(SystemExit) as raised:
+        check.wheel_boundary(wheel)
+    assert check.RELAY_STATIC[-1] in str(raised.value)
+
+
+def _whole_release_wheel(path: Path, *, extra: tuple[str, ...] = ()) -> Path:
+    """A synthetic wheel that also satisfies the web build, contracts and defaults checks."""
+    wheel = _synthetic_wheel(path, extra=extra)
+    with zipfile.ZipFile(wheel, "a") as archive:
+        archive.writestr(f"{check.WHEEL_WEB_DIST}/index.html", '<script src="./app.js"></script>')
+        archive.writestr(f"{check.WHEEL_WEB_DIST}/app.js", "app()")
+        for name in check.RUNTIME_CONTRACTS:
+            archive.writestr(f"{check.PACKAGED_CONTRACTS}/{name}", "{}")
+        for name in check.RUNTIME_DEFAULTS:
+            archive.writestr(f"{check.PACKAGED_DEFAULTS}/{name}", "")
+    return wheel
+
+
+def _run_script(wheel: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(_ROOT / "scripts/check_wheel_web_build.py"), str(wheel)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_script_exits_zero_on_a_whole_foss_wheel(tmp_path: Path) -> None:
+    result = _run_script(_whole_release_wheel(tmp_path / "ok.whl"))
+    assert result.returncode == 0, result.stderr
+    assert "no podcast_online" in result.stdout
+
+
+def test_script_exits_non_zero_on_a_wheel_with_a_stub_podcast_online(tmp_path: Path) -> None:
+    wheel = _whole_release_wheel(tmp_path / "stub.whl", extra=("podcast_online/__init__.py",))
+    result = _run_script(wheel)
+    assert result.returncode != 0
+    assert "podcast_online/__init__.py" in result.stderr + result.stdout
+
+
+def test_blocked_online_probe_starts_cli_mcp_and_gui() -> None:
+    """The installed-wheel probe runs here against the checkout, as it does against the wheel."""
+    result = subprocess.run(
+        [sys.executable, "-c", check.BLOCK_ONLINE_PROBE],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "podcast_online blocked" in result.stdout
+
+
+def test_blocked_online_probe_fails_when_the_package_is_imported() -> None:
+    probe = check.BLOCK_ONLINE_PROBE.replace(
+        "from podcast_mcp.cli.main import app",
+        "import podcast_online\nfrom podcast_mcp.cli.main import app",
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", probe], capture_output=True, text=True, check=False
+    )
+    assert result.returncode != 0
