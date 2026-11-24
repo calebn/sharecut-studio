@@ -43,6 +43,18 @@ from combined_contract_helpers import (
     open_workspace,
     texts,
 )
+from pause_policy_public_helpers import (
+    RATE,
+    add_bed,
+    configure,
+    pause,
+    prepare_pause,
+    room,
+    voice,
+    write_wav,
+)
+from pause_policy_public_helpers import defaults as pause_defaults
+from podcast_mcp.edits.range_edits import RangeAction
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.models import (
     ArchivedTranscriptWord,
@@ -85,6 +97,8 @@ class Case:
     """False when the command works on a project with no transcripts at all."""
     arrange: Callable[[EpisodeProject], None] | None = None
     """Reshapes the entry project before it is saved."""
+    configure: Callable[[pytest.MonkeyPatch], None] | None = None
+    """Sets the run's pipeline defaults, for a command that reads them."""
 
     def id_for(self, state: State) -> str:
         outcome = {State.FRESH: REBUILT, State.STALE: self.stale, State.NONE: self.none}[state]
@@ -217,6 +231,53 @@ def _paste(ws: ProjectWorkspace) -> Any:
     )
 
 
+def _host_with_room_tone_bed(project: EpisodeProject) -> None:
+    """Quiet host room tone and a room-tone bed, so an applied pause is padded with air."""
+    host = project.tracks[0]
+    assert host.media is not None
+    host.media.sample_rate = RATE
+    add_bed(project, project.workspace_path())
+    audio = room(10.0)
+    voice(audio, 0.0, 0.2)
+    voice(audio, 3.0, 3.2)
+    write_wav(project.workspace_path() / "raw" / "host.wav", audio)
+    project.edit_decisions = [
+        prepare_pause(
+            project, pause("pause", start=1.5, end=2.9, gap=0.25), pause_defaults(), next_word=3
+        )
+    ]
+
+
+def _approve_padded_pause(ws: ProjectWorkspace) -> Any:
+    return EditService(ws).approve(["pause"])
+
+
+def _host_with_room_tone_gap(project: EpisodeProject) -> None:
+    """Quiet host room tone, two clips with a second of clip-free time between them."""
+    audio = room(10.0)
+    voice(audio, 0.0, 0.2)
+    write_wav(project.workspace_path() / "raw" / "host.wav", audio)
+    host = project.tracks[0]
+    assert host.media is not None
+    host.media.sample_rate = RATE
+    project.timeline.clips = [
+        Clip(id="host-l", track_id="host", source_start=0.0, source_end=1.0, timeline_start=0.0),
+        Clip(id="host-r", track_id="host", source_start=2.0, source_end=6.0, timeline_start=2.0),
+        *(c for c in project.timeline.clips if c.track_id != "host"),
+    ]
+
+
+def _selected_range(action: RangeAction) -> Command:
+    def run(ws: ProjectWorkspace) -> Any:
+        service = EditService(ws)
+        target = service.selected_range_target(3.0, 4.0, ["host"])
+        return service.edit_selected_range(
+            [target], action, propose=False, reason="contract", action_id=f"contract-{action}"
+        )
+
+    return run
+
+
 TIMELINE_CASES = [
     Case(
         "ripple_delete_words",
@@ -285,6 +346,34 @@ TIMELINE_CASES = [
         quirk="h1",
         words=False,
     ),
+    Case(
+        "selected_range_cut",
+        _selected_range("cut"),
+        FRESH_TEXTS,
+        quirk="h1",
+    ),
+    Case(
+        "selected_range_mute",
+        _selected_range("mute"),
+        FRESH_TEXTS,
+        quirk="h1",
+    ),
+    Case(
+        "approve_pause_with_room_tone_pad",
+        _approve_padded_pause,
+        FRESH_TEXTS,
+        quirk="h1",
+        arrange=_host_with_room_tone_bed,
+        configure=lambda monkeypatch: configure(monkeypatch, pause_defaults()),
+    ),
+    Case(
+        "fill_room_tone",
+        lambda ws: TimelineService(ws).fill_room_tone(track_id="host"),
+        FRESH_TEXTS,
+        quirk="h1",
+        words=False,
+        arrange=_host_with_room_tone_gap,
+    ),
     Case("roll_clip_join", _roll, FRESH_TEXTS, quirk="h1", words=False, arrange=_split_host),
 ]
 
@@ -295,7 +384,11 @@ def _params(cases: list[Case]) -> list[Any]:
     return [pytest.param(case, state, id=case.id_for(state)) for case in cases for state in State]
 
 
-def _run(case: Case, state: State, tmp_path: Path, wav: Path) -> Observed:
+def _run(
+    case: Case, state: State, tmp_path: Path, wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> Observed:
+    if case.configure is not None:
+        case.configure(monkeypatch)
     ws = open_workspace(tmp_path / "ep", wav, state, with_words=case.words, arrange=case.arrange)
     return observe(ws, case.run)
 
@@ -332,6 +425,11 @@ def assert_contract(case: Case, state: State, seen: Observed) -> None:
 
 @pytest.mark.parametrize(("case", "state"), _params(ALL_CASES))
 def test_combined_after_command(
-    case: Case, state: State, tmp_path: Path, ten_second_silence_wav: Path
+    case: Case,
+    state: State,
+    tmp_path: Path,
+    ten_second_silence_wav: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert_contract(case, state, _run(case, state, tmp_path, ten_second_silence_wav))
+    seen = _run(case, state, tmp_path, ten_second_silence_wav, monkeypatch)
+    assert_contract(case, state, seen)
