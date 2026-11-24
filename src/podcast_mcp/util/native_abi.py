@@ -41,7 +41,10 @@ def _errno_text(result: int) -> str:
 
 
 def _fd(stream: BinaryIO | None) -> int:
-    """The stream's fd (-1 for none); raises OSError/ValueError (io.UnsupportedOperation is both)."""
+    """The stream's fd (-1 for none).
+
+    Raises OSError/ValueError (io.UnsupportedOperation is both).
+    """
     if stream is None:
         return -1
     stream.flush()
@@ -147,7 +150,7 @@ class NativeBackend:
         try:
             code = self._fns["wait"](session)
         finally:
-            done.set()  # the daemon watcher exits on its next tick; no join (it would add a poll)
+            done.set()  # the watcher stops polling once it sees this
         if not 0 <= code <= 255:
             reason = _errno_text(code) if code < 0 else f"exit code {code}"
             return self._fail(streams, f"{abi.prefix}wait failed: {reason}")
