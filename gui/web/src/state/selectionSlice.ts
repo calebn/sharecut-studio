@@ -52,17 +52,30 @@ export function selectionPatch(
   current: Selection,
   next: Selection,
   inspectorKey: string | null,
+  refineGate: string | null,
 ): Pick<DawStore, "selection" | "pendingWireSelection" | "inspectorKey"> &
-  Partial<Pick<DawStore, "rangeArmed" | "rangeDraft">> {
+  Partial<Pick<DawStore, "rangeArmed" | "rangeDraft" | "pendingRefineGate">> {
   const settled = settleSelection(current, next);
   return {
     selection: settled,
     pendingWireSelection: null,
     inspectorKey: inspectorKeyAfter(settled, inspectorKey),
+    ...refineGateAfter(settled, refineGate),
     ...(isRangeSelection(settled)
       ? { rangeArmed: false, rangeDraft: null }
       : {}),
   };
+}
+
+/** A refine gate belongs to the pending edit that hit it: any other selection drops it. */
+function refineGateAfter(
+  selection: Selection,
+  refineGate: string | null,
+): Pick<Partial<DawStore>, "pendingRefineGate"> {
+  return refineGate !== null &&
+    !(selection?.kind === "pending" && selection.id === refineGate)
+    ? { pendingRefineGate: null }
+    : {};
 }
 
 function inspectorKeyAfter(
@@ -76,7 +89,10 @@ function inspectorKeyAfter(
 
 /** The selection patch a project replacement implies for an open chapter, or nothing when it still stands. */
 export function chapterFollowPatch(
-  state: Pick<DawStore, "selection" | "inspectorKey" | "project">,
+  state: Pick<
+    DawStore,
+    "selection" | "inspectorKey" | "project" | "pendingRefineGate"
+  >,
   next: DawStore["project"],
 ): ReturnType<typeof selectionPatch> | Record<string, never> {
   const after = chapterSelectionAfter(
@@ -89,7 +105,12 @@ export function chapterFollowPatch(
     after !== null && state.inspectorKey === inspectKeyOf(state.selection)
       ? inspectKeyOf(after)
       : state.inspectorKey;
-  return selectionPatch(state.selection, after, followed);
+  return selectionPatch(
+    state.selection,
+    after,
+    followed,
+    state.pendingRefineGate,
+  );
 }
 
 /**
@@ -173,7 +194,12 @@ export function captureSelectionRestore({
 export function transcriptSelectionFollowPatch(
   state: Pick<
     DawStore,
-    "selection" | "inspectorKey" | "project" | "guestMode" | "rangeBusy"
+    | "selection"
+    | "inspectorKey"
+    | "project"
+    | "guestMode"
+    | "rangeBusy"
+    | "pendingRefineGate"
   >,
   next: DawStore["project"],
 ): ReturnType<typeof selectionPatch> | Record<string, never> {
@@ -187,7 +213,8 @@ export function transcriptSelectionFollowPatch(
     if (!wordsPending(from)) namedIn.set(sel, from);
     return {};
   }
-  const clear = () => selectionPatch(sel, null, state.inspectorKey);
+  const clear = () =>
+    selectionPatch(sel, null, state.inspectorKey, state.pendingRefineGate);
   const judged = judgeTranscriptSelection(from, sel, next);
   if (judged.kind === "wait") {
     namedIn.set(sel, from);
@@ -209,6 +236,7 @@ export function transcriptSelectionFollowPatch(
       endWordIndex: judged.endWordIndex,
     },
     state.inspectorKey,
+    state.pendingRefineGate,
   );
 }
 
@@ -230,11 +258,14 @@ export function clearScriptSelection({
 function exactSelection(
   next: Selection,
   inspectorKey: string | null,
-): Pick<DawStore, "selection" | "pendingWireSelection" | "inspectorKey"> {
+  refineGate: string | null,
+): Pick<DawStore, "selection" | "pendingWireSelection" | "inspectorKey"> &
+  Pick<Partial<DawStore>, "pendingRefineGate"> {
   return {
     selection: next,
     pendingWireSelection: null,
     inspectorKey: inspectorKeyAfter(next, inspectorKey),
+    ...refineGateAfter(next, refineGate),
   };
 }
 
@@ -247,7 +278,14 @@ export const createSelectionSlice: StateCreator<
   selection: null as Selection,
   setSelection: (selection) => {
     invalidateLocalSelection(get);
-    set((s) => selectionPatch(s.selection, selection, s.inspectorKey));
+    set((s) =>
+      selectionPatch(
+        s.selection,
+        selection,
+        s.inspectorKey,
+        s.pendingRefineGate,
+      ),
+    );
   },
   followChapter: (from, to) => {
     const current = get().selection;
@@ -265,6 +303,7 @@ export const createSelectionSlice: StateCreator<
         s.inspectorKey === inspectKeyOf(from)
           ? inspectKeyOf(to)
           : s.inspectorKey,
+        s.pendingRefineGate,
       ),
     );
   },
@@ -274,6 +313,7 @@ export const createSelectionSlice: StateCreator<
       exactSelection(
         clipClickSelection(s.selection, s.project, clipId, trackId, mods),
         s.inspectorKey,
+        s.pendingRefineGate,
       ),
     );
   },
@@ -283,13 +323,19 @@ export const createSelectionSlice: StateCreator<
       exactSelection(
         trackClickSelection(s.selection, trackId, additive),
         s.inspectorKey,
+        s.pendingRefineGate,
       ),
     );
   },
   commitRange: (target) => {
     invalidateLocalSelection(get);
     set((s) => ({
-      ...selectionPatch(s.selection, { kind: "range", target }, s.inspectorKey),
+      ...selectionPatch(
+        s.selection,
+        { kind: "range", target },
+        s.inspectorKey,
+        s.pendingRefineGate,
+      ),
       inspectorKey: "range",
       rangeArmed: false,
       rangeDraft: null,
@@ -298,6 +344,12 @@ export const createSelectionSlice: StateCreator<
   },
   selectTracks: (trackIds) => {
     invalidateLocalSelection(get);
-    set((s) => exactSelection(tracksSelection(trackIds), s.inspectorKey));
+    set((s) =>
+      exactSelection(
+        tracksSelection(trackIds),
+        s.inspectorKey,
+        s.pendingRefineGate,
+      ),
+    );
   },
 });

@@ -18,6 +18,8 @@ const facts = (over: Partial<EditFacts>): EditFacts => ({
   holdsCut: false,
   hasGap: false,
   suggestedAction: null,
+  pendingOffersCut: false,
+  exactRange: false,
   commentResolved: false,
   clipboardHasAudio: false,
   role: "host",

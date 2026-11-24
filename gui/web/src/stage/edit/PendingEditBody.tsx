@@ -18,6 +18,7 @@ import {
 } from "../../api/documentEdits";
 import {
   actionBarOwnsPendingVerbs,
+  EXACT_RANGE_REVIEW_REASON,
   pendingDecisionBusy,
   registerPendingDecider,
 } from "../../commands/pendingDecision";
@@ -537,7 +538,7 @@ export function PendingEditBody({
   const reviewBlockedReason = timingBusy
     ? BUSY_REASON
     : !canApply
-      ? "Only the host or an Editor can review exact range proposals."
+      ? EXACT_RANGE_REVIEW_REASON
       : undefined;
 
   const renderTimingFields = () => {
@@ -617,9 +618,7 @@ export function PendingEditBody({
     <aside className="inspector modifier-inspector">
       <div className="modifier-body">
         {edit.exact_range && !canApply ? (
-          <p className="ui-field-hint">
-            Only the host or an Editor can review exact range proposals.
-          </p>
+          <p className="ui-field-hint">{EXACT_RANGE_REVIEW_REASON}</p>
         ) : null}
         <DecisionCard
           layout="compact"

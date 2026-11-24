@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { pendingOffersCut } from "../utils/pendingOffersCut";
 import {
   actionBarOwnsPendingVerbs,
   decideThroughSheet,
+  EXACT_RANGE_REVIEW_REASON,
+  pendingBarWords,
   pendingCutWords,
-  pendingOffersCut,
   registerPendingDecider,
   sheetBusyReason,
 } from "./pendingDecision";
@@ -88,5 +90,51 @@ describe("the sheet decider", () => {
     expect(sheetBusyReason("b")).toBeNull();
     release();
     expect(await decideThroughSheet("a", "approve")).toBeNull();
+  });
+});
+
+describe("pendingBarWords", () => {
+  const cutWords = (accept: string, acceptBusy: string) => ({
+    accept,
+    reject: "Keep",
+    acceptBusy,
+    rejectBusy: "Keeping…",
+  });
+  const approveWords = {
+    accept: "Approve",
+    reject: "Reject",
+    acceptBusy: "Approving…",
+    rejectBusy: "Rejecting…",
+  };
+
+  it.each([
+    ["cut", cutWords("Cut", "Cutting…")],
+    ["shorten", cutWords("Shorten", "Shortening…")],
+    ["lower", cutWords("Lower", "Lowering…")],
+    ["leave", approveWords],
+    [null, approveWords],
+  ] as const)("words a %s suggestion", (suggested_action, words) => {
+    expect(pendingBarWords({ type: "remove", suggested_action })).toEqual(
+      words,
+    );
+  });
+
+  it("says Approve and Reject for a split and an exact range whatever they suggest", () => {
+    expect(pendingBarWords({ type: "split", suggested_action: "cut" })).toEqual(
+      approveWords,
+    );
+    expect(
+      pendingBarWords({
+        type: "remove",
+        suggested_action: "shorten",
+        exact_range: { intervals: [] } as never,
+      }),
+    ).toEqual(approveWords);
+  });
+
+  it("names the host or Editor requirement for exact range proposals", () => {
+    expect(EXACT_RANGE_REVIEW_REASON).toBe(
+      "Only the host or an Editor can review exact range proposals.",
+    );
   });
 });

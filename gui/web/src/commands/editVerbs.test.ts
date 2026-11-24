@@ -16,8 +16,10 @@ import {
   appliedEditRecord,
   COMMENTER_CAPABILITIES,
   clipRow,
+  EDITOR_CAPABILITIES,
   editBoundaries,
   minimalProject,
+  VIEWER_CAPABILITIES,
 } from "../test/fixtures";
 import { HISTORY_ROOT_ID } from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
@@ -30,6 +32,7 @@ import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
 import {
   barModelOf,
+  decideSelectedPending,
   currentEditFacts as factsOf,
   runEditVerb,
   runMute,
@@ -53,6 +56,7 @@ vi.mock("../api", async (importOriginal) => ({
   setEnvelope: vi.fn(async () => "h-env"),
   approveEdits: vi.fn(),
   rejectEdits: vi.fn(),
+  updateSocialClipDetails: vi.fn(),
   applySuggestedActions: vi.fn(),
   splitAtTime: vi.fn(
     async (
@@ -2017,8 +2021,14 @@ describe("deciding a suggestion without the overlay bar", () => {
 
   it("clears the in-flight flag when the request fails", async () => {
     host(EDIT_SELECTIONS.suggestion);
-    vi.mocked(api.rejectEdits).mockRejectedValueOnce(new Error("nope"));
+    let inFlightWhenSent: string | null = null;
+    vi.mocked(api.rejectEdits).mockImplementationOnce(async () => {
+      inFlightWhenSent = useDawStore.getState().pendingDecisionInFlight;
+      throw new Error("nope");
+    });
     await execute("edit.keep");
+    expect(api.rejectEdits).toHaveBeenCalledTimes(1);
+    expect(inFlightWhenSent).toBe("pending-cut");
     expect(useDawStore.getState().pendingDecisionInFlight).toBeNull();
     expect(announced()).toBe("nope");
   });
@@ -2056,13 +2066,17 @@ describe("deciding a suggestion without the overlay bar", () => {
   it("drops a success when the project changed during the request", async () => {
     host(EDIT_SELECTIONS.suggestion);
     const selection = useDawStore.getState().selection;
+    let inFlightWhenSent: string | null = null;
     vi.mocked(api.rejectEdits).mockImplementationOnce(async () => {
+      inFlightWhenSent = useDawStore.getState().pendingDecisionInFlight;
       useDawStore.setState({
         projectEpoch: useDawStore.getState().projectEpoch + 1,
       });
-      return { history_head_id: "h", count: 1 } as never;
+      return { queued: false, count: 1, historyHead: null } as never;
     });
     await execute("edit.keep");
+    expect(api.rejectEdits).toHaveBeenCalledTimes(1);
+    expect(inFlightWhenSent).toBe("pending-cut");
     // finishPendingReview would have cleared this selection for the old project's result.
     expect(useDawStore.getState().selection).toBe(selection);
     expect(useDawStore.getState().pendingDecisionInFlight).toBeNull();
@@ -2112,6 +2126,100 @@ describe("deciding a suggestion without the overlay bar", () => {
     } as never);
     await execute("edit.delete");
     expect(useDawStore.getState().pendingRefineGate).toBeNull();
+  });
+});
+
+describe("Approve and Keep on a suggestion", () => {
+  const reviewed = { queued: false, count: 1, historyHead: null } as never;
+
+  it("sends one ApproveEdits for Approve and never treats it as a social clip", async () => {
+    host(EDIT_SELECTIONS.suggestion);
+    vi.mocked(api.approveEdits).mockResolvedValue(reviewed);
+    await runEditVerb("approve", factsOf()!);
+    expect(api.approveEdits).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/episode",
+      ["pending-cut"],
+      false,
+      true,
+    );
+    expect(api.updateSocialClipDetails).not.toHaveBeenCalled();
+  });
+
+  it("still approves a social clip through its own path", async () => {
+    host({ kind: "social", id: "clip-1" });
+    await runEditVerb("approve", factsOf()!);
+    expect(api.approveEdits).not.toHaveBeenCalled();
+    expect(api.updateSocialClipDetails).toHaveBeenCalledOnce();
+  });
+
+  it("sends RejectEdits for Keep and never restores clip bleed", async () => {
+    const restoreBleed = vi.fn(() => ({ status: "ok" as const }));
+    registerCommand("edit.restoreClipBleed", restoreBleed);
+    host(EDIT_SELECTIONS.suggestion);
+    vi.mocked(api.rejectEdits).mockResolvedValue(reviewed);
+    await runEditVerb("keep", factsOf()!);
+    expect(api.rejectEdits).toHaveBeenCalledExactlyOnceWith("/tmp/episode", [
+      "pending-cut",
+    ]);
+    expect(restoreBleed).not.toHaveBeenCalled();
+  });
+
+  it("holds the in-flight flag before the overlay's first request resolves and sends once", async () => {
+    host(EDIT_SELECTIONS.suggestion);
+    let release: (value: never) => void = () => {};
+    vi.mocked(api.approveEdits).mockImplementationOnce(
+      () => new Promise((resolve) => (release = resolve as never)),
+    );
+    const first = decideSelectedPending("approve");
+    expect(useDawStore.getState().pendingDecisionInFlight).toBe("pending-cut");
+    expect((await decideSelectedPending("approve")).status).toBe("disabled");
+    expect(api.approveEdits).toHaveBeenCalledTimes(1);
+    release(reviewed);
+    await first;
+    expect(useDawStore.getState().pendingDecisionInFlight).toBeNull();
+  });
+});
+
+describe("deciding an exact range proposal", () => {
+  const exact = (extra: Record<string, unknown> = {}) => {
+    const project = editFixtureProject();
+    project.pending_edits[0] = {
+      ...project.pending_edits[0]!,
+      exact_range: { kind: "exact_range", clips: [] } as never,
+    };
+    host(EDIT_SELECTIONS.suggestion, { project, ...extra });
+  };
+  const reviewed = { queued: false, count: 1, historyHead: null } as never;
+  const share = (guestMode: string, capabilities: string[]) => ({
+    projectPath: "share:tok",
+    guestMode,
+    shareCapabilities: [...capabilities],
+  });
+
+  it.each([
+    ["a Commenter", share("comment", COMMENTER_CAPABILITIES)],
+    ["a Viewer", share("view", VIEWER_CAPABILITIES)],
+    ["a guest share without edit", share("edit", ["view", "play", "suggest"])],
+  ] as const)("sends nothing for %s", async (_name, extra) => {
+    exact(extra);
+    expect((await decideSelectedPending("approve")).status).toBe("disabled");
+    expect((await decideSelectedPending("reject")).status).toBe("disabled");
+    expect(api.approveEdits).toHaveBeenCalledTimes(0);
+    expect(api.rejectEdits).toHaveBeenCalledTimes(0);
+  });
+
+  it.each([
+    ["the host", {}],
+    ["an Editor", share("edit", EDITOR_CAPABILITIES)],
+  ] as const)("sends one request each for %s", async (_name, extra) => {
+    exact(extra);
+    vi.mocked(api.approveEdits).mockResolvedValue(reviewed);
+    vi.mocked(api.rejectEdits).mockResolvedValue(reviewed);
+    expect((await decideSelectedPending("approve")).status).toBe("ok");
+    expect(api.approveEdits).toHaveBeenCalledTimes(1);
+    exact(extra);
+    expect((await decideSelectedPending("reject")).status).toBe("ok");
+    expect(api.rejectEdits).toHaveBeenCalledTimes(1);
   });
 });
 

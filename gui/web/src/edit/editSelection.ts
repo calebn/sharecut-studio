@@ -6,6 +6,7 @@ import type {
   TimelineSpan,
 } from "../types/project";
 import { isRemovalRecord } from "../utils/appliedRecords";
+import { pendingOffersCut } from "../utils/pendingOffersCut";
 import { findTranscriptWord } from "../utils/transcript";
 import { roomToneGaps } from "./roomToneGaps";
 import { seamById } from "./seam";
@@ -48,6 +49,10 @@ export interface EditFacts {
   readonly hasGap: boolean;
   /** The pending edit's table default, which names the suggestion's primary verb. */
   readonly suggestedAction: PendingSuggestedAction;
+  /** The pending edit's accept verb is Cut, Shorten or Lower: not a split, an exact range or a leave. */
+  readonly pendingOffersCut: boolean;
+  /** The pending edit is an exact range proposal. */
+  readonly exactRange: boolean;
   readonly commentResolved: boolean;
   readonly clipboardHasAudio: boolean;
   readonly role: EditRole;
@@ -252,17 +257,19 @@ export function editFacts(
   const kind = selectionKind(selection);
   const span = selectionSpan(selection, project);
   const range = selection?.kind === "range" ? selection.target : null;
+  const pending =
+    selection?.kind === "pending"
+      ? (project.pending_edits.find((edit) => edit.id === selection.id) ?? null)
+      : null;
   return {
     kind,
     count: countOf(selection),
     span,
     holdsCut: holdsCutOf(selection, kind, span, project),
     hasGap: range !== null && roomToneGaps(project, range).length > 0,
-    suggestedAction:
-      selection?.kind === "pending"
-        ? (project.pending_edits.find((edit) => edit.id === selection.id)
-            ?.suggested_action ?? null)
-        : null,
+    suggestedAction: pending?.suggested_action ?? null,
+    pendingOffersCut: pending !== null && pendingOffersCut(pending),
+    exactRange: pending?.exact_range != null,
     commentResolved:
       selection?.kind === "comment" &&
       (project.comments.find((comment) => comment.id === selection.id)
