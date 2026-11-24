@@ -1272,6 +1272,7 @@ def approve_edits(
     held: list[CutScopeHold] = []
     # Named before any ripple moves anything, so a held cut reads as the list shows it.
     labels = {e.id: cut_label(project, e) for e in (*mutes, *removes)}
+    fades = long_fades(project, removes)
     for edit in sorted(mutes, key=lambda e: e.start, reverse=True):
         previous = project
         muted = _apply_mute_edit(
@@ -1432,9 +1433,7 @@ def approve_edits(
             held,
             speakers_by_track(project),
             {h.edit_id: labels[h.edit_id] for h in held if h.edit_id in labels},
-            long_fades(
-                project, (e for e in (*mutes, *removes) if e.id in {h.edit_id for h in held})
-            ),
+            {h.edit_id: fades[h.edit_id] for h in held if h.edit_id in fades},
         )
         if held_out is None or leaned_on:
             raise error
