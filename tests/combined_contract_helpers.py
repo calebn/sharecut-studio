@@ -285,6 +285,9 @@ class Case:
     s3_untouched: tuple[State, ...] = ()
     """Entry states whose outcome S3 changed to ``UNTOUCHED`` (the hook leaves ``None`` alone); the id keeps the pre-S3 outcome."""
 
+    may_commit_nothing: bool = False
+    """True when the command can change no word, so the commit may move nothing and combined stays as entered."""
+
     def outcome(self, state: State) -> Outcome:
         if state in self.s3_untouched:
             return UNTOUCHED
@@ -338,7 +341,7 @@ def _expected_texts(case: Case, state: State) -> tuple[str, ...] | None:
 
 def assert_contract(case: Case, state: State, seen: Observed) -> None:
     expect = _expected(case, state, seen)
-    assert seen.moved or expect == seen.entry
+    assert seen.moved or (case.may_commit_nothing and expect == seen.entry)
     if case.outcome(state) is REBUILT:
         assert texts(seen.memory) == _expected_texts(case, state)
         if case.speakers is not None:

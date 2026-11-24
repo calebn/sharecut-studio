@@ -289,7 +289,9 @@ def test_suppress_bleed_leaves_combined_to_the_mutation_hook(tmp_path: Path):
     ):
         suppress_bleed_words(project, dry_run=False, track_id="host", defaults=load_defaults())
 
-    assert any("bleed" in u.text for u in project.combined_transcript.utterances)
+    assert any(
+        "bleed" in u.text and u.track_id == "host" for u in project.combined_transcript.utterances
+    )
     rebuild_combined_if_inputs_moved(project, key, defaults=load_defaults())
     host_text = " ".join(
         u.text for u in project.combined_transcript.utterances if u.track_id == "host"
