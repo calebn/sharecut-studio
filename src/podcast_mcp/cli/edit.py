@@ -974,7 +974,10 @@ def edit_set_clip_join_cmd(
     typer.echo(
         json.dumps(
             apply_external_document_edit(
-                ws, lambda: TimelineService(ws).set_clip_join(left, right, mode, length_ms)
+                ws,
+                lambda: (
+                    TimelineService(ws).set_clip_join(left, right, mode, length_ms).model_dump()
+                ),
             ),
             indent=2,
         )

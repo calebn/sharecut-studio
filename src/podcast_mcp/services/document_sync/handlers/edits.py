@@ -202,16 +202,20 @@ def roll_clip_join(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def set_join_mode(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TimelineService(ws).set_join_mode(p["clip_id"], str(p["join_in_mode"]))
+    return TimelineService(ws).set_join_mode(p["clip_id"], str(p["join_in_mode"])).model_dump()
 
 
 def set_clip_join(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     length = p.get("length_ms")
-    return TimelineService(ws).set_clip_join(
-        str(p["left_clip_id"]),
-        str(p["right_clip_id"]),
-        str(p["mode"]),
-        int(length) if length is not None else None,
+    return (
+        TimelineService(ws)
+        .set_clip_join(
+            str(p["left_clip_id"]),
+            str(p["right_clip_id"]),
+            str(p["mode"]),
+            int(length) if length is not None else None,
+        )
+        .model_dump()
     )
 
 

@@ -130,7 +130,7 @@ def test_service_is_one_undo_step(minimal_project):
     ws.save()
     svc = TimelineService(ProjectWorkspace.open(minimal_project))
     out = svc.set_clip_join("c1", "c2", "crossfade", 20)
-    assert out["crossfade_ms"] == 20
+    assert out.crossfade_ms == 20
     from podcast_mcp.services.document import HistoryService
 
     hist = HistoryService(ProjectWorkspace.open(minimal_project))
@@ -264,7 +264,9 @@ def test_cli_set_clip_join(tmp_path):
         patch("podcast_mcp.cli.edit.TimelineService", service),
         patch("podcast_mcp.cli.edit.AnalysisService", service),
     ):
-        service.return_value.set_clip_join.return_value = {"operation": "set_clip_join"}
+        service.return_value.set_clip_join.return_value.model_dump.return_value = {
+            "operation": "set_clip_join"
+        }
         result = runner.invoke(
             app,
             [

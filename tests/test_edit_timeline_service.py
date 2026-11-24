@@ -89,7 +89,7 @@ def test_edit_service_timeline_and_transcript(tmp_path, sample_wav) -> None:
     clips = TimelineService(svc.ws).list_clips(track_id="host")
     clip_id = clips["tracks"]["host"][0]["id"]
     joined = TimelineService(svc.ws).set_join_mode(clip_id, "fade")
-    assert joined["operation"] == "set_clip_join_mode"
+    assert joined.operation == "set_clip_join_mode"
     TimelineService(svc.ws).add_chapter(0.0, "Intro")
     assert TimelineService(svc.ws).list_chapters()
     assert TimelineService(svc.ws).remove_chapter("Intro").removed is True

@@ -161,12 +161,14 @@ def _text(value: dict) -> str:
 )
 def test_service_set_join_mode_with_previous_clip(ws_fades, mode, expected, keys):
     result = TimelineService(ws_fades).set_join_mode("b", mode)
+    result = result.model_dump()
     assert list(result) == keys
     assert _text(result) == _text(expected)
 
 
 def test_service_set_join_mode_pinned_text(ws_fades):
     result = TimelineService(ws_fades).set_join_mode("b", "crossfade")
+    result = result.model_dump()
     assert _text(result) == (
         '{"operation": "set_clip_join_mode", "affected_tracks": ["host"], "clip_count": 2, '
         '"timeline_duration_sec": null, "join_left_clip_id": "a", "join_render_mode": '
@@ -180,6 +182,7 @@ def test_service_set_join_mode_pinned_text(ws_fades):
 
 def test_service_set_join_mode_crossfade_without_fades_is_blocked(ws):
     result = TimelineService(ws).set_join_mode("b", "crossfade")
+    result = result.model_dump()
     assert list(result) == MODE_KEYS
     assert "join_borrow_sec" not in result
     assert _text(result) == _text(_mode(left="a", render="crossfade", blocked="no_fade_out"))
@@ -188,6 +191,7 @@ def test_service_set_join_mode_crossfade_without_fades_is_blocked(ws):
 @pytest.mark.parametrize("mode", ["fade", "crossfade", "cut"])
 def test_service_set_join_mode_first_clip(ws_fades, mode):
     result = TimelineService(ws_fades).set_join_mode("a", mode)
+    result = result.model_dump()
     assert list(result) == MODE_KEYS
     assert result["join_left_clip_id"] is None
     assert result["join_crossfade_ms"] == 0
@@ -196,6 +200,7 @@ def test_service_set_join_mode_first_clip(ws_fades, mode):
 
 def test_service_set_join_mode_crossfade_not_abutting(ws_gap):
     result = TimelineService(ws_gap).set_join_mode("b", "crossfade")
+    result = result.model_dump()
     assert list(result) == MODE_KEYS
     assert "join_borrow_sec" not in result
     assert isinstance(result["join_crossfade_blocked"], str)
@@ -204,6 +209,7 @@ def test_service_set_join_mode_crossfade_not_abutting(ws_gap):
 
 def test_service_set_join_mode_crossfade_no_headroom(ws_no_headroom):
     result = TimelineService(ws_no_headroom).set_join_mode("b", "crossfade")
+    result = result.model_dump()
     assert list(result) == MODE_KEYS
     assert "join_borrow_sec" not in result
     assert isinstance(result["join_crossfade_blocked"], str)
@@ -215,6 +221,7 @@ def test_service_set_join_mode_crossfade_no_headroom(ws_no_headroom):
 
 def test_service_set_clip_join_crossfade_default_length(ws):
     result = TimelineService(ws).set_clip_join("a", "b", "crossfade")
+    result = result.model_dump()
     assert list(result) == JOIN_KEYS
     assert "join_borrow_sec" not in result
     assert _text(result) == _text(_join(mode="crossfade", fade_out=25, fade_in=25, ms=20))
@@ -230,12 +237,14 @@ def test_service_set_clip_join_crossfade_default_length(ws):
 
 def test_service_set_clip_join_crossfade_explicit_length(ws):
     result = TimelineService(ws).set_clip_join("a", "b", "crossfade", 40)
+    result = result.model_dump()
     assert list(result) == JOIN_KEYS
     assert _text(result) == _text(_join(mode="crossfade", fade_out=40, fade_in=40, ms=40))
 
 
 def test_service_set_clip_join_cut_zeroes_fades(ws_fades):
     result = TimelineService(ws_fades).set_clip_join("a", "b", "cut")
+    result = result.model_dump()
     assert list(result) == JOIN_KEYS
     assert _text(result) == _text(_join(mode="cut", fade_out=0, fade_in=0))
 
@@ -243,23 +252,27 @@ def test_service_set_clip_join_cut_zeroes_fades(ws_fades):
 def test_service_set_clip_join_fade_keeps_current_fades(minimal_project):
     ws = _open(minimal_project, _abutting(), fades=(30, 5))
     result = TimelineService(ws).set_clip_join("a", "b", "fade")
+    result = result.model_dump()
     assert list(result) == JOIN_KEYS
     assert _text(result) == _text(_join(mode="fade", fade_out=30, fade_in=5))
 
 
 def test_service_set_clip_join_fade_seeds_micro_fade(ws):
     result = TimelineService(ws).set_clip_join("a", "b", "fade")
+    result = result.model_dump()
     assert list(result) == JOIN_KEYS
     assert _text(result) == _text(_join(mode="fade", fade_out=10, fade_in=10))
 
 
 def test_service_set_clip_join_fade_explicit_length(ws):
     result = TimelineService(ws).set_clip_join("a", "b", "fade", 12)
+    result = result.model_dump()
     assert _text(result) == _text(_join(mode="fade", fade_out=12, fade_in=12))
 
 
 def test_service_set_clip_join_crossfade_not_abutting(ws_gap):
     result = TimelineService(ws_gap).set_clip_join("a", "b", "crossfade")
+    result = result.model_dump()
     assert list(result) == JOIN_KEYS
     assert isinstance(result["crossfade_blocked"], str)
     assert _text(result) == _text(
@@ -269,6 +282,7 @@ def test_service_set_clip_join_crossfade_not_abutting(ws_gap):
 
 def test_service_set_clip_join_crossfade_no_headroom(ws_no_headroom):
     result = TimelineService(ws_no_headroom).set_clip_join("a", "b", "crossfade")
+    result = result.model_dump()
     assert list(result) == JOIN_KEYS
     assert _text(result) == _text(
         _join(mode="crossfade", fade_out=25, fade_in=25, blocked="no_headroom")
@@ -342,9 +356,11 @@ def test_handler_set_join_mode_equals_service(minimal_project):
     via_handler = handlers.set_join_mode(
         _open(minimal_project, _abutting(), fades=(25, 25)), params
     )
-    via_service = TimelineService(
-        _open(minimal_project, _abutting(), fades=(25, 25))
-    ).set_join_mode("b", "crossfade")
+    via_service = (
+        TimelineService(_open(minimal_project, _abutting(), fades=(25, 25)))
+        .set_join_mode("b", "crossfade")
+        .model_dump()
+    )
     assert list(via_handler) == MODE_BORROW_KEYS
     assert _text(via_handler) == _text(via_service)
     assert _text(via_handler) == _text(_mode(left="a", render="crossfade", ms=20, borrow=0.01))
@@ -364,8 +380,10 @@ def test_handler_set_clip_join_equals_service(minimal_project, mode, length_ms, 
         left_clip_id="a", right_clip_id="b", mode=mode, length_ms=length_ms
     ).model_dump(mode="json")
     via_handler = handlers.set_clip_join(_open(minimal_project, _abutting()), params)
-    via_service = TimelineService(_open(minimal_project, _abutting())).set_clip_join(
-        "a", "b", mode, length_ms
+    via_service = (
+        TimelineService(_open(minimal_project, _abutting()))
+        .set_clip_join("a", "b", mode, length_ms)
+        .model_dump()
     )
     assert list(via_handler) == JOIN_KEYS
     assert _text(via_handler) == _text(via_service)
