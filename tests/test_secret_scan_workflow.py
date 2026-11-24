@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import plistlib
 import re
 import subprocess
+import time
 import tomllib
 from pathlib import Path
 
@@ -46,49 +48,83 @@ _SIBLING_PATH = re.compile(rb"(?<![\w./~-])(?:\.\./)+([A-Za-z0-9_@][A-Za-z0-9_@.
 
 # Apple Developer Team ID (10 uppercase alphanumerics). A bare 10-character token is far too common
 # (hashes, keys, identifiers), so the check is keyed to context and to the files that carry
-# distribution identity: an assignment/key naming the team, or the ``<TEAMID>.<reverse-dns>`` form
-# used by appID / keychain / app-group identifiers. Placeholders (one repeated character such as
-# AAAAAAAAAA, ``${...}`` and ``{{...}}`` templates, words such as TEAMID) never match the shape.
-_TEAM_ID = rb"(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*[0-9])[A-Z0-9]{10}(?![A-Za-z0-9])"
+# distribution identity. Contexts: a key or flag naming the team (``team`` anywhere in the name:
+# DEVELOPMENT_TEAM, APPLE_TEAM, teamID, ``--team-id``, fastlane ``team_id "X"``/``team:``), an
+# optional chain of ``${VAR:-`` defaults, a ``Developer ID ...: Name (TEAM)`` signing identity, an
+# app-group ``group.<TEAM>``, and the ``<TEAM>.<reverse-dns>`` form of appID / keychain identifiers.
+# Placeholders (AAAAAAAAAA, ``${...}``, ``{{...}}`` templates, words such as TEAMID) never match the
+# shape: one letter and one digit among exactly 10 uppercase alphanumerics, not glued to more.
+# Every quantifier is bounded so a long single line cannot make a scan quadratic.
+_TEAM_ID = rb"(?=[A-Z0-9]{0,9}[A-Z])(?=[A-Z0-9]{0,9}[0-9])[A-Z0-9]{10}(?![A-Za-z0-9])"
 _TEAM_ID_ASSIGNMENT = re.compile(
-    rb"(?i:app(?:le)?[_-]?ids?|team[_-]?ids?|teamidentifier|development[_-]?team|appleteam\w*)"
-    rb"[\"'<>/\w]*?(?:\s*[:=]|:-|\s*>\s*<string>|</key>\s*<string>)\s*[\"']?(" + _TEAM_ID + rb")"
+    rb"(?i:team)[\w\"'-]{0,24}"
+    rb"(?:</key>\s*<string>|:-|\s*[:=(]\s*|\s+)"
+    rb"[\"']?(?:\$\{\w{1,40}:-){0,4}[\"']?(" + _TEAM_ID + rb")"
 )
+_TEAM_ID_SIGNING_IDENTITY = re.compile(
+    rb"(?i:developer id (?:application|installer)|apple (?:development|distribution)"
+    rb"|(?:iphone|mac) (?:developer|distribution)):[^\n()]{0,80}\((" + _TEAM_ID + rb")\)"
+)
+_TEAM_ID_APP_GROUP = re.compile(rb"(?<![A-Za-z0-9])group\.(" + _TEAM_ID + rb")")
 _TEAM_ID_BUNDLE = re.compile(
-    rb"(?<![A-Za-z0-9])(" + _TEAM_ID + rb")\.[a-z][a-z0-9-]*\.[a-z][a-z0-9.-]*"
+    rb"(?<![A-Za-z0-9])(" + _TEAM_ID + rb")\.(?:com|org|net|io|co|dev|me|studio|science|ai)"
+    rb"\.[a-z][a-z0-9.-]{0,100}"
+)
+_TEAM_ID_PATTERNS = (
+    _TEAM_ID_ASSIGNMENT,
+    _TEAM_ID_SIGNING_IDENTITY,
+    _TEAM_ID_APP_GROUP,
+    _TEAM_ID_BUNDLE,
 )
 _TEAM_ID_SCAN_ROOTS = frozenset({"config", "distribution", "scripts", ".github"})
-_TEAM_ID_SCAN_NAMES = frozenset({"apple-app-site-association"})
+_TEAM_ID_ROOT_FILE = "project.yml"
 _TEAM_ID_SCAN_SUFFIXES = (
-    ".plist",
-    ".entitlements",
     ".yml",
     ".yaml",
     ".json",
     ".sh",
     ".py",
     ".toml",
+    ".pbxproj",
+    ".xcconfig",
+    ".ps1",
+    ".rb",
+    ".swift",
+    ".cfg",
+    ".ini",
+    ".mjs",
+    ".js",
 )
 # ``ghcr.io/<owner>/`` anywhere in the tree names a container image published by that owner, so a
 # default pointing at one would ship the owner's registry to every user. Placeholders (``<owner>``,
-# ``${{ ... }}``, ``example*``) do not match. A real upstream image is listed by owner with a reason.
+# ``${{ ... }}``, ``example`` or ``example-*``) do not match. A real upstream image is listed by
+# owner (lowercase) with a reason.
 _OWNER_IMAGE = re.compile(rb"ghcr\.io/([A-Za-z0-9][A-Za-z0-9._-]*)/", re.IGNORECASE)
 _UPSTREAM_IMAGE_OWNERS: dict[str, str] = {}
-_PLACEHOLDER_IMAGE_OWNER_PREFIX = "example"
+_PLACEHOLDER_IMAGE_OWNER = re.compile(r"example(?:[-_.].*)?")
 # Hosts the owner runs. In test sources they are generic fixtures that tie a test to the owner's
-# deployment; use ``*.example.test``. Files that must pin a production URL are listed with a reason.
-_OWNER_FIXTURE_HOSTS = (b"sudo." + b"science", b"cdn.sharecut." + b"studio")
-_OWNER_HOST_FIXTURE_ALLOWLIST: dict[str, str] = {
-    "tests/test_asset_sources.py": (
+# deployment; use ``*.example.test``. Matching is case-insensitive on a host boundary (a longer
+# name such as ``x<host>`` does not match). A file that must pin a production URL is listed per
+# (file, host) with a reason; each entry must still match.
+_OWNER_FIXTURE_HOSTS = ("sudo." + "science", "cdn.sharecut." + "studio")
+_OWNER_HOST_FIXTURE_ALLOWLIST: dict[tuple[str, str], str] = {
+    ("tests/test_asset_sources.py", "cdn.sharecut." + "studio"): (
         "pins the production bootstrap CDN base against the private distribution profile"
     ),
-    "tests/test_cli_bootstrap.py": "asserts the exact production speaker-model download URL",
-    "tests/test_desktop_pack_scripts.py": (
+    ("tests/test_cli_bootstrap.py", "cdn.sharecut." + "studio"): (
+        "asserts the exact production speaker-model download URL"
+    ),
+    ("tests/test_desktop_pack_scripts.py", "cdn.sharecut." + "studio"): (
         "asserts the desktop shell source never embeds the production CDN base"
     ),
-    "tests/test_speaker_ecapa_onnx.py": "asserts the exact production speaker-model URLs",
+    ("tests/test_speaker_ecapa_onnx.py", "cdn.sharecut." + "studio"): (
+        "asserts the exact production speaker-model URLs"
+    ),
 }
-_TEST_SOURCE_SUFFIXES = (".py", ".rs", ".ts", ".tsx")
+_TEST_DIRS = frozenset({"tests", "__tests__", "e2e"})
+_TEST_DIR_SUFFIXES = (".py", ".rs", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".json", ".sh")
+_TEST_NAME_SUFFIXES = (".py", ".rs", ".ts", ".tsx", ".js", ".jsx", ".mjs")
+_RUST_TEST_MODULE = b"#[cfg(test)]"
 
 
 def test_secret_scan_covers_changes_and_scheduled_history() -> None:
@@ -269,51 +305,105 @@ def _sibling_path_candidates(relative: Path, content: bytes) -> list[tuple[int, 
 
 
 def _is_team_id_surface(relative: Path) -> bool:
-    """Distribution config, Tauri/iOS identity files, AASA, scripts and workflows."""
-    if relative.name in _TEAM_ID_SCAN_NAMES or relative.suffix in (".plist", ".entitlements"):
+    """Distribution config, Tauri/iOS identity files, AASA, env files, scripts and workflows."""
+    name = relative.name
+    if name.startswith(("apple-app-site-association", ".env")) or name.endswith(".env"):
+        return True
+    if name == _TEAM_ID_ROOT_FILE and len(relative.parts) == 1:
+        return True
+    if relative.suffix in (".plist", ".entitlements"):
         return True
     if relative.parts[0] == "gui" and "src-tauri" in relative.parts:
-        return relative.suffix in _TEAM_ID_SCAN_SUFFIXES
-    return relative.parts[0] in _TEAM_ID_SCAN_ROOTS and relative.suffix in _TEAM_ID_SCAN_SUFFIXES
+        return name.endswith(_TEAM_ID_SCAN_SUFFIXES)
+    return relative.parts[0] in _TEAM_ID_SCAN_ROOTS and name.endswith(_TEAM_ID_SCAN_SUFFIXES)
+
+
+def _team_id_text(content: bytes) -> bytes:
+    """Normalise binary-ish blobs to ASCII-searchable text.
+
+    A binary plist is flattened to ``key = value`` lines, UTF-16 (BOM) is decoded, and stray NULs
+    (BOM-less UTF-16, a leading NUL) are stripped, so none of them hides a Team ID.
+    """
+    if content.startswith(b"bplist00"):
+        try:
+            return _flatten_plist(plistlib.loads(content), "").encode()
+        except Exception:  # malformed plist: fall back to raw bytes
+            return content.replace(b"\0", b"")
+    if content.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return content.decode("utf-16", errors="replace").encode()
+    return content.replace(b"\0", b"")
+
+
+def _flatten_plist(node: object, key: str) -> str:
+    if isinstance(node, dict):
+        return "".join(_flatten_plist(v, str(k)) for k, v in node.items())
+    if isinstance(node, list):
+        return "".join(_flatten_plist(v, key) for v in node)
+    return f"{key} = {node}\n" if isinstance(node, str) else ""
 
 
 def _team_id_lines(relative: Path, content: bytes) -> list[int]:
     """Return line numbers holding a real-looking Team ID in a named or ``<TEAM>.<bundle>`` form."""
-    if not _is_team_id_surface(relative) or b"\0" in content:
+    if not _is_team_id_surface(relative):
         return []
+    content = _team_id_text(content)
     lines: set[int] = set()
-    for pattern in (_TEAM_ID_ASSIGNMENT, _TEAM_ID_BUNDLE):
+    for pattern in _TEAM_ID_PATTERNS:
         for match in pattern.finditer(content):
-            if len(set(match.group(1))) > 1:  # AAAAAAAAAA is the Simulator placeholder
-                lines.add(content.count(b"\n", 0, match.start(1)) + 1)
+            lines.add(content.count(b"\n", 0, match.start(1)) + 1)
     return sorted(lines)
 
 
 def _owner_image_lines(content: bytes) -> list[int]:
+    upstream = {owner.lower() for owner in _UPSTREAM_IMAGE_OWNERS}
     lines: list[int] = []
     for match in _OWNER_IMAGE.finditer(content):
         owner = match.group(1).decode().lower()
-        if owner.startswith(_PLACEHOLDER_IMAGE_OWNER_PREFIX) or owner in _UPSTREAM_IMAGE_OWNERS:
+        if _PLACEHOLDER_IMAGE_OWNER.fullmatch(owner) or owner in upstream:
             continue
         lines.append(content.count(b"\n", 0, match.start()) + 1)
     return lines
 
 
-def _owner_host_fixture_lines(relative: Path, content: bytes) -> list[int]:
-    posix = relative.as_posix()
-    is_test_source = relative.suffix in _TEST_SOURCE_SUFFIXES and (
-        relative.parts[0] == "tests"
-        or relative.name.startswith("test_")
-        or ".test." in relative.name
-        or (relative.suffix == ".rs" and "src-tauri" in relative.parts)
+def _owner_host_pattern(host: str) -> re.Pattern[bytes]:
+    return re.compile(
+        rb"(?<![A-Za-z0-9-])" + re.escape(host.encode()) + rb"(?![A-Za-z0-9-])", re.IGNORECASE
     )
-    if not is_test_source or posix in _OWNER_HOST_FIXTURE_ALLOWLIST:
+
+
+def _is_test_source(relative: Path, content: bytes) -> tuple[bool, int]:
+    """Return (is a test source, byte offset where the test part starts)."""
+    name = relative.name
+    in_test_dir = any(part in _TEST_DIRS for part in relative.parts[:-1])
+    by_name = name.endswith(_TEST_NAME_SUFFIXES) and (
+        name.startswith("test_") or ".test." in name or ".spec." in name
+    )
+    if in_test_dir and name.endswith(_TEST_DIR_SUFFIXES):
+        return True, 0
+    if relative.suffix == ".rs":  # unit tests live in a trailing #[cfg(test)] module
+        start = content.find(_RUST_TEST_MODULE)
+        return start >= 0, max(start, 0)
+    return by_name, 0
+
+
+def _owner_host_hits(content: bytes, start: int = 0) -> list[tuple[str, int]]:
+    return [
+        (host, match.start())
+        for host in _OWNER_FIXTURE_HOSTS
+        for match in _owner_host_pattern(host).finditer(content, start)
+    ]
+
+
+def _owner_host_fixture_lines(relative: Path, content: bytes) -> list[int]:
+    is_test_source, start = _is_test_source(relative, content)
+    if not is_test_source:
         return []
+    posix = relative.as_posix()
     return sorted(
         {
-            content.count(b"\n", 0, match.start()) + 1
-            for host in _OWNER_FIXTURE_HOSTS
-            for match in re.finditer(re.escape(host), content)
+            content.count(b"\n", 0, offset) + 1
+            for host, offset in _owner_host_hits(content, start)
+            if (posix, host) not in _OWNER_HOST_FIXTURE_ALLOWLIST
         }
     )
 
@@ -651,6 +741,12 @@ _TEAM_VIOLATION = "{path}:{line}: Apple Team ID outside a placeholder"
 _GHCR = "ghcr" + ".io/"
 _IMAGE_VIOLATION = "{path}:{line}: owner container-image reference"
 _HOST_VIOLATION = "{path}:{line}: owner host used as a test fixture"
+_OWNER = "sudo." + "science"
+_CDN = "cdn.sharecut." + "studio"
+
+
+def _team_lines(path: str, text: str, team: str = _SEEDED_TEAM) -> list[int]:
+    return _team_id_lines(Path(path), text.format(team=team).encode())
 
 
 def test_public_tree_reports_apple_team_id_in_each_distribution_surface(tmp_path: Path) -> None:
@@ -684,21 +780,152 @@ def test_public_tree_reports_apple_team_id_in_each_distribution_surface(tmp_path
     assert not any(_SEEDED_TEAM in violation for violation in violations)
 
 
-def test_public_tree_reports_team_id_prefixed_bundle_id_and_default_assignment(
-    tmp_path: Path,
-) -> None:
-    _tracked_repo(
-        tmp_path,
-        {
-            "scripts/a.sh": f"id={_SEEDED_TEAM}.com.acme.app\n",
-            "scripts/b.sh": f'export APPLE_DEVELOPMENT_TEAM="${{APPLE_DEVELOPMENT_TEAM:-{_SEEDED_TEAM}}}"\n',
-        },
-    )
+@pytest.mark.parametrize("root", sorted(_TEAM_ID_SCAN_ROOTS))
+def test_team_id_scan_covers_each_root(root: str) -> None:
+    assert _team_lines(f"{root}/x.yml", "DEVELOPMENT_TEAM: {team}\n") == [1]
 
-    assert sorted(_public_tree_violations(tmp_path)) == [
-        _TEAM_VIOLATION.format(path="scripts/a.sh", line=1),
-        _TEAM_VIOLATION.format(path="scripts/b.sh", line=1),
+
+@pytest.mark.parametrize("suffix", _TEAM_ID_SCAN_SUFFIXES)
+def test_team_id_scan_covers_each_suffix_in_a_root_and_in_src_tauri(suffix: str) -> None:
+    text = "x\nDEVELOPMENT_TEAM = {team}\n"
+    assert _team_lines(f"scripts/sign{suffix}", text) == [2]
+    assert _team_lines(f"gui/desktop/src-tauri/gen/sign{suffix}", text) == [2]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "ios/Info.plist",
+        "deploy/x.entitlements",
+        "docs-site/apple-app-site-association",
+        "docs-site/apple-app-site-association.json",
+        ".env",
+        "deploy/.env.production",
+        "scripts/prod.env",
+        "project.yml",
+    ],
+)
+def test_team_id_scan_covers_identity_files_outside_the_roots(path: str) -> None:
+    assert _team_lines(path, "DEVELOPMENT_TEAM={team}\n") == [1]
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["docs/notes.md", "tests/test_x.py", "deploy/run.sh", "gui/web/project.yml", "scripts/a.txt"],
+)
+def test_team_id_scan_skips_other_files(path: str) -> None:
+    assert _team_lines(path, "DEVELOPMENT_TEAM={team}\n") == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{{"appleTeamId": "{team}"}}',
+        "APPLE_DEVELOPMENT_TEAM={team}",
+        'export T="${{APPLE_DEVELOPMENT_TEAM:-{team}}}"',
+        'export DEV_TEAM="${{A:-${{B:-{team}}}}}"',
+        "APPLE_TEAM={team}",
+        "DEV_TEAM={team}",
+        "xcodebuild --team-id {team}",
+        'team_id("{team}")',
+        'team_id "{team}"',
+        "team_id '{team}'",
+        "team: {team}",
+        'team: "{team}"',
+        '"signingIdentity": "Developer ID Application: Acme Inc ({team})"',
+        'id = "Apple Distribution: Acme Inc ({team})"',
+        "com.apple.security.application-groups: group.{team}.shared",
+        "{team}.com.acme.app",
+        "keychain-access-groups: {team}.org.acme.keys",
+    ],
+)
+def test_team_id_forms_are_reported(text: str) -> None:
+    assert _team_lines("scripts/x.sh", text + "\n") == [1]
+
+
+def test_team_id_cross_line_value_reports_the_value_line() -> None:
+    assert _team_lines("scripts/x.yml", "TEAM_ID:\n  {team}\n") == [2]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "APP_ID=GH1234ABCD",
+        '{{"app_id": "AB12CD34EF"}}',
+        'appId: "GH1234ABCD"',
+        "ABCDEFGH12.app.tar",
+        "ABCDEFGH12.app",
+        "tmp/ABCDEFGH12.txt",
+        "DEVELOPMENT_TEAM=AAAAAAAAAA",
+        "DEVELOPMENT_TEAM=TEAMID",
+        "APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}",
+        "DEVELOPMENT_TEAM={{apple.development-team}}",
+        "export DEV_TEAM=${{T:-AAAAAAAAAA}}",
+        "Developer ID Application: Acme Inc (TEAMID)",
+        "group.TEAMID.shared",
+        "DEVELOPMENT_TEAM=q7zk3m9px2",
+    ],
+)
+def test_team_id_non_matches(text: str) -> None:
+    assert _team_lines("scripts/x.sh", text + "\n") == []
+
+
+@pytest.mark.parametrize(
+    ("value", "reported"),
+    [
+        ("Q7ZK3M9PX2", True),
+        ("1234567890", False),  # digits only: the letter lookahead
+        ("ABCDEFGHIJ", False),  # letters only: the digit lookahead
+        ("Q7ZK3M9PX", False),  # 9 characters
+        ("Q7ZK3M9PX21", False),  # 11 characters: the trailing boundary
+        ("Q7ZK3M9PXz", False),  # trailing lowercase letter: the trailing boundary
+        ("1111111111", False),
+    ],
+)
+def test_team_id_shape_needs_ten_characters_with_a_letter_and_a_digit(
+    value: str, reported: bool
+) -> None:
+    assert _team_lines("scripts/x.sh", "DEVELOPMENT_TEAM={team}\n", value) == (
+        [1] if reported else []
+    )
+    assert _team_lines("scripts/x.sh", "{team}.com.acme.app\n", value) == ([1] if reported else [])
+
+
+def test_team_id_bundle_form_needs_a_leading_boundary() -> None:
+    assert _team_lines("scripts/x.sh", "x{team}.com.acme.app\n") == []
+
+
+def test_team_id_scan_is_linear_on_long_lines() -> None:
+    lines = [
+        b"teamID" * 20000,
+        b"team " * 20000,
+        b"TEAM_ID=${A:-" * 5000,
+        b"Developer ID Application: " * 5000,
+        b"group." * 20000,
+        b"A1" * 60000,
+        b"team=" + b"A" * 120000,
     ]
+    for line in lines:
+        started = time.perf_counter()
+        assert _team_id_lines(Path("scripts/x.sh"), line) == []
+        assert time.perf_counter() - started < 2.0, line[:12]
+
+
+def test_team_id_scan_reads_nul_padded_utf16_and_binary_plists() -> None:
+    xml = f"<plist><dict><key>TeamIdentifier</key><string>{_SEEDED_TEAM}</string></dict></plist>\n"
+    path = Path("ios/Info.plist")
+    assert _team_id_lines(path, xml.encode("utf-16")) == [1]  # BOM
+    assert _team_id_lines(path, xml.encode("utf-16-le")) == [1]  # no BOM, NUL-padded
+    assert _team_id_lines(path, b"\0" + xml.encode()) == [1]
+    binary = plistlib.dumps({"TeamIdentifier": _SEEDED_TEAM}, fmt=plistlib.FMT_BINARY)
+    assert b"\0" in binary
+    assert _team_id_lines(path, binary) == [1]
+    nested = plistlib.dumps(
+        {"a": {"TeamIdentifier": [_SEEDED_TEAM]}, "n": 1}, fmt=plistlib.FMT_BINARY
+    )
+    assert _team_id_lines(path, nested) == [1]
+    assert _team_id_lines(path, b"bplist00\0garbage") == []
+    assert _team_id_lines(path, plistlib.dumps({"TeamIdentifier": "AAAAAAAAAA"})) == []
 
 
 def test_public_tree_allows_team_id_placeholders_and_unrelated_ten_char_tokens(
@@ -731,6 +958,7 @@ def test_public_tree_reports_owner_container_image_default(tmp_path: Path) -> No
             "deploy/compose.yml": f"services:\n  a:\n    image: {_GHCR.upper()}Acme-Owner/relay\n",
             ".github/workflows/x.yml": f"env:\n  IMAGE: {_GHCR}${{{{ github.repository }}}}\n",
             "docs/pull.md": f"docker pull {_GHCR}<owner>/studio and {_GHCR}example/x\n",
+            "docs/other.md": f"{_GHCR}example-org/x {_GHCR}example_org/x {_GHCR}EXAMPLE/x\n",
         },
     )
 
@@ -738,6 +966,11 @@ def test_public_tree_reports_owner_container_image_default(tmp_path: Path) -> No
         _IMAGE_VIOLATION.format(path="deploy/compose.yml", line=3),
         _IMAGE_VIOLATION.format(path="scripts/run.sh", line=1),
     ]
+
+
+@pytest.mark.parametrize("owner", ["examplecorp", "example2", "examples", "myexample", "evilcorp"])
+def test_container_image_example_exemption_is_the_placeholder_only(owner: str) -> None:
+    assert _owner_image_lines(f"{_GHCR}{owner}/x\n".encode()) == [1]
 
 
 def test_public_tree_allows_container_image_owner_listed_with_a_reason(
@@ -749,36 +982,118 @@ def test_public_tree_allows_container_image_owner_listed_with_a_reason(
         _IMAGE_VIOLATION.format(path="scripts/run.sh", line=1)
     ]
 
-    monkeypatch.setitem(_UPSTREAM_IMAGE_OWNERS, "upstream-org", "upstream project's own image")
+    # Keys are compared lowercase, so a mixed-case key still matches.
+    monkeypatch.setitem(_UPSTREAM_IMAGE_OWNERS, "Upstream-Org", "upstream project's own image")
     assert _public_tree_violations(tmp_path) == []
 
 
 def test_public_tree_reports_owner_host_fixture_in_test_sources(tmp_path: Path) -> None:
-    owner = "sudo." + "science"
-    cdn = "cdn.sharecut." + "studio"
     _tracked_repo(
         tmp_path,
         {
-            "tests/test_a.py": f'ORIGIN = "https://{owner}"\n',
-            "gui/desktop/src-tauri/src/share_url.rs": f'    assert!(!ok("https://{owner}/r/t"));\n',
-            "gui/web/src/a.test.ts": f'const base = "https://{cdn}/assets";\n',
+            "tests/test_a.py": f'ORIGIN = "https://{_OWNER}"\n',
+            "gui/desktop/src-tauri/src/share_url.rs": (
+                f'fn real() {{ let _ = "{_OWNER}"; }}\n#[cfg(test)]\nmod tests {{\n'
+                f'    assert!(!ok("https://{_OWNER}/r/t"));\n}}\n'
+            ),
+            "gui/web/src/a.test.ts": f'const base = "https://{_CDN}/assets";\n',
             "tests/test_share_page.py": 'ORIGIN = "https://share.example.test"\n',
-            "README.md": f"[privacy](https://{owner}/privacy.html)\n",
+            "README.md": f"[privacy](https://{_OWNER}/privacy.html)\n",
         },
     )
 
     assert sorted(_public_tree_violations(tmp_path)) == [
-        _HOST_VIOLATION.format(path="gui/desktop/src-tauri/src/share_url.rs", line=1),
+        _HOST_VIOLATION.format(path="gui/desktop/src-tauri/src/share_url.rs", line=4),
         _HOST_VIOLATION.format(path="gui/web/src/a.test.ts", line=1),
         _HOST_VIOLATION.format(path="tests/test_a.py", line=1),
     ]
 
 
-def test_owner_host_fixture_allowlist_entries_carry_reasons_and_exist() -> None:
-    for relative, reason in _OWNER_HOST_FIXTURE_ALLOWLIST.items():
+@pytest.mark.parametrize(
+    "path",
+    [
+        "tests/test_a.py",
+        "tests/helpers.py",
+        "tests/fixtures/share.json",
+        "tests/fixtures/share.js",
+        "tests/run.sh",
+        "tests/a.mjs",
+        "tests/a.ts",
+        "tests/a.tsx",
+        "tests/a.jsx",
+        "tests/a.rs",
+        "crates/x/tests/a.rs",
+        "gui/web/src/__tests__/a.js",
+        "gui/web/e2e/a.ts",
+        "gui/web/src/a.test.ts",
+        "gui/web/src/a.test.js",
+        "gui/web/src/a.spec.ts",
+        "gui/web/src/a.spec.mjs",
+        "pkg/test_a.py",
+    ],
+)
+def test_owner_host_is_reported_in_each_test_source_shape(path: str) -> None:
+    assert _owner_host_fixture_lines(Path(path), f"x\n{_OWNER}\n".encode()) == [2]
+    assert _owner_host_fixture_lines(Path(path), f"x\n{_CDN}\n".encode()) == [2]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "README.md",
+        "docs/a.md",
+        "src/podcast_mcp/a.py",
+        "src/a.rs",
+        "gui/web/src/a.ts",
+        "gui/web/src/a.json",
+        "tests/README.md",
+        "tests/a.txt",
+        "scripts/test.sh",
+    ],
+)
+def test_owner_host_is_ignored_outside_test_sources(path: str) -> None:
+    assert _owner_host_fixture_lines(Path(path), f"{_OWNER}\n".encode()) == []
+
+
+def test_owner_host_match_is_case_insensitive_and_on_a_host_boundary() -> None:
+    path = Path("tests/test_a.py")
+
+    def lines(text: str) -> list[int]:
+        return _owner_host_fixture_lines(path, text.encode())
+
+    assert lines(f"https://{_OWNER.upper()}/x") == [1]
+    assert lines(f"https://www.{_OWNER}/x") == [1]
+    assert lines(f"{_OWNER}.example.test") == [1]
+    assert lines(f"x{_OWNER}") == []
+    assert lines(f"a-{_OWNER}") == []
+    assert lines(f"{_OWNER}s") == []
+    assert lines(f"{_OWNER}-x") == []
+
+
+def test_owner_host_in_rust_counts_only_in_the_test_module() -> None:
+    path = Path("gui/desktop/src-tauri/src/a.rs")
+    prod = f'const A: &str = "{_OWNER}";\n'
+    assert _owner_host_fixture_lines(path, prod.encode()) == []
+    tail = f'#[cfg(test)]\nmod tests {{ const B: &str = "{_OWNER}"; }}\n'
+    assert _owner_host_fixture_lines(path, (prod + tail).encode()) == [3]
+
+
+def test_owner_host_allowlist_exempts_one_host_in_one_file() -> None:
+    path = Path("tests/test_asset_sources.py")
+    key = (path.as_posix(), _CDN)
+    assert key in _OWNER_HOST_FIXTURE_ALLOWLIST
+    assert _owner_host_fixture_lines(path, f"{_CDN}\n".encode()) == []
+    assert _owner_host_fixture_lines(path, f"{_OWNER}\n".encode()) == [1]
+    assert _owner_host_fixture_lines(Path("tests/test_other.py"), f"{_CDN}\n".encode()) == [1]
+
+
+def test_owner_host_fixture_allowlist_entries_carry_reasons_and_still_match() -> None:
+    assert _OWNER_HOST_FIXTURE_ALLOWLIST
+    for (relative, host), reason in _OWNER_HOST_FIXTURE_ALLOWLIST.items():
         assert reason.strip(), relative
-        assert (ROOT / relative).is_file(), relative
-    assert "tests/test_asset_sources.py" in _OWNER_HOST_FIXTURE_ALLOWLIST
+        assert host in _OWNER_FIXTURE_HOSTS, relative
+        content = (ROOT / relative).read_bytes()
+        assert _owner_host_pattern(host).search(content), f"{relative}: stale allowlist entry"
 
 
 def test_public_tree_has_no_team_id_owner_image_or_owner_host_fixture() -> None:
