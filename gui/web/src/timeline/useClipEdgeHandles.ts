@@ -11,7 +11,12 @@ import {
   type ClipHandleAction,
   registerFocusedClipHandle,
 } from "../commands/focusedClipHandle";
-import { saveClipEdge, TRIM_MODE } from "../edit/clipEdgeSave";
+import { hasPendingLaneGeometry } from "../document/pendingDrafts";
+import {
+  edgeSavedMessage,
+  saveClipEdge,
+  TRIM_MODE,
+} from "../edit/clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "../edit/clipHandleSteps";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
@@ -60,6 +65,9 @@ type Draft = {
   | { kind: "fade"; edge: TrimEdge; preview: ClipFadePreview }
   | { kind: "trim"; edge: TrimEdge; preview: ClipTrimPreview }
 );
+
+const TRIM_WAITS_LINE =
+  "This clip is waiting to send. Trim it again once it has.";
 
 function sameGeometry(a: ClipRow, b: ClipRow): boolean {
   return (
@@ -225,6 +233,10 @@ export function useClipEdgeHandles(context: Context) {
     )
       return null;
     const c = latest.current;
+    if (handle.startsWith("trim") && hasPendingLaneGeometry(c.trackId)) {
+      s.announceStatus(TRIM_WAITS_LINE);
+      return null;
+    }
     const capture: Capture = {
       clip: c.clip,
       trackId: c.trackId,
@@ -369,9 +381,13 @@ export function useClipEdgeHandles(context: Context) {
         after.projectPath === c.projectPath &&
         after.projectEpoch === c.projectEpoch
       )
-        after.announceStatus(d.kind === "fade" ? "Fade saved" : "Trim saved", {
-          undo: saved.undo,
-        });
+        after.announceStatus(
+          edgeSavedMessage(
+            d.kind === "fade" ? "Fade saved" : "Trim saved",
+            saved,
+          ),
+          { undo: saved.undo },
+        );
     } catch (error) {
       // A fade or trim that is still in flight is shown over the saved clip, so
       // the clip the gesture captured no longer matches what is on screen:

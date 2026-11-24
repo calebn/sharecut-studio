@@ -89,7 +89,11 @@ beforeEach(() => {
   resetDocumentAuthority();
   const project = minimalProject({
     project_path: path,
-    tracks: [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
+    tracks: [
+      sampleTrack({ id: "host" }),
+      sampleTrack({ id: "guest" }),
+      sampleTrack({ id: "bed", role: "music" }),
+    ],
     clips: {
       tracks: {
         host: [saved],
@@ -104,8 +108,16 @@ beforeEach(() => {
           }),
           guestNext,
         ],
+        bed: [
+          clipRow({
+            id: "b1",
+            track_id: "bed",
+            source_end: 30,
+            timeline_end: 30,
+          }),
+        ],
       },
-      clip_count: 3,
+      clip_count: 4,
     },
   });
   useDawStore.getState().hydrate(path, project);
@@ -189,12 +201,12 @@ it("a clip the queued trim's ripple moved waits too", async () => {
   );
 });
 
-it("a clip the queued trim does not touch trims at once", async () => {
+it("a track the queued trim does not ripple trims at once", async () => {
   goOffline();
   const first = render(<Harness />);
   await dragOut(first.getByRole("button"));
   first.unmount();
-  const guest = render(<Harness track="guest" index={0} />).getByRole("button");
+  const guest = render(<Harness track="bed" index={0} />).getByRole("button");
   await dragOut(guest);
   expect(boundaryCalls()).toBe(2);
 });

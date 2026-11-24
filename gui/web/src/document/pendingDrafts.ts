@@ -317,6 +317,33 @@ export function clearPreviewDraft(key: string, owner: symbol): boolean {
   if (held?.kind !== "preview" || held.owner !== owner) return false;
   return current().delete(id);
 }
+/**
+ * True when a pending command (queued, or sent and not yet answered) has moved
+ * a clip of `trackId` away from where the host holds it. A boundary token is
+ * the host's digest of the track as it stands, so a trim asked for against
+ * the drafted lane would be refused as stale: it waits until they agree.
+ */
+export function hasPendingLaneGeometry(trackId: string): boolean {
+  const held = documentAuthority.project;
+  if (!held) return false;
+  const drafted = overlayDocumentDrafts(held, false);
+  const was = held.clips.tracks[trackId] ?? [];
+  const now = drafted.clips.tracks[trackId] ?? [];
+  return (
+    was.length !== now.length ||
+    was.some((clip, i) => {
+      const other = now[i];
+      return (
+        other === undefined ||
+        clip.id !== other.id ||
+        clip.source_id !== other.source_id ||
+        clip.source_start !== other.source_start ||
+        clip.source_end !== other.source_end ||
+        clip.timeline_start !== other.timeline_start
+      );
+    })
+  );
+}
 export function finishDocumentDraft(commandId: string): void {
   if (heldAcks.has(commandId)) return;
   for (const [key, value] of current())
