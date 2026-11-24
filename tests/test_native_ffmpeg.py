@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import ctypes.util
 import errno
@@ -12,6 +13,7 @@ import os
 import subprocess
 import tempfile
 import threading
+import time
 from dataclasses import replace
 from typing import Any
 
@@ -34,6 +36,10 @@ START = ctypes.CFUNCTYPE(
     ctypes.c_int,
     ctypes.c_int,
 )
+
+
+SESSION_THREAD = "fake-native-session"
+_LIVE: list[Any] | None = None  # the fakes built inside the current ``reaping`` block
 
 
 class Session:
@@ -62,6 +68,8 @@ class FakeNative:
         out: bytes = b"",
         err: bytes = b"",
     ) -> None:
+        if _LIVE is not None:
+            _LIVE.append(self)
         self.code = code
         self.start_result = start_result
         self.wait_result = wait_result
@@ -94,7 +102,10 @@ class FakeNative:
         self.fds.append((in_fd, out_fd, err_fd))
         session.dups = [os.dup(fd) if fd >= 0 else -1 for fd in (in_fd, out_fd, err_fd)]
         session.thread = threading.Thread(
-            target=self._ffmpeg, args=(session, *session.dups), daemon=True
+            target=self._ffmpeg,
+            args=(session, *session.dups),
+            name=SESSION_THREAD,
+            daemon=True,
         )
         session.thread.start()
         session_id = self._next
@@ -241,6 +252,50 @@ class PerSession(SlowWait):
 def read_all(child: Any) -> bytes:
     assert child.stdout is not None
     return child.stdout.read()
+
+
+@contextlib.contextmanager
+def reaping():
+    """Release every fake built inside the block and join its session threads, each bounded."""
+    global _LIVE
+    outer, fakes = _LIVE, []
+    _LIVE = fakes
+    try:
+        yield fakes
+    finally:
+        _LIVE = outer
+        threads = []
+        for fake in fakes:
+            fake.release.set()
+            fake.cancelled.set()
+            for session in list(fake.sessions.values()):
+                session.release.set()
+                session.cancelled.set()
+                if session.thread is not None:
+                    threads.append(session.thread)
+        deadline = time.monotonic() + BOUND_SEC
+        for thread in threads:
+            thread.join(max(0.0, deadline - time.monotonic()))
+        stuck = [t.name for t in threads if t.is_alive()]
+        assert not stuck, f"fake session threads outlived their test: {stuck}"
+
+
+@pytest.fixture(autouse=True)
+def _reap_fakes():
+    with reaping():
+        yield
+
+
+def test_a_fake_left_unreleased_leaves_no_session_thread_behind() -> None:
+    with reaping() as fakes:
+        fake = SlowWait(honour_cancel=False)
+        fake.sc_ffmpeg_start(1, (ctypes.c_char_p * 2)(b"ffmpeg", None), -1, -1, -1)
+        assert fake.started.acquire(timeout=BOUND_SEC)
+        assert fakes == [fake]
+        thread = fake.sessions[1].thread
+        assert thread is not None and thread.is_alive() and thread.name == SESSION_THREAD
+    assert not thread.is_alive()
+    assert not [t for t in threading.enumerate() if t.name == SESSION_THREAD and t is thread]
 
 
 @pytest.fixture
