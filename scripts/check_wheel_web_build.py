@@ -15,6 +15,7 @@ then starts that installed ``podcast gui`` and requires ``/`` to return the whee
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import time
@@ -92,6 +93,12 @@ def wheel_contracts(wheel: Path) -> None:
     stray = sorted(n for n in names if n.startswith("podcast_mcp/util/") and n.endswith(".json"))
     if missing or stray:
         raise SystemExit(f"{wheel.name}: contracts missing {missing}, stray util JSON {stray}")
+    owner = f"{PACKAGED_CONTRACTS}/owner-cdn.json"
+    if owner in names:
+        with zipfile.ZipFile(wheel) as archive:
+            base = json.loads(archive.read(owner)).get("base")
+        if not (isinstance(base, str) and base.startswith("https://")):
+            raise SystemExit(f"{wheel.name}: owner-cdn.json holds no usable HTTPS base")
 
 
 def wheel_defaults(wheel: Path) -> None:
