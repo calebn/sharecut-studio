@@ -76,9 +76,6 @@ literals. The Studio-only `--editor-main-min-height` supplied the desktop grid
 floor for the removed bottom-dock splitter (#2292); the stage frame sizes the
 Edit body from `--frame-bottom-chrome` and the header and Player heights instead.
 Never force layout geometry (`width`, `min-height`) onto `--space-*`.
-The pinned pending-review card uses `--pending-review-feedback-max-height`
-to cap scrollable supplementary errors at 30dvh. Review buttons keep their
-touch-target size.
 
 **Type** — `--font-size-<role>` (`--font-size-ui`, `--font-size-body`, …),
 `--font-family-<role>`. Text typed into a field uses `--font-size-field`
