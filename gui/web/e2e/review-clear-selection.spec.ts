@@ -20,7 +20,7 @@ const WRITES = /\/(daw\/)?document\/command|\/comments?\b|\/suggest/;
 
 async function playhead(page: Page): Promise<string> {
   const time = page.getByText(/^\d\d:\d\d\.\d{3}$/).first();
-  return (await time.textContent()) ?? "";
+  return (await time.count()) === 0 ? "" : ((await time.textContent()) ?? "");
 }
 
 async function expectClearRoundTrip(

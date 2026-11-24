@@ -18,7 +18,6 @@ const NO_CARETS: readonly ScriptCaret[] = [];
 
 export type ScriptSelectionProps = {
   selection: ScriptSelection | null;
-  selectedWords: WordsSelection | null;
   carets: readonly ScriptCaret[];
   /** Left out when the viewer may not select: the pane then reads only. */
   onSelect: ((selection: WordsSelection) => void) | undefined;
@@ -103,12 +102,6 @@ export function useScriptSelection(
 
   return {
     selection,
-    selectedWords:
-      mayRange &&
-      stored?.kind === "transcriptRange" &&
-      selection?.kind === "words"
-        ? selection
-        : null,
     carets,
     onSelect: mayRange ? onSelect : undefined,
     onCaret,
