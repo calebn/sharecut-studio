@@ -163,6 +163,7 @@ class Shim:
         c.fake_stray_write.restype = None
         c.fake_last_argc.restype = ctypes.c_int
         c.fake_reused_fd.restype = ctypes.c_int
+        c.fake_closed_fd.restype = ctypes.c_int
         c.fake_set_reset_delay_ms.argtypes = [ctypes.c_int]
         c.fake_reset_starts.restype = ctypes.c_int
         c.fake_big_writes.restype = ctypes.c_int
@@ -497,6 +498,31 @@ def test_copy_number_reused_by_the_tool_is_not_closed(shim: Shim) -> None:
     assert reused >= 3
     os.fstat(reused)
     os.close(reused)
+
+
+def test_a_copy_the_tool_closed_is_not_closed_again_when_another_session_holds_that_number(
+    shim: Shim,
+) -> None:
+    with Pipes() as pipes:
+        first = shim.start(
+            ["ffmpeg", "started", "closecopy", "hold", "pipe:1"], -1, pipes.out_w, pipes.err_w
+        )
+        read_until(pipes.err_r, b"started\n")
+        wait_for(lambda: shim.cdll.fake_closed_fd() >= 3, "the tool to close its copy")
+        freed = shim.cdll.fake_closed_fd()
+        fillers: list[int] = []
+        while (fd := fcntl.fcntl(pipes.in_r, fcntl.F_DUPFD, 3)) != freed:
+            fillers.append(fd)
+        os.close(fd)
+        second = shim.start(["ffmpeg", "echo"], -1, pipes.out_w, -1)
+        for filler in fillers:
+            os.close(filler)
+        assert second >= 1
+        pipes.hand_over()
+        shim.release()
+        assert shim.wait(first) == 0
+        assert shim.wait(second) == 0
+        assert read_until(pipes.out_r).startswith(b"tool=0\n")
 
 
 def test_cancel_running_session_blocked_reading_input(shim: Shim) -> None:
