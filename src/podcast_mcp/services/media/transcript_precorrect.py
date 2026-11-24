@@ -13,8 +13,8 @@ from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.edits.transcript_reuse import language_changed
 from podcast_mcp.engines.asr_options import normalize_language
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
-from podcast_mcp.project.io import resolve_project_path
-from podcast_mcp.project.store import ProjectStore, TranscriptVocabularyState
+from podcast_mcp.project.io import open_project, read_transcript_vocabulary_state
+from podcast_mcp.project.store import TranscriptVocabularyState
 from podcast_mcp.project.transcript_context import (
     DEFAULT_PROMPT_PRIMER,
     VOCABULARY_MAX_ENTRIES,
@@ -136,7 +136,7 @@ class TranscriptPrecorrectService:
 
     @staticmethod
     def vocabulary_status(project_path: Path | str) -> dict[str, Any]:
-        state = ProjectStore(resolve_project_path(project_path)).transcript_vocabulary_state()
+        state = read_transcript_vocabulary_state(project_path)
         return _vocabulary_response(load_transcript_context(state.workspace), state)
 
     @staticmethod
@@ -150,7 +150,7 @@ class TranscriptPrecorrectService:
         refuses or replaces an edited one then. Several transcripts of one track (``source_id``)
         collapse to one row, edited if any of them is, and the first recorded language is reported.
         """
-        project = ProjectStore(resolve_project_path(project_path)).load()
+        project = open_project(project_path)[1]
         stale: dict[str, StaleTrackRow] = {}
         edited: set[str] = set()
         by_id = {t.id: t for t in project.tracks}
