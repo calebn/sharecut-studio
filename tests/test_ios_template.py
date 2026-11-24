@@ -11,6 +11,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+from tests.strict_yaml import DuplicateKeyError, load_strict, load_template
+
 ROOT = Path(__file__).resolve().parents[1]
 TAURI = ROOT / "gui/desktop/src-tauri"
 TEMPLATE = (TAURI / "ios/project.yml").read_text(encoding="utf-8")
@@ -492,14 +495,28 @@ def test_the_template_sets_no_dead_strip_override() -> None:
 
 
 def test_the_app_exports_its_native_ffmpeg_symbols_from_the_target_base_block() -> None:
-    targets = TEMPLATE[TEMPLATE.index("\ntargets:") :]
-    assert targets.count("\n    settings:\n") == 1
-    base = targets[
-        targets.index("    settings:\n      base:\n") : targets.index("      groups: [app]")
-    ]
-    assert base.count('OTHER_LDFLAGS: ["$(inherited)", "-Wl,-export_dynamic"]') == 1
-    assert TEMPLATE.count("OTHER_LDFLAGS") == 1
-    assert TEMPLATE.count("-Wl,") == 1
+    targets = load_template(TEMPLATE)["targets"]
+    assert list(targets) == ["t_iOS"]
+    base = targets["t_iOS"]["settings"]["base"]
+    assert base["OTHER_LDFLAGS"] == ["$(inherited)", "-Wl,-export_dynamic"]
+
+
+def test_the_template_parses_without_a_repeated_key_anywhere() -> None:
+    parsed = load_template(TEMPLATE)
+    assert parsed["targets"]["t_iOS"]["info"]["properties"]["CFBundleVersion"] == "t"
+
+
+def test_the_loader_rejects_a_duplicate_key_the_text_tests_skip() -> None:
+    dup = TEMPLATE.replace(
+        '        CFBundleVersion: "{{apple.bundle-version}}"\n',
+        '        CFBundleVersion: "{{apple.bundle-version}}"\n'
+        '        CFBundleVersion: "{{apple.bundle-version}}"\n',
+    )
+    assert dup != TEMPLATE
+    with pytest.raises(DuplicateKeyError, match="CFBundleVersion"):
+        load_template(dup)
+    with pytest.raises(DuplicateKeyError):
+        load_strict("a: 1\nb:\n  c: 1\n  c: 2\n")
 
 
 def test_minimum_os_is_one_value_everywhere() -> None:

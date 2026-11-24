@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import ctypes.util
 import errno
 import importlib.util
 import inspect
@@ -259,6 +260,8 @@ def test_importing_native_ffmpeg_loads_nothing(monkeypatch: pytest.MonkeyPatch) 
 
     monkeypatch.setattr(ctypes, "CDLL", boom)
     monkeypatch.setattr(ctypes, "PyDLL", boom)
+    monkeypatch.setattr(ctypes.cdll, "LoadLibrary", boom)
+    monkeypatch.setattr(ctypes.util, "find_library", boom)
     spec = importlib.util.spec_from_file_location("native_ffmpeg_fresh", native_ffmpeg.__file__)
     assert spec is not None and spec.loader is not None
     spec.loader.exec_module(importlib.util.module_from_spec(spec))
@@ -368,11 +371,12 @@ def test_wait_negative_errno_is_exit_one_never_success(host: None) -> None:
     assert len(done.stderr.splitlines()) == 1
 
 
-@pytest.mark.parametrize("bad", [-3, 256, 1000])
+@pytest.mark.parametrize("bad", [-3, -1, 256, 300, 1000, -(2**31), 2**31 - 1])
 def test_a_wait_outside_0_to_255_is_exit_one(host: None, bad: int) -> None:
+    """The backend rejects every int32 the callback can carry; ctypes cannot pass wider ones."""
     done = run_child(FakeNative(wait_result=bad), [IN_PROCESS_FFMPEG], capture_output=True)
     assert done.returncode == 1
-    assert done.stderr
+    assert len(done.stderr.splitlines()) == 1
 
 
 @pytest.mark.parametrize("result", [0, -errno.ENOMEM, -errno.EMFILE])
@@ -601,12 +605,6 @@ def test_an_out_of_range_start_result_still_writes_the_stderr_line(host: None, r
     assert len(done.stderr.splitlines()) == 1
 
 
-@pytest.mark.parametrize("bad", [-(2**31) - 5])
-def test_an_out_of_range_wait_result_cannot_be_returned(host: None, bad: int) -> None:
-    done = run_child(FakeNative(wait_result=bad), [IN_PROCESS_FFMPEG], capture_output=True)
-    assert done.returncode == 1
-
-
 def test_the_stream_is_flushed_before_start() -> None:
     class Spy(io.BufferedRandom):
         flushed = 0
@@ -615,14 +613,22 @@ def test_the_stream_is_flushed_before_start() -> None:
             Spy.flushed += 1
             super().flush()
 
-    fake = FakeNative()
+    class Recording(FakeNative):
+        flushed_at_start: int | None = None
+
+        def _start(self, argc: int, argv: Any, in_fd: int, out_fd: int, err_fd: int) -> int:
+            self.flushed_at_start = Spy.flushed
+            return super()._start(argc, argv, in_fd, out_fd, err_fd)
+
+    fake = Recording()
     with tempfile.TemporaryFile() as raw:
         spy = Spy(io.FileIO(os.dup(raw.fileno()), "r+"))
         try:
             NativeFFmpegBackend(fake).run(
                 [IN_PROCESS_FFMPEG], Streams(None, spy, None), threading.Event()
             )
-            assert Spy.flushed >= 1  # before close(), which flushes anyway
+            assert fake.flushed_at_start is not None
+            assert fake.flushed_at_start >= 1  # the count when native start ran
         finally:
             spy.close()
 
