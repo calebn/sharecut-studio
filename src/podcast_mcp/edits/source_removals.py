@@ -3,23 +3,17 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Literal
 
-from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
+from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.cut_quality import long_fade_reach_sec
 from podcast_mcp.edits.cut_safety import hold_is_overridable, inspect_source_remove
-from podcast_mcp.edits.cut_speech import assess_cut_speech
 from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.edits.tighten_reasons import is_pause_reason
-from podcast_mcp.edits.timeline_ops import (
-    LaneUnavailable,
-    plan_ripple_delete,
-)
+from podcast_mcp.edits.timeline_ops import LaneUnavailable
 from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
     EpisodeProject,
 )
-from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.util.coded_error import CodedError, guest_message_for_code
 from podcast_mcp.util.redact import mentions_host_path
 from podcast_mcp.util.timebase import clock_label
@@ -262,31 +256,6 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         return error
 
 
-def resize_source_remove(
-    project: EpisodeProject, saved: EditDecision, *, start: float, end: float
-) -> EditDecision:
-
-    current = inspect_source_remove_placement(project, saved)
-    if isinstance(current, CutScopeHold):
-        raise ScopeChangedAtApproval([current], {}, {saved.id: cut_label(project, saved)})
-    candidate = saved.model_copy(deep=True, update={"start": start, "end": end})
-    placement = inspect_source_remove_placement(project, candidate, check_witness=False)
-    if isinstance(placement, CutScopeHold):
-        raise ScopeChangedAtApproval([placement], {}, {saved.id: cut_label(project, saved)})
-    expected_start = float(current[0]) + (start - saved.start)
-    expected_end = float(current[1]) + (end - saved.end)
-    if (
-        abs(float(placement[0]) - expected_start) > 1e-6
-        or abs(float(placement[1]) - expected_end) > 1e-6
-    ):
-        hold = CutScopeHold(saved.id, (), "source_geometry")
-        raise ScopeChangedAtApproval([hold], {}, {saved.id: cut_label(project, saved)})
-    candidate.source_timeline_span = RangeInterval(
-        start=float(placement[0]), end=float(placement[1])
-    )
-    return candidate
-
-
 def require_source_remove(
     project: EpisodeProject, edit: EditDecision, *, heard_pause_sec: float | None = None
 ) -> None:
@@ -295,31 +264,3 @@ def require_source_remove(
     assessment = inspect_source_remove(project, edit, heard_pause_sec=heard_pause_sec)
     if isinstance(assessment, CutScopeHold):
         raise ScopeChangedAtApproval([assessment], {}, {edit.id: cut_label(project, edit)})
-
-
-def record_suggested_cut_speech(
-    project: EpisodeProject, decision: EditDecision, *, defaults: EffectiveConfig
-) -> None:
-    """Record on a suggested session ripple the other speech it would cut.
-
-    Programmatic approval holds that speech for trusted interactive review
-    as changed.
-    """
-    if decision.type != EditDecisionType.REMOVE:
-        return
-
-    span = inspect_source_remove_placement(project, decision)
-    if isinstance(span, CutScopeHold):
-        return
-    decision.cut_speech = assess_cut_speech(
-        project,
-        plan_ripple_delete(
-            project,
-            float(span[0]),
-            float(span[1]),
-            edited_track_ids=[decision.track_id],
-            use_inaudible_opt=False,
-            defaults=defaults,
-        ),
-        defaults=defaults,
-    )

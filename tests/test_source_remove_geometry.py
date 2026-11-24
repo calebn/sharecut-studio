@@ -11,9 +11,10 @@ import pytest
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety, verdict_cache
+from podcast_mcp.edits.cut_application import record_suggested_cut_speech
 from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.ripple import RippleRemoval
-from podcast_mcp.edits.source_removals import ScopeChangedAtApproval, record_suggested_cut_speech
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.engines.audio import PlacedSource, SourceAudio, sources
@@ -849,7 +850,7 @@ def test_record_suggested_cut_speech_annotates_a_valid_remove(monkeypatch):
         observed.append((project_arg, removal.spans, removal.edited_track_ids))
         return expected
 
-    monkeypatch.setattr("podcast_mcp.edits.source_removals.assess_cut_speech", assess)
+    monkeypatch.setattr("podcast_mcp.edits.cut_application.assess_cut_speech", assess)
 
     record_suggested_cut_speech(project, decision, defaults=load_defaults())
 
