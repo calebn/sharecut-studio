@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.testclient import TestClient
 
 from podcast_mcp.export.chapters import render_chapters_json
@@ -1359,3 +1360,9 @@ def test_a_failed_archive_stream_gives_its_slot_back(
     monkeypatch.setattr(export_files_routes, "stored_zip_chunks", real)
 
     assert world.client.get(url).status_code == 200
+
+
+def test_the_gzip_middleware_is_told_never_to_compress_an_archive() -> None:
+    gzip = next(m for m in create_app().user_middleware if m.cls is GZipMiddleware)
+
+    assert "application/zip" in gzip.kwargs["exclude_content_types"]
