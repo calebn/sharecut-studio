@@ -5,6 +5,7 @@
  */
 import { clipFadeBaseline, setClipFade, trimClipEdge } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
+import { keptLine } from "../comments/keptLine";
 import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow, HistoryEntryId } from "../types/project";
 import type { EditMode, TrimEdge } from "../utils/clipEdgePreview";
@@ -20,8 +21,16 @@ export type ClipEdgeChange =
   | { kind: "fade"; inMs: number; outMs: number }
   | { kind: "trim"; edge: TrimEdge; mode: EditMode; sourceSec: number };
 
-/** A save that went out: the History entry it left, for the toast's Undo (null while queued). */
-export type EdgeSaved = { undo: HistoryEntryId | null };
+/**
+ * A save that went out: the History entry it left, for the toast's Undo (null
+ * while queued). `queued` is a trim kept to send later, which is not saved yet.
+ */
+export type EdgeSaved = { undo: HistoryEntryId | null; queued?: boolean };
+
+/** What a finished edge save says: `saved` once it landed, the kept line while it only waits. */
+export function edgeSavedMessage(saved: string, result: EdgeSaved): string {
+  return result.queued ? keptLine("Trim", null) : saved;
+}
 
 /**
  * Saves `change` to `clip`; a ripple trim moves every dialogue track. Returns null
@@ -66,7 +75,7 @@ async function send(
     [{ id, source_start, source_end, timeline_start, source_id }],
   );
   if (!fresh()) return null;
-  const { undo } = await trimClipEdge(
+  const { undo, queued } = await trimClipEdge(
     projectPath,
     id,
     change.edge,
@@ -74,5 +83,5 @@ async function send(
     change.mode,
     boundary.token,
   );
-  return { undo };
+  return { undo, queued };
 }

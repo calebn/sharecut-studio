@@ -1,6 +1,9 @@
 import type { HostCause } from "../state/hostReach";
 
-export function keptLine(noun: "Comment" | "Reply", cause: HostCause | null) {
+export function keptLine(
+  noun: "Comment" | "Reply" | "Trim",
+  cause: HostCause | null,
+) {
   const when =
     cause === "host"
       ? "when the host is back"
