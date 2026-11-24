@@ -53,10 +53,6 @@ type FixTextFieldProps = {
   initialDraft?: string;
   /** Called with the raw typing on every change, so a host can keep it across a remount. */
   onDraftChange?: (draft: string) => void;
-  /**
-   * Draws a Cancel button that discards the typing, named by this label.
-   * Leaving the field by any other way still follows `commitOnBlur`.
-   */
   cancelLabel?: string;
 };
 

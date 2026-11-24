@@ -1,11 +1,4 @@
-import {
-  memo,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   EXPORT_CANCELLING_REASON,
@@ -125,11 +118,8 @@ function EditActionBarImpl({
   onRan?: (id: BarId) => void;
   /** The dock of the open Inspector sheet, whose own grip stands for Inspect. */
   inInspector?: boolean;
-  /** Ends the bar with Clear selection. Only the stage's own bar asks for it. */
   clear?: boolean;
-  /** Called as Clear is pressed, for a host that holds the bar in a sheet it should close. */
   onCleared?: () => void;
-  /** Ends the Inspector dock with Close. Read only with `inInspector`. */
   onClose?: () => void;
 }) {
   const { selection, project, projectPath, shareCapabilities, moreRequest } =
@@ -244,7 +234,7 @@ function EditActionBarImpl({
       kindLeading
     );
 
-  const trailing: ReactNode = inInspector ? (
+  const trailing = inInspector ? (
     onClose ? (
       <CloseButton
         className="sys-actions-dock-btn"
