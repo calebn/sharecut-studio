@@ -43,6 +43,22 @@ export interface SegmentSaveResult {
   version: number;
 }
 
+export type SegmentDriftState =
+  | "current"
+  | "newer"
+  | "changed"
+  | "missing"
+  | "damaged";
+
+export interface SegmentDriftRow {
+  ref: { segment_id: string; version: number; content_sha256: string };
+  state: SegmentDriftState;
+  library_version: number | null;
+  clips: string[];
+  code?: string;
+  problem?: string;
+}
+
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 export function isDamagedSegment(
@@ -68,6 +84,19 @@ export async function loadSegment(
     { signal },
   );
   return (await res.json()) as SegmentRow;
+}
+
+/** Which segments inserted into the episode at `path` have drifted from the library. */
+export async function loadSegmentDrift(
+  path: string,
+  signal?: AbortSignal,
+): Promise<SegmentDriftRow[]> {
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: `/api/segments/drift?path=${encodeURIComponent(path)}` },
+    { signal },
+  );
+  return (await res.json()) as SegmentDriftRow[];
 }
 
 export async function saveSegment(

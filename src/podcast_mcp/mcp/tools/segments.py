@@ -12,6 +12,7 @@ from podcast_mcp.segments.summary import library_rows, show_segment
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     parse_range,
+    report_segment_drift,
     save_segment,
 )
 from podcast_mcp.services.document_sync import submit_segment_insert
@@ -95,6 +96,22 @@ def segment_insert_tool(
     )
 
 
+def segment_drift_tool(project_path: str) -> str:
+    """Each segment inserted into an episode, judged against the library. Read-only.
+
+    One row per distinct ref: ``state`` (current, newer, changed, missing or damaged),
+    ``library_version``, ``clips`` and, when missing or damaged, ``code`` and ``problem``.
+    See the Drift section of docs/segments.md.
+    """
+    return to_json(report_segment_drift(project_path, SegmentStore()))
+
+
 def register(mcp: MCPServer) -> None:
-    for fn in (segment_list_tool, segment_show_tool, segment_save_tool, segment_insert_tool):
+    for fn in (
+        segment_list_tool,
+        segment_show_tool,
+        segment_save_tool,
+        segment_insert_tool,
+        segment_drift_tool,
+    ):
         mcp.tool()(fn)

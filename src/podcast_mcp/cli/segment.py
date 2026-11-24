@@ -14,7 +14,7 @@ from podcast_mcp.segments.model import SegmentFile, segment_kind
 from podcast_mcp.segments.store import AddResult, SegmentStore
 from podcast_mcp.segments.summary import damaged_fix, library_rows, show_segment
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import parse_range, save_segment
+from podcast_mcp.services.document import parse_range, report_segment_drift, save_segment
 from podcast_mcp.services.document_sync import submit_segment_insert
 
 segment_app = typer.Typer(help="The segment library: intros, outros, sponsor reads and stings.")
@@ -181,3 +181,26 @@ def segment_insert_cmd(
             f"Inserted {result['segment_id']} (v{result['segment_version']}) at "
             f"{result['at']:g} s, {result['duration_sec']:g} s long"
         )
+
+
+@segment_app.command("drift")
+def segment_drift_cmd(
+    project: Path = typer.Argument(..., help="Path to episode.sharecut"),
+    as_json: bool = typer.Option(False, "--json", help="The report as JSON"),
+) -> None:
+    """Show which inserted segments have drifted from the library. Changes nothing."""
+    rows = report_segment_drift(project, SegmentStore())
+    if as_json:
+        typer.echo(_json(rows))
+        return
+    if not rows:
+        typer.echo("No clip in this episode came from a library segment.")
+    for row in rows:
+        ref = row["ref"]
+        line = f"{ref['segment_id']}  v{ref['version']}  {row['state'].upper()}"
+        if row["library_version"] is not None:
+            line += f"  library v{row['library_version']}"
+        line += f"  {len(row['clips'])} clips"
+        if "problem" in row:
+            line += f"  {row['problem']}"
+        typer.echo(line)

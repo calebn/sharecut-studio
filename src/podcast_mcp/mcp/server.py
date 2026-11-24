@@ -169,6 +169,7 @@ from podcast_mcp.mcp.tools.review import (  # noqa: E402, F401
     skip_session_suggestion_tool,
 )
 from podcast_mcp.mcp.tools.segments import (  # noqa: E402, F401
+    segment_drift_tool,
     segment_insert_tool,
     segment_list_tool,
     segment_save_tool,

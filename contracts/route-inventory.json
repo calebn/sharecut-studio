@@ -936,6 +936,12 @@
     },
     {
       "gate": "host",
+      "handler": "podcast_mcp.gui.routes.segments:segment_drift_route",
+      "method": "GET",
+      "path": "/api/segments/drift"
+    },
+    {
+      "gate": "host",
       "handler": "podcast_mcp.gui.routes.segments:remove_segment",
       "method": "DELETE",
       "path": "/api/segments/{segment_id}"

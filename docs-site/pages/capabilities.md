@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**158** capabilities · **123** ShareCut Studio commands · **66** keyed · **218** MCP tools · **17** skills on rows (+ **19** hub skills).
+**158** capabilities · **123** ShareCut Studio commands · **66** keyed · **219** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -186,7 +186,7 @@ Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transc
 | Align accept gate | project | `align_status_tool`, `align_brief_tool`, `align_done_tool`, `align_waive_tool` | `podcast align` | `podcast-align-audio` | yes |
 | Speaker attribution | project | `speaker_doctor_tool`, `speaker_enroll_tool`, `speaker_profiles_tool`, `speaker_score_tool`, `speaker_compare_window_tool`, `speaker_compare_pair_tool`, +6 | `podcast speaker` | `podcast-speaker-attribution` | yes |
 | Open ShareCut Studio GUI | session | `open_gui_tool` | `podcast gui` | `podcast-open-gui` | yes |
-| Segment library | project | `segment_list_tool`, `segment_show_tool`, `segment_save_tool`, `segment_insert_tool` | `podcast segment` | — | yes |
+| Segment library | project | `segment_list_tool`, `segment_show_tool`, `segment_save_tool`, `segment_insert_tool`, `segment_drift_tool` | `podcast segment` | — | yes |
 | Kits | project | `kit_list_tool`, `kit_show_tool`, `kit_save_tool`, `kit_apply_tool` | `podcast kit` | — | yes |
 | Generic document commands | project | `document_command_schema_tool`, `submit_document_command_tool` | `podcast doc` | — | yes |
 | Correct transcript | project | `correct_transcript_tool`, `correct_transcript_phrase_tool` | `podcast transcript correct` | — | — |

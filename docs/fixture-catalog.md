@@ -113,7 +113,7 @@ Skills live under `.agents/skills/`.
 
 ---
 
-## MCP tools (218) by module
+## MCP tools (219) by module
 
 | Module | Count | Domain |
 |--------|-------|--------|
@@ -131,7 +131,7 @@ Skills live under `.agents/skills/`.
 | `mcp/tools/comments.py` | 9 | Timeline comments |
 | `mcp/tools/record.py` | 12 | Recording session control / takes |
 | `mcp/tools/review.py` | 12 | Review versions / shares, suggestions, record rooms |
-| `mcp/tools/segments.py` | 4 | Segment library |
+| `mcp/tools/segments.py` | 5 | Segment library |
 | `mcp/tools/session.py` | 8 | Shared GUI session state / presence |
 | `mcp/tools/kits.py` | 4 | Show kits |
 | `mcp/tools/document.py` | 2 | Document command schema / submit |
