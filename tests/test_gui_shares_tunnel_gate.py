@@ -90,6 +90,7 @@ def _publish_silent_mix(project: Path) -> str:
     import wave
 
     from podcast_mcp.models import load_project, save_project
+    from podcast_mcp.project.store import WriteGrantKind, write_grant
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.collaboration.review import ReviewService
 
@@ -101,8 +102,9 @@ def _publish_silent_mix(project: Path) -> str:
         out.setsampwidth(2)
         out.setframerate(48000)
         out.writeframes(b"\x00\x00" * 4800)
-    save_project(loaded, project)
-    return str(ReviewService(ProjectWorkspace.open(project)).publish(label="mix")["id"])
+    with write_grant(WriteGrantKind.DISPATCHER):
+        save_project(loaded, project)
+        return str(ReviewService(ProjectWorkspace.open(project)).publish(label="mix")["id"])
 
 
 def test_mint_warns_when_online_sharing_not_set_up(tmp_workspace: Path) -> None:

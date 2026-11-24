@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from filelock import FileLock, Timeout
+from filelock import Timeout
 
 from podcast_mcp.config.runtime import RelayConfig, ready_relay_config
 from podcast_mcp.models import EpisodeProject, load_project
@@ -33,6 +33,7 @@ from podcast_mcp.services.collaboration.tunnel_status import (
     tunnel_status_path,
 )
 from podcast_mcp.util import host_platform
+from podcast_mcp.util.file_locks import exclusive_file_lock
 
 log = logging.getLogger(__name__)
 
@@ -268,8 +269,7 @@ class TunnelSupervisor:
 
     def _start(self, desired: Serve) -> bool:
         lock_path = studio_lock_path(desired.relay)
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        lock = FileLock(lock_path, timeout=0, thread_local=False)
+        lock = exclusive_file_lock(lock_path)
         try:
             lock.acquire()
         except Timeout:
