@@ -146,7 +146,7 @@ to UX partners; for UI copy, this table wins.
 | Named loudness export | A separate audio export using Podcast, Broadcast or Streaming loudness. The result carries the name of the choice used for that run | "Master" for a named result |
 | Stop sharing | Revoke a review link at once. Links don't expire, so this is how a review link ends (a date set on the CLI or MCP is the one exception). The toast says "Link stopped." with Undo for the server's 10 s window | "delete link" |
 | End room | Shut down a record room at once (kills guest + producer links). The toast says "Room ended." with Undo for the server's 10 s window | "close room" |
-| Online sharing | Making this computer's review and record links reachable from the internet while it runs. Share's status line says what guests can do now, with any fix behind "How to fix" and the online sharing guide | "tunnel", "relay", "host token", "relay URL", a CLI command in UI copy |
+| Online sharing | Making this computer's review and record links reachable from the internet while it runs. Studio connects on its own while a link is live and relay settings exist, and says so in the online sharing guide. Share's status line says what guests can do now, with any fix behind "How to fix" and the online sharing guide; a link made before online sharing is set up says "Link created, but online sharing isn't set up on this computer, so guests can't open it yet" | "tunnel", "relay", "host token", "relay URL", a CLI command in UI copy |
 | Guests can open your links | Online sharing is connected | "Online", "Connected" as a bare label |
 | Reconnecting… | Online sharing lost its connection and is retrying; the line adds "Trying again in N s" (a still clock time under reduced motion). Guests may see a brief interruption | "Tunnel reconnecting", "Guests see Host offline" |
 | Not reachable online | Online sharing is set up but guests can't open links: it failed, was refused, or stopped responding | "Offline", "Host offline", "Tunnel failed" |
@@ -713,6 +713,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   recording" replaces "keeper"; Commenter suggests, as in Google Docs (#1050);
   the dense-target pattern for canvas targets (#1051 designs disambiguation);
   terminology slips are a review fix, not a sign-off rule.
+- 2026-11-24 — Online sharing connects on its own (#3783): Studio opens the connection while a link is live, and a mint with online sharing not set up says so after the mint, without the words tunnel, relay or host token.
 - 2026-10-06 — Online sharing terms (#1091 review): the Share dialog's status
   line names what guests can do ("Guests can open your links", "Not reachable
   online", "Online sharing is off") instead of the tunnel, relay or host token,

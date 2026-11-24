@@ -842,7 +842,7 @@ read pipeline settings.
 | `PODCAST_RELAY_HOST_TOKEN` |  | Relay host token. |
 | `PODCAST_RELAY_HOST_ID` |  | Relay host id (persisted next to relay.yaml when unset). |
 | `PODCAST_RELAY_PUBLIC_BASE_URL` |  | Public base URL guests open. |
-| `PODCAST_RELAY_LOCAL_GUI_URL` |  | Local Studio URL the tunnel forwards to. |
+| `PODCAST_RELAY_LOCAL_GUI_URL` |  | Local Studio URL `podcast tunnel` forwards to. The tunnel Studio runs in-process ignores it and uses its real listen port. |
 | `PODCAST_REPORT_RELAY_URL` |  | Relay origin that accepts diagnostics reports. |
 | `PODCAST_OBJECT_STORE_ENDPOINT_URL` |  | Object store endpoint. |
 | `PODCAST_OBJECT_STORE_REGION` |  | Object store region. |

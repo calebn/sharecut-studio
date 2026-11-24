@@ -12,7 +12,8 @@ Guest browser / MCP client
   Caddy + podcast-relay (operator host or local Compose)
         │  proxy via tunnel
         ▼
-  podcast tunnel (your laptop, outbound only)
+  host tunnel (your laptop, outbound only): Studio brings it up itself,
+  or you run `podcast tunnel`
         │
         ▼
   podcast gui  ←→  episode.sharecut + artifacts
@@ -20,8 +21,87 @@ Guest browser / MCP client
 
 **Source of truth stays on your machine.**  The relay is a pass-through proxy;
 it never stores audio or project data, but share audio and media may transit
-while a share is active.  When you quit `podcast tunnel`, the relay
+while a share is active.  When you quit Studio (or stop `podcast tunnel`), the relay
 returns a stable "host offline" page to guests.
+
+### Studio brings the tunnel up on its own
+
+When online sharing is set up (a relay address and a host token), Sharecut Studio keeps
+your links reachable while it is open. It connects when the open project has a live
+share or record link, or within a couple of seconds of you making one. It disconnects
+two minutes after the last live link ends, and when you quit. If `podcast tunnel` is
+already online for this computer, Studio leaves it alone. It never connects on iPhone
+or iPad.
+
+`TunnelSupervisor` (`services/collaboration/tunnel_supervisor.py`) runs in the GUI
+process, entered from the GUI lifespan when the `tunnel.status` feature is present. It
+runs `TunnelClient` in-process against the real listen port, so a packaged app that
+binds an ephemeral port needs no `local_gui_url`: the supervisor replaces it with
+`http://127.0.0.1:<listen port>`. The tunnel still proxies to the GUI over loopback
+HTTP, so the relayed header and the path allowlist stay in force.
+
+One pure function, `plan`, names the tunnel that should exist, and the supervisor
+converges to it every `POLL_SEC` (2 s). The first matching row wins:
+
+| Situation | Plan | Network |
+|-----------|------|---------|
+| Host cannot hold a tunnel (`host_platform.current().can_host_tunnel` is false: iOS, unknown) | `Idle(not_capable)` | none, no loop |
+| No listen port yet (a bare `TestClient`) | `Idle(not_listening)` | none |
+| No `relay.yaml` or relay env, or no host token | `Idle(not_set_up)` | none, no host-id file written |
+| The relay refused this exact config (auth, bad URL) | `Idle(rejected)` until the config changes | none |
+| No served project | `Idle(no_project)` | none |
+| A live `podcast tunnel` file for this identity | `Idle(elsewhere)` | none, the CLI is untouched |
+| No usable link for 120 s | `Idle(no_live_links)` | closed |
+| Otherwise | `Serve(relay, project, links)` | connect, or one `register` when only the links or project changed |
+
+Links are the project's usable share tokens: not revoked and not past an expiry the
+host chose. The supervisor reads them from the share registry and `shares.json` each
+tick, so a link minted from the GUI, a handed-off CLI, the host MCP or another process
+is picked up with no hook in the share layer. A change sends one `register` frame on
+the live session (`TunnelClient.readvertise`): the relay replaces the advertisement
+and guests on other links keep their streams. The supervisor counts a link set as
+advertised only when `readvertise` returns true (a live, registered session), so a
+mint during the handshake is retried on the next tick. When the last link ends, the
+tunnel stays up for `LINGER_SEC` (120 s) with an empty advertisement, so a revoked link
+stops routing at once while revoke then undo, or replacing a record invite (which saves
+the revoke and the new mint separately), keeps one session.
+
+Two Studios (or a Studio and the CLI) on one install share a `host_id`, and the relay
+keeps one session per `host_id`, so a second client evicts the first. Studio avoids it
+two ways. Against the CLI it reads the CLI's status file and yields while that file is
+live; the CLI takes no lock and is unchanged, so a CLI started after Studio evicts it
+once and Studio stops within a tick. Between two Studios it holds a non-blocking
+`filelock` on `<key>-studio.lock` while serving, so the incumbent keeps serving and the
+other reads `elsewhere`; the OS frees the lock if Studio crashes.
+
+Quitting stops the tunnel from uvicorn's `handle_exit`, before the server waits on open
+connections, because a guest stream the tunnel proxies back to this GUI is one of them.
+A mint while online sharing is not set up still succeeds, and its response carries
+`warnings: [{"code": "online_sharing_not_set_up"}]`, which the web shows as a line after
+the mint.
+
+### Proposed decision: Studio starts the host tunnel while a link is live
+
+<!-- decision
+id: D-studio-starts-the-host-tunnel
+status: proposed
+date: 2026-11-24
+decided-by: issue #3783 implementation
+evidence:
+- #3783: with the packaged app open and no CLI, guests read "Host offline" or "Studio not open yet"
+enforced-by:
+- tests/test_tunnel_supervisor_live.py::test_open_studio_with_live_share_registers_with_relay
+- tests/test_tunnel_supervisor_live.py::test_share_minted_after_connect_routes_without_reconnect
+- tests/test_tunnel_supervisor_live.py::test_no_tunnel_without_relay_config
+- tests/test_tunnel_supervisor_live.py::test_studio_yields_to_live_cli_tunnel
+- tests/test_tunnel_supervisor.py::test_plan_gate_table
+-->
+
+Studio connects on open when the project has a live link and on a mint, polls every
+2 s, lingers 120 s after the last link ends, and yields to a live `podcast tunnel`.
+Open for the owner: the connection at launch is egress with no click, allowed here
+because the host set up relay settings themselves. The owner can ask for "only on
+mint", a one-row change in `plan` (require a change observed since start).
 
 `podcast tunnel` reconnects automatically after relay or network blips (exponential
 backoff, re-hello + re-register shares). Guests see offline only while the tunnel
@@ -41,6 +121,12 @@ or workspace folder passed to `--project` resolves once to `episode.sharecut`
 before the client starts, so reconnects keep the same entry path and shares.
 
 ## Tunnel status
+
+The Studio's own tunnel (see above) is a second source for the same status. It writes
+`<key>-studio.json` beside the CLI's `<key>.json` and holds `<key>-studio.lock` while
+serving, both under the same machine cache directory; `read_tunnel_status` globs
+`*.json`, so the best state across both files wins and the lock is never read.
+The Studio file follows the same table, with the writing process id of the Studio.
 
 `podcast tunnel` reports every connection state change on **stderr**, one timestamped
 line each, so a host or agent can tell what happened and for how long. The lines
@@ -170,7 +256,8 @@ docker compose -f deploy/relay/docker-compose.yml up --build
 # 2. Start the local GUI authority
 podcast gui --project /path/to/episode.sharecut --no-open
 
-# 3. Open the tunnel (advertises your project's share tokens)
+# 3. Open the tunnel (advertises your project's share tokens). Skip this when you
+#    use Studio: it brings the tunnel up itself once relay settings exist.
 podcast tunnel \
   --project /path/to/episode.sharecut \
   --relay-url ws://127.0.0.1:8080/tunnel \
@@ -675,6 +762,10 @@ Do not put `guest_*` names in the host manifest MCP column. Share agents never c
 
 ### Enable on the host
 
+Studio (the desktop app or `podcast gui`) starts the tunnel itself once `relay.yaml` or
+the relay env holds a relay address and a host token. Run `podcast tunnel` only without
+Studio, or to keep the tunnel up while Studio is closed:
+
 ```bash
 podcast gui --project /path/to/episode.sharecut --no-open
 podcast tunnel --project /path/to/episode.sharecut \
@@ -897,7 +988,8 @@ src/podcast_relay/         # FOSS relay server (FastAPI + WebSocket tunnel)
 src/podcast_mcp/
   util/relay_protocol/                  # tunnel frames, share claims, guest WS close log; shared by relay and host, never imports either
   services/collaboration/tunnel.py      # TunnelClient + run_tunnel_sync
-  services/collaboration/tunnel_status.py   # phases, status lines, snapshot
+  services/collaboration/tunnel_status.py   # phases, status lines, snapshot, Studio file and lock paths
+  services/collaboration/tunnel_supervisor.py  # TunnelSupervisor: the in-process tunnel for Studio
   services/collaboration/tunnel_failure.py  # failure classification
   gui/routes/tunnel.py    # GET /api/tunnel/status (tunnel.status)
   config/runtime.py       # validated relay/object-store configuration

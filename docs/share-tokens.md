@@ -66,7 +66,7 @@ stateDiagram-v2
 | **Restorable revoke** | `ShareService.revoke(token, restorable_for=seconds)` and `revoke_room(session_id, restorable_for=seconds)` kill the link at once but keep it restorable. See [Restorable revoke](#restorable-revoke). Without `restorable_for` (every internal caller, MCP and the CLI) a revoke stays final, as above |
 | **Create rollback** | Sidecar write failure → `release_claim` (delete active, **no** cooldown) so flaky disk does not burn coolnames |
 | **Remint** | Allowed only if token absent from active and (absent from cooldown or `reserved_until` passed) |
-| **Tunnel** | Advertise **usable** active tokens only (`list_usable_shares`) |
+| **Tunnel** | Advertise **usable** active tokens only (`list_usable_shares`, `usable_share_tokens`). The Studio tunnel re-advertises on mint, revoke, expiry and project switch with one `register` frame, with no reconnect ([host-online-relay.md](host-online-relay.md#studio-brings-the-tunnel-up-on-its-own)) |
 
 ### Clocks
 
@@ -1039,5 +1039,5 @@ CLI:
 2. `podcast review publish-version --label "Guest pass"`
 3. `podcast review share --role commenter --base-url https://share.example.com`
 4. Guest opens `https://share.example.com/r/fantastic-acoustic-whale`
-5. Prefer relay + `podcast tunnel` ([host-online-relay.md](host-online-relay.md))
+5. Prefer relay + the tunnel Studio brings up itself, or `podcast tunnel` without Studio ([host-online-relay.md](host-online-relay.md))
 6. Periodic: `podcast review backup-registry`
