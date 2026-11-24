@@ -12,20 +12,24 @@ from podcast_mcp.services.pipeline import PipelineService
 
 
 def add_chapter(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TimelineService(ws).add_chapter(float(p["time"]), str(p["title"]))
+    return TimelineService(ws).add_chapter(float(p["time"]), str(p["title"])).model_dump()
 
 
 def update_chapter(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TimelineService(ws).update_chapter(
-        float(p["old_time"]),
-        str(p["old_title"]),
-        time=float(p["time"]),
-        title=str(p["title"]),
+    return (
+        TimelineService(ws)
+        .update_chapter(
+            float(p["old_time"]),
+            str(p["old_title"]),
+            time=float(p["time"]),
+            title=str(p["title"]),
+        )
+        .model_dump()
     )
 
 
 def delete_chapter(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TimelineService(ws).delete_chapter(float(p["time"]), str(p["title"]))
+    return TimelineService(ws).delete_chapter(float(p["time"]), str(p["title"])).model_dump()
 
 
 def add_social_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

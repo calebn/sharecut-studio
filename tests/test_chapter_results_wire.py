@@ -39,6 +39,7 @@ def _pin(value: dict, keys: list[str], text: str) -> None:
 def test_service_add_chapter_int_time(tmp_path):
     ws = _ws(tmp_path)
     result = TimelineService(ws).add_chapter(5, "Intro")
+    result = result.model_dump()
     _pin(
         result, ["time", "title", "image_url"], '{"time": 5.0, "title": "Intro", "image_url": null}'
     )
@@ -52,7 +53,7 @@ def test_service_add_chapter_non_ascii_title(tmp_path):
     ws = _ws(tmp_path)
     result = TimelineService(ws).add_chapter(61.5, "Café ☕ 日本語")
     _pin(
-        result,
+        result.model_dump(),
         ["time", "title", "image_url"],
         '{"time": 61.5, "title": "Caf\\u00e9 \\u2615 \\u65e5\\u672c\\u8a9e", "image_url": null}',
     )
@@ -63,7 +64,11 @@ def test_service_update_chapter_changes_time_and_title(tmp_path):
     svc = TimelineService(ws)
     svc.add_chapter(1, "Old")
     result = svc.update_chapter(1, "Old", time=2.5, title="New")
-    _pin(result, ["time", "title", "image_url"], '{"time": 2.5, "title": "New", "image_url": null}')
+    _pin(
+        result.model_dump(),
+        ["time", "title", "image_url"],
+        '{"time": 2.5, "title": "New", "image_url": null}',
+    )
 
 
 def test_service_update_chapter_with_image_url(tmp_path):
@@ -71,7 +76,7 @@ def test_service_update_chapter_with_image_url(tmp_path):
     _seed_with_image(ws, 3.0, "Pic", "https://cdn.example/a.jpg")
     result = TimelineService(ws).update_chapter(3.0, "Pic", time=4.0, title="Pic2")
     _pin(
-        result,
+        result.model_dump(),
         ["time", "title", "image_url"],
         '{"time": 4.0, "title": "Pic2", "image_url": null}',
     )
@@ -82,9 +87,9 @@ def test_service_remove_chapter_found_and_missing(tmp_path):
     svc = TimelineService(ws)
     svc.add_chapter(1, "Intro")
     found = svc.remove_chapter("Intro")
-    _pin(found, ["removed", "title"], '{"removed": true, "title": "Intro"}')
+    _pin(found.model_dump(), ["removed", "title"], '{"removed": true, "title": "Intro"}')
     missing = svc.remove_chapter("Intro")
-    _pin(missing, ["removed", "title"], '{"removed": false, "title": "Intro"}')
+    _pin(missing.model_dump(), ["removed", "title"], '{"removed": false, "title": "Intro"}')
 
 
 def test_service_remove_chapter_non_ascii(tmp_path):
@@ -92,7 +97,9 @@ def test_service_remove_chapter_non_ascii(tmp_path):
     svc = TimelineService(ws)
     svc.add_chapter(1, "Café")
     _pin(
-        svc.remove_chapter("Café"), ["removed", "title"], '{"removed": true, "title": "Caf\\u00e9"}'
+        svc.remove_chapter("Café").model_dump(),
+        ["removed", "title"],
+        '{"removed": true, "title": "Caf\\u00e9"}',
     )
 
 
@@ -101,8 +108,12 @@ def test_service_delete_chapter_found_and_missing(tmp_path):
     svc = TimelineService(ws)
     svc.add_chapter(2, "Intro")
     found = svc.delete_chapter(2, "Intro")
-    _pin(found, ["deleted", "time", "title"], '{"deleted": true, "time": 2, "title": "Intro"}')
-    assert isinstance(found["time"], int)
+    _pin(
+        found.model_dump(),
+        ["deleted", "time", "title"],
+        '{"deleted": true, "time": 2, "title": "Intro"}',
+    )
+    assert isinstance(found.time, int)
     with pytest.raises(CodedValueError, match="chapter not found") as err:
         svc.delete_chapter(2.5, "Intro")
     assert err.value.code == "chapter_not_found"
@@ -166,7 +177,11 @@ def test_handler_delete_chapter_found_and_missing(tmp_path):
     ws = _ws(tmp_path)
     markers.add_chapter(ws, {"time": 2, "title": "Intro"})
     found = markers.delete_chapter(ws, {"time": 2, "title": "Intro"})
-    _pin(found, ["deleted", "time", "title"], '{"deleted": true, "time": 2.0, "title": "Intro"}')
+    _pin(
+        found,
+        ["deleted", "time", "title"],
+        '{"deleted": true, "time": 2.0, "title": "Intro"}',
+    )
     with pytest.raises(CodedValueError, match="chapter not found") as err:
         markers.delete_chapter(ws, {"time": 2, "title": "Intro"})
     assert err.value.code == "chapter_not_found"

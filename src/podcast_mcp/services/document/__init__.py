@@ -16,6 +16,7 @@ if TYPE_CHECKING:
         RollBoundaryTarget,
         TrimBoundaryTarget,
     )
+    from podcast_mcp.services.document.chapter_results import DeletedChapter, RemovedChapter
     from podcast_mcp.services.document.clip import ClipService
     from podcast_mcp.services.document.comment import (
         CommentService,
@@ -110,6 +111,7 @@ __all__ = [
     "ClipService",
     "CommentReplyResult",
     "CommentService",
+    "DeletedChapter",
     "EditService",
     "EmptyHistoryDiffResult",
     "EpisodeService",
@@ -130,6 +132,7 @@ __all__ = [
     "PlayRequest",
     "PlayService",
     "PopulatedHistoryDiffResult",
+    "RemovedChapter",
     "RollBoundaryTarget",
     "RoomToneBedReply",
     "RoomToneBedService",
@@ -192,6 +195,8 @@ _MODULE_BY_NAME = {
     "ListedFiles": "export_files",
     "plan_archive": "export_files",
     "ServedFile": "export_files",
+    "DeletedChapter": "chapter_results",
+    "RemovedChapter": "chapter_results",
     "FeedFieldPinResult": "feed_results",
     "FeedService": "feed",
     "FeedViewKind": "feed",

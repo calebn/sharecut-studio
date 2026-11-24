@@ -1070,7 +1070,9 @@ def edit_remove_chapter_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            apply_external_document_edit(ws, lambda: TimelineService(ws).remove_chapter(title)),
+            apply_external_document_edit(
+                ws, lambda: TimelineService(ws).remove_chapter(title)
+            ).model_dump(),
             indent=2,
         )
     )

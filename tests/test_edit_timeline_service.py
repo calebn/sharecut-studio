@@ -92,7 +92,7 @@ def test_edit_service_timeline_and_transcript(tmp_path, sample_wav) -> None:
     assert joined["operation"] == "set_clip_join_mode"
     TimelineService(svc.ws).add_chapter(0.0, "Intro")
     assert TimelineService(svc.ws).list_chapters()
-    assert TimelineService(svc.ws).remove_chapter("Intro")["removed"] is True
+    assert TimelineService(svc.ws).remove_chapter("Intro").removed is True
     assert TimelineService(svc.ws).list_chapters() == []
     if ws.project.transcripts and ws.project.transcripts[0].words:
         TranscriptService(svc.ws).correct_word("host", 0, "hello")

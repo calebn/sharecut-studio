@@ -81,7 +81,7 @@ def test_external_edit_keeps_best_effort_notification_failure(tmp_path, monkeypa
 
     monkeypatch.setattr(DocumentSyncService, "publish_document_changed", fail)
     result = apply_external_document_edit(ws, lambda: TimelineService(ws).add_chapter(1, "Intro"))
-    assert result["title"] == "Intro"
+    assert result.title == "Intro"
     assert [c.title for c in ProjectWorkspace.open(ws.path).project.chapters] == ["Intro"]
     assert "journal unavailable" in caplog.text
     assert _types(ws.path) == []
