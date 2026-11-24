@@ -12,7 +12,7 @@ from enum import StrEnum
 from typing import Any, TypedDict
 
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.project.store import ProjectStore
+from podcast_mcp.project.io import open_project
 from podcast_mcp.services.collaboration import (
     SHARE_KIND_RECORD,
     drop_absolute_path_strings,
@@ -459,7 +459,7 @@ def assert_no_open_take(project: EpisodeProject) -> None:
 class RecordSessionService:
     def __init__(self, project: EpisodeProject, *, session_id: str) -> None:
         self.project = project
-        self._saved_project_store = ProjectStore(project.workspace_path())
+        self._saved_project_dir = project.workspace_path()
         self.session_id = session_id
         self._store = _store_for(project)
         self._participants = _participants_for(project)
@@ -487,7 +487,7 @@ class RecordSessionService:
     def _saved_project(self) -> EpisodeProject:
         """The project as saved now, so edits made after this service was built are seen."""
         try:
-            return self._saved_project_store.load()
+            return open_project(self._saved_project_dir)[1]
         except FileNotFoundError:
             return self.project
 
