@@ -337,8 +337,8 @@ describe("placeAnchoredExcluding around several rectangles", () => {
   const bar = { width: 284, height: 46 };
   const corner = { left: 470.8, top: 251, right: 832, bottom: 305 };
   const opts = {
-    margin: 8,
-    gap: 8,
+    margin: EDGE,
+    gap: EDGE,
     align: "center",
     prefer: "above",
     clearTop: 160,
