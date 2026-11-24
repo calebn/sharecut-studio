@@ -227,6 +227,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
       bar.className = "pending-actionbar";
       bar.setAttribute("aria-hidden", String(barHidden));
       bar.style.top = barTop;
+      bar.style.visibility = barHidden ? "hidden" : "visible";
       bar.getBoundingClientRect = () =>
         new DOMRect(59, Number.parseFloat(bar.style.top), 240, 119);
       document.body.append(root, bar);
@@ -273,7 +274,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
 
         await act(async () => {
           bar.setAttribute("aria-hidden", "false");
-          bar.style.top = "178px";
+          bar.style.visibility = "visible";
         });
         await waitFor(() => expect(card.style.insetBlockStart).toBe("256px"));
 
