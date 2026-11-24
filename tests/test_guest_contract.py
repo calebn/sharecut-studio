@@ -321,6 +321,9 @@ PROBES: dict[tuple[str, str], Probe] = {
     ("GET", "/api/review/{token}/daw/export/files/{file_id:path}"): Probe(
         Site(export_files, "ExportFilesService")
     ),
+    ("GET", "/api/review/{token}/daw/export/archive"): Probe(
+        Site(export_files, "ExportFilesService")
+    ),
     ("GET", "/api/review/{token}/daw/export/jobs/{job_id}"): Probe(
         Site(service_jobs.JobManager, "get_job")
     ),

@@ -519,7 +519,9 @@ def test_every_registry_row_joins_its_tool_on_rate_kind_and_flag() -> None:
     for row in GUEST_OWNER_ROUTES.values():
         note = agent[(row.method, row.path.replace(":path}", "}"))]
         if note.startswith("http-only:"):
-            assert row.path.endswith("/events") or row.name.startswith("export_file"), row.name
+            assert row.path.endswith("/events") or row.name.startswith(
+                ("export_file", "export_archive")
+            ), row.name
             continue
         # Each row names its OWN tool, never one that another row names. A transcript row's
         # tool is exactly "guest_" plus the row's name, so swapping two rows fails here.

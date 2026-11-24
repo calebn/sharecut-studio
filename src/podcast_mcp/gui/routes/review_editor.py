@@ -18,7 +18,11 @@ from fastapi.responses import Response, StreamingResponse
 
 from podcast_mcp.gui.job_events import GUEST_STREAM_SLOTS
 from podcast_mcp.gui.routes.deps import coded_http_error
-from podcast_mcp.gui.routes.export_files import download_exported_file, list_exported_files
+from podcast_mcp.gui.routes.export_files import (
+    download_export_archive,
+    download_exported_file,
+    list_exported_files,
+)
 from podcast_mcp.gui.routes.guest_errors import guest_boundary
 from podcast_mcp.gui.routes.share_common import audio_slot, check_share_token, rate_limit_share
 from podcast_mcp.gui.routes.sse_common import guest_job_events_response
@@ -194,6 +198,7 @@ ExportStartActor = Annotated[GuestActor, Depends(guest_actor_route("export_start
 ExportStatusWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_status"))]
 ExportFilesWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_files"))]
 ExportFileWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_file"))]
+ExportArchiveWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_archive"))]
 ExportJobScope = Annotated[
     GuestJobScope, Depends(guest_job_route("export_job_status", GUEST_EXPORT_KINDS))
 ]
@@ -365,6 +370,12 @@ def get_daw_export_file(
     """An attachment for one listed file; the id is checked against the listing, never joined."""
     with guest_boundary(log, "review export file"):
         return download_exported_file(request, ws, file_id, acquire_slot=lambda: audio_slot(token))
+
+
+@router.get("/api/review/{token}/daw/export/archive")
+def get_daw_export_archive(request: Request, token: str, ws: ExportArchiveWorkspace) -> Response:
+    with guest_boundary(log, "review export archive"):
+        return download_export_archive(request, ws, acquire_slot=lambda: audio_slot(token))
 
 
 @router.get("/api/review/{token}/daw/export/jobs/{job_id}")
