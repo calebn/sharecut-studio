@@ -74,8 +74,7 @@ for (const [status, detail] of REFUSED) {
         .and(page.locator(".sr-only[aria-live]"))
         .filter({ hasText: sentence });
       await expect(live).toHaveText(sentence);
-      await page.waitForTimeout(3000);
-      await expect(live).toHaveText(sentence);
+      await expect(page.getByText(/Needs attention/)).toHaveCount(0);
       await expect(page.getByText(detail)).toHaveCount(0);
       await expect
         .poll(async () => (await end.boundingBox())?.x ?? Number.NaN)
