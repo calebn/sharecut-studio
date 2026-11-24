@@ -19,7 +19,7 @@ static int interrupted;
 static long release_gen;
 static int resets, runs, interrupts, reset_starts, big_writes;
 static char order[8192];
-static int reset_delay_ms, last_argc, reused_fd = -1;
+static int reset_delay_ms, last_argc, reused_fd = -1, closed_fd = -1;
 static FILE *stray_out, *stray_err;
 
 static int is_interrupted(void) {
@@ -65,6 +65,13 @@ int fake_last_argc(void) {
 int fake_reused_fd(void) {
     pthread_mutex_lock(&mu);
     int v = reused_fd;
+    pthread_mutex_unlock(&mu);
+    return v;
+}
+
+int fake_closed_fd(void) {
+    pthread_mutex_lock(&mu);
+    int v = closed_fd;
     pthread_mutex_unlock(&mu);
     return v;
 }
@@ -231,6 +238,12 @@ int sc_glue_run(int tool, int argc, char **argv) {
             close(spare);
             pthread_mutex_lock(&mu);
             reused_fd = target;
+            pthread_mutex_unlock(&mu);
+        } else if (strcmp(t, "closecopy") == 0) {
+            int target = fd_of(argv[argc - 1]);
+            close(target);
+            pthread_mutex_lock(&mu);
+            closed_fd = target;
             pthread_mutex_unlock(&mu);
         } else if (strncmp(t, "exit:", 5) == 0) {
             sc_tool_exit(atoi(t + 5));
