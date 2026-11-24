@@ -226,7 +226,6 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();
-  // The Action bar docks in the drawer and leaves timing to the drawer's fields.
   await expect(selectionBar(page)).toBeVisible();
   await expect(page.locator(".pending-actionbar")).toHaveCount(0);
   await expect(
@@ -255,7 +254,6 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   const actionBox = await actionbar.boundingBox();
   expect(selectedBox).toBeTruthy();
   expect(actionBox).toBeTruthy();
-  // The bar docks in the drawer, so the selected cut must stay above the drawer.
   const drawerBox = await page.locator(".sys-inspector--phone").boundingBox();
   expect(drawerBox).toBeTruthy();
   expect(selectedBox!.y + selectedBox!.height).toBeLessThanOrEqual(

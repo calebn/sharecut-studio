@@ -174,7 +174,6 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
   },
 };
 
-/** A split has no bounds to adjust and an exact range proposal is not retimable. */
 const hasNoBounds = (facts: EditFacts) =>
   facts.kind === "suggestion" && (facts.exactRange || facts.pendingSplit);
 
@@ -223,7 +222,6 @@ function primaryOf(facts: EditFacts): VerbId | null {
   }
 }
 
-/** An exact range proposal keeps its disabled Approve and Reject in front of a viewer, as the overlay always showed them. */
 const readOnlyExactRange = (facts: EditFacts) =>
   facts.role === "readOnly" && facts.kind === "suggestion" && facts.exactRange;
 

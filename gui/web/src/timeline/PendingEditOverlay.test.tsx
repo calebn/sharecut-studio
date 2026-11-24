@@ -2145,7 +2145,6 @@ describe("overlay Cut and Keep", () => {
     "leaves %s to the Action bar on the Edit stage, and shows the bar off it",
     async (_name, extra) => {
       mount({ ...edit, ...extra }, "edit");
-      // The bar is placed after a measuring pass: wait it out before asserting it never came.
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 600));
       });

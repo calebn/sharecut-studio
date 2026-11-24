@@ -49,11 +49,8 @@ export interface EditFacts {
   readonly hasGap: boolean;
   /** The pending edit's table default, which names the suggestion's primary verb. */
   readonly suggestedAction: PendingSuggestedAction;
-  /** The pending edit's accept verb is Cut, Shorten or Lower: not a split, an exact range or a leave. */
   readonly pendingOffersCut: boolean;
-  /** The pending edit is an exact range proposal. */
   readonly exactRange: boolean;
-  /** The pending edit is a split. */
   readonly pendingSplit: boolean;
   readonly commentResolved: boolean;
   readonly clipboardHasAudio: boolean;
