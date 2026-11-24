@@ -7,7 +7,18 @@ import stat
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.services.collaboration.review_shares import _load, _save
+from podcast_mcp.models import EpisodeProject, save_project
+from podcast_mcp.services.collaboration.review_shares import (
+    _load,
+    _save,
+    create_share,
+    revoke_share,
+    usable_share_tokens,
+)
+from podcast_mcp.services.collaboration.share_registry import (
+    RECORD_REVIEW_VERSION_SENTINEL,
+    SHARE_KIND_RECORD,
+)
 
 ROWS: list[dict[str, Any]] = [
     {"id": "s1", "token": "secret-token", "label": "Café review", "capabilities": ["view"]},
@@ -55,3 +66,27 @@ def test_save_follows_the_process_umask(tmp_path: Path) -> None:
     finally:
         os.umask(previous)
     assert stat.S_IMODE(path.stat().st_mode) == 0o644
+
+
+def test_usable_share_tokens_skips_revoked_and_expired(tmp_workspace: Path) -> None:
+    project = EpisodeProject.create("usable_tokens", str(tmp_workspace))
+    project.ensure_dirs()
+    save_project(project)
+
+    def mint(**kwargs: Any) -> str:
+        row = create_share(
+            project,
+            review_version_id=RECORD_REVIEW_VERSION_SENTINEL,
+            kind=SHARE_KIND_RECORD,
+            role="guest",
+            session_id="s1",
+            **kwargs,
+        )
+        return str(row["token"])
+
+    live = mint()
+    revoked = mint()
+    mint(expires_at="2020-01-01T00:00:00Z")
+    assert revoke_share(project, revoked)
+
+    assert usable_share_tokens(project.workspace_path()) == frozenset({live})
