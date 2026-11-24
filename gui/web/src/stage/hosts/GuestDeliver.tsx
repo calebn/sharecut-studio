@@ -2,10 +2,12 @@ import { useShallow } from "zustand/react/shallow";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { DeliverSection } from "../../stages/deliver/DeliverSection";
 import { ExportedFiles } from "../../stages/deliver/ExportedFiles";
+import { archiveLabel } from "../../stages/deliver/exportedFileModel";
 import { FeedPanel } from "../../stages/deliver/FeedPanel";
 import { feedAccessOf } from "../../stages/deliver/feedLogic";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
+import { SystemIcon } from "../../system/SystemIcon";
 import { Button, InlineError } from "../../ui";
 import { canEditStage } from "../../utils/can";
 import { useStageScroll } from "../useStageScroll";
@@ -57,7 +59,23 @@ export function GuestDeliver({ loadFailure }: Props) {
           >
             <section className="dv-page" aria-label="Deliver">
               {canDownload ? (
-                <DeliverSection title="Files">
+                <DeliverSection
+                  title="Files"
+                  action={
+                    files.archive ? (
+                      <a
+                        className="ui-control modifier-action dv-file-action"
+                        href={files.archive.href}
+                        download={files.archive.name}
+                        aria-label={archiveLabel(files.archive)}
+                        onClick={() => files.onStarted?.()}
+                      >
+                        <SystemIcon name="download" size={16} />
+                        Download all
+                      </a>
+                    ) : undefined
+                  }
+                >
                   {files.currentLoad === "loading" ? (
                     <p className="dv-note" role="status">
                       Loading exported files…
