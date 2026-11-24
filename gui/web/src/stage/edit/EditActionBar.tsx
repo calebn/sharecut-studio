@@ -59,7 +59,7 @@ function focusOwnerOf(
     );
   if (selection?.kind === "seam")
     return scope.querySelector<HTMLElement>(
-      `[data-seam-id="${CSS.escape(selection.id)}"] .sys-seam-hit`,
+      `[data-lane-seam-id="${CSS.escape(selection.id)}"] .sys-seam-hit`,
     );
   return null;
 }
