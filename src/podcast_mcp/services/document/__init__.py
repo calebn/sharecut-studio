@@ -86,6 +86,10 @@ if TYPE_CHECKING:
         MoveClipsResult,
         MoveSegmentResult,
     )
+    from podcast_mcp.services.document.timeline_segment_results import (
+        DuplicateSegmentResult,
+        PasteSegmentResult,
+    )
     from podcast_mcp.services.document.transcript import (
         ExportBusyError,
         TranscriptEmptyError,
@@ -117,6 +121,7 @@ __all__ = [
     "CommentReplyResult",
     "CommentService",
     "DeletedChapter",
+    "DuplicateSegmentResult",
     "EditService",
     "EmptyHistoryDiffResult",
     "EpisodeService",
@@ -136,6 +141,7 @@ __all__ = [
     "ListedFiles",
     "MoveClipsResult",
     "MoveSegmentResult",
+    "PasteSegmentResult",
     "PendingPreviewSpan",
     "PlayRequest",
     "PlayService",
@@ -245,6 +251,8 @@ _MODULE_BY_NAME = {
     "InsertGapResult": "timeline_move_results",
     "MoveClipsResult": "timeline_move_results",
     "MoveSegmentResult": "timeline_move_results",
+    "DuplicateSegmentResult": "timeline_segment_results",
+    "PasteSegmentResult": "timeline_segment_results",
     "TranscriptService": "transcript",
     "TranscriptEmptyError": "transcript",
     "ExportBusyError": "transcript",

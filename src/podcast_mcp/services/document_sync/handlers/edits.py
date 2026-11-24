@@ -389,10 +389,14 @@ def delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def duplicate_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TimelineService(ws).duplicate_segment(
-        float(p["source_start"]),
-        float(p["source_end"]),
-        float(p["insert_at"]),
+    return (
+        TimelineService(ws)
+        .duplicate_segment(
+            float(p["source_start"]),
+            float(p["source_end"]),
+            float(p["insert_at"]),
+        )
+        .model_dump()
     )
 
 
@@ -527,11 +531,15 @@ def paste_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     extracts = p.get("extracts") or []
     if not isinstance(extracts, list):
         raise CodedValueError("extracts must be a list", code="extracts_not_list")
-    return TimelineService(ws).paste_segment(
-        float(p["insert_at"]),
-        float(p["duration"]),
-        [dict(x) for x in extracts],
-        mode=EditMode(p["mode"]),
+    return (
+        TimelineService(ws)
+        .paste_segment(
+            float(p["insert_at"]),
+            float(p["duration"]),
+            [dict(x) for x in extracts],
+            mode=EditMode(p["mode"]),
+        )
+        .model_dump()
     )
 
 
