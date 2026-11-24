@@ -42,6 +42,8 @@ const FILES = [
   },
 ];
 
+const ARCHIVE = { name: "ep-export.zip", count: 3, bytes: 5_000_300 };
+
 function asGuest(guestMode: "edit" | "comment" | "view") {
   useDawStore
     .getState()
@@ -54,9 +56,10 @@ function asGuest(guestMode: "edit" | "comment" | "view") {
 
 beforeEach(() => {
   stubViewportShell("desktop");
-  listed.list
-    .mockReset()
-    .mockResolvedValue({ files: FILES, revision: "first" });
+  listed.list.mockReset().mockResolvedValue({
+    inventory: { files: FILES, archive: ARCHIVE },
+    revision: "first",
+  });
 });
 
 afterEach(() => {
@@ -78,12 +81,32 @@ describe("GuestDeliver files", () => {
       expect(screen.getAllByText(group).length).toBeGreaterThan(0);
     }
     expect(screen.queryByRole("button", { name: /^Reveal/ })).toBeNull();
-    expect(screen.queryByText("Download all")).toBeNull();
+    const all = screen.getByRole("link", { name: /^Download all 3 files/ });
+    expect(all.getAttribute("href")).toMatch(
+      /\/api\/review\/tok123\/daw\/export\/archive$/,
+    );
+    expect(all).toHaveTextContent("Download all");
+    expect(all).not.toHaveClass("primary");
+    expect(all.getAttribute("href")).not.toContain("ticket");
     expect(screen.queryByRole("combobox", { name: "DAW format" })).toBeNull();
   });
 
+  it("offers no Download all when the host lists no current file to pack", async () => {
+    listed.list.mockResolvedValue({
+      inventory: { files: FILES, archive: null },
+      revision: "first",
+    });
+    asGuest("edit");
+    render(<GuestDeliver />);
+    await screen.findByRole("link", { name: /^Download ep\.mp3/ });
+    expect(screen.queryByRole("link", { name: /^Download all/ })).toBeNull();
+  });
+
   it("says so when the host has exported nothing yet", async () => {
-    listed.list.mockResolvedValue({ files: [], revision: "first" });
+    listed.list.mockResolvedValue({
+      inventory: { files: [], archive: null },
+      revision: "first",
+    });
     asGuest("edit");
     render(<GuestDeliver />);
     expect(

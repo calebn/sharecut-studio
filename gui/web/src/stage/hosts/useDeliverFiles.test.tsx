@@ -28,7 +28,7 @@ const ENTRY = {
 
 beforeEach(() => {
   mocks.tauri = false;
-  mocks.list.mockReset().mockResolvedValue([ENTRY]);
+  mocks.list.mockReset().mockResolvedValue({ files: [ENTRY], archive: null });
   mocks.reveal.mockReset().mockResolvedValue(undefined);
   useDawStore.setState({ statusMessage: null } as never);
 });
@@ -60,7 +60,7 @@ describe("useDeliverFiles", () => {
     );
     await waitFor(() => expect(result.current.load).toBe("ready"));
     expect(result.current.files[0]?.href).toContain("/api/export/files/ep.mp3");
-    result.current.onStarted?.(result.current.files[0] as never);
+    result.current.onStarted?.();
     expect(announce).toHaveBeenCalledWith(
       "Download started. Check your downloads.",
       expect.anything(),

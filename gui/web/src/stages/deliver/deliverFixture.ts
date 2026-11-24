@@ -116,12 +116,22 @@ export function exportedFilesOf(
     bytes: estimateBytes("wav", clip.end - clip.start),
     current: true,
   }));
+  const files = [...audio, ...clips];
   return {
     access,
-    files: [...audio, ...clips].map((file) => ({
+    files: files.map((file) => ({
       ...file,
       href: access === "download" ? `#${file.id}` : undefined,
     })),
+    archive:
+      access === "download"
+        ? {
+            name: "field-notes-export.zip",
+            count: files.length,
+            bytes: files.reduce((sum, file) => sum + file.bytes, 0),
+            href: "#archive",
+          }
+        : null,
   };
 }
 

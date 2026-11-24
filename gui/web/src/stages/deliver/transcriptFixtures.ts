@@ -56,6 +56,7 @@ export function transcriptOptions(
 export function transcriptRows(current = true): DeliverFiles {
   return {
     access: "download",
+    archive: null,
     files: SAMPLE_FILES.map((file) => ({
       id: file.name,
       name: file.name,
