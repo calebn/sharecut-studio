@@ -188,3 +188,28 @@ describe("the box the header exclusion is judged within", () => {
     expect(placed.top).toBeGreaterThanOrEqual(114 + 28);
   });
 });
+
+describe("the rectangles the Action bar keeps clear of", () => {
+  const rootWithCorner = (rect: DOMRect) => {
+    const root = document.createElement("div");
+    root.innerHTML = `<div class="edit-timeline-col"><div class="lane-row" data-track-id="reference"></div><div class="edit-corner"></div></div>`;
+    const corner = root.querySelector<HTMLElement>(".edit-corner");
+    if (!corner) throw new Error("fixture has a corner");
+    corner.getBoundingClientRect = () => rect;
+    return { root, corner };
+  };
+  const track = { kind: "track", trackId: "reference" } as const;
+
+  it("lists the rendered Timeline view corner for any selection, judged within the root", () => {
+    const { root, corner } = rootWithCorner(new DOMRect(470, 251, 361, 54));
+    const { result } = renderHook(() => useSelectionAnchor(root, track, true));
+    expect(result.current.exclusion.elements()).toEqual([null, corner]);
+    expect(result.current.exclusion.withinRef.current).toBe(root);
+  });
+
+  it("leaves out a corner that is not rendered", () => {
+    const { root } = rootWithCorner(new DOMRect(0, 0, 0, 0));
+    const { result } = renderHook(() => useSelectionAnchor(root, track, true));
+    expect(result.current.exclusion.elements()).toEqual([null, null]);
+  });
+});

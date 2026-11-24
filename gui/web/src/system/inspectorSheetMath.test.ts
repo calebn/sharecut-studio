@@ -319,3 +319,44 @@ describe("inspectorSheetMath card placement", () => {
     ).toEqual({ side: "below", inline: 90, block: 148, maxBlock: 258 });
   });
 });
+
+describe("inspectorSheetMath card placement around the Action bar", () => {
+  const clear = (
+    place: ReturnType<typeof placeCard>,
+    bounds: { width: number; height: number },
+    obstacle: { x: number; y: number; width: number; height: number },
+  ) => {
+    const top =
+      place.side === "below"
+        ? place.block
+        : bounds.height - place.block - place.maxBlock;
+    return (
+      place.inline + 320 <= obstacle.x ||
+      place.inline >= obstacle.x + obstacle.width ||
+      top + place.maxBlock <= obstacle.y ||
+      top >= obstacle.y + obstacle.height
+    );
+  };
+
+  it("slides beside a bar the card's minimum height would cover at 812x375", () => {
+    const bounds = { width: 812, height: 326 };
+    const bar = { x: 520, y: 145, width: 284, height: 46 };
+    expect(placeCard(bar, bounds, 320, 140, [])).toEqual({
+      side: "above",
+      inline: 192,
+      block: 178,
+      maxBlock: 140,
+    });
+  });
+
+  it("stays left of the Timeline view corner and clear of the bar at 844x530", () => {
+    const bounds = { width: 844, height: 530 };
+    const bar = { x: 178.8, y: 266, width: 284, height: 46 };
+    const corner = { x: 470.8, y: 251, width: 361.2, height: 54 };
+    const placed = placeCard(bar, bounds, 320, 140, [corner]);
+    expect(placed.inline).toBeCloseTo(142.8, 5);
+    expect(placed).toMatchObject({ side: "above", block: 272, maxBlock: 250 });
+    expect(clear(placed, bounds, bar)).toBe(true);
+    expect(clear(placed, bounds, corner)).toBe(true);
+  });
+});
