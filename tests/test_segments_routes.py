@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.gui.routes import segments as segments_routes
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, EpisodeProject, Track, save_project
 from podcast_mcp.models.episode import MediaAsset
+from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME
+from podcast_mcp.segments import store as store_module
+from podcast_mcp.segments.model import SEGMENT_JSON
 from podcast_mcp.segments.store import SegmentStore
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.proxy_paths import RELAYED_REQUEST_HEADER
 from segment_helpers import make_segment_dir
 
@@ -44,9 +53,21 @@ def project(tmp_workspace: Path, sample_wav: Path) -> Path:
     return save_project(episode)
 
 
-def _add(tmp_path: Path, **kwargs: object) -> str:
-    result = SegmentStore().add(make_segment_dir(tmp_path / "source", **kwargs))  # type: ignore[arg-type]
-    return result.id
+def _add(tmp_path: Path, *, name: str = "Warm Intro", audio: bytes = b"fLaC-one") -> str:
+    return SegmentStore().add(make_segment_dir(tmp_path / "source", name=name, audio=audio)).id
+
+
+def _two_clip_segment(tmp_path: Path, second: bytes) -> str:
+    folder = make_segment_dir(tmp_path / "source")
+    (folder / "clip-02.flac").write_bytes(second)
+    data = json.loads((folder / SEGMENT_JSON).read_text(encoding="utf-8"))
+    data["clips"].append({"audio": "clip-02.flac", "offset_sec": 2.0, "duration_sec": 2.0})
+    data["media"]["clip-02.flac"] = {
+        "sha256": hashlib.sha256(second).hexdigest(),
+        "bytes": len(second),
+    }
+    (folder / SEGMENT_JSON).write_text(json.dumps(data), encoding="utf-8")
+    return SegmentStore().add(folder).id
 
 
 def test_list_is_empty_without_a_library(client: TestClient) -> None:
@@ -175,20 +196,18 @@ def test_remove_then_remove_again(client: TestClient, tmp_path: Path) -> None:
     assert again.status_code == 404 and again.headers[CODE] == "segment_unknown"
 
 
-def test_busy_library_is_409(
-    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(("code", "status"), [("segment_busy", 409), ("segment_write_failed", 500)])
+def test_library_failures_map_to_their_status(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: str, status: int
 ) -> None:
-    from podcast_mcp.segments import store as store_module
-    from podcast_mcp.util.coded_error import CodedValueError
-
     segment_id = _add(tmp_path)
 
-    def busy(self: object, _id: str) -> None:
-        raise CodedValueError("busy", code="segment_busy")
+    def failing(self: object, _id: str) -> None:
+        raise CodedValueError("refused", code=code)
 
-    monkeypatch.setattr(store_module.SegmentStore, "remove", busy)
+    monkeypatch.setattr(store_module.SegmentStore, "remove", failing)
     res = client.delete(f"/api/segments/{segment_id}")
-    assert res.status_code == 409 and res.headers[CODE] == "segment_busy"
+    assert res.status_code == status and res.headers[CODE] == code
 
 
 def test_a_foreign_origin_is_refused(client: TestClient, tmp_path: Path) -> None:
@@ -212,22 +231,6 @@ def test_a_relayed_request_is_refused(tmp_path: Path) -> None:
     assert SegmentStore().versions(segment_id) == [1]
 
 
-def test_write_failure_is_a_500(
-    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from podcast_mcp.segments import store as store_module
-    from podcast_mcp.util.coded_error import CodedValueError
-
-    segment_id = _add(tmp_path)
-
-    def failing(self: object, _id: str) -> None:
-        raise CodedValueError("disk", code="segment_write_failed")
-
-    monkeypatch.setattr(store_module.SegmentStore, "remove", failing)
-    res = client.delete(f"/api/segments/{segment_id}")
-    assert res.status_code == 500 and res.headers[CODE] == "segment_write_failed"
-
-
 @pytest.mark.parametrize(
     "segment_id",
     ["..%2F..%2Fsecret", "%2E%2E", "..%5Csecret", "%2Fetc%2Fpasswd", "a%00b"],
@@ -235,12 +238,64 @@ def test_write_failure_is_a_500(
 def test_traversal_ids_are_404_and_serve_nothing(
     client: TestClient, tmp_path: Path, segment_id: str
 ) -> None:
-    (tmp_path / "config" / "secret.txt").parent.mkdir(parents=True, exist_ok=True)
-    (tmp_path / "config" / "secret.txt").write_bytes(b"top-secret")
+    secret = tmp_path / "config" / "secret.txt"
+    secret.parent.mkdir(parents=True, exist_ok=True)
+    secret.write_bytes(b"top-secret")
     _add(tmp_path)
     for suffix in ("", "/audio"):
         res = client.get(f"/api/segments/{segment_id}{suffix}")
         assert res.status_code in (404, 400), res.status_code
         assert b"top-secret" not in res.content
     assert client.delete(f"/api/segments/{segment_id}").status_code in (404, 400)
-    assert (tmp_path / "config" / "secret.txt").exists()
+    assert secret.exists()
+
+
+def test_audio_serves_the_clip_asked_for(client: TestClient, tmp_path: Path) -> None:
+    segment_id = _two_clip_segment(tmp_path, b"fLaC-two")
+    base = f"/api/segments/{segment_id}/audio"
+    assert client.get(base).content == b"fLaC-one"
+    assert client.get(f"{base}?clip=1").content == b"fLaC-two"
+    assert client.get(f"{base}?clip=2").status_code == 404
+
+
+def test_save_pins_the_served_project(client: TestClient, project: Path) -> None:
+    assert client.app.state.served_project is None
+    res = client.post(
+        "/api/segments", json={"path": str(project), "name": "Pin", "clip_ids": ["c1"]}
+    )
+    assert res.status_code == 200, res.text
+    assert client.app.state.served_project == project.resolve()
+
+
+def test_save_does_not_rename_a_retired_entry_file(
+    client: TestClient, project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    opened: list[bool] = []
+    real_open = ProjectWorkspace.open.__func__  # type: ignore[attr-defined]
+
+    def spy(cls: type[ProjectWorkspace], path: Path | str, *, adopt: bool = True, **kw: object):
+        opened.append(adopt)
+        return real_open(cls, path, adopt=adopt, **kw)
+
+    monkeypatch.setattr(ProjectWorkspace, "open", classmethod(spy))
+    monkeypatch.setattr(segments_routes, "pin_served_if_allowed", lambda *_: None)
+    retired = project.with_name(RETIRED_PROJECT_FILENAME)
+    project.rename(retired)
+    res = client.post(
+        "/api/segments", json={"path": str(retired), "name": "Old", "clip_ids": ["c1"]}
+    )
+    assert res.status_code == 200, res.text
+    assert opened == [False]
+    assert retired.exists() and not project.exists()
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="platform has no symlinks")
+def test_audio_refuses_a_symlinked_media_file(client: TestClient, tmp_path: Path) -> None:
+    segment_id = _add(tmp_path, audio=b"fLaC-one")
+    clip = SegmentStore().path(segment_id) / "clip-01.flac"
+    real = tmp_path / "elsewhere.flac"
+    real.write_bytes(b"fLaC-one")
+    clip.unlink()
+    clip.symlink_to(real)
+    res = client.get(f"/api/segments/{segment_id}/audio")
+    assert res.status_code == 400 and res.headers[CODE] == "segment_hash_mismatch"

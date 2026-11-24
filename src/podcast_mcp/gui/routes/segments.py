@@ -1,4 +1,4 @@
-"""Host segment library HTTP adapters over the segment services. No library logic lives here."""
+"""Host segment library HTTP routes: adapters over the library services."""
 
 from __future__ import annotations
 
@@ -23,7 +23,6 @@ _STATUS = {"segment_unknown": 404, "segment_busy": 409, "segment_write_failed": 
 
 
 def _refuse(exc: CodedValueError) -> NoReturn:
-    """The status map: unknown 404, busy 409, write failed 500, anything else 400."""
     raise coded_exception_error(_STATUS.get(exc.code, 400), exc, code="segment_invalid") from exc
 
 

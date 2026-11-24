@@ -97,7 +97,7 @@ Four tools mirror the CLI for a host agent: `segment_list_tool`, `segment_show_t
 
 ## Studio routes
 
-Studio reaches the library over HTTP. The routes are adapters on the same services as the CLI and the host MCP tools (`library_rows`, `show_segment`, `save_segment`, `SegmentStore`); no library logic lives in them. They are host only: a foreign Origin or Host, or a relayed (guest) request, is refused, and a guest share never reaches the library.
+Studio reaches the library over HTTP. The routes are adapters on the same services as the CLI and the host MCP tools (`library_rows`, `show_segment`, `save_segment`, `SegmentStore`); they add no segment rules of their own. They are host only: a foreign Origin or Host, or a relayed (guest) request, is refused, and a guest share never reaches the library.
 
 | Route | Does |
 |---|---|
@@ -109,7 +109,7 @@ Studio reaches the library over HTTP. The routes are adapters on the same servic
 
 Every refusal carries the service's own code in `X-Sharecut-Error-Code`. Status map: `segment_unknown` 404, `segment_busy` 409, `segment_write_failed` 500, everything else 400 (`segment_hash_mismatch` stays 400). A `clip` or `version` out of range for a segment that exists is `segment_unknown` 404; `clip=-1` or `version=0` is a 422.
 
-Each clip is its own already-trimmed FLAC, so the audio route serves that whole file with no slicing. The file name comes from the segment read back through `SegmentStore.get` (which checks the hashes), never from the request, and the id must be a valid segment id, so no request text reaches the file system as a path. The route previews one clip at a time; a layout with several clips plays clip by clip, not as one mixed preview.
+Each clip is its own already-trimmed FLAC, served whole. The route previews one clip at a time.
 
 The web client is `gui/web/src/api/segments.ts` (`loadSegments`, `loadSegment`, `saveSegment`, `removeSegment`, `segmentAudioUrl`).
 
