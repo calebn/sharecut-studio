@@ -80,7 +80,6 @@ from podcast_mcp.engines.room_tone import (
     OwnQuietSample,
     RecordedBedSample,
     SampleAbsent,
-    spans_in_use,
 )
 from podcast_mcp.engines.room_tone_synth import (
     MUTE_FADE_SLACK_SEC,
@@ -1851,10 +1850,7 @@ def room_tone_pad(
         request_sec = min(seconds, sample_duration_sec) if sample_duration_sec else seconds
         at_seam = PadSeam(near, seam.source_id, request_sec, at_time)
         kept = (bound or {}).get(tid)
-        in_use = spans_in_use(project, tid, at_time) if kept is not None else []
-        if kept is not None and (
-            held := reusable_selection(project, tid, kept, at_seam, [*excluded, *in_use])
-        ):
+        if kept is not None and (held := reusable_selection(project, tid, kept, at_seam, excluded)):
             lanes.append(LaneSample(tid, held, replace(at_seam, seed_sec=kept.seed_sec)))
             continue
         selected = room_tone_for_gap(

@@ -828,13 +828,6 @@ def _pool_spans_in_use(
     return spans
 
 
-def spans_in_use(project: EpisodeProject, track_id: str, timeline_sec: float) -> list[Span]:
-    """Source spans the track's pad clips and mute fills play within ``TAKEN_WINDOW_SEC`` of
-    ``timeline_sec``: what a fresh pick ranks away from."""
-    pool = read_room_tone_pool(project, track_id) or ()
-    return _pool_spans_in_use(project, track_id, pool, timeline_sec)
-
-
 def _from_pool(
     pool: Sequence[Sample],
     *,
