@@ -10,6 +10,7 @@ times themselves are pinned (no audio-derived floats).
 from __future__ import annotations
 
 import json
+import re
 import wave
 from pathlib import Path
 
@@ -499,6 +500,14 @@ CONFIRMED_CASES = [
     ),
 ]
 CONFIRMED_IDS = [case[0] for case in CONFIRMED_CASES]
+
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_BOX = re.compile(r"[│╭╮╰╯─]")
+
+
+def _error_text(text: str) -> str:
+    return " ".join(_BOX.sub(" ", _ANSI.sub("", text)).split())
 
 
 def _cli(path: Path, clip: str, edge: str, sec: str, *extra: str):
@@ -1128,7 +1137,7 @@ def test_cli_invalid_edge(build, minimal_project):
     result = _cli(minimal_project, "h1", "mid", "5")
     assert result.exit_code == 2
     assert result.stdout == ""
-    assert "Invalid value: --edge must be in or out" in result.stderr
+    assert "Invalid value: --edge must be in or out" in _error_text(result.stderr)
 
 
 def test_cli_invalid_mode(build, minimal_project):
@@ -1137,7 +1146,7 @@ def test_cli_invalid_mode(build, minimal_project):
     assert result.exit_code == 2
     assert result.stdout == ""
     assert "Invalid value for '--mode': Value error, 'x' is not one of 'ripple', 'gap'." in (
-        result.stderr
+        _error_text(result.stderr)
     )
 
 
