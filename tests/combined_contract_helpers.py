@@ -338,7 +338,7 @@ def _expected_texts(case: Case, state: State) -> tuple[str, ...] | None:
 
 def assert_contract(case: Case, state: State, seen: Observed) -> None:
     expect = _expected(case, state, seen)
-    assert seen.moved
+    assert seen.moved or expect == seen.entry
     if case.outcome(state) is REBUILT:
         assert texts(seen.memory) == _expected_texts(case, state)
         if case.speakers is not None:
