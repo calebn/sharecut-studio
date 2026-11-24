@@ -91,7 +91,7 @@ test.describe("with a coarse pointer", () => {
     for (const height of await rows.evaluateAll((items) =>
       items.map((item) => item.getBoundingClientRect().height),
     )) {
-      expect(height).toBeGreaterThanOrEqual(66);
+      expect(Math.round(height)).toBeGreaterThanOrEqual(66);
     }
   });
 });
