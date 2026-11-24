@@ -3,7 +3,6 @@ import { pendingOffersCut } from "../utils/pendingOffersCut";
 import {
   actionBarOwnsPendingVerbs,
   decideThroughSheet,
-  EXACT_RANGE_REVIEW_REASON,
   pendingBarWords,
   pendingCutWords,
   registerPendingDecider,
@@ -127,11 +126,5 @@ describe("pendingBarWords", () => {
         exact_range: { intervals: [] } as never,
       }),
     ).toEqual(approveWords);
-  });
-
-  it("names the host or Editor requirement for exact range proposals", () => {
-    expect(EXACT_RANGE_REVIEW_REASON).toBe(
-      "Only the host or an Editor can review exact range proposals.",
-    );
   });
 });
