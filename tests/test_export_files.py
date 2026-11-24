@@ -1088,6 +1088,22 @@ def test_the_archive_plan_digest_follows_any_change_to_a_member() -> None:
     assert len(digests) == 5
 
 
+def test_the_archive_plan_counts_and_sizes_only_what_it_packs() -> None:
+    listed = [
+        _row("ep.mp3", "audio", 10, True),
+        _row("ep.mp3", "audio", 99, True),
+        _row("bad\0name.wav", "audio", 7, True),
+        _row("\udcff.wav", "audio", 7, True),
+        _row("ep.md", "transcript", 4, True),
+    ]
+
+    plan = plan_archive(listed, stem="s")
+
+    assert plan is not None
+    assert [(m.name, m.size) for m in plan.members] == [("ep.mp3", 10), ("ep.md", 4)]
+    assert plan.bytes == stored_zip_length(plan.members)
+
+
 def test_the_archive_plan_is_none_when_nothing_current_can_be_packed() -> None:
     assert plan_archive([], stem="s") is None
     stale = [_row("ep.mp3", "audio", 10, False), _row("range.wav", "bounce", 3, True)]

@@ -111,16 +111,19 @@ class ArchivePlan:
 def plan_archive(listed: ListedFiles, *, stem: str) -> ArchivePlan | None:
     """Pack the current rows of ``ARCHIVE_KINDS`` in listing order; ``None`` when there are none.
 
-    A row whose id is not a plain relative zip name is left out rather than renamed.
+    A row whose id is not a plain relative zip name, or repeats an earlier row's, is left out
+    rather than renamed, so the plan's count and bytes are exactly what the archive holds.
     """
     members: list[ZipMember] = []
+    packed: set[str] = set()
     for entry, served in listed:
-        if entry.kind not in ARCHIVE_KINDS or not entry.current:
+        if entry.kind not in ARCHIVE_KINDS or not entry.current or served.id in packed:
             continue
         try:
             members.append(ZipMember(served.id, served.path, served.size, served.mtime_ns))
         except ValueError:
             continue
+        packed.add(served.id)
     if not members:
         return None
     lines = "".join(f"{m.name}\0{m.size}-{m.mtime_ns}\n" for m in members)

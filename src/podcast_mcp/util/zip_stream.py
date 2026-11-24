@@ -28,6 +28,14 @@ _LATEST_SECONDS = 4_300_000_000
 _FILE_MODE = 0o644 << 16
 
 
+def _encodes(name: str) -> bool:
+    try:
+        name.encode()
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
 @dataclass(frozen=True)
 class ZipMember:
     """One file to store. *path* is resolved and already authorized by the caller."""
@@ -39,7 +47,12 @@ class ZipMember:
 
     def __post_init__(self) -> None:
         segments = self.name.split("/")
-        if "\\" in self.name or any(segment in ("", ".", "..") for segment in segments):
+        if (
+            "\\" in self.name
+            or "\0" in self.name
+            or not _encodes(self.name)
+            or any(segment in ("", ".", "..") for segment in segments)
+        ):
             raise ValueError(f"zip member name is not a plain relative path: {self.name!r}")
 
 

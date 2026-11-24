@@ -116,7 +116,8 @@ def test_a_member_swapped_for_a_symlink_is_never_followed(tmp_path: Path) -> Non
 
 
 @pytest.mark.parametrize(
-    "name", ["", "../x", "/x", "a//b", "a\\b", "./x", "a/./b", "a/../b", "a/", ".."]
+    "name",
+    ["", "../x", "/x", "a//b", "a\\b", "./x", "a/./b", "a/../b", "a/", "..", "a\0b", "\udcff.wav"],
 )
 def test_an_unsafe_name_is_refused(tmp_path: Path, name: str) -> None:
     with pytest.raises(ValueError, match="zip member name"):
