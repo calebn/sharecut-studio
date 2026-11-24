@@ -822,9 +822,22 @@ def test_cancelling_one_of_two_sessions_reaches_native_once_for_that_id_only() -
 @pytest.mark.parametrize("mode", ["read", "write"])
 def test_cancel_wakes_a_native_thread_blocked_in_a_pipe_call_and_its_dups_close(mode: str) -> None:
     pipe_r, pipe_w = os.pipe()
+    kicked = threading.Event()
+
+    def kick_then_signal(kick: Any) -> Any:
+        # The cancel callback may still be running after the native thread has been woken and
+        # finished; the pipes must outlive it, so it signals once it has fully returned.
+        def run() -> None:
+            try:
+                kick()
+            finally:
+                kicked.set()
+
+        return run
+
     if mode == "read":
         # stdin: the dup blocks in os.read until every writer is gone; unblock closes the writer.
-        fake = WokenByCancel(mode, lambda: os.close(pipe_w))
+        fake = WokenByCancel(mode, kick_then_signal(lambda: os.close(pipe_w)))
         streams = Streams(os.fdopen(pipe_r, "rb"), None, None)
         caller_fds = [pipe_r]
     else:
@@ -845,7 +858,7 @@ def test_cancel_wakes_a_native_thread_blocked_in_a_pipe_call_and_its_dups_close(
             except BlockingIOError:
                 pass
 
-        fake = WokenByCancel(mode, drain)
+        fake = WokenByCancel(mode, kick_then_signal(drain))
         streams = Streams(None, os.fdopen(pipe_w, "wb", buffering=0), None)
         caller_fds = [pipe_w]
     cancel = threading.Event()
@@ -864,6 +877,7 @@ def test_cancel_wakes_a_native_thread_blocked_in_a_pipe_call_and_its_dups_close(
         assert not session.closed
         cancel.set()
         assert session.finished.wait(BOUND_SEC)
+        assert kicked.wait(BOUND_SEC)
         runner.join(BOUND_SEC)
         assert not runner.is_alive()
         assert codes == [1]
@@ -873,6 +887,8 @@ def test_cancel_wakes_a_native_thread_blocked_in_a_pipe_call_and_its_dups_close(
             os.fstat(fd)
     finally:
         cancel.set()
+        # Never close the pipes under a cancel callback that is still running.
+        kicked.wait(BOUND_SEC)
         for stream in streams:
             if stream is not None:
                 stream.close()
