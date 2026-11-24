@@ -95,6 +95,24 @@ Four tools mirror the CLI for a host agent: `segment_list_tool`, `segment_show_t
 
 `segment_insert_tool` submits `InsertSegment` on the document plane as `mcp:host`, so the edit is journaled, reaches an open Studio tab and is one undo step. It is applied, not held as a pending proposal: pending proposals in this codebase are `EditDecision` records of type remove, mute or split, which the host approves or rejects, and an insert that opens time and adds tracks and sources has no such record. Call it with `dry_run=true` first. The report holds `timeline_duration_before_sec` and `timeline_duration_after_sec`, `clips_moved`, `clips_added` (split halves included), `chapters_moved`, `chapter_added`, `comments_moved`, `pending_edits_moved`, `tracks_added` and the lane to track map. It is computed on a copy of the project with the library audio hash-checked and probed in place (read-only), so a clip whose audio is more than 50 ms shorter than its declared duration is refused as the real insert refuses it (`segment_media_invalid`), and nothing is written, journaled or added to `raw/`. The project is read where it is: a workspace still under its retired entry-file name (see `project-format.md`) is not renamed by a dry run, `segment_save_tool` or `podcast segment save`. The CLI JSON and MCP reports give clip counts. They omit the IDs of the new clips. The real insert result carries `dry_run: false`. A `time_range` such as `0:00-1:15` takes minutes and seconds below 60 and at most 24 hours (`segment_range_invalid`).
 
+## Studio routes
+
+Studio reaches the library over HTTP. The routes are adapters on the same services as the CLI and the host MCP tools (`library_rows`, `show_segment`, `save_segment`, `SegmentStore`); no library logic lives in them. They are host only: a foreign Origin or Host, or a relayed (guest) request, is refused, and a guest share never reaches the library.
+
+| Route | Does |
+|---|---|
+| `GET /api/segments` | The newest version of each segment, with a `damaged` row for each unreadable one (same rows as `segment list --json`). |
+| `GET /api/segments/{id}` | One segment with its `versions`. |
+| `GET /api/segments/{id}/audio?clip=N&version=V` | One clip's audio file as `audio/flac`, `Cache-Control: no-store`. `clip` is an index from 0, `version` from 1 (newest when omitted). |
+| `POST /api/segments` | Save clips of an episode: `path`, `name`, then `clip_ids` or `time_range` (`0:00-0:22`), optional `kind` and `role`. Returns `{status, id, version}`. |
+| `DELETE /api/segments/{id}` | Remove every version. Returns `{"removed": id}`. |
+
+Every refusal carries the service's own code in `X-Sharecut-Error-Code`. Status map: `segment_unknown` 404, `segment_busy` 409, `segment_write_failed` 500, everything else 400 (`segment_hash_mismatch` stays 400). A `clip` or `version` out of range for a segment that exists is `segment_unknown` 404; `clip=-1` or `version=0` is a 422.
+
+Each clip is its own already-trimmed FLAC, so the audio route serves that whole file with no slicing. The file name comes from the segment read back through `SegmentStore.get` (which checks the hashes), never from the request, and the id must be a valid segment id, so no request text reaches the file system as a path. The route previews one clip at a time; a layout with several clips plays clip by clip, not as one mixed preview.
+
+The web client is `gui/web/src/api/segments.ts` (`loadSegments`, `loadSegment`, `saveSegment`, `removeSegment`, `segmentAudioUrl`).
+
 ## Show kit
 
 A kit is an ordered list of library segments with where each goes, for example an intro at the start and an outro at the end. A new episode applies it in one command. The kit is offered, never applied by itself: nothing in the app applies a kit unless someone runs `kit apply` or calls `kit_apply_tool`. Inserting at `start` ripples later audio, as every insert does.
@@ -146,7 +164,7 @@ An uncoded file failure during an entry stops the apply with `kit_apply_failed`.
 ## Not built yet
 
 - Ducking under dialogue, and detecting that a segment changed since it was inserted (`segment_ref` is recorded for it).
-- A Studio or HTTP surface, and a capabilities-manifest entry for the library.
+- Studio screens for the library (the HTTP routes exist, see Studio routes above), and a capabilities-manifest entry for the library.
 - A Studio or HTTP surface for kits (the offer to apply a kit to a new episode) and a compound document command that makes a whole kit one undo step.
 - `podcast segment export ID... -o FILE.sharecutkit` and `segment import FILE.sharecutkit` (the kit commands do this, see the kit section above).
 - Capturing a transcript or a chapter title.

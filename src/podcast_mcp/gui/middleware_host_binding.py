@@ -47,6 +47,7 @@ _PROTECTED_PREFIXES = (
     "/api/record",
     "/api/feed",
     "/api/speaker",
+    "/api/segments",
     "/api/boundary",
     "/api/session-suggestion",
     "/api/pending-preview",
