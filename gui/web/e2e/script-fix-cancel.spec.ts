@@ -39,7 +39,7 @@ async function openFix(page: Page, touch: boolean) {
   await openProject(page, projectPath);
   if (touch && page.viewportSize()!.width < 500) await phone.showText(page);
   const script = await openScript(page);
-  const word = script.locator(".sys-script-word").nth(2);
+  const word = script.locator('.sys-script-word[data-word-key="reference::3"]');
   await press(word, touch);
   await word.press("F2");
   const field = script.getByRole("textbox", { name: /^Fix text/ });
@@ -63,7 +63,6 @@ for (const { name, width, height, touch } of LAYOUTS) {
       page,
     }) => {
       const { script, word, field } = await openFix(page, touch);
-      const before = await word.textContent();
       await withDocumentCommandTypes(page, async (commands) => {
         await field.fill("not saved");
         const cancel = script.getByRole("button", {
@@ -74,7 +73,7 @@ for (const { name, width, height, touch } of LAYOUTS) {
         await press(cancel, touch);
         await expect(field).toHaveCount(0);
         await expect(word).toBeFocused();
-        await expect(word).toHaveText(before ?? "");
+        await expect(word).toHaveText("delighted");
         await expect(page.locator(".ui-toast")).toHaveCount(0);
         expect(commands).toEqual([]);
       });

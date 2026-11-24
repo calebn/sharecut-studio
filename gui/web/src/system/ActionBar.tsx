@@ -52,6 +52,8 @@ export type ActionBarProps = {
   readonly center?: ReactNode;
   /** After the verbs where a guest has no primary. */
   readonly trailing?: ReactNode;
+  /** Dock slots the leading content takes from the five, when it is wide enough to crowd the verbs out. */
+  readonly leadingSlots?: number;
   readonly ariaLabel?: string;
   readonly moreRequest?: number;
   readonly onVerb: (id: BarId, arg?: string) => void;
@@ -436,6 +438,7 @@ function Dock({
   primary,
   center,
   trailing,
+  leadingSlots = 0,
   ariaLabel,
   onVerb,
   moreRequest,
@@ -444,7 +447,7 @@ function Dock({
   const folded = foldDock(
     items,
     more,
-    (primary !== undefined ? 1 : 0) + (trailing ? 1 : 0),
+    (primary !== undefined ? 1 : 0) + (trailing ? 1 + leadingSlots : 0),
   );
   const gated = folded.items.find((item) => item.disabledReason);
   const { note, describedBy } = useDisabledReasonNote(

@@ -110,6 +110,27 @@ describe("foldDock reserving end slots", () => {
   });
 });
 
+describe("ActionBar dock with a wide leading chip and an end control", () => {
+  it("gives the chip a slot too, so the verbs and the end control fit", () => {
+    render(
+      <ActionBar
+        placement={{ form: "dock" }}
+        items={itemsOf(["hear", "split", "comment", "record"])}
+        primary={{ id: "cut" }}
+        trailing={<button type="button">Clear selection</button>}
+        leadingSlots={1}
+        onVerb={vi.fn()}
+      />,
+    );
+    const bar = screen.getByRole("group", { name: "Actions" });
+    expect(
+      within(bar)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Hear", "Split", "More", "Cut", "Clear selection"]);
+  });
+});
+
 describe("ActionBar dock", () => {
   function dock(onVerb = vi.fn()) {
     const scene = barScene(EDIT_SELECTIONS.cutWords);

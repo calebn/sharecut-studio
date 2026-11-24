@@ -14,7 +14,6 @@ import {
 import { barModelOf, editFactsOf, runEditVerb } from "../../commands/editVerbs";
 import { makeRangeTarget } from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
-import type { Selection } from "../../types/project";
 import {
   ActionBar,
   SelectionCount,
@@ -23,6 +22,7 @@ import {
 import type { BarId } from "../../system/editActionSets";
 import { ScopeChip } from "../../system/ScopeChip";
 import { SystemIcon } from "../../system/SystemIcon";
+import type { Selection } from "../../types/project";
 import { CloseButton } from "../../ui/CloseButton";
 import { CommandButton } from "../../ui/CommandButton";
 import { dialogueTrackIds } from "../../utils/bladeTracks";
@@ -75,12 +75,15 @@ function ClearButton({
   floating,
   selection,
   root,
+  onCleared,
 }: {
   floating: boolean;
   selection: Selection;
   root: HTMLElement | null;
+  onCleared?: () => void;
 }) {
   const keepFocus = () => {
+    onCleared?.();
     const owner = focusOwnerOf(selection, root);
     queueMicrotask(() => {
       const target = owner?.isConnected ? owner : root;
@@ -114,6 +117,7 @@ function EditActionBarImpl({
   onRan,
   inInspector = false,
   clear = false,
+  onCleared,
   onClose,
 }: {
   form: EditActionBarForm;
@@ -123,6 +127,8 @@ function EditActionBarImpl({
   inInspector?: boolean;
   /** Ends the bar with Clear selection. Only the stage's own bar asks for it. */
   clear?: boolean;
+  /** Called as Clear is pressed, for a host that holds the bar in a sheet it should close. */
+  onCleared?: () => void;
   /** Ends the Inspector dock with Close. Read only with `inInspector`. */
   onClose?: () => void;
 }) {
@@ -247,7 +253,12 @@ function EditActionBarImpl({
       />
     ) : undefined
   ) : clear && selection ? (
-    <ClearButton floating={floating} selection={selection} root={root} />
+    <ClearButton
+      floating={floating}
+      selection={selection}
+      root={root}
+      onCleared={onCleared}
+    />
   ) : undefined;
 
   return (
@@ -273,6 +284,7 @@ function EditActionBarImpl({
       more={model.more}
       primary={model.primary ?? undefined}
       trailing={trailing}
+      leadingSlots={model.leading === "scope" ? 1 : 0}
       moreRequest={moreRequest}
       onVerb={onVerb}
     />
