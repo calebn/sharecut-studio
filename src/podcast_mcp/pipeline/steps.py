@@ -819,10 +819,10 @@ def _saved_stem_inputs_changed(
     defaults: EffectiveConfig,
 ) -> bool:
     """``_stem_inputs_changed`` against the project another writer saved meanwhile."""
-    from podcast_mcp.project.store import ProjectStore
+    from podcast_mcp.project.io import open_project
 
     try:
-        saved = ProjectStore(project.workspace_path()).load()
+        saved = open_project(project.workspace_path())[1]
     except (OSError, ValueError) as exc:
         # Gone, unreadable or half-written (pydantic and JSON errors are ValueErrors).
         log.warning("saved project unreadable after stem render; treating stems as stale: %s", exc)
