@@ -475,33 +475,55 @@ def test_build_id_is_thread_safe(host: None, monkeypatch: pytest.MonkeyPatch) ->
     assert set(results) == {"9.0.2+abcd"}
 
 
+class _PlainLib:
+    def __init__(self, build_id: Any = None) -> None:
+        proto = ctypes.CFUNCTYPE
+        self.sc_ffmpeg_abi_version = proto(ctypes.c_int)(lambda: native_ffmpeg.ABI_VERSION)
+        self.sc_ffmpeg_start = proto(
+            ctypes.c_int64,
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_char_p),
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+        )(lambda *args: 1)
+        self.sc_ffmpeg_wait = proto(ctypes.c_int, ctypes.c_int64)(lambda session: 0)
+        self.sc_ffmpeg_cancel = proto(None, ctypes.c_int64)(lambda session: None)
+        self.sc_ffmpeg_build_id = proto(ctypes.c_char_p)(build_id or (lambda: b"9.0.2+abcd"))
+
+
 def test_the_backend_keeps_its_library_alive() -> None:
     import weakref
 
-    class Lib:
-        def __init__(self) -> None:
-            self.sc_ffmpeg_abi_version = ctypes.CFUNCTYPE(ctypes.c_int)(
-                lambda: native_ffmpeg.ABI_VERSION
-            )
-            self.sc_ffmpeg_start = ctypes.CFUNCTYPE(
-                ctypes.c_int64,
-                ctypes.c_int,
-                ctypes.POINTER(ctypes.c_char_p),
-                ctypes.c_int,
-                ctypes.c_int,
-                ctypes.c_int,
-            )(lambda *args: 1)
-            self.sc_ffmpeg_wait = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int64)(lambda session: 0)
-            self.sc_ffmpeg_cancel = ctypes.CFUNCTYPE(None, ctypes.c_int64)(lambda session: None)
-            self.sc_ffmpeg_build_id = ctypes.CFUNCTYPE(ctypes.c_char_p)(lambda: b"9.0.2+abcd")
-
-    lib = Lib()
+    lib = _PlainLib()
     ref = weakref.ref(lib)
     backend = NativeFFmpegBackend(lib)
     del lib
     assert ref() is not None
     del backend
     assert ref() is None
+
+
+def test_build_id_keeps_the_library_alive_during_the_call(
+    host: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import weakref
+
+    alive: list[bool] = []
+    holder: list[Any] = []
+
+    def build_id() -> bytes:
+        alive.append(holder[0]() is not None)
+        return b"9.0.2+abcd"
+
+    def cdll(name: object) -> _PlainLib:
+        lib = _PlainLib(build_id)
+        holder.append(weakref.ref(lib))
+        return lib
+
+    monkeypatch.setattr(ctypes, "CDLL", cdll)
+    assert native_ffmpeg.build_id() == "9.0.2+abcd"
+    assert alive == [True]
 
 
 def test_a_library_missing_one_symbol_is_unavailable() -> None:
