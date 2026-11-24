@@ -443,3 +443,61 @@ def test_the_pipeline_analysis_leaves_its_pending_cuts_bound(
     steps.analyze_fillers_pauses(project, DEFAULTS)
 
     assert all(pad_binding.usable_lanes(e) for e in project.edit_decisions)
+
+
+MANY = tuple((2.0 + 3.0 * i, 2.5 + 3.0 * i) for i in range(8))
+
+
+def _many_pending(tmp_path: Path) -> EpisodeProject:
+    import test_room_tone
+
+    track = np.random.default_rng(78).normal(0.0, 10 ** (FLOOR_DB / 20), round(LENGTH_SEC * SR))
+    for start, end in MANY:
+        _add_voice(track, start, end, VOICE_DB)
+    test_room_tone.DURATION_SEC = LENGTH_SEC
+    project = _project(tmp_path, host=track)
+    test_room_tone.DURATION_SEC = 10.0
+    project.transcripts = []
+    project.clips[0].source_end = LENGTH_SEC
+    media = project.track_by_id("host").media
+    assert media is not None
+    media.duration_sec = LENGTH_SEC
+    room_tone.record_room_tone_pool(project, "host")
+    project.edit_decisions = [
+        EditDecision(
+            id=f"c{i:02d}",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=start,
+            end=end,
+            boundary_mode="exact",
+            review_required=False,
+            applied=False,
+            replace_gap_sec=0.3,
+            reason="filler:um",
+        )
+        for i, (start, end) in enumerate(MANY)
+    ]
+    return project
+
+
+@pytest.mark.parametrize(
+    "batches",
+    [
+        [[f"c{i:02d}"] for i in range(8)],
+        [[f"c{i:02d}"] for i in reversed(range(8))],
+        [[f"c{i:02d}" for i in range(0, 8, 2)], [f"c{i:02d}" for i in range(1, 8, 2)]],
+    ],
+    ids=["one by one", "reverse", "even then odd"],
+)
+def test_many_nearby_cuts_play_what_they_were_bound_to_in_every_approve_order(
+    tmp_path: Path, batches: list[list[str]]
+) -> None:
+    project = _many_pending(tmp_path)
+    bind_pending_pad_picks(project, defaults=DEFAULTS)
+    bound = {e.id: _bound_span(project, e.id) for e in project.edit_decisions}
+
+    for batch in batches:
+        _approve(project, *batch)
+
+    assert _played(project) == bound
