@@ -1,10 +1,12 @@
 import {
   type KeyboardEvent,
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
+import { SystemIcon } from "../../system/SystemIcon";
 import { InlineError } from "../../ui/InlineError";
 import { useStableCallback } from "../../utils/useStableCallback";
 
@@ -51,6 +53,11 @@ type FixTextFieldProps = {
   initialDraft?: string;
   /** Called with the raw typing on every change, so a host can keep it across a remount. */
   onDraftChange?: (draft: string) => void;
+  /**
+   * Draws a Cancel button that discards the typing, named by this label.
+   * Leaving the field by any other way still follows `commitOnBlur`.
+   */
+  cancelLabel?: string;
 };
 
 const squash = (text: string) => text.trim().replace(/\s+/g, " ");
@@ -81,6 +88,7 @@ export function FixTextField({
   commitOnBlur = true,
   initialDraft,
   onDraftChange,
+  cancelLabel,
 }: FixTextFieldProps) {
   const [original] = useState(value);
   const [draft, setDraft] = useState(initialDraft ?? value);
@@ -88,6 +96,7 @@ export function FixTextField({
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const finished = useRef(false);
+  const cancelArmed = useRef(false);
   const errorId = useId();
 
   useLayoutEffect(() => {
@@ -97,6 +106,7 @@ export function FixTextField({
 
   const finish = useStableCallback(async (via: FixTextVia) => {
     if (finished.current) return;
+    cancelArmed.current = false;
     const text = squash(draft);
     if (via === "escape") {
       finished.current = true;
@@ -148,16 +158,29 @@ export function FixTextField({
       if (!el.isConnected) return;
       queueMicrotask(() => {
         if (active && input.current === el && el.isConnected) {
-          void finish("blur");
+          void finish(cancelArmed.current ? "escape" : "blur");
         }
       });
     };
+    const onFocus = () => {
+      cancelArmed.current = false;
+    };
     el.addEventListener("blur", onBlur);
+    el.addEventListener("focus", onFocus);
     return () => {
       active = false;
       el.removeEventListener("blur", onBlur);
+      el.removeEventListener("focus", onFocus);
     };
   }, [finish]);
+
+  useEffect(() => {
+    const disarm = () => {
+      cancelArmed.current = false;
+    };
+    document.addEventListener("visibilitychange", disarm);
+    return () => document.removeEventListener("visibilitychange", disarm);
+  }, []);
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return;
@@ -174,31 +197,62 @@ export function FixTextField({
     }
   };
 
+  const field = (
+    <span className="sys-edit-fix-field">
+      <span className="sys-edit-fix-measure" aria-hidden="true">
+        {draft || " "}
+      </span>
+      <input
+        ref={input}
+        className="sys-edit-fix"
+        type="text"
+        aria-label={label}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        autoComplete="off"
+        spellCheck
+        readOnly={busy}
+        value={draft}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          onDraftChange?.(event.target.value);
+          setError(null);
+        }}
+        onKeyDown={onKeyDown}
+      />
+    </span>
+  );
+
   return (
     <>
-      <span className="sys-edit-fix-field">
-        <span className="sys-edit-fix-measure" aria-hidden="true">
-          {draft || " "}
+      {cancelLabel ? (
+        <span className="sys-edit-fix-with-cancel">
+          {field}
+          <button
+            type="button"
+            className="sys-icon-btn sys-edit-fix-cancel"
+            tabIndex={-1}
+            aria-label={cancelLabel}
+            aria-disabled={busy || undefined}
+            title={`${cancelLabel} (Esc)`}
+            onMouseDown={(event) => event.preventDefault()}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              cancelArmed.current = true;
+            }}
+            onPointerCancel={() => {
+              cancelArmed.current = false;
+            }}
+            onClick={() => {
+              if (!busy) void finish("escape");
+            }}
+          >
+            <SystemIcon name="x" size={16} />
+          </button>
         </span>
-        <input
-          ref={input}
-          className="sys-edit-fix"
-          type="text"
-          aria-label={label}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
-          autoComplete="off"
-          spellCheck
-          readOnly={busy}
-          value={draft}
-          onChange={(event) => {
-            setDraft(event.target.value);
-            onDraftChange?.(event.target.value);
-            setError(null);
-          }}
-          onKeyDown={onKeyDown}
-        />
-      </span>
+      ) : (
+        field
+      )}
       <InlineError message={error} id={errorId} inline />
     </>
   );

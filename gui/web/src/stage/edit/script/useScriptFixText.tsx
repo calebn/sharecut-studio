@@ -348,6 +348,7 @@ export function useScriptFixText(
           if (held && held.pin === pin) held.draft = draft;
         }}
         label={count === 1 ? "Fix text" : `Fix text, ${count} words`}
+        cancelLabel="Cancel fix"
         onDone={(text, via, original) =>
           pin ? commit(pin, text, via, original) : Promise.resolve(FIX_MOVED)
         }
