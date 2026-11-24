@@ -26,6 +26,7 @@ knowingly change them:
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,12 +57,15 @@ from pause_policy_public_helpers import (
 from pause_policy_public_helpers import defaults as pause_defaults
 from podcast_mcp.edits.range_edits import RangeAction
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
+from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.models import (
     ArchivedTranscriptWord,
     Clip,
     CombinedTranscript,
     EditMode,
     EpisodeProject,
+    ProcessingChain,
+    ProcessingEffect,
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
@@ -278,6 +282,25 @@ def _selected_range(action: RangeAction) -> Command:
     return run
 
 
+def _host_stem(project: EpisodeProject) -> None:
+    """A rendered host stem on disk, so the audio bookkeeping can find it fresh."""
+    stem = project.artifacts_dir() / "tracks" / "host.wav"
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(project.workspace_path() / "raw" / "host.wav", stem)
+
+
+def _gate_host_with_fresh_stem(ws: ProjectWorkspace) -> Any:
+    """Any audio edit whose stem is fresh afterwards: the commit then reconciles on its own."""
+
+    def gate(project: EpisodeProject) -> None:
+        project.processing_chains = [
+            ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="agate", params={})])
+        ]
+        write_stem_hash(project, "host", defaults=ws.effective_config())
+
+    return ws.mutate("before gate", "after gate", gate)
+
+
 TIMELINE_CASES = [
     Case(
         "ripple_delete_words",
@@ -377,7 +400,21 @@ TIMELINE_CASES = [
     Case("roll_clip_join", _roll, FRESH_TEXTS, quirk="h1", words=False, arrange=_split_host),
 ]
 
-ALL_CASES = [*WORD_CASES, *TIMELINE_CASES]
+RECONCILE_CASES = [
+    Case(
+        "reconcile_transcript_on_silent_media",
+        lambda ws: AnalysisService(ws).reconcile_transcript(dry_run=False),
+        (),
+    ),
+    Case(
+        "auto_reconcile_after_audio_edit",
+        _gate_host_with_fresh_stem,
+        ("thanks for having me",),
+        arrange=_host_stem,
+    ),
+]
+
+ALL_CASES = [*WORD_CASES, *TIMELINE_CASES, *RECONCILE_CASES]
 
 
 def _params(cases: list[Case]) -> list[Any]:
