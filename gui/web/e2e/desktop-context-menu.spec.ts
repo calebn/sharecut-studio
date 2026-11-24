@@ -62,6 +62,40 @@ test("right click on a clip opens the create menu too", async ({ page }) => {
   await expect(menu(page)).toBeVisible();
 });
 
+test.describe("with a coarse pointer", () => {
+  test.use({ hasTouch: true, viewport: { width: 1024, height: 360 } });
+
+  test("a scrolling Create popover keeps touch-sized rows and allows vertical panning", async ({
+    page,
+  }) => {
+    await openHostProject(page);
+    await page.locator("html").evaluate((root) => {
+      root.style.fontSize = "24px";
+    });
+    await expect
+      .poll(() => page.evaluate(() => matchMedia("(pointer: coarse)").matches))
+      .toBe(true);
+    await page.locator(".clip-block").first().click({ button: "right" });
+
+    const popover = menu(page);
+    await expect(popover).toBeVisible();
+    await expect(popover).toHaveAttribute("data-scrolls", "");
+    await expect(popover).toHaveCSS("touch-action", "pan-y");
+    expect(
+      await popover.evaluate(
+        (element) => element.scrollHeight - element.clientHeight,
+      ),
+    ).toBeGreaterThan(0);
+    const rows = popover.getByRole("menuitem");
+    await expect(rows.first()).toBeVisible();
+    for (const height of await rows.evaluateAll((items) =>
+      items.map((item) => item.getBoundingClientRect().height),
+    )) {
+      expect(height).toBeGreaterThanOrEqual(66);
+    }
+  });
+});
+
 test("a menu item runs its command and closes the menu", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openHostProject(page);
