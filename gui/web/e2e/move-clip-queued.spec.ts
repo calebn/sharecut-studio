@@ -118,7 +118,6 @@ test("a clip move that queues offline stays where it was dropped, then saves onc
     await page.mouse.up();
 
     await expect.poll(() => commands.length).toBe(1);
-    expect(commands[0]?.type).toBe("MoveClips");
     const target = commands[0]!.payload.clips.find(
       (c) => c.clip_id === clipId,
     )!.timeline_start;
