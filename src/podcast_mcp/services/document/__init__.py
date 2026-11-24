@@ -33,6 +33,7 @@ if TYPE_CHECKING:
         ArchivePlan,
         ExportedFile,
         ExportFilesService,
+        ListedFiles,
         ServedFile,
         plan_archive,
     )
@@ -124,6 +125,7 @@ __all__ = [
     "HistoryMoveResult",
     "HistoryService",
     "KitApplyReport",
+    "ListedFiles",
     "PendingPreviewSpan",
     "PlayRequest",
     "PlayService",
@@ -187,6 +189,7 @@ _MODULE_BY_NAME = {
     "ExportFilesService": "export_files",
     "ExportedFile": "export_files",
     "ArchivePlan": "export_files",
+    "ListedFiles": "export_files",
     "plan_archive": "export_files",
     "ServedFile": "export_files",
     "FeedFieldPinResult": "feed_results",
