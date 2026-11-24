@@ -67,6 +67,11 @@ from podcast_mcp.services.document.clip_gain import apply_clip_gain, apply_clips
 from podcast_mcp.services.document.join_analysis import _JoinAnalysis
 from podcast_mcp.services.document.join_mode_results import SetClipJoinResult, SetJoinModeResult
 from podcast_mcp.services.document.service_base import CutMutatingService
+from podcast_mcp.services.document.split_results import (
+    ProposeSplitResult,
+    SplitAtTimeResult,
+    SplitClipResult,
+)
 from podcast_mcp.services.document.timeline_move_results import (
     InsertGapResult,
     MoveClipsResult,
@@ -455,7 +460,7 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         track_id: str | None = None,
         speaker: str | None = None,
         track_ids: list[str] | None = None,
-    ) -> dict:
+    ) -> SplitClipResult:
         """Split at timeline *at_time* on one or more tracks."""
         if track_ids is not None:
             tids: list[str] | None = list(track_ids)
@@ -466,7 +471,9 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         return self.ws.mutate(
             "before split clip",
             "after split clip",
-            lambda p: split_clips_at(p, at_time, tids, defaults=self.ws.effective_config()),
+            lambda p: SplitClipResult(
+                **split_clips_at(p, at_time, tids, defaults=self.ws.effective_config())
+            ),
         )
 
     def split_at_time(
@@ -478,7 +485,7 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         reason: str | None = None,
         author: str | None = None,
         extra_at_times: list[float] | None = None,
-    ) -> dict:
+    ) -> SplitAtTimeResult | ProposeSplitResult:
         """Blade cut: apply split or append pending ``type=split`` proposal.
 
         ``extra_at_times`` splits at more times in the same history step (both edges
@@ -487,7 +494,7 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         """
         times = [float(at_time), *(float(t) for t in extra_at_times or [])]
 
-        def mutate(p) -> dict:
+        def mutate(p):
             tids = list(track_ids) if track_ids else dialogue_track_ids(p)
             if not tids:
                 raise CodedValueError("no tracks to split", code="no_tracks_to_split")
@@ -502,7 +509,7 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
                     ).model_dump()
                     for t in times
                 ]
-                return {"operation": "propose_split", "edit": edits[0], "edits": edits}
+                return ProposeSplitResult(operation="propose_split", edit=edits[0], edits=edits)
             summary: dict | None = None
             failure: CodedValueError | None = None
             split_times: list[float] = []
@@ -537,7 +544,7 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
                 summary["split_times"] = split_times
             summary.pop("split_pieces", None)
             summary["first_right_pieces"] = first_right_pieces or []
-            return summary
+            return SplitAtTimeResult(**summary)
 
         return self.ws.mutate(
             "before split at time",
