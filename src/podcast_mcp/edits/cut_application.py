@@ -61,7 +61,6 @@ from podcast_mcp.edits.source_removals import (
     ScopeChangedAtApproval,
     cut_label,
     long_fades,
-    record_suggested_cut_speech,
     speakers_by_track,
 )
 from podcast_mcp.edits.suggested_actions import SuggestedActionsResult, record_sound_action
@@ -82,6 +81,7 @@ from podcast_mcp.edits.timeline_ops import (
     insert_bound_room_tone_pad,
     insert_gap,
     mute_room_tone_fill,
+    plan_ripple_delete,
     room_tone_pad,
     split_clips_at,
 )
@@ -1897,6 +1897,61 @@ def assess_source_offer(project: EpisodeProject, edit: EditDecision, *, defaults
     if labels:
         edit.review_required = True
         edit.reason = f"{reason}:acoustic_review:{','.join(dict.fromkeys(labels))}"
+
+
+def resize_source_remove(
+    project: EpisodeProject, saved: EditDecision, *, start: float, end: float
+) -> EditDecision:
+
+    current = cut_placement.inspect_source_remove_placement(project, saved)
+    if isinstance(current, CutScopeHold):
+        raise ScopeChangedAtApproval([current], {}, {saved.id: cut_label(project, saved)})
+    candidate = saved.model_copy(deep=True, update={"start": start, "end": end})
+    placement = cut_placement.inspect_source_remove_placement(
+        project, candidate, check_witness=False
+    )
+    if isinstance(placement, CutScopeHold):
+        raise ScopeChangedAtApproval([placement], {}, {saved.id: cut_label(project, saved)})
+    expected_start = float(current[0]) + (start - saved.start)
+    expected_end = float(current[1]) + (end - saved.end)
+    if (
+        abs(float(placement[0]) - expected_start) > 1e-6
+        or abs(float(placement[1]) - expected_end) > 1e-6
+    ):
+        hold = CutScopeHold(saved.id, (), "source_geometry")
+        raise ScopeChangedAtApproval([hold], {}, {saved.id: cut_label(project, saved)})
+    candidate.source_timeline_span = RangeInterval(
+        start=float(placement[0]), end=float(placement[1])
+    )
+    return candidate
+
+
+def record_suggested_cut_speech(
+    project: EpisodeProject, decision: EditDecision, *, defaults: EffectiveConfig
+) -> None:
+    """Record on a suggested session ripple the other speech it would cut.
+
+    Programmatic approval holds that speech for trusted interactive review
+    as changed.
+    """
+    if decision.type != EditDecisionType.REMOVE:
+        return
+
+    span = cut_placement.inspect_source_remove_placement(project, decision)
+    if isinstance(span, CutScopeHold):
+        return
+    decision.cut_speech = assess_cut_speech(
+        project,
+        plan_ripple_delete(
+            project,
+            float(span[0]),
+            float(span[1]),
+            edited_track_ids=[decision.track_id],
+            use_inaudible_opt=False,
+            defaults=defaults,
+        ),
+        defaults=defaults,
+    )
 
 
 @batch_scope()
