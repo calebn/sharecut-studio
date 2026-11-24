@@ -14,7 +14,9 @@ import { EditSurfaceSwitch } from "./PhoneEditSurfaceView";
  * their rows: on a phone the Timeline and Script switch, then the corner (zoom,
  * the eye, the Script toggle and, on touch, the range toggle, which a short
  * frame takes off the lanes), Mix and, on a phone, the Action bar the dock
- * would otherwise spend the lanes' height on.
+ * would otherwise spend the lanes' height on. On the lanes surface that bar
+ * ends with Clear selection, since the Script header that clears words is not
+ * on screen there.
  */
 export function ToolsSheet() {
   const { surface, setOpenSheet, mixAllowed } = useDawStore(
@@ -39,7 +41,9 @@ export function ToolsSheet() {
         <EditActionBar
           form="dock"
           root={null}
+          clear={surface === "lanes"}
           onRan={() => setOpenSheet(null)}
+          onCleared={() => setOpenSheet(null)}
         />
       ) : null}
       {surface === "lanes" || !phone ? (

@@ -69,6 +69,29 @@ describe("ToolsButton", () => {
 });
 
 describe("ToolsSheet", () => {
+  it("ends the Action bar with Clear selection on the lanes surface, and closes with it", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({
+      selection: EDIT_SELECTIONS.clip as never,
+      openSheet: "tools",
+    });
+    render(<ToolsSheet />);
+    await user.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(useDawStore.getState().openSheet).toBeNull();
+  });
+
+  it("leaves Clear to the Script header on the Script surface", () => {
+    useDawStore.setState({
+      selection: EDIT_SELECTIONS.clip as never,
+      editSurface: "text",
+    });
+    render(<ToolsSheet />);
+    expect(
+      screen.queryByRole("button", { name: "Clear selection" }),
+    ).toBeNull();
+  });
+
   it("holds the surface switch, the corner and Mix, and is axe-clean", async () => {
     const user = userEvent.setup();
     const { container } = render(<ToolsSheet />);
@@ -118,7 +141,8 @@ describe("ToolsSheet", () => {
     expect(useDawStore.getState().openSheet).toBeNull();
   });
 
-  it("labels Record Re-record on a replaceable range and drops it past the timeline", () => {
+  it("labels Record Re-record on a replaceable range and drops it past the timeline", async () => {
+    const user = userEvent.setup();
     const project = editFixtureProject();
     useDawStore.setState({
       project,
@@ -128,8 +152,9 @@ describe("ToolsSheet", () => {
       openSheet: "tools",
     });
     const { unmount } = render(<ToolsSheet />);
-    expect(screen.getByRole("button", { name: /^Re-record/ })).toBeVisible();
-    expect(screen.queryByRole("button", { name: /^Record/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.getByRole("menuitem", { name: /^Re-record/ })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: /^Record/ })).toBeNull();
     unmount();
     useDawStore.setState({
       project: {
@@ -138,6 +163,8 @@ describe("ToolsSheet", () => {
       },
     });
     render(<ToolsSheet />);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.queryByRole("menuitem", { name: /record/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /record/i })).toBeNull();
   });
 

@@ -45,7 +45,7 @@ export type ScriptHostProps = {
   /** The empty state's "Transcribe this episode". */
   onTranscribe?: () => void;
   onFindTargetChange?: (target: HTMLButtonElement | null) => void;
-  /** Whether the header shows its Clear selection, so the Action bar can leave it out. */
+  /** Whether the header owns Clear selection for the current selection, even while Fix text hides it, so the Action bar leaves it out. */
   onHeaderClearChange?: (shown: boolean) => void;
 };
 
@@ -175,7 +175,7 @@ export function ScriptHost({
     fix.editing === null && mode !== "none"
       ? clearSelectionAction(selection.selection, pane)
       : undefined;
-  const headerClear = headerAction !== undefined;
+  const headerClear = mode !== "none" && selection.selection?.kind === "words";
   const reportHeaderClear = useStableCallback((shown: boolean) =>
     onHeaderClearChange?.(shown),
   );

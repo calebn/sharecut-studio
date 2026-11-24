@@ -584,6 +584,17 @@ describe("EditWorkspace Clear selection", () => {
     expect(inBar("Edit actions")).toHaveLength(0);
   });
 
+  it("keeps Clear out of the bar while Fix text hides the header's", async () => {
+    seeded();
+    render(<EditWorkspace />);
+    act(() => useDawStore.getState().setSelection(words));
+    const word = screen.getByRole("button", { name: /^back \(selected\)$/ });
+    word.focus();
+    await userEvent.keyboard("{F2}");
+    expect(screen.getByRole("textbox", { name: /^Fix text/ })).toBeVisible();
+    expect(clears()).toHaveLength(0);
+  });
+
   it("gives words on the phone Lanes surface a Clear in the dock", () => {
     stubViewportShell("phone");
     seeded();

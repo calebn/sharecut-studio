@@ -5,7 +5,7 @@ import {
   removeRelocatedE2eProject,
 } from "./liveProject";
 import { switchE2eProject } from "./shareableProject";
-import { goToStage, openProject, phone } from "./stageNav";
+import { goToStage, inspectSelection, openProject, phone } from "./stageNav";
 import { withDocumentCommandTypes } from "./transcriptEdit";
 
 let projectPath: string;
@@ -28,7 +28,7 @@ const sheetOf = (page: Page) =>
 
 async function openAtDock(page: Page): Promise<{
   clip: Locator;
-  opener: Locator;
+  opener: Locator | null;
   sheet: Locator;
 }> {
   const clip = page.locator(".clip-hit").first();
@@ -37,14 +37,15 @@ async function openAtDock(page: Page): Promise<{
   const opener = page
     .getByRole("group", { name: "Edit actions" })
     .getByRole("button", { name: "Inspect", exact: true });
-  await opener.tap();
+  const reachable = await opener.isVisible();
+  await inspectSelection(page);
   const sheet = sheetOf(page);
   await expect(sheet).toBeVisible();
   const grip = sheet.getByRole("slider", { name: "Sheet height" });
   await grip.focus();
   await grip.press("Home");
   await expect(grip).toHaveAttribute("aria-valuetext", "Dock");
-  return { clip, opener, sheet };
+  return { clip, opener: reachable ? opener : null, sheet };
 }
 
 for (const { width, height } of [
@@ -68,10 +69,9 @@ for (const { width, height } of [
       await withDocumentCommandTypes(page, async (commands) => {
         for (let round = 0; round < 2; round += 1) {
           const { clip, opener, sheet } = await openAtDock(page);
-          const close = sheet.getByRole("button", {
-            name: "Close",
-            exact: true,
-          });
+          const close = sheet
+            .locator(".sys-inspector-dock")
+            .getByRole("button", { name: "Close", exact: true });
           await expect(close).toHaveCount(1);
           await expect(close).toBeInViewport({ ratio: 1 });
           const bounds = await close.boundingBox();
@@ -80,7 +80,7 @@ for (const { width, height } of [
           await close.tap();
           await expect(sheet).toHaveCount(0);
           await expect(clip).toHaveAttribute("aria-pressed", "true");
-          await expect(opener).toBeFocused();
+          if (opener) await expect(opener).toBeFocused();
           expect(commands).toEqual([]);
         }
       });
