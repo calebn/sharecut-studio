@@ -1104,12 +1104,8 @@ def edit_list_clips_cmd(
     include_timing_steps: bool = typer.Option(False, "--timing-steps"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(
-        json.dumps(
-            TimelineService(ws).list_clips(track, include_timing_steps=include_timing_steps),
-            indent=2,
-        )
-    )
+    listing = TimelineService(ws).list_clips(track, include_timing_steps=include_timing_steps)
+    typer.echo(json.dumps(listing.model_dump(), indent=2))
 
 
 @edit_app.command("list-applied")
