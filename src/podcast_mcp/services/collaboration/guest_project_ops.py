@@ -2,8 +2,8 @@
 
 Each function is the body of a ``GUEST_OWNER_ROUTES`` row, taking the share's workspace and the
 already-validated fields of its request. A refusal is a ``GuestRefusal``: the HTTP adapter sends
-its status, message and code as they are, and a guest MCP tool sends the code with the fixed guest
-copy. Nothing here takes a path from a client.
+its status and code with the approved guest copy for that code, and a guest MCP tool sends the
+code with the same copy. Nothing here takes a path from a client.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ SPLIT_REFUSAL_STATUS = {"speaker_backend_unavailable": 409}
 
 
 class GuestRefusal(CodedError):
-    """A refusal with the HTTP status its twin answers with; the message is as the twin sends it."""
+    """A refusal carrying the HTTP status its twin answers with."""
 
     def __init__(self, status: int, message: str, *, code: str) -> None:
         super().__init__(message, code=code)
@@ -145,8 +145,9 @@ def guest_start_pipeline_run(
             retime_words=retime_words,
         )
     except ValueError as exc:
-        code = exc.code if isinstance(exc, CodedError) else "invalid_request"
-        raise GuestRefusal(400, str(exc), code=code) from exc
+        log.info("guest pipeline run refused: invalid pipeline config", exc_info=exc)
+        code = exc.code if isinstance(exc, CodedError) else "pipeline_config_invalid"
+        raise guest_refusal(400, code) from exc
     try:
         ensure_whisper_cached_for_run(
             config=run_config,
