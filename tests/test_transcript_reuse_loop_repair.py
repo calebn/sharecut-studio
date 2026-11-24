@@ -252,15 +252,25 @@ def test_undo_through_the_service_restores_the_looped_words(
     assert len(load_project(minimal_project).transcripts[0].words) == CLEAN + LOOPED
 
 
-def test_a_repair_rebuilds_the_combined_transcript(minimal_project, sample_wav, tmp_workspace):
+def test_a_repair_leaves_the_combined_transcript_to_the_step_hook(
+    minimal_project, sample_wav, tmp_workspace, no_model_gate
+):
     proj = _project(minimal_project, sample_wav, tmp_workspace, _words())
     proj.combined_transcript = CombinedTranscript(
         utterances=[
             CombinedUtterance(track_id="host", speaker="Host", start=299.0, end=300.0, text="x")
         ]
     )
+    save_project(proj, minimal_project)
     _run(proj)
-    text = " ".join(u.text for u in proj.combined_transcript.utterances)
+    assert [u.text for u in proj.combined_transcript.utterances] == ["x"]
+    ws = ProjectWorkspace.open(minimal_project)
+    with patch.object(
+        Engine, "transcribe_file", side_effect=AssertionError("Whisper must not run")
+    ):
+        with write_grant(WriteGrantKind.DISPATCHER):
+            PipelineService(ws).run(only_step="transcribe_tracks")
+    text = " ".join(u.text for u in ws.project.combined_transcript.utterances)
     assert "And I know that" not in text
     assert "word0" in text
 

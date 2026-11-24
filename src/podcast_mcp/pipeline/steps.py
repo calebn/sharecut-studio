@@ -200,7 +200,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         language=language,
         max_word_sec=pol.max_word_audibility_sec,
     )
-    repaired_loops = repair_reused_loops(project, plan, defaults=defaults)
+    repaired_loops = repair_reused_loops(project, plan)
     # Word times are final here; trim before the reused-transcript silence flags read spans.
     span_trims = trim_project_word_spans(project, defaults)
     reflag_skipped = refresh_reused_silence_flags(project, plan, options)
