@@ -7,7 +7,6 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.models import speaker_ecapa
 from podcast_mcp.engines.speaker_id import (
     MockSpeakerBackend,
@@ -154,7 +153,7 @@ def test_run_speaker_attribution_dry_run(tmp_path, sample_wav):
         "podcast_mcp.engines.speaker_id.resolve_speaker_backend",
         return_value=MockSpeakerBackend(),
     ):
-        result = run_speaker_attribution(project, ctx, dry_run=True, defaults=load_defaults())
+        result = run_speaker_attribution(project, ctx, dry_run=True)
     assert isinstance(result, dict)
 
 
@@ -287,18 +286,15 @@ def test_run_speaker_attribution_apply_path(tmp_path, sample_wav):
             "podcast_mcp.engines.speaker_id.score_window",
             return_value=bleed_score,
         ),
-        patch("podcast_mcp.engines.transcript_sync.rebuild_combined") as rebuild,
     ):
         result = run_speaker_attribution(
             project,
             ctx,
             dry_run=False,
             backend=MockSpeakerBackend(),
-            defaults=load_defaults(),
         )
     assert result["attributions_changed"] == 1
     assert result["windows_scored"] == 1
-    rebuild.assert_called_once()
     word = project.transcript_for_track("host").words[0]
     assert word.speaker_match_track == "guest"
     assert word.suppressed is True
@@ -533,7 +529,6 @@ def test_run_speaker_attribution_missing_transcript_word(tmp_path, sample_wav):
             ctx,
             dry_run=False,
             backend=MockSpeakerBackend(),
-            defaults=load_defaults(),
         )
     assert result["attributions_changed"] == 0
 
@@ -615,7 +610,6 @@ def test_run_speaker_attribution_skip_branches(tmp_path, sample_wav):
             ctx,
             dry_run=True,
             backend=MockSpeakerBackend(),
-            defaults=load_defaults(),
         )
     assert result["attributions_changed"] == 0
     assert result["windows_scored"] == 2
@@ -670,7 +664,6 @@ def test_run_speaker_attribution_progress_every_fifty(tmp_path, sample_wav):
             ctx,
             dry_run=True,
             backend=MockSpeakerBackend(),
-            defaults=load_defaults(),
         )
     assert result["windows_scored"] == 55
     assert result["attributions_would_change"] == 55

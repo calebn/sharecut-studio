@@ -718,6 +718,7 @@ SPEAKER_CASES = [
         speakers=("Ana", "Ben", "Guest"),
         configure=_split_seams,
         s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
     Case(
         "move_lane_span",
@@ -732,6 +733,7 @@ SPEAKER_CASES = [
         prepare=_split_host,
         configure=_split_seams,
         s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
     Case(
         "speaker_home_gate",
@@ -739,6 +741,7 @@ SPEAKER_CASES = [
         ("welcome back", "thanks for having me"),
         configure=_speaker_seams,
         s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
     Case(
         "speaker_attribute_bleed_windows",
@@ -747,6 +750,7 @@ SPEAKER_CASES = [
         arrange=_host_friend_is_bleed,
         configure=_speaker_seams,
         s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
 ]
 

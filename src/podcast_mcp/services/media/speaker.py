@@ -231,7 +231,6 @@ class SpeakerService:
                 track_ids=track_ids,
                 dry_run=False,
                 progress=resolve_progress(progress),
-                defaults=self.ws.effective_config(),
             )
 
         if dry_run:
@@ -242,7 +241,6 @@ class SpeakerService:
                 track_ids=track_ids,
                 dry_run=True,
                 progress=resolve_progress(progress),
-                defaults=self.ws.effective_config(),
             )
         return self.ws.mutate(
             "before speaker gate",
@@ -264,7 +262,6 @@ class SpeakerService:
                 ctx,
                 dry_run=False,
                 progress=resolve_progress(progress),
-                defaults=self.ws.effective_config(),
             )
 
         if dry_run:
@@ -273,7 +270,6 @@ class SpeakerService:
                 ctx,
                 dry_run=True,
                 progress=resolve_progress(progress),
-                defaults=self.ws.effective_config(),
             )
         return self.ws.mutate(
             "before speaker attribute",
@@ -388,7 +384,6 @@ class SpeakerService:
                 names=speakers,
                 crosstalk_mode=crosstalk_mode,
                 room_tone_fill=room_tone_fill,
-                defaults=self.ws.effective_config(),
             ),
             operation="split_speakers",
             params={
@@ -445,7 +440,7 @@ class SpeakerService:
         result = self.ws.mutate(
             f"before move lane span on {from_lane}",
             f"after move lane span to {to_lane}",
-            lambda p: move_lane_span(p, move, defaults=self.ws.effective_config()),
+            lambda p: move_lane_span(p, move),
             operation="move_lane_span",
             params=asdict(move),
         )
