@@ -618,6 +618,50 @@ def test_evicted_generation_directory_is_deleted_and_retained_ones_stay(workspac
     )
 
 
+def _regenerate_with_failing_unlink(ws, frequency, monkeypatch):
+    real_unlink = pv.Path.unlink
+
+    def failing_unlink(self, *args, **kwargs):
+        if self.parent.name.startswith(pv._EVICTED_PREFIX):
+            raise OSError("unlink refused")
+        real_unlink(self, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(pv.Path, "unlink", failing_unlink)
+        return _regenerate(ws, frequency)
+
+
+def test_failed_chunk_delete_leaves_no_hash_directory_and_the_hash_republishes(
+    workspace, fast_encode, monkeypatch
+):
+    ws = workspace
+    first = _regenerate(ws, 100).tracks["host"]
+    _regenerate(ws, 200)
+    _regenerate_with_failing_unlink(ws, 300, monkeypatch)
+    root = pv.artifact_directory(ws.project, "host", first.hash).parent
+    assert not (root / first.hash).exists()
+    assert (root / f"{pv._EVICTED_PREFIX}{first.hash}").is_dir()
+    again = _regenerate(ws, 100).tracks["host"]
+    assert again.hash == first.hash
+    assert pv.accepted_proxy_chunk_path(ws, "host", 0, expected_hash=first.hash).is_file()
+
+
+def test_later_sweep_removes_a_leftover_evicted_directory(workspace, fast_encode, monkeypatch):
+    ws = workspace
+    first = _regenerate(ws, 100).tracks["host"]
+    _regenerate(ws, 200)
+    _regenerate_with_failing_unlink(ws, 300, monkeypatch)
+    root = pv.artifact_directory(ws.project, "host", first.hash).parent
+    leftover = root / f"{pv._EVICTED_PREFIX}{first.hash}"
+    in_flight = root / ".proxy-inflight"
+    in_flight.mkdir()
+    (in_flight / "00000.mp3").write_bytes(b"x")
+    assert leftover.is_dir()
+    pv._sweep_evicted(ws)
+    assert not leftover.exists()
+    assert (in_flight / "00000.mp3").is_file()
+
+
 def test_eviction_sweep_keeps_the_legacy_descriptor_private_directories_and_symlinks(
     workspace, fast_encode, tmp_path
 ):

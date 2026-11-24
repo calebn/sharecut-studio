@@ -395,7 +395,15 @@ def _sweep_evicted(ws: ProjectWorkspace) -> None:
                     or not _SAFE_ID.fullmatch(context.name)
                 ):
                     continue
-                for candidate in sorted(context.iterdir()):
+                children = sorted(context.iterdir())
+                for candidate in children:
+                    if (
+                        candidate.name.startswith(_EVICTED_PREFIX)
+                        and not candidate.is_symlink()
+                        and candidate.is_dir()
+                    ):
+                        _remove_chunk_directory(candidate)
+                for candidate in children:
                     if (
                         (context.name, candidate.name) in live
                         or candidate.is_symlink()
@@ -404,19 +412,39 @@ def _sweep_evicted(ws: ProjectWorkspace) -> None:
                     ):
                         continue
                     directory = artifact_directory(project, context.name, candidate.name)
-                    entries = list(directory.iterdir())
-                    if not all(
-                        entry.is_file()
-                        and not entry.is_symlink()
-                        and _CHUNK_FILE.fullmatch(entry.name)
-                        for entry in entries
-                    ):
+                    if not _holds_only_chunks(directory):
                         continue
-                    for entry in entries:
-                        entry.unlink()
-                    directory.rmdir()
+                    private = context / f"{_EVICTED_PREFIX}{candidate.name}"
+                    if private.exists() or private.is_symlink():
+                        continue
+                    try:
+                        os.rename(directory, private)
+                    except OSError:
+                        continue
+                    _remove_chunk_directory(private)
             except (OSError, CodedKeyError):
                 continue
+
+
+_EVICTED_PREFIX = ".proxy-evicted-"
+
+
+def _holds_only_chunks(directory: Path) -> bool:
+    return all(
+        entry.is_file() and not entry.is_symlink() and _CHUNK_FILE.fullmatch(entry.name)
+        for entry in directory.iterdir()
+    )
+
+
+def _remove_chunk_directory(directory: Path) -> None:
+    try:
+        if not _holds_only_chunks(directory):
+            return
+        for entry in list(directory.iterdir()):
+            entry.unlink()
+        directory.rmdir()
+    except OSError:
+        return
 
 
 @dataclass(frozen=True)
