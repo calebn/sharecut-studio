@@ -6303,6 +6303,21 @@ button.sys-script-speaker {
   vertical-align: middle;
 }
 
+.sys-edit-fix-with-cancel {
+  display: inline-flex;
+  align-items: center;
+  max-inline-size: 100%;
+  vertical-align: middle;
+}
+
+.sys-edit-fix-with-cancel > .sys-edit-fix-field {
+  min-inline-size: 0;
+}
+
+.sys-edit-fix-cancel {
+  flex: none;
+}
+
 .sys-edit-fix-measure,
 input.sys-edit-fix {
   grid-area: 1 / 1;
