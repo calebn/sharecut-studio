@@ -197,7 +197,7 @@ def test_policy_less_reasons_have_no_label_or_action() -> None:
         assert sound_kind(reason) is None
 
 
-EDIT_DECISION_KEYS = sorted(_decision("filler:um").model_dump())
+EDIT_DECISION_KEYS = sorted(_decision("filler:um").model_dump(exclude={"bound_pad"}))
 REVIEW_FIELD_KEYS = ["kind", "label", "sound_kind", "suggested_action"]
 
 
@@ -288,7 +288,7 @@ def test_list_edit_decisions_tool_review_fields_match_the_other_surfaces(tmp_pat
     }
     for decision in load_project(Path(path)).edit_decisions:
         fields = {k: rows[decision.id][k] for k in REVIEW_FIELD_KEYS}
-        assert rows[decision.id] == decision.model_dump() | fields
+        assert rows[decision.id] == decision.model_dump(exclude={"bound_pad"}) | fields
         payload = _edit_payload(decision)
         assert {k: payload[k] for k in REVIEW_FIELD_KEYS} == fields
         mapped = map_pending_edits_to_timeline(project, [decision])[0]
