@@ -7,7 +7,6 @@ import {
   type DocumentScope,
   isCurrentDocumentScope,
 } from "../document/authorityState";
-import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
 import {
   type DocumentCommandOptions,
   type HistoryCommandType,
@@ -28,6 +27,7 @@ import {
   parseHistoryEntryId,
 } from "../types/project";
 import { ApiError } from "../utils/apiError";
+import type { EditMode, TrimEdge } from "../utils/clipEdgePreview";
 import { type ClipFadeCurves, clipEdgeCurve } from "../utils/fadeCurves";
 import { type HeldCut, type ReviewOutcome } from "../utils/pendingReviewPass";
 import { apiFetch, HOST_KEY } from "./http";
@@ -441,7 +441,7 @@ export async function trimClipEdge(
   mode: EditMode,
   expectedToken: string,
 ): Promise<{ queued: boolean; undo: HistoryEntryId | null }> {
-  const result = await submitDocumentCommand(
+  const sent = submitDocumentCommand(
     projectPath,
     DocumentCommand.TrimClipEdge,
     {
@@ -452,6 +452,10 @@ export async function trimClipEdge(
       expected_token: expectedToken,
     },
   );
+  // The command begins its `trim` draft before it first awaits, so showing the
+  // drafts now keeps the trim on screen while it waits for the server or the queue.
+  if (useDawStore.getState().projectPath === projectPath) redisplayDrafts();
+  const result = await sent;
   return { queued: result.queued === true, undo: replyHistoryHead(result) };
 }
 

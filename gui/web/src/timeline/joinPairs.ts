@@ -1,6 +1,6 @@
-import { clipRowDuringRoll, type RollPreview } from "../edit/clipEdgePreview";
 import { isJoin } from "../edit/joinRender";
 import { type ClipRow } from "../types/project";
+import { clipRowDuringRoll, type RollPreview } from "../utils/clipEdgePreview";
 
 interface JoinPair {
   id: string;

@@ -1,8 +1,8 @@
-import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
 import { withSessionTokenQuery } from "../sessionAuth";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { withAbortTimeout } from "../utils/abortTimeout";
 import { ApiError, readApiFailure } from "../utils/apiError";
+import type { EditMode, TrimEdge } from "../utils/clipEdgePreview";
 import { DOCUMENT_COMMAND_TIMEOUT_MS, hostFetch } from "./documentTransport";
 import { apiFetch, NETWORK_ERROR_CODE } from "./http";
 
