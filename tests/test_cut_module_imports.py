@@ -8,7 +8,7 @@ from pathlib import Path
 _SRC = Path(__file__).resolve().parents[1] / "src"
 _EDITS = _SRC / "podcast_mcp" / "edits"
 
-# Modules whose function-level imports are all gone. decisions keeps a few (update_pending_edit
+# Modules whose function-level imports are all gone. decisions keeps one (update_pending_edit
 # calls up into cut_application, which imports decisions at the top); cut_application keeps one.
 _NO_INLINE_IMPORTS = (
     "cut_effects",

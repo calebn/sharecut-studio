@@ -1462,6 +1462,29 @@ def test_a_held_tighten_remove_is_skipped_at_resolve_not_raised(monkeypatch):
     assert skips["source_geometry"] == 1
 
 
+def test_resolve_passes_the_heard_pause_to_the_source_remove_check(monkeypatch, tmp_path: Path):
+    from podcast_mcp.edits.tighten_reasons import is_pause_reason
+
+    project = _project_with_transcript(_PAUSE_WORDS)
+    _pause_audio(project, tmp_path)
+    seen: list[float | None] = []
+
+    def fake_inspect(project, decision, *, heard_pause_sec=None, **_):
+        seen.append(heard_pause_sec)
+        if heard_pause_sec is None and is_pause_reason(decision.reason):
+            return CutScopeHold(decision.id, (), "pause_imperceptible")
+        return (decision.start, decision.end)
+
+    monkeypatch.setattr("podcast_mcp.edits.tighten.apply.inspect_source_remove", fake_inspect)
+    skipped: dict[str, int] = {}
+    decisions = analyze_fillers_and_pauses(
+        project, project.transcripts[0], _PAUSE_DEFAULTS, skip_counts=skipped
+    )
+    assert [d.reason for d in decisions if is_pause_reason(d.reason)] == ["pause:2.00s:solo"]
+    assert [heard for heard in seen if heard is not None] == [pytest.approx(2.0)]
+    assert "imperceptible" not in skipped
+
+
 def test_fillers_leave_in_when_risky():
     words = [
         TranscriptWord(text="hello", start=0.0, end=0.4),
