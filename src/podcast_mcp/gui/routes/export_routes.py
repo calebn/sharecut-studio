@@ -184,8 +184,7 @@ def download_export_archive_route(
     path: str = Query(...),
     ticket: str | None = Query(None),
 ) -> Response:
-    """Download every current listed file as one zip. A ticket from the listing stands in
-    for the host session token, for this archive only."""
+    """A ticket from the listing stands in for the host session token, for this archive only."""
     ticket_version = _ticket_or_host(request, path, ticket, export_ticket.ARCHIVE_SUBJECT)
     ws = ProjectWorkspace.open(resolve_project(path, request), adopt=False)
     return download_export_archive(request, ws, ticket_version=ticket_version)

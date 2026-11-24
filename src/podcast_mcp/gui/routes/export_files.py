@@ -52,7 +52,7 @@ def list_exported_files(
 
     With *ticketed* each entry also carries a ``ticket`` that downloads that file as listed,
     and the archive one for the whole archive. *host_files* includes range exports and editable
-    DAW packages. One listing pass feeds both the rows and the archive.
+    DAW packages.
     """
     listed = ExportFilesService(ws, host_files=host_files).listed()
     files = []
