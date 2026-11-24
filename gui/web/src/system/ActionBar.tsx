@@ -52,7 +52,6 @@ export type ActionBarProps = {
   readonly center?: ReactNode;
   /** After the verbs where a guest has no primary. */
   readonly trailing?: ReactNode;
-  /** Dock slots the leading content takes from the five, when it is wide enough to crowd the verbs out. */
   readonly leadingSlots?: number;
   readonly ariaLabel?: string;
   readonly moreRequest?: number;
