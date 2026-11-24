@@ -1028,6 +1028,87 @@ describe("PendingEditBody", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/Retry approval/);
   });
 
+  it("shows the Cut anyway recovery when the Action bar's Cut met the gate with the sheet closed", async () => {
+    const user = userEvent.setup();
+    registerDawCommands();
+    approveEdits.mockRejectedValueOnce(
+      new ApiError("blocked", TRANSCRIPT_REFINE_REQUIRED_CODE),
+    );
+    // No sheet is mounted: the refusal belongs to the bar, so the store carries it to the sheet.
+    await executePointerCommand("edit.delete");
+    const live = useDawStore.getState();
+    expect(live.pendingRefineGate).toBe("ed1");
+    expect(live.feedbackToast?.action?.label).toBe("Open Inspect");
+    act(() => live.feedbackToast?.action?.run());
+    expect(useDawStore.getState().inspectorKey).not.toBeNull();
+    render(<PendingEditBody edit={sessionCut} />);
+    await user.click(await screen.findByRole("button", { name: "Cut anyway" }));
+    expect(waiveTranscriptRefine).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      CUT_ANYWAY_REASON,
+    );
+    expect(useDawStore.getState().pendingRefineGate).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent(/Retry approval/);
+  });
+
+  it("shows no recovery for a gate that belongs to another suggestion", () => {
+    useDawStore.getState().setPendingRefineGate("other");
+    render(<PendingEditBody edit={sessionCut} />);
+    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
+  });
+
+  it("holds the Action bar's Cut and Keep while the sheet's own Approve is in flight", async () => {
+    registerDawCommands();
+    let finish: (value: unknown) => void = () => {};
+    approveEdits.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    render(<PendingEditBody edit={sessionCut} />);
+    await waitFor(() =>
+      expect(screen.queryByText("Checking queued timing…")).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(approveEdits).toHaveBeenCalledTimes(1));
+    expect(useDawStore.getState().pendingDecisionInFlight).toBe("ed1");
+    const cut = await executePointerCommand("edit.delete");
+    const keep = await executePointerCommand("edit.keep");
+    expect([cut.status, keep.status]).toEqual(["disabled", "disabled"]);
+    expect(approveEdits).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      finish({ queued: false, count: 1, historyHead: "h" }),
+    );
+    await waitFor(() =>
+      expect(useDawStore.getState().pendingDecisionInFlight).toBeNull(),
+    );
+  });
+
+  it("refuses the sheet's Approve while the Action bar's Cut is in flight", async () => {
+    registerDawCommands();
+    // The bar's Cut runs through the open sheet with the flag already set, so it must not refuse
+    // itself, and the sheet's own button is disabled by the sheet's busy state meanwhile.
+    let finish: (value: unknown) => void = () => {};
+    approveEdits.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    render(<PendingEditBody edit={sessionCut} />);
+    await waitFor(() =>
+      expect(screen.queryByText("Checking queued timing…")).toBeNull(),
+    );
+    const cut = executePointerCommand("edit.delete");
+    await waitFor(() => expect(approveEdits).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(approveEdits).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      finish({ queued: false, count: 1, historyHead: "h" }),
+    );
+    await cut;
+    expect(useDawStore.getState().pendingDecisionInFlight).toBeNull();
+  });
+
   it("asks to cut anyway with no waiver text box", async () => {
     approveEdits.mockRejectedValue(
       new ApiError("Refinement blocked", TRANSCRIPT_REFINE_REQUIRED_CODE),

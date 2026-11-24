@@ -71,6 +71,8 @@ function EditActionBarImpl({
       guestMode: s.guestMode,
       rangeBusy: s.rangeBusy,
       joinMutationInFlight: s.joinMutationInFlight,
+      pendingDecisionInFlight: s.pendingDecisionInFlight,
+      pendingRetimeInFlight: s.pendingRetimeInFlight,
       sessionRegion: s.sessionRegion,
       activityJob: s.activityJob,
     })),

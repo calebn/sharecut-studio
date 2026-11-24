@@ -67,7 +67,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `ArrowUp` | Move track up (`track.moveUp`) | editStageMoveSelectedTrackUp | Inspector track selected |
 | `ArrowDown` | Move track down (`track.moveDown`) | editStageMoveSelectedTrackDown | Inspector track selected |
 | `Shift+F10` | Create here (`create.menu`) | Timeline focused | Shift+F10: create menu at the focused target or the playhead; the Menu key too |
-| `Backspace` | Cut selection (`edit.delete`) | editStageStructural |  |
+| `Backspace` | Cut selection (`edit.delete`) | editStageStructural | Backspace or Delete: on a selected suggestion this is its Cut (its own action), the one bare accept key; X keeps it |
 | `Mod+Backspace` | Ripple delete clip (`edit.rippleDelete`) | editStageStructural | Mod+Backspace |
 | `Mod+K` | Split at playhead (`edit.bladeCut`) | editStageStructural | Mod+K: split at the playhead — Mod+K splits; K alone pauses and returns |
 | `Mod+A` | Select all tracks (`track.selectAll`) | Timeline focused | Mod+A: Logic-style track targeting |
@@ -77,7 +77,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `S` | Split (`edit.split`) | editStageStructural | S: split at the playhead, or at both edges of the selected words or range, as one undo step — S splits; Shift+S solos the targeted track; Mod+K splits at the playhead |
 | `Shift+Space` | Hear (`edit.hear`) | editStage | Shift+Space: hear the selection |
 | `A` | Hear before (`edit.hearBefore`) | suggestionSelected | A: the suggestion as it is now |
-| `B` | Hear after (`edit.hearAfter`) | editStage | B: the suggestion applied |
+| `B` | Hear after (`edit.hearAfter`) | editStage | B: hear the suggestion applied |
 | `X` | Keep (`edit.keep`) | editStage | X: keep what is cut or reject the selected suggestion; Mod+X is Cut to the clipboard |
 | `I` | Inspect (`edit.inspect`) | editStage | I: open or close the Inspector for the selection; Mod+I is Import |
 | `.` | More (`edit.more`) | editStage | .: open the Action bar's More menu |

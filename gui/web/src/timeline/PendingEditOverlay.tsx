@@ -3,6 +3,7 @@ import { approveEdits, rejectEdits, updatePendingEdit } from "../api";
 import { applyPendingSuggestion } from "../commands/editVerbs";
 import {
   decideThroughSheet,
+  pendingDecisionBusy,
   pendingOffersCut,
   sheetBusyReason,
 } from "../commands/pendingDecision";
@@ -13,6 +14,7 @@ import {
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { EMPTY_OBJ } from "../utils/empty";
 import {
   capturePendingReview,
@@ -107,6 +109,7 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
         "You do not have permission to review this pending edit.",
       );
     }
+    if (pendingDecisionBusy(state, editId)) throw new Error(BUSY_REASON);
     if (pendingOffersCut(current)) {
       // Cut and Keep here are the Action bar's. A shorten or lower Cut applies the suggestion's own
       // action (approving would cut it whole); the rest go through the open sheet when it shows
@@ -124,14 +127,21 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
         return { queued: false };
       }
     }
-    const capture = capturePendingReview(action, capturedPath, current);
-    const result =
-      action === "approve"
-        ? approveEdits(capturedPath, [editId], false, true)
-        : rejectEdits(capturedPath, [editId]);
-    const outcome = await result;
-    if (!outcome.queued) finishPendingReview(capture, outcome);
-    return outcome;
+    state.setPendingDecisionInFlight(editId);
+    try {
+      const capture = capturePendingReview(action, capturedPath, current);
+      const result =
+        action === "approve"
+          ? approveEdits(capturedPath, [editId], false, true)
+          : rejectEdits(capturedPath, [editId]);
+      const outcome = await result;
+      if (!outcome.queued) finishPendingReview(capture, outcome);
+      return outcome;
+    } finally {
+      const live = useDawStore.getState();
+      if (live.pendingDecisionInFlight === editId)
+        live.setPendingDecisionInFlight(null);
+    }
   }, []);
   return (
     <PendingEditOverlayView

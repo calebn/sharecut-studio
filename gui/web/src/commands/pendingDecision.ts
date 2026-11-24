@@ -34,7 +34,21 @@ export function actionBarOwnsPendingVerbs(
   return canReview && pendingOffersCut(edit);
 }
 
-const TIMING_FOCUS_FRAMES = 30;
+/** A decision or an edge retime is still in flight for this suggestion: Cut and Keep wait. */
+export function pendingDecisionBusy(
+  s: Pick<
+    ReturnType<typeof useDawStore.getState>,
+    "pendingDecisionInFlight" | "pendingRetimeInFlight"
+  >,
+  editId: string | null,
+): boolean {
+  return (
+    s.pendingDecisionInFlight !== null ||
+    (editId !== null && s.pendingRetimeInFlight === editId)
+  );
+}
+
+const TIMING_FOCUS_BUDGET_MS = 2000;
 
 /**
  * Moves focus to the selected suggestion's Start field in the Inspector once it has mounted, when
@@ -57,8 +71,9 @@ export function focusPendingTimingField(editId: string): void {
   )
     return;
   const { projectPath, projectEpoch } = initial;
-  const attempt = (framesLeft: number) =>
-    requestAnimationFrame(() => {
+  const attempt = (deadline: number | null) =>
+    requestAnimationFrame((now) => {
+      const until = deadline ?? now + TIMING_FOCUS_BUDGET_MS;
       const state = useDawStore.getState();
       if (
         state.projectPath !== projectPath ||
@@ -83,10 +98,17 @@ export function focusPendingTimingField(editId: string): void {
         field.scrollIntoView({ block: "center" });
         field.focus();
       }
-      if (document.activeElement !== field && framesLeft > 0)
-        attempt(framesLeft - 1);
+      if (document.activeElement === field) return;
+      if (now < until) attempt(until);
+      else
+        state.announceStatus(
+          "Source start could not be focused. Try Inspect again.",
+          {
+            tone: "error",
+          },
+        );
     });
-  attempt(TIMING_FOCUS_FRAMES);
+  attempt(null);
 }
 
 /** The accept verb's words for an edit that offers Cut: the bar's own label and its busy text. */

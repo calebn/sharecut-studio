@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { playPendingPreview } from "../audio/pendingPreview";
 import type { EditFacts } from "../edit/editSelection";
@@ -110,6 +110,8 @@ function host(selection: unknown, extra: Record<string, unknown> = {}) {
     rangeBusy: false,
     joinMutationInFlight: false,
     pendingDecisionInFlight: null,
+    pendingRetimeInFlight: null,
+    pendingRefineGate: null,
     playheadSec: 1,
     pendingRecordTarget: null,
     statusAnnouncement: "",
@@ -2048,8 +2050,9 @@ describe("deciding a suggestion without the overlay bar", () => {
     expect(useDawStore.getState().selection).not.toBeNull();
   });
 
-  it("drops the result when the project changed during the request", async () => {
+  it("drops a success when the project changed during the request", async () => {
     host(EDIT_SELECTIONS.suggestion);
+    const selection = useDawStore.getState().selection;
     vi.mocked(api.rejectEdits).mockImplementationOnce(async () => {
       useDawStore.setState({
         projectEpoch: useDawStore.getState().projectEpoch + 1,
@@ -2057,7 +2060,73 @@ describe("deciding a suggestion without the overlay bar", () => {
       return { history_head_id: "h", count: 1 } as never;
     });
     await execute("edit.keep");
-    expect(announced()).toBe("");
+    // finishPendingReview would have cleared this selection for the old project's result.
+    expect(useDawStore.getState().selection).toBe(selection);
     expect(useDawStore.getState().pendingDecisionInFlight).toBeNull();
+  });
+
+  it("says nothing of a failure that came back after the project changed", async () => {
+    host(EDIT_SELECTIONS.suggestion, { feedbackToast: null });
+    vi.mocked(api.rejectEdits).mockImplementationOnce(async () => {
+      useDawStore.setState({
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      });
+      throw new Error("old project failed");
+    });
+    await execute("edit.keep");
+    expect(announced()).toBe("");
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+  });
+
+  it("refuses Cut and Keep while this suggestion's edge retime settles, and not another's", async () => {
+    host(EDIT_SELECTIONS.suggestion, { pendingRetimeInFlight: "pending-cut" });
+    const bar = barModelOf(factsOf()!, useDawStore.getState());
+    expect(bar.primary?.disabledReason).toBe(BUSY_REASON);
+    expect(bar.items.find((i) => i.id === "keep")?.disabledReason).toBe(
+      BUSY_REASON,
+    );
+    expect((await execute("edit.delete")).status).toBe("disabled");
+    expect((await execute("edit.keep")).status).toBe("disabled");
+    expect(api.approveEdits).not.toHaveBeenCalled();
+    expect(api.rejectEdits).not.toHaveBeenCalled();
+    host(EDIT_SELECTIONS.suggestion, { pendingRetimeInFlight: "other" });
+    expect(
+      barModelOf(factsOf()!, useDawStore.getState()).primary?.disabledReason,
+    ).toBeUndefined();
+  });
+
+  it("carries the refine gate to the sheet for the suggestion it refused", async () => {
+    host(EDIT_SELECTIONS.suggestion);
+    vi.mocked(api.approveEdits).mockRejectedValueOnce(
+      new ApiError("blocked", TRANSCRIPT_REFINE_REQUIRED_CODE, 409),
+    );
+    await execute("edit.delete");
+    expect(useDawStore.getState().pendingRefineGate).toBe("pending-cut");
+    vi.mocked(api.approveEdits).mockResolvedValueOnce({
+      queued: false,
+      count: 1,
+      historyHead: null,
+    } as never);
+    await execute("edit.delete");
+    expect(useDawStore.getState().pendingRefineGate).toBeNull();
+  });
+});
+
+describe("focusing Start after Inspect", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("says so when the field never takes focus", async () => {
+    host(EDIT_SELECTIONS.suggestion);
+    let clock = 0;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) =>
+      setTimeout(() => cb((clock += 700)), 0),
+    );
+    await runEditVerb("inspect", factsOf()!);
+    await vi.waitFor(() =>
+      expect(announced()).toBe(
+        "Source start could not be focused. Try Inspect again.",
+      ),
+    );
+    expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
   });
 });

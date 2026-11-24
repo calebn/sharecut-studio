@@ -400,6 +400,10 @@ type UiSlice = Pick<
   | "setJoinMutationInFlight"
   | "pendingDecisionInFlight"
   | "setPendingDecisionInFlight"
+  | "pendingRetimeInFlight"
+  | "setPendingRetimeInFlight"
+  | "pendingRefineGate"
+  | "setPendingRefineGate"
   | "joinDraft"
   | "setJoinDraft"
   | "rippleTrim"
@@ -428,6 +432,8 @@ export function uiProjectInitial() {
     timelineFollowPlayhead: true,
     joinMutationInFlight: false,
     pendingDecisionInFlight: null as string | null,
+    pendingRetimeInFlight: null as string | null,
+    pendingRefineGate: null as string | null,
     joinDraft: null,
     rippleTrim: null,
     rangeArmed: false,
@@ -965,6 +971,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ joinMutationInFlight }),
     setPendingDecisionInFlight: (pendingDecisionInFlight) =>
       set({ pendingDecisionInFlight }),
+    setPendingRetimeInFlight: (pendingRetimeInFlight) =>
+      set({ pendingRetimeInFlight }),
+    setPendingRefineGate: (pendingRefineGate) => set({ pendingRefineGate }),
     setJoinDraft: (joinDraft) => set({ joinDraft }),
     setRippleTrim: (rippleTrim) => set({ rippleTrim }),
     fitToWindow: (viewportWidth) => {

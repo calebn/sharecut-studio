@@ -225,6 +225,44 @@ describe("EditActionBar on the phone dock", () => {
     expect(cut).toHaveAttribute("title", "Range action in progress");
   });
 
+  it.each([
+    ["a decision", { pendingDecisionInFlight: "pending-cut" }],
+    [
+      "an edge retime of that suggestion",
+      { pendingRetimeInFlight: "pending-cut" },
+    ],
+  ])(
+    "disables a suggestion's Cut and Keep as %s starts and lifts them as it ends",
+    (_name, busy) => {
+      host(EDIT_SELECTIONS.suggestion, {
+        pendingDecisionInFlight: null,
+        pendingRetimeInFlight: null,
+      });
+      render(<EditActionBar form="dock" root={null} />);
+      const cut = () => screen.getByRole("button", { name: "Cut" });
+      const keep = () => screen.getByRole("button", { name: "Keep" });
+      expect(cut()).toBeEnabled();
+      expect(keep()).toBeEnabled();
+      act(() => useDawStore.setState(busy));
+      expect(cut()).toBeDisabled();
+      expect(keep()).toBeDisabled();
+      act(() =>
+        useDawStore.setState({
+          pendingDecisionInFlight: null,
+          pendingRetimeInFlight: null,
+        }),
+      );
+      expect(cut()).toBeEnabled();
+      expect(keep()).toBeEnabled();
+    },
+  );
+
+  it("leaves Cut and Keep alone while another suggestion retimes", () => {
+    host(EDIT_SELECTIONS.suggestion, { pendingRetimeInFlight: "other" });
+    render(<EditActionBar form="dock" root={null} />);
+    expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
+  });
+
   it("says why Split did nothing when the playhead is off the clip", async () => {
     host(EDIT_SELECTIONS.clip, { playheadSec: 9 });
     render(<EditActionBar form="dock" root={null} />);

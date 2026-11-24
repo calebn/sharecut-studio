@@ -18,6 +18,7 @@ import {
 } from "../../api/documentEdits";
 import {
   actionBarOwnsPendingVerbs,
+  pendingDecisionBusy,
   registerPendingDecider,
 } from "../../commands/pendingDecision";
 import { useCommentActions } from "../../comments";
@@ -137,6 +138,15 @@ export function PendingEditBody({
   const mayAsk = canComment(projectPath, guestMode, shareCapabilities);
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
   const { busy, error, errorCode, setError, run } = useProjectMutation();
+  // The bar's Cut hit the transcript-refine gate: the recovery form shows here as if the sheet's
+  // own approve had.
+  const barRefineGate = useDawStore((s) => s.pendingRefineGate === edit.id);
+  const refineCode = barRefineGate
+    ? TRANSCRIPT_REFINE_REQUIRED_CODE
+    : errorCode;
+  const refineError = barRefineGate
+    ? (error ?? REFINE_GATE_GUI_MESSAGE)
+    : error;
   const {
     notice: queuedNotice,
     queued,
@@ -233,6 +243,9 @@ export function PendingEditBody({
   ): Promise<string | null> => {
     if (timingBusy) return BUSY_REASON;
     const live = useDawStore.getState();
+    // The bar's Cut and Keep run through here with the flag already set; the sheet's own
+    // buttons take it, so the two never decide one edit at once.
+    if (!fromBar && pendingDecisionBusy(live, edit.id)) return BUSY_REASON;
     const currentEdit = live.project?.pending_edits.find(
       (item) => item.id === edit.id,
     );
@@ -247,36 +260,44 @@ export function PendingEditBody({
     const selection = live.selection;
     const capture = capturePendingReview(action, projectPath, currentEdit);
     setQueued(false);
-    await run(async () => {
-      let outcome: Awaited<ReturnType<typeof approveEdits>>;
-      try {
-        outcome =
-          action === "approve"
-            ? await approveEdits(projectPath, [edit.id], false, true)
-            : await rejectEdits(projectPath, [edit.id]);
-      } catch (error) {
-        if (fromBar)
-          useDawStore
-            .getState()
-            .announceStatus(errorMessage(error), { tone: "error" });
-        throw error;
-      }
-      const current = useDawStore.getState();
-      if (
-        current.projectPath !== projectPath ||
-        current.projectEpoch !== projectEpoch ||
-        previousTiming.current.identity !== timingIdentity ||
-        current.selection !== selection
-      )
-        return;
-      if (outcome.queued) {
-        // Saved but not sent yet: keep the edit selected and say so.
-        setQueued(true);
-        if (fromBar) finishPendingReview(capture, outcome);
-        return;
-      }
-      finishPendingReview(capture, outcome);
-    });
+    live.setPendingRefineGate(null);
+    if (!fromBar) live.setPendingDecisionInFlight(edit.id);
+    try {
+      await run(async () => {
+        let outcome: Awaited<ReturnType<typeof approveEdits>>;
+        try {
+          outcome =
+            action === "approve"
+              ? await approveEdits(projectPath, [edit.id], false, true)
+              : await rejectEdits(projectPath, [edit.id]);
+        } catch (error) {
+          if (fromBar)
+            useDawStore
+              .getState()
+              .announceStatus(errorMessage(error), { tone: "error" });
+          throw error;
+        }
+        const current = useDawStore.getState();
+        if (
+          current.projectPath !== projectPath ||
+          current.projectEpoch !== projectEpoch ||
+          previousTiming.current.identity !== timingIdentity ||
+          current.selection !== selection
+        )
+          return;
+        if (outcome.queued) {
+          // Saved but not sent yet: keep the edit selected and say so.
+          setQueued(true);
+          if (fromBar) finishPendingReview(capture, outcome);
+          return;
+        }
+        finishPendingReview(capture, outcome);
+      });
+    } finally {
+      const now = useDawStore.getState();
+      if (!fromBar && now.pendingDecisionInFlight === edit.id)
+        now.setPendingDecisionInFlight(null);
+    }
     return null;
   };
 
@@ -509,7 +530,7 @@ export function PendingEditBody({
     name: { value: author, onChange: setAuthor },
   };
   const shownError =
-    error && errorCode === TRANSCRIPT_REFINE_REQUIRED_CODE
+    refineError && refineCode === TRANSCRIPT_REFINE_REQUIRED_CODE
       ? REFINE_GATE_GUI_MESSAGE
       : combinedError;
 
@@ -623,9 +644,12 @@ export function PendingEditBody({
           <TranscriptRefineRecovery
             key={edit.id}
             projectPath={projectPath}
-            error={error}
-            errorCode={errorCode}
-            onRecovered={() => setError(null)}
+            error={refineError}
+            errorCode={refineCode}
+            onRecovered={() => {
+              setError(null);
+              useDawStore.getState().setPendingRefineGate(null);
+            }}
           />
         ) : null}
         <section className="edit-ask" aria-label="Ask about this edit">
