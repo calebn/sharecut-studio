@@ -17,7 +17,6 @@ export type ExportedFile = {
   href?: string;
 };
 
-/** Every current file of the export as one download. */
 export type ExportArchive = {
   name: string;
   count: number;

@@ -48,8 +48,6 @@ class ZipMemberChanged(OSError):
 
 
 class _Sink(io.RawIOBase):
-    """A write-only target that hands back what ``zipfile`` wrote since the last ``take``."""
-
     def __init__(self) -> None:
         self._pending = bytearray()
         self._position = 0

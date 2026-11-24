@@ -34,7 +34,6 @@ export type ExportedFileEntry = {
 export type ExportArchiveEntry = {
   name: string;
   count: number;
-  /** The exact length of the download. */
   bytes: number;
   /** Host listing only: a short-lived signed ticket that downloads the archive as listed. */
   ticket?: string;
