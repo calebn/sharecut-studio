@@ -224,7 +224,7 @@ external undo + new edit cannot inherit a discarded step's selection. The
 History tab virtualizes long group lists (≥200 steps) so a many-entry history
 keeps the DOM bounded.
 
-`history diff` compares two snapshot indices and returns clip/decision/mix deltas (see `project/history/diff.py`) plus a **`summary`** string list (see `project/history/summary.py`) for GUI/CLI/MCP consumers.
+`history diff` compares two snapshot indices and returns clip/decision/mix deltas (see `project/history/diff.py`) plus a **`summary`** string list (see `project/history/summary.py`) for GUI/CLI/MCP consumers. A pending cut's `bound_pad` (the room-tone pick bound to it, [filler-cut-quality.md](filler-cut-quality.md)) is left out of the decision rows, so a rebind of the same cut is not a change.
 
 ## Guarded undo and redo (expected head)
 
