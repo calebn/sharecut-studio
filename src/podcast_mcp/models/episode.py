@@ -767,6 +767,49 @@ class CutSpeech(BaseModel):
     tracks: list[CutSpeechTrack] = Field(min_length=1)
 
 
+class BoundPadLane(BaseModel):
+    """One lane's room-tone pick for a pending pad, held so that every preview and approve plays it.
+
+    ``start``/``end`` are the source span the fill plays: the track's own recording
+    (``kind`` ``own``), its recorded bed or a synthesised file (``source_id``, and for
+    ``synth`` the file's ``rel_path`` and ``file_sec``). ``near_sec``, ``near_source_id`` and
+    ``request_sec`` are the seam and request the pick answered, ``seed_sec`` orders its tiles,
+    and ``digest`` names the room-tone inputs it read (``edits/pad_binding.py``).
+    """
+
+    model_config = {"extra": "forbid", "frozen": True}
+
+    kind: Literal["own", "bed", "synth"]
+    start: float = Field(allow_inf_nan=False)
+    end: float = Field(allow_inf_nan=False)
+    near_sec: float = Field(allow_inf_nan=False)
+    near_source_id: str | None = None
+    request_sec: float = Field(allow_inf_nan=False)
+    seed_sec: float = Field(allow_inf_nan=False)
+    digest: str
+    source_id: str | None = None
+    rel_path: str | None = None
+    file_sec: float | None = Field(default=None, allow_inf_nan=False)
+    rms_db: float | None = Field(default=None, allow_inf_nan=False)
+    speech_prob: float | None = Field(default=None, allow_inf_nan=False)
+    bed_failure: str | None = None
+    bed_rejected_checks: list[str] = Field(default_factory=list)
+
+
+class BoundPad(BaseModel):
+    """The room tone a pending padded cut plays on each lane, bound to the edit as it was bound.
+
+    ``geometry`` names the edit fields the pick depended on. A binding whose geometry no
+    longer matches its edit, or whose lane no longer matches what the apply would ask,
+    is not used (``edits/pad_binding.py``).
+    """
+
+    model_config = {"extra": "forbid", "frozen": True}
+
+    geometry: str
+    lanes: dict[str, BoundPadLane] = Field(default_factory=dict)
+
+
 class EditDecision(BaseModel):
     id: str
     track_id: str
@@ -808,6 +851,9 @@ class EditDecision(BaseModel):
     exact_range: ExactRangeTarget | None = None
     proposal_origin: ProposalOrigin = ProposalOrigin.PROGRAMMATIC
     boundary_intent: CutIntent = CutIntent.PROGRAMMATIC
+    # The room tone this pending cut's pad plays, bound when it was proposed so a preview and
+    # every later approve play one fill (#3600). None: not bound yet; apply picks fresh.
+    bound_pad: BoundPad | None = None
 
 
 class CommentActionItem(BaseModel):

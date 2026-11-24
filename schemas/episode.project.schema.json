@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["version", "meta", "timeline", "editorial", "transcripts", "mix", "render"],
   "properties": {
-    "version": { "const": "2.4" },
+    "version": { "const": "2.5" },
     "meta": { "$ref": "#/$defs/ProjectMeta" },
     "sources": { "type": "array", "items": { "$ref": "#/$defs/SourceRecording" } },
     "timeline": { "$ref": "#/$defs/TimelineSection" },
@@ -1081,7 +1081,45 @@
           "type": "string",
           "enum": ["source", "timeline"],
           "default": "source"
+        },
+        "bound_pad": {
+          "anyOf": [{ "$ref": "#/$defs/BoundPad" }, { "type": "null" }],
+          "default": null,
+          "description": "The room tone this pending cut's pad plays on each lane, bound when the cut was proposed so a preview and every later approve play one fill; null until bound, and the apply then picks fresh"
         }
+      }
+    },
+    "BoundPad": {
+      "type": "object",
+      "description": "A pending cut's bound room tone: the lanes it plays, and a digest of the cut fields they were bound for",
+      "required": ["geometry"],
+      "additionalProperties": false,
+      "properties": {
+        "geometry": { "type": "string" },
+        "lanes": { "type": "object", "additionalProperties": { "$ref": "#/$defs/BoundPadLane" } }
+      }
+    },
+    "BoundPadLane": {
+      "type": "object",
+      "description": "One lane's bound room-tone sample. start/end are the source span it plays: the track's own recording (own), its recorded bed (bed) or a synthesised file (synth); near_sec, near_source_id and request_sec are the seam and request it answered, seed_sec orders its tiles, and digest names the room-tone inputs it read. It is used only while all of these still match the apply.",
+      "required": ["kind", "start", "end", "near_sec", "request_sec", "seed_sec", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["own", "bed", "synth"] },
+        "start": { "type": "number" },
+        "end": { "type": "number" },
+        "near_sec": { "type": "number" },
+        "near_source_id": { "type": ["string", "null"], "default": null },
+        "request_sec": { "type": "number" },
+        "seed_sec": { "type": "number" },
+        "digest": { "type": "string" },
+        "source_id": { "type": ["string", "null"], "default": null },
+        "rel_path": { "type": ["string", "null"], "default": null },
+        "file_sec": { "type": ["number", "null"], "default": null },
+        "rms_db": { "type": ["number", "null"], "default": null },
+        "speech_prob": { "type": ["number", "null"], "default": null },
+        "bed_failure": { "type": ["string", "null"], "default": null },
+        "bed_rejected_checks": { "type": "array", "items": { "type": "string" } }
       }
     },
     "CutSpeech": {

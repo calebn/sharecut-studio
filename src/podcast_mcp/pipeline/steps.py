@@ -13,6 +13,7 @@ from uuid import uuid4
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.edits.cut_application import apply_suggested_to_project
+from podcast_mcp.edits.pad_binder import bind_pending_pad_picks
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.ffmpeg import logged_headroom_trim_db
 from podcast_mcp.engines.mastering import (
@@ -457,6 +458,7 @@ def analyze_fillers_pauses(project: EpisodeProject, defaults: dict[str, Any]) ->
         prog.set_phase("propose", "Proposing tighten edits…")
         proposed = propose_tighten_edits(project, defaults, replace_existing=True)
         _record_level_profiles(project)
+        bind_pending_pad_picks(project, defaults=defaults)
     return proposed.summary()
 
 

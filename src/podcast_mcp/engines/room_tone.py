@@ -758,25 +758,29 @@ def schedule_room_tone_pool(project: EpisodeProject, track_id: str) -> bool:
     return schedule_room_tone_pools(project, [track_id]) == 1
 
 
-def room_tone_pool_digest(project: EpisodeProject) -> str:
-    """Identity of every track's pool, so a render that depends on it changes when it does.
+def room_tone_pool_digest(project: EpisodeProject, track_id: str | None = None) -> str:
+    """Identity of every track's pool (or of ``track_id``'s), so a render that depends on it
+    changes when it does.
 
     A preview made before the pool existed picked live; once the pool is recorded the same
     edit approves with a pooled sample, so the cached preview must not be reused.
     """
     parts = []
     for track in project.tracks:
+        if track_id is not None and track.id != track_id:
+            continue
         pool = read_room_tone_pool(project, track.id)
         if pool is not None:
             parts.append([track.id, [[x.start, x.end] for x in pool]])
     return json.dumps(parts) if parts else ""
 
 
-def room_tone_bed_digest(project: EpisodeProject) -> str:
-    """Which registered beds render, and why not: part of a preview's cache key."""
+def room_tone_bed_digest(project: EpisodeProject, track_id: str | None = None) -> str:
+    """Which registered beds render (``track_id``'s only, when given), and why not: part of a
+    preview's cache key."""
     parts: list[list[object]] = []
     for track in project.tracks:
-        if track.room_tone is None:
+        if track.room_tone is None or (track_id is not None and track.id != track_id):
             continue
         bed = room_tone_bed(project, track.id)
         if isinstance(bed, BedUnavailable):

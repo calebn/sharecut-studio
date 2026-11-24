@@ -23,6 +23,11 @@ SHARED_FIELDS: dict[str, str] = {
     "ArchivedTranscriptWord": ("ordinal word"),
     "AutomationEnvelope": ("parameter points track_id"),
     "AutomationPoint": ("id time value"),
+    "BoundPad": ("geometry lanes"),
+    "BoundPadLane": (
+        "bed_failure bed_rejected_checks digest end file_sec kind near_sec near_source_id "
+        "rel_path request_sec rms_db seed_sec source_id speech_prob start"
+    ),
     "ChapterMarker": ("image_url time title"),
     "Clip": (
         "bleed_restore fade_in_curve fade_in_ms fade_out_curve fade_out_ms gain_db id join_in_mode mute_regions "

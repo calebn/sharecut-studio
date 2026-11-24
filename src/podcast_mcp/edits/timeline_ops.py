@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
@@ -25,6 +25,7 @@ from podcast_mcp.edits.join_modes import (
     clamp_clip_fades,
     join_fade_max_ms,
 )
+from podcast_mcp.edits.pad_binding import PadSeam, reusable_selection
 from podcast_mcp.edits.reinsert import capture_anchors, capture_seams
 from podcast_mcp.edits.ripple import (
     RippleRemoval,
@@ -103,6 +104,7 @@ from podcast_mcp.engines.transcript_sync import (
 from podcast_mcp.models import (
     CLIP_GAIN_MAX_DB,
     CLIP_GAIN_MIN_DB,
+    BoundPadLane,
     Clip,
     ClipBleedRestore,
     ClipJoinMode,
@@ -1619,6 +1621,7 @@ def mute_room_tone_fill(
 class LaneSample:
     track_id: str
     selection: OwnQuietSample | RecordedBedSample
+    seam: PadSeam
 
 
 @dataclass(frozen=True)
@@ -1809,9 +1812,17 @@ def room_tone_pad(
     *,
     sample_duration_sec: float | None = None,
     avoid: Mapping[str, Sequence[tuple[float, float]]] | None = None,
+    also_taken: Mapping[str, Sequence[tuple[float, float]]] | None = None,
+    bound: Mapping[str, BoundPadLane] | None = None,
     defaults: EffectiveConfig,
 ) -> RoomTonePad:
-    """Bind every lane's sample at the current seam before inserting a pad."""
+    """Pick every lane's sample at the current seam before inserting a pad.
+
+    ``bound`` is the edit's bound lanes (``pad_binding.usable_lanes``): a lane that still
+    answers this seam plays its bound sample, with the tile seed it was bound with, instead
+    of a fresh pick. ``also_taken`` is, per track, source the caller knows other pads will
+    play that the project does not yet.
+    """
     tracks = ripple_track_ids(project)
     lanes: list[LaneSample | LaneWithoutPlayback | LaneUnavailable] = []
     for tid in tracks:
@@ -1836,6 +1847,12 @@ def room_tone_pad(
             lanes.append(LaneUnavailable(tid, "missing_seam"))
             continue
         near = seam.source_end if left else seam.source_start
+        request_sec = min(seconds, sample_duration_sec) if sample_duration_sec else seconds
+        at_seam = PadSeam(near, seam.source_id, request_sec, at_time)
+        kept = (bound or {}).get(tid)
+        if kept is not None and (held := reusable_selection(project, tid, kept, at_seam, excluded)):
+            lanes.append(LaneSample(tid, held, replace(at_seam, seed_sec=kept.seed_sec)))
+            continue
         selected = room_tone_for_gap(
             project,
             tid,
@@ -1844,13 +1861,14 @@ def room_tone_pad(
             near_sec=near,
             near_source_id=seam.source_id,
             timeline_sec=at_time,
-            duration_sec=min(seconds, sample_duration_sec) if sample_duration_sec else seconds,
+            duration_sec=request_sec,
             avoid=excluded,
+            also_taken=(also_taken or {}).get(tid, ()),
         )
         lanes.append(
             LaneUnavailable(tid, selected)
             if isinstance(selected, SampleAbsent)
-            else LaneSample(tid, selected)
+            else LaneSample(tid, selected, at_seam)
         )
     return RoomTonePad(at_time, seconds, tuple(lanes))
 
@@ -1862,13 +1880,20 @@ def _tiled_fill_clips(
     span_end: float,
     gap_start: float,
     gap_end: float,
+    seed_sec: float | None = None,
 ) -> list[Clip]:
     """Clips that fill ``[gap_start, gap_end)`` from ``[span_start, span_end)`` of a source.
 
     The edges fade for 10 ms. The joins between repeats of a span shorter than the gap blend
-    over ``CROSSFADE_MS``, borrowing only audio inside the span.
+    over ``CROSSFADE_MS``, borrowing only audio inside the span. ``seed_sec`` (the gap's
+    start when None) orders the tiles.
     """
-    tiles = tile_span(span_start, span_end, gap_end - gap_start, seed_sec=gap_start)
+    tiles = tile_span(
+        span_start,
+        span_end,
+        gap_end - gap_start,
+        seed_sec=gap_start if seed_sec is None else seed_sec,
+    )
     clips: list[Clip] = []
     t = gap_start
     for index, tile in enumerate(tiles):
@@ -1911,7 +1936,13 @@ def insert_bound_room_tone_pad(
                 register_synth_source(project, selected)
             sample_src, src_end, source_id = selected.start, selected.end, selected.source_id
         fills = _tiled_fill_clips(
-            tid, source_id, sample_src, src_end, at_time, at_time + duration_sec
+            tid,
+            source_id,
+            sample_src,
+            src_end,
+            at_time,
+            at_time + duration_sec,
+            seed_sec=lane.seam.seed_sec,
         )
         set_track_clips(
             project,

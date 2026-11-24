@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, replace
 from typing import Any, TypeVar
 
@@ -48,6 +48,7 @@ from podcast_mcp.edits.envelopes import volume_envelope_baseline
 from podcast_mcp.edits.join_continuity import (
     assess_existing_join,
 )
+from podcast_mcp.edits.pad_binder import bind_pending_pad_picks
 from podcast_mcp.edits.range_edits import RangeAction, RangeEditResult
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.tighten.propose import with_audio_check as with_audio_check
@@ -64,7 +65,7 @@ from podcast_mcp.edits.unsure_words import (
     hold_unsure_cuts,
 )
 from podcast_mcp.engines.render_status import render_status_report
-from podcast_mcp.models import CutIntent, EditDecision, EditMode
+from podcast_mcp.models import CutIntent, EditDecision, EditMode, EpisodeProject
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.project.history.manager import (
     apply_snapshot_to_project,
@@ -92,6 +93,16 @@ T = TypeVar("T")
 
 
 class EditService(CutMutatingService):
+    def _binding(self, fn: Callable[[EpisodeProject], T]) -> Callable[[EpisodeProject], T]:
+        """``fn``, then bind the room tone each pending padded cut will play (#3600)."""
+
+        def bound(project: EpisodeProject) -> T:
+            result = fn(project)
+            bind_pending_pad_picks(project, defaults=self.ws.effective_config())
+            return result
+
+        return bound
+
     def _require_refine_clear(self) -> None:
         REFINE_GATE.assert_clear(self.ws.project, defaults=self.ws.effective_config())
 
@@ -142,15 +153,17 @@ class EditService(CutMutatingService):
         self.ws.mutate(
             "before cut time range",
             "after cut time range",
-            lambda p: cut_time_range(
-                p,
-                track_id,
-                start,
-                end,
-                reason=reason,
-                review_required=review_required,
-                use_inaudible_opt=use_inaudible_opt,
-                defaults=self.ws.effective_config(),
+            self._binding(
+                lambda p: cut_time_range(
+                    p,
+                    track_id,
+                    start,
+                    end,
+                    reason=reason,
+                    review_required=review_required,
+                    use_inaudible_opt=use_inaudible_opt,
+                    defaults=self.ws.effective_config(),
+                )
             ),
         )
 
@@ -178,7 +191,9 @@ class EditService(CutMutatingService):
                 defaults=self.ws.effective_config(),
             )
 
-        return self.ws.mutate("before cut text match", "after cut text match", mutate)
+        return self.ws.mutate(
+            "before cut text match", "after cut text match", self._binding(mutate)
+        )
 
     def cut_utterance(
         self,
@@ -191,12 +206,14 @@ class EditService(CutMutatingService):
         self.ws.mutate(
             "before cut utterance",
             "after cut utterance",
-            lambda p: cut_utterance(
-                p,
-                utterance_index,
-                review_required=review_required,
-                use_inaudible_opt=use_inaudible_opt,
-                defaults=self.ws.effective_config(),
+            self._binding(
+                lambda p: cut_utterance(
+                    p,
+                    utterance_index,
+                    review_required=review_required,
+                    use_inaudible_opt=use_inaudible_opt,
+                    defaults=self.ws.effective_config(),
+                )
             ),
         )
 
@@ -214,15 +231,17 @@ class EditService(CutMutatingService):
         self.ws.mutate(
             "before cut words",
             "after cut words",
-            lambda p: cut_words(
-                p,
-                track_id,
-                start_word_index,
-                end_word_index,
-                source_id=source_id,
-                review_required=review_required,
-                use_inaudible_opt=use_inaudible_opt,
-                defaults=self.ws.effective_config(),
+            self._binding(
+                lambda p: cut_words(
+                    p,
+                    track_id,
+                    start_word_index,
+                    end_word_index,
+                    source_id=source_id,
+                    review_required=review_required,
+                    use_inaudible_opt=use_inaudible_opt,
+                    defaults=self.ws.effective_config(),
+                )
             ),
         )
 
@@ -245,7 +264,9 @@ class EditService(CutMutatingService):
             )
             return len(created)
 
-        return self.ws.mutate("before apply edit plan", "after apply edit plan", mutate)
+        return self.ws.mutate(
+            "before apply edit plan", "after apply edit plan", self._binding(mutate)
+        )
 
     def list_decisions(
         self,
@@ -590,7 +611,7 @@ class EditService(CutMutatingService):
             return self.ws.mutate(
                 "before update pending edit",
                 "after update pending edit",
-                mutate,
+                self._binding(mutate),
                 operation="update_pending_edit",
                 params={
                     "id": edit_id,
@@ -626,7 +647,7 @@ class EditService(CutMutatingService):
                 p, self.ws.effective_config(), edit_mode=edit_mode, intensity=intensity
             )
 
-        return self.ws.mutate("before propose edits", "after propose edits", mutate)
+        return self.ws.mutate("before propose edits", "after propose edits", self._binding(mutate))
 
     def check_proposed(self, ids: list[str]) -> tuple[dict[str, str], bool]:
         """Which of ``ids`` Approve all would hold, found on a scratch copy; ``({}, False)`` if unread."""
@@ -830,5 +851,5 @@ class EditService(CutMutatingService):
         return self.ws.mutate(
             "before suggest pending edit",
             "after suggest pending edit",
-            mutate,
+            self._binding(mutate),
         )

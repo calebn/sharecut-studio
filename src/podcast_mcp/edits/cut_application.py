@@ -15,6 +15,7 @@ from podcast_mcp.edits import (
     cut_placement,
     cut_policy,
     cut_safety,
+    pad_binding,
     suggested_actions,
     verdict_cache,
 )
@@ -54,7 +55,7 @@ from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.edits.join_modes import automatic_fade_ms, cap_fade_ms
 from podcast_mcp.edits.reinsert import PadEdges, edge_fade, pad_record
-from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
+from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent, TrimPlan, ripple_track_ids
 from podcast_mcp.edits.source_removals import (
     STALE_REASON,
     ScopeChangedAtApproval,
@@ -70,6 +71,7 @@ from podcast_mcp.edits.tighten_reasons import (
     is_pause_reason,
 )
 from podcast_mcp.edits.timeline_ops import (
+    LaneSample,
     RippledSpan,
     _write_punch_delete,
     _write_punch_delete_clips,
@@ -105,6 +107,7 @@ from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.engines.windowed_rms import WindowMiss
 from podcast_mcp.models import (
     MUTE_FADE_MS,
+    BoundPadLane,
     Clip,
     ClipJoinMode,
     ClipMuteRegion,
@@ -360,6 +363,24 @@ def apply_timeline_cut(
     return report
 
 
+def implicit_full_span_clips(project: EpisodeProject, track_ids: Iterable[str]) -> list[Clip]:
+    """The whole-recording clip of each of ``track_ids`` that plays with no clip of its own."""
+    implicit = []
+    for tid in track_ids:
+        track = project.track_by_id(tid)
+        if (
+            track
+            and track.media
+            and not track.timeline_empty
+            and not any(c.track_id == tid for c in project.clips)
+            and track.media.duration_sec is not None
+            and math.isfinite(track.media.duration_sec)
+            and track.media.duration_sec > 0
+        ):
+            implicit.append(full_span_clip(tid, track.media.duration_sec))
+    return implicit
+
+
 def _nearest_ripple_join_time(project: EpisodeProject, near_sec: float) -> float:
     best: float | None = None
     best_dist = float("inf")
@@ -374,6 +395,51 @@ def _nearest_ripple_join_time(project: EpisodeProject, near_sec: float) -> float
                 best_dist = dist
                 best = left.timeline_end
     return best if best is not None and best_dist < 0.1 else near_sec
+
+
+def pad_start_for(
+    project: EpisodeProject, edit: EditDecision, tl_start: float, *, exact_seam: bool = False
+) -> float:
+    """Where ``edit``'s pad opens: the cut's own seam, or the nearest ripple join to it."""
+    if exact_seam or is_pause_reason(edit.reason):
+        return tl_start
+    return _nearest_ripple_join_time(project, tl_start)
+
+
+def lay_pad_for_binding(
+    working: EpisodeProject,
+    edit: EditDecision,
+    promised: dict[str, list[tuple[float, float]]],
+    *,
+    defaults: EffectiveConfig,
+) -> dict[str, BoundPadLane]:
+    """Ripple ``edit`` out of ``working`` and open its pad; the lanes of the pick made."""
+    placement, span = cut_safety.source_cut_placement(working, edit)
+    gap = edit.replace_gap_sec
+    if placement is not None or gap is None:
+        return {}
+    removal = RippleRemoval.of([TrackExtent(edit.track_id, float(span[0]), float(span[1]))])
+    working.clips.extend(
+        implicit_full_span_clips(working, ripple_track_ids(working, removal.edited_track_ids))
+    )
+    report = _write_ripple_delete(
+        working, removal, record_log=False, remap_anchors=False, restorable=False, defaults=defaults
+    )
+    plan = room_tone_pad(
+        working,
+        pad_start_for(working, edit, report["timeline_start"]),
+        gap,
+        avoid=pending_pad_source_spans(working, edit),
+        also_taken=promised,
+        bound=pad_binding.usable_lanes(edit),
+        defaults=defaults,
+    )
+    insert_bound_room_tone_pad(working, plan, defaults=defaults)
+    return {
+        lane.track_id: pad_binding.bound_lane(working, lane.track_id, lane.selection, lane.seam)
+        for lane in plan.lanes
+        if isinstance(lane, LaneSample)
+    }
 
 
 class _PadWrite(NamedTuple):
@@ -396,11 +462,7 @@ def _apply_replace_gap_pad(
         return _PadWrite([], None)
     if getattr(edit, "scope", "session") == "track":
         return _PadWrite([], None)
-    pad_start_sec = (
-        tl_start
-        if exact_seam or is_pause_reason(edit.reason)
-        else _nearest_ripple_join_time(project, tl_start)
-    )
+    pad_start_sec = pad_start_for(project, edit, tl_start, exact_seam=exact_seam)
     before_ids = {clip.id for clip in project.clips}
     if filler_pad_mode(defaults=defaults) == "room_tone":
         plan = room_tone_pad(
@@ -408,6 +470,7 @@ def _apply_replace_gap_pad(
             pad_start_sec,
             gap,
             avoid=pending_pad_source_spans(project, edit),
+            bound=pad_binding.usable_lanes(edit),
             defaults=defaults,
         )
         report = insert_bound_room_tone_pad(project, plan, defaults=defaults)
@@ -908,19 +971,7 @@ def _write_source_remove(
         [edit.track_id] if removal is None else ripple_track_ids(project, removal.edited_track_ids)
     )
     consumed_inaudible_opt = False
-    implicit = []
-    for tid in tracks:
-        track = project.track_by_id(tid)
-        if (
-            track
-            and track.media
-            and not track.timeline_empty
-            and not any(c.track_id == tid for c in project.clips)
-            and track.media.duration_sec is not None
-            and math.isfinite(track.media.duration_sec)
-            and track.media.duration_sec > 0
-        ):
-            implicit.append(full_span_clip(tid, track.media.duration_sec))
+    implicit = implicit_full_span_clips(project, tracks)
     proof.close()
     project.clips.extend(implicit)
     if scope == "track":
