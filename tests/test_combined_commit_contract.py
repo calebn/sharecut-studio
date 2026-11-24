@@ -52,12 +52,12 @@ from pause_policy_public_helpers import (
     add_bed,
     configure,
     pause,
-    prepare_pause,
     room,
     voice,
     write_wav,
 )
 from pause_policy_public_helpers import defaults as pause_defaults
+from podcast_mcp.edits.audio_check_override import audio_check_override
 from podcast_mcp.edits.insert_anchor import capture_insert_anchor, capture_range_anchors
 from podcast_mcp.edits.range_edits import RangeAction
 from podcast_mcp.edits.record_placement import upsert_source
@@ -269,25 +269,24 @@ def _paste(ws: ProjectWorkspace) -> Any:
     )
 
 
-def _host_with_room_tone_bed(project: EpisodeProject) -> None:
-    """Quiet host room tone and a room-tone bed, so an applied pause is padded with air."""
+def _host_with_a_padded_filler_cut(project: EpisodeProject) -> None:
+    """Quiet host room tone and a bed, and an approved filler cut over "there" that leaves air."""
     host = project.tracks[0]
     assert host.media is not None
     host.media.sample_rate = RATE
     add_bed(project, project.workspace_path())
     audio = room(10.0)
-    voice(audio, 0.0, 0.2)
-    voice(audio, 3.0, 3.2)
+    voice(audio, 0.0, 0.4)
+    voice(audio, 1.0, 1.4)
     write_wav(project.workspace_path() / "raw" / "host.wav", audio)
-    project.edit_decisions = [
-        prepare_pause(
-            project, pause("pause", start=1.5, end=2.9, gap=0.25), pause_defaults(), next_word=3
-        )
-    ]
+    filler = pause("filler", start=0.5, end=0.9, gap=0.2)
+    filler.reason = "filler:there"
+    project.edit_decisions = [filler]
 
 
-def _approve_padded_pause(ws: ProjectWorkspace) -> Any:
-    return EditService(ws).approve(["pause"])
+def _approve_padded_filler(ws: ProjectWorkspace) -> Any:
+    with audio_check_override("contract", "test"):
+        return EditService(ws).approve(["filler"])
 
 
 def _host_with_room_tone_gap(project: EpisodeProject) -> None:
@@ -625,11 +624,10 @@ TIMELINE_CASES = [
         quirk="h1",
     ),
     Case(
-        "approve_pause_with_room_tone_pad",
-        _approve_padded_pause,
-        FRESH_TEXTS,
-        quirk="h1",
-        arrange=_host_with_room_tone_bed,
+        "approve_filler_cut_with_room_tone_pad",
+        _approve_padded_filler,
+        ("hello friend", "welcome back", "thanks for having me"),
+        arrange=_host_with_a_padded_filler_cut,
         configure=lambda monkeypatch: configure(monkeypatch, pause_defaults()),
     ),
     Case(
