@@ -450,10 +450,15 @@ body, and a split has no field to focus. The sheet's own Approve and Reject butt
 a comment-linked pending edit and on a phone sheet with no bar dock (the compact drawer, the
 full sheet at a tight height). The bar's primary verb is Cut, Shorten or Lower only for a cut, shorten or lower suggestion that is neither a split nor an exact range (`pendingOffersCut`); every other pending edit, including a split or exact range that carries an accept action, gets Approve and Reject, which run `ApproveEdits` and `RejectEdits`. The bar's Cut runs `ApproveEdits` for a cut action and `ApplySuggestedActions` for shorten or lower. An exact range's Approve and Reject are disabled for anyone but the host or an Editor, with the reason in visible text.
 Busy, queued and refused-by-the-refine-gate notices reach the status line and the Inspector's
-recovery form. A pending edit's edge drag that the host refuses (409, 400 or another 4xx) keeps the drag settling
-while the save is in flight, then announces one plain sentence in the status line and error toast saying the edge was not
-saved and is back where it was (`pendingRetimeRefusal`, by error code; the server's own text is never shown), and the edge
-returns to its saved place. It stays silent only when the project changed meanwhile.
+recovery form. A pending edit's edge drag keeps the drag settling while the save is in flight. When the host refuses it
+with a permanent 4xx (400, 404, 409, 422 and the like), the status line and error toast say one plain sentence that the edge was
+not saved and is back where it was (`pendingRetimeRefusal`, chosen by error code), and the edge returns to its saved place. The
+refusal is answered there, so it adds no Needs attention row (`refusalInline` on `updatePendingEdit`); a missing or damaged project file keeps its own blocking item. A project-level 400 or 404
+(`project_version_newer`, `project_version_unsupported`, `project_not_found`, `project_unreadable`) names that cause instead of
+"move the edge again". A 408 or 429 (retry later), a 5xx or a transport error with the save kept in the offline queue stays silent
+and retries; the same failure when the save could not be kept says plainly that it could not be saved right now. None of these
+sentences contain the server's own text. The drag stays silent only when the project changed meanwhile. Keyboard nudges of a pending
+edit's bounds are not covered by this.
 
 ### Provisional recording timeline
 

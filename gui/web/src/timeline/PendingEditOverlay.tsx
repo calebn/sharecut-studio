@@ -64,6 +64,10 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
         sourceStart,
         sourceEnd,
         false,
+        undefined,
+        undefined,
+        // A refused drag says so on the status line and snaps back; a Needs attention row would replace that sentence.
+        { refusalInline: true },
       );
     },
     [],

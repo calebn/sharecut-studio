@@ -61,12 +61,21 @@ for (const [status, detail] of REFUSED) {
       await expect
         .poll(() => refused, { message: "the save was sent and refused" })
         .toBe(1);
+      const sentence =
+        "That edit's end was not saved, so it is back where it was. Move the edge again or pick a different range.";
       const said = page
         .getByRole("region", { name: "Status messages" })
-        .getByText(
-          "That edit's end was not saved, so it is back where it was. Move the edge again or pick a different range.",
-        );
+        .getByText(sentence);
       await expect(said).toBeVisible();
+      // The live region itself speaks it, and nothing replaces it later: no
+      // Needs attention summary and no server text.
+      const live = page
+        .getByRole("status")
+        .and(page.locator(".sr-only[aria-live]"))
+        .filter({ hasText: sentence });
+      await expect(live).toHaveText(sentence);
+      await page.waitForTimeout(3000);
+      await expect(live).toHaveText(sentence);
       await expect(page.getByText(detail)).toHaveCount(0);
       await expect
         .poll(async () => (await end.boundingBox())?.x ?? Number.NaN)

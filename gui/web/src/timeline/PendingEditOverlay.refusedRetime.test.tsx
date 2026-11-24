@@ -15,15 +15,35 @@ import { clipRow, minimalProject, pendingEditView } from "../test/fixtures";
 import type { ClipRow, PendingEditView } from "../types/project";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 
-const { enqueue, remove, settle } = vi.hoisted(() => {
+const { enqueue, remove, settle, admission, loadQueue } = vi.hoisted(() => {
   const remove = async () => undefined;
-  const enqueue = async () => ({ persisted: true, hadPredecessor: false });
-  return { enqueue, remove, settle: async () => undefined };
+  // "kept" stores the command; "none" has no local storage; "failed" is a write
+  // that failed after the command was admitted, so it is sent directly.
+  const admission = { mode: "kept" as "kept" | "none" | "failed" };
+  const enqueue = async (
+    _path: string,
+    _cmd: unknown,
+    onPersistenceFailure?: () => void,
+  ) => {
+    if (admission.mode === "failed") {
+      onPersistenceFailure?.();
+      throw new Error("write failed");
+    }
+    return { persisted: admission.mode === "kept", hadPredecessor: false };
+  };
+  return {
+    enqueue,
+    remove,
+    settle: async () => undefined,
+    admission,
+    loadQueue: async () => [],
+  };
 });
 vi.mock("../services/offlineQueue/offlineStore", () => ({
   enqueueHostCommand: enqueue,
   enqueueCommand: enqueue,
   removeHostQueuedCommand: remove,
+  loadHostCommandQueue: loadQueue,
   removeQueuedCommand: remove,
   addHostConflict: remove,
   addConflict: remove,
@@ -229,6 +249,7 @@ describe("a refused edge-drag save on a pending edit (#4373)", () => {
   beforeEach(() => {
     HTMLElement.prototype.setPointerCapture = vi.fn();
     onSelect.mockClear();
+    admission.mode = "kept";
     resetDocumentAuthority();
   });
   afterEach(() => {
@@ -385,6 +406,55 @@ describe("a refused edge-drag save on a pending edit (#4373)", () => {
       );
     });
 
+    it("keeps a second drag guarded when the first save finishes after a foreign change aborted it", async () => {
+      const answers: ((r: Response | Error) => void)[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          () =>
+            new Promise<Response>((resolve, reject) => {
+              answers.push((r) =>
+                r instanceof Error ? reject(r) : resolve(r),
+              );
+            }),
+        ),
+      );
+      const view = mount(edit);
+      drag("end", 30);
+      await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+      const moved = {
+        ...edit,
+        source_end: 8,
+        source_end_timeline: 8,
+        timeline_end: 8,
+        timeline_spans: [{ start: SAVED_START, end: 8 }],
+      };
+      // A change from outside the drag (the store is patched directly: a snapshot would wait for the in-flight send).
+      act(() => {
+        const project = useDawStore.getState().project;
+        useDawStore.setState({
+          project: project && { ...project, pending_edits: [moved] },
+        });
+      });
+      view.rerender(overlay(moved, moved.id));
+      drag("end", 30, 8);
+      // Sends go out in order, so the second waits for the first to land.
+      await act(async () => {
+        answers[0](new TypeError("Failed to fetch"));
+      });
+      await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+      await idle();
+      expect(useDawStore.getState().pendingRetimeInFlight).toBe("cut_1");
+      drag("end", 20, 9);
+      await idle();
+      expect(fetch).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        answers[1](new Response(JSON.stringify({}), { status: 200 }));
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+      expect(useDawStore.getState().pendingRetimeInFlight).toBeNull();
+    });
+
     it("still announces the refusal when another client deletes the edit", async () => {
       const answer = hold();
       mount(edit);
@@ -470,6 +540,70 @@ describe("a refused edge-drag save on a pending edit (#4373)", () => {
       await dragAndSettle("end", 30);
       expect(useDawStore.getState().statusAnnouncement).toBe("");
       expect(useDawStore.getState().feedbackToast).toBeNull();
+    });
+  });
+
+  describe("when the save could not be kept for retry", () => {
+    const UNSAVED =
+      "That edit's end could not be saved right now, so it is back where it was. Try moving it again in a moment.";
+
+    async function dragAndIdle() {
+      drag("end", 30);
+      await waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).not.toBe(""),
+      );
+      await waitFor(() =>
+        expect(useDawStore.getState().pendingRetimeInFlight).toBeNull(),
+      );
+    }
+
+    it("says so plainly when there is no local storage to keep it in", async () => {
+      admission.mode = "none";
+      vi.stubGlobal("fetch", vi.fn());
+      const edit = editWith({});
+      mount(edit);
+      const before = overlayStyle();
+      await dragAndIdle();
+      expect(useDawStore.getState().statusAnnouncement).toBe(UNSAVED);
+      expect(overlayStyle()).toBe(before);
+    });
+
+    it.each([
+      [503, "Disk full"],
+      [500, "Traceback: boom"],
+      [429, "Slow down"],
+    ])(
+      "says so plainly, without the server text, for a %s sent without a kept copy",
+      async (status, detail) => {
+        admission.mode = "failed";
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(
+            async () => new Response(JSON.stringify({ detail }), { status }),
+          ),
+        );
+        const edit = editWith({});
+        mount(edit);
+        const before = overlayStyle();
+        await dragAndIdle();
+        expect(fetch).toHaveBeenCalled();
+        expect(useDawStore.getState().statusAnnouncement).toBe(UNSAVED);
+        expect(hasDocumentDrafts()).toBe(false);
+        expect(overlayStyle()).toBe(before);
+      },
+    );
+
+    it("says so plainly when the request never reached the host", async () => {
+      admission.mode = "failed";
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new TypeError("Failed to fetch");
+        }),
+      );
+      mount(editWith({}));
+      await dragAndIdle();
+      expect(useDawStore.getState().statusAnnouncement).toBe(UNSAVED);
     });
   });
 });
