@@ -378,6 +378,7 @@ def create_app(
 
         app.state.tunnel = TunnelSupervisor(
             listen_port=lambda: getattr(app.state, "listen_port", None),
+            listen_host=lambda: getattr(app.state, "listen_host", None),
             served_project=lambda: getattr(app.state, "served_project", None),
         )
 

@@ -8,6 +8,7 @@ end state.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import time
 from collections.abc import AsyncIterator, Callable
@@ -71,6 +72,7 @@ Plan = Idle | Serve
 @dataclass(frozen=True, slots=True)
 class Inputs:
     listen_port: int | None
+    listen_host: str | None
     relay: RelayConfig | None
     project: Path | None
     links: frozenset[str]
@@ -78,9 +80,22 @@ class Inputs:
     now: float
 
 
+def _loopback_url(host: str, port: int) -> str | None:
+    """The tunnel proxies over plain HTTP, so it may only reach a GUI that is bound to loopback."""
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return None
+    if not address.is_loopback:
+        return None
+    return f"http://[{address}]:{port}" if address.version == 6 else f"http://{address}:{port}"
+
+
 def plan(inputs: Inputs, *, rejected: RelayConfig | None, last_live_at: float | None) -> Plan:
-    if inputs.listen_port is None:
+    if inputs.listen_port is None or inputs.listen_host is None:
         return Idle(IdleReason.NOT_LISTENING)
+    if _loopback_url(inputs.listen_host, inputs.listen_port) is None:
+        return Idle(IdleReason.NOT_CAPABLE)
     if inputs.relay is None:
         return Idle(IdleReason.NOT_SET_UP)
     if inputs.relay == rejected:
@@ -124,11 +139,13 @@ class TunnelSupervisor:
         self,
         *,
         listen_port: Callable[[], int | None],
+        listen_host: Callable[[], str | None],
         served_project: Callable[[], Path | None],
         client_factory: ClientFactory = _tunnel_client,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self._listen_port = listen_port
+        self._listen_host = listen_host
         self._served_project = served_project
         self._client_factory = client_factory
         self._clock = clock
@@ -204,11 +221,9 @@ class TunnelSupervisor:
 
     def _gather(self) -> Inputs:
         port = self._listen_port()
-        relay = (
-            ready_relay_config(local_gui_url=f"http://127.0.0.1:{port}")
-            if port is not None
-            else None
-        )
+        host = self._listen_host()
+        url = _loopback_url(host, port) if host is not None and port is not None else None
+        relay = ready_relay_config(local_gui_url=url) if url is not None else None
         project = self._served_project()
         links: frozenset[str] = frozenset()
         cli_live = False
@@ -216,7 +231,7 @@ class TunnelSupervisor:
             cli_live = status_file_is_live(tunnel_status_path(relay))
             if project is not None:
                 links = self._links(project)
-        return Inputs(port, relay, project, links, cli_live, self._clock())
+        return Inputs(port, host, relay, project, links, cli_live, self._clock())
 
     def _links(self, project: Path) -> frozenset[str]:
         episode = self._episodes.get(project)

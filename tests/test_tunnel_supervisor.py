@@ -49,6 +49,7 @@ LIVE = frozenset({"tok-a"})
 def _inputs(**overrides: Any) -> Inputs:
     base: dict[str, Any] = {
         "listen_port": 43123,
+        "listen_host": "127.0.0.1",
         "relay": RELAY,
         "project": PROJECT,
         "links": LIVE,
@@ -68,6 +69,19 @@ def _inputs(**overrides: Any) -> Inputs:
             None,
             Idle(IdleReason.NOT_LISTENING),
             id="not_listening",
+        ),
+        pytest.param(
+            _inputs(listen_host=None), None, None, Idle(IdleReason.NOT_LISTENING), id="no_host"
+        ),
+        pytest.param(
+            _inputs(listen_host="192.168.1.5"),
+            None,
+            None,
+            Idle(IdleReason.NOT_CAPABLE),
+            id="lan_bind",
+        ),
+        pytest.param(
+            _inputs(listen_host="0.0.0.0"), None, None, Idle(IdleReason.NOT_CAPABLE), id="wildcard"
         ),
         pytest.param(_inputs(relay=None), None, None, Idle(IdleReason.NOT_SET_UP), id="not_set_up"),
         pytest.param(_inputs(), RELAY, None, Idle(IdleReason.REJECTED), id="rejected"),
@@ -142,7 +156,11 @@ class Rig:
         monkeypatch.setenv("PODCAST_RELAY_HOST_ID", "host-a")
 
     def supervisor(
-        self, *, port: int | None = 43123, clock: Callable[[], float] = time.time
+        self,
+        *,
+        port: int | None = 43123,
+        host: str = "127.0.0.1",
+        clock: Callable[[], float] = time.time,
     ) -> TunnelSupervisor:
         def factory(cfg: RelayConfig, project: Path, _listeners: list[Any]) -> FakeClient:
             client = FakeClient(cfg, project, self.fail, self.answers)
@@ -151,6 +169,7 @@ class Rig:
 
         return TunnelSupervisor(
             listen_port=lambda: port,
+            listen_host=lambda: host,
             served_project=lambda: self.project,
             client_factory=factory,
             clock=clock,
@@ -224,6 +243,35 @@ async def test_a_failed_share_read_leaves_the_advertisement_alone(
         assert rig.clients[0].readvertised == []
         assert isinstance(supervisor.plan, Serve)
         assert supervisor.plan.links == frozenset({token})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("host", "url"),
+    [("127.0.0.1", "http://127.0.0.1:43123"), ("::1", "http://[::1]:43123")],
+)
+async def test_the_client_targets_the_address_the_gui_is_bound_to(
+    rig: Rig, host: str, url: str
+) -> None:
+    mint_record_link(rig.project)
+    supervisor = rig.supervisor(host=host)
+
+    async with _stopped_after(supervisor):
+        await supervisor._tick()
+
+    assert [c.cfg.local_gui_url for c in rig.clients] == [url]
+
+
+@pytest.mark.asyncio
+async def test_a_gui_bound_beyond_loopback_starts_nothing(rig: Rig) -> None:
+    mint_record_link(rig.project)
+    supervisor = rig.supervisor(host="192.168.1.5")
+
+    async with _stopped_after(supervisor):
+        await supervisor._tick()
+
+    assert rig.clients == []
+    assert supervisor.plan == Idle(IdleReason.NOT_CAPABLE)
 
 
 @pytest.mark.asyncio
