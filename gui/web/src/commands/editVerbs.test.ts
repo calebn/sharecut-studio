@@ -3,7 +3,9 @@ import * as api from "../api";
 import { playPendingPreview } from "../audio/pendingPreview";
 import type { EditFacts } from "../edit/editSelection";
 import { markScriptRange } from "../edit/rangeSelection";
+import { REFINE_GATE_GUI_MESSAGE } from "../inspector/TranscriptRefineRecovery";
 import { useDawStore } from "../state/dawStore";
+import { inspectorOpenFor } from "../state/selection";
 import { barDisplay } from "../system/editActionSets";
 import {
   EDIT_SELECTIONS,
@@ -19,6 +21,9 @@ import {
   minimalProject,
 } from "../test/fixtures";
 import { HISTORY_ROOT_ID } from "../types/project";
+import { BUSY_REASON } from "../ui/disabledReason";
+import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
+import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 import {
   barModelOf,
   currentEditFacts as factsOf,
@@ -103,6 +108,7 @@ function host(selection: unknown, extra: Record<string, unknown> = {}) {
     rangeDraft: null,
     rangeBusy: false,
     joinMutationInFlight: false,
+    pendingDecisionInFlight: null,
     playheadSec: 1,
     pendingRecordTarget: null,
     statusAnnouncement: "",
@@ -1940,5 +1946,99 @@ describe("a range made from Script words while the words refresh", () => {
     host({ ...EDIT_SELECTIONS.rangeOnAllTracks }, { project: wordFree() });
     const model = barModelOf(factsOf()!, useDawStore.getState(), false);
     expect(model.primary?.disabledReason).toBeUndefined();
+  });
+});
+
+describe("deciding a suggestion without the overlay bar", () => {
+  const never = () => new Promise<never>(() => {});
+
+  it("disables Cut and Keep while a decision is in flight", () => {
+    host(EDIT_SELECTIONS.suggestion, {
+      pendingDecisionInFlight: "pending-cut",
+    });
+    const bar = barModelOf(factsOf()!, useDawStore.getState());
+    expect(bar.primary?.disabledReason).toBe(BUSY_REASON);
+    expect(bar.items.find((i) => i.id === "keep")?.disabledReason).toBe(
+      BUSY_REASON,
+    );
+    host(EDIT_SELECTIONS.suggestion);
+    const idle = barModelOf(factsOf()!, useDawStore.getState());
+    expect(idle.primary?.disabledReason).toBeUndefined();
+  });
+
+  it("sends one command when Cut is invoked twice with no sheet mounted", async () => {
+    host(EDIT_SELECTIONS.suggestion);
+    vi.mocked(api.approveEdits).mockImplementationOnce(never);
+    const first = execute("edit.delete");
+    const second = await execute("edit.delete");
+    expect(second.status).toBe("disabled");
+    expect(api.approveEdits).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().pendingDecisionInFlight).toBe("pending-cut");
+    void first;
+  });
+
+  it("ignores a second X while the first Keep is in flight, then lets the next through", async () => {
+    host(EDIT_SELECTIONS.suggestion);
+    let release: (value: never) => void = () => {};
+    vi.mocked(api.rejectEdits).mockImplementationOnce(
+      () => new Promise((resolve) => (release = resolve as never)),
+    );
+    const first = execute("edit.keep");
+    expect((await execute("edit.keep")).status).toBe("disabled");
+    expect(api.rejectEdits).toHaveBeenCalledTimes(1);
+    release({ history_head_id: "h", count: 1 } as never);
+    await first;
+    expect(useDawStore.getState().pendingDecisionInFlight).toBeNull();
+  });
+
+  it("clears the in-flight flag when the request fails", async () => {
+    host(EDIT_SELECTIONS.suggestion);
+    vi.mocked(api.rejectEdits).mockRejectedValueOnce(new Error("nope"));
+    await execute("edit.keep");
+    expect(useDawStore.getState().pendingDecisionInFlight).toBeNull();
+    expect(announced()).toBe("nope");
+  });
+
+  it("announces the refine gate with an Open Inspect action", async () => {
+    host(EDIT_SELECTIONS.suggestion);
+    vi.mocked(api.approveEdits).mockRejectedValueOnce(
+      new ApiError("blocked", TRANSCRIPT_REFINE_REQUIRED_CODE, 409),
+    );
+    await execute("edit.delete");
+    const toast = useDawStore.getState().feedbackToast;
+    expect(toast?.tone).toBe("error");
+    expect(toast?.message).toBe(REFINE_GATE_GUI_MESSAGE);
+    expect(toast?.action?.label).toBe("Open Inspect");
+    await toast?.action?.run();
+    const live = useDawStore.getState();
+    expect(inspectorOpenFor(live.selection, live.inspectorKey)).toBe(true);
+  });
+
+  it.each([
+    ["approve", "edit.delete", "approveEdits"],
+    ["reject", "edit.keep", "rejectEdits"],
+  ] as const)("announces a queued %s", async (_name, command, call) => {
+    host(EDIT_SELECTIONS.suggestion);
+    vi.mocked(api[call]).mockResolvedValueOnce({
+      queued: true,
+      count: 0,
+      historyHead: null,
+    } as never);
+    await execute(command);
+    expect(announced()).toBe(PENDING_REVIEW_QUEUED_MESSAGE);
+    expect(useDawStore.getState().selection).not.toBeNull();
+  });
+
+  it("drops the result when the project changed during the request", async () => {
+    host(EDIT_SELECTIONS.suggestion);
+    vi.mocked(api.rejectEdits).mockImplementationOnce(async () => {
+      useDawStore.setState({
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      });
+      return { history_head_id: "h", count: 1 } as never;
+    });
+    await execute("edit.keep");
+    expect(announced()).toBe("");
+    expect(useDawStore.getState().pendingDecisionInFlight).toBeNull();
   });
 });

@@ -41,6 +41,7 @@ const RESET_ON_SWITCH: Reset = {
   renderPreviewBusy: false,
   chapterAddPending: false,
   joinMutationInFlight: false,
+  pendingDecisionInFlight: null,
   joinDraft: null,
   rippleTrim: null,
   rangeArmed: false,
