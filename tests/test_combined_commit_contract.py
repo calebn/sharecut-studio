@@ -30,7 +30,7 @@ import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 
@@ -56,7 +56,10 @@ from pause_policy_public_helpers import (
     write_wav,
 )
 from pause_policy_public_helpers import defaults as pause_defaults
+from podcast_mcp.edits.insert_anchor import capture_insert_anchor, capture_range_anchors
 from podcast_mcp.edits.range_edits import RangeAction
+from podcast_mcp.edits.record_placement import upsert_source
+from podcast_mcp.edits.session_suggestions import ensure_session_suggestion
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.engines.speaker_id import SpeakerProfile, WindowScore
@@ -69,6 +72,8 @@ from podcast_mcp.models import (
     EpisodeProject,
     ProcessingChain,
     ProcessingEffect,
+    SessionSuggestion,
+    StagedTake,
 )
 from podcast_mcp.project.transcript_context import SpeakerIdConfig as CtxSpeakerIdConfig
 from podcast_mcp.project.transcript_context import TranscriptContext
@@ -76,8 +81,10 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     AnalysisService,
     EditService,
+    SessionSuggestionService,
     TimelineService,
     TranscriptService,
+    insert_saved_segment,
 )
 from podcast_mcp.services.document.boundary import (
     RollBoundaryTarget,
@@ -85,8 +92,10 @@ from podcast_mcp.services.document.boundary import (
     boundary_context,
 )
 from podcast_mcp.services.media import SpeakerService
+from test_segments_insert import _save as _save_segment
 
 Command = Callable[[ProjectWorkspace], Any]
+SESSION = "a" * 12
 
 REBUILT, UNTOUCHED = Outcome.REBUILT, Outcome.UNTOUCHED
 
@@ -191,7 +200,7 @@ WORD_CASES = [
 ]
 
 
-def _split_host(project: EpisodeProject) -> None:
+def _host_in_two_clips(project: EpisodeProject) -> None:
     """Host lane as two adjoining clips, so a join can roll."""
     project.timeline.clips = [
         Clip(id="host-l", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
@@ -321,6 +330,75 @@ def _revert_last_cut(ws: ProjectWorkspace) -> Any:
     return EditService(ws).revert_applied([ws.project.editorial.edit_log[-1].id])
 
 
+def _stage_take_on_host(kind: Literal["insert", "replace"]) -> Command:
+    """Stage a three second recorded take on the host lane, as a landed session leaves it."""
+
+    def stage(ws: ProjectWorkspace) -> Any:
+        def build(project: EpisodeProject) -> None:
+            source_id = f"rec-{SESSION}-0-host-0"
+            upsert_source(
+                project,
+                source_id=source_id,
+                rel=f"raw/{source_id}.wav",
+                speaker="host",
+                duration_s=3.0,
+                sample_rate=48_000,
+                channels=1,
+            )
+            row = (
+                SessionSuggestion(
+                    id=f"ss-{SESSION}",
+                    kind="insert",
+                    session_id=SESSION,
+                    session_number=1,
+                    at_sec=4.0,
+                    anchor=capture_insert_anchor(project, 4.0),
+                )
+                if kind == "insert"
+                else SessionSuggestion(
+                    id=f"ss-{SESSION}",
+                    kind="replace",
+                    session_id=SESSION,
+                    session_number=1,
+                    from_sec=2.0,
+                    to_sec=4.0,
+                    track_ids=["host"],
+                    **dict(
+                        zip(
+                            ("anchor", "end_anchor"),
+                            capture_range_anchors(project, 2.0, 4.0, ["host"]),
+                            strict=True,
+                        )
+                    ),
+                )
+            )
+            row.takes = [
+                StagedTake(
+                    take_index=0,
+                    track_id="host",
+                    track_label="Host",
+                    segment_index=0,
+                    source_id=source_id,
+                    offset_s=0.0,
+                    duration_s=3.0,
+                )
+            ]
+            ensure_session_suggestion(project, row)
+
+        return ws.mutate("stage session", "staged session", build)
+
+    return stage
+
+
+def _accept_staged(ws: ProjectWorkspace) -> Any:
+    return SessionSuggestionService(ws).accept(f"ss-{SESSION}")
+
+
+def _insert_saved_intro(ws: ProjectWorkspace) -> Any:
+    segment = _save_segment(ws.path.parent, "Warm Intro")
+    return insert_saved_segment(ws, segment.id, 4.0)
+
+
 TIMELINE_CASES = [
     Case(
         "ripple_delete_words",
@@ -391,6 +469,26 @@ TIMELINE_CASES = [
     ),
     Case("revert_applied_cut", _revert_last_cut, FRESH_TEXTS, prepare=_cut_welcome),
     Case(
+        "accept_staged_insert",
+        _accept_staged,
+        FRESH_TEXTS,
+        quirk="h1",
+        prepare=_stage_take_on_host("insert"),
+    ),
+    Case(
+        "accept_staged_replace",
+        _accept_staged,
+        ("hello there friend", "thanks for having me"),
+        prepare=_stage_take_on_host("replace"),
+    ),
+    Case(
+        "insert_saved_segment",
+        _insert_saved_intro,
+        FRESH_TEXTS,
+        quirk="h1",
+        words=False,
+    ),
+    Case(
         "selected_range_cut",
         _selected_range("cut"),
         FRESH_TEXTS,
@@ -418,7 +516,7 @@ TIMELINE_CASES = [
         words=False,
         arrange=_host_with_room_tone_gap,
     ),
-    Case("roll_clip_join", _roll, FRESH_TEXTS, quirk="h1", words=False, arrange=_split_host),
+    Case("roll_clip_join", _roll, FRESH_TEXTS, quirk="h1", words=False, arrange=_host_in_two_clips),
 ]
 
 
