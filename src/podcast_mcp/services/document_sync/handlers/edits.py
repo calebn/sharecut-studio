@@ -397,10 +397,14 @@ def duplicate_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]
 
 
 def move_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TimelineService(ws).move_segment(
-        float(p["source_start"]),
-        float(p["source_end"]),
-        float(p["insert_at"]),
+    return (
+        TimelineService(ws)
+        .move_segment(
+            float(p["source_start"]),
+            float(p["source_end"]),
+            float(p["insert_at"]),
+        )
+        .model_dump()
     )
 
 
@@ -417,7 +421,11 @@ def insert_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def insert_gap(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TimelineService(ws).insert_gap(float(p["at_time"]), float(p.get("duration_sec", 1.0)))
+    return (
+        TimelineService(ws)
+        .insert_gap(float(p["at_time"]), float(p.get("duration_sec", 1.0)))
+        .model_dump()
+    )
 
 
 def fill_room_tone(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
@@ -498,8 +506,12 @@ def crossfade_joins(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def move_by_text(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TimelineService(ws).move_by_text(
-        str(p["source_query"]), str(p["destination_query"]), str(p.get("position", "after"))
+    return (
+        TimelineService(ws)
+        .move_by_text(
+            str(p["source_query"]), str(p["destination_query"]), str(p.get("position", "after"))
+        )
+        .model_dump()
     )
 
 
@@ -508,7 +520,7 @@ def move_clips(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw, list):
         raise CodedValueError("clips must be a list", code="clips_not_list")
     clips = [dict(x) if not isinstance(x, dict) else x for x in raw]
-    return TimelineService(ws).move_clips(clips)
+    return TimelineService(ws).move_clips(clips).model_dump()
 
 
 def paste_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

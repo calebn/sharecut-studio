@@ -26,6 +26,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.services.document import MoveSegmentResult
 from podcast_mcp.services.media.ingest import AppliedConsolidation, VerifyResult
 
 runner = CliRunner()
@@ -1187,7 +1188,15 @@ def test_edit_move_by_query(minimal_project):
         patch("podcast_mcp.cli.edit.TimelineService", svc_cls),
         patch("podcast_mcp.cli.edit.AnalysisService", svc_cls),
     ):
-        svc_cls.return_value.move_by_text.return_value = {"moved": True}
+        svc_cls.return_value.move_by_text.return_value = MoveSegmentResult(
+            operation="move_segment",
+            affected_tracks=[],
+            clip_count=0,
+            timeline_duration_sec=1.0,
+            source_start=0.0,
+            source_end=1.0,
+            insert_at=2.0,
+        )
         result = runner.invoke(
             app,
             [
@@ -1202,7 +1211,7 @@ def test_edit_move_by_query(minimal_project):
             ],
         )
     assert result.exit_code == 0
-    assert json.loads(result.stdout)["moved"] is True
+    assert json.loads(result.stdout)["operation"] == "move_segment"
 
 
 def test_edit_suppress_bleed_bad_words_json(minimal_project):

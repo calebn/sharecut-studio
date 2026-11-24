@@ -81,6 +81,11 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.session_suggestion import SessionSuggestionService
     from podcast_mcp.services.document.timeline import TimelineService
+    from podcast_mcp.services.document.timeline_move_results import (
+        InsertGapResult,
+        MoveClipsResult,
+        MoveSegmentResult,
+    )
     from podcast_mcp.services.document.transcript import (
         ExportBusyError,
         TranscriptEmptyError,
@@ -126,8 +131,11 @@ __all__ = [
     "HistoryMoveRerenderedResult",
     "HistoryMoveResult",
     "HistoryService",
+    "InsertGapResult",
     "KitApplyReport",
     "ListedFiles",
+    "MoveClipsResult",
+    "MoveSegmentResult",
     "PendingPreviewSpan",
     "PlayRequest",
     "PlayService",
@@ -234,6 +242,9 @@ _MODULE_BY_NAME = {
     "RoomToneBedReply": "room_tone_bed",
     "RoomToneBedService": "room_tone_bed",
     "TimelineService": "timeline",
+    "InsertGapResult": "timeline_move_results",
+    "MoveClipsResult": "timeline_move_results",
+    "MoveSegmentResult": "timeline_move_results",
     "TranscriptService": "transcript",
     "TranscriptEmptyError": "transcript",
     "ExportBusyError": "transcript",
