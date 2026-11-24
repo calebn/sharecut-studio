@@ -46,6 +46,14 @@ def shared_file_lock(lock_path: Path) -> FileLock:
         return _LOCKS.setdefault(path, candidate)
 
 
+def exclusive_file_lock(lock_path: Path) -> FileLock:
+    """A fresh, unshared ``FileLock`` for ``lock_path`` that fails fast and may be released
+    from another thread. Unlike ``shared_file_lock`` it never re-enters, so a second holder in
+    this process is refused the same way a second process is."""
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    return FileLock(str(lock_path), timeout=0, thread_local=False)
+
+
 @contextmanager
 def hold_shared_file_lock(lock_path: Path, *, timeout: float) -> Iterator[FileLock]:
     """Acquire ``shared_file_lock(lock_path)`` with this caller's own ``timeout``.
