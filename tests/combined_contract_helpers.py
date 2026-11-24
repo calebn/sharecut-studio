@@ -85,12 +85,18 @@ def merged(project: EpisodeProject) -> CombinedTranscript:
 
 
 def build_project(
-    root: Path, wav: Path, state: State, *, with_words: bool = True
+    root: Path,
+    wav: Path,
+    state: State,
+    *,
+    with_words: bool = True,
+    arrange: Callable[[EpisodeProject], None] | None = None,
 ) -> EpisodeProject:
     """Host and guest lanes of ``SOURCE_SEC`` s each, words on both, combined as ``state`` says.
 
     ``State.NONE`` has no combined transcript. With ``with_words=False`` it also has no
-    transcripts, the case of a project whose speech was never transcribed.
+    transcripts, the case of a project whose speech was never transcribed. ``arrange`` reshapes
+    the project (clips, transcripts) before the entry combined is computed.
     """
     raw = root / "raw"
     raw.mkdir(parents=True)
@@ -123,6 +129,8 @@ def build_project(
             Transcript(track_id="host", words=_words(HOST_WORDS)),
             Transcript(track_id="guest", words=_words(GUEST_WORDS)),
         ]
+    if arrange is not None:
+        arrange(project)
     project.combined_transcript = {
         State.FRESH: lambda: merged(project),
         State.STALE: lambda: STALE_COMBINED.model_copy(deep=True),
@@ -132,10 +140,15 @@ def build_project(
 
 
 def open_workspace(
-    root: Path, wav: Path, state: State, *, with_words: bool = True
+    root: Path,
+    wav: Path,
+    state: State,
+    *,
+    with_words: bool = True,
+    arrange: Callable[[EpisodeProject], None] | None = None,
 ) -> ProjectWorkspace:
     """A saved workspace with an ``initial`` history entry, so the next command adds one step."""
-    project = build_project(root, wav, state, with_words=with_words)
+    project = build_project(root, wav, state, with_words=with_words, arrange=arrange)
     path = save_project(project, root / EPISODE_PROJECT_FILENAME)
     ws = ProjectWorkspace.open(path)
     with write_grant(WriteGrantKind.DISPATCHER):

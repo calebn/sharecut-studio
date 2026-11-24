@@ -44,9 +44,25 @@ from combined_contract_helpers import (
     texts,
 )
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
-from podcast_mcp.models import CombinedTranscript
+from podcast_mcp.models import (
+    ArchivedTranscriptWord,
+    Clip,
+    CombinedTranscript,
+    EditMode,
+    EpisodeProject,
+)
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import AnalysisService, TranscriptService
+from podcast_mcp.services.document import (
+    AnalysisService,
+    EditService,
+    TimelineService,
+    TranscriptService,
+)
+from podcast_mcp.services.document.boundary import (
+    RollBoundaryTarget,
+    TrimBoundaryTarget,
+    boundary_context,
+)
 
 Command = Callable[[ProjectWorkspace], Any]
 
@@ -67,6 +83,8 @@ class Case:
     """``h1`` or ``h2`` when the outcome is one of the two named quirks of today's behavior."""
     words: bool = True
     """False when the command works on a project with no transcripts at all."""
+    arrange: Callable[[EpisodeProject], None] | None = None
+    """Reshapes the entry project before it is saved."""
 
     def id_for(self, state: State) -> str:
         outcome = {State.FRESH: REBUILT, State.STALE: self.stale, State.NONE: self.none}[state]
@@ -144,19 +162,141 @@ WORD_CASES = [
     ),
 ]
 
-ALL_CASES = [*WORD_CASES]
+
+def _split_host(project: EpisodeProject) -> None:
+    """Host lane as two adjoining clips, so a join can roll."""
+    project.timeline.clips = [
+        Clip(id="host-l", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
+        Clip(id="host-r", track_id="host", source_start=5.0, source_end=10.0, timeline_start=5.0),
+        *(c for c in project.timeline.clips if c.track_id != "host"),
+    ]
+
+
+def _without_transcripts(project: EpisodeProject) -> None:
+    project.transcripts = []
+
+
+def _trim_out(source_sec: float, mode: EditMode) -> Command:
+    def run(ws: ProjectWorkspace) -> Any:
+        target = TrimBoundaryTarget(clip_id="host-1", edge="out", mode=mode)
+        token = boundary_context(ws.project, target, defaults=ws.effective_config()).token
+        return TimelineService(ws).trim_clip_edge(
+            "host-1", "out", source_sec, mode=mode, expected_token=token
+        )
+
+    return run
+
+
+def _guest_never_speaks(project: EpisodeProject) -> None:
+    """A ripple cut asks before it cuts another lane's speech, so the guest has none."""
+    project.transcripts[1].words = []
+
+
+def _host_ends_before_welcome(project: EpisodeProject) -> None:
+    """The host clip stops at 3.0 s and its last two words sit in the archive."""
+    host = project.transcripts[0]
+    archived = [
+        ArchivedTranscriptWord(ordinal=3 + i, word=word) for i, word in enumerate(host.words[3:])
+    ]
+    host.archived_words = archived
+    host.words = host.words[:3]
+    project.timeline.clips[0].source_end = 3.0
+
+
+def _roll(ws: ProjectWorkspace) -> Any:
+    target = RollBoundaryTarget(left_clip_id="host-l", right_clip_id="host-r")
+    token = boundary_context(ws.project, target, defaults=ws.effective_config()).token
+    return TimelineService(ws).roll_clip_join("host-l", "host-r", 0.5, expected_token=token)
+
+
+def _paste(ws: ProjectWorkspace) -> Any:
+    service = TimelineService(ws)
+    clipboard = service.copy_segment(1.0, 2.0, ["host"])
+    return service.paste_segment(
+        6.0, clipboard["duration"], clipboard["extracts"], mode=EditMode.RIPPLE
+    )
+
+
+TIMELINE_CASES = [
+    Case(
+        "ripple_delete_words",
+        lambda ws: EditService(ws).cut_range(
+            3.0, 4.0, mode=EditMode.RIPPLE, track_ids=["host"], use_inaudible_opt=False
+        ),
+        ("hello there friend", "thanks for having me"),
+    ),
+    Case(
+        "gap_delete_words",
+        lambda ws: EditService(ws).cut_range(
+            3.0, 4.0, mode=EditMode.GAP, track_ids=["host"], use_inaudible_opt=False
+        ),
+        ("hello there friend", "thanks for having me"),
+    ),
+    Case(
+        "gap_delete_lane_without_transcript",
+        lambda ws: EditService(ws).cut_range(
+            7.0, 8.0, mode=EditMode.GAP, track_ids=["host"], use_inaudible_opt=False
+        ),
+        (),
+        arrange=_without_transcripts,
+        quirk="h1",
+    ),
+    Case(
+        "insert_gap",
+        lambda ws: TimelineService(ws).insert_gap(2.0, 1.0),
+        FRESH_TEXTS,
+        quirk="h1",
+        words=False,
+    ),
+    Case(
+        "move_segment",
+        lambda ws: TimelineService(ws).move_segment(1.0, 2.0, 6.0),
+        FRESH_TEXTS,
+        quirk="h1",
+        words=False,
+    ),
+    Case(
+        "duplicate_segment",
+        lambda ws: TimelineService(ws).duplicate_segment(1.0, 2.0, 4.0),
+        FRESH_TEXTS,
+        quirk="h1",
+        words=False,
+    ),
+    Case("paste_segment", _paste, FRESH_TEXTS, quirk="h1", words=False),
+    Case(
+        "trim_clip_edge_ripple_keeps_words",
+        _trim_out(2.0, EditMode.RIPPLE),
+        ("hello there friend", "welcome back"),
+        arrange=_guest_never_speaks,
+        quirk="h1",
+    ),
+    Case(
+        "trim_clip_edge_gap_restores_words",
+        _trim_out(4.0, EditMode.GAP),
+        FRESH_TEXTS,
+        arrange=_host_ends_before_welcome,
+    ),
+    Case(
+        "move_clips",
+        lambda ws: TimelineService(ws).move_clips(
+            [{"clip_id": "guest-1", "track_id": "guest", "timeline_start": 1.0}]
+        ),
+        FRESH_TEXTS,
+        quirk="h1",
+        words=False,
+    ),
+    Case("roll_clip_join", _roll, FRESH_TEXTS, quirk="h1", words=False, arrange=_split_host),
+]
+
+ALL_CASES = [*WORD_CASES, *TIMELINE_CASES]
 
 
 def _params(cases: list[Case]) -> list[Any]:
     return [pytest.param(case, state, id=case.id_for(state)) for case in cases for state in State]
 
 
-def _entry_state(case: Case, state: State) -> dict[str, Any]:
-    return {"with_words": case.words}
-
-
 def _run(case: Case, state: State, tmp_path: Path, wav: Path) -> Observed:
-    ws = open_workspace(tmp_path / "ep", wav, state, **_entry_state(case, state))
+    ws = open_workspace(tmp_path / "ep", wav, state, with_words=case.words, arrange=case.arrange)
     return observe(ws, case.run)
 
 
