@@ -82,6 +82,7 @@ import { fixTextAvailability } from "./fixTextAvailability";
 import {
   decideThroughSheet,
   focusPendingTimingField,
+  pendingDecisionBusy,
   sheetBusyReason,
 } from "./pendingDecision";
 import { playSpan } from "./playSpan";
@@ -329,7 +330,7 @@ async function decidePending(
   if (!edit || edit.applied) return disabled("That suggestion is gone");
   if (!canReviewPendingEdit(s.projectPath, s.shareCapabilities))
     return disabled("This link cannot decide suggestions");
-  if (s.pendingDecisionInFlight !== null) return disabled(BUSY_REASON);
+  if (pendingDecisionBusy(s, edit.id)) return disabled(BUSY_REASON);
   const { projectPath, projectEpoch } = s;
   const sameProject = () => {
     const live = useDawStore.getState();
@@ -338,6 +339,7 @@ async function decidePending(
     );
   };
   s.setPendingDecisionInFlight(edit.id);
+  s.setPendingRefineGate(null);
   try {
     if (action === "suggested") {
       const busy = sheetBusyReason(edit.id);
@@ -370,19 +372,27 @@ async function decidePending(
       const gated =
         error instanceof ApiError &&
         error.code === TRANSCRIPT_REFINE_REQUIRED_CODE;
-      useDawStore
-        .getState()
-        .announceStatus(gated ? REFINE_GATE_GUI_MESSAGE : reason, {
-          tone: "error",
-          ...(gated
-            ? {
-                action: {
-                  label: "Open Inspect",
-                  run: () => useDawStore.getState().setInspectorOpen(true),
+      const live = useDawStore.getState();
+      // The sheet's recovery form reads this: the refusal came from the bar, not the sheet.
+      if (gated) live.setPendingRefineGate(edit.id);
+      live.announceStatus(gated ? REFINE_GATE_GUI_MESSAGE : reason, {
+        tone: "error",
+        ...(gated
+          ? {
+              action: {
+                label: "Open Inspect",
+                run: () => {
+                  const now = useDawStore.getState();
+                  if (
+                    now.selection?.kind === "pending" &&
+                    now.selection.id === edit.id
+                  )
+                    now.setInspectorOpen(true);
                 },
-              }
-            : {}),
-        });
+              },
+            }
+          : {}),
+      });
     }
     return { status: "disabled", reason, told: true };
   } finally {
@@ -390,6 +400,10 @@ async function decidePending(
     if (live.pendingDecisionInFlight === edit.id)
       live.setPendingDecisionInFlight(null);
   }
+}
+
+function selectedPendingId(s: Pick<DawState, "selection">): string | null {
+  return s.selection?.kind === "pending" ? s.selection.id : null;
 }
 
 async function inspectPending(open = false): Promise<ExecuteResult> {
@@ -1082,7 +1096,7 @@ export function barModelOf(
       if (
         id === "keep" &&
         facts.kind === "suggestion" &&
-        s.pendingDecisionInFlight !== null
+        pendingDecisionBusy(s, selectedPendingId(s))
       )
         return { id, disabledReason: BUSY_REASON };
       if (id === "fixText" && facts.kind !== "chapter") {
@@ -1207,7 +1221,8 @@ export function barModelOf(
       (facts.kind === "suggestion" &&
       !canReviewPendingEdit(s.projectPath, s.shareCapabilities)
         ? "This link cannot decide suggestions"
-        : facts.kind === "suggestion" && s.pendingDecisionInFlight !== null
+        : facts.kind === "suggestion" &&
+            pendingDecisionBusy(s, selectedPendingId(s))
           ? BUSY_REASON
           : facts.kind === "comment" && !canManageProjects(s.projectPath)
             ? "Only the host can resolve a comment"

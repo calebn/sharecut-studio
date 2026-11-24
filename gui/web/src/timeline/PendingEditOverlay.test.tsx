@@ -2119,12 +2119,22 @@ describe("overlay Cut and Keep", () => {
     ["a shorten suggestion", "shorten" as const],
     ["a lower suggestion", "lower" as const],
   ])("leaves %s to the Action bar on the Edit stage", async (_name, action) => {
-    mount({ ...edit, suggested_action: action }, "edit");
-    await act(async () => {});
+    const target = { ...edit, suggested_action: action };
+    mount(target, "edit");
+    // The bar is placed after a measuring pass: wait it out before asserting it never came.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    });
     expect(
       screen.queryByRole("region", { name: "Pending edit actions" }),
     ).toBeNull();
     expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+    // Positive control, same harness and wait: a suggestion with no cut does get the bar.
+    cleanup();
+    mount({ ...target, suggested_action: null }, "edit");
+    expect(
+      await screen.findByRole("region", { name: "Pending edit actions" }),
+    ).toBeVisible();
   });
 
   it.each([
@@ -2162,6 +2172,88 @@ describe("overlay Cut and Keep", () => {
     expect(
       await screen.findByRole("region", { name: "Pending edit actions" }),
     ).toBeVisible();
+  });
+
+  describe("an edge drag on a suggestion whose verbs are on the Action bar", () => {
+    const cutEdit = { ...edit, suggested_action: "cut" as const };
+
+    function dragEnd(container: HTMLElement) {
+      const end = container.querySelector(".pending-handle.end") as HTMLElement;
+      fireEvent.pointerDown(end, { clientX: 100, pointerId: 31 });
+      fireEvent.pointerMove(end, { clientX: 130, pointerId: 31 });
+      fireEvent.pointerUp(end, { clientX: 130, pointerId: 31 });
+    }
+
+    beforeEach(() => {
+      HTMLElement.prototype.setPointerCapture = vi.fn();
+      vi.mocked(updatePendingEdit).mockReset();
+    });
+
+    it("holds Cut and Keep (the retime flag) from release until the retime settles", async () => {
+      const ticks = deferred<number[]>();
+      vi.mocked(useWaveformSnapTicks).mockReturnValue({
+        ticks: [],
+        resolveTicks: vi.fn(() => ticks.promise),
+      });
+      const save = deferred<undefined>();
+      vi.mocked(updatePendingEdit).mockReturnValue(save.promise as never);
+      mount(cutEdit, "edit");
+      dragEnd(document.body);
+      expect(useDawStore.getState().pendingRetimeInFlight).toBe(cutEdit.id);
+      await act(async () => ticks.resolve([]));
+      await waitFor(() => expect(updatePendingEdit).toHaveBeenCalledOnce());
+      expect(useDawStore.getState().pendingRetimeInFlight).toBe(cutEdit.id);
+      await act(async () => save.resolve(undefined));
+      await waitFor(() =>
+        expect(useDawStore.getState().pendingRetimeInFlight).toBeNull(),
+      );
+    });
+
+    it("clears the retime flag when the snap lookup fails", async () => {
+      vi.mocked(useWaveformSnapTicks).mockReturnValue({
+        ticks: [],
+        resolveTicks: vi.fn(async () => {
+          throw new Error("offline");
+        }),
+      });
+      mount(cutEdit, "edit");
+      dragEnd(document.body);
+      await waitFor(() =>
+        expect(useDawStore.getState().pendingRetimeInFlight).toBeNull(),
+      );
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Nearby waveform snap points could not be loaded. Try again.",
+      );
+    });
+
+    it("announces a failed retime in the status line, since the hidden bar cannot", async () => {
+      vi.mocked(useWaveformSnapTicks).mockReturnValue(snapResource([]));
+      vi.mocked(updatePendingEdit).mockRejectedValue(
+        new Error("retime refused"),
+      );
+      mount(cutEdit, "edit");
+      dragEnd(document.body);
+      await waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "retime refused",
+        ),
+      );
+      expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
+      expect(useDawStore.getState().pendingRetimeInFlight).toBeNull();
+    });
+
+    it("leaves the status line alone where the overlay bar shows the error itself", async () => {
+      vi.mocked(useWaveformSnapTicks).mockReturnValue(snapResource([]));
+      vi.mocked(updatePendingEdit).mockRejectedValue(
+        new Error("retime refused"),
+      );
+      mount({ ...cutEdit, suggested_action: null }, "edit");
+      dragEnd(document.body);
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "retime refused",
+      );
+      expect(useDawStore.getState().statusAnnouncement).toBe("");
+    });
   });
 
   it.each([

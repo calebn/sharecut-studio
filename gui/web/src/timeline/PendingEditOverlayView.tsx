@@ -886,6 +886,8 @@ function PendingEditRegion({
     currentGesture.current = settling;
     setGesture(settling);
     commitPendingRef.current = true;
+    // The Action bar's Cut and Keep read this: they must not decide the bounds being replaced.
+    useDawStore.getState().setPendingRetimeInFlight(active.editId);
     let resolvingSnapTicks = true;
     try {
       const focusSec =
@@ -941,19 +943,27 @@ function PendingEditRegion({
         gestureIsCurrent(active) &&
         freshProjectAndEdit(active)
       ) {
+        const message = resolvingSnapTicks
+          ? "Nearby waveform snap points could not be loaded. Try again."
+          : errorMessage(error);
         setActionState({
           kind: "error",
-          message: resolvingSnapTicks
-            ? "Nearby waveform snap points could not be loaded. Try again."
-            : errorMessage(error),
+          message,
           code:
             !resolvingSnapTicks && error instanceof ApiError
               ? error.code
               : null,
         });
+        // The bar that shows this error is not there when the Action bar owns the verbs.
+        const live = useDawStore.getState();
+        if (live.stage === "edit" && actionBarOwnsPendingVerbs(edit, canApply))
+          live.announceStatus(message, { tone: "error" });
       }
     } finally {
       commitPendingRef.current = false;
+      const live = useDawStore.getState();
+      if (live.pendingRetimeInFlight === active.editId)
+        live.setPendingRetimeInFlight(null);
       const current = currentGesture.current;
       if (
         current.kind === "settling" &&

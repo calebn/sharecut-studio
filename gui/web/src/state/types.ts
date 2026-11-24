@@ -392,6 +392,13 @@ export interface DawState {
   /** The suggestion whose Cut or Keep is in flight from the Action bar or a key, or null. */
   pendingDecisionInFlight: string | null;
   /**
+   * The suggestion whose edge drag is still settling (snap lookup, then the retime save), or
+   * null: Cut and Keep wait for it so they never decide the old bounds.
+   */
+  pendingRetimeInFlight: string | null;
+  /** The suggestion whose Cut the transcript-refine gate refused: its sheet shows the recovery. */
+  pendingRefineGate: string | null;
+  /**
    * The selected seam's right clip as the length Scrub is drafting it, or
    * null: the join blend reads its tier and label from it.
    */
@@ -575,6 +582,8 @@ export interface DawState {
   setSettingsSheetOpen: (on: boolean) => void;
   setJoinMutationInFlight: (on: boolean) => void;
   setPendingDecisionInFlight: (editId: string | null) => void;
+  setPendingRetimeInFlight: (editId: string | null) => void;
+  setPendingRefineGate: (editId: string | null) => void;
   setJoinDraft: (draft: ClipRow | null) => void;
   setRippleTrim: (trim: RippleTrim | null) => void;
   setHighlightStaleRender: (on: boolean) => void;

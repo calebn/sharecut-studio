@@ -420,6 +420,8 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     noRepeat: true,
     when: "editStageStructural",
+    notes:
+      "Backspace or Delete: on a selected suggestion this is its Cut (its own action), the one bare accept key; X keeps it",
   },
   {
     id: "edit.rippleDelete",
