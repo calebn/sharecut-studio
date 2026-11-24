@@ -60,6 +60,8 @@ class HostPlatform:
     audition_player: AuditionPlayer | None
     homebrew_ffmpeg: bool
     executable_suffix: str
+    # Whether this host may hold an outbound host tunnel to the relay. A sandboxed or unknown host may not.
+    can_host_tunnel: bool
     # HOME is the app container and data follows Apple's Library and Documents layout.
     app_container: bool = False
 
@@ -110,6 +112,7 @@ MACOS = HostPlatform(
     audition_player="afplay",
     homebrew_ffmpeg=True,
     executable_suffix="",
+    can_host_tunnel=True,
 )
 LINUX = HostPlatform(
     name="linux",
@@ -124,6 +127,7 @@ LINUX = HostPlatform(
     audition_player="ffplay",
     homebrew_ffmpeg=False,
     executable_suffix="",
+    can_host_tunnel=True,
 )
 WINDOWS = HostPlatform(
     name="windows",
@@ -138,6 +142,7 @@ WINDOWS = HostPlatform(
     audition_player="ffplay",
     homebrew_ffmpeg=False,
     executable_suffix=".exe",
+    can_host_tunnel=True,
 )
 IOS = HostPlatform(
     name="ios",
@@ -152,6 +157,7 @@ IOS = HostPlatform(
     audition_player=None,
     homebrew_ffmpeg=False,
     executable_suffix="",
+    can_host_tunnel=False,
     app_container=True,
 )
 GENERIC_POSIX = HostPlatform(
@@ -167,6 +173,7 @@ GENERIC_POSIX = HostPlatform(
     audition_player="ffplay",
     homebrew_ffmpeg=False,
     executable_suffix="",
+    can_host_tunnel=True,
 )
 GENERIC_NT = replace(GENERIC_POSIX, name="nt", kernel="nt", executable_suffix=".exe")
 # A platform that is neither listed nor a desktop kernel family (android, wasi, emscripten, a
@@ -184,6 +191,7 @@ UNKNOWN = HostPlatform(
     audition_player=None,
     homebrew_ffmpeg=False,
     executable_suffix="",
+    can_host_tunnel=False,
 )
 
 ROWS: tuple[HostPlatform, ...] = (MACOS, LINUX, WINDOWS, IOS, GENERIC_POSIX, GENERIC_NT, UNKNOWN)

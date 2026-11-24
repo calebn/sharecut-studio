@@ -46,6 +46,7 @@ def test_macos_row() -> None:
         "audition_player": "afplay",
         "homebrew_ffmpeg": True,
         "executable_suffix": "",
+        "can_host_tunnel": True,
         "app_container": False,
     }
 
@@ -64,6 +65,7 @@ def test_linux_row() -> None:
         "audition_player": "ffplay",
         "homebrew_ffmpeg": False,
         "executable_suffix": "",
+        "can_host_tunnel": True,
         "app_container": False,
     }
 
@@ -82,6 +84,7 @@ def test_windows_row() -> None:
         "audition_player": "ffplay",
         "homebrew_ffmpeg": False,
         "executable_suffix": ".exe",
+        "can_host_tunnel": True,
         "app_container": False,
     }
 
@@ -100,6 +103,7 @@ def test_ios_row_shares_the_darwin_kernel_runs_media_tools_in_process_and_loses_
         "audition_player": None,
         "homebrew_ffmpeg": False,
         "executable_suffix": "",
+        "can_host_tunnel": False,
         "app_container": True,
     }
 
@@ -118,6 +122,7 @@ def test_generic_rows() -> None:
         "audition_player": "ffplay",
         "homebrew_ffmpeg": False,
         "executable_suffix": "",
+        "can_host_tunnel": True,
         "app_container": False,
     }
     assert dataclasses.replace(GENERIC_NT, name="posix", kernel="other", executable_suffix="") == (
@@ -144,6 +149,7 @@ def test_the_unknown_row_has_no_capability_and_no_trust() -> None:
         "audition_player": None,
         "homebrew_ffmpeg": False,
         "executable_suffix": "",
+        "can_host_tunnel": False,
         "app_container": False,
     }
 
