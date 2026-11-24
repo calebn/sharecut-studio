@@ -75,6 +75,13 @@ def test_set_words_moves_the_key(project: EpisodeProject) -> None:
     assert combined_inputs_key(project) != before
 
 
+def test_archiving_no_words_still_moves_the_key(project: EpisodeProject) -> None:
+    before = combined_inputs_key(project)
+    transcript = project.transcripts[0]
+    transcript.words = list(transcript.words)
+    assert combined_inputs_key(project) != before
+
+
 def test_set_word_moves_the_key(project: EpisodeProject) -> None:
     before = combined_inputs_key(project)
     transcript = project.transcripts[0]

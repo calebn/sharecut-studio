@@ -232,7 +232,8 @@ def _write_ripple_delete(
     from :func:`seam_source_by_track`). Add the key to any schema or typed output built
     over it. ``remap_anchors=False`` leaves comments and chapters where they are; that
     caller owns the anchors, so the cut has no inverse unless ``restorable`` and
-    ``remap_anchors`` both hold. The combined transcript is left to the caller.
+    ``remap_anchors`` both hold. The combined transcript is left to the commit hook
+    (``ws.mutate`` or a pipeline step).
     """
     tracks = ripple_track_ids(project, removal.edited_track_ids)
     done: list[RippledSpan] = []

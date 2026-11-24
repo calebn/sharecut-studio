@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from contextlib import nullcontext
+from collections.abc import Iterator
+from contextlib import ExitStack, contextmanager, nullcontext
 from unittest.mock import patch
 
 import pytest
@@ -808,10 +809,7 @@ def test_the_combined_transcript_is_rebuilt_once(ws) -> None:
     sid = _stage_replace(ws, 2.0, 4.0, {0: [("host", 0.0, 3.0)]})
     calls: list[int] = []
 
-    def counted(*args, **kwargs):
-        calls.append(1)
-
-    with patch("podcast_mcp.edits.session_suggestions.rebuild_combined", counted):
+    with _counting_every_rebuild(calls):
         SessionSuggestionService(ws).accept(sid)
     assert len(calls) == 1
 
@@ -868,15 +866,33 @@ def _project_with_comment_and_words(ws) -> EpisodeProject:
     return ws.project
 
 
+_REBUILD_BINDINGS = (
+    "podcast_mcp.engines.transcript_sync",
+    "podcast_mcp.edits.timeline_ops",
+    "podcast_mcp.edits.session_suggestions",
+    "podcast_mcp.edits.cut_application",
+    "podcast_mcp.edits.strip_silence",
+    "podcast_mcp.edits.edit_log",
+)
+
+
+@contextmanager
+def _counting_every_rebuild(calls: list[int]) -> Iterator[None]:
+    with ExitStack() as stack:
+        for module in _REBUILD_BINDINGS:
+            stack.enter_context(
+                patch(f"{module}.rebuild_combined", lambda *a, **k: calls.append(1))
+            )
+        yield
+
+
 def test_other_callers_of_the_removal_primitive_still_remap_and_leave_the_combined_alone(
     ws,
 ) -> None:
     project = _project_with_comment_and_words(ws)
     removal = RippleRemoval.of([TrackExtent("host", 2.0, 4.0)])
     calls: list[int] = []
-    with patch(
-        "podcast_mcp.engines.transcript_sync.rebuild_combined", lambda *a, **k: calls.append(1)
-    ):
+    with _counting_every_rebuild(calls):
         _write_ripple_delete(project, removal, defaults=ws.effective_config())
     assert calls == []
     assert "inside" not in {c.id for c in project.comments}
@@ -887,9 +903,7 @@ def test_the_public_range_removal_keeps_comments_and_leaves_the_combined_alone(w
     project = _project_with_comment_and_words(ws)
     removal = RippleRemoval.of([TrackExtent("host", 2.0, 4.0)])
     calls: list[int] = []
-    with patch(
-        "podcast_mcp.engines.transcript_sync.rebuild_combined", lambda *a, **k: calls.append(1)
-    ):
+    with _counting_every_rebuild(calls):
         ripple_delete_range(project, removal, defaults=ws.effective_config())
     assert calls == []
     assert "inside" in {c.id for c in project.comments}
