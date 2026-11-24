@@ -844,8 +844,9 @@ async function dispatch(
         toLaneId: arg,
       });
     case "adjustBounds":
-      if (facts.kind === "suggestion") return inspectPending(true);
-      return executePointerCommand("edit.inspect", { open: true });
+      return facts.kind === "suggestion"
+        ? inspectPending(true)
+        : executePointerCommand("edit.inspect", { open: true });
     case "fade":
     case "moveToTrack":
       return executePointerCommand("edit.inspect", { open: true });
