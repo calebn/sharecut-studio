@@ -1,4 +1,5 @@
 import type { ExportedFileKind, ExportedTranscriptFormat } from "../../api";
+import { formatBytes } from "../../models";
 
 export type ExportedFile = {
   /** Folder-relative name, opaque to the client. */
@@ -15,6 +16,18 @@ export type ExportedFile = {
   /** Download address; absent in the desktop app, which reveals instead. */
   href?: string;
 };
+
+/** Every current file of the export as one download. */
+export type ExportArchive = {
+  name: string;
+  count: number;
+  bytes: number;
+  href: string;
+};
+
+export function archiveLabel({ count, bytes }: ExportArchive): string {
+  return `Download all ${count} ${count === 1 ? "file" : "files"}, ${formatBytes(bytes)}`;
+}
 
 export type FileAccess = "download" | "reveal";
 

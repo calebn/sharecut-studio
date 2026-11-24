@@ -19,14 +19,23 @@ const ENTRY = {
   current: true,
   ticket: "1700000000.5-9.sig",
 };
+const ARCHIVE = {
+  name: "episode-export.zip",
+  count: 1,
+  bytes: 61,
+  ticket: "1700000000.abc-1.sig",
+};
+const inventory = (files: unknown[], archive: unknown = null) => ({
+  inventory: { files, archive },
+});
 const PATH = "/tmp/ep/episode.sharecut";
 
 beforeEach(() => {
   listed.list.mockReset();
-  listed.list.mockResolvedValue([ENTRY]);
+  listed.list.mockResolvedValue({ files: [ENTRY], archive: ARCHIVE });
   listed.guest
     .mockReset()
-    .mockResolvedValue({ files: [ENTRY], revision: "first" });
+    .mockResolvedValue({ ...inventory([ENTRY]), revision: "first" });
 });
 
 afterEach(() => {
@@ -55,6 +64,41 @@ describe("useExportedFiles", () => {
     );
     await waitFor(() => expect(reveal.result.current.load).toBe("ready"));
     expect(reveal.result.current.files[0]?.href).toBeUndefined();
+  });
+
+  it("links the archive with its ticket for a host download and leaves it out for a reveal", async () => {
+    const download = renderHook(() =>
+      useExportedFiles(PATH, { access: "download" }),
+    );
+    await waitFor(() => expect(download.result.current.load).toBe("ready"));
+    expect(download.result.current.archive).toEqual({
+      name: "episode-export.zip",
+      count: 1,
+      bytes: 61,
+      href: `/api/export/archive?path=${encodeURIComponent(PATH)}&ticket=1700000000.abc-1.sig`,
+    });
+    const reveal = renderHook(() =>
+      useExportedFiles(PATH, { access: "reveal" }),
+    );
+    await waitFor(() => expect(reveal.result.current.load).toBe("ready"));
+    expect(reveal.result.current.archive).toBeNull();
+  });
+
+  it("gives a guest the archive link with no ticket", async () => {
+    listed.guest.mockResolvedValue({
+      ...inventory([ENTRY], { ...ARCHIVE, ticket: undefined }),
+      revision: "first",
+    });
+    const { result } = renderHook(() =>
+      useExportedFiles(GUEST_PATH, {
+        access: "download",
+        watchGuestPublication: true,
+      }),
+    );
+    await waitFor(() => expect(result.current.load).toBe("ready"));
+    expect(result.current.archive?.href).toBe(
+      "/api/review/guest/daw/export/archive",
+    );
   });
 
   it("reads again when the refresh key changes and when the window regains focus", async () => {
@@ -122,7 +166,7 @@ describe("useExportedFiles", () => {
     await act(async () => fail());
     expect(result.current.currentLoad).toBe("ready");
     listed.guest.mockResolvedValueOnce({
-      files: [{ ...ENTRY, name: "new.wav" }],
+      ...inventory([{ ...ENTRY, name: "new.wav" }]),
       revision: "second",
     });
     await advance(30_000);
@@ -148,7 +192,7 @@ describe("useExportedFiles", () => {
         new Promise((resolve) => {
           finishQuiet = () =>
             resolve({
-              files: [{ ...ENTRY, name: "stale.wav" }],
+              ...inventory([{ ...ENTRY, name: "stale.wav" }]),
               revision: "stale",
             });
         }),
@@ -157,7 +201,7 @@ describe("useExportedFiles", () => {
     const quietSignal = listed.guest.mock.lastCall?.[2] as AbortSignal;
     expect(quietSignal.aborted).toBe(false);
     listed.guest.mockResolvedValueOnce({
-      files: [{ ...ENTRY, name: "fresh.wav" }],
+      ...inventory([{ ...ENTRY, name: "fresh.wav" }]),
       revision: "fresh",
     });
     act(() => result.current.reload());

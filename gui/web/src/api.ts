@@ -110,11 +110,14 @@ export {
 export type { ExportEvidence } from "./api/exportEvidence";
 export { parseExportEvidence } from "./api/exportEvidence";
 export type {
+  ExportArchiveEntry,
   ExportedFileEntry,
   ExportedFileKind,
+  ExportedInventory,
   ExportedTranscriptFormat,
 } from "./api/exportedFiles";
 export {
+  exportedArchiveHref,
   exportedFileHref,
   listExportedFiles,
   readGuestExportedFiles,

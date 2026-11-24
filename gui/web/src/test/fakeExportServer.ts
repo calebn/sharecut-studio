@@ -1,5 +1,8 @@
 import { vi } from "vitest";
-import type { ExportedFileEntry } from "../api/exportedFiles";
+import type {
+  ExportArchiveEntry,
+  ExportedFileEntry,
+} from "../api/exportedFiles";
 import { READY } from "../stages/deliver/feedFixture";
 import type { FeedView } from "../types/feedView";
 import type {
@@ -140,6 +143,7 @@ export function fakeExportServer() {
     cancelRequests: [] as { job_id: string | null }[],
     shares: [] as HostShareRow[],
     files: [] as ExportedFileEntry[],
+    archive: null as ExportArchiveEntry | null,
     fileRequests: [] as string[],
     fileAnswer: null as Answer | null,
     holdFiles: null as Promise<void> | null,
@@ -274,7 +278,10 @@ export function fakeExportServer() {
           decodeURIComponent(url.split("path=")[1] ?? "").split("&")[0] ?? "",
         );
         await server.holdFiles;
-        return json(server.fileAnswer, { files: server.files });
+        return json(server.fileAnswer, {
+          files: server.files,
+          archive: server.archive,
+        });
       }
       if (
         new URL(url, window.location.origin).pathname ===
