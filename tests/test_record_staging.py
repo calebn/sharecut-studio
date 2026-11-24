@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.document import HistoryService, SessionSuggestionService, TimelineService
@@ -1701,6 +1703,49 @@ def test_nonreplace_target_persists_when_saved_project_is_unreadable(
         RecordSessionService(ws.project, session_id=room["session_id"]).snapshot()["target"]
         == target
     )
+
+
+def _record_service(ws) -> RecordSessionService:
+    room = ShareService(ws).create_record_room()
+    return _join(ws, room)[0]
+
+
+def test_saved_project_matches_store_load(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    svc = _record_service(ws)
+    assert (
+        svc._saved_project().model_dump()
+        == ProjectStore(ws.project.workspace_path()).load().model_dump()
+    )
+
+
+def test_saved_project_sees_edit_saved_after_build(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    svc = _record_service(ws)
+    edited = load_project(minimal_project)
+    edited.tracks.append(Track(id="late", label="Late", role=TrackRole.MUSIC))
+    save_project(edited, minimal_project)
+    saved = svc._saved_project()
+    assert saved is not svc.project
+    assert "late" in {t.id for t in saved.tracks}
+
+
+def test_saved_project_falls_back_when_project_file_missing(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    svc = _record_service(ws)
+    ws.path.unlink()
+    assert svc._saved_project() is svc.project
+
+
+def test_saved_project_falls_back_when_workspace_removed_after_build(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    svc = _record_service(ws)
+    shutil.rmtree(ws.project.workspace_path())
+    assert svc._saved_project() is svc.project
 
 
 def test_replace_target_uses_saved_identity_while_live_workspace_path_is_temporary(
