@@ -364,6 +364,7 @@ def test_host_detail_rebuilds_take_rows_from_stale_combined_transcript(
     from podcast_mcp.models import CombinedTranscript, CombinedUtterance
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import HistoryListResult
+    from podcast_mcp.services.document_sync import ViewProjection
     from podcast_mcp.util import workspace_paths
     from podcast_mcp.util.batch_scope import _scope
 
@@ -410,7 +411,7 @@ def test_host_detail_rebuilds_take_rows_from_stale_combined_transcript(
     monkeypatch.setattr(workspace_paths, "_resolve_within", record_resolve)
     detail = assembler.dump_project_projection(
         workspace,
-        projection=assembler.ViewProjection.DETAIL,
+        projection=ViewProjection.DETAIL,
         history=empty_history,
     )
     rows = detail["transcript"]["utterances"]
@@ -439,7 +440,7 @@ def test_host_detail_rebuilds_take_rows_from_stale_combined_transcript(
     project.clips[1] = project.clips[1].model_copy(update={"timeline_start": 20.0})
     moved = assembler.dump_project_projection(
         workspace,
-        projection=assembler.ViewProjection.DETAIL,
+        projection=ViewProjection.DETAIL,
         history=empty_history,
     )
     moved_rows = moved["transcript"]["utterances"]
@@ -459,7 +460,7 @@ def test_host_detail_rebuilds_take_rows_from_stale_combined_transcript(
     with pytest.raises(RuntimeError, match="mapper stopped"):
         assembler.dump_project_projection(
             workspace,
-            projection=assembler.ViewProjection.DETAIL,
+            projection=ViewProjection.DETAIL,
             history=empty_history,
         )
     assert _scope.get() is None

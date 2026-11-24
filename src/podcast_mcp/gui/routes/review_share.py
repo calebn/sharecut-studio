@@ -23,7 +23,6 @@ from starlette.websockets import WebSocketState
 from podcast_mcp.feed.fields import guest_pinnable
 from podcast_mcp.feed.model import FeedEdit, SetEdit
 from podcast_mcp.feed.resolve import pin_row
-from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pending_preview_headers, pinned_audio_response
 from podcast_mcp.gui.middleware_host_binding import origin_is_loopback
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
@@ -115,7 +114,9 @@ from podcast_mcp.services.document import (
 )
 from podcast_mcp.services.document_sync import (
     COMMENT_BODY_MAX,
+    VIEW_PROJECTION_QUERY_DESCRIPTION,
     DocumentSyncService,
+    ViewProjection,
     command_context_for_share,
     document_command_from_body,
     document_hub_key,

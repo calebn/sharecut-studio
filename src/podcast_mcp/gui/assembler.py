@@ -1,4 +1,4 @@
-"""ProjectView construction and dump. Re-exports ViewProjection types as the compatibility path."""
+"""ProjectView construction and dump."""
 
 from __future__ import annotations
 
@@ -28,21 +28,11 @@ from podcast_mcp.services.document import (
     TimelineService,
     TranscriptService,
 )
-from podcast_mcp.services.document_sync import (
-    VIEW_PROJECTION_QUERY_DESCRIPTION,
-    ViewProjection,
-    parse_view_projection,
-)
+from podcast_mcp.services.document_sync import ViewProjection, parse_view_projection
 from podcast_mcp.services.media import project_basis
 from podcast_mcp.util.batch_scope import batch_scope, frozen_state
 
-__all__ = [
-    "VIEW_PROJECTION_QUERY_DESCRIPTION",
-    "ViewProjection",
-    "build_project_view",
-    "dump_project_projection",
-    "parse_view_projection",
-]
+__all__ = ["build_project_view", "dump_project_projection"]
 
 
 def _workspace(source: Path | ProjectWorkspace) -> tuple[ProjectWorkspace, Path]:

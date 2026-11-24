@@ -7,12 +7,7 @@ import pytest
 
 from gated_track import transcribed_gate_project
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.gui.assembler import (
-    VIEW_PROJECTION_QUERY_DESCRIPTION,
-    ViewProjection,
-    build_project_view,
-    dump_project_projection,
-)
+from podcast_mcp.gui.assembler import build_project_view, dump_project_projection
 from podcast_mcp.models import (
     Clip,
     CombinedTranscript,
@@ -27,9 +22,8 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.projection_types import (
-    ViewProjection as CanonicalViewProjection,
-)
-from podcast_mcp.services.document_sync.projection_types import (
+    VIEW_PROJECTION_QUERY_DESCRIPTION,
+    ViewProjection,
     parse_view_projection,
 )
 from podcast_mcp.services.document_sync.projections import projection_for_command
@@ -63,18 +57,9 @@ def _with_transcript(minimal_project):
     return ws
 
 
-def test_assembler_reexports_projection_types() -> None:
-    from podcast_mcp.gui import assembler
-    from podcast_mcp.services.document_sync import projection_types as types
-
-    assert assembler.ViewProjection is types.ViewProjection
-    assert assembler.parse_view_projection is types.parse_view_projection
-    assert assembler.VIEW_PROJECTION_QUERY_DESCRIPTION is types.VIEW_PROJECTION_QUERY_DESCRIPTION
-
-
 def test_parse_view_projection_default_and_invalid() -> None:
-    assert parse_view_projection(None) is CanonicalViewProjection.SHELL
-    assert parse_view_projection("FULL") is CanonicalViewProjection.FULL
+    assert parse_view_projection(None) is ViewProjection.SHELL
+    assert parse_view_projection("FULL") is ViewProjection.FULL
     with pytest.raises(ValueError, match="unknown"):
         parse_view_projection("nope")
 
