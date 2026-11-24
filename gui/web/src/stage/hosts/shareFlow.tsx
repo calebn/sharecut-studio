@@ -28,7 +28,6 @@ import {
 } from "../../extensions/features";
 import { copyText, STALE_ROOM_LINKS_WARNING } from "../../record";
 import {
-  corsWarning,
   createRecoveryOf,
   SHARE_DEFAULTS,
   type ShareChoices,
@@ -36,6 +35,7 @@ import {
   type ShareCopyKind,
   type ShareCreateRecovery,
   shareCopyKey,
+  shareWarning,
 } from "../../stages/deliver/shareLogic";
 import { useDawStore } from "../../state/dawStore";
 import type { ReverseAction } from "../../state/types";
@@ -407,8 +407,8 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         announce(`${linkNameOf(request)} created`);
       }
       await load(request.scope);
-      const cors = corsWarning(share);
-      if (cors && isCurrent(request.scope)) setError(cors);
+      const warning = shareWarning(share);
+      if (warning && isCurrent(request.scope)) setError(warning);
     },
     [announce, isCurrent, load, markCopied, relist],
   );

@@ -1,6 +1,7 @@
 import { REVIEW_ROLE_IDS } from "../../types/roles.generated";
 import {
   type HostShareRow,
+  type HostShareWarning,
   listenRowOf,
   REVIEW_ROLES,
   type ShareRole,
@@ -181,11 +182,24 @@ export function createRecoveryOf(
   return { kind: "error" };
 }
 
-/** The warning to show when the share origin has no CORS rule on the bucket, else null. */
-export function corsWarning(share: HostShareRow): string | null {
-  const warning = share.warnings?.find((w) => w.code === "object_store_cors");
-  if (!warning) return null;
-  return `Link created, but its bucket has no CORS rule for ${warning.origin ?? "the share origin"}, so guests stream through your connection until you add one. The rule to paste is in docs/host-online-relay.md.`;
+const NOT_SET_UP_WARNING =
+  "Link created, but online sharing isn't set up on this computer, so guests can't open it yet. How to set it up is in docs/host-online-relay.md.";
+
+const WARNING_COPY: Readonly<
+  Record<string, (warning: HostShareWarning) => string>
+> = {
+  object_store_cors: (warning) =>
+    `Link created, but its bucket has no CORS rule for ${warning.origin ?? "the share origin"}, so guests stream through your connection until you add one. The rule to paste is in docs/host-online-relay.md.`,
+  online_sharing_not_set_up: () => NOT_SET_UP_WARNING,
+};
+
+/** The line to show after a mint that came back with a warning the host can act on, else null. */
+export function shareWarning(share: HostShareRow): string | null {
+  for (const warning of share.warnings ?? []) {
+    const copy = WARNING_COPY[warning.code];
+    if (copy) return copy(warning);
+  }
+  return null;
 }
 
 export const ROOM_LINK_COPY = {
