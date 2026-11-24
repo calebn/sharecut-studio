@@ -370,3 +370,14 @@ def test_write_exits_nonzero_when_it_emits_an_unreviewed_row(monkeypatch, tmp_pa
     assert "unreviewed. unreviewed" not in err
     monkeypatch.setattr(inventory, "live_rows", lambda: [{**row, "reason": "reviewed"}])
     assert inventory.main(["--write"]) == 0
+
+
+def test_the_export_downloads_keep_their_host_gate_visible(live) -> None:
+    rows = {(r["method"], r["path"]): r for r in live}
+
+    file_rows = [rows[(m, "/api/export/files/{file_id:path}")] for m in ("GET", "HEAD")]
+    archive_rows = [rows[(m, "/api/export/archive")] for m in ("GET", "HEAD")]
+
+    assert all(r.get("host_direct") for r in file_rows)
+    assert not any(r.get("host_direct") for r in archive_rows)
+    assert inventory.host_direct_count(live) == 2

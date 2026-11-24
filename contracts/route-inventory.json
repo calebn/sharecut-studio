@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "host_direct_baseline": 1,
+  "host_direct_baseline": 2,
   "routes": [
     {
       "gate": "other",
@@ -213,6 +213,7 @@
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.export_routes:download_export_file",
+      "host_direct": true,
       "method": "GET",
       "path": "/api/export/files/{file_id:path}",
       "reason": "require_host unless a per-file export ticket is given, which then stands in for it"
@@ -220,6 +221,7 @@
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.export_routes:download_export_file",
+      "host_direct": true,
       "method": "HEAD",
       "path": "/api/export/files/{file_id:path}",
       "reason": "require_host unless a per-file export ticket is given, which then stands in for it"
