@@ -77,7 +77,7 @@ summary table.
 
 ## Maximal install (all extras)
 
-Install **every** pip extra. No extra pulls torch; the download beyond `./install.sh` is the models `podcast bootstrap` fetches: the word aligner, ~360 MB, and the speaker model, ~80 MB. The speaker model downloads from a direct first-party CDN url in the manifest.
+Install **every** pip extra. No extra pulls torch; the download beyond `./install.sh` is the models `podcast bootstrap` fetches: the word aligner, ~360 MB, and the speaker model, ~80 MB. The speaker model downloads from the owner CDN that official builds embed; a source checkout has none and needs one of the [speaker-model](#speaker-model) options.
 
 ```bash
 git clone https://github.com/calebn/sharecut-studio.git && cd sharecut-studio
@@ -243,6 +243,25 @@ shasum -a 256 /tmp/pin-check/config.json /tmp/pin-check/model.bin /tmp/pin-check
 Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so RNNoise tries CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are only used for assets with a `sha256` pin; RNNoise is pinned, so the CDN is tried first and falls back to the commit-pinned GitHub URL on a miss. To re-pin RNNoise, run `curl -L <url> | tee f | shasum -a 256; wc -c f`, then update `url`, `sha256` and `size_bytes` together. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. It also reports a `host` object (`name`, `can_spawn_processes`, `loopback_is_trusted`, `media_tools`, `transcription`, `folder_picker` (whether the host has an OS folder dialog; Home draws Open other and Find only when it does), from [`HostPlatform`](contributing.md#host-platform)); on a host that cannot run a component, `tools.ffmpeg` and the `whisper` row read `state: "unsupported"` with a one-sentence `hint`. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights (the catalog sizes at their pinned revisions). The word aligner is not in the manifest and always downloads from upstream.
 
 
+#### Speaker model
+
+The speaker model (`speaker-ecapa`) has no upstream download. Its only default source is
+the owner CDN (`cdn.sharecut.studio`), a documented first-party exception to the rule that generic runtime
+carries no owner host, and it is a build-time default: official builds embed the CDN
+origin (`PODCAST_OWNER_CDN_BASE` at build time, recorded in the generated
+`contracts/owner-cdn.json`); a source or fork build has none. Every download is
+verified against the pinned sha256 in
+[`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json). Without a
+base, `podcast bootstrap` reports the missing source for this component, finishes the
+others and exits non-zero. In a source build, pick one:
+
+- `PODCAST_MCP_SPEAKER_ECAPA_MODEL=/path/model.onnx` uses a file you hold (not pin-checked).
+- `PODCAST_OWNER_CDN_BASE=https://your-host` (an origin that serves `models/speaker-ecapa/ecapa-voxceleb-embedding.onnx`).
+- `PODCAST_BOOTSTRAP_CDN_BASE` (the optional asset mirror below) with the same file under its `models/speaker-ecapa/` prefix.
+
+The environment variable beats the generated file. The base must be HTTPS on a public
+host. `scripts/owner_cdn.py write --base <origin>` records one for a build you package.
+
 #### Check a public bootstrap mirror
 
 Operators can check availability without downloading model payloads or writing a
@@ -381,6 +400,16 @@ podcast doctor
 Use the `.exe` paths on Windows. No compiler or source download is required by
 the consumer. The production catalog pins hosted archives and their original
 producer manifests. Acquisition fails closed if either digest or native proof fails.
+
+The catalog holds relative paths, not hosts. Official builds and the official CI
+and release workflows supply the owner CDN origin (the first-party host the
+catalog's sha256 values were published to) through `PODCAST_OWNER_CDN_BASE` or
+`--cdn-base`. A plain source checkout has no base, so
+`python scripts/ffmpeg_payload.py` alone fails and names its options: pass
+`--archive` with an archive you already hold, `--catalog` with your own full-URL
+catalog, or set `PODCAST_OWNER_CDN_BASE` to a host you control that serves the
+pinned bytes. Nothing downloaded from any base is trusted without its pinned
+sha256. `PODCAST_MCP_FFMPEG` and `PODCAST_MCP_FFPROBE` bypass the importer.
 
 An offline dependency archive still requires the selected catalog hashes:
 
@@ -778,6 +807,7 @@ read pipeline settings.
 | `PODCAST_MCP_FFPROBE` |  | Explicit ffprobe executable. |
 | `PODCAST_MCP_FFMPEG_BUNDLE` |  | Directory holding the desktop app's bundled FFmpeg pair. |
 | `PODCAST_BOOTSTRAP_CDN_BASE` |  | Public HTTPS mirror base for bootstrap assets. |
+| `PODCAST_OWNER_CDN_BASE` |  | HTTPS origin that serves the pinned speaker model and FFmpeg archives; official builds embed it, a source build has none. |
 | `WHISPER_CPP_BIN` |  | whisper-cli executable. |
 | `WHISPER_CPP_MODEL` |  | whisper.cpp model file. |
 | `WHISPER_CPP_MODEL_NAME` | `ggml-base.en.bin` | whisper.cpp model name inside its cache. |

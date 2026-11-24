@@ -501,6 +501,7 @@
           "src/podcast_mcp/util/model_assets.py",
           "src/podcast_mcp/util/model_manifest.py",
           "src/podcast_mcp/util/asset_sources.py",
+          "src/podcast_mcp/util/owner_cdn.py",
           "src/podcast_mcp/services/pipeline/bootstrap.py",
           "src/podcast_mcp/services/support/doctor.py",
           "src/podcast_mcp/services/support/config_check.py",
@@ -510,6 +511,7 @@
           "src/podcast_mcp/engines/models/word_aligner.py",
           "contracts/bootstrap-assets.json",
           "scripts/mirror_bootstrap_assets.py",
+          "scripts/owner_cdn.py",
           "gui/web/src/api/bootstrapDiagnostics.ts"
         ]
       }
@@ -783,6 +785,7 @@
           "scripts/tauri_sidecar_hook.py",
           "scripts/sidecar_*.rs",
           "scripts/mirror_bootstrap_assets.py",
+          "scripts/owner_cdn.py",
           "scripts/generate_distribution_config.py",
           "contracts/bootstrap-assets.json",
           "contracts/bootstrap-assets.schema.json",

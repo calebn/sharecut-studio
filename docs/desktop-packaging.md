@@ -163,11 +163,29 @@ only by Rust for the confirmation dialog. Do not widen
 Pinned bootstrap assets, when a distributor elects to mirror them, are described
 by [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json). The
 manifest lists only assets a consumer build requires, plus the recommended
-speaker model, which carries a direct first-party `url` so a stock build
-downloads it with no mirror (a mirror copy is optional); the recommended word
+speaker model, which carries an `owner_path` on the owner CDN instead of a host:
+official builds embed the CDN origin at build time (see
+[Owner CDN base](#owner-cdn-base)), so they download it with no mirror (a mirror
+copy is optional) and a source build has no default; the recommended word
 aligner is intentionally absent and downloads from its upstream pin via
 `podcast bootstrap --component word-aligner`; Studio's Get ready card and Pipeline tab
 also download `word-aligner` through `/api/bootstrap/run`.
+
+## Owner CDN base
+
+The speaker model and the prebuilt FFmpeg archives are served from the owner CDN
+(`cdn.sharecut.studio`), a documented first-party exception. Their contracts hold relative
+paths and sha256 pins only. The origin is a build-time default: it comes from
+`PODCAST_OWNER_CDN_BASE`, which `scripts/build_sidecar.py` records with
+`scripts/owner_cdn.py write` in the gitignored `contracts/owner-cdn.json` just before the
+frozen wheel is installed. A source or fork build has no base unless it sets one, and
+`docs/setup.md#speaker-model` and `#acquire-the-pinned-ffmpeg-pair` say how.
+
+An official release build sets `PODCAST_OWNER_CDN_BASE` (from the repository variable
+`SHARECUT_OWNER_CDN_BASE`) and `PODCAST_REQUIRE_OWNER_CDN=1`; with the latter the build
+fails, naming the missing base, instead of shipping a sidecar whose speaker download
+cannot work. The CI steps that run `scripts/ffmpeg_payload.py` pass the same variable.
+No Rust or distribution-profile field is involved.
 
 ## Platforms
 
@@ -977,7 +995,7 @@ For packaged diagnostics and maintenance commands, invoke the compiled launcher 
 
 The launcher sets `PODCAST_PACKAGED_CLI=1` and does not parse the CLI grammar. Python's `gui` command and `ensure_viewer` (`services/app/gui_launch.py`, `packaged_cli_gui_refusal`) then refuse with exit code 2 and an instruction to launch or focus the installed app, wherever root options such as `--no-progress` appear, so a packaged CLI call cannot start a second host on `:8765`.
 
-Differences from the app-spawned sidecar: packaged CLI calls do not receive Tauri's `PODCAST_DISTRIBUTION_*` / `PODCAST_BOOTSTRAP_CDN_BASE`, so `podcast doctor` reports default distribution metadata and `podcast bootstrap` fetches from upstream URLs (content is still hash-pinned). On Windows and Linux, the launcher replaces `pyvenv.cfg` atomically when its prefix changes. On **Windows** the GUI-subsystem sidecar still rejects `--cli` with exit 2; use the dedicated console launchers instead.
+Differences from the app-spawned sidecar: packaged CLI calls do not receive Tauri's `PODCAST_DISTRIBUTION_*` / `PODCAST_BOOTSTRAP_CDN_BASE`, so `podcast doctor` reports default distribution metadata and `podcast bootstrap` fetches from upstream URLs (content is still hash-pinned). The owner CDN base needs no such forwarding: it is recorded in the wheel's `contracts/owner-cdn.json`, so the packaged CLI downloads the speaker model like the app does. On Windows and Linux, the launcher replaces `pyvenv.cfg` atomically when its prefix changes. On **Windows** the GUI-subsystem sidecar still rejects `--cli` with exit 2; use the dedicated console launchers instead.
 
 Windows puts the launcher next to the exe and the runtime under `resources/sharecut-runtime`. Linux **AppImage** puts the launcher in `usr/bin/` and the freeze at `usr/lib/<productName>/sharecut-runtime` (linuxdeploy). The launcher probes those paths plus macOS `Contents/Resources/`. `spawn_sidecar` looks for `sharecut-sidecar.exe` / `.cmd` (Windows `--dry-run` placeholder only) / bare name. Keep [`gui/desktop/binaries/sharecut-sidecar`](../gui/desktop/binaries/sharecut-sidecar) (bash) in git for `tauri dev`; freeze output under `binaries/sharecut-runtime/` and leftover platform copies (`binaries-linux/`, `binaries-*/`) are gitignored. Slim uses `lib/thread[0-9]*` (Tcl `thread2.*`) rather than `lib/thread*` — on Windows, case-insensitive `Path.glob` would also delete CPython stdlib `Lib/threading.py`. Other `tcl*` / `tk*` slims could still case-fold into unexpected `Lib/` names if the CPython layout changes.
 
@@ -1639,8 +1657,8 @@ a brief missing-path interval between two renames, without a portable atomic
 exchange or a power-loss durability guarantee. Normal app startup does not fetch.
 
 The production catalog in `contracts/ffmpeg-artifacts.json` pins the hosted
-archive and original producer manifest for each target. CI and desktop packaging
-use this catalog. Offline verification uses the same importer with an explicit
+archive path and original producer manifest for each target; the host comes from
+the [owner CDN base](#owner-cdn-base). CI and desktop packaging use this catalog. Offline verification uses the same importer with an explicit
 catalog and archive. Sidecar tooling forwards `PODCAST_FFMPEG_CATALOG` and
 `PODCAST_FFMPEG_ARCHIVE`; invalid explicit archives fail before installed reuse.
 
