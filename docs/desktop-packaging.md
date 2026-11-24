@@ -388,9 +388,10 @@ void     sc_ffmpeg_cancel(int64_t session);
   not stop the cancel watcher. The module loads nothing at import. `is_available()` returns `False`
   on a host whose `media_tools` is not `in_process` before any ctypes call; elsewhere it looks the
   five names up in this process (`dlopen(NULL)`) and calls `sc_ffmpeg_abi_version` only. A missing
-  symbol or a version other than 2 is unavailable, and nothing is installed. Until the Python half
-  of #3977 lands, `native_ffmpeg.py` still binds four names and expects version 1, so it refuses a
-  core built from this source.
+  symbol or a version other than 2 is unavailable, and nothing is installed. `native_ffmpeg.py`
+  expects ABI version 2 and binds `sc_ffmpeg_build_id` as well as the four tool names; the version
+  is checked before `sc_ffmpeg_build_id` is bound, so a version 1 core that exports the four tool
+  names is reported as a version mismatch, not a missing symbol.
 - **Build id.** `sc_ffmpeg_build_id` returns a pointer to a static NUL-terminated string that is
   never freed and never changes for the life of the process; it takes no lock and may be called
   from any thread. The charset is `[A-Za-z0-9._+-]`, 1 to 128 bytes, and it is never NULL. The

@@ -129,6 +129,7 @@ def test_the_ios_row_with_a_linked_library_offers_rnnoise_alone(
     """The aligner and speaker models are ONNX (no onnxruntime on iOS); whisper needs its native
     backend installed. Without it only RNNoise, which runs through FFmpeg, may be offered."""
     monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    monkeypatch.setattr(native_ffmpeg, "build_id", lambda: "9.0.2+test")
     monkeypatch.setattr(native_ffmpeg, "is_installed", lambda: True)
     host(IOS)
     for status in (boot.component_status(), _route_status()):
@@ -150,6 +151,7 @@ def test_the_ios_row_with_a_linked_but_uninstalled_ffmpeg_offers_nothing(
 ) -> None:
     """Linked is not enough: RNNoise runs through FFmpeg, so it waits for the backend too."""
     monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    monkeypatch.setattr(native_ffmpeg, "build_id", lambda: "9.0.2+test")
     monkeypatch.setattr(native_ffmpeg, "is_installed", lambda: False)
     host(IOS)
     for model in boot.component_status()["models"]:
@@ -162,6 +164,7 @@ def test_the_ios_row_with_the_whisper_backend_installed_offers_transcription(
     host, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    monkeypatch.setattr(native_ffmpeg, "build_id", lambda: "9.0.2+test")
     monkeypatch.setattr(native_ffmpeg, "is_installed", lambda: True)
     monkeypatch.setattr(native_whisper, "is_installed", lambda: True)
     host(IOS)
@@ -176,6 +179,7 @@ def test_the_ios_row_with_the_whisper_backend_installed_offers_transcription(
 
 def test_the_ios_host_object_names_whisper_cpp(host, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    monkeypatch.setattr(native_ffmpeg, "build_id", lambda: "9.0.2+test")
     monkeypatch.setattr(native_ffmpeg, "is_installed", lambda: True)
     host(IOS)
     assert boot.component_status()["host"]["transcription"] == "whisper_cpp"

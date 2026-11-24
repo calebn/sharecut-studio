@@ -72,7 +72,8 @@ class FakeWhisper:
 
 class FakeFFmpeg:
     def __init__(self) -> None:
-        self.sc_ffmpeg_abi_version = ctypes.CFUNCTYPE(ctypes.c_int)(lambda: 1)
+        self.sc_ffmpeg_abi_version = ctypes.CFUNCTYPE(ctypes.c_int)(lambda: 2)
+        self.sc_ffmpeg_build_id = ctypes.CFUNCTYPE(ctypes.c_char_p)(lambda: b"9.0.2+test")
         self.sc_ffmpeg_start = START(lambda *a: 1)
         self.sc_ffmpeg_wait = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int64)(lambda s: 0)
         self.sc_ffmpeg_cancel = ctypes.CFUNCTYPE(None, ctypes.c_int64)(lambda s: None)

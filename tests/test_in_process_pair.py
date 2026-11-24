@@ -141,6 +141,7 @@ def _statuses() -> tuple[dict, dict, dict, tuple[bool, str]]:
 
 def test_linked_and_installed_is_the_only_state_that_says_installed(monkeypatch, host):
     monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    monkeypatch.setattr(native_ffmpeg, "build_id", lambda: "9.0.2+test")
     host(IN_PROCESS_ROW)
     with process.using_in_process_backend(_Backend()):  # type: ignore[arg-type]
         assert native_ffmpeg.is_installed() is True
@@ -154,6 +155,7 @@ def test_linked_and_installed_is_the_only_state_that_says_installed(monkeypatch,
 
 def test_linked_but_not_installed_is_missing_with_its_own_hint(monkeypatch, host):
     monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    monkeypatch.setattr(native_ffmpeg, "build_id", lambda: "9.0.2+test")
     host(IN_PROCESS_ROW)
     assert native_ffmpeg.is_installed() is False
     boot, cfg, info, check = _statuses()

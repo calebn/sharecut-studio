@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from typing import Any
 
@@ -55,13 +56,14 @@ class Session:
 
 
 class FakeNative:
-    """The four ``sc_ffmpeg_*`` symbols as ctypes callbacks; start dups fds like native does."""
+    """The five ``sc_ffmpeg_*`` symbols as ctypes callbacks; start dups fds like native does."""
 
     def __init__(
         self,
         *,
         code: int = 0,
-        version: int = 1,
+        version: int = 2,
+        build_id: bytes | None = b"9.0.2+abcd",
         start_result: int | None = None,
         wait_result: int | None = None,
         honour_cancel: bool = True,
@@ -88,6 +90,8 @@ class FakeNative:
         self.started = threading.Semaphore(0)
         self._next = 1
         self.sc_ffmpeg_abi_version = ctypes.CFUNCTYPE(ctypes.c_int)(lambda: version)
+        self.build_id = build_id
+        self.sc_ffmpeg_build_id = ctypes.CFUNCTYPE(ctypes.c_char_p)(lambda: self.build_id)
         self.sc_ffmpeg_start = START(self._start)
         self.sc_ffmpeg_wait = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int64)(self._wait)
         self.sc_ffmpeg_cancel = ctypes.CFUNCTYPE(None, ctypes.c_int64)(self._cancel)
@@ -363,11 +367,112 @@ def test_probe_finds_the_symbols_through_the_process_handle(
     assert binaries._in_process_linked() is True
 
 
-def test_abi_version_two_is_not_available(host: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ctypes, "CDLL", lambda name: FakeNative(version=2))
+def test_abi_version_one_is_refused(host: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = FakeNative(version=1)
+    del fake.sc_ffmpeg_build_id
+    monkeypatch.setattr(ctypes, "CDLL", lambda name: fake)
     assert native_ffmpeg.is_available() is False
-    with pytest.raises(NativeFFmpegUnavailable):
+    with pytest.raises(NativeFFmpegUnavailable, match="ABI version 1, expected 2"):
         native_ffmpeg.load_library()
+
+
+def test_abi_version_two_is_available(host: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ctypes, "CDLL", lambda name: FakeNative(version=2))
+    assert native_ffmpeg.is_available() is True
+
+
+def test_a_library_missing_build_id_is_refused_by_the_constructor() -> None:
+    fake = FakeNative()
+    del fake.sc_ffmpeg_build_id
+    with pytest.raises(NativeFFmpegUnavailable, match="sc_ffmpeg_build_id"):
+        NativeFFmpegBackend(fake)
+
+
+def _link(monkeypatch: pytest.MonkeyPatch, **kwargs: Any) -> FakeNative:
+    fake = FakeNative(**kwargs)
+    monkeypatch.setattr(ctypes, "CDLL", lambda name: fake)
+    return fake
+
+
+def test_build_id_and_helpers_return_the_native_id(
+    host: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _link(monkeypatch)
+    assert native_ffmpeg.build_id() == "9.0.2+abcd"
+    assert binaries.in_process_build_id() == "9.0.2+abcd"
+    assert binaries.in_process_version() == (9, 0, 2)
+
+
+def test_unlinked_helpers_return_the_sentinel_without_ctypes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def boom(*a: Any, **k: Any) -> None:
+        raise AssertionError("ctypes touched")
+
+    monkeypatch.setattr(ctypes, "CDLL", boom)
+    with host_platform.using(replace(MACOS, media_tools="executables")):
+        assert binaries.in_process_build_id() == binaries.IN_PROCESS_BUILD_ID
+        assert binaries.in_process_version() == (0, 0, 0)
+
+
+def test_non_version_id_parses_to_zero(host: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    _link(monkeypatch, build_id=b"dev+abc")
+    assert binaries.in_process_version() == (0, 0, 0)
+
+
+def test_two_ids_give_different_cache_key_tuples(
+    host: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.ungated_audio import ffmpeg_build_id
+
+    _link(monkeypatch, build_id=b"9.0.2+aaaa")
+    first = ffmpeg_build_id()
+    _link(monkeypatch, build_id=b"9.0.2+bbbb")
+    second = ffmpeg_build_id()
+    assert first != second
+    assert first == (IN_PROCESS_FFMPEG, (9, 0, 2), "9.0.2+aaaa")
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [b"unknown", b"", b"a" * 129, b"a b", b"a\n", "é".encode(), None],
+    ids=["unknown", "empty", "129", "space", "newline", "non-ascii", "null"],
+)
+def test_invalid_build_ids_raise_unavailable(
+    host: None, monkeypatch: pytest.MonkeyPatch, bad: bytes | None
+) -> None:
+    _link(monkeypatch, build_id=bad)
+    with pytest.raises(NativeFFmpegUnavailable):
+        native_ffmpeg.build_id()
+
+
+def test_a_128_byte_id_is_valid(host: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    _link(monkeypatch, build_id=b"a" * 128)
+    assert native_ffmpeg.build_id() == "a" * 128
+
+
+def test_unknown_id_is_linked_but_the_pair_is_unavailable(
+    host: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.services.support import doctor
+
+    fake = _link(monkeypatch, build_id=b"unknown")
+    assert native_ffmpeg.is_available() is True
+    with process.using_in_process_backend(NativeFFmpegBackend(fake)):
+        assert binaries.in_process_problem() == binaries.IN_PROCESS_BAD_BUILD_ID
+        assert binaries.IN_PROCESS_PAIR.is_available() is False
+        info = doctor.ffmpeg_probe_info()["ffmpeg"]
+        assert info["ok"] is False
+        assert info["version"] == binaries.IN_PROCESS_BAD_BUILD_ID
+        with pytest.raises(NativeFFmpegUnavailable):
+            binaries.in_process_build_id()
+
+
+def test_build_id_is_thread_safe(host: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    _link(monkeypatch)
+    with ThreadPoolExecutor(8) as pool:
+        results = list(pool.map(lambda _: native_ffmpeg.build_id(), range(64)))
+    assert set(results) == {"9.0.2+abcd"}
 
 
 def test_a_library_missing_one_symbol_is_unavailable() -> None:
@@ -1026,6 +1131,16 @@ def test_install_native_backend_declines_without_the_library(host: None, uninsta
     assert native_ffmpeg._installed is None
     with pytest.raises(process.SpawnUnavailableError):
         process.run([IN_PROCESS_FFMPEG], capture_output=True)
+
+
+@pytest.mark.parametrize("bad", [b"unknown", b"", b"has space", None])
+def test_install_native_backend_declines_a_bad_build_id(
+    host: None, monkeypatch: pytest.MonkeyPatch, uninstall: None, bad: bytes | None
+) -> None:
+    _link(monkeypatch, build_id=bad)
+    assert native_ffmpeg.install_native_backend() is False
+    assert native_ffmpeg._installed is None
+    assert process.in_process_backend_installed() is False
 
 
 def test_install_native_backend_declines_on_a_desktop_row(
