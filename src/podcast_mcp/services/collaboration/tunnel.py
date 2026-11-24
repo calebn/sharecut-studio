@@ -187,6 +187,7 @@ class TunnelClient:
         self._cfg = cfg
         self._project_path = project_path
         self._sleep = sleep
+        self._send: Callable[[dict[str, Any]], Awaitable[None]] | None = None
         self._tracker = TunnelStatusTracker(
             relay_host=_relay_host(cfg.relay_url),
             public_base_url=cfg.public_base_url,
@@ -221,6 +222,23 @@ class TunnelClient:
         except Exception:
             log.exception("Could not load shares from project")
             return []
+
+    async def readvertise(self, project_path: Path) -> bool:
+        """Point the advertisement at ``project_path``.
+
+        With a registered session, sends one ``register`` frame that replaces what the relay
+        routes, and returns True. With none, returns False and the next connect advertises
+        ``project_path``. The relay's ``register`` ack arrives in ``_serve_messages`` and is ignored.
+        """
+        self._project_path = project_path
+        send = self._send
+        if send is None:
+            return False
+        shares = await asyncio.to_thread(self._build_shares)
+        if self._send is not send:
+            return False
+        await send(msg("register", shares=shares))
+        return True
 
     async def _proxy_http(
         self,
@@ -522,7 +540,7 @@ class TunnelClient:
         import websockets  # type: ignore[import-untyped]
 
         cfg = self._cfg
-        shares = self._build_shares()
+        shares = await asyncio.to_thread(self._build_shares)
 
         async with websockets.connect(
             cfg.relay_url,
@@ -543,8 +561,12 @@ class TunnelClient:
 
             share_count = await self._register(ws, send, shares)
             self._tracker.connected(share_count=share_count)
-            async with httpx.AsyncClient() as http_client:
-                await self._serve_messages(ws, http_client, send)
+            self._send = send
+            try:
+                async with httpx.AsyncClient() as http_client:
+                    await self._serve_messages(ws, http_client, send)
+            finally:
+                self._send = None
 
     @staticmethod
     def _expect_ack(ack: dict[str, Any], expected: str) -> dict[str, Any]:
