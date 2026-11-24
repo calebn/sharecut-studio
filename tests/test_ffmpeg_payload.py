@@ -793,3 +793,95 @@ def test_acquisition_replaces_signed_receipt_before_executing_pair(payload, tmp_
     assert len(proved) == 1
     assert (output / "bin/ffmpeg").read_bytes() == b"ffmpeg9"
     assert not (output / owner.SIGNED_RECEIPT).exists()
+
+
+OWNER_BASE = "https://cdn.sharecut.studio"
+ARTIFACT_PATH = "sharecut/dependencies/ffmpeg/9.0.2/prebuilt-1/release.tar.xz"
+
+
+def _path_catalog(catalog):
+    data = json.loads(catalog.read_text())
+    entry = data["targets"][TARGET]
+    entry["path"] = ARTIFACT_PATH
+    del entry["url"]
+    catalog.write_text(json.dumps(data))
+
+
+def test_catalog_path_joins_the_explicit_base(payload):
+    owner, _, _, catalog, _, _, _ = payload
+    _path_catalog(catalog)
+    artifact = owner.artifact_for(TARGET, catalog, cdn_base=f"{OWNER_BASE}/")
+    assert artifact.url == f"{OWNER_BASE}/{ARTIFACT_PATH}"
+
+
+def test_catalog_path_uses_the_build_time_base_when_no_flag_is_given(payload, monkeypatch):
+    owner, _, _, catalog, _, _, _ = payload
+    _path_catalog(catalog)
+    monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", OWNER_BASE)
+    assert owner.artifact_for(TARGET, catalog).url == f"{OWNER_BASE}/{ARTIFACT_PATH}"
+    flagged = owner.artifact_for(TARGET, catalog, cdn_base="https://flag.example.test")
+    assert flagged.url == f"https://flag.example.test/{ARTIFACT_PATH}"
+
+
+def test_catalog_url_fixture_ignores_any_base(payload, monkeypatch):
+    owner, _, _, catalog, _, _, _ = payload
+    monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", OWNER_BASE)
+    assert owner.artifact_for(TARGET, catalog).url == "https://fixtures.example.test/release.tar.xz"
+
+
+@pytest.mark.parametrize(
+    "entry", [{"path": "/abs/x.tar.xz"}, {"path": "a/../x"}, {"path": "https://x/y"}, {}]
+)
+def test_catalog_entry_needs_a_relative_path_or_an_https_url(payload, entry):
+    owner, _, _, catalog, _, _, _ = payload
+    data = json.loads(catalog.read_text())
+    data["targets"][TARGET] = {
+        **{k: v for k, v in data["targets"][TARGET].items() if k != "url"},
+        **entry,
+    }
+    catalog.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match=r"relative path|HTTPS URL"):
+        owner.artifact_for(TARGET, catalog, cdn_base=OWNER_BASE)
+
+
+def test_no_base_and_no_archive_fails_naming_every_way_out(payload, tmp_path):
+    _, _, _, catalog, _, _, _ = payload
+    _path_catalog(catalog)
+    owner = load_script("ffmpeg_payload", register=True)
+    with pytest.raises(ValueError) as raised:
+        owner.ensure_payload(tmp_path / "out", target=TARGET, catalog=catalog)
+    message = str(raised.value)
+    for needle in (
+        "--archive",
+        "--catalog",
+        "--cdn-base",
+        "PODCAST_OWNER_CDN_BASE",
+        "docs/setup.md#acquire-the-pinned-ffmpeg-pair",
+    ):
+        assert needle in message
+    assert not (tmp_path / "out").exists()
+
+
+def test_explicit_archive_needs_no_base(payload, tmp_path):
+    owner, _, archive, catalog, manifest, _, _ = payload
+    _path_catalog(catalog)
+    assert (
+        owner.ensure_payload(tmp_path / "out", target=TARGET, catalog=catalog, archive=archive)
+        == manifest
+    )
+
+
+def test_importer_cli_forwards_the_cdn_base(payload, tmp_path, monkeypatch):
+    owner, *_ = payload
+    seen = {}
+    monkeypatch.setattr(owner, "ensure_payload", lambda output, **kwargs: seen.update(kwargs))
+    monkeypatch.setattr(owner, "ffmpeg_policy", lambda: {"version": "9.0.2"})
+    assert owner.main(["--output", str(tmp_path / "o"), "--cdn-base", OWNER_BASE]) == 0
+    assert seen["cdn_base"] == OWNER_BASE
+    assert owner.main(["--output", str(tmp_path / "o")]) == 0
+    assert seen["cdn_base"] is None
+
+
+def test_importer_script_names_no_host_or_repository():
+    source = Path(load_script("ffmpeg_payload").__file__).read_text(encoding="utf-8")
+    assert "GITHUB_REPOSITORY" not in source and "cdn.sharecut.studio" not in source

@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
 from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.owner_cdn import owner_url
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "contracts/ffmpeg-artifacts.json"
@@ -47,12 +48,12 @@ TARGETS = frozenset(
 @dataclass(frozen=True)
 class Artifact:
     target: str
-    url: str
+    url: str | None
     sha256: str
     manifest_sha256: str
 
 
-def artifact_for(target: str, catalog: Path = CATALOG) -> Artifact:
+def artifact_for(target: str, catalog: Path = CATALOG, cdn_base: str | None = None) -> Artifact:
     if target not in TARGETS:
         raise ValueError(f"unsupported prebuilt target {target!r}")
     try:
@@ -65,10 +66,17 @@ def artifact_for(target: str, catalog: Path = CATALOG) -> Artifact:
     for key in ("sha256", "manifest_sha256"):
         if not re.fullmatch(r"[a-f0-9]{64}", entry[key]):
             raise ValueError(f"invalid artifact {key}")
-    url = urlparse(entry["url"])
-    if url.scheme != "https" or not url.netloc or url.username or url.password or url.fragment:
-        raise ValueError("prebuilt artifact requires an HTTPS URL without credentials")
-    return Artifact(target, entry["url"], entry["sha256"], entry["manifest_sha256"])
+    if "url" in entry:
+        url = urlparse(entry["url"])
+        if url.scheme != "https" or not url.netloc or url.username or url.password or url.fragment:
+            raise ValueError("prebuilt artifact requires an HTTPS URL without credentials")
+        download = entry["url"]
+    else:
+        path = PurePosixPath(entry.get("path", ""))
+        if not path.parts or path.is_absolute() or ".." in path.parts or ":" in str(path):
+            raise ValueError("prebuilt artifact requires an HTTPS URL or a relative path")
+        download = owner_url(str(path), cdn_base)
+    return Artifact(target, download, entry["sha256"], entry["manifest_sha256"])
 
 
 def verify_archive(archive: Path, expected: str) -> None:
@@ -245,6 +253,13 @@ def verify_payload(
 
 
 def _download(artifact: Artifact, destination: Path) -> None:
+    if artifact.url is None:
+        raise ValueError(
+            f"no download base for the prebuilt {artifact.target} FFmpeg archive. Pass --archive "
+            "(a local archive), --catalog (a catalog with full URLs), --cdn-base or set "
+            "PODCAST_OWNER_CDN_BASE to a host that serves the pinned sha256. "
+            "See docs/setup.md#acquire-the-pinned-ffmpeg-pair."
+        )
     with urlopen(artifact.url, timeout=120) as response, destination.open("wb") as output:
         if urlparse(response.geturl()).scheme != "https":
             raise ValueError("prebuilt redirect must remain HTTPS")
@@ -289,9 +304,14 @@ def _discard(path: Path) -> None:
 
 
 def ensure_payload(
-    output: Path, *, target: str | None = None, catalog: Path = CATALOG, archive: Path | None = None
+    output: Path,
+    *,
+    target: str | None = None,
+    catalog: Path = CATALOG,
+    archive: Path | None = None,
+    cdn_base: str | None = None,
 ) -> dict[str, Any]:
-    artifact = artifact_for(target or _target(), catalog)
+    artifact = artifact_for(target or _target(), catalog, cdn_base)
     if archive is not None:
         verify_archive(archive, artifact.sha256)
     previous = output.with_name(f".{output.name}.previous")
@@ -669,6 +689,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--target")
     parser.add_argument("--catalog", type=Path, default=CATALOG)
     parser.add_argument("--archive", type=Path)
+    parser.add_argument(
+        "--cdn-base", help="HTTPS origin for catalog paths (default: build-time base)"
+    )
     parser.add_argument("--verify-only", action="store_true")
     parser.add_argument("--sign-identity")
     parser.add_argument("--github-env", action="store_true")
@@ -681,7 +704,13 @@ def main(argv: list[str] | None = None) -> int:
     elif args.verify_only:
         verify_payload(output, target=args.target, catalog=args.catalog)
     else:
-        ensure_payload(output, target=args.target, catalog=args.catalog, archive=args.archive)
+        ensure_payload(
+            output,
+            target=args.target,
+            catalog=args.catalog,
+            archive=args.archive,
+            cdn_base=args.cdn_base,
+        )
     if args.github_env:
         suffix = ".exe" if platform.system() == "Windows" else ""
         with Path(os.environ["GITHUB_ENV"]).open("a") as handle:
