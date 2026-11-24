@@ -1,9 +1,8 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { waiveRefineGate } from "./documentCommand";
 import { e2eProjectPath } from "./env";
-import { exposeControl } from "./inspectorResponsiveEvidence";
+import { decideOnBar, selectionBar } from "./pendingActionbar";
 import { openSuggestedPendingEdit } from "./pendingEdit";
-import { resizeViewport } from "./resizeViewport";
 import { phone } from "./stageNav";
 
 const REFINE_GATE =
@@ -47,27 +46,13 @@ async function stubApproveEditsRefineGate(page: Page): Promise<void> {
   });
 }
 
-async function clickApproveUntilError(root: Locator): Promise<void> {
-  const error = root.locator(".modifier-error");
-  const approve = root.getByRole("button", { name: "Approve", exact: true });
-  await expect(approve).toBeVisible();
-  await expect
-    .poll(async () =>
-      approve.evaluate((button) => {
-        const rect = button.getBoundingClientRect();
-        return (
-          document.elementFromPoint(
-            rect.left + rect.width / 2,
-            rect.top + rect.height / 2,
-          ) === button
-        );
-      }),
-    )
-    .toBe(true);
+async function clickApproveUntilError(
+  page: Page,
+  errorRoot: Locator,
+): Promise<void> {
+  const error = errorRoot.locator(".modifier-error");
   await expect(async () => {
-    if (!(await error.isVisible())) {
-      await approve.click();
-    }
+    if (!(await error.isVisible())) await decideOnBar(page, "Approve");
     await expect(error).toBeVisible();
   }).toPass();
 }
@@ -87,8 +72,8 @@ async function expectErrorAboveAskWithNoFooter(root: Locator): Promise<void> {
 
 test.describe("Pending inspector layout", () => {
   for (const entrypoint of [
-    "desktop action card",
-    "phone inspector",
+    "desktop Action bar",
+    "phone inspector dock",
   ] as const) {
     test(`${entrypoint} reports a single review and Undo restores its pending edit`, async ({
       page,
@@ -103,21 +88,12 @@ test.describe("Pending inspector layout", () => {
           .locator(".pending-overlay.selected")
           .getAttribute("data-pending-id");
         expect(editId).not.toBeNull();
-        let root = page.getByRole("region", { name: "Pending edit actions" });
-        if (entrypoint === "phone inspector") {
+        if (entrypoint === "phone inspector dock") {
           await page.setViewportSize({ width: 390, height: 844 });
           await phone.showTimeline(page);
-          const sheet = page.locator(".sys-inspector--phone");
-          await expect(sheet).toBeVisible();
-          await page.getByRole("slider", { name: "Sheet height" }).press("End");
-          root = sheet.getByRole("complementary");
-          await exposeControl(
-            page,
-            root.getByRole("button", { name: action, exact: true }),
-            [],
-          );
+          await expect(page.locator(".sys-inspector--phone")).toBeVisible();
         }
-        await root.getByRole("button", { name: action, exact: true }).click();
+        await decideOnBar(page, action);
         const feedback = page.getByRole("region", { name: "Status messages" });
         await expect(feedback).toContainText(
           action === "Approve"
@@ -152,9 +128,7 @@ test.describe("Pending inspector layout", () => {
     const inspector = page
       .locator(".modifier-inspector")
       .filter({ has: page.getByRole("heading", { name: "Pending edit" }) });
-    await inspector
-      .getByRole("button", { name: "Approve", exact: true })
-      .click();
+    await decideOnBar(page, "Approve");
     const error = inspector.locator(".modifier-error");
     const askHelp = inspector.getByText(
       /Ask a question here before you approve/,
@@ -183,7 +157,7 @@ test.describe("Pending inspector layout", () => {
       dialog.getByRole("heading", { name: "Pending edit" }),
     ).toBeVisible();
     const inspector = dialog.getByRole("complementary");
-    await clickApproveUntilError(inspector);
+    await clickApproveUntilError(page, inspector);
     await expectErrorAboveAskWithNoFooter(inspector);
   });
 
@@ -208,93 +182,34 @@ test.describe("Pending inspector layout", () => {
       dialog.getByRole("heading", { name: "Pending edit" }),
     ).toBeVisible();
     const inspector = dialog.getByRole("complementary");
-    await clickApproveUntilError(inspector);
+    await clickApproveUntilError(page, inspector);
     // The sheet's dock carries Seek and Preview, so the preview footer is gone.
     await expectErrorAboveAskWithNoFooter(inspector);
   });
 
-  test("inline review stays hit-testable and tall recovery scrolls outside the lane", async ({
+  test("a refused Approve on the bar leaves the recovery reachable in the Inspector", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await stubApproveEditsRefineGate(page);
     await openSuggestedPendingEdit(page, e2eProjectPath);
-
-    const actionbar = page.getByRole("region", {
-      name: "Pending edit actions",
-    });
-    const approve = actionbar.getByRole("button", {
-      name: "Approve",
-      exact: true,
-    });
-    await expect(approve).toBeVisible();
-    await expect
-      .poll(async () =>
-        approve.evaluate((button) => {
-          const rect = button.getBoundingClientRect();
-          return (
-            document.elementFromPoint(
-              rect.left + rect.width / 2,
-              rect.top + rect.height / 2,
-            ) === button
-          );
-        }),
-      )
-      .toBe(true);
-    await approve.click();
-    const recovery = actionbar.getByRole("region", {
+    await expect(selectionBar(page)).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Pending edit actions" }),
+    ).toHaveCount(0);
+    await decideOnBar(page, "Approve");
+    const inspector = page
+      .locator(".modifier-inspector")
+      .filter({ has: page.getByRole("heading", { name: "Pending edit" }) });
+    const recovery = inspector.getByRole("region", {
       name: "Transcript refine recovery",
     });
-    await expect(actionbar.getByRole("alert")).toBeVisible();
-    await expect(
-      recovery.getByRole("button", { name: "Cut anyway" }),
-    ).toBeAttached();
-
-    await expect(
-      page.getByRole("group", { name: /^Needs attention/ }),
-    ).toHaveCount(0);
-    // `placed` means a pass measured under the panel's own max-height
-    // reproduced the previous one; it is `pending` again as soon as a resize
-    // is scheduled, which the page does synchronously in its resize handler.
-    const expectPlaced = () =>
-      expect(actionbar).toHaveAttribute("data-placement", "placed");
-    const scrolls = () =>
-      actionbar.evaluate((panel) => panel.scrollHeight > panel.clientHeight);
-    await expect(async () => {
-      for (let height = 480; height >= 120; height -= 20) {
-        await resizeViewport(page, { width: 1280, height });
-        await expectPlaced();
-        if (await scrolls()) return;
-      }
-      throw new Error("the actions panel never scrolled");
-    }).toPass({ timeout: 30_000 });
-    await expectPlaced();
-    expect(await scrolls()).toBe(true);
-    const [panelBox, regionBox, viewport] = await Promise.all([
-      actionbar.boundingBox(),
-      page.locator(".pending-overlay.selected").boundingBox(),
-      page.evaluate(() => ({ width: innerWidth, height: innerHeight })),
-    ]);
-    expect(panelBox).toBeTruthy();
-    expect(regionBox).toBeTruthy();
-    expect(panelBox!.x).toBeGreaterThanOrEqual(8);
-    expect(panelBox!.y).toBeGreaterThanOrEqual(8);
-    expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(
-      viewport.width - 8,
-    );
-    expect(panelBox!.y + panelBox!.height).toBeLessThanOrEqual(
-      viewport.height - 8,
-    );
-    expect(
-      panelBox!.y + panelBox!.height <= regionBox!.y - 7 ||
-        panelBox!.y >= regionBox!.y + regionBox!.height + 7,
-    ).toBe(true);
-
-    await actionbar.evaluate((panel) => {
-      panel.scrollTop = panel.scrollHeight;
-    });
+    await expect(inspector.getByRole("alert")).toBeVisible();
     await expect(
       recovery.getByRole("button", { name: "Cut anyway" }),
     ).toBeInViewport();
+    await expect(
+      page.getByRole("group", { name: /^Needs attention/ }),
+    ).toHaveCount(0);
   });
 });

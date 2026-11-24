@@ -691,6 +691,10 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
   context,
   browserName,
 }, info) => {
+  test.fixme(
+    true,
+    "The pending edit's Approve and Reject moved to the Action bar on the Edit stage; this overlay-bar case is replaced when slice 3 of #4337 removes the bar.",
+  );
   await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const commands = watchCommands(page);

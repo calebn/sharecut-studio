@@ -142,7 +142,7 @@ async function centerHit(target: Locator, inside: Locator) {
 
 for (const { width, height, corner: hasCorner } of pendingLayouts) {
   for (const touch of [true, false]) {
-    test(`${width}x${height}${touch ? "" : " with a mouse"}, pending edit: the review bar, the Inspector and Timeline view stay apart`, async ({
+    test(`${width}x${height}${touch ? "" : " with a mouse"}, pending edit: the Action bar, the Inspector and Timeline view stay apart`, async ({
       browser,
     }) => {
       const context = await browser.newContext({
@@ -158,23 +158,18 @@ for (const { width, height, corner: hasCorner } of pendingLayouts) {
             name: "Inspector",
             exact: true,
           });
-          const bar = page.getByRole("region", {
-            name: "Pending edit actions",
-          });
           const strip = page.getByRole("group", { name: "Selection actions" });
           const corner = page.getByRole("group", { name: "Timeline view" });
           await expect(card).toBeVisible();
-          await expect(bar).toBeVisible();
-          await expect(bar).toHaveAttribute("data-placement", "placed");
+          await expect(page.locator(".pending-actionbar")).toHaveCount(0);
           await expect(strip).toBeVisible();
           if (hasCorner) await expect(corner).toBeVisible();
           else await expect(corner).toBeHidden();
           const pairs = [
-            ["bar x card", bar, card],
             ["Selection actions x card", strip, card],
             ...(hasCorner
               ? ([
-                  ["bar x corner", bar, corner],
+                  ["Selection actions x corner", strip, corner],
                   ["card x corner", card, corner],
                 ] as const)
               : []),
@@ -191,13 +186,8 @@ for (const { width, height, corner: hasCorner } of pendingLayouts) {
             });
           }
           test.info().annotations.push({
-            type: "bar x Selection actions overlap px2",
-            description: String(await overlapArea(bar, strip)),
-          });
-          test.info().annotations.push({
             type: "boxes",
             description: JSON.stringify({
-              bar: await bar.boundingBox(),
               card: await card.boundingBox(),
               strip: await strip.boundingBox(),
             }),
@@ -206,10 +196,13 @@ for (const { width, height, corner: hasCorner } of pendingLayouts) {
             await centerHit(card.getByRole("button", { name: "Close" }), card),
             "the card's Close button is the topmost thing at its center",
           ).toBe(true);
-          const approve = bar.locator(".pending-actions button").first();
+          const approve = strip.getByRole("button", {
+            name: "Approve",
+            exact: true,
+          });
           expect(
             await centerHit(approve, approve),
-            "the review bar's first action is the topmost thing at its center",
+            "the Action bar's Approve is the topmost thing at its center",
           ).toBe(true);
         });
       } finally {

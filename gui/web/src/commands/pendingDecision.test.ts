@@ -11,29 +11,26 @@ import {
 } from "./pendingDecision";
 
 describe("actionBarOwnsPendingVerbs", () => {
-  const cut = { type: "remove", suggested_action: "cut" as const };
-
-  it.each(["cut", "shorten", "lower"] as const)(
-    "is true for a reviewable %s suggestion",
-    (suggested_action) => {
-      expect(
-        actionBarOwnsPendingVerbs({ type: "remove", suggested_action }, true),
-      ).toBe(true);
-    },
-  );
+  const exact = { exact_range: { intervals: [] } as never };
 
   it.each([
-    ["a viewer who cannot review", cut, false],
-    ["a split", { ...cut, type: "split" }, true],
-    ["leave", { ...cut, suggested_action: "leave" as const }, true],
-    ["no action", { ...cut, suggested_action: null }, true],
-    [
-      "an exact range",
-      { ...cut, exact_range: { intervals: [] } as never },
-      true,
-    ],
-  ])("is false for %s", (_name, edit, canReview) => {
-    expect(actionBarOwnsPendingVerbs(edit, canReview)).toBe(false);
+    ["a cut suggestion", {}],
+    ["a split", { type: "split" }],
+    ["a suggestion to leave alone", { suggested_action: "leave" }],
+    ["an exact range", exact],
+  ])("is true for %s the viewer may review", (_name, edit) => {
+    expect(actionBarOwnsPendingVerbs(edit as never, true)).toBe(true);
+  });
+
+  it("holds an exact range for a viewer who may not review it, so the bar says why", () => {
+    expect(actionBarOwnsPendingVerbs(exact, false)).toBe(true);
+  });
+
+  it.each([
+    ["a cut suggestion", {}],
+    ["a split", { type: "split" }],
+  ])("is false for %s the viewer may not review", (_name, edit) => {
+    expect(actionBarOwnsPendingVerbs(edit as never, false)).toBe(false);
   });
 });
 

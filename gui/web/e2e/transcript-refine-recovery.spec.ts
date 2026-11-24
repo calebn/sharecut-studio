@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { decideOnBar } from "./pendingActionbar";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { withShareableProject } from "./shareableProject";
 
@@ -33,12 +34,7 @@ test("host can waive a blocked approval in the browser", async ({ page }) => {
       });
     });
     await openSuggestedPendingEdit(page, projectPath);
-    const inspector = page
-      .locator(".modifier-inspector")
-      .filter({ has: page.getByRole("heading", { name: "Pending edit" }) });
-    await inspector
-      .getByRole("button", { name: "Approve", exact: true })
-      .click();
+    await decideOnBar(page, "Approve");
     await expect(
       page.getByRole("button", { name: "Cut anyway" }),
     ).toBeVisible();

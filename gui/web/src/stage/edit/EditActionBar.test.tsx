@@ -22,7 +22,12 @@ import {
   JONAS,
   MIRA,
 } from "../../test/actionBarFixtures";
-import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
+import {
+  COMMENTER_CAPABILITIES,
+  clipRow,
+  minimalProject,
+  sampleTrack,
+} from "../../test/fixtures";
 import { BounceRunContext } from "../hosts/bounceRunnerContext";
 import { EditActionBar } from "./EditActionBar";
 
@@ -356,6 +361,58 @@ const splitLanes = () => {
     target: makeRangeTarget(project, [{ start: 1, end: 1.4 }], ["room"])!,
   };
 };
+
+describe("EditActionBar on an exact range proposal", () => {
+  const HINT = "Only the host or an Editor can review exact range proposals.";
+  const exactProject = () => {
+    const project = editFixtureProject();
+    project.pending_edits[0] = {
+      ...project.pending_edits[0]!,
+      exact_range: { kind: "exact_range", clips: [] } as never,
+    };
+    return project;
+  };
+  const commenter = {
+    projectPath: "share:tok",
+    guestMode: "comment",
+    shareCapabilities: [...COMMENTER_CAPABILITIES],
+  };
+
+  it("says in visible text why Approve and Reject are off for a viewer who cannot review it", () => {
+    host(EDIT_SELECTIONS.suggestion, { project: exactProject(), ...commenter });
+    const { container } = render(<EditActionBar form="dock" root={null} />);
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+    expect(container.querySelector(".sys-actions-reason")).toHaveTextContent(
+      HINT,
+    );
+  });
+
+  it("shows the host Approve and Reject with no hint", () => {
+    host(EDIT_SELECTIONS.suggestion, { project: exactProject() });
+    const { container } = render(<EditActionBar form="dock" root={null} />);
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled();
+    expect(container.querySelector(".sys-actions-reason")).toBeNull();
+    expect(screen.queryByText(HINT)).toBeNull();
+  });
+
+  it("carries the hint on the floating bar too", () => {
+    host(EDIT_SELECTIONS.suggestion, { project: exactProject(), ...commenter });
+    render(<Floating />);
+    expect(
+      within(
+        screen.getByRole("group", { name: "Selection actions" }),
+      ).getByText(HINT),
+    ).toBeVisible();
+  });
+
+  it("gives an ordinary suggestion no hint for the same viewer", () => {
+    host(EDIT_SELECTIONS.suggestion, commenter);
+    render(<EditActionBar form="dock" root={null} />);
+    expect(screen.queryByText(HINT)).toBeNull();
+  });
+});
 
 describe("EditActionBar More rows", () => {
   it("moves the selected range through the host API", async () => {

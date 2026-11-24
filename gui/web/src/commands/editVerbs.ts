@@ -87,7 +87,9 @@ import { registerCommand } from "./execute";
 import { fixTextAvailability } from "./fixTextAvailability";
 import {
   decideThroughSheet,
+  EXACT_RANGE_REVIEW_REASON,
   focusPendingTimingField,
+  pendingBarWords,
   pendingDecisionBusy,
   sheetBusyReason,
 } from "./pendingDecision";
@@ -488,9 +490,9 @@ async function runCutSelection(
       return runRangeAction("cut");
     case "pending": {
       const edit = s.project?.pending_edits.find((e) => e.id === selection.id);
-      if (edit?.suggested_action && edit.suggested_action !== "cut")
-        return decidePending("suggested");
-      return decidePending("approve");
+      return decidePending(
+        edit && appliesOwnAction(edit) ? "suggested" : "approve",
+      );
     }
     case "chapter":
     case "envelopePoint":
@@ -1071,6 +1073,15 @@ function wordsRestoreAvailability(
   };
 }
 
+/** Why a suggestion's accept or reject verb is unavailable now, or undefined. */
+function pendingVerbReason(facts: EditFacts, s: DawState): string | undefined {
+  if (!canReviewPendingEdit(s.projectPath, s.shareCapabilities))
+    return facts.exactRange
+      ? EXACT_RANGE_REVIEW_REASON
+      : "This link cannot decide suggestions";
+  return pendingDecisionBusy(s, selectedPendingId(s)) ? BUSY_REASON : undefined;
+}
+
 export function barModelOf(
   facts: EditFacts,
   s: DawState,
@@ -1091,6 +1102,12 @@ export function barModelOf(
   const descriptor = (action: string) =>
     descriptors.find((d) => d.action === action);
   const readOnly = facts.role === "readOnly";
+  const pendingId = selectedPendingId(s);
+  const pendingEdit =
+    facts.kind === "suggestion"
+      ? project?.pending_edits.find((e) => e.id === pendingId)
+      : undefined;
+  const pendingWords = pendingEdit ? pendingBarWords(pendingEdit) : null;
 
   const items: BarItem[] = resolved.bar
     .filter((id) => readOnly || wired.includes(id))
@@ -1125,12 +1142,14 @@ export function barModelOf(
         !canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)
       )
         return { id, disabledReason: EDITING_OFF_REASON };
-      if (
-        id === "keep" &&
-        facts.kind === "suggestion" &&
-        pendingDecisionBusy(s, selectedPendingId(s))
-      )
-        return { id, disabledReason: BUSY_REASON };
+      if (id === "keep" && facts.kind === "suggestion") {
+        const reason = pendingVerbReason(facts, s);
+        return {
+          id,
+          label: pendingWords?.reject ?? "Keep",
+          ...(reason ? { disabledReason: reason } : {}),
+        };
+      }
       if (id === "fixText" && facts.kind !== "chapter") {
         const available = fixTextAvailability(s);
         return available.ok ? item : { id, disabledReason: available.reason };
@@ -1250,15 +1269,11 @@ export function barModelOf(
     const cut = rangeLike ? descriptor("cut") : undefined;
     const reason =
       cut?.reason ??
-      (facts.kind === "suggestion" &&
-      !canReviewPendingEdit(s.projectPath, s.shareCapabilities)
-        ? "This link cannot decide suggestions"
-        : facts.kind === "suggestion" &&
-            pendingDecisionBusy(s, selectedPendingId(s))
-          ? BUSY_REASON
-          : facts.kind === "comment" && !canManageProjects(s.projectPath)
-            ? "Only the host can resolve a comment"
-            : undefined);
+      (facts.kind === "suggestion"
+        ? pendingVerbReason(facts, s)
+        : facts.kind === "comment" && !canManageProjects(s.projectPath)
+          ? "Only the host can resolve a comment"
+          : undefined);
     primary = {
       id,
       ...(cut && cut.label !== "Cut" ? { label: cut.label } : {}),

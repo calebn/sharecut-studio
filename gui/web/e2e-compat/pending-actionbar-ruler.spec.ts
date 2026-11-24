@@ -163,16 +163,21 @@ function named(outcome: Outcome): string[] {
 }
 
 function run(name: string) {
-  return (
+  return async (
     { page, browserName }: { page: Page; browserName: string },
     info: TestInfo,
-  ) =>
-    expectCardOutcome(
+  ) => {
+    test.fixme(
+      true,
+      "The pending edit's Approve and Reject moved to the Action bar on the Edit stage; this overlay-bar case is replaced when slice 3 of #4337 removes the bar.",
+    );
+    await expectCardOutcome(
       { page, browserName },
       info,
       name,
       appearances.get(name)!,
     );
+  };
 }
 
 for (const name of named("docked")) {

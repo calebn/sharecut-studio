@@ -145,6 +145,7 @@ describe("PendingEditOverlay handles", () => {
     useDawStore
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
+    useDawStore.setState({ stage: "review" });
   });
 
   it.each([
@@ -185,6 +186,7 @@ describe("PendingEditOverlay handles", () => {
           guestMode,
           capabilities ? [...capabilities] : null,
         );
+      useDawStore.setState({ stage: "review" });
       useDawStore.setState({
         selection: { kind: "pending", id: exact.id, trackId: "host" },
       });
@@ -743,6 +745,7 @@ describe("PendingEditOverlay handles", () => {
     useDawStore
       .getState()
       .hydrate("/tmp/next.json", minimalProject({ pending_edits: [edit] }));
+    useDawStore.setState({ stage: "review" });
     fireEvent.pointerMove(end, { clientX: 130, pointerId: 6 });
     fireEvent.pointerUp(end, { clientX: 130, pointerId: 6 });
     expect(updatePendingEdit).not.toHaveBeenCalled();
@@ -770,6 +773,7 @@ describe("PendingEditOverlayView", () => {
     useDawStore
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
+    useDawStore.setState({ stage: "review" });
   });
 
   const selectPending = () =>
@@ -1256,6 +1260,7 @@ describe("PendingEditOverlayView", () => {
     useDawStore
       .getState()
       .hydrate("/tmp/copied.json", minimalProject({ pending_edits: [edit] }));
+    useDawStore.setState({ stage: "review" });
     useDawStore.getState().setSelection({
       kind: "pending",
       id: edit.id,
@@ -1341,6 +1346,7 @@ function mount() {
   useDawStore
     .getState()
     .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
+  useDawStore.setState({ stage: "review" });
   useDawStore.setState({
     selection: { kind: "pending", id: edit.id, trackId: "host" },
   });
@@ -1570,6 +1576,7 @@ describe("pending actions panel placement state", () => {
     useDawStore
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
+    useDawStore.setState({ stage: "review" });
   });
 
   afterEach(() => {
@@ -1818,6 +1825,7 @@ describe("single pending review feedback", () => {
     _resetHistoryMovesForTests();
     resetDocumentAuthority();
     useDawStore.getState().hydrate(path, pending());
+    useDawStore.setState({ stage: "review" });
     activateDocumentScope(path);
     useDawStore.setState({
       selection: { kind: "pending", id: edit.id, trackId: "host" },
@@ -2090,6 +2098,7 @@ describe("overlay Cut and Keep", () => {
     useDawStore
       .getState()
       .hydrate(path, minimalProject({ pending_edits: [edit] }));
+    useDawStore.setState({ stage: "review" });
     activateDocumentScope(path);
     useDawStore.setState({
       selection: { kind: "pending", id: edit.id, trackId: "host" },
@@ -2114,48 +2123,62 @@ describe("overlay Cut and Keep", () => {
     render(<PendingEditOverlay {...overlayProps(target)} />);
   }
 
-  it.each([
-    ["a cut suggestion", "cut" as const],
-    ["a shorten suggestion", "shorten" as const],
-    ["a lower suggestion", "lower" as const],
-  ])("leaves %s to the Action bar on the Edit stage", async (_name, action) => {
-    const target = { ...edit, suggested_action: action };
-    mount(target, "edit");
-    // The bar is placed after a measuring pass: wait it out before asserting it never came.
+  const exactRange = {
+    suggested_action: "cut" as const,
+    exact_range: {
+      intervals: [{ start: 0, end: 2 }],
+      clips: [],
+      track_ids: ["host"],
+    } as never,
+  };
+  const reviewable = [
+    ["a cut suggestion", { suggested_action: "cut" as const }],
+    ["a shorten suggestion", { suggested_action: "shorten" as const }],
+    ["a lower suggestion", { suggested_action: "lower" as const }],
+    ["a split", { type: "split", suggested_action: "cut" as const }],
+    ["a suggestion to leave alone", { suggested_action: "leave" as const }],
+    ["a suggestion with no action", { suggested_action: null }],
+    ["an exact range proposal", exactRange],
+  ] as const;
+
+  it.each(reviewable)(
+    "leaves %s to the Action bar on the Edit stage, and shows the bar off it",
+    async (_name, extra) => {
+      mount({ ...edit, ...extra }, "edit");
+      // The bar is placed after a measuring pass: wait it out before asserting it never came.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      });
+      expect(
+        screen.queryByRole("region", { name: "Pending edit actions" }),
+      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+      cleanup();
+      mount({ ...edit, ...extra }, "review");
+      expect(
+        await screen.findByRole("region", { name: "Pending edit actions" }),
+      ).toBeVisible();
+    },
+  );
+
+  it("leaves an exact range proposal to the Action bar for a viewer who cannot review it", async () => {
+    const target = { ...edit, ...exactRange };
+    useDawStore
+      .getState()
+      .hydrate("share:tok", minimalProject({ pending_edits: [target] }));
+    useDawStore.setState({
+      stage: "edit",
+      shareCapabilities: COMMENTER_CAPABILITIES,
+      selection: { kind: "pending", id: target.id, trackId: "host" },
+    });
+    render(<PendingEditOverlay {...overlayProps(target)} />);
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 600));
     });
     expect(
       screen.queryByRole("region", { name: "Pending edit actions" }),
     ).toBeNull();
-    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
-    // Positive control, same harness and wait: a suggestion with no cut does get the bar.
-    cleanup();
-    mount({ ...target, suggested_action: null }, "edit");
-    expect(
-      await screen.findByRole("region", { name: "Pending edit actions" }),
-    ).toBeVisible();
-  });
-
-  it.each([
-    ["a split", { type: "split", suggested_action: "cut" as const }],
-    ["a suggestion to leave alone", { suggested_action: "leave" as const }],
-    [
-      "an exact range proposal",
-      {
-        suggested_action: "cut" as const,
-        exact_range: {
-          intervals: [{ start: 0, end: 2 }],
-          clips: [],
-          track_ids: ["host"],
-        } as never,
-      },
-    ],
-  ])("keeps its own bar for %s on the Edit stage", async (_name, extra) => {
-    mount({ ...edit, ...extra }, "edit");
-    expect(
-      await screen.findByRole("region", { name: "Pending edit actions" }),
-    ).toBeVisible();
   });
 
   it("keeps its own bar for a cut suggestion the viewer cannot review", async () => {
@@ -2247,7 +2270,7 @@ describe("overlay Cut and Keep", () => {
       vi.mocked(updatePendingEdit).mockRejectedValue(
         new Error("retime refused"),
       );
-      mount({ ...cutEdit, suggested_action: null }, "edit");
+      mount({ ...cutEdit, suggested_action: null }, "review");
       dragEnd(document.body);
       expect(await screen.findByRole("alert")).toHaveTextContent(
         "retime refused",

@@ -6,6 +6,7 @@ import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "./liveProject";
+import { selectionBar } from "./pendingActionbar";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { resizeViewport } from "./resizeViewport";
@@ -171,7 +172,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
       // Other document requests may not carry JSON.
     }
   });
-  await expect(page.locator(".pending-actionbar")).toBeVisible();
+  await expect(selectionBar(page)).toBeVisible();
   const startHandle = dragRegion.locator(".pending-handle.start");
   await expect(startHandle).toBeVisible();
   await startHandle.scrollIntoViewIfNeeded();
@@ -225,12 +226,11 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();
-  // Docked above the drawer, the card leaves timing to the drawer's fields.
-  await expect(page.locator(".pending-actionbar")).toBeVisible();
+  // The Action bar docks in the drawer and leaves timing to the drawer's fields.
+  await expect(selectionBar(page)).toBeVisible();
+  await expect(page.locator(".pending-actionbar")).toHaveCount(0);
   await expect(
-    page
-      .locator(".pending-actionbar")
-      .getByRole("button", { name: "Edit timing" }),
+    selectionBar(page).getByRole("button", { name: "Edit timing" }),
   ).toHaveCount(0);
   const sourceStart = page.getByLabel("Source start", { exact: true });
   await sourceStart.tap();
@@ -249,21 +249,22 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await expect(page.locator(".pending-label--floating")).toHaveCount(0);
 
   const selected = page.locator(".pending-overlay.selected");
-  const actionbar = page.locator(".pending-actionbar");
+  const actionbar = selectionBar(page);
   await expect(actionbar).toBeVisible();
   const selectedBox = await selected.boundingBox();
   const actionBox = await actionbar.boundingBox();
   expect(selectedBox).toBeTruthy();
   expect(actionBox).toBeTruthy();
-  // The card sits in the drawer's body, so the selected cut must stay above the
-  // drawer, and so clear of the card.
+  // The bar docks in the drawer, so the selected cut must stay above the drawer.
   const drawerBox = await page.locator(".sys-inspector--phone").boundingBox();
   expect(drawerBox).toBeTruthy();
   expect(selectedBox!.y + selectedBox!.height).toBeLessThanOrEqual(
     drawerBox!.y + 1,
   );
   await expect(
-    page.locator(".sys-inspector--phone .pending-actionbar"),
+    page.locator(".sys-inspector--phone").getByRole("group", {
+      name: "Edit actions",
+    }),
   ).toHaveCount(1);
   for (const name of ["Approve", "Reject"]) {
     const box = await actionbar.getByRole("button", { name }).boundingBox();
@@ -434,7 +435,9 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await page
     .getByRole("slider", { name: "Timeline position" })
     .click({ position: { x: 300, y: 12 } });
-  await expect(page.locator(".pending-actionbar")).toHaveCount(0);
+  await expect(
+    selectionBar(page).getByRole("button", { name: "Approve", exact: true }),
+  ).toHaveCount(0);
   await altClickSplit(page, page.locator(".clip-block").first());
   const reselectHit = dragRegion.first().locator(".pending-hit");
   await reselectHit.focus();
@@ -443,7 +446,6 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await resizeViewport(page, { width: 1280, height: 720 });
   await expect(page.locator(".stage-frame--desktop")).toBeVisible();
   await expect(actionbar).toBeVisible();
-  await expect(actionbar).toHaveAttribute("data-placement", "placed");
   const resizedActionBox = await actionbar.boundingBox();
   expect(resizedActionBox).toBeTruthy();
   expect(resizedActionBox!.x).toBeGreaterThanOrEqual(0);

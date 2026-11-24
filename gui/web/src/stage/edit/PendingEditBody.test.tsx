@@ -376,10 +376,36 @@ describe("PendingEditBody", () => {
 
   it.each([
     ["Cut on the bar", barEdit, true, false],
-    ["no suggested action", { ...barEdit, suggested_action: null }, true, true],
-    ["leave", { ...barEdit, suggested_action: "leave" as const }, true, true],
-    ["a split", { ...barEdit, type: "split" as const }, true, true],
-    ["a surface with no bar", barEdit, false, true],
+    [
+      "no suggested action",
+      { ...barEdit, suggested_action: null },
+      true,
+      false,
+    ],
+    ["leave", { ...barEdit, suggested_action: "leave" as const }, true, false],
+    ["a split", { ...barEdit, type: "split" as const }, true, false],
+    [
+      "an exact range",
+      {
+        ...barEdit,
+        exact_range: { kind: "exact_range", intervals: [], clips: [] } as never,
+      },
+      true,
+      false,
+    ],
+    ["Cut with no bar mounted", barEdit, false, true],
+    [
+      "no suggested action with no bar mounted",
+      { ...barEdit, suggested_action: null },
+      false,
+      true,
+    ],
+    [
+      "a split with no bar mounted",
+      { ...barEdit, type: "split" as const },
+      false,
+      true,
+    ],
   ])(
     "offers Approve and Reject in the sheet for %s: %s",
     (_name, edit, verbsOnBar, shown) => {

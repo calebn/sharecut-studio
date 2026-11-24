@@ -51,6 +51,10 @@ test("live waiver draft survives a short to tall tablet resize", async ({
   context,
   browserName,
 }, info) => {
+  test.fixme(
+    true,
+    "The pending edit's Approve and Reject moved to the Action bar on the Edit stage; this overlay-bar case is replaced when slice 3 of #4337 removes the bar.",
+  );
   await selected(page, context, browserName);
   await page.route("**/api/document/command**", async (route) => {
     const body = route.request().postDataJSON();

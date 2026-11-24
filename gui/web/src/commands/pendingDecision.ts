@@ -6,15 +6,16 @@ import { pendingOffersCut } from "../utils/pendingOffersCut";
 import type { ExecuteResult } from "./types";
 
 /**
- * True where the Action bar carries a pending edit's Cut and Keep and the timeline overlay bar
- * stays out of the way: a cut-family suggestion (not a split or an exact range) the viewer may
- * review. The caller adds that the Action bar is mounted (the Edit stage).
+ * True where the Action bar carries a pending edit's accept and reject verbs and the timeline
+ * overlay bar stays out of the way: any pending edit the viewer may review, and an exact range
+ * proposal even when they may not, so a non-reviewer reads the disabled verbs and why on the bar.
+ * The caller adds that the Action bar is mounted (the Edit stage).
  */
 export function actionBarOwnsPendingVerbs(
-  edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
+  edit: Pick<PendingEditView, "exact_range">,
   canReview: boolean,
 ): boolean {
-  return canReview && pendingOffersCut(edit);
+  return canReview || edit.exact_range != null;
 }
 
 /** A decision or an edge retime is still in flight for this suggestion: Cut and Keep wait. */
