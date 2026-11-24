@@ -46,7 +46,8 @@ def load_library(lib: Any = None) -> Any:
 
 def build_id() -> str:
     """The native core's build id; raises ``NativeFFmpegUnavailable`` when absent or invalid."""
-    raw = _ABI.bind(_ABI.load_library())["build_id"]()
+    lib = _ABI.load_library()
+    raw = _ABI.bind(lib)["build_id"]()
     if raw is None:
         raise NativeFFmpegUnavailable(errno.ENOSYS, "sc_ffmpeg_build_id returned NULL")
     try:
