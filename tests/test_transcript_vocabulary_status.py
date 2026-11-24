@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Transcript, TranscriptWord, load_project, save_project
 from podcast_mcp.models.project_format import ProjectVersionUnsupportedError
+from podcast_mcp.project.io import read_transcript_vocabulary_state
 from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.project.transcript_context import TranscriptContext
 from podcast_mcp.services.app import ProjectWorkspace
@@ -359,3 +360,17 @@ def test_unreadable_required_history_still_raises_from_full_loader(minimal_proje
     with pytest.raises(ValueError, match="unreadable JSON sidecar"):
         TranscriptPrecorrectService.vocabulary_status(minimal_project)
     assert _get(_client(), minimal_project).status_code == 500
+
+
+def test_read_transcript_vocabulary_state_matches_store_and_hits_cache(
+    minimal_project, monkeypatch
+):
+    expected = ProjectStore(minimal_project).transcript_vocabulary_state()
+    assert read_transcript_vocabulary_state(minimal_project) == expected
+
+    def unexpected_load(_self):
+        raise AssertionError("Full project reloaded on a metadata hit")
+
+    monkeypatch.setattr(ProjectStore, "load", unexpected_load)
+    assert read_transcript_vocabulary_state(minimal_project.parent) == expected
+    assert read_transcript_vocabulary_state(minimal_project) == expected

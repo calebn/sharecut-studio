@@ -11,7 +11,7 @@ from podcast_mcp.models.episode import (
     EpisodeProject,
     project_not_found,
 )
-from podcast_mcp.project.store import ProjectStore
+from podcast_mcp.project.store import ProjectStore, TranscriptVocabularyState
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedValueError
 
@@ -126,6 +126,11 @@ def open_project(path: Path | str) -> tuple[Path, EpisodeProject]:
     """Read the project at *path* without adopting it. Openers call :func:`adopt_retired_entry_file` first."""
     resolved = resolve_project_path(path)
     return resolved, ProjectStore(resolved).load()
+
+
+def read_transcript_vocabulary_state(path: Path | str) -> TranscriptVocabularyState:
+    """Cached, metadata-only vocabulary state of the project at *path*; never adopts."""
+    return ProjectStore(resolve_project_path(path)).transcript_vocabulary_state()
 
 
 def rewrite_workspace_dir(project_file: Path, *, name: str | None = None) -> Path:
