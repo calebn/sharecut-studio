@@ -25,11 +25,6 @@ import type { LaneHeightMode } from "../utils/laneHeightPref";
 import type { WaveformScaleMode } from "../waveform/types";
 import type { AfterCutSliceState } from "./afterCutSlice";
 import type { ComposerSession } from "./composerSession";
-import type {
-  HeldTrimEvent,
-  HeldTrimLayer,
-  HeldTrimResult,
-} from "./projectSlice";
 import type { StageSliceState } from "./stageSlice";
 
 /** A person kept in the Person picker after their last track went to someone else. */
@@ -280,9 +275,7 @@ export interface DawState {
   sourcePreviewError: SourcePreviewError | null;
 
   project: ProjectView | null;
-  heldTrim: HeldTrimLayer | null;
   projectEditBasis: () => ProjectView | null;
-  changeHeldTrim: (event: HeldTrimEvent) => HeldTrimResult;
   projectPath: string;
   /** Changes when the viewer opens a different project, even if it later returns. */
   projectEpoch: number;

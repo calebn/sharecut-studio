@@ -339,6 +339,7 @@ evidence:
 - #1208 authoritative document and project changes cancel a held trim
 - #1208 accepted Architect synthesis removes a detachable held-trim layer on foreign publication, including pending moves and unsequenced comments
 - #1208 FFmpeg proof showed a newly negative follower rendered 19 seconds against an authored end of 18 seconds
+- #1816 removed the held-trim layer; no production path ever set it, and timeline trims preview as gesture-local drafts
 enforced-by:
 - tests/test_edit_modes.py::test_ripple_trim_shortening_moves_every_dialogue_track_by_the_same_amount
 - tests/test_edit_modes.py::test_ripple_trim_over_another_speakers_words_asks_first_and_changes_nothing
@@ -352,8 +353,6 @@ enforced-by:
 - gui/web/src/edit/ripplePreview.test.ts::a trim preview matches what the trim saves (contracts/ripple-scope.json)
 - gui/web/src/edit/ripplePreview.test.ts::keeps the follower source and audio metadata while translating it
 - gui/web/e2e/ripple-overlap-proof.spec.ts::refuses a large overlap trim on the edited lane and saves the last valid draft
-- gui/web/src/state/heldTrim.test.ts::rejects a second owner and stale token endings cannot remove a newer hold
-- gui/web/src/state/heldTrim.test.ts::refuses a negative first or later step atomically and hands off the exact last accepted preview
 - gui/web/src/timeline/ClipBlock.test.tsx::keeps the last valid %s %s drag through pointer release
 -->
 
