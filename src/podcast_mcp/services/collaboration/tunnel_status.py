@@ -54,12 +54,15 @@ class TunnelPhase(StrEnum):
 
 
 class TunnelState(StrEnum):
-    """``OFF`` is a tunnel stopped on purpose, or online sharing set up but never
+    """``LIMITED`` is a tunnel that is up while the relay holds some links back (too many live
+    links, or this month's allowance used); it needs no retry, only a plain explanation.
+    ``OFF`` is a tunnel stopped on purpose, or online sharing set up but never
     started. ``NOT_SET_UP`` is a local-only host: no relay settings and no tunnel
     has ever reported, so the dialog shows nothing.
     """
 
     ONLINE = "online"
+    LIMITED = "limited"
     CONNECTING = "connecting"
     RECONNECTING = "reconnecting"
     OFFLINE = "offline"
@@ -73,6 +76,7 @@ _STATE_RANK: dict[str, int] = {
     for rank, state in enumerate(
         (
             TunnelState.ONLINE,
+            TunnelState.LIMITED,
             TunnelState.RECONNECTING,
             TunnelState.CONNECTING,
             TunnelState.OFFLINE,
@@ -112,9 +116,13 @@ class TunnelStatus:
     attempt: int = 0
     retry_in_sec: float | None = None
     gave_up_after: int | None = None
+    # What the relay holds back while connected: ``shares`` or ``bandwidth``.
+    limit: str | None = None
 
     @property
     def state(self) -> TunnelState:
+        if self.phase is TunnelPhase.CONNECTED and self.limit:
+            return TunnelState.LIMITED
         return _STATE_BY_PHASE[self.phase]
 
     def line(self) -> str:
@@ -125,7 +133,8 @@ class TunnelStatus:
         if self.phase is TunnelPhase.CONNECTED:
             count = self.share_count or 0
             noun = "share" if count == 1 else "shares"
-            return f"Tunnel connected: {self.public_base_url} ({count} {noun})"
+            limited = f", limited: {self.limit}" if self.limit else ""
+            return f"Tunnel connected: {self.public_base_url} ({count} {noun}{limited})"
         if self.phase is TunnelPhase.DISCONNECTED:
             return f"Tunnel disconnected ({reason})"
         if self.phase is TunnelPhase.RECONNECTING:
@@ -154,6 +163,7 @@ class TunnelStatus:
             "share_count": self.share_count,
             "reason": self.failure.reason if self.failure else None,
             "reason_kind": self.failure.kind.value if self.failure else None,
+            "limit": self.limit,
             "retry_at": (self.since + self.retry_in_sec if self.retry_in_sec is not None else None),
             "since": self.since,
             "updated_at": self.updated_at,
@@ -245,11 +255,12 @@ class TunnelStatusTracker:
     def connecting(self) -> None:
         self._enter(TunnelPhase.CONNECTING)
 
-    def connected(self, *, share_count: int) -> None:
+    def connected(self, *, share_count: int, limit: str | None = None) -> None:
         self._enter(
             TunnelPhase.CONNECTED,
             public_base_url=self._public_base_url,
             share_count=share_count,
+            limit=limit,
         )
 
     def disconnected(self, failure: TunnelFailure) -> None:
@@ -334,6 +345,7 @@ def _inactive_record(state: TunnelState, reason: str) -> dict[str, Any]:
         "share_count": None,
         "reason": reason,
         "reason_kind": None,
+        "limit": None,
         "retry_at": None,
         "since": None,
         "updated_at": None,
@@ -387,7 +399,17 @@ _RULES: tuple[_Rule, ...] = (
 )
 
 
-_LIVE_STATES = frozenset({TunnelState.ONLINE, TunnelState.CONNECTING, TunnelState.RECONNECTING})
+_LIVE_STATES = frozenset(
+    {TunnelState.ONLINE, TunnelState.LIMITED, TunnelState.CONNECTING, TunnelState.RECONNECTING}
+)
+
+
+def _recorded_state(entry: _Entry) -> TunnelState:
+    """The state the writer recorded; a record that names none reads from its phase."""
+    try:
+        return TunnelState(entry.record["state"])
+    except (KeyError, ValueError):
+        return _STATE_BY_PHASE[entry.phase]
 
 
 def _kind_of(phase: TunnelPhase) -> _Kind:
@@ -453,7 +475,7 @@ def _view(entry: _Entry, rule: _Rule) -> dict[str, Any]:
     """The record the GUI gets: the file's own, or the rule's inactive state. Never the pid."""
     if rule.state is None:
         shown = {k: v for k, v in entry.record.items() if k != "pid"}
-        return {**shown, "state": _STATE_BY_PHASE[entry.phase].value}
+        return {**shown, "state": _recorded_state(entry).value}
     view = _inactive_record(rule.state, rule.reason)
     view.update(relay_host=entry.record.get("relay_host"), since=entry.record.get("updated_at"))
     return view
@@ -502,7 +524,7 @@ def status_file_is_live(
     if entry is None:
         return False
     rule, _ = _judge(entry, time.time() if now is None else now, pid_alive)
-    state = rule.state or _STATE_BY_PHASE[entry.phase]
+    state = rule.state or _recorded_state(entry)
     return state in _LIVE_STATES
 
 

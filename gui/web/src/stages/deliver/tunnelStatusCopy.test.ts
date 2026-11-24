@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type {
+  TunnelLimit,
   TunnelReasonKind,
   TunnelState,
   TunnelStatus,
@@ -13,8 +14,10 @@ import {
 function status(
   state: TunnelState,
   reasonKind: TunnelReasonKind | null = null,
+  limit: TunnelLimit | null = null,
 ): TunnelStatus {
   return {
+    limit,
     state,
     reason: reasonKind ? `${reasonKind}: detail` : null,
     reason_kind: reasonKind,
@@ -100,6 +103,41 @@ describe("tunnelStatusCopy", () => {
       },
     ],
     [
+      "limited by the number of links",
+      status("limited", null, "shares"),
+      {
+        tone: "problem",
+        headline:
+          "Online sharing is limited: some links may not open for guests",
+        fix: {
+          summary: "How to fix",
+          body: "Only a few links can be open online at once. Turn off links you no longer need, then start online sharing again.",
+        },
+      },
+    ],
+    [
+      "limited by this month's allowance",
+      status("limited", null, "bandwidth"),
+      {
+        tone: "problem",
+        headline:
+          "Online sharing is limited: some links may not open for guests",
+        fix: {
+          summary: "How to fix",
+          body: "Your links have used this month's online sharing allowance. Guests can open them again next month.",
+        },
+      },
+    ],
+    [
+      "unavailable for this computer",
+      status("offline", "unavailable"),
+      {
+        tone: "problem",
+        headline: "Online sharing is unavailable right now.",
+        contact: true,
+      },
+    ],
+    [
       "off",
       status("off"),
       {
@@ -122,12 +160,18 @@ describe("tunnelStatusCopy", () => {
   it("never shows mechanism words or commands", () => {
     const states: TunnelState[] = [
       "online",
+      "limited",
       "connecting",
       "reconnecting",
       "offline",
       "off",
     ];
-    const kinds: (TunnelReasonKind | null)[] = [null, "auth", "config"];
+    const kinds: (TunnelReasonKind | null)[] = [
+      null,
+      "auth",
+      "config",
+      "unavailable",
+    ];
     const text = states
       .flatMap((s) =>
         kinds.map((k) => JSON.stringify(tunnelStatusCopy(status(s, k)))),

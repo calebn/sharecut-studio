@@ -134,4 +134,34 @@ describe("TunnelStatusLine", () => {
     expect(screen.queryByText(/Trying again|Next try/)).not.toBeInTheDocument();
     expect(screen.queryByText("How to fix")).not.toBeInTheDocument();
   });
+
+  it("says online sharing is unavailable and links to support", () => {
+    render(
+      <TunnelStatusLine
+        status={status("offline", {
+          reason_kind: "unavailable",
+          support_url: "https://support.example.test/help",
+        })}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Online sharing is unavailable right now.",
+    );
+    expect(
+      screen.getByRole("link", {
+        name: "Contact support or report this (opens in a new tab)",
+      }),
+    ).toHaveAttribute("href", "https://support.example.test/help");
+    expect(screen.queryByText("How to fix")).not.toBeInTheDocument();
+  });
+
+  it("explains a limited state without retrying", () => {
+    render(
+      <TunnelStatusLine status={status("limited", { limit: "bandwidth" })} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Online sharing is limited: some links may not open for guests",
+    );
+    expect(screen.queryByText(/Trying again|Next try/)).not.toBeInTheDocument();
+  });
 });

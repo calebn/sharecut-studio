@@ -13,8 +13,12 @@ from fastapi import WebSocket
 
 from podcast_mcp.util.body_limits import relay_ws_max_size
 from podcast_mcp.util.relay_protocol.guest_ws_log import log_guest_ws_close
+from podcast_mcp.util.relay_protocol.lease import LeaseRefusal
+from podcast_mcp.util.relay_protocol.protocol import msg
 from podcast_mcp.util.ws_delivery import SerializedWsWriter, WsFrameQueue
 from podcast_mcp.util.ws_delivery import TextWsStream as GuestWsStream
+from podcast_relay.caps import RelayMeter, SessionMeter, Tier
+from podcast_relay.policy import RelayPolicy
 
 
 def close_relay_guest_stream(
@@ -39,6 +43,16 @@ def close_relay_guest_stream(
     stream.close(code, reason, discard=discard)
 
 
+class TunnelRefused(Exception):
+    """A tunnel the relay will not register: the error frame the host is sent and the close code."""
+
+    def __init__(self, detail: str, *, code: int, **frame: Any) -> None:
+        super().__init__(detail)
+        self.detail = detail
+        self.code = code
+        self.frame = frame
+
+
 @dataclass
 class PendingHttp:
     headers_ready: asyncio.Event = field(default_factory=asyncio.Event)
@@ -52,6 +66,13 @@ class TunnelSession:
     host_id: str
     websocket: WebSocket
     host_token: str = ""
+    # Set when the tunnel authenticated with a lease; its claim key then signs share claims.
+    install_id: str = ""
+    # Set only on a relay that signs leases; None means no caps and no first-visit notice.
+    meter: SessionMeter | None = None
+    # Shares the last register asked for beyond the cap, and the limit last told to the host.
+    refused_shares: int = 0
+    limit_kind: str = ""
     share_tokens: set[str] = field(default_factory=set)
     capabilities: dict[str, list[str]] = field(default_factory=dict)
     pending: dict[str, PendingHttp] = field(default_factory=dict)
@@ -96,7 +117,11 @@ class RelayState:
         *,
         allow_open_tunnel: bool = False,
         host_secrets: dict[str, str] | None = None,
+        policy: RelayPolicy | None = None,
+        meter: RelayMeter | None = None,
     ) -> None:
+        self.policy = policy
+        self.meter = meter
         self.host_tokens = host_tokens
         self.host_secrets = dict(host_secrets or {})
         self.allow_open_tunnel = allow_open_tunnel
@@ -132,6 +157,8 @@ class RelayState:
     def secret_for_session(self, session: TunnelSession) -> str | None:
         from podcast_mcp.util.relay_protocol.share_claims import resolve_tunnel_secret
 
+        if session.install_id and self.policy is not None:
+            return self.policy.claim_key(session.install_id)
         if self.allow_open_tunnel and not self.host_tokens and not self.host_secrets:
             # Dev open tunnel: sign/verify with the presented token (may be empty → skip claims).
             return session.host_token or "open-tunnel-dev"
@@ -142,8 +169,60 @@ class RelayState:
             host_id=session.host_id,
         )
 
+    @staticmethod
+    def limit_kind(session: TunnelSession) -> str:
+        """Why this host is limited now: ``shares``, ``bandwidth`` or empty."""
+        if session.refused_shares:
+            return "shares"
+        if session.meter is not None and session.meter.exhausted():
+            return "bandwidth"
+        return ""
+
+    @staticmethod
+    def unverified(session: TunnelSession) -> bool:
+        """True for a host the relay cannot vouch for: a legacy host token on a signing relay."""
+        return session.meter is not None and session.meter.tier is Tier.LEGACY
+
+    async def notify_limit(self, session: TunnelSession) -> None:
+        """Tell the host once each time its limit changes, so its status can say so."""
+        kind = self.limit_kind(session)
+        if kind == session.limit_kind:
+            return
+        session.limit_kind = kind
+        with contextlib.suppress(Exception):
+            await session.enqueue_to_host(msg("limit", kind=kind))
+
+    def legacy_tunnels_full(self, session: TunnelSession) -> bool:
+        """True when *session* would be a legacy tunnel past its host token's concurrent limit."""
+        meter = session.meter
+        if meter is None or meter.tier is not Tier.LEGACY or not meter.max_tunnels:
+            return False
+        others = sum(
+            1
+            for live in self.tunnels.values()
+            if live.host_id != session.host_id and live.meter and live.meter.group == meter.group
+        )
+        return others >= meter.max_tunnels
+
+    async def close_denied(self, install_ids: frozenset[str]) -> None:
+        """Close the live tunnel of every denied install; the tunnel route then tears it down."""
+        for session in list(self.tunnels.values()):
+            if session.host_id in install_ids:
+                with contextlib.suppress(Exception):
+                    await session.writer.close(4403, "install denied")
+
     async def register_tunnel(self, session: TunnelSession) -> None:
         async with self._lock:
+            # Checked under the lock, after the deny list may have reloaded since the hello.
+            if self.policy is not None and session.host_id in self.policy.deny:
+                raise TunnelRefused(f"lease_refused:{LeaseRefusal.DENIED.value}", code=4403)
+            if self.legacy_tunnels_full(session):
+                raise TunnelRefused(
+                    "rate limit exceeded: too many tunnels for this host token",
+                    code=4429,
+                    bucket="legacy_tunnels",
+                    retry_after_sec=30,
+                )
             old = self.tunnels.get(session.host_id)
             if old is not None:
                 for t in list(old.share_tokens):
@@ -223,9 +302,14 @@ class RelayState:
             session.share_tokens.clear()
             session.capabilities.clear()
             accepted: set[str] = set()
-            for row in shares:
-                if not isinstance(row, dict):
-                    continue
+            cap = session.meter.max_shares if session.meter is not None else 0
+            session.refused_shares = 0
+            # Shares already live keep their place, so a new one is what the cap turns away.
+            ordered = sorted(
+                (row for row in shares if isinstance(row, dict)),
+                key=lambda row: str(row.get("token") or "") not in previous,
+            )
+            for row in ordered:
                 token = str(row.get("token") or "")
                 if not token:
                     continue
@@ -250,6 +334,9 @@ class RelayState:
                     continue
                 live = self.token_to_host.get(token)
                 if live is not None and live != host_id:
+                    continue
+                if cap and len(accepted) >= cap:
+                    session.refused_shares += 1
                     continue
                 session.share_tokens.add(token)
                 session.capabilities[token] = caps

@@ -19,6 +19,15 @@ def test_caddyfiles_allowlist_relay_prefixes() -> None:
     assert "/api/rec/" in local
 
 
+def test_caddyfiles_route_enrollment_and_the_notice_to_the_relay() -> None:
+    for filename in ("Caddyfile.prod", "Caddyfile.local"):
+        config = (ROOT / "deploy/relay" / filename).read_text(encoding="utf-8")
+        matcher = next(line for line in config.splitlines() if "@relay path" in line)
+        routed = matcher.split("path", 1)[1].split()
+        for path in ("/enroll", "/enroll/renew", "/notice/continue"):
+            assert path in routed, f"{filename} does not route {path}"
+
+
 def test_caddyfile_prod_has_no_static_site_or_owner_hosts() -> None:
     prod = (ROOT / "deploy/relay/Caddyfile.prod").read_text(encoding="utf-8")
     assert "{$RELAY_DOMAIN}" in prod

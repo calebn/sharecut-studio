@@ -1427,6 +1427,7 @@ all = [
     { name = "anyio" },
     { name = "boto3" },
     { name = "botocore" },
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "praat-parselmouth" },
@@ -1471,6 +1472,7 @@ prosody = [
     { name = "praat-parselmouth" },
 ]
 relay = [
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
@@ -1500,6 +1502,8 @@ requires-dist = [
     { name = "botocore", marker = "extra == 'object-store'", specifier = ">=1.34.0" },
     { name = "coolname", specifier = ">=5.0.0" },
     { name = "coverage", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=7.16.2" },
+    { name = "cryptography", marker = "extra == 'all'", specifier = ">=43" },
+    { name = "cryptography", marker = "extra == 'relay'", specifier = ">=43" },
     { name = "deptry", marker = "extra == 'dev'", specifier = ">=0.23.0" },
     { name = "editables", marker = "extra == 'dev'", specifier = ">=0.5" },
     { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.116.1" },
