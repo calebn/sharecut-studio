@@ -40,10 +40,8 @@ test("the host approves a Commenter's range proposal on the Action bar", async (
       await expect.poll(() => pendingCount(host!, projectPath)).toBe(1);
 
       await host!.locator(".pending-overlay .pending-hit").first().click();
-      await expect(
-        host!.getByRole("region", { name: "Pending edit actions" }),
-      ).toHaveCount(0);
       const bar = selectionBar(host!);
+      await expect(bar).toHaveCount(1);
       await expect(
         bar.getByRole("button", { name: "Reject", exact: true }),
       ).toBeEnabled();

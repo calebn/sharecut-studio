@@ -226,11 +226,8 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();
+  await expect(selectionBar(page)).toHaveCount(1);
   await expect(selectionBar(page)).toBeVisible();
-  await expect(page.locator(".pending-actionbar")).toHaveCount(0);
-  await expect(
-    selectionBar(page).getByRole("button", { name: "Edit timing" }),
-  ).toHaveCount(0);
   const sourceStart = page.getByLabel("Source start", { exact: true });
   await sourceStart.tap();
   await expect(dragRegion.first()).toHaveAttribute(

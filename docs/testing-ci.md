@@ -499,10 +499,10 @@ with axe before the collected results are asserted.
 | timeline text takes no selection or callout | `gui/web/e2e-compat/touch-selection.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | no shell row draws over the strip, nor the strip over it: portrait-360 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | no shell row draws over the strip, nor the strip over it: landscape-636 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the Cut anyway waiver survives a short to tall tablet resize | `gui/web/e2e-compat/pending-actionbar-lifecycle.spec.ts` | Core flow | Pass | Pass | Not run |
-| the Action bar keeps Approve and Reject reachable beside the selection | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Action bar: a marker added while it floats leaves the one-row lane where it was and the bar clear of it | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Action bar: Approve and Reject stay reachable after 720 to 360 to 260 | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the Cut anyway waiver survives a short to tall tablet resize | `gui/web/e2e-compat/action-bar-lifecycle.spec.ts` | Core flow | Pass | Pass | Not run |
+| the Action bar keeps Approve and Reject reachable beside the selection | `gui/web/e2e-compat/action-bar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Action bar: a marker added while it floats leaves the one-row lane where it was and the bar clear of it | `gui/web/e2e-compat/action-bar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Action bar: Approve and Reject stay reachable after 720 to 360 to 260 | `gui/web/e2e-compat/action-bar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Auto drags directly when a step is 4 px wide at a deep zoom | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | jog: a ripple over the guest's speech applies as one manual trim | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | jog: a second finger cancels the drag and saves nothing | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |

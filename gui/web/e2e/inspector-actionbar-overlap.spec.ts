@@ -161,7 +161,9 @@ for (const { width, height, corner: hasCorner } of pendingLayouts) {
           const strip = page.getByRole("group", { name: "Selection actions" });
           const corner = page.getByRole("group", { name: "Timeline view" });
           await expect(card).toBeVisible();
-          await expect(page.locator(".pending-actionbar")).toHaveCount(0);
+          await expect(
+            page.getByRole("group", { name: /^(Selection|Edit) actions$/ }),
+          ).toHaveCount(1);
           await expect(strip).toBeVisible();
           if (hasCorner) await expect(corner).toBeVisible();
           else await expect(corner).toBeHidden();
