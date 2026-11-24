@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "host_direct_baseline": 2,
+  "host_direct_baseline": 1,
   "routes": [
     {
       "gate": "other",
@@ -155,6 +155,20 @@
       "path": "/api/document/state"
     },
     {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.export_routes:download_export_archive_route",
+      "method": "GET",
+      "path": "/api/export/archive",
+      "reason": "require_host unless an archive export ticket is given, which then stands in for it"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.export_routes:download_export_archive_route",
+      "method": "HEAD",
+      "path": "/api/export/archive",
+      "reason": "require_host unless an archive export ticket is given, which then stands in for it"
+    },
+    {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.export_routes:export_bounce",
       "method": "POST",
@@ -199,7 +213,6 @@
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.export_routes:download_export_file",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/export/files/{file_id:path}",
       "reason": "require_host unless a per-file export ticket is given, which then stands in for it"
@@ -207,7 +220,6 @@
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.export_routes:download_export_file",
-      "host_direct": true,
       "method": "HEAD",
       "path": "/api/export/files/{file_id:path}",
       "reason": "require_host unless a per-file export ticket is given, which then stands in for it"
@@ -619,6 +631,12 @@
       "handler": "podcast_mcp.gui.routes.review_editor:post_daw_export",
       "method": "POST",
       "path": "/api/review/{token}/daw/export"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_export_archive",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/export/archive"
     },
     {
       "gate": "guest",

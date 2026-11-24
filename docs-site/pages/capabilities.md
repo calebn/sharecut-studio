@@ -170,7 +170,7 @@ Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transc
 | Choose staged session take | project | `select_session_take_tool` | `podcast review select-session-take` | `podcast-record-session` | yes |
 | Skip staged session | project | `skip_session_suggestion_tool` | `podcast review skip-session-suggestion` | `podcast-record-session` | yes |
 | Record room state | view | `record_state_tool` | `podcast record state` | `podcast-record-session` | yes |
-| Download exported files | view | — | — | — | — |
+| Download or reveal exported files | view | — | — (A host agent already reads the export folder; guest agents are not given export bytes over MCP) | — | — |
 | Episode / track CRUD | project | `episode_create`, `track_set_meta_tool` | `podcast episode` | `podcast-setup` | yes |
 | Transcript layers | project | `transcribe_track`, `get_transcript`, `get_transcript_vocabulary_tool`, `set_transcript_vocabulary_tool`, `precorrect_transcript_tool`, `transcript_refine_status_tool`, +3 | `podcast transcript` | `podcast-transcript-workflow` | yes |
 | Edit decisions / NL cuts | project | `build_edit_context`, `search_transcript_tool`, `cut_time_range_tool`, `cut_text_match_tool`, `cut_utterance_tool`, `cut_words_tool`, +14 | `podcast edit`, `podcast edit applied`, `podcast edit restore-edit` | `podcast-edit-natural-language` | yes |

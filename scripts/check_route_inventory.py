@@ -98,6 +98,12 @@ OVERRIDES: dict[tuple[str, str], str] = {
     ("HEAD", "/api/export/files/{file_id:path}"): (
         "require_host unless a per-file export ticket is given, which then stands in for it"
     ),
+    ("GET", "/api/export/archive"): (
+        "require_host unless an archive export ticket is given, which then stands in for it"
+    ),
+    ("HEAD", "/api/export/archive"): (
+        "require_host unless an archive export ticket is given, which then stands in for it"
+    ),
     ("GET", "/auth/providers"): "lists the sign-in providers; the caller has no session yet",
     (
         "GET",
