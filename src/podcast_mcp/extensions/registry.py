@@ -9,7 +9,10 @@ from typing import Any
 
 from podcast_mcp.extensions.features import (
     EXPERIMENTAL_FEATURE_IDS,
+    FEATURE_SHARE_CLI,
+    FEATURE_SHARE_MCP_TOOLS,
     FEATURE_SHARE_ROUTES,
+    FEATURE_SHARE_UI_ROUTES,
     STABLE_FEATURE_IDS,
 )
 
@@ -64,6 +67,16 @@ class FeatureRegistry:
                 feature_id,
             )
             return
+        owners = {c.source for c in self._by_id.get(feature_id, ())}
+        if owners and source not in owners:
+            # Load order decides which extension comes first, so keep both and
+            # warn: a second owner of one slot usually means duplicate surfaces.
+            logger.warning(
+                "extension %s contributed feature id %r that %s already contributes",
+                source,
+                feature_id,
+                ", ".join(sorted(owners)),
+            )
         self._by_id.setdefault(feature_id, []).append(
             Contribution(
                 feature_id=feature_id,
@@ -88,17 +101,31 @@ class FeatureRegistry:
     def add_middleware(self, middleware_cls: Any, *, source: str, **kwargs: Any) -> None:
         self._middlewares.append((middleware_cls, kwargs))
 
-    def add_mcp_registrar(self, registrar: Callable[[Any], None], *, source: str) -> None:
+    def add_mcp_registrar(
+        self,
+        registrar: Callable[[Any], None],
+        *,
+        source: str,
+        feature_id: str | None = FEATURE_SHARE_MCP_TOOLS,
+    ) -> None:
         self._mcp_registrars.append(registrar)
-        self.add("share.mcp_tools", source=source, payload={"kind": "mcp"})
+        if feature_id is not None:
+            self.add(feature_id, source=source, payload={"kind": "mcp"})
 
-    def add_cli_registrar(self, registrar: Callable[[Any], None], *, source: str) -> None:
+    def add_cli_registrar(
+        self,
+        registrar: Callable[[Any], None],
+        *,
+        source: str,
+        feature_id: str | None = FEATURE_SHARE_CLI,
+    ) -> None:
         self._cli_registrars.append(registrar)
-        self.add("share.cli", source=source, payload={"kind": "cli"})
+        if feature_id is not None:
+            self.add(feature_id, source=source, payload={"kind": "cli"})
 
     def add_spa_hook(self, hook: Callable[..., Any], *, source: str) -> None:
         self._spa_hooks.append(hook)
-        self.add("share.ui.routes", source=source, payload={"kind": "spa"})
+        self.add(FEATURE_SHARE_UI_ROUTES, source=source, payload={"kind": "spa"})
 
     @property
     def routers(self) -> Sequence[Any]:

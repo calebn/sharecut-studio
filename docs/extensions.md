@@ -39,7 +39,13 @@ compatibility paths, including the old `online` implication.
 
 1. Implement `ExtensionBackend` (`api_version`, `name`, `compatible()`, `contribute(registry)`).
 2. Register an entry point under group `podcast_mcp.extensions`.
-3. Contribute only known feature IDs (unknown IDs are ignored).
+3. Contribute only known feature IDs (unknown IDs are ignored). Each ID should have one
+   owner. When a second extension contributes an ID that another already contributes, the
+   registry keeps both and logs a warning, because a second owner usually means
+   duplicate surfaces.
+   `add_mcp_registrar` and `add_cli_registrar` contribute `share.mcp_tools` and
+   `share.cli` unless you pass `feature_id`. An extension that is not the share
+   surface passes its own ID, or `feature_id=None` when another call already contributes it.
 4. MCP/CLI registrars **must** use the host `mcp` / Typer `app` instance passed into the registrar. The host wraps those objects for the shared progress framework ([progress.md](progress.md)); registering on a private `MCPServer()` bypasses progress and `make generated-check`.
 
 Example (shipped, documentation only, no entry point): [`podcast_mcp.extensions.example`](../src/podcast_mcp/extensions/example.py). It contributes `extension.status.0` and loads only when `PODCAST_EXTENSIONS` names `example`.

@@ -1,4 +1,8 @@
-"""Extension matrix: every supported PODCAST_EXTENSIONS composition registers each surface once."""
+"""Extension matrix: every supported PODCAST_EXTENSIONS composition registers each surface once.
+
+The provider extension is not in this repository, so `extension_stub_provider` stands
+in for it. This does not replace the private overlay's own check.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +14,14 @@ import sys
 from pathlib import Path
 
 import pytest
+from tests.extension_stub_provider import (
+    STUB_CLI_COMMAND,
+    STUB_MCP_TOOL,
+    STUB_NAME,
+    STUB_PATH,
+    StubAccountMiddleware,
+    StubEntryPoint,
+)
 
 from podcast_mcp.extensions import loader
 from podcast_mcp.extensions.features import (
@@ -26,7 +38,7 @@ from podcast_mcp.extensions.features import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-MODES = ("none", "collaboration", "default")
+MODES = ("none", "collaboration", "default", f"collaboration,{STUB_NAME}", STUB_NAME)
 COLLABORATION_FEATURES = {
     FEATURE_SHARE_CLI,
     FEATURE_SHARE_MCP_TOOLS,
@@ -39,17 +51,26 @@ COLLABORATION_FEATURES = {
 }
 
 
+def _has_collaboration(mode: str) -> bool:
+    return mode in ("collaboration", "default") or "collaboration," in mode
+
+
+def _has_stub(mode: str) -> bool:
+    return STUB_NAME in mode
+
+
 @pytest.fixture
 def extensions_mode(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str:
     """Select a composition without depending on which entry points the venv exposes."""
     mode: str = request.param
     if mode == "none":
         monkeypatch.setenv("PODCAST_EXTENSIONS", "")
-    elif mode == "collaboration":
-        monkeypatch.setenv("PODCAST_EXTENSIONS", "collaboration")
-    else:
+    elif mode == "default":
         monkeypatch.delenv("PODCAST_EXTENSIONS", raising=False)
-    monkeypatch.setattr(loader, "_iter_entry_points", lambda: [])
+    else:
+        monkeypatch.setenv("PODCAST_EXTENSIONS", mode)
+    entry_points = [StubEntryPoint()] if _has_stub(mode) else []
+    monkeypatch.setattr(loader, "_iter_entry_points", lambda: entry_points)
     return mode
 
 
@@ -57,15 +78,33 @@ def extensions_mode(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPa
 def test_each_feature_id_is_contributed_once_per_source(extensions_mode: str) -> None:
     registry = loader.load_extensions()
     ids = registry.feature_ids()
-    if extensions_mode == "none":
-        assert ids == []
-    else:
-        assert set(ids) == COLLABORATION_FEATURES
-    assert FEATURE_ONLINE_ACCOUNT not in ids
+    expected = set()
+    if _has_collaboration(extensions_mode):
+        expected |= COLLABORATION_FEATURES
+    if _has_stub(extensions_mode):
+        expected.add(FEATURE_ONLINE_ACCOUNT)
+    assert set(ids) == expected
     assert FEATURE_EXTENSION_STATUS_0 not in ids
     for feature_id in ids:
         sources = [c.source for c in registry.get(feature_id)]
         assert len(sources) == len(set(sources)), feature_id
+        assert len(set(sources)) == 1, feature_id
+    for feature_id in COLLABORATION_FEATURES & set(ids):
+        assert [c.source for c in registry.get(feature_id)] == ["collaboration"]
+
+
+def test_second_owner_of_a_share_slot_is_kept_and_warned(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("PODCAST_EXTENSIONS", f"collaboration,{STUB_NAME}")
+    monkeypatch.setattr(loader, "_iter_entry_points", lambda: [StubEntryPoint(claims_share=True)])
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.extensions.registry"):
+        registry = loader.load_extensions()
+    sources = sorted(c.source for c in registry.get(FEATURE_SHARE_ROUTES))
+    assert sources == ["collaboration", STUB_NAME]
+    warnings = [r.getMessage() for r in caplog.records]
+    assert len(warnings) == 1
+    assert FEATURE_SHARE_ROUTES in warnings[0]
 
 
 def test_example_extension_loads_only_when_named(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -92,8 +131,11 @@ def test_gui_registers_each_route_operation_and_middleware_once(extensions_mode:
     assert duplicated == []
     middleware = [m.cls for m in app.user_middleware]
     assert len(middleware) == len(set(middleware))
-    has_share_routes = any(p.startswith("/api/review/") for p in app.openapi()["paths"])
-    assert has_share_routes is (extensions_mode != "none")
+    assert (StubAccountMiddleware in middleware) is _has_stub(extensions_mode)
+    paths = app.openapi()["paths"]
+    has_share_routes = any(p.startswith("/api/review/") for p in paths)
+    assert has_share_routes is _has_collaboration(extensions_mode)
+    assert (STUB_PATH in paths) is _has_stub(extensions_mode)
 
 
 @pytest.mark.parametrize("extensions_mode", MODES, indirect=True)
@@ -109,11 +151,20 @@ def test_mcp_registers_each_tool_once(
         register_all(mcp)
     assert [r.getMessage() for r in caplog.records if "already exists" in r.getMessage()] == []
     names = {t.name for t in mcp._tool_manager.list_tools()}
-    assert ("create_review_share_tool" in names) is (extensions_mode != "none")
+    assert ("create_review_share_tool" in names) is _has_collaboration(extensions_mode)
+    assert (STUB_MCP_TOOL in names) is _has_stub(extensions_mode)
 
 
 _CLI_DUPLICATES = """
 import json
+import sys
+
+if sys.argv[1:] == ["stub"]:
+    from podcast_mcp.extensions import loader
+    from tests.extension_stub_provider import StubEntryPoint
+
+    loader._iter_entry_points = lambda: [StubEntryPoint()]
+
 from podcast_mcp.cli.main import app
 
 def walk(typer_app, path=""):
@@ -125,22 +176,30 @@ def walk(typer_app, path=""):
         out += walk(child, path + "/" + name)
     return out
 
-print(json.dumps(walk(app)))
+top = [c.name or c.callback.__name__.replace("_", "-") for c in app.registered_commands]
+print(json.dumps({"duplicates": walk(app), "top": top}))
 """
 
 
-@pytest.mark.parametrize("value", ["", "collaboration", None])
+@pytest.mark.parametrize(
+    "value", ["", "collaboration", None, f"collaboration,{STUB_NAME}", STUB_NAME]
+)
 def test_cli_registers_each_command_once(value: str | None) -> None:
     env = {k: v for k, v in os.environ.items() if k != "PODCAST_EXTENSIONS"}
-    env["PYTHONPATH"] = str(ROOT / "src") + os.pathsep + env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        str(ROOT / "src") + os.pathsep + str(ROOT) + os.pathsep + env.get("PYTHONPATH", "")
+    )
     if value is not None:
         env["PODCAST_EXTENSIONS"] = value
+    stub = value is not None and STUB_NAME in value
     result = subprocess.run(
-        [sys.executable, "-c", _CLI_DUPLICATES],
+        [sys.executable, "-c", _CLI_DUPLICATES, *(["stub"] if stub else [])],
         check=True,
         capture_output=True,
         text=True,
         cwd=str(ROOT),
         env=env,
     )
-    assert json.loads(result.stdout.strip().splitlines()[-1]) == []
+    out = json.loads(result.stdout.strip().splitlines()[-1])
+    assert out["duplicates"] == []
+    assert out["top"].count(STUB_CLI_COMMAND) == (1 if stub else 0)
