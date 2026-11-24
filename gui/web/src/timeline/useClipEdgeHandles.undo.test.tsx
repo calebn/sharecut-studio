@@ -1,10 +1,10 @@
 import { act, fireEvent, render } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { setClipFade, trimClipEdge } from "../api";
-import { trimNeighborBounds } from "../edit/trimLimits";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { parseHistoryEntryId } from "../types/project";
+import { trimNeighborBounds } from "../utils/trimLimits";
 import { useClipEdgeHandles } from "./useClipEdgeHandles";
 
 const FADE_HEAD = parseHistoryEntryId("h-fade");

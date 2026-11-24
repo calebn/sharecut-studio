@@ -1,7 +1,9 @@
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { AutomationPoint, ProjectView, TrackView } from "../types/project";
+import type { EditMode, TrimEdge } from "../utils/clipEdgePreview";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
 import { type ClipFadeCurves, payloadFadeCurves } from "../utils/fadeCurves";
+import { patchClipTrim } from "../utils/ripplePreview";
 import { documentAuthority } from "./authorityState";
 import {
   type ClipMoveItem,
@@ -25,6 +27,19 @@ type Draft =
       curves: ClipFadeCurves;
     }
   | { kind: "gain"; clipId: string; gainDb: number }
+  /**
+   * A queued clip-edge trim, kept as the command asked for it (one per command,
+   * applied in queue order like the server's replay) and worked out against the
+   * latest project each time, so a ripple across tracks shows exactly as the
+   * server will apply it.
+   */
+  | {
+      kind: "trim";
+      clipId: string;
+      edge: TrimEdge;
+      sourceSec: number;
+      mode: EditMode;
+    }
   /**
    * One saved bound of a pending edit, keyed per edge so a save of the other
    * edge never replaces it. A save that sends no baseline (the overlay drag)
@@ -150,6 +165,24 @@ export function beginDocumentDraft(
       ]);
     }
     entries.push(...gains);
+  } else if (
+    type === DocumentCommand.TrimClipEdge &&
+    typeof payload.clip_id === "string" &&
+    (payload.edge === "in" || payload.edge === "out") &&
+    (payload.mode === "ripple" || payload.mode === "gap") &&
+    typeof payload.source_sec === "number" &&
+    Number.isFinite(payload.source_sec)
+  ) {
+    entries.push([
+      commandId,
+      {
+        kind: "trim",
+        clipId: payload.clip_id,
+        edge: payload.edge,
+        sourceSec: payload.source_sec,
+        mode: payload.mode,
+      },
+    ]);
   } else if (
     type === DocumentCommand.RenameProject &&
     typeof payload.name === "string"
@@ -338,6 +371,15 @@ export function overlayDocumentDrafts(
         break;
       case "gain":
         result = patchClipGain(result, draft.clipId, draft.gainDb);
+        break;
+      case "trim":
+        result = patchClipTrim(
+          result,
+          draft.clipId,
+          draft.edge,
+          draft.sourceSec,
+          draft.mode,
+        );
         break;
       case "pendingRange": {
         const range = ranges.get(draft.editId);

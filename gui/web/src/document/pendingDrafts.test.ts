@@ -5,6 +5,7 @@ import {
   pendingEditView,
   sampleTrack,
 } from "../test/fixtures";
+import type { ClipRow, ProjectView } from "../types/project";
 import { resetDocumentAuthority } from "./authorityState";
 import {
   beginDocumentDraft,
@@ -427,5 +428,154 @@ describe("a queued pending-edit range draft", () => {
     save("c1", { end: 25, expected });
     resetDocumentAuthority("/tmp/other.json");
     expect(overlayDocumentDrafts(base)).toBe(base);
+  });
+});
+
+describe("a queued clip-edge trim draft", () => {
+  const lane = (
+    id: string,
+    rows: [string, number, number, number, number][],
+  ): ClipRow[] =>
+    rows.map(([clip, tl, tlEnd, src, srcEnd]) =>
+      clipRow({
+        id: clip,
+        track_id: id,
+        timeline_start: tl,
+        timeline_end: tlEnd,
+        source_start: src,
+        source_end: srcEnd,
+        source_duration_sec: 60,
+      }),
+    );
+  const base = () =>
+    minimalProject({
+      tracks: [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
+      clips: {
+        tracks: {
+          host: lane("host", [
+            ["h1", 0, 10, 0, 10],
+            ["h2", 12, 20, 12, 20],
+          ]),
+          guest: lane("guest", [
+            ["g1", 0, 20, 0, 20],
+            ["g2", 25, 30, 30, 35],
+          ]),
+        },
+        clip_count: 4,
+      },
+    });
+  const spans = (project: ProjectView, track: string) =>
+    (project.clips.tracks[track] ?? []).map((c) => [
+      c.timeline_start,
+      c.timeline_end,
+      c.source_start,
+      c.source_end,
+    ]);
+  const trim = (clip_id: string, edge: "in" | "out", source_sec: number) => ({
+    clip_id,
+    edge,
+    source_sec,
+    mode: "ripple",
+    expected_token: "token",
+  });
+
+  it("shows the ripple the server will apply, on every dialogue track, until the command finishes", () => {
+    const saved = base();
+    beginDocumentDraft("trim", "TrimClipEdge", trim("h1", "out", 8));
+    const shown = overlayDocumentDrafts(saved);
+    expect(spans(shown, "host")).toEqual([
+      [0, 8, 0, 8],
+      [10, 18, 12, 20],
+    ]);
+    expect(spans(shown, "guest")).toEqual([
+      [0, 8, 0, 8],
+      [8, 18, 10, 20],
+      [23, 28, 30, 35],
+    ]);
+    finishDocumentDraft("trim");
+    expect(overlayDocumentDrafts(saved)).toBe(saved);
+  });
+
+  it("ends the timeline at the last clip, as the saved trim does", () => {
+    beginDocumentDraft("trim", "TrimClipEdge", trim("h2", "out", 18));
+    expect(overlayDocumentDrafts(base()).timeline_duration_sec).toBe(28);
+  });
+
+  it("trims an in edge and ripples what follows", () => {
+    beginDocumentDraft("trim", "TrimClipEdge", trim("h2", "in", 14));
+    expect(spans(overlayDocumentDrafts(base()), "host")).toEqual([
+      [0, 10, 0, 10],
+      [12, 18, 14, 20],
+    ]);
+  });
+
+  it("clamps to the limits the server clamps to (the next clip's source of the same recording)", () => {
+    beginDocumentDraft("trim", "TrimClipEdge", trim("h1", "out", 500));
+    expect(spans(overlayDocumentDrafts(base()), "host")[0]).toEqual([
+      0, 12, 0, 12,
+    ]);
+  });
+
+  it("is invisible once the saved project holds the trim", () => {
+    beginDocumentDraft("trim", "TrimClipEdge", trim("h1", "out", 8));
+    const answered = overlayDocumentDrafts(base());
+    expect(overlayDocumentDrafts(answered)).toEqual(answered);
+  });
+
+  it("applies two queued trims in order, and finishing the older keeps the newer", () => {
+    beginDocumentDraft("first", "TrimClipEdge", trim("h1", "out", 8));
+    beginDocumentDraft("second", "TrimClipEdge", trim("h1", "out", 6));
+    expect(spans(overlayDocumentDrafts(base()), "host")[0]).toEqual([
+      0, 6, 0, 6,
+    ]);
+    finishDocumentDraft("first");
+    expect(spans(overlayDocumentDrafts(base()), "host")[0]).toEqual([
+      0, 6, 0, 6,
+    ]);
+    finishDocumentDraft("second");
+    expect(spans(overlayDocumentDrafts(base()), "host")[0]).toEqual([
+      0, 10, 0, 10,
+    ]);
+  });
+
+  it("shows nothing for a bad value, edge or mode, or a clip that is not there", () => {
+    const saved = base();
+    beginDocumentDraft("nan", "TrimClipEdge", trim("h1", "out", Number.NaN));
+    beginDocumentDraft("edge", "TrimClipEdge", {
+      ...trim("h1", "out", 8),
+      edge: "mid",
+    });
+    beginDocumentDraft("mode", "TrimClipEdge", {
+      ...trim("h1", "out", 8),
+      mode: "slide",
+    });
+    beginDocumentDraft("gone", "TrimClipEdge", trim("nope", "out", 8));
+    expect(overlayDocumentDrafts(saved)).toBe(saved);
+  });
+
+  it("shows nothing for a trim that would move a clip before the timeline starts", () => {
+    const saved = base();
+    beginDocumentDraft("early", "TrimClipEdge", trim("h2", "in", 0));
+    expect(() => overlayDocumentDrafts(saved)).not.toThrow();
+  });
+
+  it("holds a gap trim without moving the lanes beside it", () => {
+    beginDocumentDraft("gap", "TrimClipEdge", {
+      ...trim("h1", "out", 8),
+      mode: "gap",
+    });
+    const shown = overlayDocumentDrafts(base());
+    expect(spans(shown, "host")[0]).toEqual([0, 8, 0, 8]);
+    expect(spans(shown, "guest")).toEqual(spans(base(), "guest"));
+  });
+
+  it("keeps a replayed trim and is cleared by a scope change", () => {
+    beginDocumentDraft("trim", "TrimClipEdge", trim("h1", "out", 8), true);
+    expect(spans(overlayDocumentDrafts(base()), "host")[0]).toEqual([
+      0, 8, 0, 8,
+    ]);
+    resetDocumentAuthority("/tmp/other.json");
+    const saved = base();
+    expect(overlayDocumentDrafts(saved)).toBe(saved);
   });
 });

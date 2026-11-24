@@ -7,7 +7,7 @@ import { clipFadeBaseline, setClipFade, trimClipEdge } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
 import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow, HistoryEntryId } from "../types/project";
-import type { EditMode, TrimEdge } from "./clipEdgePreview";
+import type { EditMode, TrimEdge } from "../utils/clipEdgePreview";
 
 /**
  * The mode every clip-edge trim previews and saves with: one value, so a

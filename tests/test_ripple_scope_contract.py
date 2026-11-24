@@ -1,7 +1,7 @@
 """contracts/ripple-scope.json: the DAW ripple preview matches what a trim saves.
 
 The DAW draws a ripple trim on every track ``ripple_track_ids`` names before it
-saves (gui/web/src/edit/ripplePreview.ts). These cases pin that scope rule and
+saves (gui/web/src/utils/ripplePreview.ts). These cases pin that scope rule and
 each lane after ``plan_trim`` + ``apply_trim_geometry``; the Vitest suite reads
 the same cases against the preview.
 """

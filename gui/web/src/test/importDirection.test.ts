@@ -190,10 +190,7 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "presence/usePresencePublisher.ts -> audio/playbackClock (static)",
     "state/types.ts -> waveform/types (type)",
   ],
-  "state -> commands/edit": [
-    "session/wire.ts -> edit/seam (static)",
-    "state/types.ts -> edit/ripplePreview (type)",
-  ],
+  "state -> commands/edit": ["session/wire.ts -> edit/seam (static)"],
   "state -> hooks": [
     "presence/useLivePresenceClients.ts -> hooks/useIntervalTick (static)",
     "state/uiSlice.ts -> hooks/useViewportClass (static)",
@@ -216,11 +213,7 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "api/transcriptTiming.ts -> waveform/types (type)",
     "api/waveform.ts -> waveform/types (type)",
   ],
-  "api -> commands/edit": [
-    "api/boundary.ts -> edit/clipEdgePreview (type)",
-    "api/clipBleed.ts -> edit/bleedAttenuation (type)",
-    "api/documentEdits.ts -> edit/clipEdgePreview (type)",
-  ],
+  "api -> commands/edit": ["api/clipBleed.ts -> edit/bleedAttenuation (type)"],
   "api -> views": [
     "api/sharesRecord.ts -> record/types (type)",
     "api/sharesRecord.ts -> record/upload/params (static)",
@@ -275,21 +268,21 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "state -> document": 2,
   "state -> api": 1,
   "state -> services": 2,
-  "state -> commands/edit": 2,
+  "state -> commands/edit": 1,
   "state -> hooks": 2,
   "state -> views": 1,
   "document -> api": 2,
   "document -> services": 1,
   "document -> commands/edit": 2,
   "api -> services": 4,
-  "api -> commands/edit": 3,
+  "api -> commands/edit": 1,
   "api -> views": 3,
   "services -> commands/edit": 2,
   "commands/edit -> hooks": 2,
   "commands/edit -> views": 15,
   "hooks -> views": 6,
 };
-const ALLOWLIST_SIZE = 56;
+const ALLOWLIST_SIZE = 53;
 
 const ID_SHAPE = /^(.+) -> (.+) \((static|type|dynamic)\)$/;
 

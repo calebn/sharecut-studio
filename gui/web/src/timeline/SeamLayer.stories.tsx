@@ -8,10 +8,10 @@ import {
   waitFor,
   within,
 } from "storybook/test";
-import type { RollPreview } from "../edit/clipEdgePreview";
 import { useDawStore } from "../state/dawStore";
 import { portaledOverlayParameters } from "../storybook/storyLayout";
 import { clipRow, editBoundaries, minimalProject } from "../test/fixtures";
+import type { RollPreview } from "../utils/clipEdgePreview";
 import { SeamLayer } from "./SeamLayer";
 import { timelineLaneStoryDecorator } from "./timelineLaneStoryDecorator";
 

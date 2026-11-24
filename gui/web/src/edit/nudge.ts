@@ -22,6 +22,7 @@ import type {
   ProjectView,
 } from "../types/project";
 import { dbToLinear, FADER_MIN_DB, linearToDb } from "../utils/audio";
+import type { TrimEdge } from "../utils/clipEdgePreview";
 import {
   clampEnvelopeValue,
   findVolumeEnvelope,
@@ -30,9 +31,10 @@ import {
   sortedVolumePoints,
   withVolumeEnvelopePoints,
 } from "../utils/envelopes";
+import { trimDraft } from "../utils/ripplePreview";
 import { formatTimeMs } from "../utils/time";
 import { clipsForOriginTrack } from "../utils/timebase";
-import type { TrimEdge } from "./clipEdgePreview";
+import { clampToTrimLimits, trimEdgeLimits } from "../utils/trimLimits";
 import { type EdgeSaved, saveClipEdge, TRIM_MODE } from "./clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "./clipHandleSteps";
 import { clampFadeMs, edgeFadeMaxMs } from "./fadeLimits";
@@ -41,8 +43,6 @@ import {
   type NudgeMover,
   type SoftBoundary,
 } from "./nudgeBoundaries";
-import { trimDraft } from "./ripplePreview";
-import { clampToTrimLimits, trimEdgeLimits } from "./trimLimits";
 
 /** One value of one target that nudges can step. */
 export type NudgeField =

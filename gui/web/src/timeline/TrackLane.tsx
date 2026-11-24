@@ -1,14 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { ClipBleedSnapshot } from "../edit/clipBleedSession";
-import type { RollPreview } from "../edit/clipEdgePreview";
 import { TRIM_MODE } from "../edit/clipEdgeSave";
 import type {
   ClipMovePointerInfo,
   ClipSelectMods,
   MoveGhost,
 } from "../edit/clipMove";
-import { laneRipple, rippleMoves, rippleTrackIds } from "../edit/ripplePreview";
-import { trimNeighborBounds } from "../edit/trimLimits";
 import {
   audioFilesFromDrop,
   fileCountFromDataTransfer,
@@ -30,9 +27,16 @@ import type {
 } from "../types/project";
 import type { ProsodyOverlayTrack } from "../types/prosody";
 import { trackOutputGainDb } from "../utils/audio";
+import type { RollPreview } from "../utils/clipEdgePreview";
 import { clipIdentityTrack, clipSpeakerLabel } from "../utils/clipLabels";
 import { EMPTY_ARR, EMPTY_OBJ } from "../utils/empty";
+import {
+  laneRipple,
+  rippleMoves,
+  rippleTrackIds,
+} from "../utils/ripplePreview";
 import { originTrackId } from "../utils/timebase";
+import { trimNeighborBounds } from "../utils/trimLimits";
 import { clipMediaRef } from "../waveform/mediaRef";
 import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
