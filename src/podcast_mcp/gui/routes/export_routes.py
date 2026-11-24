@@ -168,6 +168,15 @@ def list_export_files(
     )
 
 
+def _ticket_or_host(request: Request, path: str, ticket: str | None, subject: str) -> str | None:
+    """The version a ticket for *subject* was minted at, or ``None`` after the host check passes."""
+    if ticket is None:
+        require_host(request)
+        return None
+    refuse_relayed(request)
+    return export_ticket.verified_version(ticket, path, subject)
+
+
 @router.head("/api/export/archive", include_in_schema=False)
 @router.get("/api/export/archive")
 def download_export_archive_route(
@@ -177,12 +186,7 @@ def download_export_archive_route(
 ) -> Response:
     """Download every current listed file as one zip. A ticket from the listing stands in
     for the host session token, for this archive only."""
-    ticket_version = None
-    if ticket is None:
-        require_host(request)
-    else:
-        refuse_relayed(request)
-        ticket_version = export_ticket.verified_version(ticket, path, export_ticket.ARCHIVE_SUBJECT)
+    ticket_version = _ticket_or_host(request, path, ticket, export_ticket.ARCHIVE_SUBJECT)
     ws = ProjectWorkspace.open(resolve_project(path, request), adopt=False)
     return download_export_archive(request, ws, ticket_version=ticket_version)
 
@@ -199,12 +203,7 @@ def download_export_file(
 
     A ticket from the listing stands in for the host session token, for this file only.
     """
-    ticket_version = None
-    if ticket is None:
-        require_host(request)
-    else:
-        refuse_relayed(request)
-        ticket_version = export_ticket.verified_version(ticket, path, file_id)
+    ticket_version = _ticket_or_host(request, path, ticket, file_id)
     ws = ProjectWorkspace.open(resolve_project(path, request), adopt=False)
     return download_exported_file(
         request, ws, file_id, ticket_version=ticket_version, host_files=True

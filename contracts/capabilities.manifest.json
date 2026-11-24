@@ -2402,18 +2402,19 @@
     },
     {
       "id": "daw.export.files",
-      "label": "Download exported files",
+      "label": "Download or reveal exported files",
       "effect": "view",
-      "service": "ExportFilesService; GET /api/export/files; Editor share: GET /api/review/{token}/daw/export/files",
+      "service": "ExportFilesService; GET /api/export/files; GET /api/export/archive; Editor share: GET /api/review/{token}/daw/export/files, GET /api/review/{token}/daw/export/archive",
       "industry_standard_key": false,
       "gates": [
         "hostProjectLoaded"
       ],
       "surfaces": {},
       "omit": {
-        "keyboard_reason": "A row action on Deliver (Reveal in the app, Download in a browser); the HTTP routes serve host and Editor share links"
+        "keyboard_reason": "A row action on Deliver (Reveal in the app, Download in a browser); the HTTP routes serve host and Editor share links",
+        "agent_reason": "A host agent already reads the export folder; guest agents are not given export bytes over MCP"
       },
-      "tooltip": "Download or reveal a file an export wrote: audio, transcript, chapters or the feed file",
+      "tooltip": "Download or reveal a file an export wrote (audio, transcript, chapters or the feed file), or Download all of the current ones as one ZIP",
       "presence": {
         "cursor": "none",
         "follow": "none"

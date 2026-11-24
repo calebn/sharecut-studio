@@ -52,6 +52,8 @@ Outputs land in `{workspace}/export/bounces/`.
   occurrences/lanes and preserves silent gaps between islands; a changed target
   rejects before output. Share guests cannot export it.
 
+- Deliver's Download all archive packs only the current audio, transcript,
+  chapters and feed files; bounces and DAW packages are never in it
 - Omit `track_ids` / `--tracks` → all **non-muted** mixable tracks with media
 - Renders stems into a **private bounce temp dir** (does not overwrite shared
   `artifacts/tracks/` — safe concurrent with GUI refresh-mix)
