@@ -697,11 +697,14 @@ def edit_move_cmd(
     ws = ProjectWorkspace.open(project)
     if from_query and to_query:
         result = apply_external_document_edit(
-            ws, lambda: TimelineService(ws).move_by_text(from_query, to_query, "after")
+            ws, lambda: TimelineService(ws).move_by_text(from_query, to_query, "after").model_dump()
         )
     elif source_start is not None and source_end is not None and insert_at is not None:
         result = apply_external_document_edit(
-            ws, lambda: TimelineService(ws).move_segment(source_start, source_end, insert_at)
+            ws,
+            lambda: (
+                TimelineService(ws).move_segment(source_start, source_end, insert_at).model_dump()
+            ),
         )
     else:
         raise typer.BadParameter("provide time range or --from-query and --to-after")
@@ -723,7 +726,10 @@ def edit_move_clips_cmd(
         raise typer.BadParameter("--clips-json must be a JSON array")
     typer.echo(
         json.dumps(
-            apply_external_document_edit(ws, lambda: TimelineService(ws).move_clips(raw)), indent=2
+            apply_external_document_edit(
+                ws, lambda: TimelineService(ws).move_clips(raw).model_dump()
+            ),
+            indent=2,
         )
     )
 
@@ -851,7 +857,9 @@ def edit_insert_gap_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            apply_external_document_edit(ws, lambda: TimelineService(ws).insert_gap(at, duration)),
+            apply_external_document_edit(
+                ws, lambda: TimelineService(ws).insert_gap(at, duration).model_dump()
+            ),
             indent=2,
         )
     )

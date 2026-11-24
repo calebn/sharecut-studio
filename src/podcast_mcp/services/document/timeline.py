@@ -75,6 +75,11 @@ from podcast_mcp.services.document.chapter_results import DeletedChapter, Remove
 from podcast_mcp.services.document.clip_fade import apply_clip_fade, apply_clips_fade
 from podcast_mcp.services.document.clip_gain import apply_clip_gain, apply_clips_gain
 from podcast_mcp.services.document.service_base import CutMutatingService
+from podcast_mcp.services.document.timeline_move_results import (
+    InsertGapResult,
+    MoveClipsResult,
+    MoveSegmentResult,
+)
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -204,12 +209,16 @@ class TimelineService(CutMutatingService):
         save_ranker(model, dest)
         return {"model": model.to_dict(), "path": str(dest), "n_labels": len(labels)}
 
-    def move_segment(self, source_start: float, source_end: float, insert_at: float) -> dict:
+    def move_segment(
+        self, source_start: float, source_end: float, insert_at: float
+    ) -> MoveSegmentResult:
         return self.ws.mutate(
             "before move segment",
             "after move segment",
-            lambda p: move_segment(
-                p, source_start, source_end, insert_at, defaults=self.ws.effective_config()
+            lambda p: MoveSegmentResult(
+                **move_segment(
+                    p, source_start, source_end, insert_at, defaults=self.ws.effective_config()
+                )
             ),
             operation="move_segment",
             params={
@@ -224,12 +233,18 @@ class TimelineService(CutMutatingService):
         source_query: str,
         destination_query: str,
         position: str = "after",
-    ) -> dict:
+    ) -> MoveSegmentResult:
         return self.ws.mutate(
             "before move by text",
             "after move by text",
-            lambda p: move_by_text(
-                p, source_query, destination_query, position, defaults=self.ws.effective_config()
+            lambda p: MoveSegmentResult(
+                **move_by_text(
+                    p,
+                    source_query,
+                    destination_query,
+                    position,
+                    defaults=self.ws.effective_config(),
+                )
             ),
             operation="move_by_text",
             params={
@@ -239,16 +254,18 @@ class TimelineService(CutMutatingService):
             },
         )
 
-    def insert_gap(self, at_time: float, duration_sec: float = 1.0) -> dict:
+    def insert_gap(self, at_time: float, duration_sec: float = 1.0) -> InsertGapResult:
         return self.ws.mutate(
             "before insert gap",
             "after insert gap",
-            lambda p: insert_gap(
-                p,
-                at_time,
-                duration_sec,
-                defaults=self.ws.effective_config(),
-                shift_anchors=True,
+            lambda p: InsertGapResult(
+                **insert_gap(
+                    p,
+                    at_time,
+                    duration_sec,
+                    defaults=self.ws.effective_config(),
+                    shift_anchors=True,
+                )
             ),
             operation="insert_gap",
             params={"at_time": at_time, "duration_sec": duration_sec},
@@ -397,11 +414,11 @@ class TimelineService(CutMutatingService):
             params={"ms": ms},
         )
 
-    def move_clips(self, clips: list[dict]) -> dict:
+    def move_clips(self, clips: list[dict]) -> MoveClipsResult:
         return self.ws.mutate(
             "before move clips",
             "after move clips",
-            lambda p: move_clips(p, clips, defaults=self.ws.effective_config()),
+            lambda p: MoveClipsResult(**move_clips(p, clips, defaults=self.ws.effective_config())),
             operation="move_clips",
             params={
                 "clip_ids": [
