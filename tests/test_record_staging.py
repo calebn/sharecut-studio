@@ -1713,10 +1713,11 @@ def _record_service(ws) -> RecordSessionService:
 def test_saved_project_matches_store_load(minimal_project, sample_wav, tmp_workspace):
     ws = _seed(minimal_project, sample_wav)
     svc = _record_service(ws)
-    assert (
-        svc._saved_project().model_dump()
-        == ProjectStore(ws.project.workspace_path()).load().model_dump()
-    )
+    svc.project.tracks.append(Track(id="unsaved", label="Unsaved", role=TrackRole.MUSIC))
+    saved = svc._saved_project()
+    assert saved is not svc.project
+    assert "unsaved" not in {t.id for t in saved.tracks}
+    assert saved.model_dump() == ProjectStore(ws.project.workspace_path()).load().model_dump()
 
 
 def test_saved_project_sees_edit_saved_after_build(minimal_project, sample_wav, tmp_workspace):
