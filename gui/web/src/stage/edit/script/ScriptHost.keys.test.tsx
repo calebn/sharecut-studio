@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerPrimaryEditingCommands } from "../../../commands/editing";
 import { useDawStore } from "../../../state/dawStore";
-import { seedScript } from "../../../test/scriptHostKit";
+import { seedScript, TWO_LANE_CLIPS } from "../../../test/scriptHostKit";
 import { ScriptHost } from "./ScriptHost";
 
 vi.mock("../../../commands/seek", () => ({ seekTransport: vi.fn() }));
@@ -72,5 +72,19 @@ describe("ScriptHost Escape order", () => {
     expect(useDawStore.getState().selection).toBeNull();
     expect(screen.getByRole("button", { name: "friends" })).toHaveFocus();
     expect(clear()).toBeNull();
+  });
+
+  it("shows Clear selection for words drawn across two tracks", async () => {
+    registerPrimaryEditingCommands();
+    seedScript({ project: { clips: TWO_LANE_CLIPS } });
+    const user = userEvent.setup();
+    render(<ScriptHost />);
+    await user.click(screen.getByRole("button", { name: "friends" }));
+    await user.keyboard(
+      "{Shift>}{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}{/Shift}",
+    );
+    expect(useDawStore.getState().selection?.kind).toBe("range");
+    await user.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(useDawStore.getState().selection).toBeNull();
   });
 });
