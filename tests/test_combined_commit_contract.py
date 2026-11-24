@@ -176,12 +176,14 @@ WORD_CASES = [
         _set_timing,
         FRESH_TEXTS,
         s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
     Case(
         "replace_matches",
         _replace,
         ("hello there friend", "greetings back", "thanks for having me"),
         s3_changes=True,
+        s3_untouched=(State.NONE,),
     ),
     Case(
         "suppress_low_audibility_keys",

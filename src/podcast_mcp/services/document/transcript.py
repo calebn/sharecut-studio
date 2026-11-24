@@ -510,9 +510,7 @@ class TranscriptService(WorkspaceService):
                 self.ws.mutate(
                     "before adjust word timing",
                     "after adjust word timing",
-                    lambda p: apply_word_timing(
-                        p, target, start, end, defaults=self.ws.effective_config()
-                    ),
+                    lambda p: apply_word_timing(p, target, start, end),
                 )
             return {"changed": changed, "context": word_timing_context(project, target, media)}
 
@@ -551,9 +549,7 @@ class TranscriptService(WorkspaceService):
             return self.ws.mutate(
                 "before replace transcript matches",
                 "after replace transcript matches",
-                lambda p: apply_transcript_replacement(
-                    p, plan, defaults=self.ws.effective_config()
-                ),
+                lambda p: apply_transcript_replacement(p, plan),
             )
 
     def correct_word(

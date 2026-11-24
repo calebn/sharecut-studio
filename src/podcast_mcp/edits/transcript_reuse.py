@@ -7,7 +7,6 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.asr_loops import drop_looped_words, guard_transcript
 from podcast_mcp.engines.asr_options import AsrOptions, normalize_language
 from podcast_mcp.engines.asr_silence import (
@@ -20,7 +19,6 @@ from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD
 from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.models.word_aligner import WordAlignerModel, word_aligner_model
 from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, cached_audio_keys
-from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
 from podcast_mcp.project.transcript_context import TranscriptContext, load_transcript_context
 from podcast_mcp.util.coded_error import CodedError
@@ -457,9 +455,7 @@ def _renumber_archived(transcript: Transcript, kept_ordinals: list[int]) -> None
         entry.ordinal = rank + sum(1 for o in kept_ordinals if o < entry.ordinal)
 
 
-def repair_reused_loops(
-    project: EpisodeProject, plan: TranscribePlan, *, defaults: EffectiveConfig
-) -> list[dict[str, Any]]:
+def repair_reused_loops(project: EpisodeProject, plan: TranscribePlan) -> list[dict[str, Any]]:
     """Drop a repetition loop from each stored ``plan.reused`` transcript.
 
     A transcript stored before the loop guard existed is reused as it is, so the loop
@@ -489,8 +485,6 @@ def repair_reused_loops(
             continue
         _renumber_archived(transcript, [ordinals[id(w)] for w in report.kept])
         entries.append(report.as_entry(job.label, job.track_id))
-    if entries and project.combined_transcript is not None:
-        rebuild_combined(project, defaults=defaults)
     return entries
 
 

@@ -8,8 +8,6 @@ import math
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.models.words_revision import set_word
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
@@ -133,12 +131,7 @@ def validate_word_timing(
 
 
 def apply_word_timing(
-    project: EpisodeProject,
-    target: WordTimingTarget,
-    start: float,
-    end: float,
-    *,
-    defaults: EffectiveConfig,
+    project: EpisodeProject, target: WordTimingTarget, start: float, end: float
 ) -> None:
     transcript = timing_transcript(project, target)
     word = transcript.words[target.word_index]
@@ -159,4 +152,3 @@ def apply_word_timing(
     set_word(transcript, target.word_index, edited)
     transcript.silence_filter_fingerprint = None
     transcript.user_edited = True
-    rebuild_combined(project, defaults=defaults)
