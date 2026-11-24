@@ -95,7 +95,7 @@ class Skipped(logging.Handler):
 logging.getLogger("podcast_mcp.extensions.loader").addHandler(Skipped())
 registry = load_extensions()
 assert not skipped, skipped
-assert registry.has(FEATURE_SHARE_ROUTES), registry.feature_ids()
+assert registry.has(FEATURE_SHARE_ROUTES), "share.routes not registered: " + str(registry.feature_ids())
 
 gui = create_app()
 assert gui.routes
