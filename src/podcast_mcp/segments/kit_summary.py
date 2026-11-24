@@ -47,6 +47,25 @@ def find_missing(kit: KitFile, store: SegmentStore) -> list[MissingEntry]:
     return missing
 
 
+def failing_entries(kit: KitFile, store: SegmentStore) -> tuple[list[MissingEntry], list[int]]:
+    """Entries that are absent or fail the cheap read, and the version each entry resolved to.
+
+    Reads no audio content. An ``OSError`` on an entry makes that entry fail with its message.
+    The versions are complete only when nothing fails.
+    """
+    failing: list[MissingEntry] = []
+    versions: list[int] = []
+    for position, entry in enumerate(kit.entries, start=1):
+        try:
+            version = store.resolve_version(entry.segment_id, entry.version)
+            store.read_version(entry.segment_id, version, hash_content=False)
+        except (CodedValueError, OSError) as exc:
+            failing.append(MissingEntry(position, entry, str(exc)))
+        else:
+            versions.append(version)
+    return failing, versions
+
+
 def missing_text(missing: list[MissingEntry]) -> str:
     parts = "; ".join(f"entry {m.position} ({m.entry.label()}): {m.problem}" for m in missing)
     return (

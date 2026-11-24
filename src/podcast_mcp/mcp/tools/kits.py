@@ -10,7 +10,7 @@ from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.segments.kit import KitStore
 from podcast_mcp.segments.kit_summary import entry_from_mapping, kit_rows, save_kit, show_kit
 from podcast_mcp.segments.store import SegmentStore
-from podcast_mcp.services.document import submit_kit_apply
+from podcast_mcp.services.document import report_kit_offer, submit_kit_apply
 
 
 def kit_list_tool() -> str:
@@ -66,6 +66,15 @@ def kit_apply_tool(project_path: str, kit_id: str, dry_run: bool = False) -> str
     )
 
 
+def kit_offer_tool(project_path: str) -> str:
+    """Whether to offer the show kit to an episode, and which kits. Read-only.
+
+    Returns ``{offer, reason, kits, unusable}``. Errors: ``project_not_found``,
+    ``project_unreadable``.
+    """
+    return to_json(report_kit_offer(project_path, KitStore(), SegmentStore()))
+
+
 def register(mcp: MCPServer) -> None:
-    for fn in (kit_list_tool, kit_show_tool, kit_save_tool, kit_apply_tool):
+    for fn in (kit_list_tool, kit_show_tool, kit_save_tool, kit_apply_tool, kit_offer_tool):
         mcp.tool()(fn)

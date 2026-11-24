@@ -132,6 +132,8 @@ Every refusal carries the service's own code in `X-Sharecut-Error-Code`. Status 
 
 Each clip is its own already-trimmed FLAC, served whole. The route previews one clip at a time.
 
+The kit offer is `GET /api/kits/offer?path=` (host only, like drift; the web client is `gui/web/src/api/kits.ts`, `loadKitOffer`). There is no kit apply route: apply stays `kit apply` and `kit_apply_tool`.
+
 The web client is `gui/web/src/api/segments.ts` (`loadSegments`, `loadSegment`, `loadSegmentDrift`, `saveSegment`, `removeSegment`, `segmentAudioUrl`).
 
 ## Show kit
@@ -161,6 +163,7 @@ Unknown fields are refused (`kit_invalid`). The content hash covers the entries 
 | `podcast kit export ID -o FILE` | Write the newest version and the segment versions it uses to a `.sharecutkit` file. |
 | `podcast kit import FILE [--on-conflict skip\|new-version] [--json]` | Add the file's missing segments and its kit to the library. |
 | `podcast kit apply ID PROJECT [--dry-run] [--json]` | Apply every entry to an episode (see below). |
+| `podcast kit offer PROJECT [--json]` | Whether the episode should be offered a kit, and which kits it can offer (see Offer below). Changes nothing; exit code 0 for any report. |
 
 **`.sharecutkit`.** A zip of `kit.json`, `MANIFEST.sha256` and, for each segment version the kit uses, that segment's `segment.json` and audio as flat entries named `segNN__<file>` (a segment version used by two entries is stored once; the issue's "segments plus the layout" is `kit.json`). Each segment id and version pair has exactly one bundled member, even when two members have identical content. Repeated kit entries can reference that shared member. An import refuses a duplicate pair with `kit_bundle_invalid` before audio unpacking or library writes. An import runs the `.sharecutseg` checks, with the cap raised from 64 to 290 files (`kit.json`, the manifest and 32 segments of a `segment.json` and up to 8 audio files each; more than that per segment is refused) and the compression-ratio check applied from 64 KiB instead of 1 MiB: plain entry names only (the only shape is `kit.json`, the manifest or `segNN__name`), no repeats ignoring case, no symlinks, sizes against the headers and while reading, 2 GiB unpacked, `kit.json` and each `segment.json` at most 1 MiB, no file over 100:1 compression once it is over 1 MiB, a manifest that lists exactly the files, every hash matching, each segment folder holding exactly the audio its `segment.json` names, and every kit entry naming a segment (and version) that is in the file. The order is: headers; then `kit.json`, the manifest and every `segment.json` are read straight from the zip and checked against each other (hashes, the kit id against its name, each segment id against its name, each segment's files against the audio it names, every kit entry against a bundled segment, and every bundled segment against a kit entry, so a file cannot carry segments the kit does not name); only then is audio unpacked, with a budget of the declared sizes, and hashed. These archive-admission checks finish before library writes. A later per-segment validation or library failure can leave earlier segments added. Errors: `kit_bundle_invalid`, `kit_hash_mismatch`, `kit_schema_unsupported`, `kit_invalid` (`kit.json` is not a kit), `kit_write_failed` and `kit_busy` (a segment-library lock or write failure during import is said in these), plus `kit_unknown`, `kit_unreadable`, `kit_name_invalid`, `kit_segment_missing` and `kit_on_conflict_invalid`. Like `.sharecutseg`, the manifest is an integrity check, not a signature.
 
@@ -174,7 +177,19 @@ An uncoded file failure during an entry stops the apply with `kit_apply_failed`.
 
 **`--dry-run`.** Runs the same chain on a copy, entry by entry, so each report accounts for the ripples of the entries before it, and writes nothing: no journal row, no history step, no audio in `raw/`, and a project still under its retired entry-file name is not renamed. The project is read with `ProjectWorkspace.open(adopt=False)`.
 
-**Host MCP tools.** `kit_list_tool`, `kit_show_tool`, `kit_save_tool` (`name`, `entries` as `{segment_id, at, version?, note?}`) and `kit_apply_tool` (`project_path`, `kit_id`, `dry_run`) call the same functions as the CLI (`segments/kit_summary.py`, `submit_kit_apply` in `services/document/kit_apply.py`), so the codes are the same, including for `kit save` input: one parser (`segments/kit_summary.py`) turns `ID[@VERSION][:AT]` on the CLI and `{segment_id, at, version?, note?}` in the tool into an entry, and a version that is not a whole number from 1 is `segment_version_invalid` on both. `note` is set through the tool only; the CLI has no flag for it. `submit_kit_apply` lives in `services/document/kit_apply.py`. They are host only: none is on the guest allowlist, and `InsertSegment` stays out of every share role's commands.
+**Offer.** `podcast kit offer PROJECT [--json]`, MCP `kit_offer_tool(project_path)` and `GET /api/kits/offer?path=` answer whether an episode should be offered the show kit, and which kits it can offer. All three call `report_kit_offer` in `services/document/kit_offer.py`, so the JSON and the codes are the same. The project is opened with `ProjectWorkspace.open(path, adopt=False)`: nothing is written or journaled, nothing is applied, and an invalid project is `project_unreadable` or `project_not_found`, as for drift. The report is `{"offer": bool, "reason", "kits": [{id, name, version, entries: [{segment_id, version, at, note}]}], "unusable": [{id, name, version, missing, problem}]}`; `kits` and `unusable` are always lists, sorted by name then id, and `version` is the kit's own version on a kit row and the resolved segment version (never null) on an entry. The first matching rule gives the `reason`:
+
+| `reason` | When | `kits` / `unusable` |
+|---|---|---|
+| `no_clips` | the episode has no clip in `project.clips` | both empty |
+| `already_has_segments` | any clip carries a `segment_ref` (something was inserted) | both empty |
+| `no_kits` | the library has no readable kit (a kit whose newest version is damaged is left out; `kit list` still shows it `DAMAGED`) | both empty |
+| `no_usable_kits` | no kit is usable | `kits` empty, `unusable` not |
+| `offer` | at least one kit is usable (`offer` is true only for this reason) | `kits` not empty, `unusable` may be |
+
+A kit (its newest version) is usable when every entry's segment version, the pinned one or the newest when `version` is null, is in the library and passes the cheap read: `segment.json` parses, the files exist and the sizes match. An unusable kit is listed under `unusable` with `missing`, the number of entries that are absent, fail that read or raise an `OSError` (each entry counts once, and an `OSError` is that entry's problem, with its message), and `problem`, naming the first. The offer does not hash audio; `kit apply` refuses a same-size change with `segment_hash_mismatch`, and it has other refusals the offer cannot predict (see Apply). "Not now" is a Studio concern kept per user in the browser; it is not stored in the project.
+
+**Host MCP tools.** `kit_list_tool`, `kit_show_tool`, `kit_save_tool` (`name`, `entries` as `{segment_id, at, version?, note?}`), `kit_apply_tool` (`project_path`, `kit_id`, `dry_run`) and `kit_offer_tool` (`project_path`) call the same functions as the CLI (`segments/kit_summary.py`, `submit_kit_apply` in `services/document/kit_apply.py`), so the codes are the same, including for `kit save` input: one parser (`segments/kit_summary.py`) turns `ID[@VERSION][:AT]` on the CLI and `{segment_id, at, version?, note?}` in the tool into an entry, and a version that is not a whole number from 1 is `segment_version_invalid` on both. `note` is set through the tool only; the CLI has no flag for it. `submit_kit_apply` lives in `services/document/kit_apply.py`. They are host only: none is on the guest allowlist, and `InsertSegment` stays out of every share role's commands.
 
 **Doctor.** `podcast doctor` warns for each kit (newest version) whose segments are missing from the library, naming up to five of them, and for a kit that cannot be read. It reads only `kit.json` files and segment folder names, so it stays cheap, and a segment that is present but damaged is reported by the segment check above, not by the kit line (`kit apply` refuses it with `segment_unreadable` or `segment_hash_mismatch`); the fix line says to import the segments or the kit's `.sharecutkit` file again.
 
@@ -186,7 +201,7 @@ An uncoded file failure during an entry stops the apply with `kit_apply_failed`.
 
 - Ducking under dialogue, and a Studio screen or an "update this segment" command for drift (the report exists, see [Drift](#drift)).
 - Studio screens for the library (the HTTP routes exist, see Studio routes above).
-- A Studio or HTTP surface for kits (the offer to apply a kit to a new episode) and a compound document command that makes a whole kit one undo step.
+- A compound document command that makes a whole kit one undo step.
 - `podcast segment export ID... -o FILE.sharecutkit` and `segment import FILE.sharecutkit` (the kit commands do this, see the kit section above).
 - Capturing a transcript or a chapter title.
 - Setting `duck_under_dialogue` or `chapter_title` (no command writes them yet).

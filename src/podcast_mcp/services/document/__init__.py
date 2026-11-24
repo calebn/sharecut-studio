@@ -61,6 +61,7 @@ if TYPE_CHECKING:
         PopulatedHistoryDiffResult,
     )
     from podcast_mcp.services.document.kit_apply import KitApplyReport, submit_kit_apply
+    from podcast_mcp.services.document.kit_offer import report_kit_offer
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
     from podcast_mcp.services.document.play_pending import (
         PENDING_PREVIEW_PAD_DEFAULT_SEC,
@@ -175,6 +176,7 @@ __all__ = [
     "preview_segment_insert",
     "preview_segment_insert_on",
     "queue_room_tone_pools",
+    "report_kit_offer",
     "report_segment_drift",
     "run_comment_mutation_with_file_revisions",
     "save_segment",
@@ -246,6 +248,7 @@ _MODULE_BY_NAME = {
     "SegmentInsertPreview": "segment_insert_results",
     "KitApplyReport": "kit_apply",
     "save_segment": "segment_capture",
+    "report_kit_offer": "kit_offer",
     "report_segment_drift": "segment_drift",
     "SessionSuggestionService": "session_suggestion",
     "RoomToneBedReply": "room_tone_bed",

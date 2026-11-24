@@ -3072,7 +3072,8 @@
           "kit_list_tool",
           "kit_show_tool",
           "kit_save_tool",
-          "kit_apply_tool"
+          "kit_apply_tool",
+          "kit_offer_tool"
         ],
         "cli": "podcast kit"
       },

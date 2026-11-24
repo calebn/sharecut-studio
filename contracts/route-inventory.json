@@ -293,6 +293,12 @@
     },
     {
       "gate": "host",
+      "handler": "podcast_mcp.gui.routes.kits:kit_offer_route",
+      "method": "GET",
+      "path": "/api/kits/offer"
+    },
+    {
+      "gate": "host",
       "handler": "podcast_mcp.gui.routes.media:upload_media",
       "method": "POST",
       "path": "/api/media/upload"

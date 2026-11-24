@@ -6,13 +6,13 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.models.episode import ProjectUnreadableError, SegmentRef
+from podcast_mcp.models.episode import SegmentRef
 from podcast_mcp.segments.drift import DriftVerdict, ReadFailure, classify
 from podcast_mcp.segments.model import SegmentFile
 from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.segments.summary import drift_rows
-from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.util.coded_error import CodedError, CodedValueError
+from podcast_mcp.services.document.read_only_open import open_read_only
+from podcast_mcp.util.coded_error import CodedValueError
 
 _ATTEMPTS = 3
 
@@ -90,15 +90,7 @@ def report_segment_drift(
     cannot be read after three tries is left out, as ``scan()`` does.
     """
     library = _Library(store if store is not None else SegmentStore())
-    try:
-        workspace = ProjectWorkspace.open(project_path, adopt=False)
-    except CodedError:
-        raise
-    except ValueError as exc:
-        raise ProjectUnreadableError(
-            "The project file is damaged and could not be read (unexpected contents). "
-            "Restore it from a backup, or open a copy of the project."
-        ) from exc
+    workspace = open_read_only(project_path)
     clips_by_ref: dict[SegmentRef, list[str]] = {}
     for clip in workspace.project.clips:
         if clip.segment_ref is not None:

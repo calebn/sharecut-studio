@@ -17,7 +17,7 @@ from podcast_mcp.segments.kit_bundle import (
 )
 from podcast_mcp.segments.kit_summary import kit_rows, parse_entry_spec, save_kit, show_kit
 from podcast_mcp.segments.store import SegmentStore
-from podcast_mcp.services.document import submit_kit_apply
+from podcast_mcp.services.document import report_kit_offer, submit_kit_apply
 
 kit_app = typer.Typer(
     help="Show kits: intro, outro and the rest, applied to an episode in one step."
@@ -163,3 +163,26 @@ def kit_apply_cmd(
         f"{result['timeline_duration_before_sec']:g} s to "
         f"{result['timeline_duration_after_sec']:g} s. {tail}"
     )
+
+
+@kit_app.command("offer")
+def kit_offer_cmd(
+    project: Path = typer.Argument(..., help="Path to episode.sharecut"),
+    as_json: bool = typer.Option(False, "--json", help="The report as JSON"),
+) -> None:
+    """Say whether this episode should be offered a show kit, and which. Changes nothing."""
+    report = report_kit_offer(project, KitStore(), SegmentStore())
+    if as_json:
+        typer.echo(_json(report))
+        return
+    typer.echo(f"Offer: {'yes' if report['offer'] else 'no'} ({report['reason']})")
+    for kit in report["kits"]:
+        typer.echo(
+            f"  {kit['id']}  v{kit['version']}  {len(kit['entries'])} segments  {kit['name']}"
+        )
+    for kit in report["unusable"]:
+        count = kit["missing"]
+        typer.echo(
+            f"  {kit['id']}  v{kit['version']}  UNUSABLE  {count} "
+            f"{'segment' if count == 1 else 'segments'}  {kit['problem']}"
+        )

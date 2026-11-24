@@ -660,7 +660,7 @@ def test_host_tools_match_the_cli_and_are_absent_for_guests(
     from podcast_mcp.services.remote_mcp.tools import TOOL_HANDLERS
 
     intro, outro = library
-    names = {"kit_list_tool", "kit_show_tool", "kit_save_tool", "kit_apply_tool"}
+    names = {"kit_list_tool", "kit_show_tool", "kit_save_tool", "kit_apply_tool", "kit_offer_tool"}
     assert names <= {t.name for t in asyncio.run(mcp_server.mcp.list_tools())}
     assert names.isdisjoint(ALL_GUEST_TOOLS) and names.isdisjoint(TOOL_HANDLERS)
     assert not any("kit" in name for name in ALL_GUEST_TOOLS)
