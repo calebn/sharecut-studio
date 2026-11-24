@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import contextlib
+import json
+from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from podcast_mcp.models import EpisodeProject, save_project
+from podcast_mcp.services.collaboration.review_shares import create_share
+from podcast_mcp.services.collaboration.share_registry import (
+    RECORD_REVIEW_VERSION_SENTINEL,
+    SHARE_KIND_RECORD,
+)
 from podcast_mcp.services.collaboration.tunnel import (
     RelayConfig,
     TunnelClient,
@@ -1059,3 +1070,105 @@ async def test_proxy_ws_forwards_query_to_local_gui(path, query, token, expected
             streams={},
         )
     assert connect.call_args.args[0] == expected
+
+
+# ---------------------------------------------------------------------------
+# TunnelClient.readvertise
+# ---------------------------------------------------------------------------
+
+
+class _LiveRelayWs:
+    """A relay socket that acks hello and register, then stays open until cancelled."""
+
+    def __init__(self) -> None:
+        self.sent: list[dict[str, Any]] = []
+        self._inbox: asyncio.Queue[str] = asyncio.Queue()
+        self._inbox.put_nowait(json.dumps({"type": "hello", "ok": True, "host_id": "h"}))
+        self._inbox.put_nowait(json.dumps({"type": "register", "ok": True, "share_count": 1}))
+
+    async def send(self, raw: str) -> None:
+        self.sent.append(json.loads(raw))
+
+    async def recv(self) -> str:
+        return await self._inbox.get()
+
+    async def __aenter__(self) -> _LiveRelayWs:
+        return self
+
+    async def __aexit__(self, *_args: object) -> None:
+        return None
+
+
+def _mint_record_link(project: EpisodeProject) -> str:
+    row = create_share(
+        project,
+        review_version_id=RECORD_REVIEW_VERSION_SENTINEL,
+        kind=SHARE_KIND_RECORD,
+        role="guest",
+        session_id="s1",
+    )
+    return str(row["token"])
+
+
+@pytest.fixture
+def record_project(tmp_workspace: Path) -> tuple[Path, EpisodeProject]:
+    project = EpisodeProject.create("readvertise", str(tmp_workspace))
+    project.ensure_dirs()
+    return save_project(project), project
+
+
+@contextlib.asynccontextmanager
+async def _live_session(client: TunnelClient, ws: _LiveRelayWs):
+    with (
+        patch("websockets.connect", return_value=ws),
+        patch("httpx.AsyncClient") as http_cls,
+    ):
+        http = AsyncMock()
+        http.__aenter__ = AsyncMock(return_value=http)
+        http.__aexit__ = AsyncMock(return_value=None)
+        http_cls.return_value = http
+        task = asyncio.create_task(client._run_once())
+        try:
+            while client._send is None:
+                await asyncio.sleep(0.01)
+            yield
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_readvertise_sends_one_register_on_live_session(record_project):
+    path, project = record_project
+    first = _mint_record_link(project)
+    client = TunnelClient(RelayConfig(host_token="t", relay_url="ws://relay"), path)
+    ws = _LiveRelayWs()
+
+    async with _live_session(client, ws):
+        assert [m["type"] for m in ws.sent] == ["hello", "register"]
+        second = _mint_record_link(project)
+
+        assert await client.readvertise(path) is True
+
+    assert len(ws.sent) == 3
+    assert ws.sent[2]["type"] == "register"
+    assert [share["token"] for share in ws.sent[2]["shares"]] == [first, second]
+
+
+@pytest.mark.asyncio
+async def test_readvertise_without_session_returns_false_and_next_connect_uses_new_project(
+    record_project, tmp_path
+):
+    old_path, old_project = record_project
+    _mint_record_link(old_project)
+    other = EpisodeProject.create("other", str(tmp_path / "other_ws"))
+    other.ensure_dirs()
+    other_path = save_project(other)
+    other_token = _mint_record_link(other)
+    client = TunnelClient(RelayConfig(host_token="t", relay_url="ws://relay"), old_path)
+
+    assert await client.readvertise(other_path) is False
+
+    ws = _LiveRelayWs()
+    async with _live_session(client, ws):
+        assert [share["token"] for share in ws.sent[1]["shares"]] == [other_token]
