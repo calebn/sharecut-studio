@@ -155,6 +155,10 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Editor",
         "Download one listed exported file as an attachment with Range and ETag; an id that is not listed is 404, and 409 while an export runs",
     ),
+    ("GET", "/api/review/{token}/daw/export/archive"): (
+        "Editor",
+        "Download every current exported file as one stored zip with an exact Content-Length; 404 when nothing current is listed, and 409 while an export runs",
+    ),
     ("GET", "/api/review/{token}/daw/export/jobs/{job_id}"): (
         "Editor",
         "Read one export job of this project; any other job id is 404",
@@ -330,6 +334,9 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ("POST", "/api/review/{token}/daw/export/jobs/{job_id}/cancel"): "guest_export_job_cancel",
     ("GET", "/api/review/{token}/daw/export/files"): "http-only: no guest MCP file tool yet",
     ("GET", "/api/review/{token}/daw/export/files/{file_id}"): (
+        "http-only: a binary download, not a guest MCP tool"
+    ),
+    ("GET", "/api/review/{token}/daw/export/archive"): (
         "http-only: a binary download, not a guest MCP tool"
     ),
     ("GET", "/api/review/{token}/daw/transcript/vocabulary"): "guest_transcript_vocabulary_get",

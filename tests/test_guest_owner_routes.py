@@ -148,7 +148,7 @@ def _editor_job_id(world, name: str) -> str:
         )
         world.app.state.jobs._catalog._job = job
         return job.id
-    if name == "export_file":
+    if name in ("export_file", "export_archive"):
         export = world.ws.project.export_dir()
         export.mkdir(parents=True, exist_ok=True)
         (export / "test_episode.mp3").write_bytes(b"mp3")
@@ -175,6 +175,7 @@ def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
         "export_status",
         "export_files",
         "export_file",
+        "export_archive",
         "export_job_status",
         "export_job_events",
         "export_job_cancel",

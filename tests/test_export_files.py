@@ -1275,3 +1275,87 @@ def test_a_member_rewritten_mid_stream_fails_the_download(ws, folder, remote, mo
 
     with pytest.raises(ZipMemberChanged):
         remote.get(ARCHIVE, params=_archive_params(ws, archive))
+
+
+ARCHIVE_GUEST = "/api/review/{token}/daw/export/archive"
+
+
+def test_an_editor_downloads_the_same_archive_as_the_host(world) -> None:
+    editor = world.tokens["editor"]
+    stem = sanitize_export_stem(world.ws.project.name)
+
+    listed = world.client.get(GUEST.format(token=editor)).json()
+    res = world.client.get(ARCHIVE_GUEST.format(token=editor))
+    host = world.client.get("/api/export/files", params={"path": str(world.ws.path)}).json()[
+        "archive"
+    ]
+
+    assert listed["archive"] == {k: v for k, v in host.items() if k != "ticket"}
+    assert listed["archive"]["bytes"] == len(res.content)
+    assert res.headers["content-length"] == str(len(res.content))
+    assert list(_zip_members(res.content)) == [
+        f"{stem}.mp3",
+        f"{stem}.wav",
+        f"{stem}.md",
+        f"{stem}.srt",
+        f"{stem}.chapters.json",
+    ]
+    assert _zip_members(res.content)[f"{stem}.mp3"] == MP3
+
+
+@pytest.mark.parametrize("role", ["viewer", "commenter"])
+def test_a_lesser_role_is_refused_the_archive_and_a_revoked_link_is_gone(world, role) -> None:
+    res = world.client.get(ARCHIVE_GUEST.format(token=world.tokens[role]))
+    world.share.revoke(world.tokens["editor"])
+    revoked = world.client.get(ARCHIVE_GUEST.format(token=world.tokens["editor"]))
+
+    assert (res.status_code, res.headers[CODE]) == (403, "share_capability_required")
+    assert MP3 not in res.content
+    assert (revoked.status_code, revoked.headers[CODE]) == (404, "share_not_found")
+
+
+def test_an_editor_archive_waits_for_a_running_export_and_has_no_head(world) -> None:
+    url = ARCHIVE_GUEST.format(token=world.tokens["editor"])
+    _run_export(world.app, world.ws)
+
+    running = world.client.get(url)
+
+    assert (running.status_code, running.headers[CODE]) == (409, "export_running")
+    assert world.client.head(url).status_code == 405
+
+
+def test_download_all_holds_one_audio_slot_and_gives_it_back(world, one_stream_per_link) -> None:
+    token = world.tokens["editor"]
+    url = ARCHIVE_GUEST.format(token=token)
+    release = audio_slot(token)
+    assert release is not None
+
+    held = world.client.get(url)
+    release()
+    freed = world.client.get(url)
+    again = world.client.get(url)
+
+    assert (held.status_code, held.headers[CODE]) == (429, "rate_limited")
+    assert (freed.status_code, again.status_code) == (200, 200)
+
+
+def test_a_failed_archive_stream_gives_its_slot_back(
+    world, one_stream_per_link, monkeypatch
+) -> None:
+    token = world.tokens["editor"]
+    url = ARCHIVE_GUEST.format(token=token)
+    stem = sanitize_export_stem(world.ws.project.name)
+    (world.ws.project.export_dir() / f"{stem}.mp3").write_bytes(MP3)
+    real = export_files_routes.stored_zip_chunks
+
+    def failing(members):
+        chunks = real(members)
+        yield next(chunks)
+        raise ZipMemberChanged("changed")
+
+    monkeypatch.setattr(export_files_routes, "stored_zip_chunks", failing)
+    with pytest.raises(ZipMemberChanged):
+        world.client.get(url)
+    monkeypatch.setattr(export_files_routes, "stored_zip_chunks", real)
+
+    assert world.client.get(url).status_code == 200

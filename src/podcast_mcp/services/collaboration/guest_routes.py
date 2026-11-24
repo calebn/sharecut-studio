@@ -78,6 +78,7 @@ _ROUTES = (
     GuestRoute("export_status", "GET", "/api/review/{token}/daw/export/status", "read"),
     GuestRoute("export_files", "GET", "/api/review/{token}/daw/export/files", "read"),
     GuestRoute("export_file", "GET", "/api/review/{token}/daw/export/files/{file_id:path}", "read"),
+    GuestRoute("export_archive", "GET", "/api/review/{token}/daw/export/archive", "read"),
     GuestRoute("export_job_status", "GET", "/api/review/{token}/daw/export/jobs/{job_id}", "read"),
     GuestRoute(
         "export_job_events", "GET", "/api/review/{token}/daw/export/jobs/{job_id}/events", "read"
