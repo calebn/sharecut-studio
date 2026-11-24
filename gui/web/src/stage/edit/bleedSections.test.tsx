@@ -156,7 +156,6 @@ beforeEach(() => {
       },
     }),
     guestMode: null,
-    heldTrim: null,
     joinMutationInFlight: false,
     timelineDragging: false,
     rangeBusy: false,

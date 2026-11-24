@@ -32,7 +32,6 @@ export function useBleedSession(bleed: BleedTarget | null) {
           project: s.project,
           guestMode: s.guestMode,
           selection: s.selection,
-          heldTrim: s.heldTrim,
           joinMutationInFlight: s.joinMutationInFlight,
           rangeBusy: s.rangeBusy,
           timelineDragging: s.timelineDragging,

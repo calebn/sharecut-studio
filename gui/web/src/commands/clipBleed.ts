@@ -40,8 +40,6 @@ export function clipBleedDisabledReason(): string | undefined {
   const action = clipBleedSession.getSnapshot()?.action.state;
   if (action === "saving") return "Saving Restore choice…";
   if (action === "undoing") return "Undoing Restore choice…";
-  if (state.heldTrim !== null)
-    return "Finish or cancel the trim before restoring audio.";
   if (state.joinMutationInFlight) return "Wait for the join change to finish.";
   if (state.rangeBusy) return "Wait for the range edit to finish.";
   if (state.timelineDragging) return "Finish the drag before restoring audio.";
