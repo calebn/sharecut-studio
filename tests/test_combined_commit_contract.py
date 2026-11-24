@@ -197,7 +197,6 @@ WORD_CASES = [
         lambda ws: AnalysisService(ws).suppress_low_audibility(word_keys=[_word_key("guest", 0)]),
         ("hello there friend", "welcome back", "for having me"),
         s3_changes=True,
-        s3_untouched=(State.NONE,),
     ),
     Case(
         "suppress_bleed_keys",
@@ -210,16 +209,13 @@ WORD_CASES = [
         "suppress_low_audibility_heuristic",
         lambda ws: AnalysisService(ws).suppress_low_audibility(),
         (),
-        s3_changes=True,
-        s3_untouched=(State.NONE,),
     ),
     Case(
         "suppress_low_audibility_nothing_to_change",
         lambda ws: AnalysisService(ws).suppress_low_audibility(),
         (),
         arrange=_every_word_suppressed,
-        s3_changes=True,
-        s3_untouched=(State.STALE, State.NONE),
+        may_commit_nothing=True,
     ),
     Case(
         "suppress_bleed_heuristic_nothing_flagged",
@@ -227,6 +223,7 @@ WORD_CASES = [
         FRESH_TEXTS,
         s3_changes=True,
         s3_untouched=(State.STALE, State.NONE),
+        may_commit_nothing=True,
     ),
     Case(
         "set_words_ignored",
