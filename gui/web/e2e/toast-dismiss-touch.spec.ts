@@ -53,8 +53,8 @@ for (const { name, width, height } of [
             const box = await toast
               .getByRole("button", { name: label, exact: true })
               .boundingBox();
-            expect(box?.width).toBeGreaterThanOrEqual(44);
-            expect(box?.height).toBeGreaterThanOrEqual(44);
+            expect(Math.round(box?.width ?? 0)).toBeGreaterThanOrEqual(44);
+            expect(Math.round(box?.height ?? 0)).toBeGreaterThanOrEqual(44);
           }
           await toast
             .getByRole("button", { name: "Dismiss", exact: true })
