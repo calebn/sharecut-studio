@@ -3,10 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any, TypeVar
 
-from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.unsure_words import is_unsure_word
 from podcast_mcp.engines.lane_words import lane_transcript
-from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.models.words_revision import set_word, set_words
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
@@ -106,11 +104,8 @@ def correct_word(
     word_index: int,
     new_text: str,
     source_id: str | None = None,
-    *,
-    defaults: EffectiveConfig,
 ) -> None:
     correct_transcript_word(_require_transcript(project, track_id, source_id), word_index, new_text)
-    rebuild_combined(project, defaults=defaults)
 
 
 def correct_transcript_word(
@@ -139,8 +134,6 @@ def correct_phrase(
     end_word_index: int,
     new_text: str,
     source_id: str | None = None,
-    *,
-    defaults: EffectiveConfig,
 ) -> None:
     correct_transcript_phrase(
         _require_transcript(project, track_id, source_id),
@@ -148,7 +141,6 @@ def correct_phrase(
         end_word_index,
         new_text,
     )
-    rebuild_combined(project, defaults=defaults)
 
 
 def correct_transcript_phrase(
@@ -236,10 +228,8 @@ def set_word_suppressed(
     word_index: int,
     suppressed: bool,
     source_id: str | None = None,
-    *,
-    defaults: EffectiveConfig,
 ) -> dict:
-    """Toggle suppressed on one per-track word and rebuild combined transcript.
+    """Toggle suppressed on one per-track word.
 
     A direct call locks the word (#768): later reconcile passes leave it alone
     instead of recomputing audibility over the decision.
@@ -252,7 +242,6 @@ def set_word_suppressed(
         word_index,
         w.model_copy(update={"suppressed": bool(suppressed), "audibility_locked": True}),
     )
-    rebuild_combined(project, defaults=defaults)
     return {
         "track_id": track_id,
         "source_id": tr.source_id,
@@ -368,16 +357,9 @@ def verify_words(
     project: EpisodeProject,
     track_id: str,
     corrections: list[dict],
-    *,
-    defaults: EffectiveConfig,
 ) -> int:
     """Batch correct: each entry {word_index, text}."""
-    return apply_transcript_corrections(
-        project,
-        track_id,
-        words=corrections,
-        defaults=defaults,
-    )
+    return apply_transcript_corrections(project, track_id, words=corrections)
 
 
 def apply_transcript_corrections(
@@ -388,7 +370,6 @@ def apply_transcript_corrections(
     phrases: list[dict] | None = None,
     keep_evidence: bool = False,
     source_id: str | None = None,
-    defaults: EffectiveConfig,
 ) -> int:
     """Apply word and phrase fixes on one track in a single mutation.
 
@@ -430,6 +411,4 @@ def apply_transcript_corrections(
             keep_evidence=keep_evidence,
         )
         count += 1
-    if count:
-        rebuild_combined(project, defaults=defaults)
     return count

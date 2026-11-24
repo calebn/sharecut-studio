@@ -6,7 +6,6 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_replace import plan_transcript_replacement
 from podcast_mcp.mcp.tools.transcript import find_replace_transcript_tool
@@ -285,7 +284,7 @@ def test_manual_track_correction_retains_primary_source_scope(minimal_project):
     from podcast_mcp.edits.transcript_correct import correct_word
 
     project = _project(minimal_project)
-    correct_word(project, "host", 0, "Mira", defaults=load_defaults())
+    correct_word(project, "host", 0, "Mira")
     assert project.transcripts[0].words[0].text == "Mira"
     assert project.transcripts[1].words[0].text == "\u2018Ada\u2019"
 
