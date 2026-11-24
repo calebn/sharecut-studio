@@ -616,3 +616,150 @@ describe("EditActionBar against the timeline ruler", () => {
     expect(bar).not.toBeVisible();
   });
 });
+
+function Clearable({
+  form,
+  clear = true,
+}: {
+  form: "floating" | "dock";
+  clear?: boolean;
+}) {
+  const [root, setRoot] = useState<HTMLElement | null>(null);
+  return (
+    <div ref={setRoot} data-testid="stage-root">
+      <div className="lane-row" data-track-id={MIRA}>
+        <div className="lane-inner">
+          <div className="range-overlay" />
+        </div>
+      </div>
+      <div data-clip-id="a">
+        <button type="button" className="clip-hit">
+          Clip hit
+        </button>
+      </div>
+      <EditActionBar form={form} root={root} clear={clear} />
+    </div>
+  );
+}
+
+const CLEARABLE: [string, unknown][] = [
+  ["a clip", EDIT_SELECTIONS.clip],
+  ["a seam", EDIT_SELECTIONS.seam],
+  ["a track", { kind: "track", trackId: MIRA }],
+  ["a range", EDIT_SELECTIONS.rangeOnAllTracks],
+];
+
+describe("EditActionBar Clear selection", () => {
+  it.each(CLEARABLE)(
+    "shows one Clear after the verbs for %s on the floating bar",
+    (_name, selection) => {
+      host(selection);
+      render(<Clearable form="floating" />);
+      const bar = screen.getByRole("group", { name: "Selection actions" });
+      const buttons = within(bar).getAllByRole("button");
+      expect(
+        within(bar).getAllByRole("button", { name: "Clear selection" }),
+      ).toHaveLength(1);
+      expect(buttons.at(-1)).toHaveAccessibleName("Clear selection");
+    },
+  );
+
+  it.each(CLEARABLE)(
+    "shows one Clear after the verbs for %s on the dock",
+    (_name, selection) => {
+      host(selection);
+      render(<Clearable form="dock" />);
+      const bar = screen.getByRole("group", { name: "Edit actions" });
+      const clear = within(bar).getAllByRole("button", {
+        name: "Clear selection",
+      });
+      expect(clear).toHaveLength(1);
+      expect(within(bar).getAllByRole("button").at(-1)).toBe(clear[0]);
+      expect(clear[0]).toHaveTextContent("Clear");
+    },
+  );
+
+  it("shows none unless the host asks for it", () => {
+    host(EDIT_SELECTIONS.clip);
+    render(<Clearable form="floating" clear={false} />);
+    expect(
+      screen.queryByRole("button", { name: "Clear selection" }),
+    ).toBeNull();
+  });
+
+  it("clears the selection, the armed range and the cut hint with no document command and focuses the clip hit", async () => {
+    const send = vi.fn();
+    vi.stubGlobal("fetch", send);
+    host(EDIT_SELECTIONS.clip, {
+      rangeArmed: true,
+      afterCut: { words: "gone" } as never,
+    });
+    render(<Clearable form="floating" />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Clear selection" }),
+    );
+    await act(async () => {});
+    const s = useDawStore.getState();
+    expect(s.selection).toBeNull();
+    expect(s.afterCut).toBeNull();
+    expect(s.rangeArmed).toBe(false);
+    expect(send).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Clip hit" })).toHaveFocus();
+    vi.unstubAllGlobals();
+  });
+
+  it("closes the Inspector with the selection in one press", async () => {
+    host(EDIT_SELECTIONS.clip, { inspectorKey: "clip:a" });
+    useDawStore.getState().setInspectorOpen(true);
+    render(<Clearable form="floating" />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Clear selection" }),
+    );
+    await act(async () => {});
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(useDawStore.getState().inspectorKey).toBeNull();
+  });
+
+  it("puts focus on the bar's root for a range", async () => {
+    host(EDIT_SELECTIONS.rangeOnAllTracks, { rangeArmed: true });
+    render(<Clearable form="floating" />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Clear selection" }),
+    );
+    await act(async () => {});
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(useDawStore.getState().rangeArmed).toBe(false);
+    expect(screen.getByTestId("stage-root")).toHaveFocus();
+  });
+});
+
+describe("EditActionBar in the Inspector dock", () => {
+  it("shows Close and no Clear when the host wires onClose", async () => {
+    host(EDIT_SELECTIONS.clip);
+    const onClose = vi.fn();
+    render(
+      <EditActionBar
+        form="dock"
+        root={null}
+        inInspector
+        clear
+        onClose={onClose}
+      />,
+    );
+    const bar = screen.getByRole("group", { name: "Edit actions" });
+    expect(
+      within(bar).queryByRole("button", { name: "Clear selection" }),
+    ).toBeNull();
+    await userEvent.click(within(bar).getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows neither without onClose", () => {
+    host(EDIT_SELECTIONS.clip);
+    render(<EditActionBar form="dock" root={null} inInspector clear />);
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Clear selection" }),
+    ).toBeNull();
+  });
+});

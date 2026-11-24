@@ -7,6 +7,7 @@ import {
   registerCommand,
 } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import { makeRangeTarget } from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
 import {
   minimalProject,
@@ -14,7 +15,11 @@ import {
   sampleComment,
   sampleTrack,
 } from "../../test/fixtures";
-import { transcribeRun } from "../../test/scriptHostKit";
+import {
+  seedScript,
+  TWO_LANE_CLIPS,
+  transcribeRun,
+} from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
 import {
   takeAutoRoom,
@@ -542,5 +547,84 @@ describe("EditWorkspace Transcribe", () => {
     expect(transcribeButton()).toBeNull();
     expect(screen.getByText("Transcribing")).toBeInTheDocument();
     expect(screen.queryByText(/%/)).toBeNull();
+  });
+});
+
+describe("EditWorkspace Clear selection", () => {
+  const words = {
+    kind: "transcriptRange",
+    trackId: "host",
+    startWordIndex: 1,
+    endWordIndex: 2,
+  } as const;
+
+  function seeded(over: Record<string, unknown> = {}) {
+    seedScript({ project: { clips: TWO_LANE_CLIPS } });
+    useDawStore.setState({
+      stage: "edit",
+      scriptCollapsed: false,
+      scriptFocus: false,
+      editSurface: "lanes",
+      openSheet: null,
+      ...over,
+    });
+  }
+
+  const clears = () =>
+    screen.queryAllByRole("button", { name: "Clear selection" });
+  const inBar = (name: string) =>
+    clears().filter((button) => button.closest(`[aria-label="${name}"]`));
+
+  it("leaves a words selection to the Script header when the Script is shown", () => {
+    seeded();
+    render(<EditWorkspace />);
+    act(() => useDawStore.getState().setSelection(words));
+    expect(clears()).toHaveLength(1);
+    expect(inBar("Selection actions")).toHaveLength(0);
+    expect(inBar("Edit actions")).toHaveLength(0);
+  });
+
+  it("gives words on the phone Lanes surface a Clear in the dock", () => {
+    stubViewportShell("phone");
+    seeded();
+    render(<EditWorkspace />);
+    act(() => useDawStore.getState().setSelection(words));
+    expect(screen.queryByRole("region", { name: "Script" })).toBeNull();
+    expect(inBar("Edit actions")).toHaveLength(1);
+    expect(clears()).toHaveLength(1);
+  });
+
+  it("shows exactly one Clear for a cross-track range drawn as words", () => {
+    seeded();
+    render(<EditWorkspace />);
+    const project = useDawStore.getState().project;
+    const target = project
+      ? makeRangeTarget(project, [{ start: 10, end: 15.6 }], ["host", "guest"])
+      : null;
+    expect(target).not.toBeNull();
+    act(() =>
+      useDawStore.getState().setSelection({
+        kind: "range",
+        target: target as NonNullable<typeof target>,
+      }),
+    );
+    expect(clears()).toHaveLength(1);
+  });
+
+  it("puts Clear in the bar for a desktop range once the Script is collapsed", () => {
+    seeded({ scriptCollapsed: true });
+    render(<EditWorkspace />);
+    const project = useDawStore.getState().project;
+    const target = project
+      ? makeRangeTarget(project, [{ start: 10, end: 15.6 }], ["host", "guest"])
+      : null;
+    act(() =>
+      useDawStore.getState().setSelection({
+        kind: "range",
+        target: target as NonNullable<typeof target>,
+      }),
+    );
+    expect(inBar("Selection actions")).toHaveLength(1);
+    expect(clears()).toHaveLength(1);
   });
 });
