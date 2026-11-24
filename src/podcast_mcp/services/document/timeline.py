@@ -63,6 +63,7 @@ from podcast_mcp.services.document.bleed_inspection import (
 )
 from podcast_mcp.services.document.chapter_results import DeletedChapter, RemovedChapter
 from podcast_mcp.services.document.clip_fade import apply_clip_fade, apply_clips_fade
+from podcast_mcp.services.document.clip_fade_results import SetClipFadeResult
 from podcast_mcp.services.document.clip_gain import apply_clip_gain, apply_clips_gain
 from podcast_mcp.services.document.join_analysis import _JoinAnalysis
 from podcast_mcp.services.document.join_mode_results import SetClipJoinResult, SetJoinModeResult
@@ -253,8 +254,8 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         return restore_clip_bleed(self.ws, target)
 
     def _mutate_clips(
-        self, label: str, apply: Callable[[EpisodeProject], dict], *, operation: str, params: dict
-    ) -> Mapping[str, Any]:
+        self, label: str, apply: Callable[[EpisodeProject], T], *, operation: str, params: dict
+    ) -> T:
         return self.ws.mutate(
             f"before {label}", f"after {label}", apply, operation=operation, params=params
         )
@@ -268,18 +269,16 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         expected: ClipFadeBaseline | None = None,
         fade_in_curve: FadeCurve | None = None,
         fade_out_curve: FadeCurve | None = None,
-    ) -> dict:
-        return dict(
-            apply_clip_fade(
-                self.ws,
-                self._mutate_clips,
-                clip_id,
-                fade_in_ms,
-                fade_out_ms,
-                expected,
-                fade_in_curve,
-                fade_out_curve,
-            )
+    ) -> SetClipFadeResult:
+        return apply_clip_fade(
+            self.ws,
+            self._mutate_clips,
+            clip_id,
+            fade_in_ms,
+            fade_out_ms,
+            expected,
+            fade_in_curve,
+            fade_out_curve,
         )
 
     def set_clips_fade(self, fades: list[ClipFadeEdit]) -> Mapping[str, Any]:
