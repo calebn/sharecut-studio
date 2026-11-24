@@ -136,13 +136,17 @@ def _fade_curve(raw: str | None) -> FadeCurve | None:
 
 
 def set_clip_fade(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TimelineService(ws).set_clip_fade(
-        p["clip_id"],
-        int(p["fade_in_ms"]),
-        int(p["fade_out_ms"]),
-        expected=_FADE_BASELINE.validate_python(p["expected"]),
-        fade_in_curve=_fade_curve(p.get("fade_in_curve")),
-        fade_out_curve=_fade_curve(p.get("fade_out_curve")),
+    return (
+        TimelineService(ws)
+        .set_clip_fade(
+            p["clip_id"],
+            int(p["fade_in_ms"]),
+            int(p["fade_out_ms"]),
+            expected=_FADE_BASELINE.validate_python(p["expected"]),
+            fade_in_curve=_fade_curve(p.get("fade_in_curve")),
+            fade_out_curve=_fade_curve(p.get("fade_out_curve")),
+        )
+        .model_dump()
     )
 
 
