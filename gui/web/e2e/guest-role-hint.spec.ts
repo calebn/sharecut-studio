@@ -176,48 +176,9 @@ test.describe("a press on the first-visit role hint itself", () => {
     await withGuestLinks(browser, async (links) => {
       await withGuestPage(browser, NARROW_PHONE, async (guest) => {
         await firstVisit(guest, links.commenter, "commenter");
-        // Larger text makes the bubble tall enough to reach past the Script header into the transcript. Scroll the first word to the top of the transcript, and take the first text size where a word then lies under the bubble.
-        let fontPx = 0;
-        for (let px = 20; px <= 40; px += 1) {
-          await setRootFontSize(guest, px);
-          await guest.evaluate(() => {
-            const body = document.querySelector(".sys-script-body")!;
-            const first = document.querySelector(".sys-script-word")!;
-            body.scrollTop +=
-              first.getBoundingClientRect().top -
-              body.getBoundingClientRect().top;
-          });
-          await afterFrames(guest);
-          const reaches = await guest.evaluate((selector) => {
-            const nb = document
-              .querySelector(selector)!
-              .getBoundingClientRect();
-            return [...document.querySelectorAll(".sys-script-word")].some(
-              (word) => {
-                const b = word.getBoundingClientRect();
-                const x =
-                  (Math.max(b.left, nb.left) + Math.min(b.right, nb.right)) / 2;
-                const y =
-                  (Math.max(b.top, nb.top) + Math.min(b.bottom, nb.bottom)) / 2;
-                return (
-                  Math.min(b.bottom, nb.bottom) - Math.max(b.top, nb.top) >=
-                    4 &&
-                  document
-                    .elementsFromPoint(x, y)
-                    .some((el) => word.contains(el))
-                );
-              },
-            );
-          }, NOTE);
-          if (reaches) {
-            fontPx = px;
-            break;
-          }
-        }
-        expect(
-          fontPx,
-          "no root font size puts a word under the bubble",
-        ).toBeGreaterThan(0);
+        // Larger text lays the bubble over the first line, so there is a word to press under it. The Script header pushes line 1 down, so at 32 px its first word starts 6 px below the bubble and at 33 px 26 px of it lies under.
+        await setRootFontSize(guest, 33);
+        await afterFrames(guest);
         const spot = await guest.evaluate((selector) => {
           const note = document.querySelector<HTMLElement>(selector)!;
           const nb = note.getBoundingClientRect();
@@ -236,7 +197,6 @@ test.describe("a press on the first-visit role hint itself", () => {
             const stack = document.elementsFromPoint(x, y);
             const onNote = stack.findIndex((el) => note.contains(el));
             const onWord = stack.findIndex((el) => word.contains(el));
-            if (onWord < 0) continue;
             return { x, y, onNote, onWord };
           }
           return null;

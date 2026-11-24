@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerPrimaryEditingCommands } from "../../../commands/editing";
+import { makeRangeTarget } from "../../../edit/rangeSelection";
 import { useDawStore } from "../../../state/dawStore";
 import { seedScript, TWO_LANE_CLIPS } from "../../../test/scriptHostKit";
 import { ScriptHost } from "./ScriptHost";
@@ -86,5 +87,31 @@ describe("ScriptHost Escape order", () => {
     expect(useDawStore.getState().selection?.kind).toBe("range");
     await user.click(screen.getByRole("button", { name: "Clear selection" }));
     expect(useDawStore.getState().selection).toBeNull();
+    expect(document.activeElement).toHaveClass("sys-script-word");
+  });
+
+  it("shows Clear selection for a range drawn on the timeline over spoken words, and pressing it moves focus into the Script", async () => {
+    registerPrimaryEditingCommands();
+    seedScript({ project: { clips: TWO_LANE_CLIPS } });
+    const { project } = useDawStore.getState();
+    const range = project
+      ? makeRangeTarget(project, [{ start: 10, end: 14 }], ["host", "guest"])
+      : null;
+    expect(range).not.toBeNull();
+    const user = userEvent.setup();
+    render(
+      <>
+        <button type="button">Timeline</button>
+        <ScriptHost />
+      </>,
+    );
+    screen.getByRole("button", { name: "Timeline" }).focus();
+    act(() => {
+      if (range)
+        useDawStore.getState().setSelection({ kind: "range", target: range });
+    });
+    await user.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(document.activeElement).toHaveClass("sys-script-word");
   });
 });

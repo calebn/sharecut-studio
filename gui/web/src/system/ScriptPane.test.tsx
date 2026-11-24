@@ -754,6 +754,10 @@ describe("ScriptPane read only", () => {
     expect(
       screen.getByRole("button", { name: "Follow the playhead" }),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Read only · you can comment")).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "Script" }),
+    ).toHaveAccessibleDescription("");
   });
 
   it("keeps the header row on a phone for a link or a host that carries no guest label", () => {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { clearSelectionAction } from "../../stage/edit/script/clearSelectionAction";
+import { clearSelectionAction } from "../../stage/hosts/clearSelectionAction";
 import type { GuestScriptModel } from "../../stage/hosts/guestScript";
 import { Cover } from "../../system/Cover";
 import type { ScriptPaneReadingPosition } from "../../system/ScriptPane";
@@ -12,7 +12,6 @@ import type {
   ScriptSelection,
   WordsSelection,
 } from "../../system/scriptPieces";
-import { useStableCallback } from "../../utils/useStableCallback";
 import { GUEST_EMPTY_COPY } from "./guestLogic";
 import { type GuestReading, useGuestReading } from "./useGuestReading";
 
@@ -65,9 +64,6 @@ export function GuestScript({
     }),
     [reading, script, refreshing],
   );
-  const refocus = useStableCallback((head: number) => {
-    pane.current?.focusWord(head);
-  });
   const first =
     (typeof playing === "number" ? playing : playing?.[0]) ?? playheadWord;
   // A follower has no bookmark outside a hold: the next one starts afresh.
@@ -109,7 +105,7 @@ export function GuestScript({
           : undefined
       }
       headerAction={
-        onClearSelection ? clearSelectionAction(selection, refocus) : undefined
+        onClearSelection ? clearSelectionAction(selection, pane) : undefined
       }
       onClearSelection={onClearSelection}
       onSeek={(index) => {

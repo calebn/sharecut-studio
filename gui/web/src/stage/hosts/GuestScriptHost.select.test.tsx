@@ -180,13 +180,52 @@ describe("GuestScriptHost range selection", () => {
     ).toBeInTheDocument();
   });
 
-  it("a viewer has no Clear selection", () => {
+  it("a viewer shows no Clear selection and no selected words even when the store holds a selection", () => {
     as("view", VIEWER_CAPABILITIES);
+    useDawStore.getState().setSelection({
+      kind: "transcriptRange",
+      trackId: "host",
+      startWordIndex: 0,
+      endWordIndex: 3,
+    });
     render(<StoredGuestScriptHost />);
-    drag(0, 3);
+    expect(useDawStore.getState().selection).not.toBeNull();
+    expect(document.querySelector("[data-selected]")).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Clear selection" }),
     ).toBeNull();
+  });
+
+  it("Clear selection clears the selection and the after-cut focus, and leaves an armed range draft armed", async () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    render(<StoredGuestScriptHost />);
+    drag(0, 3);
+    act(() =>
+      useDawStore.setState({
+        rangeArmed: true,
+        afterCut: {
+          words: "back",
+          cutKeys: [],
+          from: { trackId: "host", sourceId: null, wordIndex: 1 },
+          head: null,
+          baseHead: null,
+          epoch: 1,
+          focused: false,
+          holdUntil: 0,
+          selected: null,
+          at: null,
+          startedAt: null,
+          direction: null,
+        },
+      }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Clear selection" }),
+    );
+    const state = useDawStore.getState();
+    expect(state.selection).toBeNull();
+    expect(state.afterCut).toBeNull();
+    expect(state.rangeArmed).toBe(true);
   });
 
   it("Escape clears the selection and a click on a word selects again", async () => {

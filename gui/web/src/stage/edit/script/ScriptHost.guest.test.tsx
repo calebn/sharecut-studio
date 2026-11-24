@@ -63,6 +63,27 @@ describe("ScriptHost guest matrix", () => {
     expect(await fixOpens()).toBe(false);
   });
 
+  it("shows a viewer no Clear selection for a selection the store already holds", () => {
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "view",
+      shareCapabilities: ["play", "view"],
+    });
+    useDawStore.getState().setSelection({
+      kind: "transcriptRange",
+      trackId: "host",
+      startWordIndex: 1,
+      endWordIndex: 2,
+    });
+    render(<ScriptHost />);
+    expect(
+      document.querySelectorAll("[data-selected].sys-script-word"),
+    ).toHaveLength(2);
+    expect(
+      screen.queryByRole("button", { name: "Clear selection" }),
+    ).toBeNull();
+  });
+
   it("lets a commenter select and find, but not fix or replace", async () => {
     seedScript({
       projectPath: "share:abc",

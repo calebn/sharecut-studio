@@ -12,7 +12,7 @@ import type {
 } from "../../../system/scriptPieces";
 import { useCoachTip } from "../../../system/useCoachTip";
 import { useStableCallback } from "../../../utils/useStableCallback";
-import { clearSelectionAction } from "./clearSelectionAction";
+import { clearSelectionAction } from "../../hosts/clearSelectionAction";
 import { scriptGuestOf } from "./scriptGuest";
 import { useScriptCarets } from "./useScriptCarets";
 import { useScriptFind } from "./useScriptFind";
@@ -157,9 +157,6 @@ export function ScriptHost({
   };
   useEffect(() => playheadScrollRegistry.register("script", backToPlayhead));
 
-  const refocus = useStableCallback((head: number) => {
-    if (!pane.current?.focusWord(head)) pane.current?.focusFind();
-  });
   const phone =
     (layoutProp ?? (breakpoint === "phone" ? "phone" : "desktop")) === "phone";
   const mayReplace = mayFix && ready && loading !== true;
@@ -187,8 +184,8 @@ export function ScriptHost({
         guest={scriptGuestOf(projectPath, guestMode, mode)}
         unsureCount={unsure.length}
         headerAction={
-          fix.editing === null
-            ? clearSelectionAction(selection.selection, refocus)
+          fix.editing === null && mode !== "none"
+            ? clearSelectionAction(selection.selection, pane)
             : undefined
         }
         findBar={
