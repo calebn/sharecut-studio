@@ -497,10 +497,7 @@ def read_tunnel_status(
 def status_file_is_live(
     path: Path, *, now: float | None = None, pid_alive: Callable[[int], bool] = pid_is_alive
 ) -> bool:
-    """Whether ``path`` holds a tunnel that guests can reach or that is trying to connect.
-
-    Reads through ``_RULES`` like the status route, and never prunes.
-    """
+    """Judged through ``_RULES`` like the status route, but never prunes."""
     entry = _load_entry(path)
     if entry is None:
         return False

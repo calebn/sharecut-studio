@@ -18,11 +18,7 @@ from podcast_relay.app import create_relay_app
 def live_relay(
     monkeypatch: pytest.MonkeyPatch, *, host_token: str = "secret", app: FastAPI | None = None
 ) -> Iterator[str]:
-    """Run relay on a real uvicorn port.
-
-    Nested guest+tunnel WebSockets deadlock under Starlette TestClient's single
-    portal; live uvicorn is required for bidirectional bridge coverage.
-    """
+    """Nested guest+tunnel WebSockets deadlock under Starlette TestClient's single portal."""
     monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", host_token)
     app = app if app is not None else create_relay_app()
     with socket.socket() as sock:

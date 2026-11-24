@@ -227,7 +227,6 @@ def list_usable_shares(project: EpisodeProject) -> list[dict[str, Any]]:
 
 
 def usable_share_tokens(workspace: Path) -> frozenset[str]:
-    """Tokens of the shares guests may still use in ``workspace``: the rows ``list_usable_shares`` returns."""
     return frozenset(
         str(row["token"])
         for row in list_shares_for_workspace(workspace)

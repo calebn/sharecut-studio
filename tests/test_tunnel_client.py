@@ -1068,14 +1068,7 @@ async def test_proxy_ws_forwards_query_to_local_gui(path, query, token, expected
     assert connect.call_args.args[0] == expected
 
 
-# ---------------------------------------------------------------------------
-# TunnelClient.readvertise
-# ---------------------------------------------------------------------------
-
-
 class _LiveRelayWs:
-    """A relay socket that acks hello and register, then stays open until cancelled."""
-
     def __init__(self) -> None:
         self.sent: list[dict[str, Any]] = []
         self._inbox: asyncio.Queue[str] = asyncio.Queue()
