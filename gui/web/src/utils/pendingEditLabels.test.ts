@@ -152,6 +152,40 @@ describe("pendingRetimeRefusal", () => {
   });
 
   it.each([
+    [
+      "cut_scope_changed",
+      409,
+      "The range changed after this suggestion was made, so it needs review again and the edge is back where it was.",
+    ],
+  ])("says the scope changed for %s", (code, status, sentence) => {
+    const said = pendingRetimeRefusal(
+      new ApiError("RAW server text", code, status),
+      "end",
+    );
+    expect(said).toBe(sentence);
+    expect(said).not.toContain("RAW");
+    expect(said).not.toContain("pick a different range");
+  });
+
+  it.each([
+    [401, null],
+    [403, null],
+    [403, "forbidden"],
+    [404, "share_not_found"],
+  ])("names a lost permission for status %s code %s", (status, code) => {
+    const said = pendingRetimeRefusal(new ApiError("RAW", code, status), "end");
+    expect(said).toBe(
+      "You can no longer change this edit, so nothing was saved and the edge is back where it was. Sign in again or ask the host for access.",
+    );
+  });
+
+  it("does not call an ordinary 404 a lost permission", () => {
+    expect(pendingRetimeRefusal(new ApiError("x", null, 404), "end")).toBe(
+      generic("end"),
+    );
+  });
+
+  it.each([
     ["project_version_newer", 400, "newer version of the app"],
     ["project_version_unsupported", 400, "can't edit this project's version"],
     ["project_not_found", 404, "project file is missing"],

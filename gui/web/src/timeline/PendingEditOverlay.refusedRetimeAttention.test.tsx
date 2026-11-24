@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import { resetDocumentAuthority } from "../document/authorityState";
+import { ATTENTION_POLL_MS } from "../services/offlineQueue/offlineAttention";
 import { loadHostConflicts } from "../services/offlineQueue/offlineStore";
 import { OfflineAttentionAnnouncer } from "../stage/frame/OfflineAttentionAnnouncer";
 import { StatusLive } from "../stage/frame/StatusLive";
@@ -18,10 +19,53 @@ import { PendingEditOverlay } from "./PendingEditOverlay";
 
 // Only the browser's key-value storage is replaced (in memory); the offline
 // store, the command queue and the Needs-attention announcer are the real ones.
+// `openDb` is a small in-memory IndexedDB shim, so the real queue writes and
+// reads its rows and `loadHostConflicts` is a true check. `reads` counts the
+// store reads: the announcer's own poll is what advances it.
 const kv = vi.hoisted(() => new Map<string, unknown>());
+const reads = vi.hoisted(() => ({ count: 0 }));
 vi.mock("../state/idbKv", () => ({
   STORE: "kv",
-  openDb: async () => undefined,
+  openDb: async () => ({
+    close() {},
+    transaction() {
+      const tx: {
+        oncomplete?: () => void;
+        onabort?: () => void;
+        objectStore?: unknown;
+        abort?: () => void;
+      } = {};
+      let outstanding = 0;
+      const settle = () =>
+        setTimeout(() => {
+          if (outstanding === 0) tx.oncomplete?.();
+        }, 0);
+      tx.objectStore = () => ({
+        get(key: string) {
+          const request: { result?: unknown; onsuccess?: () => void } = {};
+          outstanding++;
+          setTimeout(() => {
+            reads.count++;
+            request.result = structuredClone(kv.get(key));
+            request.onsuccess?.();
+            outstanding--;
+            settle();
+          }, 0);
+          return request;
+        },
+        put(value: unknown, key: string) {
+          kv.set(key, structuredClone(value));
+          settle();
+        },
+        delete(key: string) {
+          kv.delete(key);
+          settle();
+        },
+      });
+      tx.abort = () => tx.onabort?.();
+      return tx;
+    },
+  }),
   idbGet: async (key: string) => structuredClone(kv.get(key)),
   idbSet: async (key: string, value: unknown) => {
     kv.set(key, structuredClone(value));
@@ -117,6 +161,7 @@ function mountAll() {
 describe("a refused edge-drag save with the real offline queue (#4373)", () => {
   beforeEach(() => {
     kv.clear();
+    reads.count = 0;
     // The real store only admits a command when IndexedDB exists; kv above backs it.
     vi.stubGlobal("indexedDB", {});
     HTMLElement.prototype.setPointerCapture = vi.fn();
@@ -143,9 +188,14 @@ describe("a refused edge-drag save with the real offline queue (#4373)", () => {
       expect(useDawStore.getState().pendingRetimeInFlight).toBeNull(),
     );
     expect(screen.getByRole("status").textContent).toBe(SENTENCE);
-    // Past the attention poll interval (2 s): nothing may replace the sentence.
+    // Wait for the announcer's own next poll (its store read advances the
+    // counter), then let that read land: nothing may replace the sentence.
+    const readsAtSettle = reads.count;
+    await waitFor(() => expect(reads.count).toBeGreaterThan(readsAtSettle), {
+      timeout: ATTENTION_POLL_MS + 1000,
+    });
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 2300));
+      await new Promise((resolve) => setTimeout(resolve, 50));
     });
     expect(await loadHostConflicts(path)).toEqual([]);
     expect(screen.getByRole("status").textContent).toBe(SENTENCE);

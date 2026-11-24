@@ -1,7 +1,12 @@
 /** Plain-language names for a pending edit's type and reason code. */
 
 import type { PendingEditView, PendingKind, TrackView } from "../types/project";
-import { ApiError, isPermanentRejection } from "./apiError";
+import {
+  ApiError,
+  CUT_SCOPE_CHANGED_CODE,
+  isDeadLinkAnswer,
+  isPermanentRejection,
+} from "./apiError";
 import { knownPendingKind, markerLabel } from "./editMarkerRegistry";
 import { capitalize } from "./format";
 import { isTightenClass, type TightenClass } from "./tightenHits";
@@ -114,7 +119,14 @@ export function pendingRetimeRefusal(
       return "The project file is damaged, so nothing was saved and the edge is back where it was.";
   }
   if (!isPermanentRejection(error)) return unsavedRetime(edge);
+  const status = error instanceof ApiError ? error.status : null;
+  // A revoked or expired share, or a sign-in that lapsed: retrying the same edge cannot help.
+  if (status === 401 || status === 403 || isDeadLinkAnswer(status, code)) {
+    return "You can no longer change this edit, so nothing was saved and the edge is back where it was. Sign in again or ask the host for access.";
+  }
   switch (code) {
+    case CUT_SCOPE_CHANGED_CODE:
+      return "The range changed after this suggestion was made, so it needs review again and the edge is back where it was.";
     case "exact_range_locked":
       return "This range is exact and can't be moved by its edges. Select the range again.";
     case "edit_not_found":
