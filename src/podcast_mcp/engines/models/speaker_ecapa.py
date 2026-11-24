@@ -27,6 +27,7 @@ from podcast_mcp.engines.onnx_session import (
 )
 from podcast_mcp.util.asset_sources import (
     OnProgress,
+    OwnerCdnUnsetError,
     asset_entry,
     download_first_ok,
     ordered_http_urls,
@@ -39,6 +40,7 @@ logger = logging.getLogger(__name__)
 SPEAKER_ECAPA_ASSET = "speaker-ecapa"
 SPEAKER_ECAPA_ENV = "PODCAST_MCP_SPEAKER_ECAPA_MODEL"
 SPEAKER_ECAPA_BOOTSTRAP = "podcast bootstrap --component speaker-ecapa"
+SPEAKER_ECAPA_DOCS = "docs/setup.md#speaker-model"
 SPEAKER_ECAPA_LABEL = "Speaker recognition (ECAPA, ONNX)"
 SPEAKER_ECAPA_SIZE = "~80 MB"
 # The byte count behind the size text, approximate: the pin records the digest only.
@@ -57,6 +59,15 @@ class SpeakerEcapaMissingError(RuntimeError):
 
 class SpeakerEcapaOverrideError(SpeakerEcapaMissingError, OnnxOverrideUnsupportedError):
     pass
+
+
+def _no_source_message() -> str:
+    return (
+        f"{SPEAKER_ECAPA_ASSET} has no download source in this build. Official builds embed the "
+        f"owner CDN; a source or fork build must set {SPEAKER_ECAPA_ENV}=/path/model.onnx (not "
+        "pin-checked), or PODCAST_OWNER_CDN_BASE / PODCAST_BOOTSTRAP_CDN_BASE to a host you "
+        f"control that serves the pinned sha256. See {SPEAKER_ECAPA_DOCS}."
+    )
 
 
 def _pin() -> tuple[str, str]:
@@ -102,7 +113,10 @@ def speaker_ecapa_problem(*, memoize: bool = False) -> str | None:
                 f"file set in {SPEAKER_ECAPA_ENV} is missing; point it at a working ONNX file "
                 "or unset it before downloading the pinned model"
             )
-        return f"not downloaded; run {SPEAKER_ECAPA_BOOTSTRAP}"
+        hint = f"not downloaded; run {SPEAKER_ECAPA_BOOTSTRAP}"
+        if not ordered_http_urls(SPEAKER_ECAPA_ASSET, relative_path=path.name):
+            hint += f" (this build has no download source; see {SPEAKER_ECAPA_DOCS})"
+        return hint
     if speaker_ecapa_override() is not None:
         return None
     _, expected = _pin()
@@ -124,6 +138,8 @@ def bootstrap_speaker_ecapa(
     if not force and speaker_ecapa_problem() is None:
         return {"ok": True, "skipped": True, "reason": "cached", "path": str(path)}
     urls = ordered_http_urls(SPEAKER_ECAPA_ASSET, relative_path=filename)
+    if not urls:
+        raise OwnerCdnUnsetError(_no_source_message())
     source = download_first_ok(urls, path, expected_sha256=expected, on_progress=on_progress)
     return {"ok": True, "path": str(path), "source": source}
 

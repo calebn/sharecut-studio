@@ -354,6 +354,15 @@ def _isolate_relay_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
 
 
 @pytest.fixture(autouse=True)
+def _no_owner_cdn_base(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A test sees a source build (no owner CDN base) unless it sets one itself."""
+    from podcast_mcp.util import owner_cdn
+
+    monkeypatch.delenv("PODCAST_OWNER_CDN_BASE", raising=False)
+    monkeypatch.setattr(owner_cdn, "contracts_dir", lambda: tmp_path / "no-contracts")
+
+
+@pytest.fixture(autouse=True)
 def _no_object_store_cors_probe(monkeypatch: pytest.MonkeyPatch) -> None:
     """The guest CORS probe never touches the network from a test; it answers "unknown"."""
     from podcast_mcp.services.media import object_store_cors
