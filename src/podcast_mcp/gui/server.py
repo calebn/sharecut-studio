@@ -16,6 +16,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from filelock import Timeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES
 from starlette.responses import Response
 
 from podcast_mcp import __version__, settings
@@ -343,7 +344,11 @@ def create_app(
         allow_headers=["*"],
         expose_headers=[ERROR_CODE_HEADER, "Retry-After", *PENDING_PREVIEW_HEADER_NAMES],
     )
-    app.add_middleware(GZipMiddleware, minimum_size=500)
+    app.add_middleware(
+        GZipMiddleware,
+        minimum_size=500,
+        exclude_content_types=(*DEFAULT_EXCLUDED_CONTENT_TYPES, "application/zip"),
+    )
     app.add_middleware(MaxBodySizeMiddleware, limit=gui_max_body_bytes())
     app.add_middleware(HostOriginBindingMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
