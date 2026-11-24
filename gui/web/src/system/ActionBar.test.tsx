@@ -330,7 +330,7 @@ describe("ActionBar floating", () => {
           form: "floating",
           anchorRef: { current: anchor },
           exclusion: {
-            ref: { current: header },
+            elements: () => [header],
             withinRef: { current: content },
           },
         }}

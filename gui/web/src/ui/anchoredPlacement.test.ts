@@ -30,13 +30,13 @@ describe("placeAnchoredExcluding", () => {
   it("preserves ordinary placement exactly when the header is clear", () => {
     const lowerWord = { ...word, top: 300, bottom: 324 };
     expect(
-      placeAnchoredExcluding(lowerWord, bar, view, header, bounds, opts),
+      placeAnchoredExcluding(lowerWord, bar, view, [header], bounds, opts),
     ).toEqual(placeAnchored(lowerWord, bar, view, opts));
   });
 
   it("keeps a first-line bar above the word and left of its header", () => {
     expect(
-      placeAnchoredExcluding(word, bar, view, header, bounds, opts),
+      placeAnchoredExcluding(word, bar, view, [header], bounds, opts),
     ).toMatchObject({
       left: 532,
       top: 64,
@@ -50,7 +50,7 @@ describe("placeAnchoredExcluding", () => {
         { ...word, left: 100, right: 160 },
         bar,
         view,
-        { ...header, left: 0, right: 400 },
+        [{ ...header, left: 0, right: 400 }],
         bounds,
         opts,
       ),
@@ -63,7 +63,7 @@ describe("placeAnchoredExcluding", () => {
         { ...word, left: 610, right: 670 },
         bar,
         view,
-        { ...header, left: 480, right: 800 },
+        [{ ...header, left: 480, right: 800 }],
         bounds,
         opts,
       ),
@@ -76,7 +76,7 @@ describe("placeAnchoredExcluding", () => {
         { ...word, top: 350, bottom: 374 },
         bar,
         view,
-        { left: 0, top: 300, right: 1280, bottom: 340 },
+        [{ left: 0, top: 300, right: 1280, bottom: 340 }],
         bounds,
         opts,
       ),
@@ -89,7 +89,7 @@ describe("placeAnchoredExcluding", () => {
         word,
         bar,
         view,
-        { ...header, left: 0, top: 0 },
+        [{ ...header, left: 0, top: 0 }],
         bounds,
         opts,
       ),
@@ -102,7 +102,7 @@ describe("placeAnchoredExcluding", () => {
         word,
         bar,
         view,
-        { left: 0, top: 0, right: 1280, bottom: 180 },
+        [{ left: 0, top: 0, right: 1280, bottom: 180 }],
         bounds,
         opts,
       ),
@@ -115,7 +115,7 @@ describe("placeAnchoredExcluding", () => {
         { left: 1080, top: 170, right: 1140, bottom: 194 },
         bar,
         { left: 200, top: 50, width: 1000, height: 600 },
-        { left: 900, top: 100, right: 1200, bottom: 160 },
+        [{ left: 900, top: 100, right: 1200, bottom: 160 }],
         bounds,
         opts,
       ),
@@ -128,7 +128,7 @@ describe("placeAnchoredExcluding", () => {
         word,
         bar,
         view,
-        { left: 0, top: 80, right: 1280, bottom: 104 },
+        [{ left: 0, top: 80, right: 1280, bottom: 104 }],
         { left: 0, top: 48, right: 1280, bottom: 640 },
         opts,
       ),
@@ -376,7 +376,7 @@ describe("placeAnchoredExcluding around several rectangles", () => {
   });
 
   it("keeps the normal placement when no position clears the whole set", () => {
-    const wall = { left: 0, top: 160, right: 844, bottom: 530 };
+    const wall = { left: 0, top: 0, right: 844, bottom: 530 };
     expect(
       placeAnchoredExcluding(clip, bar, view, [wall], within, opts),
     ).toEqual(placeAnchored(clip, bar, view, opts));

@@ -59,11 +59,7 @@ export function CommentPopover({
   );
   const exclusion = useMemo<AnchorExclusion>(
     () => ({
-      ref: {
-        get current() {
-          return root?.querySelector<HTMLElement>(FLOATING_BAR) ?? null;
-        },
-      },
+      elements: () => [root?.querySelector(FLOATING_BAR)],
       withinRef: { current: root },
     }),
     [root],

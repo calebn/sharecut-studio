@@ -66,7 +66,7 @@ export type InspectorCardProps = InspectorBase & {
   anchor: InspectorRect;
   bounds: InspectorBounds;
   /** Chrome to keep uncovered, in the same coordinates as the anchor. */
-  keepClear?: InspectorRect;
+  keepClear?: readonly InspectorRect[];
 };
 
 export type InspectorPhoneProps = InspectorBase & {

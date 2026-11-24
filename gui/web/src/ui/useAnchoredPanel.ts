@@ -1,6 +1,7 @@
 import { type RefObject, useLayoutEffect } from "react";
 import { useStableCallback } from "../utils/useStableCallback";
 import {
+  areaRects,
   inlineSizeCaps,
   placeAnchored,
   placeAnchoredExcluding,
@@ -9,7 +10,7 @@ import {
 import { useResizeObserver } from "./useResizeObserver";
 
 export type AnchorExclusion = {
-  ref: RefObject<HTMLElement | null>;
+  elements: () => readonly (Element | null | undefined)[];
   withinRef: RefObject<HTMLElement | null>;
 };
 
@@ -47,7 +48,7 @@ export function useAnchoredPanel(
 ): void {
   const anchorRef = anchor?.ref;
   const avoidRef = anchor?.avoidRef;
-  const excludeRef = anchor?.exclusion?.ref;
+  const exclusion = anchor?.exclusion;
   const withinRef = anchor?.exclusion?.withinRef;
   const moves = anchor?.moves;
   const prefer = anchor?.prefer;
@@ -78,24 +79,20 @@ export function useAnchoredPanel(
       prefer,
       clearTop: clearTop?.(),
     } as const;
-    const excludedEl = excludeRef?.current;
+    const excluded = areaRects(exclusion?.elements() ?? []);
     const withinEl = withinRef?.current;
+    const viewport = visualViewportBox(avoidRef?.current ?? null);
     const placed =
-      excludedEl && withinEl
+      excluded.length > 0 && withinEl
         ? placeAnchoredExcluding(
             anchorRect,
             size,
-            visualViewportBox(avoidRef?.current ?? null),
-            excludedEl.getBoundingClientRect(),
+            viewport,
+            excluded,
             withinEl.getBoundingClientRect(),
             options,
           )
-        : placeAnchored(
-            anchorRect,
-            size,
-            visualViewportBox(avoidRef?.current ?? null),
-            options,
-          );
+        : placeAnchored(anchorRect, size, viewport, options);
     panel.style.left = `${placed.left}px`;
     panel.style.top = `${placed.top}px`;
     panel.style.visibility = placed.covered ? "hidden" : "";
@@ -124,9 +121,13 @@ export function useAnchoredPanel(
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", onScroll, true);
     };
-  }, [active, moves, place, excludeRef, withinRef, panelRef]);
+  }, [active, moves, place, withinRef, panelRef]);
   useResizeObserver(panelRef, place, active);
   useResizeObserver(avoidRef, place, active);
-  useResizeObserver(excludeRef, place, active);
+  useResizeObserver(
+    () => exclusion?.elements().filter((el) => el != null),
+    place,
+    active,
+  );
   useResizeObserver(withinRef, place, active);
 }
