@@ -77,9 +77,12 @@ two ways. Against the CLI it reads the CLI's status file and yields while that f
 live; the CLI takes no lock and is unchanged, so a CLI started after Studio evicts it
 once and Studio stops within a tick. Between two Studios it holds a non-blocking
 `filelock` on `<key>-studio.lock` while serving, so the incumbent keeps serving and the
-other reads `elsewhere`; the OS frees the lock if Studio crashes.
+other reads `elsewhere`; the OS frees the lock if Studio crashes. The lock is released
+when the client task ends, not when the stop wait times out (5 s), so a client slow to
+close its socket still keeps a second one from starting.
 
-Quitting stops the tunnel from uvicorn's `handle_exit`, before the server waits on open
+Quitting stops the tunnel from uvicorn's `handle_exit` (`request_stop` ends the supervisor
+loop, whose `finally` cancels the client and waits for it), before the server waits on open
 connections, because a guest stream the tunnel proxies back to this GUI is one of them.
 A mint while online sharing is not set up still succeeds, and its response carries
 `warnings: [{"code": "online_sharing_not_set_up", "message": ...}]`. The web shows it as a
