@@ -17,6 +17,8 @@ import pytest
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import cut_application, cut_proof, cut_safety, verdict_cache
 from podcast_mcp.edits.cut_application import apply_prefix_edits, approve_edits, precompute_verdicts
+from podcast_mcp.edits.cut_placement import CutScopeHold
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.engines import track_evidence
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_track_rms_caches
 from podcast_mcp.engines.level_profile import LevelProfile
@@ -1295,3 +1297,40 @@ def test_a_gated_lane_stamp_may_probe_but_a_second_stamp_finds_the_probe_cached(
 
     assert first == second
     assert len(spawned) == after_first  # a probe made once is not made again
+
+
+def _held_with_fade(tmp_path: Path, fade_ms: int) -> list[dict]:
+    project = _project(tmp_path)
+    project.edit_decisions = [e for e in project.edit_decisions if e.start in (43.0, 44.5)]
+    clips = {c.id: c for c in project.clips}
+    clips["host1"].source_end = 51.5
+    clips["host2"].source_start = clips["host2"].timeline_start = 51.5
+    clips["host1"].fade_out_ms = fade_ms
+    return _approve(project)["held"]
+
+
+def test_a_held_cut_names_the_long_fade_that_reaches_it(tmp_path: Path) -> None:
+    held = _held_with_fade(tmp_path, 6000)
+    assert held, "the fixture must hold the cuts near a long fade"
+    assert all("a 6 s fade runs near the cut" in h["reason"] for h in held)
+
+
+def test_a_held_cut_with_a_short_fade_does_not_mention_a_fade(tmp_path: Path) -> None:
+    held = _held_with_fade(tmp_path, 20)
+    assert all("fade" not in h["reason"] for h in held)
+
+
+def test_the_hold_reason_still_leads_with_the_checks_that_failed(tmp_path: Path) -> None:
+    held = _held_with_fade(tmp_path, 6000)
+    assert all("interior speech" in h["reason"] and h["code"] for h in held)
+
+
+def test_the_fade_note_survives_for_delivery_and_a_bare_acoustic_edge_hold() -> None:
+    hold = CutScopeHold("e1", (), "acoustic_edge")
+    error = ScopeChangedAtApproval([hold], {}, {"e1": "a cut"}, {"e1": 6.0})
+    expected = "the held edges need audio review (a 6 s fade runs near the cut)"
+    assert error.reason_for(hold) == expected
+    for delivery in ("saved", "suggested"):
+        rebuilt = error.for_delivery(delivery)
+        assert rebuilt.fades == {"e1": 6.0}
+        assert rebuilt.reason_for(hold) == expected
