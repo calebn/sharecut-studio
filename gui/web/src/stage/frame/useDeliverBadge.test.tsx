@@ -27,7 +27,7 @@ const file = (kind: string, current: boolean) => ({
 
 beforeEach(() => {
   listed.list.mockReset();
-  listed.list.mockResolvedValue([]);
+  listed.list.mockResolvedValue({ files: [], archive: null });
   flow.current = { run: { kind: "idle" } } as ExportFlow;
   useDawStore.setState({
     projectPath: "/tmp/ep/episode.sharecut",
@@ -44,19 +44,28 @@ describe("useDeliverBadge", () => {
   });
 
   it("checks the tab while an audio file is current", async () => {
-    listed.list.mockResolvedValue([file("audio", true), file("feed", false)]);
+    listed.list.mockResolvedValue({
+      files: [file("audio", true), file("feed", false)],
+      archive: null,
+    });
     const { result } = renderHook(() => useDeliverBadge());
     await waitFor(() => expect(result.current).toEqual({ kind: "done" }));
   });
 
   it("shows a dot when every audio file is older than the latest edit", async () => {
-    listed.list.mockResolvedValue([file("audio", false), file("feed", true)]);
+    listed.list.mockResolvedValue({
+      files: [file("audio", false), file("feed", true)],
+      archive: null,
+    });
     const { result } = renderHook(() => useDeliverBadge());
     await waitFor(() => expect(result.current).toEqual({ kind: "needs-you" }));
   });
 
   it("ignores transcripts and feeds with no audio file beside them", async () => {
-    listed.list.mockResolvedValue([file("transcript", true)]);
+    listed.list.mockResolvedValue({
+      files: [file("transcript", true)],
+      archive: null,
+    });
     const { result } = renderHook(() => useDeliverBadge());
     await waitFor(() => expect(listed.list).toHaveBeenCalled());
     expect(result.current).toBeUndefined();
@@ -99,7 +108,10 @@ describe("useDeliverBadge", () => {
   });
 
   it("keeps the badge while the next listing loads", async () => {
-    listed.list.mockResolvedValueOnce([file("audio", true)]);
+    listed.list.mockResolvedValueOnce({
+      files: [file("audio", true)],
+      archive: null,
+    });
     const { result } = renderHook(() => useDeliverBadge());
     await waitFor(() => expect(result.current).toEqual({ kind: "done" }));
     listed.list.mockReturnValueOnce(new Promise(() => {}));

@@ -95,7 +95,9 @@ beforeEach(() => {
   clearRegisteredCommands();
   registerDawCommands();
   vi.mocked(api.exportTranscript).mockReset().mockResolvedValue(dryRun);
-  vi.mocked(api.listExportedFiles).mockReset().mockResolvedValue([]);
+  vi.mocked(api.listExportedFiles)
+    .mockReset()
+    .mockResolvedValue({ files: [], archive: null });
 });
 
 afterEach(() => {

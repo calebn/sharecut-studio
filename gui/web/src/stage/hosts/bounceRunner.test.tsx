@@ -164,26 +164,29 @@ describe("BounceRunnerProvider", () => {
 
   it("offers Download in a browser and clicks one ticketed link per file", async () => {
     vi.spyOn(deliverFiles, "hostFileAccess").mockReturnValue("download");
-    vi.mocked(listExportedFiles).mockResolvedValue([
-      {
-        id: "bounces/mix.wav",
-        name: "mix.wav",
-        kind: "bounce",
-        label: "Unmastered export",
-        bytes: 1,
-        current: true,
-        ticket: "t1",
-      },
-      {
-        id: "bounces/mix.mp3",
-        name: "mix.mp3",
-        kind: "bounce",
-        label: "Unmastered export",
-        bytes: 1,
-        current: true,
-        ticket: "t2",
-      },
-    ]);
+    vi.mocked(listExportedFiles).mockResolvedValue({
+      files: [
+        {
+          id: "bounces/mix.wav",
+          name: "mix.wav",
+          kind: "bounce",
+          label: "Unmastered export",
+          bytes: 1,
+          current: true,
+          ticket: "t1",
+        },
+        {
+          id: "bounces/mix.mp3",
+          name: "mix.mp3",
+          kind: "bounce",
+          label: "Unmastered export",
+          bytes: 1,
+          current: true,
+          ticket: "t2",
+        },
+      ],
+      archive: null,
+    });
     const clicked: string[] = [];
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, "click")

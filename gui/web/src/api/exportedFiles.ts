@@ -30,6 +30,21 @@ export type ExportedFileEntry = {
   ticket?: string;
 };
 
+/** Everything the current files of an export pack into: counts and bytes, never a path. */
+export type ExportArchiveEntry = {
+  name: string;
+  count: number;
+  /** The exact length of the download. */
+  bytes: number;
+  /** Host listing only: a short-lived signed ticket that downloads the archive as listed. */
+  ticket?: string;
+};
+
+export type ExportedInventory = {
+  files: ExportedFileEntry[];
+  archive: ExportArchiveEntry | null;
+};
+
 /** A share key reaches the files through the review routes; a project path through the host's. */
 function keyOf(projectPath: string): string {
   return shareTokenFromKey(projectPath) === null ? HOST_KEY : projectPath;
@@ -38,10 +53,20 @@ function keyOf(projectPath: string): string {
 const encodeId = (id: string) =>
   id.split("/").map(encodeURIComponent).join("/");
 
+const UNREADABLE = "The exported files list was not readable.";
+
+function inventoryOf(body: {
+  files?: ExportedFileEntry[];
+  archive?: ExportArchiveEntry | null;
+}): ExportedInventory | null {
+  if (!Array.isArray(body.files)) return null;
+  return { files: body.files, archive: body.archive ?? null };
+}
+
 export async function listExportedFiles(
   projectPath: string,
   signal?: AbortSignal,
-): Promise<ExportedFileEntry[]> {
+): Promise<ExportedInventory> {
   const res = await apiFetch(
     keyOf(projectPath),
     {
@@ -50,19 +75,18 @@ export async function listExportedFiles(
     },
     { signal },
   );
-  const body = (await res.json()) as { files?: ExportedFileEntry[] };
-  if (!Array.isArray(body.files))
-    throw new Error("The exported files list was not readable.");
-  return body.files;
+  const inventory = inventoryOf(await res.json());
+  if (inventory === null) throw new Error(UNREADABLE);
+  return inventory;
 }
 
-type GuestInventory = { files?: ExportedFileEntry[]; revision?: string };
+type GuestInventory = Parameters<typeof inventoryOf>[0] & { revision?: string };
 
 export async function readGuestExportedFiles(
   projectKey: string,
   after: string,
   signal: AbortSignal,
-): Promise<{ files: ExportedFileEntry[] | null; revision: string | null }> {
+): Promise<{ inventory: ExportedInventory | null; revision: string | null }> {
   const res = await apiFetch(
     projectKey,
     { guest: `/daw/export/files?after=${encodeURIComponent(after)}` },
@@ -70,9 +94,10 @@ export async function readGuestExportedFiles(
   );
   const body = (await res.json()) as GuestInventory;
   const revision = typeof body.revision === "string" ? body.revision : null;
-  if (Array.isArray(body.files)) return { files: body.files, revision };
-  if (after && revision === after) return { files: null, revision };
-  throw new Error("The exported files list was not readable.");
+  const inventory = inventoryOf(body);
+  if (inventory !== null) return { inventory, revision };
+  if (after && revision === after) return { inventory: null, revision };
+  throw new Error(UNREADABLE);
 }
 
 /**
@@ -90,6 +115,18 @@ export function exportedFileHref(
   const query = new URLSearchParams({ path: projectPath });
   if (file.ticket !== undefined) query.set("ticket", file.ticket);
   return `/api/export/files/${encodeId(file.id)}?${query}`;
+}
+
+/** A plain link to the archive of every current file; the ticket rides the host's link only. */
+export function exportedArchiveHref(
+  projectPath: string,
+  archive: Pick<ExportArchiveEntry, "ticket">,
+): string {
+  const token = shareTokenFromKey(projectPath);
+  if (token !== null) return `${reviewApiBase(token)}/daw/export/archive`;
+  const query = new URLSearchParams({ path: projectPath });
+  if (archive.ticket !== undefined) query.set("ticket", archive.ticket);
+  return `/api/export/archive?${query}`;
 }
 
 export async function revealExportedFile(

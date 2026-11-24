@@ -48,7 +48,7 @@ export function bounceResultAction(
       try {
         const listed = await listExportedFiles(projectPath);
         for (const id of fileIds) {
-          const file = listed.find((entry) => entry.id === id);
+          const file = listed.files.find((entry) => entry.id === id);
           if (file) download(exportedFileHref(projectPath, file), file.name);
         }
       } catch (error) {

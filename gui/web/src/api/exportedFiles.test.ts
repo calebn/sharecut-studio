@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { shareProjectKey } from "../shareMode";
 import {
+  exportedArchiveHref,
   exportedFileHref,
   listExportedFiles,
   revealExportedFile,
@@ -15,10 +16,17 @@ const ENTRY = {
   current: true,
 };
 
-function stubFetch() {
+const ARCHIVE = {
+  name: "episode-export.zip",
+  count: 1,
+  bytes: 61,
+  ticket: "1700000000.abc-1.sig",
+};
+
+function stubFetch(archive: unknown = undefined) {
   const fetchMock = vi.fn(
     async (_url: RequestInfo | URL, _init?: RequestInit) =>
-      new Response(JSON.stringify({ files: [ENTRY] }), {
+      new Response(JSON.stringify({ files: [ENTRY], archive }), {
         headers: { "Content-Type": "application/json" },
       }),
   );
@@ -72,16 +80,42 @@ describe("exportedFileHref", () => {
   });
 });
 
+describe("exportedArchiveHref", () => {
+  it("carries the project path and the listing's ticket for the host, never the session token", () => {
+    window.history.replaceState(null, "", "/?session_token=host-secret");
+    const href = exportedArchiveHref("/tmp/ep/episode.sharecut", ARCHIVE);
+    window.history.replaceState(null, "", "/");
+    expect(href).toBe(
+      `/api/export/archive?path=${encodeURIComponent("/tmp/ep/episode.sharecut")}&ticket=${encodeURIComponent(ARCHIVE.ticket)}`,
+    );
+    expect(href).not.toContain("host-secret");
+  });
+
+  it("sends a guest through the review route with the token in the path and no ticket", () => {
+    expect(exportedArchiveHref(shareProjectKey("tok123"), {})).toMatch(
+      /\/api\/review\/tok123\/daw\/export\/archive$/,
+    );
+  });
+});
+
 describe("listExportedFiles", () => {
   it("reads the host listing for the project path", async () => {
     const fetchMock = stubFetch();
-    expect(await listExportedFiles("/tmp/ep/episode.sharecut")).toEqual([
-      ENTRY,
-    ]);
+    expect(await listExportedFiles("/tmp/ep/episode.sharecut")).toEqual({
+      files: [ENTRY],
+      archive: null,
+    });
     expect(urlOf(fetchMock)).toContain("/api/export/files?path=");
     expect(urlOf(fetchMock)).toContain(
       encodeURIComponent("/tmp/ep/episode.sharecut"),
     );
+  });
+
+  it("reads the archive entry the server lists", async () => {
+    stubFetch(ARCHIVE);
+    expect(
+      (await listExportedFiles("/tmp/ep/episode.sharecut")).archive,
+    ).toEqual(ARCHIVE);
   });
 
   it("reads the Editor listing for a share key, with no host path", async () => {
