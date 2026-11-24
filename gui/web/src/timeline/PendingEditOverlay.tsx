@@ -1,12 +1,6 @@
 import { useCallback } from "react";
-import { approveEdits, rejectEdits, updatePendingEdit } from "../api";
-import { applyPendingSuggestion } from "../commands/editVerbs";
-import {
-  decideThroughSheet,
-  pendingDecisionBusy,
-  pendingOffersCut,
-  sheetBusyReason,
-} from "../commands/pendingDecision";
+import { updatePendingEdit } from "../api";
+import { decideSelectedPending } from "../commands/editVerbs";
 import {
   canRetimePendingEdit,
   canReviewPendingEdit,
@@ -14,12 +8,8 @@ import {
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
-import { BUSY_REASON } from "../ui/disabledReason";
+import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { EMPTY_OBJ } from "../utils/empty";
-import {
-  capturePendingReview,
-  finishPendingReview,
-} from "../utils/pendingReviewPass";
 import {
   PendingEditOverlayView,
   type PendingEditOverlayViewProps,
@@ -94,54 +84,21 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
     PendingEditOverlayViewProps["onReviewAction"]
   >(async (capturedPath, capturedEpoch, editId, action) => {
     const state = useDawStore.getState();
-    const current = state.project?.pending_edits.find(
-      (item) => item.id === editId,
-    );
     if (
-      !current ||
       state.projectPath !== capturedPath ||
       state.projectEpoch !== capturedEpoch ||
       state.selection?.kind !== "pending" ||
-      state.selection.id !== editId ||
-      !canReviewPendingEdit(state.projectPath, state.shareCapabilities)
+      state.selection.id !== editId
     ) {
-      throw new Error(
-        "You do not have permission to review this pending edit.",
-      );
+      throw new Error("That suggestion is no longer selected.");
     }
-    if (pendingDecisionBusy(state, editId)) throw new Error(BUSY_REASON);
-    if (pendingOffersCut(current)) {
-      // Cut and Keep here are the Action bar's. A shorten or lower Cut applies the suggestion's own
-      // action (approving would cut it whole); the rest go through the open sheet when it shows
-      // this edit, so its busy gate, Still sending notice and refine recovery apply once.
-      if (action === "approve" && current.suggested_action !== "cut") {
-        const busy = sheetBusyReason(editId);
-        if (busy) throw new Error(busy);
-        // A failure is announced in the status line by the apply itself; it is not thrown again.
-        await applyPendingSuggestion();
-        return { queued: false };
-      }
-      const sheet = await decideThroughSheet(editId, action);
-      if (sheet) {
-        if (sheet.status === "disabled") throw new Error(sheet.reason);
-        return { queued: false };
-      }
+    const result = await decideSelectedPending(action);
+    if (result.status === "disabled") {
+      if (useDawStore.getState().pendingRefineGate === editId)
+        throw new ApiError(result.reason, TRANSCRIPT_REFINE_REQUIRED_CODE);
+      if (!result.told) throw new Error(result.reason);
     }
-    state.setPendingDecisionInFlight(editId);
-    try {
-      const capture = capturePendingReview(action, capturedPath, current);
-      const result =
-        action === "approve"
-          ? approveEdits(capturedPath, [editId], false, true)
-          : rejectEdits(capturedPath, [editId]);
-      const outcome = await result;
-      if (!outcome.queued) finishPendingReview(capture, outcome);
-      return outcome;
-    } finally {
-      const live = useDawStore.getState();
-      if (live.pendingDecisionInFlight === editId)
-        live.setPendingDecisionInFlight(null);
-    }
+    return { queued: result.status === "ok" && result.queued === true };
   }, []);
   return (
     <PendingEditOverlayView

@@ -2,25 +2,8 @@ import { canRetimePendingEdit, canSuggestStructural } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { PendingEditView } from "../types/project";
 import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
+import { pendingOffersCut } from "../utils/pendingOffersCut";
 import type { ExecuteResult } from "./types";
-
-/**
- * True where a pending edit's accept verb is Cut (and its reject verb Keep): the suggestion has a
- * cut, shorten or lower action and is neither a split nor an exact range proposal. The inspector
- * sheet, the timeline overlay bar and the pinned phone chrome name Cut and Keep by this one test;
- * everywhere else they say Approve and Reject. The Action bar's own primary verb follows
- * `suggested_action` alone (no split or exact range mask), so for those edits it can still say Cut.
- */
-export function pendingOffersCut(
-  edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
-): boolean {
-  return (
-    !edit.exact_range &&
-    edit.type !== "split" &&
-    edit.suggested_action != null &&
-    edit.suggested_action !== "leave"
-  );
-}
 
 /**
  * True where the Action bar carries a pending edit's Cut and Keep and the timeline overlay bar
@@ -123,6 +106,36 @@ export function pendingCutWords(
     default:
       return { label: "Cut", busy: "Cutting…" };
   }
+}
+
+export const EXACT_RANGE_REVIEW_REASON =
+  "Only the host or an Editor can review exact range proposals.";
+
+export type PendingBarWords = {
+  accept: "Cut" | "Shorten" | "Lower" | "Approve";
+  reject: "Keep" | "Reject";
+  acceptBusy: string;
+  rejectBusy: string;
+};
+
+/** What the bar and the overlay call a pending edit's accept and reject verbs, and their busy text. */
+export function pendingBarWords(
+  edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
+): PendingBarWords {
+  if (!pendingOffersCut(edit))
+    return {
+      accept: "Approve",
+      reject: "Reject",
+      acceptBusy: "Approving…",
+      rejectBusy: "Rejecting…",
+    };
+  const { label, busy } = pendingCutWords(edit);
+  return {
+    accept: label as PendingBarWords["accept"],
+    reject: "Keep",
+    acceptBusy: busy,
+    rejectBusy: "Keeping…",
+  };
 }
 
 type PendingDecider = (action: "approve" | "reject") => Promise<string | null>;

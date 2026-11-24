@@ -11,9 +11,9 @@ import {
 import { createPortal } from "react-dom";
 import {
   actionBarOwnsPendingVerbs,
+  EXACT_RANGE_REVIEW_REASON,
   focusPendingTimingField,
-  pendingCutWords,
-  pendingOffersCut,
+  pendingBarWords,
 } from "../commands/pendingDecision";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
@@ -320,8 +320,7 @@ function PendingEditRegion({
   const pointerKind = useDawStore((state) => state.pointerKind);
 
   const isSplit = edit.type === "split";
-  const offersCut = pendingOffersCut(edit);
-  const cutWords = pendingCutWords(edit);
+  const words = pendingBarWords(edit);
   const originClips = useMemo(
     () => clipsForOriginTrack(clipsByTrack, edit.track_id),
     [clipsByTrack, edit.track_id],
@@ -1163,7 +1162,7 @@ function PendingEditRegion({
                   variant="primary"
                   disabledReason={
                     !canApply
-                      ? "Only the host or an Editor can review exact range proposals."
+                      ? EXACT_RANGE_REVIEW_REASON
                       : actionState.kind === "busy" ||
                           gesture.kind === "settling"
                         ? BUSY_REASON
@@ -1171,12 +1170,12 @@ function PendingEditRegion({
                   }
                   onClick={() => void runReviewAction("approve")}
                 >
-                  {offersCut ? cutWords.label : "Approve"}
+                  {words.accept}
                 </Button>
                 <Button
                   disabledReason={
                     !canApply
-                      ? "Only the host or an Editor can review exact range proposals."
+                      ? EXACT_RANGE_REVIEW_REASON
                       : actionState.kind === "busy" ||
                           gesture.kind === "settling"
                         ? BUSY_REASON
@@ -1184,24 +1183,18 @@ function PendingEditRegion({
                   }
                   onClick={() => void runReviewAction("reject")}
                 >
-                  {offersCut ? "Keep" : "Reject"}
+                  {words.reject}
                 </Button>
               </div>
             ) : null}
             {edit.exact_range && !canApply ? (
-              <p className="ui-field-hint">
-                Only the host or an Editor can review exact range proposals.
-              </p>
+              <p className="ui-field-hint">{EXACT_RANGE_REVIEW_REASON}</p>
             ) : null}
             {actionState.kind === "busy" ? (
               <span role="status">
                 {actionState.action === "approve"
-                  ? offersCut
-                    ? cutWords.busy
-                    : "Approving…"
-                  : offersCut
-                    ? "Keeping…"
-                    : "Rejecting…"}
+                  ? words.acceptBusy
+                  : words.rejectBusy}
               </span>
             ) : null}
             {gesture.kind === "settling" ? (

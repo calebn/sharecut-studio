@@ -47,7 +47,12 @@ import {
 import type { PendingRecordTarget } from "../state/stageSlice";
 import type { BarItem, SPLIT_OPTIONS_ARG } from "../system/actionBarSlots";
 import { type BarId, resolveBar } from "../system/editActionSets";
-import type { HistoryEntryId, ProjectView, Selection } from "../types/project";
+import type {
+  HistoryEntryId,
+  PendingEditView,
+  ProjectView,
+  Selection,
+} from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
 import {
   ApiError,
@@ -57,6 +62,7 @@ import {
 } from "../utils/apiError";
 import { commitCommentActor } from "../utils/commentAuthor";
 import { joinModeOf } from "../utils/editMarkerRegistry";
+import { pendingOffersCut } from "../utils/pendingOffersCut";
 import {
   capturePendingReview,
   finishPendingReview,
@@ -312,16 +318,38 @@ async function seekPending(facts: EditFacts): Promise<ExecuteResult> {
 }
 
 /**
- * The bar's Cut for a shorten or lower suggestion, for the timeline overlay bar to share: applies
- * the suggestion's own action behind the open sheet's busy gate, with the same announcements.
+ * Decides the selected suggestion for the timeline overlay bar, which the Action bar's Approve and
+ * Reject share: the same guards, in-flight hold, sheet routing and announcements.
  */
-export function applyPendingSuggestion(): Promise<ExecuteResult> {
-  return decidePending("suggested");
+export function decideSelectedPending(
+  action: "approve" | "reject",
+): Promise<DecisionResult> {
+  const s = useDawStore.getState();
+  const id = selectedPendingId(s);
+  const edit = s.project?.pending_edits.find((e) => e.id === id);
+  return decidePending(
+    action === "approve" && edit && appliesOwnAction(edit)
+      ? "suggested"
+      : action,
+    true,
+  );
 }
+
+function appliesOwnAction(
+  edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
+): boolean {
+  return pendingOffersCut(edit) && edit.suggested_action !== "cut";
+}
+
+type DecisionResult = ExecuteResult & {
+  /** The request is saved and sends on reconnect; the caller shows it, not the status line. */
+  queued?: true;
+};
 
 async function decidePending(
   action: "approve" | "reject" | "suggested",
-): Promise<ExecuteResult> {
+  showQueued = false,
+): Promise<DecisionResult> {
   const s = useDawStore.getState();
   const selection = s.selection;
   if (selection?.kind !== "pending" || !s.project)
@@ -364,6 +392,8 @@ async function decidePending(
       action === "approve"
         ? await approveEdits(projectPath, [edit.id], false, true)
         : await rejectEdits(projectPath, [edit.id]);
+    if (showQueued && outcome.queued && sameProject())
+      return { status: "ok", queued: true };
     if (sameProject()) finishPendingReview(capture, outcome);
     return OK;
   } catch (error) {
@@ -873,7 +903,9 @@ async function dispatch(
     case "smoothJoins":
       return smoothJoins();
     case "approve":
-      return approveSocial();
+      return facts.kind === "suggestion"
+        ? decidePending("approve")
+        : approveSocial();
     case "resolve":
       return resolveComment();
     default:

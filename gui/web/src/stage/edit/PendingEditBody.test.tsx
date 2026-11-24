@@ -1059,6 +1059,17 @@ describe("PendingEditBody", () => {
     expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
   });
 
+  it("drops the recovery once another suggestion was selected, even when this one is selected again", () => {
+    const pending = (id: string) =>
+      ({ kind: "pending", id, trackId: "host" }) as const;
+    useDawStore.getState().setSelection(pending("ed1"));
+    useDawStore.getState().setPendingRefineGate("ed1");
+    useDawStore.getState().setSelection(pending("other"));
+    useDawStore.getState().setSelection(pending("ed1"));
+    render(<PendingEditBody edit={sessionCut} />);
+    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
+  });
+
   it("holds the Action bar's Cut and Keep while the sheet's own Approve is in flight", async () => {
     registerDawCommands();
     let finish: (value: unknown) => void = () => {};

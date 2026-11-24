@@ -2325,6 +2325,39 @@ describe("overlay Cut and Keep", () => {
     await settled();
   });
 
+  it.each([
+    ["Approve", "ApproveEdits"],
+    ["Reject", "RejectEdits"],
+  ] as const)(
+    "%s on a split off the Edit stage decides once with the in-flight hold set before the request",
+    async (name, command) => {
+      let inFlightWhenSent: string | null = null;
+      vi.mocked(submitQueuedDocumentCommand).mockImplementationOnce(
+        async () => {
+          inFlightWhenSent = useDawStore.getState().pendingDecisionInFlight;
+          return {
+            history_head_id: "h",
+            review_result: { count: 1 },
+            snapshot: {
+              server_seq: 1,
+              project: minimalProject({ pending_edits: [] }),
+            },
+          } as never;
+        },
+      );
+      mount({ ...edit, type: "split", suggested_action: "cut" });
+      const button = await screen.findByRole("button", { name });
+      await userEvent.dblClick(button);
+      await settled();
+      expect(submitQueuedDocumentCommand).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(submitQueuedDocumentCommand).mock.calls[0]?.[1]).toBe(
+        command,
+      );
+      expect(inFlightWhenSent).toBe(edit.id);
+      expect(useDawStore.getState().pendingDecisionInFlight).toBeNull();
+    },
+  );
+
   it("Cut on a shorten suggestion applies its own action, as the Action bar's Cut does", async () => {
     mount({ ...edit, suggested_action: "shorten" });
     await userEvent.click(

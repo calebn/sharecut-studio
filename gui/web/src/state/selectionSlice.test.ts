@@ -36,7 +36,7 @@ describe("local selection write ownership", () => {
 
   it("does not invalidate local intent when a wire selection patch is only computed", () => {
     const signal = localSelectionWriteSignal(useDawStore.getState);
-    expect(selectionPatch(null, null, null).selection).toBeNull();
+    expect(selectionPatch(null, null, null, null).selection).toBeNull();
     expect(signal.aborted).toBe(false);
   });
 
@@ -173,5 +173,31 @@ describe("a chapter selection follows the project", () => {
       kind: "social",
       id: "social-1",
     });
+  });
+});
+
+describe("the refine gate follows the suggestion that hit it", () => {
+  const pending = (id: string) =>
+    ({ kind: "pending", id, trackId: "host" }) as const;
+
+  it("survives selecting the suggestion it names and drops on any other selection", () => {
+    const { setSelection, setPendingRefineGate } = useDawStore.getState();
+    setSelection(pending("a"));
+    setPendingRefineGate("a");
+    setSelection(pending("a"));
+    expect(useDawStore.getState().pendingRefineGate).toBe("a");
+    setSelection(pending("b"));
+    expect(useDawStore.getState().pendingRefineGate).toBeNull();
+    setSelection(pending("a"));
+    expect(useDawStore.getState().pendingRefineGate).toBeNull();
+  });
+
+  it.each([
+    ["a clip", () => useDawStore.getState().selectClip("c1", "host")],
+    ["a clear", () => useDawStore.getState().setSelection(null)],
+  ])("drops on %s", (_name, select) => {
+    useDawStore.getState().setPendingRefineGate("a");
+    select();
+    expect(useDawStore.getState().pendingRefineGate).toBeNull();
   });
 });
