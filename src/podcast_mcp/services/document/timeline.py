@@ -506,7 +506,7 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
                         tids,
                         reason=reason or GUEST_SUGGEST_SPLIT_REASON,
                         author=author,
-                    ).model_dump()
+                    ).model_dump(exclude={"bound_pad"})
                     for t in times
                 ]
                 return ProposeSplitResult(operation="propose_split", edit=edits[0], edits=edits)
@@ -596,7 +596,7 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
                         decision.cut_speech = assess_cut_speech(
                             p, plan_delete_clips(p, [cid]), defaults=self.ws.effective_config()
                         )
-                    edits.append(decision.model_dump(mode="json"))
+                    edits.append(decision.model_dump(mode="json", exclude={"bound_pad"}))
                 return {"operation": "propose_delete_clips", "mode": mode.value, "edits": edits}
 
             label = "ripple delete clips" if ripple else "delete clips"
