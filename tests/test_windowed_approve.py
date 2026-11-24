@@ -1295,3 +1295,29 @@ def test_a_gated_lane_stamp_may_probe_but_a_second_stamp_finds_the_probe_cached(
 
     assert first == second
     assert len(spawned) == after_first  # a probe made once is not made again
+
+
+def _held_with_fade(tmp_path: Path, fade_ms: int) -> list[dict]:
+    project = _project(tmp_path)
+    project.edit_decisions = [e for e in project.edit_decisions if e.start in (43.0, 44.5)]
+    clips = {c.id: c for c in project.clips}
+    clips["host1"].source_end = 51.5
+    clips["host2"].source_start = clips["host2"].timeline_start = 51.5
+    clips["host1"].fade_out_ms = fade_ms
+    return _approve(project)["held"]
+
+
+def test_a_held_cut_names_the_long_fade_that_reaches_it(tmp_path: Path) -> None:
+    held = _held_with_fade(tmp_path, 6000)
+    assert held, "the fixture must hold the cuts near a long fade"
+    assert all("a 6 s fade runs near the cut" in h["reason"] for h in held)
+
+
+def test_a_held_cut_with_a_short_fade_does_not_mention_a_fade(tmp_path: Path) -> None:
+    held = _held_with_fade(tmp_path, 20)
+    assert all("fade" not in h["reason"] for h in held)
+
+
+def test_the_hold_reason_still_leads_with_the_checks_that_failed(tmp_path: Path) -> None:
+    held = _held_with_fade(tmp_path, 6000)
+    assert all("interior speech" in h["reason"] and h["code"] for h in held)

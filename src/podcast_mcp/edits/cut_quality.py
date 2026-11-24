@@ -212,6 +212,29 @@ def fade_reach_sec(
     return max(base_ms, clip_ms) / 1000.0
 
 
+LONG_FADE_SEC = 1.0
+
+
+def long_fade_reach_sec(project: EpisodeProject, edit: EditDecision) -> float | None:
+    """The longest manual clip fade of ``LONG_FADE_SEC`` or more that ramps within its own length
+    of the cut on the edit's track, if any; the checks read that faded audio."""
+    lo, hi = edit.start, edit.end
+    on_timeline = edit.timebase == "timeline"
+    longest = 0.0
+    for c in project.clips:
+        if c.track_id != edit.track_id:
+            continue
+        head, tail = (
+            (c.timeline_start, c.timeline_end) if on_timeline else (c.source_start, c.source_end)
+        )
+        fade_in, fade_out = c.fade_in_ms / 1000.0, c.fade_out_ms / 1000.0
+        if fade_in >= LONG_FADE_SEC and head <= hi and lo - (head + fade_in) <= fade_in:
+            longest = max(longest, fade_in)
+        if fade_out >= LONG_FADE_SEC and tail >= lo and (tail - fade_out) - hi <= fade_out:
+            longest = max(longest, fade_out)
+    return longest or None
+
+
 def _fit_before_burst_ms(
     fade_ms: int, resume_sec: float, burst_sec: float, defaults: EffectiveConfig
 ) -> int:
