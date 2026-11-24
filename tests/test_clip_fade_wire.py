@@ -115,7 +115,7 @@ def _payload(**over: Any) -> dict:
     ],
 )
 def test_service_set_clip_fade(ws, fade_in, fade_out, expected):
-    result = TimelineService(ws).set_clip_fade("a", fade_in, fade_out)
+    result = TimelineService(ws).set_clip_fade("a", fade_in, fade_out).model_dump()
     assert type(result) is dict
     assert list(result) == KEYS
     assert _text(result) == _text(expected)
@@ -125,7 +125,7 @@ def test_service_set_clip_fade(ws, fade_in, fade_out, expected):
 
 
 def test_service_set_clip_fade_pinned_text(ws):
-    result = TimelineService(ws).set_clip_fade("a", 400, 400)
+    result = TimelineService(ws).set_clip_fade("a", 400, 400).model_dump()
     assert _text(result) == (
         '{"operation": "set_clip_fade", "affected_tracks": ["host"], "clip_count": 1, '
         '"timeline_duration_sec": null, "fade_in_ms": 400, "fade_out_ms": 100, "clamped": true}'
@@ -133,8 +133,12 @@ def test_service_set_clip_fade_pinned_text(ws):
 
 
 def test_service_set_clip_fade_with_curves(ws, minimal_project):
-    result = TimelineService(ws).set_clip_fade(
-        "a", 100, 200, fade_in_curve=FadeCurve.S, fade_out_curve=FadeCurve.EQUAL_POWER
+    result = (
+        TimelineService(ws)
+        .set_clip_fade(
+            "a", 100, 200, fade_in_curve=FadeCurve.S, fade_out_curve=FadeCurve.EQUAL_POWER
+        )
+        .model_dump()
     )
     assert list(result) == KEYS
     assert "fade_in_curve" not in result
@@ -145,7 +149,7 @@ def test_service_set_clip_fade_with_curves(ws, minimal_project):
 def test_service_set_clip_fade_curves_absent_keep_current(ws, minimal_project):
     service = TimelineService(ws)
     service.set_clip_fade("a", 100, 200, fade_in_curve=FadeCurve.S, fade_out_curve=FadeCurve.S)
-    result = service.set_clip_fade("a", 50, 60)
+    result = service.set_clip_fade("a", 50, 60).model_dump()
     assert _text(result) == _text(_fade(50, 60))
     assert _state(_clip(minimal_project)) == (50, 60, "s", "s")
 
@@ -159,7 +163,7 @@ def test_service_set_clip_fade_matching_baseline(ws):
     service = TimelineService(ws)
     service.set_clip_fade("a", 10, 20)
     baseline = ClipFadeBaseline(fade_in_ms=10, fade_out_ms=20)
-    result = service.set_clip_fade("a", 30, 40, expected=baseline)
+    result = service.set_clip_fade("a", 30, 40, expected=baseline).model_dump()
     assert _text(result) == _text(_fade(30, 40))
 
 
@@ -238,13 +242,19 @@ def test_handler_set_clip_fade_equals_service(minimal_project, ws, over, expecte
     reset.project.clips[0].fade_in_ms = reset.project.clips[0].fade_out_ms = 0
     reset.project.clips[0].fade_in_curve = reset.project.clips[0].fade_out_curve = FadeCurve.LINEAR
     save_project(reset.project, reset.path)
-    via_service = TimelineService(ProjectWorkspace.open(minimal_project)).set_clip_fade(
-        "a",
-        params["fade_in_ms"],
-        params["fade_out_ms"],
-        expected=ZERO,
-        fade_in_curve=FadeCurve(params["fade_in_curve"]) if params["fade_in_curve"] else None,
-        fade_out_curve=FadeCurve(params["fade_out_curve"]) if params["fade_out_curve"] else None,
+    via_service = (
+        TimelineService(ProjectWorkspace.open(minimal_project))
+        .set_clip_fade(
+            "a",
+            params["fade_in_ms"],
+            params["fade_out_ms"],
+            expected=ZERO,
+            fade_in_curve=FadeCurve(params["fade_in_curve"]) if params["fade_in_curve"] else None,
+            fade_out_curve=FadeCurve(params["fade_out_curve"])
+            if params["fade_out_curve"]
+            else None,
+        )
+        .model_dump()
     )
     assert _text(via_handler) == _text(via_service)
     assert _state(_clip(minimal_project)) == first
