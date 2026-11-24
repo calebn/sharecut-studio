@@ -29,7 +29,7 @@ import logging
 import math
 import re
 import wave
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -45,6 +45,7 @@ from podcast_mcp.engines.gate_fill import (
     synthesise_noise,
 )
 from podcast_mcp.engines.room_tone import (
+    MIN_SAMPLE_SEC,
     POOL_SAMPLE_SEC,
     OwnQuietSample,
     RecordedBedSample,
@@ -73,6 +74,12 @@ SYNTH_REV = 2
 # judgment: a second of replay is not heard as a repeat, and under it a synthesised fill is
 # not worth its cost.
 SYNTH_MAX_REPLAY_SEC = 1.0
+# A fill that is not synthesised replays one recorded sample at most this many times: a short
+# sample tiled over a long gap is heard as the same few words coming back (a 0.4 s sample
+# over one second: "bye bye bye"). A judgment, like ``SYNTH_MAX_REPLAY_SEC``: the fill takes
+# the longest clean sample the track offers up to the length that keeps replays within it, and
+# keeps the shorter one when the track has none longer.
+MAX_SAMPLE_REPLAYS = 2.0
 SYNTH_FILE_SEC = 60.0
 # A fill reads at most this much of the file, which leaves SYNTH_FILE_SEC less this of start
 # positions to tell fills apart.
@@ -152,7 +159,7 @@ def room_tone_for_gap(
     The synthesised source is registered on ``project``.
     """
 
-    def span(request_sec: float) -> RoomToneSelection:
+    def span(request_sec: float, min_sample_sec: float = MIN_SAMPLE_SEC) -> RoomToneSelection:
         return room_tone_span(
             project,
             track_id,
@@ -162,11 +169,12 @@ def room_tone_for_gap(
             duration_sec=request_sec,
             avoid=avoid,
             also_taken=also_taken,
+            min_sample_sec=min_sample_sec,
         )
 
     selection = span(duration_sec)
     if gap_sec <= _replayed_sec(selection) + SYNTH_MAX_REPLAY_SEC:
-        return selection
+        return _fewer_replays(selection, span, gap_sec, duration_sec)
     basis = _basis(project, track_id, selection)
     if basis is None:
         return selection
@@ -177,14 +185,34 @@ def room_tone_for_gap(
         if isinstance(pooled, SampleAbsent):
             return selection
         if gap_sec <= _replayed_sec(pooled) + SYNTH_MAX_REPLAY_SEC:
-            return pooled
+            return _fewer_replays(pooled, span, gap_sec, duration_sec)
         basis = _basis(project, track_id, pooled)
         if basis is None:
             return selection
     synthesised = _synthesise(project, track_id, basis, gap_sec + slack_sec, seed_sec)
     if synthesised is not None:
         return synthesised
-    return pooled if swapped else selection
+    return _fewer_replays(pooled if swapped else selection, span, gap_sec, duration_sec)
+
+
+def _fewer_replays(
+    selection: RoomToneSelection,
+    span: Callable[[float, float], RoomToneSelection],
+    gap_sec: float,
+    duration_sec: float,
+) -> RoomToneSelection:
+    """``selection``, or a longer clean sample of the track when the gap would replay it more
+    than ``MAX_SAMPLE_REPLAYS`` times."""
+    if not isinstance(selection, OwnQuietSample):
+        return selection
+    have = selection.sample.end - selection.sample.start
+    need = min(duration_sec, gap_sec / MAX_SAMPLE_REPLAYS)
+    if have >= need - 1e-9:
+        return selection
+    longer = span(duration_sec, need)
+    if isinstance(longer, OwnQuietSample) and longer.sample.end - longer.sample.start > have:
+        return longer
+    return selection
 
 
 def _replayed_sec(selection: RoomToneSelection) -> float:
@@ -208,6 +236,7 @@ def _params() -> str:
         for value in (
             SYNTH_REV,
             SYNTH_MAX_REPLAY_SEC,
+            MAX_SAMPLE_REPLAYS,
             SYNTH_FILE_SEC,
             SYNTH_MAX_FILL_SEC,
             SYNTH_RATE,
