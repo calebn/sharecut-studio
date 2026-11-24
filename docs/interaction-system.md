@@ -172,6 +172,14 @@ There are three overlay primitives.
    Close and Escape only. Focus returns to the control that opened the overlay.
    Closing a selection Inspector leaves layout intent unchanged. Current intent
    and viewport determine whether editor panels return or remain stowed.
+   Four exits sound alike and differ in what they drop:
+
+   | Control | Drops | Keeps |
+   | --- | --- | --- |
+   | Clear selection (Action bar, Script header, Esc after the Inspector) | The selection, the armed range, and the Inspector with them | Saved corrections and edits |
+   | Close (Inspector header, or the dock at the dock detent) | The Inspector panel | The selection |
+   | Cancel fix (Fix text field, Esc) | The typed draft | The words, still selected |
+   | Leaving the Fix text field | Nothing: it saves the draft | The selection |
 5. **Inspect reveals its Timeline selection.** On desktop and tablet, opening
    the Inspector scrolls a Timeline anchor that is out of view horizontally
    back into view and moves focus into the Inspector. The playhead stays in

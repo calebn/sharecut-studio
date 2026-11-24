@@ -36,7 +36,11 @@ In the desktop transcript, Shift-click extends a range from the original word on
 With words selected, **Clear selection** in the Script header
 closes their actions and returns focus to the word, or to Find if the word is
 no longer shown. Escape also clears the selection from the Script. The button
-returns when **Fix text** closes.
+returns when **Fix text** closes. While the field is open, **Cancel fix** beside it
+discards the typing and returns to the word; leaving the field any other way still
+saves it. When the Script is collapsed, or the selection is a clip, seam, track or
+range the Script does not draw as words, the floating Action bar ends with its own
+**Clear selection**, so the two never show together.
 
 ### Script (desktop/tablet)
 

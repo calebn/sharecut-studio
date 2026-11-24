@@ -317,7 +317,7 @@ bottom sheet with three detents: the **dock** (4 rem: the Action bar alone), **h
 fit the lanes (a phone held sideways, a small portrait phone at large text);
 there the dock is dropped at full so the fields get the room. Where even the full sheet would be under 8.75 rem tall (large text on a phone held sideways), the Inspector takes the whole screen as a dialog with one header row (name, **Undo**, **Redo**, **Done**) instead of a sliver. The dock is the
 Action bar: the selected object's icon and short name on the left (96 px at
-most), up to five 48 px verb buttons (icon over a 10 px label) and **More**. A
+most), up to five 48 px verb slots (icon over a 10 px label; an end control takes one) and **More**. At the dock detent the header and its Close are inert, so **Close** ends the dock instead: it hides the sheet, keeps the selection and returns focus to the opener, while dragging the sheet down past the dock still clears the selection. While the sheet is dragged the dock has no Close. A
 verb that opens fields (Fix text on a chapter, Adjust bounds, Fade, Move to
 track) raises a sheet resting on its dock to half and focuses the first field.
 The body is the target's own fields as Scrub fields: type a value, drag it, or
