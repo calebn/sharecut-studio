@@ -5,6 +5,7 @@ from typing import Literal
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
+from podcast_mcp.edits.cut_quality import long_fade_reach_sec
 from podcast_mcp.edits.cut_safety import hold_is_overridable, inspect_source_remove
 from podcast_mcp.edits.cut_speech import assess_cut_speech
 from podcast_mcp.edits.ripple import RippleRemoval
@@ -138,6 +139,12 @@ def plain_label(label: str | None) -> str:
     return sentence_label if len(sentence_label) <= _GUEST_LABEL_MAX else _UNNAMED_EDIT
 
 
+def long_fades(project: EpisodeProject, edits: Iterable[EditDecision]) -> dict[str, float]:
+    """Edit id to the seconds of a long manual fade that reaches it, for the edits it reaches."""
+    found = ((edit.id, long_fade_reach_sec(project, edit)) for edit in edits)
+    return {edit_id: sec for edit_id, sec in found if sec is not None}
+
+
 class ScopeChangedAtApproval(CodedError, ValueError):
     code = "cut_scope_changed"
 
@@ -146,7 +153,9 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         held: Sequence[CutScopeHold],
         speakers: dict[str, str],
         cuts: Mapping[str, str] | None = None,
+        fades: Mapping[str, float] | None = None,
     ):
+        self.fades = dict(fades or {})
         self.ids = tuple(h.edit_id for h in held)
         self.held = tuple(held)
         self.speakers = speakers
@@ -166,11 +175,12 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         edits: Iterable[EditDecision] = (),
         removal: RippleRemoval | None = None,
     ) -> ScopeChangedAtApproval:
+        edits = list(edits)
         cuts = {e.id: cut_label(project, e) for e in edits}
         named = removal_label(project, removal)
         if named is not None:
             cuts.update({h.edit_id: named for h in held})
-        return cls(held, speakers_by_track(project), cuts)
+        return cls(held, speakers_by_track(project), cuts, long_fades(project, edits))
 
     def reason_for(self, hold: CutScopeHold) -> str:
         """Why this one cut was held, in words the list can show beside it."""
@@ -187,12 +197,17 @@ class ScopeChangedAtApproval(CodedError, ValueError):
             "pause_join": "the final pause join did not pass its audio checks",
             "acoustic_edge": "the held edges need audio review",
         }
-        if hold.reason == "acoustic_edge" and hold.detail:
+        if hold.reason == "acoustic_edge":
             findings = [
                 _EDGE_FINDINGS.get(label, label.replace("_", " "))
-                for label in dict.fromkeys(hold.detail.split(","))
+                for label in dict.fromkeys((hold.detail or "").split(","))
+                if label
             ]
-            return f"{reasons['acoustic_edge']} ({'; '.join(findings)})"
+            fade = self.fades.get(hold.edit_id)
+            if fade is not None:
+                findings.append(f"a {fade:g} s fade runs near the cut")
+            if findings:
+                return f"{reasons['acoustic_edge']} ({'; '.join(findings)})"
         peers = ", ".join(self.speakers.get(peer, peer) for peer in hold.peers)
         why = reasons.get(
             hold.reason,
@@ -237,7 +252,7 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         return guest_message_for_code(self.code) if mentions_host_path(message) else message
 
     def for_delivery(self, delivery: Literal["saved", "suggested"]) -> ScopeChangedAtApproval:
-        error = ScopeChangedAtApproval(self.held, self.speakers, self.cuts)
+        error = ScopeChangedAtApproval(self.held, self.speakers, self.cuts, self.fades)
         suffix = (
             " None of the selected edits were applied."
             if delivery == "saved"

@@ -10,12 +10,15 @@ from podcast_mcp.edits import cut_quality
 from podcast_mcp.edits.cut_quality import (
     _measure_join_jump_cached,
     assess_cut_risk,
+    long_fade_reach_sec,
     measure_join_jump_db,
     optimize_and_assess,
     recommend_cut_fade_ms,
 )
 from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.models import (
+    Clip,
+    EditDecision,
     EpisodeProject,
     MediaAsset,
     Track,
@@ -777,3 +780,49 @@ def test_fade_reach_reads_a_source_edit_against_the_clip_source():
     assert reach(1.0, "source") == 0.3
     assert reach(51.0, "source") < 0.3
     assert reach(51.0, "timeline") == 0.3
+
+
+def _fade_project(**fades: int) -> EpisodeProject:
+    project = _minimal_project()
+    project.clips = [
+        Clip(
+            id="c1",
+            track_id="host",
+            source_start=100.0,
+            source_end=130.0,
+            timeline_start=10.0,
+            fade_in_ms=fades.get("fade_in_ms", 0),
+            fade_out_ms=fades.get("fade_out_ms", 0),
+        )
+    ]
+    return project
+
+
+def _remove(start: float, end: float, timebase: str, track_id: str = "host") -> EditDecision:
+    return EditDecision(id="e", track_id=track_id, start=start, end=end, timebase=timebase)
+
+
+@pytest.mark.parametrize(
+    ("timebase", "start", "end"), [("timeline", 37.0, 38.0), ("source", 127.0, 128.0)]
+)
+def test_long_fade_reach_sec_sees_a_fade_out_near_the_cut(timebase, start, end):
+    project = _fade_project(fade_out_ms=6000)
+    assert long_fade_reach_sec(project, _remove(start, end, timebase)) == 6.0
+
+
+@pytest.mark.parametrize(
+    ("timebase", "start", "end"), [("timeline", 11.0, 12.0), ("source", 101.0, 102.0)]
+)
+def test_long_fade_reach_sec_sees_a_fade_in_near_the_cut(timebase, start, end):
+    project = _fade_project(fade_in_ms=4000)
+    assert long_fade_reach_sec(project, _remove(start, end, timebase)) == 4.0
+
+
+def test_long_fade_reach_sec_ignores_a_short_fade():
+    project = _fade_project(fade_out_ms=900)
+    assert long_fade_reach_sec(project, _remove(37.0, 38.0, "timeline")) is None
+
+
+def test_long_fade_reach_sec_ignores_a_clip_on_another_track():
+    project = _fade_project(fade_out_ms=6000)
+    assert long_fade_reach_sec(project, _remove(37.0, 38.0, "timeline", track_id="guest")) is None

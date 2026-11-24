@@ -59,6 +59,7 @@ from podcast_mcp.edits.source_removals import (
     STALE_REASON,
     ScopeChangedAtApproval,
     cut_label,
+    long_fades,
     record_suggested_cut_speech,
     speakers_by_track,
 )
@@ -1431,6 +1432,9 @@ def approve_edits(
             held,
             speakers_by_track(project),
             {h.edit_id: labels[h.edit_id] for h in held if h.edit_id in labels},
+            long_fades(
+                project, (e for e in (*mutes, *removes) if e.id in {h.edit_id for h in held})
+            ),
         )
         if held_out is None or leaned_on:
             raise error
