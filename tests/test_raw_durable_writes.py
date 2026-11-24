@@ -90,6 +90,7 @@ RAW_WRITES: dict[str, int] = {
     "services/record/upload.py": 1,
     "util/asset_sources.py": 1,
     "util/file_locks.py": 1,
+    "util/zip_stream.py": 1,
 }
 
 _WRITE_MODE_CHARS = frozenset("wax+")
