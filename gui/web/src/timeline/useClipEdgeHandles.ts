@@ -11,12 +11,9 @@ import {
   type ClipHandleAction,
   registerFocusedClipHandle,
 } from "../commands/focusedClipHandle";
+import { keptLine } from "../comments/keptLine";
 import { hasPendingLaneGeometry } from "../document/pendingDrafts";
-import {
-  edgeSavedMessage,
-  saveClipEdge,
-  TRIM_MODE,
-} from "../edit/clipEdgeSave";
+import { saveClipEdge, TRIM_MODE } from "../edit/clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "../edit/clipHandleSteps";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
@@ -382,10 +379,11 @@ export function useClipEdgeHandles(context: Context) {
         after.projectEpoch === c.projectEpoch
       )
         after.announceStatus(
-          edgeSavedMessage(
-            d.kind === "fade" ? "Fade saved" : "Trim saved",
-            saved,
-          ),
+          saved.queued
+            ? keptLine("Trim", null)
+            : d.kind === "fade"
+              ? "Fade saved"
+              : "Trim saved",
           { undo: saved.undo },
         );
     } catch (error) {

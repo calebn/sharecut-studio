@@ -5,7 +5,6 @@
  */
 import { clipFadeBaseline, setClipFade, trimClipEdge } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
-import { keptLine } from "../comments/keptLine";
 import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow, HistoryEntryId } from "../types/project";
 import type { EditMode, TrimEdge } from "../utils/clipEdgePreview";
@@ -26,11 +25,6 @@ export type ClipEdgeChange =
  * while queued). `queued` is a trim kept to send later, which is not saved yet.
  */
 export type EdgeSaved = { undo: HistoryEntryId | null; queued?: boolean };
-
-/** What a finished edge save says: `saved` once it landed, the kept line while it only waits. */
-export function edgeSavedMessage(saved: string, result: EdgeSaved): string {
-  return result.queued ? keptLine("Trim", null) : saved;
-}
 
 /**
  * Saves `change` to `clip`; a ripple trim moves every dialogue track. Returns null
