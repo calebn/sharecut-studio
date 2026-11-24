@@ -234,8 +234,11 @@ into it; there is no sidecar process.
   matches.
 - **FFmpeg framework.** `make ios-ffmpeg-device` and `make ios-ffmpeg-sim` run
   `build_ffmpeg.sh` and then `scripts/ios/ffmpeg_framework.py assemble`. The build
-  script requires valid option lists for LAME, Opus, and FFmpeg in
-  `contracts/ffmpeg-build.json` before it runs any configure step. The assemble builds
+  script requires valid option lists for LAME, Opus, FFmpeg and the iOS-only FFmpeg options
+  (`ios_ffmpeg_configure`: no network and only the `file`, `pipe` and `fd` protocols; the desktop
+  build does not read it) in `contracts/ffmpeg-build.json` before it runs any configure step. It
+  reuses the LAME and Opus prefix only while a stamp of their inputs (pin, options, compiler,
+  forced headers) matches, and logs `reusing` or `building` for each. The assemble builds
   `src-tauri/ios-payload/FFmpeg.xcframework` (untracked) from whichever of
   `ios-ffmpeg/out/{device,sim}/FFmpeg.framework` exist. It copies each framework to a staging
   folder, adds the framework's own `PrivacyInfo.xcprivacy`
@@ -357,10 +360,10 @@ into it; there is no sidecar process.
 <a id="ios-native-ffmpeg-abi"></a>
 **iOS native FFmpeg ABI (#3974, stage 3 slice 6a).** `src/podcast_mcp/util/native_ffmpeg.py`
 holds `NativeFFmpegBackend`, the `InProcessBackend` that runs `in-process:ffmpeg` and
-`in-process:ffprobe` argv on four C functions the app exports. The portable session core
+`in-process:ffprobe` argv on five C functions the app exports. The portable session core
 (`gui/desktop/src-tauri/ios/ffmpeg/sc_ffmpeg_core.c`) and the FFmpeg glue are in tree; the iOS row uses the backend, `gui/embedded.py` installs it at engine start when the
 library is linked, and `bundle_checks.check_ffmpeg_framework` checks that the framework exports
-exactly the four functions. The Whisper backend has its own framework and its own check (see
+exactly the five functions. The Whisper backend has its own framework and its own check (see
 [iOS native whisper ABI](#ios-native-whisper-abi)).
 
 The [in-process FFmpeg tests](../tests/test_ffmpeg_engine_in_process.py) replay the
@@ -371,7 +374,8 @@ executable resolution. Ordinary command and stream tests use local fake inputs.
 Device smoke testing verifies the compiled framework.
 
 ```c
-int      sc_ffmpeg_abi_version(void);   /* must return 1 */
+int      sc_ffmpeg_abi_version(void);   /* must return 2 */
+const char *sc_ffmpeg_build_id(void);   /* static, never NULL, [A-Za-z0-9._+-]{1,128} */
 int64_t  sc_ffmpeg_start(int argc, const char* const* argv, int in_fd, int out_fd, int err_fd);
 int      sc_ffmpeg_wait(int64_t session);
 void     sc_ffmpeg_cancel(int64_t session);
@@ -383,8 +387,17 @@ void     sc_ffmpeg_cancel(int64_t session);
   through a `CDLL` function or a `CFUNCTYPE` prototype releases the GIL, so a blocked `wait` does
   not stop the cancel watcher. The module loads nothing at import. `is_available()` returns `False`
   on a host whose `media_tools` is not `in_process` before any ctypes call; elsewhere it looks the
-  four names up in this process (`dlopen(NULL)`) and calls `sc_ffmpeg_abi_version` only. A missing
-  symbol or a version other than 1 is unavailable, and nothing is installed.
+  five names up in this process (`dlopen(NULL)`) and calls `sc_ffmpeg_abi_version` only. A missing
+  symbol or a version other than 2 is unavailable, and nothing is installed.
+- **Build id.** `sc_ffmpeg_build_id` returns a pointer to a static NUL-terminated string that is
+  never freed and never changes for the life of the process; it takes no lock and may be called
+  from any thread. The charset is `[A-Za-z0-9._+-]`, 1 to 128 bytes, and it is never NULL. The
+  content is the FFmpeg release, `+`, and the first 16 hex of a sha256 over what decides the
+  binary: the build script, the glue and core sources, the pinned archives, patches and configure
+  options, the platform, and the compiler and SDK versions (`scripts/ios/build_ffmpeg.sh` passes it
+  to the core as `-DSC_BUILD_ID`). Two different binaries do not return the same string and a
+  rebuild with identical inputs returns the same one. If the build cannot compute it, `unknown` is
+  baked in, and a caller must not use that as a cache key.
 - **argv.** `argv[0]` is the tool name, `ffmpeg` or `ffprobe` (Python maps the sentinel). The array
   has `argc` strings and a NULL slot. Native copies every string before `start` returns.
 - **Sessions.** `start` returns an id >= 1 (never reused in a process) or `-errno`, and leaves no
@@ -393,7 +406,7 @@ void     sc_ffmpeg_cancel(int64_t session);
   16 sessions wait in the queue (the running one is not counted): a further `start` returns
   `-EAGAIN`. `start` registers the session and returns; it never waits for the tool (it holds the
   core mutex only briefly), because the bridge starts its cancel watcher only after `start` returns.
-  Sessions run one at a time in start order. All four functions may be called from any thread,
+  Sessions run one at a time in start order. All five functions may be called from any thread,
   exactly one `wait` per id succeeds (a second returns `-ESRCH`), and `cancel` may run at any time,
   during or after `wait`. `wait` returns an exit code in 0..255 or `-errno` (`-ESRCH` for an unknown
   or already-waited id). `cancel` is idempotent and a no-op for an unknown id. It asks the session
@@ -485,7 +498,9 @@ void     sc_ffmpeg_cancel(int64_t session);
   that way.
 - **File descriptors.** `-1` means none. Native `dup()`s each fd >= 0 before `start` returns and
   closes its dups when the session ends; the caller owns and closes its own fds and native never
-  closes them. A dup shares the file offset, so a caller reading a tempfile stderr back must
+  closes them. libav closes the `pipe:N` copy it opens, so at the end of a session native closes a
+  copy only if its number still names the same file and no other session holds that number as an
+  original or a copy. A dup shares the file offset, so a caller reading a tempfile stderr back must
   `seek(0)` first. `out_fd` and `err_fd` may be the same descriptor: native dups each separately,
   both dups share one file offset, and stdout is buffered while stderr is not, so the order of lines
   between them is not preserved. With `in_fd == -1` ffmpeg still runs; only an argument that names a
@@ -504,8 +519,8 @@ void     sc_ffmpeg_cancel(int64_t session);
   itself from being removed by LTO; it does not name the framework's symbols.
   Whether it is what lets `CDLL(None)` find them on a device is not yet proved; that needs a Mac
   (see "Not proved here" below).
-  The four `sc_ffmpeg_*` names are not in the app executable. They come from `FFmpeg.framework`,
-  which is linked with `-exported_symbols_list` naming exactly those four
+  The five `sc_ffmpeg_*` names are not in the app executable. They come from `FFmpeg.framework`,
+  which is linked with `-exported_symbols_list` naming exactly those five
   (`scripts/ios/build_ffmpeg.sh`), so the framework exports nothing else: `sc_out`, `sc_err`
   and `sc_tool_exit` are hidden by construction, and `bundle_checks.check_ffmpeg_framework` fails
   on any extra export. Do not add a second `settings:` key to that target: YAML silently keeps
@@ -513,7 +528,7 @@ void     sc_ffmpeg_cancel(int64_t session);
 - **FFmpeg framework.** The template links and embeds `ios-payload/FFmpeg.xcframework` with
   `embed: true`, `codeSign: true` and `link: true`, exactly as it does Python, so one dependency
   line serves the device and the Simulator and the framework is a load-time dependency of the
-  app. The four symbols are reached through `CDLL(None)`; whether that finds them in a linked
+  app. The five symbols are reached through `CDLL(None)`; whether that finds them in a linked
   framework on a device, and whether the flag above is needed for it, is proved on a Mac. The
   framework is arm64 only, so the Simulator target
   excludes `x86_64` (`EXCLUDED_ARCHS[sdk=iphonesimulator*]`, beside the existing device line).
@@ -565,7 +580,7 @@ void     sc_whisper_cancel(int64_t session);
 - **Which framework.** The four symbols come from `Whisper.framework`
   (`studio.sharecut.whisper`), a separate framework from `FFmpeg.framework`. It exports exactly
   those four names and nothing else (`bundle_checks.check_whisper_framework` fails on a missing or
-  an extra export, so no `whisper_*` or `ggml_*` symbol is visible), and FFmpeg's four symbols are
+  an extra export, so no `whisper_*` or `ggml_*` symbol is visible), and FFmpeg's five symbols are
   not exported from it. The two frameworks are loaded in the same process and each backend finds
   its own names through `CDLL(None)`.
 - **Ids and cancel.** Session ids are never reused in a process. `cancel` on a session that has

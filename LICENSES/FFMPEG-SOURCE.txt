@@ -58,7 +58,7 @@ above, checks their sha256, applies the patches to a copy, configures and
 builds lame, opus and FFmpeg for arm64, and links FFmpeg.framework into
 gui/desktop/src-tauri/ios-ffmpeg/out/<device|sim>/. The full configure options
 are in contracts/ffmpeg-build.json (lame_configure, opus_configure,
-ffmpeg_configure) and in scripts/ios/build_ffmpeg.sh.
+ffmpeg_configure, ios_ffmpeg_configure) and in scripts/ios/build_ffmpeg.sh.
 
 Written offer
 

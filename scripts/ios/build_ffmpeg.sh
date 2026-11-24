@@ -52,11 +52,13 @@ OPUS_DIR=$(pin sources.opus.directory)
 LAME_CONFIGURE=$(pin lame_configure)
 OPUS_CONFIGURE=$(pin opus_configure)
 FFMPEG_CONFIGURE=$(pin ffmpeg_configure)
+IOS_CONFIGURE=$(pin ios_ffmpeg_configure)
 
 # Bash 3.2 read needs a NUL terminator to keep all lines in one array.
 IFS=$'\n' read -r -d '' -a LAME_FLAGS < <(printf '%s\0' "$LAME_CONFIGURE")
 IFS=$'\n' read -r -d '' -a OPUS_FLAGS < <(printf '%s\0' "$OPUS_CONFIGURE")
 IFS=$'\n' read -r -d '' -a FFMPEG_FLAGS < <(printf '%s\0' "$FFMPEG_CONFIGURE")
+IFS=$'\n' read -r -d '' -a IOS_FLAGS < <(printf '%s\0' "$IOS_CONFIGURE")
 
 if [ "$PLAT" = device ]; then MIN="-miphoneos-version-min=$MINOS"; else MIN="-mios-simulator-version-min=$MINOS"; fi
 SYSROOT=$(xcrun --sdk "$SDK" --show-sdk-path)
@@ -127,23 +129,49 @@ done
 
 MAPS="-ffile-prefix-map=$ROOT=/repo -ffile-prefix-map=$SYSROOT=/sdk -ffile-prefix-map=$SRC=/src -ffile-prefix-map=$FFSRC=/src/$FFDIR -ffile-prefix-map=$BUILD=/build -ffile-prefix-map=$OUT=/out -fdebug-prefix-map=$ROOT=/repo -fdebug-prefix-map=$SRC=/src -fdebug-prefix-map=$FFSRC=/src/$FFDIR -fdebug-prefix-map=$BUILD=/build"
 FORCE="-include sc_fftools_stdio.h -include sc_exit_map.h -I$GLUE"
-CFLAGS_CONFIGURE="-O2 -fPIC -fvisibility=default $MAPS"
+OPT_FLAGS="-O2 -fPIC -fvisibility=default"
+CFLAGS_CONFIGURE="$OPT_FLAGS $MAPS"
 CFLAGS="$CFLAGS_CONFIGURE $FORCE"
 
-if [ ! -f "$PREFIX/lib/libmp3lame.a" ]; then
-  rm -rf "$BUILD/lame"; mkdir -p "$BUILD/lame"; cd "$BUILD/lame"
-  "$SRC/$LAME_DIR/configure" --host=aarch64-apple-darwin --prefix="$PREFIX" "${LAME_FLAGS[@]}" CC="$CC" CFLAGS="$CFLAGS_CONFIGURE" > "$BUILD/lame-configure.log" 2>&1
+# digest <text or @file>...: sha256 over the arguments; an argument starting with @ contributes that file's bytes.
+digest() {
+  python3 -I -c 'import hashlib, sys
+h = hashlib.sha256()
+for arg in sys.argv[1:]:
+    if arg.startswith("@"):
+        h.update(b"file:" + open(arg[1:], "rb").read())
+    else:
+        h.update(b"text:" + arg.encode())
+    h.update(b"\0")
+print(h.hexdigest())' "$@"
+}
+
+TOOLCHAIN=$("$CLANG" --version 2>&1 | head -n 1 || true)
+TOOLCHAIN="$TOOLCHAIN $(xcrun --sdk "$SDK" --show-sdk-version 2>/dev/null || true) $(xcrun --sdk "$SDK" --show-sdk-build-version 2>/dev/null || true)"
+FORCE_HEADERS=("@$GLUE/sc_fftools_stdio.h" "@$GLUE/sc_exit_map.h")
+
+# build_dep <name> <source dir> <library> <flag>...: configure, build and install one static dependency into
+# $PREFIX, unless $PREFIX/.stamp-<name> already holds the digest of this build's inputs (pins, flags, compiler, forced headers).
+build_dep() {
+  local name=$1 dir=$2 lib=$3
+  shift 3
+  local stamp
+  stamp=$(digest "$name" "$(pin "sources.$name.sha256")" "$TOOLCHAIN" "$CC" "$CFLAGS" "$@" "${FORCE_HEADERS[@]}")
+  if [ -f "$PREFIX/lib/$lib" ] && [ "$(cat "$PREFIX/.stamp-$name" 2>/dev/null)" = "$stamp" ]; then
+    echo "$name: reusing $PREFIX/lib/$lib (inputs ${stamp:0:12})"
+    return 0
+  fi
+  echo "$name: building (inputs ${stamp:0:12})"
+  rm -f "$PREFIX/.stamp-$name" "$PREFIX/lib/$lib"
+  rm -rf "$BUILD/$name"; mkdir -p "$BUILD/$name"; cd "$BUILD/$name"
+  "$SRC/$dir/configure" --host=aarch64-apple-darwin --prefix="$PREFIX" "$@" CC="$CC" CFLAGS="$CFLAGS_CONFIGURE" > "$BUILD/$name-configure.log" 2>&1
   # the forced includes go on only after configure: with <stdlib.h> forced in, autoconf's `char strtol(void)` probes fail
-  nice -n 10 make -j"$JOBS" CFLAGS="$CFLAGS" > "$BUILD/lame-make.log" 2>&1
-  make install > "$BUILD/lame-install.log" 2>&1
-fi
-if [ ! -f "$PREFIX/lib/libopus.a" ]; then
-  rm -rf "$BUILD/opus"; mkdir -p "$BUILD/opus"; cd "$BUILD/opus"
-  "$SRC/$OPUS_DIR/configure" --host=aarch64-apple-darwin --prefix="$PREFIX" "${OPUS_FLAGS[@]}" CC="$CC" CFLAGS="$CFLAGS_CONFIGURE" > "$BUILD/opus-configure.log" 2>&1
-  # the forced includes go on only after configure: with <stdlib.h> forced in, autoconf's `char strtol(void)` probes fail
-  nice -n 10 make -j"$JOBS" CFLAGS="$CFLAGS" > "$BUILD/opus-make.log" 2>&1
-  make install > "$BUILD/opus-install.log" 2>&1
-fi
+  nice -n 10 make -j"$JOBS" CFLAGS="$CFLAGS" > "$BUILD/$name-make.log" 2>&1
+  make install > "$BUILD/$name-install.log" 2>&1
+  echo "$stamp" > "$PREFIX/.stamp-$name"
+}
+build_dep lame "$LAME_DIR" libmp3lame.a "${LAME_FLAGS[@]}"
+build_dep opus "$OPUS_DIR" libopus.a "${OPUS_FLAGS[@]}"
 
 # lame and opus were built with the exit/stdio forced includes, so their archives reference sc_tool_exit and
 # sc_err; configure's link probes for them need a provider. The real ones come from the core at framework link.
@@ -159,7 +187,7 @@ rm -rf "$BUILD/ffmpeg"; mkdir -p "$BUILD/ffmpeg"; cd "$BUILD/ffmpeg"
 export PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig PKG_CONFIG_LIBDIR=$PREFIX/lib/pkgconfig
 "$FFSRC/configure" --prefix="$PREFIX" --enable-cross-compile --target-os=darwin --arch=arm64 \
   --cc="$CC" --as="$CC" --ld="$CC" --pkg-config=pkg-config --enable-pic \
-  "${FFMPEG_FLAGS[@]}" \
+  "${FFMPEG_FLAGS[@]}" "${IOS_FLAGS[@]}" \
   --extra-cflags="-I$PREFIX/include $MIN $MAPS" --extra-ldflags="-L$PREFIX/lib $MIN" --extra-libs="$BUILD/cfg_stub.o" > "$BUILD/ffmpeg-configure.log" 2>&1
 # configure's probes declare `extern int fn();`, which the real prototypes from the forced <stdlib.h> contradict: add the forced includes to the build only
 printf 'CFLAGS+= %s\n' "$FORCE" >> ffbuild/config.mak
@@ -179,14 +207,27 @@ compile_tool() {
   $CC $TOOL_FLAGS -I. -I"$FFSRC" -Wno-missing-prototypes "${@:2}" -c "$1" -o "$WORK/$(basename "$1" .c).o"
 }
 compile_plain() {
-  $CC $PLAIN_FLAGS -I. -I"$FFSRC" -c "$1" -o "$WORK/$(basename "$1" .c).o"
+  $CC $PLAIN_FLAGS -I. -I"$FFSRC" "${@:2}" -c "$1" -o "$WORK/$(basename "$1" .c).o"
 }
-compile_plain "$GLUE/sc_ffmpeg_core.c"
+# The build id: the FFmpeg release and the first 16 hex of a digest of what decides the binary: the script, the glue,
+# the pinned archives, patches and configure options, the platform and the toolchain. Anything uncomputable gives "unknown".
+BUILD_INPUTS=("$PLAT" "$MINOS" "$TOOLCHAIN" "$OPT_FLAGS" "$(pin sources.ffmpeg.sha256)" "$(pin sources.lame.sha256)" "$(pin sources.opus.sha256)" "$LAME_DIR" "$OPUS_DIR" "$LAME_CONFIGURE" "$OPUS_CONFIGURE" "$FFMPEG_CONFIGURE" "$IOS_CONFIGURE" "@$ROOT/scripts/ios/build_ffmpeg.sh")
+for patch in $PATCHES; do BUILD_INPUTS+=("@$ROOT/$patch"); done
+for source in sc_ffmpeg_core.c sc_ffmpeg_core.h sc_ffmpeg_glue.c sc_ffmpeg_tool.c sc_ffprobe_tool.c sc_fftools_stdio.h sc_exit_map.h; do
+  BUILD_INPUTS+=("@$GLUE/$source")
+done
+BUILD_INPUTS+=("@$GLUE/../native/sc_session_core.inc")
+BUILD_ID=unknown
+if BUILD_DIGEST=$(digest "${BUILD_INPUTS[@]}") && [[ $VERSION+${BUILD_DIGEST:0:16} =~ ^[A-Za-z0-9._+-]{1,128}$ ]]; then
+  BUILD_ID=$VERSION+${BUILD_DIGEST:0:16}
+fi
+echo "build id: $BUILD_ID"
+compile_plain "$GLUE/sc_ffmpeg_core.c" "-DSC_BUILD_ID=\"$BUILD_ID\""
 compile_plain "$GLUE/sc_ffmpeg_glue.c"
 compile_tool "$GLUE/sc_ffmpeg_tool.c" -Dmain=sc_ffmpeg_main
 compile_tool "$GLUE/sc_ffprobe_tool.c" -Dmain=sc_ffprobe_main -Dprogram_name=ffprobe_program_name -Dprogram_birth_year=ffprobe_program_birth_year -Dshow_help_default=ffprobe_show_help_default
 
-printf '_sc_ffmpeg_abi_version\n_sc_ffmpeg_start\n_sc_ffmpeg_wait\n_sc_ffmpeg_cancel\n' > "$WORK/exports.txt"
+printf '_sc_ffmpeg_abi_version\n_sc_ffmpeg_build_id\n_sc_ffmpeg_start\n_sc_ffmpeg_wait\n_sc_ffmpeg_cancel\n' > "$WORK/exports.txt"
 FW=$OUT/FFmpeg.framework
 rm -rf "$FW"; mkdir -p "$FW"
 $CC -dynamiclib -o "$FW/FFmpeg" -install_name @rpath/FFmpeg.framework/FFmpeg -compatibility_version 1 -current_version "$VERSION" \

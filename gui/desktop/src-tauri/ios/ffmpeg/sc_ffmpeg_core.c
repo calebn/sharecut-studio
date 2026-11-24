@@ -140,7 +140,13 @@ static int sc_build_argv(struct session *s, int argc, const char *const *argv) {
     return apply_policy(s);
 }
 
-SC_EXPORT int sc_ffmpeg_abi_version(void) { return 1; }
+#ifndef SC_BUILD_ID
+#define SC_BUILD_ID "unknown"
+#endif
+
+SC_EXPORT int sc_ffmpeg_abi_version(void) { return 2; }
+
+SC_EXPORT const char *sc_ffmpeg_build_id(void) { return SC_BUILD_ID; }
 
 SC_EXPORT int64_t sc_ffmpeg_start(int argc, const char *const *argv, int in_fd, int out_fd, int err_fd) {
     return sc_session_start(argc, argv, in_fd, out_fd, err_fd);

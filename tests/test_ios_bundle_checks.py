@@ -347,7 +347,7 @@ def test_a_symlinked_storyboard_info_plist_is_named(tmp_path: Path, relative: st
     )
 
 
-FFMPEG_NM = "_sc_ffmpeg_abi_version\n_sc_ffmpeg_start\n_sc_ffmpeg_wait\n_sc_ffmpeg_cancel\n"
+FFMPEG_NM = "_sc_ffmpeg_abi_version\n_sc_ffmpeg_build_id\n_sc_ffmpeg_start\n_sc_ffmpeg_wait\n_sc_ffmpeg_cancel\n"
 
 
 def fake_nm(text: str, seen: list[tuple[Path, list[str]]] | None = None) -> checks.NmRunner:
@@ -455,7 +455,7 @@ def test_exported_symbols_asks_nm_for_defined_globals_and_drops_the_underscore(
     assert seen == [(path, ["-gU", "-j"])]
 
 
-def test_the_four_exports_and_a_small_binary_pass(
+def test_the_five_exports_and_a_small_binary_pass(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
@@ -475,7 +475,7 @@ def test_the_four_exports_and_a_small_binary_pass(
         (FFMPEG_NM + "_main\n", "unexpected main"),
     ],
 )
-def test_the_exports_must_be_exactly_the_four(
+def test_the_exports_must_be_exactly_the_five(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str, problem: str
 ) -> None:
     monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
@@ -641,7 +641,7 @@ def test_the_whisper_framework_must_not_export_the_ffmpeg_symbols_it_replaces(
     tmp_path: Path,
 ) -> None:
     report = checks.check_whisper_framework(whisper_app(tmp_path), fake_nm(FFMPEG_NM))
-    assert len(report.problems) == 8
+    assert len(report.problems) == 9
 
 
 def test_each_framework_check_ignores_the_other_frameworks_files(tmp_path: Path) -> None:

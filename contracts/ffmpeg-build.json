@@ -52,6 +52,11 @@
     "--enable-libopus",
     "--pkg-config-flags=--static"
   ],
+  "ios_ffmpeg_configure": [
+    "--disable-network",
+    "--disable-protocols",
+    "--enable-protocol=file,pipe,fd"
+  ],
   "zlib_configure": [
     "--static"
   ],
