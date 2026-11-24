@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import asdict, replace
 from typing import Any, TypeVar
 
@@ -48,7 +48,6 @@ from podcast_mcp.edits.envelopes import volume_envelope_baseline
 from podcast_mcp.edits.join_continuity import (
     assess_existing_join,
 )
-from podcast_mcp.edits.pad_binder import bind_pending_pad_picks
 from podcast_mcp.edits.range_edits import RangeAction, RangeEditResult
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.tighten.propose import with_audio_check as with_audio_check
@@ -65,7 +64,7 @@ from podcast_mcp.edits.unsure_words import (
     hold_unsure_cuts,
 )
 from podcast_mcp.engines.render_status import render_status_report
-from podcast_mcp.models import CutIntent, EditDecision, EditMode, EpisodeProject
+from podcast_mcp.models import CutIntent, EditDecision, EditMode
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.project.history.manager import (
     apply_snapshot_to_project,
@@ -93,16 +92,6 @@ T = TypeVar("T")
 
 
 class EditService(CutMutatingService):
-    def _binding(self, fn: Callable[[EpisodeProject], T]) -> Callable[[EpisodeProject], T]:
-        """``fn``, then bind the room tone each pending padded cut will play (#3600)."""
-
-        def bound(project: EpisodeProject) -> T:
-            result = fn(project)
-            bind_pending_pad_picks(project, defaults=self.ws.effective_config())
-            return result
-
-        return bound
-
     def _require_refine_clear(self) -> None:
         REFINE_GATE.assert_clear(self.ws.project, defaults=self.ws.effective_config())
 
