@@ -2,10 +2,39 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Literal, TypedDict
 
 from podcast_mcp.segments.kit import KitListing
 from podcast_mcp.segments.kit_summary import MissingEntry
+
+
+class OfferEntry(TypedDict):
+    segment_id: str
+    version: int
+    at: Literal["start", "end"] | float
+    note: str | None
+
+
+class OfferKit(TypedDict):
+    id: str
+    name: str
+    version: int
+    entries: list[OfferEntry]
+
+
+class UnusableKit(TypedDict):
+    id: str
+    name: str
+    version: int
+    missing: int
+    problem: str
+
+
+class KitOffer(TypedDict):
+    offer: bool
+    reason: str
+    kits: list[OfferKit]
+    unusable: list[UnusableKit]
 
 
 def offer_report(
@@ -14,10 +43,10 @@ def offer_report(
     listing: KitListing,
     missing_by_kit: dict[str, list[MissingEntry]],
     resolved_by_kit: dict[str, list[int]],
-) -> dict[str, Any]:
+) -> KitOffer:
     """First matching rule gives the reason; damaged kits are ignored."""
-    kits: list[dict[str, Any]] = []
-    unusable: list[dict[str, Any]] = []
+    kits: list[OfferKit] = []
+    unusable: list[UnusableKit] = []
     if not has_clips:
         reason = "no_clips"
     elif has_segment_refs:

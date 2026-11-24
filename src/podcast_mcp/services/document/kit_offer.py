@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from podcast_mcp.segments.kit import KitStore
-from podcast_mcp.segments.kit_offer import offer_report
+from podcast_mcp.segments.kit_offer import KitOffer, offer_report
 from podcast_mcp.segments.kit_summary import MissingEntry, failing_entries
 from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.services.document.read_only_open import open_read_only
@@ -14,7 +13,7 @@ from podcast_mcp.services.document.read_only_open import open_read_only
 
 def report_kit_offer(
     project_path: Path | str, kit_store: KitStore, segment_store: SegmentStore
-) -> dict[str, Any]:
+) -> KitOffer:
     """Whether to offer the show kit to this episode, and the kits it can offer.
 
     A kit is offered when each entry's segment version passes the cheap read. Audio is not

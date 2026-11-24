@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any, NoReturn
+from typing import NoReturn
 
 from fastapi import APIRouter, Request
 
 from podcast_mcp.gui.routes.deps import coded_exception_error, resolve_project
 from podcast_mcp.gui.routes.project import pin_served_if_allowed
 from podcast_mcp.segments.kit import KitStore
+from podcast_mcp.segments.kit_offer import KitOffer
 from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.services.document import report_kit_offer
 from podcast_mcp.util.coded_error import CodedValueError
@@ -21,7 +22,7 @@ def _refuse(exc: CodedValueError) -> NoReturn:
 
 
 @router.get("/api/kits/offer")
-def kit_offer_route(path: str, request: Request) -> dict[str, Any]:
+def kit_offer_route(path: str, request: Request) -> KitOffer:
     project_path = resolve_project(path, request)
     pin_served_if_allowed(request, project_path)
     try:
