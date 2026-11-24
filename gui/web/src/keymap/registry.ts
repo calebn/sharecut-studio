@@ -601,7 +601,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireShift: false,
     noRepeat: true,
     when: "editStage",
-    notes: "B: the suggestion applied",
+    notes: "B: hear the suggestion applied",
   },
   {
     id: "edit.keep",

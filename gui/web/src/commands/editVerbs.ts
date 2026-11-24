@@ -79,7 +79,11 @@ import { runDeleteClips } from "./editing";
 import { inProject, removeEnvelopePoint } from "./envelopes";
 import { registerCommand } from "./execute";
 import { fixTextAvailability } from "./fixTextAvailability";
-import { decideThroughSheet, sheetBusyReason } from "./pendingDecision";
+import {
+  decideThroughSheet,
+  focusPendingTimingField,
+  sheetBusyReason,
+} from "./pendingDecision";
 import { playSpan } from "./playSpan";
 import { executePointerCommand } from "./pointer";
 import { REMOVE_ONE_TRACK } from "./projectMedia";
@@ -386,6 +390,20 @@ async function decidePending(
     if (live.pendingDecisionInFlight === edit.id)
       live.setPendingDecisionInFlight(null);
   }
+}
+
+async function inspectPending(open = false): Promise<ExecuteResult> {
+  const result = await executePointerCommand(
+    "edit.inspect",
+    open ? { open } : {},
+  );
+  const s = useDawStore.getState();
+  if (
+    s.selection?.kind === "pending" &&
+    inspectorOpenFor(s.selection, s.inspectorKey)
+  )
+    focusPendingTimingField(s.selection.id);
+  return result;
 }
 
 async function keep(facts: EditFacts): Promise<ExecuteResult> {
@@ -814,7 +832,9 @@ async function dispatch(
     case "more":
       return executePointerCommand("edit.more");
     case "inspect":
-      return executePointerCommand("edit.inspect");
+      return facts.kind === "suggestion"
+        ? inspectPending()
+        : executePointerCommand("edit.inspect");
     case "copy":
       return executePointerCommand("edit.copy");
     case "fillRoomTone":
@@ -824,6 +844,8 @@ async function dispatch(
         toLaneId: arg,
       });
     case "adjustBounds":
+      if (facts.kind === "suggestion") return inspectPending(true);
+      return executePointerCommand("edit.inspect", { open: true });
     case "fade":
     case "moveToTrack":
       return executePointerCommand("edit.inspect", { open: true });

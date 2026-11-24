@@ -24,6 +24,7 @@ import { HISTORY_ROOT_ID } from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
+import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
 import {
   barModelOf,
   currentEditFacts as factsOf,
@@ -1232,6 +1233,25 @@ describe("Inspect and More", () => {
       await execute("edit.inspect");
       await runEditVerb(id, factsOf()!);
       expect(useDawStore.getState().inspectorKey).toBe("clip:a");
+    },
+  );
+
+  it.each(["inspect", "adjustBounds"] as const)(
+    "%s on a suggestion opens the Inspector and focuses its Start field",
+    async (id) => {
+      host(EDIT_SELECTIONS.suggestion);
+      const input = document.createElement("input");
+      input.id = pendingEditTimingFieldId("pending-cut", "start");
+      input.scrollIntoView = vi.fn();
+      document.body.append(input);
+      try {
+        await runEditVerb(id, factsOf()!);
+        const live = useDawStore.getState();
+        expect(inspectorOpenFor(live.selection, live.inspectorKey)).toBe(true);
+        await vi.waitFor(() => expect(document.activeElement).toBe(input));
+      } finally {
+        input.remove();
+      }
     },
   );
 

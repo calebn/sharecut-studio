@@ -2103,22 +2103,73 @@ describe("overlay Cut and Keep", () => {
       expect(useDawStore.getState().selection).toBeNull();
     });
 
-  function mount(target: PendingEditView) {
+  function mount(target: PendingEditView, stage: "edit" | "review" = "review") {
     useDawStore
       .getState()
       .hydrate(path, minimalProject({ pending_edits: [target] }));
     useDawStore.setState({
+      stage,
       selection: { kind: "pending", id: target.id, trackId: "host" },
     });
     render(<PendingEditOverlay {...overlayProps(target)} />);
   }
 
   it.each([
+    ["a cut suggestion", "cut" as const],
+    ["a shorten suggestion", "shorten" as const],
+    ["a lower suggestion", "lower" as const],
+  ])("leaves %s to the Action bar on the Edit stage", async (_name, action) => {
+    mount({ ...edit, suggested_action: action }, "edit");
+    await act(async () => {});
+    expect(
+      screen.queryByRole("region", { name: "Pending edit actions" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+  });
+
+  it.each([
+    ["a split", { type: "split", suggested_action: "cut" as const }],
+    ["a suggestion to leave alone", { suggested_action: "leave" as const }],
+    [
+      "an exact range proposal",
+      {
+        suggested_action: "cut" as const,
+        exact_range: {
+          intervals: [{ start: 0, end: 2 }],
+          clips: [],
+          track_ids: ["host"],
+        } as never,
+      },
+    ],
+  ])("keeps its own bar for %s on the Edit stage", async (_name, extra) => {
+    mount({ ...edit, ...extra }, "edit");
+    expect(
+      await screen.findByRole("region", { name: "Pending edit actions" }),
+    ).toBeVisible();
+  });
+
+  it("keeps its own bar for a cut suggestion the viewer cannot review", async () => {
+    const target = { ...edit, suggested_action: "cut" as const };
+    useDawStore
+      .getState()
+      .hydrate("share:tok", minimalProject({ pending_edits: [target] }));
+    useDawStore.setState({
+      stage: "edit",
+      shareCapabilities: ["view"],
+      selection: { kind: "pending", id: target.id, trackId: "host" },
+    });
+    render(<PendingEditOverlay {...overlayProps(target)} />);
+    expect(
+      await screen.findByRole("region", { name: "Pending edit actions" }),
+    ).toBeVisible();
+  });
+
+  it.each([
     ["a cut suggestion", "cut" as const, "Cut"],
     ["a shorten suggestion", "shorten" as const, "Shorten"],
     ["a lower suggestion", "lower" as const, "Lower"],
   ])(
-    "names the buttons as the bar does, and Keep, for %s",
+    "off the Edit stage, names the buttons as the bar does, and Keep, for %s",
     async (_name, action, label) => {
       mount({ ...edit, suggested_action: action });
       expect(await screen.findByRole("button", { name: label })).toBeVisible();
@@ -2143,14 +2194,17 @@ describe("overlay Cut and Keep", () => {
         } as never,
       },
     ],
-  ])("keeps Approve and Reject for %s", async (_name, extra) => {
-    mount({ ...edit, ...extra });
-    expect(
-      await screen.findByRole("button", { name: "Approve" }),
-    ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Reject" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();
-  });
+  ])(
+    "keeps Approve and Reject for %s off the Edit stage",
+    async (_name, extra) => {
+      mount({ ...edit, ...extra });
+      expect(
+        await screen.findByRole("button", { name: "Approve" }),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "Reject" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();
+    },
+  );
 
   it("Cut approves a cut suggestion and Keep rejects it", async () => {
     mount({ ...edit, suggested_action: "cut" });

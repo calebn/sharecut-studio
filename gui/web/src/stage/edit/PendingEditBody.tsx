@@ -17,7 +17,7 @@ import {
   pendingEditBaseline,
 } from "../../api/documentEdits";
 import {
-  pendingOffersCut,
+  actionBarOwnsPendingVerbs,
   registerPendingDecider,
 } from "../../commands/pendingDecision";
 import { useCommentActions } from "../../comments";
@@ -499,7 +499,7 @@ export function PendingEditBody({
   const time = [tlStart != null ? formatTimeMs(tlStart) : null, length]
     .filter(Boolean)
     .join(" · ");
-  const barHasVerbs = verbsOnBar && pendingOffersCut(edit);
+  const barHasVerbs = verbsOnBar && actionBarOwnsPendingVerbs(edit, canApply);
   const inlineActions = !barHasVerbs && (canApply || edit.exact_range != null);
   const askComposer = {
     body: askBody,
