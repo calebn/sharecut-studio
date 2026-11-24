@@ -353,6 +353,58 @@ def test_stem_rejects_unreadable_project_saved_during_render(
     assert not (proj.artifacts_dir() / "track_outputs.json").exists()
 
 
+def _stem_state(proj, defaults):
+    from podcast_mcp.engines.play_audit import track_render_hash
+
+    roles = {TrackRole.DIALOGUE, TrackRole.MUSIC}
+    expected = {t.id: track_render_hash(proj, t.id, defaults=defaults) for t in proj.tracks}
+    return expected, roles
+
+
+def test_saved_stem_inputs_changed_missing_saved_project_is_stale(
+    minimal_project, sample_wav, tmp_workspace, caplog
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    expected, roles = _stem_state(proj, defaults)
+    Path(minimal_project).unlink()
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.pipeline.steps"):
+        assert steps._saved_stem_inputs_changed(proj, expected, roles, defaults) is True
+    assert "saved project unreadable" in caplog.text
+
+
+def test_saved_stem_inputs_changed_corrupt_saved_project_is_stale(
+    minimal_project, sample_wav, tmp_workspace, caplog
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    expected, roles = _stem_state(proj, defaults)
+    Path(minimal_project).write_text("{", encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.pipeline.steps"):
+        assert steps._saved_stem_inputs_changed(proj, expected, roles, defaults) is True
+    assert "saved project unreadable" in caplog.text
+
+
+def test_saved_stem_inputs_changed_readable_project_defers_to_stem_inputs_changed(
+    minimal_project, sample_wav, tmp_workspace, caplog
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    expected, roles = _stem_state(proj, defaults)
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.pipeline.steps"):
+        assert steps._saved_stem_inputs_changed(proj, expected, roles, defaults) is False
+
+        proj.track_by_id("host").fader_db = -6.0
+        proj.track_by_id("host").muted = True
+        save_project(proj, minimal_project)
+        assert steps._saved_stem_inputs_changed(proj, expected, roles, defaults) is False
+
+        proj.tracks = proj.tracks[:1]
+        save_project(proj, minimal_project)
+        assert steps._saved_stem_inputs_changed(proj, expected, roles, defaults) is True
+    assert "saved project unreadable" not in caplog.text
+
+
 def test_stem_rejects_track_added_during_render(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
