@@ -12,7 +12,7 @@ bundled native Python dependencies require this minimum.
 | Surface | Location |
 |---------|----------|
 | ShareCut Studio UI + engine | FOSS — `gui/web`, `src/podcast_mcp` |
-| FOSS share (mint + guest against **any** relay) | FOSS — share routes / tunnel **client** |
+| FOSS share (mint + guest against **any** relay) | FOSS — share routes / tunnel **client**; the packaged app runs the tunnel client in-process (`TunnelSupervisor`) against its own ephemeral listen port, so no `podcast tunnel` is needed |
 | Generic `podcast-relay` Compose | FOSS — `deploy/relay` (self-host) |
 | Tauri **source** | FOSS — [`gui/desktop/`](../gui/desktop/) |
 | Reusable installer build [`release-desktop-build.yml`](../.github/workflows/release-desktop-build.yml) | FOSS YAML; Environment `desktop-signing` secret **values** stay funnel |

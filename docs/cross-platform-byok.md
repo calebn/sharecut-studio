@@ -149,6 +149,7 @@ Tauri 2 can wrap the same WebView on iOS/Android, but **desktop sidecars do not 
 
 - Projects live in the app sandbox (iOS Files picker / Android SAF). Import copies or security-scoped bookmarks. No arbitrary host `project_path`.
 - Sync later: iCloud/Drive/Syncthing of the episode folder. Format is already a folder of JSON plus audio.
+- No outbound relay tunnel on the phone: `HostPlatform.can_host_tunnel` is false on the iOS row, so Studio never starts its host tunnel there.
 - Long transcribe/render: foreground + checkpoint. iOS background time will not finish a 2-hour Whisper pass.
 - Binary size: FFmpegKit + whisper.cpp + CPython is large. CDN-download models on first run, same idea as desktop bootstrap.
 

@@ -14,7 +14,7 @@ Models                   models/  (EpisodeProject, snapshots)
 ```
 
 Each layer owns one concern. Per-module ownership notes, caches and the FFmpeg pair policy live in
-[layer-reference.md](layer-reference.md); frontend internals live in [gui-viewer.md](gui-viewer.md). Platform facts come from one table, described in [contributing.md § Host platform](contributing.md#host-platform).
+[layer-reference.md](layer-reference.md); frontend internals live in [gui-viewer.md](gui-viewer.md). Platform facts come from one table, described in [contributing.md § Host platform](contributing.md#host-platform). A host that cannot hold an outbound relay tunnel (`can_host_tunnel` false: iOS, unknown) never starts the Studio tunnel.
 
 1. **Models** (`podcast_mcp.models`) — Pydantic episode project on disk; no I/O side effects. See [episode-format-v2.md](episode-format-v2.md).
 2. **Engines** (`podcast_mcp.engines`) — FFmpeg, transcription, waveform pyramids, source and timeline mapping, render and audio audits. `FFmpegEngine.decode_full_f32` owns uncached whole-file float32 decoding. The class-level `FFmpegEngine.resample_streams` operation owns stream conversion and its process lifecycle. `FFmpegEngine.astats` owns first-stream health measurement and parsing. `FFmpegEngine.concat_with_gap` owns the A + silence + B join. See [audio-engineering.md](audio-engineering.md) and [layer-reference.md](layer-reference.md#layer-items).

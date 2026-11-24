@@ -23,8 +23,10 @@ Connect a remote MCP client (e.g. Cursor) to a **review share token** so an agen
    `PODCAST_EXTENSIONS=collaboration,online` only when a provider extension is
    installed and its account surface is wanted.
 2. `podcast gui --project <episode.sharecut> --no-open`
-3. `podcast tunnel --project … --relay-url wss://<relay>/tunnel --host-token …`
-   Read its stderr: `Tunnel connected: <url> (N shares)` means guests can reach you;
+3. With relay settings in place (`relay.yaml` or `PODCAST_RELAY_URL` and `PODCAST_RELAY_HOST_TOKEN`),
+   Studio brings the tunnel up itself while a link is live, so skip this step. Without Studio, run
+   `podcast tunnel --project … --relay-url wss://<relay>/tunnel --host-token …`
+   and read its stderr: `Tunnel connected: <url> (N shares)` means guests can reach you;
    `Tunnel reconnecting …` means they see "Host offline" until the next `connected`.
    A `Tunnel failed (auth: …)` or `(config: …)` line exits 1 — fix the host token or
    relay URL and rerun ([host-online-relay.md](../../docs/host-online-relay.md) § Tunnel status).
