@@ -36,6 +36,7 @@ import pytest
 
 from combined_contract_helpers import (
     FRESH_TEXTS,
+    SOURCE_SEC,
     Observed,
     Outcome,
     State,
@@ -59,6 +60,7 @@ from podcast_mcp.edits.range_edits import RangeAction
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.engines.speaker_id import SpeakerProfile, WindowScore
+from podcast_mcp.engines.speaker_split import SpeakerAttribution, SpeakerTurn
 from podcast_mcp.models import (
     ArchivedTranscriptWord,
     Clip,
@@ -105,6 +107,8 @@ class Case:
     """False when the command works on a project with no transcripts at all."""
     arrange: Callable[[EpisodeProject], None] | None = None
     """Reshapes the entry project before it is saved."""
+    speakers: tuple[str, ...] | None = None
+    """The utterance speaker labels after the command, where the labels are what it changes."""
     prepare: Command | None = None
     """A command that runs first, so there is something for this one to undo."""
     configure: Callable[[pytest.MonkeyPatch], None] | None = None
@@ -464,7 +468,55 @@ def _host_friend_is_bleed(project: EpisodeProject) -> None:
     host.words[2] = host.words[2].model_copy(update={"audibility_status": "bleed"})
 
 
+class _ContractBackend:
+    def name(self) -> str:
+        return "contract"
+
+
+def _split_seams(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Attribute the host recording as Ana until 2 s and Ben after it; nothing else is stubbed."""
+    attribution = SpeakerAttribution(
+        speaker_count=2,
+        duration=SOURCE_SEC,
+        turns=(
+            SpeakerTurn(start=0.0, end=2.0, speakers=(0,), confidence=0.9),
+            SpeakerTurn(start=2.0, end=SOURCE_SEC, speakers=(1,), confidence=0.9),
+        ),
+        backend="contract",
+        method="cluster",
+    )
+    module = "podcast_mcp.services.media.speaker"
+    monkeypatch.setattr(f"{module}.resolve_speaker_backend", lambda *_a, **_k: _ContractBackend())
+    monkeypatch.setattr(f"{module}.attribute_speakers", lambda *_a, **_k: attribution)
+
+
+def _split_host(ws: ProjectWorkspace) -> Any:
+    return SpeakerService(ws).split_speakers(
+        "host", speaker_count=2, names=["Ana", "Ben"], dry_run=False
+    )
+
+
 SPEAKER_CASES = [
+    Case(
+        "split_track_by_speaker",
+        _split_host,
+        FRESH_TEXTS,
+        speakers=("Ana", "Ben", "Guest"),
+        configure=_split_seams,
+    ),
+    Case(
+        "move_lane_span",
+        lambda ws: SpeakerService(ws).move_lane_span(
+            "host",
+            ws.project.editorial.speaker_splits[-1].lanes[1],
+            source_start=0.0,
+            source_end=1.5,
+        ),
+        FRESH_TEXTS,
+        speakers=("Ben", "Ben", "Guest"),
+        prepare=_split_host,
+        configure=_split_seams,
+    ),
     Case(
         "speaker_home_gate",
         lambda ws: SpeakerService(ws).gate_track(track_id="host", dry_run=False),
@@ -533,6 +585,9 @@ def assert_contract(case: Case, state: State, seen: Observed) -> None:
     outcome = {State.FRESH: REBUILT, State.STALE: case.stale, State.NONE: case.none}[state]
     if outcome is REBUILT:
         assert texts(seen.memory) == _expected_texts(case, state)
+        if case.speakers is not None:
+            assert seen.memory is not None
+            assert tuple(u.speaker for u in seen.memory.utterances) == case.speakers
     assert seen.memory == expect
     assert seen.saved == expect
     assert seen.snapshot == expect
