@@ -200,14 +200,15 @@ export function placeCard(
     normal.side === "below"
       ? normal.block
       : bounds.height - normal.block - normal.maxBlock;
-  const clearAt = (x: number) =>
+  const clearsAt = (x: number, top: number, height: number) =>
     obstacles.every(
       (o) =>
         x + width <= o.left + CLEAR_EPSILON ||
         x >= o.right - CLEAR_EPSILON ||
-        normalTop + normal.maxBlock <= o.top + CLEAR_EPSILON ||
-        normalTop >= o.end - CLEAR_EPSILON,
+        top + height <= o.top + CLEAR_EPSILON ||
+        top >= o.end - CLEAR_EPSILON,
     );
+  const clearAt = (x: number) => clearsAt(x, normalTop, normal.maxBlock);
   if (clearAt(inline)) return normal;
 
   const beside = obstacles
@@ -218,14 +219,6 @@ export function placeCard(
 
   const topOf = (p: CardPlacement) =>
     p.side === "below" ? p.block : bounds.height - p.block - p.maxBlock;
-  const clears = (p: CardPlacement) =>
-    obstacles.every(
-      (o) =>
-        p.inline + width <= o.left + CLEAR_EPSILON ||
-        p.inline >= o.right - CLEAR_EPSILON ||
-        topOf(p) + p.maxBlock <= o.top + CLEAR_EPSILON ||
-        topOf(p) >= o.end - CLEAR_EPSILON,
-    );
   for (const rect of hangFrom.filter(hasArea)) {
     if (rect.x >= anchor.x + anchor.width || rect.x + rect.width <= anchor.x)
       continue;
@@ -244,7 +237,7 @@ export function placeCard(
       keepClear,
       hangFrom.filter((other) => other !== rect),
     );
-    if (clears(hung)) return hung;
+    if (clearsAt(hung.inline, topOf(hung), hung.maxBlock)) return hung;
   }
 
   const areas = keepClear.filter(hasArea).map(padded);
