@@ -1,5 +1,3 @@
-"""Parse XcodeGen's ``project.yml`` template, refusing a mapping key that appears twice."""
-
 from __future__ import annotations
 
 import re
@@ -7,7 +5,7 @@ from typing import Any
 
 import yaml
 
-TAG = re.compile(r"\{\{[^}]*\}\}")
+TAG = re.compile(r"\{\{[^}\n]*\}\}")
 TAG_ONLY_LINE = re.compile(rf"^[ \t]*(?:{TAG.pattern}[ \t]*)+$\n?", re.MULTILINE)
 
 
@@ -33,5 +31,4 @@ def load_strict(text: str) -> Any:
 
 
 def load_template(text: str) -> Any:
-    """Parse a template: tag-only lines are dropped and every other ``{{...}}`` becomes ``t``."""
     return load_strict(TAG.sub("t", TAG_ONLY_LINE.sub("", text)))
