@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, BinaryIO
 
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.pinned_media import open_pinned_media
 
 if TYPE_CHECKING:
@@ -132,8 +133,7 @@ def _entry(member: ZipMember) -> zipfile.ZipInfo:
 
 
 def _require_planned(source: BinaryIO, member: ZipMember, what: str) -> None:
-    stat = os.fstat(source.fileno())
-    if (stat.st_size, stat.st_mtime_ns) != (member.size, member.mtime_ns):
+    if file_stamp(os.fstat(source.fileno())).content != (member.size, member.mtime_ns):
         raise ZipMemberChanged(f"{member.name} {what}")
 
 

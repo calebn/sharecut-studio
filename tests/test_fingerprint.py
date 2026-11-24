@@ -48,6 +48,7 @@ STAMPED = {
     "podcast_mcp/util/batch_scope.py",
     "podcast_mcp/util/model_manifest.py",
     "podcast_mcp/util/project_state.py",
+    "podcast_mcp/util/zip_stream.py",
 }
 
 # Modules that read mtime from ``stat`` themselves: their keys carry other parts (a media
