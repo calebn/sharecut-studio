@@ -40,7 +40,10 @@ import {
   WIRED_VERBS,
 } from "./editVerbs";
 import { clearRegisteredCommands, execute, registerCommand } from "./execute";
-import { EXACT_RANGE_REVIEW_REASON } from "./pendingDecision";
+import {
+  EXACT_RANGE_REVIEW_REASON,
+  registerPendingDecider,
+} from "./pendingDecision";
 import { executePointerCommand } from "./pointer";
 import { _resetSingleFlightsForTests, registerDawCommands } from "./register";
 import { EDITING_OFF_REASON } from "./seamCommands";
@@ -1252,18 +1255,111 @@ describe("Inspect and More", () => {
       host(EDIT_SELECTIONS.suggestion);
       const input = document.createElement("input");
       input.id = pendingEditTimingFieldId("pending-cut", "start");
-      input.scrollIntoView = vi.fn();
+      const scrollIntoView = vi.fn();
+      input.scrollIntoView = scrollIntoView;
       document.body.append(input);
       try {
         await runEditVerb(id, factsOf()!);
         const live = useDawStore.getState();
         expect(inspectorOpenFor(live.selection, live.inspectorKey)).toBe(true);
         await vi.waitFor(() => expect(document.activeElement).toBe(input));
+        expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
       } finally {
         input.remove();
       }
     },
   );
+
+  describe("on a suggestion, by role", () => {
+    const timingField = (
+      id = "pending-cut",
+      edge: "start" | "end" = "start",
+    ) => {
+      const input = document.createElement("input");
+      input.id = pendingEditTimingFieldId(id, edge);
+      input.scrollIntoView = vi.fn();
+      document.body.append(input);
+      return input;
+    };
+    const shared = (capabilities: string[]) => ({
+      projectPath: "share:tok",
+      guestMode: "edit",
+      shareCapabilities: capabilities,
+      shareAuthor: "caleb",
+    });
+
+    it.each([
+      ["the host", {}],
+      ["an Editor", shared(EDITOR_CAPABILITIES)],
+      [
+        "a guest with the suggest capability",
+        shared(["view", "play", "suggest"]),
+      ],
+    ] as const)(
+      "%s has Inspect on the bar, and it opens the Inspector on Start",
+      async (_name, extra) => {
+        const project = editFixtureProject();
+        project.pending_edits[0] = {
+          ...project.pending_edits[0]!,
+          author: "caleb",
+        };
+        host(EDIT_SELECTIONS.suggestion, { project, ...extra });
+        expect(
+          barModelOf(factsOf()!, useDawStore.getState()).items.map((i) => i.id),
+        ).toContain("inspect");
+        const input = timingField();
+        try {
+          await runEditVerb("inspect", factsOf()!);
+          const live = useDawStore.getState();
+          expect(inspectorOpenFor(live.selection, live.inspectorKey)).toBe(
+            true,
+          );
+          await vi.waitFor(() => expect(document.activeElement).toBe(input));
+        } finally {
+          input.remove();
+        }
+      },
+    );
+
+    it("a viewer's bar offers no Inspect or timing, and nothing is focused or announced", async () => {
+      host(EDIT_SELECTIONS.suggestion, shared(VIEWER_CAPABILITIES));
+      const ids = barModelOf(factsOf()!, useDawStore.getState()).items.map(
+        (i) => i.id,
+      );
+      expect(ids).toEqual(["hear", "comment"]);
+      const input = timingField();
+      try {
+        await runEditVerb("inspect", factsOf()!);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(document.activeElement).not.toBe(input);
+        expect(announced()).toBe("");
+      } finally {
+        input.remove();
+      }
+    });
+
+    it("on a split it opens the Inspector without moving focus to a field", async () => {
+      const project = editFixtureProject();
+      project.pending_edits[0] = {
+        ...project.pending_edits[0]!,
+        type: "split",
+      };
+      host(EDIT_SELECTIONS.suggestion, { project });
+      const start = timingField();
+      const end = timingField("pending-cut", "end");
+      try {
+        await runEditVerb("inspect", factsOf()!);
+        const live = useDawStore.getState();
+        expect(inspectorOpenFor(live.selection, live.inspectorKey)).toBe(true);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(document.activeElement).not.toBe(end);
+        expect(document.activeElement).not.toBe(start);
+      } finally {
+        start.remove();
+        end.remove();
+      }
+    });
+  });
 
   it("seeds a range draft at the playhead with nothing selected, and drops it when pressed again", async () => {
     host(null);
@@ -2113,6 +2209,91 @@ describe("deciding a suggestion without the overlay bar", () => {
     ).toBeUndefined();
   });
 
+  it("runs Cut through the open sheet when it shows this suggestion", async () => {
+    host(EDIT_SELECTIONS.suggestion);
+    const decide = vi.fn(async () => null);
+    const unregister = registerPendingDecider(
+      "pending-cut",
+      decide,
+      () => null,
+    );
+    try {
+      expect(await execute("edit.delete")).toEqual({ status: "ok" });
+      expect(decide).toHaveBeenCalledExactlyOnceWith("approve");
+      expect(api.approveEdits).not.toHaveBeenCalled();
+    } finally {
+      unregister();
+    }
+  });
+
+  it.each([
+    ["edit.delete", "approve"],
+    ["edit.keep", "reject"],
+  ] as const)(
+    "hands %s the reason the sheet gives when it refuses to %s",
+    async (command, action) => {
+      host(EDIT_SELECTIONS.suggestion);
+      const reason = "Checking queued timing…";
+      const decide = vi.fn(async () => reason);
+      const unregister = registerPendingDecider(
+        "pending-cut",
+        decide,
+        () => reason,
+      );
+      try {
+        expect(await execute(command)).toEqual({ status: "disabled", reason });
+        expect(decide).toHaveBeenCalledExactlyOnceWith(action);
+        expect(api.approveEdits).not.toHaveBeenCalled();
+        expect(api.rejectEdits).not.toHaveBeenCalled();
+      } finally {
+        unregister();
+      }
+    },
+  );
+
+  it("refuses a suggested action while the sheet's timing is still queued", async () => {
+    const project = editFixtureProject();
+    project.pending_edits[0] = {
+      ...project.pending_edits[0]!,
+      suggested_action: "shorten",
+    };
+    host(EDIT_SELECTIONS.suggestion, { project });
+    const reason = "Checking queued timing…";
+    const unregister = registerPendingDecider(
+      "pending-cut",
+      async () => reason,
+      () => reason,
+    );
+    try {
+      expect(await execute("edit.delete")).toEqual({
+        status: "disabled",
+        reason,
+      });
+      expect(api.applySuggestedActions).not.toHaveBeenCalled();
+    } finally {
+      unregister();
+    }
+  });
+
+  it("announces a failed shorten once, as an error in the status line", async () => {
+    const project = editFixtureProject();
+    project.pending_edits[0] = {
+      ...project.pending_edits[0]!,
+      suggested_action: "shorten",
+    };
+    host(EDIT_SELECTIONS.suggestion, { project, feedbackToast: null });
+    vi.mocked(api.applySuggestedActions).mockRejectedValueOnce(
+      new Error("The host said no"),
+    );
+    const announce = vi.spyOn(useDawStore.getState(), "announceStatus");
+    await execute("edit.delete");
+    expect(announce).toHaveBeenCalledExactlyOnceWith("The host said no", {
+      tone: "error",
+    });
+    expect(announced()).toBe("The host said no");
+    expect(useDawStore.getState().pendingDecisionInFlight).toBeNull();
+  });
+
   it("carries the refine gate to the sheet for the suggestion it refused", async () => {
     host(EDIT_SELECTIONS.suggestion);
     vi.mocked(api.approveEdits).mockRejectedValueOnce(
@@ -2348,6 +2529,15 @@ describe("the Action bar's Approve and Reject on every pending edit", () => {
     },
   );
 
+  it("a bar click on Approve for a leave suggestion sends one ApproveEdits and applies nothing", async () => {
+    withEdit({ suggested_action: "leave" });
+    vi.mocked(api.approveEdits).mockResolvedValue(reviewed);
+    expect(model().primary?.id).toBe("approve");
+    await runEditVerb("approve", factsOf()!);
+    expect(api.approveEdits).toHaveBeenCalledTimes(1);
+    expect(api.applySuggestedActions).toHaveBeenCalledTimes(0);
+  });
+
   it("approves an exact range that suggests shortening, never applying the suggested action", async () => {
     withEdit({ ...exact, suggested_action: "shorten" });
     vi.mocked(api.approveEdits).mockResolvedValue(reviewed);
@@ -2392,6 +2582,28 @@ describe("the Action bar's Approve and Reject on every pending edit", () => {
         expect(api.applySuggestedActions).toHaveBeenCalledTimes(0);
       },
     );
+
+    it.each(["shorten", null] as const)(
+      "Backspace on a split whose suggested action is %s approves it and never applies the action",
+      async (action) => {
+        withEdit({ type: "split", suggested_action: action });
+        vi.mocked(api.approveEdits).mockResolvedValue(reviewed);
+        await execute("edit.delete");
+        expect(api.approveEdits).toHaveBeenCalledTimes(1);
+        expect(api.applySuggestedActions).toHaveBeenCalledTimes(0);
+      },
+    );
+
+    it("Backspace on a split that suggests leaving applies that action and never approves", async () => {
+      withEdit({ type: "split", suggested_action: "leave" });
+      vi.mocked(api.applySuggestedActions).mockResolvedValue({
+        historyHead: "h2",
+        summary: "Applied 1 leave.",
+      } as never);
+      await execute("edit.delete");
+      expect(api.applySuggestedActions).toHaveBeenCalledTimes(1);
+      expect(api.approveEdits).toHaveBeenCalledTimes(0);
+    });
 
     it("Backspace applies a leave suggestion's own action and never cuts", async () => {
       withEdit({ suggested_action: "leave" });

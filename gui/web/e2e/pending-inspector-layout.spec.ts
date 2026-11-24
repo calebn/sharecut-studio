@@ -193,10 +193,8 @@ test.describe("Pending inspector layout", () => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await stubApproveEditsRefineGate(page);
     await openSuggestedPendingEdit(page, e2eProjectPath);
+    await expect(selectionBar(page)).toHaveCount(1);
     await expect(selectionBar(page)).toBeVisible();
-    await expect(
-      page.getByRole("region", { name: "Pending edit actions" }),
-    ).toHaveCount(0);
     await decideOnBar(page, "Approve");
     const inspector = page
       .locator(".modifier-inspector")

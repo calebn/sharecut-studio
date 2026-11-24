@@ -9,6 +9,7 @@ import {
 } from "@playwright/test";
 import { createRelocatedE2eProject } from "./liveProject";
 import { markerGestureProbe } from "./markerGestureProbe";
+import { selectionBar } from "./pendingActionbar";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openPanel, openProject, phone } from "./stageNav";
@@ -662,12 +663,12 @@ for (const profile of profiles) {
               })
             : null;
         if (!handleHit?.owned) {
-          if (handleCount === 0)
-            await region
-              .getByRole("button", { name: "Edit timing", exact: true })
+          const end = page.getByLabel("Source end", { exact: true });
+          if (handleCount === 0 && !(await end.isVisible()))
+            await selectionBar(page)
+              .getByRole("button", { name: "Inspect" })
               .click();
           const before = saved(projectPath);
-          const end = page.getByLabel("Source end", { exact: true });
           await expect(end).toBeVisible();
           await end.press("Enter");
           await page
@@ -694,7 +695,7 @@ for (const profile of profiles) {
             draggable: false,
             reason:
               handleCount === 0
-                ? "Current dense geometry exposes Edit timing"
+                ? "Inspect opens the numeric fields"
                 : "Inspector covers the inline handle center",
             handleHit,
             before,

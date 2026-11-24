@@ -195,6 +195,70 @@ describe("the Inspector card on the desktop and the tablet", () => {
     }
   });
 
+  it("clears the floating Action bar for a pending selection", async () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    useDawStore.setState({
+      selection: { kind: "pending", id: "p1", trackId: "host" },
+    });
+    const ROOT = { x: 0, y: 49, width: 812, height: 326 };
+    const CARD_WIDTH = 320;
+    const root = document.createElement("div");
+    root.getBoundingClientRect = () =>
+      new DOMRect(ROOT.x, ROOT.y, ROOT.width, ROOT.height);
+    const lane = document.createElement("div");
+    lane.className = "lane-row";
+    lane.dataset.trackId = "host";
+    lane.getBoundingClientRect = () => new DOMRect(200, 100, 40, 60);
+    const strip = document.createElement("div");
+    strip.className = "sys-actions--floating";
+    strip.style.left = "520px";
+    strip.getBoundingClientRect = () =>
+      new DOMRect(Number.parseFloat(strip.style.left), 194, 284, 46);
+    root.append(lane, strip);
+    document.body.append(root);
+    try {
+      render(
+        <InspectorHost
+          shell="desktop"
+          root={root}
+          regionRef={() => undefined}
+          sheet={{
+            open: true,
+            rangeActionsInSheet: false,
+            close: vi.fn(),
+            dismiss: vi.fn(),
+          }}
+        />,
+      );
+      const card = screen.getByRole("dialog", { name: "Inspector" });
+      const overlapArea = () => {
+        const size = Number.parseFloat(card.style.maxBlockSize);
+        const top = card.style.insetBlockStart
+          ? ROOT.y + Number.parseFloat(card.style.insetBlockStart)
+          : ROOT.y +
+            ROOT.height -
+            Number.parseFloat(card.style.insetBlockEnd) -
+            size;
+        const left = ROOT.x + Number.parseFloat(card.style.insetInlineStart);
+        const bar = strip.getBoundingClientRect();
+        const across =
+          Math.min(left + CARD_WIDTH, bar.right) - Math.max(left, bar.left);
+        const down = Math.min(top + size, bar.bottom) - Math.max(top, bar.top);
+        return Math.max(0, across) * Math.max(0, down);
+      };
+      expect(overlapArea()).toBe(0);
+      const before = card.style.insetInlineStart;
+
+      await act(async () => {
+        strip.style.left = "264px";
+      });
+      await waitFor(() => expect(card.style.insetInlineStart).not.toBe(before));
+      expect(overlapArea()).toBe(0);
+    } finally {
+      root.remove();
+    }
+  });
+
   describe("a pending edit's review bar", () => {
     const hostProps = (root: HTMLElement) => ({
       shell: "desktop" as const,

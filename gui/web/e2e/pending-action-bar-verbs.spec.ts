@@ -60,7 +60,7 @@ for (const shell of [
       isMobile: shell.phone,
     });
 
-    test("Cut on the bar decides it once and no overlay bar shows", async ({
+    test("Cut on the bar decides it once and the Action bar is the only bar", async ({
       page,
     }) => {
       const approvals: Record<string, unknown>[] = [];
@@ -78,10 +78,7 @@ for (const shell of [
         });
       });
       await withSuggestion(page, shell.phone, async () => {
-        await expect(
-          page.getByRole("region", { name: "Pending edit actions" }),
-        ).toHaveCount(0);
-        await expect(page.locator(".pending-actionbar")).toHaveCount(0);
+        await expect(editActions(page)).toHaveCount(1);
         const cut = editActions(page).getByRole("button", {
           name: "Cut",
           exact: true,
