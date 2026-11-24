@@ -10,11 +10,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
 from podcast_mcp.engines.ranges import merge_intervals, merge_timeline_ranges
 from podcast_mcp.models import load_project
 from podcast_mcp.util.atomic_render import remove_partials, render_atomic
 from podcast_mcp.util.dsp import clamp, clamp01, linear_rms
+from podcast_mcp.util.source_spans import source_span_timeline_bounds
 from podcast_mcp.util.tracks import existing_stem_path, stem_path
 
 

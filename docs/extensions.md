@@ -32,6 +32,8 @@ registration and logs a warning instead of mounting its surfaces twice.
 
 `online` and `collaboration` are independent. A hosted build that needs both
 surfaces must name both extensions explicitly.
+[compatibility-paths.md](compatibility-paths.md) lists the removed and kept
+compatibility paths, including the old `online` implication.
 
 ## Authoring an extension
 

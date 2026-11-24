@@ -23,7 +23,6 @@ from podcast_mcp.edits.source_removals import (
     require_source_remove,
     resize_source_remove,
 )
-from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
 from podcast_mcp.engines.clips_ops import clips_abut, clips_for_track
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
@@ -34,6 +33,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
 from podcast_mcp.util.review import reject_by_id
+from podcast_mcp.util.source_spans import source_span_timeline_bounds
 
 
 def edit_timeline_range(

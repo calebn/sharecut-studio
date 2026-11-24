@@ -682,6 +682,7 @@ export PODCAST_EXTENSIONS=collaboration,online
 ```
 
 See [extension-seams.md](extension-seams.md). Self-host relay: [host-online-relay.md](host-online-relay.md) (`podcast-relay` package).
+Removed extension, config and deep-link names, and the few compatibility paths still kept, are listed in [compatibility-paths.md](compatibility-paths.md).
 
 ## Configuration boundary
 
