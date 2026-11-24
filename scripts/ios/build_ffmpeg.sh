@@ -102,10 +102,21 @@ for patch in contract["patches"]:
 PY
 )
 
+for dir in "$FFDIR" "$LAME_DIR" "$OPUS_DIR"; do
+  case "$dir" in
+    ""|.|..|*/*) echo "invalid source directory pin: '$dir'" >&2; exit 1 ;;
+  esac
+done
+
+EXTRACT=$(mktemp -d "$SRC/.extract.XXXXXX")
+trap 'rm -rf "$EXTRACT"' EXIT
 for name in ffmpeg lame opus; do
   archive=$SRC/$(pin "sources.$name.archive")
-  dir=$SRC/$(pin "sources.$name.directory")
-  [ -d "$dir" ] || tar -xf "$archive" -C "$SRC"
+  dir=$(pin "sources.$name.directory")
+  tar -xf "$archive" -C "$EXTRACT"
+  [ -d "$EXTRACT/$dir" ] || { echo "$archive does not contain $dir" >&2; exit 1; }
+  rm -rf "${SRC:?}/$dir"
+  mv "$EXTRACT/$dir" "$SRC/$dir"
 done
 
 rm -rf "$FFSRC"
