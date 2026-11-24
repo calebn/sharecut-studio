@@ -14,39 +14,44 @@ import { inspectSelectionByKey, openPanel, openProject } from "./stageNav";
 export async function openSuggestedPendingEdit(
   page: Page,
   projectPath: string,
+  options: { reason?: string; inspect?: boolean } = {},
 ): Promise<void> {
+  const { reason = "guest:suggest", inspect = true } = options;
   await openProject(page, projectPath);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     /aligned dialogue/i,
   );
-  const editId = await page.evaluate(async (projectPath) => {
-    const query = `?path=${encodeURIComponent(projectPath)}`;
-    const project = (await (
-      await fetch(`/api/project${query}&phase=shell`)
-    ).json()) as { tracks: { id: string; role?: string }[] };
-    const track =
-      project.tracks.find((t) => t.role === "dialogue") ?? project.tracks[0];
-    const res = await fetch(`/api/document/command${query}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "SuggestPendingEdit",
-        payload: {
-          track_id: track.id,
-          start: 0,
-          end: 2,
-          reason: "guest:suggest",
-        },
-        client_id: "e2e-suggest",
-        role: "viewer",
-        client_seq: Date.now(),
-      }),
-    });
-    const body = (await res.json()) as {
-      command?: { payload?: { result?: { id?: string } } };
-    };
-    return res.ok ? body.command?.payload?.result?.id : undefined;
-  }, projectPath);
+  const editId = await page.evaluate(
+    async ({ projectPath, reason }) => {
+      const query = `?path=${encodeURIComponent(projectPath)}`;
+      const project = (await (
+        await fetch(`/api/project${query}&phase=shell`)
+      ).json()) as { tracks: { id: string; role?: string }[] };
+      const track =
+        project.tracks.find((t) => t.role === "dialogue") ?? project.tracks[0];
+      const res = await fetch(`/api/document/command${query}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "SuggestPendingEdit",
+          payload: {
+            track_id: track.id,
+            start: 0,
+            end: 2,
+            reason,
+          },
+          client_id: "e2e-suggest",
+          role: "viewer",
+          client_seq: Date.now(),
+        }),
+      });
+      const body = (await res.json()) as {
+        command?: { payload?: { result?: { id?: string } } };
+      };
+      return res.ok ? body.command?.payload?.result?.id : undefined;
+    },
+    { projectPath, reason },
+  );
   expect(editId, "SuggestPendingEdit returned the new edit id").toBeTruthy();
   const panels = page.getByRole("main", { name: "Review" });
   await openPanel(page, "queue");
@@ -58,6 +63,7 @@ export async function openSuggestedPendingEdit(
     .first()
     .click();
   await panels.getByRole("button", { name: "Open in Edit" }).click();
+  if (!inspect) return;
   await inspectSelectionByKey(page);
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),

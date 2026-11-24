@@ -9,7 +9,12 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { pendingCutWords, pendingOffersCut } from "../commands/pendingDecision";
+import {
+  actionBarOwnsPendingVerbs,
+  focusPendingTimingField,
+  pendingCutWords,
+  pendingOffersCut,
+} from "../commands/pendingDecision";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
 import {
@@ -35,7 +40,6 @@ import {
   pendingReasonLabel,
   pendingTypeLabel,
 } from "../utils/pendingEditLabels";
-import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
 import { formatTimeMs } from "../utils/time";
 import { clipsForOriginTrack } from "../utils/timebase";
 import { timelineChromeBottom } from "../utils/timelineChrome";
@@ -961,47 +965,6 @@ function PendingEditRegion({
     }
   };
 
-  const focusTimingField = () => {
-    const initial = useDawStore.getState();
-    const initialEpoch = initial.projectEpoch;
-    if (
-      !canAdjust ||
-      isSplit ||
-      initial.projectPath !== projectPath ||
-      initial.selection?.kind !== "pending" ||
-      initial.selection.id !== edit.id
-    ) {
-      return;
-    }
-    requestAnimationFrame(() => {
-      const state = useDawStore.getState();
-      if (
-        state.projectPath !== projectPath ||
-        state.projectEpoch !== initialEpoch ||
-        state.selection?.kind !== "pending" ||
-        state.selection.id !== edit.id ||
-        !canRetimePendingEdit(
-          state.projectPath,
-          state.shareCapabilities,
-          state.shareAuthor,
-          edit.author,
-        )
-      ) {
-        return;
-      }
-      const host = document.getElementById(
-        pendingEditTimingFieldId(edit.id, "start"),
-      );
-      const field = host?.matches("input")
-        ? host
-        : host?.querySelector<HTMLElement>("[role='spinbutton']");
-      if (field instanceof HTMLElement) {
-        field.scrollIntoView({ block: "center" });
-        field.focus();
-      }
-    });
-  };
-
   const runReviewAction = async (action: ReviewAction) => {
     const before = useDawStore.getState();
     const projectEpoch = before.projectEpoch;
@@ -1149,8 +1112,16 @@ function PendingEditRegion({
       actionbarRef.current.dataset.placement = placementState;
     }
   });
+  const actionBarOwnsVerbs = useDawStore(
+    (state) =>
+      state.stage === "edit" && actionBarOwnsPendingVerbs(edit, canApply),
+  );
   const actionPortal =
-    selected && isOriginLane && spanIndex === 0 && actionbarHost
+    selected &&
+    isOriginLane &&
+    spanIndex === 0 &&
+    actionbarHost &&
+    !actionBarOwnsVerbs
       ? createPortal(
           <div
             ref={actionbarRef}
@@ -1171,7 +1142,7 @@ function PendingEditRegion({
             {canAdjust && !isSplit && !docked ? (
               <Button
                 className="pending-timing-action"
-                onClick={focusTimingField}
+                onClick={() => focusPendingTimingField(edit.id)}
               >
                 Edit timing
               </Button>

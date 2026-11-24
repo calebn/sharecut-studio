@@ -1,4 +1,7 @@
+import { canRetimePendingEdit, canSuggestStructural } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import type { PendingEditView } from "../types/project";
+import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
 import type { ExecuteResult } from "./types";
 
 /**
@@ -17,6 +20,73 @@ export function pendingOffersCut(
     edit.suggested_action != null &&
     edit.suggested_action !== "leave"
   );
+}
+
+/**
+ * True where the Action bar carries a pending edit's Cut and Keep and the timeline overlay bar
+ * stays out of the way: a cut-family suggestion (not a split or an exact range) the viewer may
+ * review. The caller adds that the Action bar is mounted (the Edit stage).
+ */
+export function actionBarOwnsPendingVerbs(
+  edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
+  canReview: boolean,
+): boolean {
+  return canReview && pendingOffersCut(edit);
+}
+
+const TIMING_FOCUS_FRAMES = 30;
+
+/**
+ * Moves focus to the selected suggestion's Start field in the Inspector once it has mounted, when
+ * the viewer may retime it. It retries while the card is still being placed, and a changed project
+ * or selection in the meantime leaves focus alone.
+ */
+export function focusPendingTimingField(editId: string): void {
+  const initial = useDawStore.getState();
+  const edit = initial.project?.pending_edits.find((e) => e.id === editId);
+  if (
+    !edit ||
+    edit.type === "split" ||
+    !canSuggestStructural(
+      initial.projectPath,
+      initial.guestMode,
+      initial.shareCapabilities,
+    ) ||
+    initial.selection?.kind !== "pending" ||
+    initial.selection.id !== editId
+  )
+    return;
+  const { projectPath, projectEpoch } = initial;
+  const attempt = (framesLeft: number) =>
+    requestAnimationFrame(() => {
+      const state = useDawStore.getState();
+      if (
+        state.projectPath !== projectPath ||
+        state.projectEpoch !== projectEpoch ||
+        state.selection?.kind !== "pending" ||
+        state.selection.id !== editId ||
+        !canRetimePendingEdit(
+          state.projectPath,
+          state.shareCapabilities,
+          state.shareAuthor,
+          edit.author,
+        )
+      )
+        return;
+      const host = document.getElementById(
+        pendingEditTimingFieldId(editId, "start"),
+      );
+      const field = host?.matches("input")
+        ? host
+        : host?.querySelector<HTMLElement>("[role='spinbutton']");
+      if (field instanceof HTMLElement) {
+        field.scrollIntoView({ block: "center" });
+        field.focus();
+      }
+      if (document.activeElement !== field && framesLeft > 0)
+        attempt(framesLeft - 1);
+    });
+  attempt(TIMING_FOCUS_FRAMES);
 }
 
 /** The accept verb's words for an edit that offers Cut: the bar's own label and its busy text. */

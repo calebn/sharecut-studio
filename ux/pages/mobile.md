@@ -51,17 +51,15 @@ actions above or below the lane; they stay clear of the edge controls, and a
 narrow region does not make the timeline wider. In a dense set of cuts, point
 to or keyboard-focus one small region to see its label without labels stacking
 over each other. When the compact inspector is open, the same review actions
-dock in its pinned header, with Cut and Keep (Approve and Reject for a split, an exact range or a suggestion with no accept action) on the timeline action card
+dock in its pinned header, with Approve and Reject for a split, an exact range or a suggestion with no accept action on the timeline action card
 while the inspector body scrolls. A suggestion that has an accept action shows
 Cut and Keep on the Action bar (the dock on a phone), and where the sheet has
 that bar it drops its own Approve and Reject buttons when the edit is not a split
 or an exact range.
-The timeline card says Cut and Keep for those same edits. For a split, an
-exact range, a suggestion with no accept action and a comment-linked pending
-edit, Approve and Reject stay in the sheet and on the card. Where the phone sheet has no
+The timeline card no longer repeats Cut and Keep for those edits on the Edit stage. For a split, an
+exact range and a suggestion with no accept action, Approve and Reject stay in the sheet and on the card. Where the phone sheet has no
 bar dock (the compact drawer, and the full sheet at a tight height) a cut
-suggestion shows Cut and Keep on the docked card and Approve and Reject in the
-sheet body for the same edit (the bar's
+suggestion shows Approve and Reject in the sheet body (the bar's
 verb follows the accept action alone, so a split or exact range that carries one
 still shows it on the bar, as it did before). The peek strip's body shows no verbs, but the card docks into the strip's chrome and shows them. Elsewhere the card stays beside the selected region and follows the
 timeline when the marker lane or the bottom panel changes size.
@@ -94,7 +92,7 @@ The envelope point's Time and Level, the effect on/off switches and the comment 
 The chips and scale segments in the Edit stage's eye popover are at least 44 CSS px square on touch.
 
 An inspector stays open while the timeline remains interactive behind it. Fine pointers can drag pending-cut edges. On touch, a direct long press on a fade or trim handle may open the Auto jog
-pad; envelope, pending edges, and chooser chip grabs keep the grammar drag. Auto then either opens a **jog pad** in the drawer's place (slide up while dragging to slow the move) or drags directly on the timeline with finer steps when the finger moves slowly. Done or a tap outside the pad finishes a jog; a second finger cancels. When the target is too narrow to hit reliably, choose **Edit timing** in the selected action card to focus Source start in the inspector instead. In compact mode, the peek strip's Start and End rows hold timing. The review card docks in the pinned header, and **Expand**, **Collapse**, and **Close** remain available there. When the compact inspector is open, its header keeps Undo and Redo visible at peek, half and full height, and the strip covers the tool rail so the lanes keep their room. Tapping an unavailable history button briefly shows "No undo" or "No redo" inside that button. The hint clears when that action becomes available. If the action becomes unavailable again, the hint stays clear until another tap. The full reason is announced for screen readers, and the feedback leaves the inspector content clear. Collapsing the inspector to the strip shows the top of its content again. On a phone held sideways at large text the strip fills the screen above the mode bar, with Undo, Redo, Expand and Close on one row, and the nudges are one scroll of the strip away. The Review Queue lists the pending edits that need review. Tap the ruler to seek; a blank ruler tap also clears the current selection. Confirmation sheets keep their outside-dismiss scrim, and Close or Escape dismisses either sheet type.
+pad; envelope, pending edges, and chooser chip grabs keep the grammar drag. Auto then either opens a **jog pad** in the drawer's place (slide up while dragging to slow the move) or drags directly on the timeline with finer steps when the finger moves slowly. Done or a tap outside the pad finishes a jog; a second finger cancels. When the target is too narrow to hit reliably, choose **Inspect** on the Action bar to open the inspector with Source start focused instead. In compact mode, the peek strip's Start and End rows hold timing. The review card docks in the pinned header, and **Expand**, **Collapse**, and **Close** remain available there. When the compact inspector is open, its header keeps Undo and Redo visible at peek, half and full height, and the strip covers the tool rail so the lanes keep their room. Tapping an unavailable history button briefly shows "No undo" or "No redo" inside that button. The hint clears when that action becomes available. If the action becomes unavailable again, the hint stays clear until another tap. The full reason is announced for screen readers, and the feedback leaves the inspector content clear. Collapsing the inspector to the strip shows the top of its content again. On a phone held sideways at large text the strip fills the screen above the mode bar, with Undo, Redo, Expand and Close on one row, and the nudges are one scroll of the strip away. The Review Queue lists the pending edits that need review. Tap the ruler to seek; a blank ruler tap also clears the current selection. Confirmation sheets keep their outside-dismiss scrim, and Close or Escape dismisses either sheet type.
 
 A jog keeps its trim or fade preview after the arming finger lifts, so the pad
 can continue the edit before Done saves it. During a chooser-routed timeline
