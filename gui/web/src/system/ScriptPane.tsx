@@ -2198,8 +2198,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     // On a phone the header would hold only the caption and the follow pin:
     // the Role chip says what the link allows, and scrolling stops following
     // (Back to playhead returns). A Viewer keeps the caption, as one line. A
-    // guest who may select keeps the header so Clear selection has its slot
-    // and nothing shifts when a selection starts.
+    // guest who may select keeps the header, without the label, so Clear
+    // selection has its slot and the row never wraps when a selection starts.
     const phoneGuest = guest !== undefined && layout === "phone";
     const readable =
       status.kind === "ready" ||
@@ -2209,7 +2209,9 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     const captionOnly = readable && phoneGuest && guest === "viewer";
     const guestLabelId = useId();
     const describedBy =
-      guest && (showHeader || captionOnly) ? guestLabelId : undefined;
+      guest && ((showHeader && !phoneGuest) || captionOnly)
+        ? guestLabelId
+        : undefined;
 
     if (status.kind === "empty") {
       return (
@@ -2312,7 +2314,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
                 </button>
               ) : null}
             </div>
-            {guest ? (
+            {guest && !phoneGuest ? (
               <span id={guestLabelId} className="sys-script-guest">
                 {GUEST_SCRIPT_LABEL[guest]}
               </span>

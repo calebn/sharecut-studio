@@ -41,13 +41,30 @@ describe("GuestScript", () => {
     ).toBeInTheDocument();
   });
 
-  it("draws no caption or header on a phone, where the Role chip says it", () => {
-    setup({ layout: "phone" });
-    expect(screen.queryByText("You can comment and suggest edits")).toBeNull();
+  it("draws no caption or header on a phone link that cannot select, where the Role chip says what it allows", () => {
+    setup({ guest: "commenter", layout: "phone" });
+    expect(screen.queryByText("Read only · you can comment")).toBeNull();
     expect(document.querySelector(".sys-script-header")).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Follow the playhead" }),
     ).toBeNull();
+  });
+
+  it("keeps the header on a phone link that may select, with the pin and Clear selection but without the label the Role chip already says", () => {
+    setup({
+      layout: "phone",
+      selection: { kind: "words", anchor: 1, head: 2 },
+      onSelect: vi.fn(),
+      onClearSelection: vi.fn(),
+    });
+    expect(document.querySelector(".sys-script-header")).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Follow the playhead" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Clear selection" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("You can comment and suggest edits")).toBeNull();
   });
 
   it("keeps a Viewer's Read only label on a phone, which has no Role chip to say it", () => {
