@@ -11,7 +11,7 @@ class InsertGapResult(BaseModel):
     operation: Literal["insert_gap"]
     affected_tracks: list[str]
     clip_count: int
-    timeline_duration_sec: float
+    timeline_duration_sec: float | None
     at_time: float | int
     duration_sec: float | int
 
@@ -22,7 +22,7 @@ class MoveSegmentResult(BaseModel):
     operation: Literal["move_segment"]
     affected_tracks: list[str]
     clip_count: int
-    timeline_duration_sec: float
+    timeline_duration_sec: float | None
     source_start: float | int
     source_end: float | int
     insert_at: float | int
@@ -34,5 +34,5 @@ class MoveClipsResult(BaseModel):
     operation: Literal["move_clips"]
     affected_tracks: list[str]
     clip_count: int
-    timeline_duration_sec: float
+    timeline_duration_sec: float | None
     clip_ids: list[str]
