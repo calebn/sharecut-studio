@@ -420,6 +420,21 @@ def test_a_service_edit_of_a_pending_cut_binds_it_and_saves_the_binding(tmp_path
     assert pad_binding.usable_lanes(saved[SECOND])["host"].kind == "own"
 
 
+def test_a_bound_pick_stays_out_of_the_rows_the_tools_return(tmp_path: Path) -> None:
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import EditService
+
+    project = _two_pending(tmp_path)
+    bind_pending_pad_picks(project, defaults=DEFAULTS)
+    assert all(e.bound_pad is not None for e in project.edit_decisions)
+    ws = ProjectWorkspace.open(save_project(project))
+
+    rows = EditService(ws).list_decision_rows()
+
+    assert [row["id"] for row in rows] == [FIRST, SECOND]
+    assert all("bound_pad" not in row for row in rows)
+
+
 def test_the_pipeline_analysis_leaves_its_pending_cuts_bound(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -252,7 +252,7 @@ def stage_text_match_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, A
         review_required=p.get("review_required") is not False,
         use_inaudible_opt=p.get("use_inaudible_opt"),
     )
-    return {"edits": [e.model_dump() for e in ws.project.edit_decisions[-5:]]}
+    return {"edits": [e.model_dump(exclude={"bound_pad"}) for e in ws.project.edit_decisions[-5:]]}
 
 
 def stage_utterance_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

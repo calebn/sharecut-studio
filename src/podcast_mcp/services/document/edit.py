@@ -272,7 +272,10 @@ class EditService(CutMutatingService):
         )
 
     def list_decision_rows(self, **filters: Any) -> list[dict[str, Any]]:
-        return [e.model_dump() | review_fields(e.reason) for e in self.list_decisions(**filters)]
+        return [
+            e.model_dump(exclude={"bound_pad"}) | review_fields(e.reason)
+            for e in self.list_decisions(**filters)
+        ]
 
     def envelope_points(self, track_id: str) -> list[dict[str, Any]]:
         return volume_envelope_baseline(self.ws.project, track_id)
@@ -835,7 +838,7 @@ class EditService(CutMutatingService):
                 author=author,
                 defaults=self.ws.effective_config(),
             )
-            return decision.model_dump()
+            return decision.model_dump(exclude={"bound_pad"})
 
         return self.ws.mutate(
             "before suggest pending edit",
