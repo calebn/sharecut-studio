@@ -217,6 +217,12 @@ class SegmentStore:
     def get(self, segment_id: str, version: int | None = None) -> SegmentFile:
         return self._read(self.path(segment_id, version))
 
+    def read_version(
+        self, segment_id: str, version: int, *, hash_content: bool = False
+    ) -> SegmentFile:
+        """One stored version, checked by file presence and size unless ``hash_content``."""
+        return self._read(self.path(segment_id, version), hash_content=hash_content)
+
     def scan(self, *, deep: bool = True) -> Listing:
         """The newest version of every segment, and the ones that could not be read.
 

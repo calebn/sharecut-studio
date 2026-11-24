@@ -14,7 +14,7 @@ from podcast_mcp.segments.model import segment_kind
 from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.segments.summary import library_rows, show_segment
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import parse_range, save_segment
+from podcast_mcp.services.document import parse_range, report_segment_drift, save_segment
 from podcast_mcp.util.coded_error import CodedValueError
 
 router = APIRouter()
@@ -29,6 +29,16 @@ def _refuse(exc: CodedValueError) -> NoReturn:
 @router.get("/api/segments")
 def list_segments() -> list[dict[str, Any]]:
     return library_rows(SegmentStore())
+
+
+@router.get("/api/segments/drift")
+def segment_drift_route(path: str, request: Request) -> list[dict[str, Any]]:
+    project_path = resolve_project(path, request)
+    pin_served_if_allowed(request, project_path)
+    try:
+        return report_segment_drift(project_path, SegmentStore())
+    except CodedValueError as exc:
+        _refuse(exc)
 
 
 @router.get("/api/segments/{segment_id}")

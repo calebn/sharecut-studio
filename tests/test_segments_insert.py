@@ -569,6 +569,7 @@ def test_segment_tools_are_registered_for_the_host_and_absent_for_guests() -> No
         "segment_show_tool",
         "segment_save_tool",
         "segment_insert_tool",
+        "segment_drift_tool",
     }
     registered = {t.name for t in asyncio.run(mcp_server.mcp.list_tools())}
     assert names <= registered

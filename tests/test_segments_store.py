@@ -224,3 +224,17 @@ def test_media_names_that_differ_only_in_case_are_refused() -> None:
 
     assert not is_safe_media_name("manifest.sha256")
     assert not is_safe_media_name("Segment.JSON")
+
+
+def test_read_version_is_cheap_by_default_and_hashes_on_request(tmp_path: Path) -> None:
+    store = SegmentStore()
+    added = store.add(make_segment_dir(tmp_path / "source"))
+    audio = store.path(added.id) / "clip-01.flac"
+    audio.write_bytes(b"fLaC-ONE")
+    assert store.read_version(added.id, 1).version == 1
+    with pytest.raises(CodedValueError) as err:
+        store.read_version(added.id, 1, hash_content=True)
+    assert err.value.code == "segment_hash_mismatch"
+    with pytest.raises(CodedValueError) as unknown:
+        store.read_version(added.id, 2)
+    assert unknown.value.code == "segment_unknown"

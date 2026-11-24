@@ -4,6 +4,7 @@ import {
   type DamagedSegmentRow,
   isDamagedSegment,
   loadSegment,
+  loadSegmentDrift,
   loadSegments,
   removeSegment,
   type SegmentRow,
@@ -50,6 +51,16 @@ describe("segment routes", () => {
     expect(calls[0][1]).toEqual({ host: "/api/segments/a%2Fb" });
     expect(calls[1][1]).toEqual({ host: "/api/segments/a%2Fb" });
     expect(calls[1][2]).toMatchObject({ method: "DELETE" });
+  });
+
+  it("loads drift for one project, escaping its path", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(json([]));
+    expect(await loadSegmentDrift("/p/my ep&x.sharecut")).toEqual([]);
+    const call = vi.mocked(apiFetch).mock.calls[0];
+    expect(call[0]).toBe(HOST_KEY);
+    expect(call[1]).toEqual({
+      host: "/api/segments/drift?path=%2Fp%2Fmy%20ep%26x.sharecut",
+    });
   });
 
   it("posts a save and returns the status", async () => {

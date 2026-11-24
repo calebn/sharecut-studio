@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from typing import Any
 
+from podcast_mcp.models.episode import SegmentRef
+from podcast_mcp.segments.drift import DriftVerdict
 from podcast_mcp.segments.model import SegmentFile
 from podcast_mcp.segments.store import DamagedSegment, SegmentStore
 
@@ -42,4 +45,28 @@ def library_rows(store: SegmentStore, *, deep: bool = True) -> list[dict[str, An
         {"id": d.id, "damaged": True, "version": d.version, "problem": d.problem, "code": d.code}
         for d in listing.damaged
     ]
+    return rows
+
+
+def drift_rows(
+    entries: Iterable[tuple[SegmentRef, Sequence[str], DriftVerdict]],
+) -> list[dict[str, Any]]:
+    """One row per distinct ref, sorted by ``(segment_id, version, content_sha256)``.
+
+    ``code`` and ``problem`` appear only on ``missing`` and ``damaged`` rows.
+    """
+    rows = []
+    for ref, clip_ids, verdict in sorted(
+        entries, key=lambda e: (e[0].segment_id, e[0].version, e[0].content_sha256)
+    ):
+        row: dict[str, Any] = {
+            "ref": ref.model_dump(mode="json"),
+            "state": verdict.state,
+            "library_version": verdict.library_version,
+            "clips": list(clip_ids),
+        }
+        if verdict.code is not None:
+            row["code"] = verdict.code
+            row["problem"] = verdict.problem
+        rows.append(row)
     return rows

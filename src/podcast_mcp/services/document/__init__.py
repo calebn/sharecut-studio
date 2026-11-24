@@ -70,6 +70,7 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.room_tone_bed import RoomToneBedReply, RoomToneBedService
     from podcast_mcp.services.document.segment_capture import parse_range, save_segment
+    from podcast_mcp.services.document.segment_drift import report_segment_drift
     from podcast_mcp.services.document.segment_insert import (
         insert_saved_segment,
         preview_segment_insert,
@@ -174,6 +175,7 @@ __all__ = [
     "preview_segment_insert",
     "preview_segment_insert_on",
     "queue_room_tone_pools",
+    "report_segment_drift",
     "run_comment_mutation_with_file_revisions",
     "save_segment",
     "score_golden_ear",
@@ -244,6 +246,7 @@ _MODULE_BY_NAME = {
     "SegmentInsertPreview": "segment_insert_results",
     "KitApplyReport": "kit_apply",
     "save_segment": "segment_capture",
+    "report_segment_drift": "segment_drift",
     "SessionSuggestionService": "session_suggestion",
     "RoomToneBedReply": "room_tone_bed",
     "RoomToneBedService": "room_tone_bed",

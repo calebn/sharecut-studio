@@ -48,6 +48,7 @@ Unknown fields are refused. `content_sha256` is a hash of the sorted media hashe
 | `podcast segment export ID -o FILE` | Write the newest version to a `.sharecutseg` file. |
 | `podcast segment import FILE [--json]` | Add a `.sharecutseg` file to the library. |
 | `podcast segment insert PROJECT SEGMENT --at start\|end\|SEC [--version N] [--dry-run] [--json]` | Insert a segment into an episode (see [Insert](#insert)). `--dry-run` reports what would move and changes nothing. |
+| `podcast segment drift PROJECT [--json]` | Which inserted segments have drifted from the library (see [Drift](#drift)). Changes nothing; exit code 0 for any report. |
 
 `save` and `import` print one of `Saved`, `Saved a new version of` or `Already in the library`; with `--json` they print `{"status": "added" | "new_version" | "unchanged", "id", "version"}`. Failures print `Error: <message> (code <code>)` and exit 1.
 
@@ -79,7 +80,7 @@ Errors: `segment_bundle_invalid` (bad zip, names, sizes or manifest), `segment_b
 2. `--at` is `start` (0), `end` or a number of seconds, read by one parser (`segments/position.py`) for the CLI, the MCP tool and the command payload: the words ignore case and spaces, and anything else (`soon`, `1_0`, `0x10`, `nan`, `inf`, a bool) is `segment_position_out_of_range`. `end` travels in the command as the word and is resolved to the timeline end inside the document lock, so an edit saved a moment earlier is not split; a dry run resolves it the same way. The CLI and MCP always send the resolved `version` (an int), so the journal names the audio that went in; a replay inserts that version, not whichever is newest. A `--version` below 1 is `segment_version_invalid` on both paths. The `at` the journal keeps is the word `end` when `end` was asked; the result holds the second it became. The position must be on the timeline, from 0 to its end inclusive (`segment_position_out_of_range`). A project with no clips accepts 0. A copy that cannot be made or read fails with `segment_write_failed`. Insert returns `segment_media_invalid` when a clip’s audio is more than 50 ms shorter than its declared duration, the layout exceeds one day, a clip fade exceeds one hour, or a clip is shorter than one millisecond.
 3. Each audio file is copied to a temporary file, its hash is checked on that copy, it is probed, and only then it is renamed to `raw/segment-<full sha256>.flac`. A file changed after the library read it is refused (`segment_hash_mismatch`) and nothing is left behind. A file already at the final name is never trusted, probed or reused: it is replaced by the verified copy. The same audio inserted twice shares one source (`seg_<sha256>`).
 4. In one undoable mutation the edit opens the segment's length at `at` with the ripple `insert_gap` and `paste_segment` use (every dialogue track, plus the tracks the segment lands on), moves chapters, review comments and pending edit decisions at or after the point (a comment the point falls inside grows to cover the segment), places the clips and rebuilds the combined transcript. A clip straddling the point is split, as an `insert_gap` does.
-5. Each clip carries `segment_ref` (`segment_id`, `version`, `content_sha256` of the version inserted). Nothing reads it yet; a later slice compares it with the library to show drift. A clip split or moved later keeps its `segment_ref`; a copy made by duplicate or paste does not.
+5. Each clip carries `segment_ref` (`segment_id`, `version`, `content_sha256` of the version inserted). [Drift](#drift) compares it with the library. A clip split or moved later keeps its `segment_ref`; a copy made by duplicate or paste does not.
 
 **Lanes and tracks.** Lane 0 of a segment whose role is not `dialogue` goes on the project's first track of that role (an intro on the intro track the episode already has), which keeps its own fader. Every other lane, and every dialogue segment, gets a new track named for the segment (`Name`, `Name 2`, ...) with the segment's role and `fader_db`. A new dialogue track has the segment name as its label and speaker, since a sponsor read is not one of the episode's speakers. If a track or speaker already goes by that name (compared ignoring case), the new track is called `Name (segment)` instead, so speaker-keyed edits never merge the segment into a real speaker. The new dialogue track still joins every dialogue ripple.
 
@@ -89,9 +90,28 @@ Errors: `segment_bundle_invalid` (bad zip, names, sizes or manifest), `segment_b
 
 Project format: `Clip.segment_ref` is optional and absent from a clip that has none, so existing projects load and save unchanged. Under the [compatibility boundary](project-format.md#compatibility-boundary) the project version stays `2.0` and no upgrade tooling is needed before the first beta build; the shape lock is refreshed.
 
+## Drift
+
+`podcast segment drift PROJECT [--json]`, MCP `segment_drift_tool(project_path)` and `GET /api/segments/drift?path=` answer one question: which segments inserted into this episode no longer match the library. All three call `report_segment_drift` in `services/document/segment_drift.py`, so the JSON and the codes are the same. The project is opened with `ProjectWorkspace.open(path, adopt=False)`: nothing is written or journaled, and a workspace under its retired entry-file name is not renamed. There is no auto-update and no "update this segment" command.
+
+Identity is content first. A clip's `segment_ref` is `(segment_id, version, content_sha256)`; the version number alone is not stable, because a hand delete or a remove and re-import can reuse it. The report has one row per distinct ref, sorted by that triple: `ref`, `state`, `library_version` (the newest version number in the library, or null, even when that version is the damaged one), `clips` (ids of the clips carrying the ref) and, for `missing` and `damaged` only, `code` and `problem`.
+
+The first rule that matches decides the state:
+
+1. `missing`: the segment has no versions in the library (`segment_unknown`, "There is no segment called X"; also a hand-edited invalid id).
+2. `damaged`: the newest version, or the ref's own version when the library lists it, fails the cheap check. The row carries the code the store raised, unchanged: `segment_invalid`, `segment_schema_unsupported`, `segment_unreadable` or `segment_hash_mismatch`, and the problem names the version. If the ref's own copy is damaged while the newest is current, the row is damaged.
+3. `current`: the newest version's `content_sha256` equals the ref's, whatever its number.
+4. `missing`: the ref's version number is not in the library (`segment_unknown`, "Version N is not in the library").
+5. `changed`: the ref's version exists and its content differs from the ref.
+6. `newer`: the ref's version exists with the ref's content and the newest version's content differs.
+
+Examples: ref v2 with only v1 and v3 stored is `missing`; ref v3 after a re-import as v1 with other content is `missing`; ref v1 content A when A was re-imported as v3 is `current`; ref v1 other content with a v2 stored is `changed`.
+
+The check reads `segment.json` and file sizes only, never audio hashes, so `current` means the library's record matches, not that the audio is verified. A segment removed while the call runs is classified again from a fresh version list. If a segment's version list cannot be read after three tries (an `OSError`), its refs are left out of the report, as `scan()` leaves that segment out; if a version vanishes on the last try, the ref is `missing` with `segment_unknown`. A project that parses but is not a valid project is refused with `project_unreadable` on the CLI, MCP and HTTP, as a file that is not JSON is. `segments/drift.py` is the pure classifier and `drift_rows` in `segments/summary.py` builds the rows.
+
 ## Host MCP tools
 
-Four tools mirror the CLI for a host agent: `segment_list_tool`, `segment_show_tool`, `segment_save_tool` (`clip_ids` or `time_range`, plus `name`, `kind`, `role`) and `segment_insert_tool` (`project_path`, `segment_id`, `at` as `"start"`, `"end"` or seconds, `version`, `dry_run`). They live in `mcp/tools/segments.py` and use the same services as the CLI, so errors carry the same codes. They are host only: the guest share MCP has an explicit tool allowlist and none of these is on it, and `InsertSegment` stays out of every share role's document commands (`tests/test_segments_insert.py` covers both).
+Five tools mirror the CLI for a host agent: `segment_list_tool`, `segment_show_tool`, `segment_save_tool` (`clip_ids` or `time_range`, plus `name`, `kind`, `role`), `segment_insert_tool` (`project_path`, `segment_id`, `at` as `"start"`, `"end"` or seconds, `version`, `dry_run`) and `segment_drift_tool` (`project_path`, read-only, see [Drift](#drift)). They live in `mcp/tools/segments.py` and use the same services as the CLI, so errors carry the same codes. They are host only: the guest share MCP has an explicit tool allowlist and none of these is on it, and `InsertSegment` stays out of every share role's document commands (`tests/test_segments_insert.py` covers both).
 
 `segment_insert_tool` submits `InsertSegment` on the document plane as `mcp:host`, so the edit is journaled, reaches an open Studio tab and is one undo step. It is applied, not held as a pending proposal: pending proposals in this codebase are `EditDecision` records of type remove, mute or split, which the host approves or rejects, and an insert that opens time and adds tracks and sources has no such record. Call it with `dry_run=true` first. The report holds `timeline_duration_before_sec` and `timeline_duration_after_sec`, `clips_moved`, `clips_added` (split halves included), `chapters_moved`, `chapter_added`, `comments_moved`, `pending_edits_moved`, `tracks_added` and the lane to track map. It is computed on a copy of the project with the library audio hash-checked and probed in place (read-only), so a clip whose audio is more than 50 ms shorter than its declared duration is refused as the real insert refuses it (`segment_media_invalid`), and nothing is written, journaled or added to `raw/`. The project is read where it is: a workspace still under its retired entry-file name (see `project-format.md`) is not renamed by a dry run, `segment_save_tool` or `podcast segment save`. The CLI JSON and MCP reports give clip counts. They omit the IDs of the new clips. The real insert result carries `dry_run: false`. A `time_range` such as `0:00-1:15` takes minutes and seconds below 60 and at most 24 hours (`segment_range_invalid`).
 
@@ -102,6 +122,7 @@ Studio reaches the library over HTTP. The routes are adapters on the same servic
 | Route | Does |
 |---|---|
 | `GET /api/segments` | The newest version of each segment, with a `damaged` row for each unreadable one (same rows as `segment list --json`). |
+| `GET /api/segments/drift?path=` | The [drift](#drift) rows for the episode at `path` (host only, the project path is checked like `POST /api/segments`). Declared before `{id}` so it is not read as a segment id. |
 | `GET /api/segments/{id}` | One segment with its `versions`. |
 | `GET /api/segments/{id}/audio?clip=N&version=V` | One clip's audio file as `audio/flac`, `Cache-Control: no-store`. `clip` is an index from 0, `version` from 1 (newest when omitted). |
 | `POST /api/segments` | Save clips of an episode: `path`, `name`, then `clip_ids` or `time_range` (`0:00-0:22`), optional `kind` and `role`. Returns `{status, id, version}`. |
@@ -111,7 +132,7 @@ Every refusal carries the service's own code in `X-Sharecut-Error-Code`. Status 
 
 Each clip is its own already-trimmed FLAC, served whole. The route previews one clip at a time.
 
-The web client is `gui/web/src/api/segments.ts` (`loadSegments`, `loadSegment`, `saveSegment`, `removeSegment`, `segmentAudioUrl`).
+The web client is `gui/web/src/api/segments.ts` (`loadSegments`, `loadSegment`, `loadSegmentDrift`, `saveSegment`, `removeSegment`, `segmentAudioUrl`).
 
 ## Show kit
 
@@ -163,8 +184,8 @@ An uncoded file failure during an entry stops the apply with `kit_apply_failed`.
 
 ## Not built yet
 
-- Ducking under dialogue, and detecting that a segment changed since it was inserted (`segment_ref` is recorded for it).
-- Studio screens for the library (the HTTP routes exist, see Studio routes above), and a capabilities-manifest entry for the library.
+- Ducking under dialogue, and a Studio screen or an "update this segment" command for drift (the report exists, see [Drift](#drift)).
+- Studio screens for the library (the HTTP routes exist, see Studio routes above).
 - A Studio or HTTP surface for kits (the offer to apply a kit to a new episode) and a compound document command that makes a whole kit one undo step.
 - `podcast segment export ID... -o FILE.sharecutkit` and `segment import FILE.sharecutkit` (the kit commands do this, see the kit section above).
 - Capturing a transcript or a chapter title.
