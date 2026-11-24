@@ -149,12 +149,28 @@ static void close_originals(struct session *s) {
     }
 }
 
+// Whether another session's original or copy has descriptor number fd. Needs the lock held.
+static int held_by_another(const struct session *self, int fd) {
+    for (const struct session *o = sessions; o; o = o->next) {
+        if (o == self) continue;
+        for (int i = 0; i < 3; i++)
+            if (o->orig[i] == fd) return 1;
+        for (int i = 0; i < o->ncopies; i++)
+            if (o->copies[i].fd == fd) return 1;
+    }
+    return 0;
+}
+
+// libav closes the copy it opens, so a copy's number can be free, or reused, by the time the session
+// ends. Close a copy only while it is still the same file and no other session holds that number.
+// Needs the lock held, and a session being built must already hold it, so a number is never reused unseen.
 static void release_copies(struct session *s) {
     for (int i = 0; i < s->ncopies; i++) {
         struct stat st;
-        if (s->copies[i].fd >= 0 && fstat(s->copies[i].fd, &st) == 0 &&
-            st.st_dev == s->copies[i].dev && st.st_ino == s->copies[i].ino)
-            close(s->copies[i].fd);
+        int fd = s->copies[i].fd;
+        if (fd >= 0 && fstat(fd, &st) == 0 && st.st_dev == s->copies[i].dev &&
+            st.st_ino == s->copies[i].ino && !held_by_another(s, fd))
+            close(fd);
     }
     free(s->copies);
     s->copies = NULL;
@@ -272,14 +288,17 @@ static int64_t sc_session_start(int argc, const char *const *argv, int in_fd, in
     if (ready) return ready;
     const int fds[3] = {in_fd, out_fd, err_fd};
     int err = 0;
-    struct session *s = build_session(argc, argv, fds, &err);
-    if (!s) return err;
     pthread_mutex_lock(&lock);
+    struct session *s = build_session(argc, argv, fds, &err);
+    if (!s) {
+        pthread_mutex_unlock(&lock);
+        return err;
+    }
     if (queued >= QUEUE_CAP) err = -EAGAIN;
     else if (!worker_started && (err = -start_worker()) == 0) worker_started = 1;
     if (err) {
-        pthread_mutex_unlock(&lock);
         free_session(s);
+        pthread_mutex_unlock(&lock);
         return err;
     }
     s->id = ++counter;
@@ -305,8 +324,8 @@ static int sc_session_wait(int64_t id) {
     while (s->state != DONE) pthread_cond_wait(&wake, &lock);
     int code = s->code;
     unlink_session(s);
-    pthread_mutex_unlock(&lock);
     free_session(s);
+    pthread_mutex_unlock(&lock);
     return code;
 }
 
