@@ -383,7 +383,7 @@ def delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     if not clip_ids:
         raise CodedValueError("clip_id or clip_ids required", code="clip_ids_required")
     reason = str(p["reason"]) if p.get("reason") is not None else None
-    return TimelineService(ws).delete_clips(
+    result = TimelineService(ws).delete_clips(
         [str(c) for c in clip_ids],
         mode=EditMode(p["mode"]),
         propose=structural is StructuralMutationMode.PROPOSE,
@@ -391,6 +391,7 @@ def delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         author=p.get("_author"),
         application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
     )
+    return result.model_dump()
 
 
 def duplicate_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

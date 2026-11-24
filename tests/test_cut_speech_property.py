@@ -39,6 +39,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import EditService, TimelineService
 from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
+from podcast_mcp.services.document.delete_clips_results import DeleteClipsHeld
 from podcast_mcp.util.timebase import SourceSec
 
 SR = 8_000
@@ -213,6 +214,7 @@ class _Op:
                 if confirm
                 else CutIntent.PROGRAMMATIC,
             )
+            return isinstance(out, DeleteClipsHeld)
         elif self.kind == "cut":
             if self.end <= self.start:
                 return False
