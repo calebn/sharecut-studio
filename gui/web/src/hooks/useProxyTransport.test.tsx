@@ -247,6 +247,33 @@ describe("useProxyTransport", () => {
     expect(useDawStore.getState().isPlaying).toBe(true);
   });
 
+  it.each(["path", "epoch"] as const)(
+    "declines a system resume when the project %s changes before React commits",
+    async (changed) => {
+      useDawStore.setState({ isPlaying: false });
+      renderHook(() => useProxyTransport());
+      await ready();
+      const onSystemPlay = vi
+        .mocked(ProxyEngine)
+        .mock.calls.at(-1)?.[2].onSystemPlay;
+      expect(onSystemPlay).toBeDefined();
+      expect(useDawStore.getState().isPlaying).toBe(false);
+      vi.mocked(leavePlaybackSession).mockClear();
+
+      act(() => {
+        const { projectEpoch } = useDawStore.getState();
+        useDawStore.setState(
+          changed === "path"
+            ? { projectPath: shareProjectKey("other") }
+            : { projectEpoch: projectEpoch + 1 },
+        );
+        onSystemPlay?.();
+        expect(useDawStore.getState().isPlaying).toBe(false);
+        expect(leavePlaybackSession).toHaveBeenCalledOnce();
+      });
+    },
+  );
+
   it("declines a system resume while a source preview plays and re-pauses the element", async () => {
     useDawStore.setState({ isPlaying: false });
     renderHook(() => useProxyTransport());
