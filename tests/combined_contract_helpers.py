@@ -146,13 +146,26 @@ def open_workspace(
     *,
     with_words: bool = True,
     arrange: Callable[[EpisodeProject], None] | None = None,
+    prepare: Callable[[ProjectWorkspace], object] | None = None,
 ) -> ProjectWorkspace:
-    """A saved workspace with an ``initial`` history entry, so the next command adds one step."""
+    """A saved workspace with an ``initial`` history entry, so the next command adds one step.
+
+    ``prepare`` is a command that must have run first (an edit to revert). It leaves its own
+    combined transcript, so the entry state is set again after it.
+    """
     project = build_project(root, wav, state, with_words=with_words, arrange=arrange)
     path = save_project(project, root / EPISODE_PROJECT_FILENAME)
     ws = ProjectWorkspace.open(path)
     with write_grant(WriteGrantKind.DISPATCHER):
         ws.record_snapshot("initial", force=True)
+        if prepare is not None:
+            prepare(ws)
+            entry = {
+                State.FRESH: lambda: merged(ws.project),
+                State.STALE: lambda: STALE_COMBINED.model_copy(deep=True),
+                State.NONE: lambda: None,
+            }[state]()
+            ws.mutate("restate", "restated", lambda p: setattr(p, "combined_transcript", entry))
     return ws
 
 
