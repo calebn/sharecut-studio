@@ -866,7 +866,9 @@ async function recordInspectorGeometry(
       overflowY: getComputedStyle(element).overflowY,
     })),
     close: await controlGeometry(
-      sheet.getByRole("button", { name: "Close", exact: true }),
+      sheet
+        .locator(".sys-inspector-dock, .sys-inspector-content:not([inert])")
+        .getByRole("button", { name: "Close", exact: true }),
     ),
     active: await activeElement(page),
   };
