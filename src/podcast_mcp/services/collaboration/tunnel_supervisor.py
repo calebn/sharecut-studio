@@ -219,15 +219,11 @@ class TunnelSupervisor:
         return Inputs(port, relay, project, links, cli_live, self._clock())
 
     def _links(self, project: Path) -> frozenset[str]:
-        try:
-            episode = self._episodes.get(project)
-            if episode is None:
-                episode = load_project(project)
-                self._episodes[project] = episode
-            return usable_share_tokens(episode)
-        except Exception as exc:
-            log.warning("Studio tunnel supervisor cannot read shares: %s", type(exc).__name__)
-            return frozenset()
+        episode = self._episodes.get(project)
+        if episode is None:
+            episode = load_project(project)
+            self._episodes[project] = episode
+        return usable_share_tokens(episode)
 
     def _reap(self) -> None:
         """A client that ended on its own was refused for good: park until the config changes."""
