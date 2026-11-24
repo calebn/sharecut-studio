@@ -8,7 +8,7 @@ Living checklist of interactions between `podcast-mcp` (FOSS DAW plus collaborat
 | A2 | collaboration contributes share routes/MCP/CLI/UI; an installed `online` provider contributes account/auth only | integration | provider distribution test suite |
 | A2b | MCP/CLI registrars use host `mcp`/`app` (progress wrap) | unit | progress install + [docs/progress.md](progress.md) |
 | A3 | Absent extensions (`PODCAST_EXTENSIONS=`) | unit + guard | `tests/test_extensions.py` (GUI routes, MCP mint, CLI share) |
-| A3b | Each composition (none, `collaboration`, default) registers every feature ID, OpenAPI operation, middleware, MCP tool and CLI command once | integration | `tests/test_extension_matrix.py` |
+| A3b | Each composition (none, `collaboration`, default, and `collaboration` or alone with a public provider stand-in) registers every feature ID, OpenAPI operation, middleware, MCP tool and CLI command once; a second owner of a feature ID logs a warning | integration | `tests/test_extension_matrix.py` with `tests/extension_stub_provider.py`; the private overlay keeps its own check |
 | A4 | Example community extension loads only when `PODCAST_EXTENSIONS` names `example`; default and `collaboration` never include `extension.status.0` | unit + integration | `tests/test_extensions.py`, `tests/test_extension_matrix.py` |
 | B1 | Host OpenAPI + `/api/features` | integration | `tests/test_extensions.py` |
 | B2 | Session/document command schemas | contract | FOSS schemas (existing) |
