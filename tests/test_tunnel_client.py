@@ -11,13 +11,8 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from tests.record_links import make_project, mint_record_link
 
-from podcast_mcp.models import EpisodeProject, save_project
-from podcast_mcp.services.collaboration.review_shares import create_share
-from podcast_mcp.services.collaboration.share_registry import (
-    RECORD_REVIEW_VERSION_SENTINEL,
-    SHARE_KIND_RECORD,
-)
 from podcast_mcp.services.collaboration.tunnel import (
     RelayConfig,
     TunnelClient,
@@ -1099,22 +1094,9 @@ class _LiveRelayWs:
         return None
 
 
-def _mint_record_link(project: EpisodeProject) -> str:
-    row = create_share(
-        project,
-        review_version_id=RECORD_REVIEW_VERSION_SENTINEL,
-        kind=SHARE_KIND_RECORD,
-        role="guest",
-        session_id="s1",
-    )
-    return str(row["token"])
-
-
 @pytest.fixture
-def record_project(tmp_workspace: Path) -> tuple[Path, EpisodeProject]:
-    project = EpisodeProject.create("readvertise", str(tmp_workspace))
-    project.ensure_dirs()
-    return save_project(project), project
+def record_project(tmp_workspace: Path) -> Path:
+    return make_project(tmp_workspace, "readvertise")
 
 
 @contextlib.asynccontextmanager
@@ -1139,14 +1121,14 @@ async def _live_session(client: TunnelClient, ws: _LiveRelayWs):
 
 @pytest.mark.asyncio
 async def test_readvertise_sends_one_register_on_live_session(record_project):
-    path, project = record_project
-    first = _mint_record_link(project)
+    path = record_project
+    first = mint_record_link(path)
     client = TunnelClient(RelayConfig(host_token="t", relay_url="ws://relay"), path)
     ws = _LiveRelayWs()
 
     async with _live_session(client, ws):
         assert [m["type"] for m in ws.sent] == ["hello", "register"]
-        second = _mint_record_link(project)
+        second = mint_record_link(path)
 
         assert await client.readvertise(path) is True
 
@@ -1159,12 +1141,11 @@ async def test_readvertise_sends_one_register_on_live_session(record_project):
 async def test_readvertise_without_session_returns_false_and_next_connect_uses_new_project(
     record_project, tmp_path
 ):
-    old_path, old_project = record_project
-    _mint_record_link(old_project)
-    other = EpisodeProject.create("other", str(tmp_path / "other_ws"))
-    other.ensure_dirs()
-    other_path = save_project(other)
-    other_token = _mint_record_link(other)
+    old_path = record_project
+    mint_record_link(old_path)
+    (tmp_path / "other_ws").mkdir()
+    other_path = make_project(tmp_path / "other_ws", "other")
+    other_token = mint_record_link(other_path)
     client = TunnelClient(RelayConfig(host_token="t", relay_url="ws://relay"), old_path)
 
     assert await client.readvertise(other_path) is False
