@@ -413,9 +413,12 @@ live region speaks the new edit's own message; the visible text is the count.
    cover the Timeline view group, the card moves beside it if there is room.
    Otherwise the card uses a clear area above or below the group if it can
    show its header and fields there. The floating Action bar leaves the group
-   clear the same way, beside it first, then above or below it, and the card
-   never covers the bar: where the card's minimum height would reach the bar,
-   the card slides beside the bar instead.
+   clear at the nearest position beside it, above it or below it, and the card
+   keeps clear of the bar. Where the card's minimum height would reach the bar,
+   it slides beside the bar, or else shortens to the room above or below it
+   (at least half its minimum height). Where no position clears everything,
+   the normal placement stands and the bar or the card may cover what it
+   would otherwise clear.
 
 ## Where primitives and tokens live
 

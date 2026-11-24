@@ -344,17 +344,37 @@ describe("placeAnchoredExcluding around several rectangles", () => {
     clearTop: 160,
   } as const;
 
-  it("slides the bar left of the Timeline view corner at 844x530", () => {
+  it("drops the bar under the Timeline view corner, beneath its clip, at 844x530", () => {
+    expect(
+      placeAnchoredExcluding(clip, bar, view, [corner], within, opts),
+    ).toMatchObject({ left: 552, top: 313, side: "below" });
+  });
+
+  it("slides the bar beside the corner when nothing beneath it holds the bar", () => {
+    const tall = { ...corner, bottom: 500 };
     const placed = placeAnchoredExcluding(
       clip,
       bar,
       view,
-      [corner],
+      [tall],
       within,
       opts,
     );
     expect(placed.left).toBeCloseTo(178.8, 5);
     expect(placed).toMatchObject({ top: 266, side: "below" });
+  });
+
+  it("keeps a bar under the ruler chrome out of the room above the excluded box", () => {
+    expect(
+      placeAnchoredExcluding(
+        { left: 644, top: 170, right: 744, bottom: 190 },
+        { width: 600, height: 46 },
+        view,
+        [{ left: 300, top: 170, right: 844, bottom: 260 }],
+        within,
+        { ...opts, clearTop: 150 },
+      ),
+    ).toMatchObject({ left: 236, top: 268, side: "below", covered: false });
   });
 
   it("clears every rectangle when one corridor is taken by another", () => {
@@ -373,6 +393,14 @@ describe("placeAnchoredExcluding around several rectangles", () => {
     expect(
       placeAnchoredExcluding(clip, bar, view, [far], within, opts),
     ).toEqual(normal);
+  });
+
+  it("keeps the normal placement where the room below the set is shorter than the bar", () => {
+    const high = { left: 644, top: 20, right: 744, bottom: 40 };
+    const band = { left: 0, top: 0, right: 844, bottom: 500 };
+    expect(
+      placeAnchoredExcluding(high, bar, view, [band], within, opts),
+    ).toEqual(placeAnchored(high, bar, view, opts));
   });
 
   it("keeps the normal placement when no position clears the whole set", () => {

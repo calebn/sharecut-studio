@@ -152,7 +152,8 @@ describe("inspectorSheetMath card placement", () => {
     const sideways = { width: 1000, height: 400 };
     const anchor = { x: 300, y: 180, width: 80, height: 40 };
     expect(placeCard(anchor, sideways, 320).maxBlock).toBe(164);
-    expect(placeCard(anchor, sideways, 640, 320).maxBlock).toBe(240);
+    const high = { x: 300, y: 60, width: 80, height: 40 };
+    expect(placeCard(high, sideways, 640, 320).maxBlock).toBe(240);
   });
 
   it("opens below an anchor with room, centred on it", () => {
@@ -318,21 +319,23 @@ describe("inspectorSheetMath card placement", () => {
 });
 
 describe("inspectorSheetMath card placement around the Action bar", () => {
-  const clear = (
+  type Box = { x: number; y: number; width: number; height: number };
+  const overlap = (
     place: ReturnType<typeof placeCard>,
     bounds: { width: number; height: number },
-    obstacle: { x: number; y: number; width: number; height: number },
+    obstacle: Box,
   ) => {
     const top =
       place.side === "below"
         ? place.block
         : bounds.height - place.block - place.maxBlock;
-    return (
-      place.inline + 320 <= obstacle.x ||
-      place.inline >= obstacle.x + obstacle.width ||
-      top + place.maxBlock <= obstacle.y ||
-      top >= obstacle.y + obstacle.height
-    );
+    const across =
+      Math.min(place.inline + 320, obstacle.x + obstacle.width) -
+      Math.max(place.inline, obstacle.x);
+    const down =
+      Math.min(top + place.maxBlock, obstacle.y + obstacle.height) -
+      Math.max(top, obstacle.y);
+    return Math.max(0, across) * Math.max(0, down);
   };
 
   it("slides beside a bar the card's minimum height would cover at 812x375", () => {
@@ -346,14 +349,65 @@ describe("inspectorSheetMath card placement around the Action bar", () => {
     });
   });
 
-  it("stays left of the Timeline view corner and clear of the bar at 844x530", () => {
-    const bounds = { width: 844, height: 530 };
-    const bar = { x: 178.8, y: 266, width: 284, height: 46 };
+  it("never covers the bar wherever it sits across the 812x375 frame", () => {
+    const bounds = { width: 812, height: 326 };
+    const covered: number[] = [];
+    for (let x = 8; x <= 812 - 284 - 8; x += 4) {
+      const bar = { x, y: 145, width: 284, height: 46 };
+      if (overlap(placeCard(bar, bounds, 320, 140, []), bounds, bar) > 0) {
+        covered.push(x);
+      }
+    }
+    expect(covered).toEqual([]);
+  });
+
+  it("gives a mid-frame bar the room above it when no slot beside it holds the card", () => {
+    const bounds = { width: 812, height: 326 };
+    const bar = { x: 264, y: 145, width: 284, height: 46 };
+    expect(placeCard(bar, bounds, 320, 140, [])).toEqual({
+      side: "above",
+      inline: 246,
+      block: 189,
+      maxBlock: 129,
+    });
+  });
+
+  it("keeps the card on the room around a bar the corner also crowds", () => {
+    const bounds = { width: 844, height: 330 };
+    const bar = { x: 178.8, y: 140, width: 284, height: 46 };
     const corner = { x: 470.8, y: 251, width: 361.2, height: 54 };
     const placed = placeCard(bar, bounds, 320, 140, [corner]);
-    expect(placed.inline).toBeCloseTo(142.8, 5);
-    expect(placed).toMatchObject({ side: "above", block: 272, maxBlock: 250 });
-    expect(clear(placed, bounds, bar)).toBe(true);
-    expect(clear(placed, bounds, corner)).toBe(true);
+    expect(placed).toEqual({
+      side: "above",
+      inline: 160.8,
+      block: 198,
+      maxBlock: 124,
+    });
+    expect(overlap(placed, bounds, bar)).toBe(0);
+    expect(overlap(placed, bounds, corner)).toBe(0);
+  });
+
+  it("keeps the normal placement where no room beside or around the bar holds even half a card", () => {
+    const bounds = { width: 400, height: 120 };
+    const bar = { x: 60, y: 40, width: 284, height: 46 };
+    expect(placeCard(bar, bounds, 320, 140, [])).toEqual({
+      side: "above",
+      inline: 42,
+      block: 40,
+      maxBlock: 72,
+    });
+  });
+
+  it("moves a desktop card off its anchor on a short frame, with no keep-clear area", () => {
+    const bounds = { width: 1280, height: 326 };
+    const anchor = { x: 700, y: 145, width: 284, height: 46 };
+    const placed = placeCard(anchor, bounds);
+    expect(placed).toEqual({
+      side: "above",
+      inline: 372,
+      block: 178,
+      maxBlock: 140,
+    });
+    expect(overlap(placed, bounds, anchor)).toBe(0);
   });
 });

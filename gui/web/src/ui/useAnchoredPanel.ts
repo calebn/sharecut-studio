@@ -8,6 +8,7 @@ import {
   visualViewportBox,
 } from "./anchoredPlacement";
 import { useResizeObserver } from "./useResizeObserver";
+import { useStyleObserver } from "./useStyleObserver";
 
 export type AnchorExclusion = {
   elements: () => readonly (Element | null | undefined)[];
@@ -130,4 +131,10 @@ export function useAnchoredPanel(
     active,
   );
   useResizeObserver(withinRef, place, active);
+  useStyleObserver(
+    () => withinRef?.current,
+    () => exclusion?.elements() ?? [],
+    place,
+    active && exclusion !== undefined,
+  );
 }

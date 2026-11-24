@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { placeAnchoredExcluding } from "../../ui/anchoredPlacement";
+import { areaRects, placeAnchoredExcluding } from "../../ui/anchoredPlacement";
 import { useSelectionAnchor } from "./useSelectionAnchor";
 
 const MARGIN = 8;
@@ -200,16 +200,28 @@ describe("the rectangles the Action bar keeps clear of", () => {
   };
   const track = { kind: "track", trackId: "reference" } as const;
 
-  it("lists the rendered Timeline view corner for any selection, judged within the root", () => {
-    const { root, corner } = rootWithCorner(new DOMRect(470, 251, 361, 54));
+  it("keeps the rendered Timeline view corner clear for any selection, judged within the root", () => {
+    const { root } = rootWithCorner(new DOMRect(470, 251, 361, 54));
     const { result } = renderHook(() => useSelectionAnchor(root, track, true));
-    expect(result.current.exclusion.elements()).toEqual([null, corner]);
+    expect(
+      areaRects(result.current.exclusion.elements()).map((rect) => [
+        rect.left,
+        rect.top,
+        rect.width,
+        rect.height,
+      ]),
+    ).toEqual([[470, 251, 361, 54]]);
     expect(result.current.exclusion.withinRef.current).toBe(root);
   });
 
-  it("leaves out a corner that is not rendered", () => {
-    const { root } = rootWithCorner(new DOMRect(0, 0, 0, 0));
+  it("lists a hidden corner for the observers and keeps it clear once it gets a box", () => {
+    let rect = new DOMRect(0, 0, 0, 0);
+    const { root, corner } = rootWithCorner(rect);
+    corner.getBoundingClientRect = () => rect;
     const { result } = renderHook(() => useSelectionAnchor(root, track, true));
-    expect(result.current.exclusion.elements()).toEqual([null, null]);
+    expect(result.current.exclusion.elements()).toContain(corner);
+    expect(areaRects(result.current.exclusion.elements())).toEqual([]);
+    rect = new DOMRect(470, 251, 361, 54);
+    expect(areaRects(result.current.exclusion.elements())).toHaveLength(1);
   });
 });
