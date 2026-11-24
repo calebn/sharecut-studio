@@ -184,7 +184,6 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
   "state -> document": [
     "state/documentSendOrder.ts -> document/authorityState (static)",
     "state/projectSlice.ts -> document/authorityState (static)",
-    "state/projectSlice.ts -> document/pendingDrafts (static)",
   ],
   "state -> api": ["state/runAnnouncedJob.ts -> api (static)"],
   "state -> services": [
@@ -193,8 +192,6 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
   ],
   "state -> commands/edit": [
     "session/wire.ts -> edit/seam (static)",
-    "state/projectSlice.ts -> edit/clipEdgePreview (type)",
-    "state/projectSlice.ts -> edit/ripplePreview (static)",
     "state/types.ts -> edit/ripplePreview (type)",
   ],
   "state -> hooks": [
@@ -275,10 +272,10 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "utils -> services": 1,
   "utils -> commands/edit": 0,
   "utils -> views": 1,
-  "state -> document": 3,
+  "state -> document": 2,
   "state -> api": 1,
   "state -> services": 2,
-  "state -> commands/edit": 4,
+  "state -> commands/edit": 2,
   "state -> hooks": 2,
   "state -> views": 1,
   "document -> api": 2,
@@ -292,7 +289,7 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "commands/edit -> views": 15,
   "hooks -> views": 6,
 };
-const ALLOWLIST_SIZE = 59;
+const ALLOWLIST_SIZE = 56;
 
 const ID_SHAPE = /^(.+) -> (.+) \((static|type|dynamic)\)$/;
 

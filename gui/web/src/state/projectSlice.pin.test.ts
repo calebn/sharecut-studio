@@ -23,7 +23,7 @@ beforeEach(() => {
   useDawStore.getState().hydrate(PATH, minimalProject());
 });
 
-describe("projectEditBasis with no trim layer", () => {
+describe("projectEditBasis", () => {
   it("returns the displayed project by identity", () => {
     const project = minimalProject();
     useDawStore.getState().setProject(project);

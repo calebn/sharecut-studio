@@ -84,7 +84,7 @@ describe("setProject write governance", () => {
     }
   });
 
-  it("keeps the slice and document/ as the only other callers", () => {
+  it("keeps document/ as the only caller inside the allowed homes", () => {
     const homes = [...sourceFiles()]
       .filter(({ rel }) => !isTestOrStoryFile(rel) && isAllowedHome(rel))
       .filter(({ text }) => setProjectCalls(text) > 0)
@@ -93,7 +93,6 @@ describe("setProject write governance", () => {
     expect(homes).toEqual([
       "document/applyDocumentUpdate.ts",
       "document/optimisticRevert.ts",
-      "state/projectSlice.ts",
     ]);
   });
 
