@@ -5,11 +5,11 @@ Living checklist of interactions between `podcast-mcp` (FOSS DAW plus collaborat
 | ID | Interaction | Test layer | Status |
 |----|-------------|------------|--------|
 | A1 | Extension discovery + api_version | unit | `tests/test_extensions.py` |
-| A2 | collaboration contributes share routes/MCP/CLI/UI; an installed `online` provider contributes account/auth only | integration | provider distribution test suite |
+| A2 | collaboration contributes share routes/MCP/CLI/UI; an installed `online` provider contributes account/auth. The registrar helpers also record a provider's CLI command or MCP tool under `share.cli` and `share.mcp_tools` (follow-up #4410) | integration | provider distribution test suite |
 | A2b | MCP/CLI registrars use host `mcp`/`app` (progress wrap) | unit | progress install + [docs/progress.md](progress.md) |
 | A3 | Absent extensions (`PODCAST_EXTENSIONS=`) | unit + guard | `tests/test_extensions.py` (GUI routes, MCP mint, CLI share) |
 | A3b | Each composition (none, `collaboration`, default) registers every feature ID, OpenAPI operation, middleware, MCP tool and CLI command once | integration | `tests/test_extension_matrix.py` |
-| A3c | A synthetic provider (account feature, router, middleware, CLI command, MCP tool) composed with `collaboration` and alone passes the A3b uniqueness checks; a provider that also claims a `share.*` feature is accepted without a warning (pinned, not endorsed). Does not replace the private overlay check | integration | `tests/test_extension_composition.py` |
+| A3c | A synthetic provider (account feature, router, middleware, CLI command, MCP tool), composed with `collaboration` and alone, registers each OpenAPI operation, router mount, middleware class, MCP tool and CLI command once and leaves collaboration's `review` commands on their own callbacks. The CLI check runs on a fresh Typer app, not `cli.main`. A provider claiming `share.routes` is accepted without a warning (pinned until #4410). Entry-point discovery is patched, and this does not replace the private overlay check | integration | `tests/test_extension_composition.py` |
 | A4 | Example community extension loads only when `PODCAST_EXTENSIONS` names `example`; default and `collaboration` never include `extension.status.0` | unit + integration | `tests/test_extensions.py`, `tests/test_extension_matrix.py` |
 | B1 | Host OpenAPI + `/api/features` | integration | `tests/test_extensions.py` |
 | B2 | Session/document command schemas | contract | FOSS schemas (existing) |
