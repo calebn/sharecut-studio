@@ -29,11 +29,18 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
-from podcast_mcp.services.document import ExportFilesService, ServedFile, TranscriptService
+from podcast_mcp.services.document import (
+    ExportedFile,
+    ExportFilesService,
+    ServedFile,
+    TranscriptService,
+    plan_archive,
+)
 from podcast_mcp.services.jobs import Job
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.host_platform import GENERIC_POSIX, IOS, LINUX, MACOS, WINDOWS
+from podcast_mcp.util.zip_stream import stored_zip_length
 
 CODE = "x-sharecut-error-code"
 GUEST = "/api/review/{token}/daw/export/files"
@@ -1016,3 +1023,67 @@ def test_the_head_route_stays_out_of_the_openapi_schema(remote) -> None:
     paths = remote.get("/openapi.json").json()["paths"]
 
     assert set(paths["/api/export/files/{file_id}"]) == {"get"}
+
+
+def _row(id: str, kind: str, size: int, current: bool, mtime_ns: int = 7) -> tuple:
+    entry = ExportedFile(id, Path(id).name, kind, "label", size, current)
+    return entry, ServedFile(id, kind, Path("/export") / id, "x/y", mtime_ns, size)
+
+
+def test_the_archive_plan_packs_the_current_packable_rows_in_listing_order() -> None:
+    listed = [
+        _row("ep.mp3", "audio", 10, True),
+        _row("clips/old.wav", "audio", 5, False),
+        _row("clips/new.wav", "audio", 6, True),
+        _row("bounces/range.wav", "bounce", 3, True),
+        _row("ep.md", "transcript", 4, True),
+        _row("ep.srt", "transcript", 4, False),
+        _row("ep.chapters.json", "chapters", 2, True),
+        _row("ep.feed.xml", "feed", 1, True),
+        _row("daw-0123456789ab/session.zip", "daw", 9, True),
+        _row("variants/v1/ep.mp3", "audio", 8, True),
+    ]
+
+    plan = plan_archive(listed, stem="field-notes")
+
+    assert plan is not None
+    assert plan.name == "field-notes-export.zip"
+    assert [(m.name, m.size) for m in plan.members] == [
+        ("ep.mp3", 10),
+        ("clips/new.wav", 6),
+        ("ep.md", 4),
+        ("ep.chapters.json", 2),
+        ("ep.feed.xml", 1),
+        ("variants/v1/ep.mp3", 8),
+    ]
+    assert plan.bytes == stored_zip_length(plan.members)
+    assert len(plan.digest) == 32 and set(plan.digest) <= set("0123456789abcdef")
+
+
+def _digest(rows: list[tuple]) -> str:
+    plan = plan_archive(rows, stem="s")
+    assert plan is not None
+    return plan.digest
+
+
+def test_the_archive_plan_digest_follows_any_change_to_a_member() -> None:
+    base = [_row("ep.mp3", "audio", 10, True)]
+
+    digests = {
+        _digest(rows)
+        for rows in (
+            base,
+            [_row("ep.mp3", "audio", 11, True)],
+            [_row("ep.mp3", "audio", 10, True, mtime_ns=8)],
+            [_row("ep.wav", "audio", 10, True)],
+            [*base, _row("ep.md", "transcript", 1, True)],
+        )
+    }
+
+    assert len(digests) == 5
+
+
+def test_the_archive_plan_is_none_when_nothing_current_can_be_packed() -> None:
+    assert plan_archive([], stem="s") is None
+    stale = [_row("ep.mp3", "audio", 10, False), _row("range.wav", "bounce", 3, True)]
+    assert plan_archive(stale, stem="s") is None

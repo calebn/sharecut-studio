@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ from podcast_mcp.services.pipeline import (
 )
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.fingerprint import FileStamp, file_stamp
+from podcast_mcp.util.zip_stream import ZipMember, stored_zip_length
 
 ExportedFileKind = Literal["audio", "transcript", "chapters", "feed", "bounce", "daw"]
 
@@ -92,6 +94,42 @@ class ServedFile:
 
 
 ListedFiles = list[tuple[ExportedFile, ServedFile]]
+
+ARCHIVE_KINDS: frozenset[ExportedFileKind] = frozenset({"audio", "transcript", "chapters", "feed"})
+
+
+@dataclass(frozen=True)
+class ArchivePlan:
+    """The current files of a listing as one stored zip; only ``plan_archive`` builds one."""
+
+    name: str
+    members: tuple[ZipMember, ...]
+    digest: str
+    bytes: int
+
+
+def plan_archive(listed: ListedFiles, *, stem: str) -> ArchivePlan | None:
+    """Pack the current rows of ``ARCHIVE_KINDS`` in listing order; ``None`` when there are none.
+
+    A row whose id is not a plain relative zip name is left out rather than renamed.
+    """
+    members: list[ZipMember] = []
+    for entry, served in listed:
+        if entry.kind not in ARCHIVE_KINDS or not entry.current:
+            continue
+        try:
+            members.append(ZipMember(served.id, served.path, served.size, served.mtime_ns))
+        except ValueError:
+            continue
+    if not members:
+        return None
+    lines = "".join(f"{m.name}\0{m.size}-{m.mtime_ns}\n" for m in members)
+    return ArchivePlan(
+        f"{stem}-export.zip",
+        tuple(members),
+        hashlib.sha256(lines.encode()).hexdigest()[:32],
+        stored_zip_length(members),
+    )
 
 
 def _same_text(path: Path, expected: str) -> bool:
