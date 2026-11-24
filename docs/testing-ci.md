@@ -385,6 +385,7 @@ with axe before the collected results are asserted.
 | --- | --- | --- | --- | --- | --- |
 | Fix text fallback fits wide text and stays within its row | `gui/web/e2e-compat/fix-text-width.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a Fix text draft survives tablet-phone-tablet layout changes | `gui/web/e2e-compat/fix-text-draft-layout.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Fix text Cancel discards the draft even where blur precedes the click | `gui/web/e2e-compat/script-fix-cancel.spec.ts` | Core flow | Pass | Pass | Not run |
 | Project menu keeps focus after a blurred Fix text save and Undo restores the word | `gui/web/e2e-compat/project-menu-after-fix.spec.ts` | Core flow | Pass | Pass | Not run |
 | record: keeper capture, upload and landing | `gui/web/e2e-compat/core-flow.spec.ts` | getUserMedia | Pass | Pass | Not run |
 | transcribe: the episode transcript hydrates | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
