@@ -242,6 +242,7 @@ type Placement = {
   anchor: InspectorRect;
   bounds: InspectorBounds;
   keepClear: readonly InspectorRect[];
+  hangFrom: readonly InspectorRect[];
 };
 
 const sameRect = (a: InspectorRect | undefined, b: InspectorRect | undefined) =>
@@ -259,7 +260,9 @@ const samePlacement = (a: Placement | null, b: Placement) =>
   a.bounds.height === b.bounds.height &&
   sameRect(a.anchor, b.anchor) &&
   a.keepClear.length === b.keepClear.length &&
-  a.keepClear.every((rect, i) => sameRect(rect, b.keepClear[i]));
+  a.keepClear.every((rect, i) => sameRect(rect, b.keepClear[i])) &&
+  a.hangFrom.length === b.hangFrom.length &&
+  a.hangFrom.every((rect, i) => sameRect(rect, b.hangFrom[i]));
 
 function relativeRect(rect: DOMRect, frame: DOMRect): InspectorRect {
   return {
@@ -276,14 +279,6 @@ const PENDING_BAR = ".pending-actionbar";
 function floatingPendingBar(): HTMLElement | null {
   const bar = document.querySelector<HTMLElement>(PENDING_BAR);
   return bar?.getAttribute("aria-hidden") === "true" ? null : bar;
-}
-
-function unionRect(rects: readonly DOMRect[]): DOMRect {
-  const left = Math.min(...rects.map((rect) => rect.left));
-  const top = Math.min(...rects.map((rect) => rect.top));
-  const right = Math.max(...rects.map((rect) => rect.right));
-  const bottom = Math.max(...rects.map((rect) => rect.bottom));
-  return new DOMRect(left, top, right - left, bottom - top);
 }
 
 function revealTimelineAnchor(target: HTMLElement | null) {
@@ -356,10 +351,7 @@ function Card({
     const target =
       root.querySelector<HTMLElement>(".sys-actions--floating") ??
       anchor.ref.current;
-    const rects = [target, floatingPendingBar()].flatMap((el) =>
-      el ? [el.getBoundingClientRect()] : [],
-    );
-    const controls = rects.length ? unionRect(rects) : null;
+    const controls = target?.getBoundingClientRect() ?? null;
     const next: Placement = {
       bounds: {
         width: Math.round(frame.width),
@@ -372,6 +364,9 @@ function Card({
           : { x: frame.width / 2, y: frame.height, width: 0, height: 0 },
       ),
       keepClear: areaRects([getCorner()]).map((rect) =>
+        relativeRect(rect, frame),
+      ),
+      hangFrom: areaRects([floatingPendingBar()]).map((rect) =>
         relativeRect(rect, frame),
       ),
     };
@@ -459,6 +454,7 @@ function Card({
         anchor={placement.anchor}
         bounds={placement.bounds}
         keepClear={placement.keepClear}
+        hangFrom={placement.hangFrom}
         onClose={close}
       />
     ) : (

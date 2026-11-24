@@ -165,7 +165,8 @@ function placeCardBlock(
  * Prefer the normal above/below position. If it covers the anchor or a
  * keep-clear area, slide beside them or place the card in the nearest usable
  * vertical band around the keep-clear areas. Keep the normal position if
- * none can hold a usable card.
+ * none can hold a usable card. A `hangFrom` area is kept clear too, and when
+ * nothing else clears it the card hangs off the anchor and that area together.
  */
 export function placeCard(
   anchor: InspectorRect,
@@ -173,6 +174,7 @@ export function placeCard(
   cardWidth = CARD_WIDTH_PX,
   minBlock = CARD_MIN_BLOCK_PX,
   keepClear: readonly InspectorRect[] = [],
+  hangFrom: readonly InspectorRect[] = [],
 ): CardPlacement {
   const min = CARD_EDGE_PX;
   const bottom = Math.max(min, bounds.height - min);
@@ -191,7 +193,9 @@ export function placeCard(
     end: rect.y + rect.height + CARD_GAP_PX,
   });
   const hasArea = (rect: InspectorRect) => rect.width > 0 && rect.height > 0;
-  const obstacles = [anchor, ...keepClear].filter(hasArea).map(padded);
+  const obstacles = [anchor, ...keepClear, ...hangFrom]
+    .filter(hasArea)
+    .map(padded);
   const normalTop =
     normal.side === "below"
       ? normal.block
@@ -211,6 +215,37 @@ export function placeCard(
     .filter((x) => x >= min && x <= maxInline && clearAt(x))
     .sort((a, b) => Math.abs(a - inline) - Math.abs(b - inline))[0];
   if (beside !== undefined) return { ...normal, inline: beside };
+
+  const topOf = (p: CardPlacement) =>
+    p.side === "below" ? p.block : bounds.height - p.block - p.maxBlock;
+  const clears = (p: CardPlacement) =>
+    obstacles.every(
+      (o) =>
+        p.inline + width <= o.left + CLEAR_EPSILON ||
+        p.inline >= o.right - CLEAR_EPSILON ||
+        topOf(p) + p.maxBlock <= o.top + CLEAR_EPSILON ||
+        topOf(p) >= o.end - CLEAR_EPSILON,
+    );
+  for (const rect of hangFrom.filter(hasArea)) {
+    if (rect.x >= anchor.x + anchor.width || rect.x + rect.width <= anchor.x)
+      continue;
+    const x = Math.min(anchor.x, rect.x);
+    const y = Math.min(anchor.y, rect.y);
+    const hung = placeCard(
+      {
+        x,
+        y,
+        width: Math.max(anchor.x + anchor.width, rect.x + rect.width) - x,
+        height: Math.max(anchor.y + anchor.height, rect.y + rect.height) - y,
+      },
+      bounds,
+      cardWidth,
+      minBlock,
+      keepClear,
+      hangFrom.filter((other) => other !== rect),
+    );
+    if (clears(hung)) return hung;
+  }
 
   const areas = keepClear.filter(hasArea).map(padded);
   const bands = areas.length

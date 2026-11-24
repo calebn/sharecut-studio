@@ -67,6 +67,8 @@ export type InspectorCardProps = InspectorBase & {
   bounds: InspectorBounds;
   /** Chrome to keep uncovered, in the same coordinates as the anchor. */
   keepClear?: readonly InspectorRect[];
+  /** Chrome that belongs to the anchor: kept uncovered, and the card hangs off it with the anchor when nothing else clears it. */
+  hangFrom?: readonly InspectorRect[];
 };
 
 export type InspectorPhoneProps = InspectorBase & {
@@ -251,6 +253,7 @@ function Card({
   anchor,
   bounds,
   keepClear,
+  hangFrom,
 }: InspectorCardProps) {
   const scale = (rootRem() || DEFAULT_ROOT_PX) / DEFAULT_ROOT_PX;
   const place = placeCard(
@@ -259,6 +262,7 @@ function Card({
     CARD_WIDTH_PX * scale,
     scaledMinBlock(rootRem()),
     keepClear,
+    hangFrom,
   );
   const style: CSSProperties = {
     insetInlineStart: place.inline,
