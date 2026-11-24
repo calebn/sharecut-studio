@@ -53,7 +53,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.align import AudioWindowUnavailableError, load_mono_window
 from podcast_mcp.engines.alignment_key import (
     ingest_alignment_entry,
     speaker_key_unique,
@@ -245,6 +245,7 @@ def room_tone_span(
     duration_sec: float,
     avoid: Sequence[Span] = (),
     also_taken: Sequence[Span] = (),
+    min_sample_sec: float = MIN_SAMPLE_SEC,
 ) -> RoomToneSelection:
     """Measured room tone or an actual absence cause for this request.
 
@@ -258,7 +259,8 @@ def room_tone_span(
     caller has already filled in this pass but not yet applied: it ranks like a fill that
     the project plays. The track's recorded bed wins (its ``source_id``); otherwise a
     sample of the track's own audio that may be shorter than ``duration_sec``, for the
-    caller to tile.
+    caller to tile; it is never shorter than ``min_sample_sec`` (or ``duration_sec`` when that
+    is less).
     """
     if duration_sec <= 0:
         return SampleAbsent("no_fill_requested")
@@ -284,6 +286,7 @@ def room_tone_span(
         duration_sec=duration_sec,
         avoid=avoid,
         taken=taken,
+        min_sec=min_sample_sec,
     )
     if pooled is not None:
         return _after_bed(bed, pooled)
@@ -304,6 +307,7 @@ def room_tone_span(
             near_sec=near,
             duration_sec=duration_sec,
             avoid=avoiding,
+            min_sec=min_sample_sec,
             clear=clear,
         )
 
@@ -828,6 +832,7 @@ def _from_pool(
     duration_sec: float,
     avoid: Sequence[Span],
     taken: Sequence[Span],
+    min_sec: float = MIN_SAMPLE_SEC,
 ) -> OwnQuietSample | None:
     """The unused pooled sample nearest ``near_sec`` (first in recording order when None)
     with a clear piece of ``MIN_SAMPLE_SEC``, else None.
@@ -836,7 +841,7 @@ def _from_pool(
     recording order, rotated by the ``TAKEN_WINDOW_SEC`` slot of ``rotate_sec`` so distant
     cuts spread over the pool.
     """
-    need = min(duration_sec, MIN_SAMPLE_SEC)
+    need = min(duration_sec, min_sec)
     ordered = sorted(pool, key=lambda x: x.start)
     if near_sec is None and ordered:
         turn = int(rotate_sec // TAKEN_WINDOW_SEC) % len(ordered)
@@ -923,10 +928,17 @@ def _no_foreign_voice(project: EpisodeProject, track_id: str) -> Callable[[Span]
                 continue
             try:
                 theirs = envelope(path, (span[0] + offset, span[1] + offset))
-            except Exception as exc:
+            except AudioWindowUnavailableError as exc:
                 # A recording that ends before the window has no voice there to bleed in.
                 log.debug("room tone window %.2f-%.2f not on %s: %s", span[0], span[1], path, exc)
                 continue
+            except Exception as exc:
+                # A peer the window cannot be read from may be speaking in it: the window is
+                # not shown clear, so it is not room tone.
+                log.warning(
+                    "room tone window %.2f-%.2f unreadable on %s: %s", span[0], span[1], path, exc
+                )
+                return None
             if not theirs.size:
                 continue
             peak = float(np.max(theirs)) - floor_db

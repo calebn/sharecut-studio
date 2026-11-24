@@ -8,6 +8,7 @@ import wave
 from collections.abc import Callable
 from itertools import pairwise
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -1797,6 +1798,27 @@ def test_a_peer_recording_that_ends_early_does_not_reject_later_room_tone(tmp_pa
 
     assert fill is not None
     assert (fill.start_s, fill.end_s) == pytest.approx((5.15, 5.65))
+
+
+def test_a_peer_window_that_cannot_be_decoded_is_not_shown_clear(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    guest = _noise(-64.0, seed=2)
+    _add_voice(guest, 5.0, 7.0, -25.0)
+    host = _host_audio()
+    _add_voice(host, 5.0, 7.0, -68.0)
+    project = _project(tmp_path, host=host, guest=guest)
+    guest_path = room_tone_module.track_audio_path(project, "guest")
+    decode = room_tone_module.load_mono_window
+
+    def broken_peer(path: Path, **kwargs: Any) -> np.ndarray:
+        if path == guest_path:
+            raise RuntimeError("ffmpeg exited 1")
+        return decode(path, **kwargs)
+
+    monkeypatch.setattr(room_tone_module, "load_mono_window", broken_peer)
+
+    assert mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5) is None
 
 
 def test_a_cut_decision_near_a_fill_join_does_not_rewrite_the_fill_crossfade(

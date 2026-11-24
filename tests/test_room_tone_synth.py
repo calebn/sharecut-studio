@@ -13,8 +13,14 @@ from podcast_mcp.edits.timeline_ops import (
 )
 from podcast_mcp.engines import room_tone_synth
 from podcast_mcp.engines.gate_fill import LOOP_SEC, synthesise_noise
-from podcast_mcp.engines.room_tone import RecordedBedSample, room_tone_bed, room_tone_span
+from podcast_mcp.engines.room_tone import (
+    OwnQuietSample,
+    RecordedBedSample,
+    room_tone_bed,
+    room_tone_span,
+)
 from podcast_mcp.engines.room_tone_synth import (
+    MAX_SAMPLE_REPLAYS,
     SYNTH_ID_PREFIX,
     SynthSample,
     room_tone_for_gap,
@@ -22,7 +28,17 @@ from podcast_mcp.engines.room_tone_synth import (
 from podcast_mcp.models import Clip, EpisodeProject
 from podcast_mcp.util.dsp import rms_db
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
-from test_room_tone import SR, _add_bed, _host_audio, _host_clip, _project
+from test_room_tone import (
+    FLOOR_DB,
+    SR,
+    VOICE_DB,
+    _add_bed,
+    _add_voice,
+    _host_audio,
+    _host_clip,
+    _noise,
+    _project,
+)
 
 BED_DB = -62.0
 
@@ -404,3 +420,60 @@ def test_a_cut_copy_registers_a_synthesised_source_on_the_copy_only(tmp_path: Pa
 
     assert any(s.id.startswith(SYNTH_ID_PREFIX) for s in candidate.sources)
     assert [s.id for s in project.sources] == sources_before
+
+
+def _short_run_near_long_run(tmp_path: Path) -> EpisodeProject:
+    host = _noise(FLOOR_DB, seed=3600)
+    _add_voice(host, 0.0, 3.0, VOICE_DB)
+    _add_voice(host, 3.8, 7.0, VOICE_DB)
+    return _project(tmp_path, host=host)
+
+
+def _own_length(selection: object) -> float:
+    assert isinstance(selection, OwnQuietSample)
+    return selection.sample.end - selection.sample.start
+
+
+def test_a_gap_that_would_replay_a_short_sample_many_times_takes_a_longer_clean_one(
+    tmp_path: Path,
+) -> None:
+    project = _short_run_near_long_run(tmp_path)
+    nearest = room_tone_span(
+        project, "host", near_sec=3.4, near_source_id=None, timeline_sec=3.4, duration_sec=2.0
+    )
+    assert _own_length(nearest) < 0.6
+
+    picked = room_tone_for_gap(
+        project,
+        "host",
+        gap_sec=2.0,
+        seed_sec=3.4,
+        near_sec=3.4,
+        near_source_id=None,
+        timeline_sec=3.4,
+        duration_sec=2.0,
+    )
+
+    assert _own_length(picked) >= 2.0 / MAX_SAMPLE_REPLAYS
+    assert picked.sample.start >= 7.0
+
+
+def test_a_short_sample_is_kept_when_the_track_has_no_longer_clean_one(tmp_path: Path) -> None:
+    host = _noise(FLOOR_DB, seed=3600)
+    _add_voice(host, 0.0, 3.0, VOICE_DB)
+    _add_voice(host, 3.8, 6.0, VOICE_DB)
+    _add_voice(host, 7.0, 10.0, VOICE_DB)
+    project = _project(tmp_path, host=host)
+
+    picked = room_tone_for_gap(
+        project,
+        "host",
+        gap_sec=2.0,
+        seed_sec=3.4,
+        near_sec=3.4,
+        near_source_id=None,
+        timeline_sec=3.4,
+        duration_sec=2.0,
+    )
+
+    assert _own_length(picked) < 0.6
