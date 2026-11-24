@@ -8,6 +8,10 @@ from datetime import UTC, datetime
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.audibility_reuse import audibility_run_scope
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
+from podcast_mcp.engines.transcript_sync import (
+    combined_inputs_key,
+    rebuild_combined_if_inputs_moved,
+)
 from podcast_mcp.models import (
     EpisodeProject,
     PipelineRun,
@@ -328,7 +332,12 @@ class PipelineRunner:
                     reporter.message("pipeline", f"Running {name}")
                     step_prog.set_phase("running", title)
                     try:
+                        inputs_before = combined_inputs_key(project)
                         summary = _run_step_published(project, name, fn, step_defaults, persist)
+                        with project_state_lock(project):
+                            rebuild_combined_if_inputs_moved(
+                                project, inputs_before, defaults=self.defaults
+                            )
                         log = _current_log(project, run, log)
                         log.status = "ok"
                         if summary:
