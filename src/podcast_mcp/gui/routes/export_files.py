@@ -41,10 +41,10 @@ def list_exported_files(
     *host_files* includes range exports and editable DAW packages.
     """
     files = []
-    for entry, version in ExportFilesService(ws, host_files=host_files).listed():
+    for entry, served in ExportFilesService(ws, host_files=host_files).listed():
         row = asdict(entry)
         if ticketed:
-            row["ticket"] = export_ticket.mint(ws.path, entry.id, version)
+            row["ticket"] = export_ticket.mint(ws.path, entry.id, served.version)
         files.append(row)
     return {"files": files}
 

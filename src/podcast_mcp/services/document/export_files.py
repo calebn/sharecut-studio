@@ -72,9 +72,6 @@ class ExportedFile:
     format: str | None = None
 
 
-ListedFiles = list[tuple[ExportedFile, str]]
-
-
 @dataclass(frozen=True)
 class ServedFile:
     """A listed file with the host path to stream it from; never serialized."""
@@ -92,6 +89,9 @@ class ServedFile:
     @property
     def version(self) -> str:
         return f"{self.size}-{self.mtime_ns}"
+
+
+ListedFiles = list[tuple[ExportedFile, ServedFile]]
 
 
 def _same_text(path: Path, expected: str) -> bool:
@@ -243,7 +243,7 @@ class ExportFilesService:
         return [entry for entry, _ in self.listed()]
 
     def listed(self) -> ListedFiles:
-        """Every listed file with its version (size and mtime), read in one pass.
+        """Every listed file with the file it was judged from, read in one pass.
 
         Audio, chapters and the feed are judged against the project here. Transcripts reuse ``TranscriptService.exported`` for ``current``. Chapters are current
         when the file equals a fresh render. The feed is current when the listing's own check
@@ -308,7 +308,7 @@ class ExportFilesService:
                 current=current,
                 format=found_entry.format,
             )
-            out.append((entry, found_entry.version))
+            out.append((entry, found_entry))
         return out
 
     @staticmethod
