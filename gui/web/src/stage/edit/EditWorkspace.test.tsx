@@ -628,7 +628,13 @@ describe("EditWorkspace Clear selection", () => {
         target: target as NonNullable<typeof target>,
       }),
     );
-    expect(inBar("Selection actions")).toHaveLength(1);
+    expect(
+      within(screen.getByRole("region", { name: "Script" })).getAllByRole(
+        "button",
+        { name: "Clear selection" },
+      ),
+    ).toHaveLength(1);
+    expect(inBar("Selection actions")).toHaveLength(0);
     expect(clears()).toHaveLength(1);
   });
 
