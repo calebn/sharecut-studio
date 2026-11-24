@@ -201,7 +201,9 @@ export const ExportedInBrowser: Story = {
     await expect(
       view.getByRole("link", { name: /^Download field-notes\.mp3/ }),
     ).toBeInTheDocument();
-    await expect(view.queryByText("Download all")).toBeNull();
+    await expect(
+      view.getByRole("link", { name: /^Download all/ }),
+    ).toBeInTheDocument();
   }),
 };
 
