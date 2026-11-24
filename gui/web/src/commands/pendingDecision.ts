@@ -6,10 +6,9 @@ import { pendingOffersCut } from "../utils/pendingOffersCut";
 import type { ExecuteResult } from "./types";
 
 /**
- * True where the Action bar carries a pending edit's accept and reject verbs and the timeline
- * overlay bar stays out of the way: any pending edit the viewer may review, and an exact range
- * proposal even when they may not, so a non-reviewer reads the disabled verbs and why on the bar.
- * The caller adds that the Action bar is mounted (the Edit stage).
+ * True where the Action bar carries a pending edit's accept and reject verbs: any pending edit the
+ * viewer may review, and an exact range proposal even when they may not, so a non-reviewer reads
+ * the disabled verbs and why on the bar.
  */
 export function actionBarOwnsPendingVerbs(
   edit: Pick<PendingEditView, "exact_range">,

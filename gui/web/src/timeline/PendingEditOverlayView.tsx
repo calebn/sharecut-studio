@@ -1,39 +1,13 @@
 import type { CSSProperties } from "react";
-import {
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  actionBarOwnsPendingVerbs,
-  EXACT_RANGE_REVIEW_REASON,
-  focusPendingTimingField,
-  pendingBarWords,
-} from "../commands/pendingDecision";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
-import {
-  REFINE_GATE_GUI_MESSAGE,
-  TranscriptRefineRecovery,
-} from "../inspector/TranscriptRefineRecovery";
-import { useQueuedReviewNotice } from "../inspector/useQueuedReviewNotice";
-import { canRetimePendingEdit, isShareProjectKey } from "../shareMode";
+import { canRetimePendingEdit } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow, PendingEditView } from "../types/project";
-import { Button } from "../ui/Button";
-import { inspectorSheetPanel, inspectorSheetTop } from "../ui/compactSheet";
-import { BUSY_REASON } from "../ui/disabledReason";
 import { useResizeObserver } from "../ui/useResizeObserver";
-import {
-  ApiError,
-  errorMessage,
-  TRANSCRIPT_REFINE_REQUIRED_CODE,
-} from "../utils/apiError";
+import { errorMessage } from "../utils/apiError";
 import { markerVariant, pendingKind } from "../utils/editMarkerRegistry";
 import { pendingEditTrackIds } from "../utils/edits";
 import {
@@ -42,12 +16,7 @@ import {
 } from "../utils/pendingEditLabels";
 import { formatTimeMs } from "../utils/time";
 import { clipsForOriginTrack } from "../utils/timebase";
-import { timelineChromeBottom } from "../utils/timelineChrome";
 import { hitTargetProps, OWN_TAP_HIT_SURFACE_PROPS } from "./hitTargets";
-import {
-  type PendingActionPlacement,
-  placePendingActionbar,
-} from "./pendingActionPlacement";
 import {
   canShowPendingCoarseHandles,
   pendingCoarseHandleCenters,
@@ -61,9 +30,6 @@ import {
 import { pendingOverlayWidthPx } from "./pendingOverlayWidth";
 import { snapActive } from "./snapOverlay";
 
-type ReviewAction = "approve" | "reject";
-type ReviewResult = { queued: boolean };
-
 export interface PendingEditOverlayViewProps {
   edits: readonly PendingEditView[];
   trackId: string;
@@ -73,7 +39,6 @@ export interface PendingEditOverlayViewProps {
   timelineWidthPx: number;
   clipsByTrack: Record<string, ClipRow[]>;
   canAdjust: boolean;
-  canApply: boolean;
   onSelect: (id: string) => void;
   onCommitSpan: (
     projectPath: string,
@@ -84,12 +49,6 @@ export interface PendingEditOverlayViewProps {
     sourceStart: number,
     sourceEnd: number,
   ) => Promise<void> | void;
-  onReviewAction: (
-    projectPath: string,
-    projectEpoch: number,
-    editId: string,
-    action: ReviewAction,
-  ) => Promise<ReviewResult>;
 }
 
 type DragCapture = {
@@ -117,83 +76,14 @@ type Gesture =
     } & DragCapture);
 
 const IDLE: Gesture = { kind: "idle" };
-const ACTION_BAR_WIDTH_REM = 15;
 const VIEWPORT_GUTTER_REM = 0.5;
-/**
- * Measuring passes allowed after each scheduled update. A panel whose geometry
- * has not reproduced by then stays `pending` rather than reporting `placed`.
- */
-const MAX_PLACEMENT_PASSES = 6;
-
-const MAX_HEIGHT_VAR = "--pending-actionbar-max-height";
-
-interface PlacementPass {
-  docked: boolean;
-  placement: PendingActionPlacement | null;
-}
-
-function samePlacementPass(a: PlacementPass, b: PlacementPass): boolean {
-  if (a.docked !== b.docked) return false;
-  if (a.placement === null || b.placement === null) {
-    return a.placement === b.placement;
-  }
-  return (
-    a.placement.left === b.placement.left &&
-    a.placement.top === b.placement.top &&
-    a.placement.maxHeight === b.placement.maxHeight
-  );
-}
-
-/** The max-height a pass asked the panel to apply, as the DOM stores it. */
-function appliedMaxHeight(pass: PlacementPass): string {
-  return pass.placement ? `${pass.placement.maxHeight}px` : "";
-}
-
-type PlacementState = "docked" | "pending" | "placed" | "none";
-
-function placementStateOf(
-  docked: boolean,
-  settled: boolean,
-  placement: PendingActionPlacement | null,
-): PlacementState {
-  if (docked) return "docked";
-  if (!settled) return "pending";
-  return placement ? "placed" : "none";
-}
+const FLOATING_LABEL_WIDTH_REM = 15;
 const LABEL_INLINE_WIDTH_REM = 9;
 
 function rootRem(): number {
   return (
     Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 1
   );
-}
-
-/** Viewport y where the Player begins; the window's bottom when absent. */
-function bottomChromeTop(): number {
-  // The Inspector column leaves the Player's row alone (#1696): the viewport bounds the card.
-  if (document.querySelector(".bottom-sheet--column"))
-    return window.innerHeight;
-  const panel = document.querySelector(".stage-frame-player");
-  return panel ? panel.getBoundingClientRect().top : window.innerHeight;
-}
-
-/**
- * How far down the card its Approve and Reject row ends at natural height:
- * the card less whatever follows the row (an alert, the Cut anyway prompt), so a
- * card capped by its max height reports the same reach as an uncapped one.
- */
-function actionsReach(card: HTMLElement, naturalHeight: number): number {
-  const actions = card.querySelector(".pending-actions");
-  if (!actions) return naturalHeight;
-  let below = 0;
-  for (
-    let next = actions.nextElementSibling;
-    next;
-    next = next.nextElementSibling
-  ) {
-    below += next.getBoundingClientRect().height;
-  }
-  return naturalHeight - below;
 }
 
 /**
@@ -240,7 +130,7 @@ function viewportPosition(anchor: HTMLElement): { left: number; top: number } {
   const bounds = anchor.getBoundingClientRect();
   const rem = rootRem();
   const gutter = VIEWPORT_GUTTER_REM * rem;
-  const width = ACTION_BAR_WIDTH_REM * rem;
+  const width = FLOATING_LABEL_WIDTH_REM * rem;
   const left = Math.min(
     Math.max(gutter, bounds.left),
     Math.max(gutter, floatRight() - width - gutter),
@@ -263,10 +153,8 @@ function PendingEditRegion({
   timelineWidthPx,
   clipsByTrack,
   canAdjust,
-  canApply,
   onSelect,
   onCommitSpan,
-  onReviewAction,
 }: {
   edit: PendingEditView;
   span: PendingEditView["timeline_spans"][number];
@@ -278,49 +166,24 @@ function PendingEditRegion({
   timelineWidthPx: number;
   clipsByTrack: Record<string, ClipRow[]>;
   canAdjust: boolean;
-  canApply: boolean;
   onSelect: (id: string) => void;
   onCommitSpan: PendingEditOverlayViewProps["onCommitSpan"];
-  onReviewAction: PendingEditOverlayViewProps["onReviewAction"];
 }) {
   const regionRef = useRef<HTMLDivElement>(null);
-  const actionbarRef = useRef<HTMLDivElement>(null);
-  const actionbarFocusRef = useRef<HTMLElement | null>(null);
   const scheduleResizeUpdateRef = useRef<(() => void) | null>(null);
   const currentGesture = useRef<Gesture>(IDLE);
   const commitPendingRef = useRef(false);
   const wasSelected = useRef(selected);
   const [gesture, setGesture] = useState<Gesture>(IDLE);
-  const [actionState, setActionState] = useState<
-    | { kind: "idle" }
-    | { kind: "busy"; action: ReviewAction }
-    | { kind: "error"; message: string; code: string | null }
-  >({ kind: "idle" });
-  const { notice: queuedNotice, setQueued } =
-    useQueuedReviewNotice(projectPath);
   const [portalPosition, setPortalPosition] = useState({ left: 0, top: 0 });
-  const [actionbarPlacement, setActionbarPlacement] =
-    useState<PendingActionPlacement | null>(null);
   const [portalReady, setPortalReady] = useState(false);
   const [overlayHeightPx, setOverlayHeightPx] = useState(0);
   const [labelActive, setLabelActive] = useState(false);
-  const [docked, setDocked] = useState(false);
-  // True once a pass measured the panel with the previous pass's max-height
-  // applied and reproduced that pass; any scheduled update clears it.
-  const [placementSettled, setPlacementSettled] = useState(false);
-  const [, rerender] = useReducer((n: number) => n + 1, 0);
-  const [actionbarHost] = useState(() => {
-    if (typeof document === "undefined") return null;
-    const host = document.createElement("div");
-    host.className = "pending-actionbar-host";
-    return host;
-  });
   const edgeHintId = useId();
   const projectEpoch = useDawStore((state) => state.projectEpoch);
   const pointerKind = useDawStore((state) => state.pointerKind);
 
   const isSplit = edit.type === "split";
-  const words = pendingBarWords(edit);
   const originClips = useMemo(
     () => clipsForOriginTrack(clipsByTrack, edit.track_id),
     [clipsByTrack, edit.track_id],
@@ -588,10 +451,9 @@ function PendingEditRegion({
 
   const labelInPortal =
     width < LABEL_INLINE_WIDTH_REM * rootRem() &&
-    (labelActive || (selected && !isOriginLane)) &&
-    !(selected && isOriginLane && spanIndex === 0);
+    (labelActive || (selected && !isOriginLane));
   useResizeObserver(
-    [regionRef, actionbarRef, inspectorSheetPanel, ...floatBounds],
+    [regionRef, ...floatBounds],
     () => scheduleResizeUpdateRef.current?.(),
     selected || labelInPortal,
   );
@@ -599,181 +461,29 @@ function PendingEditRegion({
     if ((!selected && !labelInPortal) || !regionRef.current) {
       return;
     }
-    const actionbarNode = actionbarRef.current;
-    let lastPass: PlacementPass | null = null;
-    let passes = 0;
-    let settledNow = false;
     let frame = 0;
+    const update = () => {
+      if (regionRef.current) {
+        setOverlayHeightPx(regionRef.current.getBoundingClientRect().height);
+        setPortalPosition(viewportPosition(regionRef.current));
+        setPortalReady(true);
+      }
+    };
     const schedule = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(update);
     };
-    const update = () => {
-      if (regionRef.current) {
-        let settled = true;
-        let reverify = false;
-        if (selected && actionbarRef.current) {
-          const anchor = regionRef.current.getBoundingClientRect();
-          setOverlayHeightPx(anchor.height);
-          const panelElement = actionbarRef.current;
-          const panel = panelElement.getBoundingClientRect();
-          const panelStyle = window.getComputedStyle(panelElement);
-          const naturalHeight =
-            panelElement.scrollHeight +
-            Number.parseFloat(panelStyle.borderTopWidth) +
-            Number.parseFloat(panelStyle.borderBottomWidth);
-          const rem = rootRem();
-          const sheetTop = inspectorSheetTop();
-          setDocked(sheetTop !== null);
-          const placement = placePendingActionbar(
-            {
-              left: anchor.left,
-              top: anchor.top,
-              bottom: anchor.bottom,
-              width: anchor.width,
-            },
-            {
-              width: panel.width,
-              height: naturalHeight,
-              reach: actionsReach(panelElement, naturalHeight),
-            },
-            {
-              width: floatRight(),
-              height: sheetTop ?? bottomChromeTop(),
-              top: timelineChromeBottom(),
-            },
-            VIEWPORT_GUTTER_REM * rem,
-          );
-          setActionbarPlacement(placement);
-          const pass = { docked: sheetTop !== null, placement };
-          passes += 1;
-          // Only a pass measured after the previous result's max-height
-          // reached the DOM can confirm it; an earlier one just repeats it.
-          settled =
-            lastPass !== null &&
-            panelElement.style.getPropertyValue(MAX_HEIGHT_VAR) ===
-              appliedMaxHeight(lastPass) &&
-            samePlacementPass(lastPass, pass);
-          reverify = !settled && passes < MAX_PLACEMENT_PASSES;
-          lastPass = pass;
-          setPortalPosition(
-            placement
-              ? { left: placement.left, top: placement.top }
-              : viewportPosition(regionRef.current),
-          );
-        } else {
-          setActionbarPlacement(null);
-          const bounds = regionRef.current.getBoundingClientRect();
-          setOverlayHeightPx(bounds.height);
-          setPortalPosition(viewportPosition(regionRef.current));
-        }
-        setPortalReady(true);
-        settledNow = settled;
-        setPlacementSettled(settled);
-        if (reverify) schedule();
-      }
-    };
-    const scheduleUpdate = () => {
-      lastPass = null;
-      passes = 0;
-      // React commits the state below later; reset the attribute now so a
-      // reader never sees `placed` for geometry that is already stale. Already
-      // unsettled means the attribute and state are pending, so skip the render.
-      if (settledNow) {
-        settledNow = false;
-        const node = actionbarRef.current;
-        if (node && node.dataset.placement !== "docked") {
-          node.dataset.placement = "pending";
-        }
-        setPlacementSettled(false);
-        rerender();
-      }
-      schedule();
-    };
-    // Observer-driven updates keep the pass budget until a pass settles, so an
-    // oscillating panel size cannot restart it; once spent they are ignored.
-    const scheduleObserved = () => {
-      if (settledNow) scheduleUpdate();
-      else if (passes < MAX_PLACEMENT_PASSES) schedule();
-    };
-    scheduleResizeUpdateRef.current = scheduleObserved;
-    scheduleUpdate();
-    window.addEventListener("scroll", scheduleUpdate, true);
-    window.addEventListener("resize", scheduleUpdate);
+    scheduleResizeUpdateRef.current = schedule;
+    schedule();
+    window.addEventListener("scroll", schedule, true);
+    window.addEventListener("resize", schedule);
     return () => {
       cancelAnimationFrame(frame);
       scheduleResizeUpdateRef.current = null;
-      // The bookkeeping above restarts with the next run, so the settled state
-      // must too: a reselect or a left/width change would otherwise show
-      // `placed` with the last run's geometry until its first pass.
-      if (actionbarNode && actionbarNode.dataset.placement !== "docked") {
-        actionbarNode.dataset.placement = "pending";
-      }
-      setPlacementSettled(false);
-      window.removeEventListener("scroll", scheduleUpdate, true);
-      window.removeEventListener("resize", scheduleUpdate);
+      window.removeEventListener("scroll", schedule, true);
+      window.removeEventListener("resize", schedule);
     };
   }, [labelInPortal, selected, left, width]);
-
-  const inspectorKey = useDawStore((s) => s.inspectorKey);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the Inspector sheet opening moves the dock line
-  useEffect(() => {
-    scheduleResizeUpdateRef.current?.();
-  }, [inspectorKey]);
-
-  useLayoutEffect(() => {
-    if (!actionbarHost) return;
-    const remember = (event: FocusEvent) => {
-      if (
-        event.target instanceof HTMLElement &&
-        actionbarHost.contains(event.target)
-      ) {
-        actionbarFocusRef.current = event.target;
-      }
-    };
-    const forget = (event: FocusEvent) => {
-      if (!actionbarHost.isConnected) return;
-      if (!actionbarHost.contains(event.relatedTarget as Node | null)) {
-        actionbarFocusRef.current = null;
-      }
-    };
-    actionbarHost.addEventListener("focusin", remember);
-    actionbarHost.addEventListener("focusout", forget);
-    return () => {
-      actionbarHost.removeEventListener("focusin", remember);
-      actionbarHost.removeEventListener("focusout", forget);
-    };
-  }, [actionbarHost]);
-
-  useLayoutEffect(() => {
-    if (!actionbarHost) return;
-    if (!actionbarRef.current) {
-      actionbarHost.remove();
-      return;
-    }
-    const sheet = docked ? inspectorSheetPanel() : null;
-    const destination =
-      sheet?.querySelector<HTMLElement>(".sys-inspector-scroll") ??
-      document.body;
-    if (actionbarHost.parentElement === destination) return;
-    const active = document.activeElement;
-    const focusedInHost =
-      active instanceof HTMLElement && actionbarHost.contains(active)
-        ? active
-        : null;
-    const remembered =
-      actionbarFocusRef.current &&
-      actionbarHost.contains(actionbarFocusRef.current)
-        ? actionbarFocusRef.current
-        : null;
-    const restore =
-      focusedInHost ?? (destination !== document.body ? remembered : null);
-    if (destination !== document.body) destination.prepend(actionbarHost);
-    else destination.append(actionbarHost);
-    if (restore?.isConnected) restore.focus({ preventScroll: true });
-  });
-
-  useLayoutEffect(() => () => actionbarHost?.remove(), [actionbarHost]);
 
   useEffect(
     () => () => {
@@ -945,18 +655,7 @@ function PendingEditRegion({
         const message = resolvingSnapTicks
           ? "Nearby waveform snap points could not be loaded. Try again."
           : errorMessage(error);
-        setActionState({
-          kind: "error",
-          message,
-          code:
-            !resolvingSnapTicks && error instanceof ApiError
-              ? error.code
-              : null,
-        });
-        // The bar that shows this error is not there when the Action bar owns the verbs.
-        const live = useDawStore.getState();
-        if (live.stage === "edit" && actionBarOwnsPendingVerbs(edit, canApply))
-          live.announceStatus(message, { tone: "error" });
+        useDawStore.getState().announceStatus(message, { tone: "error" });
       }
     } finally {
       commitPendingRef.current = false;
@@ -970,46 +669,6 @@ function PendingEditRegion({
       ) {
         currentGesture.current = IDLE;
         setGesture(IDLE);
-      }
-    }
-  };
-
-  const runReviewAction = async (action: ReviewAction) => {
-    const before = useDawStore.getState();
-    const projectEpoch = before.projectEpoch;
-    const selectionMatches = () => {
-      const current = useDawStore.getState();
-      return (
-        current.projectPath === projectPath &&
-        current.projectEpoch === projectEpoch &&
-        current.selection?.kind === "pending" &&
-        current.selection.id === edit.id
-      );
-    };
-    if (!selectionMatches() || commitPendingRef.current) {
-      return;
-    }
-    setQueued(false);
-    setActionState({ kind: "busy", action });
-    try {
-      const result = await onReviewAction(
-        projectPath,
-        projectEpoch,
-        edit.id,
-        action,
-      );
-      if (!selectionMatches()) {
-        return;
-      }
-      setQueued(result.queued);
-      setActionState({ kind: "idle" });
-    } catch (error) {
-      if (selectionMatches()) {
-        setActionState({
-          kind: "error",
-          message: errorMessage(error),
-          code: error instanceof ApiError ? error.code : null,
-        });
       }
     }
   };
@@ -1090,155 +749,6 @@ function PendingEditRegion({
           document.body,
         )
       : null;
-  const actionbarStyle: CSSProperties & {
-    "--pending-actionbar-max-height"?: string;
-  } = {
-    left: docked
-      ? undefined
-      : portalReady && actionbarPlacement
-        ? actionbarPlacement.left
-        : -10000,
-    top: docked
-      ? undefined
-      : portalReady && actionbarPlacement
-        ? actionbarPlacement.top
-        : 0,
-    visibility:
-      docked || (portalReady && actionbarPlacement) ? "visible" : "hidden",
-    "--pending-actionbar-max-height": actionbarPlacement
-      ? `${actionbarPlacement.maxHeight}px`
-      : undefined,
-  };
-  const placementState = placementStateOf(
-    docked,
-    placementSettled,
-    actionbarPlacement,
-  );
-  // React only writes the attribute when the prop changes; this re-asserts it
-  // after scheduleUpdate overwrote the DOM node ahead of the commit.
-  useLayoutEffect(() => {
-    if (actionbarRef.current) {
-      actionbarRef.current.dataset.placement = placementState;
-    }
-  });
-  const actionBarOwnsVerbs = useDawStore(
-    (state) =>
-      state.stage === "edit" && actionBarOwnsPendingVerbs(edit, canApply),
-  );
-  const actionPortal =
-    selected &&
-    isOriginLane &&
-    spanIndex === 0 &&
-    actionbarHost &&
-    !actionBarOwnsVerbs
-      ? createPortal(
-          <div
-            ref={actionbarRef}
-            className={`pending-actionbar${docked ? " pending-actionbar--docked" : ""}`}
-            style={actionbarStyle}
-            data-placement={placementState}
-            aria-hidden={
-              !docked && (!portalReady || actionbarPlacement === null)
-            }
-            role="region"
-            aria-label="Pending edit actions"
-            data-coarse-pointer={coarsePointer ? "true" : undefined}
-            onPointerDown={(event) => event.stopPropagation()}
-          >
-            {width < LABEL_INLINE_WIDTH_REM * rootRem() ? (
-              <span className="pending-label">{regionLabel}</span>
-            ) : null}
-            {canAdjust && !isSplit && !docked ? (
-              <Button
-                className="pending-timing-action"
-                onClick={() => focusPendingTimingField(edit.id)}
-              >
-                Edit timing
-              </Button>
-            ) : null}
-            {canApply || edit.exact_range ? (
-              <div className="pending-actions">
-                <Button
-                  variant="primary"
-                  disabledReason={
-                    !canApply
-                      ? EXACT_RANGE_REVIEW_REASON
-                      : actionState.kind === "busy" ||
-                          gesture.kind === "settling"
-                        ? BUSY_REASON
-                        : undefined
-                  }
-                  onClick={() => void runReviewAction("approve")}
-                >
-                  {words.accept}
-                </Button>
-                <Button
-                  disabledReason={
-                    !canApply
-                      ? EXACT_RANGE_REVIEW_REASON
-                      : actionState.kind === "busy" ||
-                          gesture.kind === "settling"
-                        ? BUSY_REASON
-                        : undefined
-                  }
-                  onClick={() => void runReviewAction("reject")}
-                >
-                  {words.reject}
-                </Button>
-              </div>
-            ) : null}
-            {edit.exact_range && !canApply ? (
-              <p className="ui-field-hint">{EXACT_RANGE_REVIEW_REASON}</p>
-            ) : null}
-            {actionState.kind === "busy" ? (
-              <span role="status">
-                {actionState.action === "approve"
-                  ? words.acceptBusy
-                  : words.rejectBusy}
-              </span>
-            ) : null}
-            {gesture.kind === "settling" ? (
-              <span role="status">Checking nearby snap points…</span>
-            ) : null}
-            {queuedNotice}
-            {actionState.kind === "error" &&
-            actionState.code === TRANSCRIPT_REFINE_REQUIRED_CODE ? (
-              <>
-                <p role="alert">{REFINE_GATE_GUI_MESSAGE}</p>
-              </>
-            ) : null}
-            {!isShareProjectKey(projectPath) ? (
-              <TranscriptRefineRecovery
-                key={`${projectPath}:${edit.id}`}
-                projectPath={projectPath}
-                error={
-                  actionState.kind === "error" ? actionState.message : null
-                }
-                errorCode={
-                  actionState.kind === "error" ? actionState.code : null
-                }
-                onRecovered={() => {
-                  const state = useDawStore.getState();
-                  if (
-                    state.projectPath === projectPath &&
-                    state.projectEpoch === projectEpoch &&
-                    state.selection?.kind === "pending" &&
-                    state.selection.id === edit.id
-                  ) {
-                    setActionState({ kind: "idle" });
-                  }
-                }}
-              />
-            ) : null}
-            {actionState.kind === "error" &&
-            actionState.code !== TRANSCRIPT_REFINE_REQUIRED_CODE ? (
-              <span role="alert">{actionState.message}</span>
-            ) : null}
-          </div>,
-          actionbarHost,
-        )
-      : null;
-
   return (
     <>
       <div
@@ -1287,7 +797,6 @@ function PendingEditRegion({
         {buttonFor("end", canDragEnd)}
       </div>
       {portaledLabel}
-      {actionPortal}
     </>
   );
 }
@@ -1301,10 +810,8 @@ export function PendingEditOverlayView({
   timelineWidthPx,
   clipsByTrack,
   canAdjust,
-  canApply,
   onSelect,
   onCommitSpan,
-  onReviewAction,
 }: PendingEditOverlayViewProps) {
   const projectEpoch = useDawStore((state) => state.projectEpoch);
   const shareCapabilities = useDawStore((state) => state.shareCapabilities);
@@ -1341,10 +848,8 @@ export function PendingEditOverlayView({
                 edit.source_start != null &&
                 edit.source_end != null
               }
-              canApply={canApply}
               onSelect={onSelect}
               onCommitSpan={onCommitSpan}
-              onReviewAction={onReviewAction}
             />
           )),
         )}

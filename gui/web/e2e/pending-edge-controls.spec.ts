@@ -242,7 +242,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     44,
   );
   await dragRegion.first().hover();
-  await expect(page.locator(".pending-label--floating")).toHaveCount(0);
+  await expect(page.locator(".pending-label--floating")).toHaveCount(1);
 
   const selected = page.locator(".pending-overlay.selected");
   const actionbar = selectionBar(page);

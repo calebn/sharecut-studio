@@ -1,14 +1,8 @@
 import { useCallback } from "react";
 import { updatePendingEdit } from "../api";
-import { decideSelectedPending } from "../commands/editVerbs";
-import {
-  canRetimePendingEdit,
-  canReviewPendingEdit,
-  canSuggestStructural,
-} from "../shareMode";
+import { canRetimePendingEdit, canSuggestStructural } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
-import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { EMPTY_OBJ } from "../utils/empty";
 import {
   PendingEditOverlayView,
@@ -17,12 +11,7 @@ import {
 
 type PendingEditOverlayProps = Omit<
   PendingEditOverlayViewProps,
-  | "clipsByTrack"
-  | "projectPath"
-  | "canAdjust"
-  | "canApply"
-  | "onCommitSpan"
-  | "onReviewAction"
+  "clipsByTrack" | "projectPath" | "canAdjust" | "onCommitSpan"
 >;
 
 export function PendingEditOverlay(props: PendingEditOverlayProps) {
@@ -39,7 +28,6 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
     guestMode,
     shareCapabilities,
   );
-  const canApply = canReviewPendingEdit(projectPath, shareCapabilities);
   const onCommitSpan = useCallback<PendingEditOverlayViewProps["onCommitSpan"]>(
     async (
       capturedPath,
@@ -80,35 +68,13 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
     },
     [],
   );
-  const onReviewAction = useCallback<
-    PendingEditOverlayViewProps["onReviewAction"]
-  >(async (capturedPath, capturedEpoch, editId, action) => {
-    const state = useDawStore.getState();
-    if (
-      state.projectPath !== capturedPath ||
-      state.projectEpoch !== capturedEpoch ||
-      state.selection?.kind !== "pending" ||
-      state.selection.id !== editId
-    ) {
-      throw new Error("That suggestion is no longer selected.");
-    }
-    const result = await decideSelectedPending(action);
-    if (result.status === "disabled") {
-      if (useDawStore.getState().pendingRefineGate === editId)
-        throw new ApiError(result.reason, TRANSCRIPT_REFINE_REQUIRED_CODE);
-      if (!result.told) throw new Error(result.reason);
-    }
-    return { queued: result.status === "ok" && result.queued === true };
-  }, []);
   return (
     <PendingEditOverlayView
       {...props}
       projectPath={projectPath}
       clipsByTrack={clipsByTrack}
       canAdjust={canAdjust}
-      canApply={canApply}
       onCommitSpan={onCommitSpan}
-      onReviewAction={onReviewAction}
     />
   );
 }

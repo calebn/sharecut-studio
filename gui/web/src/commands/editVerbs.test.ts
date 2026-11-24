@@ -2075,7 +2075,7 @@ describe("a range made from Script words while the words refresh", () => {
   });
 });
 
-describe("deciding a suggestion without the overlay bar", () => {
+describe("deciding a suggestion from the Action bar", () => {
   const never = () => new Promise<never>(() => {});
 
   it("disables Cut and Keep while a decision is in flight", () => {
@@ -2356,7 +2356,7 @@ describe("Approve and Keep on a suggestion", () => {
     expect(restoreBleed).not.toHaveBeenCalled();
   });
 
-  it("holds the in-flight flag before the overlay's first request resolves and sends once", async () => {
+  it("holds the in-flight flag before the first request resolves and sends once", async () => {
     host(EDIT_SELECTIONS.suggestion);
     let release: (value: never) => void = () => {};
     vi.mocked(api.approveEdits).mockImplementationOnce(

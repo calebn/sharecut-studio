@@ -112,16 +112,6 @@ export function useDialogModal({
         return;
       }
       if (mode === "sheet" && focusHeld(panel.ownerDocument)) return;
-      const active = panel.ownerDocument.activeElement;
-      if (
-        mode === "sheet" &&
-        active instanceof HTMLElement &&
-        panel.contains(active) &&
-        isValidFocusTarget(active) &&
-        active.closest(".pending-actionbar-host, .pending-actionbar")
-      ) {
-        return;
-      }
       const preferred = initialFocusRef?.current;
       if (preferred) {
         preferred.focus();
