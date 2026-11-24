@@ -446,6 +446,8 @@ Cut and boundary-adjustment snapshots include the active word list and its sourc
 
 The archive and combined transcript are kept consistent by `engines/transcript_sync.py` (moved from `edits/` in #1813 so `engines/` does not import `edits/`); `edits/edit_log.py` calls its `rebuild_combined` when it reverts a mute.
 
+`run_mutation` and each pipeline step also keep the stored combined transcript in step with its inputs (#1849). Just before `mutate` (and before a step runs) the runner takes `combined_inputs_key` (`engines/transcript_sync.py`): the words revision, each transcript's identity with its track and source, and each track's id and speaker. After the audio bookkeeping and before `record(after)` (and before a step's `save_merged`), `rebuild_combined_if_inputs_moved` re-merges when the key moved, only when `project.combined_transcript` is not `None`, the project has transcripts, and the merge differs from what is stored, so the snapshot, `episode.sharecut` and `combined.json` agree. Undo, redo, goto, adopt and load never run it, and a failed mutation or step leaves nothing behind. The words revision is process-wide, so an edit elsewhere in the process can make an unrelated mutation refresh a stale combined transcript.
+
 ## Transcript replacement pass
 
 Studio find-and-replace validates its reviewed, source-keyed match set before one `ProjectWorkspace.mutate()` call. Every replacement across primary and extra recordings shares that history action, so one Undo restores all affected text, word timing, flags, and source identities. No matches or a stale preview produce no history entry. The adjacent result Undo is available while its project view and document sequence remain current; use History after newer changes.
