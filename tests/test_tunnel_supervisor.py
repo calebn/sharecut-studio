@@ -204,6 +204,28 @@ async def test_readvertise_false_is_retried_next_tick(rig: Rig) -> None:
 
 
 @pytest.mark.asyncio
+async def test_a_failed_share_read_leaves_the_advertisement_alone(
+    rig: Rig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sup, "POLL_SEC", 0.01)
+    token = mint_record_link(rig.project)
+    supervisor = rig.supervisor()
+
+    async with supervisor.running():
+        await until(lambda: len(rig.clients) == 1 and rig.clients[0].runs == 1)
+
+        def unreadable(_episode: Any) -> frozenset[str]:
+            raise OSError("database is locked")
+
+        monkeypatch.setattr(sup, "usable_share_tokens", unreadable)
+        await asyncio.sleep(0.2)
+
+        assert rig.clients[0].readvertised == []
+        assert isinstance(supervisor.plan, Serve)
+        assert supervisor.plan.links == frozenset({token})
+
+
+@pytest.mark.asyncio
 async def test_fatal_rejection_parks_until_config_changes(
     rig: Rig, monkeypatch: pytest.MonkeyPatch
 ) -> None:

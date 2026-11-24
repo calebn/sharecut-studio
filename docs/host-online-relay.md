@@ -61,7 +61,9 @@ is picked up with no hook in the share layer. A change sends one `register` fram
 the live session (`TunnelClient.readvertise`): the relay replaces the advertisement
 and guests on other links keep their streams. The supervisor counts a link set as
 advertised only when `readvertise` returns true (a live, registered session), so a
-mint during the handshake is retried on the next tick. When the last link ends, the
+mint during the handshake is retried on the next tick. A tick that cannot read the links
+(a locked registry, an episode saved mid-read) is skipped whole, so a failed read never
+reads as "no links" and never empties the advertisement. When the last link ends, the
 tunnel stays up for `LINGER_SEC` (120 s) with an empty advertisement, so a revoked link
 stops routing at once while revoke then undo, or replacing a record invite (which saves
 the revoke and the new mint separately), keeps one session.
