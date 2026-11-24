@@ -290,6 +290,7 @@ export async function updatePendingEdit(
   snap = true,
   trackIds?: string[] | null,
   expected?: PendingEditBaseline,
+  opts?: { refusalInline?: true },
 ): Promise<{ queued: false } | { queued: true; commandId: string }> {
   const sent = submitDocumentCommand(
     projectPath,
@@ -302,6 +303,7 @@ export async function updatePendingEdit(
       ...(trackIds != null ? { track_ids: trackIds } : {}),
       ...(expected ? { expected } : {}),
     },
+    opts?.refusalInline ? { refusalInline: true } : undefined,
   );
   if (useDawStore.getState().projectPath === projectPath) redisplayDrafts();
   const result = await sent;

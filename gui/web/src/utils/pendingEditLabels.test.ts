@@ -113,6 +113,8 @@ describe("pendingListRowLabel", () => {
 describe("pendingRetimeRefusal", () => {
   const generic = (edge: string) =>
     `That edit's ${edge} was not saved, so it is back where it was. Move the edge again or pick a different range.`;
+  const unsaved = (edge: string) =>
+    `That edit's ${edge} could not be saved right now, so it is back where it was. Try moving it again in a moment.`;
 
   it.each([
     [
@@ -139,9 +141,38 @@ describe("pendingRetimeRefusal", () => {
     ["something_new", 409, generic("end")],
     [null, 400, generic("end")],
     [null, 422, generic("end")],
-  ])("says the same for code %s with status %s", (code, status, sentence) => {
+    [null, 408, unsaved("end")],
+    [null, 429, unsaved("end")],
+    [null, 500, unsaved("end")],
+    ["pending_edit_changed", 503, unsaved("end")],
+    [null, null, unsaved("end")],
+  ])("code %s with status %s", (code, status, sentence) => {
     const error = new ApiError("server detail", code, status);
     expect(pendingRetimeRefusal(error, "end")).toBe(sentence);
+  });
+
+  it.each([
+    ["project_version_newer", 400, "newer version of the app"],
+    ["project_version_unsupported", 400, "can't edit this project's version"],
+    ["project_not_found", 404, "project file is missing"],
+    ["project_unreadable", 500, "project file is damaged"],
+  ])("names the project-level cause for %s", (code, status, part) => {
+    const said = pendingRetimeRefusal(new ApiError("RAW", code, status), "end");
+    expect(said).toContain(part);
+    expect(said).toContain("back where it was");
+    expect(said).not.toContain("Move the edge again");
+    expect(said).not.toContain("RAW");
+  });
+
+  it("never shows the server's own text, and says the same for a transport error", () => {
+    for (const status of [400, 409, 500, null]) {
+      expect(
+        pendingRetimeRefusal(new ApiError("RAW TEXT", null, status), "end"),
+      ).not.toContain("RAW");
+    }
+    expect(pendingRetimeRefusal(new TypeError("Failed to fetch"), "end")).toBe(
+      unsaved("end"),
+    );
   });
 
   it("names the edge that was dragged", () => {

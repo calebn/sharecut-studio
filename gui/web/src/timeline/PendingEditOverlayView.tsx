@@ -7,7 +7,7 @@ import { canRetimePendingEdit } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow, PendingEditView } from "../types/project";
 import { useResizeObserver } from "../ui/useResizeObserver";
-import { ApiError, errorMessage } from "../utils/apiError";
+import { errorMessage } from "../utils/apiError";
 import { markerVariant, pendingKind } from "../utils/editMarkerRegistry";
 import { pendingEditTrackIds } from "../utils/edits";
 import {
@@ -173,7 +173,10 @@ function PendingEditRegion({
   const regionRef = useRef<HTMLDivElement>(null);
   const scheduleResizeUpdateRef = useRef<(() => void) | null>(null);
   const currentGesture = useRef<Gesture>(IDLE);
-  const commitPendingRef = useRef(false);
+  // Which save owns each guard (its controller): an earlier save that is aborted, then finishes
+  // after a newer drag has started, must not release the newer save's guards.
+  const commitPendingRef = useRef<AbortController | null>(null);
+  const inFlightOwnerRef = useRef<AbortController | null>(null);
   const wasSelected = useRef(selected);
   const [gesture, setGesture] = useState<Gesture>(IDLE);
   const [portalPosition, setPortalPosition] = useState({ left: 0, top: 0 });
@@ -439,7 +442,7 @@ function PendingEditRegion({
         ) {
           active.controller.abort();
           currentGesture.current = IDLE;
-          commitPendingRef.current = false;
+          commitPendingRef.current = null;
           setGesture(IDLE);
         }
       }),
@@ -526,7 +529,7 @@ function PendingEditRegion({
       edit.source_start == null ||
       edit.source_end == null ||
       !canAdjust ||
-      commitPendingRef.current ||
+      commitPendingRef.current !== null ||
       currentGesture.current.kind !== "idle"
     ) {
       return;
@@ -612,7 +615,8 @@ function PendingEditRegion({
     };
     currentGesture.current = settling;
     setGesture(settling);
-    commitPendingRef.current = true;
+    commitPendingRef.current = active.controller;
+    inFlightOwnerRef.current = active.controller;
     // The Action bar's Cut and Keep read this: they must not decide the bounds being replaced.
     useDawStore.getState().setPendingRetimeInFlight(active.editId);
     let resolvingSnapTicks = true;
@@ -674,13 +678,7 @@ function PendingEditRegion({
           live.projectPath === active.projectPath &&
           live.projectEpoch === active.projectEpoch
         ) {
-          message =
-            error instanceof ApiError &&
-            error.status !== null &&
-            error.status >= 400 &&
-            error.status < 500
-              ? pendingRetimeRefusal(error, active.edge)
-              : errorMessage(error);
+          message = pendingRetimeRefusal(error, active.edge);
         }
       } else if (
         !active.controller.signal.aborted &&
@@ -695,10 +693,14 @@ function PendingEditRegion({
         live.announceStatus(message, { tone: "error" });
       }
     } finally {
-      commitPendingRef.current = false;
-      const live = useDawStore.getState();
-      if (live.pendingRetimeInFlight === active.editId)
-        live.setPendingRetimeInFlight(null);
+      if (commitPendingRef.current === active.controller)
+        commitPendingRef.current = null;
+      if (inFlightOwnerRef.current === active.controller) {
+        inFlightOwnerRef.current = null;
+        const live = useDawStore.getState();
+        if (live.pendingRetimeInFlight === active.editId)
+          live.setPendingRetimeInFlight(null);
+      }
       const current = currentGesture.current;
       if (
         current.kind === "settling" &&

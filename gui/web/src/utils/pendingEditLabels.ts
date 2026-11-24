@@ -1,7 +1,7 @@
 /** Plain-language names for a pending edit's type and reason code. */
 
 import type { PendingEditView, PendingKind, TrackView } from "../types/project";
-import type { ApiError } from "./apiError";
+import { ApiError, isPermanentRejection } from "./apiError";
 import { knownPendingKind, markerLabel } from "./editMarkerRegistry";
 import { capitalize } from "./format";
 import { isTightenClass, type TightenClass } from "./tightenHits";
@@ -88,15 +88,33 @@ export function pendingReasonLabel(
 export const PENDING_REVIEW_QUEUED_MESSAGE =
   "Still sending. It will retry automatically; if the host refuses it, it shows under Needs attention.";
 
+/** What an unsent or unpersisted save says: no server text, and the edge is back. */
+const unsavedRetime = (edge: "start" | "end") =>
+  `That edit's ${edge} could not be saved right now, so it is back where it was. Try moving it again in a moment.`;
+
 /**
- * One plain sentence for a refused save of a dragged pending-edit edge: what was not saved and
- * what to do next. The server's own text is never shown.
+ * One plain sentence for a failed save of a dragged pending-edit edge: what was not saved and what
+ * to do next. The server's own text is never shown. A permanent 4xx refusal and a project-level
+ * problem name their cause; a retry-later 408/429, a 5xx or a transport error (only seen when the
+ * save could not be kept for retry) says the save could not be made right now.
  */
 export function pendingRetimeRefusal(
-  error: ApiError,
+  error: unknown,
   edge: "start" | "end",
 ): string {
-  switch (error.code) {
+  const code = error instanceof ApiError ? error.code : null;
+  switch (code) {
+    case "project_version_newer":
+      return "This project was saved by a newer version of the app, so nothing was changed and the edge is back where it was. Update the app, then try again.";
+    case "project_version_unsupported":
+      return "This app can't edit this project's version, so nothing was changed and the edge is back where it was.";
+    case "project_not_found":
+      return "The project file is missing, so nothing was saved and the edge is back where it was.";
+    case "project_unreadable":
+      return "The project file is damaged, so nothing was saved and the edge is back where it was.";
+  }
+  if (!isPermanentRejection(error)) return unsavedRetime(edge);
+  switch (code) {
     case "exact_range_locked":
       return "This range is exact and can't be moved by its edges. Select the range again.";
     case "edit_not_found":

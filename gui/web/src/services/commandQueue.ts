@@ -89,6 +89,8 @@ type CommandSettings = {
   offline?: boolean;
   /** The caller shows the transcript-refine Waive form, so a gate refusal needs no Needs attention item. */
   refineRecoveryInline?: boolean;
+  /** The caller says the refusal where it happened (a dragged edge that snaps back), so it needs no Needs attention item. */
+  refusalInline?: boolean;
 };
 export type DocumentCommandOptions = CommandSettings &
   (
@@ -850,11 +852,12 @@ async function submitThroughQueue(
     }
     const answeredInline =
       !opts.replaying &&
-      (failure.code === CUT_SCOPE_CHANGED_CODE
-        ? isShareProjectKey(projectPath)
-        : failure.code === TRANSCRIPT_REFINE_REQUIRED_CODE &&
-          opts.refineRecoveryInline === true &&
-          !isShareProjectKey(projectPath));
+      (opts.refusalInline === true ||
+        (failure.code === CUT_SCOPE_CHANGED_CODE
+          ? isShareProjectKey(projectPath)
+          : failure.code === TRANSCRIPT_REFINE_REQUIRED_CODE &&
+            opts.refineRecoveryInline === true &&
+            !isShareProjectKey(projectPath)));
     await settleCommandOutcome(
       projectPath,
       cmd,
