@@ -97,6 +97,10 @@ async function open(
 }
 
 const chooser = (page: Page) => page.locator(".edit-target-chooser");
+const DOCK = '.sys-inspector--phone [role="group"][aria-label="Edit actions"]';
+const BODY = '.sys-inspector--phone [role="group"][aria-label="Actions"]';
+const verbsHost = async (page: Page): Promise<string> =>
+  (await page.locator(DOCK).count()) > 0 ? DOCK : BODY;
 const sheet = (page: Page) => page.locator(".sys-inspector--phone");
 
 async function settleSheetShut(page: Page): Promise<void> {
@@ -686,15 +690,11 @@ test("dragging the grip down past the dock clears the selection: portrait-390", 
   await expect(page.locator(`${lane} .clip-block.selected`)).toHaveCount(0);
 });
 
-test("a pending edit's review card tops the sheet and its Approve and Reject stay reachable at enlarged text sizes", async ({
+test("a pending edit's Approve and Reject stay reachable on the sheet at enlarged text sizes", async ({
   page,
   context,
   browserName,
 }, info) => {
-  test.fixme(
-    true,
-    "The pending edit's Approve and Reject moved to the Action bar on the Edit stage; this overlay-bar case is replaced when slice 3 of #4337 removes the bar.",
-  );
   await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const commands = watchCommands(page);
@@ -725,9 +725,10 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
       // Sideways at 32 px even the full sheet is under 8.75 rem: the Inspector
       // takes the whole screen as a dialog, and the verbs stay in its body.
       const takeover = size === "landscape-636" && rootFont === 32;
+      const host = await verbsHost(page);
       const card = takeover
         ? page.locator(".sys-inspector-takeover")
-        : page.locator(".pending-actionbar");
+        : page.locator(host);
       await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
       if (takeover) {
         const dialog = page.locator(".sys-inspector-takeover");
@@ -758,48 +759,41 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
       rows.push({
         size,
         rootFont,
-        ...(await page.evaluate((inTakeover) => {
-          const bar = document.querySelector(
-            inTakeover ? ".sys-inspector-takeover" : ".pending-actionbar",
-          );
-          const scroll = document.querySelector(".sys-inspector-scroll");
-          const reach = (name: string) => {
-            const button = [...(bar?.querySelectorAll("button") ?? [])].find(
-              (b) => b.textContent?.trim() === name,
+        ...(await page.evaluate(
+          ([inTakeover, hostSelector]) => {
+            const bar = document.querySelector(
+              inTakeover ? ".sys-inspector-takeover" : hostSelector,
             );
-            if (!button) return null;
-            // The card scrolls with the sheet body: bring the button into view first.
-            button.scrollIntoView({ block: "center", behavior: "instant" });
-            const r = button.getBoundingClientRect();
-            const hit = document.elementFromPoint(
-              r.left + r.width / 2,
-              r.top + r.height / 2,
-            );
-            return {
-              onScreen:
-                r.top >= 0 &&
-                r.bottom <= innerHeight &&
-                r.left >= 0 &&
-                r.right <= innerWidth,
-              onTop: Boolean(bar && hit && bar.contains(hit)),
-              minTarget: r.width >= 44 && r.height >= 44,
-              docked:
-                inTakeover ||
-                Boolean(
-                  bar &&
-                    scroll?.contains(bar) &&
-                    scroll.firstElementChild?.contains(bar),
-                ),
+            const reach = (name: string) => {
+              const button = [...(bar?.querySelectorAll("button") ?? [])].find(
+                (b) => b.textContent?.trim() === name,
+              );
+              if (!button) return null;
+              button.scrollIntoView({ block: "center", behavior: "instant" });
+              const r = button.getBoundingClientRect();
+              const hit = document.elementFromPoint(
+                r.left + r.width / 2,
+                r.top + r.height / 2,
+              );
+              return {
+                onScreen:
+                  r.top >= 0 &&
+                  r.bottom <= innerHeight &&
+                  r.left >= 0 &&
+                  r.right <= innerWidth,
+                onTop: Boolean(bar && hit && bar.contains(hit)),
+                minTarget: r.width >= 44 && r.height >= 44,
+                inSheet:
+                  inTakeover || Boolean(bar?.closest(".sys-inspector--phone")),
+              };
             };
-          };
-          return {
-            approve: reach("Approve"),
-            reject: reach("Reject"),
-            editTiming: [...(bar?.querySelectorAll("button") ?? [])].filter(
-              (b) => b.textContent?.trim() === "Edit timing",
-            ).length,
-          };
-        }, takeover)),
+            return {
+              approve: reach("Approve"),
+              reject: reach("Reject"),
+            };
+          },
+          [takeover, host] as const,
+        )),
       });
     }
   }
@@ -808,23 +802,19 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
     onScreen: true,
     onTop: true,
     minTarget: true,
-    docked: true,
+    inSheet: true,
   };
   for (const row of rows) {
     expect(row, JSON.stringify(row)).toMatchObject({
       approve: reachable,
       reject: reachable,
-      editTiming: 0,
     });
   }
   const previousIds = (await projectJson(page, projectPath)).pending_edits.map(
     (edit) => edit.id,
   );
   const takeover = page.locator(".sys-inspector-takeover");
-  await ((await takeover.count()) > 0
-    ? takeover
-    : page.locator(".pending-actionbar")
-  )
+  await ((await takeover.count()) > 0 ? takeover : page.locator(DOCK))
     .getByRole("button", { name: "Reject" })
     .click();
   await expect

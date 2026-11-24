@@ -489,7 +489,7 @@ with axe before the collected results are asserted.
 | no grab while passing over chips or moving off the axis | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
 | the half sheet leaves the selection in view; the dock detent keeps its verbs; the grip toggles them | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
 | dragging the grip down past the dock clears the selection: portrait-390 | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
-| a pending edit's review card tops the sheet and its Approve and Reject stay reachable at enlarged text sizes | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| a pending edit's Approve and Reject stay reachable on the sheet at enlarged text sizes | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
 | both themes and reduced motion with the sheet open | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
 | a timeline tap while a track's sheet is open selects, and Inspect opens the sheet at half: portrait-390 | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
 | a point added from a track's sheet shows its fields in the sheet: portrait-390 | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
@@ -498,12 +498,10 @@ with axe before the collected results are asserted.
 | timeline text takes no selection or callout | `gui/web/e2e-compat/touch-selection.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | no shell row draws over the strip, nor the strip over it: portrait-360 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | no shell row draws over the strip, nor the strip over it: landscape-636 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| live waiver draft survives a short to tall tablet resize | `gui/web/e2e-compat/pending-actionbar-lifecycle.spec.ts` | Core flow | Skipped (fixme, slice 3) | Skipped (fixme, slice 3) | Not run |
-| docks in the inspector sheet | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Skipped (fixme, slice 3) | Skipped (fixme, slice 3) | Not run |
-| floats between the ruler and the bottom panel | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Skipped (fixme, slice 3) | Skipped (fixme, slice 3) | Not run |
-| leaves Approve and Reject to the inspector | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Skipped (fixme, slice 3) | Skipped (fixme, slice 3) | Not run |
-| pending card: a marker added while it floats leaves the one-row lane where it was and the card clear of it | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Skipped (fixme, slice 3) | Skipped (fixme, slice 3) | Not run |
-| pending review: inline Approve and Reject stay reachable after 720 to 360 to 260 | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Skipped (fixme, slice 3) | Skipped (fixme, slice 3) | Not run |
+| the Cut anyway waiver survives a short to tall tablet resize | `gui/web/e2e-compat/pending-actionbar-lifecycle.spec.ts` | Core flow | Pass | Pass | Not run |
+| the Action bar keeps Approve and Reject reachable beside the selection | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Action bar: a marker added while it floats leaves the one-row lane where it was and the bar clear of it | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Action bar: Approve and Reject stay reachable after 720 to 360 to 260 | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Auto drags directly when a step is 4 px wide at a deep zoom | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | jog: a ripple over the guest's speech applies as one manual trim | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | jog: a second finger cancels the drag and saves nothing | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |

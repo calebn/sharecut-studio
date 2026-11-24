@@ -6,10 +6,10 @@ import {
   removeRelocatedE2eProject,
 } from "../e2e/liveProject";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { inspectSelectionByKey, openProject } from "../e2e/stageNav";
+import { openProject } from "../e2e/stageNav";
 import { buildFixture, centerOf, lane, setZoom } from "../e2e/touchTimeline";
 
-// A mouse window: the tablet shell floats the review card over the lanes beside the Inspector card.
+// A mouse window: the tablet shell floats the Action bar over the lanes beside the Inspector card.
 test.use({ hasTouch: false });
 let projectPath: string;
 let workspaceDir: string;
@@ -23,6 +23,8 @@ test.afterEach(async () => {
   await switchE2eProject(e2eProjectPath);
   if (workspaceDir) removeRelocatedE2eProject(workspaceDir);
 });
+const editActions = (page: Page) =>
+  page.getByRole("group", { name: /^(Selection|Edit) actions$/ });
 async function open(page: Page) {
   await page.setViewportSize({ width: 844, height: 390 });
   await openProject(page, projectPath);
@@ -42,19 +44,14 @@ async function selected(
   await finger.down(at);
   await page.waitForTimeout(60);
   await finger.up();
-  await inspectSelectionByKey(page);
-  await expect(page.locator(".pending-actionbar")).toBeVisible();
+  await expect(editActions(page)).toBeVisible();
   await page.waitForTimeout(700);
 }
-test("live waiver draft survives a short to tall tablet resize", async ({
+test("the Cut anyway waiver survives a short to tall tablet resize", async ({
   page,
   context,
   browserName,
 }, info) => {
-  test.fixme(
-    true,
-    "The pending edit's Approve and Reject moved to the Action bar on the Edit stage; this overlay-bar case is replaced when slice 3 of #4337 removes the bar.",
-  );
   await selected(page, context, browserName);
   await page.route("**/api/document/command**", async (route) => {
     const body = route.request().postDataJSON();
@@ -69,17 +66,20 @@ test("live waiver draft survives a short to tall tablet resize", async ({
       });
     else await route.continue();
   });
-  const bar = page.locator(".pending-actionbar");
-  await bar.getByRole("button", { name: "Approve", exact: true }).click();
-  const reason = bar.getByRole("button", { name: "Cut anyway" });
+  await editActions(page)
+    .getByRole("button", { name: "Approve", exact: true })
+    .click();
+  await page
+    .getByRole("region", { name: "Status messages" })
+    .getByRole("button", { name: "Open Inspect" })
+    .click();
+  const reason = page.getByRole("button", { name: "Cut anyway" });
   await expect(reason).toBeVisible();
   await reason.focus();
   await page.setViewportSize({ width: 844, height: 900 });
-  await expect(page.locator(".pending-actionbar")).toBeVisible();
+  await expect(reason).toBeVisible();
   await page.waitForTimeout(700);
-  const moved = page
-    .locator(".pending-actionbar")
-    .getByRole("button", { name: "Cut anyway" });
+  const moved = page.getByRole("button", { name: "Cut anyway" });
   const actual = await moved.textContent();
   await info.attach("relocation", {
     body: JSON.stringify({
