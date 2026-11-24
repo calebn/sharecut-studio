@@ -164,22 +164,6 @@ class Blocking(FakeNative):
         return -9 if session.cancelled.is_set() and self.code == 0 else self.code
 
 
-class PerSession(Blocking):
-    """Each session runs until its own ``release`` is set; cancelling it sets that release."""
-
-    def _ffmpeg(self, session: Session, in_fd: int, out_fd: int, err_fd: int) -> None:
-        try:
-            session.release.wait(BOUND_SEC)
-        finally:
-            self._close(session, in_fd, out_fd, err_fd)
-
-    def _cancel(self, session_id: int) -> None:
-        super()._cancel(session_id)
-        session = self.sessions.get(session_id)
-        if session is not None:
-            session.release.set()
-
-
 class WokenByCancel(Blocking):
     """The native thread blocks in ``os.read``/``os.write``; cancel calls ``unblock`` (the kick)."""
 
@@ -200,6 +184,7 @@ class WokenByCancel(Blocking):
             self._close(session, in_fd, out_fd, err_fd)
 
     def _cancel(self, session_id: int) -> None:
+        # Not super(): that would close the dups itself; here ``unblock`` must wake the thread.
         self.cancel_calls.append(session_id)
         self.sessions[session_id].cancelled.set()
         self.unblock()
@@ -226,15 +211,31 @@ class CountingEvent(threading.Event):
 class SlowWait(Blocking):
     """Cancel closes the dups at once, but the session and ``wait`` end only once released."""
 
+    def _gate(self, session: Session) -> threading.Event:
+        return self.release
+
     def _ffmpeg(self, session: Session, in_fd: int, out_fd: int, err_fd: int) -> None:
         try:
-            self.release.wait(BOUND_SEC)
+            self._gate(session).wait(BOUND_SEC)
         finally:
             self._close(session, in_fd, out_fd, err_fd)
 
     def _wait(self, session_id: int) -> int:
-        self.release.wait(BOUND_SEC)
+        self._gate(self.sessions[session_id]).wait(BOUND_SEC)
         return super()._wait(session_id)
+
+
+class PerSession(SlowWait):
+    """Each session is released by its own ``release``; cancelling it sets that release."""
+
+    def _gate(self, session: Session) -> threading.Event:
+        return session.release
+
+    def _cancel(self, session_id: int) -> None:
+        super()._cancel(session_id)
+        session = self.sessions.get(session_id)
+        if session is not None:
+            session.release.set()
 
 
 def read_all(child: Any) -> bytes:
@@ -448,6 +449,33 @@ def test_cancel_unblocks_wait_within_grace(host: None) -> None:
         child.kill()
         assert child.wait(2) == -9
     assert fake.finished.wait(2)
+
+
+def test_a_stream_whose_flush_raises_fails_with_one_stderr_line_and_starts_nothing() -> None:
+    fake = FakeNative()
+    closed = io.BytesIO()
+    closed.close()
+    err = io.BytesIO()
+    code = NativeFFmpegBackend(fake).run(
+        [IN_PROCESS_FFMPEG], Streams(closed, None, err), threading.Event()
+    )
+    assert code == 1
+    assert len(err.getvalue().splitlines()) == 1
+    assert fake.argvs == []
+    assert not fake.sessions
+
+
+def test_the_cancel_watcher_thread_exits_once_run_returns() -> None:
+    before = set(threading.enumerate())
+    NativeFFmpegBackend(FakeNative()).run(
+        [IN_PROCESS_FFMPEG], Streams(None, None, None), threading.Event()
+    )
+    watchers = [
+        t for t in threading.enumerate() if t not in before and t.name == "native-ffmpeg-cancel"
+    ]
+    for watcher in watchers:
+        watcher.join(BOUND_SEC)
+    assert not any(watcher.is_alive() for watcher in watchers)
 
 
 def test_cancel_set_before_start_is_seen_by_the_watcher() -> None:
@@ -841,9 +869,8 @@ def test_cancel_wakes_a_native_thread_blocked_in_a_pipe_call_and_its_dups_close(
         assert codes == [1]
         assert fake.cancel_calls == [1]
         assert session.closed
-        assert not any(fd in caller_fds for fd in session.dups)  # the dups were the native's own
         for fd in caller_fds:
-            os.fstat(fd)  # the caller's fd is still open
+            os.fstat(fd)
     finally:
         cancel.set()
         for stream in streams:

@@ -473,7 +473,8 @@ void     sc_ffmpeg_cancel(int64_t session);
 - **File descriptors.** `-1` means none. Native `dup()`s each fd >= 0 before `start` returns and
   closes its dups when the session ends; the caller owns and closes its own fds and native never
   closes them. A dup shares the file offset, so a caller reading a tempfile stderr back must
-  `seek(0)` first. A stream without a usable `fileno()` (or whose `flush()` fails) is exit code `1` with one stderr line, and nothing starts.
+  `seek(0)` first. A stream without a usable `fileno()` (or whose `flush()` fails) is exit code
+  `1` with one stderr line, and nothing starts.
 - **Errors.** A `start` that returns 0 or less, a `wait` outside 0..255 or an unknown tool is exit code `1` with
   one line on stderr. A native error is never reported as success, and the backend never starts
   a program.
