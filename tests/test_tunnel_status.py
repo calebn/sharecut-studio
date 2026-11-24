@@ -38,6 +38,9 @@ from podcast_mcp.services.collaboration.tunnel_status import (
     TunnelState,
     TunnelStatusTracker,
     read_tunnel_status,
+    status_file_is_live,
+    studio_lock_path,
+    studio_status_path,
     tunnel_status_dir,
     tunnel_status_path,
 )
@@ -653,3 +656,36 @@ def test_gui_finds_the_status_of_a_tunnel_started_with_a_custom_config(tmp_path:
     shown = TestClient(create_app()).get("/api/tunnel/status").json()
     assert (shown["state"], shown["reason_kind"]) == ("offline", "auth")
     assert HOST_TOKEN not in json.dumps(shown)
+
+
+def test_status_file_is_live_rules(tmp_path: Path):
+    live = _write(tmp_path / "live.json", pid=4242)
+    dead_pid = _write(tmp_path / "dead.json", pid=4243)
+    stopped = _write(tmp_path / "stopped.json", phase="stopped", state="off", pid=4242)
+
+    def alive(pid: int) -> bool:
+        return pid == 4242
+
+    assert status_file_is_live(live, now=1010.0, pid_alive=alive) is True
+    assert status_file_is_live(dead_pid, now=1010.0, pid_alive=alive) is False
+    assert status_file_is_live(stopped, now=1010.0, pid_alive=alive) is False
+    assert status_file_is_live(live, now=1000.0 + STALE_AFTER_SEC + 15, pid_alive=alive) is False
+    assert status_file_is_live(tmp_path / "missing.json", now=1010.0, pid_alive=alive) is False
+    assert live.exists() and dead_pid.exists()
+
+
+def test_studio_files_sit_beside_the_cli_file_for_one_identity():
+    cfg = RelayConfig(relay_url=RELAY_URL, host_id="host-a")
+    cli = tunnel_status_path(cfg)
+
+    assert studio_status_path(cfg) == cli.with_name(cli.stem + "-studio.json")
+    assert studio_lock_path(cfg) == cli.with_name(cli.stem + "-studio.lock")
+
+
+def test_cli_online_and_studio_stopped_read_online(tmp_path: Path):
+    _write(tmp_path / "abcd.json", pid=4242)
+    _write(tmp_path / "abcd-studio.json", phase="stopped", state="off", updated_at=1005.0)
+
+    shown = _status(directory=tmp_path, now=1010.0, pid_alive=lambda _pid: True)
+
+    assert shown["state"] == "online"
