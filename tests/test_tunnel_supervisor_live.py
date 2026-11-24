@@ -14,16 +14,11 @@ from typing import Any
 import httpx
 import pytest
 from fastapi import FastAPI
+from tests.record_links import make_project, mint_record_link
 from tests.relay_live import live_relay
 
 from podcast_mcp.gui.bind import build_gui_server, exclusive_listen_socket
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import EpisodeProject, load_project, save_project
-from podcast_mcp.services.collaboration.review_shares import create_share
-from podcast_mcp.services.collaboration.share_registry import (
-    RECORD_REVIEW_VERSION_SENTINEL,
-    SHARE_KIND_RECORD,
-)
 from podcast_relay.app import create_relay_app
 
 HOST_TOKEN = "studio-host-token"
@@ -63,9 +58,7 @@ def _serve_gui(app: FastAPI) -> Iterator[str]:
 
 @pytest.fixture
 def studio_project(tmp_workspace: Path) -> Path:
-    project = EpisodeProject.create("studio_tunnel", str(tmp_workspace))
-    project.ensure_dirs()
-    return save_project(project)
+    return make_project(tmp_workspace, "studio_tunnel")
 
 
 @pytest.fixture
@@ -91,24 +84,13 @@ def rig(
     return open_rig
 
 
-def _mint_record_link(project_path: Path) -> str:
-    row = create_share(
-        load_project(project_path),
-        review_version_id=RECORD_REVIEW_VERSION_SENTINEL,
-        kind=SHARE_KIND_RECORD,
-        role="guest",
-        session_id="session-1",
-    )
-    return str(row["token"])
-
-
 def _tunnel_state(gui_url: str) -> str:
     return str(httpx.get(f"{gui_url}/api/tunnel/status", timeout=5).json()["state"])
 
 
 @pytest.mark.xfail(strict=True, reason="no in-process tunnel supervisor yet")
 def test_open_studio_with_live_share_registers_with_relay(rig, studio_project) -> None:
-    token = _mint_record_link(studio_project)
+    token = mint_record_link(studio_project)
 
     with rig() as studio:
         session = wait_for(lambda: studio.relay_app.state.relay.tunnel_for_token(token), timeout=3)
