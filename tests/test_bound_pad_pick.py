@@ -435,6 +435,35 @@ def test_a_bound_pick_stays_out_of_the_rows_the_tools_return(tmp_path: Path) -> 
     assert all("bound_pad" not in row for row in rows)
 
 
+def test_the_update_handler_row_leaves_the_binding_out(tmp_path: Path) -> None:
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document_sync.handlers.edits import update_pending_edit
+
+    project = _two_pending(tmp_path)
+    ws = ProjectWorkspace.open(save_project(project))
+    start, end = CUTS[SECOND]
+
+    with write_grant(WriteGrantKind.DISPATCHER):
+        row = update_pending_edit(ws, {"id": SECOND, "start": start, "end": end, "snap": False})
+
+    assert row["edit"]["id"] == SECOND
+    assert "bound_pad" not in row["edit"]
+
+
+def test_a_rebind_alone_is_not_a_change_in_the_history_diff(tmp_path: Path) -> None:
+    from podcast_mcp.project.history.diff import diff_snapshots
+
+    project = _two_pending(tmp_path)
+    before = snapshot_from_project(project)
+    bind_pending_pad_picks(project, defaults=DEFAULTS)
+    after = snapshot_from_project(project)
+
+    diff = diff_snapshots(before, after)
+
+    assert diff["edit_decisions"]["changed"] == []
+    assert diff["edit_decisions"]["added"] == []
+
+
 def test_the_pipeline_analysis_leaves_its_pending_cuts_bound(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

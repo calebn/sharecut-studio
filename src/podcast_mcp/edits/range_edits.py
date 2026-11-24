@@ -114,5 +114,5 @@ def edit_selected_range(
     return {
         "action_ids": [e.id for e in edits],
         "proposed": propose,
-        "edits": [e.model_dump(mode="json") for e in edits],
+        "edits": [e.model_dump(mode="json", exclude={"bound_pad"}) for e in edits],
     }
