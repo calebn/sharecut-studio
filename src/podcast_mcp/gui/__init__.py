@@ -1,14 +1,9 @@
 """Read-only DAW-style web viewer for episode projects."""
 
-from podcast_mcp.gui.assembler import (
-    ViewProjection,
-    build_project_view,
-    dump_project_projection,
-)
+from podcast_mcp.gui.assembler import build_project_view, dump_project_projection
 from podcast_mcp.gui.mapper import map_pending_edits_to_timeline
 
 __all__ = [
-    "ViewProjection",
     "build_project_view",
     "create_app",
     "dump_project_projection",

@@ -9,11 +9,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from podcast_mcp.gui.assembler import (
-    VIEW_PROJECTION_QUERY_DESCRIPTION,
-    dump_project_projection,
-    parse_view_projection,
-)
+from podcast_mcp.gui.assembler import dump_project_projection
 from podcast_mcp.gui.audio import (
     audio_file_response,
     resolve_viewer_transport,
@@ -49,6 +45,10 @@ from podcast_mcp.services.app import (
     record_recent,
 )
 from podcast_mcp.services.document import HistoryService, PlayService
+from podcast_mcp.services.document_sync import (
+    VIEW_PROJECTION_QUERY_DESCRIPTION,
+    parse_view_projection,
+)
 from podcast_mcp.services.session_sync import is_loopback_host
 
 router = APIRouter()

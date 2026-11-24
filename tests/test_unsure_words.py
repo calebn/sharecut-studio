@@ -10,7 +10,7 @@ from podcast_mcp.config.defaults import bundled_defaults, unsure_word_confidence
 from podcast_mcp.edits.transcript_correct import list_low_confidence
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE, build_refine_brief
 from podcast_mcp.edits.unsure_words import is_unsure_word, unsure_words_by_edit
-from podcast_mcp.gui.assembler import ViewProjection, build_project_view, dump_project_projection
+from podcast_mcp.gui.assembler import build_project_view, dump_project_projection
 from podcast_mcp.gui.mapper import map_pending_edits_to_timeline
 from podcast_mcp.models import (
     EditDecision,
@@ -23,7 +23,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share_capabilities import GuestWords, capabilities_for_role
 from podcast_mcp.services.document import HistoryService, TranscriptService
-from podcast_mcp.services.document_sync import DocumentCommand, DocumentSyncService
+from podcast_mcp.services.document_sync import DocumentCommand, DocumentSyncService, ViewProjection
 from podcast_mcp.services.document_sync.handlers import edits as handlers
 from podcast_mcp.services.document_sync.host_submit import host_command_result
 from podcast_mcp.services.document_sync.payloads import ApproveEditsPayload
