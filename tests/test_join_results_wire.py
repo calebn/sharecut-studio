@@ -221,15 +221,25 @@ CUT = _features(
 )
 
 
+NATURAL_P95 = re.compile(r'"natural_p95": (0\.\d+)')
+
+
 def _norm(text: str) -> str:
-    """The only normalization: the label timestamp."""
+    """The label timestamp and the CPU-dependent natural_p95 sample."""
     assert len(TS.findall(text)) == 1
-    return TS.sub('"ts": "<ts>"', text)
+    assert len(NATURAL_P95.findall(text)) == 1
+    return NATURAL_P95.sub('"natural_p95": 0.2831', TS.sub('"ts": "<ts>"', text))
 
 
 def _norm_result(result: dict) -> dict:
     assert re.fullmatch(r"\d{4}-\d\d-\d\dT[\d:.]+\+00:00", result["label"]["ts"])
-    return {**result, "label": {**result["label"], "ts": "<ts>"}}
+    natural = result["features"]["natural_p95"]
+    assert isinstance(natural, float) and 0.0 < natural < 1.0
+    return {
+        **result,
+        "label": {**result["label"], "ts": "<ts>"},
+        "features": {**result["features"], "natural_p95": 0.2831},
+    }
 
 
 @pytest.fixture
