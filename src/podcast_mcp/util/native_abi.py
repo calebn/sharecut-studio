@@ -120,7 +120,8 @@ class NativeBackend:
 
     def __init__(self, abi: NativeABI, lib: Any = None) -> None:
         self._abi = abi
-        self._fns = abi.bind(abi.load_library(lib))
+        self._lib = abi.load_library(lib)
+        self._fns = abi.bind(self._lib)
 
     def run(self, argv: list[str], streams: Streams, cancel: threading.Event) -> int:
         """Run one tool to completion: start, forward ``cancel`` through a watcher, wait, reap."""
