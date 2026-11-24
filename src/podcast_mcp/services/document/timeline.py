@@ -1,4 +1,4 @@
-"""Clip geometry, joins, fades, segments, chapters and room tone."""
+"""Clip geometry, joins, fades, segments and room tone."""
 
 from __future__ import annotations
 
@@ -13,13 +13,6 @@ from podcast_mcp.edits import (
 )
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
-from podcast_mcp.edits.chapters import (
-    add_chapter,
-    delete_chapter,
-    list_chapters,
-    remove_chapter,
-    update_chapter,
-)
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline, ClipFadeEdit
 from podcast_mcp.edits.clip_gain import ClipGainBaseline
 from podcast_mcp.edits.cut_speech import (
@@ -63,7 +56,7 @@ from podcast_mcp.edits.transcript_cuts import (
     append_remove_decision,
     append_split_decision,
 )
-from podcast_mcp.models import ChapterMarker, CutIntent, EditMode, EpisodeProject, FadeCurve
+from podcast_mcp.models import CutIntent, EditMode, EpisodeProject, FadeCurve
 from podcast_mcp.services.collaboration import get_share_registry
 from podcast_mcp.services.document.bleed_inspection import (
     BleedRestoreResult,
@@ -71,7 +64,7 @@ from podcast_mcp.services.document.bleed_inspection import (
     inspect_clip_bleed,
     restore_clip_bleed,
 )
-from podcast_mcp.services.document.chapter_results import DeletedChapter, RemovedChapter
+from podcast_mcp.services.document.chapter_ops import _ChapterOps
 from podcast_mcp.services.document.clip_fade import apply_clip_fade, apply_clips_fade
 from podcast_mcp.services.document.clip_gain import apply_clip_gain, apply_clips_gain
 from podcast_mcp.services.document.service_base import CutMutatingService
@@ -98,7 +91,7 @@ log = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-class TimelineService(CutMutatingService):
+class TimelineService(CutMutatingService, _ChapterOps):
     def join_quality(
         self,
         *,
@@ -809,39 +802,3 @@ class TimelineService(CutMutatingService):
                 p, tid, within=within, defaults=self.ws.effective_config()
             ),
         )
-
-    def add_chapter(self, at_time: float, title: str) -> ChapterMarker:
-        def mutate(p) -> ChapterMarker:
-            return add_chapter(p, at_time, title)
-
-        return self.ws.mutate("before add chapter", "after add chapter", mutate)
-
-    def remove_chapter(self, title: str) -> RemovedChapter:
-        def mutate(p) -> RemovedChapter:
-            ok = remove_chapter(p, title)
-            return RemovedChapter(removed=ok, title=title)
-
-        return self.ws.mutate("before remove chapter", "after remove chapter", mutate)
-
-    def update_chapter(
-        self,
-        old_time: float,
-        old_title: str,
-        *,
-        time: float,
-        title: str,
-    ) -> ChapterMarker:
-        def mutate(p) -> ChapterMarker:
-            return update_chapter(p, old_time, old_title, time=time, title=title)
-
-        return self.ws.mutate("before update chapter", "after update chapter", mutate)
-
-    def delete_chapter(self, time: float, title: str) -> DeletedChapter:
-        def mutate(p) -> DeletedChapter:
-            ok = delete_chapter(p, time, title)
-            return DeletedChapter(deleted=ok, time=time, title=title)
-
-        return self.ws.mutate("before delete chapter", "after delete chapter", mutate)
-
-    def list_chapters(self) -> list[dict]:
-        return [c.model_dump() for c in list_chapters(self.ws.project)]
