@@ -77,8 +77,9 @@ other reads `elsewhere`; the OS frees the lock if Studio crashes.
 Quitting stops the tunnel from uvicorn's `handle_exit`, before the server waits on open
 connections, because a guest stream the tunnel proxies back to this GUI is one of them.
 A mint while online sharing is not set up still succeeds, and its response carries
-`warnings: [{"code": "online_sharing_not_set_up"}]`, which the web shows as a line after
-the mint.
+`warnings: [{"code": "online_sharing_not_set_up", "message": ...}]`. The web shows it as a
+line after every mint, record links included, and the CLI prints `message` as a `Warning:`
+line.
 
 ### Proposed decision: Studio starts the host tunnel while a link is live
 

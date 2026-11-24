@@ -107,6 +107,12 @@ _REFUSED_ADOPTIONS: set[Path] = set()
 _REFUSED_VERSIONS: set[tuple[str, str]] = set()
 
 
+_NOT_SET_UP_MESSAGE = (
+    "Online sharing isn't set up on this computer, so guests outside this network can't "
+    "open this link yet. How to set it up is in docs/host-online-relay.md."
+)
+
+
 def online_sharing_warnings() -> list[dict[str, str]]:
     """Never raises, so a failed check cannot block the mint."""
     try:
@@ -114,7 +120,9 @@ def online_sharing_warnings() -> list[dict[str, str]]:
     except Exception:
         log.debug("online sharing check failed; skipping warning", exc_info=True)
         return []
-    return [] if ready else [{"code": "online_sharing_not_set_up"}]
+    if ready:
+        return []
+    return [{"code": "online_sharing_not_set_up", "message": _NOT_SET_UP_MESSAGE}]
 
 
 def _missing_version_refusal(row: dict[str, Any], version_id: str) -> CodedKeyError:

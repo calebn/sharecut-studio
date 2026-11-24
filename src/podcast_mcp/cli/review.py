@@ -468,7 +468,7 @@ def review_share_cmd(
         row = {**row, "invites": invites}
     typer.echo(json.dumps(row, indent=2))
     for warning in row.get("warnings") or []:
-        typer.echo(f"\nWarning: {warning['message']}", err=True)
+        typer.echo(f"\nWarning: {warning.get('message') or warning['code']}", err=True)
     typer.echo(f"\nShare URL: {row['url']}", err=True)
     if row.get("follow_latest"):
         typer.echo(

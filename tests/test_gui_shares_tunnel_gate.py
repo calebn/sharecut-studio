@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from tests.record_links import make_project
 
 from podcast_mcp.gui.server import create_app
+from podcast_mcp.services.collaboration.share import online_sharing_warnings
 from podcast_mcp.services.session_sync.authz import HOST_ROLE_RELAYED_REASON
 from podcast_mcp.util.proxy_paths import RELAYED_REQUEST_HEADER
 
@@ -77,7 +78,8 @@ def test_a_loopback_host_reads_the_tunnel_status(tmp_workspace) -> None:
     assert res.json()["schema"] == 1
 
 
-NOT_SET_UP = {"code": "online_sharing_not_set_up"}
+def _codes(warnings: list[dict[str, str]]) -> list[str]:
+    return [warning["code"] for warning in warnings]
 
 
 def _loopback(project: Path) -> TestClient:
@@ -110,7 +112,7 @@ def test_mint_warns_when_online_sharing_not_set_up(tmp_workspace: Path) -> None:
     res = _loopback(project).post("/api/shares", json={"path": str(project)})
 
     assert res.status_code == 200, res.text
-    assert NOT_SET_UP in res.json()["share"]["warnings"]
+    assert _codes(res.json()["share"]["warnings"]) == ["online_sharing_not_set_up"]
 
 
 def test_record_mint_warns_when_online_sharing_not_set_up(tmp_workspace: Path) -> None:
@@ -120,8 +122,8 @@ def test_record_mint_warns_when_online_sharing_not_set_up(tmp_workspace: Path) -
 
     assert res.status_code == 200, res.text
     room = res.json()["room"]
-    assert NOT_SET_UP in room["guest"]["warnings"]
-    assert NOT_SET_UP in room["producer"]["warnings"]
+    assert _codes(room["guest"]["warnings"]) == ["online_sharing_not_set_up"]
+    assert _codes(room["producer"]["warnings"]) == ["online_sharing_not_set_up"]
 
 
 def test_record_mint_does_not_warn_when_online_sharing_is_set_up(
@@ -148,4 +150,36 @@ def test_mint_does_not_warn_when_online_sharing_is_set_up(
     res = _loopback(project).post("/api/shares", json={"path": str(project)})
 
     assert res.status_code == 200, res.text
-    assert NOT_SET_UP not in res.json()["share"].get("warnings", [])
+    assert "warnings" not in res.json()["share"]
+
+
+def test_online_sharing_warning_carries_a_message() -> None:
+    [warning] = online_sharing_warnings()
+
+    assert warning["code"] == "online_sharing_not_set_up"
+    assert warning["message"].startswith("Online sharing isn't set up on this computer")
+
+
+def test_cli_review_share_prints_a_warning_without_a_message(
+    tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app as cli_app
+    from podcast_mcp.services.collaboration.share import ShareService
+
+    project = make_project(tmp_workspace)
+    row = {
+        "token": "t",
+        "url": "http://x/r/t",
+        "review_version_id": "v1",
+        "warnings": [{"code": "online_sharing_not_set_up"}],
+    }
+    monkeypatch.setattr(ShareService, "resolve_start_version", lambda self, version: "v1")
+    monkeypatch.setattr(ShareService, "create", lambda self, **kwargs: dict(row))
+
+    res = CliRunner().invoke(cli_app, ["review", "share", "--project", str(project)])
+
+    assert res.exit_code == 0, res.output
+    assert "Warning: online_sharing_not_set_up" in res.output
+    assert "Share URL: http://x/r/t" in res.output
