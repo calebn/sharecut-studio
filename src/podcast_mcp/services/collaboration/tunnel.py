@@ -199,26 +199,29 @@ class TunnelClient:
     def tracker(self) -> TunnelStatusTracker:
         return self._tracker
 
-    def _build_shares(self) -> list[dict[str, Any]]:
+    def _load_shares(self) -> list[dict[str, Any]]:
         if self._project_path is None:
             return []
-        try:
-            from podcast_mcp.util.relay_protocol.share_claims import attach_share_claims
+        from podcast_mcp.util.relay_protocol.share_claims import attach_share_claims
 
-            proj = load_project(self._project_path)
-            rows = [
-                {
-                    "token": row["token"],
-                    "capabilities": list(row.get("capabilities") or []),
-                }
-                for row in list_usable_shares(proj)
-                if row.get("token")
-            ]
-            self._tracker.add_secrets([row["token"] for row in rows])
-            secret = self._cfg.host_token
-            if not secret:
-                return rows
-            return attach_share_claims(rows, host_id=self._cfg.host_id, secret=secret)
+        proj = load_project(self._project_path)
+        rows = [
+            {
+                "token": row["token"],
+                "capabilities": list(row.get("capabilities") or []),
+            }
+            for row in list_usable_shares(proj)
+            if row.get("token")
+        ]
+        self._tracker.add_secrets([row["token"] for row in rows])
+        secret = self._cfg.host_token
+        if not secret:
+            return rows
+        return attach_share_claims(rows, host_id=self._cfg.host_id, secret=secret)
+
+    def _build_shares(self) -> list[dict[str, Any]]:
+        try:
+            return self._load_shares()
         except Exception:
             log.exception("Could not load shares from project")
             return []
@@ -226,14 +229,19 @@ class TunnelClient:
     async def readvertise(self, project_path: Path) -> bool:
         """Send one ``register`` frame on the live session and return True.
 
-        With no session, return False and the next connect advertises ``project_path``. The
-        relay's ``register`` ack arrives in ``_serve_messages`` and is ignored.
+        With no session, or when the shares cannot be read, return False and nothing is sent:
+        an empty frame would drop every route. The next connect advertises ``project_path``.
+        The relay's ``register`` ack arrives in ``_serve_messages`` and is ignored.
         """
         self._project_path = project_path
         send = self._send
         if send is None:
             return False
-        shares = await asyncio.to_thread(self._build_shares)
+        try:
+            shares = await asyncio.to_thread(self._load_shares)
+        except Exception:
+            log.exception("Could not load shares from project")
+            return False
         if self._send is not send:
             return False
         await send(msg("register", shares=shares))
