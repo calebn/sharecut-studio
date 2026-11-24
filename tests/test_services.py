@@ -1023,6 +1023,7 @@ def test_speaker_meta_updates_all_track_turns_and_undo_preserves_sources(
     before_sources = [source.model_dump(mode="json") for source in ws.project.sources]
     before_media = ws.project.tracks[0].media.model_dump(mode="json")
     EpisodeService(ws).set_track_meta("host", speaker=speaker)
+    assert ws.project.tracks[0].speaker == speaker
     assert [row.speaker for row in ws.project.combined_transcript.utterances] == [
         speaker or "host",
         "Guest",
