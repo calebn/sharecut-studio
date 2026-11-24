@@ -213,33 +213,36 @@ export function placeCard(
   if (beside !== undefined) return { ...normal, inline: beside };
 
   const areas = keepClear.filter(hasArea).map(padded);
-  if (areas.length === 0) return normal;
-  const top = Math.min(...areas.map((o) => o.top));
-  const end = Math.max(...areas.map((o) => o.end));
+  const bands = areas.length
+    ? [
+        [min, Math.min(...areas.map((o) => o.top))],
+        [Math.max(...areas.map((o) => o.end)), bottom],
+      ]
+    : [[min, bottom]];
   const anchorClearance = (placement: Omit<CardPlacement, "inline">) =>
     placement.side === "below"
       ? placement.block - anchor.y - anchor.height
       : placement.block + anchor.y - bounds.height;
-  const clear = [
-    [min, top],
-    [end, bottom],
-  ]
-    .filter(([start, stop]) => stop - start >= minBlock)
-    .map(([start, stop]) => {
-      const placement = placeCardBlock(
-        anchor,
-        bounds.height,
-        minBlock,
-        start,
-        stop,
-      );
-      return { placement, clearance: anchorClearance(placement) };
-    })
-    .sort(
-      (a, b) =>
-        Number(a.clearance < 0) - Number(b.clearance < 0) ||
-        Math.abs(a.clearance - CARD_GAP_PX) -
+  const nearestBand = (floor: number) =>
+    bands
+      .filter(([start, stop]) => stop - start >= minBlock)
+      .map(([start, stop]) => {
+        const placement = placeCardBlock(
+          anchor,
+          bounds.height,
+          floor,
+          start,
+          stop,
+        );
+        return { placement, clearance: anchorClearance(placement) };
+      })
+      .filter(({ clearance }) => clearance >= -CLEAR_EPSILON)
+      .sort(
+        (a, b) =>
+          Math.abs(a.clearance - CARD_GAP_PX) -
           Math.abs(b.clearance - CARD_GAP_PX),
-    )[0];
+      )[0];
+  // Half the minimum still shows the header and a field, which beats covering the bar.
+  const clear = nearestBand(minBlock) ?? nearestBand(minBlock / 2);
   return clear ? { ...clear.placement, inline } : normal;
 }

@@ -140,7 +140,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
     }
   });
 
-  it("places the card again when the Action bar moves under it", async () => {
+  it("places the card again when the Action bar moves under it, or is replaced", async () => {
     vi.stubGlobal("IntersectionObserver", undefined);
     const root = document.createElement("div");
     root.getBoundingClientRect = () => new DOMRect(20, 50, 360, 400);
@@ -148,11 +148,15 @@ describe("the Inspector card on the desktop and the tablet", () => {
     lane.className = "lane-row";
     lane.dataset.trackId = "host";
     lane.getBoundingClientRect = () => new DOMRect(200, 100, 40, 60);
-    const bar = document.createElement("div");
-    bar.className = "sys-actions--floating";
-    bar.style.top = "177px";
-    bar.getBoundingClientRect = () =>
-      new DOMRect(100, Number.parseFloat(bar.style.top), 200, 40);
+    const floatingBar = (top: string) => {
+      const el = document.createElement("div");
+      el.className = "sys-actions--floating";
+      el.style.top = top;
+      el.getBoundingClientRect = () =>
+        new DOMRect(100, Number.parseFloat(el.style.top), 200, 40);
+      return el;
+    };
+    const bar = floatingBar("177px");
     root.append(lane, bar);
     document.body.append(root);
 
@@ -178,6 +182,14 @@ describe("the Inspector card on the desktop and the tablet", () => {
       });
 
       await waitFor(() => expect(card.style.insetBlockStart).toBe("225px"));
+
+      const replacement = floatingBar("227px");
+      bar.replaceWith(replacement);
+      await act(async () => {
+        replacement.style.top = "127px";
+      });
+
+      await waitFor(() => expect(card.style.insetBlockStart).toBe("125px"));
     } finally {
       root.remove();
     }

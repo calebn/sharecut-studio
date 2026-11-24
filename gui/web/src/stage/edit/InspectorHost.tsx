@@ -31,6 +31,7 @@ import {
 import { areaRects } from "../../ui/anchoredPlacement";
 import { openerControl } from "../../ui/pressedControl";
 import { useResizeObserver } from "../../ui/useResizeObserver";
+import { useStyleObserver } from "../../ui/useStyleObserver";
 import { clamp } from "../../utils/math";
 import { timelineHeaderOffsetWidth } from "../../utils/timelineViewport";
 import { useHistoryControls } from "../frame/useHistoryControls";
@@ -376,15 +377,11 @@ function Card({
     [root, getCorner, () => getCorner()?.parentElement],
     measure,
   );
-  // The bar re-places itself on its own resizes, which this card never hears.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a new selection or anchor node can mount a different bar
-  useLayoutEffect(() => {
-    const bar = root?.querySelector(".sys-actions--floating");
-    if (!bar || typeof MutationObserver === "undefined") return;
-    const observer = new MutationObserver(measure);
-    observer.observe(bar, { attributes: true, attributeFilter: ["style"] });
-    return () => observer.disconnect();
-  }, [root, measure, anchor.moves, anchor.visible]);
+  useStyleObserver(
+    () => root,
+    () => [root?.querySelector(".sys-actions--floating")],
+    measure,
+  );
   const history = useTakeoverHistory();
   const takeover =
     placement !== null &&
