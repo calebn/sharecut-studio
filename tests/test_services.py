@@ -1000,13 +1000,20 @@ def test_speaker_meta_updates_all_track_turns_and_undo_preserves_sources(
     EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
     ws.project.tracks.append(Track(id="guest", label="Guest", role="dialogue", speaker="Guest"))
     ws.project.transcripts = [
-        Transcript(track_id="host", words=[TranscriptWord(text="hello", start=0.0, end=0.5)])
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.5),
+                TranscriptWord(text="again", start=2.0, end=2.5),
+            ],
+        ),
+        Transcript(track_id="guest", words=[TranscriptWord(text="reply", start=1.0, end=1.5)]),
     ]
     ws.project.combined_transcript = CombinedTranscript(
         utterances=[
-            CombinedUtterance(track_id="host", speaker="Host", start=0, end=1, text="hello"),
-            CombinedUtterance(track_id="guest", speaker="Guest", start=1, end=2, text="reply"),
-            CombinedUtterance(track_id="host", speaker="Host", start=2, end=3, text="again"),
+            CombinedUtterance(track_id="host", speaker="Host", start=0, end=0.5, text="hello"),
+            CombinedUtterance(track_id="guest", speaker="Guest", start=1, end=1.5, text="reply"),
+            CombinedUtterance(track_id="host", speaker="Host", start=2, end=2.5, text="again"),
         ]
     )
     ws.save()
