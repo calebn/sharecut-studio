@@ -152,6 +152,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.collaboration.tunnel import run_tunnel_sync
     from podcast_mcp.services.collaboration.tunnel_failure import TunnelError
     from podcast_mcp.services.collaboration.tunnel_status import read_tunnel_status
+    from podcast_mcp.services.collaboration.tunnel_supervisor import TunnelSupervisor
 
 __all__ = [
     "ALL_CAPABILITIES",
@@ -187,6 +188,7 @@ __all__ = [
     "ShareSource",
     "SqliteShareRegistry",
     "TunnelError",
+    "TunnelSupervisor",
     "backup_share_registry",
     "build_share_head_tags",
     "capabilities_for_role",
@@ -309,6 +311,7 @@ _MODULE_BY_NAME = {
     "ShareService": "share",
     "ShareSource": "share_capabilities",
     "TunnelError": "tunnel_failure",
+    "TunnelSupervisor": "tunnel_supervisor",
     "build_share_head_tags": "share_page",
     "drop_absolute_path_strings": "share",
     "GUEST_OWNER_ROUTES": "guest_routes",

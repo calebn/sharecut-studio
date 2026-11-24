@@ -374,7 +374,7 @@ def create_app(
     apply_gui_extensions(app, registry)
     app.state.tunnel = None
     if registry.has(FEATURE_TUNNEL_STATUS):
-        from podcast_mcp.services.collaboration.tunnel_supervisor import TunnelSupervisor
+        from podcast_mcp.services.collaboration import TunnelSupervisor
 
         app.state.tunnel = TunnelSupervisor(
             listen_port=lambda: getattr(app.state, "listen_port", None),
