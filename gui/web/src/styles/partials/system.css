@@ -6320,10 +6320,6 @@ button.sys-script-speaker {
   vertical-align: middle;
 }
 
-.sys-edit-fix-with-cancel > .sys-edit-fix-field {
-  min-inline-size: 0;
-}
-
 .sys-edit-fix-cancel {
   flex: none;
 }
