@@ -369,6 +369,8 @@ describe("stable callback source governance", () => {
       "stage/hosts/useReviewQueue.ts:select",
       "stage/hosts/useReviewQueue.ts:selected",
       "stages/edit/CreateMenu.tsx:close",
+      "stages/edit/FixTextField.tsx:arm",
+      "stages/edit/FixTextField.tsx:disarm",
       "stages/edit/FixTextField.tsx:finish",
       "stages/edit/TargetChooser.tsx:close",
       "stages/prepare/useVocabulary.ts:currentProject",
