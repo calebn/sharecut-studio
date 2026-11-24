@@ -92,6 +92,8 @@ from podcast_mcp.services.document.boundary import (
     boundary_context,
 )
 from podcast_mcp.services.media import SpeakerService
+from podcast_mcp.services.record.landing import RecordLandingService
+from test_record_start_target import _land, _start_room, _take
 from test_segments_insert import _save as _save_segment
 
 Command = Callable[[ProjectWorkspace], Any]
@@ -330,6 +332,28 @@ def _revert_last_cut(ws: ProjectWorkspace) -> Any:
     return EditService(ws).revert_applied([ws.project.editorial.edit_log[-1].id])
 
 
+def _record_start_take(*, land_first: bool = False) -> Command:
+    """A start-of-episode record room with a take uploaded, or two landed."""
+
+    def record(ws: ProjectWorkspace) -> Any:
+        room, svc, guest = _start_room(ws)
+        _take(ws, room, svc, guest, 0, 2.5, 880.0)
+        if land_first:
+            _land(ws)
+            _take(ws, room, svc, guest, 1, 1.5, 660.0)
+            _land(ws)
+
+    return record
+
+
+def _land_take(ws: ProjectWorkspace) -> Any:
+    return _land(ws)
+
+
+def _discard_last_take(ws: ProjectWorkspace) -> Any:
+    return RecordLandingService(ws).delete_take(1)
+
+
 def _stage_take_on_host(kind: Literal["insert", "replace"]) -> Command:
     """Stage a three second recorded take on the host lane, as a landed session leaves it."""
 
@@ -468,6 +492,22 @@ TIMELINE_CASES = [
         words=False,
     ),
     Case("revert_applied_cut", _revert_last_cut, FRESH_TEXTS, prepare=_cut_welcome),
+    Case(
+        "land_start_session_take",
+        _land_take,
+        FRESH_TEXTS,
+        quirk="h1",
+        words=False,
+        prepare=_record_start_take(),
+    ),
+    Case(
+        "discard_last_start_session_take",
+        _discard_last_take,
+        FRESH_TEXTS,
+        quirk="h1",
+        words=False,
+        prepare=_record_start_take(land_first=True),
+    ),
     Case(
         "accept_staged_insert",
         _accept_staged,
