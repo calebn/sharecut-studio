@@ -129,12 +129,8 @@ def test_restore_preserves_equal_start_order_across_repeated_cuts(minimal_projec
         TranscriptWord(text="third", start=8, end=8.3),
         TranscriptWord(text="fourth", start=8, end=9.5),
     ]
-    apply_source_transcript_removes(
-        project, {"host": [(8.5, 9)]}, rebuild=False, defaults=load_defaults()
-    )
-    apply_source_transcript_removes(
-        project, {"host": [(8.25, 8.3)]}, rebuild=False, defaults=load_defaults()
-    )
+    apply_source_transcript_removes(project, {"host": [(8.5, 9)]})
+    apply_source_transcript_removes(project, {"host": [(8.25, 8.3)]})
     assert [entry.ordinal for entry in project.transcripts[0].archived_words] == [1, 3, 2]
     restore_archived_words(project, {"host"})
     assert [w.text for w in project.transcripts[0].words] == [
@@ -152,9 +148,7 @@ def test_restore_uses_source_time_after_active_token_count_changes(minimal_proje
         TranscriptWord(text="cut", start=8, end=9),
         TranscriptWord(text="after", start=18, end=19),
     ]
-    apply_source_transcript_removes(
-        project, {"host": [(5, 15)]}, rebuild=False, defaults=load_defaults()
-    )
+    apply_source_transcript_removes(project, {"host": [(5, 15)]})
     project.transcripts[0].words[0:1] = [
         TranscriptWord(text="one", start=2, end=2.2),
         TranscriptWord(text="two", start=2.2, end=2.5),

@@ -249,7 +249,7 @@ def _assert_ripple_apply_shape(result: TightenBenchmarkResult) -> None:
     assert result.ffmpeg_window_calls == 0
     assert result.decisions_proposed > 0
     assert result.decisions_applied > 0
-    assert 0 < result.rebuild_combined_calls <= MAX_REBUILDS_PER_DECISION * result.decisions_applied
+    assert result.rebuild_combined_calls <= MAX_REBUILDS_PER_DECISION * result.decisions_applied
     assert len(set(result.clip_counts.values())) == 1
 
 

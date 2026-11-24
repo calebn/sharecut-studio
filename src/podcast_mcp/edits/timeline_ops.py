@@ -218,7 +218,6 @@ def _write_ripple_delete(
     cut_speech: CutSpeech | None = None,
     defaults: EffectiveConfig,
     remap_anchors: bool = True,
-    rebuild: bool = True,
     restorable: bool = True,
     spans_out: list[RippledSpan] | None = None,
 ) -> dict:
@@ -231,10 +230,9 @@ def _write_ripple_delete(
     span. The returned change summary echoes the first span's ``timeline_start``/
     ``timeline_end`` and ``per_track_source`` (``{track_id: [pre, post]}`` seam clocks
     from :func:`seam_source_by_track`). Add the key to any schema or typed output built
-    over it. ``remap_anchors=False`` leaves comments and chapters where they are and
-    ``rebuild=False`` leaves the combined transcript for the caller to rebuild; that
+    over it. ``remap_anchors=False`` leaves comments and chapters where they are; that
     caller owns the anchors, so the cut has no inverse unless ``restorable`` and
-    ``remap_anchors`` both hold.
+    ``remap_anchors`` both hold. The combined transcript is left to the caller.
     """
     tracks = ripple_track_ids(project, removal.edited_track_ids)
     done: list[RippledSpan] = []
@@ -242,9 +240,7 @@ def _write_ripple_delete(
         bounds = [(start, end)]
         comments, chapters = project.review.comments, project.editorial.chapters
         clips_before = ripple_remove_clips(project, bounds, tracks, defaults=defaults)
-        apply_batch_transcript_removes(
-            project, bounds, clips_before, rebuild=rebuild, defaults=defaults
-        )
+        apply_batch_transcript_removes(project, bounds, clips_before)
         if remap_anchors:
             remap_review_anchors_for_cuts(project, bounds)
         per_track_source = seam_source_by_track(clips_before, start, end)
@@ -301,7 +297,6 @@ def ripple_delete_range(
     cut_speech: CutSpeech | None = None,
     defaults: EffectiveConfig,
     remap_anchors: bool = False,
-    rebuild: bool = False,
 ) -> dict:
     """Ripple-remove ``removal`` for a caller that remaps comments and rebuilds on its own."""
     return _write_ripple_delete(
@@ -312,7 +307,6 @@ def ripple_delete_range(
         cut_speech=cut_speech,
         defaults=defaults,
         remap_anchors=remap_anchors,
-        rebuild=rebuild,
     )
 
 
@@ -341,7 +335,7 @@ def _write_punch_delete(
         project, clips_before, [(timeline_start, timeline_end)]
     )
     if removes_by_transcript:
-        apply_source_transcript_removes(project, removes_by_transcript, defaults=defaults)
+        apply_source_transcript_removes(project, removes_by_transcript)
     else:
         rebuild_combined(project, defaults=defaults)
     update_timeline_duration(project)
@@ -1062,13 +1056,7 @@ def paste_segment(
                     clips, insert_at, insert_at + duration, defaults=defaults
                 ),
             )
-        apply_batch_transcript_removes(
-            project,
-            [(insert_at, insert_at + duration)],
-            overwritten,
-            rebuild=False,
-            defaults=defaults,
-        )
+        apply_batch_transcript_removes(project, [(insert_at, insert_at + duration)], overwritten)
     for tid, extracted in by_track.items():
         merged = place_clips_at(clips_for_track(project, tid), extracted, insert_at)
         set_track_clips(project, tid, merged)
@@ -1219,9 +1207,7 @@ def _write_trim_clip_edge(
     previous = (clip.source_start, clip.source_end, clip.timeline_start, clip.timeline_end)
     clips_before = apply_trim_geometry(project, plan, defaults=defaults)
     if plan.removal is not None:
-        apply_batch_transcript_removes(
-            project, list(plan.removal.spans), clips_before, rebuild=False, defaults=defaults
-        )
+        apply_batch_transcript_removes(project, list(plan.removal.spans), clips_before)
         remap_review_anchors_for_cuts(project, list(plan.removal.spans))
     restore_archived_words(project, {move.track_id for move in plan.moves})
     rebuild_combined(project, defaults=defaults)

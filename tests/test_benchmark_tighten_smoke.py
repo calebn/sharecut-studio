@@ -46,11 +46,7 @@ def test_ripple_benchmark_runs_on_a_tiny_project(project):
     assert result.decisions_applied == len(project.editorial.edit_log) == 8
     assert not project.edit_decisions
     assert {path: hashlib.sha256(path.read_bytes()).digest() for path in media} == media
-    assert (
-        0
-        < result.rebuild_combined_calls
-        <= bench.MAX_REBUILDS_PER_DECISION * result.decisions_applied
-    )
+    assert result.rebuild_combined_calls == 0
     assert len(set(result.clip_counts.values())) == 1
 
 
@@ -111,11 +107,7 @@ def test_each_kind_of_decision_stays_within_the_rebuild_bound_alone(project, kin
     assert all(r.reason.startswith(kind[:-1] + ":") for r in project.editorial.edit_log)
     assert bool(moved_pad_checked) is (kind == "fillers")
     assert cut_effects.native_pad_origins() == {}
-    assert (
-        0
-        < result.rebuild_combined_calls
-        <= bench.MAX_REBUILDS_PER_DECISION * result.decisions_applied
-    )
+    assert result.rebuild_combined_calls == 0
 
 
 def test_word_only_apply_benchmark_runs_on_a_tiny_project(project):
