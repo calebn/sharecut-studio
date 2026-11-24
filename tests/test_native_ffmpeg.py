@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import errno
 import importlib.util
@@ -75,6 +76,7 @@ class FakeNative:
         self.release = threading.Event()
         self.finished = threading.Event()
         self.waited: list[int] = []
+        self.cancel_calls: list[int] = []
         self.started = threading.Semaphore(0)
         self._next = 1
         self.sc_ffmpeg_abi_version = ctypes.CFUNCTYPE(ctypes.c_int)(lambda: version)
@@ -134,6 +136,7 @@ class FakeNative:
 
     def _cancel(self, session_id: int) -> None:
         """Conformant: stop and close the session's dups at once. Otherwise ignore the call."""
+        self.cancel_calls.append(session_id)
         session = self.sessions.get(session_id)
         if session is not None and self.honour_cancel:
             session.cancelled.set()
@@ -159,6 +162,47 @@ class Blocking(FakeNative):
         self.waited.append(session_id)
         session.thread.join(BOUND_SEC)
         return -9 if session.cancelled.is_set() and self.code == 0 else self.code
+
+
+class PerSession(Blocking):
+    """Each session runs until its own ``release`` is set; cancelling it sets that release."""
+
+    def _ffmpeg(self, session: Session, in_fd: int, out_fd: int, err_fd: int) -> None:
+        try:
+            session.release.wait(BOUND_SEC)
+        finally:
+            self._close(session, in_fd, out_fd, err_fd)
+
+    def _cancel(self, session_id: int) -> None:
+        super()._cancel(session_id)
+        session = self.sessions.get(session_id)
+        if session is not None:
+            session.release.set()
+
+
+class WokenByCancel(Blocking):
+    """The native thread blocks in ``os.read``/``os.write``; cancel calls ``unblock`` (the kick)."""
+
+    def __init__(self, mode: str, unblock: Any) -> None:
+        super().__init__()
+        self.mode = mode
+        self.unblock = unblock
+        self.entered = threading.Event()
+
+    def _ffmpeg(self, session: Session, in_fd: int, out_fd: int, err_fd: int) -> None:
+        try:
+            self.entered.set()
+            if self.mode == "read":
+                os.read(in_fd, 1)
+            else:
+                os.write(out_fd, b"x" * 65536)
+        finally:
+            self._close(session, in_fd, out_fd, err_fd)
+
+    def _cancel(self, session_id: int) -> None:
+        self.cancel_calls.append(session_id)
+        self.sessions[session_id].cancelled.set()
+        self.unblock()
 
 
 class Gated(FakeNative):
@@ -307,12 +351,14 @@ def test_a_nul_in_argv_raises_before_start() -> None:
     assert fake.argvs == []
 
 
-def test_a_stream_without_a_fileno_raises_before_start() -> None:
+def test_a_stream_without_a_fileno_is_exit_one_with_one_stderr_line() -> None:
     fake = FakeNative()
-    with pytest.raises(OSError):
-        NativeFFmpegBackend(fake).run(
-            [IN_PROCESS_FFMPEG], Streams(None, io.BytesIO(), None), threading.Event()
-        )
+    err = io.BytesIO()
+    code = NativeFFmpegBackend(fake).run(
+        [IN_PROCESS_FFMPEG], Streams(None, io.BytesIO(), err), threading.Event()
+    )
+    assert code == 1
+    assert len(err.getvalue().splitlines()) == 1
     assert fake.argvs == []
 
 
@@ -553,10 +599,38 @@ def test_a_lookalike_sentinel_is_not_a_native_tool() -> None:
     assert fake.argvs == []
 
 
-def test_the_watcher_thread_is_joined_before_run_returns() -> None:
+class ParkedEvent(threading.Event):
+    """A cancel event whose ``wait`` parks until ``unpark`` is set, like a watcher mid-poll."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.unpark = threading.Event()
+        self.parked = threading.Event()
+
+    def wait(self, timeout: float | None = None) -> bool:
+        self.parked.set()
+        self.unpark.wait(BOUND_SEC)
+        return super().wait(0)
+
+
+def test_run_does_not_wait_for_the_watcher_to_finish_its_poll() -> None:
     fake = FakeNative()
-    NativeFFmpegBackend(fake).run([IN_PROCESS_FFMPEG], Streams(None, None, None), threading.Event())
-    assert not [t for t in threading.enumerate() if t.name == "native-ffmpeg-cancel"]
+    cancel = ParkedEvent()
+    codes: list[int] = []
+    runner = threading.Thread(
+        target=lambda: codes.append(
+            NativeFFmpegBackend(fake).run([IN_PROCESS_FFMPEG], Streams(None, None, None), cancel)
+        ),
+        daemon=True,
+    )
+    runner.start()
+    assert cancel.parked.wait(BOUND_SEC)
+    runner.join(BOUND_SEC / 2)
+    finished_while_parked = not runner.is_alive()
+    cancel.unpark.set()
+    runner.join(BOUND_SEC)
+    assert finished_while_parked
+    assert codes == [0]
 
 
 def test_the_module_never_references_subprocess() -> None:
@@ -685,6 +759,99 @@ def test_cancel_hits_only_its_own_overlapping_session() -> None:
         thread.join(BOUND_SEC)
     assert codes == {"a": 1, "b": 1}
     assert sorted(fake.waited) == sorted(fake.sessions)
+
+
+def test_cancelling_one_of_two_sessions_reaches_native_once_for_that_id_only() -> None:
+    fake = PerSession()
+    backend = NativeFFmpegBackend(fake)
+    cancels = {"a": threading.Event(), "b": threading.Event()}
+    codes: dict[str, int] = {}
+
+    def go(name: str) -> None:
+        codes[name] = backend.run(
+            [IN_PROCESS_FFMPEG, name], Streams(None, None, None), cancels[name]
+        )
+
+    threads = [threading.Thread(target=go, args=(name,), daemon=True) for name in cancels]
+    for thread in threads:
+        thread.start()
+    assert fake.started.acquire(timeout=BOUND_SEC)
+    assert fake.started.acquire(timeout=BOUND_SEC)
+    by_name = {session.argv[1]: (sid, session) for sid, session in fake.sessions.items()}
+    (a_id, a), (_, b) = by_name[b"a"], by_name[b"b"]
+    cancels["a"].set()
+    assert a.finished.wait(BOUND_SEC)
+    threads[0].join(BOUND_SEC)
+    assert codes == {"a": 1}
+    assert not b.cancelled.is_set()
+    assert not b.finished.is_set()
+    b.release.set()
+    threads[1].join(BOUND_SEC)
+    assert codes == {"a": 1, "b": 0}
+    assert fake.cancel_calls == [a_id]
+
+
+@pytest.mark.parametrize("mode", ["read", "write"])
+def test_cancel_wakes_a_native_thread_blocked_in_a_pipe_call_and_its_dups_close(mode: str) -> None:
+    pipe_r, pipe_w = os.pipe()
+    if mode == "read":
+        # stdin: the dup blocks in os.read until every writer is gone; unblock closes the writer.
+        fake = WokenByCancel(mode, lambda: os.close(pipe_w))
+        streams = Streams(os.fdopen(pipe_r, "rb"), None, None)
+        caller_fds = [pipe_r]
+    else:
+        # stdout: fill the pipe so os.write blocks; unblock drains the reader.
+        os.set_blocking(pipe_w, False)
+        try:
+            while True:
+                os.write(pipe_w, b"\0" * 65536)
+        except BlockingIOError:
+            pass
+        os.set_blocking(pipe_w, True)
+
+        def drain() -> None:
+            os.set_blocking(pipe_r, False)
+            try:
+                while os.read(pipe_r, 65536):
+                    pass
+            except BlockingIOError:
+                pass
+
+        fake = WokenByCancel(mode, drain)
+        streams = Streams(None, os.fdopen(pipe_w, "wb", buffering=0), None)
+        caller_fds = [pipe_w]
+    cancel = threading.Event()
+    codes: list[int] = []
+    runner = threading.Thread(
+        target=lambda: codes.append(
+            NativeFFmpegBackend(fake).run([IN_PROCESS_FFMPEG], streams, cancel)
+        ),
+        daemon=True,
+    )
+    try:
+        runner.start()
+        assert fake.started.acquire(timeout=BOUND_SEC)
+        assert fake.entered.wait(BOUND_SEC)
+        session = fake.sessions[1]
+        assert not session.closed
+        cancel.set()
+        assert session.finished.wait(BOUND_SEC)
+        runner.join(BOUND_SEC)
+        assert not runner.is_alive()
+        assert codes == [1]
+        assert fake.cancel_calls == [1]
+        assert session.closed
+        assert not any(fd in caller_fds for fd in session.dups)  # the dups were the native's own
+        for fd in caller_fds:
+            os.fstat(fd)  # the caller's fd is still open
+    finally:
+        cancel.set()
+        for stream in streams:
+            if stream is not None:
+                stream.close()
+        for fd in (pipe_r, pipe_w):
+            with contextlib.suppress(OSError):
+                os.close(fd)
 
 
 @pytest.fixture
