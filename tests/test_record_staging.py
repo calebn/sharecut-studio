@@ -1748,6 +1748,16 @@ def test_saved_project_falls_back_when_workspace_removed_after_build(
     assert svc._saved_project() is svc.project
 
 
+def test_saved_project_when_workspace_dir_missing_at_build(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    shutil.rmtree(ws.project.workspace_path())
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    assert svc._saved_project() is svc.project
+
+
 def test_replace_target_uses_saved_identity_while_live_workspace_path_is_temporary(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
 ):
