@@ -193,6 +193,47 @@ def test_wheel_boundary_rejects_a_podcast_online_entry(tmp_path: Path, entry: st
 
 
 @pytest.mark.parametrize(
+    "entry",
+    [
+        "./podcast_online/__init__.py",
+        "/podcast_online/__init__.py",
+        "podcast_mcp/podcast_online/__init__.py",
+    ],
+)
+def test_wheel_boundary_normalizes_archive_paths(tmp_path: Path, entry: str) -> None:
+    wheel = _synthetic_wheel(tmp_path / "odd.whl", extra=(entry,))
+    with pytest.raises(SystemExit, match="podcast_online"):
+        check.wheel_boundary(wheel)
+
+
+def test_wheel_boundary_reads_every_dist_info(tmp_path: Path) -> None:
+    wheel = _synthetic_wheel(tmp_path / "two.whl")
+    with zipfile.ZipFile(wheel, "a") as archive:
+        archive.writestr(
+            "zz_other-1.0.dist-info/entry_points.txt",
+            "[podcast_mcp.extensions]\nonline = other:create\n",
+        )
+    with pytest.raises(SystemExit, match="online"):
+        check.wheel_boundary(wheel)
+
+
+@pytest.mark.parametrize(
+    "entry_points",
+    [
+        "[podcast_mcp.extensions]\ncollaboration = a:b\ncollaboration = a:c\n",
+        "[podcast_mcp.extensions]\ncollaboration = a:b\n[podcast_mcp.extensions]\n",
+        "collaboration = a:b\n",
+    ],
+)
+def test_wheel_boundary_reports_malformed_entry_points_cleanly(
+    tmp_path: Path, entry_points: str
+) -> None:
+    wheel = _synthetic_wheel(tmp_path / "bad.whl", entry_points=entry_points)
+    with pytest.raises(SystemExit, match=r"entry_points\.txt"):
+        check.wheel_boundary(wheel)
+
+
+@pytest.mark.parametrize(
     "entry_points",
     [
         None,
@@ -274,3 +315,42 @@ def test_blocked_online_probe_fails_when_the_package_is_imported() -> None:
         [sys.executable, "-c", probe], capture_output=True, text=True, check=False
     )
     assert result.returncode != 0
+
+
+def _fake_venv(root: Path, *, exit_code: int, stderr: str = "") -> Path:
+    """A venv-shaped dir whose python prints a marker (or fails) instead of running the probe."""
+    bin_dir = root / "bin"
+    bin_dir.mkdir(parents=True)
+    python = bin_dir / "python"
+    python.write_text(
+        f"#!/bin/sh\necho {stderr!r} >&2\n"
+        f'[ {exit_code} -ne 0 ] && exit {exit_code}\necho "fake probe ran: $2"\n',
+        encoding="utf-8",
+    )
+    python.chmod(0o755)
+    return bin_dir / "podcast"
+
+
+def test_podcast_option_runs_the_blocked_probe_in_the_installed_python(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    wheel = _whole_release_wheel(tmp_path / "ok.whl")
+    podcast = _fake_venv(tmp_path / "venv", exit_code=0)
+    monkeypatch.setattr(check, "installed_contracts", lambda _podcast: None)
+    monkeypatch.setattr(check, "serve_check", lambda *_args: None)
+    monkeypatch.setattr(sys, "argv", ["check", str(wheel), "--podcast", str(podcast)])
+    check.main()
+    assert "fake probe ran: -c" in capsys.readouterr().out
+
+
+def test_probe_failure_shows_the_stderr_tail_and_blames_only_podcast_online(
+    tmp_path: Path,
+) -> None:
+    podcast = _fake_venv(tmp_path / "venv", exit_code=1, stderr="ModuleNotFoundError: mcp")
+    with pytest.raises(SystemExit) as raised:
+        check.installed_without_online(podcast)
+    assert "ModuleNotFoundError: mcp" in str(raised.value)
+    assert "needs podcast_online" not in str(raised.value)
+    podcast = _fake_venv(tmp_path / "venv2", exit_code=1, stderr="No module named 'podcast_online'")
+    with pytest.raises(SystemExit, match="needs podcast_online"):
+        check.installed_without_online(podcast)
