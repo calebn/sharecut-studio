@@ -720,9 +720,8 @@ def list_clips_tool(
     `source_end - source_start`; `include_timing_steps` adds the step list.
     """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(
-        TimelineService(ws).list_clips(track_id, include_timing_steps=include_timing_steps)
-    )
+    listing = TimelineService(ws).list_clips(track_id, include_timing_steps=include_timing_steps)
+    return to_json(listing.model_dump())
 
 
 def list_applied_edits_tool(

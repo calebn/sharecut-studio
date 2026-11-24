@@ -64,6 +64,7 @@ from podcast_mcp.services.document.bleed_inspection import (
 from podcast_mcp.services.document.chapter_results import DeletedChapter, RemovedChapter
 from podcast_mcp.services.document.clip_fade import apply_clip_fade, apply_clips_fade
 from podcast_mcp.services.document.clip_gain import apply_clip_gain, apply_clips_gain
+from podcast_mcp.services.document.clip_listing_results import ClipListing
 from podcast_mcp.services.document.delete_clips_results import (
     DeleteClipsApplied,
     DeleteClipsHeld,
@@ -677,15 +678,17 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
 
     def list_clips(
         self, track_id: str | None = None, *, include_timing_steps: bool = False
-    ) -> dict:
+    ) -> ClipListing:
         secret = get_share_registry().recording_key_secret()
         defaults = self.ws.effective_config()
-        return list_clips(
-            self.ws.project,
-            track_id,
-            secret=secret,
-            include_timing_steps=include_timing_steps,
-            defaults=defaults,
+        return ClipListing(
+            **list_clips(
+                self.ws.project,
+                track_id,
+                secret=secret,
+                include_timing_steps=include_timing_steps,
+                defaults=defaults,
+            )
         )
 
     def fill_room_tone(

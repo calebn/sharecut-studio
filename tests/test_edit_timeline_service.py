@@ -87,7 +87,7 @@ def test_edit_service_timeline_and_transcript(tmp_path, sample_wav) -> None:
     cross = TimelineService(svc.ws).crossfade_joins(fade_ms=25)
     assert cross["operation"] == "crossfade_joins"
     clips = TimelineService(svc.ws).list_clips(track_id="host")
-    clip_id = clips["tracks"]["host"][0]["id"]
+    clip_id = clips.tracks["host"][0]["id"]
     joined = TimelineService(svc.ws).set_join_mode(clip_id, "fade")
     assert joined.operation == "set_clip_join_mode"
     TimelineService(svc.ws).add_chapter(0.0, "Intro")

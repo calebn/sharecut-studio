@@ -106,9 +106,9 @@ def test_the_automatic_writers_read_the_saved_default(minimal_project: Path) -> 
 
 def test_list_clips_reports_the_effective_default(minimal_project: Path) -> None:
     ws = _seed(minimal_project)
-    assert TimelineService(ws).list_clips()["join_fade_limit_ms"] == 40
+    assert TimelineService(ws).list_clips().join_fade_limit_ms == 40
     TimelineService(ws).set_join_fade_limit(65)
-    assert TimelineService(ws).list_clips()["join_fade_limit_ms"] == 65
+    assert TimelineService(ws).list_clips().join_fade_limit_ms == 65
 
 
 def test_payload_accepts_null_and_refuses_out_of_range() -> None:

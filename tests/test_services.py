@@ -63,8 +63,8 @@ def test_edit_service_list_clips_acquires_a_fresh_secret_per_call(minimal_projec
 
     first = service.list_clips()
     second = service.list_clips()
-    first_rows = [row for rows in first["tracks"].values() for row in rows]
-    second_rows = [row for rows in second["tracks"].values() for row in rows]
+    first_rows = [row for rows in first.tracks.values() for row in rows]
+    second_rows = [row for rows in second.tracks.values() for row in rows]
 
     assert registry.recording_key_secret.call_count == 2
     assert first_rows[0]["recording_key"] != second_rows[0]["recording_key"]

@@ -189,7 +189,7 @@ def build_project_view(
     project = ws.project
     include_words = proj is ViewProjection.FULL
 
-    clips = TimelineService(ws).list_clips(include_timing_steps=audience != "guest")
+    clips = TimelineService(ws).list_clips(include_timing_steps=audience != "guest").model_dump()
     render_status = _render_status(ws, edit)
     pending = edit.list_decisions(applied=False)
     applied = edit.list_applied_edits()
@@ -294,7 +294,9 @@ def dump_project_projection(
     if proj is ViewProjection.CLIPS:
         edit = EditService(ws)
         return _freshness_patch(
-            ws, {"clips": TimelineService(ws).list_clips(include_timing_steps=steps)}, edit=edit
+            ws,
+            {"clips": TimelineService(ws).list_clips(include_timing_steps=steps).model_dump()},
+            edit=edit,
         )
     if proj is ViewProjection.FX:
         edit = EditService(ws)
@@ -337,7 +339,12 @@ def dump_project_projection(
             edit = EditService(ws)
             return _freshness_patch(
                 ws,
-                {**base, "clips": TimelineService(ws).list_clips(include_timing_steps=steps)},
+                {
+                    **base,
+                    "clips": TimelineService(ws)
+                    .list_clips(include_timing_steps=steps)
+                    .model_dump(),
+                },
                 edit=edit,
             )
         return base

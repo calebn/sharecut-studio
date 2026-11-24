@@ -116,9 +116,9 @@ def timed_project(minimal_project: Path) -> Path:
 
 def test_service_reads_micro_fade_from_the_project_config(timed_project: Path) -> None:
     svc = TimelineService(ProjectWorkspace.open(timed_project))
-    row = svc.list_clips(include_timing_steps=True)["tracks"]["host"][0]
+    row = svc.list_clips(include_timing_steps=True).tracks["host"][0]
     assert row["timing"]["micro_fade_ms"] == DEFAULT_MICRO_FADE_MS
-    assert "timing" not in svc.list_clips()["tracks"]["host"][0]
+    assert "timing" not in svc.list_clips().tracks["host"][0]
 
 
 def test_mcp_tool_steps_are_opt_in(timed_project: Path) -> None:
@@ -156,8 +156,7 @@ def test_service_passes_the_configured_micro_fade_to_the_payload(
     monkeypatch.setattr(ProjectWorkspace, "effective_config", lambda self: config)
     svc = TimelineService(ProjectWorkspace.open(timed_project))
     assert (
-        svc.list_clips(include_timing_steps=True)["tracks"]["host"][0]["timing"]["micro_fade_ms"]
-        == 7
+        svc.list_clips(include_timing_steps=True).tracks["host"][0]["timing"]["micro_fade_ms"] == 7
     )
 
 
