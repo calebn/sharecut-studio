@@ -11,6 +11,7 @@ runs:
       shell: bash
       env:
         PAYLOAD_OUTPUT: ${{ inputs.output }}
+        PODCAST_OWNER_CDN_BASE: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
       run: python scripts/ffmpeg_payload.py --output "${PAYLOAD_OUTPUT:-$RUNNER_TEMP/sharecut-ffmpeg}" --github-env
     - name: Verify downstream standard CPython
       if: runner.os == 'Windows'
