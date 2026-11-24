@@ -364,7 +364,9 @@ def test_cli_trim_clip(tmp_path: Path) -> None:
         patch("podcast_mcp.cli.edit.AnalysisService", service),
     ):
         service.return_value.boundary_context.return_value.token = "current-revision"
-        service.return_value.trim_clip_edge.return_value = {"operation": "trim_clip_edge"}
+        service.return_value.trim_clip_edge.return_value.model_dump.return_value = {
+            "operation": "trim_clip_edge"
+        }
         result = runner.invoke(
             app,
             [
@@ -454,7 +456,7 @@ def test_zero_delta_ripple_trim_does_not_save_or_add_history(minimal_project: Pa
     result = TimelineService(ws).trim_clip_edge(
         "remote_b", "in", 20.34, mode=EditMode.RIPPLE, expected_token=revision
     )
-    assert result["unchanged"] is True
+    assert result.unchanged is True
     assert path.read_bytes() == before
     assert len(load_project(path).history.entries) == history
 
@@ -484,7 +486,9 @@ def test_cli_trim_clip_gap_mode(tmp_path: Path) -> None:
         patch("podcast_mcp.cli.edit.AnalysisService", service),
     ):
         service.return_value.boundary_context.return_value.token = "current-revision"
-        service.return_value.trim_clip_edge.return_value = {"operation": "trim_clip_edge"}
+        service.return_value.trim_clip_edge.return_value.model_dump.return_value = {
+            "operation": "trim_clip_edge"
+        }
         result = runner.invoke(
             app,
             [

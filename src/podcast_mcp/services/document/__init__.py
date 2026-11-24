@@ -118,6 +118,11 @@ if TYPE_CHECKING:
         WordsIgnoredResult,
         WordSuppressedResult,
     )
+    from podcast_mcp.services.document.trim_edge_results import (
+        TrimAppliedResult,
+        TrimHeldResult,
+        TrimUnchangedResult,
+    )
 
 __all__ = [
     "DEFAULT_LIMIT",
@@ -183,7 +188,10 @@ __all__ = [
     "TranscriptService",
     "TranscriptTimingChangedError",
     "TransportPath",
+    "TrimAppliedResult",
     "TrimBoundaryTarget",
+    "TrimHeldResult",
+    "TrimUnchangedResult",
     "WordAutomaticResult",
     "WordSuppressedResult",
     "WordTimingTarget",
@@ -289,6 +297,9 @@ _MODULE_BY_NAME = {
     "SplitClipResult": "split_results",
     "SplitAtTimeResult": "split_results",
     "ProposeSplitResult": "split_results",
+    "TrimAppliedResult": "trim_edge_results",
+    "TrimHeldResult": "trim_edge_results",
+    "TrimUnchangedResult": "trim_edge_results",
     "TranscriptService": "transcript",
     "TranscriptEmptyError": "transcript",
     "ExportBusyError": "transcript",

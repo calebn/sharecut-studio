@@ -234,15 +234,19 @@ class _Op:
                 TrimBoundaryTarget(clip_id=self.clip.id, edge=self.edge, mode=EditMode.RIPPLE),
                 defaults=load_defaults(),
             ).token
-            out = TimelineService(service.ws).trim_clip_edge(
-                self.clip.id,
-                self.edge,
-                self.source_sec,
-                mode=EditMode.RIPPLE,
-                expected_token=token,
-                application_intent=CutIntent.HUMAN_BOUNDARIES
-                if confirm
-                else CutIntent.PROGRAMMATIC,
+            out = (
+                TimelineService(service.ws)
+                .trim_clip_edge(
+                    self.clip.id,
+                    self.edge,
+                    self.source_sec,
+                    mode=EditMode.RIPPLE,
+                    expected_token=token,
+                    application_intent=CutIntent.HUMAN_BOUNDARIES
+                    if confirm
+                    else CutIntent.PROGRAMMATIC,
+                )
+                .model_dump()
             )
         else:
             approved = service.approve(

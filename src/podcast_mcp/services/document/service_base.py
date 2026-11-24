@@ -86,9 +86,9 @@ class CutMutatingService(WorkspaceService):
         self,
         label: str,
         operation: str,
-        mutate: Callable[[EpisodeProject], dict],
+        mutate: Callable[[EpisodeProject], T],
         params: dict[str, Any],
-    ) -> dict:
+    ) -> T | dict[str, Any]:
         return mutate_unless_cut_speech_held(self.ws, label, operation, mutate, params)
 
 
@@ -96,9 +96,9 @@ def mutate_unless_cut_speech_held(
     ws: ProjectWorkspace,
     label: str,
     operation: str,
-    mutate: Callable[[EpisodeProject], dict],
+    mutate: Callable[[EpisodeProject], T],
     params: dict[str, Any],
-) -> dict:
+) -> T | dict[str, Any]:
     """Run ``mutate`` as one history step; a held cut returns its confirmation and changes nothing."""
     restored = False
 

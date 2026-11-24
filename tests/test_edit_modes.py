@@ -174,13 +174,17 @@ def _trim(
         TrimBoundaryTarget(clip_id=clip_id, edge=edge, mode=mode),
         defaults=load_defaults(),
     ).token
-    return TimelineService(ws).trim_clip_edge(
-        clip_id,
-        edge,
-        source_sec,
-        mode=mode,
-        expected_token=token,
-        application_intent=CutIntent.HUMAN_BOUNDARIES if confirm else CutIntent.PROGRAMMATIC,
+    return (
+        TimelineService(ws)
+        .trim_clip_edge(
+            clip_id,
+            edge,
+            source_sec,
+            mode=mode,
+            expected_token=token,
+            application_intent=CutIntent.HUMAN_BOUNDARIES if confirm else CutIntent.PROGRAMMATIC,
+        )
+        .model_dump()
     )
 
 

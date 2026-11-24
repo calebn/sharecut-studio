@@ -1011,12 +1011,16 @@ def edit_trim_clip_cmd(
             revision = service.boundary_context(
                 TrimBoundaryTarget(clip_id=clip, edge=trim_edge, mode=mode)
             ).token
-            return TimelineService(service.ws).trim_clip_edge(
-                clip,
-                trim_edge,
-                source_sec,
-                mode=mode,
-                expected_token=revision,
+            return (
+                TimelineService(service.ws)
+                .trim_clip_edge(
+                    clip,
+                    trim_edge,
+                    source_sec,
+                    mode=mode,
+                    expected_token=revision,
+                )
+                .model_dump()
             )
 
     typer.echo(
