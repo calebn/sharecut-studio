@@ -60,6 +60,10 @@ if TYPE_CHECKING:
         HistoryMoveResult,
         PopulatedHistoryDiffResult,
     )
+    from podcast_mcp.services.document.join_mode_results import (
+        SetClipJoinResult,
+        SetJoinModeResult,
+    )
     from podcast_mcp.services.document.join_results import (
         JoinLabelResult,
         JoinTrainResult,
@@ -162,6 +166,8 @@ __all__ = [
     "SegmentInsertPreview",
     "ServedFile",
     "SessionSuggestionService",
+    "SetClipJoinResult",
+    "SetJoinModeResult",
     "TimelineService",
     "TranscriptEmptyError",
     "TranscriptService",
@@ -267,6 +273,8 @@ _MODULE_BY_NAME = {
     "MoveSegmentResult": "timeline_move_results",
     "DuplicateSegmentResult": "timeline_segment_results",
     "PasteSegmentResult": "timeline_segment_results",
+    "SetClipJoinResult": "join_mode_results",
+    "SetJoinModeResult": "join_mode_results",
     "TranscriptService": "transcript",
     "TranscriptEmptyError": "transcript",
     "ExportBusyError": "transcript",

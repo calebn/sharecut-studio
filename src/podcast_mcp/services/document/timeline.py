@@ -65,6 +65,7 @@ from podcast_mcp.services.document.chapter_results import DeletedChapter, Remove
 from podcast_mcp.services.document.clip_fade import apply_clip_fade, apply_clips_fade
 from podcast_mcp.services.document.clip_gain import apply_clip_gain, apply_clips_gain
 from podcast_mcp.services.document.join_analysis import _JoinAnalysis
+from podcast_mcp.services.document.join_mode_results import SetClipJoinResult, SetJoinModeResult
 from podcast_mcp.services.document.service_base import CutMutatingService
 from podcast_mcp.services.document.timeline_move_results import (
     InsertGapResult,
@@ -382,11 +383,11 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
                 },
             )
 
-    def set_join_mode(self, clip_id: str, join_in_mode: str) -> dict:
+    def set_join_mode(self, clip_id: str, join_in_mode: str) -> SetJoinModeResult:
         return self.ws.mutate(
             "before set join mode",
             "after set join mode",
-            lambda p: set_clip_join_mode(p, clip_id, join_in_mode),
+            lambda p: SetJoinModeResult(**set_clip_join_mode(p, clip_id, join_in_mode)),
             operation="set_clip_join_mode",
             params={"clip_id": clip_id, "join_in_mode": join_in_mode},
         )
@@ -397,18 +398,20 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         right_clip_id: str,
         mode: str,
         length_ms: int | None = None,
-    ) -> dict:
+    ) -> SetClipJoinResult:
         """Set one join's mode and fades in a single undoable step."""
         return self.ws.mutate(
             "before set clip join",
             "after set clip join",
-            lambda p: set_clip_join(
-                p,
-                left_clip_id,
-                right_clip_id,
-                mode,
-                length_ms=length_ms,
-                defaults=self.ws.effective_config(),
+            lambda p: SetClipJoinResult(
+                **set_clip_join(
+                    p,
+                    left_clip_id,
+                    right_clip_id,
+                    mode,
+                    length_ms=length_ms,
+                    defaults=self.ws.effective_config(),
+                )
             ),
             operation="set_clip_join",
             params={
