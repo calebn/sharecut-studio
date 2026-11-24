@@ -31,11 +31,9 @@ export async function suggestOnFirstDialogueTrack(
   );
 }
 
-/** The Action bar a selected suggestion's verbs live on: floating, or the phone Inspector's dock. */
 export const selectionBar = (page: Page): Locator =>
   page.getByRole("group", { name: /^(Selection|Edit) actions$/ });
 
-/** Decide the selected suggestion through the Action bar, as a person would. */
 export async function decideOnBar(
   page: Page,
   name: "Approve" | "Reject" | "Cut" | "Keep",

@@ -67,7 +67,6 @@ export function selectionPatch(
   };
 }
 
-/** A refine gate belongs to the pending edit that hit it: any other selection drops it. */
 function refineGateAfter(
   selection: Selection,
   refineGate: string | null,

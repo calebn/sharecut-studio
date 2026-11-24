@@ -119,7 +119,6 @@ export type PendingBarWords = {
   rejectBusy: string;
 };
 
-/** What the bar and the overlay call a pending edit's accept and reject verbs, and their busy text. */
 export function pendingBarWords(
   edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
 ): PendingBarWords {

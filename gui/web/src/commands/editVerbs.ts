@@ -319,10 +319,6 @@ async function seekPending(facts: EditFacts): Promise<ExecuteResult> {
   return seekTransport(at);
 }
 
-/**
- * Decides the selected suggestion for the timeline overlay bar, which the Action bar's Approve and
- * Reject share: the same guards, in-flight hold, sheet routing and announcements.
- */
 export function decideSelectedPending(
   action: "approve" | "reject",
 ): Promise<DecisionResult> {
@@ -344,7 +340,6 @@ function appliesOwnAction(
 }
 
 type DecisionResult = ExecuteResult & {
-  /** The request is saved and sends on reconnect; the caller shows it, not the status line. */
   queued?: true;
 };
 
@@ -1073,7 +1068,6 @@ function wordsRestoreAvailability(
   };
 }
 
-/** Why a suggestion's accept or reject verb is unavailable now, or undefined. */
 function pendingVerbReason(facts: EditFacts, s: DawState): string | undefined {
   if (!canReviewPendingEdit(s.projectPath, s.shareCapabilities))
     return facts.exactRange
