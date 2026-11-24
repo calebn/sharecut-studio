@@ -101,7 +101,8 @@ def segment_drift_tool(project_path: str) -> str:
 
     One row per distinct ref: ``state`` (current, newer, changed, missing or damaged),
     ``library_version``, ``clips`` and, when missing or damaged, ``code`` and ``problem``.
-    See the Drift section of docs/segments.md.
+    Judged from segment.json and file sizes, so "current" does not mean the audio was
+    verified. See the Drift section of docs/segments.md.
     """
     return to_json(report_segment_drift(project_path, SegmentStore()))
 
