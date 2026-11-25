@@ -10,7 +10,7 @@ Which features use a downloaded model or an optional runtime, where setup covers
 | Voice activity | Silero VAD ONNX, bundled with `faster-whisper` | None | Reported by `podcast doctor` only, not in bootstrap status | n/a | Works |
 | Noise reduction | RNNoise `.rnnn` for FFmpeg `arnndn` | `bootstrap_rnnoise_model` | Yes, recommended | sha256 and size_bytes pinned in contracts/bootstrap-assets.json; GitHub source is a commit-pinned raw URL (GregorR/rnnoise-models@3eee541); CDN copy not yet uploaded | Works |
 | Precise word boundaries | Forced word aligner (ONNX, `onnxruntime` is a core dependency) | `bootstrap_word_aligner`, pinned HF snapshot | Yes, recommended (installed by Get ready while the Setup card shows, and by `podcast bootstrap`) | Revision pin, `word_aligner_problem` | Works |
-| Speaker recognition and split | ECAPA embedding network exported to ONNX (`engines/models/speaker_ecapa.py`), `onnxruntime` | `bootstrap_speaker_ecapa`, sha256-pinned file at a direct first-party CDN url | Yes, recommended (`speaker-ecapa`; installed by Get ready while the Setup card shows, and by `podcast bootstrap`) | sha256 pin, `speaker_ecapa_problem` | Works once downloaded |
+| Speaker recognition and split | ECAPA embedding network exported to ONNX (`engines/models/speaker_ecapa.py`), `onnxruntime` | `bootstrap_speaker_ecapa`, sha256-pinned file served from the first-party CDN origin that official builds embed (none in a source build) | Yes, recommended (`speaker-ecapa`; installed by Get ready while the Setup card shows, and by `podcast bootstrap`) | sha256 pin, `speaker_ecapa_problem` | Works once downloaded |
 
 ## What a registry row does, row by row
 

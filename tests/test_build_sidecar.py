@@ -698,6 +698,7 @@ def test_sidecar_lifecycle_acquires_the_same_prebuilt_pair(monkeypatch, tmp_path
     monkeypatch.setattr(mod, "freeze_python", lambda *_a, **_k: None)
     monkeypatch.setattr(mod, "compile_launchers", lambda *_a: None)
     monkeypatch.setattr(mod, "stage_owner_cdn", lambda: None)
+    monkeypatch.setattr(mod, "unstage_owner_cdn", lambda: None)
     monkeypatch.setattr(mod.subprocess, "run", lambda argv, **kwargs: calls.append(argv))
     args = ["--out", str(tmp_path), "--triple", "x86_64-pc-windows-msvc"]
     if mode != "fresh":
@@ -950,3 +951,10 @@ def test_official_sidecar_build_requires_the_generated_base(monkeypatch):
         ["write", "--base", "https://cdn.example.test"],
         ["check", "--require"],
     ]
+
+
+def test_sidecar_clears_the_recorded_owner_base_after_the_wheel_is_built(monkeypatch):
+    mod = _load_build_sidecar()
+    calls = _owner_cdn_calls(monkeypatch, mod)
+    mod.unstage_owner_cdn()
+    assert [call[-2:] for call in calls] == [[str(ROOT / "scripts/owner_cdn.py"), "clear"]]

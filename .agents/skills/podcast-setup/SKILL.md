@@ -11,7 +11,7 @@ description: >-
 
 - Python 3.11+
 - Matching FFmpeg and FFprobe 9.0.2 or later 9.x from a supported system package,
-  or acquire the pinned prebuilt pair with `python scripts/ffmpeg_payload.py --output <directory>` and set the existing executable overrides
+  or acquire the pinned prebuilt pair with `python scripts/ffmpeg_payload.py --output <directory>` (a source checkout needs `PODCAST_OWNER_CDN_BASE`, `--cdn-base` or `--archive`; see docs/setup.md) and set the existing executable overrides
 - After explicit overrides and a declared bundle, source discovery prefers the
   native Homebrew keg on macOS. See the tested release policy in [docs/setup.md](../../../docs/setup.md#ffmpeg-version-and-pair-policy).
 - [uv](https://github.com/astral-sh/uv) (recommended — `pip install uv` if not already on PATH)
