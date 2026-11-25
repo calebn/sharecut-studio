@@ -38,7 +38,7 @@ class _PlayCompose(_PlayStems):
         )
         from podcast_mcp.services.pipeline import prosody_params_for
 
-        return build_audition_context(
+        ctx = build_audition_context(
             self.project,
             timeline_start,
             timeline_end,
@@ -48,6 +48,40 @@ class _PlayCompose(_PlayStems):
             prosody_params=prosody_params_for(self.ws.path),
             defaults=self._defaults,
         )
+        self._add_hold_reasons(ctx)
+        return ctx
+
+    def _add_hold_reasons(self, ctx: dict) -> None:
+        """Give each pending edit in the window the audio check `edit held` runs (#3843).
+
+        The check runs on a scratch copy, so nothing is saved, and only when the window has a
+        pending edit. It covers what Approve all would run on (every pending edit that needs
+        review) plus the window's own, since a cut beside a held one outside the window waits
+        with it. Each window row gets ``audio_check`` as a proposal row does:
+        ``{"status": "held", "reason"}`` or ``{"status": "clean"}``. When the check cannot
+        read the audio, no row claims either.
+        """
+        from podcast_mcp.services.document.edit import EditService
+
+        pending = (ctx.get("edits") or {}).get("pending") or []
+        if not pending:
+            return
+        service = EditService(self.ws)
+        ids = [row["id"] for row in pending]
+        ids += [
+            e.id
+            for e in service.list_decisions(applied=False, review_required=True)
+            if e.id not in ids
+        ]
+        reasons, checked = service.check_proposed(ids)
+        if not checked:
+            return
+        for row in pending:
+            row["audio_check"] = (
+                {"status": "held", "reason": reasons[row["id"]]}
+                if row["id"] in reasons
+                else {"status": "clean"}
+            )
 
     def prosody_overlay(self) -> dict:
         """Timeline-mapped prosody profile per dialogue track for the DAW overlay (#719)."""
