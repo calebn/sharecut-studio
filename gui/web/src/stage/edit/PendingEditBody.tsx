@@ -6,19 +6,16 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  approveEdits,
-  createComment,
-  rejectEdits,
-  updatePendingEdit,
-} from "../../api";
+import { createComment, rejectEdits, updatePendingEdit } from "../../api";
 import {
   type PendingEditBaseline,
   pendingEditBaseline,
 } from "../../api/documentEdits";
+import { acceptPending } from "../../commands/pendingAccept";
 import {
   actionBarOwnsPendingVerbs,
   EXACT_RANGE_REVIEW_REASON,
+  pendingBarWords,
   pendingDecisionBusy,
   registerPendingDecider,
 } from "../../commands/pendingDecision";
@@ -259,18 +256,29 @@ export function PendingEditBody({
     if (!canReviewPendingEdit(live.projectPath, live.shareCapabilities))
       return "This link cannot decide suggestions";
     const selection = live.selection;
-    const capture = capturePendingReview(action, projectPath, currentEdit);
+    const sameLifetime = () => {
+      const current = useDawStore.getState();
+      return (
+        current.projectPath === projectPath &&
+        current.projectEpoch === projectEpoch &&
+        previousTiming.current.identity === timingIdentity
+      );
+    };
     setQueued(false);
     live.setPendingRefineGate(null);
     if (!fromBar) live.setPendingDecisionInFlight(edit.id);
     try {
       await run(async () => {
-        let outcome: Awaited<ReturnType<typeof approveEdits>>;
+        let outcome: Awaited<ReturnType<typeof rejectEdits>>;
+        let capture: ReturnType<typeof capturePendingReview>;
         try {
-          outcome =
-            action === "approve"
-              ? await approveEdits(projectPath, [edit.id], false, true)
-              : await rejectEdits(projectPath, [edit.id]);
+          if (action === "approve") {
+            const accepted = await acceptPending(projectPath, currentEdit);
+            if (accepted.queued && sameLifetime()) setQueued(true);
+            return;
+          }
+          capture = capturePendingReview(action, projectPath, currentEdit);
+          outcome = await rejectEdits(projectPath, [edit.id]);
         } catch (error) {
           if (fromBar)
             useDawStore
@@ -278,13 +286,7 @@ export function PendingEditBody({
               .announceStatus(errorMessage(error), { tone: "error" });
           throw error;
         }
-        const current = useDawStore.getState();
-        if (
-          current.projectPath !== projectPath ||
-          current.projectEpoch !== projectEpoch ||
-          previousTiming.current.identity !== timingIdentity ||
-          current.selection !== selection
-        )
+        if (!sameLifetime() || useDawStore.getState().selection !== selection)
           return;
         if (outcome.queued) {
           // Saved but not sent yet: keep the edit selected and say so.
@@ -521,6 +523,7 @@ export function PendingEditBody({
   const time = [tlStart != null ? formatTimeMs(tlStart) : null, length]
     .filter(Boolean)
     .join(" · ");
+  const words = pendingBarWords(edit);
   const barHasVerbs = verbsOnBar && actionBarOwnsPendingVerbs(edit, canApply);
   const inlineActions = !barHasVerbs && (canApply || edit.exact_range != null);
   const askComposer = {
@@ -630,7 +633,8 @@ export function PendingEditBody({
           confidence={edit.cut_confidence ?? undefined}
           inlineActions={inlineActions}
           verb="approve"
-          keepLabel="Reject"
+          verbLabel={words.accept}
+          keepLabel={words.reject}
           verbDisabledReason={reviewBlockedReason}
           keepDisabledReason={reviewBlockedReason}
           onVerb={() => void runAction("approve")}

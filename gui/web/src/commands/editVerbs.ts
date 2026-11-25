@@ -1,7 +1,5 @@
 import {
   applyFadeRecommendations,
-  applySuggestedActions,
-  approveEdits,
   deleteChapter,
   deleteComment,
   deleteSocialClip,
@@ -47,12 +45,7 @@ import {
 import type { PendingRecordTarget } from "../state/stageSlice";
 import type { BarItem, SPLIT_OPTIONS_ARG } from "../system/actionBarSlots";
 import { type BarId, resolveBar } from "../system/editActionSets";
-import type {
-  HistoryEntryId,
-  PendingEditView,
-  ProjectView,
-  Selection,
-} from "../types/project";
+import type { HistoryEntryId, ProjectView, Selection } from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
 import {
   ApiError,
@@ -62,7 +55,6 @@ import {
 } from "../utils/apiError";
 import { commitCommentActor } from "../utils/commentAuthor";
 import { joinModeOf } from "../utils/editMarkerRegistry";
-import { pendingOffersCut } from "../utils/pendingOffersCut";
 import {
   capturePendingReview,
   finishPendingReview,
@@ -85,13 +77,13 @@ import { runDeleteClips } from "./editing";
 import { inProject, removeEnvelopePoint } from "./envelopes";
 import { registerCommand } from "./execute";
 import { fixTextAvailability } from "./fixTextAvailability";
+import { acceptPending } from "./pendingAccept";
 import {
   decideThroughSheet,
   EXACT_RANGE_REVIEW_REASON,
   focusPendingTimingField,
   pendingBarWords,
   pendingDecisionBusy,
-  sheetBusyReason,
 } from "./pendingDecision";
 import { playSpan } from "./playSpan";
 import { executePointerCommand } from "./pointer";
@@ -319,17 +311,8 @@ async function seekPending(facts: EditFacts): Promise<ExecuteResult> {
   return seekTransport(at);
 }
 
-function appliesOwnAction(
-  edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
-): boolean {
-  return (
-    edit.suggested_action === "leave" ||
-    (pendingOffersCut(edit) && edit.suggested_action !== "cut")
-  );
-}
-
 async function decidePending(
-  action: "approve" | "reject" | "suggested",
+  action: "approve" | "reject",
 ): Promise<ExecuteResult> {
   const s = useDawStore.getState();
   const selection = s.selection;
@@ -354,29 +337,14 @@ async function decidePending(
   s.setPendingDecisionInFlight(edit.id);
   s.setPendingRefineGate(null);
   try {
-    if (action === "suggested") {
-      const busy = sheetBusyReason(edit.id);
-      if (busy) return disabled(busy);
-      const outcome = await applySuggestedActions(projectPath, [edit.id]);
-      if (!sameProject()) return OK;
-      const live = useDawStore.getState();
-      if (outcome.queued) {
-        live.announceStatus("Saved. It sends when you reconnect.");
-        return OK;
-      }
-      live.announceStatus(outcome.summary ?? "Applied the suggestion", {
-        undo: outcome.historyHead,
-      });
-      if (live.selection === selection) live.setSelection(null);
-      return OK;
-    }
     const sheet = await decideThroughSheet(edit.id, action);
     if (sheet) return sheet;
+    if (action === "approve") {
+      await acceptPending(projectPath, edit);
+      return OK;
+    }
     const capture = capturePendingReview(action, projectPath, edit);
-    const outcome =
-      action === "approve"
-        ? await approveEdits(projectPath, [edit.id], false, true)
-        : await rejectEdits(projectPath, [edit.id]);
+    const outcome = await rejectEdits(projectPath, [edit.id]);
     if (sameProject()) finishPendingReview(capture, outcome);
     return OK;
   } catch (error) {
@@ -471,12 +439,8 @@ async function runCutSelection(
     case "range":
     case "transcriptRange":
       return runRangeAction("cut");
-    case "pending": {
-      const edit = s.project?.pending_edits.find((e) => e.id === selection.id);
-      return decidePending(
-        edit && appliesOwnAction(edit) ? "suggested" : "approve",
-      );
-    }
+    case "pending":
+      return decidePending("approve");
     case "chapter":
     case "envelopePoint":
       return removeMarker(selection);
@@ -823,7 +787,7 @@ async function dispatch(
       return executePointerCommand("edit.delete");
     case "shorten":
     case "lower":
-      return decidePending("suggested");
+      return decidePending("approve");
     case "keep":
       return keep(facts);
     case "split":
@@ -1256,9 +1220,15 @@ export function barModelOf(
         : facts.kind === "comment" && !canManageProjects(s.projectPath)
           ? "Only the host can resolve a comment"
           : undefined);
+    const label =
+      id === "approve" && pendingWords?.accept === "Leave"
+        ? "Leave"
+        : cut && cut.label !== "Cut"
+          ? cut.label
+          : undefined;
     primary = {
       id,
-      ...(cut && cut.label !== "Cut" ? { label: cut.label } : {}),
+      ...(label ? { label } : {}),
       ...(reason ? { disabledReason: reason } : {}),
     };
   }
