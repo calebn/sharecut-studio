@@ -194,7 +194,8 @@ def test_every_native_consumer_uses_catalog_importer_without_compilation():
             if calls:
                 consumers.setdefault(path.name, []).append(name)
                 for call in calls:
-                    assert set(call.get("with", {})) <= {"output"}
+                    assert set(call.get("with", {})) <= {"output", "owner-cdn-base"}
+                    assert call["with"]["owner-cdn-base"] == "${{ vars.SHARECUT_OWNER_CDN_BASE }}"
         assert "ffmpeg-sources" not in workflow.get("jobs", {})
         assert "scripts/build_ffmpeg.py" not in path.read_text()
         assert "PODCAST_FFMPEG_TOOLCHAIN_PATH" not in path.read_text()
