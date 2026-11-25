@@ -31,6 +31,7 @@ from pause_policy_public_helpers import (
     write_wav,
 )
 from podcast_mcp.cli.main import app
+from podcast_mcp.edits.join_continuity import JoinContinuityConfig, _Placement
 from podcast_mcp.mcp.tools.edits import join_qa_sweep_tool, join_quality_tool
 from podcast_mcp.models import Clip, EditDecision
 from podcast_mcp.services.app import ProjectWorkspace
@@ -224,7 +225,16 @@ def test_existing_join_report_shape(tmp_path, monkeypatch, timebase):
     assert report["natural_p95"] == round(report["natural_p95"], 4)
     assert report["ranker"] is None
     assert report["risk"] == round(report["risk"], 4)
-    assert report["reasons"][0].startswith("worst edge placement ")
+    assert all(isinstance(reason, str) and reason for reason in report["reasons"])
+
+
+def test_worst_edge_placement_reason_wording():
+    cfg = JoinContinuityConfig()
+    placement = _Placement(0.5, [], False, 0, round(3 * cfg.sample_rate / 1000.0))
+    assert placement.reasons(cfg, cfg.sample_rate) == [
+        "worst edge placement +0/+3 ms within +-3 ms"
+    ]
+    assert _Placement(0.5, [], False, 0, 0).reasons(cfg, cfg.sample_rate) == []
 
 
 def test_existing_join_default_timebase_is_timeline(tmp_path, monkeypatch):
