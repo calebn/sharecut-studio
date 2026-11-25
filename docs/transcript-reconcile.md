@@ -194,7 +194,7 @@ publishing a stem, so repeated applies do not multiply fade envelopes. Undo rest
 both fields; processed playback and rerendering derive the same absolute envelope.
 
 The gate defaults to unity gain. Where it acts it reduces the copy by
-`analysis.heuristics.bleed_handling` (#945):
+`analysis.heuristics.bleed_handling` (#945; parsed by `parse_bleed_handling` in `engines/analysis_policy.py`):
 
 | `bleed_handling` | Inside a reduced span |
 |---|---|

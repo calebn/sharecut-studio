@@ -1704,7 +1704,8 @@ Transcript bleed gating plans bounded foreign reduction in
 `engines/bleed_gate.py` from ungated selected media, mapped by
 `engines/ungated_audio.py`. An immutable `BleedGatePlan` carries protected phrases,
 verified reduction spans, the lane's resolved reduction (`mute` or `attenuate`, from
-`analysis.heuristics.bleed_handling` read through `AnalysisPolicy`; `auto` picks per
+`analysis.heuristics.bleed_handling` read through `AnalysisPolicy` in
+`engines/analysis_policy.py`; `auto` picks per
 lane from its bed, the median level away from its own speech and the copies), the
 attenuation in dB, that bed, and abstention reasons. Evidence is each lane's level envelope; the copy lag comes from
 the shared `engines/envelope_lag.py` estimator over the peer's own speech and holds
