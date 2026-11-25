@@ -156,6 +156,8 @@ type SelectionAnchor = {
   readonly pinned: boolean;
   /** Where to place a bar against: fresh on every call, never off screen. */
   readonly rect: () => AnchorRect | null;
+  /** Layout has not yet located the anchor for the new selection. */
+  readonly resolving: boolean;
   /** The anchor is found and inside its box; the Inspector card hides otherwise. */
   readonly visible: boolean;
 };
@@ -171,7 +173,11 @@ export function useSelectionAnchor(
   const excludeRef = useRef<HTMLElement | null>(null);
   const withinRef = useRef<HTMLElement | null>(null);
   const [state, setState] = useState({ pinned: false, lost: false });
-  const [node, setNode] = useState<HTMLElement | null>(null);
+  const [located, setLocated] = useState<{
+    node: HTMLElement | null;
+    selection: Selection;
+  }>({ node: null, selection: null });
+  const { node } = located;
   const [excluded, setExcluded] = useState<HTMLElement | null>(null);
   const { project, zoomPxPerSec } = useDawStore(
     useShallow((s) => ({ project: s.project, zoomPxPerSec: s.zoomPxPerSec })),
@@ -192,7 +198,11 @@ export function useSelectionAnchor(
       excludeRef.current = header;
       withinRef.current = within;
       setExcluded(header);
-      setNode(found);
+      setLocated((was) =>
+        was.node === found && was.selection === selection
+          ? was
+          : { node: found, selection },
+      );
     };
     resolve();
     if (!enabled || !root || typeof MutationObserver === "undefined") return;
@@ -302,6 +312,7 @@ export function useSelectionAnchor(
     rect,
     present,
     pinned,
+    resolving: enabled && located.selection !== selection,
     visible: present && !pinned,
   };
 }
