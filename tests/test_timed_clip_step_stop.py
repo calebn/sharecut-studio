@@ -136,7 +136,7 @@ def test_no_legal_range_text_depends_on_the_clip(timed: bool) -> None:
     text = str(plan_error.value)
     assert text.startswith("This edge cannot move: ")
     assert ("correction" in text) is timed
-    assert text.endswith("neighbouring clip first.")
+    assert text.endswith("leaves it no legal position.")
 
 
 # ---------------------------------------------------------------- real project
