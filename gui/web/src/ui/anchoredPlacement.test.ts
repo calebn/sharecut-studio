@@ -370,9 +370,10 @@ describe("placeAnchoredExcluding around several rectangles", () => {
     const frame = { left: 0, top: 193, right: 820, bottom: 1068 };
     const lane = { left: 112, top: 253, right: 820, bottom: 404 };
     const tabletCorner = { left: 177.6, top: 508.5, right: 796, bottom: 614.5 };
+    const edge = 16;
     const spacious = {
-      margin: 16,
-      gap: 16,
+      margin: edge,
+      gap: edge,
       align: "center",
       prefer: "above",
       clearTop: 241,
@@ -388,9 +389,10 @@ describe("placeAnchoredExcluding around several rectangles", () => {
     const frame = { left: 0, top: 193, right: 820, bottom: 1068 };
     const lane = { left: 112, top: 253, right: 820, bottom: 430 };
     const tabletCorner = { left: 177.6, top: 508.5, right: 796, bottom: 614.5 };
+    const edge = 16;
     const spacious = {
-      margin: 16,
-      gap: 16,
+      margin: edge,
+      gap: edge,
       align: "center",
       prefer: "above",
       clearTop: 241,
