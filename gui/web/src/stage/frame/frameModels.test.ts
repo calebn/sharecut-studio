@@ -124,7 +124,11 @@ describe("player model", () => {
 
   it("shows the cuts delta only once something was cut", () => {
     expect(cutsLabel(0)).toBeUndefined();
-    expect(cutsLabel(250)).toBe("−4:10");
+    expect(cutsLabel(0.04)).toBeUndefined();
+    expect(cutsLabel(0.3)).toBe("−0.3 s");
+    expect(cutsLabel(3.2)).toBe("−3.2 s");
+    expect(cutsLabel(72)).toBe("−1 min 12 s");
+    expect(cutsLabel(250)).toBe("−4 min 10 s");
   });
 
   it("orders chapters, finds the one the playhead is in, and ticks them", () => {

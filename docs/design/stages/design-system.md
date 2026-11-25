@@ -129,7 +129,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **4. Player**
 - Bar form: 56 px on every device, at the bottom of every stage except Record.
-  - Left: time in Plex Mono 15, "/ 52:10" edited length, and the cuts Status pill ("−4:10").
+  - Left: time in Plex Mono 15, "/ 52:10" edited length, and the cuts Status pill ("−4 min 10 s").
   - Center: back 15 s, Play/Pause (a 40 px circle filled with ink, not accent), forward 15 s. Phone hides the skip buttons.
   - Right: A/B (hold to hear the original), Comment at playhead (`message-square`), and the solo and mix Status pills when they apply.
 - Expanded form:

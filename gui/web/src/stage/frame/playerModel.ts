@@ -1,5 +1,6 @@
 import type { OverviewTick } from "../../system/OverviewStrip";
 import type { HearMode, PlayerChapter } from "../../system/Player";
+import { formatSpan, hasCutsSaved } from "../../system/seconds";
 import type { ChapterMarker } from "../../types/project";
 import type { AuditionMode } from "../../types/session";
 import { clampToSession, formatTimeShort } from "../../utils/time";
@@ -24,9 +25,9 @@ export function auditionOf(mode: HearMode): AuditionMode {
   return AUDITION_FOR_HEAR[mode];
 }
 
-/** The edited-length delta the Cuts pill shows, e.g. `−4:10`; nothing when no cut has been applied. */
+/** The edited-length delta the Cuts pill shows, e.g. `−4 min 10 s`; nothing when no cut has been applied. */
 export function cutsLabel(removedSec: number): string | undefined {
-  return removedSec > 0.5 ? `−${formatTimeShort(removedSec)}` : undefined;
+  return hasCutsSaved(removedSec) ? `−${formatSpan(removedSec)}` : undefined;
 }
 
 /** Chapters by time. The Player's chapter indexes are positions in this order. */

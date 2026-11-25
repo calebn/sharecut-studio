@@ -73,9 +73,9 @@ type Story = StoryObj<typeof Player>;
 
 export const Ready: Story = {};
 export const Playing: Story = { args: { playing: true } };
-export const WithCuts: Story = { args: { cuts: "−4:10" } };
+export const WithCuts: Story = { args: { cuts: "−4 min 10 s" } };
 export const HearOriginalHeld: Story = {
-  args: { hearOriginal: true, cuts: "−4:10" },
+  args: { hearOriginal: true, cuts: "−4 min 10 s" },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const original = canvas.getByRole("button", { name: "A" });
@@ -108,7 +108,7 @@ export const HearMenu: Story = {
 };
 export const Loading: Story = { args: { state: "loading" } };
 export const MixUpdating: Story = {
-  args: { state: "mix-updating", cuts: "−4:10" },
+  args: { state: "mix-updating", cuts: "−4 min 10 s" },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByText("Updating mix")).toBeVisible();
   },
@@ -231,7 +231,7 @@ export const Phone: Story = {
 /** Starts expanded, collapses to the bar, and expands again: it ends expanded on purpose, for the sweep and the screenshot. */
 export const Expanded: Story = {
   render: (args) => <Toggling {...args} initialExpanded />,
-  args: { cuts: "−4:10" },
+  args: { cuts: "−4 min 10 s" },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("list", { name: "Chapters" })).toBeVisible();

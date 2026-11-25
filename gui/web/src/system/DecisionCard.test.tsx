@@ -570,6 +570,23 @@ describe("DecisionCard", () => {
   });
 });
 
+describe("DecisionCard Saves line", () => {
+  it("reads a large total in whole seconds", () => {
+    render(<DecisionCard {...base()} savedSeconds={23.6} />);
+    expect(screen.getByText("Saves 24 s")).toBeVisible();
+  });
+
+  it("keeps the decimal for a small edit", () => {
+    render(<DecisionCard {...base()} savedSeconds={1.3} />);
+    expect(screen.getByText("Saves 1.3 s")).toBeVisible();
+  });
+
+  it("is absent when nothing is saved", () => {
+    render(<DecisionCard {...base()} savedSeconds={0} />);
+    expect(screen.queryByText(/^Saves /)).toBeNull();
+  });
+});
+
 describe("DecisionCard without a waveform", () => {
   it("plays the A/B from change", async () => {
     const onHear = vi.fn();

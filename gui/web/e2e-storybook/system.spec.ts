@@ -374,8 +374,8 @@ const FOLLOWING = {
 const MS = { time: "12:04.250", total: "52:10.000" };
 const HOURS = { time: "00:12:04.250", total: "01:02:52.000" };
 const HOST = { hearMenu: { mode: "mix" } };
-const CUTS = { cuts: "−4:10" };
-const HOURS_CUTS = { cuts: "−14:10" };
+const CUTS = { cuts: "−4 min 10 s" };
+const HOURS_CUTS = { cuts: "−14 min 10 s" };
 const STALE = { status: "Mix out of date" };
 type BarArgs = Record<string, unknown>;
 
@@ -1273,7 +1273,7 @@ test("System/Player under 22 rem at 150% text the pills, the cuts and the rate s
     "Updating mix",
     "Mix out of date",
     "Playback speed 2×",
-    "−4:10",
+    "−4 min 10 s",
   ])
     expect(tree, name).toContain(name);
   const gone = await host.evaluate((el) =>
@@ -1330,7 +1330,7 @@ test("System/Player levels 4 and 5 keep a home for what they hide: the cuts keep
 }) => {
   const host = await phoneBar(page, BAR_STATES.followcuts);
   await expect(host).toHaveAttribute("data-fit", /^[5678]$/);
-  expect(await host.ariaSnapshot()).toContain("−4:10");
+  expect(await host.ariaSnapshot()).toContain("−4 min 10 s");
   // In one step, so the bar's own observers cannot refit between the levels.
   const seen = await host.evaluate((el) => {
     const cuts = el.querySelector<HTMLElement>(".sys-player-cuts");
@@ -1354,7 +1354,7 @@ test("System/Player levels 4 and 5 keep a home for what they hide: the cuts keep
       inTree: true,
       drawn: true,
       title: "Length change from your cuts",
-      text: "−4:10",
+      text: "−4 min 10 s",
       skipDisplay: "none",
     },
     {
@@ -1362,7 +1362,7 @@ test("System/Player levels 4 and 5 keep a home for what they hide: the cuts keep
       inTree: true,
       drawn: false,
       title: "Length change from your cuts",
-      text: "−4:10",
+      text: "−4 min 10 s",
       skipDisplay: "none",
     },
   ]);
@@ -1444,7 +1444,7 @@ test("System/Player in a short frame the Following and Updating mix pills, the c
   await foldedPills(
     page,
     BAR_STATES.followmixstale,
-    ["Following Rosa", "Updating mix", "Mix out of date", "−4:10"],
+    ["Following Rosa", "Updating mix", "Mix out of date", "−4 min 10 s"],
     [
       ".sys-player-following",
       ".sys-player-mix",

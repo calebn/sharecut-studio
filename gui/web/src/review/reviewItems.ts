@@ -1,6 +1,6 @@
 import type { SessionTakes } from "../api";
 import type { DecisionKind } from "../system/decisionKinds";
-import { formatSeconds } from "../system/seconds";
+import { formatSeconds, formatSpan } from "../system/seconds";
 import type { TakeOption } from "../system/TakeSwitcher";
 import { selectLowConfidenceStops } from "../transcript/lowConfidence";
 import type {
@@ -419,7 +419,7 @@ function entryOf(
         snippet: title,
         time,
         value:
-          [risk?.reason, savedSeconds > 0 ? formatSeconds(savedSeconds) : null]
+          [risk?.reason, savedSeconds > 0 ? formatSpan(savedSeconds) : null]
             .filter(Boolean)
             .join(" · ") || undefined,
       },
