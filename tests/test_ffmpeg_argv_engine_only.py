@@ -15,7 +15,7 @@ import pytest
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "podcast_mcp"
 
 # util/binaries.py admits the ffmpeg pair that FFmpegEngine depends on, so it cannot route through it.
-EXEMPT = {"engines/ffmpeg.py", "engines/ffmpeg/", "util/binaries.py"}
+EXEMPT = {"engines/ffmpeg/", "util/binaries.py"}
 BINARIES = {"ffmpeg", "ffprobe"}
 RESOLVERS = {"resolve_ffmpeg", "resolve_ffprobe"}
 
@@ -91,14 +91,12 @@ def test_the_allowlist_has_no_stale_files() -> None:
 
 
 def test_the_exempt_files_exist() -> None:
-    engine = PACKAGE / "engines" / "ffmpeg.py"
-    package = PACKAGE / "engines" / "ffmpeg"
-    assert engine.is_file() or any(package.glob("*.py"))
+    assert (PACKAGE / "engines" / "ffmpeg" / "__init__.py").is_file()
     assert (PACKAGE / "util" / "binaries.py").is_file()
 
 
 def test_the_exemption_matches_the_module_and_the_package_but_not_a_lookalike() -> None:
-    assert _exempt("engines/ffmpeg.py")
+    assert _exempt("engines/ffmpeg/__init__.py")
     assert _exempt("engines/ffmpeg/runtime.py")
     assert _exempt("util/binaries.py")
     assert not _exempt("engines/ffmpeg_extra.py")
@@ -146,11 +144,11 @@ def test_the_scanner_recognises_every_binary_head_spelling() -> None:
 def test_the_scanner_counts_offenders_and_skips_exempt_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    (tmp_path / "engines").mkdir()
+    (tmp_path / "engines" / "ffmpeg").mkdir(parents=True)
     (tmp_path / "util").mkdir()
     (tmp_path / "services").mkdir()
     exempt = "cmd = [eng.ffmpeg, '-y']\n"
-    (tmp_path / "engines" / "ffmpeg.py").write_text(exempt, encoding="utf-8")
+    (tmp_path / "engines" / "ffmpeg" / "__init__.py").write_text(exempt, encoding="utf-8")
     (tmp_path / "util" / "binaries.py").write_text(exempt, encoding="utf-8")
     (tmp_path / "services" / "offender.py").write_text(
         "a = [eng.ffmpeg, '-y']\nb = [resolve_ffprobe(), '-v']\nc = (eng.ffmpeg,)\n",
