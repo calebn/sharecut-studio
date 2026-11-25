@@ -99,6 +99,11 @@ if TYPE_CHECKING:
         SegmentInsertPreview,
     )
     from podcast_mcp.services.document.session_suggestion import SessionSuggestionService
+    from podcast_mcp.services.document.shorten_word_gaps_results import (
+        ShortenWordGapsApplied,
+        ShortenWordGapsHeld,
+        ShortenWordGapsUnchanged,
+    )
     from podcast_mcp.services.document.split_results import (
         ProposeSplitResult,
         SplitAtTimeResult,
@@ -193,6 +198,9 @@ __all__ = [
     "SetClipFadeResult",
     "SetClipJoinResult",
     "SetJoinModeResult",
+    "ShortenWordGapsApplied",
+    "ShortenWordGapsHeld",
+    "ShortenWordGapsUnchanged",
     "SplitAtTimeResult",
     "SplitClipResult",
     "TimelineService",
@@ -310,6 +318,9 @@ _MODULE_BY_NAME = {
     "RollAppliedResult": "roll_join_results",
     "RollUnchangedResult": "roll_join_results",
     "SetJoinModeResult": "join_mode_results",
+    "ShortenWordGapsApplied": "shorten_word_gaps_results",
+    "ShortenWordGapsHeld": "shorten_word_gaps_results",
+    "ShortenWordGapsUnchanged": "shorten_word_gaps_results",
     "SplitClipResult": "split_results",
     "SplitAtTimeResult": "split_results",
     "ProposeSplitResult": "split_results",

@@ -79,6 +79,11 @@ from podcast_mcp.services.document.roll_join_results import (
     RollUnchangedResult,
 )
 from podcast_mcp.services.document.service_base import CutMutatingService
+from podcast_mcp.services.document.shorten_word_gaps_results import (
+    ShortenWordGapsApplied,
+    ShortenWordGapsHeld,
+    ShortenWordGapsUnchanged,
+)
 from podcast_mcp.services.document.split_results import (
     ProposeSplitResult,
     SplitAtTimeResult,
@@ -116,6 +121,16 @@ def _delete_clips_result(out: dict[str, Any]) -> DeleteClipsApplied | DeleteClip
     if "needs_confirmation" in out:
         return DeleteClipsHeld(**out)
     return DeleteClipsApplied(**out)
+
+
+def _shorten_word_gaps_result(
+    out: dict[str, Any],
+) -> ShortenWordGapsApplied | ShortenWordGapsUnchanged | ShortenWordGapsHeld:
+    if "needs_confirmation" in out:
+        return ShortenWordGapsHeld(**out)
+    if "unchanged" in out:
+        return ShortenWordGapsUnchanged(**out)
+    return ShortenWordGapsApplied(**out)
 
 
 class TimelineService(CutMutatingService, _JoinAnalysis):
@@ -464,7 +479,7 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         max_gap_sec: float = DEFAULT_SHORTEN_GAP_SEC,
         *,
         use_inaudible_opt: bool | None = None,
-    ) -> dict:
+    ) -> ShortenWordGapsApplied | ShortenWordGapsUnchanged | ShortenWordGapsHeld:
         """Ripple out long pauses; another speaker talking in a pause asks to confirm first."""
         with self.ws.transaction() as project:
             removal = plan_shorten_word_gaps(
@@ -474,15 +489,19 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
                 defaults=self.ws.effective_config(),
             )
             if removal is None:
-                return change_summary(
-                    project, operation="shorten_word_gaps", affected_tracks=[], unchanged=True
+                return ShortenWordGapsUnchanged(
+                    **change_summary(
+                        project, operation="shorten_word_gaps", affected_tracks=[], unchanged=True
+                    )
                 )
 
-            return self._apply_cut(
-                "shorten gaps",
-                removal,
-                operation="shorten_word_gaps",
-                params={"max_gap_sec": max_gap_sec, "use_inaudible_opt": use_inaudible_opt},
+            return _shorten_word_gaps_result(
+                self._apply_cut(
+                    "shorten gaps",
+                    removal,
+                    operation="shorten_word_gaps",
+                    params={"max_gap_sec": max_gap_sec, "use_inaudible_opt": use_inaudible_opt},
+                )
             )
 
     def split_clip(

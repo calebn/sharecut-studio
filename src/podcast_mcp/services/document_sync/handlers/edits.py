@@ -500,8 +500,10 @@ def shorten_word_gaps(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]
         else mcp_host_override(enabled=p["override_audio_checks"])
     )
     with override:
-        return TimelineService(ws).shorten_word_gaps(
-            p["max_gap_sec"], use_inaudible_opt=p["use_inaudible_opt"]
+        return (
+            TimelineService(ws)
+            .shorten_word_gaps(p["max_gap_sec"], use_inaudible_opt=p["use_inaudible_opt"])
+            .model_dump(mode="json")
         )
 
 

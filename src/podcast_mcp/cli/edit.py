@@ -1152,7 +1152,11 @@ def edit_shorten_gaps_cmd(
 
     def shorten() -> dict:
         with cli_override(override_checks):
-            return TimelineService(ws).shorten_word_gaps(max_gap, use_inaudible_opt=inaudible_opt)
+            return (
+                TimelineService(ws)
+                .shorten_word_gaps(max_gap, use_inaudible_opt=inaudible_opt)
+                .model_dump(mode="json")
+            )
 
     result = apply_external_document_edit(ws, lambda: require_cut_applied(shorten))
     typer.echo(json.dumps(result, indent=2))
