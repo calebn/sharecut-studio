@@ -6486,7 +6486,7 @@ input.sys-edit-fix {
   align-content: center;
   column-gap: var(--space-3);
   min-block-size: var(--touch-min);
-  padding: var(--space-2);
+  padding: var(--space-3);
   border-radius: var(--radius-sm);
   overflow-wrap: anywhere;
   cursor: pointer;
