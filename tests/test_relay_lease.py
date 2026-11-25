@@ -126,3 +126,33 @@ def test_pow_freshness_window() -> None:
     assert pow_is_valid("install-1", proof, bits=4, now=1_000 + POW_FRESH_SEC)
     assert not pow_is_valid("install-1", proof, bits=4, now=1_000 + POW_FRESH_SEC + 1)
     assert not pow_is_valid("install-1", proof, bits=4, now=1_000 - POW_FRESH_SEC - 1)
+
+
+def test_a_grant_and_stored_credentials_keep_the_lease_and_claim_key_out_of_repr() -> None:
+    from podcast_mcp.services.collaboration.enrollment import Credentials
+    from podcast_mcp.util.relay_protocol.enroll import EnrollGrant
+
+    lease_text = "-".join(("lease", "text", "marker"))
+    claim_text = "-".join(("claim", "text", "marker"))
+    grant = EnrollGrant("i1", lease_text, claim_text, 10, 5, 1)
+    creds = Credentials("i1", lease_text, claim_text, 10, 5)
+
+    for shown in (repr(grant), repr(creds), str(grant)):
+        assert lease_text not in shown and claim_text not in shown
+        assert "install_id='i1'" in shown
+
+
+def test_a_relay_policy_keeps_its_signing_and_master_keys_out_of_repr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    from tests.relay_enroll import enable_enrollment
+
+    from podcast_relay.policy import load_policy
+
+    master = "".join(("m", "a", "s", "t", "e", "r")) * 8
+    enable_enrollment(monkeypatch, tmp_path, PODCAST_RELAY_MASTER_KEY=master)
+    policy = load_policy()
+
+    assert policy is not None
+    assert master not in repr(policy)
+    assert "signer" not in repr(policy) and "master_key" not in repr(policy)

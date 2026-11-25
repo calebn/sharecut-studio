@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import itertools
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 DEFAULT_POW_BITS = 20
 # A solve takes seconds, and the host stamps the proof with the relay's own clock, so the window
@@ -37,8 +37,8 @@ class EnrollGrant:
     """What the relay returns for an enrollment or a renewal, with its own clock for the host."""
 
     install_id: str
-    lease: str
-    claim_key: str
+    lease: str = field(repr=False)
+    claim_key: str = field(repr=False)
     exp: int
     renew_at: int
     server_time: int
