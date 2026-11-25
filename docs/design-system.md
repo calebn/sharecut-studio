@@ -400,9 +400,9 @@ shortcut hints. Pure views never read the keymap registry.
 The phone shell's `MoreMix` story opens and closes the production Mix sheet.
 
 `Templates/TrackFader` renders the props-only `TrackFaderView` used by the
-compact Mix rows. Its controlled fixtures cover double-click reset, read-only
-volume, and a 360px frame. The view renders a `ScrubField` level fader, owns the draft dB
-output, and unique input associations. The track Inspector's Level is a Scrub field and writes
+compact Mix rows. Its controlled fixtures cover the compact row, read-only
+volume, and a 360px frame. The view renders a `ScrubField` level fader and owns the draft dB
+output. The track Inspector's Level is a Scrub field and writes
 through `track.setVolume`.
 
 `System/TrackHeader` is the track header (element 16). The Edit stage mounts it
