@@ -8,10 +8,12 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
 from podcast_mcp.engines.ffmpeg import resolve_ffmpeg
+from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
     Clip,
@@ -485,6 +487,71 @@ def test_dry_run_reports_what_moves_and_changes_nothing(tmp_path: Path, project:
     )
     assert text.exit_code == 0, text.output
     assert "Nothing was changed" in text.output
+
+
+def _preview_route(project: str, segment_id: str, **query: object):
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    return client.get(
+        f"/api/segments/{segment_id}/insert-preview", params={"path": project, **query}
+    )
+
+
+def test_the_preview_route_returns_the_dry_run_and_writes_nothing(
+    tmp_path: Path, project: str
+) -> None:
+    segment = _save(tmp_path, "Warm Intro", chapter_title="Welcome", role="dialogue", lanes=(0, 1))
+    before_bytes = Path(project).read_bytes()
+    raw_files = sorted(p.name for p in (Path(project).parent / "raw").iterdir())
+    commands = DocumentSyncService.open(project).store.commands_after(0)
+
+    res = _preview_route(project, segment.id, at="4")
+
+    assert res.status_code == 200, res.text
+    cli = runner.invoke(
+        app, ["segment", "insert", project, segment.id, "--at", "4", "--dry-run", "--json"]
+    )
+    assert res.json() == json.loads(cli.output)
+    assert res.json()["clips_moved"] == 1
+    assert res.json()["chapters_moved"] == [{"title": "Later", "from": 6.0, "to": 8.0}]
+    assert _preview_route(project, segment.id, at="END", version=1).json()["at"] == 8.0
+    assert Path(project).read_bytes() == before_bytes
+    assert sorted(p.name for p in (Path(project).parent / "raw").iterdir()) == raw_files
+    assert DocumentSyncService.open(project).store.commands_after(0) == commands
+
+
+@pytest.mark.parametrize(
+    ("segment_id", "query", "status", "code"),
+    [
+        ("nope-00000000", {"at": "1"}, 404, "segment_unknown"),
+        ("known", {"at": "500"}, 400, "segment_position_out_of_range"),
+        ("known", {"at": "soon"}, 400, "segment_position_out_of_range"),
+        ("known", {"at": "1", "version": 0}, 400, "segment_version_invalid"),
+        ("known", {"at": "1", "version": 9}, 404, "segment_unknown"),
+    ],
+)
+def test_the_preview_route_refuses_with_a_code(
+    tmp_path: Path, project: str, segment_id: str, query: dict[str, object], status: int, code: str
+) -> None:
+    segment = _save(tmp_path, "Warm Intro")
+    before_bytes = Path(project).read_bytes()
+
+    res = _preview_route(project, segment.id if segment_id == "known" else segment_id, **query)
+
+    assert res.status_code == status, res.text
+    assert res.headers["X-Sharecut-Error-Code"] == code
+    assert Path(project).read_bytes() == before_bytes
+    assert DocumentSyncService.open(project).store.commands_after(0) == []
+
+
+def test_the_preview_route_is_host_only(tmp_path: Path, project: str) -> None:
+    segment = _save(tmp_path, "Warm Intro")
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    res = client.get(
+        f"/api/segments/{segment.id}/insert-preview",
+        params={"path": project, "at": "1"},
+        headers={"Origin": "https://evil.example"},
+    )
+    assert res.status_code == 403
 
 
 def test_dry_run_refuses_what_a_real_insert_refuses(tmp_path: Path, project: str) -> None:
