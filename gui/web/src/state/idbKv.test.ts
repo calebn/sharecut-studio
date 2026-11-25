@@ -11,7 +11,7 @@ function stubIndexedDb() {
     error: null as unknown,
     oncomplete: () => {},
     onabort: () => {},
-    onerror: () => {},
+    onerror: (_event: { target: { error: unknown } }) => {},
     objectStore() {
       return {
         put() {
@@ -20,9 +20,10 @@ function stubIndexedDb() {
           if (abortsWith) {
             // A real quota failure arrives after put returned: the request fails, then the transaction aborts.
             queueMicrotask(() => {
-              tx.error = abortsWith;
               request.error = abortsWith;
               request.onerror();
+              tx.onerror({ target: request });
+              tx.error = abortsWith;
               tx.onabort();
             });
           } else {
@@ -69,7 +70,7 @@ describe("idbSet when the device will not keep the write", () => {
     expect(closed).toBe(1);
   });
 
-  it("rejects with the error when the transaction aborts for quota later, and lets go of the database", async () => {
+  it("rejects with the error when the request reports quota before the transaction does, and lets go of the database", async () => {
     abortsWith = new DOMException("full", "QuotaExceededError");
     await expect(idbSet("k", { a: 1 })).rejects.toBe(abortsWith);
     expect(closed).toBe(1);

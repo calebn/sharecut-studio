@@ -20,11 +20,11 @@ const PREFS_SENTENCE =
 const LIGHT = "Not kept on this device";
 const ASLEEP_TITLE = "The host's computer is asleep";
 
-type Probe = { said: string[]; failures: number };
+type Probe = { said: string[]; failures: number; earlyFailures: number };
 
 async function watch(page: Page) {
   await page.addInitScript(() => {
-    const probe: Probe = { said: [], failures: 0 };
+    const probe: Probe = { said: [], failures: 0, earlyFailures: 0 };
     (window as unknown as { __probe: Probe }).__probe = probe;
     new MutationObserver((records) => {
       for (const record of records)
@@ -56,6 +56,23 @@ const STUBS = {
     IDBObjectStore.prototype.put = () => {
       (window as unknown as { __probe: Probe }).__probe.failures++;
       throw new DOMException("full", "QuotaExceededError");
+    };
+  },
+  fullDatabaseRequest: () => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value, key) {
+      const transaction = this.transaction;
+      put.call(this, value, key);
+      const duplicate = this.add(value, key);
+      duplicate.addEventListener("error", () => {
+        Object.defineProperty(duplicate, "error", {
+          value: new DOMException("full", "QuotaExceededError"),
+        });
+        const state = (window as unknown as { __probe: Probe }).__probe;
+        state.failures++;
+        if (!transaction.error) state.earlyFailures++;
+      });
+      return duplicate;
     };
   },
   blockedLocalStorage: () => {
@@ -160,6 +177,27 @@ for (const { cell, theme } of withAppearance(["blocked", "full"] as const)) {
     );
   });
 }
+
+test("a request that runs out of room tells the guest that the device is full", async ({
+  browser,
+  page,
+}) => {
+  await withStubbedGuest(
+    browser,
+    page,
+    "fullDatabaseRequest",
+    "light",
+    async (guest) => {
+      await expect
+        .poll(async () => (await probe(guest)).earlyFailures)
+        .toBeGreaterThan(0);
+      await expect(light(guest)).toContainText(LIGHT);
+      await expect(light(guest)).toHaveAttribute("title", FULL_SENTENCE);
+      await expect.poll(() => timesSaid(guest, FULL_SENTENCE)).toBe(1);
+      await expect(guest.getByText("Save failed")).toHaveCount(0);
+    },
+  );
+});
 
 for (const { cell, theme } of withAppearance(
   ["blockedLocalStorage", "fullLocalStorage"] as const,

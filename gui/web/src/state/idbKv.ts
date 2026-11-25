@@ -2,6 +2,12 @@ const DB_NAME = "podcast-daw-offline";
 const DB_VERSION = 1;
 export const STORE = "kv";
 
+export function idbTransactionFailure(event: Event, tx: IDBTransaction): Error {
+  // A request error bubbles before the transaction has recorded its abort reason.
+  const source = event.target as IDBRequest | IDBTransaction | null;
+  return source?.error ?? tx.error ?? new Error("IndexedDB transaction failed");
+}
+
 export function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") {
@@ -68,8 +74,7 @@ export async function idbSet(key: string, value: unknown): Promise<void> {
       tx.oncomplete = () => finish(undefined, false);
       tx.onabort = () =>
         finish(tx.error ?? new Error("IndexedDB transaction aborted"), true);
-      tx.onerror = () =>
-        finish(tx.error ?? new Error("IndexedDB transaction failed"), true);
+      tx.onerror = (event) => finish(idbTransactionFailure(event, tx), true);
       // A refused write (quota) fails its request, which bubbles to onerror, then aborts the transaction.
       tx.objectStore(STORE).put(value, key);
     } catch (error) {
