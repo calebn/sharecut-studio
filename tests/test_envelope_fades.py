@@ -371,6 +371,13 @@ def test_a_legacy_fade_for_a_stem_shorter_than_fade_in_is_adopted(dur, fade_in, 
     assert result.replaced_legacy == 4
     assert not any(p in result.points for p in old)
     assert len(result.points) == 4
+    fi = min(fade_in, dur)
+    assert tv(result.points) == [
+        (0.0, 0.0),
+        (fi, 1.0),
+        (max(fi, dur - fade_out), 1.0),
+        (dur, 0.0),
+    ]
     assert merge_fades(result.points, dur, fade_in, fade_out).points == result.points
 
 
@@ -462,3 +469,18 @@ def test_only_canonical_uuid_ids_count_as_an_older_fade() -> None:
     assert merge_fades(odd, 10.0, 2.0, 3.0).replaced_legacy == 0
     nil = [EnvPoint("0" * 32, t, v) for t, v in legacy(10.0, 2.0, 3.0)]
     assert merge_fades(nil, 10.0, 2.0, 3.0).replaced_legacy == 0
+
+
+def test_adopting_a_plain_legacy_fade_next_to_a_dip_asks_for_a_ducking_rerun() -> None:
+    old = _uuid_fade(500.0, 2.0, 3.0)
+    dip = EnvPoint(generated_point_id(498.0, 0.126), 498.0, 0.126)
+    result = merge_fades([*old, dip], 600.0, 2.0, 3.0)
+    assert result.replaced_legacy == 4 and result.replaced_under_duck >= 1
+    assert dip in result.points
+
+
+def test_adopting_a_plain_legacy_fade_with_a_dip_far_from_the_ramps_does_not() -> None:
+    old = _uuid_fade(500.0, 2.0, 3.0)
+    dip = EnvPoint(generated_point_id(100.0, 0.126), 100.0, 0.126)
+    result = merge_fades([*old, dip], 600.0, 2.0, 3.0)
+    assert result.replaced_legacy == 4 and result.replaced_under_duck == 0
