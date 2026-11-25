@@ -12,6 +12,7 @@ import {
 import { createPortal } from "react-dom";
 import { placeAnchored, tokenPx, visualViewportBox } from "./anchoredPlacement";
 import { type DisabledReasonProps, unavailableReason } from "./disabledReason";
+import { MenuCloseContext } from "./menuClose";
 import { popoverSupported, showInTopLayer } from "./topLayerFloor";
 import { focusFirstMenuItem, useMenuKeyboard } from "./useMenuKeyboard";
 import { useOutsidePointerDown } from "./useOutsidePointerDown";
@@ -297,7 +298,9 @@ export function Menu({
           }
         }}
       >
-        {children}
+        <MenuCloseContext.Provider value={close}>
+          {children}
+        </MenuCloseContext.Provider>
       </div>
     ) : null;
 

@@ -6,6 +6,7 @@ import { STAGES } from "../../system/verbs";
 import type { SessionClient } from "../../types/session";
 import { Avatar } from "../../ui/Avatar";
 import { Menu, MenuItem, MenuSection } from "../../ui/Menu";
+import { useMenuClose } from "../../ui/menuClose";
 import { Pill } from "../../ui/Pill";
 import { overflowLabel } from "../../utils/format";
 import {
@@ -15,8 +16,6 @@ import {
   type PresenceViewer,
   personCard,
 } from "./personCard";
-
-const noop = () => undefined;
 
 type Handlers = {
   onFollow: (id: string) => void;
@@ -235,6 +234,7 @@ export function AvatarStackView({
   viewer,
 }: Props) {
   const root = useRef<HTMLDivElement>(null);
+  const closeMenu = useMenuClose();
   const cards = others.map((c) =>
     personCard(c, names, viewer, followingClientId),
   );
@@ -256,7 +256,7 @@ export function AvatarStackView({
               onFollow={onFollow}
               onGoTo={onGoTo}
               card={card}
-              onSelect={noop}
+              onSelect={closeMenu}
             />
           </div>
         ))}

@@ -1,9 +1,11 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { sessionClient } from "../../test/fixtures";
 import type { PresenceUi } from "../../types/session";
+import { Menu } from "../../ui/Menu";
 import { AvatarStackView } from "./AvatarStackView";
 import type { PresenceViewer } from "./personCard";
 
@@ -271,4 +273,44 @@ describe("AvatarStackView menu variant", () => {
     );
     expect(container.querySelector(".ui-menu-section")).toBeNull();
   });
+
+  it.each(["Follow", "Go to where they are"])(
+    "closes the menu that holds it after %s",
+    async (row) => {
+      const onFollow = vi.fn();
+      const onGoTo = vi.fn();
+      function Host() {
+        const [open, setOpen] = useState(false);
+        return (
+          <Menu
+            open={open}
+            onOpenChange={setOpen}
+            label="More"
+            trigger={(t) => (
+              <button type="button" {...t}>
+                More
+              </button>
+            )}
+          >
+            <AvatarStackView
+              variant="menu"
+              others={[peer("a", { tab: "impact" }, 9)]}
+              names={NAMES}
+              followingClientId={null}
+              viewer={VIEWER}
+              onFollow={onFollow}
+              onGoTo={onGoTo}
+            />
+          </Menu>
+        );
+      }
+      render(<Host />);
+      const more = screen.getByRole("button", { name: "More" });
+      await userEvent.click(more);
+      expect(more).toHaveAttribute("aria-expanded", "true");
+      await userEvent.click(screen.getByRole("menuitem", { name: row }));
+      expect(onFollow.mock.calls.length + onGoTo.mock.calls.length).toBe(1);
+      expect(more).toHaveAttribute("aria-expanded", "false");
+    },
+  );
 });
