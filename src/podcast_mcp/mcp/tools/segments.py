@@ -79,8 +79,9 @@ def segment_insert_tool(
     (``podcast segment insert``), unless ``placement="own_lane"``: then nothing moves, every
     lane of the segment goes on a new track and it plays over what is already there, for music
     under dialogue. An own-lane segment plays at full level until you duck it: run
-    ``apply_ducking_tool`` (``podcast edit duck``) afterwards: it ducks a segment saved with
-    ``duck_under_dialogue``, and any other own-lane track only when you name it in ``track_ids``.
+    ``apply_ducking_tool`` (``podcast edit duck``) afterwards: it ducks a music lane, and a
+    segment of another role saved with ``duck_under_dialogue``; any other own-lane track only when
+    you name it in ``track_ids``.
     A dialogue segment cannot be placed ``own_lane``. The edit goes through the document plane
     as ``InsertSegment``:
     it is journaled, shows in Studio at once and is one undo step (``history_undo``). It is
