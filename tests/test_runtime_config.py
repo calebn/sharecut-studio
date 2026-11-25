@@ -325,6 +325,11 @@ def test_ready_relay_config_needs_a_host_token_or_a_named_relay(
     assert named is not None
     assert (named.relay_url, named.host_token) == ("wss://relay.example.test/tunnel", "")
 
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", "tok")
+    both = ready_relay_config()
+    assert both is not None
+    assert (both.relay_url, both.host_token) == ("wss://relay.example.test/tunnel", "tok")
+
 
 def test_a_named_relay_that_does_not_enroll_is_not_ready_without_a_token(
     monkeypatch: pytest.MonkeyPatch,
