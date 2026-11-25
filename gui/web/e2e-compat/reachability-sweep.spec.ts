@@ -5,6 +5,7 @@ import {
   openEnvelopePoint,
   showEnvelope,
 } from "../e2e/envelopeCreationEvidence";
+import { fontsReady } from "../e2e/fontsReady";
 import { createRelocatedE2eProject } from "../e2e/liveProject";
 import { openHostProject } from "../e2e/overlayReachability";
 import { openSuggestedPendingEdit } from "../e2e/pendingEdit";
@@ -224,6 +225,8 @@ async function sweepCell(
   const found: Record<string, Reach[]> = {};
   await arrive(page, cell, (p) => openHostShare(p, projectPath));
   await setTheme(page, theme);
+  await fontsReady(page);
+  await settle(page);
 
   found["shell chrome"] = await reachFailures(page, {
     skip: [".bottom-sheet-root", ...PANELS],
