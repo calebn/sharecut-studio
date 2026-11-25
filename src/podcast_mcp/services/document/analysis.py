@@ -59,6 +59,7 @@ from podcast_mcp.edits.transcript_reconcile import (
 )
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.document.effects import EffectsService
+from podcast_mcp.services.document.loudness_results import LoudnessReport, build_loudness_report
 from podcast_mcp.services.pipeline import rerender_preview
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC, render_lock
@@ -228,12 +229,13 @@ class AnalysisService(EffectsService):
             defaults=self.ws.effective_config(),
         )
 
-    def check_loudness(self, audio_path: str | None = None) -> dict:
+    def check_loudness(self, audio_path: str | None = None) -> LoudnessReport:
         """Measure audio and report known project freshness without rendering.
 
         An explicit unrelated file has no project freshness claim (``stale=None``).
         Tracked project audio also reports each dialogue track's balance status. The
-        loudness ``pass`` remains the measured level verdict, independent of age.
+        loudness ``pass`` remains the measured level verdict, independent of age. The result
+        is a frozen model whose ``pass`` key is the field ``passed``.
         """
         from podcast_mcp.engines.balance import balance_status
         from podcast_mcp.engines.mastering import MasterTarget
@@ -254,7 +256,7 @@ class AnalysisService(EffectsService):
         path = Path(audio_path) if audio_path else export_wav if export_wav.is_file() else premix
         if not path.is_file():
             raise FileNotFoundError(f"no audio to measure: {path}")
-        report = check_loudness(path, defaults=self.ws.effective_config())
+        measured = check_loudness(path, defaults=self.ws.effective_config())
         if path.resolve() == premix.resolve():
             if read_premix_hash(project) is None:
                 reason = "premix_unverified"
@@ -279,15 +281,17 @@ class AnalysisService(EffectsService):
             else:
                 reason = None
         else:
-            report.update(stale=None, stale_reason="untracked_audio")
-            return report
-        report.update(stale=reason is not None, stale_reason=reason)
-        report["balance"] = {
+            return build_loudness_report(
+                measured, stale=None, stale_reason="untracked_audio", balance=None
+            )
+        balance = {
             track.id: balance_status(project, track)
             for track in project.tracks
             if track.role.value == "dialogue" and track.media is not None
         }
-        return report
+        return build_loudness_report(
+            measured, stale=reason is not None, stale_reason=reason, balance=balance
+        )
 
     def analyze_cleanup(
         self,
