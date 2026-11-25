@@ -648,17 +648,19 @@ def test_host_record_watcher_survives_a_failed_poll(
     monkeypatch.setattr("podcast_mcp.gui.routes.host.HOST_RECORD_ATTACH_POLL_S", 0.05)
     real = RecordSessionService.active_session_id
     looked = threading.Event()
-    armed = threading.Event()
+    room_ready = threading.Event()
     raised = threading.Event()
 
     def flaky(project):
         sid = real(project)
         if not threading.current_thread().name.startswith("AnyIO worker"):
             return sid
-        if sid and armed.is_set() and not raised.is_set():
+        if not room_ready.is_set():
+            looked.set()
+            return None
+        if sid and not raised.is_set():
             raised.set()
             raise OSError("share store unavailable")
-        looked.set()
         return sid
 
     monkeypatch.setattr(RecordSessionService, "active_session_id", staticmethod(flaky))
@@ -668,13 +670,22 @@ def test_host_record_watcher_survives_a_failed_poll(
     with client.websocket_connect(url) as host:
         assert host.receive_json()["type"] == "Snapshot"
         assert looked.wait(10)
-        armed.set()
         created = ShareService(ws).create_record_room()
-        rec = _drain_until(host, lambda m: m.get("plane") == "record", n=40)
-        assert rec["snapshot"]["state"] == "lobby"
+        room_ready.set()
+        rec = _drain_until(
+            host,
+            lambda m: (
+                m.get("plane") == "record"
+                and m.get("type") == "Echo"
+                and m.get("participant_id") == HOST_PARTICIPANT_ID
+            ),
+            n=40,
+        )
         assert raised.is_set()
-        svc = RecordSessionService(ws.project, session_id=created["session_id"])
-        roster = {p["participant_id"]: p for p in svc.snapshot()["participants"]}
+        snapshot = rec["snapshot"]
+        assert snapshot["session_id"] == created["session_id"]
+        assert snapshot["state"] == "lobby"
+        roster = {p["participant_id"]: p for p in snapshot["participants"]}
         assert roster[HOST_PARTICIPANT_ID]["connected"] is True
 
 
