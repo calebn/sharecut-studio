@@ -580,7 +580,7 @@ single-threaded behavior. `master_loudness` is not parallelized
 ### Single-pass timeline render
 
 Each track stem is assembled in **one** `ffmpeg` invocation
-(`engines/ffmpeg/__init__.py::render_timeline`, driven by `render_track_from_timeline`)
+(`engines/ffmpeg/render.py::render_timeline`, driven by `render_track_from_timeline`)
 rather than rendering one part file per clip and concatenating. A single
 `-filter_complex` graph prepares source pieces and compiles their audio expression.
 Full tracks and authored seek windows share source-aware preparation and placement

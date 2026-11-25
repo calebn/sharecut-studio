@@ -9,9 +9,10 @@ if TYPE_CHECKING:
 
     import numpy as np
 
-    from podcast_mcp.engines.audio import Audio, MuteEnvelope, RequestedExtent
+    from podcast_mcp.engines.audio import Audio, MuteEnvelope, RequestedExtent, SourceAudio
     from podcast_mcp.engines.ffmpeg import AudioProbe
     from podcast_mcp.engines.mastering import LimiterPlan, LimiterReport
+    from podcast_mcp.models import AutomationEnvelope, FadeCurve
 
 
 class FFmpegSelf(Protocol):
@@ -31,6 +32,39 @@ class FFmpegSelf(Protocol):
         requested_extent: RequestedExtent | None = None,
         clock_path: Path | None = None,
     ) -> Path: ...
+
+    def _mix_fills(
+        self,
+        leaves: list[SourceAudio],
+        filters: list[str],
+        src_labels: list[str],
+        *,
+        source_paths: list[Path],
+        source_ranges: dict[Path, tuple[float, float]],
+    ) -> list[str]: ...
+
+    def _fade_chain(
+        self,
+        seg_duration: float,
+        fade_in_sec: float,
+        fade_out_sec: float,
+        fade_in_curve: FadeCurve = ...,
+        fade_out_curve: FadeCurve = ...,
+    ) -> list[str]: ...
+
+    def _mute_chain(
+        self,
+        seg_duration: float,
+        mute_spans: tuple[MuteEnvelope, ...],
+        *,
+        sample_rate: int,
+        source_start: float = 0.0,
+        origin: int = 0,
+    ) -> list[str]: ...
+
+    def _volume_expression(
+        self, envelope: AutomationEnvelope, *, timeline_origin_sec: float = 0.0
+    ) -> str: ...
 
     def export_audio(
         self,

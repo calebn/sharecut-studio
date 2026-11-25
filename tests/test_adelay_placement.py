@@ -31,7 +31,9 @@ from podcast_mcp.engines.audio import (
     SourceAudio,
     rendered_sources,
 )
-from podcast_mcp.engines.ffmpeg import FFmpegEngine, _delay_filter
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg import render as render_module
+from podcast_mcp.engines.ffmpeg.render_filters import _delay_filter
 from podcast_mcp.util.coded_error import CodedValueError
 from test_render_wav_header import _UNDECODABLE
 
@@ -523,7 +525,7 @@ def test_multi_rate_delays_use_each_inputs_own_rate(
     )
     graphs = _captured_graphs(monkeypatch)
     monkeypatch.setattr(
-        ff,
+        render_module,
         "negotiated_rates",
         lambda *_: {"adelay@pin_0": 16000, "adelay@pin_1": 48000},
     )
@@ -728,7 +730,7 @@ def test_620_delays_render(tmp_path: Path) -> None:
 
 def test_render_holds_the_dry_run_rate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        ff,
+        render_module,
         "negotiated_rates",
         lambda ffmpeg, ffprobe, filters, input_paths, names: dict.fromkeys(names, 44100),
     )
@@ -846,7 +848,7 @@ def test_negotiated_inputs_follow_the_render_input_order(
     audio, main = _room_tone(tmp_path, 16000)
     dry_run: list[tuple[Path, ...]] = []
     renders: list[list[str]] = []
-    real_rates = ff.negotiated_rates
+    real_rates = render_module.negotiated_rates
     real_run = ff.runtime.run
 
     def capture_rates(ffmpeg, ffprobe, filters, input_paths, names):
@@ -857,7 +859,7 @@ def test_negotiated_inputs_follow_the_render_input_order(
         renders.append([str(part) for part in cmd])
         return real_run(cmd, *args, **kwargs)
 
-    monkeypatch.setattr(ff, "negotiated_rates", capture_rates)
+    monkeypatch.setattr(render_module, "negotiated_rates", capture_rates)
     monkeypatch.setattr(ff.runtime, "run", capture_run)
     FFmpegEngine().render_timeline(tmp_path / "out.wav", audio, "anull")
     argv = renders[-1]

@@ -29,7 +29,7 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.engines import ffmpeg
-from podcast_mcp.engines.ffmpeg import FFmpegEngine, diagnostics, probe, runtime
+from podcast_mcp.engines.ffmpeg import FFmpegEngine, diagnostics, probe, render, runtime
 
 TESTS = Path(__file__).resolve().parent
 PACKAGE = TESTS.parent / "src" / "podcast_mcp" / "engines" / "ffmpeg"
@@ -38,8 +38,6 @@ MODULE = "podcast_mcp.engines.ffmpeg"
 PATCHERS = {"setattr", "delattr", "object", "patch", "multiple"}
 
 ALLOWLIST = {
-    "negotiated_rates",
-    "spawn_or_too_long",
     "threading",
 }
 
@@ -48,6 +46,8 @@ DIAGNOSTICS = "diagnostics"
 DIAGNOSTICS_ALLOWLIST = {"_drawtext_font"}
 PROBE = "probe"
 PROBE_ALLOWLIST = {"_PACKET_SCAN_TIMEOUT_SEC", "_read_audio_extent", "file_revision"}
+RENDER = "render"
+RENDER_ALLOWLIST = {"negotiated_rates", "spawn_or_too_long"}
 RUNTIME_ALLOWLIST = {
     "_run_cancellable",
     "popen",
@@ -73,7 +73,7 @@ def _target(segments: list[str]) -> tuple[str, str | None]:
     name = segments[0] or DYNAMIC
     member = (
         segments[1]
-        if name in {"FFmpegEngine", RUNTIME, DIAGNOSTICS, PROBE} and len(segments) > 1
+        if name in {"FFmpegEngine", RUNTIME, DIAGNOSTICS, PROBE, RENDER} and len(segments) > 1
         else None
     )
     return name, member
@@ -160,14 +160,19 @@ def _call_targets(node: ast.Call, imports: dict[str, str]) -> set[tuple[str, str
     return {_target([*base, *name.split(".")])}
 
 
+def _registry_form(text: str) -> bool:
+    """A ``module:name`` registry string: a colon with no later dot, which patches nothing."""
+    return ":" in text and "." not in text.partition(":")[2]
+
+
 def _found_in(source: str) -> set[tuple[str, str | None]]:
     tree = ast.parse(source)
     imports = _imports(tree)
     found: set[tuple[str, str | None]] = set()
     for node in ast.walk(tree):
         text = _text(node) if isinstance(node, ast.Constant) else None
-        if text is not None and text.startswith(MODULE + ".") and ":" not in text:
-            found.add(_target(text[len(MODULE) + 1 :].split(".")))
+        if text is not None and text.startswith(MODULE + ".") and not _registry_form(text):
+            found.add(_target(text[len(MODULE) + 1 :].replace(":", ".").split(".")))
         elif isinstance(node, ast.Call):
             found |= _call_targets(node, imports)
     return found
@@ -184,7 +189,11 @@ def _found() -> set[tuple[str, str | None]]:
 
 
 def _outside_the_engine(found: set[tuple[str, str | None]]) -> set[str]:
-    return {name for name, _ in found if name not in {"FFmpegEngine", RUNTIME, DIAGNOSTICS, PROBE}}
+    return {
+        name
+        for name, _ in found
+        if name not in {"FFmpegEngine", RUNTIME, DIAGNOSTICS, PROBE, RENDER}
+    }
 
 
 def _runtime_patched(found: set[tuple[str, str | None]]) -> set[str | None]:
@@ -218,6 +227,12 @@ def test_probe_submodule_patches_are_the_listed_members() -> None:
     patched = {member for name, member in _found() if name == PROBE}
     assert patched == PROBE_ALLOWLIST
     assert all(hasattr(probe, name) for name in PROBE_ALLOWLIST)
+
+
+def test_render_submodule_patches_are_the_listed_members() -> None:
+    patched = {member for name, member in _found() if name == RENDER}
+    assert patched == RENDER_ALLOWLIST
+    assert all(hasattr(render, name) for name in RENDER_ALLOWLIST)
 
 
 def test_every_engine_member_a_test_patches_exists() -> None:
@@ -501,6 +516,16 @@ def test_the_scanner_reads_every_patch_spelling() -> None:
             id="whole runtime module string",
         ),
         pytest.param(
+            "patch('podcast_mcp.engines.ffmpeg.probe:attr.sub')",
+            {("probe", "attr")},
+            id="colon form with a later dot is scanned as dotted",
+        ),
+        pytest.param(
+            "x = 'podcast_mcp.engines.ffmpeg.probe:_cached_audio_extent'",
+            set(),
+            id="registry form with no later dot is skipped",
+        ),
+        pytest.param(
             "patch('podcast_mcp.engines.ffmpeg')",
             {(WHOLE_MODULE, None)},
             id="whole module string",
@@ -585,10 +610,10 @@ def test_the_process_use_scanner(source: str, lines: list[int]) -> None:
 
 
 KNOWN_MIXIN_BINDINGS = {
-    ("encode.py", "spawn_or_too_long"),
     ("probe.py", "threading"),
     ("decode.py", "threading"),
 }
+KNOWN_RENDER_BINDINGS = {("encode.py", "spawn_or_too_long")}
 FACADE_ONLY = {"__init__.py"}
 MIXIN_IMPORT_EXEMPT = {"__init__.py", "runtime.py"}
 HOST = "host"
@@ -606,16 +631,16 @@ def _unguarded(tree: ast.Module) -> list[ast.AST]:
     return [node for node in ast.walk(tree) if id(node) not in guarded]
 
 
-def _facade_name_bindings(tree: ast.Module) -> list[tuple[str, int]]:
-    """Allowlisted facade names a module imports or reads as a bare name, with the line."""
+def _facade_name_bindings(tree: ast.Module, names: set[str] = ALLOWLIST) -> list[tuple[str, int]]:
+    """Names from ``names`` a module imports or reads as a bare name, with the line."""
     found: list[tuple[str, int]] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in ALLOWLIST:
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in names:
             found.append((node.id, node.lineno))
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             for alias in node.names:
                 bound = alias.asname or alias.name.split(".")[0]
-                if bound in ALLOWLIST:
+                if bound in names:
                     found.append((bound, node.lineno))
     return sorted(found, key=lambda item: item[1])
 
@@ -676,6 +701,19 @@ def test_no_mixin_module_binds_a_name_the_facade_is_patched_through() -> None:
     )
 
 
+def test_no_module_but_render_binds_a_name_the_render_module_is_patched_through() -> None:
+    found: dict[tuple[str, str], str] = {}
+    for path, tree in _readers().items():
+        if path.name != "render.py":
+            for name, line in _facade_name_bindings(tree, RENDER_ALLOWLIST):
+                found.setdefault((path.name, name), f"{path.name}:{line}")
+    assert set(found) == KNOWN_RENDER_BINDINGS, (
+        f"a patch of {sorted(RENDER_ALLOWLIST)} on {MODULE}.{RENDER} only reaches readers in "
+        f"render.py; new elsewhere: {sorted(found[k] for k in set(found) - KNOWN_RENDER_BINDINGS)}; "
+        f"gone, drop from KNOWN_RENDER_BINDINGS: {sorted(KNOWN_RENDER_BINDINGS - set(found))}"
+    )
+
+
 def test_mixin_modules_import_only_the_runtime_from_the_package() -> None:
     offenders = [
         f"{path.name}:{line} imports {name}"
@@ -718,7 +756,8 @@ def test_the_host_module_is_imported_only_for_type_checking() -> None:
     ],
 )
 def test_the_facade_binding_scanner(source: str, expected: list[tuple[str, int]]) -> None:
-    assert _facade_name_bindings(ast.parse(source)) == expected
+    names = ALLOWLIST | RENDER_ALLOWLIST
+    assert _facade_name_bindings(ast.parse(source), names) == expected
 
 
 @pytest.mark.parametrize(

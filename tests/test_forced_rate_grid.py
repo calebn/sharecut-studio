@@ -16,9 +16,9 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines import ffmpeg as ffmpeg_module
 from podcast_mcp.engines.audio import MixAudio, delay_frames, duration, sources
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg import render as render_module
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.timeline_render import (
     graph_rate,
@@ -185,9 +185,9 @@ def test_the_render_graph_resamples_each_recording_before_atrim_even_with_delays
             Path(cmd[index + 1]).read_text() if cmd[index] == "-/filter_complex" else cmd[index + 1]
         )
 
-    monkeypatch.setattr(ffmpeg_module, "spawn_or_too_long", spy)
+    monkeypatch.setattr(render_module, "spawn_or_too_long", spy)
     monkeypatch.setattr(
-        ffmpeg_module,
+        render_module,
         "negotiated_rates",
         lambda *_args, **_kwargs: {f"adelay@pin_{k}": FORCED for k in range(9)},
     )
