@@ -28,6 +28,7 @@ MAX_PUBLIC_SERVICE_METHODS = 40
 
 # glob under src/podcast_mcp -> max lines in any one matching module
 FILE_BUDGETS = {
+    "engines/ffmpeg/**/*.py": 800,
     "services/document/play*.py": 800,
 }
 
