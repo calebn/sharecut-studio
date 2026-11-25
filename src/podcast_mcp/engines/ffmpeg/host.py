@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from podcast_mcp.engines.audio import Audio, RequestedExtent
+    from podcast_mcp.engines.audio import Audio, MuteEnvelope, RequestedExtent
 
 
 class FFmpegSelf(Protocol):
     ffmpeg: str
+    _listed_names_cache: dict[str, set[str]]
 
     def audio_start_sec(self, path: Path) -> float: ...
 
@@ -61,3 +62,36 @@ class FFmpegSelf(Protocol):
     ) -> float | None: ...
 
     def peak_trim_db(self, track_wavs: list[tuple[Path, float]], ceiling_db: float) -> float: ...
+
+    def extract_segment(
+        self,
+        src: Path,
+        output_path: Path,
+        start_sec: float,
+        end_sec: float,
+        *,
+        mute_spans: tuple[MuteEnvelope, ...] = (),
+        gain_db: float = 0.0,
+    ) -> Path: ...
+
+    def _listed_names(self, flag: str) -> set[str] | None: ...
+
+    def _has_filter(self, name: str) -> bool: ...
+
+    def _annotate_plot_png(
+        self,
+        png_path: Path,
+        marks: list[dict[str, Any]],
+        out_path: Path,
+        window_start: float,
+        window_end: float,
+    ) -> Path: ...
+
+    def _overlay_png(
+        self,
+        png_path: Path,
+        out_path: Path,
+        vf: str,
+        *,
+        dimensions: tuple[int, int] | None = None,
+    ) -> bool: ...

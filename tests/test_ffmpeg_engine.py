@@ -11,12 +11,10 @@ import numpy as np
 import pytest
 
 from ffmpeg_in_process_support import desktop_ffmpeg
-from podcast_mcp.engines.ffmpeg import (
-    AudioProbe,
-    FFmpegEngine,
+from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine, _effect_filter
+from podcast_mcp.engines.ffmpeg.diagnostics import (
     PlotAnnotationUnavailableError,
     _annotate_vf,
-    _effect_filter,
     _escape_drawtext,
 )
 from podcast_mcp.engines.mastering import LoudnormPlan
@@ -418,7 +416,7 @@ def test_mix_tracks_empty_and_single(tmp_path: Path):
         eng.mix_tracks([], tmp_path / "mix.wav")
 
     out = tmp_path / "solo.wav"
-    with patch("podcast_mcp.engines.ffmpeg.shutil.copy2") as copy2:
+    with patch("shutil.copy2") as copy2:
         eng.mix_tracks([(source, 0.0)], out)
     copy2.assert_called_once_with(source, out)
 
@@ -1396,7 +1394,10 @@ def test_annotate_retries_boxes_when_drawtext_overlay_fails(tmp_path: Path):
     with (
         patch.object(FFmpegEngine, "_has_filter", return_value=True),
         patch.object(FFmpegEngine, "_overlay_png", side_effect=overlay),
-        patch("podcast_mcp.engines.ffmpeg._drawtext_font", return_value=Path("/tmp/Arial.ttf")),
+        patch(
+            "podcast_mcp.engines.ffmpeg.diagnostics._drawtext_font",
+            return_value=Path("/tmp/Arial.ttf"),
+        ),
     ):
         result = eng.annotate_time_marks(
             png,
