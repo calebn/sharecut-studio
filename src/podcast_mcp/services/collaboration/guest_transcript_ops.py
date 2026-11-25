@@ -153,11 +153,15 @@ def guest_word_timing_context(
     expected_end: float,
 ) -> dict[str, Any]:
     try:
-        return TranscriptService(ws).word_timing_context(
-            WordTimingTarget(**target),
-            expected_text=expected_text,
-            expected_start=expected_start,
-            expected_end=expected_end,
+        return (
+            TranscriptService(ws)
+            .word_timing_context(
+                WordTimingTarget(**target),
+                expected_text=expected_text,
+                expected_start=expected_start,
+                expected_end=expected_end,
+            )
+            .model_dump()
         )
     except TranscriptTimingChangedError as exc:
         raise guest_refusal(409, "transcript_timing_changed") from exc
