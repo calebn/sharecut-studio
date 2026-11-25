@@ -720,7 +720,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
                 "use segment_insert_tool or podcast segment insert"
             ),
             host_only_reason="reads the host's own segment library, which a share link never reaches",
-            gui=NO_GUI_SENDER,
+            gui=GUI_SENT,
             mcp=named("segment_insert_tool"),
             cli=named("podcast segment insert"),
         ),
