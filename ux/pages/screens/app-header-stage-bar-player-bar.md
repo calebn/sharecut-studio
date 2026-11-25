@@ -29,8 +29,10 @@ The bar measures whether its controls fit when the container or its contents
 change. It first drops the total duration, then trims Following details and
 turns status labels into icons. Tighter levels hide the skip controls and
 other secondary actions. If the bar hides a focused skip button or Stop
-following, keyboard focus moves to Play. At the tightest level, open the
-expanded Player for Comment or Retry when those actions are available.
+following, keyboard focus moves to Play. At larger text sizes, the visible
+**Stop following** button still responds to a tap on its enlarged target just
+inside the frame. At the tightest level, open the expanded Player for Comment
+or Retry when those actions are available.
 When the bar hides the Hear options chevron but still shows A and B, Tab to
 Hear options to reveal it and press Enter to open the menu.
 
