@@ -17,6 +17,7 @@ import { TrackHeader, type TrackHeaderForm } from "../../system/TrackHeader";
 import { useTimelineMetrics } from "../../timeline/timelineMetrics";
 import { SoloChip } from "../../tracks/SoloChip";
 import {
+  dropEdge,
   reorderInsertIndex,
   setTrackReorderData,
 } from "../../tracks/trackReorder";
@@ -29,7 +30,6 @@ import {
   wholeTrackReasonsForTrack,
 } from "../../utils/staleRender";
 import {
-  dropEdge,
   type TrackHeaderShared,
   useTrackHeaderProps,
 } from "./useTrackHeaderProps";

@@ -1,3 +1,5 @@
+import type { DragEvent } from "react";
+
 /** Fallback MIME — Safari/Chrome are unreliable with custom types during dragover. */
 export const TRACK_REORDER_TEXT_MIME = "text/plain";
 
@@ -34,6 +36,12 @@ export function isTrackReorderDrag(dt: DataTransfer): boolean {
     types.includes(TRACK_REORDER_TEXT_MIME) ||
     types.includes("Text")
   );
+}
+
+/** Where a drag over a header stands: the half of it the pointer is in. */
+export function dropEdge(event: DragEvent<HTMLElement>): "before" | "after" {
+  const rect = event.currentTarget.getBoundingClientRect();
+  return event.clientY > rect.top + rect.height / 2 ? "after" : "before";
 }
 
 /**
