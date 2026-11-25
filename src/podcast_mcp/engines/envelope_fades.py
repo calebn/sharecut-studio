@@ -26,6 +26,7 @@ from podcast_mcp.engines.ducking import (
 FADE_PREFIX = "mix:fade:"
 SLOTS = ("in0", "in1", "out0", "out1")
 _ID_HASH_CHARS = 12
+_FLAT_EPS = 1e-9
 _DUCK_PREFIXES = (GENERATED_PREFIX, BASE_PREFIX, USER_PREFIX)
 _MANAGED_PREFIXES = (FADE_PREFIX, *_DUCK_PREFIXES)
 
@@ -102,10 +103,8 @@ def _legacy_fade_indices(points: list[EnvPoint], fade_in: float, fade_out: float
                 return set()
         else:
             base.append((index, point.time, lowered[1]))
-            if not _is_uuid(lowered[0]):
+            if not _is_uuid(lowered[0]) or _retyped(point):
                 return set()
-    if len(base) != 4:
-        return set()
     ends = [t for _, t, v in base if v == 0.0 and t > 0.0]
     if len(ends) != 1:
         return set()
@@ -114,6 +113,11 @@ def _legacy_fade_indices(points: list[EnvPoint], fade_in: float, fade_out: float
     if fade_in < 0.0 or sorted((t, v) for _, t, v in base) != expected:
         return set()
     return {index for index, _, _ in base}
+
+
+def _retyped(point: EnvPoint) -> bool:
+    lowered = parse_lowered(point.id)
+    return lowered is not None and abs(point.value - lowered[2]) > _FLAT_EPS
 
 
 def _near_dip(points: list[EnvPoint], start: float, end: float) -> bool:
@@ -154,7 +158,7 @@ def merge_fades(
             ):
                 removed_lowered += 1
 
-    owner: dict[str, int] = {}  # slot -> index of the point that holds it
+    owner: dict[str, int] = {}
     for index, point in enumerate(current):
         view = _fade_view(point)
         if view is not None and view[0] not in owner:
@@ -171,7 +175,7 @@ def merge_fades(
             kept.append(point)
             continue
         slot, original_id, original_value = view
-        if original_id != fade_point_id(slot, point.time, original_value):
+        if original_id != fade_point_id(slot, point.time, original_value) or _retyped(point):
             user_owned.add(slot)
             kept.append(point)
         elif original_id == fade_point_id(slot, *wanted[slot]):
@@ -189,11 +193,20 @@ def merge_fades(
             if _near_dip(current, lo, hi):
                 replaced_under_duck += 1
 
+    kept_ids = {p.id for p in kept}
     fresh = [
         EnvPoint(fade_point_id(slot, time, value), time, value)
         for slot, time, value in targets
         if slot not in satisfied and slot not in user_owned
     ]
+    if not legacy:
+        for slot, time, _ in targets:
+            if slot in owner:
+                continue
+            lo, hi = (0.0, time) if slot.startswith("in") else (time, math.inf)
+            if _near_dip(current, lo, hi):
+                replaced_under_duck += 1
+    fresh = [p for p in fresh if p.id not in kept_ids]
 
     def order(point: EnvPoint) -> tuple[float, int, int]:
         view = _fade_view(point)

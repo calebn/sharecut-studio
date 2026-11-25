@@ -509,3 +509,18 @@ def test_a_project_without_segment_lanes_mixes_exactly_as_before(
     assert mix_gains(proj) == {"host": 0.0}
     assert sorted(json.loads((proj.artifacts_dir() / "track_outputs.json").read_text())) == ["host"]
     assert read_premix_hash(proj) == mix_render_hash({"host": 0.0}, -1.0, defaults=defaults)
+
+
+def test_the_mix_leaves_a_segment_lanes_own_envelope_untouched(
+    episode_path: str, tmp_path: Path
+) -> None:
+    from podcast_mcp.models import AutomationEnvelope, AutomationPoint
+
+    proj = _lane_project(episode_path, tmp_path)
+    lane = _lane_id(proj)
+    own = AutomationEnvelope(
+        track_id=lane, points=[AutomationPoint(id="keep", time=1.0, value=0.5)]
+    )
+    proj.automation_envelopes = [own]
+    _mix(proj)
+    assert proj.automation_envelopes == [own]
