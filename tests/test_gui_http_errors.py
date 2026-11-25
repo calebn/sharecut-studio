@@ -11,12 +11,20 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from filelock import Timeout
 
+from podcast_mcp.gui.routes.deps import guard_http_error
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.media.transcript_precorrect import TranscriptContextBusyError
+from podcast_mcp.util.coded_error import (
+    GENERIC_GUEST_MESSAGE,
+    AccessDeniedError,
+    SignInRequiredError,
+    UnknownShareError,
+    guest_message_for_code,
+)
 from podcast_mcp.util.project_state import (
     LOCK_BUSY_MESSAGE,
     PROJECT_BUSY_MESSAGE,
@@ -423,3 +431,36 @@ def test_oversized_guest_upload_carries_an_error_code(
     )
     assert res.status_code == 413
     assert res.headers[CODE] == "payload_too_large"
+
+
+HOST_PATH_MESSAGE = "No share at /Users/host/secret-episode/shares.json"
+
+
+@pytest.mark.parametrize(
+    ("exc", "status"),
+    [
+        (AccessDeniedError(HOST_PATH_MESSAGE, code="authz_denied"), 403),
+        (UnknownShareError(HOST_PATH_MESSAGE, code="share_not_found"), 404),
+        (SignInRequiredError(HOST_PATH_MESSAGE), 401),
+    ],
+)
+def test_guard_refusal_naming_a_host_path_gets_the_code_copy(exc, status, caplog):
+    with caplog.at_level(logging.WARNING):
+        error = guard_http_error(exc)
+    detail = error.detail["message"] if status == 401 else error.detail
+    assert error.status_code == status
+    assert detail == guest_message_for_code(exc.code)
+    assert detail != GENERIC_GUEST_MESSAGE
+    assert "/Users" not in detail
+    assert "secret-episode" not in detail
+    assert "secret-episode" in caplog.text
+
+
+def test_guard_refusal_without_a_path_goes_out_as_written():
+    error = guard_http_error(AccessDeniedError("Only the host may do this.", code="authz_denied"))
+    assert error.detail == "Only the host may do this."
+
+
+def test_guard_refusal_with_an_unknown_code_and_a_path_gets_the_generic_copy():
+    error = guard_http_error(AccessDeniedError(HOST_PATH_MESSAGE, code="not_a_known_code"))
+    assert error.detail == GENERIC_GUEST_MESSAGE

@@ -598,8 +598,13 @@ def test_every_new_handler_has_resolvable_argument_hints(tool) -> None:
 
 
 NEW_GUEST_COPY_CODES = (
+    "authentication_required",
+    "authz_denied",
     "job_not_found",
     "pipeline_config_invalid",
+    "share_acl_denied",
+    "share_not_found",
+    "share_token_mismatch",
 )
 PLANTED_HOST_TEXT = "/Users/host/secret-episode/raw.wav PLANTED-1686"
 GUEST_RUN_URL = "/api/review/{token}/daw/pipeline/run"
