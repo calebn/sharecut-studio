@@ -18,7 +18,7 @@ The current point-array domain also supports coincident times as explicit steps.
 
 ## Ducking
 
-`ApplyDucking` (`apply_ducking_tool`, `podcast edit duck`) writes the dip of a bed under dialogue as ordinary volume points, so every point stays editable and undoable. `engines/ducking.py` holds the pure engine; `services/pipeline/ducking.py` picks the tracks and plans.
+`ApplyDucking` (`apply_ducking_tool`, `podcast edit duck`) writes the dip of a bed under dialogue as ordinary volume points, so every point stays editable and undoable. `engines/ducking.py` holds the pure engine; `services/document_sync/ducking.py` picks the tracks and plans.
 
 **Where speech comes from.** Transcript words of every unmuted dialogue track (or the `dialogue_track_ids` you name), mapped through the clip map onto the timeline clock, so cuts, ripples, moves and inserted gaps are already counted. Words marked ignored, suppressed or suspect, and spans a clip mutes in place, do not duck; a lowered span still plays, so it still ducks. Speech with no transcript does not duck, and a project with no dialogue words refuses with `ducking_no_dialogue_activity`. There is no threshold: transcript activity is on or off.
 
