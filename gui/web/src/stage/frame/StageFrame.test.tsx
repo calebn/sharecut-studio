@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
+import { blockStorage } from "../../test/blockStorage";
 import { minimalProject, sessionRoster } from "../../test/fixtures";
 import { stubMatchMedia } from "../../test/matchMedia";
 import { stubViewportShell } from "../../test/viewportShell";
@@ -430,6 +431,32 @@ describe("StageFrame roles", () => {
     useDawStore.setState({ shareCapabilities: null });
   });
 
+  it("still raises the Editor's reminder after the first sentence is dismissed in a browser that cannot store it", async () => {
+    // Nothing is written, so only this visit's own memory keeps the first
+    // sentence down and lets the reminder take its place.
+    blockStorage();
+    try {
+      useDawStore.setState({
+        projectPath: "share:alpha",
+        guestMode: "edit",
+        shareCapabilities: ["view", "play", "comment", "edit"],
+        stage: "edit",
+      });
+      mount();
+      act(() => raiseEditStakes("alpha"));
+      expect(screen.getByRole("note")).toHaveTextContent(
+        "Edit and comment. The host publishes.",
+      );
+      await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+      expect(screen.getByRole("note")).toHaveTextContent(
+        "You changed the host's episode, and everyone sees it. Undo takes back only your own step.",
+      );
+    } finally {
+      vi.restoreAllMocks();
+      useDawStore.setState({ shareCapabilities: null });
+    }
+  });
+
   it("explains the Editor's role in its dialog once the first-visit sentence is gone and no edit was made", async () => {
     localStorage.setItem("sharecut.roleHintSeen.editor", "1");
     useDawStore.setState({
@@ -501,6 +528,21 @@ describe("StageFrame roles", () => {
       "Edit and comment. The host publishes.",
     );
     localStorage.removeItem("sharecut.roleHintSeen.editor");
+  });
+
+  it("names a guest's role in words on a desktop, and by its icon alone on a phone", () => {
+    localStorage.setItem("sharecut.roleHintSeen.commenter", "1");
+    useDawStore.setState({ guestMode: "comment", stage: "review" });
+    const desktop = mount();
+    expect(
+      screen.getByRole("img", { name: "Commenter: can comment" }),
+    ).toHaveTextContent("Commenter");
+    desktop.unmount();
+    stubMatchMedia(true);
+    mount();
+    expect(
+      screen.getByRole("img", { name: "Commenter: can comment" }),
+    ).not.toHaveTextContent("Commenter");
   });
 
   it("shows a host no role hint", () => {
