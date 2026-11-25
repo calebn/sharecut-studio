@@ -180,6 +180,8 @@ jobs:
           python-version: "3.12"
       - name: Install pinned FFmpeg
         uses: ./.github/actions/setup-ffmpeg
+        with:
+          owner-cdn-base: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
       - *install-python-dev-deps
       - *provision-windows-storage
       # Two separate steps: pwsh only fails the job on the last command's exit code.
@@ -207,6 +209,7 @@ jobs:
           python-version: "3.12"
       - uses: ./.github/actions/setup-ffmpeg
         with:
+          owner-cdn-base: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
           output: ${{ runner.temp }}/sharecut-runtime/ffmpeg
       - name: Repeat payload verification through the sidecar builder
         if: runner.os == 'Windows'

@@ -39,6 +39,8 @@ jobs:
           python-version: "3.12"
       - name: Install pinned FFmpeg
         uses: ./.github/actions/setup-ffmpeg
+        with:
+          owner-cdn-base: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
       - name: Install focused test dependencies
         uses: ./.github/actions/install-locked-python
         with:

@@ -331,6 +331,7 @@ jobs:
       - name: Install pinned prebuilt FFmpeg resource
         uses: ./.github/actions/setup-ffmpeg
         with:
+          owner-cdn-base: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
           output: gui/desktop/binaries/sharecut-runtime/ffmpeg
 
       - name: Download private extension wheel
@@ -497,6 +498,7 @@ jobs:
       - name: Install pinned prebuilt FFmpeg resource
         uses: ./.github/actions/setup-ffmpeg
         with:
+          owner-cdn-base: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
           output: gui/desktop/binaries/sharecut-runtime/ffmpeg
 
       - name: Configure distribution profile

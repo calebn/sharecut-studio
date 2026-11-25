@@ -167,6 +167,8 @@ jobs:
 
       - name: Install FFmpeg
         uses: ./.github/actions/setup-ffmpeg
+        with:
+          owner-cdn-base: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
 
       - name: Install package and dev deps
         uses: ./.github/actions/install-locked-python
@@ -426,6 +428,8 @@ jobs:
 
       - name: Install FFmpeg
         uses: ./.github/actions/setup-ffmpeg
+        with:
+          owner-cdn-base: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
 
       - name: Install package and dev deps
         uses: ./.github/actions/install-locked-python
@@ -552,6 +556,8 @@ jobs:
 
       - name: Install FFmpeg
         uses: ./.github/actions/setup-ffmpeg
+        with:
+          owner-cdn-base: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
 
       - uses: actions/setup-node@v7
         with:
