@@ -88,7 +88,7 @@ Errors: `segment_bundle_invalid` (bad zip, names, sizes or manifest), `segment_b
 
 **Mixing.** A segment lane (a track with no recording whose clips came from a segment) is rendered to its own stem and mixed into the premix, bounces, previews, exports and share range audio, with the clip offsets, fades, the track's volume fader and mute, and any envelope on it. An `own_lane` segment that runs past the dialogue makes the premix longer. Notes:
 
-- The mix fade settings (`mix.fade_in_sec`, `mix.fade_out_sec`) apply only to music, intro and outro tracks that have a recording. A segment lane has only its clips' own fades, so a segment at the very start or end of the episode starts and stops at its clip edges without the 2 s and 3 s fades.
+- The mix fade settings (`mix.fade_in_sec`, `mix.fade_out_sec`) apply only to music, intro and outro tracks that have a recording. A segment lane has only its clips' own fades, so a segment at the very start or end of the episode starts and stops at its clip edges without the 2 s and 3 s fades. The mix step leaves a lane's own envelope, ducking included, untouched.
 - The headroom trim counts the lane: a loud segment lowers the trim for the whole mix.
 - A ripple dialogue segment is mixed at its own level; it is not loudness balanced with the recorded dialogue tracks.
 - After an insert, export and guest range playback need a refreshed mix (export refuses a stale mix with `stale_mix`, a guest range with `mix_out_of_date`). `podcast render-preview` or a pipeline run refreshes it.

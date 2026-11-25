@@ -241,8 +241,8 @@ def apply_ducking_tool(
     Preview with ``dry_run=true`` (no write, no history entry; the reply carries each track's
     envelope and speech regions), then pass the reply's
     ``plan_token`` as ``expected_plan_token`` to apply exactly that plan; a changed project
-    is a conflict. Speech that has no transcript does not duck. ``mix_with_music`` still
-    rebuilds the fade envelope, so run it before ducking, not after.
+    is a conflict. Speech that has no transcript does not duck. ``mix_with_music`` keeps the
+    dip; after a cut it re-places the fade points, so duck again then.
     """
     from podcast_mcp.services.document_sync import submit_host_command_result
 

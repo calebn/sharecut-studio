@@ -885,10 +885,10 @@ class TestSurfaces:
         assert raised.value.code == "ducking_dialogue_target"
 
 
-def test_mix_with_music_still_replaces_the_envelope(
+def test_mix_with_music_keeps_ducking_and_user_points(
     minimal_project, sample_wav, tmp_workspace
 ) -> None:
-    """Slice 8 owns merging ducking into mix_with_music; until then a pipeline run erases it."""
+    """A pipeline run re-places the whole-stem fade and keeps the dip, your points and the pan."""
     from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
     from podcast_mcp.pipeline import steps
@@ -903,12 +903,40 @@ def test_mix_with_music_still_replaces_the_envelope(
     steps.mix_with_music(project, defaults)
     envelope = project.volume_envelope_for("bed")
     assert envelope is not None
-    envelope.points.append(AutomationPoint(id=generated_point_id(0.5, 0.25), time=0.5, value=0.25))
+    fade_ids = [p.id for p in envelope.points]
+    assert all(i.startswith("mix:fade:") for i in fade_ids) and len(fade_ids) == 4
+    dip = AutomationPoint(id=generated_point_id(0.5, 0.25), time=0.5, value=0.25)
+    mine = AutomationPoint(id="mine", time=1.0, value=0.6)
+    envelope.points.extend([dip, mine])
+    pan = AutomationEnvelope(
+        track_id="bed", parameter="pan", points=[AutomationPoint(id="p", time=0.0, value=-0.5)]
+    )
+    project.automation_envelopes.append(pan)
+
     steps.mix_with_music(project, defaults)
-    rebuilt = project.volume_envelope_for("bed")
-    assert rebuilt is not None
-    assert len(rebuilt.points) == 4
-    assert not any(p.id.startswith("duck:") for p in rebuilt.points)
+    kept = project.volume_envelope_for("bed")
+    assert kept is not None
+    assert [p.id for p in kept.points if p.id.startswith("mix:fade:")] == fade_ids
+    assert dip in kept.points and mine in kept.points
+    assert [p.time for p in kept.points] == sorted(p.time for p in kept.points)
+    assert pan in project.automation_envelopes
+    again = [(p.id, p.time, p.value) for p in kept.points]
+
+    steps.mix_with_music(project, defaults)
+    final = project.volume_envelope_for("bed")
+    assert final is not None and [(p.id, p.time, p.value) for p in final.points] == again
+
+
+def test_five_plans_after_a_mix_keep_exactly_four_fade_points() -> None:
+    from podcast_mcp.engines.envelope_fades import FADE_PREFIX, merge_fades
+
+    dep = DuckingParams(depth_db=-18.0)
+    points = merge_fades([], 12.0, 2.0, 3.0).points
+    for _ in range(5):
+        plan = plan_envelope([(0.5, 1.5), (5.0, 6.0)], points, dep, 12.0, 1000)
+        points = plan.points
+        assert sum(1 for p in points if FADE_PREFIX in p.id) == 4
+        assert merge_fades(points, 12.0, 2.0, 3.0).points == points
 
 
 def test_set_envelopes_refuses_a_missing_track_before_writing_any(envelope_project) -> None:
