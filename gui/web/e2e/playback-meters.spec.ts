@@ -307,6 +307,28 @@ test("reduced motion freezes meter bars while real playback clipping remains det
         const header = trackHeaderOf(trackHeaderButton(page, "reference"));
         const fill = meter(page, "reference").locator(".ui-meter-fill");
         const before = await fill.getAttribute("style");
+        const observedRing = await header.evaluateHandle((element) => {
+          let peak = 0;
+          const record = () => {
+            peak = Math.max(
+              peak,
+              Number(element.style.getPropertyValue("--sys-track-level")),
+            );
+          };
+          record();
+          const observer = new MutationObserver(record);
+          observer.observe(element, {
+            attributes: true,
+            attributeFilter: ["style"],
+          });
+          return {
+            stop() {
+              record();
+              observer.disconnect();
+              return peak;
+            },
+          };
+        });
         await play(page);
         await expect(clearClip(page)).toBeEnabled();
         const position = page.getByRole("slider", {
@@ -318,7 +340,8 @@ test("reduced motion freezes meter bars while real playback clipping remains det
           )
           .toBeGreaterThan(0.5);
         await expect(fill).toHaveAttribute("style", before ?? "");
-        expect(await ringLevel(header)).toBe(0);
+        expect(await observedRing.evaluate((ring) => ring.stop())).toBe(0);
+        await observedRing.dispose();
         await expect(meter(page, "reference")).toHaveAttribute(
           "aria-valuenow",
           "-60",
