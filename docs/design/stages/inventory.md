@@ -24,11 +24,11 @@ All paths are relative to `gui/web/src/` unless they start with `/` or a repo fo
 | Panels and inspector variants (PNL- 6, INS- 14) | 20 |
 | Menus (MENU-) | 4 |
 | Components, overlays, banners, toasts, status items, empty states (CMP- 48, OVL- 11, BAN- 6, TOAST/STAT/EMPTY/CHIP 4) | 69 |
-| Interactions (INT-) | 46 |
-| Total catalogued items | 200 |
-| Story files / exported stories | 89 files / 446 stories |
+| Interactions (INT-) | 47 |
+| Total catalogued items | 201 |
+| Story files / exported stories | 89 files / 447 stories |
 
-Of the 154 non-interaction items: 75 have a story (yes), 29 partial, 50 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
+Of the 154 non-interaction items: 75 have a story (yes), 29 partial, 50 none (counted from the Story column of the tables). Of the 47 interactions: 18 have a frozen-state story, 16 partial, 13 none. The per-surface table is section 14.
 
 ---
 
@@ -312,6 +312,7 @@ Shortcuts are from `keymap/registry.ts` (Mod = ⌘ on macOS, Ctrl elsewhere); to
 | INT-ZOOM | Zoom in/out, fit session, fit track height, track height, waveform amplitude | Zoom buttons; View menu; Ctrl/Meta wheel; pinch | CMP-TOOLRAIL, MENU-VIEW | =, -, \\, Alt+=, Alt+-, Shift+↑/↓ | partial |
 | INT-PINCH | Pinch to zoom keeps time under fingers | Two-touch pinch on timeline | CMP-TIMELINE | pinch | NONE |
 | INT-PAN | Pan timeline | Wheel, drag scrollbar; phone: swipe | CMP-TIMELINE | none | NONE |
+| INT-REVEAL-SELECTION | Bring a scrolled-away selection back (the Action bar stays pinned at the edge with Show edit for a pending edit, Show selection for other kinds) | Action bar button (floating: only while pinned; phone dock: always); palette | CMP-TIMELINE, Action bar | none (no key) | partial |
 | INT-LAYERS | Toggle overlay layers | View > Layers; phone More > Layers | CMP-LEGEND | none | yes |
 | INT-LAYOUT | Switch layout; resize bottom panel | View > Layout; splitter drag/keys; Restore chip | MENU-VIEW, CMP-SPLITTER, CMP-LAYOUT-CHIP | Mod+Shift+1..4 | partial (splitter yes) |
 | INT-FOLLOW | Follow another person; Esc stops | Avatar > Follow | MENU-PEOPLE, BAN-FOLLOW | Esc | yes |
