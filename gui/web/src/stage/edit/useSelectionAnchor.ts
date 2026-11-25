@@ -9,8 +9,12 @@ import {
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../state/dawStore";
 import type { Selection } from "../../types/project";
+import { type AnchorRect, visualViewportBox } from "../../ui/anchoredPlacement";
+import { type Pin, pinOf } from "../../ui/anchorPin";
 import type { AnchorExclusion } from "../../ui/useAnchoredPanel";
 import { timelineChromeBottom } from "../../utils/timelineChrome";
+import { scrollerOf } from "../../utils/timelineReveal";
+import { timelineHeaderOffsetWidth } from "../../utils/timelineViewport";
 import { timelineCorner } from "./timelineCorner";
 
 const esc = (value: string) => CSS.escape(value);
@@ -24,6 +28,41 @@ function laneOf(root: ParentNode, trackId: string | undefined) {
       : null) ?? root.querySelector<HTMLElement>(".lane-row[data-track-id]")
   );
 }
+
+/**
+ * What the anchor must stay inside: the scroller it lives in (the timeline's, less
+ * its sticky track headers and ruler; the Script pane's for a word), clipped to
+ * the visual viewport. An anchor in no scroller answers to the viewport alone.
+ */
+function pinBox(node: HTMLElement): AnchorRect {
+  const vv = visualViewportBox();
+  const box = {
+    left: vv.left,
+    top: vv.top,
+    right: vv.left + vv.width,
+    bottom: vv.top + vv.height,
+  };
+  const scroll = scrollerOf(node);
+  if (!scroll) return box;
+  const rect = scroll.getBoundingClientRect();
+  const timeline = scroll.matches(".timeline-scroll");
+  return {
+    left: Math.max(
+      box.left,
+      rect.left + (timeline ? timelineHeaderOffsetWidth(scroll) : 0),
+    ),
+    top: Math.max(
+      box.top,
+      rect.top,
+      timeline ? timelineChromeBottom(scroll) : 0,
+    ),
+    right: Math.min(box.right, rect.right),
+    bottom: Math.min(box.bottom, rect.bottom),
+  };
+}
+
+const pinOfNode = (node: HTMLElement): Pin =>
+  pinOf(node.getBoundingClientRect(), pinBox(node));
 
 function findSelectionAnchor(
   root: ParentNode,
@@ -57,6 +96,7 @@ function findSelectionAnchor(
       return laneOf(root, selection.target.track_ids[0]);
     }
     case "clip": {
+      // A multi-selection answers to the first of its clips that is drawn.
       const ids = selection.ids ?? [selection.id];
       for (const id of ids) {
         const block = root.querySelector<HTMLElement>(
@@ -94,8 +134,17 @@ type SelectionAnchor = {
   readonly exclusion: AnchorExclusion;
   readonly moves: readonly unknown[];
   readonly clearTop: () => number;
+  /** False until the anchor is found and while its node is detached. */
+  readonly present: boolean;
+  /** True while the anchor has scrolled wholly out of its box; `edge` is the side it left by. */
+  readonly pin: { readonly pinned: boolean; readonly edge: Pin["edge"] };
+  /** Where to place a bar against: fresh on every call, never off screen. */
+  readonly rect: () => AnchorRect | null;
+  /** The anchor is found and inside its box; the Inspector card hides otherwise. */
   readonly visible: boolean;
 };
+
+const ATTACHED = { pinned: false, edge: null } as const;
 
 export function useSelectionAnchor(
   root: HTMLElement | null,
@@ -107,7 +156,7 @@ export function useSelectionAnchor(
   const ref = useRef<HTMLElement | null>(null);
   const excludeRef = useRef<HTMLElement | null>(null);
   const withinRef = useRef<HTMLElement | null>(null);
-  const [visible, setVisible] = useState(false);
+  const [pin, setPin] = useState<SelectionAnchor["pin"]>(ATTACHED);
   const [node, setNode] = useState<HTMLElement | null>(null);
   const [excluded, setExcluded] = useState<HTMLElement | null>(null);
   const { project, zoomPxPerSec } = useDawStore(
@@ -148,30 +197,50 @@ export function useSelectionAnchor(
     };
   }, [root, within, selection, enabled, project, zoomPxPerSec]);
 
-  useLayoutEffect(() => {
-    if (!node || !node.isConnected) {
-      setVisible(false);
-      return;
-    }
-    if (typeof IntersectionObserver === "undefined") {
-      setVisible(true);
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const last = entries.at(-1);
-        if (last) setVisible(last.isIntersecting);
-      },
-      { threshold: 0 },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [node]);
-
   const moves = useMemo(
     () => [zoomPxPerSec, node, selection, excluded, root],
     [zoomPxPerSec, node, selection, excluded, root],
   );
+
+  // The pin is the bounds math; the observer and the scroll listeners only say
+  // when to redo it, since the observer's root (the window) misses the sticky
+  // ruler and track headers.
+  useLayoutEffect(() => {
+    if (!node || !node.isConnected) {
+      setPin(ATTACHED);
+      return;
+    }
+    const measure = () => {
+      const next = pinOfNode(node);
+      setPin((was) =>
+        was.pinned === next.pinned && was.edge === next.edge
+          ? was
+          : { pinned: next.pinned, edge: next.edge },
+      );
+    };
+    measure();
+    let frame = 0;
+    const schedule = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        measure();
+      });
+    };
+    window.addEventListener("scroll", schedule, true);
+    window.addEventListener("resize", schedule);
+    const observer =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver(measure, { threshold: 0 });
+    observer?.observe(node);
+    return () => {
+      window.removeEventListener("scroll", schedule, true);
+      window.removeEventListener("resize", schedule);
+      observer?.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [node, moves]);
 
   const exclusion = useMemo<AnchorExclusion>(
     () => ({
@@ -186,11 +255,20 @@ export function useSelectionAnchor(
     return scroll ? timelineChromeBottom(scroll) : 0;
   }, []);
 
+  const rect = useCallback(() => {
+    const el = ref.current;
+    return el?.isConnected ? pinOfNode(el).rect : null;
+  }, []);
+
+  const present = enabled && node !== null && node.isConnected;
   return {
     ref,
     clearTop,
     exclusion,
     moves,
-    visible: enabled && node !== null && visible,
+    rect,
+    present,
+    pin,
+    visible: present && !pin.pinned,
   };
 }

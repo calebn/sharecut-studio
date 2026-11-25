@@ -1,4 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   EXPORT_CANCELLING_REASON,
@@ -19,6 +26,7 @@ import type { Selection } from "../../types/project";
 import { CloseButton } from "../../ui/CloseButton";
 import { CommandButton } from "../../ui/CommandButton";
 import { dialogueTrackIds } from "../../utils/bladeTracks";
+import { selectionAnchor } from "../../utils/timelineReveal";
 import { useBounceRun } from "../hosts/bounceRunnerContext";
 import { scopeOf } from "./barScope";
 import { ExportRangeOptions } from "./ExportRangeOptions";
@@ -104,6 +112,52 @@ function ClearButton({
   );
 }
 
+/**
+ * Brings the selection's anchor back into the timeline. The floating bar shows
+ * it only while pinned; the dock, which has no pin state, always does.
+ */
+function RevealButton({
+  floating,
+  label,
+}: {
+  floating: boolean;
+  label: "Show edit" | "Show selection";
+}) {
+  // The bar drops this button the moment the anchor is back in view, with
+  // focus on it; focus goes to the next control, never to the page.
+  useLayoutEffect(
+    () => () => {
+      const active = document.activeElement;
+      if (!active?.hasAttribute("data-reveal-selection")) return;
+      active
+        .closest(".sys-actions")
+        ?.querySelector<HTMLElement>(
+          '[aria-label="Clear selection"], [data-inspector-close]',
+        )
+        ?.focus({ preventScroll: true });
+    },
+    [],
+  );
+  return (
+    <CommandButton
+      commandId="view.revealSelection"
+      bare
+      className={
+        floating ? "sys-icon-btn sys-actions-reveal" : "sys-actions-dock-btn"
+      }
+      aria-label={label}
+      data-reveal-selection=""
+    >
+      <SystemIcon name="locate" size={floating ? 16 : 20} />
+      {floating ? (
+        <span>{label}</span>
+      ) : (
+        <span className="sys-actions-dock-label">{label}</span>
+      )}
+    </CommandButton>
+  );
+}
+
 function EditActionBarImpl({
   form,
   root,
@@ -182,11 +236,30 @@ function EditActionBarImpl({
       ),
     [model],
   );
+  // The phone dock has no root of its own: it finds its anchor in the page.
   const anchor = useSelectionAnchor(
-    root,
+    root ?? (floating ? null : document.body),
     selection,
-    floating && facts !== null && facts.kind !== "playhead",
+    facts !== null && facts.kind !== "playhead",
   );
+  useEffect(() => {
+    selectionAnchor.set(anchor.ref);
+    return () => selectionAnchor.release(anchor.ref);
+  }, [anchor.ref]);
+  const pinned = anchor.pin.pinned;
+  const revealLabel =
+    selection?.kind === "pending" ? "Show edit" : "Show selection";
+  const wasPinned = useRef<boolean | null>(null);
+  const announceLabel = useRef(revealLabel);
+  announceLabel.current = revealLabel;
+  useEffect(() => {
+    const was = wasPinned.current;
+    wasPinned.current = pinned;
+    if (floating && was === false && pinned)
+      useDawStore
+        .getState()
+        .announceStatus(`${announceLabel.current} to return to it`);
+  }, [pinned, floating]);
   const narrow = useRef<readonly string[] | null>(null);
   const factsRef = useRef(facts);
   useEffect(() => {
@@ -202,7 +275,7 @@ function EditActionBarImpl({
   );
 
   if (!facts || !model || !project) return null;
-  if (floating && !anchor.visible) return null;
+  if (floating && !anchor.present) return null;
   if (!model.items.length && !model.primary) return null;
 
   const scope = scopeOf(facts, project);
@@ -234,7 +307,7 @@ function EditActionBarImpl({
       kindLeading
     );
 
-  const trailing = inInspector ? (
+  const end = inInspector ? (
     onClose ? (
       <CloseButton
         className="sys-actions-dock-btn"
@@ -250,6 +323,18 @@ function EditActionBarImpl({
       onCleared={onCleared}
     />
   ) : undefined;
+  // On the dock it rides in Clear's or Close's slot, so it never costs a verb its place.
+  const reveal =
+    (floating ? pinned : anchor.present && end !== undefined) && selection ? (
+      <RevealButton floating={floating} label={revealLabel} />
+    ) : null;
+  const trailing =
+    reveal || end ? (
+      <>
+        {reveal}
+        {end}
+      </>
+    ) : undefined;
 
   return (
     <ActionBar
@@ -261,6 +346,8 @@ function EditActionBarImpl({
               exclusion: anchor.exclusion,
               moves: anchor.moves,
               clearTop: anchor.clearTop,
+              rect: anchor.rect,
+              pinned,
             }
           : { form: "dock" }
       }

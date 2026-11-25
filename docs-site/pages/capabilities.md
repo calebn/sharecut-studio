@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**159** capabilities · **123** ShareCut Studio commands · **66** keyed · **221** MCP tools · **18** skills on rows (+ **19** hub skills).
+**159** capabilities · **124** ShareCut Studio commands · **66** keyed · **221** MCP tools · **18** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -72,6 +72,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Zoom to selection | view | `view.zoomToSelection` | `Z` | — | — | — | — | — | — | none · look |
 | Fit session width | view | `view.fit` | `\` | — | `editCorner` | — | — | — | — | none · look |
 | Back to playhead | view | `view.followPlayhead` | — (pill and palette only) | — | `timeline.followPill` | — | — | — | — | none · look |
+| Show selection | view | `view.revealSelection` | — (Action bar button and palette only) | — | `actionBar.revealSelection` | — | — | — | — | none · none |
 | Go to Record | view | `stage.record` | `Mod+1` | — | `stageBar`, `editPlusMenu` | — | — | — | — | none · look |
 | Go to Prepare | view | `stage.prepare` | `Mod+2` | — | `stageBar` | — | — | — | — | none · look |
 | Go to Edit | view | `stage.edit` | `Mod+3` | — | `stageBar` | — | — | — | — | none · look |

@@ -183,6 +183,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Back to playhead",
     tooltip: "Follow the playhead again during playback",
   },
+  "daw.view.revealSelection": {
+    label: "Show selection",
+    tooltip: "Scroll the timeline back to the selection",
+  },
   "daw.stage.record": {
     label: "Go to Record",
     tooltip: "Go to Record",
@@ -673,6 +677,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   trackMix: "daw.track.clearSolo",
   editCorner: "daw.range.arm",
   "timeline.followPill": "daw.view.followPlayhead",
+  "actionBar.revealSelection": "daw.view.revealSelection",
   stageBar: "daw.stage.deliver",
   editPlusMenu: "daw.edit.addChapter",
   stageHandoff: "daw.stage.handoff",

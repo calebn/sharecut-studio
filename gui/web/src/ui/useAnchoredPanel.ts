@@ -1,6 +1,7 @@
 import { type RefObject, useLayoutEffect } from "react";
 import { useStableCallback } from "../utils/useStableCallback";
 import {
+  type AnchorRect,
   areaRects,
   inlineSizeCaps,
   placeAnchored,
@@ -35,6 +36,12 @@ export type DialogAnchor = {
   /** Which edge of `ref` the panel lines up with; centered when left out. */
   align?: "start" | "center" | "end";
   clearTop?: () => number;
+  /**
+   * Where to place against instead of `ref`'s own rect: the visible part of a
+   * partly scrolled anchor, or the edge point a pinned one sits nearest. Null
+   * falls back to the rect of `ref`.
+   */
+  rect?: () => AnchorRect | null;
 };
 
 /**
@@ -55,6 +62,7 @@ export function useAnchoredPanel(
   const prefer = anchor?.prefer;
   const align = anchor?.align ?? "center";
   const clearTop = anchor?.clearTop;
+  const rectOf = anchor?.rect;
   const active = enabled && anchorRef != null;
 
   const place = useStableCallback(() => {
@@ -71,7 +79,7 @@ export function useAnchoredPanel(
     panel.style.maxHeight = "";
     panel.style.maxWidth = "";
     panel.style.minWidth = "";
-    const anchorRect = anchorEl.getBoundingClientRect();
+    const anchorRect = rectOf?.() ?? anchorEl.getBoundingClientRect();
     const size = { width: panel.offsetWidth, height: panel.offsetHeight };
     const options = {
       margin: 0.5 * rootPx,
