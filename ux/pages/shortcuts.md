@@ -140,7 +140,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Cut selected range | `range.cut` | Edit stage, or a link that suggests edits |  |
 | Mute selected range | `range.mute` | Edit stage, or a link that suggests edits |  |
 | Save as segment | `segment.save` | editStage | Opens the Save as segment card for the selected clips or range. The Action bar's More menu offers it. Host only; the library is outside the project, so it has no Undo |
-| Insert segment | `segment.insert` | editStage | Opens the Insert segment card: pick a library segment and a position (start, end or playhead), read the preview, then insert. The Action bar offers it at the playhead and in More for a clip or range. Host only; inserting moves later audio unless Play over the episode is chosen, and is one Undo step either way |
+| Insert segment | `segment.insert` | editStage | Opens the Insert segment card: pick a library segment, a position (start, end or playhead) and whether the rest moves later, read the preview, then insert. The Action bar offers it at the playhead and in More for a clip or range. Host only; by default inserting moves later audio, and Play over the episode adds it on new tracks without moving anything; either is one Undo step |
 | Fill range with room tone | `range.fillRoomTone` | editStage |  |
 | Move to speaker | `range.moveSpeakerLane` | Project loaded | Args: { toLaneId }. The Action bar's More menu shows Move to {speaker} on one split lane |
 | Comment on range | `range.comment` | Host or a link that can comment |  |

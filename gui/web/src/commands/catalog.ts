@@ -422,7 +422,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "editStage",
     paletteRunnable: false,
     notes:
-      "Opens the Insert segment card: pick a library segment and a position (start, end or playhead), read the preview, then insert. The Action bar offers it at the playhead and in More for a clip or range. Host only; inserting moves later audio and is one Undo step",
+      "Opens the Insert segment card: pick a library segment, a position (start, end or playhead) and whether the rest moves later, read the preview, then insert. The Action bar offers it at the playhead and in More for a clip or range. Host only; by default inserting moves later audio, and Play over the episode adds it on new tracks without moving anything; either is one Undo step",
   },
   "range.fillRoomTone": {
     id: "range.fillRoomTone",
