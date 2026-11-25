@@ -49,7 +49,9 @@ it("keeps the server's refusal code on the command queue path", async () => {
     version: 1,
   }).catch((error: unknown) => error);
   expect(segmentInsertRefusal(caught)).toBe("segment_hash_mismatch");
-  const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
+  const sent = fetcher.mock.calls[0]?.[1]?.body;
+  expect(typeof sent).toBe("string");
+  const body = JSON.parse(sent as string);
   expect(body).toMatchObject({
     type: "InsertSegment",
     payload: { segment_id: "warm-intro-1", at: "end", version: 1 },
