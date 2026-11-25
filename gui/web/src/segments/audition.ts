@@ -4,11 +4,18 @@ import { type SegmentRow, segmentAudioUrl } from "../api";
 export type AuditionState = {
   playingId: string | null;
   failedId: string | null;
+  owner: string | null;
 };
 
-type Playing = { id: string; version: number; clips: number; clip: number };
+type Playing = {
+  id: string;
+  owner: string;
+  version: number;
+  clips: number;
+  clip: number;
+};
 
-const IDLE: AuditionState = { playingId: null, failedId: null };
+const IDLE: AuditionState = { playingId: null, failedId: null, owner: null };
 
 let audio: HTMLAudioElement | null = null;
 let playing: Playing | null = null;
@@ -18,7 +25,8 @@ const listeners = new Set<() => void>();
 function publish(next: AuditionState): void {
   if (
     next.playingId === snapshot.playingId &&
-    next.failedId === snapshot.failedId
+    next.failedId === snapshot.failedId &&
+    next.owner === snapshot.owner
   ) {
     return;
   }
@@ -26,22 +34,27 @@ function publish(next: AuditionState): void {
   for (const listener of listeners) listener();
 }
 
+function onPageHide(): void {
+  stopAudition();
+}
+
 function release(element: HTMLAudioElement): void {
+  window.removeEventListener("pagehide", onPageHide);
   element.pause();
   element.removeAttribute("src");
   element.load();
 }
 
-function fail(id: string): void {
+function fail(id: string, owner: string): void {
   if (audio) release(audio);
   playing = null;
-  publish({ playingId: null, failedId: id });
+  publish({ playingId: null, failedId: id, owner });
 }
 
 function start(element: HTMLAudioElement, target: Playing): void {
   element.src = segmentAudioUrl(target.id, target.clip, target.version);
   Promise.resolve(element.play()).catch(() => {
-    if (playing === target) fail(target.id);
+    if (playing === target) fail(target.id, target.owner);
   });
 }
 
@@ -58,7 +71,7 @@ function onEnded(): void {
 }
 
 function onError(): void {
-  if (playing) fail(playing.id);
+  if (playing) fail(playing.id, playing.owner);
 }
 
 function element(): HTMLAudioElement {
@@ -67,34 +80,39 @@ function element(): HTMLAudioElement {
   created.preload = "none";
   created.addEventListener("ended", onEnded);
   created.addEventListener("error", onError);
-  window.addEventListener("pagehide", stopAudition);
   audio = created;
   return created;
 }
 
-export function stopAudition(): void {
+export function stopAudition(owner?: string): void {
+  if (owner !== undefined) {
+    const current = playing ? playing.owner : snapshot.owner;
+    if (current !== owner) return;
+  }
   playing = null;
   if (audio) release(audio);
   publish(IDLE);
 }
 
-export function toggleAudition(row: SegmentRow): void {
+export function toggleAudition(row: SegmentRow, owner: string): void {
   if (playing?.id === row.id) {
     stopAudition();
     return;
   }
   if (row.clips.length === 0) {
-    fail(row.id);
+    fail(row.id, owner);
     return;
   }
   const target = {
     id: row.id,
+    owner,
     version: row.version,
     clips: row.clips.length,
     clip: 0,
   };
   playing = target;
-  publish({ playingId: row.id, failedId: null });
+  publish({ playingId: row.id, failedId: null, owner });
+  window.addEventListener("pagehide", onPageHide);
   start(element(), target);
 }
 

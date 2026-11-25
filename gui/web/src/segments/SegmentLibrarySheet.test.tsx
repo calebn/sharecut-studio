@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api/segments";
 import { expectNoA11yViolations } from "../test/a11y";
+import { deferred } from "../test/deferred";
 import { stubViewportShell } from "../test/viewportShell";
 import { stopAudition } from "./audition";
 import { LIBRARY } from "./fixtures";
@@ -15,10 +16,12 @@ vi.mock("../api/segments", async (importOriginal) => ({
 }));
 
 const load = vi.mocked(api.loadSegments);
+const removeSegment = vi.mocked(api.removeSegment);
 const pause = vi.fn();
 
 beforeEach(() => {
   load.mockReset().mockResolvedValue(LIBRARY);
+  removeSegment.mockReset().mockResolvedValue(undefined);
   pause.mockClear();
   vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(
     async () => {},
@@ -80,5 +83,30 @@ describe("SegmentLibrarySheet", () => {
     });
     await user.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("does not close on Escape while a removal is in flight", async () => {
+    stubViewportShell("desktop");
+    const pending = deferred();
+    removeSegment.mockReturnValueOnce(pending.promise);
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(<SegmentLibrarySheet open onClose={onClose} />);
+    await user.click(
+      await screen.findByRole("button", {
+        name: "More actions for Acme sponsor read",
+      }),
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Remove from library" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    await user.keyboard("{Escape}");
+    expect(onClose).not.toHaveBeenCalled();
+    load.mockResolvedValue([LIBRARY[0]]);
+    await act(async () => pending.resolve());
+    expect(
+      await screen.findByText("Removed Acme sponsor read from the library."),
+    ).toBeVisible();
   });
 });

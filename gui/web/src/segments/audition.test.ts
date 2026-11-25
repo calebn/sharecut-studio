@@ -78,7 +78,7 @@ afterAll(() => {
 
 describe("audition", () => {
   it("plays the first clip with preload none, building the URL at the click", () => {
-    toggleAudition(row("intro-1", 1, 2));
+    toggleAudition(row("intro-1", 1, 2), "a");
     const element = audioElement();
     expect(element.preload).toBe("none");
     expect(element.src).toContain(
@@ -88,31 +88,31 @@ describe("audition", () => {
   });
 
   it("uses one shared element for every row", () => {
-    toggleAudition(row("a"));
-    toggleAudition(row("b"));
+    toggleAudition(row("a"), "a");
+    toggleAudition(row("b"), "a");
     expect(instances).toHaveLength(1);
     expect(audioElement().src).toContain("/api/segments/b/audio");
   });
 
   it("stops on a second tap of the same row", () => {
     const { result } = renderHook(() => useAudition());
-    act(() => toggleAudition(row("a")));
+    act(() => toggleAudition(row("a"), "a"));
     expect(result.current.playingId).toBe("a");
-    act(() => toggleAudition(row("a")));
+    act(() => toggleAudition(row("a"), "a"));
     expect(result.current.playingId).toBeNull();
     expect(pause).toHaveBeenCalled();
   });
 
   it("switches to another row without two playing at once", () => {
     const { result } = renderHook(() => useAudition());
-    act(() => toggleAudition(row("a")));
-    act(() => toggleAudition(row("b")));
+    act(() => toggleAudition(row("a"), "a"));
+    act(() => toggleAudition(row("b"), "a"));
     expect(result.current.playingId).toBe("b");
   });
 
   it("moves to the next clip on ended, then stops after the last", () => {
     const { result } = renderHook(() => useAudition());
-    act(() => toggleAudition(row("a", 2)));
+    act(() => toggleAudition(row("a", 2), "a"));
     const element = audioElement();
     act(() => {
       element.dispatchEvent(new Event("ended"));
@@ -127,35 +127,66 @@ describe("audition", () => {
 
   it("marks the row failed on an error event", () => {
     const { result } = renderHook(() => useAudition());
-    act(() => toggleAudition(row("a")));
+    act(() => toggleAudition(row("a"), "a"));
     act(() => {
       audioElement().dispatchEvent(new Event("error"));
     });
-    expect(result.current).toEqual({ playingId: null, failedId: "a" });
+    expect(result.current).toEqual({
+      playingId: null,
+      failedId: "a",
+      owner: "a",
+    });
   });
 
   it("marks the row failed when play is refused, and clears it on the next play", async () => {
     play.mockRejectedValueOnce(new DOMException("no", "NotAllowedError"));
     const { result } = renderHook(() => useAudition());
-    await act(async () => toggleAudition(row("a")));
+    await act(async () => toggleAudition(row("a"), "a"));
     expect(result.current.failedId).toBe("a");
-    act(() => toggleAudition(row("b")));
-    expect(result.current).toEqual({ playingId: "b", failedId: null });
+    act(() => toggleAudition(row("b"), "a"));
+    expect(result.current).toEqual({
+      playingId: "b",
+      failedId: null,
+      owner: "a",
+    });
   });
 
   it("fails a segment with no clips instead of playing nothing", () => {
     const { result } = renderHook(() => useAudition());
-    act(() => toggleAudition(row("empty", 0)));
+    act(() => toggleAudition(row("empty", 0), "a"));
     expect(result.current.failedId).toBe("empty");
     expect(play).not.toHaveBeenCalled();
   });
 
   it("stops on pagehide", () => {
     const { result } = renderHook(() => useAudition());
-    act(() => toggleAudition(row("a")));
+    act(() => toggleAudition(row("a"), "a"));
     act(() => {
       window.dispatchEvent(new Event("pagehide"));
     });
     expect(result.current.playingId).toBeNull();
+  });
+
+  it("stops for its owner only when an owner is named", () => {
+    const { result } = renderHook(() => useAudition());
+    act(() => toggleAudition(row("a"), "home"));
+    act(() => stopAudition("sheet"));
+    expect(result.current.playingId).toBe("a");
+    act(() => stopAudition("home"));
+    expect(result.current.playingId).toBeNull();
+  });
+
+  it("holds the pagehide listener only while something plays", () => {
+    const add = vi.spyOn(window, "addEventListener");
+    const remove = vi.spyOn(window, "removeEventListener");
+    act(() => toggleAudition(row("a"), "a"));
+    act(() => toggleAudition(row("b"), "a"));
+    act(() => stopAudition());
+    const added = add.mock.calls.filter(([type]) => type === "pagehide");
+    const removed = remove.mock.calls.filter(([type]) => type === "pagehide");
+    expect(added.length).toBeGreaterThan(0);
+    expect(removed.at(-1)?.[1]).toBe(added[0][1]);
+    add.mockRestore();
+    remove.mockRestore();
   });
 });

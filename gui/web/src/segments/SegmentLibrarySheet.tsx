@@ -1,7 +1,5 @@
-import { useEffect } from "react";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { Sheet } from "../system/Sheet";
-import { stopAudition } from "./audition";
 import { LIBRARY_LABEL, SegmentLibraryBody } from "./SegmentLibraryBody";
 import {
   type SegmentLibraryState,
@@ -16,9 +14,6 @@ type ViewProps = {
 
 export function SegmentLibrarySheetView({ open, onClose, library }: ViewProps) {
   const phone = useViewportClass() === "phone";
-  useEffect(() => {
-    if (!open) stopAudition();
-  }, [open]);
   return (
     <Sheet
       form={phone ? "bottom" : "end"}
@@ -33,11 +28,17 @@ export function SegmentLibrarySheetView({ open, onClose, library }: ViewProps) {
   );
 }
 
-type Props = Pick<ViewProps, "open" | "onClose">;
+type Props = Pick<ViewProps, "open" | "onClose"> & {
+  library?: SegmentLibraryState;
+};
 
-export function SegmentLibrarySheet({ open, onClose }: Props) {
-  const library = useSegmentLibrary(open);
+export function SegmentLibrarySheet({ open, onClose, library }: Props) {
+  const own = useSegmentLibrary(open && !library);
   return (
-    <SegmentLibrarySheetView open={open} onClose={onClose} library={library} />
+    <SegmentLibrarySheetView
+      open={open}
+      onClose={onClose}
+      library={library ?? own}
+    />
   );
 }

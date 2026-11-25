@@ -540,10 +540,13 @@ export function HomeScreen() {
   let phase: "loading" | "error" | "empty" | "ready" = "loading";
   if (recents) phase = recents.length ? "ready" : "empty";
   else if (loadFailed) phase = "error";
-  const showLibrary =
+  const [libraryPinned, setLibraryPinned] = useState(false);
+  const libraryGate =
     phase === "ready" ||
     phase === "error" ||
     (phase === "empty" && (segments.rows?.length ?? 0) > 0);
+  if (libraryGate && !libraryPinned) setLibraryPinned(true);
+  const showLibrary = libraryGate || libraryPinned;
 
   const openOther: Omit<OpenOtherProps, "onChooseFolder"> = {
     mode: pathMode ? "path" : "picker",
@@ -625,6 +628,7 @@ export function HomeScreen() {
         onClose={() => setModelsSheetOpen(false)}
       />
       <SegmentLibrarySheet
+        library={segments}
         open={libraryOpen}
         onClose={() => setSegmentLibraryOpen(false)}
       />
