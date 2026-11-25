@@ -311,6 +311,14 @@ class CutScopeUnavailable:
 CutScopeResolution: TypeAlias = ResolvedCutScope | CutScopeUnavailable
 
 
+@dataclass(frozen=True)
+class SpeakerScopeSnapshot:
+    """Speaker profiles and their config, loaded once for a run of cut-scope checks."""
+
+    profiles: Mapping[str, Any]
+    config: Any
+
+
 def resolve_cut_scope(
     project: EpisodeProject,
     cut_track_id: str,
@@ -320,22 +328,32 @@ def resolve_cut_scope(
     requested_scope: str = "session",
     defaults: EffectiveConfig,
     caches: TrackRmsCacheSet | None = None,
+    speaker: SpeakerScopeSnapshot | None = None,
     _admissible_spans: Sequence[tuple[float, float]] | None = None,
 ) -> CutScopeResolution:
+    """Pick the cut's scope; ``speaker`` reuses profiles a run already loaded."""
     if requested_scope == "track":
         return ResolvedCutScope("intentional_track")
 
     try:
-        if speaker_id.load_all_profiles(project):
-            ctx = transcript_context.load_transcript_context(project.workspace_path())
-            speaker = speaker_id.assess_speaker_cut_role(
+        profiles = (
+            dict(speaker.profiles) if speaker is not None else speaker_id.load_all_profiles(project)
+        )
+        if profiles:
+            config = (
+                speaker.config
+                if speaker is not None and speaker.config is not None
+                else transcript_context.load_transcript_context(project.workspace_path()).speaker_id
+            )
+            role = speaker_id.assess_speaker_cut_role(
                 project,
                 cut_track_id,
                 src_start,
                 src_end,
-                ctx.speaker_id,
+                config,
+                profiles=profiles,
             )
-            if speaker and speaker.get("role") == "bleed":
+            if role and role.get("role") == "bleed":
                 return ResolvedCutScope("speaker_bleed")
     except Exception as exc:
         verdict_cache.mark_unstable()
