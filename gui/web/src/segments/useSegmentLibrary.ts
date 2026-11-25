@@ -29,6 +29,7 @@ export function useSegmentLibrary(enabled = true): SegmentLibraryState {
     if (!enabled) return;
     const controller = new AbortController();
     void round;
+    setLoadError(null);
     loadSegments(controller.signal)
       .then((list) => {
         if (controller.signal.aborted) return;
@@ -43,7 +44,6 @@ export function useSegmentLibrary(enabled = true): SegmentLibraryState {
   }, [enabled, round]);
 
   const reload = useCallback(() => {
-    setLoadError(null);
     setRound((n) => n + 1);
   }, []);
 

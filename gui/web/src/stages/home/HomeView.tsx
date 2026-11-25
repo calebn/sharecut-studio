@@ -79,7 +79,6 @@ export type HomeViewProps = {
   working?: string;
   /** The card being opened while `working` shows. */
   busyId?: string;
-  /** The Segment library section after Recent; a table on a wide Home, a list on a narrow one. Absent: no section. */
   library?: (layout: "table" | "list") => ReactNode;
 };
 

@@ -46,6 +46,18 @@ describe("useSegmentLibrary", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it("clears the failure as soon as a new read starts", async () => {
+    load.mockRejectedValueOnce(new Error("offline"));
+    const { result } = renderHook(() => useSegmentLibrary());
+    await waitFor(() => expect(result.current.error).toBe("offline"));
+    const pending = deferred<typeof LIBRARY>();
+    load.mockReturnValueOnce(pending.promise);
+    act(() => result.current.reload());
+    expect(result.current.error).toBeNull();
+    await act(async () => pending.resolve(LIBRARY));
+    expect(result.current.rows).toEqual(LIBRARY);
+  });
+
   it("ignores a read that finishes after a newer one started", async () => {
     const stale = deferred<typeof LIBRARY>();
     load.mockReturnValueOnce(stale.promise);

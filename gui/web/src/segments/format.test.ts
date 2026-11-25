@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SegmentRow } from "../api/segments";
-import { formatLength, segmentLengthSec, versionTag } from "./format";
+import { formatTimeShort } from "../utils/time";
+import { segmentLengthSec, versionTag } from "./format";
 
 function row(over: Partial<SegmentRow> = {}): SegmentRow {
   return {
@@ -14,23 +15,23 @@ function row(over: Partial<SegmentRow> = {}): SegmentRow {
   };
 }
 
-describe("formatLength", () => {
+describe("formatTimeShort", () => {
   it("writes m:ss under an hour and h:mm:ss from one", () => {
-    expect(formatLength(0)).toBe("0:00");
-    expect(formatLength(7)).toBe("0:07");
-    expect(formatLength(75)).toBe("1:15");
-    expect(formatLength(3600)).toBe("1:00:00");
-    expect(formatLength(3725)).toBe("1:02:05");
+    expect(formatTimeShort(0)).toBe("0:00");
+    expect(formatTimeShort(7)).toBe("0:07");
+    expect(formatTimeShort(75)).toBe("1:15");
+    expect(formatTimeShort(3600)).toBe("1:00:00");
+    expect(formatTimeShort(3725)).toBe("1:02:05");
   });
 
   it("rounds 59.6 seconds up to 1:00, never 0:60", () => {
-    expect(formatLength(59.6)).toBe("1:00");
-    expect(formatLength(59.4)).toBe("0:59");
+    expect(formatTimeShort(59.6)).toBe("1:00");
+    expect(formatTimeShort(59.4)).toBe("0:59");
   });
 
   it("treats a negative or fractional zero as 0:00", () => {
-    expect(formatLength(-3)).toBe("0:00");
-    expect(formatLength(0.2)).toBe("0:00");
+    expect(formatTimeShort(-3)).toBe("0:00");
+    expect(formatTimeShort(0.2)).toBe("0:00");
   });
 });
 
