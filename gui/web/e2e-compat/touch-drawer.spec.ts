@@ -725,18 +725,7 @@ test("a pending edit's Approve and Reject stay reachable on the sheet at enlarge
       // Sideways at 32 px even the full sheet is under 8.75 rem: the Inspector
       // takes the whole screen as a dialog, and the verbs stay in its body.
       const takeover = size === "landscape-636" && rootFont === 32;
-      const host = await verbsHost(page);
-      const card = takeover
-        ? page.locator(".sys-inspector-takeover")
-        : page.locator(host);
-      await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
-      if (takeover) {
-        const dialog = page.locator(".sys-inspector-takeover");
-        await expect(dialog).toBeVisible();
-        await expect(
-          dialog.getByRole("button", { name: "Done" }),
-        ).toBeVisible();
-      } else {
+      if (!takeover) {
         // Half does not fit a phone held sideways, nor 32 px text: full-only.
         const fullOnly = size === "landscape-636" || rootFont === 32;
         await expect(sheet(page)).toHaveAttribute(
@@ -749,6 +738,20 @@ test("a pending edit's Approve and Reject stay reachable on the sheet at enlarge
         await expect(
           sheet(page).getByRole("spinbutton", { name: "Source start" }),
         ).toBeAttached();
+      }
+      // The verbs leave the dock for the sheet body once the sheet is full and
+      // tight, so the host is read only after the detent has settled.
+      const host = await verbsHost(page);
+      const card = takeover
+        ? page.locator(".sys-inspector-takeover")
+        : page.locator(host);
+      await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
+      if (takeover) {
+        const dialog = page.locator(".sys-inspector-takeover");
+        await expect(dialog).toBeVisible();
+        await expect(
+          dialog.getByRole("button", { name: "Done" }),
+        ).toBeVisible();
       }
       await page.waitForTimeout(700);
       await frame(
