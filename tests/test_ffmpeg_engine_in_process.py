@@ -22,6 +22,7 @@ import pytest
 import test_ffmpeg_engine as desktop
 from ffmpeg_in_process_support import FakeBackend, shared_ffmpeg_tests
 from podcast_mcp.engines import ffmpeg as module
+from podcast_mcp.engines.ffmpeg import probe as probe_module
 from podcast_mcp.util import process
 from podcast_mcp.util.host_platform import IOS
 
@@ -130,7 +131,7 @@ def sentinel_media(tmp_path, monkeypatch):
 
     monkeypatch.setattr(Path, "stat", stat)
     monkeypatch.setattr(shutil, "which", lambda *_a, **_k: pytest.fail("which"))
-    module._cached_audio_extent.cache_clear()
+    probe_module._cached_audio_extent.cache_clear()
 
     def install(backend):
         monkeypatch.setattr(process._in_process_backend, "run", backend.run)

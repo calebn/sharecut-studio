@@ -11,6 +11,7 @@ import pytest
 
 from podcast_mcp.engines import ffmpeg as module
 from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
+from podcast_mcp.engines.ffmpeg import probe as probe_module
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import file_revision
 
@@ -211,7 +212,7 @@ def test_packet_deadline_kills_and_reaps_stalled_or_busy_child(packet_probe, mon
         return child
 
     monkeypatch.setattr(module.runtime, "popen", spawn)
-    monkeypatch.setattr(module, "_PACKET_SCAN_TIMEOUT_SEC", 0.2)
+    monkeypatch.setattr(probe_module, "_PACKET_SCAN_TIMEOUT_SEC", 0.2)
     assert engine.probe(path).duration_estimated
     assert len(children) == 1
     assert children[0].returncode is not None
@@ -290,7 +291,7 @@ def test_first_decoded_pts_argv_and_timeout(tmp_path, monkeypatch):
     assert untrusted[0][-3:] == ["-protocol_whitelist", "file,crypto,data", str(path)]
     assert untrusted[0][:-3] == trusted[0][:-1]
     for _cmd, kwargs in calls:
-        assert kwargs["timeout"] == module._PACKET_SCAN_TIMEOUT_SEC == 120.0
+        assert kwargs["timeout"] == probe_module._PACKET_SCAN_TIMEOUT_SEC == 120.0
 
 
 @pytest.mark.parametrize(
@@ -308,10 +309,10 @@ def test_desktop_scan_keys_the_resolved_ffprobe_and_its_revision(tmp_path, monke
     link.symlink_to(real)
     media = tmp_path / "a.ogg"
     media.write_bytes(b"media")
-    module._cached_audio_extent.cache_clear()
+    probe_module._cached_audio_extent.cache_clear()
     reads: list[str] = []
     stamped: list[Path] = []
-    original = module.file_revision
+    original = probe_module.file_revision
 
     def read(ffprobe, path, *, untrusted):
         reads.append(ffprobe)
@@ -321,8 +322,8 @@ def test_desktop_scan_keys_the_resolved_ffprobe_and_its_revision(tmp_path, monke
         stamped.append(path)
         return original(path)
 
-    monkeypatch.setattr(module, "_read_audio_extent", read)
-    monkeypatch.setattr(module, "file_revision", spy)
+    monkeypatch.setattr(probe_module, "_read_audio_extent", read)
+    monkeypatch.setattr(probe_module, "file_revision", spy)
     engine = FFmpegEngine()
     engine.ffprobe = str(link)
     resolved = str(Path(engine.ffprobe).resolve())

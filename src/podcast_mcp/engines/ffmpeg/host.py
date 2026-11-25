@@ -5,6 +5,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    import numpy as np
+
     from podcast_mcp.engines.audio import Audio, MuteEnvelope, RequestedExtent
     from podcast_mcp.engines.ffmpeg import AudioProbe
     from podcast_mcp.engines.mastering import LimiterPlan, LimiterReport
@@ -12,6 +16,7 @@ if TYPE_CHECKING:
 
 class FFmpegSelf(Protocol):
     ffmpeg: str
+    ffprobe: str
     _listed_names_cache: dict[str, set[str]]
 
     def audio_start_sec(self, path: Path) -> float: ...
@@ -99,6 +104,31 @@ class FFmpegSelf(Protocol):
     ) -> bool: ...
 
     def probe(self, path: Path, *, untrusted: bool = False) -> AudioProbe: ...
+
+    def _scan_audio_extent(self, path: Path, *, untrusted: bool) -> tuple[float, float] | None: ...
+
+    def _first_decoded_pts(self, path: Path, *, untrusted: bool) -> float | None: ...
+
+    def _pcm_f32_argv(
+        self,
+        path: Path,
+        sample_rate: int,
+        channels: int,
+        *,
+        start_sec: float | None = None,
+        duration_sec: float | None = None,
+    ) -> list[str]: ...
+
+    @staticmethod
+    def _read_pcm_f32(
+        argv: list[str],
+        channels: int,
+        *,
+        chunk_frames: int,
+        timeout_sec: float,
+        max_frames: int | None = None,
+        expected_duration_sec: float | None = None,
+    ) -> Generator[np.ndarray, None, None]: ...
 
     def _run_with_progress(
         self,
