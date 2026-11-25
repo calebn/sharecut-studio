@@ -14,6 +14,7 @@ import {
   fullOrder,
   groupQueue,
   itemVerb,
+  itemVerbLabel,
   landPlan,
   lowRiskBulk,
   pendingLabelOf,
@@ -267,6 +268,33 @@ describe("decisionMessage", () => {
       "Cut 2 · saves 1.4 s",
     );
     expect(decisionMessage(QUEUE_ITEMS, ["f1", "f2"], "kept")).toBe("Kept 2");
+  });
+});
+
+describe("itemVerbLabel", () => {
+  it.each([
+    [{ kind: "sound", suggested: "leave" }, "Leave"],
+    [
+      {
+        kind: "sound",
+        suggested: "leave",
+        pickup: { kind: "insert", number: 2 },
+      },
+      undefined,
+    ],
+    [{ kind: "sound", suggested: "cut" }, undefined],
+    [{ kind: "suggestion", suggested: "shorten" }, undefined],
+    [{ kind: "sound", suggested: "lower" }, undefined],
+    [{ kind: "sound" }, undefined],
+  ] as const)("labels %o as %s", (over, label) => {
+    expect(itemVerbLabel(item({ ...over } as Partial<ReviewItem>))).toBe(label);
+  });
+
+  it("words a kept leave as left alone and any other kept as kept", () => {
+    const leave = item({ id: "l", kind: "sound", suggested: "leave" });
+    expect(resultText({ ...leave, result: "kept" })).toBe("Left alone");
+    expect(decisionMessage([leave], ["l"], "kept")).toBe("Left alone");
+    expect(resultText(item({ kind: "sound", result: "kept" }))).toBe("Kept");
   });
 });
 

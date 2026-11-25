@@ -941,9 +941,11 @@ describe("ReviewStage host seams", () => {
       initialSelectedId: "s1",
       onDecide,
     });
-    expect(screen.getAllByRole("button", { name: /^Keep/ })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /^Leave/ })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: /^Keep/ })).toBeNull();
     press("Enter");
     expect(onDecide).toHaveBeenLastCalledWith({ ids: ["s1"], result: "kept" });
+    expect(screen.getAllByText("Left alone").length).toBeGreaterThan(0);
     press("Enter");
     expect(onDecide).toHaveBeenCalledTimes(1);
     press("ArrowDown");
