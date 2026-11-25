@@ -114,6 +114,7 @@ if TYPE_CHECKING:
         SegmentInsertPreview,
     )
     from podcast_mcp.services.document.session_hear_results import (
+        SESSION_HEAR_PUBLIC_EXCLUDE,
         SessionHearCurrentSide,
         SessionHearResult,
         SessionHearSuggestedSide,
@@ -166,6 +167,7 @@ __all__ = [
     "PENDING_PREVIEW_PAD_DEFAULT_SEC",
     "PENDING_PREVIEW_PAD_MAX_SEC",
     "PENDING_PREVIEW_PAD_MIN_SEC",
+    "SESSION_HEAR_PUBLIC_EXCLUDE",
     "SHOW_KEY",
     "AlignAcceptService",
     "AnalysisService",
@@ -370,6 +372,7 @@ _MODULE_BY_NAME = {
     "SplitAtTimeResult": "split_results",
     "StripSilenceResult": "strip_silence_results",
     "ProposeSplitResult": "split_results",
+    "SESSION_HEAR_PUBLIC_EXCLUDE": "session_hear_results",
     "SessionHearCurrentSide": "session_hear_results",
     "SessionHearResult": "session_hear_results",
     "SessionHearSuggestedSide": "session_hear_results",
