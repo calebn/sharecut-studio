@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { Button, Menu, MenuItem, SegmentedControl, ToggleButton } from "../ui";
+import type { AnchorRect } from "../ui/anchoredPlacement";
 import { disabledAttrs, useDisabledReasonNote } from "../ui/disabledReason";
 import { type AnchorExclusion, useAnchoredPanel } from "../ui/useAnchoredPanel";
 import {
@@ -35,6 +36,10 @@ export type ActionBarPlacement =
       /** The side tried first; above, flipping below when the bar would cross `clearTop` or the screen edge. */
       readonly prefer?: "above" | "below";
       readonly clearTop?: () => number;
+      /** The rect to place against; see `DialogAnchor.rect`. */
+      readonly rect?: () => AnchorRect | null;
+      /** The anchor has scrolled out of its box and the bar rides at the edge. */
+      readonly pinned?: boolean;
     }
   | { readonly form: "dock" }
   | { readonly form: "inline" };
@@ -534,13 +539,18 @@ function Floating({
       moves: placement.moves,
       prefer: placement.prefer ?? "above",
       clearTop: placement.clearTop,
+      rect: placement.rect,
     },
     true,
   );
   return (
     <div
       ref={barRef}
-      className="sys-actions sys-actions--floating"
+      className={
+        placement.pinned
+          ? "sys-actions sys-actions--floating sys-actions--pinned"
+          : "sys-actions sys-actions--floating"
+      }
       role="group"
       aria-label={ariaLabel}
     >

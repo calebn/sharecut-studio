@@ -1080,6 +1080,30 @@
       }
     },
     {
+      "id": "daw.view.revealSelection",
+      "label": "Show selection",
+      "effect": "view",
+      "service": "ShareCut Studio command bus",
+      "industry_standard_key": false,
+      "gates": [
+        "hasInspectorSelection"
+      ],
+      "surfaces": {
+        "command": "view.revealSelection",
+        "gui": [
+          "actionBar.revealSelection"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Action bar button and palette only"
+      },
+      "tooltip": "Scroll the timeline back to the selection",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.stage.record",
       "label": "Go to Record",
       "effect": "view",

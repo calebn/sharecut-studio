@@ -11,7 +11,8 @@ import { pinnedChromeBottom } from "./keepTargetClear";
 const laneSelector = (trackId: string) =>
   `.lane-row[data-track-id=${JSON.stringify(trackId)}]`;
 
-function revealLane(trackId: string): void {
+/** Scrolls lane `trackId` whole between the pinned chrome and its scroller's end. */
+export function revealLane(trackId: string): void {
   const lane = document.querySelector(laneSelector(trackId));
   const scroller = lane?.closest<HTMLElement>(".timeline-scroll");
   if (!lane || !scroller) return;

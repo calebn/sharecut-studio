@@ -4871,6 +4871,18 @@ button.sys-picker-option:focus-visible {
   color: var(--color-text-on-overlay);
 }
 
+/* The anchor is out of view: the bar rides at the edge it left by. It keeps the
+   floating border and shadow, so forced colors keep the outline. */
+.sys-actions--pinned {
+  border-color: var(--color-border);
+}
+
+.sys-actions-reveal {
+  gap: var(--space-1);
+  padding: 0 var(--space-3);
+  white-space: nowrap;
+}
+
 .sys-actions--floating > .sys-actions-row {
   display: flex;
   align-items: center;

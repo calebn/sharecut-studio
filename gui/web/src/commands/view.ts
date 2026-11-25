@@ -11,6 +11,7 @@ import {
   STAGE_SHEETS,
   type StageSheet,
 } from "../types/stage";
+import { revealAnchor, selectionAnchor } from "../utils/timelineReveal";
 import {
   clampZoomPxPerSec,
   discreteZoomFactor,
@@ -100,6 +101,16 @@ export function registerViewCommands(): void {
     if (playheadScrollRegistry.scrollToPlayhead("timeline")) {
       s.announceStatus("Following the playhead");
     }
+    return { status: "ok" };
+  });
+
+  registerCommand("view.revealSelection", () => {
+    const s = useDawStore.getState();
+    if (!s.project) return NO_PROJECT;
+    if (!s.selection) return { status: "disabled", reason: "Nothing selected" };
+    const anchor = selectionAnchor.get();
+    if (!anchor) return { status: "disabled", reason: "Nothing to show" };
+    revealAnchor(anchor);
     return { status: "ok" };
   });
 

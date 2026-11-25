@@ -20,6 +20,7 @@ import {
 } from "./ActionBar";
 import type { SystemIconName } from "./icons";
 import { ScopeChip } from "./ScopeChip";
+import { SystemIcon } from "./SystemIcon";
 
 const meta: Meta<typeof ActionBar> = {
   title: "System/ActionBar",
@@ -250,6 +251,54 @@ const rulerStory = (gap: string, side: "above" | "below"): Story => ({
 export const AboveSelectionClearOfRuler = rulerStory("6rem", "above");
 
 export const BelowSelectionNearRuler = rulerStory("1rem", "below");
+
+function PinnedScene({ selection, onVerb }: SceneProps) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const scene = barScene(selection, {});
+  return (
+    <div style={stage}>
+      <div ref={anchorRef} style={{ ...selected, marginBlockStart: "100vh" }} />
+      <ActionBar
+        placement={{
+          form: "floating",
+          anchorRef,
+          pinned: true,
+          rect: () =>
+            new DOMRect(window.innerWidth / 2, window.innerHeight, 0, 0),
+        }}
+        leading={leadingFor(scene, true)}
+        items={scene.items}
+        more={scene.more}
+        primary={scene.primary}
+        trailing={
+          <button type="button" className="sys-icon-btn sys-actions-reveal">
+            <SystemIcon name="locate" size={16} />
+            <span>Show edit</span>
+          </button>
+        }
+        onVerb={onVerb}
+      />
+    </div>
+  );
+}
+
+/** The pending edit has scrolled out of the timeline: the bar rides at the edge it left by, with Show edit. */
+export const PinnedAway: Story = {
+  render: (args) => (
+    <PinnedScene selection={EDIT_SELECTIONS.suggestion} onVerb={args.onVerb} />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const bar = canvas.getByRole("group", { name: "Actions" });
+    await expect(bar).toBeVisible();
+    await expect(bar.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      window.innerHeight,
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Show edit" }),
+    ).toBeVisible();
+  },
+};
 
 export const Range: Story = {
   ...floating(EDIT_SELECTIONS.rangeOnAllTracks),

@@ -561,6 +561,16 @@ export const COMMANDS: Record<string, CommandDef> = {
       "Follow the playhead again during playback and bring it into view in the timeline (no default key)",
     breaksFollow: true,
   },
+  "view.revealSelection": {
+    id: "view.revealSelection",
+    category: "view",
+    label: "Show selection",
+    variants: ["Show edit"],
+    keywords: ["scroll", "reveal", "locate", "bring back"],
+    when: "hasInspectorSelection",
+    notes:
+      "Scroll the timeline back to the selection's anchor when the Action bar is pinned away from it; view only, no key",
+  },
   "view.waveformZoomIn": {
     id: "view.waveformZoomIn",
     category: "view",

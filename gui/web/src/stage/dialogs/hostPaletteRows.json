@@ -64,6 +64,7 @@
   ["view.zoomToSelection", null],
   ["view.fit", null],
   ["view.followPlayhead", null],
+  ["view.revealSelection", "Nothing selected"],
   ["view.waveformZoomIn", null],
   ["view.waveformZoomOut", null],
   ["view.fitTracksHeight", null],
