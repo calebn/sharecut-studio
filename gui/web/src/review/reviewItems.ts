@@ -419,7 +419,10 @@ function entryOf(
         snippet: title,
         time,
         value:
-          [risk?.reason, hasCutsSaved(savedSeconds) ? formatSpan(savedSeconds) : null]
+          [
+            risk?.reason,
+            hasCutsSaved(savedSeconds) ? formatSpan(savedSeconds) : null,
+          ]
             .filter(Boolean)
             .join(" · ") || undefined,
       },
