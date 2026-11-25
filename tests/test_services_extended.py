@@ -1580,16 +1580,28 @@ def test_edit_join_label_play(minimal_project, sample_wav) -> None:
     play.assert_called_once()
 
 
+def _full_loudness(**over):
+    return {
+        "path": "/a.wav",
+        "measured_lufs": -16.0,
+        "target_lufs": -16.0,
+        "true_peak_limit_db": -1.5,
+        "lufs_pass": True,
+        "pass": True,
+        **over,
+    }
+
+
 def test_edit_check_loudness(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     premix = ws.project.artifacts_dir() / "premix.wav"
     premix.parent.mkdir(parents=True, exist_ok=True)
     premix.write_bytes(sample_wav.read_bytes())
-    loud = {"integrated_lufs": -16.0}
+    loud = _full_loudness(measured_lufs=-16.0)
     with patch("podcast_mcp.services.document.analysis.check_loudness", return_value=loud) as chk:
         out = AnalysisService(ws).check_loudness()
     chk.assert_called_once()
-    assert out["integrated_lufs"] == pytest.approx(-16.0)
+    assert out.measured_lufs == pytest.approx(-16.0)
 
 
 def test_loudness_reports_artifact_freshness_without_rendering(minimal_project, sample_wav) -> None:
@@ -1601,44 +1613,44 @@ def test_loudness_reports_artifact_freshness_without_rendering(minimal_project, 
     export = project.export_dir() / f"{project.name}.wav"
     export.parent.mkdir(parents=True, exist_ok=True)
     export.write_bytes(sample_wav.read_bytes())
-    measured = {"pass": True, "measured_lufs": -16.0}
+    measured = _full_loudness()
     paths = (premix, export)
 
     with patch(
         "podcast_mcp.services.document.analysis.check_loudness", return_value=measured.copy()
     ):
         service = AnalysisService(ws)
-        assert service.check_loudness()["stale_reason"] == "premix_unverified"
+        assert service.check_loudness().stale_reason == "premix_unverified"
         write_premix_hash(project, mix_gains(project), trim_db=0.0, defaults=load_defaults())
-        assert service.check_loudness(str(premix))["stale"] is False
-        assert service.check_loudness()["stale_reason"] == "master_missing"
+        assert service.check_loudness(str(premix)).stale is False
+        assert service.check_loudness().stale_reason == "master_missing"
 
         master = mastered_path(project)
         master.write_bytes(sample_wav.read_bytes())
         write_mastered_hash(project, MasterTarget(), master_fingerprint(project, MasterTarget()))
-        assert service.check_loudness()["stale_reason"] == "export_older_than_master"
+        assert service.check_loudness().stale_reason == "export_older_than_master"
         os.utime(export, ns=(master.stat().st_atime_ns, master.stat().st_mtime_ns + 1))
         fresh = service.check_loudness()
-        assert fresh["stale"] is False
-        assert fresh["stale_reason"] is None
-        assert fresh["pass"] is True
+        assert fresh.stale is False
+        assert fresh.stale_reason is None
+        assert fresh.passed is True
 
         mastered_hash_path(project).unlink()
-        assert service.check_loudness()["stale_reason"] == "master_stale"
+        assert service.check_loudness().stale_reason == "master_stale"
         write_mastered_hash(project, MasterTarget(), master_fingerprint(project, MasterTarget()))
         os.utime(export, ns=(master.stat().st_atime_ns, master.stat().st_mtime_ns + 1))
 
         project.track_by_id("host").fader_db = -3.0
-        assert service.check_loudness()["stale_reason"] == "premix_stale"
+        assert service.check_loudness().stale_reason == "premix_stale"
         project.track_by_id("host").fader_db = 0.0
         write_premix_hash(project, mix_gains(project), trim_db=0.0, defaults=load_defaults())
         premix.unlink()
-        assert service.check_loudness()["stale_reason"] == "premix_missing"
+        assert service.check_loudness().stale_reason == "premix_missing"
 
         unrelated = project.workspace_path() / "other.wav"
         unrelated.write_bytes(sample_wav.read_bytes())
-        assert service.check_loudness(str(unrelated))["stale"] is None
-        assert service.check_loudness(str(unrelated))["stale_reason"] == "untracked_audio"
+        assert service.check_loudness(str(unrelated)).stale is None
+        assert service.check_loudness(str(unrelated)).stale_reason == "untracked_audio"
 
     assert all(path.read_bytes() == sample_wav.read_bytes() for path in paths if path.exists())
 
@@ -1657,9 +1669,9 @@ def test_loudness_report_includes_dialogue_balance_freshness(minimal_project, sa
     service = AnalysisService(ws)
 
     with patch(
-        "podcast_mcp.services.document.analysis.check_loudness", return_value={"pass": True}
+        "podcast_mcp.services.document.analysis.check_loudness", return_value=_full_loudness()
     ):
-        assert service.check_loudness(str(premix))["balance"]["host"]["stale"] is None
+        assert service.check_loudness(str(premix)).balance["host"].stale is None
 
         digest = balance_basis_digest(project, "host")
         assert digest is not None
@@ -1668,13 +1680,17 @@ def test_loudness_report_includes_dialogue_balance_freshness(minimal_project, sa
             measured_lufs=-23.0,
             speech_gated=True,
         )
-        current = service.check_loudness(str(premix))["balance"]["host"]
-        assert current == {"stale": False, "speech_gated": True, "measured_lufs": -23.0}
+        current = service.check_loudness(str(premix)).balance["host"]
+        assert current.model_dump() == {
+            "stale": False,
+            "speech_gated": True,
+            "measured_lufs": -23.0,
+        }
 
         project.processing_chains.append(
             ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="highpass")])
         )
-        assert service.check_loudness(str(premix))["balance"]["host"]["stale"] is True
+        assert service.check_loudness(str(premix)).balance["host"].stale is True
 
 
 def test_edit_check_loudness_missing_file_raises(minimal_project) -> None:
@@ -1926,11 +1942,11 @@ def test_edit_check_loudness_prefers_mastered_export(minimal_project, sample_wav
     mastered = ws.project.export_dir() / f"{ws.project.name}.wav"
     mastered.parent.mkdir(parents=True, exist_ok=True)
     mastered.write_bytes(sample_wav.read_bytes())
-    loud = {"integrated_lufs": -14.0}
+    loud = _full_loudness(measured_lufs=-14.0)
     with patch("podcast_mcp.services.document.analysis.check_loudness", return_value=loud) as chk:
         out = AnalysisService(ws).check_loudness()
     chk.assert_called_once_with(mastered, defaults=ANY)
-    assert out["integrated_lufs"] == pytest.approx(-14.0)
+    assert out.measured_lufs == pytest.approx(-14.0)
 
 
 def test_edit_add_effect_custom(minimal_project, sample_wav) -> None:
@@ -2025,11 +2041,11 @@ def test_edit_check_loudness_explicit_path(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     audio = ws.project.workspace_path() / "custom.wav"
     audio.write_bytes(sample_wav.read_bytes())
-    loud = {"integrated_lufs": -18.0}
+    loud = _full_loudness(measured_lufs=-18.0)
     with patch("podcast_mcp.services.document.analysis.check_loudness", return_value=loud) as chk:
         out = AnalysisService(ws).check_loudness(str(audio))
     chk.assert_called_once_with(audio, defaults=ANY)
-    assert out["integrated_lufs"] == pytest.approx(-18.0)
+    assert out.measured_lufs == pytest.approx(-18.0)
 
 
 def test_edit_suppress_bleed_dry_run_all_tracks(minimal_project, sample_wav) -> None:

@@ -848,7 +848,7 @@ def check_loudness_tool(project_path: str, audio_path: str | None = None) -> str
     tracked project audio. An explicit unrelated file has ``stale=None``.
     """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(AnalysisService(ws).check_loudness(audio_path))
+    return to_json(AnalysisService(ws).check_loudness(audio_path).model_dump())
 
 
 def add_effect_tool(

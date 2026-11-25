@@ -22,6 +22,20 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.services.document.loudness_results import LoudnessReport
+
+
+def _loudness_report(lufs: float) -> LoudnessReport:
+    return LoudnessReport(
+        path="/a.wav",
+        measured_lufs=lufs,
+        target_lufs=-16.0,
+        true_peak_limit_db=-1.5,
+        lufs_pass=True,
+        passed=True,
+        stale=None,
+        stale_reason="untracked_audio",
+    )
 
 
 def _seed_project(path: str, sample_wav) -> None:
@@ -248,7 +262,7 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
     ):
         svc = svc_cls.return_value
         svc.split_clip.return_value = {"operation": "split_clip", "clip_id": "c1"}
-        svc.check_loudness.return_value = {"integrated_lufs": -16.0}
+        svc.check_loudness.return_value = _loudness_report(-16.0)
         svc.analyze_cleanup.return_value = {"tracks": ["host"], "issues": []}
         svc.audio_diagnostics.return_value = {
             "track_id": "host",
@@ -298,7 +312,7 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
     assert split["operation"] == "split_clips_at"
     assert fill["operation"] == "fill_with_room_tone"
     fill_submit.assert_called_once_with(path, "FillRoomTone", {"speaker": "Host"})
-    assert loud["integrated_lufs"] == pytest.approx(-16.0)
+    assert loud["measured_lufs"] == pytest.approx(-16.0)
     assert verified["verified"] == 1
     assert removed["track_id"] == "host"
     assert removed["removed"] == 0
@@ -435,7 +449,7 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
     ):
         svc = svc_cls.return_value
         svc.split_clip.return_value = {"operation": "split_clip"}
-        svc.check_loudness.return_value = {"integrated_lufs": -14.0}
+        svc.check_loudness.return_value = _loudness_report(-14.0)
         svc.cut_range.return_value = {"operation": "ripple_delete"}
         svc.preview_suppress_bleed.return_value = {"suppressed": 0}
 
