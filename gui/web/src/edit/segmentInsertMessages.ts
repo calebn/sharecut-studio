@@ -56,7 +56,7 @@ export const PLACEMENT_OPTIONS: readonly {
   {
     value: "own_lane",
     label: "Play over the episode",
-    hint: "Nothing moves. The segment gets its own track.",
+    hint: "Nothing moves. The segment is added on new tracks of its own.",
   },
 ];
 
@@ -101,15 +101,17 @@ const laterText = (n: number, one: string, many: string) =>
 
 const duckingLine = (row: SegmentRow | null): string =>
   row?.duck_under_dialogue === true
-    ? "It plays at full level over the voices until it is ducked. Duck music under dialogue lowers it under speech."
+    ? "It plays at full level over the voices. Ducking is a separate step (podcast edit duck)."
     : "It plays at full level. It was not saved to duck under dialogue.";
 
 function ownLanePreviewLines(
   preview: SegmentInsertPreview,
   row: SegmentRow | null,
 ): string[] {
+  const tracks = preview.tracks_added.length;
+  const where = tracks > 1 ? `${tracks} new tracks` : "a new track";
   return [
-    `Adds ${formatTimeShort(preview.duration_sec)} at ${formatTimeShort(preview.at)} on a new track.`,
+    `Adds ${formatTimeShort(preview.duration_sec)} at ${formatTimeShort(preview.at)} on ${where}.`,
     "Nothing already in the episode moves.",
     duckingLine(row),
     `The episode becomes ${formatTimeShort(preview.timeline_duration_after_sec)} long.`,
