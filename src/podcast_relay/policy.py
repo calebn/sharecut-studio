@@ -73,10 +73,10 @@ def read_deny_file(path: Path | None) -> frozenset[str]:
 
 @dataclass
 class RelayPolicy:
-    signer: Ed25519PrivateKey
+    signer: Ed25519PrivateKey = field(repr=False)
     kid: str
     public_keys: dict[str, bytes]
-    master_key: bytes
+    master_key: bytes = field(repr=False)
     epoch: int = 1
     min_build: str = ""
     pow_bits: int = DEFAULT_POW_BITS
