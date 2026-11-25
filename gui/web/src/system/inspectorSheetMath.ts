@@ -57,6 +57,8 @@ type CardPlacement = {
   inline: number;
   block: number;
   maxBlock: number;
+  /** The card still overlaps a keep-clear area: no placement cleared it. */
+  covered: boolean;
 };
 
 export function detentHeight(
@@ -138,7 +140,7 @@ function placeCardBlock(
   minBlock: number,
   top: number,
   bottom: number,
-): Omit<CardPlacement, "inline"> {
+): Omit<CardPlacement, "inline" | "covered"> {
   const tallest = height * CARD_MAX_SHARE;
   const belowEdge = anchor.y + anchor.height + CARD_GAP_PX;
   const aboveEdge = anchor.y - CARD_GAP_PX;
@@ -183,6 +185,11 @@ export function placeCard(
     ...placeCardBlock(anchor, bounds.height, minBlock, min, bottom),
     inline,
   };
+  const overlapsBox = (rect: InspectorRect, top: number, x: number) =>
+    x < rect.x + rect.width - CLEAR_EPSILON &&
+    x + width > rect.x + CLEAR_EPSILON &&
+    top < rect.y + rect.height - CLEAR_EPSILON &&
+    top + normal.maxBlock > rect.y + CLEAR_EPSILON;
 
   const padded = (rect: InspectorRect) => ({
     left: rect.x - CARD_GAP_PX,
@@ -205,28 +212,34 @@ export function placeCard(
         top >= o.end - CLEAR_EPSILON,
     );
   const clearAt = (x: number) => clearsAt(x, normalTop, normal.maxBlock);
-  if (clearAt(inline)) return normal;
+  if (clearAt(inline)) return { ...normal, covered: false };
 
   const beside = obstacles
     .flatMap((o) => [o.left - width, o.right])
     .filter((x) => x >= min && x <= maxInline && clearAt(x))
     .sort((a, b) => Math.abs(a - inline) - Math.abs(b - inline))[0];
-  if (beside !== undefined) return { ...normal, inline: beside };
+  if (beside !== undefined)
+    return { ...normal, inline: beside, covered: false };
 
-  const areas = keepClear.filter(hasArea).map(padded);
+  const areas = keepClear
+    .filter(hasArea)
+    .map(padded)
+    .filter((o) => o.left < inline + width && o.right > inline);
   const bands = areas.length
     ? [
         [min, Math.min(...areas.map((o) => o.top))],
         [Math.max(...areas.map((o) => o.end)), bottom],
       ]
     : [[min, bottom]];
-  const anchorClearance = (placement: Omit<CardPlacement, "inline">) =>
+  const anchorClearance = (
+    placement: Omit<CardPlacement, "inline" | "covered">,
+  ) =>
     placement.side === "below"
       ? placement.block - anchor.y - anchor.height
       : placement.block + anchor.y - bounds.height;
   const nearestBand = (floor: number) =>
     bands
-      .filter(([start, stop]) => stop - start >= minBlock)
+      .filter(([start, stop]) => stop - start >= floor)
       .map(([start, stop]) => {
         const placement = placeCardBlock(
           anchor,
@@ -245,5 +258,11 @@ export function placeCard(
       )[0];
   // Half the minimum still shows the header and a field, which beats covering the bar.
   const clear = nearestBand(minBlock) ?? nearestBand(minBlock / 2);
-  return clear ? { ...clear.placement, inline } : normal;
+  if (clear) return { ...clear.placement, inline, covered: false };
+  return {
+    ...normal,
+    covered: keepClear
+      .filter(hasArea)
+      .some((rect) => overlapsBox(rect, normalTop, inline)),
+  };
 }

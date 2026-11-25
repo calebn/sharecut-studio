@@ -165,6 +165,7 @@ describe("inspectorSheetMath card placement", () => {
       inline: 480,
       block: 148,
       maxBlock: 480,
+      covered: false,
     });
   });
 
@@ -195,6 +196,7 @@ describe("inspectorSheetMath card placement", () => {
       inline: 480,
       block: 208,
       maxBlock: 480,
+      covered: false,
     });
   });
 
@@ -209,6 +211,7 @@ describe("inspectorSheetMath card placement", () => {
       inline: 8,
       block: 348,
       maxBlock: 344,
+      covered: false,
     });
     expect(
       placeCard(
@@ -220,16 +223,29 @@ describe("inspectorSheetMath card placement", () => {
       inline: 8,
       block: 348,
       maxBlock: 344,
+      covered: false,
     });
   });
 
   it("keeps the card 8 px inside the box when the anchor is outside it", () => {
     expect(
       placeCard({ x: 600, y: -100, width: 80, height: 40 }, desktop),
-    ).toEqual({ side: "below", inline: 480, block: 8, maxBlock: 480 });
+    ).toEqual({
+      side: "below",
+      inline: 480,
+      block: 8,
+      maxBlock: 480,
+      covered: false,
+    });
     expect(
       placeCard({ x: 600, y: 900, width: 80, height: 40 }, desktop),
-    ).toEqual({ side: "above", inline: 480, block: 8, maxBlock: 480 });
+    ).toEqual({
+      side: "above",
+      inline: 480,
+      block: 8,
+      maxBlock: 480,
+      covered: false,
+    });
   });
 
   it("keeps the card 8 px inside the right edge and fits a narrow viewport", () => {
@@ -259,7 +275,13 @@ describe("inspectorSheetMath card placement", () => {
         140,
         [{ x: 540, y: 260, width: 260, height: 54 }],
       ),
-    ).toEqual({ side: "below", inline: 20, block: 178, maxBlock: 318 });
+    ).toEqual({
+      side: "below",
+      inline: 20,
+      block: 178,
+      maxBlock: 318,
+      covered: false,
+    });
   });
 
   it("slides left of the corner without changing the card's height or vertical placement", () => {
@@ -271,7 +293,13 @@ describe("inspectorSheetMath card placement", () => {
         140,
         [{ x: 540, y: 260, width: 260, height: 54 }],
       ),
-    ).toEqual({ side: "below", inline: 212, block: 178, maxBlock: 318 });
+    ).toEqual({
+      side: "below",
+      inline: 212,
+      block: 178,
+      maxBlock: 318,
+      covered: false,
+    });
   });
 
   it("chooses the closer horizontal position when the card fits on either side", () => {
@@ -279,7 +307,13 @@ describe("inspectorSheetMath card placement", () => {
       placeCard({ x: 600, y: 130, width: 80, height: 40 }, desktop, 320, 140, [
         { x: 510, y: 260, width: 250, height: 54 },
       ]),
-    ).toEqual({ side: "below", inline: 768, block: 178, maxBlock: 480 });
+    ).toEqual({
+      side: "below",
+      inline: 768,
+      block: 178,
+      maxBlock: 480,
+      covered: false,
+    });
   });
 
   it("caps the card's height above the corner when it cannot fit beside it", () => {
@@ -291,7 +325,13 @@ describe("inspectorSheetMath card placement", () => {
         140,
         [{ x: 160, y: 310, width: 320, height: 58 }],
       ),
-    ).toEqual({ side: "below", inline: 90, block: 148, maxBlock: 154 });
+    ).toEqual({
+      side: "below",
+      inline: 90,
+      block: 148,
+      maxBlock: 154,
+      covered: false,
+    });
   });
 
   it("uses the band below the corner when the band above would cover the anchor", () => {
@@ -303,10 +343,16 @@ describe("inspectorSheetMath card placement", () => {
         140,
         [{ x: 100, y: 260, width: 380, height: 70 }],
       ),
-    ).toEqual({ side: "below", inline: 90, block: 338, maxBlock: 254 });
+    ).toEqual({
+      side: "below",
+      inline: 90,
+      block: 338,
+      maxBlock: 254,
+      covered: false,
+    });
   });
 
-  it("keeps the usual card placement when there is no usable space around the corner", () => {
+  it("falls to half the minimum above the corner when no band holds a full card", () => {
     expect(
       placeCard(
         { x: 200, y: 120, width: 100, height: 20 },
@@ -315,7 +361,13 @@ describe("inspectorSheetMath card placement", () => {
         140,
         [{ x: 160, y: 125, width: 320, height: 180 }],
       ),
-    ).toEqual({ side: "below", inline: 90, block: 148, maxBlock: 258 });
+    ).toEqual({
+      side: "above",
+      inline: 90,
+      block: 318,
+      maxBlock: 104,
+      covered: false,
+    });
   });
 });
 
@@ -347,6 +399,7 @@ describe("inspectorSheetMath card placement around the Action bar", () => {
       inline: 192,
       block: 178,
       maxBlock: 140,
+      covered: false,
     });
   });
 
@@ -370,6 +423,7 @@ describe("inspectorSheetMath card placement around the Action bar", () => {
       inline: 246,
       block: 189,
       maxBlock: 129,
+      covered: false,
     });
   });
 
@@ -383,6 +437,7 @@ describe("inspectorSheetMath card placement around the Action bar", () => {
       inline: 160.8,
       block: 198,
       maxBlock: 124,
+      covered: false,
     });
     expect(overlap(placed, bounds, bar)).toBe(0);
     expect(overlap(placed, bounds, corner)).toBe(0);
@@ -396,6 +451,7 @@ describe("inspectorSheetMath card placement around the Action bar", () => {
       inline: 42,
       block: 40,
       maxBlock: 72,
+      covered: false,
     });
   });
 
@@ -408,6 +464,7 @@ describe("inspectorSheetMath card placement around the Action bar", () => {
       inline: 372,
       block: 178,
       maxBlock: 140,
+      covered: false,
     });
     expect(overlap(placed, bounds, anchor)).toBe(0);
   });

@@ -1,5 +1,6 @@
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -1861,6 +1862,7 @@ describe("the Inspector card keeps clear of the join band picks", () => {
     useDawStore.setState({ selection: BLEED });
   });
   afterEach(() => {
+    cleanup();
     vi.restoreAllMocks();
     document.body.replaceChildren();
   });
