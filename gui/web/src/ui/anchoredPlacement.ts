@@ -185,7 +185,12 @@ export function placeAnchoredExcluding(
     between >= anchor.bottom + tight &&
     fits(clampedLeft, between)
   ) {
-    bands.push({ ...base, left: clampedLeft, top: between });
+    bands.push({
+      ...base,
+      left: clampedLeft,
+      top: between,
+      maxHeight: Math.max(placed.maxHeight, panel.height),
+    });
   }
   return (
     [...sides, ...bands].sort(
