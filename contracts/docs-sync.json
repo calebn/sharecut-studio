@@ -366,6 +366,7 @@
       "advisory": {
         "include": [
           "src/podcast_mcp/engines/audio_audit.py",
+          "src/podcast_mcp/engines/pcm_cache.py",
           "src/podcast_mcp/edits/audio_quality.py",
           "src/podcast_mcp/edits/loudness.py",
           "src/podcast_mcp/util/loudness.py",
