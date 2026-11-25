@@ -43,6 +43,20 @@ describe("classifyStorageError", () => {
 describe("storage health", () => {
   beforeEach(() => resetStorageHealth());
 
+  it("holds a failed write until a write works, whatever reads say", () => {
+    reportStorageFailure("queue", named("QuotaExceededError", 22), "write");
+    reportStorageOk("queue", "read");
+    expect(getStorageHealth()).toEqual({ queue: "full" });
+    reportStorageOk("queue", "write");
+    expect(getStorageHealth()).toEqual({});
+  });
+
+  it("lets a read that works clear a failed read", () => {
+    reportStorageFailure("queue", named("SecurityError"), "read");
+    reportStorageOk("queue", "read");
+    expect(getStorageHealth()).toEqual({});
+  });
+
   it("says nothing until something fails", () => {
     expect(getStorageHealth()).toEqual({});
   });

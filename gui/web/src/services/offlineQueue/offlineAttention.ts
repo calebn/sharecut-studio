@@ -204,7 +204,7 @@ function refresh(projectPath: string, source: Source, manual = false): void {
   read(projectPath)
     .then(({ pending, waitingPosts, conflicts, queuedCommandIds }) => {
       if (reading !== source.generation) return;
-      if (shareTokenFromKey(projectPath)) reportStorageOk("queue");
+      if (shareTokenFromKey(projectPath)) reportStorageOk("queue", "read");
       source.queuedCommandIds = queuedCommandIds;
       set(source, {
         pending,
@@ -226,7 +226,7 @@ function refresh(projectPath: string, source: Source, manual = false): void {
         shareTokenFromKey(projectPath) &&
         classifyStorageError(error) !== "other"
       ) {
-        reportStorageFailure("queue", error);
+        reportStorageFailure("queue", error, "read");
         set(source, {
           status: "ready",
           loaded: true,
