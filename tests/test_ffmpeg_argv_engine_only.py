@@ -82,7 +82,7 @@ def _stale(counts: dict[str, int], caps: dict[str, int]) -> list[str]:
 
 def test_ffmpeg_argv_lists_stay_within_the_allowlist() -> None:
     over = _over_cap(_counts(), FFMPEG_ARGV)
-    assert not over, f"ffmpeg argv outside engines/ffmpeg.py (cap in FFMPEG_ARGV): {over}"
+    assert not over, f"ffmpeg argv outside engines/ffmpeg/ (cap in FFMPEG_ARGV): {over}"
 
 
 def test_the_allowlist_has_no_stale_files() -> None:

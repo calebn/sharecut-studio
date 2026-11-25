@@ -13,7 +13,7 @@ const KNOWN: Record<string, ParamLabel> = {
 
 /**
  * Per-effect overrides where a shared key means something else. `deesser`'s
- * `frequency` is ffmpeg's normalized 0–1 `f`, not Hz (engines/ffmpeg.py).
+ * `frequency` is ffmpeg's normalized 0–1 `f`, not Hz (engines/ffmpeg/).
  *
  * Only the builtin presets are checked (builtinEffectPresets.fixture.json, kept
  * in sync by tests/test_effects_presets.py). Overlay presets from

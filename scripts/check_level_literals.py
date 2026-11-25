@@ -33,7 +33,7 @@ SCANNED = ("src/podcast_mcp/edits", "src/podcast_mcp/engines")
 # The ffmpeg filter graph (effect formatters and presets the user picks) and delivery loudness targets.
 RENDER = frozenset(
     {
-        "src/podcast_mcp/engines/ffmpeg.py",
+        "src/podcast_mcp/engines/ffmpeg/__init__.py",
         "src/podcast_mcp/engines/effect_filters.py",
         "src/podcast_mcp/engines/mastering.py",
         "src/podcast_mcp/edits/loudness.py",

@@ -118,7 +118,7 @@ export function automaticSpansOf(
 }
 
 /**
- * The off-speaker gain at source second `sec`: `automatic_gain_expression` in `engines/ffmpeg.py`.
+ * The off-speaker gain at source second `sec`: `automatic_gain_expression` in `engines/ffmpeg/`.
  * Each region ramps down over its first fade and up over its last, silent between; fades that
  * overlap make a hard mute across the region. Regions combine by `min`, and are independent of
  * the ordinary mute spans (the render multiplies the two).
