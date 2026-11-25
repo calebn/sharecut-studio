@@ -6,6 +6,8 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict
+
 from podcast_mcp.edits.transcript_correct import build_phrase_replacement, correct_transcript_word
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.models.words_revision import set_words
@@ -19,6 +21,33 @@ def _token_parts(text: str) -> tuple[str, str, str]:
     while end > start and unicodedata.category(text[end - 1]).startswith("P"):
         end -= 1
     return text[:start], text[start:end], text[end:]
+
+
+class TranscriptReplacementMatch(BaseModel):
+    """One replacement row; field order is the wire key order."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    track_id: str
+    source_id: str | None
+    start_word_index: int
+    end_word_index: int
+    before: str
+    after: str
+    start: float
+    end: float
+    retimes_words: bool
+
+
+class TranscriptReplacementPreview(BaseModel):
+    """The replacement preview; field order is the wire key order."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    matches: list[TranscriptReplacementMatch]
+    count: int
+    skipped_words: int
+    preview_token: str
 
 
 @dataclass(frozen=True)
@@ -41,6 +70,9 @@ class TranscriptReplacement:
             "retimes_words": len(self.words) != len(self.tokens),
         }
 
+    def row(self) -> TranscriptReplacementMatch:
+        return TranscriptReplacementMatch(**self.record())
+
 
 @dataclass(frozen=True)
 class TranscriptReplacementPlan:
@@ -48,13 +80,13 @@ class TranscriptReplacementPlan:
     skipped_words: int
     token: str
 
-    def preview(self) -> dict[str, Any]:
-        return {
-            "matches": [match.record() for match in self.matches],
-            "count": len(self.matches),
-            "skipped_words": self.skipped_words,
-            "preview_token": self.token,
-        }
+    def preview(self) -> TranscriptReplacementPreview:
+        return TranscriptReplacementPreview(
+            matches=[match.row() for match in self.matches],
+            count=len(self.matches),
+            skipped_words=self.skipped_words,
+            preview_token=self.token,
+        )
 
 
 def plan_transcript_replacement(

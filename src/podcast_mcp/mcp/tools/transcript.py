@@ -344,8 +344,9 @@ def find_replace_transcript_tool(
     preview = TranscriptService(ws).preview_transcript_replacement(
         search, replacement, match_case=match_case
     )
+    payload = preview.model_dump()
     if dry_run:
-        return to_json(preview)
+        return to_json(payload)
     reply = submit_host_document_command(
         project_path,
         "ReplaceTranscriptMatches",
@@ -353,11 +354,11 @@ def find_replace_transcript_tool(
             "search": search,
             "replacement": replacement,
             "match_case": match_case,
-            "preview_token": preview["preview_token"],
+            "preview_token": preview.preview_token,
             **({} if only is None else {"only": only}),
         },
     )
-    return to_json({**preview, **host_command_result(reply)})
+    return to_json({**payload, **host_command_result(reply)})
 
 
 def set_words_ignored_tool(
