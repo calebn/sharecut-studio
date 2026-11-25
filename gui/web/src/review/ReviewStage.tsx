@@ -589,7 +589,9 @@ export function ReviewStage({
               thread={selected && thread?.(selected)}
               why={selected?.blocked ? (card.why ?? BLOCKED_WHY) : card.why}
               waveform={wave && { ...wave, onAdjust: adjust }}
-              savedSeconds={hasCutsSaved(savedSeconds) ? savedSeconds : undefined}
+              savedSeconds={
+                hasCutsSaved(savedSeconds) ? savedSeconds : undefined
+              }
               audition={
                 wave || card.change
                   ? { side, onSide: setSide, onHear: hear }
