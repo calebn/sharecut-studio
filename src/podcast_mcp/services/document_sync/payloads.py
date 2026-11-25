@@ -760,8 +760,8 @@ class ApplyDuckingPayload(BaseModel):
         default=None,
         min_length=1,
         max_length=64,
-        description="Tracks whose volume is ducked. Omitted, every unmuted music track and every "
-        "track holding a library segment marked duck-under-dialogue. A dialogue track is refused.",
+        description="Tracks whose volume is ducked. Omitted, every unmuted music track (a music segment lane "
+        "included) and every other track holding a library segment marked duck-under-dialogue. A dialogue track is refused.",
     )
     dialogue_track_ids: list[str] | None = Field(
         default=None,

@@ -7,6 +7,7 @@ import json
 import subprocess
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -559,7 +560,7 @@ def test_a_bare_mix_refreshes_a_lane_stem_made_stale_by_an_envelope(
 
     summary = steps.mix_with_music(proj, defaults)
 
-    assert "1 segment lane stems refreshed" in summary
+    assert "1 segment lane stem refreshed" in summary
     assert stem_is_fresh(proj, lane, defaults=defaults)
     assert _peak(_stem(proj, lane), 8.2, 8.8) == 0
     assert _peak(premix_path(proj), 8.2, 8.8) == 0
@@ -597,6 +598,73 @@ def test_the_pipeline_runner_only_step_mix_applies_a_lane_envelope(
 
     run = PipelineRunner(defaults=defaults).run(proj, only_step="mix_with_music")
 
-    assert "segment lane stems refreshed" in (run.steps[-1].message or "")
+    assert "1 segment lane stem refreshed" in (run.steps[-1].message or "")
     assert _peak(premix_path(proj), 8.2, 8.8) == 0
     assert not premix_is_stale(proj, defaults)
+
+
+def test_the_lane_refresh_touches_only_unmuted_media_less_non_dialogue_rendered_lanes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from podcast_mcp.engines import play_audit
+
+    proj = EpisodeProject.create("t", str(tmp_path / "ws"))
+    ref = SegmentRef(segment_id="s", version=1, content_sha256="0" * 64)
+    ids = ["lane", "muted", "media", "unrendered", "empty", "voice"]
+    proj.tracks = [
+        Track(id="lane", label="L", role=TrackRole.MUSIC),
+        Track(id="muted", label="M", role=TrackRole.MUSIC, muted=True),
+        Track(id="media", label="Me", role=TrackRole.MUSIC, media=MediaAsset(path="raw/a.wav")),
+        Track(id="unrendered", label="U", role=TrackRole.MUSIC),
+        Track(id="empty", label="E", role=TrackRole.MUSIC),
+        Track(id="voice", label="V", role=TrackRole.DIALOGUE),
+    ]
+    proj.clips = [
+        Clip(
+            id=f"c-{tid}",
+            track_id=tid,
+            source_id="src",
+            source_start=0,
+            source_end=1,
+            timeline_start=0,
+            segment_ref=ref,
+        )
+        for tid in ("lane", "muted", "unrendered", "voice")
+    ]
+    published: list[str] = []
+    monkeypatch.setattr(play_audit, "stem_fingerprint", lambda *a, **k: object())
+    monkeypatch.setattr(play_audit, "stem_matches", lambda *a, **k: False)
+
+    def fake_publish(project, track_id, render, **kwargs):
+        published.append(track_id)
+        return tmp_path / f"{track_id}.wav"
+
+    monkeypatch.setattr(play_audit, "publish_stem", fake_publish)
+    rendered = {tid: f"/old/{tid}.wav" for tid in ids if tid != "unrendered"}
+
+    count = steps._refresh_segment_lane_stems(
+        proj, {}, rendered, SimpleNamespace(render_dialogue_track=lambda *a, **k: None)
+    )
+
+    assert published == ["lane"]
+    assert count == 1
+    assert rendered["lane"] == str(tmp_path / "lane.wav")
+    assert rendered["muted"] == "/old/muted.wav"
+    assert "unrendered" not in rendered
+
+
+def test_a_muted_lane_with_a_stale_stem_is_not_refreshed_by_the_mix(
+    episode_path: str, tmp_path: Path
+) -> None:
+    proj = _lane_project(episode_path, tmp_path)
+    lane = _lane_id(proj)
+    defaults = load_defaults()
+    _mix(proj)
+    proj.track_by_id(lane).muted = True
+    _silence_lane(proj, lane)
+    stamp = _stem(proj, lane).stat().st_mtime_ns
+
+    summary = steps.mix_with_music(proj, defaults)
+
+    assert "segment lane" not in summary
+    assert _stem(proj, lane).stat().st_mtime_ns == stamp

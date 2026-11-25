@@ -1020,6 +1020,7 @@ def _refresh_segment_lane_stems(
         if (
             track.media is not None
             or track.role == TrackRole.DIALOGUE
+            or track.muted
             or track.id not in rendered
             or not track_has_audio(project, track)
         ):
@@ -1148,7 +1149,8 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         prog.message(f"{len(mixed)} tracks mixed")
     summary = f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
     if lane_refreshed:
-        summary += f", {lane_refreshed} segment lane stems refreshed"
+        noun = "stem" if lane_refreshed == 1 else "stems"
+        summary += f", {lane_refreshed} segment lane {noun} refreshed"
     if duck_stale:
         summary += f", {duck_stale} fade points moved under ducking, re-run ducking"
     if legacy_replaced:
