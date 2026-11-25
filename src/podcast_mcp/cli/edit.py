@@ -818,7 +818,8 @@ def edit_copy_segment_cmd(
     """Print the clipboard Studio Copy holds for a range; feed it to `edit paste-segment`."""
     track_ids = [t.strip() for t in tracks.split(",") if t.strip()] if tracks else None
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(TimelineService(ws).copy_segment(start, end, track_ids), indent=2))
+    clipboard = TimelineService(ws).copy_segment(start, end, track_ids)
+    typer.echo(json.dumps(clipboard.model_dump(mode="json"), indent=2))
 
 
 @edit_app.command("paste-segment")

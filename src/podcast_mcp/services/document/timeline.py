@@ -66,6 +66,7 @@ from podcast_mcp.services.document.clip_fade import apply_clip_fade, apply_clips
 from podcast_mcp.services.document.clip_fade_results import SetClipFadeResult
 from podcast_mcp.services.document.clip_gain import apply_clip_gain, apply_clips_gain
 from podcast_mcp.services.document.clip_listing_results import ClipListing
+from podcast_mcp.services.document.clipboard_results import ClipboardResult
 from podcast_mcp.services.document.delete_clips_results import (
     DeleteClipsApplied,
     DeleteClipsHeld,
@@ -671,9 +672,11 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
             ),
         )
 
-    def copy_segment(self, start: float, end: float, track_ids: list[str] | None = None) -> dict:
+    def copy_segment(
+        self, start: float, end: float, track_ids: list[str] | None = None
+    ) -> ClipboardResult:
         """Studio's clipboard for ``[start, end)``; read-only. ``PasteSegment`` takes it back."""
-        return copy_segment(self.ws.project, start, end, track_ids)
+        return ClipboardResult.model_validate(copy_segment(self.ws.project, start, end, track_ids))
 
     def paste_segment(
         self,

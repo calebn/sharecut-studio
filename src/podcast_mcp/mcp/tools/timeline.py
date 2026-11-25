@@ -690,7 +690,8 @@ def copy_segment_tool(
     ``delete_clips_tool`` with its ``mode``).
     """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(TimelineService(ws).copy_segment(start, end, track_ids))
+    clipboard = TimelineService(ws).copy_segment(start, end, track_ids)
+    return to_json(clipboard.model_dump(mode="json"))
 
 
 def paste_segment_tool(
