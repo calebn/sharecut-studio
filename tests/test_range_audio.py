@@ -12,7 +12,7 @@ from podcast_mcp.edits.range_target import range_geometry, range_media_seal
 from podcast_mcp.models import Clip, MediaAsset, Track
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import PlayService
+from podcast_mcp.services.document import PlayService, WarmPreviewResult
 from podcast_mcp.services.media.bounce import BounceRequest, BounceService
 from podcast_mcp.util.binaries import resolve_ffmpeg
 
@@ -464,7 +464,7 @@ def test_warms_do_not_hold_the_render_lock_and_run_at_low_priority(minimal_proje
     def warm(self, edit_id=None, *, pad_sec=None, lock_timeout=None):
         seen.append((current_niceness(), render_lock_held(self.project), lock_timeout))
         pads.append(pad_sec)
-        return {}
+        return WarmPreviewResult(trim_db=0.0, sides={})
 
     monkeypatch.setattr(PlayService, "warm_pending_preview", warm)
     client = TestClient(create_app())
@@ -504,7 +504,11 @@ def test_background_warm_checks_the_pending_cuts_once_at_a_time(minimal_project,
     from podcast_mcp.gui.server import create_app
     from podcast_mcp.services.document import EditService, PlayService, approval_warm
 
-    monkeypatch.setattr(PlayService, "warm_pending_preview", lambda self, *a, **k: {})
+    monkeypatch.setattr(
+        PlayService,
+        "warm_pending_preview",
+        lambda self, *a, **k: WarmPreviewResult(trim_db=0.0, sides={}),
+    )
     started, release = threading.Event(), threading.Event()
     calls: list[int] = []
 

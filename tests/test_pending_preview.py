@@ -489,7 +489,7 @@ def test_the_mix_trim_is_measured_once_per_mix_and_survives_a_restart(
     monkeypatch.setattr(play_module, "_stem_mix_trim_db", functools.lru_cache(maxsize=8)(measure))
     _touch_stems(ws.project)
 
-    assert PlayService(ws).warm_pending_preview()["trim_db"] == -3.5
+    assert PlayService(ws).warm_pending_preview().trim_db == -3.5
     restarted = ProjectWorkspace.open(minimal_project)
     assert PlayService(restarted).mix_trim_db() == -3.5
     assert len(measured) == 1
@@ -741,12 +741,12 @@ def test_warm_reports_each_side_and_marks_a_render_failure(minimal_project, monk
         ),
     )
     play = PlayService(ws)
-    assert play.warm_pending_preview("cut")["sides"] == {
+    assert play.warm_pending_preview("cut").sides == {
         "current": "ready",
         "suggested": "ready",
         "ab": "ready",
     }
-    assert play.warm_pending_preview("missing")["sides"] == {
+    assert play.warm_pending_preview("missing").sides == {
         "current": "unavailable",
         "suggested": "unavailable",
         "ab": "unavailable",
@@ -756,7 +756,7 @@ def test_warm_reports_each_side_and_marks_a_render_failure(minimal_project, monk
         raise OSError("disk full")
 
     monkeypatch.setattr(PlayService, "play_pending_preview", broken)
-    assert set(play.warm_pending_preview("cut")["sides"].values()) == {"failed"}
+    assert set(play.warm_pending_preview("cut").sides.values()) == {"failed"}
 
 
 def test_level_profile_records_keep_only_the_newest(tmp_path, monkeypatch) -> None:

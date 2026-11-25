@@ -26,6 +26,10 @@ from podcast_mcp.models import SessionSuggestion
 from podcast_mcp.project.store import WriteGrantKind, active_write_grant, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.service_base import mutate_unless_cut_speech_held
+from podcast_mcp.services.document.warm_preview_results import (
+    WarmPreviewResult,
+    warm_preview_result,
+)
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC
 
@@ -260,7 +264,7 @@ class SessionSuggestionService:
 
     def warm(
         self, suggestion_id: str, *, lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC
-    ) -> dict[str, Any]:
+    ) -> WarmPreviewResult:
         """Do a pending session's slow work now, so the first Play is a cached file.
 
         That is the mix trim and the level profiles (as for a pending edit), then the Current
@@ -283,7 +287,7 @@ class SessionSuggestionService:
             except OSError:
                 log.warning("session %s warm failed for %s", mode, suggestion_id, exc_info=True)
                 sides[mode] = "failed"
-        return {"trim_db": warmed["trim_db"], "sides": sides}
+        return warm_preview_result(warmed.trim_db, sides)
 
     def accept_naming_override(
         self,

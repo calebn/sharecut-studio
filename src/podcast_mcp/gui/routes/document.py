@@ -190,15 +190,19 @@ def pending_preview_warm(
                     None, lock_timeout=BACKGROUND_RENDER_LOCK_TIMEOUT_SEC
                 )
             warm_in_background(project_path)
-            return warmed
+            return warmed.model_dump()
         # The edit's renders read the sources and write content-addressed files atomically,
         # so a render or approve the user starts meanwhile is not queued behind them; only
         # each stale stem's own render takes the lock.
         # Niced like the background warm: the user is editing while it runs, and a Play around
         # on the same edit shares its render rather than racing it.
         with low_priority():
-            return PlayService(ProjectWorkspace.open(project_path)).warm_pending_preview(
-                edit_id, pad_sec=pad_sec, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
+            return (
+                PlayService(ProjectWorkspace.open(project_path))
+                .warm_pending_preview(
+                    edit_id, pad_sec=pad_sec, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
+                )
+                .model_dump()
             )
     except ValueError as exc:
         raise bad_request_error(exc) from exc
@@ -283,7 +287,9 @@ def session_suggestion_warm(
     _ws, service = _session_heard(request, path)
     try:
         with low_priority():
-            return service.warm(suggestion_id, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC)
+            return service.warm(
+                suggestion_id, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
+            ).model_dump()
     except KeyError as exc:
         raise coded_exception_error(404, exc, code="session_suggestion_not_found") from exc
     except TranscriptRefineRequiredError as exc:

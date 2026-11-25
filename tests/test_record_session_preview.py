@@ -683,8 +683,8 @@ def test_a_preview_needs_no_override_and_a_bad_mode_is_refused(ws) -> None:
 def test_warm_renders_both_sides_and_reports_each(ws, monkeypatch) -> None:
     sid = _replace(ws, 3.0, 5.0, {0: [("host", 0.0, 2.0)]})
     warmed = _svc(ws).warm(sid)
-    assert warmed["sides"] == {"current": "ready", "suggested": "ready"}
-    assert isinstance(warmed["trim_db"], float)
+    assert warmed.sides == {"current": "ready", "suggested": "ready"}
+    assert isinstance(warmed.trim_db, float)
     spy = _Spy(monkeypatch)
     _hear(ws, sid, mode="ab")
     assert spy.accepts == 0
@@ -692,7 +692,7 @@ def test_warm_renders_both_sides_and_reports_each(ws, monkeypatch) -> None:
 
 def test_warm_says_unavailable_for_a_session_accept_would_refuse(ws) -> None:
     sid = _stale(ws)
-    assert _svc(ws).warm(sid)["sides"] == {"current": "unavailable", "suggested": "unavailable"}
+    assert _svc(ws).warm(sid).sides == {"current": "unavailable", "suggested": "unavailable"}
 
 
 # --- surfaces ---
@@ -872,7 +872,7 @@ def test_warm_says_failed_for_a_side_that_could_not_be_written(ws, monkeypatch) 
         return real(self, suggestion_id, **kwargs)
 
     monkeypatch.setattr(SessionSuggestionService, "_hear", failing)
-    assert _svc(ws).warm(sid)["sides"] == {"current": "ready", "suggested": "failed"}
+    assert _svc(ws).warm(sid).sides == {"current": "ready", "suggested": "failed"}
 
 
 def test_the_refine_gate_asks_to_try_again_for_accept_and_preview_alike(ws) -> None:

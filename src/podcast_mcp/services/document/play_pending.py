@@ -11,7 +11,6 @@ import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
 
 from podcast_mcp.edits.pending_preview import (
     DEFAULT_AB_GAP_SEC,
@@ -39,6 +38,10 @@ from podcast_mcp.engines.room_tone import (
 from podcast_mcp.engines.room_tone_synth import room_tone_synth_digest
 from podcast_mcp.engines.timeline_render import render_track_segment, timeline_duration_sec
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.services.document.warm_preview_results import (
+    WarmPreviewResult,
+    warm_preview_result,
+)
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.coded_error import CodedValueError
@@ -257,7 +260,7 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
         *,
         pad_sec: float = DEFAULT_PAD_SEC,
         lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
-    ) -> dict[str, Any]:
+    ) -> WarmPreviewResult:
         """Do a pending preview's slow work now, so the first Play around is a cached file.
 
         That is the mix trim and each track's whole-track level profile (which approving
@@ -307,7 +310,7 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                 except OSError:
                     log.warning("pending %s warm failed for %s", mode, edit_id, exc_info=True)
                     sides[mode] = "failed"
-        return {"trim_db": trim, "sides": sides}
+        return warm_preview_result(trim, sides)
 
     def _fresh_premix(self) -> Path | None:
         """``premix.wav`` when it is what the mix plays now, so the Current side is cut from it."""
