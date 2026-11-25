@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import { apiFetch } from "../api/http";
+import { getEditorCutTotal } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { deferred } from "../test/deferred";
 import { minimalProject } from "../test/fixtures";
@@ -8,19 +8,19 @@ import type { HistoryEntryId } from "../types/project";
 import { EditorCutTotalProvider } from "./EditorCutTotalProvider";
 import { useCutTotal } from "./useEditorCutTotal";
 
-vi.mock("../api/http", async (original) => ({
-  ...(await original<typeof import("../api/http")>()),
-  apiFetch: vi.fn(),
+vi.mock("../api", async (original) => ({
+  ...(await original<typeof import("../api")>()),
+  getEditorCutTotal: vi.fn(),
 }));
-const fetchImpact = vi.mocked(apiFetch);
+const fetchImpact = vi.mocked(getEditorCutTotal);
 
 beforeEach(() => {
   fetchImpact.mockReset();
 });
 
 it("discards the previous edit's delayed total and gives both consumers the fresh value", async () => {
-  const old = deferred<Response>();
-  const fresh = deferred<Response>();
+  const old = deferred<number>();
+  const fresh = deferred<number>();
   fetchImpact
     .mockReturnValueOnce(old.promise)
     .mockReturnValueOnce(fresh.promise);
@@ -35,7 +35,7 @@ it("discards the previous edit's delayed total and gives both consumers the fres
   });
   expect(result.current).toEqual([null, null]);
   expect(fetchImpact).toHaveBeenCalledTimes(1);
-  const previousSignal = fetchImpact.mock.calls[0]?.[2]?.signal;
+  const previousSignal = fetchImpact.mock.calls[0]?.[1];
   act(() => {
     useDawStore.setState({
       project: {
@@ -50,11 +50,11 @@ it("discards the previous edit's delayed total and gives both consumers the fres
   expect(previousSignal?.aborted).toBe(true);
   expect(fetchImpact).toHaveBeenCalledTimes(2);
   await act(async () => {
-    fresh.resolve(Response.json({ total_removed_sec: 2.5 }));
+    fresh.resolve(2.5);
   });
   await waitFor(() => expect(result.current).toEqual([2.5, 2.5]));
   await act(async () => {
-    old.resolve(Response.json({ total_removed_sec: 9 }));
+    old.resolve(9);
   });
   expect(result.current).toEqual([2.5, 2.5]);
 });

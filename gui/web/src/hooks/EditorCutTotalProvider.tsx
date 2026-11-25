@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from "react";
-import { apiFetch } from "../api/http";
+import { getEditorCutTotal } from "../api";
 import { hasShareCapability, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { EditorCutTotal } from "./useEditorCutTotal";
@@ -26,22 +26,8 @@ export function EditorCutTotalProvider({ children }: { children: ReactNode }) {
     const controller = new AbortController();
     async function read() {
       try {
-        const response = await apiFetch(
-          path,
-          { guest: "/daw/edit-impact" },
-          { signal: controller.signal },
-        );
-        const { total_removed_sec: seconds } = (await response.json()) as {
-          total_removed_sec: unknown;
-        };
-        if (
-          !controller.signal.aborted &&
-          typeof seconds === "number" &&
-          Number.isFinite(seconds) &&
-          seconds >= 0
-        ) {
-          setResult({ key: requestKey, seconds });
-        }
+        const seconds = await getEditorCutTotal(path, controller.signal);
+        if (!controller.signal.aborted) setResult({ key: requestKey, seconds });
       } catch {
         // The guest placeholder is not a measured total.
       }

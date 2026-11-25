@@ -107,6 +107,7 @@ export {
   updateSocialClipDetails,
   waiveTranscriptRefine,
 } from "./api/documentEdits";
+export { getEditorCutTotal } from "./api/editImpact";
 export type { ExportEvidence } from "./api/exportEvidence";
 export { parseExportEvidence } from "./api/exportEvidence";
 export type {
