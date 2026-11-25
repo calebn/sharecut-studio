@@ -58,6 +58,7 @@ Offline validation uses `--catalog <path> --archive <path>` with the same import
 Sidecar tooling forwards `PODCAST_FFMPEG_CATALOG` and `PODCAST_FFMPEG_ARCHIVE`.
 
 ```bash
+# needs PODCAST_OWNER_CDN_BASE, --cdn-base or --archive (see docs/setup.md)
 python scripts/ffmpeg_payload.py --output /absolute/path/sharecut-ffmpeg
 export PODCAST_MCP_FFMPEG=/absolute/path/sharecut-ffmpeg/bin/ffmpeg
 export PODCAST_MCP_FFPROBE=/absolute/path/sharecut-ffmpeg/bin/ffprobe

@@ -63,7 +63,7 @@
   "fallback": {
     "whisper": "huggingface_hub / faster-whisper default download",
     "rnnoise": "commit-pinned GitHub raw URL from this file, sha256 and size verified",
-    "speaker-ecapa": "direct first-party CDN url, sha-pinned",
+    "speaker-ecapa": "owner CDN origin embedded at build time (none in a source build), sha-pinned",
     "whisper-cpp": "direct Hugging Face resolve url from this file, sha256 and size verified; used on a whisper.cpp host only"
   }
 }
