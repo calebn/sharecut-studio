@@ -128,7 +128,9 @@ describe("InsertSegmentHost", () => {
       expect(useDawStore.getState().chrome.insertSegmentOpen).toBe(false),
     );
     const toast = useDawStore.getState().feedbackToast;
-    expect(toast?.message).toBe("Insert of Cold open queued. Reconnect to send it.");
+    expect(toast?.message).toBe(
+      "Insert of Cold open queued. Reconnect to send it.",
+    );
     expect(toast?.undo).toBeFalsy();
     expect(toast?.message).not.toMatch(/moved|inserted/i);
   });
@@ -148,7 +150,7 @@ describe("InsertSegmentHost", () => {
     expect(useDawStore.getState().feedbackToast).toBeNull();
   });
 
-  it("holds the playhead and project the card opened with", async () => {
+  it("holds the playhead the card opened with", async () => {
     vi.mocked(api.insertSegment).mockResolvedValue({
       queued: false,
       applied: APPLIED,
@@ -160,9 +162,7 @@ describe("InsertSegmentHost", () => {
       await screen.findByRole("radio", { name: /Acme sponsor read/ }),
     );
     await screen.findByText(/Preview, from the saved episode/);
-    act(() =>
-      useDawStore.setState({ playheadSec: 300, projectPath: "/tmp/other" }),
-    );
+    act(() => useDawStore.setState({ playheadSec: 300 }));
     await userEvent.click(screen.getByRole("button", { name: "Insert" }));
     await waitFor(() => expect(api.insertSegment).toHaveBeenCalledTimes(1));
     expect(api.insertSegment).toHaveBeenCalledWith("/tmp/episode", {
@@ -170,6 +170,16 @@ describe("InsertSegmentHost", () => {
       at: 7.25,
       version: 1,
     });
+  });
+
+  it("closes when the project changes under it", async () => {
+    render(<InsertSegmentHost />);
+    open();
+    await screen.findByRole("radio", { name: /Acme sponsor read/ });
+    act(() => useDawStore.setState({ projectPath: "/tmp/other" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.insertSegmentOpen).toBe(false),
+    );
   });
 
   it("opens as an anchored dialog on desktop when there is an anchor", async () => {

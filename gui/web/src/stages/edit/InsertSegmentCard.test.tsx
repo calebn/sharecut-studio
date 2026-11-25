@@ -157,6 +157,27 @@ describe("InsertSegmentCard anchored", () => {
     );
   });
 
+  it("sends the end when the playhead rounds up to the timeline end", async () => {
+    const handlers = handlersOf();
+    render(
+      <InsertSegmentCard
+        {...data()}
+        playheadSec={9.9996}
+        timelineEnd={10}
+        {...handlers}
+        form="bottom"
+        open
+      />,
+    );
+    await pick(/Acme sponsor read/);
+    await waitFor(() =>
+      expect(handlers.loadPreview).toHaveBeenLastCalledWith(
+        { segment_id: "sponsor-21bc", at: "end" },
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+
   it("words moved chapters, comments, pending edits and a new lane", async () => {
     const handlers = handlersOf({
       loadPreview: vi.fn().mockResolvedValue(
