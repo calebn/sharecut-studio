@@ -2226,11 +2226,7 @@ describe("deciding a suggestion from the Action bar", () => {
   it("runs Cut through the open sheet when it shows this suggestion", async () => {
     host(EDIT_SELECTIONS.suggestion);
     const decide = vi.fn(async () => null);
-    const unregister = registerPendingDecider(
-      "pending-cut",
-      decide,
-      () => null,
-    );
+    const unregister = registerPendingDecider("pending-cut", decide);
     try {
       expect(await execute("edit.delete")).toEqual({ status: "ok" });
       expect(decide).toHaveBeenCalledExactlyOnceWith("approve");
@@ -2249,11 +2245,7 @@ describe("deciding a suggestion from the Action bar", () => {
       host(EDIT_SELECTIONS.suggestion);
       const reason = "Checking queued timing…";
       const decide = vi.fn(async () => reason);
-      const unregister = registerPendingDecider(
-        "pending-cut",
-        decide,
-        () => reason,
-      );
+      const unregister = registerPendingDecider("pending-cut", decide);
       try {
         expect(await execute(command)).toEqual({ status: "disabled", reason });
         expect(decide).toHaveBeenCalledExactlyOnceWith(action);
@@ -2276,7 +2268,6 @@ describe("deciding a suggestion from the Action bar", () => {
     const unregister = registerPendingDecider(
       "pending-cut",
       async () => reason,
-      () => reason,
     );
     try {
       expect(await execute("edit.delete")).toEqual({

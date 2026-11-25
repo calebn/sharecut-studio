@@ -7,7 +7,6 @@ import {
   pendingBarWords,
   pendingCutWords,
   registerPendingDecider,
-  sheetBusyReason,
 } from "./pendingDecision";
 
 describe("actionBarOwnsPendingVerbs", () => {
@@ -62,59 +61,44 @@ describe("pendingOffersCut", () => {
 
 describe("pendingCutWords", () => {
   it.each([
-    ["cut", "Cut", "Cutting…"],
-    ["shorten", "Shorten", "Shortening…"],
-    ["lower", "Lower", "Lowering…"],
-    [null, "Cut", "Cutting…"],
-  ] as const)("words %s as %s", (suggested_action, label, busy) => {
-    expect(pendingCutWords({ suggested_action })).toEqual({ label, busy });
+    ["cut", "Cut"],
+    ["shorten", "Shorten"],
+    ["lower", "Lower"],
+    [null, "Cut"],
+  ] as const)("words %s as %s", (suggested_action, label) => {
+    expect(pendingCutWords({ suggested_action })).toEqual({ label });
   });
 });
 
 describe("the sheet decider", () => {
   it("answers only for the edit the open sheet shows", async () => {
-    const release = registerPendingDecider(
-      "a",
-      async () => "busy",
-      () => "wait",
-    );
+    const release = registerPendingDecider("a", async () => "busy");
     expect(await decideThroughSheet("b", "approve")).toBeNull();
     expect(await decideThroughSheet("a", "approve")).toEqual({
       status: "disabled",
       reason: "busy",
     });
-    expect(sheetBusyReason("a")).toBe("wait");
-    expect(sheetBusyReason("b")).toBeNull();
     release();
     expect(await decideThroughSheet("a", "approve")).toBeNull();
   });
 });
 
 describe("pendingBarWords", () => {
-  const cutWords = (accept: string, acceptBusy: string) => ({
-    accept,
-    reject: "Keep",
-    acceptBusy,
-    rejectBusy: "Keeping…",
-  });
+  const cutWords = (accept: string) => ({ accept, reject: "Keep" });
   const approveWords = {
     accept: "Approve",
     reject: "Reject",
-    acceptBusy: "Approving…",
-    rejectBusy: "Rejecting…",
   };
 
   const leaveWords = {
     accept: "Leave",
     reject: "Reject",
-    acceptBusy: "Leaving…",
-    rejectBusy: "Rejecting…",
   };
 
   it.each([
-    ["cut", cutWords("Cut", "Cutting…")],
-    ["shorten", cutWords("Shorten", "Shortening…")],
-    ["lower", cutWords("Lower", "Lowering…")],
+    ["cut", cutWords("Cut")],
+    ["shorten", cutWords("Shorten")],
+    ["lower", cutWords("Lower")],
     ["leave", leaveWords],
     [null, approveWords],
   ] as const)("words a %s suggestion", (suggested_action, words) => {
@@ -173,14 +157,10 @@ describe("the accept route and its words", () => {
 
   it.each(rows)("words and routes %o together", (edit) => {
     const route = pendingAcceptRoute(edit);
-    const { accept, acceptBusy } = pendingBarWords(edit);
+    const { accept } = pendingBarWords(edit);
     if (accept === "Approve") expect(route).toBe("cut");
-    if (route === "own") {
-      expect(accept).not.toBe("Approve");
-      expect(acceptBusy).not.toBe("Approving…");
-    }
+    if (route === "own") expect(accept).not.toBe("Approve");
     expect(accept === "Leave").toBe(edit.suggested_action === "leave");
-    expect(acceptBusy === "Leaving…").toBe(accept === "Leave");
     if (edit.suggested_action === "leave") expect(route).toBe("own");
   });
 

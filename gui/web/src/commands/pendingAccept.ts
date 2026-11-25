@@ -26,6 +26,15 @@ export async function acceptPending(
     live.announceStatus("Saved. It sends when you reconnect.");
     return { queued: true };
   }
+  if (outcome.appliedCount === 0) {
+    // Already handled elsewhere: its history head is not this action's, so no Undo.
+    live.announceStatus("Nothing was applied");
+    const stillPending = live.project?.pending_edits.some(
+      (item) => item.id === edit.id,
+    );
+    if (!stillPending && live.selection === selection) live.setSelection(null);
+    return { queued: false };
+  }
   live.announceStatus(outcome.summary ?? "Applied the suggestion", {
     undo: outcome.historyHead,
   });
