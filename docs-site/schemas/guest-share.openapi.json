@@ -1284,7 +1284,7 @@
             "type": "number"
           },
           "min_gap_sec": {
-            "default": 0.3,
+            "default": 0.8,
             "description": "Least time the bed must sit at its level between two dips; closer dips merge.",
             "maximum": 10.0,
             "minimum": 0.0,

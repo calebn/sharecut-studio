@@ -245,14 +245,14 @@ class TestComposition:
         assert flat.points == [EnvPoint("mine", 11.0, 0.5)]
 
     def test_editing_one_generated_point_does_not_collapse_the_bed(self) -> None:
-        spans = [(10.0, 12.0), (14.0, 15.0), (40.0, 41.0)]
+        spans = [(10.0, 12.0), (16.0, 17.0), (40.0, 41.0)]
         first = plan(spans)
         target = next(p for p in first.points if p.time == 10.0)
         assert target.value == pytest.approx(GAIN)
         edited = [EnvPoint(p.id, p.time, 0.063) if p.id == target.id else p for p in first.points]
         again = plan(spans, edited)
         assert at(again.points, 10.0) == pytest.approx(0.063)
-        for time in (14.5, 40.5):
+        for time in (16.5, 40.5):
             assert at(again.points, time) == pytest.approx(GAIN, abs=1e-6)
         for time in (0.0, 5.0, 9.0, 25.0, 30.0, 50.0, 59.0):
             assert at(again.points, time) == pytest.approx(1.0)
@@ -315,7 +315,7 @@ class TestBudget:
         with pytest.raises(CodedValueError) as raised:
             plan(self.many_blips(40), duration=200.0, max_points=2)
         assert raised.value.code == "ducking_too_many_points"
-        assert "19.2 s" in str(raised.value)
+        assert "51.2 s" in str(raised.value)
         assert "38.4" not in str(raised.value)
 
     def test_planning_many_regions_with_a_dense_base_is_fast(self) -> None:
