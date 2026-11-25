@@ -115,7 +115,7 @@ describe("InsertSegmentHost", () => {
     expect(toast?.undo).toBeFalsy();
   });
 
-  it("says a queued insert was sent for the host, with no Undo and no move claim", async () => {
+  it("says a queued insert waits for a reconnect, with no Undo and no move claim", async () => {
     vi.mocked(api.insertSegment).mockResolvedValue({
       queued: true,
       historyHead: null,
@@ -128,7 +128,7 @@ describe("InsertSegmentHost", () => {
       expect(useDawStore.getState().chrome.insertSegmentOpen).toBe(false),
     );
     const toast = useDawStore.getState().feedbackToast;
-    expect(toast?.message).toBe("Cold open was sent for the host to apply");
+    expect(toast?.message).toBe("Insert of Cold open queued. Reconnect to send it.");
     expect(toast?.undo).toBeFalsy();
     expect(toast?.message).not.toMatch(/moved|inserted/i);
   });
