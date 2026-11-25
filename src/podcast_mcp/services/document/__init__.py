@@ -19,6 +19,10 @@ if TYPE_CHECKING:
     from podcast_mcp.services.document.chapter_results import DeletedChapter, RemovedChapter
     from podcast_mcp.services.document.clip import ClipService
     from podcast_mcp.services.document.clip_fade_results import SetClipFadeResult
+    from podcast_mcp.services.document.clipboard_results import (
+        ClipboardExtract,
+        ClipboardResult,
+    )
     from podcast_mcp.services.document.comment import (
         CommentService,
         run_comment_mutation_with_file_revisions,
@@ -143,6 +147,8 @@ __all__ = [
     "BoundaryTarget",
     "ClipGeometry",
     "ClipService",
+    "ClipboardExtract",
+    "ClipboardResult",
     "CommentReplyResult",
     "CommentService",
     "DeletedChapter",
@@ -296,6 +302,8 @@ _MODULE_BY_NAME = {
     "MoveClipsResult": "timeline_move_results",
     "MoveSegmentResult": "timeline_move_results",
     "DuplicateSegmentResult": "timeline_segment_results",
+    "ClipboardExtract": "clipboard_results",
+    "ClipboardResult": "clipboard_results",
     "PasteSegmentResult": "timeline_segment_results",
     "SetClipJoinResult": "join_mode_results",
     "SetClipFadeResult": "clip_fade_results",

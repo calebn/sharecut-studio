@@ -286,7 +286,7 @@ def _roll(ws: ProjectWorkspace) -> Any:
 
 def _paste(ws: ProjectWorkspace) -> Any:
     service = TimelineService(ws)
-    clipboard = service.copy_segment(1.0, 2.0, ["host"])
+    clipboard = service.copy_segment(1.0, 2.0, ["host"]).model_dump(mode="json")
     return service.paste_segment(
         6.0, clipboard["duration"], clipboard["extracts"], mode=EditMode.RIPPLE
     )
