@@ -53,11 +53,12 @@ to or keyboard-focus one small region to see its label without labels stacking
 over each other. When the compact inspector is open, the same review actions
 dock in its pinned header. Every pending edit shows its verbs on the Action bar
 (the dock on a phone): Cut and Keep for a suggestion with a cut, shorten or lower
-action, Approve and Reject for a split, an exact range or a suggestion with no
-accept action, and where the sheet has that bar it drops its own Approve and Reject
-buttons. The timeline card no longer repeats them on the Edit stage. Where the phone
+action, Leave and Reject for a suggestion to leave, Approve and Reject for a split,
+an exact range or a suggestion with no accept action, and where the sheet has that bar
+it drops its own buttons. The timeline card no longer repeats them on the Edit stage. Where the phone
 sheet has no bar dock (the compact drawer, and the full sheet at a tight height) the
-sheet body keeps Approve and Reject. An exact range's Approve and Reject are disabled
+sheet body keeps the same buttons (Cut and Keep, Leave and Reject, or Approve and
+Reject). An exact range's Approve and Reject are disabled
 with the reason shown as text on the bar for anyone the bar reaches who may not decide it
 (today the host and Editors reach it, and both may). The peek
 strip's body shows no verbs, but the card docks into the strip's chrome and shows

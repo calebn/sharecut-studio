@@ -310,8 +310,8 @@ export const Suggestion: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "Approve" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Reject" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Cut" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Keep" })).toBeVisible();
   },
 };
 
