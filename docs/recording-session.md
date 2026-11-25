@@ -1416,7 +1416,9 @@ take and its description is the warning "Leaving stops recording on this
 device. Keep this page open so it can reach the host." On a laptop that
 line shows under the dock at all times and one press leaves; on a phone the short line
 "Leaving stops recording here. Keep this page open to send it." shows on the first
-press and a second press within 5 seconds leaves. Leaving mid-take stops the mic, the
+press and a second press within 5 seconds leaves. A screen reader hears the line too:
+once when a press shows it (the held reason or the phone's warning) and once when Leave
+opens after the 60 seconds; the opening does not count as the phone's first press. Leaving mid-take stops the mic, the
 keeper finishes the segment on this device, the page shows "Your recording didn't finish
 saving" with **Save my recording**, **Try saving again** and, when the cached lease is known to be
 young enough, **Join again** (only until the host has the file: while the page stays

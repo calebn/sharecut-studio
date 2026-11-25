@@ -429,7 +429,9 @@ describe("GuestRoomApp in the room", () => {
     expect(leave()).toHaveAttribute("aria-disabled", "true");
     await userEvent.click(leave());
     expect(
-      screen.getByText("You can leave after this take."),
+      screen.getByText("You can leave after this take.", {
+        selector: ".sys-dock-hint",
+      }),
     ).toBeInTheDocument();
     expect(room.leave).not.toHaveBeenCalled();
   });
