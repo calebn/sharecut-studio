@@ -417,9 +417,7 @@ function Card({
   // The card hides while its anchor is out of view; the Action bar stays, pinned at the edge.
   const shown =
     placement !== null &&
-    (anchor.visible ||
-      selection === null ||
-      (selection.kind === "range" && anchor.resolving));
+    (anchor.visible || selection === null || anchor.resolvingRange);
   const focus = useInspectorFocus(popoverId ? panel : box, shown);
   const hadPopover = useRef(false);
   useEffect(() => {
