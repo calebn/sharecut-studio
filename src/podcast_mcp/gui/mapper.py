@@ -406,6 +406,28 @@ def _ignored_word_indices_for_utterance(
     )
 
 
+def _text_without_ignored(
+    words: Sequence[Any],
+    intervals: HalfOpenIntervalIndex,
+    source_start: float,
+    source_end: float,
+) -> str:
+    """The row's text with its struck (ignored) words left out (#3798).
+
+    Built like ``utterance_text`` from the kept words the row's own window covers,
+    so a reader who never sees struck words never receives their text either.
+    """
+    covered = _covered_word_ordinals(words, intervals, source_start, source_end)
+    return utterance_text(
+        [
+            words[index]
+            for index in sorted(covered)
+            if not getattr(words[index], "suppressed", False)
+            and not getattr(words[index], "ignored", False)
+        ]
+    )
+
+
 def _locked_word_indices_for_utterance(
     words: Sequence[Any],
     intervals: HalfOpenIntervalIndex,
@@ -651,6 +673,7 @@ def guest_transcript(
     """A combined-transcript dict for guests.
 
     Keeps the utterance fields the guest reads or compares across projections.
+    ``text`` leaves out the host's struck (ignored) words (``text_without_ignored``).
     Drops view-only ``suppressed_only`` rows (#758): their text is suppressed words,
     which guests never see. ``NONE`` drops per-word timings. ``READING`` keeps them
     minus suppressed words, cut to ``READING_WORD_FIELDS``. ``SELECTABLE`` keeps the
@@ -669,6 +692,10 @@ def guest_transcript(
         if utterance.get("suppressed_only"):
             continue
         row = {key: utterance[key] for key in GUEST_UTTERANCE_FIELDS if key in utterance}
+        shown = utterance.get("text_without_ignored")
+        if isinstance(shown, str):
+            # A guest never sees struck words, so their text stays out of the row (#3798).
+            row["text"] = shown
         timed = utterance.get("words")
         if words is not GuestWords.NONE and isinstance(timed, list):
             kept = [w for w in timed if not (isinstance(w, dict) and w.get("suppressed"))]
@@ -784,6 +811,15 @@ def map_transcript_utterances_to_timeline(
         )
         if ignored_word_indices:
             row["ignored_word_indices"] = ignored_word_indices
+            shown = _text_without_ignored(
+                raw_words[recording.words_key],
+                raw_intervals[recording.words_key],
+                source_start,
+                source_end,
+            )
+            if shown != row.get("text"):
+                # Guests read this in place of ``text`` (``guest_transcript``).
+                row["text_without_ignored"] = shown
         locked_word_indices = _locked_word_indices_for_utterance(
             raw_words[recording.words_key],
             raw_intervals[recording.words_key],

@@ -133,21 +133,14 @@ function sameRow(
 }
 
 /**
- * The characters of each bar a waiting row draws: one per word of its text,
- * the struck ones not counted. A row with none draws nothing.
+ * The characters of each bar a waiting row draws: one per word of its text.
+ * A guest's row text already leaves out the struck words (#3798), so every
+ * word counts. A row with none draws nothing.
  */
 export function settlingBarsOf(utterance: CombinedUtterance): number[] {
-  const tokens = utterance.text
+  return utterance.text
     .split(/\s+/)
-    .filter((token) => token.length > 0);
-  return tokens
-    .slice(
-      0,
-      Math.max(
-        0,
-        tokens.length - (utterance.ignored_word_indices?.length ?? 0),
-      ),
-    )
+    .filter((token) => token.length > 0)
     .map((token) => token.length);
 }
 
