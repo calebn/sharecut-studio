@@ -298,15 +298,28 @@ def test_share_token_never_lands_in_the_workspace(
     assert _files_holding(workspace, token) == []
 
 
-MIN_PREFIX = 6
+MIN_WORDS = 2
 CAPTURED_LOGGERS = ("uvicorn.access", "uvicorn.error", "podcast_mcp")
 
 
 def leaks(text: str, tokens: set[str]) -> list[str]:
-    """The tokens of which ``text`` holds the whole or a prefix of ``MIN_PREFIX`` or more."""
+    """The tokens of which ``text`` holds the whole or its first ``MIN_WORDS`` hyphenated words.
+
+    A token is random words joined by hyphens. A character prefix would match ordinary prose
+    that starts with the same word (a README saying "masked"), so the leading words are
+    matched together, with their hyphens.
+    """
     encoded = quote(text, safe="")
     haystack = text + encoded + encoded.replace("%2F", "/")
-    return sorted(t for t in tokens if t[:MIN_PREFIX] in haystack)
+    return sorted(t for t in tokens if "-".join(t.split("-")[:MIN_WORDS]) in haystack)
+
+
+def test_the_scan_ignores_prose_that_starts_like_a_token_and_sees_a_cut_token() -> None:
+    token = "masked-accomplished-peacock"
+    assert leaks("Link tokens are masked twice before the zip is written.", {token}) == []
+    assert leaks(f"GET /api/review/{token}/x", {token}) == [token]
+    assert leaks("GET /api/review/masked-accomplished-pea", {token}) == [token]
+    assert leaks("GET /api/review/masked-accom", {token}) == []
 
 
 @dataclass
