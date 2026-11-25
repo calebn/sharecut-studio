@@ -109,5 +109,5 @@ export function segmentInsertedMessage(
 }
 
 export function segmentInsertQueuedMessage(name: string): string {
-  return `${name} was sent for the host to apply`;
+  return `Insert of ${name} queued. Reconnect to send it.`;
 }
