@@ -30,6 +30,7 @@ COLD_IMPORT_TARGETS = [
     "podcast_mcp.gui.routes.diagnostics",
     "podcast_mcp.engines.audio_audit",
     "podcast_mcp.engines.pcm_cache",
+    "podcast_mcp.engines.analysis_policy",
     "podcast_mcp.engines.timeline_render",
     "podcast_mcp.engines.timemap",
     "podcast_mcp.edits.cut_quality",

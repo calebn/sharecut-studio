@@ -27,13 +27,10 @@ from podcast_mcp.edits.silence_islands import suggest_handoff_cut
 from podcast_mcp.edits.speech_energy_guard import _voice_refs, measure_peer_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.word_spans import WordSpanCaps, trim_implausible_words
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import SpeechLevels, refresh_silence_flags
-from podcast_mcp.engines.audio_audit import (
-    AnalysisPolicy,
-    compute_word_audibility_map,
-    list_low_audibility_words,
-)
+from podcast_mcp.engines.audio_audit import compute_word_audibility_map, list_low_audibility_words
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
 from podcast_mcp.engines.pcm_cache import TrackRmsCache

@@ -7,7 +7,7 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
-from podcast_mcp.engines.audio_audit import AnalysisPolicy
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
 from podcast_mcp.models import load_project
 from podcast_mcp.pipeline import steps as pipeline_steps
 

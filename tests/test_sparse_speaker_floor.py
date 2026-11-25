@@ -16,7 +16,8 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.word_spans import WordSpanCaps, trim_implausible_words
-from podcast_mcp.engines.audio_audit import AnalysisPolicy, compute_word_audibility_map
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
+from podcast_mcp.engines.audio_audit import compute_word_audibility_map
 from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.models import (
     Clip,

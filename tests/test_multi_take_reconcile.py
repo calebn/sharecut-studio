@@ -10,7 +10,8 @@ import pytest
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audio_quality import suppress_bleed_words, suppress_low_audibility_words
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report
-from podcast_mcp.engines.audio_audit import AnalysisPolicy, compute_word_audibility_map
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
+from podcast_mcp.engines.audio_audit import compute_word_audibility_map
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.bleed_text_match import EchoTwinPath, _echo_twin_losers
 from podcast_mcp.engines.lane_words import lane_transcripts, requested_word_keys

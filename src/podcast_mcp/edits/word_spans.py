@@ -29,7 +29,7 @@ from typing import Any, NamedTuple
 from podcast_mcp.edits.audio_cache import WAVEFORM_SAMPLE_RATE
 from podcast_mcp.edits.tighten.lexicon import lexicon_tokens
 from podcast_mcp.edits.voiced_runs import VoicedRun, voiced_runs
-from podcast_mcp.engines.audio_audit import AnalysisPolicy
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
 from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs
 from podcast_mcp.models import EpisodeProject, TranscriptWord

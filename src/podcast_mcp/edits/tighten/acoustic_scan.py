@@ -24,7 +24,7 @@ from podcast_mcp.edits.tighten_reasons import (
 from podcast_mcp.edits.voiced_runs import (
     voiced_runs,
 )
-from podcast_mcp.engines.audio_audit import AnalysisPolicy
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
 from podcast_mcp.models import (
     EpisodeProject,
     Transcript,

@@ -22,7 +22,7 @@ from podcast_mcp.engines.align import (
     load_mono_window,
     read_open_wav_mono_window,
 )
-from podcast_mcp.engines.audio_audit import AnalysisPolicy
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
 from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.models.words_revision import set_word

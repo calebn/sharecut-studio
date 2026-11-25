@@ -293,8 +293,8 @@ def test_speaker_id_config_roundtrip(tmp_path: Path) -> None:
 
 
 def test_cross_track_max_word_duration_matches_asr_default() -> None:
+    from podcast_mcp.engines.analysis_policy import AnalysisPolicy
     from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
-    from podcast_mcp.engines.audio_audit import AnalysisPolicy
     from podcast_mcp.project.transcript_context import CrossTrackConfig
 
     assert CrossTrackConfig().max_word_duration_sec == DEFAULT_MAX_WORD_DURATION_SEC

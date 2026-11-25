@@ -12,8 +12,8 @@ import pytest
 from audibility_floors import floors_at
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audio_quality import suppress_low_audibility_words
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
 from podcast_mcp.engines.audio_audit import (
-    AnalysisPolicy,
     analyze_cleanup,
     analyze_gate_overreach,
     build_track_rms_caches,

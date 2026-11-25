@@ -263,7 +263,7 @@ def test_strict_gate_fill_admission_keeps_scalar_semantics(mode, expected):
 
 
 def test_strict_analysis_admission_preserves_scalar_conversions():
-    from podcast_mcp.engines.audio_audit import AnalysisPolicy
+    from podcast_mcp.engines.analysis_policy import AnalysisPolicy
 
     config = {
         "analysis": {

@@ -22,7 +22,7 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 
 if TYPE_CHECKING:
     from podcast_mcp.config.defaults import EffectiveConfig
-    from podcast_mcp.engines.audio_audit import AnalysisPolicy
+    from podcast_mcp.engines.analysis_policy import AnalysisPolicy
     from podcast_mcp.engines.lane_words import LaneTranscript
     from podcast_mcp.models import EpisodeProject
 

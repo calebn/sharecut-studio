@@ -701,7 +701,7 @@ def suggest_pipeline_tuning(
     ``cancel_check`` stops the scan between dialogue tracks (``CancelledProgress``).
     """
     from podcast_mcp.edits.conversation_align import DURATION_EPS_SEC, equal_duration_dialogue
-    from podcast_mcp.engines.audio_audit import AnalysisPolicy
+    from podcast_mcp.engines.analysis_policy import AnalysisPolicy
 
     defaults = load_defaults()
     base = copy.deepcopy(base_config) if base_config is not None else copy.deepcopy(defaults)

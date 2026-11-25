@@ -9,11 +9,8 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import audio_audit as aa
-from podcast_mcp.engines.audio_audit import (
-    AnalysisPolicy,
-    build_track_rms_caches,
-    compute_word_audibility_map,
-)
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
+from podcast_mcp.engines.audio_audit import build_track_rms_caches, compute_word_audibility_map
 from podcast_mcp.engines.bleed_audibility_lag import copy_lag_at_timeline, effective_copy_lag_sec
 from podcast_mcp.engines.bleed_lag_segments import LagSegment, LagSteps
 from podcast_mcp.engines.pcm_cache import CopyPath
