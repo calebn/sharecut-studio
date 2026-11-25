@@ -534,7 +534,7 @@ function Dock({
     key,
     lost,
   ]);
-  const gated = folded.items.find((item) => item.disabledReason);
+  const gated = items.find((item) => item.disabledReason);
   const { note, describedBy } = useDisabledReasonNote(
     gated?.disabledReason,
     "sys-actions-reason",
