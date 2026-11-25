@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { systemCss } from "../test/systemCss";
 import { Player, type PlayerProps } from "./Player";
 
@@ -479,6 +480,67 @@ describe("Player", () => {
         screen.queryByRole("button", { name: /Expand player/ }),
       ).toBeNull();
       expect(screen.getByText("Comment")).toBeVisible();
+    });
+
+    describe("dock reserve", () => {
+      const property = "--player-dock-height";
+      const root = document.documentElement;
+      let height = 100;
+
+      function measured() {
+        stubResizeObserver({ reportOnObserve: true });
+        vi.spyOn(window, "getComputedStyle").mockReturnValue({
+          minBlockSize: "100px",
+        } as CSSStyleDeclaration);
+        vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+          () => ({ height }) as DOMRect,
+        );
+      }
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+        root.style.removeProperty(property);
+        height = 100;
+      });
+
+      it("reserves the measured height once the dock outgrows its token", () => {
+        height = 410;
+        measured();
+        render(<Player {...dock} onComment={vi.fn()} />);
+        expect(root.style.getPropertyValue(property)).toBe("410px");
+      });
+
+      it("leaves the token alone while the dock fits it", () => {
+        measured();
+        render(<Player {...dock} onComment={vi.fn()} />);
+        expect(root.style.getPropertyValue(property)).toBe("");
+      });
+
+      it("drops the reserve when the dock shrinks back, and on unmount", () => {
+        height = 410;
+        measured();
+        const { container, unmount } = render(
+          <Player {...dock} onComment={vi.fn()} />,
+        );
+        expect(root.style.getPropertyValue(property)).toBe("410px");
+        height = 100;
+        act(() =>
+          FakeResizeObserver.of(
+            container.querySelector(".sys-listen-dock")!,
+          ).fire(),
+        );
+        expect(root.style.getPropertyValue(property)).toBe("");
+        height = 300;
+        act(() =>
+          FakeResizeObserver.of(
+            container.querySelector(".sys-listen-dock")!,
+          ).fire(),
+        );
+        expect(root.style.getPropertyValue(property)).toBe("300px");
+        unmount();
+        expect(root.style.getPropertyValue(property)).toBe("");
+      });
     });
 
     it("is a labelled region, so a screen reader can jump to it", () => {

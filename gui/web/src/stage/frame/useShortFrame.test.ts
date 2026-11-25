@@ -42,6 +42,13 @@ describe("frameFolds", () => {
     );
   });
 
+  it("folds when the grown Player takes more than 40% of a tall frame", () => {
+    const tall = { ...fits, frameHeight: 844, headerHeight: 60 };
+    expect(frameFolds({ ...tall, playerHeight: 337 })).toBe(false);
+    expect(frameFolds({ ...tall, playerHeight: 338 })).toBe(true);
+    expect(frameFolds({ ...tall, playerHeight: 410 })).toBe(true);
+  });
+
   it("folds when the corner would leave the lanes less than their floor", () => {
     const edit = { ...fits, laneAreaHeight: 254, cornerHeight: 54 };
     expect(frameFolds(edit)).toBe(false);

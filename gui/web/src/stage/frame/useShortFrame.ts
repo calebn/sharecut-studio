@@ -18,9 +18,13 @@ export interface FrameFitSizes {
   cornerHeight: number;
 }
 
+/** A Player that has grown past this share of the frame leaves the sheets no room, so it folds. */
+const PLAYER_SHARE_LIMIT = 0.4;
+
 /**
  * Whether the frame folds: it cannot hold its full header, the full Player,
- * the tab bar, the Edit rows and the lanes' floor together, or (on Edit) the
+ * the tab bar, the Edit rows and the lanes' floor together, the Player has grown past
+ * 40% of the frame, or (on Edit) the
  * corner would leave the lanes less than their floor, so it covers a lane. A size that did not measure (NaN, or a
  * frame not laid out yet) never folds.
  */
@@ -39,7 +43,7 @@ export function frameFolds(sizes: FrameFitSizes): boolean {
   if (!(frameHeight > 0) || Number.isNaN(need)) {
     return false;
   }
-  if (frameHeight < need) {
+  if (frameHeight < need || playerHeight > frameHeight * PLAYER_SHARE_LIMIT) {
     return true;
   }
   const covered = laneAreaHeight > 0 && cornerHeight > 0;

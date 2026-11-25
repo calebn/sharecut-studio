@@ -434,39 +434,20 @@ for (const { cell, theme } of withAppearance(PHONE_CELLS)) {
                 ),
               )
               .toEqual([]);
-            if (cell.height > 600) {
-              await expect
-                .poll(() =>
-                  guest!.evaluate((property) => {
-                    const el = document.querySelector(".sys-listen-dock")!;
-                    const reserved = Number.parseFloat(
-                      document.documentElement.style.getPropertyValue(property),
-                    );
-                    return Math.abs(
-                      reserved - el.getBoundingClientRect().height,
-                    );
-                  }, DOCK_PROPERTY),
-                )
-                .toBeLessThanOrEqual(1);
-              const sheet = await sheetOf(guest!);
-              expect(sheet.bottom).toBeLessThanOrEqual(sheet.dockTop! + 0.5);
-              const names = await guest!
-                .locator(".sys-listen-dock button")
-                .evaluateAll((all) =>
-                  all.map((button) => {
-                    const box = button.getBoundingClientRect();
-                    return {
-                      name: button.getAttribute("aria-label"),
-                      left: box.left,
-                      right: box.right,
-                    };
-                  }),
-                );
-              const back = names.find((b) => b.name?.startsWith("Back"));
-              const comment = names.find((b) => b.name?.startsWith("Comment"));
-              expect(back!.left).toBeGreaterThanOrEqual(0);
-              expect(comment!.right).toBeLessThanOrEqual(cell.width);
-            }
+            // The grown dock would take over 40% of the frame, so it folds to one row and the sheet keeps its room.
+            await expect
+              .poll(() =>
+                guest!.evaluate(
+                  () => "frameShort" in document.documentElement.dataset,
+                ),
+              )
+              .toBe(true);
+            const folded = await sheetOf(guest!);
+            expect(folded.bottom).toBeLessThanOrEqual(folded.dockTop! + 0.5);
+            const dockBox = (await guest!
+              .locator(".sys-listen-dock")
+              .boundingBox())!;
+            expect(dockBox.height).toBeLessThan(cell.height * 0.2);
 
             const sheet = await sheetOf(guest!);
             expect(sheet.scrollWidth).toBeLessThanOrEqual(sheet.clientWidth);
@@ -491,14 +472,13 @@ for (const { cell, theme } of withAppearance(PHONE_CELLS)) {
                 return hit === el || el.contains(hit);
               }),
             ).toBe(true);
-            // Folded 320 frame: the dock is one row, so the sheet needs room to scroll a row into view.
-            if (cell.height < 600) {
-              const hear = attention(guest!)
-                .getByRole("button", { name: /^Hear your cut/ })
-                .last();
-              await hear.scrollIntoViewIfNeeded();
-              await expect(hear).toBeInViewport({ ratio: 1 });
-            }
+            const hear = attention(guest!)
+              .getByRole("button", { name: /^Hear your cut/ })
+              .last();
+            await hear.scrollIntoViewIfNeeded();
+            await expect(hear).toBeInViewport({ ratio: 1 });
+            await dismiss.scrollIntoViewIfNeeded();
+            await expect(dismiss).toBeInViewport({ ratio: 1 });
           },
         );
       },
