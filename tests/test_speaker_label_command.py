@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from combined_contract_helpers import State, open_workspace
@@ -18,6 +19,8 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.mcp.tools.speaker import speaker_label_tool
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService, submit_host_document_command
+from podcast_mcp.services.document_sync.errors import DocumentConflictError
+from podcast_mcp.util.coded_error import CodedValueError
 from test_combined_commit_contract import _speaker_seams
 
 WINDOW = ("0.0", "1.5")
@@ -87,5 +90,29 @@ def test_a_dry_run_reports_the_labels_and_saves_nothing(project: Path) -> None:
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["labeled"] == len(HOST_WINDOW_WORDS)
     assert json.loads(speaker_label_tool(str(project), "host", 0.0, 1.5))["dry_run"] is True
+    assert project.read_bytes() == saved_before
+    assert _journal(project) == []
+
+
+@pytest.mark.parametrize(
+    ("payload", "unscored", "error"),
+    [
+        ({"track_id": "nobody", "start_sec": 0.0, "end_sec": 1.5}, False, "track_not_found"),
+        ({"track_id": "host", "start_sec": 0.0, "end_sec": 1.5}, True, "speaker_label_failed"),
+        ({"track_id": "host", "start_sec": 1.5, "end_sec": 0.5}, False, None),
+    ],
+    ids=["unknown-track", "window-not-scored", "inverted-window"],
+)
+def test_a_label_that_cannot_run_is_refused_and_journals_nothing(
+    project: Path, monkeypatch: pytest.MonkeyPatch, payload: dict, unscored: bool, error
+) -> None:
+    if unscored:
+        monkeypatch.setattr("podcast_mcp.engines.speaker_id.score_window", lambda *_a, **_k: None)
+    saved_before = project.read_bytes()
+    refusal = (CodedValueError, DocumentConflictError) if error else ValidationError
+    with pytest.raises(refusal) as caught:
+        submit_host_document_command(project, "LabelSpeakerWindow", payload)
+    if error:
+        assert getattr(caught.value, "code", None) == error
     assert project.read_bytes() == saved_before
     assert _journal(project) == []

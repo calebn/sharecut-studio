@@ -610,6 +610,12 @@ class LabelSpeakerWindowPayload(BaseModel):
     start_sec: float = Field(ge=0, allow_inf_nan=False)
     end_sec: float = Field(gt=0, allow_inf_nan=False)
 
+    @model_validator(mode="after")
+    def _end_after_start(self) -> LabelSpeakerWindowPayload:
+        if self.end_sec <= self.start_sec:
+            raise ValueError("end_sec must be after start_sec")
+        return self
+
 
 class SetTranscriptWordSuppressedPayload(BaseModel):
     track_id: str

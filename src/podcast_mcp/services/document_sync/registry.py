@@ -521,7 +521,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
         "LabelSpeakerWindow": CommandSpec(
             payload=p.LabelSpeakerWindowPayload,
             handler=speaker.label_speaker_window,
-            host_only_reason="speaker labels are scored against the host's voice profiles",
+            host_only_reason="runs the speaker model on the host while it holds the project lock",
             family="transcript",
             gui=NO_GUI_SENDER,
             mcp=named("speaker_label_tool"),
