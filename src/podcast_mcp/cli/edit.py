@@ -533,7 +533,7 @@ def edit_join_quality_cmd(
         cut_end=cut_end,
         timebase=timebase,
     )
-    typer.echo(json.dumps(out.model_dump(mode="json"), indent=2))
+    typer.echo(json.dumps(out.model_dump(), indent=2))
 
 
 @edit_app.command("join-sweep")
@@ -543,7 +543,7 @@ def edit_join_sweep_cmd(
 ) -> None:
     ws = ProjectWorkspace.open(project)
     out = TimelineService(ws).join_qa_sweep(track_id=track)
-    typer.echo(json.dumps(out.model_dump(mode="json"), indent=2))
+    typer.echo(json.dumps(out.model_dump(), indent=2))
 
 
 @edit_app.command("join-label")

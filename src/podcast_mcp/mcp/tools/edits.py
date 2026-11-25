@@ -296,7 +296,7 @@ def join_quality_tool(
         cut_end=cut_end,
         timebase=timebase,
     )
-    return to_json(out.model_dump(mode="json"))
+    return to_json(out.model_dump())
 
 
 def join_qa_sweep_tool(
@@ -306,7 +306,7 @@ def join_qa_sweep_tool(
     """Score all joins on a track (or the whole project) for QA review."""
     ws = ProjectWorkspace.open(project_path)
     out = TimelineService(ws).join_qa_sweep(track_id=track_id)
-    return to_json(out.model_dump(mode="json"))
+    return to_json(out.model_dump())
 
 
 def join_label_tool(
