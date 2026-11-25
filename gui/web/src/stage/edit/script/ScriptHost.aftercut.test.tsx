@@ -829,6 +829,33 @@ describe("Tab after a words cut", () => {
     await waitFor(() => expect(selected()).toEqual([6, 7]));
   });
 
+  it("gives a pending chained cut a fresh Tab hold that expires after ten seconds", async () => {
+    const user = await startCut();
+    cutAway([0, 1], "h1");
+    expect(tab().defaultPrevented).toBe(true);
+    expect(selected()).toEqual([3, 4]);
+
+    const reply = deferred<Awaited<ReturnType<typeof submitDocumentCommand>>>();
+    vi.mocked(submitDocumentCommand).mockReturnValueOnce(reply.promise);
+    const startedAt = state().afterCut!.holdUntil - 1_000;
+    const now = vi.spyOn(Date, "now").mockReturnValue(startedAt);
+    try {
+      await user.keyboard("{Backspace}");
+      await waitFor(() => expect(state().rangeBusy).toBe(true));
+      now.mockReturnValue(startedAt + 9_999);
+      expect(tab().defaultPrevented).toBe(true);
+      now.mockReturnValue(startedAt + 10_000);
+      expect(state().rangeBusy).toBe(true);
+      expect(tab().defaultPrevented).toBe(false);
+    } finally {
+      now.mockRestore();
+      cutAway([0, 1, 3, 4], "h2");
+      await act(async () =>
+        reply.resolve({ type: "Applied", history_head_id: head("h2") }),
+      );
+    }
+  });
+
   async function chainToLastOccurrence() {
     const user = await startCut();
     cutAway([0, 1], "h1");
