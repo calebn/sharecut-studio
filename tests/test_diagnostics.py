@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.setup_cmd import setup_app
+from podcast_mcp.config.runtime import SECRET_ENV_NAMES
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.support import diagnostics as diagnostics_mod
 from podcast_mcp.services.support.diagnostics import (
@@ -176,6 +177,177 @@ def test_build_bundle_masks_link_tokens_in_the_report_and_log(
         assert zf.read("sidecar.log").decode() == "velve! <redacted>!"
     assert "relay refused <redacted>" in text
     assert "quokka" not in text
+
+
+def _fake(*parts: str) -> str:
+    """A planted credential built at runtime, so no source line is a scannable literal."""
+    return "-".join((*parts, "Zq81xLmP"))
+
+
+RELAY_TOKEN = _fake("relay", "host")
+STORE_SECRET = _fake("s3", "store")
+STORE_KEY_ID = _fake("s3", "keyid")
+ADMIN_SECRET = _fake("admin", "store")
+
+
+def _bundle_text(path: Path) -> str:
+    with zipfile.ZipFile(path) as zf:
+        return "\n".join(zf.read(name).decode() for name in zf.namelist())
+
+
+def _plant_in_log_and_doctor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, secrets: list[str]
+) -> Path:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    (tmp_path / "home").mkdir(exist_ok=True)
+    monkeypatch.setattr(
+        diagnostics_mod,
+        "get_share_registry",
+        lambda: SimpleNamespace(known_tokens=lambda: frozenset()),
+    )
+    joined = " and ".join(secrets)
+    monkeypatch.setattr(
+        "podcast_mcp.services.support.diagnostics.run_doctor_checks",
+        lambda _p=None: DoctorReport(checks=[DoctorCheck("warn", f"relay refused {joined}")]),
+    )
+    log = tmp_path / "sidecar.log"
+    log.write_text(f"connecting with {joined} ok\nplain line\n")
+    monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
+    return log
+
+
+def test_build_bundle_masks_configured_secrets_from_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "config" / "relay.yaml"
+    monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(config))
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", RELAY_TOKEN)
+    monkeypatch.setenv("PODCAST_OBJECT_STORE_SECRET_ACCESS_KEY", STORE_SECRET)
+    monkeypatch.setenv("PODCAST_OBJECT_STORE_ACCESS_KEY_ID", STORE_KEY_ID)
+    monkeypatch.setenv("PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY", ADMIN_SECRET)
+    secrets = [RELAY_TOKEN, STORE_SECRET, STORE_KEY_ID, ADMIN_SECRET]
+    _plant_in_log_and_doctor(tmp_path, monkeypatch, secrets)
+
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out")
+
+    text = _bundle_text(report.path)
+    for secret in secrets:
+        assert secret not in text
+    assert "relay refused <redacted>" in text
+    assert "plain line" in text
+    assert not config.parent.exists()
+
+
+def test_build_bundle_masks_configured_secrets_from_relay_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "relay.yaml"
+    config.write_text(
+        f"host_token: {RELAY_TOKEN}\n"
+        "object_store:\n"
+        "  endpoint_url: https://s3.example.test\n"
+        "  region: region-1\n"
+        "  bucket: media\n"
+        f"  access_key_id: {STORE_KEY_ID}\n"
+        f"  secret_access_key: {STORE_SECRET}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(config))
+    for name in ("PODCAST_RELAY_HOST_TOKEN", "PODCAST_OBJECT_STORE_SECRET_ACCESS_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    secrets = [RELAY_TOKEN, STORE_SECRET, STORE_KEY_ID]
+    _plant_in_log_and_doctor(tmp_path, monkeypatch, secrets)
+
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out")
+
+    text = _bundle_text(report.path)
+    for secret in secrets:
+        assert secret not in text
+    assert "plain line" in text
+    assert not (tmp_path / "relay_host_id").exists()
+
+
+@pytest.mark.parametrize("name", SECRET_ENV_NAMES)
+def test_build_bundle_masks_every_listed_secret_env_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(tmp_path / "relay.yaml"))
+    for other in SECRET_ENV_NAMES:
+        monkeypatch.delenv(other, raising=False)
+    secret = _fake("env", name.lower())
+    pair = name == "PODCAST_RELAY_HOST_TOKENS"
+    monkeypatch.setenv(name, f"host-a:{secret}" if pair else secret)
+    _plant_in_log_and_doctor(tmp_path, monkeypatch, [secret])
+
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out")
+
+    text = _bundle_text(report.path)
+    assert secret not in text
+    assert "relay refused <redacted>" in text
+
+
+def test_build_bundle_masks_configured_secrets_by_exact_value_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    secret = "changeme" + "123"
+    monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(tmp_path / "relay.yaml"))
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", secret)
+    ordinary = "change me; podcast doctor: change management, podcasting, changeme"
+    log = _plant_in_log_and_doctor(tmp_path, monkeypatch, [secret])
+    log.write_text(f"{ordinary}\nlogin with {secret} ok\n")
+
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out")
+
+    text = _bundle_text(report.path)
+    assert secret not in text
+    assert f"{ordinary}\nlogin with <redacted> ok" in text
+
+
+def test_build_bundle_masks_a_percent_encoded_configured_secret(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    secret = "pa/ss+wo=rd" + "-Zq81xLmP"
+    monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(tmp_path / "relay.yaml"))
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", secret)
+    log = _plant_in_log_and_doctor(tmp_path, monkeypatch, [])
+    log.write_text("GET /x?v=pa%2Fss%2Bwo%3Drd-Zq81xLmP ok\n")
+
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out")
+
+    text = _bundle_text(report.path)
+    assert "Zq81xLmP" not in text
+    assert "<redacted>" in text
+
+
+def test_build_bundle_masks_secrets_from_a_partly_invalid_relay_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "relay.yaml"
+    config.write_text(f"host_token: {RELAY_TOKEN}\nobject_store: [unclosed\n", encoding="utf-8")
+    monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(config))
+    monkeypatch.delenv("PODCAST_RELAY_HOST_TOKEN", raising=False)
+    _plant_in_log_and_doctor(tmp_path, monkeypatch, [RELAY_TOKEN])
+
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out")
+
+    assert RELAY_TOKEN not in _bundle_text(report.path)
+
+
+@pytest.mark.parametrize("content", [None, b"host_token: [unclosed\n", b"\xff\xfe\x00bad"])
+def test_build_bundle_survives_an_unreadable_relay_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: bytes | None
+) -> None:
+    config = tmp_path / "relay.yaml"
+    if content is not None:
+        config.write_bytes(content)
+    monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(config))
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", RELAY_TOKEN)
+    _plant_in_log_and_doctor(tmp_path, monkeypatch, [RELAY_TOKEN])
+
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out")
+
+    assert RELAY_TOKEN not in _bundle_text(report.path)
+    assert not (tmp_path / "relay_host_id").exists()
 
 
 def test_build_bundle_size_bound(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

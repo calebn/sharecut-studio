@@ -7,12 +7,14 @@ separate from the build-time desktop distribution profile.
 from __future__ import annotations
 
 import ipaddress
+import json
 import logging
 import os
 import re
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -491,6 +493,131 @@ def load_host_runtime_config(
     )
     object_store = _load_object_store(file_cfg, env)
     return HostRuntimeConfig(relay=relay, object_store=object_store)
+
+
+SECRET_ENV_NAMES = (
+    "PODCAST_RELAY_HOST_TOKEN",
+    "PODCAST_OBJECT_STORE_ACCESS_KEY_ID",
+    "PODCAST_OBJECT_STORE_SECRET_ACCESS_KEY",
+    "PODCAST_OBJECT_STORE_ADMIN_ACCESS_KEY_ID",
+    "PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY",
+    "PODCAST_SESSION_TOKEN",
+    "PODCAST_SIDECAR_BOOT_TOKEN",
+    "PODCAST_GOOGLE_OAUTH_CLIENT_SECRET",
+    "PODCAST_GITHUB_OAUTH_CLIENT_SECRET",
+    "PODCAST_REPORT_GITHUB_TOKEN",
+    "PODCAST_RELAY_HOST_TOKENS",
+)
+_MIN_SECRET_LENGTH = 8
+RELAY_ADMIN_FILENAME = "relay-admin.yaml"
+# ``host_id:secret`` pairs; only the secret half is a secret.
+_PAIR_ENV_NAMES = frozenset({"PODCAST_RELAY_HOST_TOKENS"})
+# OAuth client JSON files (env name, default file name in the config directory).
+_OAUTH_FILE_ENV = (
+    ("PODCAST_GOOGLE_OAUTH_CLIENT_FILE", "google-oauth-client.json"),
+    ("PODCAST_GITHUB_OAUTH_CLIENT_FILE", "github-oauth.json"),
+)
+_RELAY_YAML_SECRET_KEYS = ("host_token", "access_key_id", "secret_access_key")
+_ADMIN_YAML_SECRET_KEYS = ("access_key_id", "secret_access_key")
+
+
+def _yaml_secret_values(path: Path, keys: tuple[str, ...]) -> list[object]:
+    """Secret scalars of one YAML file: parsed when it is valid, else line-scanned."""
+    if not path.is_file():
+        return []
+    text = path.read_text(encoding="utf-8", errors="replace")
+    try:
+        loaded = yaml.safe_load(text)
+    except yaml.YAMLError:
+        loaded = None
+    if isinstance(loaded, dict):
+        values: list[object] = [loaded.get(key) for key in keys]
+        store = loaded.get("object_store")
+        if isinstance(store, Mapping):
+            values += [store.get(key) for key in keys]
+        return values
+    # A file that does not parse as a whole still holds readable secret lines.
+    pattern = re.compile(rf"^\s*(?:{'|'.join(keys)})\s*:\s*(.*?)\s*$", re.MULTILINE)
+    return [_unquote_scalar(match.group(1)) for match in pattern.finditer(text)]
+
+
+def _unquote_scalar(raw: str) -> str:
+    if raw[:1] in {"'", '"'}:
+        end = raw.find(raw[0], 1)
+        return raw[1:end] if end > 0 else raw[1:]
+    if raw[:1] in {"[", "{", "|", ">", "&", "*", "!"}:  # flow, block or anchor syntax
+        return ""
+    return raw.split(" #", 1)[0].strip()
+
+
+def _oauth_file_secret(path: Path) -> list[object]:
+    if not path.is_file():
+        return []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        return []
+    web = data.get("web")
+    return [data.get("client_secret"), web.get("client_secret") if isinstance(web, dict) else None]
+
+
+def configured_secrets(
+    config_path: Path | None = None,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> tuple[str, ...]:
+    """Secret values configured in the environment or on disk, for redaction.
+
+    Read-only and best effort: it never raises, never mints ``relay_host_id`` and
+    returns what it could read. Each source is read on its own, so one that cannot be
+    read costs only itself: the environment, ``relay.yaml`` (line-scanned when it does
+    not parse), ``relay-admin.yaml`` and the OAuth client JSON files. Every source is
+    listed, not just the winning one, because a stale value can reach a log. Values
+    shorter than eight characters are skipped so a placeholder cannot mask ordinary text.
+    """
+    found: dict[str, None] = {}
+
+    def add(value: object) -> None:
+        text = _clean(value)
+        if len(text) >= _MIN_SECRET_LENGTH:
+            found[text] = None
+
+    def source(read: Callable[[], Iterable[object]]) -> None:
+        try:
+            for value in read():
+                add(value)
+        except Exception:
+            log.debug("could not read a configured secret source", exc_info=True)
+
+    env = settings.environ() if environ is None else environ
+
+    def from_env() -> Iterator[object]:
+        for name in SECRET_ENV_NAMES:
+            value = env.get(name)
+            if name in _PAIR_ENV_NAMES:
+                for pair in (value or "").split(","):
+                    yield pair.partition(":")[2]
+            else:
+                yield value
+
+    def relay_path() -> Path:
+        return config_path or default_relay_config_path()
+
+    source(from_env)
+    source(lambda: _yaml_secret_values(relay_path(), _RELAY_YAML_SECRET_KEYS))
+    source(
+        lambda: _yaml_secret_values(
+            relay_path().with_name(RELAY_ADMIN_FILENAME), _ADMIN_YAML_SECRET_KEYS
+        )
+    )
+
+    def oauth_file(env_name: str, default_file: str) -> Iterator[object]:
+        yield from _oauth_file_secret(
+            Path(env.get(env_name) or settings.config_dir() / default_file).expanduser()
+        )
+
+    for env_name, default_file in _OAUTH_FILE_ENV:
+        source(partial(oauth_file, env_name, default_file))
+    return tuple(found)
 
 
 def load_object_store_config(
