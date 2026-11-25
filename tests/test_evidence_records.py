@@ -730,7 +730,7 @@ def test_every_engine_module_a_build_runs_is_pinned_or_named_as_part_of_the_key(
         if event == "call":
             filename = frame.f_code.co_filename
             if filename.startswith(str(root) + os.sep):
-                ran.add(filename[len(str(root)) + 1 :])
+                ran.add(Path(filename[len(str(root)) + 1 :]).as_posix())
 
     project = _project(tmp_path, "mixed joins and pads", mono_rate=None)
     sys.setprofile(profile)
