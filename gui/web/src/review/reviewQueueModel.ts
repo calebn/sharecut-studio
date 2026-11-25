@@ -87,6 +87,13 @@ const KIND_ORDER = Object.keys(QUEUE_KIND) as DecisionKind[];
 
 export const holdsGateKind = (item: ReviewItem) => QUEUE_KIND[item.kind].gated;
 
+const isLeave = (item: ReviewItem) =>
+  item.suggested === "leave" && !item.pickup;
+
+/** "Leave" for a leave suggestion: label only, the verb is still keep. */
+export const itemVerbLabel = (item: ReviewItem): string | undefined =>
+  isLeave(item) ? "Leave" : undefined;
+
 export function itemVerb(item: ReviewItem): VerbId {
   if (item.pickup) return item.pickup.kind;
   switch (item.suggested) {
@@ -326,12 +333,13 @@ export function commentLine(items: readonly ReviewItem[]): string {
   return `${items.filter(isDecided).length} of ${items.length} resolved`;
 }
 
-/** "Cut 0.8 s", "Looks right", "Kept". */
+/** "Cut 0.8 s", "Looks right", "Kept", "Left alone" for a leave. */
 export function resultText(item: ReviewItem): string {
   if (item.pickup)
     return item.result === "kept"
       ? `Skipped Session ${item.pickup.number}`
       : `Added Session ${item.pickup.number}`;
+  if (isLeave(item) && item.result === "kept") return "Left alone";
   if (item.result === "kept") return "Kept";
   if (item.kind === "comment") return "Resolved";
   const verb = itemVerb(item);

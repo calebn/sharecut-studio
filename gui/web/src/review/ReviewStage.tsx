@@ -37,6 +37,7 @@ import {
   groupQueue,
   holdsGateKind,
   itemVerb,
+  itemVerbLabel,
   OPEN_REVIEW_ATTENTION_EVENT,
   type ReviewAttention,
   type ReviewFilter,
@@ -567,6 +568,7 @@ export function ReviewStage({
               {...card}
               excerpt={excerpt}
               verb={selected ? itemVerb(selected) : undefined}
+              verbLabel={selected ? itemVerbLabel(selected) : undefined}
               verbDisabledReason={
                 selected?.kind === "unsure-word" && card.unsure?.disabledReason
                   ? card.unsure.disabledReason

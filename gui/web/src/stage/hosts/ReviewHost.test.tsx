@@ -655,7 +655,7 @@ describe("Review host decisions", () => {
     await waitFor(() => expect(sent("ApplySuggestedActions")).toHaveLength(1));
     expect(sent("ApplySuggestedActions")[0].payload).toEqual({ ids: ["sw"] });
     expect(order).toEqual(["ApplySuggestedActions"]);
-    expect(screen.getByRole("button", { name: /^Keep/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /^Leave/ })).toBeVisible();
     press("Enter");
     await waitFor(() => expect(sent("RejectEdits")).toHaveLength(1));
     expect(sent("RejectEdits")[0].payload).toEqual({ ids: ["sl"] });
