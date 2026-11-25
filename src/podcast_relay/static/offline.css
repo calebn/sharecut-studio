@@ -24,6 +24,7 @@ code {
 
 button {
   font: inherit;
+  min-block-size: var(--tap-comfortable);
   padding: var(--s-1) var(--s1);
   border: 0;
   border-radius: var(--radius-lg);
