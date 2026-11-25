@@ -82,6 +82,13 @@ second `t` and plot position `x`. When the marker has a positive played extent,
 as the start, or at the plot's right edge if it comes first. Point-only markers
 omit the end fields.
 
+In the same host output, each `edits.pending[]` row in the window carries `audio_check`,
+the check `podcast edit held` runs, made on a scratch copy (nothing is saved) only when the window
+has a pending edit. It runs over what Approve all would run on plus the window's own edits, since a
+cut beside a held one outside the window waits with it: `{"status": "held", "reason": ...}` with
+the reason `edit held` gives, or `{"status": "clean"}` when Approve all would apply it. A row has no `audio_check` when the audio
+could not be read for the check. A guest's share context leaves it out (#3843).
+
 In host `audition_context_tool` and `podcast play context` output, `auxiliary_tracks`
 shows music and sound-effect placement spans that overlap the requested window.
 Each row gives the track ID, role, mute state, and placement spans. A span records
