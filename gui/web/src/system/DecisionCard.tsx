@@ -242,9 +242,9 @@ function UnsureWord({
   );
 }
 
-/** The keys, said once per session in the card's footer and then only on hover. */
-const KEYS_LINE =
-  "Enter decides · X keeps · Tab for later · A and B hear it · Space plays · E opens it in Edit · C comments · Shift+Enter does the whole group";
+/** The keys, said once per session in the card's footer and then only on hover; X leaves a Leave card's audio as it is. */
+const keysLine = (leave: boolean) =>
+  `Enter decides · X ${leave ? "leaves it" : "keeps"} · Tab for later · A and B hear it · Space plays · E opens it in Edit · C comments · Shift+Enter does the whole group`;
 
 let keysIntroSeen = false;
 
@@ -292,6 +292,8 @@ export function DecisionCard(props: DecisionCardProps) {
   const unsureNoteId = useId();
   const meta = KIND_META[kind];
   const phone = layout === "phone";
+  const shownVerbLabel =
+    verbLabel ?? (verb && verb !== meta.verb ? undefined : meta.verbLabel);
   const compact = layout === "compact";
   const holdVerb =
     unsure !== undefined && kind !== "unsure-word" && !unsure.resolved;
@@ -511,10 +513,7 @@ export function DecisionCard(props: DecisionCardProps) {
         <ActionBarInline
           form={phone ? "dock" : "inline"}
           verb={verb ?? meta.verb}
-          verbLabel={
-            verbLabel ??
-            (verb && verb !== meta.verb ? undefined : meta.verbLabel)
-          }
+          verbLabel={shownVerbLabel}
           verbNoteId={verbNoteId}
           verbDisabledReason={verbReason}
           readOnly={readOnly}
@@ -538,7 +537,7 @@ export function DecisionCard(props: DecisionCardProps) {
           className="sys-decision-keys"
           data-intro={keysIntro ? "true" : undefined}
         >
-          {KEYS_LINE}
+          {keysLine(shownVerbLabel === "Leave")}
         </p>
       ) : null}
       {comment && kind !== "comment" ? (
