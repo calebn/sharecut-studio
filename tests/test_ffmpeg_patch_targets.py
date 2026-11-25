@@ -569,6 +569,207 @@ def test_the_process_use_scanner(source: str, lines: list[int]) -> None:
     assert _direct_process_uses(ast.parse(source)) == lines
 
 
+KNOWN_MIXIN_BINDINGS = {("encode.py", "spawn_or_too_long")}
+FACADE_ONLY = {"__init__.py"}
+MIXIN_IMPORT_EXEMPT = {"__init__.py", "runtime.py"}
+HOST = "host"
+
+
+def _unguarded(tree: ast.Module) -> list[ast.AST]:
+    """Every node outside an ``if TYPE_CHECKING:`` body."""
+    guarded: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If) and (
+            (isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING")
+            or (isinstance(node.test, ast.Attribute) and node.test.attr == "TYPE_CHECKING")
+        ):
+            guarded |= {id(child) for stmt in node.body for child in ast.walk(stmt)}
+    return [node for node in ast.walk(tree) if id(node) not in guarded]
+
+
+def _facade_name_bindings(tree: ast.Module) -> list[tuple[str, int]]:
+    """Allowlisted facade names a module imports or reads as a bare name, with the line."""
+    found: list[tuple[str, int]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in ALLOWLIST:
+            found.append((node.id, node.lineno))
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                bound = alias.asname or alias.name.split(".")[0]
+                if bound in ALLOWLIST:
+                    found.append((bound, node.lineno))
+    return sorted(found, key=lambda item: item[1])
+
+
+def _is_package_import(node: ast.ImportFrom, relative_ok: bool = True) -> bool:
+    return node.module == MODULE or (relative_ok and node.level == 1 and not node.module)
+
+
+def _package_imports(tree: ast.Module) -> list[tuple[str, int]]:
+    """Names a module takes from the package itself at run time, with the line."""
+    found: list[tuple[str, int]] = []
+    for node in _unguarded(tree):
+        if isinstance(node, ast.ImportFrom):
+            if _is_package_import(node):
+                found.extend((alias.name, node.lineno) for alias in node.names)
+            elif node.module == "podcast_mcp.engines" and not node.level:
+                found.extend((a.name, node.lineno) for a in node.names if a.name == "ffmpeg")
+        elif isinstance(node, ast.Import):
+            found.extend((a.name, node.lineno) for a in node.names if a.name == MODULE)
+    return sorted(found, key=lambda item: item[1])
+
+
+def _host_imports(tree: ast.Module, guarded: bool) -> list[int]:
+    """Lines importing the host module, outside (or, with ``guarded``, inside) ``if TYPE_CHECKING:``."""
+    every = list(ast.walk(tree))
+    unguarded = {id(node) for node in _unguarded(tree)}
+    lines: list[int] = []
+    for node in every:
+        if (id(node) in unguarded) == guarded:
+            continue
+        if isinstance(node, ast.ImportFrom):
+            names = {a.name for a in node.names}
+            hit = (
+                node.module == f"{MODULE}.{HOST}"
+                or (node.level == 1 and node.module == HOST)
+                or (_is_package_import(node) and HOST in names)
+            )
+        elif isinstance(node, ast.Import):
+            hit = any(a.name == f"{MODULE}.{HOST}" for a in node.names)
+        else:
+            continue
+        if hit:
+            lines.append(node.lineno)
+    return sorted(lines)
+
+
+def test_no_mixin_module_binds_a_name_the_facade_is_patched_through() -> None:
+    found: dict[tuple[str, str], str] = {}
+    for path, tree in _readers().items():
+        if path.name not in FACADE_ONLY:
+            for name, line in _facade_name_bindings(tree):
+                found.setdefault((path.name, name), f"{path.name}:{line}")
+    assert set(found) == KNOWN_MIXIN_BINDINGS, (
+        f"a patch of an allowlisted name on {MODULE} only reaches readers in __init__.py; "
+        f"new in a mixin module: {sorted(found[k] for k in set(found) - KNOWN_MIXIN_BINDINGS)}, "
+        f"retarget the patch or read it through the facade; "
+        f"gone, drop from KNOWN_MIXIN_BINDINGS: {sorted(KNOWN_MIXIN_BINDINGS - set(found))}"
+    )
+
+
+def test_mixin_modules_import_only_the_runtime_from_the_package() -> None:
+    offenders = [
+        f"{path.name}:{line} imports {name}"
+        for path, tree in _package_trees().items()
+        if path.name not in MIXIN_IMPORT_EXEMPT
+        for name, line in _package_imports(tree)
+        if name != RUNTIME
+    ]
+    assert not offenders, f"only `runtime` may come from {MODULE} in a mixin module: {offenders}"
+
+
+def test_the_host_module_is_imported_only_for_type_checking() -> None:
+    offenders = [
+        f"{path.name}:{line}"
+        for path, tree in _package_trees().items()
+        for line in _host_imports(tree, guarded=False)
+    ]
+    assert not offenders, f"host imported outside `if TYPE_CHECKING:`: {offenders}"
+    assert any(_host_imports(tree, guarded=True) for tree in _package_trees().values())
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        pytest.param(
+            "from podcast_mcp.engines.render_clock import spawn_or_too_long",
+            [("spawn_or_too_long", 1)],
+            id="import",
+        ),
+        pytest.param("import shutil", [("shutil", 1)], id="plain import"),
+        pytest.param(
+            "import threading as t\nt.Timer",
+            [],
+            id="import as binds the alias only",
+        ),
+        pytest.param("x = 1\nshutil.copy(a)", [("shutil", 2)], id="bare read"),
+        pytest.param("negotiated_rates(a)", [("negotiated_rates", 1)], id="call"),
+        pytest.param("import os\nruntime.run(a)\nfacade.shutil", [], id="unrelated and attribute"),
+        pytest.param("shutil = 1", [], id="a store is not a read"),
+    ],
+)
+def test_the_facade_binding_scanner(source: str, expected: list[tuple[str, int]]) -> None:
+    assert _facade_name_bindings(ast.parse(source)) == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        pytest.param(
+            "from podcast_mcp.engines.ffmpeg import runtime", [("runtime", 1)], id="runtime"
+        ),
+        pytest.param(
+            "from podcast_mcp.engines.ffmpeg import ENCODE_CANCELLED",
+            [("ENCODE_CANCELLED", 1)],
+            id="absolute name",
+        ),
+        pytest.param(
+            "from . import runtime, probe", [("runtime", 1), ("probe", 1)], id="relative names"
+        ),
+        pytest.param("import podcast_mcp.engines.ffmpeg", [(MODULE, 1)], id="module import"),
+        pytest.param(
+            "from podcast_mcp.engines import ffmpeg", [("ffmpeg", 1)], id="engines import"
+        ),
+        pytest.param(
+            "def f():\n    from podcast_mcp.engines.ffmpeg import _x",
+            [("_x", 2)],
+            id="function local",
+        ),
+        pytest.param(
+            "if TYPE_CHECKING:\n    from podcast_mcp.engines.ffmpeg import _x",
+            [],
+            id="type checking",
+        ),
+        pytest.param(
+            "from podcast_mcp.engines.audio import Audio\nfrom .runtime import run",
+            [],
+            id="other modules",
+        ),
+    ],
+)
+def test_the_package_import_scanner(source: str, expected: list[tuple[str, int]]) -> None:
+    assert _package_imports(ast.parse(source)) == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "bare", "guarded"),
+    [
+        pytest.param(
+            "from podcast_mcp.engines.ffmpeg.host import FFmpegSelf", [1], [], id="absolute"
+        ),
+        pytest.param("from .host import FFmpegSelf", [1], [], id="relative"),
+        pytest.param("from . import host", [1], [], id="relative module"),
+        pytest.param("from podcast_mcp.engines.ffmpeg import host", [1], [], id="package import"),
+        pytest.param("import podcast_mcp.engines.ffmpeg.host", [1], [], id="plain import"),
+        pytest.param("def f():\n    from .host import X", [2], [], id="function local"),
+        pytest.param(
+            "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from .host import X",
+            [],
+            [3],
+            id="guarded",
+        ),
+        pytest.param(
+            "if typing.TYPE_CHECKING:\n    from .host import X", [], [2], id="attribute guard"
+        ),
+        pytest.param("from .runtime import run", [], [], id="other module"),
+    ],
+)
+def test_the_host_import_scanner(source: str, bare: list[int], guarded: list[int]) -> None:
+    tree = ast.parse(source)
+    assert _host_imports(tree, guarded=False) == bare
+    assert _host_imports(tree, guarded=True) == guarded
+
+
 def test_the_package_scan_is_package_wide() -> None:
     names = {p.name for p in _package_trees()}
     assert {"__init__.py", "runtime.py"} <= names
