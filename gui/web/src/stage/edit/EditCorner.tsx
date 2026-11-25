@@ -33,7 +33,8 @@ export function EditCorner({
     );
   const tip = useCoachTip("rangeToggle");
   // On a phone arming opens the docked Range sheet over the corner, so the tip would never be seen.
-  const phone = useViewportClass() === "phone";
+  const shell = useViewportClass();
+  const phone = shell === "phone";
   return (
     <EditCornerView
       viewAnchor={viewAnchor}
@@ -51,8 +52,9 @@ export function EditCorner({
         onToggle: () => runPointerCommand("view.toggleSnap"),
       }}
       range={
-        touch
+        touch || shell === "tablet"
           ? {
+              reserved: !touch,
               armed: rangeArmed,
               reason: hasProject
                 ? undefined

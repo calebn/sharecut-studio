@@ -172,12 +172,7 @@ async function settle(page: Page) {
     .toBe(true);
 }
 
-/**
- * Close the open sheet from the keyboard. A pointer press on Close lands while
- * focus leaves a control inside the sheet, and WebKit then sometimes delivers
- * the click to the header instead of the button; the sweep measures reach, not
- * that press, so the close goes by Enter on the focused button.
- */
+/** Close from the keyboard so the touch reachability sweep keeps its input mode. */
 async function closeSheet(page: Page) {
   const close = page.locator(SHEET).getByRole("button", { name: "Close" });
   await close.focus();
@@ -517,6 +512,46 @@ test("loaded tablet Player stays reachable at 200% text", async ({ page }) => {
       await reachFailures(page, { scope: ".stage-frame-player", dense: DENSE }),
     ),
   ).toBe("");
+});
+
+test("the first mouse press closes the tablet Inspector when switching from touch mode", async ({
+  page,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await arrive(page, TABLETS[0], (p) => openHostShare(p, projectPath));
+    const opener = page.locator(".sys-track-main").first();
+    await opener.focus();
+    await opener.press("Enter");
+    const inspector = page.getByRole("dialog", {
+      name: "Inspector",
+      exact: true,
+    });
+    const person = inspector
+      .getByRole("radiogroup", { name: "Person" })
+      .getByRole("radio", { checked: true });
+    await expect(person).toBeFocused();
+    await fontsReady(page);
+    await settle(page);
+    const range = page.getByRole("button", {
+      name: "Select range",
+      exact: true,
+    });
+    await expect(range).toBeVisible();
+
+    const close = inspector.getByRole("button", { name: "Close", exact: true });
+    const target = await close.boundingBox();
+    if (!target) throw new Error("The Inspector Close button has no box");
+    const x = target.x + target.width / 2;
+    const y = target.y + target.height / 2;
+
+    await page.mouse.move(x, y);
+    await expect(range).toHaveCount(0);
+    await expect.poll(() => close.boundingBox()).toEqual(target);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(inspector).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  });
 });
 
 test("tablet and desktop shells keep every control a finger can use across 768 to 1195 wide", async ({

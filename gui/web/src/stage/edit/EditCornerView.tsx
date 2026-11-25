@@ -38,6 +38,8 @@ export interface EditCornerViewProps {
    * mouse or pen drags a range directly.
    */
   range?: {
+    /** Keeps the footprint when the open tablet Inspector excludes this corner. */
+    reserved?: boolean;
     armed: boolean;
     reason?: string;
     onToggle: () => void;
@@ -127,25 +129,32 @@ export function EditCornerView({
         />
       ) : null}
       {range ? (
-        <CoachTip
-          align="end"
-          placement="above"
-          text={range.hint?.text ?? ""}
-          shown={range.hint?.shown ?? false}
-          onDismiss={range.hint?.onDismiss}
+        <span
+          className="edit-corner-range-slot"
+          data-reserved={range.reserved || undefined}
+          inert={range.reserved}
+          aria-hidden={range.reserved || undefined}
         >
-          <ToggleButton
-            quiet
-            pressed={range.armed}
-            className="edit-corner-btn edit-corner-range"
-            disabledReason={range.reason}
-            title={commandLabel("range.arm")}
-            aria-label={commandLabel("range.arm", "short")}
-            onClick={range.onToggle}
+          <CoachTip
+            align="end"
+            placement="above"
+            text={range.hint?.text ?? ""}
+            shown={!range.reserved && (range.hint?.shown ?? false)}
+            onDismiss={range.hint?.onDismiss}
           >
-            <Icon name="range" />
-          </ToggleButton>
-        </CoachTip>
+            <ToggleButton
+              quiet
+              pressed={range.armed}
+              className="edit-corner-btn edit-corner-range"
+              disabledReason={range.reason}
+              title={commandLabel("range.arm")}
+              aria-label={commandLabel("range.arm", "short")}
+              onClick={range.onToggle}
+            >
+              <Icon name="range" />
+            </ToggleButton>
+          </CoachTip>
+        </span>
       ) : null}
       {script ? (
         <ToggleButton
