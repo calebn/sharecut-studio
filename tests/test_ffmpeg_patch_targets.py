@@ -29,7 +29,7 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.engines import ffmpeg
-from podcast_mcp.engines.ffmpeg import FFmpegEngine, runtime
+from podcast_mcp.engines.ffmpeg import FFmpegEngine, diagnostics, runtime
 
 TESTS = Path(__file__).resolve().parent
 PACKAGE = TESTS.parent / "src" / "podcast_mcp" / "engines" / "ffmpeg"
@@ -39,16 +39,16 @@ PATCHERS = {"setattr", "delattr", "object", "patch", "multiple"}
 
 ALLOWLIST = {
     "_PACKET_SCAN_TIMEOUT_SEC",
-    "_drawtext_font",
     "_read_audio_extent",
     "file_revision",
     "negotiated_rates",
-    "shutil",
     "spawn_or_too_long",
     "threading",
 }
 
 RUNTIME = "runtime"
+DIAGNOSTICS = "diagnostics"
+DIAGNOSTICS_ALLOWLIST = {"_drawtext_font"}
 RUNTIME_ALLOWLIST = {
     "_run_cancellable",
     "popen",
@@ -72,7 +72,11 @@ MULTIPLE_OPTIONS = {"target", "spec", "create", "spec_set", "autospec", "new_cal
 def _target(segments: list[str]) -> tuple[str, str | None]:
     """The module attribute a dotted path names, and the engine member under it when it is the engine."""
     name = segments[0] or DYNAMIC
-    member = segments[1] if name in {"FFmpegEngine", RUNTIME} and len(segments) > 1 else None
+    member = (
+        segments[1]
+        if name in {"FFmpegEngine", RUNTIME, DIAGNOSTICS} and len(segments) > 1
+        else None
+    )
     return name, member
 
 
@@ -181,7 +185,7 @@ def _found() -> set[tuple[str, str | None]]:
 
 
 def _outside_the_engine(found: set[tuple[str, str | None]]) -> set[str]:
-    return {name for name, _ in found if name not in {"FFmpegEngine", RUNTIME}}
+    return {name for name, _ in found if name not in {"FFmpegEngine", RUNTIME, DIAGNOSTICS}}
 
 
 def _runtime_patched(found: set[tuple[str, str | None]]) -> set[str | None]:
@@ -203,6 +207,12 @@ def test_tests_patch_only_the_allowlisted_runtime_names() -> None:
         f"drop from RUNTIME_ALLOWLIST, no test patches them any more: "
         f"{sorted(RUNTIME_ALLOWLIST - patched)}"
     )
+
+
+def test_diagnostics_submodule_patches_are_the_listed_members() -> None:
+    patched = {member for name, member in _found() if name == DIAGNOSTICS}
+    assert patched == DIAGNOSTICS_ALLOWLIST
+    assert all(hasattr(diagnostics, name) for name in DIAGNOSTICS_ALLOWLIST)
 
 
 def test_every_engine_member_a_test_patches_exists() -> None:
@@ -569,7 +579,7 @@ def test_the_process_use_scanner(source: str, lines: list[int]) -> None:
     assert _direct_process_uses(ast.parse(source)) == lines
 
 
-KNOWN_MIXIN_BINDINGS = {("encode.py", "spawn_or_too_long"), ("mix.py", "shutil")}
+KNOWN_MIXIN_BINDINGS = {("encode.py", "spawn_or_too_long")}
 FACADE_ONLY = {"__init__.py"}
 MIXIN_IMPORT_EXEMPT = {"__init__.py", "runtime.py"}
 HOST = "host"
@@ -686,16 +696,16 @@ def test_the_host_module_is_imported_only_for_type_checking() -> None:
             [("spawn_or_too_long", 1)],
             id="import",
         ),
-        pytest.param("import shutil", [("shutil", 1)], id="plain import"),
+        pytest.param("import threading", [("threading", 1)], id="plain import"),
         pytest.param(
             "import threading as t\nt.Timer",
             [],
             id="import as binds the alias only",
         ),
-        pytest.param("x = 1\nshutil.copy(a)", [("shutil", 2)], id="bare read"),
+        pytest.param("x = 1\nthreading.Timer(a)", [("threading", 2)], id="bare read"),
         pytest.param("negotiated_rates(a)", [("negotiated_rates", 1)], id="call"),
         pytest.param("import os\nruntime.run(a)\nfacade.shutil", [], id="unrelated and attribute"),
-        pytest.param("shutil = 1", [], id="a store is not a read"),
+        pytest.param("threading = 1", [], id="a store is not a read"),
     ],
 )
 def test_the_facade_binding_scanner(source: str, expected: list[tuple[str, int]]) -> None:
