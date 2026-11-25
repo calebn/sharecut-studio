@@ -12,11 +12,11 @@ from optional_projects import cleanup_test_project
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.audio_audit import (
-    TrackRmsCache,
     build_track_rms_caches,
     compute_word_audibility_map,
     measure_window_rms_db,
 )
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.models import (
     Clip,
@@ -99,7 +99,7 @@ def test_track_rms_cache_decodes_once_and_reuses_samples(tmp_path: Path):
 
     with (
         patch("podcast_mcp.engines.audio_audit.load_mono_window", side_effect=fake_window),
-        patch("podcast_mcp.engines.audio_audit.load_mono_full", side_effect=fake_full),
+        patch("podcast_mcp.engines.pcm_cache.load_mono_full", side_effect=fake_full),
     ):
         uncached = [measure_window_rms_db(stem, start, end) for start, end in windows]
         assert window_calls == len(windows)
@@ -134,7 +134,7 @@ def test_compute_word_audibility_map_reuses_processed_stem_cache(tmp_path: Path)
 
     with (
         patch(
-            "podcast_mcp.engines.audio_audit.load_mono_full",
+            "podcast_mcp.engines.pcm_cache.load_mono_full",
             return_value=samples,
         ) as full_decode,
         patch("podcast_mcp.engines.audio_audit.load_mono_window") as window_decode,

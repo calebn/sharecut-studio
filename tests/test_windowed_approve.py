@@ -20,9 +20,10 @@ from podcast_mcp.edits.cut_application import apply_prefix_edits, approve_edits,
 from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.engines import track_evidence
-from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_track_rms_caches
+from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.engines.mute_regions import add_source_mute
+from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 from podcast_mcp.engines.play_audit import stem_path, write_stem_hash
 from podcast_mcp.engines.windowed_rms import TimelineWindow, WindowedTrackRmsCache, WindowMiss
 from podcast_mcp.models import (

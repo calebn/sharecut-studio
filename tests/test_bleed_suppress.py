@@ -36,7 +36,7 @@ def _every_track_floors_at_minus_42_dbfs():
 # The acoustic bleed verdict needs a measured path from the louder mic (#774); these
 # tests fake a guest-dominant window on the host mic, so the guest -> host path is measured.
 _GUEST_TO_HOST_MEASURED = patch(
-    "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
+    "podcast_mcp.engines.pcm_cache.TrackRmsCacheSet.echo_pairs",
     new=lambda self: [
         EchoPairProfile(
             source_track_id="guest",

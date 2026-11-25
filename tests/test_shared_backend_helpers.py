@@ -22,7 +22,7 @@ from podcast_mcp.util.tracks import existing_stem_path, stem_path
     "module,symbol",
     [
         ("podcast_mcp.engines.session_timeline", "SessionTimeline"),
-        ("podcast_mcp.engines.audio_audit", "TrackRmsCache"),
+        ("podcast_mcp.engines.pcm_cache", "TrackRmsCache"),
     ],
 )
 def test_engine_imports_work_in_fresh_process(module: str, symbol: str) -> None:

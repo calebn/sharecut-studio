@@ -11,7 +11,7 @@ from podcast_mcp.edits.cut_safety import ResolvedCutScope
 from podcast_mcp.edits.filler_pacing import FillerPacingResult
 from podcast_mcp.edits.tighten.candidate import _CutCandidate
 from podcast_mcp.edits.tighten.prepare import _analyze_candidate
-from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from test_breath_detect import (
     _EDGE_TOL,
     _fake_windows,

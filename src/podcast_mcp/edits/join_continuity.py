@@ -610,7 +610,7 @@ def _resolve_source_samples(
     if cache is not None and cache.waveform.sample_rate == sr:
         return cache.waveform.samples
     path = track_audio_path(project, track_id)
-    from podcast_mcp.engines.audio_audit import TrackRmsCache
+    from podcast_mcp.engines.pcm_cache import TrackRmsCache
 
     return TrackRmsCache.from_recording(path, sample_rate=sr).samples
 

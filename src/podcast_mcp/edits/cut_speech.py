@@ -22,8 +22,9 @@ from podcast_mcp.edits.speech_energy_guard import (
     speech_energy_guard_enabled,
     speech_words_in,
 )
-from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_track_rms_caches
+from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.engines.clips_ops import clips_for_track
+from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     CutSpeech,

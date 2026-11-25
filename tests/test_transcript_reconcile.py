@@ -76,7 +76,7 @@ def _room_path(source: str, bleed: str) -> EchoPairProfile:
 # The identical-text loudness rule applies only where bleed is measured; these tests
 # pin that rule, so they run on a room pair with bleed both ways (#774).
 _ROOM_PAIR_MEASURED = patch(
-    "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
+    "podcast_mcp.engines.pcm_cache.TrackRmsCacheSet.echo_pairs",
     new=lambda self: [_room_path("host", "guest"), _room_path("guest", "host")],
 )
 

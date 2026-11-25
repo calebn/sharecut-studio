@@ -31,12 +31,12 @@ from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import SpeechLevels, refresh_silence_flags
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
-    TrackRmsCache,
     compute_word_audibility_map,
     list_low_audibility_words,
 )
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.engines.speaker_split import attribute_speakers
 from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
 from podcast_mcp.models import (
@@ -445,7 +445,7 @@ def _guest_reaches_host() -> Any:
         null_consistent_rate=0.02,
     )
     return patch(
-        "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs", new=lambda self: [path]
+        "podcast_mcp.engines.pcm_cache.TrackRmsCacheSet.echo_pairs", new=lambda self: [path]
     )
 
 

@@ -85,7 +85,6 @@ from podcast_mcp.edits.timeline_ops import (
     room_tone_pad,
     split_clips_at,
 )
-from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 from podcast_mcp.engines.clips_ops import (
     SPLICE_SOURCE_EPS_SEC,
     abutting_pairs,
@@ -98,6 +97,7 @@ from podcast_mcp.engines.clips_ops import (
 from podcast_mcp.engines.ffmpeg import LateMpegAudioError
 from podcast_mcp.engines.mute_regions import add_source_mute
 from podcast_mcp.engines.off_speaker_regions import MuteOwnership, add_off_speaker_mute
+from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
 )

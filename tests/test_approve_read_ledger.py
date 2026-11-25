@@ -17,7 +17,7 @@ from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.cut_proof import shared_timeline_rms_caches
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.engines import track_evidence
-from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
+from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 from podcast_mcp.models import ClipMuteRegion, EpisodeProject
 
 BLEED_PATH_READS = ("path_samples", "echo_pairs", "copy_path", "lane_lag_steps", "leak_paths")

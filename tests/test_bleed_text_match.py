@@ -340,7 +340,7 @@ def test_reconcile_applies_text_match_suppression(tmp_path: Path) -> None:
             side_effect=_equal_rms,
         ),
         patch(
-            "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
+            "podcast_mcp.engines.pcm_cache.TrackRmsCacheSet.echo_pairs",
             new=lambda self: _ROOM_PAIR,
         ),
     ):

@@ -38,7 +38,6 @@ from podcast_mcp import settings
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines import evidence_records, timeline_render
 from podcast_mcp.engines.audio import Audio, sources
-from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.engines.audio_eval import (
     common_rate,
     evaluate_resampled,
@@ -49,6 +48,7 @@ from podcast_mcp.engines.decode_memo import RACY_SECONDS
 from podcast_mcp.engines.decoded_source import decoded_sources, spill, spill_allowed
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.level_profile import PROFILE_SAMPLE_RATE, LevelProfile, track_profile
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.engines.ungated_audio import ffmpeg_build_id
 from podcast_mcp.engines.windowed_rms import WindowedTrackRmsCache, resampled_window
 from podcast_mcp.models import EpisodeProject

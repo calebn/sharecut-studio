@@ -18,7 +18,7 @@ from podcast_mcp.edits.silence_islands import (
     suggest_handoff_cut,
     timeline_floor_hops,
 )
-from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
+from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -484,7 +484,7 @@ def test_handoff_refuses_short_or_disjoint_common_quiet(tmp_path, peer_quiet):
 
 @pytest.mark.parametrize("offset,size", [(0.0, 1600), (0.05, 16000)])
 def test_incomplete_cache_windows_are_unknown(tmp_path, offset, size):
-    from podcast_mcp.engines.audio_audit import TrackRmsCache
+    from podcast_mcp.engines.pcm_cache import TrackRmsCache
 
     p = _project(tmp_path)
     cache = TrackRmsCache(np.zeros(size), sample_rate=16000, timeline_offset_sec=offset)

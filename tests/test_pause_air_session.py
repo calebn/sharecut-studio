@@ -401,7 +401,7 @@ def test_an_extra_source_is_read_from_its_own_file_not_the_decode_the_run_holds_
     # The run holds a decode of the guest's own media (digital silence here). The clip that
     # plays take2 is a different file: its word at session 4.9 must still be read from it.
     from podcast_mcp.edits.audio_cache import TrackAudioCache
-    from podcast_mcp.engines.audio_audit import TrackRmsCache
+    from podcast_mcp.engines.pcm_cache import TrackRmsCache
 
     project = _workspace_project(tmp_path)
     silence = np.zeros(30 * RATE, dtype=np.float32)

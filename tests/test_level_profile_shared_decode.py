@@ -9,13 +9,13 @@ import wave
 import pytest
 
 from podcast_mcp.edits import audio_cache
-from podcast_mcp.engines import audio_audit, decode_memo, level_profile
-from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.engines import decode_memo, level_profile, pcm_cache
 from podcast_mcp.engines.level_profile import (
     frame_levels_db,
     load_mono_full,
     profile_from_levels,
 )
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.models import MediaAsset, Track, TrackRole
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.batch_scope import batch_scope
@@ -33,7 +33,7 @@ def raw_decodes(monkeypatch: pytest.MonkeyPatch) -> list[int]:
         return load_mono_full(path, sample_rate=sample_rate, ffmpeg=ffmpeg)
 
     monkeypatch.setattr(level_profile, "load_mono_full", counted)
-    monkeypatch.setattr(audio_audit, "load_mono_full", counted)
+    monkeypatch.setattr(pcm_cache, "load_mono_full", counted)
     monkeypatch.setattr(decode_memo, "_now_ns", lambda: time.time_ns() + 3600 * 10**9)
     decode_memo._MEMO.clear()
     level_profile._FILE_PROFILES.clear()
@@ -137,7 +137,7 @@ def test_a_file_rewritten_after_the_memo_decode_is_not_seeded_into_the_batch(
 ) -> None:
     _, path = _host_project(minimal_project)
     aged = path.stat().st_mtime_ns
-    real_once = audio_audit.decode_once
+    real_once = pcm_cache.decode_once
 
     def rewrite_after(*args, **kwargs):  # type: ignore[no-untyped-def]
         result = real_once(*args, **kwargs)
@@ -149,7 +149,7 @@ def test_a_file_rewritten_after_the_memo_decode_is_not_seeded_into_the_batch(
         os.utime(path, ns=(aged, aged))
         return result
 
-    monkeypatch.setattr(audio_audit, "decode_once", rewrite_after)
+    monkeypatch.setattr(pcm_cache, "decode_once", rewrite_after)
     with batch_scope():
         TrackRmsCache.from_recording(path, sample_rate=RATE)
         assert load_mono_full(path, sample_rate=RATE).size == 3 * RATE
@@ -171,7 +171,7 @@ def test_a_same_size_rewrite_with_a_new_mtime_is_not_seeded_into_the_batch(
     minimal_project, raw_decodes: list[int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _, path = _host_project(minimal_project)
-    real_once = audio_audit.decode_once
+    real_once = pcm_cache.decode_once
     old: list = []
 
     def rewrite_after(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -182,7 +182,7 @@ def test_a_same_size_rewrite_with_a_new_mtime_is_not_seeded_into_the_batch(
         path.write_bytes(bytes(data))
         return result
 
-    monkeypatch.setattr(audio_audit, "decode_once", rewrite_after)
+    monkeypatch.setattr(pcm_cache, "decode_once", rewrite_after)
     with batch_scope():
         TrackRmsCache.from_recording(path, sample_rate=RATE)
         assert not (load_mono_full(path, sample_rate=RATE) == old[0]).all()
@@ -194,7 +194,7 @@ def test_an_atomic_replacement_with_the_same_size_and_mtime_is_not_seeded_into_t
     project, path = _host_project(minimal_project)
     audio_cache.track_level_profile(project, "host", sample_rate=RATE)
     aged = path.stat().st_mtime_ns
-    real_once = audio_audit.decode_once
+    real_once = pcm_cache.decode_once
     old: list = []
 
     def replace_after(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -208,7 +208,7 @@ def test_an_atomic_replacement_with_the_same_size_and_mtime_is_not_seeded_into_t
         os.replace(staged, path)
         return result
 
-    monkeypatch.setattr(audio_audit, "decode_once", replace_after)
+    monkeypatch.setattr(pcm_cache, "decode_once", replace_after)
     with batch_scope():
         TrackRmsCache.from_recording(path, sample_rate=RATE)
         assert not (load_mono_full(path, sample_rate=RATE) == old[0]).all()
@@ -220,7 +220,7 @@ def test_an_in_place_rewrite_with_the_old_mtime_is_not_seeded_into_the_batch(
     project, path = _host_project(minimal_project)
     audio_cache.track_level_profile(project, "host", sample_rate=RATE)
     aged = path.stat().st_mtime_ns
-    real_once = audio_audit.decode_once
+    real_once = pcm_cache.decode_once
     old: list = []
 
     def rewrite_after(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -233,7 +233,7 @@ def test_an_in_place_rewrite_with_the_old_mtime_is_not_seeded_into_the_batch(
         os.utime(path, ns=(aged, aged))
         return result
 
-    monkeypatch.setattr(audio_audit, "decode_once", rewrite_after)
+    monkeypatch.setattr(pcm_cache, "decode_once", rewrite_after)
     with batch_scope():
         TrackRmsCache.from_recording(path, sample_rate=RATE)
         assert not (load_mono_full(path, sample_rate=RATE) == old[0]).all()

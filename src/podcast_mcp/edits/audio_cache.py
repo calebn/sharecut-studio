@@ -9,13 +9,13 @@ from pathlib import Path
 
 import numpy as np
 
-from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.engines.level_profile import (
     LEVEL_FRAME_SEC,
     PROFILE_SAMPLE_RATE,
     LevelProfile,
     file_level_profile,
 )
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import scoped_by_file
 from podcast_mcp.util.dsp import (

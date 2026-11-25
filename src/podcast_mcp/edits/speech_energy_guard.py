@@ -26,9 +26,6 @@ from podcast_mcp.edits.voiced_runs import (
     carries_speech_pitch,
 )
 from podcast_mcp.engines.audio_audit import (
-    _RMS_SAMPLE_RATE,
-    TrackRmsCache,
-    TrackRmsCacheSet,
     measure_timeline_rms_db,
     timeline_frame_levels_db,
     timeline_window_samples,
@@ -52,6 +49,7 @@ from podcast_mcp.engines.level_profile import (
     room_floor_db,
     speech_level_db,
 )
+from podcast_mcp.engines.pcm_cache import RMS_SAMPLE_RATE, TrackRmsCache, TrackRmsCacheSet
 from podcast_mcp.engines.sample_grid import Piece, lay_out
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
@@ -167,7 +165,7 @@ class _RemovedCells:
             recording_profile=(
                 peer.profile
                 if peer is not None
-                else track_level_profile(project, peer_track_id, sample_rate=_RMS_SAMPLE_RATE)
+                else track_level_profile(project, peer_track_id, sample_rate=RMS_SAMPLE_RATE)
             ),
         )
         return TrackRmsCacheSet(caches={**(caches.caches if caches else {}), peer_track_id: only})
@@ -210,7 +208,7 @@ def _removal_cells(
     """
     track = project.track_by_id(peer_track_id)
     cache = caches.get(peer_track_id) if caches else None
-    rate = cache.sample_rate if cache else _RMS_SAMPLE_RATE
+    rate = cache.sample_rate if cache else RMS_SAMPLE_RATE
     offset = cache.timeline_offset_sec if cache else 0.0
     origin = round(offset * rate)
     removal_start, removal_end = removal_span if removal_span is not None else (start, end)
@@ -707,7 +705,7 @@ def _peer_profile(
     return (
         cache.profile
         if cache is not None
-        else track_level_profile(project, track_id, sample_rate=_RMS_SAMPLE_RATE)
+        else track_level_profile(project, track_id, sample_rate=RMS_SAMPLE_RATE)
     )
 
 

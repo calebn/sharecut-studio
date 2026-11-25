@@ -31,7 +31,7 @@ from podcast_mcp.edits.voiced_runs import (
     voiced_runs,
     voiced_sec_inside,
 )
-from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.gui.assembler import build_project_view
 from podcast_mcp.models import (
     Clip,

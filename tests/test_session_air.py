@@ -12,8 +12,8 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.breath_detect import PauseAir, pause_air_span
 from podcast_mcp.edits.session_air import SessionAir
-from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.engines.lane_window import Placement, lane_placements, lane_window, primary_media
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,

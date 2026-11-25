@@ -28,7 +28,7 @@ from podcast_mcp.util.timebase import SourceSec
 
 if TYPE_CHECKING:
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
-    from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
+    from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 from podcast_mcp.edits.cut_safety import CutScopeUnavailable, resolve_cut_scope
 from podcast_mcp.edits.tighten.acoustic_scan import (
     _peer_audio_caches,

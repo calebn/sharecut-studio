@@ -19,13 +19,9 @@ import pytest
 
 from bleed_helpers import RATE, delay, voices
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines.audio_audit import (
-    AnalysisPolicy,
-    TrackRmsCache,
-    TrackRmsCacheSet,
-    compute_word_audibility_map,
-)
+from podcast_mcp.engines.audio_audit import AnalysisPolicy, compute_word_audibility_map
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
+from podcast_mcp.engines.pcm_cache import TrackRmsCache, TrackRmsCacheSet
 from podcast_mcp.models import EpisodeProject, Track, TrackRole, Transcript, TranscriptWord
 
 LATENCY_SEC = 0.15
@@ -171,7 +167,7 @@ def test_own_voice_starting_and_stopping_with_the_peer_is_no_copy_path() -> None
     His level contour follows hers at her track's latency as a copy's would, but his
     voice does not carry her fine spectrum there, so no lag is trusted (#1070).
     """
-    from podcast_mcp.engines.audio_audit import CopyPath
+    from podcast_mcp.engines.pcm_cache import CopyPath
 
     rng = np.random.default_rng(3)
     caleb, audra = np.zeros(round(240 * RATE)), np.zeros(round(240 * RATE))
@@ -204,7 +200,7 @@ def test_mics_on_different_sample_clocks_fall_back_to_zero_lag() -> None:
 
 
 def test_a_lag_without_a_measured_likeness_takes_no_word() -> None:
-    from podcast_mcp.engines.audio_audit import CopyPath
+    from podcast_mcp.engines.pcm_cache import CopyPath
 
     assert not CopyPath(lag_sec=LATENCY_SEC, likeness=None).carries(1.0)
     assert CopyPath(lag_sec=LATENCY_SEC, likeness=0.4).carries(0.4)

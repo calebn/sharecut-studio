@@ -96,7 +96,7 @@ def _bleed_path(source: str, bleed: str) -> EchoPairProfile:
 # Cross-track sync judges only pairs on a measured bleed pair (#774); the host/guest
 # pairs these tests hand it sit on one.
 _HOST_GUEST_MEASURED = patch(
-    "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
+    "podcast_mcp.engines.pcm_cache.TrackRmsCacheSet.echo_pairs",
     new=lambda self: [_bleed_path("guest", "host")],
 )
 

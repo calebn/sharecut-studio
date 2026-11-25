@@ -254,7 +254,7 @@ def _write_quiet_recording(path: Path, *, seconds: int = 6) -> None:
 def test_source_witness_geometry_matches_with_and_without_proof_caches(
     tmp_path: Path, monkeypatch
 ) -> None:
-    from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
+    from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 
     outcomes: dict[tuple[bool, bool], tuple[Any, ...]] = {}
     for overlap in (True, False):
