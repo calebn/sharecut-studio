@@ -25,6 +25,7 @@ from podcast_mcp.models import (
 from podcast_mcp.pipeline import PipelineRunner
 from podcast_mcp.pipeline import steps as pipeline_steps
 from podcast_mcp.pipeline.helpers import ffmpeg
+from podcast_mcp.project.store import WriteGrantKind, active_write_grant, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline.export_config import (
     ExportSettingsEvidence,
@@ -241,7 +242,15 @@ class PipelineService:
             nonlocal revision, targets_unchanged
             before = transcript_target() if destructive else None
             revision = None
-            revision = self.ws.save_merged(history_label=history_label)
+            # A step's changes, such as the comments Align tracks leaves on clipped word
+            # starts, save under the caller's grant, else a legacy_pipeline_run one (#3827).
+            grant = (
+                nullcontext()
+                if active_write_grant() is not None
+                else write_grant(WriteGrantKind.LEGACY_PIPELINE_RUN)
+            )
+            with grant:
+                revision = self.ws.save_merged(history_label=history_label)
             if before is not None and before != transcript_target():
                 targets_unchanged = False
 
