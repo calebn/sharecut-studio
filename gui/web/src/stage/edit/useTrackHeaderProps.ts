@@ -1,9 +1,4 @@
-import {
-  type DragEvent,
-  useEffect,
-  useMemo,
-  useSyncExternalStore,
-} from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import {
   playbackTrackClipped,
   subscribePlaybackClipLatches,
@@ -78,16 +73,10 @@ function moveTrack(id: string, direction: -1 | 1): void {
   });
 }
 
-/** Where a drag over a header stands: the half of it the pointer is in. */
-export function dropEdge(event: DragEvent<HTMLElement>): "before" | "after" {
-  const rect = event.currentTarget.getBoundingClientRect();
-  return event.clientY > rect.top + rect.height / 2 ? "after" : "before";
-}
-
 /**
- * The props of one track header, from the same store fields, selectors and
- * commands the legacy header used: the mute state this listener hears, solo,
- * the saved volume, the live level and the clip light. The callbacks are
+ * The props of one track header, read from the store: the mute state this
+ * listener hears, solo, selection, the saved volume, the live level and the
+ * clip light. The callbacks are
  * module functions, so a header redraws only when one of its own values
  * changes, never for a sibling or a playhead frame.
  */
