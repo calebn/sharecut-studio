@@ -166,7 +166,7 @@ describe("EditActionBar on the phone dock", () => {
     const bar = screen.getByRole("group", { name: "Edit actions" });
     expect(within(bar).getByTitle("Change the tracks")).toBeTruthy();
     expect(names().at(-1)).toBe("Cut");
-    for (const verb of ["Hear", "Split", "Comment", "Re-record"]) {
+    for (const verb of ["Hear", "Split", "More"]) {
       expect(
         within(bar).getByRole("button", { name: new RegExp(`^${verb}`) }),
       ).toBeTruthy();
@@ -174,15 +174,14 @@ describe("EditActionBar on the phone dock", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("labels Record exactly Re-record on a replaceable range", () => {
+  it("labels Record exactly Re-record on a replaceable range", async () => {
     host(EDIT_SELECTIONS.rangeOnAllTracks);
     render(<EditActionBar form="dock" root={null} />);
-    const bar = screen.getByRole("group", { name: "Edit actions" });
-    expect(
-      within(bar).getAllByRole("button", { name: /Re-record/ }),
-    ).toHaveLength(1);
-    expect(names()).toContain("Re-record");
-    expect(names()).not.toContain("Record here");
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.getAllByRole("menuitem", { name: /Re-record/ })).toHaveLength(
+      1,
+    );
+    expect(screen.queryByRole("menuitem", { name: "Record here" })).toBeNull();
   });
 
   it("has no Record button on a range that ends past the timeline", () => {

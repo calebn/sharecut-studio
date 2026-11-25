@@ -4,6 +4,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -11,6 +12,7 @@ import { Button, Menu, MenuItem, SegmentedControl, ToggleButton } from "../ui";
 import type { AnchorRect } from "../ui/anchoredPlacement";
 import { disabledAttrs, useDisabledReasonNote } from "../ui/disabledReason";
 import { type AnchorExclusion, useAnchoredPanel } from "../ui/useAnchoredPanel";
+import { useResizeObserver } from "../ui/useResizeObserver";
 import {
   type BarItem,
   type BarSplit,
@@ -440,6 +442,34 @@ function Inline({
   );
 }
 
+const DOCK_BUTTON = 48;
+const DOCK_SLACK = 2;
+
+type DockMeasure = { width: number; leading: number; gap: number };
+const UNMEASURED: DockMeasure = { width: 0, leading: 0, gap: 0 };
+
+/** The start slot's width, what its first `leadingSlots` children take, and its gap. */
+function readDockMeasure(
+  start: HTMLElement,
+  leadingSlots: number,
+): DockMeasure {
+  let leading = 0;
+  for (let at = 0; at < leadingSlots; at++)
+    leading +=
+      (start.children[at] as HTMLElement | undefined)?.offsetWidth ?? 0;
+  const gap = Number.parseFloat(getComputedStyle(start).columnGap);
+  return {
+    width: start.clientWidth,
+    leading,
+    gap: Number.isFinite(gap) ? gap : 0,
+  };
+}
+
+/** How many 48 px buttons, More's included, the measured start slot holds. */
+function dockCapacity({ width, leading, gap }: DockMeasure): number {
+  return Math.floor((width - leading - DOCK_SLACK + gap) / (DOCK_BUTTON + gap));
+}
+
 function Dock({
   leading,
   items,
@@ -455,12 +485,43 @@ function Dock({
   moreRequest,
 }: FormProps) {
   const grip = items.some((item) => item.id === "inspect");
+  const startRef = useRef<HTMLDivElement>(null);
+  const [measure, setMeasure] = useState<DockMeasure>(UNMEASURED);
+  const [extra, setExtra] = useState({ key: "", buttons: 0 });
+  const key = `${items.map((item) => item.id).join()}|${measure.width}|${measure.leading}`;
+  const lost = extra.key === key ? extra.buttons : 0;
   const folded = foldDock(
     items,
     more,
     (primary !== undefined ? 1 : 0) +
-      (trailing || reserveEnd ? 1 + leadingSlots + trailingSlots : 0),
+      leadingSlots +
+      (trailing || reserveEnd ? 1 + trailingSlots : 0),
+    measure.width > 0 ? dockCapacity(measure) - lost : undefined,
   );
+  const measureStart = () => {
+    const start = startRef.current;
+    if (!start) return;
+    const next = readDockMeasure(start, leadingSlots);
+    setMeasure((prev) =>
+      prev.width === next.width &&
+      prev.leading === next.leading &&
+      prev.gap === next.gap
+        ? prev
+        : next,
+    );
+  };
+  useResizeObserver(startRef, measureStart);
+  useLayoutEffect(() => {
+    const start = startRef.current;
+    if (!start) return;
+    measureStart();
+    if (
+      measure.width > 0 &&
+      folded.items.length > 0 &&
+      start.scrollWidth > start.clientWidth + 1
+    )
+      setExtra({ key, buttons: lost + 1 });
+  });
   const gated = folded.items.find((item) => item.disabledReason);
   const { note, describedBy } = useDisabledReasonNote(
     gated?.disabledReason,
@@ -487,7 +548,7 @@ function Dock({
             onClick={() => onVerb("inspect")}
           />
         ) : null}
-        <div className="sys-dock-slot sys-dock-slot--start">
+        <div ref={startRef} className="sys-dock-slot sys-dock-slot--start">
           {leading}
           <Items look="dock" items={noted} more={[]} onVerb={onVerb} />
           {folded.more.length > 0 ? (

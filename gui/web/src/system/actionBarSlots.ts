@@ -46,7 +46,7 @@ function optionsRow(item: BarItem & { split: BarSplit }): BarItem {
   };
 }
 
-/** Verb slots in the phone dock, the primary's included. Design-system element 7 and spec-edit. */
+/** Verb slots in the phone dock before its start slot is measured, the primary's included. Design-system element 7 and spec-edit. */
 const DOCK_VERB_SLOTS = 5;
 
 /** Items as slots: a Hear before and Hear after pair is one A/B slot. */
@@ -66,19 +66,36 @@ export function slotsOf(items: readonly BarItem[]): BarItem[][] {
 
 /**
  * The dock keeps `DOCK_VERB_SLOTS` verbs less the `reserved` slots the primary
- * and an end control take, and moves the rest, in bar order, to the head of
- * More. Inspect is the dock's grip and More is drawn by the dock, so neither
- * takes a slot.
+ * and the end and leading controls take, and moves the rest, in bar order, to
+ * the head of More. With a measured `capacity` (the 48 px buttons the start
+ * slot holds, More's included) it keeps the leading slots that fit instead: an
+ * A/B pair costs two buttons and never splits. Inspect is the dock's grip and
+ * More is drawn by the dock, so neither takes a slot.
  */
 export function foldDock(
   items: readonly BarItem[],
   more: readonly BarItem[],
   reserved: number,
+  capacity?: number,
 ): { items: BarItem[]; more: BarItem[] } {
   const slots = slotsOf(
     items.filter((item) => item.id !== "more" && item.id !== "inspect"),
   );
-  const room = DOCK_VERB_SLOTS - reserved;
+  let room = Math.max(0, DOCK_VERB_SLOTS - reserved);
+  if (capacity !== undefined) {
+    const hasSplit = (count: number) =>
+      slots.slice(0, count).some((slot) => slot.some((item) => item.split));
+    const fits = (count: number) => {
+      const buttons = slots
+        .slice(0, count)
+        .reduce((total, slot) => total + slot.length, 0);
+      const drawsMore =
+        count < slots.length || more.length > 0 || hasSplit(count);
+      return buttons + (drawsMore ? 1 : 0) <= capacity;
+    };
+    room = slots.length;
+    while (room > 0 && !fits(room)) room--;
+  }
   const kept = slots.slice(0, room).flat();
   const moved = slots.slice(room).flat();
   const splitRows = (rows: readonly BarItem[]) =>
