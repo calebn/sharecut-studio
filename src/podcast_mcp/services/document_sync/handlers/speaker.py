@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
+
+from pydantic import BaseModel
 
 from podcast_mcp.engines.speaker_id import label_window, resolve_speaker_backend
 from podcast_mcp.models import EpisodeProject
@@ -12,7 +15,16 @@ from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.tracks import unknown_track
 
 
-def label_speaker_window(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+class SpeakerLabelResult(BaseModel):
+    """What one ``LabelSpeakerWindow`` changed: the words it labelled and the window's score."""
+
+    labeled: int
+    role: str
+    dry_run: bool = False
+    score: dict[str, Any]
+
+
+def label_speaker_window(ws: ProjectWorkspace, p: dict[str, Any]) -> Mapping[str, Any]:
     """Label one track's words in a window and save it as one undoable step.
 
     The window is scored inside the mutation, so the project lock is held while it runs,
@@ -26,7 +38,7 @@ def label_speaker_window(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, A
     ctx = load_transcript_context(ws.project.workspace_path())
     backend = resolve_speaker_backend()
 
-    def mutate(project: EpisodeProject) -> dict[str, Any]:
+    def mutate(project: EpisodeProject) -> SpeakerLabelResult:
         if not any(t.id == track_id for t in project.tracks):
             raise unknown_track(track_id)
         result = label_window(
@@ -36,6 +48,7 @@ def label_speaker_window(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, A
             raise CodedValueError(
                 f"speaker label on {track_id!r}: {result['error']}", code="speaker_label_failed"
             )
-        return result
+        return SpeakerLabelResult.model_validate(result)
 
-    return ws.mutate("before speaker label", "after speaker label", mutate)
+    labeled = ws.mutate("before speaker label", "after speaker label", mutate)
+    return labeled.model_dump(mode="json")
