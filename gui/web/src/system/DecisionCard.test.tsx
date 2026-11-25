@@ -40,6 +40,26 @@ const swipe = (el: Element, dx: number, dy: number) => {
 };
 
 describe("DecisionCard", () => {
+  it("a Leave card has one Leave button, no Keep, and its footer says X leaves it", () => {
+    render(<DecisionCard {...base()} verb="keep" verbLabel="Leave" />);
+    const names = within(screen.getByRole("group", { name: "Actions" }))
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+    expect(names).toContain("Leave");
+    expect(names).not.toContain("Keep");
+    expect(screen.getByText(/Enter decides/).textContent).toContain(
+      "X leaves it",
+    );
+    expect(screen.getByText(/Enter decides/).textContent).not.toContain(
+      "X keeps",
+    );
+  });
+
+  it("any other card's footer says X keeps", () => {
+    render(<DecisionCard {...base()} />);
+    expect(screen.getByText(/Enter decides/).textContent).toContain("X keeps");
+  });
+
   it("puts Keep before the verb, and the verb last", () => {
     render(<DecisionCard {...base()} />);
     const names = within(screen.getByRole("group", { name: "Actions" }))

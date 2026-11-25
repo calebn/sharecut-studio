@@ -57,7 +57,7 @@ const meta: Meta<typeof ReviewStageHarness> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The Review stage in one frame: the queue, the Decision card, the Overview strip above the Player. Enter does the verb, X keeps, the arrows move on, A and B listen, Shift+Enter applies to the group as one undo step. The next undecided item is selected in the same frame as the decision. Tab keeps the page's focus order, so the buttons and the Undo toast stay reachable.\n\n**Motion.** Animations come later: the advance and the collapse use `--motion-panel`.",
+          "The Review stage in one frame: the queue, the Decision card, the Overview strip above the Player. Enter does the verb, X keeps (a Leave card says X leaves it), the arrows move on, A and B listen, Shift+Enter applies to the group as one undo step. The next undecided item is selected in the same frame as the decision. Tab keeps the page's focus order, so the buttons and the Undo toast stay reachable.\n\n**Motion.** Animations come later: the advance and the collapse use `--motion-panel`.",
       },
     },
   },
