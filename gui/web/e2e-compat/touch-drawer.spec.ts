@@ -738,6 +738,7 @@ test("a pending edit's Approve and Reject stay reachable on the sheet at enlarge
         await expect(
           sheet(page).getByRole("spinbutton", { name: "Source start" }),
         ).toBeAttached();
+        if (fullOnly) await expect(page.locator(DOCK)).toHaveCount(0);
       }
       // The verbs leave the dock for the sheet body once the sheet is full and
       // tight, so the host is read only after the detent has settled.
