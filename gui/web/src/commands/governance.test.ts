@@ -100,6 +100,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/ChipInput.tsx",
   // Escape closes the Open other popover from its field and its buttons.
   "stages/home/OpenOther.tsx",
+  "segments/SegmentRowView.tsx",
   // Escape closes the Review comment field.
   "stage/hosts/useReviewComments.tsx",
   "stages/prepare/LanguagePicker.tsx",

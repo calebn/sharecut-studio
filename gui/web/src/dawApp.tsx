@@ -23,6 +23,7 @@ import { useRecordMonitor } from "./record/monitor/useRecordMonitor";
 import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
 import { useHostRoom } from "./record/useHostRoom";
 import { useOutputDevice } from "./record/useOutputDevice";
+import { SegmentLibrarySheet } from "./segments";
 import { SettingsHost } from "./settings/SettingsHost";
 import { isShareProjectKey } from "./shareMode";
 import { type ShellFailure, waitsForConnection } from "./shellLoadFailure";
@@ -65,6 +66,7 @@ const selectDawAppFields = pickDaw(
   "setActivityRunningCount",
   "setHostMcpDialogOpen",
   "setModelsSheetOpen",
+  "setSegmentLibraryOpen",
 );
 
 const selectDawAppDerived = (s: DawState) => ({
@@ -126,9 +128,11 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     setActivityRunningCount,
     setHostMcpDialogOpen,
     setModelsSheetOpen,
+    setSegmentLibraryOpen,
   } = useDaw(selectDawAppFields);
   const hostMcpDialogOpen = useDaw((s) => s.chrome.hostMcpDialogOpen);
   const modelsSheetOpen = useDaw((s) => s.chrome.modelsSheetOpen);
+  const segmentLibraryOpen = useDaw((s) => s.chrome.segmentLibraryOpen);
   const { hasProject, projectName, suppressPublish } =
     useDaw(selectDawAppDerived);
   const publishKey = useDawStore(selectPublishKey);
@@ -307,6 +311,10 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
                   onClose={() => setModelsSheetOpen(false)}
                 />
               ) : null}
+              <SegmentLibrarySheet
+                open={segmentLibraryOpen}
+                onClose={() => setSegmentLibraryOpen(false)}
+              />
               <FeedbackToast />
             </ShareFlowProvider>
           </FindMoreFlowProvider>

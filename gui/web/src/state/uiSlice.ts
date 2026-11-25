@@ -395,6 +395,7 @@ type UiSlice = Pick<
   | "setHostMcpDialogOpen"
   | "setHelpDialogOpen"
   | "setModelsSheetOpen"
+  | "setSegmentLibraryOpen"
   | "setSettingsSheetOpen"
   | "joinMutationInFlight"
   | "setJoinMutationInFlight"
@@ -459,6 +460,7 @@ export function chromeInitial(): ChromeFlags {
     helpDialogOpen: false,
     helpDialogStep: "menu",
     modelsSheetOpen: false,
+    segmentLibraryOpen: false,
     settingsSheetOpen: false,
     transcriptFindReplaceOpen: false,
   };
@@ -965,6 +967,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       })),
     setModelsSheetOpen: (on) =>
       set((s) => ({ chrome: { ...s.chrome, modelsSheetOpen: on } })),
+    setSegmentLibraryOpen: (on) =>
+      set((s) => ({ chrome: { ...s.chrome, segmentLibraryOpen: on } })),
     setSettingsSheetOpen: (on) =>
       set((s) => ({ chrome: { ...s.chrome, settingsSheetOpen: on } })),
     setJoinMutationInFlight: (joinMutationInFlight) =>

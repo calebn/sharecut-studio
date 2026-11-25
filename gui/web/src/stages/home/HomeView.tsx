@@ -79,6 +79,8 @@ export type HomeViewProps = {
   working?: string;
   /** The card being opened while `working` shows. */
   busyId?: string;
+  /** The Segment library section after Recent; a table on a wide Home, a list on a narrow one. Absent: no section. */
+  library?: (layout: "table" | "list") => ReactNode;
 };
 
 /** The picker form: the path fallback needs wiring, so Home shows the picker. */
@@ -209,6 +211,7 @@ export function HomeView({
   notice,
   working,
   busyId,
+  library,
 }: HomeViewProps) {
   const host = useRef<HTMLDivElement>(null);
   const narrow = useNarrow(host);
@@ -378,6 +381,7 @@ export function HomeView({
             ) : null}
             {recent}
           </section>
+          {library ? library(narrow ? "list" : "table") : null}
         </main>
       </div>
       {showBar ? (

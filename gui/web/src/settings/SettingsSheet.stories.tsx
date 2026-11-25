@@ -62,6 +62,7 @@ const meta: Meta<typeof SettingsSheet> = {
     theme: "system",
     onTheme: fn(),
     onOpenModels: fn(),
+    onOpenSegments: fn(),
     onOpenShortcuts: fn(),
     savedIn: {
       folder: FOLDER,
@@ -105,6 +106,10 @@ export const InProject: Story = {
       within(sheet).getByRole("button", { name: "Models" }),
     );
     await expect(args.onOpenModels).toHaveBeenCalledOnce();
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: "Segment library" }),
+    );
+    await expect(args.onOpenSegments).toHaveBeenCalledOnce();
     await userEvent.click(
       within(sheet).getByRole("button", { name: "Keyboard shortcuts" }),
     );

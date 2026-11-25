@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { LIBRARY } from "../../segments/fixtures";
+import { SegmentLibrary } from "../../segments/SegmentLibrary";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
 import { HomeView } from "./HomeView";
 import { RECENTS, RECENTS_MOVED } from "./homeFixture";
@@ -176,6 +178,33 @@ export const LoadFailed: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
     await expect(args.onRetryLoad).toHaveBeenCalledOnce();
   },
+};
+const libraryState = {
+  rows: LIBRARY,
+  error: null,
+  reload: fn(),
+  remove: fn(async () => null),
+};
+const withLibrary: Story["args"] = {
+  library: (layout) => (
+    <SegmentLibrary library={libraryState} layout={layout} />
+  ),
+};
+export const WithSegmentLibrary: Story = {
+  args: withLibrary,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("heading", { name: "Segment library" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Play Cold open" }),
+    ).toBeVisible();
+  },
+};
+export const PhoneWithSegmentLibrary: Story = {
+  args: withLibrary,
+  globals: { viewport: { value: "mobile390", isRotated: false } },
 };
 export const Phone: Story = {};
 export const PhoneEmpty: Story = {

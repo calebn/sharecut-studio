@@ -248,6 +248,10 @@ Dynamic Island side in landscape.
 
 Phone chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport override can leave the CSS viewport at tablet width while the OS window is narrower — hard refresh does not clear that; clear the override (or set 390×844) before judging the phone frame.
 
+## Segment library on Home and in a sheet
+
+Home shows the saved segments after Recent: a list of 44 px rows on a narrow Home (`HomeView` picks `list` below `PHONE_MAX_PX` and `table` above it), a real table on a wide one. Each row has Play (one shared audio element, started from the tap, `preload="none"`) and More (Remove from library, which asks inline with Keep focused). Settings has a Segment library row that opens the same list in a full-detent bottom sheet on a phone (`SegmentLibrarySheet`, mounted by `HomeScreen` and `dawApp`). Controls are `--touch-min`, names wrap under 200% text, and the page never scrolls sideways (`e2e/segment-library-iphone.spec.ts` checks all three at 390 px and at 320 px with 32 px root text). Styles: `styles/partials/segment-library.css`. See [Segments § Studio](segments.md#studio).
+
 ## Software keyboard and bottom sheets (#1335)
 
 Mobile Safari shrinks only the *visual* viewport when the keyboard opens and scrolls it under fixed elements, so a sheet sized from the layout viewport lost its pinned header, including **Close**, off the top in portrait and after rotation. While any `BottomSheet` is open, `useKeyboardInset` (`gui/web/src/hooks/useKeyboardInset.ts`) reads `visualViewport` and publishes `--keyboard-inset` and `--visual-viewport-top` with `data-keyboard="open"` on `<html>`. `bottom-sheet.css` then fits the sheet slot to the visible area, so the header and **Close** stay on screen and the body scrolls above the keyboard. A pinch zoom (scale above 1) is not a keyboard. When the viewport changes with a field focused inside a sheet, the field is scrolled into view with `focusAndReveal`. On touch input, opening an envelope form focuses its heading rather than a numeric field, so adding a point never raises the keyboard by itself.
