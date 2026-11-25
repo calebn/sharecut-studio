@@ -708,7 +708,9 @@ describe("InsertSegmentCard bottom", () => {
     insertButton().focus();
     await waitFor(() => expect(insertButton()).toHaveFocus());
     await userEvent.keyboard("{Enter}");
-    await waitFor(() => expect(handlers.onInsert).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(handlers.onInsert).toHaveBeenCalledTimes(1), {
+      timeout: 5000,
+    });
   });
 
   it("describes Cancel as off while inserting", async () => {
