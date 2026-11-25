@@ -293,9 +293,7 @@ def _off_speaker(body: Piece, node: OffSpeakerAudio, seek: MediaSeek, sample_rat
     origin = seek.first_sample(node.primary.src_start, sample_rate)
 
     def at(seconds: float, *, ceil: bool = False) -> int:
-        frame = (
-            math.ceil(seconds * sample_rate) if ceil else delay_frames(seconds, sample_rate)
-        )
+        frame = math.ceil(seconds * sample_rate) if ceil else delay_frames(seconds, sample_rate)
         return frame - origin
 
     def read(start: int, stop: int) -> np.ndarray:
