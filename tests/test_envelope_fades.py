@@ -580,3 +580,10 @@ def test_a_nudged_fade_point_does_not_swallow_or_duplicate_a_slot() -> None:
     result = merge_fades(nudged, 10.0, 2.0, 3.0).points
     ids = [p.id for p in result]
     assert len(ids) == len(set(ids)) == 4
+
+
+def test_a_span_enclosed_by_a_dip_asks_for_a_rerun() -> None:
+    points = plan_envelope([(4.0, 19.0)], [], DEPTH, 20.0, 1000).points
+    assert merge_fades(points, 8.0, 2.0, 3.0).replaced_under_duck >= 1
+    after = plan_envelope([(4.0, 19.0)], [], DEPTH, 20.0, 1000).points
+    assert merge_fades(after, 3.5, 2.0, 3.0).replaced_under_duck == 0

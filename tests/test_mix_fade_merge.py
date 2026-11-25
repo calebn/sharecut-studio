@@ -227,3 +227,43 @@ def test_a_pan_envelope_listed_first_and_a_pan_only_track_survive_the_mix(
     steps.mix_with_music(project, defaults)
     assert pan in project.automation_envelopes
     assert _points(project) == before
+
+
+def test_a_bed_shorter_than_the_episode_ducked_first_asks_for_a_rerun(
+    minimal_project, tmp_path, tmp_workspace, engine_ready
+) -> None:
+    from podcast_mcp.models import MediaAsset
+
+    host_wav = _lavfi_wav(tmp_path / "host20.wav", "sine=frequency=440:duration=20")
+    bed_wav = _lavfi_wav(tmp_path / "bed8.wav", "sine=frequency=330:duration=8")
+    defaults = load_defaults()
+    project = _dialogue_project(minimal_project, host_wav, tmp_workspace)
+    (tmp_workspace / "raw" / "bed.wav").write_bytes(bed_wav.read_bytes())
+    project.track_by_id("bed").media = MediaAsset(path="raw/bed.wav")
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="a", start=4.0, end=11.0),
+                TranscriptWord(text="b", start=11.0, end=19.0),
+            ],
+        )
+    ]
+    save_project(project, minimal_project)
+    project = load_project(minimal_project)
+    steps.ingest_tracks(project, defaults)
+    steps.assemble_timeline(project, defaults)
+    save_project(project, minimal_project)
+    assert submit_host_command_result(str(minimal_project), "ApplyDucking", {})["applied"]
+    project = load_project(minimal_project)
+    summary = steps.mix_with_music(project, defaults)
+    assert "re-run ducking" in summary
+    stem = _stem(project)
+    outside = _rms_db(stem, 2.2, 3.4)
+    assert _rms_db(stem, 5.0, 5.5) - outside > DEPTH_DB + 10.0
+
+    save_project(project, minimal_project)
+    assert submit_host_command_result(str(minimal_project), "ApplyDucking", {})["applied"]
+    project = load_project(minimal_project)
+    assert "re-run ducking" not in steps.mix_with_music(project, defaults)
+    assert abs((_rms_db(_stem(project), 5.0, 5.5) - outside) - DEPTH_DB) <= 3.0
