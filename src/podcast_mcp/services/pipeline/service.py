@@ -359,8 +359,6 @@ class PipelineService:
         operation: str | None = None,
         label: str = "set envelope",
     ) -> Mapping[str, int]:
-        """Replace several tracks' volume envelopes in one mutation: one history entry, one undo."""
-
         def mutate(p) -> Mapping[str, int]:
             duration = timeline_duration_sec(p)
             return {
@@ -391,7 +389,14 @@ class PipelineService:
             )
             for point in points
         ]
-        # Replace only the volume envelope; other parameters (e.g. pan) are not ours.
+        ids = [point.id for point in pts]
+        if len(ids) != len(set(ids)):
+            duplicate = next(i for i in ids if ids.count(i) > 1)
+            raise CodedValueError(
+                f"Volume envelope for {track_id!r} has more than one point with id "
+                f"{duplicate!r}; envelope point ids must be unique.",
+                code="envelope_duplicate_point_id",
+            )
         current = p.volume_envelope_for(track_id)
         if current is None:
             p.automation_envelopes.append(AutomationEnvelope(track_id=track_id, points=pts))

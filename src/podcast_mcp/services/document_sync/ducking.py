@@ -1,5 +1,3 @@
-"""Plan and apply ducking: which tracks dip, under whose speech, and the points each gets."""
-
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
