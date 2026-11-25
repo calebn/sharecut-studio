@@ -4,6 +4,8 @@ import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "./liveProject";
+import { openSuggestedPendingEdit } from "./pendingEdit";
+import { openPhoneTimeline } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
 import {
   armRange,
@@ -13,7 +15,7 @@ import {
   openToolsIfFolded,
   phone,
 } from "./stageNav";
-import { withDocumentCommandTypes } from "./transcriptEdit";
+import { openScript, withDocumentCommandTypes } from "./transcriptEdit";
 
 const LAYOUTS = [
   { name: "1280x800 mouse", width: 1280, height: 800, touch: false },
@@ -202,5 +204,103 @@ test.describe("the 320 px dock keeps every control reachable", () => {
     await expect(sheet).toHaveCount(0);
     await expectDockFits(page);
     await expect(clearIn(page)).toBeVisible();
+  });
+});
+
+test.describe("the phone dock folds what the start slot cannot hold", () => {
+  const FILLER = { reason: "filler:um", inspect: false };
+
+  async function fits(page: Page) {
+    await expect(bar(page)).toBeVisible();
+    const slot = bar(page).locator(".sys-dock-slot--start");
+    await expect
+      .poll(() => slot.evaluate((el) => el.scrollWidth - el.clientWidth), {
+        message: "the verbs fit without scrolling",
+      })
+      .toBeLessThanOrEqual(1);
+    for (const button of await bar(page).getByRole("button").all())
+      await expect(button).toBeInViewport({ ratio: 1 });
+  }
+
+  const inDock = (page: Page, name: string) =>
+    bar(page).getByRole("button", { name, exact: true });
+
+  async function inMore(page: Page): Promise<string[]> {
+    await bar(page).getByRole("button", { name: /^More/ }).tap();
+    const menu = page.getByRole("menu");
+    await expect(menu).toBeVisible();
+    const names = await menu.getByRole("menuitem").allTextContents();
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+    return names.map((name) => name.trim());
+  }
+
+  async function selectEdit(page: Page, width: number) {
+    await openSuggestedPendingEdit(page, projectPath, FILLER);
+    await page.setViewportSize({ width, height: 740 });
+    await openPhoneTimeline(page);
+  }
+
+  async function selectWord(page: Page, width: number) {
+    await openProject(page, projectPath);
+    await page.setViewportSize({ width, height: 740 });
+    await phone.showText(page);
+    const list = await openScript(page);
+    await list.locator(".sys-script-word").nth(3).tap();
+    await expect(
+      list.locator(".sys-script-word[data-selected]"),
+    ).not.toHaveCount(0);
+  }
+
+  test.describe("at 320", () => {
+    test.use({
+      viewport: { width: 1280, height: 800 },
+      hasTouch: true,
+      isMobile: true,
+    });
+
+    test("a pending edit folds Keep and Comment into More", async ({
+      page,
+    }) => {
+      await selectEdit(page, 320);
+      await fits(page);
+      await expect(inDock(page, "Keep")).toHaveCount(0);
+      await expect(inDock(page, "Cut")).toBeVisible();
+      expect(await inMore(page)).toEqual(
+        expect.arrayContaining(["Keep", "Comment"]),
+      );
+    });
+
+    test("a word folds Fix text into More", async ({ page }) => {
+      await selectWord(page, 320);
+      await fits(page);
+      await expect(inDock(page, "Fix text")).toHaveCount(0);
+      await expect(inDock(page, "Cut")).toBeVisible();
+      expect(await inMore(page)).toEqual(expect.arrayContaining(["Fix text"]));
+    });
+  });
+
+  test.describe("at 390", () => {
+    test.use({
+      viewport: { width: 1280, height: 800 },
+      hasTouch: true,
+      isMobile: true,
+    });
+
+    test("a pending edit folds nothing that fit before", async ({ page }) => {
+      await selectEdit(page, 390);
+      await fits(page);
+      await expect(inDock(page, "Keep")).toBeVisible();
+      await expect(inDock(page, "Cut")).toBeVisible();
+      expect(await inMore(page)).not.toContain("Keep");
+    });
+
+    test("a word keeps all its verbs", async ({ page }) => {
+      await selectWord(page, 390);
+      await fits(page);
+      for (const name of ["Hear", "Split", "Comment", "Fix text", "Cut"])
+        await expect(inDock(page, name)).toBeVisible();
+      expect(await inMore(page)).not.toContain("Fix text");
+    });
   });
 });
