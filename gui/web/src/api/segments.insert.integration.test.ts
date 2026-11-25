@@ -35,7 +35,7 @@ it("keeps the server's refusal code on the command queue path", async () => {
   const { minimalProject } = await import("../test/fixtures");
   useDawStore.setState({ projectPath: path, project: minimalProject() });
   const fetcher = vi.fn(
-    async () =>
+    async (_input: RequestInfo | URL, _init?: RequestInit) =>
       new Response(JSON.stringify({ detail: "The audio changed." }), {
         status: 400,
         headers: { "X-Sharecut-Error-Code": "segment_hash_mismatch" },
