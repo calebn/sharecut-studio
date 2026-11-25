@@ -117,10 +117,10 @@ describe("the words", () => {
   it("names what is not kept and what still works, without storage jargon", () => {
     expect(STORAGE_LIGHT).toBe("Not kept on this device");
     expect(storageSentence("blocked")).toBe(
-      "Your browser isn't letting this page keep a saved copy. The page still works while the host answers.",
+      "Your browser isn't letting this page keep a saved copy. The page still works while the host answers. If the host stops, what you write here is lost when you close the page.",
     );
     expect(storageSentence("full")).toBe(
-      "This device has no room to keep a saved copy. The page still works while the host answers.",
+      "This device has no room to keep a saved copy. The page still works while the host answers. If the host stops, what you write here is lost when you close the page.",
     );
     expect(PREFS_SENTENCE).toBe(
       "This browser isn't keeping your settings. They reset when you reload.",

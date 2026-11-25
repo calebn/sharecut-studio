@@ -68,7 +68,7 @@ export const UnkeptBlocked: Story = {
     await expect(light).toHaveTextContent("Not kept on this device");
     await expect(light).toHaveAttribute(
       "title",
-      "Your browser isn't letting this page keep a saved copy. The page still works while the host answers.",
+      "Your browser isn't letting this page keep a saved copy. The page still works while the host answers. If the host stops, what you write here is lost when you close the page.",
     );
     await expect(within(canvasElement).queryByRole("alert")).toBeNull();
   },
@@ -80,7 +80,7 @@ export const UnkeptFull: Story = {
     await expect(light).toHaveTextContent("Not kept on this device");
     await expect(light).toHaveAttribute(
       "title",
-      "This device has no room to keep a saved copy. The page still works while the host answers.",
+      "This device has no room to keep a saved copy. The page still works while the host answers. If the host stops, what you write here is lost when you close the page.",
     );
     await expect(within(canvasElement).queryByRole("alert")).toBeNull();
   },
