@@ -10,6 +10,10 @@ import { useDawStore } from "../../state/dawStore";
 import { useReadsSavedCopy } from "../../state/savedCopy";
 import { useShareName } from "../../state/shareName";
 import { stageRoleOf } from "../../state/stageRoutes";
+import {
+  reportStorageFailure,
+  reportStorageOk,
+} from "../../state/storageHealth";
 import { useDaw } from "../../state/useDaw";
 import type { AppHeaderProps } from "../../system/AppHeader";
 import { isHostRole } from "../../utils/can";
@@ -39,6 +43,18 @@ const MENU_COMMANDS: Record<string, string> = {
   settings: "settings.open",
   agent: "mcp.connect",
 };
+
+/** Closing the role hint is the one settings write a guest makes: a browser that refuses it keeps none, and says so once. */
+function keepSettingsOrSay(kept: boolean): void {
+  if (kept === false) {
+    reportStorageFailure(
+      "prefs",
+      new DOMException("This browser keeps no settings.", "SecurityError"),
+    );
+    return;
+  }
+  reportStorageOk("prefs");
+}
 
 /**
  * Everything `AppHeader` needs from the app, except the people slot: title,
@@ -109,7 +125,7 @@ export function useHeaderProps(): Omit<
               shown: hintShown,
               onDismiss: () => {
                 if (hintKind === "role") {
-                  markRoleHintSeen(role);
+                  keepSettingsOrSay(markRoleHintSeen(role));
                   setDismissed((current) => [...current, role]);
                 } else {
                   markEditStakesSeen(token);

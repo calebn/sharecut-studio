@@ -8,6 +8,10 @@ import {
   updateStoredList,
 } from "../../state/idbKv";
 import { clearOutbox } from "../../state/outboxStore";
+import {
+  reportStorageFailure,
+  reportStorageOk,
+} from "../../state/storageHealth";
 import { isLinkEnded } from "../../utils/linkEnded";
 import { chainQueuedEnvelopeBaseline } from "./queuedEnvelopeBaseline";
 
@@ -475,26 +479,35 @@ export async function mergeOfflineSnapshot(
               !matchesSavedProject(previous.project)
             )
               return;
-            store.put(
-              {
-                ...previous,
-                ...patch,
-                // The playback path can seed a copy, but a prior live snapshot owns its project and date.
-                ...(matchesSavedProject && previous?.project !== undefined
-                  ? { project: previous.project }
-                  : {}),
-                saved_at: matchesSavedProject
-                  ? (previous?.saved_at ?? 0)
-                  : Date.now(),
-              },
-              key,
-            );
-            written = true;
+            try {
+              store.put(
+                {
+                  ...previous,
+                  ...patch,
+                  // The playback path can seed a copy, but a prior live snapshot owns its project and date.
+                  ...(matchesSavedProject && previous?.project !== undefined
+                    ? { project: previous.project }
+                    : {}),
+                  saved_at: matchesSavedProject
+                    ? (previous?.saved_at ?? 0)
+                    : Date.now(),
+                },
+                key,
+              );
+              written = true;
+            } catch (error) {
+              // put throws at once when the device is full; an error out of this callback would be uncaught.
+              reject(error);
+              try {
+                tx.abort();
+              } catch {}
+            }
           };
           tx.oncomplete = () => resolve(written);
           tx.onabort = () =>
             reject(tx.error ?? new Error("IndexedDB transaction aborted"));
-          tx.onerror = () => reject(tx.error);
+          tx.onerror = () =>
+            reject(tx.error ?? new Error("IndexedDB transaction failed"));
         });
       } finally {
         db.close();
@@ -553,6 +566,15 @@ export async function enqueueCommand(
     queueKey(token),
     parseCommandList,
     (queue) => admitCommand(queue, cmd, (_queue, row) => row),
+  ).then(
+    (admission) => {
+      reportStorageOk("queue");
+      return admission;
+    },
+    (error: unknown) => {
+      reportStorageFailure("queue", error);
+      throw error;
+    },
   );
 }
 

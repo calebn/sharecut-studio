@@ -111,12 +111,15 @@ export function GuestPageCover({
   trying,
   onRetry,
   unsent,
+  note,
 }: {
   failure: GuestLoadFailure;
   trying: boolean;
   onRetry: () => void;
   /** What the guest had typed and not sent when the link ended; with none the cover is unchanged. */
   unsent?: UnsentText[];
+  /** One more sentence under the cover's own, e.g. that this browser keeps no saved copy. */
+  note?: string;
 }) {
   const cover = guestLoadCover(failure);
   const mainRef = useRef<HTMLElement>(null);
@@ -152,7 +155,16 @@ export function GuestPageCover({
         title={title}
         headingLevel="h1"
         titleRef={titleRef}
-        extra={handBack?.block}
+        extra={
+          handBack || note ? (
+            <>
+              {handBack?.block}
+              {note ? (
+                <p className="sys-cover-text guest-cover-note">{note}</p>
+              ) : null}
+            </>
+          ) : undefined
+        }
         primary={
           handBack
             ? { label: handBack.button, onClick: () => void handBack.copy() }

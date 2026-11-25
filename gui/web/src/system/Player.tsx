@@ -1,8 +1,10 @@
 import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
+  type RefObject,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -16,6 +18,7 @@ import {
   SegmentedControl,
   ToggleButton,
 } from "../ui";
+import { useResizeObserver } from "../ui/useResizeObserver";
 import { SKIP_SEC } from "../utils/time";
 import { HistoryButtons, type HistoryButtonsProps } from "./HistoryButtons";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
@@ -422,6 +425,38 @@ function HearOriginal({
   );
 }
 
+const DOCK_RESERVE = "--player-dock-height";
+
+/**
+ * Hands the sheets and the toast the dock's real height. At large text the
+ * Comment button wraps under Play and the dock grows past its token, so the
+ * root's reserve is set to the measured height; at its natural height the
+ * property is removed and the token applies. The dock's content is measured
+ * too: its own height holds at the reserve while the content shrinks.
+ */
+function useDockReserve(
+  dock: RefObject<HTMLElement | null>,
+  transport: RefObject<HTMLElement | null>,
+) {
+  useResizeObserver([dock, transport], () => {
+    const el = dock.current;
+    if (!el) return;
+    const root = document.documentElement;
+    // Without the override the dock is as tall as its content or the token, whichever is more.
+    root.style.removeProperty(DOCK_RESERVE);
+    const token = Number.parseFloat(getComputedStyle(el).minBlockSize) || 0;
+    const height = el.getBoundingClientRect().height;
+    if (token > 0 && height > token + 0.5)
+      root.style.setProperty(DOCK_RESERVE, `${height}px`);
+  });
+  useLayoutEffect(
+    () => () => {
+      document.documentElement.style.removeProperty(DOCK_RESERVE);
+    },
+    [],
+  );
+}
+
 /**
  * The phone guest's Listen dock: the scrubber, the readout, and the transport
  * with a labelled Comment button. It never expands, so nothing is hidden a
@@ -438,6 +473,9 @@ function Dock(props: PlayerProps & { statusId: string }) {
     chapter,
   } = props;
   const centre = status ?? chapters[chapter ?? -1]?.title;
+  const dockRef = useRef<HTMLDivElement>(null);
+  const transportRef = useRef<HTMLDivElement>(null);
+  useDockReserve(dockRef, transportRef);
   return (
     <div
       role="region"
@@ -445,7 +483,7 @@ function Dock(props: PlayerProps & { statusId: string }) {
       className="sys-player-host"
       data-state={state}
     >
-      <div className="sys-listen-dock">
+      <div ref={dockRef} className="sys-listen-dock">
         <div className="sys-listen-dock-strip">
           <OverviewStrip
             height={32}
@@ -488,7 +526,7 @@ function Dock(props: PlayerProps & { statusId: string }) {
             {total}
           </span>
         ) : null}
-        <div className="sys-listen-dock-transport">
+        <div ref={transportRef} className="sys-listen-dock-transport">
           {props.onChapters ? (
             <button
               type="button"
@@ -500,7 +538,9 @@ function Dock(props: PlayerProps & { statusId: string }) {
               <SystemIcon name="list" size={20} />
             </button>
           ) : null}
-          <PlayCluster {...props} />
+          <div className="sys-listen-dock-cluster">
+            <PlayCluster {...props} />
+          </div>
           {props.onComment ? (
             <button
               type="button"

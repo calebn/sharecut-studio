@@ -315,6 +315,58 @@ export const GuestConflicts: Story = {
   },
 };
 
+/** A frame `rem` wide at the 32 px root text: 10 rem is a 320 px phone, 12.1875 rem a 390 px one. */
+function largeTextFrame(width: string): NonNullable<Story["decorators"]> {
+  return [
+    (Story) => (
+      <div
+        style={{ inlineSize: width, maxInlineSize: "none", overflow: "auto" }}
+      >
+        <Story />
+      </div>
+    ),
+  ];
+}
+
+const largeText = () => {
+  const root = document.documentElement;
+  const before = root.style.fontSize;
+  root.style.fontSize = "32px";
+  return () => {
+    root.style.fontSize = before;
+  };
+};
+
+/** Dismiss all stays wholly in its frame, and the frame does not scroll sideways. */
+const headFitsFrame: NonNullable<Story["play"]> = async ({ canvasElement }) => {
+  const frame = canvasElement.querySelector<HTMLElement>(
+    "[style*='inline-size']",
+  );
+  const button = within(canvasElement).getByRole("button", {
+    name: "Dismiss all",
+  });
+  const box = button.getBoundingClientRect();
+  if (!frame || box.width === 0) return;
+  const edge = frame.getBoundingClientRect();
+  await expect(box.left).toBeGreaterThanOrEqual(edge.left);
+  await expect(box.right).toBeLessThanOrEqual(edge.right + 0.5);
+  await expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth);
+};
+
+export const GuestConflictsLargeText320: Story = {
+  args: GuestConflicts.args,
+  beforeEach: largeText,
+  decorators: largeTextFrame("10rem"),
+  play: headFitsFrame,
+};
+
+export const GuestConflictsLargeText390: Story = {
+  args: GuestConflicts.args,
+  beforeEach: largeText,
+  decorators: largeTextFrame("12.1875rem"),
+  play: headFitsFrame,
+};
+
 export const GuestSavedEditsUnreadable: Story = {
   args: {
     guest: true,

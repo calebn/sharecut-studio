@@ -445,6 +445,7 @@ function AttentionGroup({
         </span>
         {rows.length > 0 && attention.canDismiss ? (
           <Button
+            className="rv-bulk-action"
             aria-disabled={held || undefined}
             aria-describedby={held ? reasonId : undefined}
             title={held ? dismissReason(attention) : undefined}

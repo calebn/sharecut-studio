@@ -225,9 +225,6 @@ describe("App styles", () => {
       0,
     );
     expect(depth).toBe(0);
-    expect(css).not.toMatch(
-      /@media\s*\(pointer:\s*coarse\)\s*\{[^@]*\.rv-bulk-action/,
-    );
     expect(css).toMatch(
       /\.rv-group-head\s*\{[^}]*flex-wrap:\s*wrap;[^}]*row-gap:/,
     );

@@ -31,6 +31,7 @@ import {
 } from "../services/offlineQueue/offlineStore";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { reportStorageFailure, reportStorageOk } from "../state/storageHealth";
 import { pauseFromSystem } from "../state/systemPlayhead";
 import { transportAvailability } from "../state/transportAvailability";
 import { useDaw } from "../state/useDaw";
@@ -372,10 +373,14 @@ export function useProxyTransport(): boolean {
               },
             },
           )
-            .then((written) => {
-              if (written && current())
-                return pruneLinkAudio(token, manifestChunkRefs(manifest));
-            })
+            .then(
+              (written) => {
+                if (written) reportStorageOk("snapshot");
+                if (written && current())
+                  return pruneLinkAudio(token, manifestChunkRefs(manifest));
+              },
+              (error: unknown) => reportStorageFailure("snapshot", error),
+            )
             .catch(() => undefined);
         }
       } catch (error) {
