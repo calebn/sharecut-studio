@@ -522,9 +522,7 @@ def _correct_phrase(ws: ProjectWorkspace, last_index: int, text: str) -> None:
 def _find_replace(ws: ProjectWorkspace, search: str, text: str) -> None:
     service = TranscriptService(ws)
     preview = service.preview_transcript_replacement(search, text, match_case=True)
-    assert service.replace_transcript_matches(
-        search, text, preview["preview_token"], match_case=True
-    )
+    assert service.replace_transcript_matches(search, text, preview.preview_token, match_case=True)
 
 
 # Each rebuilds the clipped "And": one word, split into more words, or merged with the next.

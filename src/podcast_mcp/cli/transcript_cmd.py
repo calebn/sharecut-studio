@@ -190,8 +190,9 @@ def transcript_find_replace_cmd(
     preview = TranscriptService(ProjectWorkspace.open(project)).preview_transcript_replacement(
         search, replacement, match_case=match_case
     )
+    payload = preview.model_dump()
     if dry_run:
-        typer.echo(json.dumps(preview, indent=2))
+        typer.echo(json.dumps(payload, indent=2))
         return
     reply = submit_host_document_command(
         project,
@@ -200,12 +201,12 @@ def transcript_find_replace_cmd(
             "search": search,
             "replacement": replacement,
             "match_case": match_case,
-            "preview_token": preview["preview_token"],
+            "preview_token": preview.preview_token,
             **({} if only is None else {"only": only}),
         },
         client_id="cli",
     )
-    typer.echo(json.dumps({**preview, **host_command_result(reply)}, indent=2))
+    typer.echo(json.dumps({**payload, **host_command_result(reply)}, indent=2))
 
 
 @transcript_app.command("suppress-word")

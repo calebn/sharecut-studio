@@ -488,7 +488,7 @@ def _timing_token(rig: Rig) -> str:
 
 def _replace_preview(rig: Rig) -> str:
     preview = TranscriptService(rig.ws).preview_transcript_replacement("again", "once more")
-    return preview["preview_token"]
+    return preview.preview_token
 
 
 def _bleed_target(rig: Rig) -> dict[str, Any]:
