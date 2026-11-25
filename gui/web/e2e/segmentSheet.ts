@@ -12,7 +12,6 @@ export const detentOf = (sheet: Locator) =>
       /bottom-sheet--(peek|half|full)/.exec(element.className)?.[1] ?? "",
   );
 
-/** Both pinned actions are whole in the viewport, inside the sheet, and in its footer. */
 export async function expectActionsPinned(
   sheet: Locator,
   names: readonly [string, string],
@@ -32,10 +31,7 @@ export async function expectActionsPinned(
   }
 }
 
-/**
- * A screen so short in rem (large text on a small phone) that a pinned footer
- * would starve the form: the actions sit at the end of the scrolling body.
- */
+/** Short-in-rem screens (large text on a small phone): a pinned footer would starve the form. */
 export async function expectActionsInBody(
   sheet: Locator,
   names: readonly [string, string],
@@ -55,7 +51,6 @@ export async function expectActionsInBody(
   }
 }
 
-/** Expand, Collapse and the height slider all move the sheet and keep the footer inside it. */
 export async function expectResizes(
   sheet: Locator,
   names: readonly [string, string],
