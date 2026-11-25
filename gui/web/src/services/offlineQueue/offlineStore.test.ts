@@ -41,6 +41,7 @@ const rows = new Map<string, unknown>();
 let closed = 0;
 let abortedTransactions = 0;
 let putFailure: { value: unknown } | undefined;
+let putRequestFailure: DOMException | undefined;
 let constructionFailure: "transaction" | "get" | undefined;
 let transactionCount = 0;
 
@@ -57,10 +58,10 @@ function database() {
       let reading = false;
       const writes = new Map<string, unknown>();
       const tx = {
-        error: null,
+        error: null as DOMException | null,
         oncomplete: () => {},
         onabort: () => {},
-        onerror: () => {},
+        onerror: (_event: { target: { error: unknown } }) => {},
         abort() {
           aborted = true;
           abortedTransactions++;
@@ -87,6 +88,15 @@ function database() {
             },
             put(value: unknown, key: string) {
               if (putFailure) throw putFailure.value;
+              if (putRequestFailure) {
+                const error = putRequestFailure;
+                queueMicrotask(() => {
+                  tx.onerror({ target: { error } });
+                  tx.error = error;
+                  tx.abort();
+                });
+                return;
+              }
               writes.set(key, structuredClone(value));
               if (!reading)
                 queueMicrotask(() => {
@@ -108,6 +118,7 @@ beforeEach(() => {
   closed = 0;
   abortedTransactions = 0;
   putFailure = undefined;
+  putRequestFailure = undefined;
   constructionFailure = undefined;
   transactionCount = 0;
   vi.stubGlobal("indexedDB", {
@@ -797,6 +808,14 @@ describe("host persistence failure signal", () => {
 });
 
 describe("a saved copy the device will not keep", () => {
+  it("rejects with the request error before the transaction sets its own error", async () => {
+    putRequestFailure = new DOMException("full", "QuotaExceededError");
+    await expect(
+      mergeOfflineSnapshot("token", { project: { name: "Episode" } }),
+    ).rejects.toBe(putRequestFailure);
+    expect(closed).toBe(1);
+  });
+
   it("rejects with the error and lets go of the database when put throws inside the read", async () => {
     putFailure = { value: new DOMException("full", "QuotaExceededError") };
     await expect(

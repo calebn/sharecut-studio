@@ -3,6 +3,7 @@
 import {
   idbGet,
   idbSet,
+  idbTransactionFailure,
   openDb,
   STORE,
   updateStoredList,
@@ -506,8 +507,7 @@ export async function mergeOfflineSnapshot(
           tx.oncomplete = () => resolve(written);
           tx.onabort = () =>
             reject(tx.error ?? new Error("IndexedDB transaction aborted"));
-          tx.onerror = () =>
-            reject(tx.error ?? new Error("IndexedDB transaction failed"));
+          tx.onerror = (event) => reject(idbTransactionFailure(event, tx));
         });
       } finally {
         db.close();
