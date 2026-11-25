@@ -36,6 +36,8 @@ export type ActionBarPlacement =
       /** The side tried first; above, flipping below when the bar would cross `clearTop` or the screen edge. */
       readonly prefer?: "above" | "below";
       readonly clearTop?: () => number;
+      /** The viewport x the bar must stay right of (the sticky track headers while it is pinned). */
+      readonly clearStart?: () => number;
       /** The rect to place against; see `DialogAnchor.rect`. */
       readonly rect?: () => AnchorRect | null;
       /** The anchor has scrolled out of its box and the bar rides at the edge. */
@@ -58,6 +60,8 @@ export type ActionBarProps = {
   /** After the verbs where a guest has no primary. */
   readonly trailing?: ReactNode;
   readonly leadingSlots?: number;
+  /** Dock slots the trailing node needs beyond its own one (a labelled control beside Clear). */
+  readonly trailingSlots?: number;
   readonly reserveEnd?: boolean;
   readonly ariaLabel?: string;
   readonly moreRequest?: number;
@@ -444,6 +448,7 @@ function Dock({
   center,
   trailing,
   leadingSlots = 0,
+  trailingSlots = 0,
   reserveEnd = false,
   ariaLabel,
   onVerb,
@@ -454,7 +459,7 @@ function Dock({
     items,
     more,
     (primary !== undefined ? 1 : 0) +
-      (trailing || reserveEnd ? 1 + leadingSlots : 0),
+      (trailing || reserveEnd ? 1 + leadingSlots + trailingSlots : 0),
   );
   const gated = folded.items.find((item) => item.disabledReason);
   const { note, describedBy } = useDisabledReasonNote(
@@ -539,6 +544,7 @@ function Floating({
       moves: placement.moves,
       prefer: placement.prefer ?? "above",
       clearTop: placement.clearTop,
+      clearStart: placement.clearStart,
       rect: placement.rect,
     },
     true,

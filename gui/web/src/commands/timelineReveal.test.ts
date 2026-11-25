@@ -60,6 +60,24 @@ describe("revealAnchor", () => {
     expect(scroller.scrollTop).toBe(0);
   });
 
+  it("scrolls back when the anchor is left of the view and forward when it is right", () => {
+    const left = mount({
+      block: rectOf(-300, 100, -240, 140),
+      lane: rectOf(-300, 80, 2000, 160),
+    });
+    left.scroller.scrollLeft = 500;
+    revealAnchor(left.block);
+    expect(setScrollLeft.mock.calls[0]?.[0]).toBe(200);
+    setScrollLeft.mockClear();
+    document.body.replaceChildren();
+    const right = mount({
+      block: rectOf(900, 100, 960, 140),
+      lane: rectOf(0, 80, 2000, 160),
+    });
+    revealAnchor(right.block);
+    expect(setScrollLeft.mock.calls[0]?.[0]).toBe(560);
+  });
+
   it("scrolls down only when the anchor's lane is out vertically", () => {
     const { scroller, block } = mount({
       block: rectOf(100, 500, 160, 540),

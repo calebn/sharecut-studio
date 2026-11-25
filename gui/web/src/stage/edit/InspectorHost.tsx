@@ -362,7 +362,7 @@ function Card({
     !cardFits(placement.bounds.height, scaledMinBlock(rootFontPx()));
   // The takeover has no Action bar beside it, so the sheet keeps the verbs.
   const sections = useBodySections(sheet.rangeActionsInSheet, !takeover);
-  // The Action bar hides the same way when its anchor scrolls out.
+  // The card hides while its anchor is out of view; the Action bar stays, pinned at the edge.
   const shown = placement !== null && (anchor.visible || selection === null);
   const focus = useInspectorFocus(popoverId ? panel : box, shown);
   const hadPopover = useRef(false);
