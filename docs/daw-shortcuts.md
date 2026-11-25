@@ -137,6 +137,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Play range | `range.play` | Project loaded |  |
 | Cut selected range | `range.cut` | Edit stage, or a link that suggests edits |  |
 | Mute selected range | `range.mute` | Edit stage, or a link that suggests edits |  |
+| Save as segment | `segment.save` | editStage | Opens the Save as segment card for the selected clips or range. The Action bar's More menu offers it. Host only; the library is outside the project, so it has no Undo |
 | Fill range with room tone | `range.fillRoomTone` | editStage |  |
 | Move to speaker | `range.moveSpeakerLane` | Project loaded | Args: { toLaneId }. The Action bar's More menu shows Move to {speaker} on one split lane |
 | Comment on range | `range.comment` | Host or a link that can comment |  |
