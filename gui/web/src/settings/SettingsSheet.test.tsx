@@ -93,6 +93,7 @@ beforeEach(() => {
   setChrome({
     settingsSheetOpen: false,
     modelsSheetOpen: false,
+    segmentLibraryOpen: false,
     commandPaletteOpen: false,
   });
 });
@@ -111,7 +112,12 @@ const rowNames = (sheet: HTMLElement) =>
       within(sheet)
         .getAllByRole("button")
         .map((b) => b.textContent ?? "")
-        .filter((t) => t === "Models" || t === "Keyboard shortcuts"),
+        .filter(
+          (t) =>
+            t === "Models" ||
+            t === "Segment library" ||
+            t === "Keyboard shortcuts",
+        ),
     );
 
 describe("SettingsHost rows", () => {
@@ -124,6 +130,7 @@ describe("SettingsHost rows", () => {
       "Saved in",
       "Longest automatic join fade",
       "Models",
+      "Segment library",
       "Keyboard shortcuts",
     ]);
     expect(
@@ -135,7 +142,11 @@ describe("SettingsHost rows", () => {
   it("on Home lists only Appearance and Models", async () => {
     render(<Harness />);
     const sheet = await openSettings();
-    expect(rowNames(sheet)).toEqual(["Appearance", "Models"]);
+    expect(rowNames(sheet)).toEqual([
+      "Appearance",
+      "Models",
+      "Segment library",
+    ]);
   });
 });
 
@@ -813,6 +824,26 @@ describe("Models and Keyboard shortcuts rows", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "App menu" })).toHaveFocus(),
     );
+  });
+
+  it("closes Settings and opens the Segment library, reachable in an episode and on Home", async () => {
+    inProject();
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    await user.click(
+      within(sheet).getByRole("button", { name: "Segment library" }),
+    );
+    expect(useDawStore.getState().chrome.settingsSheetOpen).toBe(false);
+    expect(useDawStore.getState().chrome.segmentLibraryOpen).toBe(true);
+  });
+
+  it("lists the Segment library row outside a project too", async () => {
+    render(<Harness />);
+    const sheet = await openSettings();
+    expect(
+      within(sheet).getByRole("button", { name: "Segment library" }),
+    ).toBeVisible();
   });
 
   it("closes Settings and opens the palette with search focused", async () => {

@@ -10,6 +10,7 @@ const FLAGS = [
   "hostMcpDialogOpen",
   "helpDialogOpen",
   "modelsSheetOpen",
+  "segmentLibraryOpen",
   "transcriptFindReplaceOpen",
 ] as const;
 type Flag = (typeof FLAGS)[number];
@@ -21,6 +22,7 @@ const SETTERS: Record<Flag, string> = {
   hostMcpDialogOpen: "setHostMcpDialogOpen",
   helpDialogOpen: "setHelpDialogOpen",
   modelsSheetOpen: "setModelsSheetOpen",
+  segmentLibraryOpen: "setSegmentLibraryOpen",
   transcriptFindReplaceOpen: "setTranscriptFindReplaceOpen",
 };
 

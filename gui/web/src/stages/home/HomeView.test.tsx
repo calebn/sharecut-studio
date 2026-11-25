@@ -490,6 +490,39 @@ describe("OpenOther mode flip", () => {
   });
 });
 
+describe("HomeView library slot", () => {
+  it("draws the library after Recent, as a table on a wide Home", () => {
+    const library = vi.fn((layout: "table" | "list") => (
+      <section aria-label="Library slot" data-layout={layout} />
+    ));
+    setup({ library });
+    const recent = screen.getByRole("heading", { name: "Recent" });
+    const slot = screen.getByRole("region", { name: "Library slot" });
+    expect(
+      recent.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(library).toHaveBeenLastCalledWith("table");
+  });
+
+  it("asks for the list layout on a narrow Home", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ width: 390 } as DOMRect);
+    try {
+      const library = vi.fn(() => null);
+      setup({ library });
+      expect(library).toHaveBeenLastCalledWith("list");
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it("draws nothing without a library", () => {
+    setup();
+    expect(screen.queryByRole("region", { name: "Library slot" })).toBeNull();
+  });
+});
+
 describe("StartTile size 80", () => {
   it("renders a disabled reason as part of the tile name", () => {
     render(

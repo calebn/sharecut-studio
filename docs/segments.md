@@ -136,6 +136,23 @@ The kit offer is `GET /api/kits/offer?path=` (host only, like drift; the web cli
 
 The web client is `gui/web/src/api/segments.ts` (`loadSegments`, `loadSegment`, `loadSegmentDrift`, `saveSegment`, `removeSegment`, `segmentAudioUrl`).
 
+## Studio
+
+Studio shows the library in two places, both reading `GET /api/segments` through `gui/web/src/api/segments.ts` and living in `gui/web/src/segments/`:
+
+- **Home.** A Segment library section after Recent, owned by `HomeScreen` (it holds the `useSegmentLibrary` hook and hands `HomeView` a `library` slot). It is a real table on a wide Home and a list on a narrow one. On a first-run Home with no episodes and no segments it stays out of the way; with segments it shows.
+- **Settings.** A Segment library row in the Settings sheet (`chrome.segmentLibraryOpen`) opens `SegmentLibrarySheet`, a bottom sheet on a phone and the end-edge sheet elsewhere. Settings also opens inside an episode, so `dawApp` mounts the sheet too, without waiting for `syncEnabled`. The sheet reads the list only while open.
+
+A row shows the name, `v{version}` (with `· N versions` only when there is more than one), the kind, and a length computed from the clips (the end of the last clip; the list rows carry no `duration_sec`). Studio does not show "Used in N episodes": the library records no usage.
+
+**Audition.** Play uses one module-level `HTMLAudioElement` shared by the Home section and the sheet, with `preload="none"`, started only from the click handler (a phone starts audio only from a tap). The URL is built at the click with `segmentAudioUrl`, so a rotated session token is never stale, and it is never written into the page text. A segment with several clips plays them in order (`ended` moves to the next, the last one stops). Audition stops when another row starts, on a second tap, on `ended` or `error`, when the section unmounts, when the sheet closes and on `pagehide`. A refused or failed play says "Couldn't play this segment" on that row. It does not take the transport's playback session.
+
+**Remove.** More, then Remove from library, swaps the row for the inline confirm: it says that every version goes, that this cannot be undone and that episodes already using the segment keep their copy (insert copies the audio into the episode). Keep is focused and Escape is Keep. There is no Undo: `DELETE /api/segments/{id}` is outside project history. Afterwards a status line says what was removed and focus moves to the next row (or the empty message). A `segment_busy` 409 restores the row with "Another action is using this segment. Try again."; a 404 counts as already removed.
+
+**Damaged rows** are listed, never hidden: a warning chip ("Can't be played or inserted"), the id and the `problem`, no Play, and Remove only.
+
+Loading is a skeleton after 300 ms, a failed read shows the reason with Try again, and the empty state does not promise a way to save. Palette commands for the library are not in this slice.
+
 ## Show kit
 
 A kit is an ordered list of library segments with where each goes, for example an intro at the start and an outro at the end. A new episode applies it in one command. The kit is offered, never applied by itself: nothing in the app applies a kit unless someone runs `kit apply` or calls `kit_apply_tool`. Inserting at `start` ripples later audio, as every insert does.
@@ -200,7 +217,7 @@ A kit (its newest version) is usable when every entry's segment version, the pin
 ## Not built yet
 
 - Ducking under dialogue, and a Studio screen or an "update this segment" command for drift (the report exists, see [Drift](#drift)).
-- Studio screens for the library (the HTTP routes exist, see Studio routes above).
+- Studio screens to save a segment from a selection, insert one into an episode, rename one, or export and import a kit (Studio lists, auditions and removes, see [Studio](#studio)).
 - A compound document command that makes a whole kit one undo step.
 - `podcast segment export ID... -o FILE.sharecutkit` and `segment import FILE.sharecutkit` (the kit commands do this, see the kit section above).
 - Capturing a transcript or a chapter title.

@@ -146,8 +146,12 @@ export function SettingsHost() {
       limit.setError(null);
     }
   }
-  const { setSettingsSheetOpen, setModelsSheetOpen, setCommandPaletteOpen } =
-    useDawStore.getState();
+  const {
+    setSettingsSheetOpen,
+    setModelsSheetOpen,
+    setSegmentLibraryOpen,
+    setCommandPaletteOpen,
+  } = useDawStore.getState();
   const revealFolder = () => {
     setMoveFailure(null);
     void reveal.run(() => revealProject(projectPath));
@@ -255,6 +259,10 @@ export function SettingsHost() {
       onOpenModels={() => {
         setSettingsSheetOpen(false);
         setModelsSheetOpen(true);
+      }}
+      onOpenSegments={() => {
+        setSettingsSheetOpen(false);
+        setSegmentLibraryOpen(true);
       }}
       onOpenShortcuts={
         inProject

@@ -30,6 +30,7 @@ Raw sources also live in the repo under [`ux/pages/`](https://github.com/calebn/
 
 - **UI reference:** [See the UI](#/demo) / fixture [`sharecut_ux_demo`](https://github.com/calebn/sharecut-studio/tree/main/tests/fixtures/sharecut_ux_demo)
 - Guest share (Viewer / Commenter / Editor roles, banners, proxy listen, offline conflicts): [Screens → Guest / share](#/screens/guest-share) · [Guest journeys](#/journeys)
+- Home's **Segment library** section (after Recent) and its Settings sheet: [Mobile → Segment library](#/mobile) and [docs/segments.md § Studio](https://github.com/calebn/sharecut-studio/blob/main/docs/segments.md#studio)
 - Engineer mobile IA: [docs/gui-mobile.md](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-mobile.md)
 - Share / proxy / relay: [docs/host-online-relay.md](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md)
 - API & contracts: [docs.sharecut.studio](https://docs.sharecut.studio/) (document commands, share HTTP, remote MCP)

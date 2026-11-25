@@ -10,6 +10,7 @@ import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BootstrapJobSnapshot, RecentProject } from "../../api";
 import * as api from "../../api";
+import * as segments from "../../api/segments";
 import { CREATE_LABEL, REPORT_TITLE } from "../../home/HelpDialogView";
 import { PHONE_MQ, TABLET_MQ } from "../../hooks/useViewportClass";
 import * as ingest from "../../ingest/ingestFiles";
@@ -66,12 +67,18 @@ vi.mock("../../api", async (importOriginal) => ({
     release_manifest_url: null,
   })),
 }));
+vi.mock("../../api/segments", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../api/segments")>()),
+  loadSegments: vi.fn(),
+  removeSegment: vi.fn(),
+}));
 vi.mock("../../ingest/ingestFiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../ingest/ingestFiles")>()),
   pickAudioFiles: vi.fn(),
   ingestIntoNewProject: vi.fn(),
 }));
 
+const loadSegments = vi.mocked(segments.loadSegments);
 const list = vi.mocked(api.listRecentProjects);
 const forget = vi.mocked(api.forgetRecentProject);
 const reveal = vi.mocked(api.revealRecentProject);
@@ -154,10 +161,12 @@ describe("HomeScreen", () => {
     useDawStore.getState().setCommandPaletteOpen(false);
     useDawStore.getState().setHelpDialogOpen(false);
     useDawStore.getState().setModelsSheetOpen(false);
+    useDawStore.getState().setSegmentLibraryOpen(false);
     useDawStore.getState().setHostMcpDialogOpen(false);
     window.sessionStorage.clear();
     window.localStorage.clear();
     list.mockResolvedValue([recent()]);
+    loadSegments.mockResolvedValue([]);
     forget.mockResolvedValue(undefined);
     enqueueSetup.mockReset().mockResolvedValue(true);
     assign.mockReset();
@@ -2002,5 +2011,74 @@ describe("HomeScreen", () => {
     const { container } = render(<HomeScreen />);
     await screen.findByRole("list", { name: "Recent episodes" });
     await expectNoA11yViolations(container);
+  });
+
+  describe("Segment library", () => {
+    const listed = [
+      {
+        id: "intro-9f3a",
+        name: "Cold open",
+        kind: "intro" as const,
+        version: 1,
+        versions: [1],
+        clips: [{ audio: "intro.flac", offset_sec: 0, duration_sec: 12 }],
+      },
+    ];
+
+    it("shows the section after Recent with the saved segments", async () => {
+      loadSegments.mockResolvedValue(listed);
+      render(<HomeScreen />);
+      const heading = await screen.findByRole("heading", {
+        name: "Segment library",
+      });
+      expect(
+        screen
+          .getByRole("heading", { name: "Recent" })
+          .compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        await screen.findByRole("button", { name: "Play Cold open" }),
+      ).toBeVisible();
+    });
+
+    it("shows its empty state under Recent", async () => {
+      render(<HomeScreen />);
+      expect(await screen.findByText(/No saved segments yet/)).toBeVisible();
+    });
+
+    it("stays out of a first-run Home with no episodes and no segments", async () => {
+      list.mockResolvedValue([]);
+      render(<HomeScreen />);
+      await screen.findByText("Your episodes will appear here.");
+      expect(
+        screen.queryByRole("heading", { name: "Segment library" }),
+      ).toBeNull();
+    });
+
+    it("shows the section on a first-run Home that already has segments", async () => {
+      list.mockResolvedValue([]);
+      loadSegments.mockResolvedValue(listed);
+      render(<HomeScreen />);
+      expect(
+        await screen.findByRole("heading", { name: "Segment library" }),
+      ).toBeVisible();
+    });
+
+    it("opens the Segment library sheet from the store flag", async () => {
+      loadSegments.mockResolvedValue(listed);
+      render(<HomeScreen />);
+      await screen.findByRole("heading", { name: "Recent" });
+      act(() => useDawStore.getState().setSegmentLibraryOpen(true));
+      expect(
+        await screen.findByRole("dialog", { name: "Segment library" }),
+      ).toBeVisible();
+    });
+
+    it("is axe-clean with the section", async () => {
+      loadSegments.mockResolvedValue(listed);
+      const { container } = render(<HomeScreen />);
+      await screen.findByRole("button", { name: "Play Cold open" });
+      await expectNoA11yViolations(container);
+    });
   });
 });

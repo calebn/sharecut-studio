@@ -18,6 +18,11 @@ import { HelpHost } from "../../home/HelpHost";
 import { useWindowFileDrop } from "../../hooks/useWindowFileDrop";
 import { ingestIntoNewProject, pickAudioFiles } from "../../ingest/ingestFiles";
 import { ModelsSheet, useModels } from "../../models";
+import {
+  SegmentLibrary,
+  SegmentLibrarySheet,
+  useSegmentLibrary,
+} from "../../segments";
 import { SettingsHost } from "../../settings/SettingsHost";
 import { CommandPalette } from "../../stage/dialogs/CommandPalette";
 import { HostMcpDialog } from "../../stage/dialogs/HostMcpDialog";
@@ -209,16 +214,21 @@ export function HomeScreen() {
   const [hintShown, setHintShown] = useState(() =>
     homeScreenHintDue(readHomeScreenEnv(), countHomeVisit()),
   );
-  const { mcpOpen, modelsOpen, announcement, announcementSeq } = useDaw(
-    (s) => ({
+  const { mcpOpen, modelsOpen, libraryOpen, announcement, announcementSeq } =
+    useDaw((s) => ({
       mcpOpen: s.chrome.hostMcpDialogOpen,
       modelsOpen: s.chrome.modelsSheetOpen,
+      libraryOpen: s.chrome.segmentLibraryOpen,
       announcement: s.statusAnnouncement,
       announcementSeq: s.statusAnnouncementSeq,
-    }),
-  );
-  const { setHostMcpDialogOpen, setHelpDialogOpen, setModelsSheetOpen } =
-    useDawStore.getState();
+    }));
+  const {
+    setHostMcpDialogOpen,
+    setHelpDialogOpen,
+    setModelsSheetOpen,
+    setSegmentLibraryOpen,
+  } = useDawStore.getState();
+  const segments = useSegmentLibrary();
   const openPalette = useDawStore.getState().setCommandPaletteOpen;
   const busy = useRef(false);
 
@@ -530,6 +540,10 @@ export function HomeScreen() {
   let phase: "loading" | "error" | "empty" | "ready" = "loading";
   if (recents) phase = recents.length ? "ready" : "empty";
   else if (loadFailed) phase = "error";
+  const showLibrary =
+    phase === "ready" ||
+    phase === "error" ||
+    (phase === "empty" && (segments.rows?.length ?? 0) > 0);
 
   const openOther: Omit<OpenOtherProps, "onChooseFolder"> = {
     mode: pathMode ? "path" : "picker",
@@ -568,6 +582,11 @@ export function HomeScreen() {
         canOpenOther={models.canPickFolder}
         openOther={openOther}
         onRetryLoad={() => setReload((n) => n + 1)}
+        library={
+          showLibrary
+            ? (layout) => <SegmentLibrary library={segments} layout={layout} />
+            : undefined
+        }
         onOpenProject={(id, stage) => void open(id, stage)}
         onFindProject={models.canPickFolder ? (id) => void pick(id) : undefined}
         onRevealProject={(id) => void reveal(id)}
@@ -604,6 +623,10 @@ export function HomeScreen() {
       <ModelsSheet
         open={modelsOpen}
         onClose={() => setModelsSheetOpen(false)}
+      />
+      <SegmentLibrarySheet
+        open={libraryOpen}
+        onClose={() => setSegmentLibraryOpen(false)}
       />
       <HelpHost />
       <SettingsHost />

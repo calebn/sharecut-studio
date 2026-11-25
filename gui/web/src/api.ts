@@ -209,6 +209,19 @@ export {
   clearReviewPeaksCache,
   loadReviewPeaks,
 } from "./api/reviewPeaks";
+export type {
+  DamagedSegmentRow,
+  SegmentClipRow,
+  SegmentKind,
+  SegmentListRow,
+  SegmentRow,
+} from "./api/segments";
+export {
+  isDamagedSegment,
+  loadSegments,
+  removeSegment,
+  segmentAudioUrl,
+} from "./api/segments";
 export {
   loadSessionTakes,
   type SessionTakeDetail,

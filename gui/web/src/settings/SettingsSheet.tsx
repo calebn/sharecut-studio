@@ -48,6 +48,7 @@ export type SettingsSheetProps = {
   /** Inside a project only. */
   joinFadeLimit?: SettingsJoinFadeLimit;
   onOpenModels: () => void;
+  onOpenSegments: () => void;
   /** Inside a project only. */
   onOpenShortcuts?: () => void;
 };
@@ -154,7 +155,7 @@ function NavRow({
 
 /**
  * Settings from the app menu: Appearance, where the project is saved, the
- * episode's Longest automatic join fade, and the way into Models and Keyboard
+ * episode's Longest automatic join fade, and the way into Models, the Segment library and Keyboard
  * shortcuts. A side sheet on desktop and tablet, a bottom sheet as tall as its
  * rows on the phone. Rows act as they change.
  */
@@ -167,6 +168,7 @@ export function SettingsSheet({
   savedIn,
   joinFadeLimit,
   onOpenModels,
+  onOpenSegments,
   onOpenShortcuts,
 }: SettingsSheetProps) {
   const revealRef = useRef<HTMLButtonElement>(null);
@@ -233,6 +235,11 @@ export function SettingsSheet({
             icon="cloud-download"
             label="Models"
             onSelect={onOpenModels}
+          />
+          <NavRow
+            icon="music"
+            label="Segment library"
+            onSelect={onOpenSegments}
           />
           {onOpenShortcuts ? (
             <NavRow
