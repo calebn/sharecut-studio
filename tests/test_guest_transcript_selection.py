@@ -492,3 +492,43 @@ def test_row_fields_the_client_overlay_compares_agree_on_every_route(guest, role
 
     for name, utterances in routes.items():
         assert _overlay_rows(utterances) == reference, name
+
+
+@pytest.mark.parametrize("role", ["viewer", "commenter", "editor"])
+def test_a_guest_row_text_leaves_out_the_words_the_host_struck(guest, role):
+    """A struck (ignored) word is not drawn for a guest, so its text never reaches one (#3798).
+
+    Every route gives the same row text, which ``projectPatch.ts`` compares across
+    phases. The host's own row keeps the whole text."""
+    client, open_share, path = guest
+    ws = ProjectWorkspace.open(path)
+    ws.project.transcripts[0].words[1].ignored = True
+    rebuild_combined(ws.project, defaults=ws.effective_config())
+    ws.save()
+    host_rows = client.get("/api/project", params={"path": str(path)}).json()["transcript"][
+        "utterances"
+    ]
+    assert "welcome" in host_rows[0]["text"]
+    token = open_share(capabilities_for_role(role, with_mcp=True))
+    base = f"/api/review/{token}/daw"
+
+    routes: dict[str, list[dict]] = {}
+    for phase in ("shell", "detail", "full"):
+        body = client.get(f"{base}/document/state", params={"phase": phase}).json()
+        view = body["patch"] if "patch" in body else body["project"]
+        routes[f"state-{phase}"] = view["transcript"]["utterances"]
+    for name, params in (("project", {}), ("project-shell", {"phase": "shell"})):
+        routes[name] = client.get(f"{base}/project", params=params).json()["transcript"][
+            "utterances"
+        ]
+    with client.websocket_connect(f"{base}/ws") as guest_ws:
+        hello = [guest_ws.receive_json(), guest_ws.receive_json()]
+    [document] = [m for m in hello if m["plane"] == "document"]
+    routes["ws-hello"] = document["snapshot"]["project"]["transcript"]["utterances"]
+    routes["remote-mcp"] = _mcp_project(token)["transcript"]["utterances"]
+
+    for name, utterances in routes.items():
+        row = utterances[0]
+        assert row["text"] == "Um.", name
+        assert row["ignored_word_indices"] == [1], name
+        assert "text_without_ignored" not in row, name

@@ -297,7 +297,7 @@ describe("shownTranscriptOf", () => {
 
   it("drops a waiting row that would draw no bar, so drawn counts only turns", () => {
     const whole = (r: CombinedUtterance) =>
-      header({ ...r, text: "gone", ignored_word_indices: [r.start] });
+      header({ ...r, text: "", ignored_word_indices: [r.start] });
     const empty = header({ ...second, text: "" });
     const shown = shownOf(
       transcriptOf([whole(first), empty]),
