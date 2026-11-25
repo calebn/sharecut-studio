@@ -7,8 +7,10 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import cast
+from urllib.parse import urlparse
 
 import pytest
+from click.testing import Result
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
@@ -21,6 +23,7 @@ from podcast_mcp.config.distribution import (
     runtime_distribution_metadata,
     tauri_distribution_overlay,
 )
+from podcast_mcp.config.runtime import load_host_runtime_config
 from podcast_mcp.services.support.config_check import ConfigMode, run_config_checks
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -426,6 +429,76 @@ def test_config_check_modes_and_secret_redaction(tmp_path: Path) -> None:
     assert valid.exit_code == 0
     assert "hidden-value" not in valid.output
     assert "credentials redacted" not in valid.output
+
+
+OWNER_HOSTS = ("sudo." + "science", "cdn.sharecut." + "studio")
+RELAY_EXAMPLE = ROOT / "config" / "relay.example.yaml"
+
+
+def _example_copy(tmp_path: Path) -> Path:
+    copy = tmp_path / "relay.yaml"
+    copy.write_text(RELAY_EXAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
+    return copy
+
+
+def _check_self_hosted(config: Path, env: dict[str, str] | None = None) -> Result:
+    return CliRunner().invoke(
+        app,
+        ["config", "check", "--mode", "self-hosted", "--relay-config", str(config)],
+        env=env,
+    )
+
+
+def test_relay_example_loads_with_example_hosts_only(tmp_path: Path) -> None:
+    config = load_host_runtime_config(_example_copy(tmp_path), environ={})
+    assert config.object_store is not None
+    urls = [
+        config.relay.relay_url,
+        config.relay.public_base_url,
+        config.object_store.endpoint_url,
+        config.object_store.cdn_endpoint or "",
+    ]
+    assert all(url.startswith(("https://", "wss://")) for url in urls)
+    hosts = [urlparse(url).hostname or "" for url in urls]
+    assert all(host.endswith(".example.test") for host in hosts)
+    raw = RELAY_EXAMPLE.read_text(encoding="utf-8").lower()
+    assert not [host for host in OWNER_HOSTS if host in raw]
+    assert config.relay.host_token.startswith("REPLACE_WITH_")
+
+
+def test_relay_example_passes_self_hosted_config_check_from_a_copy(tmp_path: Path) -> None:
+    config = _example_copy(tmp_path)
+    result = _check_self_hosted(config)
+    assert result.exit_code == 0, result.output
+    assert "Configuration is valid for self-hosted mode." in result.output
+    assert "object store: configured" in result.output
+    loaded = load_host_runtime_config(config, environ={})
+    assert loaded.relay.host_token not in result.output
+    assert loaded.object_store is not None
+    assert loaded.object_store.secret_access_key not in result.output
+
+
+def test_config_check_persists_relay_host_id_next_to_the_config(tmp_path: Path) -> None:
+    config = _example_copy(tmp_path)
+    id_file = tmp_path / "relay_host_id"
+    assert not id_file.exists()
+    assert _check_self_hosted(config).exit_code == 0
+    minted = id_file.read_text(encoding="utf-8").strip()
+    assert minted
+    assert id_file.stat().st_mode & 0o777 == 0o600
+    assert _check_self_hosted(config).exit_code == 0
+    assert id_file.read_text(encoding="utf-8").strip() == minted
+
+
+def test_config_check_writes_no_relay_host_id_when_host_id_is_explicit(tmp_path: Path) -> None:
+    config = _example_copy(tmp_path)
+    config.write_text(config.read_text(encoding="utf-8") + "host_id: host-1\n", encoding="utf-8")
+    assert _check_self_hosted(config).exit_code == 0
+    assert not (tmp_path / "relay_host_id").exists()
+
+    config.write_text(config.read_text(encoding="utf-8").replace("host_id: host-1\n", ""))
+    assert _check_self_hosted(config, {"PODCAST_RELAY_HOST_ID": "env-host"}).exit_code == 0
+    assert not (tmp_path / "relay_host_id").exists()
 
 
 def test_local_config_check_does_not_require_checkout_distribution_profile(

@@ -346,3 +346,108 @@ def test_relay_config_repr_omits_host_token() -> None:
     cfg = RelayConfig(host_token="s3cret-token", host_id="h1")
 
     assert "s3cret-token" not in repr(cfg)
+
+
+@pytest.mark.parametrize("value", ["http://share.example.test", "http://10.0.0.5:8080"])
+def test_public_base_url_requires_https_off_loopback(tmp_path: Path, value: str) -> None:
+    path = tmp_path / "relay.yaml"
+    path.write_text(f"public_base_url: {value}\n", encoding="utf-8")
+    with pytest.raises(RuntimeConfigError, match="public_base_url must use https"):
+        load_relay_config(path, environ={})
+
+
+@pytest.mark.parametrize("value", ["http://127.0.0.1:9123", "http://localhost", "http://[::1]:80"])
+def test_public_base_url_allows_http_on_loopback(tmp_path: Path, value: str) -> None:
+    path = tmp_path / "relay.yaml"
+    path.write_text(f"public_base_url: {value}\n", encoding="utf-8")
+    expected = {"http://[::1]:80": "http://[::1]"}.get(value, value)
+    assert load_relay_config(path, environ={}).public_base_url == expected
+
+
+def test_public_base_url_accepts_https_off_loopback(tmp_path: Path) -> None:
+    path = tmp_path / "relay.yaml"
+    path.write_text("public_base_url: https://share.example.test\n", encoding="utf-8")
+    assert load_relay_config(path, environ={}).public_base_url == "https://share.example.test"
+
+
+@pytest.mark.parametrize("value", ["https://gui.example.test", "http://10.0.0.5:8765"])
+def test_local_gui_url_rejects_non_loopback_hosts(tmp_path: Path, value: str) -> None:
+    path = tmp_path / "relay.yaml"
+    path.write_text(f"local_gui_url: {value}\n", encoding="utf-8")
+    with pytest.raises(RuntimeConfigError, match="local_gui_url must"):
+        load_relay_config(path, environ={})
+
+
+@pytest.mark.parametrize(
+    ("field", "env_name", "yaml_value", "env_value", "explicit_value"),
+    [
+        ("host_token", "PODCAST_RELAY_HOST_TOKEN", "yaml-token", "env-token", "explicit-token"),
+        (
+            "public_base_url",
+            "PODCAST_RELAY_PUBLIC_BASE_URL",
+            "https://yaml.example.test",
+            "https://env.example.test",
+            "https://explicit.example.test",
+        ),
+        (
+            "local_gui_url",
+            "PODCAST_RELAY_LOCAL_GUI_URL",
+            "http://127.0.0.1:1111",
+            "http://127.0.0.1:2222",
+            "http://127.0.0.1:3333",
+        ),
+    ],
+)
+def test_runtime_precedence_is_explicit_then_env_then_yaml_per_field(
+    tmp_path: Path,
+    field: str,
+    env_name: str,
+    yaml_value: str,
+    env_value: str,
+    explicit_value: str,
+) -> None:
+    path = tmp_path / "relay.yaml"
+    path.write_text(f"{field}: {yaml_value}\n", encoding="utf-8")
+
+    def loaded(env: dict[str, str], **explicit: str) -> str:
+        relay = load_host_runtime_config(path, environ=env, **explicit).relay
+        return str(getattr(relay, field))
+
+    assert loaded({}) == yaml_value
+    assert loaded({env_name: env_value}) == env_value
+    assert loaded({env_name: env_value}, **{field: explicit_value}) == explicit_value
+    assert loaded({}, **{field: explicit_value}) == explicit_value
+
+
+def test_object_store_env_overrides_yaml_for_every_field(tmp_path: Path) -> None:
+    path = tmp_path / "relay.yaml"
+    path.write_text(
+        "object_store:\n"
+        "  endpoint_url: https://yaml-s3.example.test\n"
+        "  region: yaml-region\n"
+        "  bucket: yaml-bucket\n"
+        "  access_key_id: yaml-access-key\n"
+        "  secret_access_key: yaml-secret-key\n"
+        "  cdn_endpoint: https://yaml-cdn.example.test\n",
+        encoding="utf-8",
+    )
+    env = {
+        "PODCAST_OBJECT_STORE_ENDPOINT_URL": "https://env-s3.example.test",
+        "PODCAST_OBJECT_STORE_REGION": "env-region",
+        "PODCAST_OBJECT_STORE_BUCKET": "env-bucket",
+        "PODCAST_OBJECT_STORE_ACCESS_KEY_ID": "env-access-key",
+        "PODCAST_OBJECT_STORE_SECRET_ACCESS_KEY": "env-secret-key",
+        "PODCAST_OBJECT_STORE_CDN_ENDPOINT": "https://env-cdn.example.test",
+    }
+    yaml_only = load_object_store_config(path, environ={})
+    assert yaml_only is not None
+    assert yaml_only.bucket == "yaml-bucket"
+    assert yaml_only.secret_access_key == "yaml-secret-key"
+    overridden = load_object_store_config(path, environ=env)
+    assert overridden is not None
+    assert overridden.endpoint_url == "https://env-s3.example.test"
+    assert overridden.region == "env-region"
+    assert overridden.bucket == "env-bucket"
+    assert overridden.access_key_id == "env-access-key"
+    assert overridden.secret_access_key == "env-secret-key"
+    assert overridden.cdn_endpoint == "https://env-cdn.example.test"
