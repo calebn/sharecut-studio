@@ -50,10 +50,10 @@ from podcast_mcp.models.episode import SegmentRef
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.document_sync import DocumentSyncService, submit_host_command_result
+from podcast_mcp.services.document_sync.ducking import plan_ducking, select_targets
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.document_sync.payloads import ENVELOPE_POINTS_MAX, validate_payload
 from podcast_mcp.services.pipeline import PipelineService
-from podcast_mcp.services.pipeline.ducking import plan_ducking, select_targets
 from podcast_mcp.util.coded_error import CodedValueError
 
 runner = CliRunner()

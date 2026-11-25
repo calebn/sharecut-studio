@@ -43,7 +43,7 @@ class DuckingTrackPlan:
     def changed(self) -> bool:
         return self.plan.points != self.current
 
-    def summary(self, *, with_points: bool) -> dict[str, Any]:
+    def summary(self, *, with_points: bool) -> Mapping[str, Any]:
         out: dict[str, Any] = {
             "track_id": self.track_id,
             "changed": self.changed,
@@ -77,10 +77,10 @@ class DuckingPlans:
     def changed(self) -> bool:
         return any(t.changed for t in self.tracks)
 
-    def envelopes(self) -> dict[str, list[dict[str, Any]]]:
+    def envelopes(self) -> Mapping[str, list[dict[str, Any]]]:
         return {t.track_id: [p._asdict() for p in t.plan.points] for t in self.tracks}
 
-    def result(self, *, with_points: bool) -> dict[str, Any]:
+    def result(self, *, with_points: bool) -> Mapping[str, Any]:
         return {
             "plan_token": self.token,
             "depth_db": self.depth_db,
