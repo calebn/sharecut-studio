@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import numpy as np
 
+import join_quality_fixtures
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.join_continuity import (
     DetectorHit,
@@ -341,11 +342,9 @@ def test_edit_join_label_and_train(minimal_project: Path, sample_wav: Path) -> N
     save_project(project, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
     with patch("podcast_mcp.services.document.join_analysis.assess_existing_join") as assess:
-        assess.return_value.to_dict.return_value = {
-            "track_id": "host",
-            "risk": 0.5,
-            "detectors": [{"name": "click", "score": 0.6}],
-        }
+        assess.return_value.to_dict.return_value = join_quality_fixtures.report_dict(
+            risk=0.5, detectors=[{"name": "click", "score": 0.6, "weight": 1.0, "detail": {}}]
+        )
         out = TimelineService(ws).join_label(
             track_id="host", join_sec=1.0, verdict="fail", note="t", play=False
         )
