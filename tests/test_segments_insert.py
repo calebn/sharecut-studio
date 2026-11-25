@@ -1246,7 +1246,8 @@ def test_the_cli_refuses_both_placement_flags(tmp_path: Path, project: str) -> N
     before = Path(project).read_bytes()
     result = _insert(project, segment.id, 2.0, "--ripple", "--own-lane")
     assert result.exit_code != 0
-    assert "--ripple" in result.output and "--own-lane" in result.output
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert "--ripple" in plain and "--own-lane" in plain
     assert Path(project).read_bytes() == before
 
 

@@ -33,7 +33,7 @@ class _SegmentInsertReport(_SegmentInsertResult):
     placement: Literal["ripple", "own_lane"] = "ripple"
 
     @model_serializer(mode="wrap")
-    def _omit_default_placement(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+    def _omit_default_placement(self, handler: SerializerFunctionWrapHandler) -> Any:
         """Leave ``placement`` out when it is ``ripple``, so a default report is unchanged."""
         data = handler(self)
         if data.get("placement") == "ripple":
