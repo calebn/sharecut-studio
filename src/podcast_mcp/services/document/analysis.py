@@ -59,6 +59,12 @@ from podcast_mcp.edits.transcript_reconcile import (
 )
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.document.effects import EffectsService
+from podcast_mcp.services.document.fade_recommendation_results import (
+    AppliedFadeRecommendations,
+    AppliedFadeUpdates,
+    applied_fade_recommendations,
+    applied_fade_updates,
+)
 from podcast_mcp.services.document.loudness_results import LoudnessReport, build_loudness_report
 from podcast_mcp.services.pipeline import rerender_preview
 from podcast_mcp.util.progress import ProgressReporter
@@ -337,12 +343,12 @@ class AnalysisService(EffectsService):
             self.ws.project, track_id=tid, defaults=self.ws.effective_config()
         )
 
-    def apply_fade_recommendations(self, recommendations: list[dict]) -> dict:
+    def apply_fade_recommendations(self, recommendations: list[dict]) -> AppliedFadeUpdates:
         return self.ws.mutate(
             "before apply fade recommendations",
             "after apply fade recommendations",
-            lambda p: apply_fade_recommendations(
-                p, recommendations, defaults=self.ws.effective_config()
+            lambda p: applied_fade_updates(
+                apply_fade_recommendations(p, recommendations, defaults=self.ws.effective_config())
             ),
         )
 
@@ -351,13 +357,12 @@ class AnalysisService(EffectsService):
         *,
         track_id: str | None = None,
         speaker: str | None = None,
-    ) -> dict:
+    ) -> AppliedFadeRecommendations:
         """Recommend boundary fades for a track (or all), then apply them."""
         recs = self.recommend_fades(track_id=track_id, speaker=speaker)
         if not recs:
-            return {"applied_fade_updates": 0, "recommendation_count": 0}
-        result = self.apply_fade_recommendations(recs)
-        return {**result, "recommendation_count": len(recs)}
+            return AppliedFadeRecommendations(applied_fade_updates=0, recommendation_count=0)
+        return applied_fade_recommendations(self.apply_fade_recommendations(recs), len(recs))
 
     def low_audibility_words(
         self,

@@ -1524,7 +1524,7 @@ def test_edit_apply_fade_recommendations(minimal_project, sample_wav) -> None:
     ) as apply:
         out = AnalysisService(ws).apply_fade_recommendations(recs)
     apply.assert_called_once()
-    assert out["applied_fade_updates"] == 1
+    assert out.applied_fade_updates == 1
 
 
 def test_edit_preview_inaudible_cut(minimal_project, sample_wav) -> None:

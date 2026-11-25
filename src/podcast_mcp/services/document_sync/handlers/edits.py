@@ -233,13 +233,17 @@ def set_clip_join(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 def apply_fade_recommendations(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     track_id = p.get("track_id")
-    return AnalysisService(ws).apply_fade_recommendations_for_track(
-        track_id=str(track_id) if track_id else None,
+    return (
+        AnalysisService(ws)
+        .apply_fade_recommendations_for_track(
+            track_id=str(track_id) if track_id else None,
+        )
+        .model_dump()
     )
 
 
 def apply_fade_recommendation_list(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return AnalysisService(ws).apply_fade_recommendations(p["recommendations"])
+    return AnalysisService(ws).apply_fade_recommendations(p["recommendations"]).model_dump()
 
 
 def stage_time_range_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
