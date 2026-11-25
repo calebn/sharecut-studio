@@ -217,8 +217,8 @@ html[data-shell="phone"] .bottom-sheet-root {
   }
 
   .bottom-sheet .sys-sheet-bottom .sys-sheet-footer {
-    padding-block: var(--space-2)
-      calc(var(--space-2) + env(safe-area-inset-bottom));
+    padding-block: var(--space-3)
+      calc(var(--space-3) + env(safe-area-inset-bottom));
   }
 
   .bottom-sheet--half:has(.modifier-inspector),
