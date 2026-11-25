@@ -636,6 +636,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `CorrectTranscriptWord` | `TranscriptService.correct_word` | `track_id`, `source_id?`, `word_index`, `text`, `expected_text?` |
 | `CorrectTranscriptPhrase` | `TranscriptService.correct_phrase` | `track_id`, `source_id?`, `start_word_index`, `end_word_index`, `text`, `expected_text?` |
 | `SetTranscriptWordTiming` | `TranscriptService.set_word_timing` | `target`, `expected_token`, `start`, `end` (source clock; host and Editors) |
+| `LabelSpeakerWindow` | `handlers/speaker.label_speaker_window` (`engines/speaker_id.label_window` in one `ws.mutate`) | `track_id`, `start_sec`, `end_sec` (source clock; host only, #1849) |
 | `SetTranscriptWordSuppressed` | `TranscriptService.set_word_suppressed` | `track_id`, `source_id?`, `word_index`, `suppressed`, `expected_text?` — returns `WordSuppressedResult` |
 | `SetTranscriptWordAutomatic` | `TranscriptService.set_word_automatic` | `track_id`, `source_id?`, `word_index`, `expected_text?` — clears `audibility_locked` only (#824); `suppressed` waits for the next reconcile pass; returns `WordAutomaticResult` |
 | `SetTranscriptWordsIgnored` | `TranscriptService.set_words_ignored` | `track_id`, `source_id?`, `start_word_index`, `end_word_index` (`ge=0`), `ignored`, `expected_text?` — text-and-audio hide (#633): words stay in the transcript, only their audio is muted at render; an Editor link may run it; returns `WordsIgnoredResult` |
