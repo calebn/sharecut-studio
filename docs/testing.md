@@ -842,7 +842,7 @@ and `npm run test:e2e -- --shard=2/4` reproduces one CI shard.
 | Models / project I/O | `test_models.py` |
 | Filler / tighten edits | `test_edits.py`, `test_tighten.py` |
 | Golden-ear A/B harness | `test_golden_ear_harness.py` (`scripts/golden_ear_harness.py`, `make golden-ear ARGS=…`; rollups require valid preference and leftover-consonant responses) |
-| FFmpeg engine | `test_ffmpeg_engine.py` (requires `ffmpeg` on PATH) |
+| FFmpeg engine | `test_ffmpeg_engine.py` (requires `ffmpeg` on PATH); the engine is the `engines/ffmpeg/` package, which `test_ffmpeg_argv_engine_only.py` exempts as a whole, `test_ffmpeg_patch_targets.py` ratchets the patch targets tests use, and `scripts/ffmpeg_argv_golden.py` records and `--compare`s argv for a pure move |
 | Architecture, media facade and context boundaries | `test_media_facade.py`, `test_service_boundaries.py` (all five architecture assertions use one uncached real-tree scan; an independent patched-root scan checks isolation); focused behavior in `test_bounce.py`, `test_services_ingest.py`, `test_media_store.py`, `test_proxy_media.py`, `test_review_media_object_store.py`, `test_services.py`, and `test_waveform_service.py` |
 | Audition context / audio reasoning eval | `test_audition_context.py`, `test_audition_context_eval.py` (defect injection; `scripts/eval_audition_context.py`) |
 | Transcript merge | `test_transcribe.py` |

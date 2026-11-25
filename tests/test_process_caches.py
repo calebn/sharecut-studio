@@ -22,7 +22,8 @@ def _decorator_name(node: ast.expr) -> str:
 
 def _parsed_modules(src: Path) -> Iterator[tuple[str, ast.Module]]:
     for path in sorted(src.rglob("*.py")):
-        module = ".".join(path.relative_to(src).with_suffix("").parts)
+        parts = path.relative_to(src).with_suffix("").parts
+        module = ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
         yield module, ast.parse(path.read_text(encoding="utf-8"))
 
 

@@ -340,19 +340,16 @@ export function registerPaletteReconnectSmoke() {
         outcome: "NOT_EXECUTED",
       };
       try {
-        const version = browser.version();
+        // Run on whatever Chromium the installed Playwright ships, so a
+        // Playwright bump never strands this test on an old browser build.
+        // The receipt still records which build ran.
         const executable = browser.browserType().executablePath();
-        if (
-          version !== "158.0.8127.18" ||
-          !/(?:chromium|chromium_headless_shell)-1254\//.test(executable)
-        ) {
-          inconclusive(
-            "requires locked Chromium1254 Chrome for Testing158.0.8127.18",
-          );
-        }
+        const revision = /(?:chromium|chromium_headless_shell)-(\d+)\//.exec(
+          executable,
+        )?.[1];
         Object.assign(receipt, {
-          browserVersion: version,
-          browserRevision: 1254,
+          browserVersion: browser.version(),
+          browserRevision: revision ? Number(revision) : null,
           fixtureSha256: createHash("sha256")
             .update(
               fs.readFileSync(
