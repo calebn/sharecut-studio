@@ -191,6 +191,8 @@ export interface SuggestedActionsOutcome {
   queued: boolean;
   summary: string | null;
   historyHead: HistoryEntryId | null;
+  /** Sounds the server applied; 0 means the batch was a no-op (already handled). Null when it did not say. */
+  appliedCount?: number | null;
   /** Lowers the server left as they are because nobody talks over them. */
   loweredToLeave?: number;
   /** Ids the server could not apply; they stay pending. */
@@ -230,6 +232,8 @@ export async function applySuggestedActions(
     queued: false,
     summary,
     historyHead: replyHistoryHead(result),
+    appliedCount:
+      typeof record.applied_count === "number" ? record.applied_count : null,
     loweredToLeave:
       typeof record.lowered_to_leave === "number" ? record.lowered_to_leave : 0,
     held: Array.isArray(record.held)

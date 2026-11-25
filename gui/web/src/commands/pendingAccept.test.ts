@@ -108,7 +108,7 @@ describe("acceptPending", () => {
       let finish: (value: unknown) => void = () => {};
       vi.mocked(api.applySuggestedActions).mockReturnValue(
         new Promise((resolve) => {
-          finish = resolve;
+          finish = (value) => resolve(value as never);
         }),
       );
       const pending = acceptPending("/tmp/p", leave);
@@ -130,7 +130,7 @@ describe("acceptPending", () => {
       let finish: (value: unknown) => void = () => {};
       vi.mocked(api.applySuggestedActions).mockReturnValue(
         new Promise((resolve) => {
-          finish = resolve;
+          finish = (value) => resolve(value as never);
         }),
       );
       const pending = acceptPending("/tmp/p", leave);
@@ -150,7 +150,7 @@ describe("acceptPending", () => {
       let finish: (value: unknown) => void = () => {};
       vi.mocked(api.applySuggestedActions).mockReturnValue(
         new Promise((resolve) => {
-          finish = resolve;
+          finish = (value) => resolve(value as never);
         }),
       );
       const pending = acceptPending("/tmp/p", leave);

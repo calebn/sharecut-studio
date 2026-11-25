@@ -95,17 +95,17 @@ export function focusPendingTimingField(editId: string): void {
   attempt(null);
 }
 
-/** The accept verb's words for an edit that offers Cut: the bar's own label and its busy text. */
+/** The accept verb's label for an edit that offers Cut. */
 export function pendingCutWords(
   edit: Pick<PendingEditView, "suggested_action">,
-): { label: string; busy: string } {
+): { label: string } {
   switch (edit.suggested_action) {
     case "shorten":
-      return { label: "Shorten", busy: "Shortening…" };
+      return { label: "Shorten" };
     case "lower":
-      return { label: "Lower", busy: "Lowering…" };
+      return { label: "Lower" };
     default:
-      return { label: "Cut", busy: "Cutting…" };
+      return { label: "Cut" };
   }
 }
 
@@ -124,28 +124,21 @@ export function pendingAcceptRoute(
 export type PendingBarWords = {
   accept: "Cut" | "Shorten" | "Lower" | "Leave" | "Approve";
   reject: "Keep" | "Reject";
-  acceptBusy: string;
-  rejectBusy: string;
 };
 
 export function pendingBarWords(
   edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
 ): PendingBarWords {
   if (pendingOffersCut(edit)) {
-    const { label, busy } = pendingCutWords(edit);
     return {
-      accept: label as PendingBarWords["accept"],
+      accept: pendingCutWords(edit).label as PendingBarWords["accept"],
       reject: "Keep",
-      acceptBusy: busy,
-      rejectBusy: "Keeping…",
     };
   }
   const leaves = pendingAcceptRoute(edit) === "own";
   return {
     accept: leaves ? "Leave" : "Approve",
     reject: "Reject",
-    acceptBusy: leaves ? "Leaving…" : "Approving…",
-    rejectBusy: "Rejecting…",
   };
 }
 
@@ -154,15 +147,13 @@ type PendingDecider = (action: "approve" | "reject") => Promise<string | null>;
 let current: {
   editId: string;
   decide: PendingDecider;
-  busyReason: () => string | null;
 } | null = null;
 
 export function registerPendingDecider(
   editId: string,
   decide: PendingDecider,
-  busyReason: () => string | null,
 ): () => void {
-  const entry = { editId, decide, busyReason };
+  const entry = { editId, decide };
   current = entry;
   return () => {
     if (current === entry) current = null;
@@ -176,8 +167,4 @@ export async function decideThroughSheet(
   if (current?.editId !== editId) return null;
   const reason = await current.decide(action);
   return reason === null ? { status: "ok" } : { status: "disabled", reason };
-}
-
-export function sheetBusyReason(editId: string): string | null {
-  return current?.editId === editId ? current.busyReason() : null;
 }
