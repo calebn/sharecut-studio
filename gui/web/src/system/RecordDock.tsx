@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
 import { Button } from "../ui";
 import { RecordButton, type RecordButtonProps } from "./RecordButton";
 import { SystemIcon } from "./SystemIcon";
@@ -86,8 +86,21 @@ export function RecordDock({
 }: RecordDockProps) {
   const { leaveHeld, leaveWarning, leaveConfirm } = dock;
   const hint = usePressHint(leaveConfirm ? CONFIRM_HINT_MS : undefined);
+  const { shown: openedShown, show: showOpened } =
+    usePressHint(CONFIRM_HINT_MS);
   const hintId = useId();
   const leaveNote = leaveHeld ?? leaveWarning;
+  const wasHeld = useRef(!!leaveHeld);
+  useEffect(() => {
+    // A held exit that opens says so once; it does not arm the confirm press.
+    if (wasHeld.current && !leaveHeld && leaveWarning) showOpened();
+    wasHeld.current = !!leaveHeld;
+  }, [leaveHeld, leaveWarning, showOpened]);
+  const spokenLine = hint.shown
+    ? leaveNote
+    : openedShown && !leaveHeld
+      ? leaveWarning
+      : undefined;
   const exit = (onExit?: () => void, title?: string) => ({
     title: leaveNote ?? title,
     "aria-disabled": leaveHeld ? true : undefined,
@@ -235,15 +248,20 @@ export function RecordDock({
         )}
       </div>
       {leaveNote && seat !== "host" ? (
-        <span
-          id={hintId}
-          className="sys-dock-hint"
-          data-shown={
-            hint.shown || (!!leaveWarning && !leaveConfirm) || undefined
-          }
-        >
-          {leaveNote}
-        </span>
+        <>
+          <span
+            id={hintId}
+            className="sys-dock-hint"
+            data-shown={
+              hint.shown || (!!leaveWarning && !leaveConfirm) || undefined
+            }
+          >
+            {leaveNote}
+          </span>
+          <p className="sr-only" role="status">
+            {spokenLine}
+          </p>
+        </>
       ) : null}
     </div>
   );

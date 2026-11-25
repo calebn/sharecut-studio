@@ -310,6 +310,94 @@ describe("RecordDock", () => {
     });
   });
 
+  describe("the spoken Leave line", () => {
+    afterEach(() => vi.useRealTimers());
+    const spoken = () =>
+      document.querySelector('.sys-dock .sr-only[role="status"]');
+    const held = "You can leave after this take.";
+    const warning = "Leaving stops recording here.";
+
+    it("speaks a held Leave's reason when it is pressed, and clears with the line", () => {
+      vi.useFakeTimers();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveHeld: held }}
+        />,
+      );
+      expect(spoken()).toHaveTextContent("");
+      act(() => screen.getByRole("button", { name: "Leave room" }).click());
+      expect(spoken()).toHaveTextContent(held);
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(spoken()).toHaveTextContent("");
+    });
+
+    it("speaks the warning on a phone's first press, before the second press leaves", () => {
+      vi.useFakeTimers();
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning, leaveConfirm: true }}
+          onLeave={onLeave}
+        />,
+      );
+      expect(spoken()).toHaveTextContent("");
+      act(() => screen.getByRole("button", { name: "Leave room" }).click());
+      expect(onLeave).not.toHaveBeenCalled();
+      expect(spoken()).toHaveTextContent(warning);
+    });
+
+    it.each([
+      ["a laptop", false],
+      ["a phone", true],
+    ])(
+      "speaks the warning once when a held Leave opens, on %s",
+      (_, leaveConfirm) => {
+        vi.useFakeTimers();
+        const onLeave = vi.fn();
+        const { rerender } = render(
+          <RecordDock
+            seat="guest"
+            dock={{ kind: "controls", leaveHeld: held }}
+            onLeave={onLeave}
+          />,
+        );
+        expect(spoken()).toHaveTextContent("");
+        rerender(
+          <RecordDock
+            seat="guest"
+            dock={{ kind: "controls", leaveWarning: warning, leaveConfirm }}
+            onLeave={onLeave}
+          />,
+        );
+        expect(spoken()).toHaveTextContent(warning);
+        if (leaveConfirm) {
+          // Opening announces only: it does not count as the first press.
+          act(() => screen.getByRole("button", { name: "Leave room" }).click());
+          expect(onLeave).not.toHaveBeenCalled();
+        }
+      },
+    );
+
+    it("stays quiet for a Leave that was open from the start", () => {
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning, leaveConfirm: true }}
+        />,
+      );
+      expect(spoken()).toHaveTextContent("");
+    });
+
+    it("adds no status region to a dock with no Leave line", () => {
+      render(<RecordDock seat="guest" />);
+      expect(spoken()).toBeNull();
+    });
+  });
+
   it("hides Comment while the room waits, for every seat", () => {
     const { rerender } = render(
       <RecordDock seat="host" record={record} showComment={false} />,
