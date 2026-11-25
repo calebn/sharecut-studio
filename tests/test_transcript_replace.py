@@ -33,14 +33,12 @@ def _project(path):
 def test_preview_matches_whole_tokens_case_and_unicode_punctuation_on_every_source(minimal_project):
     project = _project(minimal_project)
     preview = plan_transcript_replacement(project, "Ada", "Mira").preview()
-    assert [(row["source_id"], row["before"], row["after"]) for row in preview["matches"]] == [
+    assert [(row.source_id, row.before, row.after) for row in preview.matches] == [
         (None, "Ada,", "Mira,"),
         (None, "ADA", "Mira"),
         ("take2", "\u2018Ada\u2019", "\u2018Mira\u2019"),
     ]
-    assert (
-        plan_transcript_replacement(project, "Ada", "Mira", match_case=True).preview()["count"] == 2
-    )
+    assert plan_transcript_replacement(project, "Ada", "Mira", match_case=True).preview().count == 2
     assert project.transcripts[0].words[0].text == "Ada,"
 
 
@@ -55,9 +53,9 @@ def test_preview_never_matches_across_suppressed_or_ignored_words(minimal_projec
         _word("Lovelace", 5),
     ]
     preview = plan_transcript_replacement(project, "Ada Lovelace", "Mira Chen").preview()
-    assert preview["count"] == 1
-    assert preview["matches"][0]["start_word_index"] == 4
-    assert preview["skipped_words"] == 3
+    assert preview.count == 1
+    assert preview.matches[0].start_word_index == 4
+    assert preview.skipped_words == 3
 
 
 def _workspace(path):
@@ -77,7 +75,7 @@ def test_replace_all_sources_preserves_times_flags_and_is_one_undo(minimal_proje
     before = [transcript.model_dump(mode="json") for transcript in ws.project.transcripts]
     svc = TranscriptService(ws)
     preview = svc.preview_transcript_replacement("Ada", "Mira")
-    assert svc.replace_transcript_matches("Ada", "Mira", preview["preview_token"]) == 3
+    assert svc.replace_transcript_matches("Ada", "Mira", preview.preview_token) == 3
     assert [w.text for w in ws.project.transcripts[0].words] == ["Mira,", "Mira", "Adaline"]
     assert ws.project.transcripts[1].words[0].text == "\u2018Mira\u2019"
     assert ws.project.transcripts[0].words[0].start == 0
@@ -107,8 +105,8 @@ def test_different_token_counts_apply_reverse_indices_and_preserve_outer_spans(m
     ws.save()
     svc = TranscriptService(ws)
     preview = svc.preview_transcript_replacement("Ada Lovelace", "Mira")
-    assert all(row["retimes_words"] for row in preview["matches"])
-    assert svc.replace_transcript_matches("Ada Lovelace", "Mira", preview["preview_token"]) == 2
+    assert all(row.retimes_words for row in preview.matches)
+    assert svc.replace_transcript_matches("Ada Lovelace", "Mira", preview.preview_token) == 2
     assert [(w.text, w.start, w.end) for w in ws.project.transcripts[0].words] == [
         ("Mira,", 0, 1.5),
         ("and", 2, 2.5),
@@ -134,7 +132,7 @@ def test_stale_preview_rejects_every_replacement_before_history(minimal_project,
     ws.save()
     before = ws.project.model_dump(mode="json")
     with pytest.raises(TranscriptTextChangedError, match="Preview again"):
-        svc.replace_transcript_matches("Ada", "Mira", preview["preview_token"])
+        svc.replace_transcript_matches("Ada", "Mira", preview.preview_token)
     assert ws.project.model_dump(mode="json") == before
 
 
@@ -199,11 +197,9 @@ def test_preview_noop_has_no_history_or_confidence_change(minimal_project):
     ws = _workspace(minimal_project)
     svc = TranscriptService(ws)
     preview = svc.preview_transcript_replacement("Ada", "Ada", match_case=True)
-    assert preview["count"] == 0
+    assert preview.count == 0
     before = ws.project.model_dump(mode="json")
-    assert (
-        svc.replace_transcript_matches("Ada", "Ada", preview["preview_token"], match_case=True) == 0
-    )
+    assert svc.replace_transcript_matches("Ada", "Ada", preview.preview_token, match_case=True) == 0
     assert ws.project.model_dump(mode="json") == before
 
 
@@ -223,7 +219,7 @@ def test_explicit_replacement_punctuation_takes_precedence(
     if " " in search:
         project.transcripts[0].words.append(_word("Lovelace\u2019", 1))
     preview = plan_transcript_replacement(project, search, new).preview()
-    assert preview["matches"][0]["after"] == expected
+    assert preview.matches[0].after == expected
 
 
 def test_replace_common_term_is_not_capped_at_two_thousand(minimal_project):
@@ -231,7 +227,7 @@ def test_replace_common_term_is_not_capped_at_two_thousand(minimal_project):
     project.transcripts = [
         Transcript(track_id="host", words=[_word("Ada", index) for index in range(2001)])
     ]
-    assert plan_transcript_replacement(project, "Ada", "Mira").preview()["count"] == 2001
+    assert plan_transcript_replacement(project, "Ada", "Mira").preview().count == 2001
 
 
 @pytest.mark.parametrize("replacement", ["Bea ,", "Bea \u200b", "..."])
@@ -251,7 +247,7 @@ def test_phrase_expansion_preserves_explicit_lock_and_outer_span(minimal_project
     ws.save()
     svc = TranscriptService(ws)
     preview = svc.preview_transcript_replacement("Ada", "Ada Lovelace")
-    svc.replace_transcript_matches("Ada", "Ada Lovelace", preview["preview_token"])
+    svc.replace_transcript_matches("Ada", "Ada Lovelace", preview.preview_token)
     words = ws.project.transcripts[0].words
     assert [(w.text, w.start, w.end) for w in words[:2]] == [
         ("Ada", 0, 0.25),
@@ -271,8 +267,8 @@ def test_equal_count_phrase_preserves_individual_times_and_flags(minimal_project
     ws.save()
     svc = TranscriptService(ws)
     preview = svc.preview_transcript_replacement("Ada Lovelace", "Mira Chen")
-    assert not preview["matches"][0]["retimes_words"]
-    svc.replace_transcript_matches("Ada Lovelace", "Mira Chen", preview["preview_token"])
+    assert not preview.matches[0].retimes_words
+    svc.replace_transcript_matches("Ada Lovelace", "Mira Chen", preview.preview_token)
     words = ws.project.transcripts[0].words
     assert [(w.text, w.start, w.end, w.audibility_locked) for w in words] == [
         ("Mira", 0, 0.5, True),
@@ -300,8 +296,8 @@ def test_locked_suppressed_and_ignored_words_are_unchanged_by_phrase_expansion(m
     before = [word.model_dump() for word in ws.project.transcripts[0].words[:2]]
     svc = TranscriptService(ws)
     preview = svc.preview_transcript_replacement("Ada", "Ada Lovelace")
-    assert preview["skipped_words"] == 2
-    svc.replace_transcript_matches("Ada", "Ada Lovelace", preview["preview_token"])
+    assert preview.skipped_words == 2
+    svc.replace_transcript_matches("Ada", "Ada Lovelace", preview.preview_token)
     words = ws.project.transcripts[0].words
     assert [word.model_dump() for word in words[:2]] == before
     assert all(
@@ -348,7 +344,7 @@ def test_stale_batch_http_command_returns_conflict_without_partial_edits(minimal
             "payload": {
                 "search": "Ada",
                 "replacement": "Mira",
-                "preview_token": preview["preview_token"],
+                "preview_token": preview.preview_token,
             },
         },
     )
@@ -373,18 +369,18 @@ def test_batch_phrase_words_match_existing_manual_phrase_policy(minimal_project,
     svc = TranscriptService(ws)
     preview = svc.preview_transcript_replacement("Ada Lovelace", replacement)
     expected = [transcript.model_copy(deep=True) for transcript in ws.project.transcripts]
-    for row in reversed(preview["matches"]):
-        transcript = next(tr for tr in expected if tr.source_id == row["source_id"])
+    for row in reversed(preview.matches):
+        transcript = next(tr for tr in expected if tr.source_id == row.source_id)
         if len(replacement.split()) != 2:
             correct_transcript_phrase(
-                transcript, row["start_word_index"], row["end_word_index"], row["after"]
+                transcript, row.start_word_index, row.end_word_index, row.after
             )
         else:
             from podcast_mcp.edits.transcript_correct import correct_transcript_word
 
-            for index, token in enumerate(row["after"].split(), row["start_word_index"]):
+            for index, token in enumerate(row.after.split(), row.start_word_index):
                 correct_transcript_word(transcript, index, token)
-    svc.replace_transcript_matches("Ada Lovelace", replacement, preview["preview_token"])
+    svc.replace_transcript_matches("Ada Lovelace", replacement, preview.preview_token)
     assert [[word.model_dump() for word in tr.words] for tr in ws.project.transcripts] == [
         [word.model_dump() for word in tr.words] for tr in expected
     ]
@@ -435,18 +431,18 @@ def test_only_replaces_that_match_as_one_undo(minimal_project, only, expected):
     svc = TranscriptService(ws)
     preview = svc.preview_transcript_replacement("Ada", "Mira")
     before = [transcript.model_dump(mode="json") for transcript in ws.project.transcripts]
-    token = preview["preview_token"]
+    token = preview.preview_token
     assert svc.replace_transcript_matches("Ada", "Mira", token, only=only) == 1
     changed = [
-        (row["source_id"], row["start_word_index"])
-        for row in preview["matches"]
-        if ws.project.transcripts[0 if row["source_id"] is None else 1]
-        .words[row["start_word_index"]]
+        (row.source_id, row.start_word_index)
+        for row in preview.matches
+        if ws.project.transcripts[0 if row.source_id is None else 1]
+        .words[row.start_word_index]
         .text
-        != row["before"]
+        != row.before
     ]
-    wanted = preview["matches"][expected]
-    assert changed == [(wanted["source_id"], wanted["start_word_index"])]
+    wanted = preview.matches[expected]
+    assert changed == [(wanted.source_id, wanted.start_word_index)]
     HistoryService(ws).undo(rerender=False)
     assert [transcript.model_dump(mode="json") for transcript in ws.project.transcripts] == before
 
@@ -455,7 +451,7 @@ def test_only_replaces_that_match_as_one_undo(minimal_project, only, expected):
 def test_only_outside_the_preview_is_refused_without_history(minimal_project, only):
     ws = _workspace(minimal_project)
     svc = TranscriptService(ws)
-    token = svc.preview_transcript_replacement("Ada", "Mira")["preview_token"]
+    token = svc.preview_transcript_replacement("Ada", "Mira").preview_token
     before = ws.project.model_dump(mode="json")
     with pytest.raises(CodedValueError) as raised:
         svc.replace_transcript_matches("Ada", "Mira", token, only=only)
@@ -466,7 +462,7 @@ def test_only_outside_the_preview_is_refused_without_history(minimal_project, on
 def test_only_on_an_empty_plan_is_out_of_range(minimal_project):
     ws = _workspace(minimal_project)
     svc = TranscriptService(ws)
-    token = svc.preview_transcript_replacement("Zebra", "Mira")["preview_token"]
+    token = svc.preview_transcript_replacement("Zebra", "Mira").preview_token
     with pytest.raises(CodedValueError) as raised:
         svc.replace_transcript_matches("Zebra", "Mira", token, only=0)
     assert raised.value.code == "replacement_match_out_of_range"
@@ -476,7 +472,7 @@ def test_only_on_an_empty_plan_is_out_of_range(minimal_project):
 def test_only_checks_the_stale_token_first(minimal_project):
     ws = _workspace(minimal_project)
     svc = TranscriptService(ws)
-    token = svc.preview_transcript_replacement("Ada", "Mira")["preview_token"]
+    token = svc.preview_transcript_replacement("Ada", "Mira").preview_token
     ws.project.transcripts[0].words.append(_word("Ada", 5))
     ws.save()
     with pytest.raises(TranscriptTextChangedError):
@@ -506,7 +502,7 @@ def _sync_only(ws, preview, only, seq=1):
         "search": "Ada",
         "replacement": "Mira",
         "match_case": False,
-        "preview_token": preview["preview_token"],
+        "preview_token": preview.preview_token,
         "only": only,
     }
     return DocumentSyncService(ws).submit(

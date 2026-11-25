@@ -117,9 +117,11 @@ def transcript_replacement_preview(
 ) -> dict[str, Any]:
     project_path = resolve_project(req.path, request)
     try:
-        return TranscriptService(
-            ProjectWorkspace.open(project_path)
-        ).preview_transcript_replacement(req.search, req.replacement, match_case=req.match_case)
+        return (
+            TranscriptService(ProjectWorkspace.open(project_path))
+            .preview_transcript_replacement(req.search, req.replacement, match_case=req.match_case)
+            .model_dump()
+        )
     except ValueError as exc:
         raise bad_request_error(exc) from exc
 

@@ -137,8 +137,10 @@ def guest_refine_waive(ws: ProjectWorkspace, source: ShareSource, *, reason: str
 def guest_replacement_preview(
     ws: ProjectWorkspace, *, search: str, replacement: str, match_case: bool
 ) -> dict[str, Any]:
-    return TranscriptService(ws).preview_transcript_replacement(
-        search, replacement, match_case=match_case
+    return (
+        TranscriptService(ws)
+        .preview_transcript_replacement(search, replacement, match_case=match_case)
+        .model_dump()
     )
 
 
