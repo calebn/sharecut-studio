@@ -44,10 +44,12 @@ DISPATCHABLE = (
     "storybook",
     "promote",
     "close-issues-on-develop",
+    "tick-epic-checklists",
 )
 WEEKLY_SCHEDULES = {
     "secret-scan": "17 5 * * 1",
     "extras-import": "41 6 * * 1",
+    "tick-epic-checklists": "53 5 * * 1",
 }
 
 
