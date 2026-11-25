@@ -321,6 +321,64 @@ def test_volume_expression_variants():
     assert "if(lt(t,2.0)" in expr
 
 
+def _paren_depth(expr: str) -> int:
+    depth = peak = 0
+    for ch in expr:
+        depth += ch == "("
+        peak = max(peak, depth)
+        depth -= ch == ")"
+    return peak
+
+
+def _eval_gain(expr: str, t: float) -> float:
+    import re
+
+    def lt(a: float, b: float) -> float:
+        return 1.0 if a < b else 0.0
+
+    def iff(c: float, a: float, b: float) -> float:
+        return a if c else b
+
+    code = re.sub(r"\bif\(", "iff(", expr)
+    return eval(code, {"lt": lt, "iff": iff, "t": t})
+
+
+def test_volume_expression_many_points_is_shallow_and_exact():
+    eng = FFmpegEngine()
+    points = [
+        AutomationPoint(id=f"p{i}", time=float(i), value=1.0 if i % 2 == 0 else 0.125)
+        for i in range(2000)
+    ]
+    envelope = AutomationEnvelope(track_id="m", points=points)
+    expr = eng._volume_expression(envelope)
+    assert _paren_depth(expr) < 60
+    for t in (-1.0, 0.0, 0.25, 1.0, 1.5, 777.3, 1998.9, 1999.0, 5000.0):
+        expected = (
+            points[0].value
+            if t < 0
+            else points[-1].value
+            if t >= 1999.0
+            else (
+                points[int(t)].value
+                + (t - int(t)) * (points[int(t) + 1].value - points[int(t)].value)
+            )
+        )
+        assert _eval_gain(expr, t) == pytest.approx(expected)
+
+
+def test_track_filter_with_envelope_uses_small_frames():
+    eng = FFmpegEngine()
+    envelope = AutomationEnvelope(
+        track_id="m",
+        points=[
+            AutomationPoint(id="a", time=0.0, value=1.0),
+            AutomationPoint(id="b", time=1.0, value=0.5),
+        ],
+    )
+    filt = eng.build_track_filter(None, envelope)
+    assert filt.startswith("asetnsamples=n=256:p=0,volume=")
+
+
 @desktop_ffmpeg("renders PCM and verifies the applied filter")
 def test_render_timeline_single_segment_applies_fx_once(sample_wav: Path, tmp_path: Path):
     from podcast_mcp.engines.audio import SourceAudio

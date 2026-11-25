@@ -120,6 +120,9 @@ _AUDIO_START_GAP_SEC = 0.02
 log = logging.getLogger(__name__)
 
 
+ENVELOPE_FRAME_SAMPLES = 256
+
+
 def mute_gain_expression(envelopes: tuple[MuteSampleEnvelope, ...]) -> str:
     gains: list[tuple[str, str]] = []
     for samples in envelopes:
@@ -1294,6 +1297,7 @@ class FFmpegEngine:
                         filters.append(rendered)
         if envelope and envelope.points:
             expr = self._volume_expression(envelope, timeline_origin_sec=timeline_origin_sec)
+            filters.append(f"asetnsamples=n={ENVELOPE_FRAME_SAMPLES}:p=0")
             filters.append(f"volume=volume='{expr}':eval=frame")
         if not filters:
             return "anull"
@@ -1308,14 +1312,25 @@ class FFmpegEngine:
         if len(pts) == 1:
             return str(pts[0].value)
         clock = "t" if timeline_origin_sec == 0 else f"(t+{timeline_origin_sec})"
-        expr = str(pts[-1].value)
-        for left, right in reversed(list(pairwise(pts))):
+        segments = []
+        for left, right in pairwise(pts):
             if right.time == left.time:
                 continue
             slope = (right.value - left.value) / (right.time - left.time)
-            interval = f"{left.value}+({clock}-{left.time})*{slope}"
-            expr = f"if(lt({clock},{right.time}),{interval},{expr})"
-        return f"if(lt({clock},{pts[0].time}),{pts[0].value},{expr})"
+            segments.append((right.time, f"{left.value}+({clock}-{left.time})*{slope}"))
+
+        def tree(lo: int, hi: int) -> str:
+            if hi - lo == 1:
+                return segments[lo][1]
+            mid = (lo + hi) // 2
+            return f"if(lt({clock},{segments[mid - 1][0]}),{tree(lo, mid)},{tree(mid, hi)})"
+
+        if not segments:
+            return f"if(lt({clock},{pts[0].time}),{pts[0].value},{pts[-1].value})"
+        return (
+            f"if(lt({clock},{pts[0].time}),{pts[0].value},"
+            f"if(lt({clock},{pts[-1].time}),{tree(0, len(segments))},{pts[-1].value}))"
+        )
 
     def _fade_chain(
         self,
