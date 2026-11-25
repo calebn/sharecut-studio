@@ -110,14 +110,20 @@ async function openCard(page: Page, theme: Theme) {
     .getByRole("group", { name: "Edit actions" })
     .getByRole("button", { name: "Insert segment", exact: true });
   await openToolsIfFolded(page, insert);
-  if (await insert.isVisible()) {
+  const onBar = await insert.waitFor({ state: "visible", timeout: 1500 }).then(
+    () => true,
+    () => false,
+  );
+  if (onBar) {
     await insert.tap();
   } else {
     await page
       .getByRole("group", { name: "Edit actions" })
       .getByRole("button", { name: "More", exact: true })
       .tap();
-    await page.getByRole("menuitem", { name: "Insert segment" }).tap();
+    await page
+      .getByRole("menuitem", { name: "Insert segment", exact: true })
+      .tap();
   }
   const sheet = page.getByRole("dialog", { name: "Insert segment" });
   await expect(sheet).toBeVisible();
