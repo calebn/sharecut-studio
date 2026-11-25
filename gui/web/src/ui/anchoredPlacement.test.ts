@@ -364,6 +364,43 @@ describe("placeAnchoredExcluding around several rectangles", () => {
     expect(placed).toMatchObject({ top: 266, side: "below" });
   });
 
+  it("tucks the bar between its clip and the corner on a quarter gap rather than drop it into the Script below", () => {
+    const tall = { width: 658, height: 90 };
+    const page = { left: 0, top: 0, width: 820, height: 1180 };
+    const frame = { left: 0, top: 193, right: 820, bottom: 1068 };
+    const lane = { left: 112, top: 253, right: 820, bottom: 404 };
+    const tabletCorner = { left: 177.6, top: 508.5, right: 796, bottom: 614.5 };
+    const spacious = {
+      margin: 16,
+      gap: 16,
+      align: "center",
+      prefer: "above",
+      clearTop: 241,
+    } as const;
+    expect(
+      placeAnchoredExcluding(lane, tall, page, [tabletCorner], frame, spacious),
+    ).toMatchObject({ left: 137, top: 414.5, side: "below", covered: false });
+  });
+
+  it("does not tuck the bar in where the quarter gap still leaves no room for it", () => {
+    const tall = { width: 658, height: 90 };
+    const page = { left: 0, top: 0, width: 820, height: 1180 };
+    const frame = { left: 0, top: 193, right: 820, bottom: 1068 };
+    const lane = { left: 112, top: 253, right: 820, bottom: 430 };
+    const tabletCorner = { left: 177.6, top: 508.5, right: 796, bottom: 614.5 };
+    const spacious = {
+      margin: 16,
+      gap: 16,
+      align: "center",
+      prefer: "above",
+      clearTop: 241,
+    } as const;
+    expect(
+      placeAnchoredExcluding(lane, tall, page, [tabletCorner], frame, spacious)
+        .top,
+    ).toBeGreaterThan(tabletCorner.bottom);
+  });
+
   it("keeps a bar under the ruler chrome out of the room above the excluded box", () => {
     expect(
       placeAnchoredExcluding(
