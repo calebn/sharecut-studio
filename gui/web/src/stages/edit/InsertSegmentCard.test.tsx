@@ -364,6 +364,15 @@ describe("InsertSegmentCard anchored", () => {
     await expectNoA11yViolations(baseElement);
   });
 
+  it("keeps Cancel and Insert inside the form on the anchored card", async () => {
+    render(<Anchored handlers={handlersOf()} />);
+    const form = (await screen.findByRole("dialog")).querySelector("form");
+    expect(form).toContainElement(insertButton());
+    expect(form).toContainElement(
+      screen.getByRole("button", { name: "Cancel" }),
+    );
+  });
+
   it("closes on Cancel without inserting", async () => {
     const handlers = handlersOf();
     render(<Anchored handlers={handlers} />);
@@ -647,6 +656,62 @@ describe("InsertSegmentCard bottom", () => {
     );
     await expectNoA11yViolations(baseElement);
   });
+
+  it("pins Cancel and Insert in the sheet footer, outside the form", async () => {
+    render(
+      <InsertSegmentCard {...data()} {...handlersOf()} form="bottom" open />,
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Insert segment",
+    });
+    const footer = dialog.querySelector<HTMLElement>(".sys-sheet-footer");
+    const form = dialog.querySelector("form");
+    expect(footer).not.toBeNull();
+    for (const name of ["Cancel", "Insert"]) {
+      const button = screen.getByRole("button", { name });
+      expect(footer).toContainElement(button);
+      expect(form).not.toContainElement(button);
+    }
+    expect(insertButton()).toHaveAttribute("form", form?.id);
+    expect(insertButton()).toHaveAccessibleDescription("Pick a segment first.");
+  });
+
+  it("inserts from the footer by click and by Enter", async () => {
+    const handlers = handlersOf();
+    render(<InsertSegmentCard {...data()} {...handlers} form="bottom" open />);
+    await pick(/Cold open/);
+    await screen.findByText(/Preview, from the saved episode/);
+    await userEvent.click(insertButton());
+    await waitFor(() => expect(handlers.onInsert).toHaveBeenCalledTimes(1));
+  });
+
+  it("inserts when Enter is pressed on the focused footer Insert", async () => {
+    const handlers = handlersOf();
+    render(<InsertSegmentCard {...data()} {...handlers} form="bottom" open />);
+    await pick(/Cold open/);
+    await screen.findByText(/Preview, from the saved episode/);
+    insertButton().focus();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(handlers.onInsert).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps Cancel off while inserting, and the failure in the form", async () => {
+    const onInsert = vi.fn(() => new Promise<void>(() => {}));
+    render(
+      <InsertSegmentCard
+        {...data()}
+        {...handlersOf({ onInsert })}
+        form="bottom"
+        open
+      />,
+    );
+    await pick(/Cold open/);
+    await screen.findByText(/Preview, from the saved episode/);
+    await userEvent.click(insertButton());
+    expect(
+      screen.getByRole("button", { name: "Cancel" }),
+    ).toHaveAccessibleDescription("Inserting into the episode.");
+  });
 });
 
 describe("InsertSegmentCard across the phone and desktop forms", () => {
@@ -691,6 +756,11 @@ describe("InsertSegmentCard across the phone and desktop forms", () => {
       "Inserting into the episode.",
     );
     expect(onInsert).toHaveBeenCalledTimes(1);
+    expect(
+      screen
+        .getByRole("dialog", { name: "Insert segment" })
+        .querySelector(".sys-sheet-footer"),
+    ).toContainElement(insertButton());
     finish();
     await waitFor(() => expect(handlers.onClose).toHaveBeenCalledTimes(1));
   });
