@@ -803,6 +803,7 @@ CASES: dict[str, Case] = {
     "SetEffectBypass": Case(
         lambda r, t: {"track_id": t.track, "effect_index": 0, "bypass": True}, _add_effect
     ),
+    "ApplyDucking": Case(lambda r, t: {"track_ids": [t.track]}, roles=NON_DIALOGUE),
     "SetEnvelope": Case(
         lambda r, t: {
             "track_id": t.track,
@@ -992,6 +993,7 @@ CANNOT_MOVE_AUDIO: dict[str, Cannot] = {
         ],
         Cannot(PLACEMENT, NON_DIALOGUE),
     ),
+    "ApplyDucking": Cannot("the player applies volume envelopes over the artifacts", NON_DIALOGUE),
     "AddTrack": Cannot("a new track has no media and no clips, so no artifact reads it"),
     "CorrectTranscriptWord": Cannot(WORD_TEXT),
     "ReorderTrack": Cannot("track order is no artifact's input"),
