@@ -8,8 +8,10 @@ import tempfile
 from pathlib import Path
 
 from podcast_mcp.edits.segment_insert import (
+    Placement,
     SegmentAudio,
     check_layout,
+    check_placement,
     check_position,
     insert_segment,
     timeline_end,
@@ -100,8 +102,13 @@ def insert_saved_segment(
     *,
     version: int | None = None,
     store: SegmentStore | None = None,
+    placement: Placement = "ripple",
 ) -> SegmentInsertApplied:
     """Insert a library segment at ``at`` (seconds, ``start`` or ``end``); later content moves.
+
+    ``placement="own_lane"`` moves nothing and puts every lane on a new track (refused for a
+    dialogue segment with ``segment_placement_unsupported``; an unknown value is
+    ``segment_placement_invalid``). The new lane plays at full level until ducked.
 
     ``end`` is read inside the document lock, so an edit saved meanwhile is not split. The audio is copied into the project and its hash checked. The edit is one undo step.
     Errors: ``segment_unknown``, ``segment_hash_mismatch``, ``segment_media_invalid``,
@@ -109,6 +116,7 @@ def insert_saved_segment(
     """
     library = store or SegmentStore()
     segment = library.get(segment_id, version)
+    check_placement(segment, placement)
     early = resolve_insert_position(ws.project, at)
     check_position(ws.project, early)
     check_layout(segment)
@@ -120,11 +128,21 @@ def insert_saved_segment(
         f"after insert segment {segment.name}",
         lambda p: SegmentInsertApplied.model_validate(
             insert_segment(
-                p, segment, audio, resolve_insert_position(p, at), defaults=ws.effective_config()
+                p,
+                segment,
+                audio,
+                resolve_insert_position(p, at),
+                defaults=ws.effective_config(),
+                placement=placement,
             )
         ),
         operation="insert_segment",
-        params={"segment_id": segment.id, "version": segment.version, "at": early},
+        params={
+            "segment_id": segment.id,
+            "version": segment.version,
+            "at": early,
+            **({} if placement == "ripple" else {"placement": placement}),
+        },
     )
 
 
@@ -151,9 +169,10 @@ def preview_segment_insert(
     *,
     version: int | None = None,
     store: SegmentStore | None = None,
+    placement: Placement = "ripple",
 ) -> SegmentInsertPreview:
     report, _trial = preview_segment_insert_on(
-        ws, ws.project, segment_id, at, version=version, store=store
+        ws, ws.project, segment_id, at, version=version, store=store, placement=placement
     )
     return report
 
@@ -166,6 +185,7 @@ def preview_segment_insert_on(
     *,
     version: int | None = None,
     store: SegmentStore | None = None,
+    placement: Placement = "ripple",
 ) -> tuple[SegmentInsertPreview, EpisodeProject]:
     """:func:`preview_segment_insert` on ``project`` (a copy the caller owns) and the result.
 
@@ -178,6 +198,7 @@ def preview_segment_insert_on(
     """
     library = store or SegmentStore()
     segment = library.get(segment_id, version)
+    check_placement(segment, placement)
     at = resolve_insert_position(project, at)
     check_position(project, at)
     check_layout(segment)
@@ -202,7 +223,9 @@ def preview_segment_insert_on(
             channels=int(asset.channels or 0),
         )
     trial = project.model_copy(deep=True)
-    summary = insert_segment(trial, segment, audio, at, defaults=ws.effective_config())
+    summary = insert_segment(
+        trial, segment, audio, at, defaults=ws.effective_config(), placement=placement
+    )
     before = {clip.id: clip.timeline_start for clip in project.clips}
     kept = [clip for clip in trial.clips if clip.id in before]
     old_tracks = {track.id for track in project.tracks}
@@ -213,6 +236,7 @@ def preview_segment_insert_on(
         segment_version=segment.version,
         at=at,
         duration_sec=segment.duration_sec,
+        placement=placement,
         timeline_duration_before_sec=timeline_end(project),
         timeline_duration_after_sec=timeline_end(trial),
         clips_moved=sum(1 for clip in kept if clip.timeline_start != before[clip.id]),

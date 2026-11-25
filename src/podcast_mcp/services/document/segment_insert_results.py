@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, model_serializer
 
 
 class _SegmentInsertResult(BaseModel):
@@ -30,6 +30,15 @@ class _SegmentInsertReport(_SegmentInsertResult):
     segment_version: int
     at: float
     duration_sec: float
+    placement: Literal["ripple", "own_lane"] = "ripple"
+
+    @model_serializer(mode="wrap")
+    def _omit_default_placement(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """Leave ``placement`` out when it is ``ripple``, so a default report is unchanged."""
+        data = handler(self)
+        if data.get("placement") == "ripple":
+            del data["placement"]
+        return data
 
 
 class SegmentInsertPreview(_SegmentInsertReport):

@@ -11,6 +11,7 @@ from podcast_mcp.gui.routes.deps import NO_STORE, coded_exception_error, resolve
 from podcast_mcp.gui.routes.project import pin_served_if_allowed
 from podcast_mcp.gui.schemas import SegmentSaveRequest
 from podcast_mcp.segments.model import segment_kind
+from podcast_mcp.segments.position import parse_placement
 from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.segments.summary import library_rows, show_segment
 from podcast_mcp.services.app import ProjectWorkspace
@@ -81,8 +82,12 @@ def insert_preview(
     path: str,
     at: str,
     version: int | None = None,
+    placement: str = "ripple",
 ) -> dict[str, Any]:
     """What inserting the segment at ``at`` would move: a dry run that writes nothing.
+
+    ``placement`` is ``ripple`` (default) or ``own_lane``; anything else is
+    ``segment_placement_invalid``.
 
     ``version`` is a bare ``int`` and not ``Query(ge=1)`` so that 0 reaches
     ``segment_version_invalid`` like the CLI and MCP instead of a 422.
@@ -97,6 +102,7 @@ def insert_preview(
             at,
             version=store.resolve_version(segment_id, version),
             store=store,
+            placement=parse_placement(placement),
         )
     except CodedValueError as exc:
         _refuse(exc)

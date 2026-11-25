@@ -1,7 +1,7 @@
 """Where on the timeline a segment goes: ``start``, ``end`` or a number of seconds.
 
 The one parser for the CLI ``--at``, the MCP ``at`` and the ``InsertSegment`` payload, so
-all three accept and refuse the same text.
+all three accept and refuse the same text. ``parse_placement`` does the same for ``placement``.
 """
 
 from __future__ import annotations
@@ -48,3 +48,17 @@ def parse_position(at: object) -> Position:
     if not math.isfinite(seconds):
         raise _refuse(at)
     return seconds
+
+
+Placement = Literal["ripple", "own_lane"]
+
+
+def parse_placement(placement: object) -> Placement:
+    """``ripple`` or ``own_lane``, exactly; anything else raises ``segment_placement_invalid``."""
+    if placement == "ripple" or placement == "own_lane":
+        return placement
+    raise CodedValueError(
+        f"{placement!r} is not a placement. Use ripple (later content moves) or own_lane "
+        "(nothing moves and the segment gets its own track).",
+        code="segment_placement_invalid",
+    )

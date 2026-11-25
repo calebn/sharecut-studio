@@ -52,7 +52,7 @@ from podcast_mcp.models.episode import (
     RangeInterval,
 )
 from podcast_mcp.models.feed import FieldValue, PinAuthor
-from podcast_mcp.segments.position import parse_position
+from podcast_mcp.segments.position import parse_placement, parse_position
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.text import has_meaningful_text
@@ -940,15 +940,20 @@ class InsertSegmentPayload(BaseModel):
 
     ``version`` is the version used. The host adapters always send it, so the journal names
     the audio that went in. Without it the newest version at apply time is used.
+
+    ``placement`` is ``ripple`` (the default: later content moves) or ``own_lane`` (nothing
+    moves, every lane gets a new track). The journal leaves it out for ``ripple``, so only an
+    ``own_lane`` row carries the key; a build that predates it would ignore the key and ripple.
     """
 
     segment_id: str
     version: int | None = Field(default=None, ge=1)
     at: float | Literal["start", "end"]
+    placement: Literal["ripple", "own_lane"] = "ripple"
 
 
 def _coerce_insert_segment(payload: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
-    """Parse ``at`` and ``version`` with the segment error codes, before pydantic sees them."""
+    """Parse ``at``, ``version`` and ``placement`` with the segment error codes, before pydantic."""
     if not isinstance(payload, dict):
         return payload
     out = dict(payload)
@@ -962,6 +967,8 @@ def _coerce_insert_segment(payload: Mapping[str, Any] | None) -> Mapping[str, An
             f"{version!r} is not a segment version. Use a whole number from 1.",
             code="segment_version_invalid",
         )
+    if "placement" in out:
+        out["placement"] = parse_placement(out["placement"])
     return out
 
 
@@ -1881,6 +1888,8 @@ def validate_payload(command_type: str, payload: dict[str, Any] | None) -> dict[
             e if isinstance(e, dict) else e.model_dump() if hasattr(e, "model_dump") else dict(e)
             for e in out["extracts"]
         ]
+    if command_type == "InsertSegment" and out.get("placement") == "ripple":
+        del out["placement"]
     for key in ("join_in_mode", "mode"):
         if key in out and hasattr(out[key], "value"):
             out[key] = out[key].value

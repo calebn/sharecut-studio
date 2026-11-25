@@ -68,6 +68,7 @@ def segment_insert_tool(
     at: float | str,
     version: int | None = None,
     dry_run: bool = False,
+    placement: str = "ripple",
 ) -> str:
     """Insert a library segment into an episode at ``start``, ``end`` or a timeline second.
 
@@ -75,14 +76,19 @@ def segment_insert_tool(
     when the edit runs, under the document lock.
 
     Later clips, chapters, review comments and pending edits move by the segment's length
-    (``podcast segment insert``). The edit goes through the document plane as ``InsertSegment``:
+    (``podcast segment insert``), unless ``placement="own_lane"``: then nothing moves, every
+    lane of the segment goes on a new track and it plays over what is already there, for music
+    under dialogue. An own-lane segment plays at full level until you duck it: run
+    ``apply_ducking_tool`` (``podcast edit duck``) afterwards, which ducks a segment saved with
+    ``duck_under_dialogue``. A dialogue segment cannot be placed ``own_lane``. The edit goes through the document plane as ``InsertSegment``:
     it is journaled, shows in Studio at once and is one undo step (``history_undo``). It is
     applied, not held as a pending proposal, because a pending proposal only exists for
     remove, mute and split edits. Use ``dry_run=true`` first: it reports the new duration and
     what would move, and changes nothing (it also probes the segment's audio, so it refuses
     what the insert would). ``version`` picks an older version; the one used is journaled.
     The result carries ``dry_run`` (true or false). Errors: ``segment_version_invalid``, ``segment_unknown``, ``segment_hash_mismatch``, ``segment_position_out_of_range``,
-    ``segment_media_invalid``, ``segment_write_failed``.
+    ``segment_media_invalid``, ``segment_write_failed``, ``segment_placement_invalid``,
+    ``segment_placement_unsupported``.
     """
     return to_json(
         submit_segment_insert(
@@ -92,6 +98,7 @@ def segment_insert_tool(
             version=version,
             dry_run=dry_run,
             client_id="mcp:host",
+            placement=placement,
         ).model_dump()
     )
 

@@ -442,6 +442,7 @@ def insert_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         str(p["segment_id"]),
         at if isinstance(at, str) else float(at),
         version=None if version is None else int(version),
+        placement=p.get("placement", "ripple"),
     )
     return dict(inserted.journal())
 
