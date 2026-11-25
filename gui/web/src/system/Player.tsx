@@ -427,13 +427,7 @@ function HearOriginal({
 
 const DOCK_RESERVE = "--player-dock-height";
 
-/**
- * Hands the sheets and the toast the dock's real height. At large text the
- * Comment button wraps under Play and the dock grows past its token, so the
- * root's reserve is set to the measured height; at its natural height the
- * property is removed and the token applies. The dock's content is measured
- * too: its own height holds at the reserve while the content shrinks.
- */
+/** At large text the dock outgrows its token, so the sheets and toast rest on its measured height. */
 function useDockReserve(
   dock: RefObject<HTMLElement | null>,
   transport: RefObject<HTMLElement | null>,
@@ -442,7 +436,6 @@ function useDockReserve(
     const el = dock.current;
     if (!el) return;
     const root = document.documentElement;
-    // Without the override the dock is as tall as its content or the token, whichever is more.
     root.style.removeProperty(DOCK_RESERVE);
     const token = Number.parseFloat(getComputedStyle(el).minBlockSize) || 0;
     const height = el.getBoundingClientRect().height;

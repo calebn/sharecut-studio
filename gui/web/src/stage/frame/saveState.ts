@@ -35,7 +35,6 @@ type SaveStateInput = {
   loaded: boolean;
   /** A send ended and the queue has not been read since, so the counts are stale. */
   settling: boolean;
-  /** What this device has refused to keep. */
   storage?: StorageHealth;
 };
 
@@ -62,8 +61,7 @@ export function latestSaveOutcome(
  * outcome is not yet read back, is the freshest fact. Then an unknown outcome,
  * and edits waiting; the rest is saved. Null until the queue has been
  * read once, so a project never claims "Saved" before it knows. A guest's
- * device that will not keep the saved copy or the waiting edits says so ahead of
- * the saved copy, waiting and saved: "Saved" must not show while nothing is kept.
+ * device that keeps nothing is named ahead of "Saved".
  */
 export function saveStateOf(input: SaveStateInput): SaveState | null {
   if (input.away && !input.unreadable) {

@@ -118,7 +118,6 @@ export function GuestPageCover({
   onRetry: () => void;
   /** What the guest had typed and not sent when the link ended; with none the cover is unchanged. */
   unsent?: UnsentText[];
-  /** One more sentence under the cover's own, e.g. that this browser keeps no saved copy. */
   note?: string;
 }) {
   const cover = guestLoadCover(failure);

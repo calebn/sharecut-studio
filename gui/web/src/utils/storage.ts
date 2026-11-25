@@ -15,7 +15,6 @@ export function readLocal(key: string): string | null {
   }
 }
 
-/** Whether the value was kept: false when storage is blocked, full or missing. */
 export function writeLocal(key: string, value: string): boolean {
   try {
     const storage = globalThis.localStorage;

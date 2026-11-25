@@ -17,7 +17,6 @@ export type SaveIndicatorProps = {
     | "away"
     | "failed";
   cause?: HostCause;
-  /** Unkept: why this device keeps no saved copy. */
   storageCause?: StorageCause;
   /** Saved: show the check for the 2 s after a save. */
   justSaved?: boolean;
@@ -123,7 +122,7 @@ export function SaveIndicator({
     );
   }
   if (state === "unkept") {
-    // Not a live region and not an alert: the frame's one status region says it once, and nothing here is for the guest to press.
+    // Not a live region: the frame's status region speaks it, so it is not announced twice.
     const sentence = storageSentence(storageCause);
     return (
       <span className={`sys-save sys-save--unkept${size}`} title={sentence}>

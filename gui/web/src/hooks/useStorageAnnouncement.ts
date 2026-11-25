@@ -7,7 +7,6 @@ import {
   useStorageHealth,
 } from "../state/storageHealth";
 
-/** What a device that keeps nothing says: one sentence for the saved copy and queue together, one for settings. */
 function sentencesOf(health: StorageHealth): string[] {
   const kept = health.snapshot ?? health.queue;
   return [
@@ -16,11 +15,7 @@ function sentencesOf(health: StorageHealth): string[] {
   ];
 }
 
-/**
- * Speaks what this device will not keep through the app's one live region,
- * once per sentence. However many writes fail, the sentence is spoken again
- * only after the failure has cleared and come back.
- */
+/** Speaks each sentence once; it repeats only after the failure has cleared and come back. */
 export function useStorageAnnouncement(): void {
   const health = useStorageHealth();
   const spoken = useRef(new Set<string>());

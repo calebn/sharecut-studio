@@ -305,7 +305,6 @@ test("on a phone with touch the row keeps its three buttons reachable and 44 px 
 
 const DOCK_PROPERTY = "--player-dock-height";
 
-/** Three stale cuts a Commenter queued before the host edited the audio: all three are refused on replay. */
 async function seedStaleCuts(page: Page, token: string): Promise<void> {
   const rows = [1, 2, 3].map((n) => ({
     client_id: "viewer-e2e",
@@ -360,7 +359,6 @@ async function threeRefusedCuts(host: Page, guest: Page, projectPath: string) {
   ).toHaveCount(3);
 }
 
-/** Every dock button lies wholly in the window and is what a tap at its centre reaches. */
 function dockButtons(page: Page) {
   return page.evaluate(() => {
     const window_ = { width: innerWidth, height: innerHeight };
@@ -390,7 +388,6 @@ function dockButtons(page: Page) {
   });
 }
 
-/** The scrolling element that holds the Needs attention group (the queue sheet on a phone). */
 function sheetOf(page: Page) {
   return attention(page).evaluate((group) => {
     let node: HTMLElement | null = group.parentElement;
@@ -438,7 +435,6 @@ for (const { cell, theme } of withAppearance(PHONE_CELLS)) {
               )
               .toEqual([]);
             if (cell.height > 600) {
-              // The reserve the sheets rest on follows the dock's real height.
               await expect
                 .poll(() =>
                   guest!.evaluate((property) => {
@@ -495,7 +491,7 @@ for (const { cell, theme } of withAppearance(PHONE_CELLS)) {
                 return hit === el || el.contains(hit);
               }),
             ).toBe(true);
-            // On the folded 320 frame the dock is one row, so the sheet has room to scroll a row into view.
+            // Folded 320 frame: the dock is one row, so the sheet needs room to scroll a row into view.
             if (cell.height < 600) {
               const hear = attention(guest!)
                 .getByRole("button", { name: /^Hear your cut/ })

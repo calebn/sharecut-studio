@@ -1589,7 +1589,7 @@ html[data-frame-short][data-shell="phone"] .sys-player-comment--guest {
   align-content: start;
   column-gap: var(--space-3);
   box-sizing: border-box;
-  /* Never shorter than the token; at large text the Comment button wraps under Play and the dock grows (Player.tsx hands the sheets the new height). */
+  /* Never shorter than the token: the dock grows at large text (see Player.tsx). */
   block-size: auto;
   min-block-size: var(--player-dock-height);
   padding-inline: var(--space-4);
@@ -1665,7 +1665,6 @@ html[data-frame-short][data-shell="phone"] .sys-player-comment--guest {
   min-block-size: calc(var(--target-dock-primary) + var(--space-6) / 2);
 }
 
-/* Back, Play and Forward stay one run; Comment wraps under them when the text is large. */
 .sys-listen-dock-cluster {
   display: flex;
   flex-wrap: nowrap;

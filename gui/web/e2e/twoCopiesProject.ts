@@ -34,7 +34,6 @@ export function twoCopiesProject(prefix: string) {
   return copy;
 }
 
-/** The host fades the second copy in: any cut sealed before this is refused, and it is one more change a guest's saved copy must follow. */
 export async function hostEditsTheAudio(host: Page, projectPath: string) {
   await postDocumentCommand(
     host,

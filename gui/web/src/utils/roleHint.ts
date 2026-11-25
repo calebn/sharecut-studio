@@ -22,7 +22,6 @@ export function roleHintSeen(role: RoleHintRole): boolean {
   return readLocal(key(role)) === "1";
 }
 
-/** Whether the browser kept it: false when storage is blocked or full. */
 export function markRoleHintSeen(role: RoleHintRole): boolean {
   return writeLocal(key(role), "1");
 }
