@@ -200,8 +200,9 @@ def segment_insert_cmd(
         )
         if result.get("placement") == "own_lane":
             typer.echo(
-                "It is on its own track and plays at full level until ducked: "
-                "run `podcast edit duck` to lower it under dialogue."
+                "It is on its own track and plays at full level until ducked. "
+                "`podcast edit duck` lowers it under dialogue only when the segment was "
+                "saved to duck under dialogue; otherwise name its track with --track."
             )
 
 
