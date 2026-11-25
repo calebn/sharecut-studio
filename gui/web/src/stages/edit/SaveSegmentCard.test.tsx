@@ -271,10 +271,12 @@ describe("SaveSegmentCard bottom", () => {
     render(<Bottom handlers={handlers} />);
     const name = await screen.findByRole("textbox", { name: "Name" });
     await userEvent.type(name, "Sponsor read{Enter}");
-    expect(handlers.onSave).toHaveBeenCalledWith({
-      name: "Sponsor read",
-      kind: "other",
-    });
+    await waitFor(() =>
+      expect(handlers.onSave).toHaveBeenCalledWith({
+        name: "Sponsor read",
+        kind: "other",
+      }),
+    );
   });
 
   it("keeps Cancel off while saving", async () => {
