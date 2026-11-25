@@ -113,6 +113,11 @@ if TYPE_CHECKING:
         SegmentInsertApplied,
         SegmentInsertPreview,
     )
+    from podcast_mcp.services.document.session_hear_results import (
+        SessionHearCurrentSide,
+        SessionHearResult,
+        SessionHearSuggestedSide,
+    )
     from podcast_mcp.services.document.session_suggestion import SessionSuggestionService
     from podcast_mcp.services.document.shorten_word_gaps_results import (
         ShortenWordGapsApplied,
@@ -220,6 +225,9 @@ __all__ = [
     "SegmentInsertApplied",
     "SegmentInsertPreview",
     "ServedFile",
+    "SessionHearCurrentSide",
+    "SessionHearResult",
+    "SessionHearSuggestedSide",
     "SessionSuggestionService",
     "SetClipFadeResult",
     "SetClipJoinResult",
@@ -362,6 +370,9 @@ _MODULE_BY_NAME = {
     "SplitAtTimeResult": "split_results",
     "StripSilenceResult": "strip_silence_results",
     "ProposeSplitResult": "split_results",
+    "SessionHearCurrentSide": "session_hear_results",
+    "SessionHearResult": "session_hear_results",
+    "SessionHearSuggestedSide": "session_hear_results",
     "TrimAppliedResult": "trim_edge_results",
     "TrimHeldResult": "trim_edge_results",
     "TrimUnchangedResult": "trim_edge_results",

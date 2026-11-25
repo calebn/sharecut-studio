@@ -29,6 +29,10 @@ from podcast_mcp.services.document import (
     PENDING_PREVIEW_PAD_MAX_SEC,
     PENDING_PREVIEW_PAD_MIN_SEC,
 )
+from podcast_mcp.services.document.session_hear_results import (
+    SESSION_HEAR_PUBLIC_EXCLUDE,
+    SessionHearResult,
+)
 from podcast_mcp.services.document_sync import (
     DocumentConflictError,
     DocumentSyncService,
@@ -354,12 +358,7 @@ def session_suggestion_hear(
     except ValueError as exc:
         raise bad_request_error(exc) from exc
     # The page asks for audio by route, not by a path on the host's disk.
-    heard.pop("wav", None)
-    heard.pop("player", None)
-    for side in ("current", "suggested"):
-        if heard[side] is not None:
-            heard[side].pop("wav", None)
-    return heard
+    return heard.model_dump(exclude=SESSION_HEAR_PUBLIC_EXCLUDE)
 
 
 @router.get("/api/session-suggestion/hear-wav")
@@ -378,7 +377,7 @@ def session_suggestion_hear_wav(
     ws, service = _session_heard(request, path)
     try:
         heard = _hear_session(ws, service, suggestion_id, mode, take_index, pad_sec)
-        audio = Path(heard["wav"])
+        audio = Path(heard.wav)
         return pinned_audio_response(audio, media_type="audio/wav", filename=audio.name)
     except KeyError as exc:
         raise coded_exception_error(404, exc, code="session_suggestion_not_found") from exc
@@ -395,7 +394,7 @@ def _hear_session(
     mode: str,
     take_index: int | None,
     pad_sec: float,
-) -> dict[str, Any]:
+) -> SessionHearResult:
     from podcast_mcp.util.project_state import render_lock
 
     # A window already rendered (by the warm) is a file read: it waits for no render,

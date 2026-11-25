@@ -26,6 +26,7 @@ from podcast_mcp.models import SessionSuggestion
 from podcast_mcp.project.store import WriteGrantKind, active_write_grant, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.service_base import mutate_unless_cut_speech_held
+from podcast_mcp.services.document.session_hear_results import SessionHearResult
 from podcast_mcp.services.document.warm_preview_results import (
     WarmPreviewResult,
     warm_preview_result,
@@ -181,7 +182,7 @@ class SessionSuggestionService:
         dry_run: bool = False,
         player: str | None = None,
         lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
-    ) -> dict[str, Any]:
+    ) -> SessionHearResult:
         """Hear a pending insert or replace before accepting it: Current, Suggested or A/B.
 
         Current is the window around the place as it is, Suggested the same window after
@@ -213,7 +214,7 @@ class SessionSuggestionService:
         take_index: int | None = None,
         pad_sec: float = DEFAULT_SESSION_PAD_SEC,
         gap_sec: float = DEFAULT_AB_GAP_SEC,
-    ) -> dict[str, Any] | None:
+    ) -> SessionHearResult | None:
         """``preview`` if its windows are already rendered (a file read, no FFmpeg), else None."""
         return self._hear(
             suggestion_id,
@@ -241,7 +242,7 @@ class SessionSuggestionService:
         player: str | None,
         lock_timeout: float,
         cached_only: bool,
-    ) -> dict[str, Any] | None:
+    ) -> SessionHearResult | None:
         from podcast_mcp.services.document.play import PlayService
 
         _require_seconds("pad_sec", "pad_sec_invalid", pad_sec, MAX_PREVIEW_PAD_SEC)

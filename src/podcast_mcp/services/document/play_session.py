@@ -22,6 +22,11 @@ from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC, snapshot_project
 
 from .play_pending import _PENDING_SIDES, _PlayPending, _window_render_lock
+from .session_hear_results import (
+    SessionHearCurrentSide,
+    SessionHearResult,
+    SessionHearSuggestedSide,
+)
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +65,7 @@ class _PlaySession(_PlayPending):
         player: str | None = None,
         lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
         cached_only: bool = False,
-    ) -> dict[str, Any] | None:
+    ) -> SessionHearResult | None:
         """The window around a pending staged session as it is now, after Accept, or both.
 
         Suggested accepts the session on a snapshot with the same function Accept runs (the
@@ -114,22 +119,22 @@ class _PlaySession(_PlayPending):
             if player_cmd:
                 run(player_cmd, check=True)
         detail = suggested or {}
-        return {
-            "suggestion_id": row.id,
-            "kind": row.kind,
-            "mode": kind,
-            "take_index": detail.get("take_index"),
-            "pad_sec": pad,
-            "wav": str(wav),
-            "player": player_cmd,
-            "current": _side_view(current, ("start_s", "end_s")),
-            "suggested": _side_view(suggested, ("start_s", "end_s", "delta_s")),
-            "delta_s": detail.get("delta_s"),
-            "removed_s": detail.get("removed_s"),
-            "span_s": detail.get("span_s"),
-            "speech": detail.get("speech"),
-            "speech_message": detail.get("speech_message"),
-        }
+        return SessionHearResult(
+            suggestion_id=row.id,
+            kind=row.kind,
+            mode=kind,  # type: ignore[arg-type]
+            take_index=detail.get("take_index"),
+            pad_sec=pad,
+            wav=str(wav),
+            player=player_cmd,
+            current=_current_view(current),
+            suggested=_suggested_view(suggested),
+            delta_s=_opt_float(detail.get("delta_s")),
+            removed_s=_opt_float(detail.get("removed_s")),
+            span_s=_opt_float(detail.get("span_s")),
+            speech=detail.get("speech"),
+            speech_message=detail.get("speech_message"),
+        )
 
     def _staged_files_key(self, row: SessionSuggestion) -> list[Any]:
         """Identity of the staged recordings, which are not in the project until Accept."""
@@ -275,7 +280,24 @@ class _PlaySession(_PlayPending):
         return {**meta, "wav": out}
 
 
-def _side_view(side: dict[str, Any] | None, keys: tuple[str, ...]) -> dict[str, Any] | None:
+def _opt_float(value: Any) -> float | None:
+    return None if value is None else float(value)
+
+
+def _current_view(side: dict[str, Any] | None) -> SessionHearCurrentSide | None:
     if side is None:
         return None
-    return {"wav": str(side["wav"]), **{key: side[key] for key in keys if key in side}}
+    return SessionHearCurrentSide(
+        wav=str(side["wav"]), start_s=float(side["start_s"]), end_s=float(side["end_s"])
+    )
+
+
+def _suggested_view(side: dict[str, Any] | None) -> SessionHearSuggestedSide | None:
+    if side is None:
+        return None
+    return SessionHearSuggestedSide(
+        wav=str(side["wav"]),
+        start_s=float(side["start_s"]),
+        end_s=float(side["end_s"]),
+        delta_s=float(side["delta_s"]),
+    )
