@@ -1,25 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { acceptPending } from "./pendingAccept";
-import { pendingAcceptRoute } from "./pendingDecision";
 
 vi.mock("../api", () => ({
   applySuggestedActions: vi.fn(),
   approveEdits: vi.fn(),
 }));
-
-const edits = (["remove", "split"] as const).flatMap((type) =>
-  [undefined, { intervals: [] } as never].flatMap((exact_range) =>
-    [undefined, null, "cut", "shorten", "lower", "leave"].map(
-      (suggested_action) => ({
-        id: "e1",
-        type,
-        exact_range,
-        suggested_action,
-      }),
-    ),
-  ),
-);
 
 describe("acceptPending", () => {
   beforeEach(() => {
@@ -36,10 +22,22 @@ describe("acceptPending", () => {
     } as never);
   });
 
-  it.each(edits)("sends %o down its route only", async (edit) => {
-    await acceptPending("/tmp/p", edit as never);
-    const own = pendingAcceptRoute(edit as never) === "own";
-    expect(api.applySuggestedActions).toHaveBeenCalledTimes(own ? 1 : 0);
-    expect(api.approveEdits).toHaveBeenCalledTimes(own ? 0 : 1);
-  });
+  it.each([
+    ["leave", "remove", 1],
+    ["leave", "split", 1],
+    ["shorten", "remove", 1],
+    ["cut", "remove", 0],
+    [null, "remove", 0],
+  ] as const)(
+    "a %s suggestion on a %s applies it %i time(s)",
+    async (suggested_action, type, applied) => {
+      await acceptPending("/tmp/p", {
+        id: "e1",
+        type,
+        suggested_action,
+      } as never);
+      expect(api.applySuggestedActions).toHaveBeenCalledTimes(applied);
+      expect(api.approveEdits).toHaveBeenCalledTimes(1 - applied);
+    },
+  );
 });

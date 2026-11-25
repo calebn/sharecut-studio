@@ -50,7 +50,6 @@ export type DecisionCardProps = {
   confidence?: number;
   children?: ReactNode;
   verb?: VerbId;
-  /** The primary's word when the verb's own does not fit: "Leave". */
   verbLabel?: string;
   /** Why the primary cannot be used; it is also off by swipe. */
   verbDisabledReason?: string;
