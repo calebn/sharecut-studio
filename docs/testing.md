@@ -117,7 +117,7 @@ make format-py        # ruff format (write)
 make format-py-check  # ruff format --check
 make generated-check  # every generated artifact and contract check (tests/test_generated_artifacts.py), plus the two Biome-formatted exporters
 make hooks            # lint-staged formats staged Ruff/Biome; check-only pre-commit hooks (incl. service-boundaries)
-make worktree-setup   # new git worktree: hooks + venv + gui/web node_modules (pre-commit self-provisions)
+make worktree-setup   # new git worktree: hooks + venv + gui/web node_modules (pre-commit stops until it has run)
 make typecheck        # mypy (strict on timebase modules)
 ```
 
