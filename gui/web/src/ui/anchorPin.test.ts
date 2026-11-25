@@ -12,7 +12,7 @@ const at = (left: number, top: number, right: number, bottom: number) => ({
 describe("pinOf", () => {
   it("attaches an anchor wholly inside the box and keeps its rect", () => {
     const rect = at(200, 200, 300, 240);
-    expect(pinOf(rect, box)).toEqual({ pinned: false, edge: null, rect });
+    expect(pinOf(rect, box)).toEqual({ pinned: false, rect });
   });
 
   it.each([
@@ -25,7 +25,6 @@ describe("pinOf", () => {
     (_edge, rect, clamped) => {
       expect(pinOf(rect, box)).toEqual({
         pinned: false,
-        edge: null,
         rect: clamped,
       });
     },
@@ -38,26 +37,20 @@ describe("pinOf", () => {
     ["end", at(550, 200, 600, 240), at(500, 200, 500, 240)],
   ])(
     "pins an anchor fully past the %s to the nearest edge point",
-    (edge, rect, point) => {
-      expect(pinOf(rect, box)).toEqual({ pinned: true, edge, rect: point });
+    (_edge, rect, point) => {
+      expect(pinOf(rect, box)).toEqual({ pinned: true, rect: point });
     },
   );
 
-  it("reports the vertical edge at a corner and pins to the corner point", () => {
+  it("pins to the corner point past a corner", () => {
     expect(pinOf(at(10, 20, 60, 60), box)).toEqual({
       pinned: true,
-      edge: "top",
       rect: at(100, 100, 100, 100),
     });
-    expect(pinOf(at(550, 450, 600, 490), box).edge).toBe("bottom");
   });
 
   it("treats an anchor touching the edge without overlap as out", () => {
     expect(pinOf(at(200, 60, 300, 100), box).pinned).toBe(true);
-  });
-
-  it("has nothing to pin without a node", () => {
-    expect(pinOf(null, box)).toEqual({ pinned: false, edge: null, rect: null });
   });
 
   it.each([
@@ -65,18 +58,17 @@ describe("pinOf", () => {
     ["inverted", at(500, 400, 100, 100)],
   ])("attaches when the box is %s", (_name, bad) => {
     const rect = at(900, 900, 950, 940);
-    expect(pinOf(rect, bad)).toEqual({ pinned: false, edge: null, rect });
+    expect(pinOf(rect, bad)).toEqual({ pinned: false, rect });
   });
 
   it("attaches a node that has no layout, even at the edge", () => {
     const rect = at(0, 0, 0, 0);
-    expect(pinOf(rect, box)).toEqual({ pinned: false, edge: null, rect });
+    expect(pinOf(rect, box)).toEqual({ pinned: false, rect });
   });
 
   it("attaches an anchor larger than the box and clamps it to the box", () => {
     expect(pinOf(at(0, 0, 900, 900), box)).toEqual({
       pinned: false,
-      edge: null,
       rect: box,
     });
   });
