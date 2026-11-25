@@ -49,6 +49,7 @@ from podcast_mcp.edits.tighten_reasons import (
 from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
 from podcast_mcp.engines.mute_regions import muted_source_spans
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
+from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -208,76 +209,83 @@ def propose_tighten_edits(
         [e for e in project.edit_decisions if _keep_on_reproposal(e)] if replace_existing else None
     )
 
-    # Decode each track's raw audio once up front (see edits/audio_cache.py) instead
-    # of spawning an ffmpeg subprocess per tiny window read inside every candidate's
-    # analysis -- this is the dominant cost at scale, well beyond what thread-pool
-    # parallelism alone can buy back. Read-only; safe to share across the pools below.
-    # Every dialogue track is decoded, a transcript or not: a session ripple removes the
-    # same window from all of them, and a pause trim reads each (``SessionAir``).
-    audio_caches = build_track_audio_caches(
-        project, {*dialogue_track_ids(project), *(t.track_id for t in project.transcripts)}
-    )
-    peer_indexes = peer_speech_indexes(project)
-    acoustic_enabled = AcousticGapConfig.from_tighten(cfg.get("tighten")).enabled
-    can_scan = acoustic_enabled and any(
-        transcript.source_id is None and transcript.track_id in audio_caches
-        for transcript in project.transcripts
-    )
-    copy_lags = PeerCopyLags(project) if can_scan else None
-    max_workers = cfg.get("performance", {}).get("max_workers")
+    # Gathering and analysing only read the project and its files, so one batch scope shares
+    # each path resolution, recording identity and file decode across every candidate (and
+    # its workers) instead of repeating them per candidate (#2364). The apply below mutates a
+    # copy, so it runs outside the scope, as before.
+    with batch_scope():
+        # Decode each track's raw audio once up front (see edits/audio_cache.py) instead
+        # of spawning an ffmpeg subprocess per tiny window read inside every candidate's
+        # analysis -- this is the dominant cost at scale, well beyond what thread-pool
+        # parallelism alone can buy back. Read-only; safe to share across the pools below.
+        # Every dialogue track is decoded, a transcript or not: a session ripple removes the
+        # same window from all of them, and a pause trim reads each (``SessionAir``).
+        audio_caches = build_track_audio_caches(
+            project, {*dialogue_track_ids(project), *(t.track_id for t in project.transcripts)}
+        )
+        peer_indexes = peer_speech_indexes(project)
+        acoustic_enabled = AcousticGapConfig.from_tighten(cfg.get("tighten")).enabled
+        can_scan = acoustic_enabled and any(
+            transcript.source_id is None and transcript.track_id in audio_caches
+            for transcript in project.transcripts
+        )
+        copy_lags = PeerCopyLags(project) if can_scan else None
+        max_workers = cfg.get("performance", {}).get("max_workers")
 
-    def _gather(transcript: Transcript) -> tuple[list[_CutCandidate], dict[str, int]]:
-        # Per-track skip counts: each worker fills its own dict, merged below.
-        counts: dict[str, int] = {}
-        found = _add_acoustic_candidates(
-            _collect_candidates(
+        def _gather(transcript: Transcript) -> tuple[list[_CutCandidate], dict[str, int]]:
+            # Per-track skip counts: each worker fills its own dict, merged below.
+            counts: dict[str, int] = {}
+            found = _add_acoustic_candidates(
+                _collect_candidates(
+                    transcript,
+                    cfg,
+                    project=project,
+                    skip_counts=counts,
+                    peer_indexes=peer_indexes,
+                ),
                 transcript,
                 cfg,
                 project=project,
+                audio_cache=audio_caches.get(transcript.track_id),
+                audio_caches=audio_caches,
+                copy_lags=copy_lags,
                 skip_counts=counts,
-                peer_indexes=peer_indexes,
-            ),
-            transcript,
+            )
+            return found, counts
+
+        # Gather candidates per transcript in parallel (the acoustic gap scan is
+        # per-gap DSP), keeping transcript order -- the same order
+        # analyze_fillers_and_pauses visits them in -- so the analysis pool below is
+        # shared across tracks instead of parallelizing one track at a time.
+        skip_counts: dict[str, int] = {}
+        candidates: list[_CutCandidate] = []
+        for found, counts in run_parallel(
+            list(project.transcripts), _gather, max_workers=max_workers
+        ):
+            candidates.extend(found)
+            for key, n in counts.items():
+                skip_counts[key] = skip_counts.get(key, 0) + n
+
+        speaker_context = _speaker_cut_context(project) if candidates else None
+        word_indexes = _word_indexes(project, candidates)
+        results = analyze_candidates(
+            project,
+            candidates,
             cfg,
-            project=project,
-            audio_cache=audio_caches.get(transcript.track_id),
             audio_caches=audio_caches,
-            copy_lags=copy_lags,
-            skip_counts=counts,
+            speaker_context=speaker_context,
+            peer_indexes=peer_indexes,
+            word_indexes=word_indexes,
+            max_workers=max_workers,
         )
-        return found, counts
-
-    # Gather candidates per transcript in parallel (the acoustic gap scan is
-    # per-gap DSP), keeping transcript order -- the same order
-    # analyze_fillers_and_pauses visits them in -- so the analysis pool below is
-    # shared across tracks instead of parallelizing one track at a time.
-    skip_counts: dict[str, int] = {}
-    candidates: list[_CutCandidate] = []
-    for found, counts in run_parallel(list(project.transcripts), _gather, max_workers=max_workers):
-        candidates.extend(found)
-        for key, n in counts.items():
-            skip_counts[key] = skip_counts.get(key, 0) + n
-
-    speaker_context = _speaker_cut_context(project) if candidates else None
-    word_indexes = _word_indexes(project, candidates)
-    results = analyze_candidates(
-        project,
-        candidates,
-        cfg,
-        audio_caches=audio_caches,
-        speaker_context=speaker_context,
-        peer_indexes=peer_indexes,
-        word_indexes=word_indexes,
-        max_workers=max_workers,
-    )
-    resolved = _resolve_analyzed_cuts(
-        candidates,
-        results,
-        existing=retained if retained is not None else list(project.edit_decisions),
-        muted=muted_source_spans(project),
-        skip_counts=skip_counts,
-        project=project,
-    )
+        resolved = _resolve_analyzed_cuts(
+            candidates,
+            results,
+            existing=retained if retained is not None else list(project.edit_decisions),
+            muted=muted_source_spans(project),
+            skip_counts=skip_counts,
+            project=project,
+        )
 
     working = project.model_copy(deep=True)
     if retained is not None:
