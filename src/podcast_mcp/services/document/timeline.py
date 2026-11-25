@@ -53,6 +53,7 @@ from podcast_mcp.edits.transcript_cuts import (
     append_remove_decision,
     append_split_decision,
 )
+from podcast_mcp.engines.clips_ops import roll_step_stop
 from podcast_mcp.models import ChapterMarker, CutIntent, EditMode, EpisodeProject, FadeCurve
 from podcast_mcp.services.collaboration import get_share_registry
 from podcast_mcp.services.document.bleed_inspection import (
@@ -89,6 +90,11 @@ from podcast_mcp.services.document.split_results import (
     ProposeSplitResult,
     SplitAtTimeResult,
     SplitClipResult,
+)
+from podcast_mcp.services.document.step_stop_note import (
+    StepStopNote,
+    roll_step_stop_note,
+    trim_step_stop_note,
 )
 from podcast_mcp.services.document.timeline_move_results import (
     InsertGapResult,
@@ -380,8 +386,11 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
                 project, target, expected_token, defaults=self.ws.effective_config()
             )
             plan = plan_trim(project, clip_id, edge, source_sec, mode)
+            note = trim_step_stop_note(plan.step_stop)
             if plan.unchanged:
-                return TrimUnchangedResult(operation="trim_clip_edge", unchanged=True)
+                return TrimUnchangedResult(
+                    operation="trim_clip_edge", unchanged=True, step_stop=note
+                )
             from podcast_mcp.edits.cut_application import apply_trim
 
             out = self._mutate_timeline_cut(
@@ -393,7 +402,8 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
                         plan,
                         application_intent=application_intent,
                         defaults=self.ws.effective_config(),
-                    )
+                    ),
+                    step_stop=note,
                 ),
                 {"clip_id": clip_id, "edge": edge, "source_sec": source_sec, "mode": mode.value},
             )
@@ -413,6 +423,8 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
             raise CodedValueError("delta_sec must be finite", code="delta_sec_not_finite")
         target = RollBoundaryTarget(left_clip_id=left_clip_id, right_clip_id=right_clip_id)
 
+        note: StepStopNote | None = None
+
         def apply(p: EpisodeProject) -> RollAppliedResult:
             assert_boundary_token(p, target, expected_token, defaults=self.ws.effective_config())
             return RollAppliedResult(
@@ -422,16 +434,23 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
                     right_clip_id,
                     delta_sec,
                     defaults=self.ws.effective_config(),
-                )
+                ),
+                step_stop=note,
             )
 
         with self.ws.transaction() as project:
             current = assert_boundary_token(
                 project, target, expected_token, defaults=self.ws.effective_config()
             )
+            # Read before the roll moves anything; the token pins this geometry.
+            note = roll_step_stop_note(
+                roll_step_stop(project, left_clip_id, right_clip_id, delta_sec)
+            )
             bounded = min(max(delta_sec, current.limits.min), current.limits.max)
             if abs(bounded) < 1e-12:
-                return RollUnchangedResult(operation="roll_clip_join", unchanged=True)
+                return RollUnchangedResult(
+                    operation="roll_clip_join", unchanged=True, step_stop=note
+                )
             return self.ws.mutate(
                 "before roll clip join",
                 "after roll clip join",

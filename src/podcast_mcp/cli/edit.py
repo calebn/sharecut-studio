@@ -1107,6 +1107,8 @@ def edit_roll_join_cmd(
     """Roll a join: both edges move together, the pair keeps its length.
 
     The clips must touch; with a gap between them it exits 1 with code roll_needs_abutting_clips.
+    A timing correction inside a clip can stop the roll short; the output then has
+    step_stop saying where and why.
     """
     from podcast_mcp.services.document import RollBoundaryTarget
     from podcast_mcp.services.document_sync import (
