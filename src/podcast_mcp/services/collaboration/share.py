@@ -742,9 +742,11 @@ class ShareService:
                 listed = True
             except Exception:
                 log.exception("failed to list previous record rooms")
+            ended: set[str] = set()
             for prior in attempted:
                 try:
-                    self._revoke_room_tokens(prior)
+                    if self._room_fully_revoked(prior):
+                        ended.add(prior)
                 except Exception:
                     log.exception("failed to revoke previous record room %s", prior)
             unverified = False
@@ -752,7 +754,8 @@ class ShareService:
                 stale = self._live_other_record_rooms(session_id)
             except Exception:
                 log.exception("failed to verify previous record rooms")
-                stale = attempted
+                # A room whose every live link was revoked is gone even unverified (#2329).
+                stale = [prior for prior in attempted if prior not in ended]
                 unverified = not listed
             invalidate_record_session_cache(self.ws.project)
             if unverified or stale:
@@ -771,6 +774,15 @@ class ShareService:
             ):
                 rooms[sid] = None
         return list(rooms)
+
+    def _room_fully_revoked(self, session_id: str) -> bool:
+        """Revoke the room's links; True only when each link live beforehand was revoked."""
+        live = {
+            str(row["token"])
+            for row in list_room_shares(self.ws.project, session_id)
+            if row.get("token")
+        }
+        return live <= set(self._revoke_room_tokens(session_id))
 
     def _rollback_room(self, session_id: str) -> None:
         from podcast_mcp.services.record import invalidate_record_session_cache

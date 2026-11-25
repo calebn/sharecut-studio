@@ -141,7 +141,9 @@ and MCP refusal), carrying the new session id and links and the old session ids 
 live; minting again retries the revoke, or revoke those session ids. When neither
 listing of the earlier rooms succeeds, the error carries `unverified: true` and an
 empty `stale_session_ids`: earlier links may still work, and minting again checks
-them and ends any that are live, including the new room. The CLI writes the new room
+them and ends any that are live, including the new room. When only the check after the
+revoke fails, a room whose every live link was revoked counts as ended and is not listed,
+so a mint that revoked everything succeeds. The CLI writes the new room
 and its links as JSON to standard output and exits with status 1. The warning on
 standard error gives the recovery commands. Use `podcast review list-shares --project PROJECT`
 if no earlier session IDs are known, then `podcast review revoke-share --project PROJECT --session-id SESSION_ID`
