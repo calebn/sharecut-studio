@@ -19,6 +19,7 @@ import {
   saveSegment,
   segmentAudioUrl,
   segmentInsertRefusal,
+  segmentSaveRefusal,
 } from "./segments";
 
 vi.mock("./http", async (importOriginal) => ({
@@ -95,6 +96,23 @@ describe("segment routes", () => {
       name: "Intro",
       clip_ids: ["c1"],
     });
+  });
+});
+
+describe("segmentSaveRefusal", () => {
+  it("names a save refusal code and ignores every other failure", () => {
+    for (const code of [
+      "segment_clip_too_short",
+      "segment_render_unsupported",
+      "segment_busy",
+      "segment_write_failed",
+      "segment_invalid",
+    ])
+      expect(segmentSaveRefusal(new ApiError("x", code, 400))).toBe(code);
+    expect(segmentSaveRefusal(new ApiError("x", "other", 400))).toBeNull();
+    expect(segmentSaveRefusal(new ApiError("x", null, 500))).toBeNull();
+    expect(segmentSaveRefusal(new Error("x"))).toBeNull();
+    expect(segmentSaveRefusal(undefined)).toBeNull();
   });
 });
 

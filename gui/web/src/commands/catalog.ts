@@ -404,6 +404,16 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["silence"],
     when: "editStageOrRangeSuggest",
   },
+  "segment.save": {
+    id: "segment.save",
+    category: "edit",
+    label: "Save as segment",
+    keywords: ["library", "intro", "outro", "sponsor", "sting", "reuse"],
+    when: "editStage",
+    paletteRunnable: false,
+    notes:
+      "Opens the Save as segment card for the selected clips or range. The Action bar's More menu offers it. Host only; the library is outside the project, so it has no Undo",
+  },
   "range.fillRoomTone": {
     id: "range.fillRoomTone",
     mutates: true,

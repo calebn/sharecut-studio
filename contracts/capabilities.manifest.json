@@ -3781,6 +3781,34 @@
       }
     },
     {
+      "id": "daw.segment.save",
+      "label": "Save as segment",
+      "effect": "session",
+      "service": "services/document save_segment (library write, not project history)",
+      "industry_standard_key": false,
+      "gates": [
+        "editStage"
+      ],
+      "surfaces": {
+        "command": "segment.save",
+        "mcp": [
+          "segment_save_tool"
+        ],
+        "gui": [
+          "actionBar"
+        ],
+        "cli": "podcast segment save"
+      },
+      "omit": {
+        "keyboard_reason": "Context action with explicit clip or range selection"
+      },
+      "tooltip": "Save the selected clips or range to your segment library",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.range.fillRoomTone",
       "label": "Fill range with room tone",
       "effect": "project",
