@@ -672,19 +672,45 @@ TREE_AND_CONFIG_MODULES = (
 )
 
 
+def _evidence_files(root: Path, modules: tuple[str, ...] = EVIDENCE_MODULES) -> list[str]:
+    """The module files the entries name; an entry ending in "/" is a package directory and names its sorted .py files."""
+    files: list[str] = []
+    for name in modules:
+        if name.endswith("/"):
+            files.extend(
+                p.relative_to(root).as_posix() for p in sorted((root / name).rglob("*.py"))
+            )
+        else:
+            files.append(name)
+    return files
+
+
 def _evidence_code_digest(edited: dict[str, str] | None = None) -> str:
     """The digest of the evidence code; ``edited`` maps a module name to text appended to it (a stand-in for an edit)."""
     root = Path(track_evidence.__file__).resolve().parent
     parts = []
-    for name in EVIDENCE_MODULES:
+    for name in _evidence_files(root):
         text = (root / name).read_text(encoding="utf-8")
         parts.append((name, _normalised(text + (edited or {}).get(name, ""))))
     return hashlib.sha256(repr(parts).encode()).hexdigest()[:16]
 
 
-@pytest.mark.parametrize("name", EVIDENCE_MODULES)
+@pytest.mark.parametrize("name", _evidence_files(Path(track_evidence.__file__).resolve().parent))
 def test_an_edit_to_any_module_the_evidence_reads_changes_the_pin_digest(name: str) -> None:
     assert _evidence_code_digest({name: "\n# edited\n"}) != _evidence_code_digest()
+
+
+def test_a_package_entry_expands_to_its_sorted_python_files(tmp_path: Path) -> None:
+    (tmp_path / "pkg" / "sub").mkdir(parents=True)
+    for name in ("pkg/b.py", "pkg/a.py", "pkg/sub/c.py", "pkg/notes.txt", "other.py"):
+        (tmp_path / name).write_text("x = 1\n", encoding="utf-8")
+
+    assert _evidence_files(tmp_path, ("one.py", "pkg/")) == [
+        "one.py",
+        "pkg/a.py",
+        "pkg/b.py",
+        "pkg/sub/c.py",
+    ]
 
 
 def test_the_downmix_weight_is_part_of_the_pin() -> None:
@@ -715,13 +741,18 @@ def test_every_engine_module_a_build_runs_is_pinned_or_named_as_part_of_the_key(
         sys.setprofile(None)
         threading.setprofile(None)
 
-    assert {"audio_eval.py", "decoded_source.py", "ffmpeg.py", "mono_downmix.py"} <= ran
-    assert ran - set(EVIDENCE_MODULES) - set(TREE_AND_CONFIG_MODULES) == set()
+    pinned = set(_evidence_files(root))
+    assert {"audio_eval.py", "decoded_source.py", "mono_downmix.py"} <= ran
+    assert ran & {"ffmpeg.py", "ffmpeg/__init__.py"}
+    assert ran - pinned - set(TREE_AND_CONFIG_MODULES) == set()
 
 
 def test_a_change_to_the_probe_moves_the_pin_digest() -> None:
     assert "def probe(" in inspect.getsource(FFmpegEngine)
-    assert _evidence_code_digest({"ffmpeg.py": "\n# probe forced to one channel\n"}) != (
+    root = Path(track_evidence.__file__).resolve().parent
+    engine_files = [f for f in _evidence_files(root) if f == "ffmpeg.py" or f.startswith("ffmpeg/")]
+    probe_file = next(f for f in engine_files if "def probe(" in (root / f).read_text("utf-8"))
+    assert _evidence_code_digest({probe_file: "\n# probe forced to one channel\n"}) != (
         _evidence_code_digest()
     )
 
