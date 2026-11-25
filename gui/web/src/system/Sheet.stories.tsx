@@ -22,7 +22,7 @@ const meta: Meta<typeof Sheet> = {
       ...isolatedStoryParameters.docs,
       description: {
         component:
-          "Every non-modal surface that is not a menu: header 40, rows (label left, control right), one primary in the footer. Anchored card 320, side panel 400, centered card 400 (wraps Dialog), and on phone a bottom sheet with Peek, Half and Full detents (wraps BottomSheet). Values apply as they change, so there is no Apply button. A pushed step replaces the body: in the static frames the header shows Back (an icon button) and the step's title; in the Dialog and BottomSheet forms the title changes and Back sits at the top of the body. The phone footer is one primary, 48 tall and full width, at the bottom of the sheet whatever the pointer. The Expand and Collapse buttons on the phone header belong to `BottomSheet` and are icon buttons named Expand and Collapse.\n\n**Motion.** Phone sheets slide with `--motion-panel` through BottomSheet; the pushed step slides in from the inline end with `--motion-panel`. Anchored and side frames are static in this slice.",
+          "Every non-modal surface that is not a menu: header 40, rows (label left, control right), one primary in the footer. Anchored card 320, side panel 400, centered card 400 (wraps Dialog), and on phone a bottom sheet with Peek, Half and Full detents (wraps BottomSheet). Values apply as they change, so there is no Apply button. A pushed step replaces the body: in the static frames the header shows Back (an icon button) and the step's title; in the Dialog and BottomSheet forms the title changes and Back sits at the top of the body. The phone footer is one primary, 48 tall and full width, at the bottom of the sheet whatever the pointer. The Expand and Collapse buttons on the phone header belong to `BottomSheet` and are icon buttons named Expand and Collapse. They work on every bottom sheet that is not `fit`: without `onDetentChange` the Sheet resizes itself and starts at `detent` again on each open; with it, the host owns the height.\n\n**Motion.** Phone sheets slide with `--motion-panel` through BottomSheet; the pushed step slides in from the inline end with `--motion-panel`. Anchored and side frames are static in this slice.",
       },
     },
   },
@@ -298,3 +298,43 @@ function phoneStory(startAt: DrawerDetent): Story {
 export const PhonePeek: Story = phoneStory("peek");
 export const PhoneHalf: Story = phoneStory("half");
 export const PhoneFull: Story = phoneStory("full");
+
+function UncontrolledPhoneSheet(args: React.ComponentProps<typeof Sheet>) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Open mix</Button>
+      <Sheet
+        {...args}
+        form="bottom"
+        title="Mix"
+        open={open}
+        onClose={() => setOpen(false)}
+        footer={
+          <Button variant="primary" onClick={() => setOpen(false)}>
+            Done
+          </Button>
+        }
+      >
+        <Rows />
+      </Sheet>
+    </>
+  );
+}
+
+/** No `onDetentChange`: the Sheet owns its height, so Expand and Collapse work. */
+export const PhoneUncontrolled: Story = {
+  parameters: isolatedStoryParameters,
+  render: (args) => <UncontrolledPhoneSheet {...args} />,
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialogByLauncher(canvasElement, {
+      launcherName: "Open mix",
+      dialogName: "Mix",
+    });
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Expand to full height" }),
+    );
+    await waitFor(() => expect(dialog).toHaveClass("bottom-sheet--full"));
+  },
+};

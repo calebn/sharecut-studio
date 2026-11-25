@@ -36,6 +36,7 @@ import { Button, Field } from "../../ui";
 import { InlineError } from "../../ui/InlineError";
 import { formatTimeShort } from "../../utils/time";
 import { SegmentCardFrame } from "./SegmentCardFrame";
+import { useCrampedSheet } from "./useCrampedSheet";
 
 const TITLE = "Insert segment";
 export const INSERT_EMPTY_LIBRARY =
@@ -338,16 +339,52 @@ function PlacementGroup({
   );
 }
 
+function InsertActions({
+  state,
+  inserting,
+  onClose,
+  formId,
+}: {
+  state: FormState;
+  inserting: boolean;
+  onClose: () => void;
+  formId: string;
+}) {
+  return (
+    <div className="sys-segment-actions">
+      <Button
+        type="button"
+        onClick={onClose}
+        disabledReason={inserting ? INSERTING : undefined}
+      >
+        Cancel
+      </Button>
+      <Button
+        type="submit"
+        form={formId}
+        variant="primary"
+        disabledReason={state.disabledReason}
+      >
+        Insert
+      </Button>
+    </div>
+  );
+}
+
 function InsertSegmentForm({
   state,
   onClose,
   bottom,
+  pinned,
+  formId,
   listRef,
   firstRadio,
 }: {
   state: FormState;
   onClose: () => void;
   bottom: boolean;
+  pinned: boolean;
+  formId: string;
   listRef: RefObject<HTMLFieldSetElement | null>;
   firstRadio: RefObject<HTMLInputElement | null>;
 }) {
@@ -379,6 +416,7 @@ function InsertSegmentForm({
 
   return (
     <form
+      id={formId}
       className={
         bottom
           ? "sys-segment-form sys-segment-form--bottom"
@@ -481,22 +519,14 @@ function InsertSegmentForm({
         </p>
       ) : null}
       <InlineError message={state.failure} />
-      <div className="sys-segment-actions">
-        <Button
-          type="button"
-          onClick={onClose}
-          disabledReason={inserting ? INSERTING : undefined}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          variant="primary"
-          disabledReason={state.disabledReason}
-        >
-          Insert
-        </Button>
-      </div>
+      {pinned ? null : (
+        <InsertActions
+          state={state}
+          inserting={inserting}
+          onClose={onClose}
+          formId={formId}
+        />
+      )}
     </form>
   );
 }
@@ -507,13 +537,19 @@ export function InsertSegmentCard(props: InsertSegmentCardProps) {
   const firstRadio = useRef<HTMLInputElement>(null);
   const state = useInsertForm(props, listRef);
   const { busy } = state;
+  const formId = useId();
+  const cramped = useCrampedSheet();
+  const pinned = props.form === "bottom" && !cramped;
+  const close = () => {
+    if (!busy.current) props.onClose();
+  };
   const content = (
     <InsertSegmentForm
       state={state}
-      onClose={() => {
-        if (!busy.current) props.onClose();
-      }}
+      onClose={close}
       bottom={props.form === "bottom"}
+      pinned={pinned}
+      formId={formId}
       listRef={listRef}
       firstRadio={firstRadio}
     />
@@ -526,7 +562,20 @@ export function InsertSegmentCard(props: InsertSegmentCardProps) {
     initialFocusRef: firstRadio,
   };
   return props.form === "bottom" ? (
-    <SegmentCardFrame {...frame} form="bottom">
+    <SegmentCardFrame
+      {...frame}
+      form="bottom"
+      footer={
+        pinned ? (
+          <InsertActions
+            state={state}
+            inserting={state.inserting}
+            onClose={close}
+            formId={formId}
+          />
+        ) : undefined
+      }
+    >
       {content}
     </SegmentCardFrame>
   ) : (

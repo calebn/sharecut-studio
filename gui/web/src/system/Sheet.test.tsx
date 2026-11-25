@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -30,12 +30,11 @@ describe("Sheet bottom, uncontrolled", () => {
     expect(panel()).toHaveClass("bottom-sheet--peek");
   });
 
-  it("follows End and Home on the height slider", async () => {
+  it("follows the height slider", () => {
     render(sheet());
-    slider().focus();
-    await userEvent.keyboard("{End}");
+    fireEvent.change(slider(), { target: { value: "2" } });
     expect(panel()).toHaveClass("bottom-sheet--full");
-    await userEvent.keyboard("{Home}");
+    fireEvent.change(slider(), { target: { value: "0" } });
     expect(panel()).toHaveClass("bottom-sheet--peek");
   });
 

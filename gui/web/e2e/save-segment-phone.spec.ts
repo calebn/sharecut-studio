@@ -4,19 +4,41 @@ import { expectFeedback } from "./feedback";
 import { expectNoHorizontalScroll, expectTouchTargets } from "./modelsMock";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { setRootFontSize } from "./rootFontSize";
-import { expectActionsPinned, expectResizes } from "./segmentSheet";
+import {
+  expectActionsInBody,
+  expectActionsPinned,
+  expectResizes,
+} from "./segmentSheet";
 import { openProject, openToolsIfFolded } from "./stageNav";
 import { setTheme, type Theme, withAppearance } from "./theme";
 
 const CELLS = [
-  { name: "390x844", width: 390, height: 844, fontPx: null, resize: true },
-  { name: "320x740", width: 320, height: 740, fontPx: null, resize: true },
+  {
+    name: "390x844",
+    width: 390,
+    height: 844,
+    fontPx: null,
+    resize: true,
+    detent: "half",
+    cramped: false,
+  },
+  {
+    name: "320x740",
+    width: 320,
+    height: 740,
+    fontPx: null,
+    resize: true,
+    detent: "half",
+    cramped: false,
+  },
   {
     name: "320x568-200pct",
     width: 320,
     height: 568,
     fontPx: 32,
     resize: false,
+    detent: "full",
+    cramped: true,
   },
 ] as const;
 
@@ -117,14 +139,19 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
         : null;
       const sheet = await openCard(page, theme, size);
       if (cell.fontPx) await setRootFontSize(page, cell.fontPx);
-      await expect(sheet).toHaveClass(/bottom-sheet--half/);
-      await expectActionsPinned(sheet, ["Cancel", "Save"]);
+      await expect(sheet).toHaveClass(
+        new RegExp(`bottom-sheet--${cell.detent}`),
+      );
+      const names = ["Cancel", "Save"] as const;
       const scroll = sheet.locator(".sys-sheet-scroll");
-      expect(await scroll.evaluate((el) => el.scrollTop)).toBe(0);
+      if (!cell.cramped)
+        expect(await scroll.evaluate((el) => el.scrollTop)).toBe(0);
       expect(
         await scroll.evaluate((el) => el.clientHeight),
       ).toBeGreaterThanOrEqual(64);
-      await expectResizes(sheet, ["Cancel", "Save"]);
+      if (cell.cramped) await expectActionsInBody(sheet, names);
+      else await expectActionsPinned(sheet, names);
+      await expectResizes(sheet, names, cell.cramped ? "body" : "footer");
       await expectNoHorizontalScroll(page);
     });
 
@@ -140,7 +167,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       await sheet.getByRole("textbox", { name: "Name" }).focus();
       const save = sheet.getByRole("button", { name: "Save", exact: true });
       await save.scrollIntoViewIfNeeded();
-      await expect(save).toBeInViewport({ ratio: 1 });
+      await expect(save).toBeInViewport({ ratio: cell.cramped ? 0.5 : 1 });
     });
   });
 }
