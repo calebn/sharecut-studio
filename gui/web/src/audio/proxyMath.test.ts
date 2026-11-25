@@ -467,7 +467,7 @@ describe("proxyMath", () => {
     expect(c.whenTimelineSec).toBeCloseTo(4.5, 9);
   });
 
-  it("places a crossfaded clip and the clock shift from the render's frontier, not from authored starts", () => {
+  it("places a crossfaded clip from the render's frontier and moves no later clip (#2496)", () => {
     const join = {
       source_duration_sec: 10,
       join_in_mode: "crossfade" as const,
@@ -506,7 +506,7 @@ describe("proxyMath", () => {
     expect(early.map((s) => s.whenTimelineSec)).toEqual([
       0,
       expect.closeTo(1.9, 9),
-      expect.closeTo(4.6, 9),
+      expect.closeTo(4.5, 9),
     ]);
     const late = buildSchedule(rows(2.04), 0, 20, manifest());
     expect(late[1].whenTimelineSec).toBeCloseTo(1.9, 9);

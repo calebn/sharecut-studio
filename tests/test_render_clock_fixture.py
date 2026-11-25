@@ -115,6 +115,11 @@ _CASES: dict[str, list[Clip]] = {
         _clip("b", "host", 4, 8, _XFADE, 250, 0),
         _clip("c", "host", 8.0005, 10),
     ],
+    "an_overlapping_blend_moves_no_later_clip": [
+        _clip("a", "host", 0, 5, fade_out=200),
+        _clip("b", "host", 4.9, 9, _XFADE, 200, 0),
+        _clip("c", "host", 9, 12),
+    ],
     "a_clip_too_short_to_borrow_joins_without_a_blend": [
         _clip("a", "host", 0, 5, fade_out=200),
         _clip("b", "host", 5, 5.0005, _XFADE, 200, 0),
@@ -165,6 +170,9 @@ _CASES: dict[str, list[Clip]] = {
 }
 
 _UNMEASURED = {"an_unmeasured_recording_joins_without_a_blend"}
+# A blend whose right clip starts before the left one ends plays that clip from the seam,
+# as it always has. Nothing after it moves.
+_PLAYS_FROM_THE_SEAM = {("an_overlapping_blend_moves_no_later_clip", "b")}
 
 
 def _leaf_starts(audio: object, base: float, out: dict[str, tuple[float, float]]) -> None:
@@ -268,6 +276,8 @@ def test_no_clip_moves_on_the_render_clock(tmp_path: Path) -> None:
     """A blend borrows instead of moving, and a gap plays as silence however short (#2496)."""
     for case in _build(tmp_path)["cases"]:
         for row in case["clips"]:
+            if (case["name"], row["id"]) in _PLAYS_FROM_THE_SEAM:
+                continue
             assert row["placed_start"] == pytest.approx(row["timeline_start"], abs=1e-9), (
                 case["name"],
                 row["id"],
