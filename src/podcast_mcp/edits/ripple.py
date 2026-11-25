@@ -234,7 +234,10 @@ def _trim_edge_lane(
                     code="ripple_before_zero",
                 )
             changes["timeline_start"] = start
-        result.append(clip.model_copy(update=changes) if changes else clip)
+        new = clip.model_copy(update=changes) if changes else clip
+        if changes and new.timing is not None:
+            new.timing.validate_within(new.source_start, new.source_end)
+        result.append(new)
     return result
 
 
@@ -260,6 +263,13 @@ def plan_trim(
     if clip is None:
         raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")
     lo, hi = trim_edge_limits(project, clip, edge, mode)
+    if lo > hi:
+        raise CodedValueError(
+            "This edge cannot move: a timing correction inside the clip and the next clip's "
+            "start leave no legal position. Split the clip at the correction or move the "
+            "neighbouring clip first.",
+            code="trim_no_legal_range",
+        )
     target = min(max(float(source_sec), lo), hi)
     old = _edge_sec(clip, edge)
     delta = old - target if edge == "in" else target - old

@@ -921,6 +921,10 @@ def roll_clip_join(
     if abs(delta) < 1e-12:
         return left, right
 
+    if left.timing is not None:
+        left.timing.validate_within(left.source_start, left.source_end + delta)
+    if right.timing is not None:
+        right.timing.validate_within(right.source_start + delta, right.source_end)
     left.source_end += delta
     right.source_start += delta
     right.timeline_start = left.timeline_end
