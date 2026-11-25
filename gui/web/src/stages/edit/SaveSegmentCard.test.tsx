@@ -270,7 +270,10 @@ describe("SaveSegmentCard bottom", () => {
     const handlers = handlersOf();
     render(<Bottom handlers={handlers} />);
     const name = await screen.findByRole("textbox", { name: "Name" });
-    await userEvent.type(name, "Sponsor read{Enter}");
+    await waitFor(() => expect(name).toHaveFocus());
+    await userEvent.keyboard("Sponsor read");
+    expect(name).toHaveValue("Sponsor read");
+    await userEvent.keyboard("{Enter}");
     await waitFor(() =>
       expect(handlers.onSave).toHaveBeenCalledWith({
         name: "Sponsor read",
