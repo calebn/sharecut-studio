@@ -3,6 +3,7 @@ import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
+import type { ProjectView, Selection } from "../types/project";
 import {
   type EditSurface,
   REVIEW_SECTIONS,
@@ -19,9 +20,21 @@ import {
 } from "../utils/zoom";
 import { registerCommand } from "./execute";
 import { fixTextAvailability } from "./fixTextAvailability";
+import { seekTransport } from "./seek";
 
 const ZOOM_TO_SELECTION_FILL = 0.9;
 const NO_PROJECT = { status: "disabled", reason: "No project" } as const;
+function selectionStartSec(
+  selection: Selection,
+  project: ProjectView,
+): number | null {
+  if (selection?.kind === "pending") {
+    const edit = project.pending_edits.find((e) => e.id === selection.id);
+    return edit ? (edit.timeline_start ?? edit.source_start) : null;
+  }
+  return selectionSpan(selection, project)?.start ?? null;
+}
+
 const NOT_EDIT = { status: "disabled", reason: "Open Edit" } as const;
 
 const isReviewSection = (v: unknown): v is ReviewSection =>
@@ -104,12 +117,18 @@ export function registerViewCommands(): void {
     return { status: "ok" };
   });
 
-  registerCommand("view.revealSelection", () => {
+  registerCommand("view.revealSelection", async () => {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
     if (!s.selection) return { status: "disabled", reason: "Nothing selected" };
     const anchor = selectionAnchor.get();
     if (!anchor) return { status: "disabled", reason: "Nothing to show" };
+    if (s.shellBreakpoint === "phone") {
+      // The phone's playhead is fixed and the view scrubs, so the way back is
+      // the same seek as Seek to start (the selection stays as it is).
+      const at = selectionStartSec(s.selection, s.project);
+      if (at !== null) return seekTransport(at);
+    }
     revealAnchor(anchor);
     return { status: "ok" };
   });
