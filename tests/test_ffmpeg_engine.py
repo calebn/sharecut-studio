@@ -11,12 +11,13 @@ import numpy as np
 import pytest
 
 from ffmpeg_in_process_support import desktop_ffmpeg
-from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine, _effect_filter
+from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
 from podcast_mcp.engines.ffmpeg.diagnostics import (
     PlotAnnotationUnavailableError,
     _annotate_vf,
     _escape_drawtext,
 )
+from podcast_mcp.engines.ffmpeg.render_filters import _effect_filter
 from podcast_mcp.engines.mastering import LoudnormPlan
 from podcast_mcp.models import (
     AutomationEnvelope,

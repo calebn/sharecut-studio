@@ -122,7 +122,7 @@ def test_scan_cache_partitions_trust_media_and_binary_revisions(
 
     def spawn(cmd, **kwargs):
         commands.append(cmd)
-        assert kwargs == {"stdout": module.PIPE, "stderr": module.DEVNULL}
+        assert kwargs == {"stdout": module.PIPE, "stderr": probe_module.DEVNULL}
         return PacketChild()
 
     monkeypatch.setattr(module.runtime, "popen", spawn)

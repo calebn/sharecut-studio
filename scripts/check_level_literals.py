@@ -36,6 +36,8 @@ RENDER = frozenset(
         "src/podcast_mcp/engines/ffmpeg/__init__.py",
         "src/podcast_mcp/engines/ffmpeg/loudness.py",
         "src/podcast_mcp/engines/ffmpeg/mix.py",
+        "src/podcast_mcp/engines/ffmpeg/render.py",
+        "src/podcast_mcp/engines/ffmpeg/render_filters.py",
         "src/podcast_mcp/engines/effect_filters.py",
         "src/podcast_mcp/engines/mastering.py",
         "src/podcast_mcp/edits/loudness.py",
