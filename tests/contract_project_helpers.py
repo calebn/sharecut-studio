@@ -50,7 +50,8 @@ def contract_timing(steps: list[list[float]] | None) -> ClipTiming | None:
     """A clip's timing map from contract ``[at, delta_sec]`` rows (None = untimed).
 
     A skip (``delta_sec < 0``) needs the quiet span the server requires; the contract
-    carries none, so one is made that ends 1 s after the skip.
+    carries none, so one is made that is exactly the skipped span: start ``at``,
+    end ``at + |delta_sec|``, claiming nothing else quiet.
     """
     if steps is None:
         return None

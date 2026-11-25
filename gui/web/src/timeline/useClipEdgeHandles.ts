@@ -27,7 +27,9 @@ import { errorMessage } from "../utils/apiError";
 import { clampTrimSourceSec, type TrimEdge } from "../utils/clipEdgePreview";
 import { trimDraft } from "../utils/ripplePreview";
 import {
+  clampToTrimLimits,
   hasTrimRange,
+  type TrimLimits,
   trimEdgeLimits,
   trimNeighborBounds,
 } from "../utils/trimLimits";
@@ -49,7 +51,10 @@ type Context = {
   getTicks(): readonly number[];
   onSelect(clipId: string): void;
 };
+type EdgeLimits = Record<TrimEdge, TrimLimits>;
 type Capture = Omit<Context, "getTicks" | "onSelect"> & {
+  /** Both trim edges' full limits when the gesture began; null without a project lane. */
+  limits: EdgeLimits | null;
   projectPath: string;
   projectEpoch: number;
   ticks: number[];
@@ -83,6 +88,18 @@ function sameGeometry(a: ClipRow, b: ClipRow): boolean {
   );
 }
 
+/** The full limits of both trim edges of `lane[index]`, as the server applies them. */
+function edgeLimits(lane: readonly ClipRow[], index: number): EdgeLimits {
+  return {
+    in: trimEdgeLimits(lane, index, "in", TRIM_MODE),
+    out: trimEdgeLimits(lane, index, "out", TRIM_MODE),
+  };
+}
+
+function sameLimits(a: TrimLimits, b: TrimLimits): boolean {
+  return a.lo === b.lo && a.hi === b.hi;
+}
+
 /** The lane still gives the clip the bounds the gesture captured. */
 function sameTrimBounds(
   lane: readonly ClipRow[],
@@ -90,24 +107,27 @@ function sameTrimBounds(
   capture: Capture,
 ): boolean {
   const { neighborLo, neighborHi } = trimNeighborBounds(lane, index, TRIM_MODE);
+  const limits = capture.limits;
+  const now = limits ? edgeLimits(lane, index) : null;
   return (
     neighborLo === capture.neighborSourceLo &&
-    neighborHi === capture.neighborSourceHi
+    neighborHi === capture.neighborSourceHi &&
+    (!limits ||
+      !now ||
+      (sameLimits(now.in, limits.in) && sameLimits(now.out, limits.out)))
   );
 }
 
 /**
- * The trim edge still has somewhere to go. A timing correction can leave the
- * server's range for it empty (`trim_no_legal_range`): the handle then neither
- * previews nor saves. Without a project lane the handle keeps its old bounds.
+ * Both trim edges' full limits for `clip` from the edit basis, or null without
+ * a project lane (the handle then keeps the neighbour bounds it was given).
  */
-function trimHasRange(clip: ClipRow, handle: ClipHandle): boolean {
-  const project = useDawStore.getState().projectEditBasis();
-  const lane = project?.clips.tracks[clip.track_id];
+function captureLimits(clip: ClipRow): EdgeLimits | null {
+  const lane = useDawStore.getState().projectEditBasis()?.clips.tracks[
+    clip.track_id
+  ];
   const index = lane?.findIndex((row) => row.id === clip.id) ?? -1;
-  if (!lane || index < 0) return true;
-  const edge = handle.endsWith("in") ? "in" : "out";
-  return hasTrimRange(trimEdgeLimits(lane, index, edge, TRIM_MODE));
+  return lane && index >= 0 ? edgeLimits(lane, index) : null;
 }
 
 function projectEdge(draft: Draft, candidate: number): Draft {
@@ -128,14 +148,18 @@ function projectEdge(draft: Draft, candidate: number): Draft {
       },
     };
   }
-  const value = clampTrimSourceSec(
-    draft.edge,
-    candidate,
-    clip.source_start,
-    clip.source_end,
-    c.neighborSourceLo,
-    c.neighborSourceHi,
-  );
+  // The edge's full pair, so a timing correction stops a contraction too.
+  const limits = c.limits?.[draft.edge];
+  const value = limits
+    ? clampToTrimLimits(candidate, limits)
+    : clampTrimSourceSec(
+        draft.edge,
+        candidate,
+        clip.source_start,
+        clip.source_end,
+        c.neighborSourceLo,
+        c.neighborSourceHi,
+      );
   return {
     ...draft,
     preview: {
@@ -249,8 +273,17 @@ export function useClipEdgeHandles(context: Context) {
       s.announceStatus(TRIM_WAITS_LINE);
       return null;
     }
-    if (handle.startsWith("trim") && !trimHasRange(c.clip, handle)) return null;
+    const limits = captureLimits(c.clip);
+    // A timing correction can leave an edge no legal range (`trim_no_legal_range`):
+    // the handle then neither previews nor saves.
+    if (
+      handle.startsWith("trim") &&
+      limits &&
+      !hasTrimRange(limits[handle.endsWith("in") ? "in" : "out"])
+    )
+      return null;
     const capture: Capture = {
+      limits,
       clip: c.clip,
       trackId: c.trackId,
       neighborSourceLo: c.neighborSourceLo,

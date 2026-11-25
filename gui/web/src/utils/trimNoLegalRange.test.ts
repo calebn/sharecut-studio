@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { nudgeAxis, nudgeStep } from "../edit/nudge";
-import { noRangeLane, noRangeProject } from "../test/timedTrimLane";
+import {
+  noRangeLane,
+  noRangeProject,
+  skipProject,
+} from "../test/timedTrimLane";
 import { patchClipTrim } from "./ripplePreview";
 import { hasTrimRange, trimEdgeLimits } from "./trimLimits";
 
@@ -18,9 +22,9 @@ describe("a timing correction can leave a trim edge no legal range", () => {
     expect(hasTrimRange(limits)).toBe(true);
   });
 
-  it("counts a range that touches within the time tolerance as legal", () => {
+  it("refuses exactly where the server does: lo > hi, with no tolerance", () => {
     expect(hasTrimRange({ lo: 5, hi: 5 })).toBe(true);
-    expect(hasTrimRange({ lo: 5 + 1e-10, hi: 5 })).toBe(true);
+    expect(hasTrimRange({ lo: 5 + 1e-10, hi: 5 })).toBe(false);
     expect(hasTrimRange({ lo: 5.001, hi: 5 })).toBe(false);
   });
 
@@ -41,6 +45,16 @@ describe("a timing correction can leave a trim edge no legal range", () => {
     // The untimed lane still nudges.
     const open = nudgeAxis(noRangeProject(false), field)!;
     expect(nudgeStep(open, [], 14, 0.1, false).value).toBeCloseTo(14.1, 9);
+  });
+
+  it("stops a nudged contraction at the correction too", () => {
+    const axis = nudgeAxis(skipProject(), {
+      kind: "trim",
+      trackId: "host",
+      clipId: "a",
+      edge: "out",
+    })!;
+    expect(nudgeStep(axis, [], 20, -9, false).value).toBeCloseTo(15.500001, 9);
   });
 
   it("previews no trim, so a save that would be refused shows nothing", () => {
