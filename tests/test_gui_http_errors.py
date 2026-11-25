@@ -11,13 +11,20 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from filelock import Timeout
 
+from podcast_mcp.gui.routes.deps import guard_http_error
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.media.transcript_precorrect import TranscriptContextBusyError
-from podcast_mcp.util.coded_error import AccessDeniedError, SignInRequiredError, UnknownShareError
+from podcast_mcp.util.coded_error import (
+    GENERIC_GUEST_MESSAGE,
+    AccessDeniedError,
+    SignInRequiredError,
+    UnknownShareError,
+    guest_message_for_code,
+)
 from podcast_mcp.util.project_state import (
     LOCK_BUSY_MESSAGE,
     PROJECT_BUSY_MESSAGE,
@@ -447,21 +454,19 @@ def test_oversized_guest_upload_carries_an_error_code(
     ],
 )
 def test_guard_refusal_naming_a_host_path_sends_approved_copy(exc, status, code):
-    from podcast_mcp.gui.routes.deps import guard_http_error
-    from podcast_mcp.util.coded_error import guest_message_for_code
-
     error = guard_http_error(exc)
     assert error.status_code == status
     sent = error.detail["message"] if isinstance(error.detail, dict) else error.detail
     assert sent == guest_message_for_code(code)
+    assert sent != GENERIC_GUEST_MESSAGE
     assert not any(part in sent for part in ("/Users", "C:\\", "/home/", ".json"))
 
 
-def test_guard_refusal_without_a_path_goes_out_as_written_and_unknown_codes_get_generic_copy():
-    from podcast_mcp.gui.routes.deps import guard_http_error
-    from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
-
+def test_guard_refusal_without_a_path_goes_out_as_written():
     plain = guard_http_error(AccessDeniedError("not allowed here", code="authz_denied"))
     assert plain.detail == "not allowed here"
+
+
+def test_guard_refusal_with_an_unknown_code_gets_generic_copy():
     unknown = guard_http_error(AccessDeniedError("read at /Users/host/x", code="no_such_code"))
     assert unknown.detail == GENERIC_GUEST_MESSAGE

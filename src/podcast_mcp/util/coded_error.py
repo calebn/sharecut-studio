@@ -196,8 +196,8 @@ class GuardRefusal(CodedError):
     """An auth guard's refusal: who may call, not what was asked.
 
     Its message is written for any caller, a share guest included, and goes out as written
-    unless it names a host path, when the code's approved guest copy goes out instead
-    (a refusal from the domain gets guest copy by code instead). The HTTP adapter answers it
+    unless it names a host path (see ``guard_http_error``); a refusal from the domain gets
+    guest copy by code instead. The HTTP adapter answers it
     with ``gui.routes.deps.guard_http_error``.
     """
 

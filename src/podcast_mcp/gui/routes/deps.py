@@ -110,9 +110,7 @@ def guard_http_error(exc: GuardRefusal) -> HTTPException:
     """HTTP 401 (sign-in needed), 403 (denied) or 404 (unknown share) for an auth guard's refusal.
 
     The 401 detail is a dict the sign-in page reads; the others are the message as a string.
-    A guard writes its message for any caller, so it goes out as written; if one ever names a
-    host path, the code's approved guest copy goes out instead and the written text stays out
-    of the response.
+    A message that names a host path is replaced by the code's guest copy.
     """
     message = str(exc)
     if mentions_host_path(message):
