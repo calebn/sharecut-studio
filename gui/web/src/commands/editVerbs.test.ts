@@ -2623,6 +2623,22 @@ describe("the Action bar's Approve and Reject on every pending edit", () => {
     }
   });
 
+  it("sends a leave once when the bar and Backspace both fire before the reply", async () => {
+    withEdit({ suggested_action: "leave" });
+    let finish: (value: typeof leaving) => void = () => {};
+    vi.mocked(api.applySuggestedActions).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const first = runEditVerb("approve", factsOf()!);
+    const second = await execute("edit.delete");
+    expect(second.status).toBe("disabled");
+    finish(leaving);
+    await first;
+    expect(api.applySuggestedActions).toHaveBeenCalledTimes(1);
+  });
+
   it("approves an exact range that suggests shortening, never applying the suggested action", async () => {
     withEdit({ ...exact, suggested_action: "shorten" });
     vi.mocked(api.approveEdits).mockResolvedValue(reviewed);
