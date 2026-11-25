@@ -73,6 +73,13 @@ if TYPE_CHECKING:
         SetClipJoinResult,
         SetJoinModeResult,
     )
+    from podcast_mcp.services.document.join_quality_results import (
+        JoinDetectorRow,
+        JoinQualityReport,
+        JoinQualityRow,
+        JoinQualitySweep,
+        JoinRankerVerdict,
+    )
     from podcast_mcp.services.document.join_results import (
         JoinLabelResult,
         JoinTrainResult,
@@ -179,7 +186,12 @@ __all__ = [
     "HistoryMoveResult",
     "HistoryService",
     "InsertGapResult",
+    "JoinDetectorRow",
     "JoinLabelResult",
+    "JoinQualityReport",
+    "JoinQualityRow",
+    "JoinQualitySweep",
+    "JoinRankerVerdict",
     "JoinTrainResult",
     "KitApplyReport",
     "ListedFiles",
@@ -311,6 +323,11 @@ _MODULE_BY_NAME = {
     "RoomToneBedService": "room_tone_bed",
     "TimelineService": "timeline",
     "InsertGapResult": "timeline_move_results",
+    "JoinDetectorRow": "join_quality_results",
+    "JoinQualityReport": "join_quality_results",
+    "JoinQualityRow": "join_quality_results",
+    "JoinQualitySweep": "join_quality_results",
+    "JoinRankerVerdict": "join_quality_results",
     "JoinLabelResult": "join_results",
     "JoinTrainResult": "join_results",
     "MoveClipsResult": "timeline_move_results",

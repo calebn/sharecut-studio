@@ -10,6 +10,7 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 from filelock import Timeout
 
+import join_quality_fixtures
 from play_patch import patch_play
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
@@ -1554,15 +1555,13 @@ def test_edit_preview_inaudible_cut(minimal_project, sample_wav) -> None:
 def test_edit_join_quality_proposed_cut(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with patch("podcast_mcp.edits.cut_safety.assess_proposed_cut") as assess:
-        assess.return_value.to_dict.return_value = {
-            "track_id": "host",
-            "verdict": "fail",
-            "risk": 0.7,
-        }
+        assess.return_value.to_dict.return_value = join_quality_fixtures.report_dict(
+            mode="proposed_cut", verdict="fail", risk=0.7
+        )
         out = TimelineService(ws).join_quality(
             track_id="host", cut_start=0.1, cut_end=0.3, timebase="source"
         )
-    assert out["verdict"] == "fail"
+    assert out.verdict == "fail"
     with pytest.raises(ValueError, match="join_sec"):
         TimelineService(ws).join_quality(track_id="host")
 
@@ -1573,11 +1572,7 @@ def test_edit_join_label_play(minimal_project, sample_wav) -> None:
         patch("podcast_mcp.services.document.join_analysis.assess_existing_join") as assess,
         patch("podcast_mcp.services.document.play.PlayService.play", return_value=None) as play,
     ):
-        assess.return_value.to_dict.return_value = {
-            "track_id": "host",
-            "risk": 0.4,
-            "detectors": [],
-        }
+        assess.return_value.to_dict.return_value = join_quality_fixtures.report_dict(risk=0.4)
         out = TimelineService(ws).join_label(
             track_id="host", join_sec=1.0, verdict="pass", play=True
         )

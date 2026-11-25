@@ -4,13 +4,15 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from podcast_mcp.services.document.join_quality_results import JoinQualityReport
+
 
 class JoinLabelResult(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     label: dict[str, Any]
     played: bool
-    features: dict[str, Any]
+    features: JoinQualityReport
 
 
 class JoinTrainResult(BaseModel):

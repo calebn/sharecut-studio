@@ -12,6 +12,10 @@ from podcast_mcp.edits.join_continuity import (
     assess_project_joins,
 )
 from podcast_mcp.edits.join_labels import record_label
+from podcast_mcp.services.document.join_quality_results import (
+    JoinQualityReport,
+    JoinQualitySweep,
+)
 from podcast_mcp.services.document.join_results import JoinLabelResult, JoinTrainResult
 from podcast_mcp.services.document.service_base import WorkspaceService
 from podcast_mcp.util.coded_error import CodedValueError
@@ -28,11 +32,11 @@ class _JoinAnalysis(WorkspaceService):
         cut_end: float | None = None,
         timebase: str = "timeline",
         audio_caches: dict[str, TrackAudioCache] | None = None,
-    ) -> dict:
+    ) -> JoinQualityReport:
         tid = self._resolve(track_id, speaker)
         tb: Literal["timeline", "source"] = "timeline" if timebase == "timeline" else "source"
         if cut_start is not None and cut_end is not None:
-            return cut_safety.assess_proposed_cut(
+            proposed = cut_safety.assess_proposed_cut(
                 self.ws.project,
                 tid,
                 float(cut_start),
@@ -40,22 +44,26 @@ class _JoinAnalysis(WorkspaceService):
                 timebase=tb,
                 audio_caches=audio_caches,
                 defaults=self.ws.effective_config(),
-            ).to_dict()
+            )
+            return JoinQualityReport.model_validate(proposed.to_dict())
         if join_sec is None:
             raise CodedValueError(
                 "provide join_sec, or cut_start and cut_end", code="join_target_required"
             )
-        return assess_existing_join(
+        existing = assess_existing_join(
             self.ws.project,
             tid,
             float(join_sec),
             timebase=tb,
             defaults=self.ws.effective_config(),
-        ).to_dict()
+        )
+        return JoinQualityReport.model_validate(existing.to_dict())
 
-    def join_qa_sweep(self, *, track_id: str | None = None) -> dict:
-        return assess_project_joins(
-            self.ws.project, track_id=track_id, defaults=self.ws.effective_config()
+    def join_qa_sweep(self, *, track_id: str | None = None) -> JoinQualitySweep:
+        return JoinQualitySweep.model_validate(
+            assess_project_joins(
+                self.ws.project, track_id=track_id, defaults=self.ws.effective_config()
+            )
         )
 
     def join_label(
@@ -84,7 +92,7 @@ class _JoinAnalysis(WorkspaceService):
             cut_end=cut_end,
             timebase=timebase,
         )
-        det_map = {d["name"]: d.get("score", 0.0) for d in features.get("detectors") or []}
+        det_map = {d.name: d.score for d in features.detectors}
         label = record_label(
             self.ws.project,
             track_id=tid,
@@ -95,7 +103,7 @@ class _JoinAnalysis(WorkspaceService):
             cut_end=cut_end,
             note=note,
             features={
-                "risk": features.get("risk"),
+                "risk": features.risk,
                 "detectors": det_map,
             },
             source="human",

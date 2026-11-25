@@ -10,6 +10,7 @@ import click
 import pytest
 from typer.testing import CliRunner
 
+import join_quality_fixtures
 from podcast_mcp.cli.main import app
 from podcast_mcp.ingest.consolidate import ConsolidateResult
 from podcast_mcp.models import (
@@ -840,7 +841,7 @@ def test_edit_join_quality_cli(minimal_project, monkeypatch):
 
     class _Rep:
         def to_dict(self):
-            return {"verdict": "pass", "risk": 0.1, "disclaimer": "x"}
+            return join_quality_fixtures.report_dict()
 
     monkeypatch.setattr(
         "podcast_mcp.services.document.join_analysis.assess_existing_join",
@@ -848,7 +849,7 @@ def test_edit_join_quality_cli(minimal_project, monkeypatch):
     )
     monkeypatch.setattr(
         "podcast_mcp.services.document.join_analysis.assess_project_joins",
-        lambda *a, **k: {"join_count": 1, "fail_count": 0},
+        lambda *a, **k: join_quality_fixtures.sweep_dict(join_count=1),
     )
     jq = runner.invoke(
         app,
