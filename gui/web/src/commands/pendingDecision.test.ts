@@ -3,6 +3,7 @@ import { pendingOffersCut } from "../utils/pendingOffersCut";
 import {
   actionBarOwnsPendingVerbs,
   decideThroughSheet,
+  pendingAcceptRoute,
   pendingBarWords,
   pendingCutWords,
   registerPendingDecider,
@@ -103,11 +104,18 @@ describe("pendingBarWords", () => {
     rejectBusy: "Rejecting…",
   };
 
+  const leaveWords = {
+    accept: "Leave",
+    reject: "Reject",
+    acceptBusy: "Leaving…",
+    rejectBusy: "Rejecting…",
+  };
+
   it.each([
     ["cut", cutWords("Cut", "Cutting…")],
     ["shorten", cutWords("Shorten", "Shortening…")],
     ["lower", cutWords("Lower", "Lowering…")],
-    ["leave", approveWords],
+    ["leave", leaveWords],
     [null, approveWords],
   ] as const)("words a %s suggestion", (suggested_action, words) => {
     expect(pendingBarWords({ type: "remove", suggested_action })).toEqual(
@@ -126,5 +134,78 @@ describe("pendingBarWords", () => {
         exact_range: { intervals: [] } as never,
       }),
     ).toEqual(approveWords);
+  });
+
+  it("says Leave for a split and an exact range that suggest leaving", () => {
+    expect(
+      pendingBarWords({ type: "split", suggested_action: "leave" }),
+    ).toEqual(leaveWords);
+    expect(
+      pendingBarWords({
+        type: "remove",
+        suggested_action: "leave",
+        exact_range: { intervals: [] } as never,
+      }),
+    ).toEqual(leaveWords);
+  });
+});
+
+describe("the accept route and its words", () => {
+  const types = ["remove", "split"] as const;
+  const ranges = [undefined, { intervals: [] } as never] as const;
+  const actions = [
+    undefined,
+    null,
+    "cut",
+    "shorten",
+    "lower",
+    "leave",
+  ] as const;
+  const rows = types.flatMap((type) =>
+    ranges.flatMap((exact_range) =>
+      actions.map((suggested_action) => ({
+        type,
+        exact_range,
+        suggested_action,
+      })),
+    ),
+  );
+
+  it.each(rows)("words and routes %o together", (edit) => {
+    const route = pendingAcceptRoute(edit);
+    const { accept, acceptBusy } = pendingBarWords(edit);
+    if (accept === "Approve") expect(route).toBe("cut");
+    if (route === "own") {
+      expect(accept).not.toBe("Approve");
+      expect(acceptBusy).not.toBe("Approving…");
+    }
+    expect(accept === "Leave").toBe(edit.suggested_action === "leave");
+    expect(acceptBusy === "Leaving…").toBe(accept === "Leave");
+    if (edit.suggested_action === "leave") expect(route).toBe("own");
+  });
+
+  it.each([
+    ["leave", "own"],
+    ["shorten", "own"],
+    ["lower", "own"],
+    ["cut", "cut"],
+    [null, "cut"],
+  ] as const)("routes a %s suggestion to %s", (suggested_action, route) => {
+    expect(pendingAcceptRoute({ type: "remove", suggested_action })).toBe(
+      route,
+    );
+  });
+
+  it("sends a split or an exact range that suggests shortening to the cut route", () => {
+    expect(
+      pendingAcceptRoute({ type: "split", suggested_action: "shorten" }),
+    ).toBe("cut");
+    expect(
+      pendingAcceptRoute({
+        type: "remove",
+        suggested_action: "shorten",
+        exact_range: { intervals: [] } as never,
+      }),
+    ).toBe("cut");
   });
 });
