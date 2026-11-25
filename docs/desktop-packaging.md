@@ -422,6 +422,14 @@ void     sc_ffmpeg_cancel(int64_t session);
   to the core as `-DSC_BUILD_ID`). Two different binaries do not return the same string and a
   rebuild with identical inputs returns the same one. If the build cannot compute it, `unknown` is
   baked in, and a caller must not use that as a cache key.
+- **Reading the build id (Python).** `native_ffmpeg.build_id()` refuses `unknown`, NULL, non-ASCII
+  text and anything outside the charset or length, and the in-process pair is then unavailable
+  with "reports no valid build id". The version is the leading `major.minor.patch` of the id
+  (`9.0.2+…` is 9.0.2); an id with no leading version parses to `(0, 0, 0)`. That version must
+  pass the same policy as a desktop pair (`contracts/ffmpeg-build.json`: major 9, at least 9.0.2),
+  or the pair is unavailable with "names no supported FFmpeg release", so an id with no leading
+  version is refused too. The decode and evidence cache key reads the id once and takes its
+  version from that same read, and `doctor` reports it as `build_id` only while the pair can run.
 - **argv.** `argv[0]` is the tool name, `ffmpeg` or `ffprobe` (Python maps the sentinel). The array
   has `argc` strings and a NULL slot. Native copies every string before `start` returns.
 - **Sessions.** `start` returns an id >= 1 (never reused in a process) or `-errno`, and leaves no
