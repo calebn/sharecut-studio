@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.engines.ffmpeg import _concat_list_entry
+from podcast_mcp.engines.ffmpeg.mix import _concat_list_entry
 from podcast_mcp.gui.routes.deps import (
     require_authz,
     require_host,

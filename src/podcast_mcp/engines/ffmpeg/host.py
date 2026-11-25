@@ -38,3 +38,26 @@ class FFmpegSelf(Protocol):
         extra_args: list[str] | None = None,
         cancel_check: Callable[[], bool] | None = None,
     ) -> Path: ...
+
+    @staticmethod
+    def _sum_graph(
+        track_wavs: list[tuple[Path, float]],
+        tail: str | None,
+        span: tuple[float, float | None] = (0.0, None),
+    ) -> list[str]: ...
+
+    def apply_gain(self, input_path: Path, output_path: Path, gain_db: float) -> Path: ...
+
+    def _sum_tracks(
+        self, track_wavs: list[tuple[Path, float]], output_path: Path, *, trim_db: float = 0.0
+    ) -> None: ...
+
+    def _sum_true_peak_db(
+        self, track_wavs: list[tuple[Path, float]], span: tuple[float, float | None]
+    ) -> float | None: ...
+
+    def mix_peak_db(
+        self, track_wavs: list[tuple[Path, float]], ceiling_db: float
+    ) -> float | None: ...
+
+    def peak_trim_db(self, track_wavs: list[tuple[Path, float]], ceiling_db: float) -> float: ...
