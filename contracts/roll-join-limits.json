@@ -1190,6 +1190,364 @@
           3.95
         ]
       ]
+    },
+    {
+      "name": "left-last-timing-skip",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long",
+          [
+            [
+              9,
+              -0.3
+            ]
+          ]
+        ],
+        [
+          "right",
+          3.7,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -0.699999,
+        3.95
+      ],
+      "clamps": [
+        [
+          -9,
+          -0.699999
+        ],
+        [
+          -0.5,
+          -0.5
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          9,
+          3.95
+        ]
+      ]
+    },
+    {
+      "name": "left-skip-ends-at-left-end",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long",
+          [
+            [
+              9.5,
+              -0.5
+            ]
+          ]
+        ],
+        [
+          "right",
+          3.5,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        0,
+        3.95
+      ],
+      "clamps": [
+        [
+          -9,
+          0
+        ],
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "left-multi-step-last-skip-governs",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long",
+          [
+            [
+              7,
+              0.2
+            ],
+            [
+              9,
+              -0.3
+            ]
+          ]
+        ],
+        [
+          "right",
+          3.9,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -0.699999,
+        3.95
+      ],
+      "clamps": [
+        [
+          -9,
+          -0.699999
+        ],
+        [
+          9,
+          3.95
+        ]
+      ]
+    },
+    {
+      "name": "right-first-timing-skip",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right",
+          [
+            [
+              11,
+              -0.5
+            ]
+          ]
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        0.999999
+      ],
+      "clamps": [
+        [
+          -9,
+          -3.95
+        ],
+        [
+          2,
+          0.999999
+        ]
+      ]
+    },
+    {
+      "name": "right-first-step-at-clip-start",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right",
+          [
+            [
+              10.0000005,
+              0.2
+            ]
+          ]
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        0
+      ],
+      "clamps": [
+        [
+          -2,
+          -2
+        ],
+        [
+          0.5,
+          0
+        ],
+        [
+          9,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "right-multi-step-first-governs",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right",
+          [
+            [
+              11,
+              0.2
+            ],
+            [
+              12,
+              0.2
+            ]
+          ]
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        0.999999
+      ],
+      "clamps": [
+        [
+          9,
+          0.999999
+        ]
+      ]
+    },
+    {
+      "name": "both-clips-timed",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long",
+          [
+            [
+              9,
+              0.3
+            ]
+          ]
+        ],
+        [
+          "right",
+          4.3,
+          10,
+          14,
+          "right",
+          [
+            [
+              11,
+              0.2
+            ]
+          ]
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -0.999999,
+        0.999999
+      ],
+      "clamps": [
+        [
+          -9,
+          -0.999999
+        ],
+        [
+          -0.5,
+          -0.5
+        ],
+        [
+          0.5,
+          0.5
+        ],
+        [
+          9,
+          0.999999
+        ]
+      ]
+    },
+    {
+      "name": "left-timed-right-untimed-forward",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long",
+          [
+            [
+              9,
+              0.3
+            ]
+          ]
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -0.999999,
+        3.95
+      ],
+      "clamps": [
+        [
+          2,
+          2
+        ],
+        [
+          9,
+          3.95
+        ]
+      ]
     }
   ]
 }

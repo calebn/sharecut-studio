@@ -34,7 +34,11 @@ import {
 import { trimDraft } from "../utils/ripplePreview";
 import { formatTimeMs } from "../utils/time";
 import { clipsForOriginTrack } from "../utils/timebase";
-import { clampToTrimLimits, trimEdgeLimits } from "../utils/trimLimits";
+import {
+  clampToTrimLimits,
+  hasTrimRange,
+  trimEdgeLimits,
+} from "../utils/trimLimits";
 import { type EdgeSaved, saveClipEdge, TRIM_MODE } from "./clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "./clipHandleSteps";
 import { clampFadeMs, edgeFadeMaxMs } from "./fadeLimits";
@@ -223,7 +227,13 @@ export function nudgeAxis(
       const limits = trimEdgeLimits(lane, index, field.edge, TRIM_MODE);
       return {
         value: out ? clip.source_end : clip.source_start,
-        clamp: (v) => clampToTrimLimits(v, limits),
+        // An inverted pair has no legal place: the edge stays where it is.
+        clamp: (v) =>
+          hasTrimRange(limits)
+            ? clampToTrimLimits(v, limits)
+            : out
+              ? clip.source_end
+              : clip.source_start,
         // A ripple trim keeps the clip's start in place: only the end moves.
         at: (v) => (out ? clip.timeline_start + (v - clip.source_start) : null),
         mover: out

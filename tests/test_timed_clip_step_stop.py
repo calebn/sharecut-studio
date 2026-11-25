@@ -1,4 +1,4 @@
-"""A trim or roll held by a timing correction says so and how to go further (#2859, #1089)."""
+"""A trim or roll held by a timing correction says so (#2859, #1089)."""
 
 from __future__ import annotations
 

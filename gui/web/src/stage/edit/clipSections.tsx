@@ -35,7 +35,7 @@ import {
   clipGainDb,
 } from "../../utils/audio";
 import { clipEdgeCurve, type FadeEdge } from "../../utils/fadeCurves";
-import { trimEdgeLimits } from "../../utils/trimLimits";
+import { hasTrimRange, trimEdgeLimits } from "../../utils/trimLimits";
 import {
   endClipGainPreview,
   previewBaselineDb,
@@ -271,6 +271,8 @@ export function useClipSections(
   const edge = (which: "in" | "out") => {
     const limits =
       index < 0 ? null : trimEdgeLimits(lane, index, which, TRIM_MODE);
+    // No legal range (`lo > hi`): the field shows the edge and takes no value.
+    const stuck = limits != null && !hasTrimRange(limits);
     return (
       <ScrubField
         label={`Source ${which === "in" ? "start" : "end"}`}
@@ -279,9 +281,9 @@ export function useClipSections(
         step={CLIP_HANDLE_STEPS.trim.small}
         decimals={3}
         skipUnchanged
-        min={limits?.lo}
-        max={limits?.hi}
-        readOnly={locked}
+        min={stuck ? undefined : limits?.lo}
+        max={stuck ? undefined : limits?.hi}
+        readOnly={locked || stuck}
         onCommit={(value) => void trim(which, value)}
       />
     );
@@ -289,6 +291,7 @@ export function useClipSections(
 
   const outLimits =
     index < 0 ? null : trimEdgeLimits(lane, index, "out", TRIM_MODE);
+  const outRange = outLimits == null || hasTrimRange(outLimits);
   const timed = (clip.timing?.steps.length ?? 0) > 0;
   const timelineLength = clip.timeline_end - clip.timeline_start;
   const outEdgeField = (
@@ -304,9 +307,17 @@ export function useClipSections(
       step={CLIP_HANDLE_STEPS.trim.small}
       decimals={3}
       skipUnchanged
-      min={outLimits ? offset + outLimits.lo - clip.source_start : undefined}
-      max={outLimits ? offset + outLimits.hi - clip.source_start : undefined}
-      readOnly={locked || timed}
+      min={
+        outLimits && outRange
+          ? offset + outLimits.lo - clip.source_start
+          : undefined
+      }
+      max={
+        outLimits && outRange
+          ? offset + outLimits.hi - clip.source_start
+          : undefined
+      }
+      readOnly={locked || timed || !outRange}
       onCommit={(next) => void trim("out", clip.source_start + toLength(next))}
     />
   );

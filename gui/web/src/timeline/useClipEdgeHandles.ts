@@ -26,7 +26,11 @@ import type { ClipRow } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { clampTrimSourceSec, type TrimEdge } from "../utils/clipEdgePreview";
 import { trimDraft } from "../utils/ripplePreview";
-import { trimNeighborBounds } from "../utils/trimLimits";
+import {
+  hasTrimRange,
+  trimEdgeLimits,
+  trimNeighborBounds,
+} from "../utils/trimLimits";
 import type { ClipHandle } from "./ClipBlockView";
 import type { ClipFadePreview, ClipTrimPreview } from "./clipBlockGeometry";
 import { HIT_KINDS } from "./inputContract";
@@ -90,6 +94,20 @@ function sameTrimBounds(
     neighborLo === capture.neighborSourceLo &&
     neighborHi === capture.neighborSourceHi
   );
+}
+
+/**
+ * The trim edge still has somewhere to go. A timing correction can leave the
+ * server's range for it empty (`trim_no_legal_range`): the handle then neither
+ * previews nor saves. Without a project lane the handle keeps its old bounds.
+ */
+function trimHasRange(clip: ClipRow, handle: ClipHandle): boolean {
+  const project = useDawStore.getState().projectEditBasis();
+  const lane = project?.clips.tracks[clip.track_id];
+  const index = lane?.findIndex((row) => row.id === clip.id) ?? -1;
+  if (!lane || index < 0) return true;
+  const edge = handle.endsWith("in") ? "in" : "out";
+  return hasTrimRange(trimEdgeLimits(lane, index, edge, TRIM_MODE));
 }
 
 function projectEdge(draft: Draft, candidate: number): Draft {
@@ -231,6 +249,7 @@ export function useClipEdgeHandles(context: Context) {
       s.announceStatus(TRIM_WAITS_LINE);
       return null;
     }
+    if (handle.startsWith("trim") && !trimHasRange(c.clip, handle)) return null;
     const capture: Capture = {
       clip: c.clip,
       trackId: c.trackId,

@@ -17,7 +17,7 @@ import {
 } from "../types/limits.generated";
 import type { ClipRow, ProjectView, TrackView } from "../types/project";
 import type { EditMode, TrimEdge } from "./clipEdgePreview";
-import { clampToTrimLimits, trimEdgeLimits } from "./trimLimits";
+import { clampToTrimLimits, hasTrimRange, trimEdgeLimits } from "./trimLimits";
 
 export type Span = { start: number; end: number };
 
@@ -104,6 +104,7 @@ function movingPeer(
   if (!peer) return null;
   const target =
     edge === "in" ? peer.source_start - deltaSec : peer.source_end + deltaSec;
+  // An inverted pair (no legal range) holds no target, so no peer moves.
   const { lo, hi } = trimEdgeLimits(lane, i, edge, "ripple");
   return target >= lo - EPS && target <= hi + EPS ? peer : null;
 }
@@ -335,10 +336,10 @@ export function patchClipTrim(
     const index = lane.findIndex((c) => c.id === clipId);
     if (index < 0) continue;
     const clip = lane[index]!;
-    const target = clampToTrimLimits(
-      sourceSec,
-      trimEdgeLimits(lane, index, edge, mode),
-    );
+    const limits = trimEdgeLimits(lane, index, edge, mode);
+    // No legal range: the server refuses this trim, so nothing is previewed.
+    if (!hasTrimRange(limits)) return project;
+    const target = clampToTrimLimits(sourceSec, limits);
     if (
       Math.abs(target - (edge === "in" ? clip.source_start : clip.source_end)) <
       1e-12
