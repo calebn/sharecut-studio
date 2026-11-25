@@ -66,4 +66,32 @@ describe("view.revealSelection", () => {
     const result = await execute("view.revealSelection");
     expect(result.status).toBe("disabled");
   });
+
+  it("seeks to the edit's start on the phone and leaves the selection alone", async () => {
+    const edit = {
+      id: "p1",
+      timeline_start: 12,
+      source_start: 12,
+    };
+    const project = useDawStore.getState().project;
+    useDawStore.setState({
+      shellBreakpoint: "phone",
+      project: { ...project, pending_edits: [edit] } as never,
+      selection: { kind: "pending", id: "p1", trackId: "t" },
+    });
+    const node = document.createElement("div");
+    document.body.append(node);
+    reveal.selectionAnchor.set({ current: node });
+    const scroll = vi
+      .spyOn(reveal, "revealAnchor")
+      .mockImplementation(() => {});
+
+    const result = await execute("view.revealSelection");
+
+    node.remove();
+    expect(result.status).toBe("ok");
+    expect(useDawStore.getState().playheadSec).toBe(12);
+    expect(useDawStore.getState().selection).toMatchObject({ id: "p1" });
+    expect(scroll).not.toHaveBeenCalled();
+  });
 });
