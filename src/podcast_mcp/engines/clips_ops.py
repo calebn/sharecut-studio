@@ -616,12 +616,11 @@ def no_legal_range_message(clip: Clip) -> str:
     if clip.timing is None:
         return (
             "This edge cannot move: the neighbouring clip or the end of the recording "
-            "leaves it no legal position. Try moving or trimming the neighbouring clip first."
+            "leaves it no legal position."
         )
     return (
         "This edge cannot move: the clip's timing correction, the neighbouring clip or "
-        "the end of the recording leaves it no legal position. Try moving or trimming the "
-        "neighbouring clip first."
+        "the end of the recording leaves it no legal position."
     )
 
 
