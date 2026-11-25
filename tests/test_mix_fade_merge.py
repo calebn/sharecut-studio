@@ -171,3 +171,20 @@ def test_a_legacy_fade_plus_a_dip_is_replaced_and_the_summary_says_so(
     assert [(t, v) for i, t, v in points if i.startswith("mix:fade:")] == legacy
     assert ("duck:g:abc", 4.0, 0.2) in points and len(points) == 5
     assert "older fade" not in steps.mix_with_music(project, defaults)
+
+
+def test_the_re_run_hint_follows_a_fade_length_change_next_to_a_dip(
+    minimal_project, bed_wav, tmp_workspace, engine_ready
+) -> None:
+    defaults = load_defaults()
+    project = _mixed_project(minimal_project, bed_wav, tmp_workspace, defaults, words=False)
+    steps.mix_with_music(project, defaults)
+    envelope = project.volume_envelope_for("bed")
+    envelope.points.append(AutomationPoint(id="duck:g:far", time=5.0, value=0.2))
+    steps.mix_with_music(project, defaults)
+    longer_in = {**defaults, "mix": {**defaults["mix"], "fade_in_sec": 2.5}}
+    assert "re-run ducking" not in steps.mix_with_music(project, longer_in)
+    longer_out = {**defaults, "mix": {**defaults["mix"], "fade_out_sec": 4.0}}
+    assert "1 fade points moved under ducking, re-run ducking" in steps.mix_with_music(
+        project, longer_out
+    )

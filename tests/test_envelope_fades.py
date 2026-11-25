@@ -123,9 +123,9 @@ def test_a_new_duration_moves_the_fade_and_leaves_the_rest(name) -> None:
 
 def test_replacing_a_fade_point_next_to_a_dip_is_reported() -> None:
     first = merged(EXTRAS["duck_g"])
-    assert merge_fades(first, 20.0, 2.0, 3.0).replaced_under_duck == 2
+    assert merge_fades(first, 20.0, 2.0, 3.0).replaced_under_duck == 0
     assert merge_fades(merged([]), 20.0, 2.0, 3.0).replaced_under_duck == 0
-    assert merge_fades(merged(EXTRAS["duck_b_fade"]), 20.0, 2.0, 3.0).replaced_under_duck >= 1
+    assert merge_fades(merged(EXTRAS["duck_b_fade"]), 20.0, 2.0, 3.0).replaced_under_duck == 0
 
 
 def test_a_stem_shorter_than_fade_in_fades_in_over_its_length() -> None:
@@ -310,3 +310,65 @@ def test_the_exact_four_legacy_case_reports_the_replacement() -> None:
 def test_a_non_finite_fade_length_leaves_the_envelope_alone(fade_in, fade_out) -> None:
     extras = EXTRAS["user"]
     assert merge_fades(extras, 10.0, fade_in, fade_out).points == extras
+
+
+def _u(time: float, value: float) -> EnvPoint:
+    return EnvPoint(str(uuid.uuid4()), time, value)
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        [(0.0, 0.0), (2.0, 1.0), (20.0, 1.0), (30.0, 0.0), (32.0, 1.0)],
+        [(0.0, 0.0), (2.0, 1.0), (50.0, 0.2), (60.0, 1.0), (120.0, 0.0)],
+    ],
+)
+def test_a_user_envelope_that_is_not_the_fade_geometry_is_untouched(shape) -> None:
+    mine = [_u(t, v) for t, v in shape]
+    result = merge_fades(mine, 130.0, 2.0, 3.0)
+    assert result.replaced_legacy == 0
+    assert all(p in result.points for p in mine)
+    assert len(result.points) == len(mine) + 4
+
+
+def test_a_legacy_fade_ducked_on_the_old_stem_is_replaced_at_a_new_length() -> None:
+    old = [_u(t, v) for t, v in legacy(500.0, 2.0, 3.0)]
+    lowered_in = EnvPoint(f"{BASE_PREFIX}{old[1].id}:1.0:0.2", 2.0, 0.2)
+    lowered_out = EnvPoint(f"{BASE_PREFIX}{old[2].id}:1.0:0.3", 497.0, 0.3)
+    dip = EnvPoint(generated_point_id(100.0, 0.12), 100.0, 0.12)
+    points = [old[0], lowered_in, dip, lowered_out, old[3]]
+    result = merge_fades(points, 600.0, 2.0, 3.0)
+    assert result.replaced_legacy == 4
+    assert result.points[0].id.startswith(FADE_PREFIX)
+    assert [p for p in result.points if not p.id.startswith(FADE_PREFIX)] == [dip]
+    assert tv(result.points[:2]) == [(0.0, 0.0), (2.0, 1.0)]
+
+
+@pytest.mark.parametrize("dur", [4.0, 30.0, 500.0])
+@pytest.mark.parametrize("fade_in,fade_out", [(1.0, 1.0), (0.0, 3.0), (2.0, 0.0), (0.0, 0.0)])
+def test_a_legacy_fade_built_with_the_current_settings_matches_at_any_stem_length(
+    dur, fade_in, fade_out
+) -> None:
+    old = [_u(t, v) for t, v in legacy(dur, fade_in, fade_out)]
+    extra = _u(dur / 2, 0.5)
+    result = merge_fades([*old, extra], 77.0, fade_in, fade_out)
+    assert result.replaced_legacy == 4
+    assert extra in result.points and len(result.points) == 5
+    assert merge_fades(result.points, 77.0, fade_in, fade_out).replaced_legacy == 0
+
+
+def test_a_user_envelope_equal_to_the_old_shape_for_the_current_settings_is_replaced() -> None:
+    mine = [_u(t, v) for t, v in legacy(10.0, 2.0, 3.0)]
+    result = merge_fades(mine, 10.0, 2.0, 3.0)
+    assert result.replaced_legacy == 4 and tv(result.points) == legacy(10.0, 2.0, 3.0)
+
+
+def test_the_re_run_hint_counts_only_fade_points_near_a_dip() -> None:
+    first = merged([EnvPoint(generated_point_id(50.0, 0.12), 50.0, 0.12)], dur=100.0)
+    assert merge_fades(first, 100.0, 4.0, 3.0).replaced_under_duck == 0
+    assert merge_fades(first, 100.0, 2.0, 6.0).replaced_under_duck == 0
+    near = merged([EnvPoint(generated_point_id(98.0, 0.12), 98.0, 0.12)], dur=100.0)
+    assert merge_fades(near, 100.0, 2.0, 6.0).replaced_under_duck >= 1
+    assert merge_fades(near, 200.0, 2.0, 3.0).replaced_under_duck >= 1
+    lowered_point = merged([lowered("out0", 97.0, 1.0, 0.2)], dur=100.0)
+    assert merge_fades(lowered_point, 100.0, 2.0, 6.0).replaced_under_duck == 1

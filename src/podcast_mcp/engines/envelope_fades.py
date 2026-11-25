@@ -82,39 +82,59 @@ def _is_uuid(text: str) -> bool:
     return True
 
 
-def _legacy_fade_indices(points: list[EnvPoint]) -> set[int]:
-    """Indices of the four uuid points an earlier mix run wrote, (0,0) (a,1) (b,1) (c,0).
+def _legacy_view(point: EnvPoint) -> tuple[float, float] | None:
+    """(time, value) of a point an old mix run could have written, seen through a dip."""
+    lowered = parse_lowered(point.id)
+    if lowered is not None:
+        original_id, original, _ = lowered
+        if not original_id.startswith(_MANAGED_PREFIXES) and _is_uuid(original_id):
+            return point.time, original
+        return None
+    if point.id.startswith(_MANAGED_PREFIXES) or not _is_uuid(point.id):
+        return None
+    return point.time, point.value
 
-    Found as a subset, so dip and user points around them do not hide them. Only unprefixed
-    uuid ids count; A is the first value-0 point at time 0, D the last value-0 point, and B
-    and C the first and last value-1 points between them.
+
+def _legacy_fade_indices(points: list[EnvPoint], fade_in: float, fade_out: float) -> set[int]:
+    """Indices of the four uuid points an earlier mix run wrote for these fade settings.
+
+    The old fade was (0,0) (fade_in,1) (max(fade_in, end - fade_out),1) (end,0) with uuid ids,
+    for a stem length that may since have changed. A ``duck:b:<uuid>`` point counts through its
+    original id and value. The match uses the settings in force now: A is the first uuid point
+    at (0,0), D a uuid value-0 point after it (the latest that fits), B a value-1 point at
+    ``fade_in`` and C a value-1 point at max(fade_in, D.time - fade_out). No fit, no match.
     """
-    cand = [
-        i for i, p in enumerate(points) if not p.id.startswith(_MANAGED_PREFIXES) and _is_uuid(p.id)
-    ]
-    starts = [i for i in cand if points[i].time == 0.0 and points[i].value == 0.0]
-    ends = [i for i in cand if points[i].value == 0.0]
-    if not starts or not ends:
+    views = {i: v for i, p in enumerate(points) if (v := _legacy_view(p)) is not None}
+    starts = [i for i, (t, v) in views.items() if t == 0.0 and v == 0.0]
+    if not starts:
         return set()
-    a, d = starts[0], ends[-1]
-    if a == d or points[a].time > points[d].time:
-        return set()
-    ones = [
-        i
-        for i in cand
-        if points[i].value == 1.0 and points[a].time <= points[i].time <= points[d].time
-    ]
-    ones = [i for i in ones if i not in (a, d)]
-    if len(ones) < 2:
-        return set()
-    b, c = ones[0], ones[-1]
-    if not points[a].time <= points[b].time <= points[c].time <= points[d].time:
-        return set()
-    return {a, b, c, d}
+    a = starts[0]
+    ends = sorted(
+        (i for i, (t, v) in views.items() if v == 0.0 and t > 0.0 and i != a),
+        key=lambda i: views[i][0],
+        reverse=True,
+    )
+    for d in ends:
+        end = views[d][0]
+        t_b, t_c = fade_in, max(fade_in, end - fade_out)
+        if not 0.0 <= t_b <= t_c <= end:
+            continue
+        at_b = [i for i, (t, v) in views.items() if v == 1.0 and t == t_b and i not in (a, d)]
+        if not at_b:
+            continue
+        b = at_b[0]
+        at_c = [i for i, (t, v) in views.items() if v == 1.0 and t == t_c and i not in (a, d, b)]
+        if at_c:
+            return {a, b, at_c[-1], d}
+    return set()
 
 
-def _has_duck_point(points: Iterable[EnvPoint]) -> bool:
-    return any(p.id.startswith(_DUCK_PREFIXES) for p in points)
+def _near_dip(points: list[EnvPoint], start: float, end: float) -> bool:
+    """True when a dip point other than a fade point lies in [start, end]."""
+    return any(
+        p.id.startswith(_DUCK_PREFIXES) and _fade_view(p) is None and start <= p.time <= end
+        for p in points
+    )
 
 
 def merge_fades(
@@ -131,7 +151,7 @@ def merge_fades(
         return FadeMerge(current, 0)
     legacy: set[int] = set()
     if not any(p.id.startswith(FADE_PREFIX) for p in current):
-        legacy = _legacy_fade_indices(current)
+        legacy = _legacy_fade_indices(current, fade_in, fade_out)
         current = [p for i, p in enumerate(current) if i not in legacy]
 
     owner: dict[str, int] = {}  # slot -> index of the point that holds it
@@ -139,7 +159,6 @@ def merge_fades(
         view = _fade_view(point)
         if view is not None and view[0] not in owner:
             owner[view[0]] = index
-    duck_near = _has_duck_point(current)
 
     wanted = {slot: (time, value) for slot, time, value in targets}
     kept: list[EnvPoint] = []
@@ -158,8 +177,17 @@ def merge_fades(
         elif (point.time, original_value) == wanted[slot]:
             satisfied.add(slot)
             kept.append(point)
-        elif duck_near:
+        elif point.id.startswith(BASE_PREFIX):
             replaced_under_duck += 1
+        else:
+            target_time = wanted[slot][0]
+            lo, hi = (
+                (0.0, max(point.time, target_time))
+                if slot.startswith("in")
+                else (min(point.time, target_time), math.inf)
+            )
+            if _near_dip(current, lo, hi):
+                replaced_under_duck += 1
 
     fresh = [
         EnvPoint(fade_point_id(slot, time, value), time, value)
