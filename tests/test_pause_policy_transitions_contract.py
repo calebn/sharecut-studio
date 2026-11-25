@@ -198,8 +198,8 @@ def test_final_padded_to_splice_runs_enabled_policies_and_preserves_the_full_nex
     report = TimelineService(ws).join_quality(
         track_id="host", cut_start=0.3, cut_end=4.45, timebase="source"
     )
-    assert report["verdict"] == "pass"
-    assert [d["name"] for d in report["detectors"]] == ["inaudible_splice"]
+    assert report.verdict == "pass"
+    assert [d.name for d in report.detectors] == ["inaudible_splice"]
 
     assert EditService(ws).approve(["retained"]) == 1
 

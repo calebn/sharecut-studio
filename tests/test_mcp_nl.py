@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import join_quality_fixtures
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
     CombinedTranscript,
@@ -184,18 +185,10 @@ def test_join_quality_and_sweep_tools(tmp_path):
         patch("podcast_mcp.mcp.tools.edits.TimelineService", svc_cls),
         patch("podcast_mcp.mcp.tools.edits.AnalysisService", svc_cls),
     ):
-        svc_cls.return_value.join_quality.return_value = {
-            "track_id": "host",
-            "verdict": "pass",
-            "risk": 0.1,
-            "disclaimer": "x",
-        }
-        svc_cls.return_value.join_qa_sweep.return_value = {
-            "join_count": 2,
-            "fail_count": 0,
-            "review_count": 0,
-            "pass_count": 2,
-        }
+        svc_cls.return_value.join_quality.return_value = join_quality_fixtures.report()
+        svc_cls.return_value.join_qa_sweep.return_value = join_quality_fixtures.sweep(
+            join_count=2, pass_count=2
+        )
         q = json.loads(
             mcp_server.join_quality_tool(path, track_id="host", join_sec=1.5, timebase="timeline")
         )

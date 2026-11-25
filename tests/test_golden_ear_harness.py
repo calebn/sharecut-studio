@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import join_quality_fixtures
 from podcast_mcp.edits.pending_preview import PendingPreviewWindow
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EditDecision, EditDecisionType
@@ -111,7 +112,7 @@ def _patch_harness(
     def join_quality(self, **kwargs):
         if isinstance(join, Exception):
             raise join
-        return dict(join or {"verdict": "pass", "risk": 0.12})
+        return join_quality_fixtures.report(**(join or {"risk": 0.12}))
 
     def audition_context(self, start, end, *, detail="summary", **kwargs):
         assert detail == "summary"

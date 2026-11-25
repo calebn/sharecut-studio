@@ -3,11 +3,12 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from join_quality_fixtures import report_dict
 from podcast_mcp.services.document.join_results import JoinLabelResult, JoinTrainResult
 
 
 def _label(**over):
-    base = {"label": {"verdict": "pass"}, "played": False, "features": {"risk": 0.1}}
+    base = {"label": {"verdict": "pass"}, "played": False, "features": report_dict()}
     base.update(over)
     return base
 

@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+import join_quality_fixtures
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
     EditDecision,
@@ -314,7 +315,9 @@ def test_mcp_update_and_revert_mute(tmp_path):
     with patch.object(
         TimelineService,
         "join_label",
-        return_value=JoinLabelResult(label={"ok": True}, played=False, features={}),
+        return_value=JoinLabelResult(
+            label={"ok": True}, played=False, features=join_quality_fixtures.report()
+        ),
     ):
         labeled = json.loads(
             mcp_server.join_label_tool(path, join_sec=1.0, verdict="pass", track_id="host")

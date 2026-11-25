@@ -15,6 +15,8 @@ import wave
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.pending_preview import resolve_pending_preview, validate_pad_sec
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
@@ -340,13 +342,19 @@ def _join_metrics(
     audio_caches: dict[str, TrackAudioCache] | None,
 ) -> dict[str, Any]:
     try:
-        return TimelineService(edit_svc.ws).join_quality(
-            track_id=edit.track_id,
-            cut_start=edit.start,
-            cut_end=edit.end,
-            timebase="source",
-            audio_caches=audio_caches,
+        return (
+            TimelineService(edit_svc.ws)
+            .join_quality(
+                track_id=edit.track_id,
+                cut_start=edit.start,
+                cut_end=edit.end,
+                timebase="source",
+                audio_caches=audio_caches,
+            )
+            .model_dump(mode="json")
         )
+    except ValidationError:
+        raise
     except JOIN_ERRORS as exc:
         return {"verdict": "error", "error": f"{type(exc).__name__}: {exc}"}
 
