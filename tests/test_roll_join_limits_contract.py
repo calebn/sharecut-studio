@@ -7,20 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from contract_project_helpers import contract_project
+from contract_project_helpers import contract_project, contract_timing
 from podcast_mcp.engines.clips_ops import roll_clip_join, roll_join_limits
 from podcast_mcp.models import Clip
-from podcast_mcp.models.clip_timing import ClipTiming, TimingStep
 
 CONTRACT = Path(__file__).resolve().parents[1] / "contracts" / "roll-join-limits.json"
 DATA = json.loads(CONTRACT.read_text(encoding="utf-8"))
 CASES = DATA["cases"]
-
-
-def _timing(steps: list[list[float]] | None) -> ClipTiming | None:
-    if steps is None:
-        return None
-    return ClipTiming(steps=[TimingStep(at=at, delta_sec=delta) for at, delta in steps])
 
 
 @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
@@ -36,7 +29,7 @@ def test_roll_join_limits_and_clamps(case: dict) -> None:
                 timeline_start=ts,
                 source_start=ss,
                 source_end=se,
-                timing=_timing(steps),
+                timing=contract_timing(steps),
             )
             for cid, ts, ss, se, source_id, *rest in case["clips"]
             for steps in [rest[0] if rest else None]

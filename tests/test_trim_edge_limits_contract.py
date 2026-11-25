@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from contract_project_helpers import contract_project
+from contract_project_helpers import contract_project, contract_timing
 from podcast_mcp.engines.clips_ops import trim_edge_limits
 from podcast_mcp.models import Clip, EditMode
 
@@ -36,8 +36,9 @@ def test_trim_edge_limits(case: dict) -> None:
                 timeline_start=ts,
                 source_start=ss,
                 source_end=se,
+                timing=contract_timing(rest[0] if rest else None),
             )
-            for cid, ts, ss, se, source_id in case["clips"]
+            for cid, ts, ss, se, source_id, *rest in case["clips"]
         ],
     )
     clip = next(c for c in p.clips if c.id == case["clip_id"])
