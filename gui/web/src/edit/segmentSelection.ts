@@ -106,7 +106,8 @@ export function segmentSelectionOf(
   if (inSpan.some((clip) => !held.has(clip.track_id)))
     return {
       ok: false,
-      reason: "A segment keeps every track. Widen the range to all tracks",
+      reason:
+        "A segment keeps every track. Select a timeline range across all tracks",
     };
   if (!inSpan.length)
     return { ok: false, reason: "There is no audio in that range" };

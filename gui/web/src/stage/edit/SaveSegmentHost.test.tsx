@@ -85,6 +85,24 @@ describe("SaveSegmentHost", () => {
     );
   });
 
+  it("keeps the card and shows a failure when the selection changes during a save", async () => {
+    let fail!: (error: unknown) => void;
+    vi.mocked(api.saveSegment).mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    render(<SaveSegmentHost />);
+    open();
+    await userEvent.type(await nameField(), "Intro{Enter}");
+    act(() => useDawStore.setState({ selection: null }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toBeVisible();
+    await act(async () => fail(new ApiError("x", "segment_busy", 409)));
+    expect(await screen.findByText(/library is busy/i)).toBeVisible();
+    expect(useDawStore.getState().chrome.saveSegmentOpen).toBe(true);
+  });
+
   it("keeps the card open and explains a refusal", async () => {
     vi.mocked(api.saveSegment).mockRejectedValue(
       new ApiError("x", "segment_busy", 409),

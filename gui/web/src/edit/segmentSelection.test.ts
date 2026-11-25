@@ -117,7 +117,8 @@ describe("segmentSelectionOf", () => {
     const target = makeRangeTarget(p, [{ start: 301.5, end: 315 }], ["t1"])!;
     expect(segmentSelectionOf(p, { kind: "range", target })).toEqual({
       ok: false,
-      reason: "A segment keeps every track. Widen the range to all tracks",
+      reason:
+        "A segment keeps every track. Select a timeline range across all tracks",
     });
   });
 
