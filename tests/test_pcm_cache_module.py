@@ -44,7 +44,10 @@ def _strays(path: Path) -> list[str]:
     found: list[str] = []
     for node in ast.walk(tree):
         line = getattr(node, "lineno", 0)
-        if isinstance(node, ast.ImportFrom) and node.module == AUDIT:
+        if isinstance(node, ast.ImportFrom) and (
+            node.module == AUDIT
+            or (node.level and (node.module or "").split(".")[-1] == "audio_audit")
+        ):
             found += [f"{path}:{line} imports {a.name}" for a in node.names if a.name in MOVED]
         elif isinstance(node, ast.Attribute) and node.attr in MOVED:
             base = node.value
