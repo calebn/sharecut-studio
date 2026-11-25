@@ -350,8 +350,13 @@ install_id)`. It depends on the install and the relay master key, and not on the
 renewal, a re-enrollment, an epoch bump or a rotated signing key never changes it and never
 invalidates a claim the host already signed. The relay derives it per session, and the host
 learns it from the `claim_key` field of the enroll and renew replies and stores it with the
-lease. A lease alone cannot register shares: it proves the install may connect, and only the
-holder of the claim key can advertise a share. The master key is `PODCAST_RELAY_MASTER_KEY`. It is
+lease. The claim key stops a guest, or another tenant of the relay, from forging a share claim
+for an install. It does not stop someone who holds the install's lease: `POST /enroll/renew`
+with the lease alone, and `POST /enroll` with it as `previous` (even expired), both return the
+claim key. A stolen lease therefore gives the thief the install's tunnel and the right to sign
+its share claims, for as long as the install is not denied. Revoke it by adding the install id
+to the deny file (see Revoking access); that closes the live tunnel and refuses the lease's
+renewal and re-enrollment. Keep the lease file private (mode 0600). The master key is `PODCAST_RELAY_MASTER_KEY`. It is
 required, at least 32 characters, whenever `PODCAST_RELAY_SIGNING_KEY` is set: the relay refuses
 to start without it, because a master key derived from the signing key would change claim keys,
 and so every share claim, the day the signing key rotates. Generate it once (`openssl rand -hex
