@@ -656,7 +656,7 @@ track's raw source audio once for each required sample rate up front
 (`edits/audio_cache.py::TrackAudioCache`, built in `propose_tighten_edits`):
 8 kHz for join/RMS measurement and 16 kHz for waveform-boundary and breath
 analysis. Each later cached window read is an in-memory NumPy slice. The
-`engines/audio_audit.py::TrackRmsCache` applies the same pattern to processed
+`engines/pcm_cache.py::TrackRmsCache` applies the same pattern to processed
 stems; `analyze_gate_overreach` also caches raw-audio reads.
 A pause trim reads the speech-band level of every dialogue track around the pause. The
 band filter is an FFT, so `TrackAudioCache.band_levels` (`BandLevels`) makes the levels

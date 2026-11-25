@@ -93,6 +93,15 @@ enforced-by:
 - tests/test_tighten_gain_invariance.py::test_tighten_proposals_match_when_tracks_are_requantized_to_pcm_s16le
 -->
 
+The decoded audio those levels are read from lives in `engines/pcm_cache.py`.
+`TrackRmsCache` holds one track's mono samples at one sample rate (`RMS_SAMPLE_RATE`, 8 kHz,
+unless a caller names another) and answers window reads (`window`, `rms_db`, `speech_rms_db`).
+`TrackRmsCacheSet` holds one cache per track and measures what two tracks share: `echo_pairs`,
+`bleed_paths` and `leak_paths` (dropping a path whose reverse path rests on `ONE_WAY_RATIO`
+times more consistent frames), `copy_path` and `copy_match`. `CopyPath` is the lag and likeness
+of one such path. `engines/audio_audit.py` builds the caches (`build_track_rms_caches`,
+`build_reconciliation_caches`); callers import the classes from `pcm_cache`.
+
 A recording's gain moves every dBFS level in it, so no detector compares a level with a
 fixed dBFS value. Each track has one `LevelProfile` (`engines/level_profile.py`): its
 room (the 10th percentile of its 10 ms frames), its speech level (the 90th percentile of
