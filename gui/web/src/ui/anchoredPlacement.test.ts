@@ -383,6 +383,25 @@ describe("placeAnchoredExcluding around several rectangles", () => {
     ).toMatchObject({ left: 137, top: 414.5, side: "below", covered: false });
   });
 
+  it("prefers a spot beside the corner to tucking the bar in", () => {
+    const narrow = { width: 200, height: 90 };
+    const page = { left: 0, top: 0, width: 820, height: 1180 };
+    const frame = { left: 0, top: 193, right: 820, bottom: 1068 };
+    const lane = { left: 112, top: 253, right: 820, bottom: 404 };
+    const corner = { left: 450, top: 508.5, right: 796, bottom: 614.5 };
+    const edge = 16;
+    const spacious = {
+      margin: edge,
+      gap: edge,
+      align: "center",
+      prefer: "above",
+      clearTop: 241,
+    } as const;
+    expect(
+      placeAnchoredExcluding(lane, narrow, page, [corner], frame, spacious),
+    ).toMatchObject({ left: 234, top: 420, side: "below", covered: false });
+  });
+
   it("does not tuck the bar in where the quarter gap still leaves no room for it", () => {
     const tall = { width: 658, height: 90 };
     const page = { left: 0, top: 0, width: 820, height: 1180 };

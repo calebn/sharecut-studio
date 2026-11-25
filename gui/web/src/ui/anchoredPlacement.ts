@@ -98,9 +98,10 @@ export function areaRects(
  * `placeAnchored`, moved off every `excluded` box: of the positions beside
  * each, above all and below all that hold the whole panel clear of the set,
  * the nearest to the normal placement, keeping its side unless only the other
- * side clears. Failing that, a panel below its anchor tucks in between the
- * anchor and the excluded boxes on a quarter of the usual gap. Where none does,
- * the normal placement stands and the panel may cover an excluded box.
+ * side clears. Failing a spot beside them, a panel below its anchor tucks in
+ * between the anchor and the excluded boxes on a quarter of the usual gap.
+ * Where none does, the normal placement stands and the panel may cover an
+ * excluded box.
  */
 export function placeAnchoredExcluding(
   anchor: AnchorRect,
@@ -179,6 +180,7 @@ export function placeAnchoredExcluding(
   const tight = gap / 4;
   const between = highest - tight - panel.height;
   if (
+    sides.length === 0 &&
     placed.side === "below" &&
     between >= anchor.bottom + tight &&
     fits(clampedLeft, between)
