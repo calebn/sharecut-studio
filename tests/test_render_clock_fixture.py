@@ -105,12 +105,12 @@ _CASES: dict[str, list[Clip]] = {
         _clip("b", "host", 5, 9, _XFADE, 200, 0, room=0.0),
         _clip("c", "host", 9, 12),
     ],
-    "a_gap_inside_the_tolerance_closes_up_and_shifts_the_rest": [
+    "a_gap_inside_the_join_tolerance_stays_silence": [
         _clip("a", "host", 0, 4, fade_out=250),
         _clip("b", "host", 4.03, 8, _XFADE, 250, 0),
         _clip("c", "host", 8.03, 10),
     ],
-    "a_start_within_tolerance_of_the_frontier_snaps_to_it": [
+    "a_start_just_past_the_frontier_stays_where_it_is": [
         _clip("a", "host", 0, 4, fade_out=250),
         _clip("b", "host", 4, 8, _XFADE, 250, 0),
         _clip("c", "host", 8.0005, 10),
@@ -264,23 +264,14 @@ def test_fixture_matches_the_render(tmp_path: Path) -> None:
             assert a == pytest.approx(b), (want["name"], a["id"])
 
 
-def test_a_blend_moves_no_clip_and_a_closed_gap_still_does(tmp_path: Path) -> None:
-    moved = {
-        row["id"]
-        for case in _build(tmp_path)["cases"]
-        for row in case["clips"]
-        if abs(row["placed_start"] - row["timeline_start"]) > 1e-9
-    }
-    assert {"b", "c"} & moved
-    for case in _build(tmp_path / "again")["cases"]:
-        if case["name"] in {
-            "one_blending_join_moves_nothing",
-            "a_chain_of_blends_moves_nothing_and_a_gap_stays",
-            "a_blending_lane_stays_in_step_with_a_plain_one",
-        }:
-            for row in case["clips"]:
-                if row["id"] != "d":
-                    assert row["placed_start"] == pytest.approx(row["timeline_start"], abs=1e-9)
+def test_no_clip_moves_on_the_render_clock(tmp_path: Path) -> None:
+    """A blend borrows instead of moving, and a gap plays as silence however short (#2496)."""
+    for case in _build(tmp_path)["cases"]:
+        for row in case["clips"]:
+            assert row["placed_start"] == pytest.approx(row["timeline_start"], abs=1e-9), (
+                case["name"],
+                row["id"],
+            )
 
 
 def _borrow_project(tmp_path: Path) -> EpisodeProject:

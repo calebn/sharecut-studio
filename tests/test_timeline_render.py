@@ -10,7 +10,6 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.audio import (
     At,
     Audio,
-    CrossfadeAudio,
     MixAudio,
     SequenceAudio,
     SilenceAudio,
@@ -789,7 +788,9 @@ def test_crossfade_join_helpers():
     assert crossfade_ms_at_join(left, right) >= 20
 
 
-def test_crossfade_join_uses_canonical_gap_tolerance():
+def test_a_crossfade_join_blends_only_across_a_seam_with_no_gap():
+    """Render keeps every gap as silence (#2496), so a gap inside the join tolerance
+    no longer blends."""
     from podcast_mcp.engines.clips_ops import uses_crossfade_join
 
     left = Clip(
@@ -805,12 +806,12 @@ def test_crossfade_join_uses_canonical_gap_tolerance():
         track_id="host",
         source_start=0.0,
         source_end=1.0,
-        timeline_start=1.0 + JOIN_GAP_TOLERANCE_SEC / 2,
+        timeline_start=1.0,
         fade_in_ms=20,
         join_in_mode=ClipJoinMode.CROSSFADE,
     )
     assert uses_crossfade_join(left, right)
-    right.timeline_start = 1.0 + JOIN_GAP_TOLERANCE_SEC + 1e-3
+    right.timeline_start = 1.0 + JOIN_GAP_TOLERANCE_SEC / 2
     assert not uses_crossfade_join(left, right)
 
 
@@ -856,17 +857,20 @@ def _capture_segment_placement(project: EpisodeProject, out: Path) -> Audio:
     return render.call_args.args[1]
 
 
-def test_render_track_segment_crossfades_sub_tolerance_gap(sample_wav: Path, tmp_path: Path):
-    project = _two_clip_project(
-        tmp_path / "ws", sample_wav, JOIN_GAP_TOLERANCE_SEC / 2, ClipJoinMode.CROSSFADE
-    )
+def test_render_track_segment_keeps_a_sub_tolerance_gap_as_silence(
+    sample_wav: Path, tmp_path: Path
+):
+    """A gap inside the join tolerance plays as the silence the timeline shows (#2496)."""
+    gap = JOIN_GAP_TOLERANCE_SEC / 2
+    project = _two_clip_project(tmp_path / "ws", sample_wav, gap, ClipJoinMode.CROSSFADE)
 
     placed = _capture_segment_placement(project, tmp_path / "seg.wav")
 
     assert isinstance(placed, MixAudio)
     assert placed.head.start_sec == 0.0
-    assert isinstance(placed.head.audio, CrossfadeAudio)
-    assert placed.head.audio.overlap_sec == pytest.approx(0.02)
+    assert isinstance(placed.head.audio, SourceAudio)
+    assert isinstance(placed.tail[0].audio, SourceAudio)
+    assert placed.tail[0].start_sec == pytest.approx(0.4 + gap)
 
 
 def test_render_track_segment_keeps_gap_beyond_tolerance(sample_wav: Path, tmp_path: Path):
@@ -881,12 +885,11 @@ def test_render_track_segment_keeps_gap_beyond_tolerance(sample_wav: Path, tmp_p
     assert placed.tail[0].start_sec == pytest.approx(0.4 + gap)
 
 
-def test_render_crossfade_join_absorbs_sub_tolerance_gap(sample_wav: Path, tmp_path: Path):
-    """A CROSSFADE join with a 30 ms gap renders as a crossfade; the gap is not kept.
+def test_render_crossfade_join_keeps_a_sub_tolerance_gap(sample_wav: Path, tmp_path: Path):
+    """A CROSSFADE join with a 30 ms gap plays its two fades over the gap's silence.
 
-    Same rule as FADE joins: gaps within JOIN_GAP_TOLERANCE_SEC close up, so the
-    stem is shorter than the timeline by the gap; the crossfade borrows from the recordings
-    and costs no time (#1888).
+    Render keeps every gap the timeline shows, however short (#2496), so the stem is as
+    long as the timeline. Only a seam with no gap blends.
     """
     eng = FFmpegEngine()
     if not eng.check_available()[0]:
@@ -917,9 +920,8 @@ def test_render_crossfade_join_absorbs_sub_tolerance_gap(sample_wav: Path, tmp_p
 
     render_cmds = [c for c in commands if "filter_complex" in c]
     assert len(render_cmds) == 1
-    assert "acrossfade=d=0.02:c1=tri:c2=tri" in render_cmds[0]
-    assert "apad" not in render_cmds[0]
-    assert eng.probe(out).duration_sec == pytest.approx(0.80, abs=0.01)
+    assert "acrossfade" not in render_cmds[0]
+    assert eng.probe(out).duration_sec == pytest.approx(0.83, abs=0.01)
 
 
 def test_render_fade_join_uses_segment_afade_not_acrossfade(sample_wav: Path, tmp_path: Path):
@@ -2091,3 +2093,30 @@ def test_a_400_ms_crossfade_join_keeps_the_stem_length(sample_wav: Path, tmp_pat
     samples, rate, dur = _render_stem(joined, "joined.wav")
     assert dur == pytest.approx(cut_dur, abs=0.002)
     assert _window_rms(samples, rate, 700, 900) > 0.5 * _window_rms(samples, rate, 100, 300)
+
+
+def test_edges_facing_gaps_finds_the_edges_that_meet_silence():
+    from podcast_mcp.engines.timeline_render import edges_facing_gaps
+
+    def clip(name: str, start: float, end: float) -> Clip:
+        return Clip(
+            id=name,
+            track_id="host",
+            source_start=0.0,
+            source_end=end - start,
+            timeline_start=start,
+        )
+
+    # a and b touch; c follows a 20 ms gap; d sits inside the long e, so only e's end
+    # faces the gap before f.
+    clips = [
+        clip("a", 0.0, 1.0),
+        clip("b", 1.0, 2.0),
+        clip("c", 2.02, 3.0),
+        clip("e", 3.0, 6.0),
+        clip("d", 4.0, 5.0),
+        clip("f", 7.0, 8.0),
+    ]
+    gap_in, gap_out = edges_facing_gaps(clips)
+    assert gap_in == [False, False, True, False, False, True]
+    assert gap_out == [False, True, False, True, False, False]

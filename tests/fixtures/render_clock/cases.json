@@ -358,7 +358,7 @@
       ]
     },
     {
-      "name": "a_gap_inside_the_tolerance_closes_up_and_shifts_the_rest",
+      "name": "a_gap_inside_the_join_tolerance_stays_silence",
       "clips": [
         {
           "id": "a",
@@ -390,10 +390,9 @@
           "fade_out_ms": 0,
           "join_left_clip_id": "a",
           "join_render_mode": "crossfade",
-          "join_crossfade_ms": 250,
-          "join_crossfade_blocked": null,
-          "join_borrow_sec": 0.125,
-          "placed_start": 4.0
+          "join_crossfade_ms": 0,
+          "join_crossfade_blocked": "not_abutting",
+          "placed_start": 4.030000000000001
         },
         {
           "id": "c",
@@ -410,12 +409,12 @@
           "join_render_mode": "cut",
           "join_crossfade_ms": 0,
           "join_crossfade_blocked": null,
-          "placed_start": 7.969999999999999
+          "placed_start": 8.030000000000001
         }
       ]
     },
     {
-      "name": "a_start_within_tolerance_of_the_frontier_snaps_to_it",
+      "name": "a_start_just_past_the_frontier_stays_where_it_is",
       "clips": [
         {
           "id": "a",
@@ -467,7 +466,7 @@
           "join_render_mode": "cut",
           "join_crossfade_ms": 0,
           "join_crossfade_blocked": null,
-          "placed_start": 8.0
+          "placed_start": 8.000500000000002
         }
       ]
     },
@@ -884,7 +883,7 @@
           "join_crossfade_ms": 300,
           "join_crossfade_blocked": null,
           "join_borrow_sec": 0.15,
-          "placed_start": 5.0
+          "placed_start": 5.000000000000002
         },
         {
           "source_id": "s1",
@@ -1009,7 +1008,7 @@
           "join_render_mode": "crossfade",
           "join_crossfade_ms": 0,
           "join_crossfade_blocked": "no_headroom",
-          "placed_start": 5.0
+          "placed_start": 4.999999999999998
         },
         {
           "source_id": "s1",

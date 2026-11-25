@@ -12,6 +12,7 @@ from podcast_mcp.engines.audio import (
     At,
     CrossfadeAudio,
     MixAudio,
+    SequenceAudio,
     SourceAudio,
     duration,
     sources,
@@ -358,7 +359,7 @@ def test_longest_mix_keeps_every_input_eof_and_content(tmp_path: Path, follower_
     ]
 
 
-def test_component_frontier_retires_a_shrunk_maximum(tmp_path: Path):
+def test_a_blend_that_shrinks_a_component_leaves_the_window_extent_as_authored(tmp_path: Path):
     predecessor = SourceAudio(tmp_path / "a.wav", 0, 1.001)
     independent = SourceAudio(tmp_path / "b.wav", 0, 20.00075)
     right = SourceAudio(tmp_path / "c.wav", 0, 0.0005)
@@ -371,28 +372,30 @@ def test_component_frontier_retires_a_shrunk_maximum(tmp_path: Path):
         window_length=26,
     )
     assert duration(plan.audio) == pytest.approx(25.00075)
-    assert plan.extent.seconds == pytest.approx(25.99925)
+    assert plan.extent.seconds == pytest.approx(26)
 
 
-@pytest.mark.parametrize(
-    ("ended", "silent", "start", "placed_at"),
-    [
-        (-0.1, False, 0.02, 0.02),  # a real gap to the clip before the window: no snap
-        (-0.01, False, 0.02, 0.0),  # under the join tolerance: it joined the clip before
-        (-0.01, True, 0.02, 0.02),  # a silent timing hole sits between them: no snap
-        (-0.0001, False, 0.0, 0.0),
-    ],
-)
-def test_first_clip_of_a_window_snaps_only_to_a_clip_that_ends_before_it(
-    tmp_path: Path, ended: float, silent: bool, start: float, placed_at: float
-):
-    """A window sees the clips before it as markers, so it knows what its first clip follows (#2498)."""
-    audio = SourceAudio(tmp_path / "a.wav", 0.0, 1.0)
-    before = _PreparedClip(
-        _prepared("before", -2, ended, audio).clip,
-        None,
-        before_window_end=ended,
-        silent_before=silent,
+@pytest.mark.parametrize("gap", [0.0005, 0.02, 0.05, 0.1])
+def test_a_gap_between_clips_plays_as_silence_however_short(tmp_path: Path, gap: float):
+    """Render no longer closes a gap inside the join tolerance (#2496)."""
+    first = SourceAudio(tmp_path / "a.wav", 0.0, 1.0)
+    second = SourceAudio(tmp_path / "b.wav", 0.0, 1.0)
+    plan = _place_clips(
+        [_prepared("a", 0, 1, first), _prepared("b", 1 + gap, 2 + gap, second)],
     )
-    plan = _place_clips([before, _prepared("a", start, start + 1, audio)], window_length=2.0)
-    assert plan.audio == MixAudio(At(placed_at, audio), ())
+    assert plan.audio == MixAudio(At(0.0, first), (At(1 + gap, second),))
+
+
+def test_touching_clips_chain_into_one_component(tmp_path: Path):
+    first = SourceAudio(tmp_path / "a.wav", 0.0, 1.0)
+    second = SourceAudio(tmp_path / "b.wav", 0.0, 1.0)
+    plan = _place_clips([_prepared("a", 0, 1, first), _prepared("b", 1, 2, second)])
+    assert plan.audio == MixAudio(At(0.0, SequenceAudio(first, (second,))), ())
+
+
+def test_the_first_clip_of_a_window_plays_where_the_timeline_puts_it(tmp_path: Path):
+    """A window no longer needs to know what its first clip follows (#2498): nothing snaps."""
+    audio = SourceAudio(tmp_path / "a.wav", 0.0, 1.0)
+    plan = _place_clips([_prepared("a", 0.02, 1.02, audio)], window_length=2.0)
+    assert plan.audio == MixAudio(At(0.02, audio), ())
+    assert plan.extent.seconds == pytest.approx(2.0)

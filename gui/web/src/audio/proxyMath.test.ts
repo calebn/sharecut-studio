@@ -512,7 +512,7 @@ describe("proxyMath", () => {
     expect(late[1].whenTimelineSec).toBeCloseTo(1.9, 9);
   });
 
-  it("closes a plain join gap inside the tolerance and carries it as render does", () => {
+  it("keeps a plain join gap inside the tolerance as silence (#2496)", () => {
     const slices = buildSchedule(
       [
         clip({ id: "a", timeline_start: 0, timeline_end: 2 }),
@@ -521,6 +521,7 @@ describe("proxyMath", () => {
           timeline_start: 2.04,
           timeline_end: 4.04,
           join_left_clip_id: "a",
+          join_in_mode: "cut",
         }),
         clip({ id: "c", timeline_start: 5, timeline_end: 6 }),
       ],
@@ -528,11 +529,30 @@ describe("proxyMath", () => {
       20,
       manifest(),
     );
-    expect(slices.map((s) => s.whenTimelineSec)).toEqual([
+    expect(slices.map((s) => s.whenTimelineSec)).toEqual([0, 2.04, 5]);
+    // Each edge facing a gap gets the declick fade, a cut join included.
+    const [a, b, c] = slices;
+    expect(a.envelope.fadeInSec).toBe(0);
+    expect(a.envelope.fadeOutSec).toBeCloseTo(0.01, 9);
+    expect(b.envelope.fadeInSec).toBeCloseTo(0.01, 9);
+    expect(b.envelope.fadeOutSec).toBeCloseTo(0.01, 9);
+    expect(c.envelope.fadeInSec).toBeCloseTo(0.01, 9);
+    expect(c.envelope.fadeOutSec).toBe(0);
+  });
+
+  it("keeps a longer stored fade on an edge facing a gap", () => {
+    const [a, b] = buildSchedule(
+      [
+        clip({ id: "a", timeline_start: 0, timeline_end: 2, fade_out_ms: 80 }),
+        clip({ id: "b", timeline_start: 3, timeline_end: 3.004 }),
+      ],
       0,
-      2,
-      expect.closeTo(4.96, 9),
-    ]);
+      20,
+      manifest(),
+    );
+    expect(a.envelope.fadeOutSec).toBeCloseTo(0.08, 9);
+    // A clip shorter than two declicks fades over half its length.
+    expect(b.envelope.fadeInSec).toBeCloseTo(0.002, 9);
   });
 
   it("leaves a blocked or other-lane crossfade join where it was authored", () => {

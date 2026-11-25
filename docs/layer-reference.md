@@ -53,7 +53,7 @@ per-module ownership notes live here.
 ## Engines, placement and FFmpeg
 
 `engines/timeline_render.placed_track_audio` builds the same source and placement graph
-that rendering consumes, including mute-fill sources and crossfade clock shifts. It does
+that rendering consumes, including mute-fill sources and crossfade borrows. It does
 not render or save. Each leaf identifies clip audio or a mute-fill tile. Cut effects
 bind to a qualified BEFORE leaf independently of their final timeline position;
 repeated source plays retain separate occurrence and gain evidence. Ambiguous or
