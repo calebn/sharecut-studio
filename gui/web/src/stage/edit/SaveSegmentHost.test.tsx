@@ -55,13 +55,34 @@ describe("SaveSegmentHost", () => {
       expect.objectContaining({
         path: "/tmp/episode",
         name: "Cold open",
-        kind: expect.any(String),
+        kind: "intro",
         clip_ids: ["a"],
       }),
     );
     const toast = useDawStore.getState().feedbackToast;
     expect(toast?.message).toBe("Saved Cold open as version 2");
     expect(toast?.undo).toBeFalsy();
+  });
+
+  it("sends the kind the user picked instead of the guess", async () => {
+    vi.mocked(api.saveSegment).mockResolvedValue({
+      status: "added",
+      id: "ad-read-1",
+      version: 1,
+    });
+    render(<SaveSegmentHost />);
+    open();
+    await userEvent.type(await nameField(), "Ad read");
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Kind" }),
+      "sponsor",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(api.saveSegment).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Ad read", kind: "sponsor" }),
+      ),
+    );
   });
 
   it("keeps the card open and explains a refusal", async () => {
