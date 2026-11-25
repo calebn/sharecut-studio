@@ -5,7 +5,7 @@ import {
 } from "../stage/frame/attentionLabel";
 import type { DecisionKind } from "../system/decisionKinds";
 import { KIND_META } from "../system/decisionKinds";
-import { formatSeconds } from "../system/seconds";
+import { formatSeconds, formatSpan, hasCutsSaved } from "../system/seconds";
 import { verbOf } from "../system/verbDisplay";
 import type { VerbId } from "../system/verbs";
 import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
@@ -325,7 +325,9 @@ function secondsSaved(items: readonly ReviewItem[]): number {
 /** "6 of 14 decided · saves 7.8 s" */
 export function progressLine(items: readonly ReviewItem[]): string {
   const decided = items.filter(isDecided).length;
-  return `${decided} of ${items.length} decided · saves ${formatSeconds(secondsSaved(items))}`;
+  const saved = secondsSaved(items);
+  const base = `${decided} of ${items.length} decided`;
+  return hasCutsSaved(saved) ? `${base} · saves ${formatSpan(saved)}` : base;
 }
 
 /** "2 of 5 resolved" for a queue that is only comments. */
@@ -363,7 +365,9 @@ export function decisionMessage(
   if (!first) return "Done";
   if (picked.length === 1) return resultText({ ...first, result });
   if (result === "kept") return `Kept ${picked.length}`;
-  return `${verbOf(groupVerbOf(picked)).label} ${picked.length} · saves ${formatSeconds(sumSaved(picked))}`;
+  const label = `${verbOf(groupVerbOf(picked)).label} ${picked.length}`;
+  const saved = sumSaved(picked);
+  return hasCutsSaved(saved) ? `${label} · saves ${formatSpan(saved)}` : label;
 }
 
 /** The Needs attention group's id, so the Save dot's "See why" can focus it. */

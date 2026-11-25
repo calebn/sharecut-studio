@@ -31,7 +31,7 @@ describe("barFitKey", () => {
   const props = { ...base, following: follow("Maya") };
   const updateCases = [
     ["clock width", { time: "01:12:04.250" }],
-    ["cut duration", { cuts: "−4:10" }],
+    ["cut duration", { cuts: "−4 min 10 s" }],
     ["playback speed", { rate: 2 }],
     ["solo label", { solo: "Cal" }],
     ["player state", { state: "error" }],
@@ -225,7 +225,7 @@ describe("useBarFit", () => {
 
   it("observes the bar, its three columns and what is in them", () => {
     const { container } = render(
-      <Player {...base} cuts="-4:10" status="Mix out of date" />,
+      <Player {...base} cuts="−4 min 10 s" status="Mix out of date" />,
     );
     const host = container.querySelector<HTMLElement>(".sys-player-host");
     if (!host) throw new Error("no host");

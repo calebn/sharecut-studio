@@ -71,7 +71,7 @@ describe("ReviewQueue long list", () => {
       />,
     );
 
-    expect(screen.getByText("0 of 160 decided · saves 0.0 s")).toBeVisible();
+    expect(screen.getByText("0 of 160 decided")).toBeVisible();
     const filterGroup = screen.getByRole("group", { name: "Filter" });
     expect(within(filterGroup).getByText("Comments")).toBeVisible();
     expect(within(filterGroup).getByText("Checks")).toBeVisible();
@@ -105,7 +105,7 @@ describe("ReviewQueue long list", () => {
       result: "applied",
       text: "unclear-word-001",
     });
-    expect(screen.getByText("1 of 160 decided · saves 0.0 s")).toBeVisible();
+    expect(screen.getByText("1 of 160 decided")).toBeVisible();
 
     const allFilter = screen.getByRole("button", { name: /^All,/ });
     allFilter.focus();
@@ -158,7 +158,7 @@ describe("ReviewQueue long list", () => {
       name: /Keep the laugh by the boat\?/,
     });
     expect(returnedComment).toHaveAttribute("aria-current", "true");
-    expect(screen.getByText("1 of 160 decided · saves 0.0 s")).toBeVisible();
+    expect(screen.getByText("1 of 160 decided")).toBeVisible();
     expect(onDecide).toHaveBeenCalledOnce();
   });
 });

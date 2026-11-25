@@ -304,7 +304,7 @@ describe("Review host pickups", () => {
     expect(groups()).toEqual(["Pickups"]);
     expect(heading()).toBe("Replace 5:00–6:00 with Session 3");
     expect(screen.getAllByText("Insert Session 2 at 12:04")[0]).toBeVisible();
-    expect(screen.getByText("0 of 2 decided · saves 0.0 s")).toBeVisible();
+    expect(screen.getByText("0 of 2 decided")).toBeVisible();
     expect(screen.queryByRole("button", { name: /all \d/ })).toBeNull();
     const card = within(screen.getByRole("article"));
     expect(card.getByText("Jon")).toBeVisible();
@@ -328,7 +328,7 @@ describe("Review host pickups", () => {
       override_audio_checks: false,
     });
     expect(useDawStore.getState().feedbackToast?.undo).toBeTruthy();
-    expect(screen.getByText("1 of 1 decided · saves 0.0 s")).toBeVisible();
+    expect(screen.getByText("1 of 1 decided")).toBeVisible();
   });
 
   it("Accept on a replace sends the selected take, or the default one", async () => {
@@ -374,7 +374,7 @@ describe("Review host pickups", () => {
       ),
     ).toBeVisible();
     expect(heading()).toBe("Replace 5:00–6:00 with Session 3");
-    expect(screen.getByText("0 of 1 decided · saves 0.0 s")).toBeVisible();
+    expect(screen.getByText("0 of 1 decided")).toBeVisible();
     expect(toast()).toBeUndefined();
     expect(screen.queryByRole("button", { name: "Add a note" })).toBeNull();
     await userEvent.click(
@@ -392,7 +392,7 @@ describe("Review host pickups", () => {
     mount([REPLACE]);
     press("Enter");
     await waitFor(() => expect(toast()).toBe(REFINE_GATE_GUI_MESSAGE));
-    expect(screen.getByText("0 of 1 decided · saves 0.0 s")).toBeVisible();
+    expect(screen.getByText("0 of 1 decided")).toBeVisible();
   });
 
   it("reopens the pickup and says why when the server refuses", async () => {
@@ -400,7 +400,7 @@ describe("Review host pickups", () => {
     mount([INSERT]);
     press("Enter");
     await waitFor(() => expect(toast()).toBe("Broke"));
-    expect(screen.getByText("0 of 1 decided · saves 0.0 s")).toBeVisible();
+    expect(screen.getByText("0 of 1 decided")).toBeVisible();
   });
 
   it("plays Before and After through the session audition routes, after warming on show", async () => {
@@ -726,7 +726,7 @@ describe("Review host pickups", () => {
         "The host sent an unexpected reply. Nothing changed.",
       ),
     );
-    expect(screen.getByText("0 of 1 decided · saves 0.0 s")).toBeVisible();
+    expect(screen.getByText("0 of 1 decided")).toBeVisible();
   });
 
   it("sends nothing for a replace another client already handled, and reloads", async () => {
@@ -742,7 +742,7 @@ describe("Review host pickups", () => {
       expect(toast()).toBe("This suggestion was already handled."),
     );
     expect(sent("AcceptSessionSuggestion")).toHaveLength(0);
-    expect(screen.getByText("0 of 1 decided · saves 0.0 s")).toBeVisible();
+    expect(screen.getByText("0 of 1 decided")).toBeVisible();
   });
 
   it("lists a replace with no distinct takes and accepts it without a take_index", async () => {

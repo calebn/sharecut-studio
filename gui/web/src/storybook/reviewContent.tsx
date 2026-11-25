@@ -3,7 +3,7 @@ import type { ReviewItem } from "../review/reviewQueueModel";
 import { KIND_META } from "../system/decisionKinds";
 import type { SuggestionSegment } from "../system/Suggestion";
 import { Suggestion } from "../system/Suggestion";
-import { formatSeconds } from "../system/seconds";
+import { formatSpan } from "../system/seconds";
 import {
   FILLER_EXCERPT,
   FILLER_WITH_UNSURE,
@@ -261,7 +261,7 @@ export function reviewContent(item: ReviewItem): ReviewContent {
           ? `${comment.replies} replies`
           : undefined
         : item.savedSeconds > 0
-          ? formatSeconds(item.savedSeconds)
+          ? formatSpan(item.savedSeconds)
           : undefined,
       author,
       unread: comment?.unread,

@@ -14,7 +14,7 @@ import { QueueRow, type QueueRowProps } from "../system/QueueRow";
 import { Skeleton } from "../system/Skeleton";
 import { StatusRow } from "../system/StatusRow";
 import { SystemIcon } from "../system/SystemIcon";
-import { formatSeconds } from "../system/seconds";
+import { formatSpan, hasCutsSaved } from "../system/seconds";
 import type { TakeSwitcherProps } from "../system/TakeSwitcher";
 import { VerbButton } from "../system/VerbButton";
 import { hintOf, iconOf, verbOf } from "../system/verbDisplay";
@@ -240,7 +240,9 @@ function GroupHeader({
       </span>
       {bulk && verb?.icon ? (
         <>
-          <span className="sys-mono">{formatSeconds(bulk.savedSeconds)}</span>
+          {hasCutsSaved(bulk.savedSeconds) ? (
+            <span className="sys-mono">{formatSpan(bulk.savedSeconds)}</span>
+          ) : null}
           <Button
             className="rv-bulk"
             aria-label={
@@ -895,9 +897,11 @@ export function ReviewQueue({
             <span className="sys-mono rv-group-count">
               {lowRisk.ids.length}
             </span>
-            <span className="sys-mono">
-              {formatSeconds(lowRisk.savedSeconds)}
-            </span>
+            {hasCutsSaved(lowRisk.savedSeconds) ? (
+              <span className="sys-mono">
+                {formatSpan(lowRisk.savedSeconds)}
+              </span>
+            ) : null}
             <Button
               className="rv-bulk"
               onClick={() => onBulkIds?.(lowRisk.ids)}

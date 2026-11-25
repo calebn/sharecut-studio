@@ -24,7 +24,7 @@ import {
   type SuggestionWaveformProps,
 } from "./SuggestionWaveform";
 import { SystemIcon } from "./SystemIcon";
-import { formatSeconds, type TimeRange } from "./seconds";
+import { formatSpan, hasCutsSaved, type TimeRange } from "./seconds";
 import { TakeSwitcher, type TakeSwitcherProps } from "./TakeSwitcher";
 import { useSwipeDecision } from "./useSwipeDecision";
 import { iconOf } from "./verbDisplay";
@@ -457,9 +457,10 @@ export function DecisionCard(props: DecisionCardProps) {
                 if (audition && audition.side !== "B") audition.onSide("B");
               }}
             />
-            {savedSeconds === undefined ? null : (
+            {savedSeconds === undefined ||
+            !hasCutsSaved(savedSeconds) ? null : (
               <p className="sys-decision-saves sys-mono" aria-live="polite">
-                Saves {formatSeconds(savedSeconds)}
+                Saves {formatSpan(savedSeconds)}
               </p>
             )}
           </>

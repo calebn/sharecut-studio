@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCutsSaved, formatSeconds } from "./seconds";
+import { formatCutsSaved, formatSeconds, formatSpan } from "./seconds";
 
 describe("formatCutsSaved", () => {
   it.each([
@@ -30,6 +30,21 @@ describe("formatCutsSaved", () => {
     for (const sec of [9.96, 10, 59.6, 119.5, 3600]) {
       expect(formatCutsSaved(sec)).not.toMatch(/\.0|60 s/);
     }
+  });
+});
+
+describe("formatSpan", () => {
+  it.each([
+    [0.05, "0.1 s"],
+    [3.2, "3.2 s"],
+    [9.94, "9.9 s"],
+    [9.96, "10 s"],
+    [12.4, "12 s"],
+    [59.6, "1 min"],
+    [72, "1 min 12 s"],
+    [119.5, "2 min"],
+  ])("%s reads %j", (sec, text) => {
+    expect(formatSpan(sec)).toBe(text);
   });
 });
 

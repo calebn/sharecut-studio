@@ -110,7 +110,7 @@ describe("pickups", () => {
     });
     expect(
       progressLine([pickup({ result: "applied" }), pickup({ id: "b" })]),
-    ).toBe("1 of 2 decided · saves 0.0 s");
+    ).toBe("1 of 2 decided");
   });
 
   it("filters them with the suggestions and counts them there", () => {
@@ -245,6 +245,21 @@ describe("counts and progress", () => {
 
   it("writes one progress sentence", () => {
     expect(progressLine(QUEUE_ITEMS)).toBe("2 of 12 decided · saves 0.5 s");
+  });
+
+  it("rounds a large saved total to whole seconds", () => {
+    expect(
+      progressLine([
+        item({ id: "a", savedSeconds: 23.6, result: "applied" }),
+        item({ id: "b" }),
+      ]),
+    ).toBe("1 of 2 decided · saves 24 s");
+  });
+
+  it("leaves 'saves' out when nothing is saved", () => {
+    expect(progressLine([item({ id: "a" }), item({ id: "b" })])).not.toContain(
+      "saves",
+    );
   });
 
   it("writes a comment sentence without savings", () => {
