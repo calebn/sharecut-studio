@@ -95,6 +95,7 @@ def submit_segment_insert(
     version: int | None = None,
     dry_run: bool = False,
     client_id: str = "mcp-agent",
+    placement: str = "ripple",
 ) -> SegmentInsertPreview | SegmentInsertApplied:
     """Insert a library segment (or report what an insert would move), for the CLI and MCP.
 
@@ -102,16 +103,19 @@ def submit_segment_insert(
     is read under the document lock when the insert runs, and in the same way for a dry run.
     The version is pinned here, so the journaled command names the audio that went in even if
     a newer version is saved later. A dry run reads the project in place and writes nothing,
-    not even a legacy file rename. Errors: see ``insert_saved_segment``, plus
-    ``segment_version_invalid``.
+    not even a legacy file rename. ``placement`` is ``ripple`` (default) or ``own_lane``, which
+    moves nothing and puts the segment on new tracks; only ``own_lane`` is sent in the command.
+    Errors: see ``insert_saved_segment``, plus ``segment_version_invalid`` and
+    ``segment_placement_invalid``.
     """
-    from podcast_mcp.segments.position import parse_position
+    from podcast_mcp.segments.position import parse_placement, parse_position
     from podcast_mcp.segments.store import SegmentStore
     from podcast_mcp.services.document import SegmentInsertApplied, preview_segment_insert
 
     store = SegmentStore()
     position = parse_position(at)
     pinned = store.resolve_version(segment_id, version)
+    placement = parse_placement(placement)
     if dry_run:
         return preview_segment_insert(
             ProjectWorkspace.open(project_path, adopt=False),
@@ -119,11 +123,17 @@ def submit_segment_insert(
             position,
             version=pinned,
             store=store,
+            placement=placement,
         )
     result = submit_host_command_result(
         project_path,
         "InsertSegment",
-        {"segment_id": segment_id, "at": position, "version": pinned},
+        {
+            "segment_id": segment_id,
+            "at": position,
+            "version": pinned,
+            **({} if placement == "ripple" else {"placement": placement}),
+        },
         client_id=client_id,
     )
     return SegmentInsertApplied.model_validate(result)

@@ -89,10 +89,13 @@ export type SegmentSaveRefusal = (typeof SEGMENT_SAVE_REFUSALS)[number];
 
 export type SegmentInsertAt = "start" | "end" | number;
 
+export type SegmentPlacement = "ripple" | "own_lane";
+
 export interface SegmentInsertRequest {
   segment_id: string;
   at: SegmentInsertAt;
   version?: number;
+  placement?: SegmentPlacement;
 }
 
 export interface SegmentInsertApplied {
@@ -105,6 +108,7 @@ export interface SegmentInsertApplied {
   at: number;
   duration_sec: number;
   tracks: Record<string, string>;
+  placement?: SegmentPlacement;
 }
 
 export const SEGMENT_INSERT_APPLIED_KEYS = [
@@ -117,6 +121,7 @@ export const SEGMENT_INSERT_APPLIED_KEYS = [
   "at",
   "duration_sec",
   "tracks",
+  "placement",
 ] as const satisfies readonly (keyof SegmentInsertApplied)[];
 
 export type SegmentInsertOutcome =
@@ -156,6 +161,7 @@ export interface SegmentInsertPreview {
   pending_edits_moved: number;
   tracks_added: string[];
   tracks: Record<string, string>;
+  placement?: SegmentPlacement;
 }
 
 export const SEGMENT_INSERT_PREVIEW_KEYS = [
@@ -175,6 +181,7 @@ export const SEGMENT_INSERT_PREVIEW_KEYS = [
   "pending_edits_moved",
   "tracks_added",
   "tracks",
+  "placement",
 ] as const satisfies readonly (keyof SegmentInsertPreview)[];
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -267,6 +274,9 @@ function appliedInsert(value: unknown): SegmentInsertApplied {
         (entry): entry is [string, string] => typeof entry[1] === "string",
       ),
     ),
+    ...(value.placement === "own_lane"
+      ? { placement: "own_lane" as const }
+      : {}),
   };
 }
 
@@ -298,6 +308,8 @@ export async function previewSegmentInsert(
   const params = new URLSearchParams({ path, at: String(request.at) });
   if (request.version !== undefined)
     params.set("version", String(request.version));
+  if (request.placement !== undefined)
+    params.set("placement", request.placement);
   const res = await apiFetch(
     HOST_KEY,
     {

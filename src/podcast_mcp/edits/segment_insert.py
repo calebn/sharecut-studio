@@ -38,6 +38,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import SegmentRef
 from podcast_mcp.segments.model import SegmentFile
+from podcast_mcp.segments.position import Placement, parse_placement
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -74,6 +75,23 @@ def check_position(project: EpisodeProject, at: float) -> None:
         )
 
 
+def check_placement(segment: SegmentFile, placement: object) -> None:
+    """Refuse an unknown placement, or ``own_lane`` for a dialogue segment, before any change.
+
+    A dialogue segment gets a speaker track, which would join every later ripple and trigger
+    ducking, so it cannot sit "beside" the dialogue without being part of it.
+    Raises ``segment_placement_invalid`` and ``segment_placement_unsupported``.
+    """
+    placement = parse_placement(placement)
+    if placement == "own_lane" and segment.role is TrackRole.DIALOGUE:
+        raise CodedValueError(
+            f"The segment {segment.name!r} is a dialogue segment, so it cannot be laid on its "
+            "own lane without moving anything: it would become a speaker track. Insert it with "
+            "ripple, or save it with a music, sfx, intro or outro role.",
+            code="segment_placement_unsupported",
+        )
+
+
 def _unique_track_id(project: EpisodeProject, preferred: str) -> str:
     base = slug_track_id(preferred)
     taken = {t.id for t in project.tracks}
@@ -101,18 +119,21 @@ def _free_label(project: EpisodeProject, label: str) -> str:
     return candidate
 
 
-def map_lanes(project: EpisodeProject, segment: SegmentFile) -> dict[int, str]:
+def map_lanes(
+    project: EpisodeProject, segment: SegmentFile, placement: Placement = "ripple"
+) -> dict[int, str]:
     """The track each segment lane lands on, creating the tracks that do not exist yet.
 
     Lane 0 of a segment whose role is not dialogue goes on the project's first track of that
     role, so an intro lands on the intro track the episode already has. Every other lane gets
     a track of its own, named for the segment, with the segment's role and level. A dialogue
-    segment always gets its own track: it is not any speaker's voice.
+    segment always gets its own track: it is not any speaker's voice. With ``own_lane`` no
+    lane reuses a track, so nothing already on the timeline shares a track with the segment.
     """
     lanes = sorted({clip.lane for clip in segment.clips})
     mapping: dict[int, str] = {}
     for lane in lanes:
-        if lane == lanes[0] and segment.role is not TrackRole.DIALOGUE:
+        if placement == "ripple" and lane == lanes[0] and segment.role is not TrackRole.DIALOGUE:
             existing = next((t for t in project.tracks if t.role is segment.role), None)
             if existing is not None:
                 mapping[lane] = existing.id
@@ -164,12 +185,17 @@ def insert_segment(
     at: float,
     *,
     defaults: EffectiveConfig,
+    placement: Placement = "ripple",
 ) -> dict:
     """Insert ``segment`` at timeline second ``at``, moving later content by its length.
+
+    With ``placement="own_lane"`` nothing moves: no ripple, no split clip, no shifted chapter,
+    comment or pending edit, and every lane goes on a new track.
 
     ``audio`` maps each media name of the segment to its copy in the project. Raises
     ``segment_position_out_of_range`` before anything changes.
     """
+    check_placement(segment, placement)
     check_position(project, at)
     check_layout(segment)
     for clip in segment.clips:
@@ -193,7 +219,7 @@ def insert_segment(
                     channels=copy.channels,
                 )
             )
-    lanes = map_lanes(project, segment)
+    lanes = map_lanes(project, segment, placement)
     ref = SegmentRef(
         segment_id=segment.id, version=segment.version, content_sha256=segment.content_sha256
     )
@@ -216,10 +242,12 @@ def insert_segment(
                 segment_ref=ref,
             )
         )
-    affected = ripple_track_ids(project, by_track)
-    ripple_insert_clips(project, at, duration, affected, defaults=defaults)
-    shift_review_anchors_for_insert(project, at, duration)
-    shift_pending_decisions_for_insert(project, at, duration, set(affected))
+    affected: list[str] = []
+    if placement == "ripple":
+        affected = ripple_track_ids(project, by_track)
+        ripple_insert_clips(project, at, duration, affected, defaults=defaults)
+        shift_review_anchors_for_insert(project, at, duration)
+        shift_pending_decisions_for_insert(project, at, duration, set(affected))
     for track_id, placed in by_track.items():
         set_track_clips(
             project, track_id, place_clips_at(clips_for_track(project, track_id), placed, at)
@@ -229,6 +257,7 @@ def insert_segment(
         project.chapters.sort(key=lambda chapter: chapter.time)
     update_timeline_duration(project)
     rebuild_combined(project, defaults=defaults)
+    extra = {} if placement == "ripple" else {"placement": placement}
     return change_summary(
         project,
         operation="insert_segment",
@@ -238,4 +267,5 @@ def insert_segment(
         at=at,
         duration_sec=duration,
         tracks={str(lane): track_id for lane, track_id in lanes.items()},
+        **extra,
     )

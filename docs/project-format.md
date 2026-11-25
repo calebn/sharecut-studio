@@ -25,7 +25,7 @@ my_episode/
 ## Key entities
 
 - **tracks** — Logical lanes (`host`, `guest_1`, `music_bed`, `intro`, …)
-- **clips** — Timeline placements. A clip an Insert made from a saved segment carries `segment_ref` (`segment_id`, `version`, `content_sha256`), absent on every other clip; see [segments.md](segments.md#insert). Clip models ignore unknown fields, so an older build that opens such a project drops `segment_ref` on its next save, without an error. That field shipped inside `2.0`, before the version bump to `2.1`.
+- **clips** — Timeline placements. A clip an Insert made from a saved segment carries `segment_ref` (`segment_id`, `version`, `content_sha256`), absent on every other clip; see [segments.md](segments.md#insert). An `own_lane` insert also stores `placement` in `history.entries[].params` and `document_sync.last_command.payload`, both free-form dicts: no shape change, no version bump, and a `ripple` insert omits the key so its bytes are unchanged (decision and replay limit in [segments.md](segments.md#insert)). Clip models ignore unknown fields, so an older build that opens such a project drops `segment_ref` on its next save, without an error. That field shipped inside `2.0`, before the version bump to `2.1`.
 - **edit_decisions** — Non-destructive cuts (remove ranges with crossfade ms; a pending padded cut also keeps `bound_pad`, the room tone it plays)
 - **automation_envelopes** — Volume keyframes per track
 - **processing_chains** — FFmpeg effect params per track

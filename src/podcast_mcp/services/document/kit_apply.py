@@ -88,6 +88,7 @@ def submit_kit_apply(
                 item.entry.at,
                 version=item.version,
                 store=segments,
+                placement="ripple",
             )
         except CodedError as exc:
             raise _entry_error(exc, position, len(resolved), item.entry.label(), 0) from exc
@@ -110,6 +111,7 @@ def submit_kit_apply(
                 item.entry.at,
                 version=item.version,
                 client_id=client_id,
+                placement="ripple",
             )
         except CodedError as exc:
             raise _entry_error(

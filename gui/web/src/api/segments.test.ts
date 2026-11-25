@@ -261,7 +261,7 @@ describe("segment insert", () => {
     );
     expect(result).toEqual(preview);
     expect(Object.keys(result).sort()).toEqual(
-      [...SEGMENT_INSERT_PREVIEW_KEYS].sort(),
+      SEGMENT_INSERT_PREVIEW_KEYS.filter((k) => k !== "placement").sort(),
     );
     const call = vi.mocked(apiFetch).mock.calls[0];
     expect(call[0]).toBe(HOST_KEY);
@@ -282,7 +282,37 @@ describe("segment insert", () => {
 
   it("lists exactly the keys of the applied fixture", () => {
     expect(Object.keys(applied).sort()).toEqual(
-      [...SEGMENT_INSERT_APPLIED_KEYS].sort(),
+      SEGMENT_INSERT_APPLIED_KEYS.filter((k) => k !== "placement").sort(),
     );
+  });
+
+  it("sends and previews the own-lane placement, and keeps it in the applied result", async () => {
+    vi.mocked(submitDocumentCommand).mockResolvedValue(
+      envelope({ ...applied, placement: "own_lane" }),
+    );
+    const result = await insertSegment("/p", {
+      segment_id: "a-1",
+      at: 2,
+      placement: "own_lane",
+    });
+    expect(result).toMatchObject({
+      queued: false,
+      applied: { ...applied, placement: "own_lane" },
+    });
+    expect(submitDocumentCommand).toHaveBeenCalledWith(
+      "/p",
+      "InsertSegment",
+      { segment_id: "a-1", at: 2, placement: "own_lane" },
+      undefined,
+    );
+    vi.mocked(apiFetch).mockResolvedValue(json(preview));
+    await previewSegmentInsert("/p", {
+      segment_id: "a-1",
+      at: 2,
+      placement: "own_lane",
+    });
+    expect(vi.mocked(apiFetch).mock.calls.at(-1)?.[1]).toEqual({
+      host: "/api/segments/a-1/insert-preview?path=%2Fp&at=2&placement=own_lane",
+    });
   });
 });

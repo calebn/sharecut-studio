@@ -5345,7 +5345,7 @@
         "type": "object"
       },
       "InsertSegmentPayload": {
-        "description": "``at`` is seconds, or ``start`` / ``end`` resolved under the document lock at apply time.\n\n``version`` is the version used. The host adapters always send it, so the journal names\nthe audio that went in. Without it the newest version at apply time is used.",
+        "description": "``at`` is seconds, or ``start`` / ``end`` resolved under the document lock at apply time.\n\n``version`` is the version used. The host adapters always send it, so the journal names\nthe audio that went in. Without it the newest version at apply time is used.\n\n``placement`` is ``ripple`` (the default: later content moves) or ``own_lane`` (nothing\nmoves, every lane gets a new track). The journal leaves it out for ``ripple``, so only an\n``own_lane`` row carries the key; a build that predates it would ignore the key and ripple.",
         "properties": {
           "at": {
             "anyOf": [
@@ -5361,6 +5361,15 @@
               }
             ],
             "title": "At"
+          },
+          "placement": {
+            "default": "ripple",
+            "enum": [
+              "ripple",
+              "own_lane"
+            ],
+            "title": "Placement",
+            "type": "string"
           },
           "segment_id": {
             "title": "Segment Id",

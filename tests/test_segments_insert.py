@@ -1012,4 +1012,311 @@ def test_the_web_key_lists_match_the_insert_models() -> None:
         timeline_duration_sec=None,
         tracks={},
     )
-    assert keys("SEGMENT_INSERT_APPLIED_KEYS") == set(applied.journal())
+    # ``placement`` is in both lists: a ripple report leaves it out, an own_lane one carries it.
+    assert keys("SEGMENT_INSERT_APPLIED_KEYS") == set(applied.journal()) | {"placement"}
+    assert "placement" not in applied.journal()
+    own = applied.model_copy(update={"placement": "own_lane"})
+    assert set(own.journal()) == set(applied.journal()) | {"placement"}
+
+
+# --- placement: own_lane (issue #1777) -------------------------------------------------------
+
+
+def _with_music_bed(path: str) -> None:
+    """An existing music track holding one clip, so an own_lane insert has something to share with."""
+    proj = load_project(Path(path))
+    proj.tracks.append(
+        Track(
+            id="bed",
+            label="Bed",
+            role=TrackRole.MUSIC,
+            media=MediaAsset(path="raw/host.wav", duration_sec=10.0),
+        )
+    )
+    proj.clips.append(
+        Clip(id="bed1", track_id="bed", source_start=0.0, source_end=8.0, timeline_start=0.0)
+    )
+    save_project(proj, Path(path))
+
+
+def _clip_rows(path: str) -> list[tuple[str, str, float, float, float, float]]:
+    return sorted(
+        (c.id, c.track_id, c.timeline_start, c.timeline_end, c.source_start, c.source_end)
+        for c in load_project(Path(path)).clips
+        if c.segment_ref is None
+    )
+
+
+def test_own_lane_moves_nothing_and_does_not_split_a_straddling_clip(
+    tmp_path: Path, project: str
+) -> None:
+    _with_music_bed(project)
+    segment = _save(tmp_path, "Under Bed", role="music", chapter_title="Bed starts")
+    before = _clip_rows(project)
+    before_project = load_project(Path(project))
+
+    # 2.0 is inside the host's first clip (0 to 4).
+    result = _insert(project, segment.id, 2.0, "--own-lane", "--json")
+
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["placement"] == "own_lane"
+    assert report["affected_tracks"] == []
+    assert _clip_rows(project) == before
+    after = load_project(Path(project))
+    assert [c.id for c in after.clips if c.track_id == "host"] == ["c1", "c2"]
+    # The existing music track is untouched; the segment is on a new track of its own.
+    assert [c.id for c in after.clips if c.track_id == "bed"] == ["bed1"]
+    placed = [c for c in after.clips if c.segment_ref]
+    assert len(placed) == 1
+    assert placed[0].track_id not in {t.id for t in before_project.tracks}
+    assert (placed[0].timeline_start, placed[0].timeline_end) == (2.0, 4.0)
+    new_track = after.track_by_id(placed[0].track_id)
+    assert new_track is not None
+    assert (new_track.role, new_track.label, new_track.fader_db) == (
+        TrackRole.MUSIC,
+        "Under Bed",
+        -3.0,
+    )
+    assert report["tracks"] == {"0": new_track.id}
+    # The chapter is added at the point and the existing one stays where it was.
+    assert [(c.time, c.title) for c in after.chapters] == [(2.0, "Bed starts"), (6.0, "Later")]
+    assert after.timeline.duration_sec == pytest.approx(8.0)
+
+
+def test_own_lane_never_reuses_the_track_of_the_same_role(tmp_path: Path, project: str) -> None:
+    # The project's intro track would take lane 0 of an intro segment when it ripples.
+    segment = _save(tmp_path, "Warm Intro")
+    assert _insert(project, segment.id, 4.0, "--own-lane").exit_code == 0
+    after = load_project(Path(project))
+    assert [c.id for c in after.clips if c.track_id == "jingles"] == []
+    placed = [c for c in after.clips if c.segment_ref]
+    assert [c.track_id for c in placed] == ["warm_intro"]
+
+
+def test_own_lane_gives_every_lane_a_new_track(tmp_path: Path, project: str) -> None:
+    segment = _save(tmp_path, "Bed And Voice", role="music", lanes=(0, 1))
+    result = _insert(project, segment.id, 4.0, "--own-lane", "--json")
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["tracks"] == {"0": "bed_and_voice", "1": "bed_and_voice_2"}
+    after = load_project(Path(project))
+    assert [t.id for t in after.tracks] == ["host", "jingles", "bed_and_voice", "bed_and_voice_2"]
+    assert [t.label for t in after.tracks[2:]] == ["Bed And Voice", "Bed And Voice 2"]
+    assert _clip_rows(project) == [
+        ("c1", "host", 0.0, 4.0, 0.0, 4.0),
+        ("c2", "host", 4.0, 8.0, 6.0, 10.0),
+    ]
+
+
+def test_own_lane_twice_adds_a_second_track_each_time(tmp_path: Path, project: str) -> None:
+    segment = _save(tmp_path, "Bed", role="music")
+    assert _insert(project, segment.id, 1.0, "--own-lane").exit_code == 0
+    assert _insert(project, segment.id, 3.0, "--own-lane").exit_code == 0
+    after = load_project(Path(project))
+    music = [(t.id, t.label) for t in after.tracks if t.role is TrackRole.MUSIC]
+    assert music == [("bed", "Bed"), ("bed_segment", "Bed (segment)")]
+
+
+def test_own_lane_refuses_a_dialogue_segment_and_changes_nothing(
+    tmp_path: Path, project: str
+) -> None:
+    from podcast_mcp.mcp.tools import segments as tools
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    segment = _save(tmp_path, "Sponsor Read", role="dialogue")
+    before = Path(project).read_bytes()
+    commands = DocumentSyncService.open(project).store.commands_after(0)
+
+    for dry_run in (False, True):
+        with pytest.raises(CodedValueError) as refused:
+            tools.segment_insert_tool(
+                project, segment.id, 2.0, dry_run=dry_run, placement="own_lane"
+            )
+        assert refused.value.code == "segment_placement_unsupported"
+        assert "dialogue" in str(refused.value)
+    assert Path(project).read_bytes() == before
+    assert DocumentSyncService.open(project).store.commands_after(0) == commands
+    assert not [p for p in (Path(project).parent / "raw").iterdir() if "segment-" in p.name]
+
+
+def test_own_lane_grows_the_duration_when_the_segment_runs_past_the_end(
+    tmp_path: Path, project: str
+) -> None:
+    segment = _save(tmp_path, "Outro Bed", role="music")
+    # The fixture's clips end at 8 s, so a 2 s segment at 7 s ends at 9 s.
+    assert _insert(project, segment.id, 7.0, "--own-lane").exit_code == 0
+    assert load_project(Path(project)).timeline.duration_sec == pytest.approx(9.0)
+
+
+def test_own_lane_dry_run_matches_the_apply_including_track_ids(
+    tmp_path: Path, project: str
+) -> None:
+    _with_music_bed(project)
+    segment = _save(tmp_path, "Under Bed", role="music", lanes=(0, 1), chapter_title="Bed")
+    before = Path(project).read_bytes()
+
+    preview = runner.invoke(
+        app,
+        [
+            "segment",
+            "insert",
+            project,
+            segment.id,
+            "--at",
+            "2",
+            "--own-lane",
+            "--dry-run",
+            "--json",
+        ],
+    )
+    assert preview.exit_code == 0, preview.output
+    assert Path(project).read_bytes() == before
+    report = json.loads(preview.output)
+    assert report["placement"] == "own_lane"
+    assert report["clips_moved"] == 0
+    assert report["chapters_moved"] == []
+    assert report["comments_moved"] == []
+    assert report["pending_edits_moved"] == 0
+    assert report["tracks_added"] == ["under_bed", "under_bed_2"]
+
+    applied = _insert(project, segment.id, 2.0, "--own-lane", "--json")
+    assert applied.exit_code == 0, applied.output
+    result = json.loads(applied.output)
+    assert result["tracks"] == report["tracks"]
+    assert result["placement"] == "own_lane"
+    after = load_project(Path(project))
+    assert [t.id for t in after.tracks][-2:] == report["tracks_added"]
+    assert after.timeline.duration_sec == pytest.approx(report["timeline_duration_after_sec"])
+
+
+def test_own_lane_undo_restores_the_tracks_and_redo_does_not_ripple(
+    tmp_path: Path, project: str
+) -> None:
+    segment = _save(tmp_path, "Bed", role="music", lanes=(0, 1))
+    before_tracks = [t.id for t in load_project(Path(project)).tracks]
+    before_clips = _clip_rows(project)
+
+    assert _insert(project, segment.id, 2.0, "--own-lane").exit_code == 0
+    after_tracks = [t.id for t in load_project(Path(project)).tracks]
+    after_layout = _layout(project)
+    assert after_tracks != before_tracks
+
+    assert runner.invoke(app, ["undo", "--project", project]).exit_code == 0
+    assert [t.id for t in load_project(Path(project)).tracks] == before_tracks
+    assert _clip_rows(project) == before_clips
+
+    assert runner.invoke(app, ["redo", "--project", project]).exit_code == 0
+    assert [t.id for t in load_project(Path(project)).tracks] == after_tracks
+    assert _layout(project) == after_layout
+    assert _clip_rows(project) == before_clips
+
+    entries = load_project(Path(project)).history.entries
+    assert entries[-1].params["placement"] == "own_lane"
+
+
+def test_ripple_is_the_default_and_leaves_no_placement_key_anywhere(
+    tmp_path: Path, project: str
+) -> None:
+    segment = _save(tmp_path, "Warm Intro")
+    for flags in ([], ["--ripple"]):
+        result = _insert(project, segment.id, 4.0, "--json", *flags)
+        assert result.exit_code == 0, result.output
+        assert "placement" not in json.loads(result.output)
+        assert runner.invoke(app, ["undo", "--project", project]).exit_code == 0
+    dry = _insert(project, segment.id, 4.0, "--dry-run", "--json", "--ripple")
+    assert "placement" not in json.loads(dry.output)
+    assert _insert(project, segment.id, 4.0, "--json").exit_code == 0
+    proj = load_project(Path(project))
+    assert "placement" not in proj.history.entries[-1].params
+    stored = DocumentSyncService.open(project).store.commands_after(0)
+    assert all("placement" not in json.dumps(row) for row in stored)
+    last = proj.document_sync.last_command
+    assert last is None or "placement" not in json.dumps(last.model_dump(mode="json"))
+
+
+def test_the_own_lane_value_is_journaled_with_the_command(tmp_path: Path, project: str) -> None:
+    segment = _save(tmp_path, "Bed", role="music")
+    assert _insert(project, segment.id, 2.0, "--own-lane").exit_code == 0
+    stored = DocumentSyncService.open(project).store.commands_after(0)
+    assert stored[-1]["payload"]["placement"] == "own_lane"
+
+
+def test_the_cli_refuses_both_placement_flags(tmp_path: Path, project: str) -> None:
+    segment = _save(tmp_path, "Bed", role="music")
+    before = Path(project).read_bytes()
+    result = _insert(project, segment.id, 2.0, "--ripple", "--own-lane")
+    assert result.exit_code != 0
+    assert "--ripple" in result.output and "--own-lane" in result.output
+    assert Path(project).read_bytes() == before
+
+
+def test_the_cli_hints_at_ducking_for_an_own_lane_insert(tmp_path: Path, project: str) -> None:
+    segment = _save(tmp_path, "Bed", role="music")
+    result = _insert(project, segment.id, 2.0, "--own-lane")
+    assert result.exit_code == 0, result.output
+    assert "podcast edit duck" in result.output
+    assert "full level" in result.output
+
+
+def test_the_mcp_tool_takes_a_placement(tmp_path: Path, project: str) -> None:
+    from podcast_mcp.mcp.tools import segments as tools
+
+    segment = _save(tmp_path, "Bed", role="music")
+    dry = json.loads(
+        tools.segment_insert_tool(project, segment.id, 2.0, dry_run=True, placement="own_lane")
+    )
+    assert dry["placement"] == "own_lane"
+    done = json.loads(tools.segment_insert_tool(project, segment.id, 2.0, placement="own_lane"))
+    assert done["placement"] == "own_lane"
+    assert "full level" in (tools.segment_insert_tool.__doc__ or "")
+    assert "apply_ducking_tool" in (tools.segment_insert_tool.__doc__ or "")
+
+
+def test_the_preview_route_takes_a_placement(tmp_path: Path, project: str) -> None:
+    segment = _save(tmp_path, "Bed", role="music")
+    res = _preview_route(project, segment.id, at="2", placement="own_lane")
+    assert res.status_code == 200, res.text
+    cli = runner.invoke(
+        app,
+        [
+            "segment",
+            "insert",
+            project,
+            segment.id,
+            "--at",
+            "2",
+            "--own-lane",
+            "--dry-run",
+            "--json",
+        ],
+    )
+    assert res.json() == json.loads(cli.output)
+    assert "placement" not in _preview_route(project, segment.id, at="2").json()
+    assert "placement" not in _preview_route(project, segment.id, at="2", placement="ripple").json()
+    bad = _preview_route(project, segment.id, at="2", placement="sideways")
+    assert bad.status_code == 400
+    assert bad.headers["X-Sharecut-Error-Code"] == "segment_placement_invalid"
+    refused = _preview_route(
+        project, _save(tmp_path, "Voice", role="dialogue").id, at="2", placement="own_lane"
+    )
+    assert refused.status_code == 400
+    assert refused.headers["X-Sharecut-Error-Code"] == "segment_placement_unsupported"
+
+
+def test_an_unknown_placement_has_the_same_code_on_every_path(tmp_path: Path, project: str) -> None:
+    from podcast_mcp.mcp.tools import segments as tools
+    from podcast_mcp.services.document_sync.payloads import validate_payload
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    segment = _save(tmp_path, "Bed", role="music")
+    before = Path(project).read_bytes()
+    for dry_run in (False, True):
+        with pytest.raises(CodedValueError) as refused:
+            tools.segment_insert_tool(
+                project, segment.id, 2.0, dry_run=dry_run, placement="sideways"
+            )
+        assert refused.value.code == "segment_placement_invalid"
+    with pytest.raises(CodedValueError) as refused:
+        validate_payload("InsertSegment", {"segment_id": segment.id, "at": 1.0, "placement": "x"})
+    assert refused.value.code == "segment_placement_invalid"
+    assert Path(project).read_bytes() == before

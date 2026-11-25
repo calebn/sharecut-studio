@@ -159,11 +159,28 @@ def segment_insert_cmd(
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Report what would move and change nothing"
     ),
+    ripple: bool = typer.Option(
+        False, "--ripple", help="Later content moves by the segment's length (the default)"
+    ),
+    own_lane: bool = typer.Option(
+        False,
+        "--own-lane",
+        help="Move nothing: every lane goes on a new track. Plays at full level until ducked "
+        "(podcast edit duck)",
+    ),
     as_json: bool = typer.Option(False, "--json", help="The result as JSON"),
 ) -> None:
     """Insert a saved segment into an episode at start, end or a timeline second."""
+    if ripple and own_lane:
+        raise typer.BadParameter("Use either --ripple or --own-lane, not both.")
     result = submit_segment_insert(
-        project, segment_id, at, version=version, dry_run=dry_run, client_id="cli"
+        project,
+        segment_id,
+        at,
+        version=version,
+        dry_run=dry_run,
+        client_id="cli",
+        placement="own_lane" if own_lane else "ripple",
     ).model_dump()
     if as_json:
         typer.echo(_json(result))
@@ -181,6 +198,11 @@ def segment_insert_cmd(
             f"Inserted {result['segment_id']} (v{result['segment_version']}) at "
             f"{result['at']:g} s, {result['duration_sec']:g} s long"
         )
+        if result.get("placement") == "own_lane":
+            typer.echo(
+                "It is on its own track and plays at full level until ducked: "
+                "run `podcast edit duck` to lower it under dialogue."
+            )
 
 
 @segment_app.command("drift")
