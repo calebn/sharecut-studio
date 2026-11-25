@@ -81,7 +81,7 @@ export const Open: Story = {
     await expect(card.getByRole("combobox", { name: "Kind" })).toHaveValue(
       "intro",
     );
-    await expect(card.getByText("3 clips, 0:22")).toBeVisible();
+    await waitFor(() => expect(card.getByText("3 clips, 0:22")).toBeVisible());
     await userEvent.click(card.getByRole("button", { name: "Save" }));
     await expect(await card.findByRole("alert")).toHaveTextContent(
       "Enter a name for the segment.",
