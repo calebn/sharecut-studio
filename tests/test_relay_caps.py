@@ -327,6 +327,10 @@ async def test_proxied_bytes_count_both_ways_and_the_cap_pauses_the_link(
     )
     assert api.status_code == 503
     assert api.json()["detail"] == "sharing paused"
+    for response in (paused, api):
+        assert response.headers["retry-after"] == "3600"
+        assert response.headers["cache-control"] == "no-store"
+        assert response.headers["x-robots-tag"] == "noindex"
     assert (await asyncio.wait_for(session.to_host.get(), 1)) == {
         "type": "limit",
         "kind": "bandwidth",
@@ -746,6 +750,9 @@ def test_the_notice_page_follows_the_brand_page_and_the_copy_rules() -> None:
 
     assert "var(--color-accent-solid)" in text and "--color-bg-canvas" in text
     assert '<html lang="en">' in text
+    assert '<meta name="viewport" content="width=device-width, initial-scale=1"/>' in text
+    assert "min-block-size: var(--tap-comfortable)" in text
+    assert "--tap-comfortable: 2.75rem" in text
     assert not any(word in visible_text(text) for word in ("tunnel", "relay", "lease", "token"))
     assert "\u2014" not in visible_text(text)
 
