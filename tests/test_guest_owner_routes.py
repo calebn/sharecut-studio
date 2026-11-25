@@ -75,7 +75,7 @@ def world(minimal_project, sample_wav, tmp_workspace, monkeypatch, skip_run_pref
     )
     monkeypatch.setattr(
         "podcast_mcp.services.document.TranscriptService.word_timing_context",
-        lambda self, *_args, **_kwargs: {"ok": True},
+        lambda self, *_args, **_kwargs: SimpleNamespace(model_dump=lambda: {"ok": True}),
     )
     monkeypatch.setattr(
         "podcast_mcp.services.media.SpeakerService.check_split", lambda self, *_a, **_k: None

@@ -158,8 +158,8 @@ def transcript_set_word_timing_cmd(
         project,
         "SetTranscriptWordTiming",
         {
-            "target": context["target"],
-            "expected_token": context["expected_token"],
+            "target": context.model_dump()["target"],
+            "expected_token": context.expected_token,
             "start": start,
             "end": end,
         },

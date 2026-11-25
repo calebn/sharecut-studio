@@ -486,7 +486,7 @@ def _bed(rig: Rig, t: Target) -> None:
 
 def _timing_token(rig: Rig) -> str:
     target = WordTimingTarget(track_id="host", source_id=None, word_index=0)
-    return TranscriptService(rig.ws).word_timing_context(target)["expected_token"]
+    return TranscriptService(rig.ws).word_timing_context(target).model_dump()["expected_token"]
 
 
 def _replace_preview(rig: Rig) -> str:

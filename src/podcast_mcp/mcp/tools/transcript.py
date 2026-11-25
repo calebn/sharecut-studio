@@ -311,8 +311,8 @@ def set_word_timing_tool(
         project_path,
         "SetTranscriptWordTiming",
         {
-            "target": context["target"],
-            "expected_token": context["expected_token"],
+            "target": context.model_dump()["target"],
+            "expected_token": context.expected_token,
             "start": start,
             "end": end,
         },

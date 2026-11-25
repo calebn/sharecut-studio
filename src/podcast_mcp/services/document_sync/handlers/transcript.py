@@ -110,8 +110,10 @@ def set_transcript_words_ignored(ws: ProjectWorkspace, p: dict[str, Any]) -> dic
 
 
 def set_transcript_word_timing(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TranscriptService(ws).set_word_timing(
-        WordTimingTarget(**p["target"]), p["expected_token"], p["start"], p["end"]
+    return (
+        TranscriptService(ws)
+        .set_word_timing(WordTimingTarget(**p["target"]), p["expected_token"], p["start"], p["end"])
+        .model_dump()
     )
 
 

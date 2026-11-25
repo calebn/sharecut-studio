@@ -124,8 +124,8 @@ def _word_key(track_id: str, index: int) -> dict[str, Any]:
 def _set_timing(ws: ProjectWorkspace) -> Any:
     target = WordTimingTarget("host", None, 1)
     service = TranscriptService(ws)
-    token = service.word_timing_context(target)["expected_token"]
-    return service.set_word_timing(target, token, 0.55, 0.95)
+    token = service.word_timing_context(target).model_dump()["expected_token"]
+    return service.set_word_timing(target, token, 0.55, 0.95).model_dump()
 
 
 def _replace(ws: ProjectWorkspace) -> Any:

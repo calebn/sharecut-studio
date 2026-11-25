@@ -463,7 +463,7 @@ def test_a_third_speaker_in_the_lead_is_not_flagged(tmp_path: Path) -> None:
 def _edit_by_service(ws: ProjectWorkspace, start: float, end: float) -> None:
     target = WordTimingTarget("audra", None, 0)
     service = TranscriptService(ws)
-    context = service.word_timing_context(target)
+    context = service.word_timing_context(target).model_dump()
     service.set_word_timing(target, context["expected_token"], start, end)
 
 

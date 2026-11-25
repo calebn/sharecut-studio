@@ -8,6 +8,8 @@ import math
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict
+
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.models.words_revision import set_word
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
@@ -43,6 +45,41 @@ class WordTimingMedia:
         }
 
 
+class WordTimingNeighbor(BaseModel):
+    """Field order is the wire key order."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    word_index: int
+    text: str
+    start: float | int
+    end: float | int
+
+
+class WordTimingContext(BaseModel):
+    """Field order is the wire key order."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    target: WordTimingTarget
+    expected_token: str
+    word: dict[str, Any]
+    neighbors: list[WordTimingNeighbor]
+    media: dict[str, Any]
+    window: dict[str, Any]
+    warnings: list[str]
+    transcript_gate: bool
+
+
+class WordTimingChange(BaseModel):
+    """Field order is the wire key order."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    changed: bool
+    context: WordTimingContext
+
+
 def timing_transcript(project: EpisodeProject, target: WordTimingTarget) -> Transcript:
     matches = [t for t in project.transcripts if t.key == (target.track_id, target.source_id)]
     if len(matches) != 1 or not 0 <= target.word_index < len(matches[0].words):
@@ -70,7 +107,7 @@ def timing_warnings(words: list[TranscriptWord], index: int, start: float, end: 
 
 def word_timing_context(
     project: EpisodeProject, target: WordTimingTarget, media: WordTimingMedia
-) -> dict[str, Any]:
+) -> WordTimingContext:
     transcript = timing_transcript(project, target)
     word = transcript.words[target.word_index]
     start = max(0.0, min(word.start, word.end) - 1.0)
@@ -79,22 +116,22 @@ def word_timing_context(
         end = min(end, media.duration_sec)
         start = min(start, max(0.0, end - 1.0))
     track = project.track_by_id(target.track_id)
-    return {
-        "target": asdict(target),
-        "expected_token": timing_token(transcript, target, media),
-        "word": word.model_dump(mode="json"),
-        "neighbors": [
-            {"word_index": i, "text": w.text, "start": w.start, "end": w.end}
+    return WordTimingContext(
+        target=target,
+        expected_token=timing_token(transcript, target, media),
+        word=word.model_dump(mode="json"),
+        neighbors=[
+            WordTimingNeighbor(word_index=i, text=w.text, start=w.start, end=w.end)
             for i, w in enumerate(
                 transcript.words[max(0, target.word_index - 3) : target.word_index + 4],
                 start=max(0, target.word_index - 3),
             )
         ],
-        "media": media.view(),
-        "window": {"start": start, "end": end},
-        "warnings": timing_warnings(transcript.words, target.word_index, word.start, word.end),
-        "transcript_gate": bool(track and track.transcript_gate),
-    }
+        media=media.view(),
+        window={"start": start, "end": end},
+        warnings=timing_warnings(transcript.words, target.word_index, word.start, word.end),
+        transcript_gate=bool(track and track.transcript_gate),
+    )
 
 
 def validate_word_timing(

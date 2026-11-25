@@ -42,6 +42,12 @@ from podcast_mcp.edits.transcript_timing import (
     validate_word_timing,
     word_timing_context,
 )
+from podcast_mcp.edits.transcript_timing import (
+    WordTimingChange as WordTimingChange,
+)
+from podcast_mcp.edits.transcript_timing import (
+    WordTimingContext as WordTimingContext,
+)
 from podcast_mcp.edits.unsure_words import unsure_predicate, unsure_words_by_edit
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.models.registry import require_model
@@ -485,7 +491,7 @@ class TranscriptService(WorkspaceService):
         expected_text: str | None = None,
         expected_start: float | None = None,
         expected_end: float | None = None,
-    ) -> dict[str, Any]:
+    ) -> WordTimingContext:
         """Timing context and token for one word; each given expected value must still hold."""
         with self.ws.transaction() as project:
             transcript = timing_transcript(project, target)
@@ -500,7 +506,7 @@ class TranscriptService(WorkspaceService):
 
     def set_word_timing(
         self, target: WordTimingTarget, expected_token: str, start: float, end: float
-    ) -> dict[str, Any]:
+    ) -> WordTimingChange:
         with self.ws.transaction() as project:
             timing_transcript(project, target)
             try:
@@ -516,7 +522,9 @@ class TranscriptService(WorkspaceService):
                     "after adjust word timing",
                     lambda p: apply_word_timing(p, target, start, end),
                 )
-            return {"changed": changed, "context": word_timing_context(project, target, media)}
+            return WordTimingChange(
+                changed=changed, context=word_timing_context(project, target, media)
+            )
 
     def preview_transcript_replacement(
         self, search: str, replacement: str, *, match_case: bool = False
