@@ -276,6 +276,7 @@ def test_propose_tighten_edits_uses_threads_by_default_with_enrolled_profiles(
 
 def test_propose_tighten_embeds_each_cut_window_once_with_enrolled_profiles():
     import collections
+    from types import SimpleNamespace
 
     import numpy as np
 
@@ -311,6 +312,10 @@ def test_propose_tighten_embeds_each_cut_window_once_with_enrolled_profiles():
         patch.object(sid, "load_all_profiles", side_effect=profiles),
         patch.object(sid, "resolve_speaker_backend", return_value=_Backend()),
         patch.object(sid, "score_window", side_effect=spy),
+        patch(
+            "podcast_mcp.project.transcript_context.load_transcript_context",
+            return_value=SimpleNamespace(speaker_id=sid.SpeakerIdConfig()),
+        ),
     ):
         _propose_with_performance({"max_workers": 1})
     assert seen
