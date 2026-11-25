@@ -14,7 +14,7 @@ import { inspectSelection, stageTab } from "./stageNav";
 import { type Point, touch, watchCommands } from "./touchTimeline";
 
 const CLIENT_ID = "e2e-bleed-band-touch";
-const JOIN_S = 10;
+const JOIN_S = 20;
 const HOLD_MARGIN_MS = 250;
 const BAND = { fade_out_ms: 5, fade_in_ms: 5 };
 
@@ -45,7 +45,7 @@ test.beforeEach(async () => {
     fade_in_ms: 500,
     fade_out_ms: 500,
     off_speaker_mute_regions: [
-      { start_s: JOIN_S, end_s: 16, ...BAND },
+      { start_s: JOIN_S, end_s: JOIN_S + 6, ...BAND },
       { start_s: 54, end_s: 60, ...BAND },
     ],
   });
@@ -125,6 +125,23 @@ async function openBands(
     .click();
   await expect(picks(page)).toHaveCount(2);
   await expect(pin(page)).toBeVisible();
+  if (viewport.phone) return;
+  // The Inspector card floats over the timeline; the bands must sit clear of it.
+  await expect
+    .poll(() =>
+      picks(page).evaluateAll((els) =>
+        els.map((el) => {
+          const r = el.getBoundingClientRect();
+          return (
+            document.elementFromPoint(
+              r.left + r.width / 2,
+              r.top + r.height / 2,
+            ) === el
+          );
+        }),
+      ),
+    )
+    .toEqual([true, true]);
 }
 
 async function refreshBands(page: Page): Promise<void> {
@@ -314,10 +331,10 @@ for (const viewport of VIEWPORTS) {
     await touch(cdp, "touchStart", [centre(await boxOf(pin(page)))]);
     await expect
       .poll(() => chooserLabels(page))
-      .toEqual(["Seam, 00:10.000", "Comment, Ada at 00:10.000"]);
+      .toEqual(["Seam, 00:20.000", "Comment, Ada at 00:20.000"]);
     await touch(cdp, "touchEnd");
     const comment = page.getByRole("menuitem", {
-      name: "Comment, Ada at 00:10.000",
+      name: "Comment, Ada at 00:20.000",
     });
     await settle(() => comment.boundingBox());
     await touch(cdp, "touchStart", [centre(await boxOf(comment))]);
