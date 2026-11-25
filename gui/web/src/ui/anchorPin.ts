@@ -16,8 +16,9 @@ function clampSpan(lo: number, hi: number, min: number, max: number) {
 
 /**
  * Whether `rect` has left `box`, and the rect to place a bar against. Any
- * overlap keeps the anchor attached. A zero or inverted box, or a node with no layout
- * (zero width and height), attaches, so a bar never pins on a measurement that is not there.
+ * overlap keeps the anchor attached. A zero or inverted box, or a node with no
+ * layout (zero width and height), attaches, so a bar never pins on a
+ * measurement that is not there; `anchorLost` is how a laid-out box tells.
  */
 export function pinOf(rect: AnchorRect, box: AnchorRect): Pin {
   if (box.right <= box.left || box.bottom <= box.top)
@@ -32,4 +33,15 @@ export function pinOf(rect: AnchorRect, box: AnchorRect): Pin {
     rect.right <= box.left ||
     rect.left >= box.right;
   return { pinned, rect: { left, top, right, bottom } };
+}
+
+/**
+ * True when the box is laid out but the anchor has no area in it (a collapsed
+ * lane, a hidden row): there is nothing on screen to place a bar beside, so
+ * the bar is absent rather than parked at the corner. An unmeasured box (not
+ * laid out yet) never calls an anchor lost.
+ */
+export function anchorLost(rect: AnchorRect, box: AnchorRect): boolean {
+  if (box.right <= box.left || box.bottom <= box.top) return false;
+  return rect.right <= rect.left || rect.bottom <= rect.top;
 }

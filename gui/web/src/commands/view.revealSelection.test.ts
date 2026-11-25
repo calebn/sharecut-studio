@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
-import * as reveal from "../utils/timelineReveal";
 import { COMMANDS } from "./catalog";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
+import * as reveal from "./timelineReveal";
 
 const SELECTION = { kind: "clip", id: "c1", trackId: "mira-voice" } as const;
 
@@ -21,6 +21,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  useDawStore.setState({ isPlaying: false });
   vi.restoreAllMocks();
   reveal.selectionAnchor.clear();
 });
@@ -33,6 +34,7 @@ describe("view.revealSelection", () => {
       variants: ["Show edit"],
       when: "hasInspectorSelection",
       category: "view",
+      breaksFollow: true,
     });
     expect(def?.notes).toContain("no key");
   });
@@ -52,6 +54,38 @@ describe("view.revealSelection", () => {
     expect(s.selection).toEqual(SELECTION);
     expect(s.playheadSec).toBe(7);
     expect(s.timelineFollowPlayhead).toBe(true);
+  });
+
+  it("keeps the anchor of a dock that is still mounted when another dock releases its own", async () => {
+    const first = document.createElement("div");
+    const second = document.createElement("div");
+    document.body.append(first, second);
+    const a = { current: first };
+    const b = { current: second };
+    reveal.selectionAnchor.set(a);
+    reveal.selectionAnchor.set(b);
+    reveal.selectionAnchor.release(b);
+    const spy = vi.spyOn(reveal, "revealAnchor").mockImplementation(() => {});
+
+    const result = await execute("view.revealSelection");
+
+    first.remove();
+    second.remove();
+    expect(result.status).toBe("ok");
+    expect(spy).toHaveBeenCalledWith(first);
+  });
+
+  it("stops the playhead follow so playback does not page the view back", async () => {
+    const node = document.createElement("div");
+    document.body.append(node);
+    reveal.selectionAnchor.set({ current: node });
+    vi.spyOn(reveal, "revealAnchor").mockImplementation(() => {});
+    useDawStore.setState({ isPlaying: true, timelineFollowPlayhead: true });
+
+    await execute("view.revealSelection");
+
+    node.remove();
+    expect(useDawStore.getState().timelineFollowPlayhead).toBe(false);
   });
 
   it("is disabled with no anchor on screen", async () => {

@@ -12,6 +12,7 @@ import {
   EXPORT_STARTING_REASON,
 } from "../../commands/bounceRunnerHandle";
 import { barModelOf, editFactsOf, runEditVerb } from "../../commands/editVerbs";
+import { selectionAnchor } from "../../commands/timelineReveal";
 import { makeRangeTarget } from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
 import {
@@ -26,7 +27,6 @@ import type { Selection } from "../../types/project";
 import { CloseButton } from "../../ui/CloseButton";
 import { CommandButton } from "../../ui/CommandButton";
 import { dialogueTrackIds } from "../../utils/bladeTracks";
-import { selectionAnchor } from "../../utils/timelineReveal";
 import { useBounceRun } from "../hosts/bounceRunnerContext";
 import { scopeOf } from "./barScope";
 import { ExportRangeOptions } from "./ExportRangeOptions";
@@ -114,7 +114,8 @@ function ClearButton({
 
 /**
  * Brings the selection's anchor back into the timeline. The floating bar shows
- * it only while pinned; the dock, which has no pin state, always does.
+ * it only while pinned; the dock, which has no pin state, shows it whenever its
+ * anchor is drawn and Clear or Close holds the slot it rides in.
  */
 function RevealButton({
   floating,
@@ -249,13 +250,12 @@ function EditActionBarImpl({
   const { pinned } = anchor;
   const revealLabel =
     selection?.kind === "pending" ? "Show edit" : "Show selection";
-  const wasPinned = useRef<boolean | null>(null);
   const announceLabel = useRef(revealLabel);
   announceLabel.current = revealLabel;
   useEffect(() => {
-    const was = wasPinned.current;
-    wasPinned.current = pinned;
-    if (floating && was === false && pinned)
+    // The effect runs when `pinned` changes: this is the attached to pinned
+    // crossing, and returning to view says nothing.
+    if (floating && pinned)
       useDawStore
         .getState()
         .announceStatus(`${announceLabel.current} to return to it`);

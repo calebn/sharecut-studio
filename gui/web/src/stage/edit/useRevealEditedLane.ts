@@ -5,24 +5,8 @@
  * screen turns. This scrolls it there, and only scrolls.
  */
 import { useLayoutEffect, useRef } from "react";
+import { laneSelector, revealLane } from "../../commands/timelineReveal";
 import { useResizeObserver } from "../../ui/useResizeObserver";
-import { pinnedChromeBottom } from "./keepTargetClear";
-
-const laneSelector = (trackId: string) =>
-  `.lane-row[data-track-id=${JSON.stringify(trackId)}]`;
-
-/** Scrolls lane `trackId` whole between the pinned chrome and its scroller's end. */
-export function revealLane(trackId: string): void {
-  const lane = document.querySelector(laneSelector(trackId));
-  const scroller = lane?.closest<HTMLElement>(".timeline-scroll");
-  if (!lane || !scroller) return;
-  const chrome = pinnedChromeBottom(scroller);
-  const box = lane.getBoundingClientRect();
-  const below = box.bottom - scroller.getBoundingClientRect().bottom;
-  if (below > 0) scroller.scrollTop += Math.min(below, box.top - chrome);
-  const hidden = chrome - lane.getBoundingClientRect().top;
-  if (hidden > 0) scroller.scrollTop -= hidden;
-}
 
 /** Keeps lane `trackId` whole in its scroller while set; null does nothing. */
 export function useRevealEditedLane(trackId: string | null): void {

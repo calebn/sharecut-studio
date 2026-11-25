@@ -8,3 +8,17 @@ export function timelineChromeBottom(scope: ParentNode = document): number {
     }),
   );
 }
+
+/**
+ * Where a timeline scroller's pinned chrome ends: under the marker rows, or
+ * under the ruler alone while a lane-editing sheet lets the rows scroll.
+ */
+export function pinnedChromeBottom(scroller: HTMLElement): number {
+  const markers = scroller.querySelector(".marker-lane");
+  if (markers && getComputedStyle(markers).position === "sticky")
+    return markers.getBoundingClientRect().bottom;
+  return (
+    scroller.querySelector(".timeline-ruler")?.getBoundingClientRect().bottom ??
+    scroller.getBoundingClientRect().top
+  );
+}
