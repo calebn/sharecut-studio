@@ -743,14 +743,14 @@ def test_every_engine_module_a_build_runs_is_pinned_or_named_as_part_of_the_key(
 
     pinned = set(_evidence_files(root))
     assert {"audio_eval.py", "decoded_source.py", "mono_downmix.py"} <= ran
-    assert ran & {"ffmpeg.py", "ffmpeg/__init__.py"}
+    assert "ffmpeg/__init__.py" in ran
     assert ran - pinned - set(TREE_AND_CONFIG_MODULES) == set()
 
 
 def test_a_change_to_the_probe_moves_the_pin_digest() -> None:
     assert "def probe(" in inspect.getsource(FFmpegEngine)
     root = Path(track_evidence.__file__).resolve().parent
-    engine_files = [f for f in _evidence_files(root) if f == "ffmpeg.py" or f.startswith("ffmpeg/")]
+    engine_files = [f for f in _evidence_files(root) if f.startswith("ffmpeg/")]
     probe_file = next(f for f in engine_files if "def probe(" in (root / f).read_text("utf-8"))
     assert _evidence_code_digest({probe_file: "\n# probe forced to one channel\n"}) != (
         _evidence_code_digest()
