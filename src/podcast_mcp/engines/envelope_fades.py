@@ -76,57 +76,44 @@ def _fade_view(point: EnvPoint) -> tuple[str, str, float] | None:
 
 def _is_uuid(text: str) -> bool:
     try:
-        uuid.UUID(text)
+        return str(uuid.UUID(text)) == text
     except ValueError:
         return False
-    return True
-
-
-def _legacy_view(point: EnvPoint) -> tuple[float, float] | None:
-    """(time, value) of a point an old mix run could have written, seen through a dip."""
-    lowered = parse_lowered(point.id)
-    if lowered is not None:
-        original_id, original, _ = lowered
-        if not original_id.startswith(_MANAGED_PREFIXES) and _is_uuid(original_id):
-            return point.time, original
-        return None
-    if point.id.startswith(_MANAGED_PREFIXES) or not _is_uuid(point.id):
-        return None
-    return point.time, point.value
 
 
 def _legacy_fade_indices(points: list[EnvPoint], fade_in: float, fade_out: float) -> set[int]:
-    """Indices of the four uuid points an earlier mix run wrote for these fade settings.
+    """Indices of the four uuid points an earlier mix run wrote, or none.
 
-    The old fade was (0,0) (fade_in,1) (max(fade_in, end - fade_out),1) (end,0) with uuid ids,
-    for a stem length that may since have changed. A ``duck:b:<uuid>`` point counts through its
-    original id and value. The match uses the settings in force now: A is the first uuid point
-    at (0,0), D a uuid value-0 point after it (the latest that fits), B a value-1 point at
-    ``fade_in`` and C a value-1 point at max(fade_in, D.time - fade_out). No fit, no match.
+    Looks only at the base points (a ``duck:b:`` point counts as its original id and value,
+    ``duck:g:`` points are ignored). An older fade is adopted only when the base points are
+    exactly four uuid points forming (0,0) (fade_in,1) (max(fade_in, end - fade_out),1)
+    (end,0) for the settings in force now and some old stem length ``end``; ``end`` may lie
+    before fade_in, as an old run wrote for a short stem. Any other base point, or any
+    mismatch, adopts nothing, so no point of the user's is ever removed.
     """
-    views = {i: v for i, p in enumerate(points) if (v := _legacy_view(p)) is not None}
-    starts = [i for i, (t, v) in views.items() if t == 0.0 and v == 0.0]
-    if not starts:
+    base: list[tuple[int, float, float]] = []
+    for index, point in enumerate(points):
+        if point.id.startswith(GENERATED_PREFIX):
+            continue
+        lowered = parse_lowered(point.id)
+        if lowered is None:
+            base.append((index, point.time, point.value))
+            if not _is_uuid(point.id):
+                return set()
+        else:
+            base.append((index, point.time, lowered[1]))
+            if not _is_uuid(lowered[0]):
+                return set()
+    if len(base) != 4:
         return set()
-    a = starts[0]
-    ends = sorted(
-        (i for i, (t, v) in views.items() if v == 0.0 and t > 0.0 and i != a),
-        key=lambda i: views[i][0],
-        reverse=True,
-    )
-    for d in ends:
-        end = views[d][0]
-        t_b, t_c = fade_in, max(fade_in, end - fade_out)
-        if not 0.0 <= t_b <= t_c <= end:
-            continue
-        at_b = [i for i, (t, v) in views.items() if v == 1.0 and t == t_b and i not in (a, d)]
-        if not at_b:
-            continue
-        b = at_b[0]
-        at_c = [i for i, (t, v) in views.items() if v == 1.0 and t == t_c and i not in (a, d, b)]
-        if at_c:
-            return {a, b, at_c[-1], d}
-    return set()
+    ends = [t for _, t, v in base if v == 0.0 and t > 0.0]
+    if len(ends) != 1:
+        return set()
+    end = ends[0]
+    expected = sorted([(0.0, 0.0), (fade_in, 1.0), (max(fade_in, end - fade_out), 1.0), (end, 0.0)])
+    if fade_in < 0.0 or sorted((t, v) for _, t, v in base) != expected:
+        return set()
+    return {index for index, _, _ in base}
 
 
 def _near_dip(points: list[EnvPoint], start: float, end: float) -> bool:
@@ -150,8 +137,9 @@ def merge_fades(
     if not targets:
         return FadeMerge(current, 0)
     legacy: set[int] = set()
-    if not any(p.id.startswith(FADE_PREFIX) for p in current):
+    if not any(_fade_view(p) is not None for p in current):
         legacy = _legacy_fade_indices(current, fade_in, fade_out)
+        removed_lowered = sum(1 for i in legacy if current[i].id.startswith(BASE_PREFIX))
         current = [p for i, p in enumerate(current) if i not in legacy]
 
     owner: dict[str, int] = {}  # slot -> index of the point that holds it
@@ -164,7 +152,7 @@ def merge_fades(
     kept: list[EnvPoint] = []
     satisfied: set[str] = set()
     user_owned: set[str] = set()
-    replaced_under_duck = 0
+    replaced_under_duck = removed_lowered if legacy else 0
     for index, point in enumerate(current):
         view = _fade_view(point)
         if view is None or owner[view[0]] != index:
@@ -174,7 +162,7 @@ def merge_fades(
         if original_id != fade_point_id(slot, point.time, original_value):
             user_owned.add(slot)
             kept.append(point)
-        elif (point.time, original_value) == wanted[slot]:
+        elif original_id == fade_point_id(slot, *wanted[slot]):
             satisfied.add(slot)
             kept.append(point)
         elif point.id.startswith(BASE_PREFIX):
