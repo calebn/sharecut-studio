@@ -13,6 +13,7 @@ the same expectations hold if the service returns a model instead of a bare dict
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -660,6 +661,14 @@ def test_cli_bad_range_prints_the_coded_error_on_stderr_and_exits_one(tmp_path):
     _untouched(path, before)
 
 
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_BOX = re.compile(r"[│╭╮╰╯─]")
+
+
+def _flat(text: str) -> str:
+    return " ".join(_BOX.sub(" ", _ANSI.sub("", text)).split())
+
+
 def test_cli_without_a_range_or_query_is_a_usage_error_with_exit_two(tmp_path):
     path = _applied(tmp_path)
     before = Path(path).read_bytes()
@@ -667,7 +676,7 @@ def test_cli_without_a_range_or_query_is_a_usage_error_with_exit_two(tmp_path):
         result = _cli(path, *extra)
         assert result.exit_code == 2
         assert result.stdout == ""
-        assert "provide --start and --end, or --query" in result.stderr
+        assert "provide --start and --end, or --query" in _flat(result.stderr)
     _untouched(path, before)
 
 
