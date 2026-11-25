@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { isDamagedSegment, type SegmentListRow } from "../api";
 import { Skeleton } from "../system/Skeleton";
 import { Button, InlineError } from "../ui";
@@ -23,14 +23,17 @@ function nameOf(row: SegmentListRow | undefined): string {
   return isDamagedSegment(row) ? row.id : row.name;
 }
 
-function useSpokenAudition(rows: readonly SegmentListRow[]): string {
-  const { playingId, failedId } = useAudition();
+function useSpokenAudition(
+  rows: readonly SegmentListRow[],
+  owner: string,
+): string {
+  const { playingId, failedId, owner: current } = useAudition();
   const [stopped, setStopped] = useState(false);
-  const active = playingId ?? failedId;
+  const active = current === owner ? (playingId ?? failedId) : null;
   if (active !== null && !stopped) setStopped(true);
   const name = nameOf(rows.find((row) => row.id === active));
-  if (playingId !== null) return `Playing ${name}`;
-  if (failedId !== null) return `Couldn't play ${name}`;
+  if (active !== null && active === playingId) return `Playing ${name}`;
+  if (active !== null) return `Couldn't play ${name}`;
   return stopped ? "Stopped" : "";
 }
 
@@ -44,9 +47,17 @@ export function SegmentLibraryBody({ library, layout }: Props) {
   const focusRequest = useRef<FocusRequest | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const emptyRef = useRef<HTMLParagraphElement>(null);
-  const spoken = useSpokenAudition(rows ?? []);
+  const owner = useId();
+  const mounted = useRef(true);
+  const spoken = useSpokenAudition(rows ?? [], owner);
 
-  useEffect(() => stopAudition, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      stopAudition(owner);
+    };
+  }, [owner]);
 
   useLayoutEffect(() => {
     const request = focusRequest.current;
@@ -72,6 +83,7 @@ export function SegmentLibraryBody({ library, layout }: Props) {
   }, [rows, confirmId, removingId]);
 
   const askRemove = (row: SegmentListRow) => {
+    if (removingId !== null) return;
     if (playingId === row.id) stopAudition();
     setDone(null);
     setFailure(null);
@@ -79,15 +91,18 @@ export function SegmentLibraryBody({ library, layout }: Props) {
   };
 
   const keep = (id: string) => {
+    if (removingId !== null) return;
     focusRequest.current = { id, index: 0 };
     setConfirmId(null);
   };
 
   const confirm = async (row: SegmentListRow) => {
+    if (removingId !== null) return;
     const index = (rows ?? []).findIndex((entry) => entry.id === row.id);
     focusRequest.current = { id: row.id, index };
     setRemovingId(row.id);
     const reason = await remove(row.id);
+    if (!mounted.current) return;
     setRemovingId(null);
     setConfirmId(null);
     if (reason === null) setDone(`Removed ${nameOf(row)} from the library.`);
@@ -95,6 +110,7 @@ export function SegmentLibraryBody({ library, layout }: Props) {
   };
 
   let content;
+  const reloadFailed = rows !== null && error !== null;
   if (rows === null && error === null) {
     content = (
       <>
@@ -133,7 +149,7 @@ export function SegmentLibraryBody({ library, layout }: Props) {
         failedId={failedId}
         confirmId={confirmId}
         removingId={removingId}
-        onToggle={toggleAudition}
+        onToggle={(target) => toggleAudition(target, owner)}
         onAskRemove={askRemove}
         onKeep={keep}
         onConfirm={(target) => void confirm(target)}
@@ -171,6 +187,19 @@ export function SegmentLibraryBody({ library, layout }: Props) {
         {done}
       </p>
       <InlineError message={failure} />
+      {reloadFailed ? (
+        <div className="segment-library-error" role="alert">
+          <p className="segment-library-detail">
+            {LOAD_FAILED_TEXT} {error}
+          </p>
+          <Button
+            aria-label="Try again to load the segment library"
+            onClick={reload}
+          >
+            Try again
+          </Button>
+        </div>
+      ) : null}
       {content}
       <p className="sr-only" role="status">
         {spoken}

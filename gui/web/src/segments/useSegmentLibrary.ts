@@ -31,6 +31,7 @@ export function useSegmentLibrary(enabled = true): SegmentLibraryState {
     void round;
     loadSegments(controller.signal)
       .then((list) => {
+        if (controller.signal.aborted) return;
         setRows(list);
         setLoadError(null);
       })

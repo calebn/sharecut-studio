@@ -79,6 +79,7 @@ vi.mock("../../ingest/ingestFiles", async (importOriginal) => ({
 }));
 
 const loadSegments = vi.mocked(segments.loadSegments);
+const removeSegment = vi.mocked(segments.removeSegment);
 const list = vi.mocked(api.listRecentProjects);
 const forget = vi.mocked(api.forgetRecentProject);
 const reveal = vi.mocked(api.revealRecentProject);
@@ -2072,6 +2073,88 @@ describe("HomeScreen", () => {
       expect(
         await screen.findByRole("dialog", { name: "Segment library" }),
       ).toBeVisible();
+    });
+
+    it("drops a segment removed in the sheet from the Home section", async () => {
+      removeSegment.mockResolvedValue(undefined);
+      loadSegments.mockResolvedValue(listed);
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await screen.findByRole("button", { name: "Play Cold open" });
+      act(() => useDawStore.getState().setSegmentLibraryOpen(true));
+      const dialog = await screen.findByRole("dialog", {
+        name: "Segment library",
+      });
+      loadSegments.mockResolvedValue([]);
+      await user.click(
+        await within(dialog).findByRole("button", {
+          name: "More actions for Cold open",
+        }),
+      );
+      await user.click(
+        await screen.findByRole("menuitem", { name: "Remove from library" }),
+      );
+      await user.click(within(dialog).getByRole("button", { name: "Remove" }));
+      await waitFor(() =>
+        expect(
+          screen.queryAllByRole("button", {
+            name: "Play Cold open",
+            hidden: true,
+          }),
+        ).toHaveLength(0),
+      );
+    });
+
+    it("keeps the section for its status and focus when the last segment goes on a first-run Home", async () => {
+      removeSegment.mockResolvedValue(undefined);
+      list.mockResolvedValue([]);
+      loadSegments.mockResolvedValue(listed);
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await user.click(
+        await screen.findByRole("button", {
+          name: "More actions for Cold open",
+        }),
+      );
+      await user.click(
+        await screen.findByRole("menuitem", { name: "Remove from library" }),
+      );
+      loadSegments.mockResolvedValue([]);
+      await user.click(screen.getByRole("button", { name: "Remove" }));
+      expect(
+        await screen.findByText("Removed Cold open from the library."),
+      ).toBeVisible();
+      const empty = await screen.findByText(/No saved segments yet/);
+      await waitFor(() => expect(empty).toHaveFocus());
+    });
+
+    it("keeps Home playback when the sheet closes and announces it once", async () => {
+      vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(
+        async () => {},
+      );
+      vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(
+        () => {},
+      );
+      vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+      loadSegments.mockResolvedValue(listed);
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await user.click(
+        await screen.findByRole("button", { name: "Play Cold open" }),
+      );
+      act(() => useDawStore.getState().setSegmentLibraryOpen(true));
+      await screen.findByRole("dialog", { name: "Segment library" });
+      expect(screen.getAllByText("Playing Cold open")).toHaveLength(1);
+      act(() => useDawStore.getState().setSegmentLibraryOpen(false));
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Segment library" }),
+        ).toBeNull(),
+      );
+      expect(
+        screen.getByRole("button", { name: "Stop Cold open" }),
+      ).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Stop Cold open" }));
     });
 
     it("is axe-clean with the section", async () => {

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api/segments";
 import { expectNoA11yViolations } from "../test/a11y";
+import { deferred } from "../test/deferred";
 import { ApiError } from "../utils/apiError";
 import { stopAudition } from "./audition";
 import { DAMAGED, HEALTHY, LIBRARY, MULTI_VERSION } from "./fixtures";
@@ -332,5 +333,54 @@ describe("removing a segment", () => {
     await user.click(screen.getByRole("button", { name: "Remove" }));
     const empty = await screen.findByText(/No saved segments yet/);
     await waitFor(() => expect(empty).toHaveFocus());
+  });
+
+  it("ignores a second Remove while one is in flight and keeps focus for the first", async () => {
+    const pending = deferred();
+    removeSegment.mockReturnValueOnce(pending.promise);
+    const user = userEvent.setup();
+    await ready();
+    const confirm = await askToRemove(user);
+    await user.click(within(confirm).getByRole("button", { name: "Remove" }));
+    await user.click(
+      screen.getByRole("button", { name: `More actions for ${DAMAGED.id}` }),
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Remove from library" }),
+    );
+    expect(screen.getAllByRole("group")).toHaveLength(1);
+    expect(
+      screen.getByRole("group", { name: /Remove “Acme sponsor read”/ }),
+    ).toBeVisible();
+    expect(removeSegment).toHaveBeenCalledTimes(1);
+    load.mockResolvedValue([HEALTHY, DAMAGED]);
+    await act(async () => pending.resolve());
+    expect(
+      await screen.findByText("Removed Acme sponsor read from the library."),
+    ).toBeVisible();
+    expect(screen.queryByRole("group")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: `More actions for ${DAMAGED.id}` }),
+    ).toHaveFocus();
+  });
+
+  it("keeps the rows and offers Try again when the list read after a removal fails", async () => {
+    const user = userEvent.setup();
+    await ready();
+    const confirm = await askToRemove(user);
+    load.mockRejectedValueOnce(new Error("offline"));
+    await user.click(within(confirm).getByRole("button", { name: "Remove" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("offline");
+    expect(
+      screen.getByRole("button", { name: "Play Cold open" }),
+    ).toBeVisible();
+    load.mockResolvedValue([HEALTHY, DAMAGED]);
+    await user.click(
+      within(alert).getByRole("button", {
+        name: "Try again to load the segment library",
+      }),
+    );
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 });

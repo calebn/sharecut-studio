@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   type DamagedSegmentRow,
   isDamagedSegment,
@@ -6,7 +6,13 @@ import {
   type SegmentRow,
 } from "../api";
 import { SystemIcon } from "../system/SystemIcon";
-import { InlineConfirm, Menu, MenuItem, Pill } from "../ui";
+import {
+  InlineConfirm,
+  Menu,
+  MenuItem,
+  Pill,
+  registerInlineConfirm,
+} from "../ui";
 import {
   formatLength,
   KIND_LABEL,
@@ -125,14 +131,19 @@ function Confirm({
   onKeep: (id: string) => void;
   onConfirm: (row: SegmentListRow) => void;
 }) {
+  useEffect(() => {
+    if (!removing) return;
+    return registerInlineConfirm(() => {});
+  }, [removing]);
   return (
     <div
       role="presentation"
+      aria-busy={removing || undefined}
       onKeyDown={(event) => {
-        if (event.key !== "Escape" || removing) return;
+        if (event.key !== "Escape") return;
         event.preventDefault();
         event.stopPropagation();
-        onKeep(row.id);
+        if (!removing) onKeep(row.id);
       }}
     >
       <InlineConfirm

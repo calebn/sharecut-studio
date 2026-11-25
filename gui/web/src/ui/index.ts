@@ -26,6 +26,7 @@ export {
   InspectorSeekFooterView,
   type InspectorSeekFooterViewProps,
 } from "./InspectorSeekFooterView";
+export { registerInlineConfirm } from "./inlineConfirmGate";
 export {
   LevelMeter,
   type LevelMeterOrientation,

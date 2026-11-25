@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api/segments";
+import { deferred } from "../test/deferred";
 import { ApiError } from "../utils/apiError";
 import { HEALTHY, LIBRARY } from "./fixtures";
 import { SEGMENT_BUSY_MESSAGE, useSegmentLibrary } from "./useSegmentLibrary";
@@ -43,6 +44,17 @@ describe("useSegmentLibrary", () => {
     act(() => result.current.reload());
     await waitFor(() => expect(result.current.rows).toEqual(LIBRARY));
     expect(result.current.error).toBeNull();
+  });
+
+  it("ignores a read that finishes after a newer one started", async () => {
+    const stale = deferred<typeof LIBRARY>();
+    load.mockReturnValueOnce(stale.promise);
+    const { result } = renderHook(() => useSegmentLibrary());
+    load.mockResolvedValueOnce([HEALTHY]);
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.rows).toEqual([HEALTHY]));
+    await act(async () => stale.resolve(LIBRARY));
+    expect(result.current.rows).toEqual([HEALTHY]);
   });
 
   it("aborts the read when it unmounts", async () => {
