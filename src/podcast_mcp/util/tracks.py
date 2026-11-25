@@ -12,6 +12,20 @@ def unknown_track(track_id: str) -> CodedValueError:
     return CodedValueError(f"unknown track_id: {track_id!r}", code="track_not_found")
 
 
+def tracks_with_audio(project: EpisodeProject) -> set[str]:
+    """Ids of the tracks that make sound: a recording, or a clip placed from a segment."""
+    ids = {t.id for t in project.tracks if t.media is not None}
+    ids.update(c.track_id for c in project.clips if c.segment_ref is not None)
+    return ids
+
+
+def track_has_audio(project: EpisodeProject, track: Track) -> bool:
+    """Whether ``track`` makes sound: it has media or carries a segment clip."""
+    return track.media is not None or any(
+        c.segment_ref is not None and c.track_id == track.id for c in project.clips
+    )
+
+
 def stem_path(project: EpisodeProject, track_id: str) -> Path:
     """Canonical rendered track stem path, whether or not it exists yet."""
     return project.artifacts_dir() / "tracks" / f"{track_id}.wav"

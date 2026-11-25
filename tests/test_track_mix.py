@@ -768,6 +768,8 @@ def test_an_empty_mix_says_why(
     if has_stems:
         _fake_rendered_stems(ws.project)
     else:
+        for track in ws.project.tracks:
+            track.media = None
         (ws.project.artifacts_dir()).mkdir(parents=True, exist_ok=True)
         (ws.project.artifacts_dir() / "track_outputs.json").write_text("{}")
     eng = _mixing_engine()
