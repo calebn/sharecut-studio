@@ -1169,6 +1169,121 @@ def test_a_wildcard_studio_still_announces_loopback_with_no_machine_name(
     handoff_route.stopped(run_app)
 
 
+def _loopback_studio(project: Path, port: int) -> Any:
+    run_app = _announcing_app(project, "127.0.0.1")
+    handoff_route.listening(run_app, port=port, host="127.0.0.1")
+    return run_app
+
+
+def _ended_pid() -> int:
+    child = subprocess.Popen([sys.executable, "-c", "pass"])
+    child.wait()
+    return child.pid
+
+
+def test_a_studio_takes_the_announcement_back_when_the_other_studio_on_its_project_withdraws(
+    minimal_project: Path,
+) -> None:
+    """Two Studios on one project share one announcement; the one left serving keeps it (#2534)."""
+    first = _loopback_studio(minimal_project, 8123)
+    second = _loopback_studio(minimal_project, 8124)
+    try:
+        handoff_route.keep_announced(first)
+        host = read_studio_host(minimal_project)
+        assert host is not None
+        # A live Studio's announcement is left alone, so the two never take turns writing it.
+        assert (host.instance, host.port) == (second.state.studio_host.instance, 8124)
+
+        handoff_route.stopped(second)
+        assert read_studio_host(minimal_project) is None
+        handoff_route.keep_announced(first)
+        host = read_studio_host(minimal_project)
+        assert host is not None
+        assert (host.instance, host.port) == (first.state.studio_host.instance, 8123)
+    finally:
+        handoff_route.stopped(second)
+        handoff_route.stopped(first)
+    assert read_studio_host(minimal_project) is None
+
+
+@pytest.mark.parametrize("left_behind", ["ended", "unreadable"])
+def test_a_studio_takes_back_an_announcement_no_live_studio_answers_for(
+    minimal_project: Path, left_behind: str
+) -> None:
+    run_app = _loopback_studio(minimal_project, 8123)
+    try:
+        if left_behind == "ended":
+            announce_studio_host(
+                minimal_project,
+                StudioHost(
+                    instance="crashed",
+                    pid=_ended_pid(),
+                    host="127.0.0.1",
+                    port=8124,
+                    token="t",
+                    version="0",
+                ),
+            )
+        else:
+            studio_host_path(minimal_project).write_text("{", encoding="utf-8")
+        handoff_route.keep_announced(run_app)
+        host = read_studio_host(minimal_project)
+        assert host is not None
+        assert (host.instance, host.port) == (run_app.state.studio_host.instance, 8123)
+    finally:
+        handoff_route.stopped(run_app)
+
+
+@pytest.mark.parametrize("how", ["stopped", "serves_nothing", "serves_another"])
+def test_a_studio_that_no_longer_serves_the_project_leaves_it_unannounced(
+    minimal_project: Path, tmp_path: Path, how: str
+) -> None:
+    run_app = _loopback_studio(minimal_project, 8123)
+    try:
+        if how == "stopped":
+            handoff_route.stopped(run_app)
+        elif how == "serves_nothing":
+            handoff_route.set_served_project(run_app, None)
+        else:
+            other = EpisodeProject.create("other_episode", str(tmp_path / "other"))
+            other.ensure_dirs()
+            handoff_route.set_served_project(run_app, save_project(other))
+        assert read_studio_host(minimal_project) is None
+        handoff_route.keep_announced(run_app)
+        assert read_studio_host(minimal_project) is None
+    finally:
+        handoff_route.stopped(run_app)
+
+
+def test_a_command_goes_to_the_studio_still_open_after_the_other_one_closes(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End to end (#2534): two real Studios on one project, the last to open closes, and the CLI
+    hands its command to the one still open instead of writing behind its back."""
+    monkeypatch.setattr(handoff_route, "ANNOUNCE_CHECK_SEC", 0.05)
+    first, stop_first = _start_studio(minimal_project, monkeypatch)
+    try:
+        second, stop_second = _start_studio(minimal_project, monkeypatch)
+        try:
+            host = read_studio_host(minimal_project)
+            assert host is not None and host.port == second.port
+        finally:
+            stop_second()
+
+        def announced_port() -> int | None:
+            host = read_studio_host(minimal_project)
+            return None if host is None else host.port
+
+        _wait_until(lambda: announced_port() == first.port, "the open Studio did not announce")
+        result = comment_add(minimal_project, "to the open studio")
+    finally:
+        stop_first()
+
+    assert result.returncode == 0, result.stderr
+    assert comment_bodies(minimal_project) == ["to the open studio"]
+    assert [argv[:2] for argv in first.commands] == [["comment", "add"]]
+
+
 def test_commands_for_a_studio_on_127_0_0_2_are_refused_and_nothing_is_written(
     alias_studio: StudioRun,
 ) -> None:
