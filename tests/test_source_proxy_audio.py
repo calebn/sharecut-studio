@@ -685,7 +685,7 @@ def test_restore_proxy_of_a_multistream_source_uses_the_first_stream(tmp_path, m
 
 def test_first_stream_fix_moves_render_and_proxy_identities(tmp_path, monkeypatch):
     p, track, clip, _ = _project(tmp_path, monkeypatch)
-    assert timeline_render.RENDER_SEMANTICS_REV == 25
+    assert timeline_render.RENDER_SEMANTICS_REV == 26
     captured = proxy.SourceProxyInputs.capture_occurrence(
         p, clip.id, FFmpegEngine(), defaults=load_defaults()
     )
@@ -699,3 +699,31 @@ def test_first_stream_fix_moves_render_and_proxy_identities(tmp_path, monkeypatc
     monkeypatch.setattr(play_audit, "short_digest", spy)
     play_audit.proxy_render_hash(p, track.id, defaults=load_defaults())
     assert payloads[-1]["stream"] == "0:a:0"
+
+
+def test_arnndn_first_effect_on_44k1_source_records_the_forced_rate(tmp_path, monkeypatch):
+    # The restore clock reads the rate FFmpeg negotiates, so arnndn as the first effect must keep
+    # pulling the 48 kHz it needs back to the source, as the bare filter does (#4554).
+    p, track, clip, _ = _project(tmp_path, monkeypatch)
+    model = tmp_path / "model.rnnn"
+    _model(model)
+    p.processing_chains = [
+        ProcessingChain(
+            track_id=track.id,
+            effects=[ProcessingEffect(effect="arnndn", params={"model": str(model)})],
+        )
+    ]
+    clocks = []
+    real = proxy._render_pair
+
+    def capture(*args, **kwargs):
+        result = real(*args, **kwargs)
+        clocks.append(result[2])
+        return result
+
+    monkeypatch.setattr(proxy, "_render_pair", capture)
+    target = tmp_path / "variant.wav"
+    proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
+    clock = clocks[-1]
+    assert clock.native.audio.sample_rate == 44100
+    assert (clock.producer.sample_rate, clock.consumer.sample_rate) == (48000, 48000)

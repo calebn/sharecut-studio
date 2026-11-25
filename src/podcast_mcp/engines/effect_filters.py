@@ -145,7 +145,8 @@ def require_rnnoise_model() -> Path:
 
 def _arnndn(params: Mapping[str, Any]) -> str:
     model = params.get("model") or str(require_rnnoise_model())
-    return f"arnndn=m={_escape_filter_value(model)}"
+    head = "aformat=sample_fmts=fltp:sample_rates=48000,asetnsamples=n=480:p=1"
+    return f"{head},arnndn=m={_escape_filter_value(model)}"
 
 
 _EFFECT_FORMATTERS: Mapping[str, EffectFormatter] = MappingProxyType(

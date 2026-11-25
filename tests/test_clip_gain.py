@@ -138,9 +138,9 @@ def _hash_project(tmp_path: Path, **clip_extra) -> EpisodeProject:
 
 def test_zero_gain_leaves_the_render_hash_byte_identical(tmp_path: Path) -> None:
     project = _hash_project(tmp_path)
-    assert track_render_hash(project, "host", defaults=DEFAULTS) == "c1aaf2088c469b2b"
-    assert track_render_hash(project, "guest", defaults=DEFAULTS) == "088e66c7572130a1"
-    assert audio_state_fingerprint(project, defaults=DEFAULTS) == "04a3b393672b0ae7"
+    assert track_render_hash(project, "host", defaults=DEFAULTS) == "50fdb82d7d91e5a0"
+    assert track_render_hash(project, "guest", defaults=DEFAULTS) == "3484c99159065aa0"
+    assert audio_state_fingerprint(project, defaults=DEFAULTS) == "4077ab50f4791e23"
 
 
 def test_nonzero_gain_changes_only_its_own_tracks_hash_and_the_fingerprint(

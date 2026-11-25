@@ -944,7 +944,12 @@ the VAD fraction is half.
 
 An alternate to `afftdn` using FFmpeg's `arnndn` filter (a small recurrent-network
 denoiser), often a real upgrade for room noise/HVAC hiss/fan noise that `afftdn`'s
-spectral-subtraction approach handles less gracefully. Needs a one-time model fetch:
+spectral-subtraction approach handles less gracefully. The effect resamples its input to
+48 kHz in float (`aformat=sample_fmts=fltp:sample_rates=48000`, so filters before it stay
+float and are not moved to integer) and then pads it to whole 480-sample frames with
+silence, so repeated renders are identical; the model's response to that padded block is a silent or near-silent tail
+(about -66 dBFS on some builds), never a burst.
+Needs a one-time model fetch:
 
 ```bash
 podcast bootstrap --component rnnoise   # downloads GregorR/rnnoise-models' somnolent-hogwash.rnnn
