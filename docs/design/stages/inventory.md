@@ -312,7 +312,7 @@ Shortcuts are from `keymap/registry.ts` (Mod = ⌘ on macOS, Ctrl elsewhere); to
 | INT-ZOOM | Zoom in/out, fit session, fit track height, track height, waveform amplitude | Zoom buttons; View menu; Ctrl/Meta wheel; pinch | CMP-TOOLRAIL, MENU-VIEW | =, -, \\, Alt+=, Alt+-, Shift+↑/↓ | partial |
 | INT-PINCH | Pinch to zoom keeps time under fingers | Two-touch pinch on timeline | CMP-TIMELINE | pinch | NONE |
 | INT-PAN | Pan timeline | Wheel, drag scrollbar; phone: swipe | CMP-TIMELINE | none | NONE |
-| INT-REVEAL-SELECTION | Bring a scrolled-away selection back (the Action bar stays pinned at the edge with Show edit for a pending edit, Show selection for other kinds) | Action bar button (floating: only while pinned; phone dock: always); palette | CMP-TIMELINE, Action bar | none (no key) | partial |
+| INT-REVEAL-SELECTION | Bring a scrolled-away selection back (the Action bar stays pinned at the edge with Show edit for a pending edit, Show selection for other kinds) | Action bar button (floating: only while pinned; phone dock: when its anchor is drawn and Clear or Close holds the slot); palette | CMP-TIMELINE, Action bar | none (no key) | partial |
 | INT-LAYERS | Toggle overlay layers | View > Layers; phone More > Layers | CMP-LEGEND | none | yes |
 | INT-LAYOUT | Switch layout; resize bottom panel | View > Layout; splitter drag/keys; Restore chip | MENU-VIEW, CMP-SPLITTER, CMP-LAYOUT-CHIP | Mod+Shift+1..4 | partial (splitter yes) |
 | INT-FOLLOW | Follow another person; Esc stops | Avatar > Follow | MENU-PEOPLE, BAN-FOLLOW | Esc | yes |
