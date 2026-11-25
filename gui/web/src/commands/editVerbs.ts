@@ -836,6 +836,8 @@ async function dispatch(
       return executePointerCommand("edit.copy");
     case "saveSegment":
       return executePointerCommand("segment.save");
+    case "insertSegment":
+      return executePointerCommand("segment.insert");
     case "fillRoomTone":
       return executePointerCommand("range.fillRoomTone");
     case "moveToSpeaker":
@@ -889,7 +891,14 @@ async function exportVerb(
 
 // The bar draws what resolveBar says minus what is not wired yet, so no button is a dead end.
 export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
-  playhead: ["split", "addChapter", "record", "paste", "export"],
+  playhead: [
+    "split",
+    "addChapter",
+    "record",
+    "paste",
+    "export",
+    "insertSegment",
+  ],
   words: [
     "hear",
     "keep",
@@ -917,6 +926,7 @@ const WIRED_MORE: ReadonlySet<string> = new Set([
   "mute",
   "copy",
   "saveSegment",
+  "insertSegment",
   "moveToSpeaker",
   "fillRoomTone",
   "adjustBounds",
@@ -972,6 +982,13 @@ export function registerEditVerbCommands(): void {
     s.setSaveSegmentOpen(true);
     return OK;
   });
+  registerCommand("segment.insert", () => {
+    const s = useDawStore.getState();
+    if (!canManageProjects(s.projectPath))
+      return disabled(SEGMENT_INSERT_HOST_ONLY);
+    s.setInsertSegmentOpen(true);
+    return OK;
+  });
   registerCommand("edit.more", () => {
     const s = useDawStore.getState();
     const facts = currentEditFacts(s);
@@ -1011,6 +1028,8 @@ const RESTORE_IGNORED_LABEL = "Restore ignored words";
 const SPEAKER_HOST_ONLY =
   "Only the host can move a reply between speaker tracks";
 const SEGMENT_HOST_ONLY = "Only the host can save to the segment library";
+const SEGMENT_INSERT_HOST_ONLY =
+  "Only the host can insert from the segment library";
 const STALE_RANGE = "Selected audio changed. Select the range again.";
 
 function wordsRestoreAvailability(

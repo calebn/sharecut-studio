@@ -79,9 +79,22 @@ describe("EditActionBar on the phone dock", () => {
       "Add chapter",
       "Record here",
       "Export",
+      "Insert segment",
       "More",
     ]);
     await expectNoA11yViolations(container);
+  });
+
+  it("offers Insert segment at the playhead and opens the card", async () => {
+    host(EDIT_SELECTIONS.playhead);
+    render(<EditActionBar form="dock" root={null} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Insert segment" }),
+    );
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.insertSegmentOpen).toBe(true),
+    );
+    useDawStore.getState().setInsertSegmentOpen(false);
   });
 
   it("opens the Export options from More with the saved source and MP3", async () => {

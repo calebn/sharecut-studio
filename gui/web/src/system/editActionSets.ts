@@ -11,6 +11,7 @@ export type MoreCommandId =
   | "paste"
   | "copy"
   | "saveSegment"
+  | "insertSegment"
   | "moveTrackUp"
   | "moveTrackDown"
   | "smoothJoins"
@@ -52,6 +53,7 @@ export const EDIT_ORDER: readonly BarId[] = [
   "record",
   "paste",
   "export",
+  "insertSegment",
   "cut",
   "remove",
   "more",
@@ -74,6 +76,7 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
       bar("record", "host"),
       bar("paste", "clipboardHasAudio"),
       bar("export", "host"),
+      bar("insertSegment", "host"),
     ],
     more: [],
   },
@@ -111,6 +114,7 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
       row("moveToSpeaker"),
       row("copy"),
       row("saveSegment", "host"),
+      row("insertSegment", "host"),
     ],
   },
   clip: {
@@ -128,6 +132,7 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
       row("fade"),
       row("moveToTrack"),
       row("saveSegment", "host"),
+      row("insertSegment", "host"),
     ],
   },
   seam: {
@@ -282,6 +287,10 @@ const MORE_COMMANDS: Readonly<
   paste: { label: "Paste", icon: "clipboard-paste" },
   copy: { label: "Copy", icon: "copy" },
   saveSegment: { label: "Save as segment", icon: null },
+  insertSegment: {
+    label: "Insert segment",
+    icon: "between-horizontal-start",
+  },
   moveTrackUp: { label: "Move track up", icon: null },
   moveTrackDown: { label: "Move track down", icon: null },
   smoothJoins: { label: "Smooth all joins", icon: null },

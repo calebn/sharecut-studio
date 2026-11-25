@@ -82,6 +82,7 @@ const STORYBOOK_ONLY_IDS = [
   "stages-review-host--unsure-words-phone",
   "stages-edit-speakerpopover--open",
   "stages-edit-savesegmentcard--open",
+  "stages-edit-insertsegmentcard--open",
 ];
 
 const storybookOnly = stories.filter(isStorybookOnly);

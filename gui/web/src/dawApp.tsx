@@ -30,6 +30,7 @@ import { type ShellFailure, waitsForConnection } from "./shellLoadFailure";
 import { CommandPalette } from "./stage/dialogs/CommandPalette";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
 import { EDIT_SHEETS } from "./stage/edit/editSheets";
+import { InsertSegmentHost } from "./stage/edit/InsertSegmentHost";
 import { SaveSegmentHost } from "./stage/edit/SaveSegmentHost";
 import { registerAfterCutNav } from "./stage/edit/script/afterCutNav";
 import { registerCutToast } from "./stage/edit/script/cutToast";
@@ -307,6 +308,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
               <HelpHost />
               <SettingsHost />
               <SaveSegmentHost />
+              <InsertSegmentHost />
               {syncEnabled ? (
                 <ModelsSheet
                   open={modelsSheetOpen}

@@ -400,6 +400,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "a comment drafted with nothing selected pins to the playhead when the command runs, not in render",
   },
   {
+    file: "stage/edit/InsertSegmentHost.tsx",
+    reason:
+      "reads the playhead once when the Insert segment card opens, not in render",
+  },
+  {
     file: "commands/editVerbs.ts",
     reason:
       "Split and Record read the playhead when the verb runs, not in render",

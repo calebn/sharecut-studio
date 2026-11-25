@@ -8,9 +8,9 @@ import {
 import type { SegmentKind } from "../../api";
 import { segmentSaveMessage } from "../../edit/segmentSaveMessages";
 import { SEGMENT_KINDS } from "../../edit/segmentSelection";
-import { Sheet } from "../../system/Sheet";
-import { Button, Dialog, Field } from "../../ui";
+import { Button, Field } from "../../ui";
 import { InlineError } from "../../ui/InlineError";
+import { SegmentCardFrame } from "./SegmentCardFrame";
 
 const TITLE = "Save as segment";
 const NAME_REQUIRED = "Enter a name for the segment.";
@@ -46,19 +46,23 @@ export type SaveSegmentCardProps = Common &
       }
   );
 
-function SaveSegmentForm({
-  summary,
-  defaultKind,
-  onSave,
-  onClose,
-  field,
-  bottom,
-  busy,
-}: Common & {
-  busy: RefObject<boolean>;
-  field: RefObject<HTMLInputElement | null>;
-  bottom: boolean;
-}) {
+type FormState = {
+  name: string;
+  setName: (value: string) => void;
+  kind: SegmentKind;
+  pickKind: (value: SegmentKind) => void;
+  nameError: string | null;
+  failure: string | null;
+  saving: boolean;
+  submit: (event: FormEvent) => Promise<void>;
+  clearMessages: () => void;
+};
+
+function useSaveForm(
+  { defaultKind, onSave, onClose }: Common,
+  field: RefObject<HTMLInputElement | null>,
+): FormState & { busy: RefObject<boolean> } {
+  const busy = useRef(false);
   const [name, setName] = useState("");
   const [kind, setKind] = useState<SegmentKind>(defaultKind);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -70,26 +74,6 @@ function SaveSegmentForm({
   useEffect(() => {
     if (!kindTouched.current) setKind(defaultKind);
   }, [defaultKind]);
-
-  useEffect(() => {
-    if (!bottom) return;
-    let inner = 0;
-    const outer = requestAnimationFrame(() => {
-      inner = requestAnimationFrame(() => {
-        const active = document.activeElement;
-        if (
-          !active ||
-          active === document.body ||
-          active.closest(".dialog-close, .bottom-sheet-header")
-        )
-          field.current?.focus({ preventScroll: true });
-      });
-    });
-    return () => {
-      cancelAnimationFrame(outer);
-      cancelAnimationFrame(inner);
-    };
-  }, [bottom, field]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -118,6 +102,59 @@ function SaveSegmentForm({
     }
   };
 
+  return {
+    busy,
+    name,
+    setName,
+    kind,
+    pickKind: (value) => {
+      kindTouched.current = true;
+      setKind(value);
+    },
+    nameError,
+    failure,
+    saving,
+    submit,
+    clearMessages: () => {
+      setNameError(null);
+      setFailure(null);
+    },
+  };
+}
+
+function SaveSegmentForm({
+  summary,
+  onClose,
+  field,
+  bottom,
+  state,
+}: Pick<Common, "summary" | "onClose"> & {
+  field: RefObject<HTMLInputElement | null>;
+  bottom: boolean;
+  state: FormState;
+}) {
+  const { name, kind, nameError, failure, saving } = state;
+
+  useEffect(() => {
+    if (!bottom) return;
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (
+          !active ||
+          active === document.body ||
+          active.closest(".dialog-close, .bottom-sheet-header")
+        )
+          field.current?.focus({ preventScroll: true });
+      });
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, [bottom, field]);
+
   return (
     <form
       className={
@@ -126,7 +163,7 @@ function SaveSegmentForm({
           : "sys-segment-form"
       }
       noValidate
-      onSubmit={(event) => void submit(event)}
+      onSubmit={(event) => void state.submit(event)}
     >
       <Field label="Name" error={nameError}>
         {(control) => (
@@ -140,9 +177,8 @@ function SaveSegmentForm({
             maxLength={NAME_MAX}
             value={name}
             onChange={(event) => {
-              setName(event.target.value);
-              setNameError(null);
-              setFailure(null);
+              state.setName(event.target.value);
+              state.clearMessages();
             }}
           />
         )}
@@ -153,10 +189,9 @@ function SaveSegmentForm({
             {...control}
             disabled={saving}
             value={kind}
-            onChange={(event) => {
-              kindTouched.current = true;
-              setKind(event.target.value as SegmentKind);
-            }}
+            onChange={(event) =>
+              state.pickKind(event.target.value as SegmentKind)
+            }
           >
             {SEGMENT_KINDS.map((option) => (
               <option key={option} value={option}>
@@ -194,44 +229,35 @@ function SaveSegmentForm({
 }
 
 export function SaveSegmentCard(props: SaveSegmentCardProps) {
-  const { form, open = true, ...rest } = props;
-  const busy = useRef(false);
-  const onClose = () => {
-    if (!busy.current) props.onClose();
-  };
+  const { open = true } = props;
   const field = useRef<HTMLInputElement>(null);
+  const state = useSaveForm(props, field);
+  const { busy } = state;
   const content = (
     <SaveSegmentForm
-      summary={rest.summary}
-      defaultKind={rest.defaultKind}
-      onSave={rest.onSave}
-      onClose={onClose}
+      summary={props.summary}
+      onClose={() => {
+        if (!busy.current) props.onClose();
+      }}
       field={field}
-      busy={busy}
-      bottom={form === "bottom"}
+      bottom={props.form === "bottom"}
+      state={state}
     />
   );
-  if (form === "bottom") {
-    return (
-      <Sheet form="bottom" title={TITLE} open={open} onClose={onClose}>
-        {content}
-      </Sheet>
-    );
-  }
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={TITLE}
-      panelClassName="sys-segment-panel"
-      initialFocusRef={field}
-      anchor={{
-        reason:
-          "the card opens beside the selection it saves, so the clips being saved stay in view",
-        ref: props.anchorRef as RefObject<HTMLElement | null>,
-      }}
-    >
+  const frame = {
+    title: TITLE,
+    open,
+    busy,
+    onClose: props.onClose,
+    initialFocusRef: field,
+  };
+  return props.form === "bottom" ? (
+    <SegmentCardFrame {...frame} form="bottom">
       {content}
-    </Dialog>
+    </SegmentCardFrame>
+  ) : (
+    <SegmentCardFrame {...frame} anchorRef={props.anchorRef}>
+      {content}
+    </SegmentCardFrame>
   );
 }

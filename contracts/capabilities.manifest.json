@@ -3809,6 +3809,34 @@
       }
     },
     {
+      "id": "daw.segment.insert",
+      "label": "Insert segment",
+      "effect": "project",
+      "service": "services/document insert_saved_segment (InsertSegment document command, one undo step)",
+      "industry_standard_key": false,
+      "gates": [
+        "editStage"
+      ],
+      "surfaces": {
+        "command": "segment.insert",
+        "mcp": [
+          "segment_insert_tool"
+        ],
+        "gui": [
+          "actionBar"
+        ],
+        "cli": "podcast segment insert"
+      },
+      "omit": {
+        "keyboard_reason": "Context action started from the Action bar at the playhead or on a selection"
+      },
+      "tooltip": "Insert a segment from your library at the start, the end or the playhead",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.range.fillRoomTone",
       "label": "Fill range with room tone",
       "effect": "project",

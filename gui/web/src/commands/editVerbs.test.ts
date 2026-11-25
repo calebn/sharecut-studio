@@ -2819,3 +2819,63 @@ describe("Save as segment", () => {
     expect(useDawStore.getState().chrome.saveSegmentOpen).toBe(false);
   });
 });
+
+describe("Insert segment", () => {
+  const rowOf = () =>
+    barModelOf(factsOf()!, useDawStore.getState()).more.find(
+      (item) => item.id === "insertSegment",
+    );
+  const barItem = () =>
+    barModelOf(factsOf()!, useDawStore.getState()).items.find(
+      (item) => item.id === "insertSegment",
+    );
+  const GUEST = {
+    projectPath: "share:tok",
+    guestMode: "edit",
+    shareCapabilities: EDITOR_CAPABILITIES,
+  };
+
+  afterEach(() => useDawStore.getState().setInsertSegmentOpen(false));
+
+  it("is a bar item at the playhead and opens the card", async () => {
+    host(EDIT_SELECTIONS.playhead);
+    expect(barItem()).toEqual({ id: "insertSegment" });
+    expect(await execute("segment.insert")).toEqual({ status: "ok" });
+    expect(useDawStore.getState().chrome.insertSegmentOpen).toBe(true);
+  });
+
+  it("runs from the bar item through the verb dispatcher", async () => {
+    host(EDIT_SELECTIONS.playhead);
+    await runEditVerb("insertSegment", factsOf()!);
+    expect(useDawStore.getState().chrome.insertSegmentOpen).toBe(true);
+  });
+
+  it("is a More row on a clip and on a range", async () => {
+    host(EDIT_SELECTIONS.clip);
+    expect(rowOf()).toEqual({ id: "insertSegment" });
+    expect(barItem()).toBeUndefined();
+    host(EDIT_SELECTIONS.rangeOnAllTracks);
+    expect(rowOf()).toEqual({ id: "insertSegment" });
+  });
+
+  it("is absent for a guest and refuses with a reason", async () => {
+    host(EDIT_SELECTIONS.playhead, GUEST);
+    expect(barItem()).toBeUndefined();
+    host(EDIT_SELECTIONS.clip, GUEST);
+    expect(rowOf()).toBeUndefined();
+    expect(await execute("segment.insert")).toEqual({
+      status: "disabled",
+      reason: "Only the host can insert from the segment library",
+    });
+    expect(useDawStore.getState().chrome.insertSegmentOpen).toBe(false);
+  });
+
+  it("refuses with no project open", async () => {
+    host(null, { project: null });
+    expect(await execute("segment.insert")).toEqual({
+      status: "disabled",
+      reason: "No project loaded",
+    });
+    expect(useDawStore.getState().chrome.insertSegmentOpen).toBe(false);
+  });
+});

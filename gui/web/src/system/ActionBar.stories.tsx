@@ -338,6 +338,7 @@ export const RangeWithGap: Story = {
       "Move to speaker",
       "Copy",
       "Save as segment",
+      "Insert segment",
     ]);
   },
 };
@@ -463,6 +464,7 @@ const playPlayhead = async ({
     "Record",
     "Paste",
     "Export",
+    "More",
   ]);
 };
 

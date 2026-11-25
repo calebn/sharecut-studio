@@ -592,6 +592,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Save as segment",
     tooltip: "Save the selected clips or range to your segment library",
   },
+  "daw.segment.insert": {
+    label: "Insert segment",
+    tooltip:
+      "Insert a segment from your library at the start, the end or the playhead",
+  },
   "daw.range.fillRoomTone": {
     label: "Fill range with room tone",
     tooltip: "Fill the clip-free time in a range with the track's room tone",
