@@ -174,3 +174,10 @@ old build before the layout fix. Eight beta-story coverage-policy tests pass.
   Shift+Up or Shift+Down on the track select button also moves a track, as do
   the Move track up and Move track down actions. The current stories are
   `Reordering` and `DropLine` in `system/TrackHeader.stories.tsx`.
+
+- [#3543](https://github.com/calebn/sharecut-studio/issues/3543) tracks a Fix text
+  shortcut mismatch in the [Edit stage spec](design/stages/spec-edit.md).
+  Typing with a Script word selected leaves the selection in place. To open
+  Fix text, press Enter or F2 on the selected word, or double-tap it on a touch
+  screen. Desktop double-click selects the word without opening the field.
+  See the [current Script controls](daw-editing.md).
