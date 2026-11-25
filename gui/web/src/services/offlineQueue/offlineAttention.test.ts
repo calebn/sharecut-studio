@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { attentionRegionLabel } from "../../stage/frame/attentionLabel";
 import {
   getStorageHealth,
+  reportStorageFailure,
+  reportStorageOk,
   resetStorageHealth,
 } from "../../state/storageHealth";
 import { offlineConflict } from "../../test/fixtures";
@@ -216,7 +218,7 @@ describe("a device that will not open its saved edits", () => {
     expect(getStorageHealth()).toEqual({ queue: "blocked" });
   });
 
-  it("clears the cause once a read works again", async () => {
+  it("clears a refused read once a read works again", async () => {
     store.loadGuestAttention.mockRejectedValueOnce(blocked);
     store.loadGuestAttention.mockResolvedValue({ pending: 0, conflicts: [] });
     const { result } = renderHook(() => useOfflineAttention(KEY));
@@ -224,6 +226,22 @@ describe("a device that will not open its saved edits", () => {
     expect(getStorageHealth()).toEqual({ queue: "blocked" });
     await act(() => vi.advanceTimersByTimeAsync(ATTENTION_POLL_MS));
     expect(result.current.status).toBe("ready");
+    expect(getStorageHealth()).toEqual({});
+  });
+
+  it("holds a refused write across later reads that work", async () => {
+    store.loadGuestAttention.mockResolvedValue({ pending: 0, conflicts: [] });
+    const { result } = renderHook(() => useOfflineAttention(KEY));
+    await flush();
+    reportStorageFailure(
+      "queue",
+      new DOMException("full", "QuotaExceededError"),
+    );
+    for (let i = 0; i < 3; i++)
+      await act(() => vi.advanceTimersByTimeAsync(ATTENTION_POLL_MS));
+    expect(result.current.status).toBe("ready");
+    expect(getStorageHealth()).toEqual({ queue: "full" });
+    reportStorageOk("queue");
     expect(getStorageHealth()).toEqual({});
   });
 

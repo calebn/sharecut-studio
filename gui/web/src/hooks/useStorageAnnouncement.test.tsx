@@ -55,6 +55,19 @@ describe("useStorageAnnouncement", () => {
     expect(useDawStore.getState().feedbackToast).toBeNull();
   });
 
+  it("says a refused write once while reads keep working", () => {
+    act(() => reportStorageFailure("queue", full()));
+    for (let i = 0; i < 3; i++) {
+      act(() => reportStorageOk("queue", "read"));
+      act(() => reportStorageFailure("queue", full()));
+    }
+    expect(seq()).toBe(1);
+    expect(said()).toBe(storageSentence("full"));
+    act(() => reportStorageOk("queue"));
+    act(() => reportStorageFailure("queue", full()));
+    expect(seq()).toBe(2);
+  });
+
   it("says it again only after the failure cleared", () => {
     act(() => reportStorageFailure("snapshot", blocked()));
     expect(seq()).toBe(1);
