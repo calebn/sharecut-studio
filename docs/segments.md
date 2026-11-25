@@ -154,6 +154,15 @@ A row shows the name, `v{version}` (with `· N versions` only when there is more
 
 Loading is a skeleton after 300 ms, a failed read shows the reason with Try again, and the empty state does not promise a way to save. Palette commands for the library are not in this slice.
 
+**Save as segment.** The Edit stage's More menu (host only) has a Save as segment row for a clip selection or a range. It runs the `segment.save` command, which sets `chrome.saveSegmentOpen`; `stage/edit/SaveSegmentHost.tsx` shows `SaveSegmentCard` (an anchored popover beside the selection on desktop, a bottom sheet on a phone) with a Name, a Kind and a line such as "3 clips, 0:22". `edit/segmentSelection.ts` maps the selection to `saveSegment`:
+
+- Clips (one or several) send `clip_ids`. The summary counts those clips and spans the earliest start to the latest end.
+- A range, or words that resolve to one exact range, sends `time_range` as `start-end` in seconds with three decimals, and needs exactly one stretch of time. The server captures every track in that span, so a range that leaves out a track that has audio in it is refused ("A segment keeps every track") instead of saving more than was selected.
+- `role` is not sent, so the server takes it from the first clip's track.
+- No route exposes `guess_kind`, so the card repeats it: the selection starting within the first 120 s is Intro, ending within the last 120 s of the timeline is Outro, else Other (`SEGMENT_EDGE_SEC` matches `EDGE_SEC` in `segment_capture.py`). The chosen kind is always sent, so the saved kind is the one the card showed.
+
+The toast reads "Saved {name} to your library" (`added`), "Saved {name} as version {n}" (`new_version`) or "{name} is already in your library" (`unchanged`), with no Undo. `segmentSaveRefusal` names the codes `segment_clip_too_short`, `segment_render_unsupported`, `segment_busy`, `segment_write_failed` and `segment_invalid`; each has a plain sentence (`edit/segmentSaveMessages.ts`) shown in the card, which stays open. Any other failure says "That did not save. Try again."
+
 ## Show kit
 
 A kit is an ordered list of library segments with where each goes, for example an intro at the start and an outro at the end. A new episode applies it in one command. The kit is offered, never applied by itself: nothing in the app applies a kit unless someone runs `kit apply` or calls `kit_apply_tool`. Inserting at `start` ripples later audio, as every insert does.
@@ -218,7 +227,7 @@ A kit (its newest version) is usable when every entry's segment version, the pin
 ## Not built yet
 
 - Ducking under dialogue, and a Studio screen or an "update this segment" command for drift (the report exists, see [Drift](#drift)).
-- Studio screens to save a segment from a selection, insert one into an episode, rename one, or export and import a kit (Studio lists, auditions and removes, see [Studio](#studio)).
+- Studio screens to insert a segment into an episode, rename one, or export and import a kit (Studio lists, auditions, removes and saves from a selection, see [Studio](#studio)).
 - A compound document command that makes a whole kit one undo step.
 - `podcast segment export ID... -o FILE.sharecutkit` and `segment import FILE.sharecutkit` (the kit commands do this, see the kit section above).
 - Capturing a transcript or a chapter title.

@@ -215,12 +215,17 @@ export type {
   SegmentKind,
   SegmentListRow,
   SegmentRow,
+  SegmentSaveRefusal,
+  SegmentSaveRequest,
+  SegmentSaveResult,
 } from "./api/segments";
 export {
   isDamagedSegment,
   loadSegments,
   removeSegment,
+  saveSegment,
   segmentAudioUrl,
+  segmentSaveRefusal,
 } from "./api/segments";
 export {
   loadSessionTakes,

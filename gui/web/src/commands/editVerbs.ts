@@ -28,6 +28,7 @@ import {
   resolveSelectionRange,
 } from "../edit/rangeSelection";
 import { keepPlan, type Seam, seamById } from "../edit/seam";
+import { segmentSelectionOf } from "../edit/segmentSelection";
 import {
   canApplyPass12,
   canManageProjects,
@@ -833,6 +834,8 @@ async function dispatch(
         : executePointerCommand("edit.inspect");
     case "copy":
       return executePointerCommand("edit.copy");
+    case "saveSegment":
+      return executePointerCommand("segment.save");
     case "fillRoomTone":
       return executePointerCommand("range.fillRoomTone");
     case "moveToSpeaker":
@@ -913,6 +916,7 @@ export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
 const WIRED_MORE: ReadonlySet<string> = new Set([
   "mute",
   "copy",
+  "saveSegment",
   "moveToSpeaker",
   "fillRoomTone",
   "adjustBounds",
@@ -960,6 +964,14 @@ export function registerEditVerbCommands(): void {
     );
     return OK;
   });
+  registerCommand("segment.save", () => {
+    const s = useDawStore.getState();
+    if (!canManageProjects(s.projectPath)) return disabled(SEGMENT_HOST_ONLY);
+    const found = segmentSelectionOf(s.project, s.selection);
+    if (!found.ok) return disabled(found.reason);
+    s.setSaveSegmentOpen(true);
+    return OK;
+  });
   registerCommand("edit.more", () => {
     const s = useDawStore.getState();
     const facts = currentEditFacts(s);
@@ -998,6 +1010,7 @@ function trackRemoveReason(facts: EditFacts): string | null {
 const RESTORE_IGNORED_LABEL = "Restore ignored words";
 const SPEAKER_HOST_ONLY =
   "Only the host can move a reply between speaker tracks";
+const SEGMENT_HOST_ONLY = "Only the host can save to the segment library";
 const STALE_RANGE = "Selected audio changed. Select the range again.";
 
 function wordsRestoreAvailability(
@@ -1183,6 +1196,9 @@ export function barModelOf(
           ? SMOOTH_ONE_TRACK
           : null;
       more.push(reason ? { id, disabledReason: reason } : { id });
+    } else if (id === "saveSegment") {
+      const found = segmentSelectionOf(project ?? null, s.selection);
+      more.push(found.ok ? { id } : { id, disabledReason: found.reason });
     } else if (id === "fillRoomTone") {
       const reason = descriptor("fillRoomTone")?.reason;
       more.push(reason ? { id, disabledReason: reason } : { id });

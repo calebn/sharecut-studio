@@ -42,6 +42,8 @@ saves it. When the Script is collapsed, or the selection is a clip, seam, track 
 range the Script does not draw as words, the floating Action bar ends with its own
 **Clear selection**, so the two never show together.
 
+Save as segment: with a clip or a range selected, the host's **More** menu offers **Save as segment**. It opens a card (a 20 rem popover beside the selection on desktop, a bottom sheet on a phone) with a **Name** field that takes focus, a **Kind** select (Intro, Outro, Sponsor, Sting, Other) that starts on a guess from where the selection sits (starting in the first two minutes is Intro, ending in the last two is Outro, anything else is Other), a line such as "3 clips, 0:22", **Cancel** and **Save**. An empty name is refused with "Enter a name for the segment.". Save is off while it saves, so a second press does nothing. A toast says "Saved Intro to your library", "Saved Intro as version 2" or "Intro is already in your library", and has no Undo because the library is outside the project. A refusal stays in the card in plain words (a clip too short, room tone or a speaker mute or restored audio that a segment cannot keep, a busy or unwritable library). The row is disabled with a reason for a range that leaves a track out (a segment keeps every track), for several stretches of time, and for a view-only link.
+
 ### Script (desktop/tablet)
 
 | Command | Key | Effect |
