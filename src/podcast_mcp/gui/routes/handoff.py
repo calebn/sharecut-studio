@@ -48,6 +48,7 @@ from podcast_mcp.services.app import (
     new_instance_id,
     new_token,
     read_studio_host,
+    studio_host_path,
     withdraw_studio_host,
 )
 from podcast_mcp.services.document import queue_room_tone_pools
@@ -95,6 +96,9 @@ class StudioHostState:
         self.lock = threading.Lock()
         # Serializes announce/withdraw so overlapping pins and a shutdown cannot orphan a file.
         self.announce_lock = threading.RLock()
+        #: Studios whose announcement this one replaced as ended (#2534). One that writes the file
+        #: again is alive somewhere (another computer or container), so it is left alone.
+        self.replaced: set[str] = set()
 
     @property
     def address(self) -> str | None:
@@ -182,22 +186,36 @@ def keep_announced(app: Any) -> None:
     Two Studios on one project share one announcement, and the last to announce wins. When
     that one withdraws (it closed, or switched project) or its process ended without
     withdrawing, the other would be left with no pointer and the CLI would write directly,
-    racing it. A Studio still announcing the project therefore takes the file back when it is
-    gone, unreadable, or names a process that has ended. It leaves a live Studio's
-    announcement alone, so two Studios never take turns overwriting it: a Studio withdraws
-    only its own file when it stops serving the project, so a live one named there still
-    serves it.
+    racing it. A Studio that still serves the project therefore writes the file again when it
+    is gone, or names a process on this computer that has ended. It is retried on every check,
+    so a write that failed once (a full disk, a file held open) is not given up on. A project
+    whose file is gone (deleted or moved by something else) gets no new announcement.
+
+    A Studio never takes turns with another: a live Studio withdraws only its own file, so a
+    live one named there still serves the project. A file it cannot read is left alone (a
+    folder that cannot keep it private, for one). A Studio it replaced as ended that writes
+    the file again is alive elsewhere, on another computer or in another container whose
+    processes this one cannot see, so its file is left alone from then on.
     """
     state = _state(app)
     with state.announce_lock:
-        announced = state.announced
-        if announced is None:
+        served = app.state.served_project
+        if served is None or state.port is None:
             return
-        current = read_studio_host(announced)
-        if current is not None and (
-            current.instance == state.instance or pid_is_alive(current.pid)
+        current = read_studio_host(served)
+        if current is None:
+            # A file it cannot read stays; a project folder deleted or moved away is not
+            # brought back by announcing into it.
+            if studio_host_path(served).exists() or not resolve_project_path(served).is_file():
+                return
+        elif (
+            current.instance == state.instance
+            or current.instance in state.replaced
+            or pid_is_alive(current.pid)
         ):
             return
+        else:
+            state.replaced.add(current.instance)
         _announce_locked(app, state)
 
 
