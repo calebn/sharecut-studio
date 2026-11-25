@@ -11,8 +11,8 @@ from filelock import Timeout
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.edits.transcript_reuse import language_changed
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
 from podcast_mcp.engines.asr_options import normalize_language
-from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.project.io import open_project, read_transcript_vocabulary_state
 from podcast_mcp.project.store import TranscriptVocabularyState
 from podcast_mcp.project.transcript_context import (

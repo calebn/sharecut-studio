@@ -19,7 +19,8 @@ import pytest
 
 from bleed_helpers import RATE, delay, voices
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines.audio_audit import AnalysisPolicy, compute_word_audibility_map
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
+from podcast_mcp.engines.audio_audit import compute_word_audibility_map
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.pcm_cache import TrackRmsCache, TrackRmsCacheSet
 from podcast_mcp.models import EpisodeProject, Track, TrackRole, Transcript, TranscriptWord

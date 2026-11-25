@@ -133,8 +133,8 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         run_transcribe_plan,
     )
     from podcast_mcp.edits.word_spans import trim_project_word_spans
+    from podcast_mcp.engines.analysis_policy import AnalysisPolicy
     from podcast_mcp.engines.asr_options import AsrOptions
-    from podcast_mcp.engines.audio_audit import AnalysisPolicy
     from podcast_mcp.engines.models.word_aligner import word_aligner_model
     from podcast_mcp.engines.transcribe import (
         collect_anomalous_asr_duration_flags,
@@ -319,7 +319,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
 
 def precorrect_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
-    from podcast_mcp.engines.audio_audit import AnalysisPolicy
+    from podcast_mcp.engines.analysis_policy import AnalysisPolicy
 
     pol = AnalysisPolicy.from_defaults(defaults)
     result = run_precorrect_transcript(project, dry_run=False, policy=pol, defaults=defaults)
@@ -351,8 +351,8 @@ def require_transcript_refine(project: EpisodeProject, defaults: dict[str, Any])
 def reconcile_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.transcript_reconcile import run_reconciliation
     from podcast_mcp.edits.transcript_reuse import refresh_settled_silence_flags
+    from podcast_mcp.engines.analysis_policy import AnalysisPolicy
     from podcast_mcp.engines.asr_options import AsrOptions
-    from podcast_mcp.engines.audio_audit import AnalysisPolicy
 
     pol = AnalysisPolicy.from_defaults(defaults)
     if pol.transcript_mode == "off":

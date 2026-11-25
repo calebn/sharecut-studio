@@ -14,7 +14,7 @@ import pytest
 import yaml
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines.audio_audit import AnalysisPolicy
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
 from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB
 from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate

@@ -13,12 +13,9 @@ import pytest
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.engines import audio_audit
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
 from podcast_mcp.engines.audibility_reuse import audibility_run_scope, shared_rows
-from podcast_mcp.engines.audio_audit import (
-    AnalysisPolicy,
-    build_reconciliation_caches,
-    compute_word_audibility_map,
-)
+from podcast_mcp.engines.audio_audit import build_reconciliation_caches, compute_word_audibility_map
 from podcast_mcp.engines.lane_words import lane_transcripts
 from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
 from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole, Transcript, TranscriptWord

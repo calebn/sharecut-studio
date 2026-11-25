@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.engines.audio_audit import AnalysisPolicy, compute_word_audibility_map
+from podcast_mcp.engines.analysis_policy import AnalysisPolicy
+from podcast_mcp.engines.audio_audit import compute_word_audibility_map
 from podcast_mcp.engines.lane_words import (
     WordKey,
     project_lane_transcripts,
