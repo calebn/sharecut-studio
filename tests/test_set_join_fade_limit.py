@@ -100,7 +100,7 @@ def test_the_automatic_writers_read_the_saved_default(minimal_project: Path) -> 
     ws = _seed(minimal_project)
     TimelineService(ws).set_join_fade_limit(90)
     out = TimelineService(ws).fade_joins(fade_ms=200)
-    assert (out["fade_ms"], out["cap_ms"]) == (90, 90)
+    assert (out.fade_ms, out.cap_ms) == (90, 90)
     assert [c.fade_in_ms for c in load_project(minimal_project).clips] == [0, 90]
 
 

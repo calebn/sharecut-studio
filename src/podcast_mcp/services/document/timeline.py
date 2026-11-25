@@ -73,6 +73,7 @@ from podcast_mcp.services.document.delete_clips_results import (
     DeleteClipsProposal,
 )
 from podcast_mcp.services.document.join_analysis import _JoinAnalysis
+from podcast_mcp.services.document.join_fade_results import CrossfadeJoinsResult, FadeJoinsResult
 from podcast_mcp.services.document.join_mode_results import SetClipJoinResult, SetJoinModeResult
 from podcast_mcp.services.document.roll_join_results import (
     RollAppliedResult,
@@ -202,14 +203,16 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         track_id: str | None = None,
         speaker: str | None = None,
         fade_ms: int | None = None,
-    ) -> dict:
-        return fade_joins(
-            self.ws.project,
-            track_id=track_id,
-            speaker=speaker,
-            fade_ms=fade_ms,
-            dry_run=True,
-            defaults=self.ws.effective_config(),
+    ) -> FadeJoinsResult:
+        return FadeJoinsResult(
+            **fade_joins(
+                self.ws.project,
+                track_id=track_id,
+                speaker=speaker,
+                fade_ms=fade_ms,
+                dry_run=True,
+                defaults=self.ws.effective_config(),
+            )
         )
 
     def fade_joins(
@@ -219,18 +222,20 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         speaker: str | None = None,
         fade_ms: int | None = None,
         dry_run: bool = False,
-    ) -> dict:
+    ) -> FadeJoinsResult:
         if dry_run:
             return self.preview_fade_joins(track_id=track_id, speaker=speaker, fade_ms=fade_ms)
         return self.ws.mutate(
             "before fade joins",
             "after fade joins",
-            lambda p: fade_joins(
-                p,
-                track_id=track_id,
-                speaker=speaker,
-                fade_ms=fade_ms,
-                defaults=self.ws.effective_config(),
+            lambda p: FadeJoinsResult(
+                **fade_joins(
+                    p,
+                    track_id=track_id,
+                    speaker=speaker,
+                    fade_ms=fade_ms,
+                    defaults=self.ws.effective_config(),
+                )
             ),
             operation="fade_joins",
             params={
@@ -246,14 +251,16 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         track_id: str | None = None,
         speaker: str | None = None,
         fade_ms: int | None = None,
-    ) -> dict:
-        return crossfade_joins(
-            self.ws.project,
-            track_id=track_id,
-            speaker=speaker,
-            fade_ms=fade_ms,
-            dry_run=True,
-            defaults=self.ws.effective_config(),
+    ) -> CrossfadeJoinsResult:
+        return CrossfadeJoinsResult(
+            **crossfade_joins(
+                self.ws.project,
+                track_id=track_id,
+                speaker=speaker,
+                fade_ms=fade_ms,
+                dry_run=True,
+                defaults=self.ws.effective_config(),
+            )
         )
 
     def crossfade_joins(
@@ -263,18 +270,20 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         speaker: str | None = None,
         fade_ms: int | None = None,
         dry_run: bool = False,
-    ) -> dict:
+    ) -> CrossfadeJoinsResult:
         if dry_run:
             return self.preview_crossfade_joins(track_id=track_id, speaker=speaker, fade_ms=fade_ms)
         return self.ws.mutate(
             "before crossfade joins",
             "after crossfade joins",
-            lambda p: crossfade_joins(
-                p,
-                track_id=track_id,
-                speaker=speaker,
-                fade_ms=fade_ms,
-                defaults=self.ws.effective_config(),
+            lambda p: CrossfadeJoinsResult(
+                **crossfade_joins(
+                    p,
+                    track_id=track_id,
+                    speaker=speaker,
+                    fade_ms=fade_ms,
+                    defaults=self.ws.effective_config(),
+                )
             ),
             operation="crossfade_joins",
             params={
