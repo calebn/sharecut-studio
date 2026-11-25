@@ -146,6 +146,45 @@ def test_assess_speaker_cut_role_uses_resolved_backend_not_mock() -> None:
     assert role and role["role"] == "bleed"
 
 
+def test_role_memo_resolves_one_backend_for_every_window_scored_from_threads() -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from podcast_mcp.engines.speaker_id import RoleMemo
+    from podcast_mcp.models import EpisodeProject
+
+    backends: list[object] = []
+
+    def make():
+        backends.append(object())
+        return backends[-1]
+
+    used: list[object] = []
+
+    def score(project, track, start, end, cfg, backend, profiles=None):
+        used.append(backend)
+        return None
+
+    memo = RoleMemo()
+    proj = EpisodeProject.create("x", "/tmp")
+    with (
+        patch("podcast_mcp.engines.speaker_id.resolve_speaker_backend", side_effect=make),
+        patch("podcast_mcp.engines.speaker_id.load_all_profiles", return_value=_profiles()),
+        patch("podcast_mcp.engines.speaker_id.score_window", side_effect=score),
+        ThreadPoolExecutor(max_workers=4) as pool,
+    ):
+        list(
+            pool.map(
+                lambda i: assess_speaker_cut_role(
+                    proj, "host", float(i), i + 0.5, SpeakerIdConfig(), role_memo=memo
+                ),
+                range(12),
+            )
+        )
+    # One ONNX session per pass, not one per window: each resolve builds a new session.
+    assert len(backends) == 1
+    assert len(used) == 12 and all(b is backends[0] for b in used)
+
+
 def test_decode_window_samples_center_pads_short_span(tmp_path, sample_wav) -> None:
     wav = tmp_path / "t.wav"
     wav.write_bytes(sample_wav.read_bytes())

@@ -4,6 +4,7 @@ import glob
 import json
 import logging
 import re
+import threading
 import wave
 from contextlib import ExitStack
 from dataclasses import dataclass
@@ -209,6 +210,25 @@ class OnnxEcapaBackend:
     def check_loads(self) -> None:
         """Builds the session now, so a file that is not a model fails here, not mid-run."""
         self._model._load()
+
+
+class RoleMemo(dict[tuple[str, float, float], dict[str, Any] | None]):
+    """Scored windows for one analysis pass, plus the one backend that scored them.
+
+    A bare ``resolve_speaker_backend()`` builds a fresh ONNX session on every call, so each
+    memo miss would otherwise load the model again; pool threads share this backend instead.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._backend: SpeakerBackend | None = None
+        self._lock = threading.Lock()
+
+    def backend(self) -> SpeakerBackend:
+        with self._lock:
+            if self._backend is None:
+                self._backend = resolve_speaker_backend()
+            return self._backend
 
 
 # Shortest span worth embedding: below it the pinned networks cannot pad the input.
@@ -826,7 +846,7 @@ def assess_speaker_cut_role(
     backend: SpeakerBackend | None = None,
     *,
     profiles: dict[str, SpeakerProfile] | None = None,
-    role_memo: dict[tuple[str, float, float], dict[str, Any] | None] | None = None,
+    role_memo: RoleMemo | None = None,
 ) -> dict[str, Any] | None:
     """Classify a cut window as own, bleed or uncertain.
 
@@ -842,7 +862,7 @@ def assess_speaker_cut_role(
         profiles = load_all_profiles(project)
     if not profiles:
         return None
-    eng = backend or resolve_speaker_backend()
+    eng = backend or (role_memo.backend() if role_memo is not None else resolve_speaker_backend())
     ws = score_window(project, cut_track_id, src_start, src_end, cfg, eng, profiles=profiles)
     if ws is None:
         if role_memo is not None:
