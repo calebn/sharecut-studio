@@ -124,6 +124,7 @@ if TYPE_CHECKING:
         SplitAtTimeResult,
         SplitClipResult,
     )
+    from podcast_mcp.services.document.strip_silence_results import StripSilenceResult
     from podcast_mcp.services.document.timeline import TimelineService
     from podcast_mcp.services.document.timeline_move_results import (
         InsertGapResult,
@@ -227,6 +228,7 @@ __all__ = [
     "ShortenWordGapsUnchanged",
     "SplitAtTimeResult",
     "SplitClipResult",
+    "StripSilenceResult",
     "TimelineService",
     "TranscriptEmptyError",
     "TranscriptService",
@@ -356,6 +358,7 @@ _MODULE_BY_NAME = {
     "ShortenWordGapsUnchanged": "shorten_word_gaps_results",
     "SplitClipResult": "split_results",
     "SplitAtTimeResult": "split_results",
+    "StripSilenceResult": "strip_silence_results",
     "ProposeSplitResult": "split_results",
     "TrimAppliedResult": "trim_edge_results",
     "TrimHeldResult": "trim_edge_results",

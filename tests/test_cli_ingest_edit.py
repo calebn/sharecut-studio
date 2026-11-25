@@ -27,7 +27,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.services.document import MoveSegmentResult
+from podcast_mcp.services.document import AnalysisService, MoveSegmentResult, StripSilenceResult
 from podcast_mcp.services.document.cut_range_results import (
     CutRangeRippleApplied,
     RippleDeleteTextApplied,
@@ -1014,12 +1014,6 @@ def test_edit_ripple_delete_and_move_bad_params(minimal_project):
     "command,extra,patch_method,return_value",
     [
         (
-            "strip-silence",
-            ["--track", "host"],
-            "strip_silence",
-            {"removed_sec": 0.0, "cuts": []},
-        ),
-        (
             "analyze-cleanup",
             [],
             "analyze_cleanup",
@@ -1125,6 +1119,24 @@ def test_edit_service_wrapped_commands(
         result = runner.invoke(app, args)
     assert result.exit_code == 0
     assert json.loads(result.stdout) == return_value
+
+
+def test_edit_strip_silence_dumps_the_typed_result(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    result_model = StripSilenceResult(
+        track_id="host",
+        silence_intervals=1,
+        clips_created=2,
+        removed_sec=0.5,
+        timeline_duration_sec=3.0,
+    )
+    with patch.object(AnalysisService, "strip_silence", return_value=result_model):
+        result = runner.invoke(
+            app, ["edit", "strip-silence", "--project", str(project), "--track", "host"]
+        )
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == result_model.model_dump()
+    assert result.stdout.strip() == json.dumps(result_model.model_dump(), indent=2)
 
 
 def test_edit_ripple_delete_by_query(minimal_project):

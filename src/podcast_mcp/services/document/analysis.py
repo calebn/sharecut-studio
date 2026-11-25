@@ -66,6 +66,10 @@ from podcast_mcp.services.document.fade_recommendation_results import (
     applied_fade_updates,
 )
 from podcast_mcp.services.document.loudness_results import LoudnessReport, build_loudness_report
+from podcast_mcp.services.document.strip_silence_results import (
+    StripSilenceResult,
+    strip_silence_result,
+)
 from podcast_mcp.services.pipeline import rerender_preview
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC, render_lock
@@ -93,18 +97,20 @@ class AnalysisService(EffectsService):
         over_voice_floor_db: float = DEFAULT_STRIP_OVER_VOICE_FLOOR_DB,
         min_duration_sec: float = DEFAULT_STRIP_MIN_DURATION_SEC,
         use_inaudible_opt: bool | None = None,
-    ) -> dict:
+    ) -> StripSilenceResult:
         """Strip silence islands; ``use_inaudible_opt`` is ignored (API compat)."""
         tid = self._resolve(track_id, speaker)
 
-        def mutate(p) -> dict:
-            return strip_silence(
-                p,
-                tid,
-                over_voice_floor_db=over_voice_floor_db,
-                min_duration_sec=min_duration_sec,
-                use_inaudible_opt=use_inaudible_opt,
-                defaults=self.ws.effective_config(),
+        def mutate(p) -> StripSilenceResult:
+            return strip_silence_result(
+                strip_silence(
+                    p,
+                    tid,
+                    over_voice_floor_db=over_voice_floor_db,
+                    min_duration_sec=min_duration_sec,
+                    use_inaudible_opt=use_inaudible_opt,
+                    defaults=self.ws.effective_config(),
+                )
             )
 
         return self.ws.mutate(
