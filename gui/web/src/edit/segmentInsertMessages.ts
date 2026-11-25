@@ -59,8 +59,9 @@ export function insertAtOf(
   timelineEnd: number,
 ): SegmentInsertAt {
   if (position !== "playhead") return position;
-  if (!Number.isFinite(playheadSec) || playheadSec >= timelineEnd) return "end";
-  return Math.round(Math.max(0, playheadSec) * 1000) / 1000;
+  if (!Number.isFinite(playheadSec)) return "end";
+  const seconds = Math.round(Math.max(0, playheadSec) * 1000) / 1000;
+  return seconds >= timelineEnd ? "end" : seconds;
 }
 
 const plural = (n: number, one: string, many: string) =>

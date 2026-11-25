@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   insertSegment,
   previewSegmentInsert,
@@ -38,6 +38,10 @@ function OpenInsertSegmentHost() {
   );
 
   const { projectPath } = held;
+  const currentPath = useDawStore((s) => s.projectPath);
+  useEffect(() => {
+    if (currentPath !== projectPath) setOpen(false);
+  }, [currentPath, projectPath, setOpen]);
   const loadPreview = useCallback(
     (request: SegmentInsertRequest, signal: AbortSignal) =>
       previewSegmentInsert(projectPath, request, signal),
