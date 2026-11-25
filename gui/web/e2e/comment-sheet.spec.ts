@@ -41,6 +41,10 @@ test("a pin-selected comment opens a usable comment popover at 1440", async ({
     .locator('.sys-marker[data-kind="comment"] .sys-marker-hit')
     .click();
   await stageTab(page, "edit").click();
+  // The pin is on screen, so its Action bar is not pinned away from it.
+  await expect(
+    page.getByRole("button", { name: /^Show (edit|selection)$/ }),
+  ).toHaveCount(0);
   await inspectSelection(page);
   const card = page.locator("section.sys-inspector--popover");
   await expect(card.getByRole("heading", { name: "Comment" })).toBeVisible();

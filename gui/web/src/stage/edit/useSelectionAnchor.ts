@@ -50,6 +50,9 @@ function pinBox(node: HTMLElement): AnchorRect {
   const width = scroll.clientWidth || rect.width;
   const height = scroll.clientHeight || rect.height;
   const timeline = scroll.matches(".timeline-scroll");
+  // The ruler and marker lane are sticky: markers in them never scroll up under
+  // the chrome, so only an anchor in a lane answers to the chrome's bottom edge.
+  const inChrome = node.closest(".timeline-ruler, .marker-lane") !== null;
   return {
     left: Math.max(
       box.left,
@@ -58,7 +61,7 @@ function pinBox(node: HTMLElement): AnchorRect {
     top: Math.max(
       box.top,
       rect.top,
-      timeline ? timelineChromeBottom(scroll) : 0,
+      timeline && !inChrome ? timelineChromeBottom(scroll) : 0,
     ),
     right: Math.min(box.right, rect.left + (scroll.clientLeft || 0) + width),
     bottom: Math.min(box.bottom, rect.top + (scroll.clientTop || 0) + height),

@@ -6,7 +6,7 @@ Use with Playwright phone smoke (`e2e/sharecut.mobile.spec.ts`) and manual share
 
 - [ ] Listen: one body transport (no header row), play/pause, scrub, ±15s, status chips
 - [ ] Timeline: fixed playhead, pinch/ctrl-wheel zoom, Fit, select clip → sheet
-- [ ] Select a pending edit and scroll it away: the dock keeps its verbs and shows Show edit before Clear (Show selection for any other selection); it fits at 320 px
+- [ ] Select a pending edit and scroll it away: the dock keeps its verbs and shows a short "Show" control (named Show edit) before Clear (Show selection for any other selection); it fits at 320 px
 - [ ] Text: transcript follow / seek / Edit word → sheet
 - [ ] More: History, Pipeline (hub → back)
 - [ ] Transport Menu: layers, zoom, theme, audition
