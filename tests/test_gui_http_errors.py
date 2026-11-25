@@ -455,3 +455,13 @@ def test_guard_refusal_naming_a_host_path_sends_approved_copy(exc, status, code)
     sent = error.detail["message"] if isinstance(error.detail, dict) else error.detail
     assert sent == guest_message_for_code(code)
     assert not any(part in sent for part in ("/Users", "C:\\", "/home/", ".json"))
+
+
+def test_guard_refusal_without_a_path_goes_out_as_written_and_unknown_codes_get_generic_copy():
+    from podcast_mcp.gui.routes.deps import guard_http_error
+    from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
+
+    plain = guard_http_error(AccessDeniedError("not allowed here", code="authz_denied"))
+    assert plain.detail == "not allowed here"
+    unknown = guard_http_error(AccessDeniedError("read at /Users/host/x", code="no_such_code"))
+    assert unknown.detail == GENERIC_GUEST_MESSAGE

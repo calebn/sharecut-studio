@@ -116,7 +116,9 @@ def guard_http_error(exc: GuardRefusal) -> HTTPException:
     """
     message = str(exc)
     if mentions_host_path(message):
-        logger.warning("Guard refusal %s named a host path; sent approved copy instead", exc.code)
+        logger.warning(
+            "Guard refusal %s named a host path; sent approved copy instead: %r", exc.code, message
+        )
         message = guest_message_for_code(exc.code)
     if isinstance(exc, SignInRequiredError):
         detail = {"error": exc.code, "message": message, "login_path": SHARE_LOGIN_PATH}
