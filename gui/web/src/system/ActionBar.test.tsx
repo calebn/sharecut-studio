@@ -551,6 +551,46 @@ describe("ActionBar dock", () => {
   });
 });
 
+describe("ActionBar dock reason note", () => {
+  const REASON = "Wait for the current action to finish.";
+  const bar = (gated: string | null) => {
+    const items = itemsOf([
+      "hear",
+      "keep",
+      "split",
+      "comment",
+      "fixText",
+      "record",
+    ]).map((item) =>
+      item.id === gated ? { ...item, disabledReason: REASON } : item,
+    );
+    return render(
+      <ActionBar
+        placement={{ form: "dock" }}
+        items={items}
+        more={[]}
+        primary={itemsOf(["cut"])[0]}
+        onVerb={vi.fn()}
+      />,
+    );
+  };
+
+  it("still shows the reason when the gated verb is folded into More", () => {
+    const { container } = bar("record");
+    expect(
+      screen.queryByRole("button", { name: "Record" }),
+    ).not.toBeInTheDocument();
+    expect(container.querySelector(".sys-actions-reason")).toHaveTextContent(
+      REASON,
+    );
+  });
+
+  it("shows no reason when no verb is gated", () => {
+    const { container } = bar(null);
+    expect(container.querySelector(".sys-actions-reason")).toBeNull();
+  });
+});
+
 describe("ActionBar inline", () => {
   it("keeps the given order and ends with the primary", async () => {
     const onVerb = vi.fn();
