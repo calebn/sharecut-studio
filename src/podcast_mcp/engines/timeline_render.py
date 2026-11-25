@@ -28,6 +28,7 @@ from podcast_mcp.engines.audio import (
     SequenceAudio,
     SourceAudio,
     SourceMuteEnvelope,
+    delay_frames,
     duration,
     postorder,
     rendered_sources,
@@ -521,7 +522,7 @@ class TrackGrid:
     seeks: Mapping[Path, MediaSeek]
 
     def frame(self, seconds: float) -> int:
-        return math.floor(seconds * self.rate + 0.5)
+        return delay_frames(seconds, self.rate)
 
     def source_frame(self, path: Path, seconds: float) -> int:
         return self.seeks[path].first_sample(seconds, self.rate)
