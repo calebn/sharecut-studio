@@ -53,7 +53,7 @@ _HOST_PATH = re.compile(
     r"|[\\/](?i:Users|home)"
     r"|~[\w.-]*[\\/]"
     r"|/"
-    r"|(?i:%2f|%5c)"
+    r"|(?i:%(?:25)?2f|%(?:25)?5c)"
 )
 # pydantic prints the offending value of a failed field as ``input_value=<repr>, input_type=<type>``
 # on one line; the repr is the document's own data and may hold ``, input_type=`` itself, so it

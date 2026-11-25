@@ -441,6 +441,13 @@ HOST_PATH_MESSAGE = "No share at /Users/host/secret-episode/shares.json"
     [
         (AccessDeniedError(HOST_PATH_MESSAGE, code="authz_denied"), 403),
         (UnknownShareError(HOST_PATH_MESSAGE, code="share_not_found"), 404),
+        (
+            AccessDeniedError(
+                "no share at %252Fhome%252Fhost%252Fsecret-episode%252Fshares.json",
+                code="authz_denied",
+            ),
+            403,
+        ),
         (SignInRequiredError(HOST_PATH_MESSAGE), 401),
     ],
 )
