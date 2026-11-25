@@ -6,6 +6,7 @@ import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import type { ProjectView } from "../src/types/project";
 import { expectPageAxeClean } from "./axe";
 import { registerE2eCleanupWorkspace } from "./cleanupManifest";
+import { cutsSavedText } from "./cutsSavedText";
 import { postDocumentCommand, postHistoryMove } from "./documentCommand";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
 import { createEpisodeFromHome, openHome } from "./home";
@@ -41,17 +42,6 @@ import {
 } from "./stageNav";
 import { openScript } from "./transcriptEdit";
 import { withBrowserPages, withTwoBrowserPages } from "./twoBrowserPages";
-
-/** The Deliver row's wording for a cut total (independent of the app's formatter). */
-function cutsSavedText(sec: number): string {
-  const tenths = Math.round(sec * 10);
-  if (tenths < 100) return `${(tenths / 10).toFixed(1)} s shorter`;
-  const whole = Math.round(sec);
-  const min = Math.floor(whole / 60);
-  const rest = whole % 60;
-  if (min === 0) return `${rest} s shorter`;
-  return rest === 0 ? `${min} min shorter` : `${min} min ${rest} s shorter`;
-}
 
 const diagnosticTest = test.extend<{}, { privateDiagnostic: void }>({
   trace: "off",

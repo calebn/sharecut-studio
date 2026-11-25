@@ -8,6 +8,7 @@ import {
   test,
 } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
+import { cutsSavedText } from "./cutsSavedText";
 import { postDocumentCommand } from "./documentCommand";
 import { expectFeedback } from "./feedback";
 import { withSharedProject } from "./guestLink";
@@ -277,11 +278,9 @@ test("an Editor's phone Player and Deliver agree with the host's cut total", asy
       await goToStage(guest!, "deliver");
       const files = deliverPage(guest!).getByRole("region", { name: "Files" });
       await expect(
-        files.getByText(
-          new RegExp(
-            `^Edits saved (\\d+(\\.\\d)? s|\\d+ min)( \\d+ s)? shorter$`,
-          ),
-        ),
+        files.getByText(`Edits saved ${cutsSavedText(seconds)}`, {
+          exact: true,
+        }),
       ).toBeVisible();
 
       await guest!
