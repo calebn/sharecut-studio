@@ -129,7 +129,7 @@ def _set_timing(ws: ProjectWorkspace) -> Any:
 
 def _replace(ws: ProjectWorkspace) -> Any:
     service = TranscriptService(ws)
-    token = service.preview_transcript_replacement("welcome", "greetings")["preview_token"]
+    token = service.preview_transcript_replacement("welcome", "greetings").preview_token
     return service.replace_transcript_matches("welcome", "greetings", token)
 
 

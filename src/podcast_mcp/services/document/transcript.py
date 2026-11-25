@@ -26,6 +26,10 @@ from podcast_mcp.edits.transcript_correct import (
 )
 from podcast_mcp.edits.transcript_cuts import format_transcript_timestamps
 from podcast_mcp.edits.transcript_replace import (
+    TranscriptReplacementMatch as TranscriptReplacementMatch,
+)
+from podcast_mcp.edits.transcript_replace import (
+    TranscriptReplacementPreview,
     apply_transcript_replacement,
     plan_transcript_replacement,
 )
@@ -516,7 +520,7 @@ class TranscriptService(WorkspaceService):
 
     def preview_transcript_replacement(
         self, search: str, replacement: str, *, match_case: bool = False
-    ) -> dict[str, Any]:
+    ) -> TranscriptReplacementPreview:
         with self.ws.transaction() as project:
             return plan_transcript_replacement(
                 project, search, replacement, match_case=match_case
