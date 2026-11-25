@@ -239,9 +239,9 @@ def fade_joins_tool(
     if dry_run:
         ws = ProjectWorkspace.open(project_path)
         return to_json(
-            TimelineService(ws).preview_fade_joins(
-                track_id=track_id, speaker=speaker, fade_ms=fade_ms
-            )
+            TimelineService(ws)
+            .preview_fade_joins(track_id=track_id, speaker=speaker, fade_ms=fade_ms)
+            .model_dump()
         )
     return to_json(
         submit_host_command_result(
@@ -263,9 +263,9 @@ def crossfade_joins_tool(
     if dry_run:
         ws = ProjectWorkspace.open(project_path)
         return to_json(
-            TimelineService(ws).preview_crossfade_joins(
-                track_id=track_id, speaker=speaker, fade_ms=fade_ms
-            )
+            TimelineService(ws)
+            .preview_crossfade_joins(track_id=track_id, speaker=speaker, fade_ms=fade_ms)
+            .model_dump()
         )
     return to_json(
         submit_host_command_result(

@@ -881,8 +881,10 @@ def edit_fade_joins_cmd(
     ws = ProjectWorkspace.open(project)
 
     def fade() -> dict:
-        return TimelineService(ws).fade_joins(
-            track_id=track, speaker=speaker, fade_ms=fade_ms, dry_run=dry_run
+        return (
+            TimelineService(ws)
+            .fade_joins(track_id=track, speaker=speaker, fade_ms=fade_ms, dry_run=dry_run)
+            .model_dump()
         )
 
     result = fade() if dry_run else apply_external_document_edit(ws, fade)
@@ -900,8 +902,10 @@ def edit_crossfade_joins_cmd(
     ws = ProjectWorkspace.open(project)
 
     def crossfade() -> dict:
-        return TimelineService(ws).crossfade_joins(
-            track_id=track, speaker=speaker, fade_ms=fade_ms, dry_run=dry_run
+        return (
+            TimelineService(ws)
+            .crossfade_joins(track_id=track, speaker=speaker, fade_ms=fade_ms, dry_run=dry_run)
+            .model_dump()
         )
 
     result = crossfade() if dry_run else apply_external_document_edit(ws, crossfade)

@@ -65,6 +65,10 @@ if TYPE_CHECKING:
         HistoryMoveResult,
         PopulatedHistoryDiffResult,
     )
+    from podcast_mcp.services.document.join_fade_results import (
+        CrossfadeJoinsResult,
+        FadeJoinsResult,
+    )
     from podcast_mcp.services.document.join_mode_results import (
         SetClipJoinResult,
         SetJoinModeResult,
@@ -156,6 +160,7 @@ __all__ = [
     "ClipboardResult",
     "CommentReplyResult",
     "CommentService",
+    "CrossfadeJoinsResult",
     "DeletedChapter",
     "DuplicateSegmentResult",
     "EditService",
@@ -164,6 +169,7 @@ __all__ = [
     "ExportBusyError",
     "ExportFilesService",
     "ExportedFile",
+    "FadeJoinsResult",
     "FeedFieldPinResult",
     "FeedService",
     "FeedViewKind",
@@ -315,6 +321,8 @@ _MODULE_BY_NAME = {
     "PasteSegmentResult": "timeline_segment_results",
     "SetClipJoinResult": "join_mode_results",
     "SetClipFadeResult": "clip_fade_results",
+    "FadeJoinsResult": "join_fade_results",
+    "CrossfadeJoinsResult": "join_fade_results",
     "RollAppliedResult": "roll_join_results",
     "RollUnchangedResult": "roll_join_results",
     "SetJoinModeResult": "join_mode_results",

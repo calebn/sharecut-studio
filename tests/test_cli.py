@@ -11,6 +11,7 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.document.episode_results import TrackReorderedResult
+from podcast_mcp.services.document.join_fade_results import CrossfadeJoinsResult
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError
 
@@ -99,13 +100,22 @@ def test_edit_crossfade_joins_reports_service_result(tmp_path):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
     project = ws / "episode.sharecut"
+    reply = CrossfadeJoinsResult(
+        operation="crossfade_joins",
+        join_count=0,
+        fade_ms=10,
+        requested_fade_ms=10,
+        clamped_joins=0,
+        dry_run=True,
+        affected_tracks=["host"],
+    )
 
     with (
         patch("podcast_mcp.cli.edit.EditService") as service,
         patch("podcast_mcp.cli.edit.TimelineService", service),
         patch("podcast_mcp.cli.edit.AnalysisService", service),
     ):
-        service.return_value.crossfade_joins.return_value = {"count": 0}
+        service.return_value.crossfade_joins.return_value = reply
         result = runner.invoke(
             app,
             [
@@ -122,7 +132,7 @@ def test_edit_crossfade_joins_reports_service_result(tmp_path):
         )
 
     assert result.exit_code == 0
-    assert json.loads(result.stdout) == {"count": 0}
+    assert json.loads(result.stdout) == reply.model_dump()
     service.return_value.crossfade_joins.assert_called_once_with(
         track_id="host", speaker=None, fade_ms=10, dry_run=True
     )

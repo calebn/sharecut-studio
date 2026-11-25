@@ -81,11 +81,11 @@ def test_edit_service_timeline_and_transcript(tmp_path, sample_wav) -> None:
 
     TimelineService(svc.ws).insert_gap(1.0, 0.5)
     faded = TimelineService(svc.ws).fade_joins(dry_run=True)
-    assert faded["operation"] == "fade_joins"
+    assert faded.operation == "fade_joins"
     applied = TimelineService(svc.ws).fade_joins(fade_ms=10)
-    assert applied["operation"] == "fade_joins"
+    assert applied.operation == "fade_joins"
     cross = TimelineService(svc.ws).crossfade_joins(fade_ms=25)
-    assert cross["operation"] == "crossfade_joins"
+    assert cross.operation == "crossfade_joins"
     clips = TimelineService(svc.ws).list_clips(track_id="host")
     clip_id = clips.tracks["host"][0]["id"]
     joined = TimelineService(svc.ws).set_join_mode(clip_id, "fade")
