@@ -844,6 +844,8 @@ def assess_speaker_cut_role(
     eng = backend or resolve_speaker_backend()
     ws = score_window(project, cut_track_id, src_start, src_end, cfg, eng, profiles=profiles)
     if ws is None:
+        if role_memo is not None:
+            role_memo[memo_key] = None
         return None
     role, match_id = _classify_role(ws, cut_track_id, cfg)
     result = {
