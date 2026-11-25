@@ -6468,7 +6468,7 @@ input.sys-edit-fix {
   flex: 1 1 6rem;
 }
 
-/** The footer's one wrapper child gets the 48 px floor, not its buttons. */
+/** The footer rule above floors only its direct child, so the wrapped actions get the 48 px floor here. */
 .sys-sheet-footer .sys-segment-actions > button {
   min-block-size: var(--target-primary-phone);
 }
