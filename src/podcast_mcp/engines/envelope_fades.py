@@ -27,13 +27,13 @@ FADE_PREFIX = "mix:fade:"
 SLOTS = ("in0", "in1", "out0", "out1")
 _ID_HASH_CHARS = 12
 _DUCK_PREFIXES = (GENERATED_PREFIX, BASE_PREFIX, USER_PREFIX)
+_MANAGED_PREFIXES = (FADE_PREFIX, *_DUCK_PREFIXES)
 
 
 class FadeMerge(NamedTuple):
     points: list[EnvPoint]
-    # Fade points that were replaced while the envelope carried a dip, so the dip near
-    # them is stale until ducking runs again.
     replaced_under_duck: int
+    replaced_legacy: int = 0
 
 
 def fade_point_id(slot: str, time: float, value: float) -> str:
@@ -43,7 +43,7 @@ def fade_point_id(slot: str, time: float, value: float) -> str:
 
 def fade_targets(dur: float, fade_in: float, fade_out: float) -> list[tuple[str, float, float]]:
     """The four fade vertices in slot order; none for a stem with no usable duration."""
-    if not math.isfinite(dur) or dur <= 0:
+    if not math.isfinite(dur + fade_in + fade_out) or dur <= 0:
         return []
     fi = min(fade_in, dur)
     return [
@@ -82,16 +82,35 @@ def _is_uuid(text: str) -> bool:
     return True
 
 
-def _is_legacy_fade(points: list[EnvPoint]) -> bool:
-    """The four uuid points an earlier mix run wrote: (0,0) (a,1) (b,1) (c,0), in time order."""
-    if len(points) != 4 or not all(_is_uuid(p.id) for p in points):
-        return False
-    times = [p.time for p in points]
-    return (
-        times[0] == 0.0
-        and times == sorted(times)
-        and [p.value for p in points] == [0.0, 1.0, 1.0, 0.0]
-    )
+def _legacy_fade_indices(points: list[EnvPoint]) -> set[int]:
+    """Indices of the four uuid points an earlier mix run wrote, (0,0) (a,1) (b,1) (c,0).
+
+    Found as a subset, so dip and user points around them do not hide them. Only unprefixed
+    uuid ids count; A is the first value-0 point at time 0, D the last value-0 point, and B
+    and C the first and last value-1 points between them.
+    """
+    cand = [
+        i for i, p in enumerate(points) if not p.id.startswith(_MANAGED_PREFIXES) and _is_uuid(p.id)
+    ]
+    starts = [i for i in cand if points[i].time == 0.0 and points[i].value == 0.0]
+    ends = [i for i in cand if points[i].value == 0.0]
+    if not starts or not ends:
+        return set()
+    a, d = starts[0], ends[-1]
+    if a == d or points[a].time > points[d].time:
+        return set()
+    ones = [
+        i
+        for i in cand
+        if points[i].value == 1.0 and points[a].time <= points[i].time <= points[d].time
+    ]
+    ones = [i for i in ones if i not in (a, d)]
+    if len(ones) < 2:
+        return set()
+    b, c = ones[0], ones[-1]
+    if not points[a].time <= points[b].time <= points[c].time <= points[d].time:
+        return set()
+    return {a, b, c, d}
 
 
 def _has_duck_point(points: Iterable[EnvPoint]) -> bool:
@@ -110,8 +129,10 @@ def merge_fades(
     targets = fade_targets(dur, fade_in, fade_out)
     if not targets:
         return FadeMerge(current, 0)
-    if not any(p.id.startswith(FADE_PREFIX) for p in current) and _is_legacy_fade(current):
-        current = []
+    legacy: set[int] = set()
+    if not any(p.id.startswith(FADE_PREFIX) for p in current):
+        legacy = _legacy_fade_indices(current)
+        current = [p for i, p in enumerate(current) if i not in legacy]
 
     owner: dict[str, int] = {}  # slot -> index of the point that holds it
     for index, point in enumerate(current):
@@ -152,4 +173,4 @@ def merge_fades(
             return point.time, 1, 0
         return point.time, 0, SLOTS.index(view[0])
 
-    return FadeMerge(sorted(kept + fresh, key=order), replaced_under_duck)
+    return FadeMerge(sorted(kept + fresh, key=order), replaced_under_duck, len(legacy))

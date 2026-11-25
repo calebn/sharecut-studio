@@ -261,3 +261,52 @@ def test_restore_base_passes_fade_ids_through_untouched() -> None:
     low = [lowered("in1", 2.0, 1.0, 0.2)]
     restored, _ = restore_base(low)
     assert restored == [EnvPoint(fade_point_id("in1", 2.0, 1.0), 2.0, 1.0)]
+
+
+def _legacy_plus(extra, dur=500.0):
+    return sorted([*_uuid_fade(dur, 2.0, 3.0), *extra], key=lambda p: p.time)
+
+
+def test_legacy_fade_with_dip_points_is_replaced_and_a_longer_stem_has_no_old_ramp() -> None:
+    dip = [
+        EnvPoint(generated_point_id(100.0, 0.12), 100.0, 0.12),
+        EnvPoint(f"{BASE_PREFIX}mine:1.0:0.2", 120.0, 0.2),
+    ]
+    old = _legacy_plus(dip)
+    result = merge_fades(old, 600.0, 2.0, 3.0)
+    assert result.replaced_legacy == 4
+    assert [p for p in result.points if not p.id.startswith(FADE_PREFIX)] == dip
+    assert tv(fades(result.points)) == legacy(600.0, 2.0, 3.0)
+    assert not any(p.time in (497.0, 500.0) for p in result.points)
+    assert merge_fades(result.points, 600.0, 2.0, 3.0).replaced_legacy == 0
+
+
+def test_legacy_fade_with_a_user_point_is_replaced_and_the_user_point_kept() -> None:
+    mine = EnvPoint("mine", 50.0, 0.4)
+    result = merge_fades(_legacy_plus([mine]), 500.0, 2.0, 3.0)
+    assert result.replaced_legacy == 4 and mine in result.points
+    assert len(result.points) == 5
+
+
+def test_a_user_point_that_looks_like_a_fade_value_in_the_middle_is_kept() -> None:
+    mid = [
+        EnvPoint("m1", 30.0, 1.0),
+        EnvPoint("m0", 40.0, 0.0),
+        EnvPoint(str(uuid.uuid4()), 60.0, 1.0),
+    ]
+    result = merge_fades(_legacy_plus(mid), 500.0, 2.0, 3.0)
+    assert result.replaced_legacy == 4
+    for point in mid[:2]:
+        assert point in result.points
+    assert len(result.points) == 4 + len(mid)
+
+
+def test_the_exact_four_legacy_case_reports_the_replacement() -> None:
+    result = merge_fades(_uuid_fade(), 10.0, 2.0, 3.0)
+    assert result.replaced_legacy == 4 and tv(result.points) == legacy(10.0, 2.0, 3.0)
+
+
+@pytest.mark.parametrize("fade_in,fade_out", [(math.nan, 3.0), (2.0, math.inf)])
+def test_a_non_finite_fade_length_leaves_the_envelope_alone(fade_in, fade_out) -> None:
+    extras = EXTRAS["user"]
+    assert merge_fades(extras, 10.0, fade_in, fade_out).points == extras
