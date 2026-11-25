@@ -37,6 +37,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import EditService, TimelineService
 from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
+from podcast_mcp.services.document.cut_range_results import CutRangeHeld
 from podcast_mcp.services.document.delete_clips_results import DeleteClipsHeld
 from podcast_mcp.services.document_sync import (
     INTERACTIVE_COMMAND,
@@ -369,7 +370,7 @@ def test_approving_a_suggested_remove_asks_for_words_the_transcript_has_now(epis
     direct = service.cut_range(
         10.0, 11.0, mode=EditMode.RIPPLE, track_ids=["host"], use_inaudible_opt=False
     )
-    assert direct["needs_confirmation"]["message"] == GUEST_WORDS + CUT_REVIEW
+    assert direct.needs_confirmation["message"] == GUEST_WORDS + CUT_REVIEW
     asked = service.approve([edit["id"]])
 
     assert not isinstance(asked, int)
@@ -604,7 +605,7 @@ def test_programmatic_range_observes_peers_and_own_edges(episode, track_ids, ask
         out = service.cut_range(
             10.0, 11.0, mode=EditMode.RIPPLE, track_ids=track_ids, use_inaudible_opt=False
         )
-        assert "needs_confirmation" in out
+        assert isinstance(out, CutRangeHeld)
     else:
         with pytest.raises(ScopeChangedAtApproval) as held:
             service.cut_range(
@@ -653,7 +654,7 @@ def test_a_ripple_range_cut_naming_no_tracks_asks_before_cutting_anyones_speech(
     before = _geometry(episode)
 
     asked = service.cut_range(10.0, 11.0, mode=EditMode.RIPPLE, use_inaudible_opt=False)
-    assert asked["needs_confirmation"]["message"] == ALL_SPEECH
+    assert asked.needs_confirmation["message"] == ALL_SPEECH
     assert _geometry(episode) == before
 
     service.cut_range(

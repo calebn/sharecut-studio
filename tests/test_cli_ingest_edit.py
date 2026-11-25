@@ -28,6 +28,10 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.document import MoveSegmentResult
+from podcast_mcp.services.document.cut_range_results import (
+    CutRangeRippleApplied,
+    RippleDeleteTextApplied,
+)
 from podcast_mcp.services.media.ingest import AppliedConsolidation, VerifyResult
 
 runner = CliRunner()
@@ -1130,10 +1134,18 @@ def test_edit_ripple_delete_by_query(minimal_project):
         patch("podcast_mcp.cli.edit.TimelineService", svc_cls),
         patch("podcast_mcp.cli.edit.AnalysisService", svc_cls),
     ):
-        svc_cls.return_value.ripple_delete_text.return_value = {
-            "operation": "ripple_delete_text",
-            "removed_sec": 0.5,
-        }
+        svc_cls.return_value.ripple_delete_text.return_value = RippleDeleteTextApplied(
+            operation="ripple_delete_text",
+            affected_tracks=["host"],
+            clip_count=1,
+            timeline_duration_sec=9.5,
+            query="hello",
+            use_inaudible_opt=True,
+            timeline_start=0.0,
+            timeline_end=0.5,
+            span_count=1,
+            per_track_source={"host": [0.0, 0.5]},
+        )
         result = runner.invoke(
             app,
             [
@@ -1157,12 +1169,19 @@ def test_edit_ripple_delete_default_prints_summary(minimal_project):
         patch("podcast_mcp.cli.edit.TimelineService", svc_cls),
         patch("podcast_mcp.cli.edit.AnalysisService", svc_cls),
     ):
-        svc_cls.return_value.cut_range.return_value = {
-            "operation": "ripple_delete",
-            "affected_tracks": ["host", "guest"],
-            "timeline_duration_sec": 12.5,
-            "join_quality": {"verdict": "pass", "risk": 0.12},
-        }
+        svc_cls.return_value.cut_range.return_value = CutRangeRippleApplied(
+            operation="ripple_delete",
+            affected_tracks=["host", "guest"],
+            clip_count=2,
+            timeline_duration_sec=12.5,
+            timeline_start=0.2,
+            timeline_end=0.4,
+            track_ids=[],
+            use_inaudible_opt=True,
+            span_count=1,
+            per_track_source={"host": [0.2, 0.4]},
+            join_quality={"verdict": "pass", "risk": 0.12},
+        )
         result = runner.invoke(
             app,
             [
