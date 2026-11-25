@@ -5,6 +5,7 @@ import {
   dragHeight,
   placeCard,
   riseVelocity,
+  scaledMinBlock,
   settleDetent,
   steppedDetent,
   toggledDetent,
@@ -409,5 +410,199 @@ describe("inspectorSheetMath card placement around the Action bar", () => {
       maxBlock: 140,
     });
     expect(overlap(placed, bounds, anchor)).toBe(0);
+  });
+});
+
+describe("inspectorSheetMath card placement around the join band picks", () => {
+  type Box = { x: number; y: number; width: number; height: number };
+  const WIDTH = 320;
+  const EDGE = 8;
+  const MIN = 140;
+  const GAP = 8;
+  // A pick is a thin strip across the lane; it must stay tappable, so the card keeps off it.
+  const pick = (x: number, y: number, width = 68, height = 8): Box => ({
+    x,
+    y,
+    width,
+    height,
+  });
+  const boxOf = (
+    place: ReturnType<typeof placeCard>,
+    bounds: { width: number; height: number },
+    width = WIDTH,
+  ): Box => ({
+    x: place.inline,
+    y:
+      place.side === "below"
+        ? place.block
+        : bounds.height - place.block - place.maxBlock,
+    width,
+    height: place.maxBlock,
+  });
+  const overlaps = (a: Box, b: Box) =>
+    Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x) > 0.01 &&
+    Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) > 0.01;
+  const insideFrame = (box: Box, bounds: { width: number; height: number }) =>
+    box.x >= EDGE - 0.01 &&
+    box.y >= EDGE - 0.01 &&
+    box.x + box.width <= bounds.width - EDGE + 0.01 &&
+    box.y + box.height <= bounds.height - EDGE + 0.01;
+
+  it("reports the common case, with no keep-clear area, as not covered", () => {
+    const bounds = { width: 1280, height: 800 };
+    const placed = placeCard({ x: 600, y: 100, width: 80, height: 40 }, bounds);
+    expect(placed.covered).toBe(false);
+  });
+
+  it("leaves the usual placement alone and uncovered when the pick is off the card column", () => {
+    const bounds = { width: 844, height: 330 };
+    const anchor = { x: 420, y: 40, width: 284, height: 46 };
+    expect(placeCard(anchor, bounds, WIDTH, MIN, [pick(258, 200)])).toEqual({
+      side: "below",
+      inline: 402,
+      block: 94,
+      maxBlock: 198,
+      covered: false,
+    });
+  });
+
+  it.each([
+    { name: "330 px frame, no corner", height: 330, corner: null },
+    {
+      name: "330 px frame, corner below the strip",
+      height: 330,
+      corner: { x: 480, y: 250, width: 350, height: 54 },
+    },
+    {
+      name: "390 px frame, no corner",
+      height: 390,
+      corner: null,
+    },
+    {
+      name: "390 px frame, corner below the strip",
+      height: 390,
+      corner: { x: 480, y: 310, width: 350, height: 54 },
+    },
+  ])(
+    "keeps the card off the strip and the anchor: $name",
+    ({ height, corner }) => {
+      const bounds = { width: 844, height };
+      const anchor = { x: 100, y: 20, width: 200, height: 30 };
+      const strip = pick(150, 140, 70, 8);
+      const placed = placeCard(anchor, bounds, WIDTH, MIN, [
+        strip,
+        ...(corner ? [corner] : []),
+      ]);
+      const card = boxOf(placed, bounds);
+      expect(overlaps(card, strip)).toBe(false);
+      expect(overlaps(card, anchor)).toBe(false);
+      if (corner) expect(overlaps(card, corner)).toBe(false);
+      expect(insideFrame(card, bounds)).toBe(true);
+      expect(placed.maxBlock).toBeGreaterThanOrEqual(MIN);
+      expect(placed.covered).toBe(false);
+    },
+  );
+
+  it("places the card below a strip when a corner off the card column would have taken that band", () => {
+    const bounds = { width: 844, height: 330 };
+    const anchor = { x: 100, y: 20, width: 200, height: 30 };
+    const corner = { x: 480, y: 250, width: 350, height: 54 };
+    expect(
+      placeCard(anchor, bounds, WIDTH, MIN, [pick(150, 140, 70, 8), corner]),
+    ).toEqual({
+      side: "below",
+      inline: 40,
+      block: 156,
+      maxBlock: 166,
+      covered: false,
+    });
+  });
+
+  it("takes the band the strip leaves with the anchor above it, whatever the root font size", () => {
+    const bounds = { width: 844, height: 390 };
+    const anchor = { x: 300, y: 20, width: 200, height: 40 };
+    const spanning = pick(8, 200, 828, 8);
+    for (const rootPx of [16, 22]) {
+      const placed = placeCard(anchor, bounds, WIDTH, scaledMinBlock(rootPx), [
+        spanning,
+      ]);
+      const card = boxOf(placed, bounds);
+      expect(overlaps(card, spanning)).toBe(false);
+      expect(overlaps(card, anchor)).toBe(false);
+      expect(insideFrame(card, bounds)).toBe(true);
+      expect(placed.covered).toBe(false);
+    }
+  });
+
+  it("falls to half the minimum at a 22 px root where only that holds a card above a width-spanning pick", () => {
+    const bounds = { width: 844, height: 390 };
+    const anchor = { x: 300, y: 20, width: 200, height: 40 };
+    const placed = placeCard(anchor, bounds, 440, scaledMinBlock(22), [
+      pick(8, 200, 828, 8),
+    ]);
+    expect(placed).toEqual({
+      side: "below",
+      inline: 180,
+      block: 68,
+      maxBlock: 124,
+      covered: false,
+    });
+  });
+
+  it("clears a width-spanning pick through the band below it", () => {
+    const bounds = { width: 844, height: 390 };
+    const anchor = { x: 300, y: 20, width: 200, height: 40 };
+    expect(
+      placeCard(anchor, bounds, WIDTH, MIN, [pick(8, 200, 828, 8)]),
+    ).toEqual({
+      side: "below",
+      inline: 240,
+      block: 216,
+      maxBlock: 166,
+      covered: false,
+    });
+  });
+
+  it("keeps the normal placement when the anchor sits inside the only band and the card clears it", () => {
+    const bounds = { width: 844, height: 330 };
+    const anchor = { x: 300, y: 70, width: 200, height: 46 };
+    expect(
+      placeCard(anchor, bounds, WIDTH, MIN, [pick(8, 40, 828, 8)]),
+    ).toEqual({
+      side: "below",
+      inline: 240,
+      block: 124,
+      maxBlock: 198,
+      covered: false,
+    });
+  });
+
+  it("reports covered when no placement holds even half a card clear of the pick", () => {
+    const bounds = { width: 844, height: 330 };
+    const anchor = { x: 300, y: 20, width: 200, height: 30 };
+    const wall = pick(8, 60, 828, 200);
+    const placed = placeCard(anchor, bounds, WIDTH, MIN, [wall]);
+    expect(placed.covered).toBe(true);
+    expect(placed).toMatchObject({ side: "below", inline: 240, block: 58 });
+    expect(overlaps(boxOf(placed, bounds), wall)).toBe(true);
+  });
+
+  it("does not call the card covered for an anchor it cannot clear with no other obstacle", () => {
+    const bounds = { width: 400, height: 120 };
+    const bar = { x: 60, y: 40, width: 284, height: 46 };
+    expect(placeCard(bar, bounds, WIDTH, MIN, []).covered).toBe(false);
+  });
+
+  it("keeps the gap between the card and a pick it was moved off", () => {
+    const bounds = { width: 844, height: 390 };
+    const anchor = { x: 300, y: 20, width: 200, height: 40 };
+    const spanning = pick(8, 200, 828, 8);
+    const card = boxOf(
+      placeCard(anchor, bounds, WIDTH, MIN, [spanning]),
+      bounds,
+    );
+    expect(card.y - (spanning.y + spanning.height)).toBeGreaterThanOrEqual(
+      GAP - 0.01,
+    );
   });
 });

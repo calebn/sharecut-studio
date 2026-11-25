@@ -10,6 +10,10 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import {
+  type ClipBleedSnapshot,
+  clipBleedSession,
+} from "../../edit/clipBleedSession";
 import { useDawKeymapListener } from "../../keymap/listener";
 import { useDawStore } from "../../state/dawStore";
 import {
@@ -1731,5 +1735,274 @@ describe("the phone Inspector's Close at the dock detent", () => {
     expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
     expect(from).toHaveFocus();
     from.remove();
+  });
+});
+
+describe("the Inspector card keeps clear of the join band picks", () => {
+  type Rel = { x: number; y: number; width: number; height: number };
+  const FRAME = { x: 0, y: 49, width: 844, height: 330 };
+  const CARD_WIDTH = 320;
+  const BLEED = {
+    kind: "bleedAttenuation",
+    id: "c1",
+    trackId: "host",
+    regionKey: "late_gate:0",
+  } as const;
+  /** The lanes viewport inside the frame, and a pick across the card's usual place. */
+  const LANES: Rel = { x: 0, y: 60, width: 844, height: 220 };
+  const ACROSS_CARD: Rel = { x: 150, y: 140, width: 70, height: 8 };
+
+  function frame() {
+    const rects = new Map<Element, Rel>();
+    const place = (el: HTMLElement, rel: Rel) => {
+      rects.set(el, rel);
+      el.getBoundingClientRect = () => {
+        const r = rects.get(el) as Rel;
+        return new DOMRect(FRAME.x + r.x, FRAME.y + r.y, r.width, r.height);
+      };
+    };
+    const root = document.createElement("div");
+    root.getBoundingClientRect = () =>
+      new DOMRect(FRAME.x, FRAME.y, FRAME.width, FRAME.height);
+    const lane = document.createElement("div");
+    lane.className = "lane-row";
+    lane.dataset.trackId = "host";
+    place(lane, { x: 0, y: 100, width: 40, height: 60 });
+    const bar = document.createElement("div");
+    bar.className = "sys-actions--floating";
+    place(bar, { x: 100, y: 20, width: 200, height: 30 });
+    const lanes = document.createElement("div");
+    lanes.className = "timeline-scroll";
+    place(lanes, LANES);
+    root.append(lane, bar, lanes);
+    document.body.append(root);
+    const addPick = (rel: Rel, id = `late_gate:${lanes.children.length}`) => {
+      const pick = document.createElement("div");
+      pick.dataset.hitKind = "bleed-attenuation";
+      pick.dataset.hitId = id;
+      place(pick, rel);
+      lanes.append(pick);
+      return pick;
+    };
+    const addCorner = (rel: Rel) => {
+      const column = document.createElement("div");
+      column.className = "edit-timeline-col";
+      const corner = document.createElement("div");
+      corner.className = "edit-corner";
+      place(corner, rel);
+      column.append(corner);
+      root.append(column);
+      return corner;
+    };
+    return { root, place, addPick, addCorner };
+  }
+
+  const mount = (
+    root: HTMLElement,
+    shell: "desktop" | "tablet" = "desktop",
+  ) => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    return render(
+      <InspectorHost
+        shell={shell}
+        root={root}
+        regionRef={() => undefined}
+        sheet={{
+          open: true,
+          rangeActionsInSheet: false,
+          close: vi.fn(),
+          dismiss: vi.fn(),
+        }}
+      />,
+    );
+  };
+
+  const cardBox = (): Rel => {
+    const card = screen.getByRole("dialog", { name: "Inspector" })
+      .firstElementChild as HTMLElement | null;
+    const el = (
+      card?.matches(".sys-inspector--card")
+        ? card
+        : document.querySelector(".sys-inspector--card")
+    ) as HTMLElement;
+    const height = Number.parseFloat(el.style.maxBlockSize);
+    const top = el.style.insetBlockStart
+      ? Number.parseFloat(el.style.insetBlockStart)
+      : FRAME.height - Number.parseFloat(el.style.insetBlockEnd) - height;
+    return {
+      x: Number.parseFloat(el.style.insetInlineStart),
+      y: top,
+      width: CARD_WIDTH,
+      height,
+    };
+  };
+  const overlap = (a: Rel, b: Rel) =>
+    Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x) > 0 &&
+    Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) > 0;
+
+  /** A stand-in for the session publishing a read: the bands render, then listeners hear it. */
+  function publishingSession() {
+    const listeners = new Set<() => void>();
+    let snapshot: ClipBleedSnapshot = null;
+    vi.spyOn(clipBleedSession, "getSnapshot").mockImplementation(
+      () => snapshot,
+    );
+    vi.spyOn(clipBleedSession, "subscribe").mockImplementation((listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    });
+    return (next: NonNullable<ClipBleedSnapshot>) => {
+      snapshot = next;
+      for (const listener of listeners) listener();
+    };
+  }
+
+  beforeEach(() => {
+    useDawStore.setState({ selection: BLEED });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    document.body.replaceChildren();
+  });
+
+  it("opens beside or around a pick its usual place would cover", () => {
+    const { root, addPick } = frame();
+    addPick(ACROSS_CARD);
+    mount(root);
+    expect(overlap(cardBox(), ACROSS_CARD)).toBe(false);
+    expect(document.querySelector(".sys-inspector--takeover")).toBeNull();
+  });
+
+  it("moves off a pick that arrives after the card is open", async () => {
+    const publish = publishingSession();
+    const { root, addPick } = frame();
+    mount(root);
+    const before = cardBox();
+    expect(overlap(before, ACROSS_CARD)).toBe(true);
+
+    addPick(ACROSS_CARD);
+    await act(async () => {
+      publish({
+        occurrence: { trackId: "host", clipId: "c1", clipLabel: "Host" },
+        generation: 1,
+        read: { state: "loading" },
+        selectedKey: null,
+        action: { state: "idle" },
+        undo: null,
+      });
+    });
+
+    await waitFor(() => expect(overlap(cardBox(), ACROSS_CARD)).toBe(false));
+  });
+
+  it("moves off a pick again after a window resize moves it", async () => {
+    const { root, addPick, place } = frame();
+    const pick = addPick({ x: 600, y: 140, width: 70, height: 8 });
+    mount(root);
+    expect(overlap(cardBox(), ACROSS_CARD)).toBe(true);
+
+    place(pick, ACROSS_CARD);
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+
+    await waitFor(() => expect(overlap(cardBox(), ACROSS_CARD)).toBe(false));
+  });
+
+  it("moves off a pick again after a zoom moves it", async () => {
+    const { root, addPick, place } = frame();
+    const pick = addPick({ x: 600, y: 140, width: 70, height: 8 });
+    mount(root);
+    expect(overlap(cardBox(), ACROSS_CARD)).toBe(true);
+
+    place(pick, ACROSS_CARD);
+    act(() => {
+      useDawStore.setState({ zoomPxPerSec: 80 });
+    });
+
+    await waitFor(() => expect(overlap(cardBox(), ACROSS_CARD)).toBe(false));
+  });
+
+  it("clears the picks when the selection becomes an automatic reduction, and stops caring when it leaves", async () => {
+    useDawStore.setState({ selection: TRACK });
+    const { root, addPick } = frame();
+    addPick(ACROSS_CARD);
+    mount(root);
+    const usual = cardBox();
+    expect(overlap(usual, ACROSS_CARD)).toBe(true);
+
+    act(() => {
+      useDawStore.setState({ selection: BLEED });
+    });
+    await waitFor(() => expect(overlap(cardBox(), ACROSS_CARD)).toBe(false));
+
+    act(() => {
+      useDawStore.setState({ selection: TRACK });
+    });
+    await waitFor(() => expect(cardBox()).toEqual(usual));
+  });
+
+  it("ignores picks scrolled out of the lanes viewport", () => {
+    const { root, addPick } = frame();
+    mount(root);
+    const usual = cardBox();
+    addPick({ x: 150, y: 20, width: 70, height: 8 });
+    addPick({ x: 150, y: 285, width: 70, height: 8 });
+    addPick({ x: 900, y: 140, width: 70, height: 8 });
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(cardBox()).toEqual(usual);
+  });
+
+  it("ignores the picks while the Timeline range is armed", () => {
+    const { root, addPick } = frame();
+    mount(root);
+    const usual = cardBox();
+    const pick = addPick(ACROSS_CARD);
+    pick.setAttribute("data-range-armed", "");
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(cardBox()).toEqual(usual);
+  });
+
+  it("takes the whole screen with Done, keeping the picks reachable, when no place clears them", () => {
+    const { root, addPick } = frame();
+    addPick({ x: 8, y: 60, width: 828, height: 200 });
+    mount(root);
+    const dialog = screen.getByRole("dialog", { name: "Inspector" });
+    expect(dialog.querySelector(".sys-inspector--takeover")).not.toBeNull();
+    expect(document.querySelector(".sys-inspector--card")).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Done" })).toBeVisible();
+  });
+
+  it.each([
+    ["track", TRACK],
+    ["pending", { kind: "pending", id: "p1", trackId: "host" } as const],
+  ])(
+    "keeps the card beside a %s selection whatever the picks",
+    (_, selection) => {
+      useDawStore.setState({ selection });
+      const { root, addPick } = frame();
+      mount(root);
+      const usual = cardBox();
+      addPick({ x: 8, y: 60, width: 828, height: 200 });
+      act(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+      expect(cardBox()).toEqual(usual);
+      expect(document.querySelector(".sys-inspector--takeover")).toBeNull();
+    },
+  );
+
+  it("keeps the corner clear too on the tablet", () => {
+    const { root, addPick, addCorner } = frame();
+    addPick(ACROSS_CARD);
+    const corner = { x: 480, y: 250, width: 350, height: 54 };
+    addCorner(corner);
+    mount(root, "tablet");
+    expect(overlap(cardBox(), ACROSS_CARD)).toBe(false);
+    expect(overlap(cardBox(), corner)).toBe(false);
   });
 });
