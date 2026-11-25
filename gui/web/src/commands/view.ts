@@ -24,6 +24,7 @@ import { seekTransport } from "./seek";
 
 const ZOOM_TO_SELECTION_FILL = 0.9;
 const NO_PROJECT = { status: "disabled", reason: "No project" } as const;
+
 function selectionStartSec(
   selection: Selection,
   project: ProjectView,

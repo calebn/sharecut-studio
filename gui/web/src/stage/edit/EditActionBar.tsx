@@ -246,7 +246,7 @@ function EditActionBarImpl({
     selectionAnchor.set(anchor.ref);
     return () => selectionAnchor.release(anchor.ref);
   }, [anchor.ref]);
-  const pinned = anchor.pin.pinned;
+  const { pinned } = anchor;
   const revealLabel =
     selection?.kind === "pending" ? "Show edit" : "Show selection";
   const wasPinned = useRef<boolean | null>(null);

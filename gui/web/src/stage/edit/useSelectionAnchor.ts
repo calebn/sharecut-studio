@@ -96,7 +96,6 @@ function findSelectionAnchor(
       return laneOf(root, selection.target.track_ids[0]);
     }
     case "clip": {
-      // A multi-selection answers to the first of its clips that is drawn.
       const ids = selection.ids ?? [selection.id];
       for (const id of ids) {
         const block = root.querySelector<HTMLElement>(
@@ -136,15 +135,13 @@ type SelectionAnchor = {
   readonly clearTop: () => number;
   /** False until the anchor is found and while its node is detached. */
   readonly present: boolean;
-  /** True while the anchor has scrolled wholly out of its box; `edge` is the side it left by. */
-  readonly pin: { readonly pinned: boolean; readonly edge: Pin["edge"] };
+  /** True while the anchor has scrolled wholly out of its box. */
+  readonly pinned: boolean;
   /** Where to place a bar against: fresh on every call, never off screen. */
   readonly rect: () => AnchorRect | null;
   /** The anchor is found and inside its box; the Inspector card hides otherwise. */
   readonly visible: boolean;
 };
-
-const ATTACHED = { pinned: false, edge: null } as const;
 
 export function useSelectionAnchor(
   root: HTMLElement | null,
@@ -156,7 +153,7 @@ export function useSelectionAnchor(
   const ref = useRef<HTMLElement | null>(null);
   const excludeRef = useRef<HTMLElement | null>(null);
   const withinRef = useRef<HTMLElement | null>(null);
-  const [pin, setPin] = useState<SelectionAnchor["pin"]>(ATTACHED);
+  const [pinned, setPinned] = useState(false);
   const [node, setNode] = useState<HTMLElement | null>(null);
   const [excluded, setExcluded] = useState<HTMLElement | null>(null);
   const { project, zoomPxPerSec } = useDawStore(
@@ -207,17 +204,10 @@ export function useSelectionAnchor(
   // ruler and track headers.
   useLayoutEffect(() => {
     if (!node || !node.isConnected) {
-      setPin(ATTACHED);
+      setPinned(false);
       return;
     }
-    const measure = () => {
-      const next = pinOfNode(node);
-      setPin((was) =>
-        was.pinned === next.pinned && was.edge === next.edge
-          ? was
-          : { pinned: next.pinned, edge: next.edge },
-      );
-    };
+    const measure = () => setPinned(pinOfNode(node).pinned);
     measure();
     let frame = 0;
     const schedule = () => {
@@ -268,7 +258,7 @@ export function useSelectionAnchor(
     moves,
     rect,
     present,
-    pin,
-    visible: present && !pin.pinned,
+    pinned,
+    visible: present && !pinned,
   };
 }
