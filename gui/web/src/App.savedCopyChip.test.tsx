@@ -1,9 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { resetFeaturesCache } from "./extensions/features";
 import { useHeaderProps } from "./stage/frame/useHeaderProps";
-import { useReadsSavedCopy } from "./state/savedCopy";
+import { requestSavedCopyReopen, useReadsSavedCopy } from "./state/savedCopy";
 import { AppHeader } from "./system/AppHeader";
 import { stubIndexedDb } from "./test/fakeIndexedDb";
 import { minimalProject } from "./test/fixtures";
@@ -105,5 +105,15 @@ describe("the header on a saved copy the guest opened because the link was not r
       expect(screen.queryByText(role)).toBeNull();
       expect(screen.queryByLabelText(new RegExp(role))).toBeNull();
     }
+  });
+
+  it("names the Editor role again once the link is reached and the saved copy gives way", async () => {
+    stubLinkFirstReadFails();
+    render(<App />);
+    expect(await screen.findByText("Reading the saved copy")).toBeVisible();
+    expect(screen.queryByRole("img", { name: /^Editor/ })).toBeNull();
+    act(() => requestSavedCopyReopen());
+    expect(await screen.findByText("Reading the live episode")).toBeVisible();
+    expect(screen.getByRole("img", { name: "Editor: can edit" })).toBeVisible();
   });
 });
