@@ -54,7 +54,7 @@ describe("segmentInsertMessages", () => {
     expect(insertPreviewLines(preview, "own_lane", MUSIC_BED)).toEqual([
       "Adds 0:22 at 0:05 on a new track.",
       "Nothing already in the episode moves.",
-      "It plays at full level over the voices until it is ducked. Duck music under dialogue lowers it under speech.",
+      "It plays at full level over the voices. Ducking is a separate step (podcast edit duck).",
       "The episode becomes 10:22 long.",
     ]);
     const plain = segment({ role: "music", duck_under_dialogue: false });
@@ -63,6 +63,13 @@ describe("segmentInsertMessages", () => {
     );
     expect(insertPreviewLines(preview, "own_lane", null)[2]).toBe(
       "It plays at full level. It was not saved to duck under dialogue.",
+    );
+  });
+
+  it("counts the new tracks for an own-lane segment with several lanes", () => {
+    const preview = insertPreview({ at: 5, tracks_added: ["a", "b"] });
+    expect(insertPreviewLines(preview, "own_lane", MUSIC_BED)[0]).toBe(
+      "Adds 0:22 at 0:05 on 2 new tracks.",
     );
   });
 

@@ -442,7 +442,9 @@ describe("InsertSegmentCard placement", () => {
     expect(ripple()).toBeChecked();
     expect(own()).toBeEnabled();
     expect(ripple()).toHaveAccessibleName(/Later clips, chapters and comments/);
-    expect(own()).toHaveAccessibleName(/The segment gets its own track/);
+    expect(own()).toHaveAccessibleName(
+      /The segment is added on new tracks of its own/,
+    );
     expect(screen.queryByText(/Music under dialogue/)).toBeNull();
     await screen.findByText(/Preview, from the saved episode/);
     expect(handlers.loadPreview).toHaveBeenLastCalledWith(
@@ -560,7 +562,7 @@ describe("InsertSegmentCard placement", () => {
     [
       "saved to duck",
       true,
-      "It plays at full level over the voices until it is ducked. Duck music under dialogue lowers it under speech.",
+      "It plays at full level over the voices. Ducking is a separate step (podcast edit duck).",
     ],
     [
       "not saved to duck",
