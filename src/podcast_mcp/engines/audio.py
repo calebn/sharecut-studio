@@ -53,10 +53,10 @@ class MuteEnvelope:
         self, sample_rate: int, *, source_start: float = 0.0, origin: int = 0
     ) -> MuteSampleEnvelope:
         return MuteSampleEnvelope(
-            math.floor((self.start + source_start) * sample_rate + 0.5) - origin,
-            math.floor((self.end + source_start) * sample_rate + 0.5) - origin,
-            math.floor(self.fade_out_sec * sample_rate + 0.5),
-            math.floor(self.fade_in_sec * sample_rate + 0.5),
+            delay_frames(self.start + source_start, sample_rate) - origin,
+            delay_frames(self.end + source_start, sample_rate) - origin,
+            delay_frames(self.fade_out_sec, sample_rate),
+            delay_frames(self.fade_in_sec, sample_rate),
             self.gain,
         )
 
@@ -388,7 +388,7 @@ class SourceFrameMapping:
         frame = (
             math.ceil(seconds * self.sample_rate)
             if ceil
-            else math.floor(seconds * self.sample_rate + 0.5)
+            else delay_frames(seconds, self.sample_rate)
         ) - self.origin
         for transform in self.transforms:
             frame = transform.apply(frame)
