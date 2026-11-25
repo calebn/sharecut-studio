@@ -389,7 +389,13 @@ export PODCAST_RELAY_MASTER_KEY=$(openssl rand -hex 32)   # generate once, then 
 export PODCAST_RELAY_DENY_FILE=/etc/podcast-relay/deny.txt
 ```
 
-The relay then starts with no `PODCAST_RELAY_HOST_TOKENS`. During a key rotation, keep honoring
+The relay then starts with no `PODCAST_RELAY_HOST_TOKENS`. With
+`deploy/relay/docker-compose.prod.yml`, put the key in a directory the container mounts read-only
+(`PODCAST_RELAY_KEY_DIR`, default `./relay-keys`, at `/run/relay-keys`), set
+`PODCAST_RELAY_SIGNING_KEY=/run/relay-keys/relay-key.pem` and `PODCAST_RELAY_MASTER_KEY` in the
+Compose environment, and leave `PODCAST_RELAY_HOST_TOKENS` empty or keep it for legacy builds
+(it is still checked for length when set). The deny file and the usage database default to the
+`relay_state` volume, `/var/lib/sharecut-relay/deny.txt` and `usage.sqlite3`. During a key rotation, keep honoring
 the old key for a while by listing it in `PODCAST_RELAY_PUBLIC_KEYS` as `kid:base64url(raw
 public key)`. All variables are in the [environment variable table in setup.md](setup.md).
 `cryptography` ships with the `relay` extra and the relay image.

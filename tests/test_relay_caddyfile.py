@@ -95,3 +95,27 @@ def test_production_secret_guard_validates_each_effective_secret() -> None:
         result = _run_production_secret_guard(tokens)
         assert result.returncode != 0
         assert "each PODCAST_RELAY_HOST_TOKENS secret" in result.stderr
+
+
+def test_production_compose_wires_enrollment_and_keeps_legacy_tokens() -> None:
+    relay = yaml.safe_load(
+        (ROOT / "deploy/relay/docker-compose.prod.yml").read_text(encoding="utf-8")
+    )["services"]["podcast-relay"]
+    env = relay["environment"]
+    for name in (
+        "PODCAST_RELAY_SIGNING_KEY",
+        "PODCAST_RELAY_MASTER_KEY",
+        "PODCAST_RELAY_DENY_FILE",
+        "PODCAST_RELAY_USAGE_DB",
+    ):
+        assert name in env
+    assert ":?" not in env["PODCAST_RELAY_HOST_TOKENS"]
+    assert env["PODCAST_RELAY_DENY_FILE"].startswith("${PODCAST_RELAY_DENY_FILE:-/var/lib/")
+    assert env["PODCAST_RELAY_USAGE_DB"].startswith("${PODCAST_RELAY_USAGE_DB:-/var/lib/")
+    volumes = relay["volumes"]
+    assert any(v.startswith("relay_state:/var/lib/sharecut-relay") for v in volumes)
+    assert any(v.endswith(":/run/relay-keys:ro") for v in volumes)
+
+
+def test_production_guard_lets_an_enrolling_relay_start_with_no_host_tokens() -> None:
+    assert _run_production_secret_guard("").returncode == 0
