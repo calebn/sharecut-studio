@@ -149,3 +149,25 @@ def test_a_project_without_extra_points_renders_the_same_bytes_as_the_legacy_env
     direct = tmp_path / "legacy-stem.wav"
     eng.render_dialogue_track(project, track, direct, defaults=defaults)
     assert _sha(direct) == new_stem
+
+
+def test_a_legacy_fade_plus_a_dip_is_replaced_and_the_summary_says_so(
+    minimal_project, bed_wav, tmp_workspace, engine_ready
+) -> None:
+    defaults = load_defaults()
+    project = _mixed_project(minimal_project, bed_wav, tmp_workspace, defaults, words=False)
+    dip = AutomationPoint(id="duck:g:abc", time=4.0, value=0.2)
+    legacy = [(0.0, 0.0), (2.0, 1.0), (3.0, 1.0), (6.0, 0.0)]
+    project.automation_envelopes = [
+        AutomationEnvelope(
+            track_id="bed",
+            points=[AutomationPoint(id=str(uuid.uuid4()), time=t, value=v) for t, v in legacy]
+            + [dip],
+        )
+    ]
+    summary = steps.mix_with_music(project, defaults)
+    assert "replaced 4 older fade points" in summary
+    points = _points(project)
+    assert [(t, v) for i, t, v in points if i.startswith("mix:fade:")] == legacy
+    assert ("duck:g:abc", 4.0, 0.2) in points and len(points) == 5
+    assert "older fade" not in steps.mix_with_music(project, defaults)

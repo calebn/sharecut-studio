@@ -1046,6 +1046,7 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         prog.set_phase("envelopes", "Building music envelopes…")
         music_envelopes = 0
         duck_stale = 0
+        legacy_replaced = 0
         for track in _music_tracks(project, rendered):
             fade_in = float(mix_cfg.get("fade_in_sec", 2.0))
             fade_out = float(mix_cfg.get("fade_out_sec", 3.0))
@@ -1060,6 +1061,7 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
                 fade_out,
             )
             duck_stale += merged.replaced_under_duck
+            legacy_replaced += merged.replaced_legacy
             points = [AutomationPoint(id=m.id, time=m.time, value=m.value) for m in merged.points]
             if current is None:
                 if points:
@@ -1114,6 +1116,8 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
     summary = f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
     if duck_stale:
         summary += f", {duck_stale} fade points moved under ducking, re-run ducking"
+    if legacy_replaced:
+        summary += f", replaced {legacy_replaced} older fade points"
     return summary
 
 
