@@ -14,7 +14,8 @@ from podcast_mcp.edits.loudness import check_loudness
 from podcast_mcp.engines import align, decoded_source, ungated_audio
 from podcast_mcp.engines import ffmpeg as ffmpeg_module
 from podcast_mcp.engines.audio import MuteEnvelope
-from podcast_mcp.engines.ffmpeg import _EBUR128_BLOCK_RE, FFmpegEngine
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg.loudness import _EBUR128_BLOCK_RE
 from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.mono_downmix import ffmpeg_mono_mean_layout

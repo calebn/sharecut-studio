@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from podcast_mcp.engines.audio import Audio, MuteEnvelope, RequestedExtent
+    from podcast_mcp.engines.ffmpeg import AudioProbe
+    from podcast_mcp.engines.mastering import LimiterPlan, LimiterReport
 
 
 class FFmpegSelf(Protocol):
@@ -95,3 +97,56 @@ class FFmpegSelf(Protocol):
         *,
         dimensions: tuple[int, int] | None = None,
     ) -> bool: ...
+
+    def probe(self, path: Path, *, untrusted: bool = False) -> AudioProbe: ...
+
+    def _run_with_progress(
+        self,
+        argv: list[str],
+        *,
+        total_sec: float,
+        on_progress: Callable[[float, float], None],
+        check: bool = True,
+    ) -> str: ...
+
+    def loudnorm_input_stats(
+        self,
+        input_path: Path,
+        *,
+        on_progress: Callable[[float, float], None] | None = None,
+        total_sec: float | None = None,
+    ) -> dict[str, float] | None: ...
+
+    def measure_loudness_full(
+        self,
+        path: Path,
+        *,
+        on_progress: Callable[[float, float], None] | None = None,
+        total_sec: float | None = None,
+    ) -> dict[str, float | None] | None: ...
+
+    def measure_loudness_screen(self, path: Path) -> dict[str, float] | None: ...
+
+    def _render_af(
+        self,
+        input_path: Path,
+        output_path: Path,
+        af: str,
+        *out_args: str,
+        total_sec: float,
+        on_progress: Callable[[float, float], None] | None,
+    ) -> str: ...
+
+    def _limit_to_target(
+        self,
+        input_path: Path,
+        output_path: Path,
+        plan: LimiterPlan,
+        stats: dict[str, float],
+        *,
+        integrated_lufs: float,
+        true_peak_db: float,
+        sample_rate: int,
+        delivery: tuple[str, ...],
+        render: Callable[..., str],
+    ) -> LimiterReport: ...

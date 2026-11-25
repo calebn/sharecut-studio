@@ -16,7 +16,9 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.loudness import check_loudness
-from podcast_mcp.engines.ffmpeg import FFmpegEngine, ebur128_summary_text, filter_log_text
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg.filter_log import filter_log_text
+from podcast_mcp.engines.ffmpeg.loudness import ebur128_summary_text
 
 FAKE_SUMMARY = (
     "x\n[Parsed_ebur128_0 @ 0x1] Summary:\n\n  Integrated loudness:\n    I:  -16.0 LUFS\n"
