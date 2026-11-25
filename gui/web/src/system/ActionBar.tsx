@@ -448,15 +448,17 @@ const DOCK_SLACK = 2;
 type DockMeasure = { width: number; leading: number; gap: number };
 const UNMEASURED: DockMeasure = { width: 0, leading: 0, gap: 0 };
 
-/** The start slot's width, what its first `leadingSlots` children take, and its gap. */
-function readDockMeasure(
-  start: HTMLElement,
-  leadingSlots: number,
-): DockMeasure {
+/**
+ * The start slot's width, what its fixed leading controls take, and its gap.
+ * Only the scope chip (flex none) counts: the selection object beside it
+ * shrinks to whatever the verbs leave, so measuring it would make the
+ * capacity depend on the buttons it is meant to size.
+ */
+function readDockMeasure(start: HTMLElement): DockMeasure {
   let leading = 0;
-  for (let at = 0; at < leadingSlots; at++)
-    leading +=
-      (start.children[at] as HTMLElement | undefined)?.offsetWidth ?? 0;
+  for (const child of Array.from(start.children))
+    if (child.classList.contains("sys-scope"))
+      leading += (child as HTMLElement).offsetWidth;
   const gap = Number.parseFloat(getComputedStyle(start).columnGap);
   return {
     width: start.clientWidth,
@@ -488,7 +490,7 @@ function Dock({
   const startRef = useRef<HTMLDivElement>(null);
   const [measure, setMeasure] = useState<DockMeasure>(UNMEASURED);
   const [extra, setExtra] = useState({ key: "", buttons: 0 });
-  const key = `${items.map((item) => item.id).join()}|${measure.width}|${measure.leading}`;
+  const key = `${items.map((item) => `${item.id}:${item.label}`).join()}|${measure.width}|${measure.leading}`;
   const lost = extra.key === key ? extra.buttons : 0;
   const folded = foldDock(
     items,
@@ -501,7 +503,7 @@ function Dock({
   const measureStart = () => {
     const start = startRef.current;
     if (!start) return;
-    const next = readDockMeasure(start, leadingSlots);
+    const next = readDockMeasure(start);
     setMeasure((prev) =>
       prev.width === next.width &&
       prev.leading === next.leading &&

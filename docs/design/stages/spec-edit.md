@@ -621,7 +621,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** INS-PEEK--phone-light.png, SHEET-PHONE-INSPECTOR--phone-light.png. Hierarchy: the peek shows "reference clip" and a time range, but no actions. Interaction cost: undo, redo and expand icons in a peek strip.
 - **Fate:** merge into the phone action dock (dock detent of the Inspector sheet).
-- **Spec:** action dock 64 px above the player bar: object icon + short name on the left (max 96 px), then as many 48 px verb buttons as fit (five at 390 px) with icon over 10 px label (labels shown on phone because they are small and help first use; icons alone must still read), then More. Swipe up for inspector content.
+- **Spec:** action dock 64 px above the player bar: object icon + short name on the left (max 96 px), then as many 48 px verb buttons as fit (at 390 px a pending edit shows Hear A, Hear B and Keep and a word four verbs; at 320 px two and three) with icon over 10 px label (labels shown on phone because they are small and help first use; icons alone must still read), then More. Swipe up for inspector content.
 - **Story to build:** `Edit/ActionBar` stories `PhoneDockClip`, `PhoneDockWords`, `PhoneDockSuggestion`, `PhoneDockPlayhead`.
 
 ### INS-EMPTY · Nothing selected

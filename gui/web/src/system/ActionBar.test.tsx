@@ -3,8 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { barScene, EDIT_SELECTIONS, itemsOf } from "../test/actionBarFixtures";
-import { ActionBar, SelectionCount } from "./ActionBar";
+import { ActionBar, SelectionCount, SelectionObject } from "./ActionBar";
 import { type BarItem, foldDock } from "./actionBarSlots";
+import { ScopeChip } from "./ScopeChip";
 
 const ids = (items: readonly { id: string }[]) => items.map((item) => item.id);
 
@@ -236,7 +237,13 @@ describe("ActionBar dock measuring its start slot", () => {
     stub("scrollWidth", (el) =>
       onStart(el) ? (overflow ? overflow() : slotWidth) : 0,
     );
-    stub("offsetWidth", (el) => (el.dataset.chip ? CHIP : 0));
+    stub("offsetWidth", (el) =>
+      el.classList.contains("sys-scope")
+        ? CHIP
+        : el.classList.contains("sys-actions-object")
+          ? 90
+          : 0,
+    );
   });
 
   afterEach(() => {
@@ -277,7 +284,7 @@ describe("ActionBar dock measuring its start slot", () => {
         items={itemsOf(["hear", "split", "comment", "fixText"])}
         more={itemsOf(["copy"])}
         primary={{ id: "cut" }}
-        leading={<span data-chip="1">chip</span>}
+        leading={<ScopeChip tracks={[]} all ripple />}
         leadingSlots={1}
         onVerb={vi.fn()}
       />,
@@ -326,6 +333,58 @@ describe("ActionBar dock measuring its start slot", () => {
       "More",
       "Cut",
     ]);
+  });
+
+  function range(labels: Record<string, string> = {}) {
+    return (
+      <ActionBar
+        placement={{ form: "dock" }}
+        items={itemsOf(["hear", "split", "comment", "fixText"]).map((item) => ({
+          ...item,
+          label: labels[item.id] ?? item.label,
+        }))}
+        primary={{ id: "cut" }}
+        leading={
+          <>
+            <SelectionObject icon="text-cursor-input" name="Range" />
+            <ScopeChip tracks={[]} all ripple />
+          </>
+        }
+        leadingSlots={1}
+        onVerb={vi.fn()}
+      />
+    );
+  }
+
+  it("subtracts the scope chip but not the shrinkable object on a range dock", () => {
+    slotWidth = 260;
+    render(range());
+    expect(names()).toEqual(["Hear", "Split", "Comment", "Fix text", "Cut"]);
+  });
+
+  it("settles on the real [object, chip] shape when the slot overflows", () => {
+    slotWidth = 260;
+    const reads = vi.fn();
+    overflow = () => {
+      reads();
+      return slotWidth + (reads.mock.calls.length <= 2 ? 5 : 0);
+    };
+    render(range());
+    expect(names()).toEqual(["Hear", "More", "Cut"]);
+    expect(reads.mock.calls.length).toBeLessThan(20);
+  });
+
+  it("lets a fold go when the verbs' labels change", () => {
+    slotWidth = 260;
+    const reads = vi.fn();
+    overflow = () => {
+      reads();
+      return slotWidth + (reads.mock.calls.length === 1 ? 5 : 0);
+    };
+    const { rerender } = render(range());
+    expect(names()).toEqual(["Hear", "Split", "More", "Cut"]);
+    rerender(range({ hear: "Listen" }));
+    expect(names()).toEqual(["Listen", "Split", "Comment", "Fix text", "Cut"]);
   });
 
   it("folds one more verb when the slot still overflows, then settles", () => {
