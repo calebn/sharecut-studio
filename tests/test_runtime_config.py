@@ -488,6 +488,10 @@ def _fake(label: str) -> str:
 
 
 _NUMERIC_LIMIT_SUFFIXES = ("_RPM", "_BURST", "_CONCURRENT")
+_NOT_SECRET_VALUES = {
+    "PODCAST_RELAY_SIGNING_KEY": "a path to the key file, not the key",
+    "PODCAST_RELAY_PUBLIC_KEYS": "public keys by definition",
+}
 _SECRET_WORDS = frozenset(
     {"TOKEN", "TOKENS", "SECRET", "SECRETS", "PASSWORD", "KEY", "KEYS", "CREDENTIAL", "CREDENTIALS"}
 )
@@ -528,6 +532,7 @@ def test_every_secret_looking_setting_is_listed_or_explicitly_not_secret() -> No
         name
         for name in looks_secret - set(SECRET_ENV_NAMES)
         if not name.endswith(_NUMERIC_LIMIT_SUFFIXES)  # rate and concurrency numbers
+        and name not in _NOT_SECRET_VALUES
     }
     assert not unlisted, f"add to SECRET_ENV_NAMES (or make it a numeric limit): {sorted(unlisted)}"
     assert set(SECRET_ENV_NAMES) <= {variable.name for variable in settings.VARIABLES}
