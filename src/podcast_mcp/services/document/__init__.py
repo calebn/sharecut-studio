@@ -148,6 +148,8 @@ if TYPE_CHECKING:
         TranscriptReplacementPreview,
         TranscriptService,
         TranscriptTimingChangedError,
+        WordTimingChange,
+        WordTimingContext,
         WordTimingTarget,
     )
     from podcast_mcp.services.document.transcript_flag_results import (
@@ -256,6 +258,8 @@ __all__ = [
     "WarmPreviewResult",
     "WordAutomaticResult",
     "WordSuppressedResult",
+    "WordTimingChange",
+    "WordTimingContext",
     "WordTimingTarget",
     "WordsIgnoredResult",
     "build_golden_ear",
@@ -390,6 +394,8 @@ _MODULE_BY_NAME = {
     "TranscriptReplacementMatch": "transcript",
     "TranscriptReplacementPreview": "transcript",
     "TranscriptTimingChangedError": "transcript",
+    "WordTimingChange": "transcript",
+    "WordTimingContext": "transcript",
     "WordTimingTarget": "transcript",
     "WordAutomaticResult": "transcript_flag_results",
     "WordSuppressedResult": "transcript_flag_results",

@@ -133,11 +133,15 @@ def transcript_word_timing_context(
 ) -> dict[str, Any]:
     project_path = resolve_project(req.path, request)
     try:
-        return TranscriptService(ProjectWorkspace.open(project_path)).word_timing_context(
-            WordTimingTarget(**req.target.model_dump()),
-            expected_text=req.expected_word.text,
-            expected_start=req.expected_word.start,
-            expected_end=req.expected_word.end,
+        return (
+            TranscriptService(ProjectWorkspace.open(project_path))
+            .word_timing_context(
+                WordTimingTarget(**req.target.model_dump()),
+                expected_text=req.expected_word.text,
+                expected_start=req.expected_word.start,
+                expected_end=req.expected_word.end,
+            )
+            .model_dump()
         )
     except TranscriptTimingChangedError as exc:
         raise coded_exception_error(409, exc, code="transcript_timing_changed") from exc

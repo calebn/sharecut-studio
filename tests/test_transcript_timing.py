@@ -74,7 +74,9 @@ def workspace(path):
 
 
 def context(svc, target):
-    return svc.word_timing_context(target, expected_text="same", expected_start=1, expected_end=2)
+    return svc.word_timing_context(
+        target, expected_text="same", expected_start=1, expected_end=2
+    ).model_dump()
 
 
 def test_exact_source_preserves_primary_and_choices_and_one_undo(minimal_project):
@@ -86,7 +88,7 @@ def test_exact_source_preserves_primary_and_choices_and_one_undo(minimal_project
     shown = context(svc, target)
     assert shown["media"]["ref"] == "source:extra"
     assert shown["media"]["duration_sec"] == 10
-    result = svc.set_word_timing(target, shown["expected_token"], 1.25, 2.25)
+    result = svc.set_word_timing(target, shown["expected_token"], 1.25, 2.25).model_dump()
     assert result["changed"]
     assert ws.project.transcripts[0] == before[0]
     changed = ws.project.transcripts[1]
@@ -113,7 +115,7 @@ def test_primary_alias_and_unplaced_source_use_raw_clock(minimal_project):
     assert shown["word"]["start"] == 1
     ws.project.clips = []
     ws.save()
-    result = svc.set_word_timing(primary, shown["expected_token"], 0.9, 2)
+    result = svc.set_word_timing(primary, shown["expected_token"], 0.9, 2).model_dump()
     assert result["changed"]
     assert ws.project.transcripts[0].words[0].start == 0.9
     assert ws.project.transcripts[1].words[1].start == 1
@@ -125,7 +127,7 @@ def test_noop_creates_no_history(minimal_project):
     target = WordTimingTarget("host", "extra", 1)
     shown = context(svc, target)
     history = ws.project.history.model_dump()
-    assert not svc.set_word_timing(target, shown["expected_token"], 1, 2)["changed"]
+    assert not svc.set_word_timing(target, shown["expected_token"], 1, 2).model_dump()["changed"]
     assert ws.project.history.model_dump() == history
     assert not ws.project.transcripts[1].user_edited
 
@@ -174,7 +176,9 @@ def test_zero_span_repair_and_unknown_duration(minimal_project):
     ws.save()
     svc = TranscriptService(ws)
     target = WordTimingTarget("host", None, 0)
-    shown = svc.word_timing_context(target, expected_text="same", expected_start=1, expected_end=1)
+    shown = svc.word_timing_context(
+        target, expected_text="same", expected_start=1, expected_end=1
+    ).model_dump()
     svc.set_word_timing(target, shown["expected_token"], 1, 1.001)
     assert ws.project.transcripts[0].words[0].end == 1.001
     ws.project.sources[0].duration_sec = None
@@ -219,7 +223,7 @@ def test_retiming_invalidates_automatic_verdict_but_preserves_choices(
     before = copy.deepcopy(ws.project.transcripts)
     target = WordTimingTarget("host", None, 0)
     svc = TranscriptService(ws)
-    svc.set_word_timing(target, context(svc, target)["expected_token"], 1.2, 2.2)
+    svc.set_word_timing(target, context(svc, target)["expected_token"], 1.2, 2.2).model_dump()
     changed = ws.project.transcripts[0]
     assert changed.silence_filter_fingerprint is None
     assert changed.words[0].suppressed is (locked or ignored)

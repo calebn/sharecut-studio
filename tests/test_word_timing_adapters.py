@@ -75,8 +75,15 @@ def timing_command(context, seq=1):
 
 def test_timing_command_audio_projection_stale_and_guest_denial(timing_workspace):
     ws = timing_workspace
-    context = TranscriptService(ws).word_timing_context(
-        WordTimingTarget("host", "extra", 0), expected_text="same", expected_start=1, expected_end=2
+    context = (
+        TranscriptService(ws)
+        .word_timing_context(
+            WordTimingTarget("host", "extra", 0),
+            expected_text="same",
+            expected_start=1,
+            expected_end=2,
+        )
+        .model_dump()
     )
     service = DocumentSyncService.open(ws.path)
     with pytest.raises(PermissionError):
