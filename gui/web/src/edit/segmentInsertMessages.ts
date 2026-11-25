@@ -3,6 +3,8 @@ import {
   type SegmentInsertAt,
   type SegmentInsertPreview,
   type SegmentInsertRefusal,
+  type SegmentPlacement,
+  type SegmentRow,
   segmentInsertRefusal,
 } from "../api";
 import { formatTimeShort } from "../utils/time";
@@ -35,7 +37,34 @@ const REFUSALS: Record<SegmentInsertRefusal, string> = {
     "The audio could not be copied into this project. Check that there is room on the disk, then try again.",
   segment_position_out_of_range:
     "That position is past the end of the episode. Pick another position.",
+  segment_placement_unsupported:
+    "Dialogue segments cannot have their own lane. Choose Move the rest later.",
+  segment_placement_invalid:
+    "That placement is not available. Pick a placement again.",
 };
+
+export const PLACEMENT_OPTIONS: readonly {
+  value: SegmentPlacement;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: "ripple",
+    label: "Move the rest later",
+    hint: "Later clips, chapters and comments shift by the segment's length.",
+  },
+  {
+    value: "own_lane",
+    label: "Play over the episode",
+    hint: "Nothing moves. The segment gets its own track.",
+  },
+];
+
+export const DIALOGUE_OWN_LANE_HINT =
+  "Dialogue segments always move later content. They cannot have their own lane.";
+
+export const isDialogueSegment = (row: SegmentRow | null): boolean =>
+  row?.role === "dialogue";
 
 export function segmentInsertMessage(error: unknown): string {
   const refusal = segmentInsertRefusal(error);
@@ -70,7 +99,29 @@ const plural = (n: number, one: string, many: string) =>
 const laterText = (n: number, one: string, many: string) =>
   `${plural(n, one, many)} ${n === 1 ? "moves" : "move"} later.`;
 
-export function insertPreviewLines(preview: SegmentInsertPreview): string[] {
+const duckingLine = (row: SegmentRow | null): string =>
+  row?.duck_under_dialogue === true
+    ? "It plays at full level over the voices until it is ducked. Duck music under dialogue lowers it under speech."
+    : "It plays at full level. It was not saved to duck under dialogue.";
+
+function ownLanePreviewLines(
+  preview: SegmentInsertPreview,
+  row: SegmentRow | null,
+): string[] {
+  return [
+    `Adds ${formatTimeShort(preview.duration_sec)} at ${formatTimeShort(preview.at)} on a new track.`,
+    "Nothing already in the episode moves.",
+    duckingLine(row),
+    `The episode becomes ${formatTimeShort(preview.timeline_duration_after_sec)} long.`,
+  ];
+}
+
+export function insertPreviewLines(
+  preview: SegmentInsertPreview,
+  placement: SegmentPlacement = "ripple",
+  row: SegmentRow | null = null,
+): string[] {
+  if (placement === "own_lane") return ownLanePreviewLines(preview, row);
   const lines = [
     `Adds ${formatTimeShort(preview.duration_sec)} at ${formatTimeShort(preview.at)}.`,
   ];
@@ -106,7 +157,8 @@ export function segmentInsertedMessage(
   name: string,
   applied: SegmentInsertApplied,
 ): string {
-  return `Inserted ${name}: ${formatTimeShort(applied.duration_sec)} at ${formatTimeShort(applied.at)}`;
+  const where = applied.placement === "own_lane" ? " over the episode" : "";
+  return `Inserted ${name}${where}: ${formatTimeShort(applied.duration_sec)} at ${formatTimeShort(applied.at)}`;
 }
 
 export function segmentInsertQueuedMessage(name: string): string {

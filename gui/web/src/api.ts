@@ -220,6 +220,7 @@ export type {
   SegmentInsertRequest,
   SegmentKind,
   SegmentListRow,
+  SegmentPlacement,
   SegmentRow,
   SegmentSaveRefusal,
   SegmentSaveRequest,
