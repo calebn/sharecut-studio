@@ -316,6 +316,23 @@ describe("GuestScriptHost range selection", () => {
     expect(getClipboard()?.mode).toBe("cut");
   });
 
+  it.each([
+    { role: "edit", short: true, showsScript: false },
+    { role: "edit", short: false, showsScript: true },
+    { role: "comment", short: true, showsScript: true },
+  ] as const)(
+    "shows Script=$showsScript in a $role phone session at short=$short",
+    ({ role, short, showsScript }) => {
+      stubViewportShell("phone", { short });
+      as(role, role === "edit" ? EDITOR_CAPABILITIES : COMMENTER_CAPABILITIES);
+      render(<StoredGuestScriptHost />);
+
+      const script = screen.queryByRole("region", { name: "Script" });
+      if (showsScript) expect(script).toBeVisible();
+      else expect(script).not.toBeInTheDocument();
+    },
+  );
+
   it("drops a stored word selection when the Script hides on a short window", () => {
     as("comment", COMMENTER_CAPABILITIES);
     const listeners = new Set<() => void>();
