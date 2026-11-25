@@ -470,7 +470,7 @@ def test_linear_curves_leave_the_render_hash_byte_identical(tmp_path: Path) -> N
     assert track_render_hash(plain, "host", defaults=DEFAULTS) == track_render_hash(
         explicit, "host", defaults=DEFAULTS
     )
-    assert track_render_hash(plain, "guest", defaults=DEFAULTS) == "088e66c7572130a1"
+    assert track_render_hash(plain, "guest", defaults=DEFAULTS) == "3484c99159065aa0"
 
 
 @pytest.mark.parametrize("edge", ["fade_in_curve", "fade_out_curve"])

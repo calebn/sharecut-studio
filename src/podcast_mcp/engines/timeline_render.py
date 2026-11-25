@@ -65,7 +65,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_gate import BleedGatePlan
 
-RENDER_SEMANTICS_REV = 25
+RENDER_SEMANTICS_REV = 26
 _MAX_GRID_RATE = 192_000
 
 

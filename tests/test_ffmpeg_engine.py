@@ -866,7 +866,10 @@ def test_build_track_filter_arnndn_uses_bootstrapped_model(tmp_path: Path):
         effects=[ProcessingEffect(effect="arnndn", params={"model": str(model)})],
     )
     filt = eng.build_track_filter(chain, None)
-    assert filt == f"arnndn=m={model}"
+    assert (
+        filt
+        == f"aformat=sample_fmts=fltp:sample_rates=48000,asetnsamples=n=480:p=1,arnndn=m={model}"
+    )
 
 
 def test_build_track_filter_arnndn_resolves_model_when_unset(tmp_path: Path, monkeypatch):
@@ -876,7 +879,10 @@ def test_build_track_filter_arnndn_resolves_model_when_unset(tmp_path: Path, mon
     eng = FFmpegEngine()
     chain = ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="arnndn", params={})])
     filt = eng.build_track_filter(chain, None)
-    assert filt == f"arnndn=m={model}"
+    assert (
+        filt
+        == f"aformat=sample_fmts=fltp:sample_rates=48000,asetnsamples=n=480:p=1,arnndn=m={model}"
+    )
 
 
 def test_build_track_filter_arnndn_escapes_colons_in_path():
@@ -886,7 +892,47 @@ def test_build_track_filter_arnndn_escapes_colons_in_path():
         effects=[ProcessingEffect(effect="arnndn", params={"model": "C:/models/rn.rnnn"})],
     )
     filt = eng.build_track_filter(chain, None)
-    assert filt == "arnndn=m=C\\:/models/rn.rnnn"
+    assert (
+        filt
+        == "aformat=sample_fmts=fltp:sample_rates=48000,asetnsamples=n=480:p=1,arnndn=m=C\\:/models/rn.rnnn"
+    )
+
+
+def test_graph_rate_still_forces_48k_with_arnndn_pad_prefix():
+    from podcast_mcp.engines.effect_filters import graph_rate
+
+    eng = FFmpegEngine()
+    chain = ProcessingChain(
+        track_id="host",
+        effects=[ProcessingEffect(effect="arnndn", params={"model": "m.rnnn"})],
+    )
+    filt = eng.build_track_filter(chain, None)
+    assert filt.startswith(
+        "aformat=sample_fmts=fltp:sample_rates=48000,asetnsamples=n=480:p=1,arnndn"
+    )
+    assert graph_rate(filt) == 48_000
+    assert (
+        graph_rate(
+            "highpass=f=80,aformat=sample_fmts=fltp:sample_rates=48000,asetnsamples=n=480:p=1,arnndn=m=m.rnnn"
+        )
+        == 48_000
+    )
+
+
+def test_arnndn_pad_stays_immediately_before_arnndn_in_chain():
+    eng = FFmpegEngine()
+    chain = ProcessingChain(
+        track_id="host",
+        effects=[
+            ProcessingEffect(effect="highpass", params={"frequency": 80}),
+            ProcessingEffect(effect="arnndn", params={"model": "m.rnnn"}),
+        ],
+    )
+    filt = eng.build_track_filter(chain, None)
+    assert (
+        filt
+        == "highpass=f=80,aformat=sample_fmts=fltp:sample_rates=48000,asetnsamples=n=480:p=1,arnndn=m=m.rnnn"
+    )
 
 
 def test_ffmpeg_engine_defaults_resolve_binaries():
