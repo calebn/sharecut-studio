@@ -185,6 +185,7 @@ def _prepare_candidate(
             peer_scoped=not mute_mode,
             defaults=defaults,
             caches=timeline_caches,
+            speaker_context=speaker_context,
         )
     except ValueError:
         return CutRejected("scope")
@@ -208,6 +209,7 @@ def _prepare_candidate(
         word_index=word_index,
         session_air=session_air,
         timeline_caches=timeline_caches,
+        speaker_context=speaker_context,
     )
     if not isinstance(gated, _GatedCut):
         return gated
@@ -397,6 +399,7 @@ def _prepare_candidate(
                     peer_scoped=True,
                     defaults=defaults,
                     caches=timeline_caches,
+                    speaker_context=speaker_context,
                     _admissible_spans=support,
                 )
             except ValueError:

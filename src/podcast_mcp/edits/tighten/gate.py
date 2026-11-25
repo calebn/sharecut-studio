@@ -35,6 +35,7 @@ from podcast_mcp.edits.tighten.acoustic_scan import (
 )
 from podcast_mcp.edits.tighten.candidate import (
     _CutCandidate,
+    _SpeakerCutContext,
 )
 from podcast_mcp.edits.tighten.plan import (
     _accept_nudge,
@@ -75,6 +76,7 @@ def _cut_scope(
     peer_scoped: bool,
     defaults: dict[str, Any],
     caches: TrackRmsCacheSet | None = None,
+    speaker_context: _SpeakerCutContext | None = None,
     _admissible_spans: Sequence[tuple[float, float]] | None = None,
 ) -> ResolvedCutScope | CutRejected:
     if not peer_scoped:
@@ -87,6 +89,7 @@ def _cut_scope(
         end,
         defaults=defaults,
         caches=caches,
+        speaker=speaker_context.scope_snapshot() if speaker_context is not None else None,
         _admissible_spans=_admissible_spans,
     )
     if isinstance(resolved, CutScopeUnavailable):
@@ -105,6 +108,7 @@ def _gate_cut_edges(
     word_index: CutWordIndex | None,
     session_air: SessionAir | None,
     timeline_caches: TrackRmsCacheSet | None = None,
+    speaker_context: _SpeakerCutContext | None = None,
 ) -> _GatedCut | CutRejected:
     """Run the edge checks ``plan.checks`` selects, then read who speaks over the final span."""
     track_id = candidate.track_id
@@ -267,6 +271,7 @@ def _gate_cut_edges(
             peer_scoped=checks.peer_scoped,
             defaults=defaults,
             caches=timeline_caches,
+            speaker_context=speaker_context,
             _admissible_spans=admissible_spans,
         )
     except ValueError:

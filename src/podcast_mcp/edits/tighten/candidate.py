@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from podcast_mcp.edits.cut_safety import SpeakerScopeSnapshot
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.engines import speaker_id
 from podcast_mcp.models import (
@@ -27,6 +28,12 @@ log = logging.getLogger(__name__)
 class _SpeakerCutContext:
     config: Any
     profiles: dict[str, Any]
+    # False when loading failed: the snapshot then reads as "no profiles", and cut scope
+    # loads for itself so the failure still marks the verdict cache unstable.
+    loaded: bool = True
+
+    def scope_snapshot(self) -> SpeakerScopeSnapshot | None:
+        return SpeakerScopeSnapshot(self.profiles, self.config) if self.loaded else None
 
 
 def _speaker_cut_context(project: EpisodeProject) -> _SpeakerCutContext | None:
@@ -39,7 +46,7 @@ def _speaker_cut_context(project: EpisodeProject) -> _SpeakerCutContext | None:
         return _SpeakerCutContext(config, profiles)
     except Exception as exc:
         log.debug("speaker bleed cut guard skipped: %s", exc, exc_info=True)
-        return _SpeakerCutContext(None, {})
+        return _SpeakerCutContext(None, {}, loaded=False)
 
 
 def _word_indexes(
