@@ -320,3 +320,43 @@ def test_propose_tighten_embeds_each_cut_window_once_with_enrolled_profiles():
         _propose_with_performance({"max_workers": 1})
     assert seen
     assert max(seen.values()) == 1
+
+
+def test_propose_tighten_decisions_match_serial_on_threads_with_enrolled_profiles():
+    from types import SimpleNamespace
+
+    import numpy as np
+
+    from podcast_mcp.engines import speaker_id as sid
+
+    class _Backend:
+        def embed(self, samples, sample_rate):
+            return np.ones(4, dtype=np.float32)
+
+        def name(self):
+            return "stub"
+
+    def profiles(project):
+        return {
+            t.track_id: sid.SpeakerProfile(
+                speaker_id=t.track_id,
+                track_id=t.track_id,
+                embedding=[1.0] * 4,
+                enrollment_sec=30.0,
+                stem_hash="x",
+            )
+            for t in project.transcripts
+        }
+
+    def run(workers: int):
+        with (
+            patch.object(sid, "load_all_profiles", side_effect=profiles),
+            patch.object(sid, "resolve_speaker_backend", return_value=_Backend()),
+            patch(
+                "podcast_mcp.project.transcript_context.load_transcript_context",
+                return_value=SimpleNamespace(speaker_id=sid.SpeakerIdConfig()),
+            ),
+        ):
+            return _propose_with_performance({"max_workers": workers})
+
+    assert run(3) == run(1)
