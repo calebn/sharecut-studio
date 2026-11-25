@@ -51,6 +51,7 @@ const VIEWER_ROWS = [
   "Clear selection",
   "Next occurrence",
   "Play range",
+  "Show selection",
   "Stop following",
   "Go to Review",
   "Take the hand-off",
@@ -72,6 +73,7 @@ const COMMENTER_ROWS = [
   "Mute selected range",
   "Comment on range",
   "Add comment",
+  "Show selection",
   "Stop following",
   "Go to Review",
   "Take the hand-off",
@@ -249,6 +251,10 @@ for (const [sizeName, size] of [
         expect(row(viewerRows, "Play range")).toMatchObject({
           disabled: true,
           note: "Choose a range",
+        });
+        expect(row(viewerRows, "Show selection")).toMatchObject({
+          disabled: true,
+          note: "Nothing selected",
         });
         for (const never of VIEWER_NEVER)
           expect(labels(viewerRows)).not.toContain(never);
