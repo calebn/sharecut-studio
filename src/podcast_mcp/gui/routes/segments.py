@@ -14,7 +14,12 @@ from podcast_mcp.segments.model import segment_kind
 from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.segments.summary import library_rows, show_segment
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import parse_range, report_segment_drift, save_segment
+from podcast_mcp.services.document import (
+    parse_range,
+    preview_segment_insert,
+    report_segment_drift,
+    save_segment,
+)
 from podcast_mcp.util.coded_error import CodedValueError
 
 router = APIRouter()
@@ -67,6 +72,31 @@ def get_segment_audio(
     except CodedValueError as exc:
         _refuse(exc)
     return FileResponse(path, media_type="audio/flac", headers=NO_STORE)
+
+
+@router.get("/api/segments/{segment_id}/insert-preview")
+def insert_preview(
+    segment_id: str,
+    request: Request,
+    path: str,
+    at: str,
+    version: int | None = None,
+) -> dict[str, Any]:
+    """What inserting the segment at ``at`` would move: a dry run that writes nothing."""
+    project_path = resolve_project(path, request)
+    pin_served_if_allowed(request, project_path)
+    store = SegmentStore()
+    try:
+        report = preview_segment_insert(
+            ProjectWorkspace.open(project_path, adopt=False),
+            segment_id,
+            at,
+            version=store.resolve_version(segment_id, version),
+            store=store,
+        )
+    except CodedValueError as exc:
+        _refuse(exc)
+    return report.model_dump()
 
 
 @router.post("/api/segments")
