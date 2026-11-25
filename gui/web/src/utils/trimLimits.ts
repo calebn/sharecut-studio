@@ -78,13 +78,14 @@ export function trimEdgeLimits(
 }
 
 /**
- * Whether `limits` leave an edge anywhere to go. `trim_edge_limits` can return
+ * Whether `limits` leave an edge anywhere to go (strictly as the server: it
+ * refuses on `lo > hi`, `ripple.py` and `boundary.py`). `trim_edge_limits` can return
  * `lo > hi` (a neighbour or the media end is past a timing correction); the
  * server then refuses the trim (`trim_no_legal_range`), so a caller must not
  * move, preview or save that edge rather than clamp into the inverted pair.
  */
 export function hasTrimRange(limits: TrimLimits): boolean {
-  return limits.lo <= limits.hi + EPS;
+  return limits.lo <= limits.hi;
 }
 
 /** `value` moved inside `limits`, as `plan_trim` clamps the edge it is asked for. */

@@ -19,7 +19,7 @@ import {
   minimalProject,
   sampleTrack,
 } from "../../test/fixtures";
-import { noRangeLane } from "../../test/timedTrimLane";
+import { noRangeLane, overlapLane } from "../../test/timedTrimLane";
 import type { ClipRow } from "../../types/project";
 import { CLIP_READ_ONLY_REASON } from "./clipReadOnly";
 import { inspectorHeading } from "./inspectorHeading";
@@ -153,6 +153,32 @@ describe("clip content", () => {
     ).toHaveAttribute("aria-readonly", "true");
     cleanup();
     open(noRangeLane(false));
+    expect(
+      screen.getByRole("spinbutton", { name: "Source end" }),
+    ).not.toHaveAttribute("aria-readonly");
+  });
+
+  it("keeps every field of an untimed edge with no legal range read-only and unbounded", () => {
+    // a's out edge is [10.05, 10.02]: Source end, End and Length all stuck.
+    const lane = overlapLane();
+    open(lane, {}, lane[0]);
+    for (const name of ["Source end", "End", "Length"]) {
+      const field = screen.getByRole("spinbutton", { name });
+      expect(field, name).toHaveAttribute("aria-readonly", "true");
+      expect(field, name).not.toHaveAttribute("aria-valuemin");
+      expect(field, name).not.toHaveAttribute("aria-valuemax");
+    }
+    // Its in edge is fine, so Source start stays editable and bounded.
+    const start = screen.getByRole("spinbutton", { name: "Source start" });
+    expect(start).not.toHaveAttribute("aria-readonly");
+    expect(start).toHaveAttribute("aria-valuemin");
+    cleanup();
+    // b's in edge is [20, 19.97]: Source start is stuck, Source end is not.
+    open(lane, {}, lane[1]);
+    const stuck = screen.getByRole("spinbutton", { name: "Source start" });
+    expect(stuck).toHaveAttribute("aria-readonly", "true");
+    expect(stuck).not.toHaveAttribute("aria-valuemin");
+    expect(stuck).not.toHaveAttribute("aria-valuemax");
     expect(
       screen.getByRole("spinbutton", { name: "Source end" }),
     ).not.toHaveAttribute("aria-readonly");
