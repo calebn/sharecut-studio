@@ -1499,7 +1499,7 @@ def test_edit_analyze_cleanup(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"tracks": ["host"], "issues": []}
     with patch(
-        "podcast_mcp.services.document.analysis.cleanup_analysis_report",
+        "podcast_mcp.services.document.analysis_reports.cleanup_analysis_report",
         return_value=report,
     ) as analyze:
         out = AnalysisService(ws).analyze_cleanup(speaker="Host")
@@ -1511,7 +1511,7 @@ def test_edit_audio_diagnostics(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"track_id": "host", "spectrogram_png": "spec.png", "waveform_png": "wave.png"}
     with patch(
-        "podcast_mcp.services.document.analysis.audio_diagnostics_report",
+        "podcast_mcp.services.document.analysis_reports.audio_diagnostics_report",
         return_value=report,
     ) as diag:
         out = AnalysisService(ws).audio_diagnostics(speaker="Host", start_sec=1.0, end_sec=2.0)
@@ -1523,7 +1523,7 @@ def test_edit_recommend_fades(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     recs = [{"clip_id": "full", "recommended_fade_in_ms": 15}]
     with patch(
-        "podcast_mcp.services.document.analysis.fade_recommendations",
+        "podcast_mcp.services.document.analysis_reports.fade_recommendations",
         return_value=recs,
     ) as fades:
         out = AnalysisService(ws).recommend_fades(track_id="host")
@@ -1731,7 +1731,7 @@ def test_edit_reconciliation_status(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     status = {"stale": False}
     with patch(
-        "podcast_mcp.services.document.analysis.reconciliation_status_report",
+        "podcast_mcp.services.document.analysis_reports.reconciliation_status_report",
         return_value=status,
     ):
         out = AnalysisService(ws).reconciliation_status()
@@ -1754,7 +1754,7 @@ def test_edit_overlap_duplicates(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"pairs": []}
     with patch(
-        "podcast_mcp.services.document.analysis.overlap_duplicate_report",
+        "podcast_mcp.services.document.analysis_reports.overlap_duplicate_report",
         return_value=report,
     ):
         out = AnalysisService(ws).overlap_duplicates(start_sec=0.0, end_sec=2.0)
@@ -1840,7 +1840,7 @@ def test_edit_gate_overreach(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"overreach_ms": 0}
     with patch(
-        "podcast_mcp.services.document.analysis.gate_overreach_report",
+        "podcast_mcp.services.document.analysis_reports.gate_overreach_report",
         return_value=report,
     ):
         out = AnalysisService(ws).gate_overreach(speaker="Host")
@@ -1851,7 +1851,7 @@ def test_edit_audibility_map(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     rows = [{"word": "hello", "audible": True}]
     with patch(
-        "podcast_mcp.services.document.analysis.build_audibility_map",
+        "podcast_mcp.services.document.analysis_reports.build_audibility_map",
         return_value=rows,
     ):
         out = AnalysisService(ws).audibility_map(track_id="host")
@@ -1862,7 +1862,7 @@ def test_edit_flagged_words(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     flagged = [{"word_index": 0, "reason": "low_confidence"}]
     with patch(
-        "podcast_mcp.services.document.analysis.list_flagged_transcript_words",
+        "podcast_mcp.services.document.analysis_reports.list_flagged_transcript_words",
         return_value=flagged,
     ):
         out = AnalysisService(ws).flagged_words(speaker="Host")
@@ -1873,7 +1873,7 @@ def test_edit_low_audibility_words(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     words = [{"text": "hello"}]
     with patch(
-        "podcast_mcp.services.document.analysis.audit_low_audibility_words",
+        "podcast_mcp.services.document.analysis_reports.audit_low_audibility_words",
         return_value=words,
     ) as low:
         svc = AnalysisService(ws)
@@ -1885,7 +1885,7 @@ def test_edit_list_bleed_words(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     bleed = [{"text": "world", "track_id": "host"}]
     with patch(
-        "podcast_mcp.services.document.analysis.bleed_words", return_value=bleed
+        "podcast_mcp.services.document.analysis_reports.bleed_words", return_value=bleed
     ) as bleed_fn:
         out = AnalysisService(ws).list_bleed_words(speaker="Host", start_sec=0.0, end_sec=2.0)
     bleed_fn.assert_called_once()
@@ -1985,31 +1985,31 @@ def test_edit_add_effect_custom(minimal_project, sample_wav) -> None:
 def test_edit_optional_track_filters_without_speaker(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with patch(
-        "podcast_mcp.services.document.analysis.fade_recommendations",
+        "podcast_mcp.services.document.analysis_reports.fade_recommendations",
         return_value=[],
     ) as fades:
         assert AnalysisService(ws).recommend_fades() == []
     fades.assert_called_once_with(ws.project, track_id=None, defaults=ANY)
     with patch(
-        "podcast_mcp.services.document.analysis.audit_low_audibility_words",
+        "podcast_mcp.services.document.analysis_reports.audit_low_audibility_words",
         return_value=[],
     ) as low:
         assert AnalysisService(ws).low_audibility_words() == []
     low.assert_called_once_with(ws.project, track_id=None, progress=None, defaults=ANY)
     with patch(
-        "podcast_mcp.services.document.analysis.bleed_words",
+        "podcast_mcp.services.document.analysis_reports.bleed_words",
         return_value=[],
     ) as bleed:
         assert AnalysisService(ws).list_bleed_words() == []
     bleed.assert_called_once()
     with patch(
-        "podcast_mcp.services.document.analysis.build_audibility_map",
+        "podcast_mcp.services.document.analysis_reports.build_audibility_map",
         return_value=[],
     ) as aud:
         assert AnalysisService(ws).audibility_map() == []
     aud.assert_called_once_with(ws.project, track_id=None, progress=None, defaults=ANY)
     with patch(
-        "podcast_mcp.services.document.analysis.list_flagged_transcript_words",
+        "podcast_mcp.services.document.analysis_reports.list_flagged_transcript_words",
         return_value=[],
     ) as flagged:
         assert AnalysisService(ws).flagged_words() == []
