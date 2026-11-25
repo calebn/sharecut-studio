@@ -225,6 +225,9 @@ test.describe("the phone dock folds what the start slot cannot hold", () => {
   const inDock = (page: Page, name: string) =>
     bar(page).getByRole("button", { name, exact: true });
 
+  const abPair = (page: Page, side: "A" | "B") =>
+    bar(page).locator("button", { hasText: new RegExp(`^${side}$`) });
+
   async function inMore(page: Page): Promise<string[]> {
     await bar(page).getByRole("button", { name: /^More/ }).tap();
     const menu = page.getByRole("menu");
@@ -252,6 +255,24 @@ test.describe("the phone dock folds what the start slot cannot hold", () => {
     ).not.toHaveCount(0);
   }
 
+  for (const width of [320, 390]) {
+    test.describe(`a range with its scope chip at ${width}`, () => {
+      test.use({ viewport: { width, height: 740 }, hasTouch: true });
+
+      test("fits, and every verb it names is reachable", async ({ page }) => {
+        await dragRange(page, true);
+        await fits(page);
+        const slot = bar(page).locator(".sys-dock-slot--start");
+        await expect(slot.locator(".sys-scope")).toHaveCount(1);
+        await expect(inDock(page, "Hear")).toBeVisible();
+        const folded = await inMore(page);
+        if (width === 320) expect(folded).toContain("Split");
+        else await expect(inDock(page, "Split")).toBeVisible();
+        expect(folded.length).toBeGreaterThan(0);
+      });
+    });
+  }
+
   test.describe("at 320", () => {
     test.use({
       viewport: { width: 1280, height: 800 },
@@ -264,6 +285,8 @@ test.describe("the phone dock folds what the start slot cannot hold", () => {
     }) => {
       await selectEdit(page, 320);
       await fits(page);
+      await expect(abPair(page, "A")).toBeVisible();
+      await expect(abPair(page, "B")).toBeVisible();
       await expect(inDock(page, "Keep")).toHaveCount(0);
       await expect(inDock(page, "Cut")).toBeVisible();
       expect(await inMore(page)).toEqual(
@@ -290,6 +313,8 @@ test.describe("the phone dock folds what the start slot cannot hold", () => {
     test("a pending edit folds nothing that fit before", async ({ page }) => {
       await selectEdit(page, 390);
       await fits(page);
+      await expect(abPair(page, "A")).toBeVisible();
+      await expect(abPair(page, "B")).toBeVisible();
       await expect(inDock(page, "Keep")).toBeVisible();
       await expect(inDock(page, "Cut")).toBeVisible();
       expect(await inMore(page)).not.toContain("Keep");
