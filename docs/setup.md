@@ -260,7 +260,8 @@ others and exits non-zero. In a source build, pick one:
 - `PODCAST_BOOTSTRAP_CDN_BASE` (the optional asset mirror below) with the same file under its `models/speaker-ecapa/` prefix.
 
 The environment variable beats the generated file. The base must be HTTPS on a public
-host. `scripts/owner_cdn.py write --base <origin>` records one for a build you package.
+host, with no user, query or fragment. An official build (`PODCAST_REQUIRE_OWNER_CDN=1`)
+also fails unless the base names the documented first-party host. `scripts/owner_cdn.py write --base <origin>` records one for a build you package.
 
 #### Check a public bootstrap mirror
 

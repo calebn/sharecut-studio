@@ -16,7 +16,7 @@ from script_loader import load_script
 ROOT = Path(__file__).resolve().parents[1]
 BASE = "https://cdn.sharecut.studio"
 SPEAKER_PATH = "models/speaker-ecapa/ecapa-voxceleb-embedding.onnx"
-SCANNED = ("src/", "scripts/", "contracts/", "gui/desktop/src-tauri/src/")
+SCANNED = ("src/", "scripts/", "contracts/", "gui/desktop/src-tauri/src/", ".github/")
 HOST_HOME = {"src/podcast_mcp/util/owner_cdn.py"}
 
 
@@ -173,3 +173,50 @@ def test_wheel_check_accepts_an_absent_or_valid_owner_file_and_rejects_a_bad_one
     build({"owner-cdn.json": json.dumps({"base": "http://x.example.test"})})
     with pytest.raises(SystemExit, match=r"owner-cdn\.json"):
         check.wheel_contracts(wheel)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "https://user:pw@cdn.sharecut.example",
+        "https://cdn.sharecut.example/?x=1",
+        "https://cdn.sharecut.example/#frag",
+        "https://cdn.sharecut.example?",
+    ],
+)
+def test_a_base_with_userinfo_query_or_fragment_is_not_usable(value: str) -> None:
+    assert owner_cdn.clean_base(value) is None
+
+
+@pytest.mark.parametrize(
+    ("base", "expected"),
+    [
+        (BASE, True),
+        ("https://CDN.sharecut.studio", True),
+        ("https://cdn.sharecut.studio:8443", False),
+        ("https://cdn.sharecut.studio.evil.example.test", False),
+        ("https://mine.example.test", False),
+    ],
+)
+def test_is_owner_host_matches_the_documented_host_exactly(base: str, expected: bool) -> None:
+    assert owner_cdn.is_owner_host(base) is expected
+
+
+def test_official_check_requires_the_owner_host_and_clear_removes_a_stale_base(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    script = load_script("owner_cdn")
+    monkeypatch.setattr(script, "TARGET", tmp_path / "owner-cdn.json")
+    assert script.main(["write", "--base", "https://mine.example.test"]) == 0
+    assert script.main(["check"]) == 0
+    assert script.main(["check", "--require"]) == 1
+    assert "documented owner CDN host" in capsys.readouterr().err
+    assert script.main(["clear"]) == 0
+    assert not script.TARGET.exists()
+    assert script.main(["clear"]) == 0
+
+
+def test_release_build_passes_the_variable_and_requires_a_base() -> None:
+    text = (ROOT / ".github/workflows/release-desktop-build.yml").read_text(encoding="utf-8")
+    assert text.count("PODCAST_OWNER_CDN_BASE: ${{ vars.SHARECUT_OWNER_CDN_BASE }}") == 2
+    assert text.count('PODCAST_REQUIRE_OWNER_CDN: "1"') == 2

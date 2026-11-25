@@ -697,6 +697,7 @@ def test_sidecar_lifecycle_acquires_the_same_prebuilt_pair(monkeypatch, tmp_path
     monkeypatch.setattr(mod, "copy_web_dist", lambda *_a, **_k: None)
     monkeypatch.setattr(mod, "freeze_python", lambda *_a, **_k: None)
     monkeypatch.setattr(mod, "compile_launchers", lambda *_a: None)
+    monkeypatch.setattr(mod, "stage_owner_cdn", lambda: None)
     monkeypatch.setattr(mod.subprocess, "run", lambda argv, **kwargs: calls.append(argv))
     args = ["--out", str(tmp_path), "--triple", "x86_64-pc-windows-msvc"]
     if mode != "fresh":
@@ -926,7 +927,8 @@ def test_sidecar_writes_the_owner_cdn_base_only_when_one_is_set(monkeypatch):
     monkeypatch.delenv("PODCAST_REQUIRE_OWNER_CDN", raising=False)
     calls = _owner_cdn_calls(monkeypatch, mod)
     mod.stage_owner_cdn()
-    assert calls == []
+    assert [call[-1:] for call in calls] == [["clear"]]
+    calls.clear()
     monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", "https://cdn.example.test")
     mod.stage_owner_cdn()
     assert len(calls) == 1
@@ -940,7 +942,7 @@ def test_official_sidecar_build_requires_the_generated_base(monkeypatch):
     monkeypatch.delenv("PODCAST_OWNER_CDN_BASE", raising=False)
     calls = _owner_cdn_calls(monkeypatch, mod)
     mod.stage_owner_cdn()
-    assert [call[-2:] for call in calls] == [["check", "--require"]]
+    assert [call[-1] for call in calls] == ["clear", "--require"]
     calls.clear()
     monkeypatch.setenv("PODCAST_OWNER_CDN_BASE", "https://cdn.example.test")
     mod.stage_owner_cdn()
