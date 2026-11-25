@@ -15,6 +15,7 @@ import { InlineError } from "../../ui/InlineError";
 const TITLE = "Save as segment";
 const NAME_REQUIRED = "Enter a name for the segment.";
 const SAVING = "Saving to your library.";
+const NAME_MAX = 100;
 
 const KIND_LABELS: Readonly<Record<SegmentKind, string>> = {
   intro: "Intro",
@@ -52,7 +53,9 @@ function SaveSegmentForm({
   onClose,
   field,
   bottom,
+  busy,
 }: Common & {
+  busy: RefObject<boolean>;
   field: RefObject<HTMLInputElement | null>;
   bottom: boolean;
 }) {
@@ -98,15 +101,18 @@ function SaveSegmentForm({
       return;
     }
     saveInFlight.current = true;
+    busy.current = true;
     setSaving(true);
     setNameError(null);
     setFailure(null);
     try {
       await onSave({ name: trimmed, kind });
+      busy.current = false;
       onClose();
     } catch (error) {
       setFailure(segmentSaveMessage(error));
       saveInFlight.current = false;
+      busy.current = false;
       setSaving(false);
       field.current?.focus();
     }
@@ -131,6 +137,7 @@ function SaveSegmentForm({
             autoComplete="off"
             spellCheck
             readOnly={saving}
+            maxLength={NAME_MAX}
             value={name}
             onChange={(event) => {
               setName(event.target.value);
@@ -160,9 +167,18 @@ function SaveSegmentForm({
         )}
       </Field>
       <p className="sys-segment-summary">{summary}</p>
+      {saving ? (
+        <p className="sys-segment-summary" role="status">
+          {SAVING}
+        </p>
+      ) : null}
       <InlineError message={failure} />
       <div className="sys-segment-actions">
-        <Button type="button" onClick={onClose}>
+        <Button
+          type="button"
+          onClick={onClose}
+          disabledReason={saving ? SAVING : undefined}
+        >
           Cancel
         </Button>
         <Button
@@ -178,7 +194,11 @@ function SaveSegmentForm({
 }
 
 export function SaveSegmentCard(props: SaveSegmentCardProps) {
-  const { form, open = true, onClose, ...rest } = props;
+  const { form, open = true, ...rest } = props;
+  const busy = useRef(false);
+  const onClose = () => {
+    if (!busy.current) props.onClose();
+  };
   const field = useRef<HTMLInputElement>(null);
   const content = (
     <SaveSegmentForm
@@ -187,6 +207,7 @@ export function SaveSegmentCard(props: SaveSegmentCardProps) {
       onSave={rest.onSave}
       onClose={onClose}
       field={field}
+      busy={busy}
       bottom={form === "bottom"}
     />
   );

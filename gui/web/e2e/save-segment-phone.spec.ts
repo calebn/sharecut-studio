@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { expectFeedback } from "./feedback";
 import { expectNoHorizontalScroll, expectTouchTargets } from "./modelsMock";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { setRootFontSize } from "./rootFontSize";
@@ -81,9 +82,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       await sheet.getByRole("textbox", { name: "Name" }).fill("Cold open");
       await sheet.getByRole("button", { name: "Save" }).tap();
       await expect(sheet).toHaveCount(0);
-      await expect(
-        page.getByText("Saved Cold open to your library"),
-      ).toBeVisible();
+      await expectFeedback(page, "Saved Cold open to your library");
       expect(saved.bodies).toHaveLength(1);
       expect(saved.bodies[0]).toMatchObject({
         name: "Cold open",

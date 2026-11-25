@@ -8,7 +8,7 @@ const REFUSALS: Record<SegmentSaveRefusal, string> = {
   segment_clip_too_short:
     "A clip in this selection is too short to save. Move the edge of the range, or pick whole clips.",
   segment_render_unsupported:
-    "This selection has room tone, a speaker mute or restored original audio, which a segment cannot keep. Pick audio without them.",
+    "This selection has filled gaps, muted speakers or restored original audio, which a segment cannot keep. Pick audio without them.",
   segment_busy:
     "Your library is busy with another save. Try again in a moment.",
   segment_write_failed:
