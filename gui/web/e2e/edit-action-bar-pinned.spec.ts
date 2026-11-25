@@ -80,12 +80,19 @@ for (const size of SIZES) {
             actions.getByRole("button", { name: "Clear selection" }),
           ).toBeVisible();
           await expectPageAxeClean(page);
-          const playhead = await playheadText(page);
+          // Scrub the view away (a scroll moves the fixed playhead), then
+          // Show edit seeks back to the edit's start.
+          await page.evaluate(() => {
+            const scroller =
+              document.querySelector<HTMLElement>(".timeline-scroll");
+            if (scroller) scroller.scrollLeft = scroller.scrollWidth;
+          });
+          await expect(anchor(page)).not.toBeInViewport();
           await show.click();
+          await expect(anchor(page)).toBeInViewport();
           await expect(
             anchor(page).locator('[aria-pressed="true"]'),
           ).toHaveCount(1);
-          expect(await playheadText(page)).toBe(playhead);
           return;
         }
         await expect(anchor(page)).toBeInViewport();
