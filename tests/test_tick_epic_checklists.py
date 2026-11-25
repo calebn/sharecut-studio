@@ -40,6 +40,12 @@ PRODUCER_LOBBY = (
 )
 FLAKES = "- [ ] #1267, #1360, #1418 flakes"
 SEE_ALSO = "- [ ] #10 foo; see #11"
+JOB_IF = (
+    "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || "
+    "(github.event_name == 'issues' && github.event.issue.state_reason == 'completed') || "
+    "(github.event.pull_request.merged == true && "
+    "github.event.pull_request.head.repo.full_name == github.repository)"
+)
 
 
 def tick(body: str, states: Mapping[int, str]) -> tuple[str, list]:
@@ -162,11 +168,16 @@ class FakeClient:
         self.patches: list[tuple[int, str]] = []
         self.fail: set[int] = set()
         self.edit_on_refetch: dict[int, str] = {}
+        self.always_edit: set[int] = set()
+        self.fetched: list[int] = []
 
     def open_epics(self) -> list[Mapping[str, Any]]:
         return [{"number": n, "body": body} for n, body in self.epics.items()]
 
     def issue(self, number: int) -> Mapping[str, Any] | None:
+        self.fetched.append(number)
+        if number in self.always_edit:
+            self.epics[number] += "\n"
         if number in self.epics:
             if number in self.fail:
                 raise RuntimeError("boom")
@@ -299,7 +310,13 @@ def test_gh_client_lists_open_epics_without_pull_requests_and_patches_the_body()
 
     client = tec.GhClient(REPO, runner)
     assert client.open_epics() == [{"number": 1, "body": "a"}]
-    assert calls[0][-1] == f"repos/{REPO}/issues?labels=epic&state=open&per_page=100"
+    assert calls[0] == [
+        "gh",
+        "api",
+        "--paginate",
+        "--slurp",
+        f"repos/{REPO}/issues?labels=epic&state=open&per_page=100",
+    ]
     client.patch_body(1, "new")
     assert calls[1] == ["gh", "api", "-X", "PATCH", f"repos/{REPO}/issues/1", "-f", "body=new"]
 
@@ -316,7 +333,159 @@ def test_workflow_triggers_guards_permissions_and_group() -> None:
     assert data["concurrency"] == {"group": "tick-epic-checklists", "cancel-in-progress": False}
     job = data["jobs"]["tick"]
     assert job["timeout-minutes"] == 10
-    assert "github.event.issue.state_reason == 'completed'" in job["if"]
-    assert "github.event.pull_request.merged == true" in job["if"]
-    assert "github.event.pull_request.head.repo.full_name == github.repository" in job["if"]
+    assert job["if"] == JOB_IF
     assert "pull_request_target" not in data["on"]
+
+
+def test_gh_client_lists_every_page_of_epics() -> None:
+    page = '[{"number": 1, "body": "a"}], [{"number": 3, "body": "c"}, {"number": 4, "pull_request": {}}]'
+    client = tec.GhClient(REPO, lambda cmd, **_: Proc(f"[{page}]"))
+    assert [epic["number"] for epic in client.open_epics()] == [1, 3]
+
+
+@pytest.mark.parametrize(
+    "limiter",
+    [
+        "except the iOS path",
+        "but not the Android one",
+        "not yet",
+        "deferred",
+        "half done",
+        "TODO",
+        "remains",
+        "remaining",
+        "only the first",
+        "later",
+        "until the next release",
+        "unfinished",
+        "unless it flakes",
+        "leftovers",
+        "follow-up",
+        "still open",
+        "superseded",
+        "blocked",
+    ],
+)
+def test_a_limiter_word_keeps_the_line_open(limiter: str) -> None:
+    line = f"- [ ] #1914 {limiter}"
+    assert tick(line, done(1914)) == (line, [])
+
+
+@pytest.mark.parametrize("phrase", ["part of the migration", "partial", "relates to", "towards"])
+def test_a_partial_phrase_alone_keeps_the_line_open(phrase: str) -> None:
+    line = f"- [ ] #1914 {phrase}"
+    assert tick(line, done(1914)) == (line, [])
+
+
+@pytest.mark.parametrize(
+    "title", ["approving a guard-blocked filler", "a blocked-queue handler", "unblock the lock"]
+)
+def test_a_limiter_word_inside_a_hyphenated_or_longer_word_does_not_hold(title: str) -> None:
+    line = f"- [ ] #1407 {title}"
+    assert tick(line, done(1407)) == (line.replace("[ ]", "[x]"), [tec.Tick(1, (1407,))])
+
+
+def test_live_1403_line_ticks_when_its_issue_is_done() -> None:
+    line = "- [ ] #1407 approving a guard-blocked filler applies a one-track punch"
+    assert tick(line, done(1407))[1] == [tec.Tick(1, (1407,))]
+    assert tick(line, {1407: "open"}) == (line, [])
+
+
+def test_code_spans_are_not_refs_or_limiters() -> None:
+    line = "- [ ] #10 thing `#99` and `blocked`"
+    assert tick(line, {10: "done", 99: "open"}) == (
+        line.replace("[ ]", "[x]"),
+        [tec.Tick(1, (10,))],
+    )
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "- [ ] #1914 (mirror of GH-1409 in other-repo)",
+        "- [ ] #1914 (ptr: lib#1409)",
+        "- [ ] #1914 (see gh-1409)",
+    ],
+)
+def test_foreign_looking_refs_fail_closed(line: str) -> None:
+    assert tick(line, done(1914, 1409)) == (line, [])
+
+
+def test_owner_repo_refs_of_this_repo_still_count() -> None:
+    line = f"- [ ] #1914 and {REPO}#1409"
+    assert tick(line, {1914: "done", 1409: "open"}) == (line, [])
+    assert tick(line, done(1914, 1409))[1] == [tec.Tick(1, (1409, 1914))]
+
+
+def test_a_fence_indented_four_spaces_in_a_list_item_hides_its_lines_and_closes() -> None:
+    body = "- [ ] Setup\n    ```\n  - [ ] #1914 shown as code\n    ```\n- [ ] #1915 real"
+    assert tick(body, done(1914, 1915)) == (
+        body.replace("- [ ] #1915", "- [x] #1915"),
+        [tec.Tick(5, (1915,))],
+    )
+
+
+def test_an_unclosed_indented_fence_hides_the_rest_so_nothing_ticks_wrongly() -> None:
+    body = "- [ ] Setup\n    ```\n- [ ] #1914 maybe code"
+    assert tick(body, done(1914)) == (body, [])
+
+
+def test_a_backtick_quoted_comment_opener_does_not_silence_the_body() -> None:
+    body = "Note `<!--` here\n- [ ] #1914 real"
+    assert tick(body, done(1914)) == (
+        "Note `<!--` here\n- [x] #1914 real",
+        [tec.Tick(2, (1914,))],
+    )
+
+
+def test_a_real_comment_still_hides_lines_after_a_quoted_one() -> None:
+    body = "`-->` <!--\n- [ ] #1914 hidden\n-->\n- [ ] #1915 shown"
+    assert tick(body, done(1914, 1915))[1] == [tec.Tick(4, (1915,))]
+
+
+def test_epics_share_one_state_lookup_per_ref() -> None:
+    client = FakeClient(
+        [{"number": 1, "body": PHASE_4}, {"number": 2, "body": PHASE_4}], {1811: closed()}
+    )
+    assert go(client) == 0
+    assert client.fetched.count(1811) == 1
+
+
+def test_a_body_that_keeps_changing_fails_after_three_tries(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    client = FakeClient([{"number": 1, "body": PHASE_4}], {1811: closed()})
+    client.always_edit = {1}
+    assert go(client) == 1
+    assert client.patches == []
+    assert "::error::could not tick #1: body kept changing after 3 tries" in (
+        capsys.readouterr().out
+    )
+
+
+class PatchFails(tec.GhClient):
+    def __init__(self, body: str) -> None:
+        super().__init__(REPO, lambda cmd, **_: Proc(returncode=1, stderr="HTTP 422\nsecond"))
+        self.body = body
+
+    def open_epics(self) -> list[Mapping[str, Any]]:
+        return [{"number": 1, "body": self.body}]
+
+    def issue(self, number: int) -> Mapping[str, Any] | None:
+        if number == 1:
+            return {"number": 1, "state": "open", "body": self.body}
+        return closed()
+
+
+def test_a_failed_patch_logs_the_epic_number_and_a_short_error_never_the_body(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    body = f"{PHASE_4}\n::warning::injected line\n" + "x" * 5000
+    assert go(PatchFails(body)) == 1
+    out = capsys.readouterr().out
+    assert out.count("could not tick") == 1
+    assert "injected" not in out
+    assert (
+        out.splitlines()[-1]
+        == "::error::could not tick #1: gh api body=<omitted> failed: HTTP 422 second"
+    )

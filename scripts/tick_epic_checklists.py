@@ -33,8 +33,13 @@ _UNCHECKED = re.compile(r"^( {0,3}[-*+] \[) (\][ \t])")
 _LEAD = r"#\d+(?:(?:,\s*|,?\s+and\s+)#\d+)*\b"
 _OWNED = re.compile(rf"(?:[^#():\n]{{1,80}}:\s+)?{_LEAD}")
 _HOLD = re.compile(
-    r"\b(?:leftovers?|follow[- ]?ups?|still open|remaining|superseded|blocked)\b", re.IGNORECASE
+    r"(?<![\w-])(?:leftovers?|follow[- ]?ups?|still[ \t]+open|remain(?:s|ing)?|superseded|blocked"
+    r"|except|but[ \t]+not|not[ \t]+yet|deferred|half|todo|only|later|until|unfinished|unless)"
+    r"(?![\w-])",
+    re.IGNORECASE,
 )
+_FOREIGN_REF = re.compile(r"\bGH-\d|(?<![\w./-])[\w.-]+#\d", re.IGNORECASE)
+_FENCE = re.compile(r"^( *)(`{3,}|~{3,})(.*)$")
 
 
 class Tick(NamedTuple):
@@ -55,7 +60,7 @@ def line_refs(line: str, repo: str) -> tuple[int, ...] | None:
     box = _UNCHECKED.match(text)
     if not box or not _OWNED.match(text, box.end()):
         return None
-    if closer._PARTIAL.search(text) or _HOLD.search(text):
+    if closer._PARTIAL.search(text) or _HOLD.search(text) or _FOREIGN_REF.search(text):
         return None
     mentions = closer._mentions(text)
     if not all(closer._same_repo(owner, repo) for owner, _ in mentions):
@@ -65,21 +70,25 @@ def line_refs(line: str, repo: str) -> tuple[int, ...] | None:
 
 def _candidates(lines: Sequence[str], repo: str) -> Iterator[tuple[int, tuple[int, ...]]]:
     """Index and refs of each tickable line outside fences and HTML comments."""
-    fence: tuple[str, int] | None = None
+    fence: tuple[str, int, int] | None = None
     in_comment = False
     for index, raw in enumerate(lines):
         line = raw.rstrip("\r")
         if fence:
-            end = re.fullmatch(rf" {{0,3}}({re.escape(fence[0])}{{{fence[1]},}})[ \t]*", line)
+            char, size, indent = fence
+            end = re.fullmatch(
+                rf" {{{indent},{indent + 3}}}{re.escape(char)}{{{size},}}[ \t]*", line
+            )
             fence = None if end else fence
             continue
-        opener = closer._FENCE_OPEN.match(line)
-        if opener and not (opener[1][0] == "`" and "`" in opener[2]):
-            fence = (opener[1][0], len(opener[1]))
+        opener = _FENCE.match(line)
+        if opener and not (opener[2][0] == "`" and "`" in opener[3]):
+            fence = (opener[2][0], len(opener[2]), len(opener[1]))
             continue
-        if in_comment or "<!--" in line or "-->" in line:
-            in_comment = line.rfind("<!--") > line.rfind("-->") or (
-                in_comment and "-->" not in line
+        scan = line if in_comment else closer._without_code_spans(line)
+        if in_comment or "<!--" in scan or "-->" in scan:
+            in_comment = scan.rfind("<!--") > scan.rfind("-->") or (
+                in_comment and "-->" not in scan
             )
             continue
         if refs := line_refs(line, repo):
@@ -118,7 +127,10 @@ class GhClient(closer.GhClient):
         return [issue for page in pages or [] for issue in page if "pull_request" not in issue]
 
     def patch_body(self, number: int, body: str) -> None:
-        self._api("-X", "PATCH", f"repos/{self.repo}/issues/{number}", "-f", f"body={body}")
+        try:
+            self._api("-X", "PATCH", f"repos/{self.repo}/issues/{number}", "-f", f"body={body}")
+        except RuntimeError as exc:
+            raise RuntimeError(str(exc).replace(f"body={body}", "body=<omitted>")) from None
 
 
 def await_closers(
@@ -179,7 +191,7 @@ def run(
             )
         except Exception as exc:
             failures += 1
-            print(f"::error::could not tick #{epic['number']}: {exc}")
+            print(f"::error::could not tick #{epic['number']}: {' '.join(str(exc).split())[:200]}")
     return 1 if failures else 0
 
 
