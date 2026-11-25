@@ -69,7 +69,7 @@ RAW_WRITES: dict[str, int] = {
     "edits/join_labels.py": 1,
     "edits/join_ranker.py": 1,
     "edits/transcript_precorrect.py": 1,
-    "engines/ffmpeg.py": 6,
+    "engines/ffmpeg/__init__.py": 6,
     "engines/render_clock.py": 1,
     "engines/source_proxy_audio.py": 2,
     "engines/speaker_id.py": 1,

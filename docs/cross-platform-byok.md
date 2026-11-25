@@ -49,7 +49,7 @@ Follow these **now**, while shipping unrelated features. They are cheap constrai
 
 ### Do
 
-1. **Keep one media facade.** Nearly all encode/decode/filter/bounce goes through [`engines/ffmpeg.py`](../src/podcast_mcp/engines/ffmpeg.py) (`FFmpegEngine`). Not all media work does: the probes in `util/binaries.py`, the hardware and diagnostics probes and the host dialogs also start programs. The seam is [`util/process.py`](../src/podcast_mcp/util/process.py) (`_spawn`); on desktop it refuses with `SpawnUnavailableError` on a row whose `can_spawn_processes` is false. A host that installs a runner with `process.using_runner` replaces it and applies its own gate; its children are not niceness-wrapped or tracked by `detached_children`. `resolve_ffmpeg_pair` refuses on a row whose `media_tools` is `unavailable` and returns an unlinked sentinel pair (no spawn, `is_available` False) on one whose `media_tools` is `in_process`; there `_spawn` runs an argv that starts with exactly a sentinel on the backend installed by `process.using_in_process_backend` (and refuses it with `SpawnUnavailableError` without one or on any other row), and an explicit `ffmpeg=`/`ffprobe=` path is ignored. Do not spawn `ffmpeg` from GUI routes, MCP handlers, or new services. A later `AudioEngine` protocol (subprocess on desktop, in-process libav on phones) is a backend swap behind that class, not a second edit engine.
+1. **Keep one media facade.** Nearly all encode/decode/filter/bounce goes through [`engines/ffmpeg/`](../src/podcast_mcp/engines/ffmpeg/__init__.py) (`FFmpegEngine`). Not all media work does: the probes in `util/binaries.py`, the hardware and diagnostics probes and the host dialogs also start programs. The seam is [`util/process.py`](../src/podcast_mcp/util/process.py) (`_spawn`); on desktop it refuses with `SpawnUnavailableError` on a row whose `can_spawn_processes` is false. A host that installs a runner with `process.using_runner` replaces it and applies its own gate; its children are not niceness-wrapped or tracked by `detached_children`. `resolve_ffmpeg_pair` refuses on a row whose `media_tools` is `unavailable` and returns an unlinked sentinel pair (no spawn, `is_available` False) on one whose `media_tools` is `in_process`; there `_spawn` runs an argv that starts with exactly a sentinel on the backend installed by `process.using_in_process_backend` (and refuses it with `SpawnUnavailableError` without one or on any other row), and an explicit `ffmpeg=`/`ffprobe=` path is ignored. Do not spawn `ffmpeg` from GUI routes, MCP handlers, or new services. A later `AudioEngine` protocol (subprocess on desktop, in-process libav on phones) is a backend swap behind that class, not a second edit engine.
 2. **Keep filtergraph construction in one place.** `render_timeline`, `filter_audio`, loudnorm, deess, `arnndn`, concat/acrossfade strings must stay next to `FFmpegEngine` so an FFmpegKit `execute("-y -i …")` backend can reuse them.
 3. **Keep playback separate from bounce.** `PlayService` / session transport / guest Web Audio scheduler are not FFmpeg live graphs. Mobile will use AVAudioEngine / Oboe for scrub; FFmpeg stays offline render. Do not merge play and render into one “just call ffmpeg” path.
 4. **Keep episode format v2 as the portable document.** Phone and PC must round-trip the same `episode.sharecut` + media folder ([episode-format-v2.md](episode-format-v2.md)). Do not invent a mobile-only project schema or a second clip model.
@@ -75,7 +75,7 @@ Follow these **now**, while shipping unrelated features. They are cheap constrai
 
 | If you are touching… | Leave it in a shape mobile/BYOK can use |
 | -------------------- | ---------------------------------------- |
-| `engines/ffmpeg.py` | Method-shaped API (`probe`, `render_timeline`, `filter_audio`, …), not scattered argv in callers |
+| `engines/ffmpeg/` | Method-shaped API (`probe`, `render_timeline`, `filter_audio`, …), not scattered argv in callers |
 | `mcp/tools/__init__.py` | Filterable registration (profiles), not one inseparable blob |
 | Capabilities manifest | New agent-facing tools get `mcp` + service row; don’t skip the contract |
 | Tauri / sidecar | Process manager only; no new domain logic in Rust |
@@ -198,7 +198,7 @@ Research snapshot: **August 2026** (iOS 27 / macOS 27 developer season). Update 
 ### In-repo start list (read in this order)
 
 1. This file (thesis + interim rules + this section).
-2. [`engines/ffmpeg.py`](../src/podcast_mcp/engines/ffmpeg.py) — the `AudioEngine` contract (methods below).
+2. [`engines/ffmpeg/`](../src/podcast_mcp/engines/ffmpeg/__init__.py) — the `AudioEngine` contract (methods below).
 3. [`tests/test_ffmpeg_engine.py`](../tests/test_ffmpeg_engine.py) + [`tests/test_ffmpeg_integration.py`](../tests/test_ffmpeg_integration.py) + [`tests/test_timeline_render.py`](../tests/test_timeline_render.py) — a libav backend must keep these green (or an equivalent suite).
 4. [`mcp/tools/__init__.py`](../src/podcast_mcp/mcp/tools/__init__.py) `register_all` — host tool surface; live catalog https://docs.sharecut.studio/#/capabilities
 5. [`schemas/document-commands.schema.json`](../schemas/document-commands.schema.json) — GUI mutations; chat can call these instead of every MCP tool.
@@ -257,7 +257,7 @@ BYOK HTTP (implement as OpenAI-compatible + Anthropic; do not hardcode one vendo
 
 ### Kickoff checklist (update this list as you complete it)
 
-- [ ] Re-read interim rules; grep for `ffmpeg` / `ffprobe` outside `engines/ffmpeg.py` and `util/binaries.py`.
+- [ ] Re-read interim rules; grep for `ffmpeg` / `ffprobe` outside `engines/ffmpeg/` and `util/binaries.py`.
 - [ ] Confirm MCP tool profiles exist (or add them first — ROADMAP item).
 - [ ] Extract `AudioEngine` protocol; desktop subprocess stays default; add a failing iOS/Android backend test harness.
 - [ ] Pin FFmpegKitNext + enabled filters; document LGPL source/object offer.

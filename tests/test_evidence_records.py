@@ -652,7 +652,7 @@ EVIDENCE_MODULES = (
     "audio.py",
     "audio_eval.py",
     "decoded_source.py",
-    "ffmpeg.py",
+    "ffmpeg/",
     "media_probe.py",
     "media_seek.py",
     "mono_downmix.py",
