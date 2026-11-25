@@ -14,6 +14,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import { runPaletteCommand } from "./stageNav";
 import { parseTimecodeSec } from "./timecode";
 import { withBrowserPages } from "./twoBrowserPages";
 
@@ -736,6 +737,39 @@ test("a desktop guest whose queue holds a comment and a suggestion keeps the fil
         .click({ timeout: 10_000 });
       await expect(guest.getByRole("group", { name: "Filter" })).toBeVisible();
       await expect(guest.getByRole("group", { name: "Sort" })).toBeVisible();
+    },
+  );
+});
+
+test("Pause and return while composing stops playback after the comment closes", async ({
+  browser,
+}) => {
+  await withPhoneGuest(
+    browser,
+    PROFILES[0],
+    PORTRAITS[0],
+    "commenter",
+    async (guest) => {
+      const play = guest.getByRole("button", { name: "Play", exact: true });
+      const pause = guest.getByRole("button", { name: "Pause", exact: true });
+      await play.tap();
+      await expect(pause).toBeVisible();
+      const elapsed = guest.locator(".sys-listen-dock-elapsed");
+      await expect
+        .poll(async () => parseTimecodeSec(await elapsed.innerText()))
+        .toBeGreaterThan(0);
+      await commentButton(guest).tap();
+      await expect(composer(guest)).toBeVisible();
+      await expect(play).toBeVisible();
+      await runPaletteCommand(guest, "Pause and return");
+      await expect
+        .poll(async () => parseTimecodeSec(await elapsed.innerText()))
+        .toBe(0);
+      await composer(guest)
+        .getByRole("button", { name: "Close", exact: true })
+        .tap();
+      await expect(composer(guest)).toHaveCount(0);
+      await expect(play).toBeVisible();
     },
   );
 });

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
+import { dispatchComposer } from "./composer";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
@@ -32,6 +33,25 @@ describe("transport.stop", () => {
     expect(s().playheadSec).toBe(25);
     await execute("transport.stop");
     expect(s().playheadSec).toBe(10);
+  });
+
+  it("does not resume from the phone composer after an explicit Stop", async () => {
+    const state = () => useDawStore.getState();
+    state().setPlayheadSec(10);
+    await execute("transport.togglePlay");
+    dispatchComposer({
+      type: "open",
+      anchor: { startSec: 10, endSec: null },
+      replacePin: false,
+      listen: true,
+    });
+    expect(state().isPlaying).toBe(false);
+    expect(state().composer.draft?.resume).toBe(true);
+
+    await expect(execute("transport.stop")).resolves.toEqual({ status: "ok" });
+    dispatchComposer({ type: "close" });
+    expect(state().isPlaying).toBe(false);
+    expect(state().playheadSec).toBe(10);
   });
 
   it("a seek while paused becomes the new start", async () => {

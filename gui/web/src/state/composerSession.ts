@@ -286,3 +286,10 @@ export function afterTransport(
   );
   return state === s.composer ? {} : composerPatch(state);
 }
+
+/** An explicit Stop cancels resumption even if the composer already paused playback. */
+export function afterStop(s: { composer: ComposerSession }) {
+  const composer = withoutResume(s.composer);
+  if (composer.pausing) return composerPatch({ ...composer, pausing: false });
+  return composer === s.composer ? {} : composerPatch(composer);
+}
