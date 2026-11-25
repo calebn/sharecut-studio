@@ -172,6 +172,19 @@ async function settle(page: Page) {
     .toBe(true);
 }
 
+/**
+ * Close the open sheet from the keyboard. A pointer press on Close lands while
+ * focus leaves a control inside the sheet, and WebKit then sometimes delivers
+ * the click to the header instead of the button; the sweep measures reach, not
+ * that press, so the close goes by Enter on the focused button.
+ */
+async function closeSheet(page: Page) {
+  const close = page.locator(SHEET).getByRole("button", { name: "Close" });
+  await close.focus();
+  await close.press("Enter");
+  await expect(page.locator(SHEET)).toHaveCount(0);
+}
+
 /** Select the first clip with a tap and sweep the surface that opens for it. */
 async function clipSurface(page: Page, sheet: boolean): Promise<Reach[]> {
   const hit = page.locator(".lane-row .clip-hit").first();
@@ -208,8 +221,7 @@ async function clipSurface(page: Page, sheet: boolean): Promise<Reach[]> {
     sizeExempt: SIZE_EXEMPT,
   });
   if (sheet) {
-    await page.locator(SHEET).getByRole("button", { name: "Close" }).click();
-    await expect(page.locator(SHEET)).toHaveCount(0);
+    await closeSheet(page);
   }
   return failures;
 }
@@ -245,8 +257,7 @@ async function sweepCell(
     dense: DENSE,
     sizeExempt: SIZE_EXEMPT,
   });
-  await page.locator(SHEET).getByRole("button", { name: "Close" }).click();
-  await expect(page.locator(SHEET)).toHaveCount(0);
+  await closeSheet(page);
 
   found["clip surface"] = await clipSurface(page, sheet);
 
