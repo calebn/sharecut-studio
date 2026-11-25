@@ -57,7 +57,7 @@ Making precise changes to the episode: cutting words and ranges, trimming, fadin
 - Selecting words selects the same time range on the timeline, and the reverse. The other surface scrolls to reveal it without changing zoom.
 - Shift+T collapses the timeline to its overview strip so the Script fills the stage (writer focus). T toggles the Script pane. These two keys replace the four layout presets.
 
-**Object selection model.** Anything you can click is an object: word run, range, clip, seam, suggestion, marker (chapter, social clip, comment), envelope point, track. Selecting an object shows the action bar next to it (desktop and tablet) or docks it above the player (phone). The verbs are the same everywhere, drawn with the same icons, in the same order.
+**Object selection model.** Anything you can click is an object: word run, range, clip, seam, suggestion, marker (chapter, social clip, comment), envelope point, track. Selecting an object shows the action bar next to it (desktop and tablet) or docks it above the player (phone). When the object scrolls out of the timeline the floating bar stays on screen at the nearest edge with its verbs and one extra control, Show edit for a pending edit and Show selection for any other object, which scrolls the object back into view (the phone dock always carries it; no key). The verbs are the same everywhere, drawn with the same icons, in the same order.
 
 | Verb | Icon | Key | Words | Range | Clip | Seam | Suggestion | Marker | Nothing selected (playhead) |
 |---|---|---|---|---|---|---|---|---|---|
