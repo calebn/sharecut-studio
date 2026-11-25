@@ -214,7 +214,7 @@ function primaryOf(facts: EditFacts): VerbId | null {
           ]
         : "approve";
     case "social":
-      return "approve";
+      return facts.socialApproved ? null : "approve";
     case "comment":
       return facts.commentResolved ? null : "resolve";
     default:

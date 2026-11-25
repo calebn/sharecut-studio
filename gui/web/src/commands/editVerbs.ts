@@ -479,6 +479,9 @@ async function approveSocial(): Promise<ExecuteResult> {
   if (s.selection?.kind !== "social") return disabled("Select a social clip");
   if (!canManageProjects(s.projectPath))
     return disabled("Only the host can approve a social clip");
+  const selectedId = s.selection.id;
+  if (s.project?.social_clips.some((c) => c.id === selectedId && c.approved))
+    return disabled("Already approved");
   try {
     await updateSocialClipDetails(s.projectPath, s.selection.id, {
       approved: true,
