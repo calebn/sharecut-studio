@@ -170,14 +170,14 @@ def test_run_with_progress_closes_the_pipe_on_cancel(two_wavs, monkeypatch):
     from podcast_mcp.util.progress import CancelledProgress
 
     procs = []
-    real = ffmpeg_mod.popen
+    real = ffmpeg_mod.runtime.popen
 
     def spy(*args, **kwargs):
         proc = real(*args, **kwargs)
         procs.append(proc)
         return proc
 
-    monkeypatch.setattr(ffmpeg_mod, "popen", spy)
+    monkeypatch.setattr(ffmpeg_mod.runtime, "popen", spy)
     a, _ = two_wavs
     eng = FFmpegEngine()
 

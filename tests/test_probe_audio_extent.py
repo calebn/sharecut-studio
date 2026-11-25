@@ -339,7 +339,7 @@ def test_file_without_audio_keeps_format_duration(eng, tmp_path):
 
 def _patch_packet_scan(monkeypatch, *, stdout: str | None = None):
     """Answer the packet scan with *stdout*, or fail it when *stdout* is None."""
-    real_popen = ffmpeg_module.popen
+    real_popen = ffmpeg_module.runtime.popen
     calls = {"scan": 0}
 
     def fake_popen(cmd, *args, **kwargs):
@@ -352,7 +352,7 @@ def _patch_packet_scan(monkeypatch, *, stdout: str | None = None):
             stdout=io.BytesIO(stdout.encode()), wait=lambda: 0, poll=lambda: 0, kill=lambda: None
         )
 
-    monkeypatch.setattr(ffmpeg_module, "popen", fake_popen)
+    monkeypatch.setattr(ffmpeg_module.runtime, "popen", fake_popen)
     return calls
 
 

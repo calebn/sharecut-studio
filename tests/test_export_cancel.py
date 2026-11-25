@@ -464,14 +464,14 @@ def test_sigint_cancel_leaves_ctrl_c_alone_off_the_main_thread() -> None:
 
 
 def test_an_encode_stopped_by_the_same_interrupt_is_a_cancel_not_a_failure(tmp_path) -> None:
-    from podcast_mcp.engines.ffmpeg import _run_cancellable
+    from podcast_mcp.engines.ffmpeg.runtime import _run_cancellable
 
     with pytest.raises(CancelledProgress, match="cancelled"):
         _run_cancellable([sys.executable, "-c", "raise SystemExit(255)"], lambda: True)
 
 
 def test_a_failed_encode_without_a_cancel_still_fails() -> None:
-    from podcast_mcp.engines.ffmpeg import _run_cancellable
+    from podcast_mcp.engines.ffmpeg.runtime import _run_cancellable
     from podcast_mcp.util.process import CalledProcessError
 
     with pytest.raises(CalledProcessError):

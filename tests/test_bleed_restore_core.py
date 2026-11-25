@@ -1263,7 +1263,7 @@ def test_invalid_observed_clock_preserves_previous_render(
     _render(project, output, None)
     previous = output.read_bytes()
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.2, 0.6)])
-    real_run = ffmpeg.run
+    real_run = ffmpeg.runtime.run
 
     def damage_observations(command, **kwargs):
         result = real_run(command, **kwargs)
@@ -1295,7 +1295,7 @@ def test_invalid_observed_clock_preserves_previous_render(
             path.write_text("".join(lines))
         return result
 
-    monkeypatch.setattr(ffmpeg, "run", damage_observations)
+    monkeypatch.setattr(ffmpeg.runtime, "run", damage_observations)
     with pytest.raises(CodedValueError, match="clock"):
         _render(project, output, None)
     assert output.read_bytes() == previous

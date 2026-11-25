@@ -61,14 +61,14 @@ def test_probe_cache_hit_constructs_no_ffmpeg_engine(tmp_path, monkeypatch):
     _require_ffmpeg()
     project, candidate = _muted_pair(tmp_path)
     calls: list[tuple] = []
-    real = ffmpeg_module.resolve_ffmpeg_pair
+    real = ffmpeg_module.runtime.resolve_ffmpeg_pair
 
     def counting(*args, **kwargs):
         calls.append(args)
         return real(*args, **kwargs)
 
     # FFmpegEngine.__init__ looks resolve_ffmpeg_pair up in its module globals at call time.
-    monkeypatch.setattr(ffmpeg_module, "resolve_ffmpeg_pair", counting)
+    monkeypatch.setattr(ffmpeg_module.runtime, "resolve_ffmpeg_pair", counting)
     with batch_scope():
         first = _run(project, candidate)
         after_first = len(calls)
@@ -87,7 +87,7 @@ def test_probe_resolution_error_surfaces_only_on_a_miss(tmp_path, monkeypatch):
 
     with batch_scope():
         _run(project, candidate)
-        monkeypatch.setattr(ffmpeg_module, "resolve_ffmpeg_pair", broken)
+        monkeypatch.setattr(ffmpeg_module.runtime, "resolve_ffmpeg_pair", broken)
         assert _run(project, candidate)
     with batch_scope(), pytest.raises(FFmpegPairResolutionError, match="pair unavailable"):
         _run(project, candidate)

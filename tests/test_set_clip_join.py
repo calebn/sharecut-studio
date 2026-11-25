@@ -178,7 +178,7 @@ def test_render_uses_acrossfade_after_set_clip_join(sample_wav: Path, tmp_path: 
     set_clip_join(p, "c1", "c2", "crossfade", length_ms=20, defaults=load_defaults())
     import podcast_mcp.engines.ffmpeg as ff
 
-    real_run = ff.run
+    real_run = ff.runtime.run
     commands: list[str] = []
 
     def capture_run(cmd, *args, **kwargs):
@@ -186,7 +186,7 @@ def test_render_uses_acrossfade_after_set_clip_join(sample_wav: Path, tmp_path: 
             commands.append(" ".join(str(x) for x in cmd))
         return real_run(cmd, *args, **kwargs)
 
-    with patch.object(ff, "run", side_effect=capture_run):
+    with patch.object(ff.runtime, "run", side_effect=capture_run):
         render_track_from_timeline(
             p,
             p.tracks[0],

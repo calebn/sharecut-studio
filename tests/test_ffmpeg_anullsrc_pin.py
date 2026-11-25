@@ -29,7 +29,7 @@ def test_concat_with_gap_anullsrc_is_mono_up_to_one_channel_else_stereo(
     tmp_path: Path, rate: int, channels: int, expected: str
 ):
     eng = FFmpegEngine()
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         eng.concat_with_gap(
             tmp_path / "a.wav", tmp_path / "b.wav", tmp_path / "o.wav",
             gap_sec=0.5, rate=rate, channels=channels,
@@ -50,7 +50,7 @@ def test_concat_with_gap_anullsrc_is_mono_up_to_one_channel_else_stereo(
 def test_silence_anullsrc_names_the_channel_count_as_nc(tmp_path: Path, kwargs: dict, source: str):
     eng = FFmpegEngine()
     out = tmp_path / "sub" / "s.wav"
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         assert eng.silence(out, 1.5, **kwargs) == out
     assert run.call_args.args[0] == [
         eng.ffmpeg, "-y", "-f", "lavfi", "-i", source,
@@ -73,7 +73,9 @@ def test_render_timeline_silence_node_pins_anullsrc_then_atrim(
     with (
         patch.object(eng, "probe", return_value=probe),
         patch.object(eng, "audio_start_sec", return_value=0.0),
-        patch("podcast_mcp.engines.ffmpeg.run", return_value=MagicMock(returncode=0)) as run,
+        patch(
+            "podcast_mcp.engines.ffmpeg.runtime.run", return_value=MagicMock(returncode=0)
+        ) as run,
     ):
         eng.render_timeline(tmp_path / "o.wav", audio, "anull")
     argv = run.call_args.args[0]

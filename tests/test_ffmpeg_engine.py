@@ -71,7 +71,7 @@ def test_probe_untrusted_adds_protocol_whitelist(tmp_path: Path):
         "streams": [{"codec_type": "audio", "sample_rate": "48000", "channels": 1}],
         "format": {"duration": "1.0"},
     }
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(stdout=json.dumps(fake), returncode=0)
         eng.probe(tmp_path / "x.wav", untrusted=True)
     cmd = run.call_args[0][0]
@@ -87,7 +87,7 @@ def test_probe_keeps_estimated_container_duration_when_packet_scan_fails(tmp_pat
         ],
         "format": {"duration": "7.0"},
     }
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(stdout=json.dumps(fake), stderr="", returncode=0)
         probe = eng.probe(tmp_path / "offset.mka")
     assert probe.duration_sec == 7.0
@@ -246,7 +246,7 @@ def test_probe_parsed_from_json(tmp_path: Path, untrusted: bool):
             {"codec_type": "audio", "sample_rate": "44100", "channels": 2},
         ],
     }
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(stdout=json.dumps(payload), returncode=0)
         probe = eng.probe(wav, untrusted=untrusted)
     assert run.call_args.kwargs == {
@@ -263,7 +263,7 @@ def test_probe_parsed_from_json(tmp_path: Path, untrusted: bool):
 @pytest.mark.parametrize("untrusted", [False, True])
 def test_probe_metadata_timeout_propagates(tmp_path: Path, untrusted: bool):
     failure = subprocess.TimeoutExpired("ffprobe", 120.0)
-    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=failure):
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run", side_effect=failure):
         with pytest.raises(subprocess.TimeoutExpired) as caught:
             FFmpegEngine().probe(tmp_path / "x.wav", untrusted=untrusted)
     assert caught.value is failure
@@ -390,7 +390,7 @@ def test_render_timeline_single_segment_applies_fx_once(sample_wav: Path, tmp_pa
     commands: list[str] = []
     import podcast_mcp.engines.ffmpeg as ff
 
-    real_run = ff.run
+    real_run = ff.runtime.run
 
     def capture_run(cmd, *args, **kwargs):
         commands.append(" ".join(str(x) for x in cmd))
@@ -398,7 +398,7 @@ def test_render_timeline_single_segment_applies_fx_once(sample_wav: Path, tmp_pa
 
     with (
         patch.object(FFmpegEngine, "audio_start_sec", return_value=0.0),
-        patch.object(ff, "run", side_effect=capture_run),
+        patch.object(ff.runtime, "run", side_effect=capture_run),
     ):
         eng.render_timeline(
             out,
@@ -437,7 +437,7 @@ def test_export_audio_options(tmp_path: Path):
     source = tmp_path / "sample.wav"
     eng = FFmpegEngine()
     out = tmp_path / "out.ogg"
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(returncode=0)
         eng.export_audio(
             source,
@@ -495,19 +495,19 @@ def test_measure_loudness_patterns(tmp_path: Path):
     wav = tmp_path / "x.wav"
     wav.write_bytes(b"x")
 
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(
             stderr=f"{_SUMMARY_LINE}\n  I:         -18.2 LUFS\n", returncode=0
         )
         assert eng.measure_loudness(wav) == pytest.approx(-18.2)
 
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(
             stderr=f"{_SUMMARY_LINE}\nIntegrated loudness: -20.5 LUFS", returncode=0
         )
         assert eng.measure_loudness(wav) == pytest.approx(-20.5)
 
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(stderr="no loudness", returncode=0)
         assert eng.measure_loudness(wav) is None
 
@@ -540,7 +540,7 @@ def test_loudnorm_input_stats_from_ebur128(tmp_path: Path, caplog):
     eng = FFmpegEngine()
     wav = tmp_path / "x.wav"
     wav.write_bytes(b"x")
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(stderr=_EBUR128_SUMMARY, returncode=0)
         stats = eng.loudnorm_input_stats(wav)
     assert stats == {
@@ -551,7 +551,7 @@ def test_loudnorm_input_stats_from_ebur128(tmp_path: Path, caplog):
         "target_offset": 0.0,
     }
     with (
-        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        patch("podcast_mcp.engines.ffmpeg.runtime.run") as run,
         caplog.at_level("WARNING", logger="podcast_mcp.engines.ffmpeg"),
     ):
         run.return_value = MagicMock(
@@ -569,7 +569,7 @@ def test_measure_loudness_blocks_warns_on_a_failed_run(tmp_path: Path, caplog):
     wav = tmp_path / "x.wav"
     wav.write_bytes(b"x")
     with (
-        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        patch("podcast_mcp.engines.ffmpeg.runtime.run") as run,
         caplog.at_level("WARNING", logger="podcast_mcp.engines.ffmpeg"),
     ):
         run.return_value = MagicMock(stderr="Invalid argument", stdout="", returncode=1)
@@ -582,7 +582,7 @@ def test_measure_loudness_blocks_warns_when_no_blocks_parse(tmp_path: Path, capl
     wav = tmp_path / "x.wav"
     wav.write_bytes(b"x")
     with (
-        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        patch("podcast_mcp.engines.ffmpeg.runtime.run") as run,
         caplog.at_level("WARNING", logger="podcast_mcp.engines.ffmpeg"),
     ):
         run.return_value = MagicMock(stderr="garbage", returncode=0)
@@ -591,7 +591,7 @@ def test_measure_loudness_blocks_warns_when_no_blocks_parse(tmp_path: Path, capl
 
 
 def test_progress_seconds():
-    from podcast_mcp.engines.ffmpeg import _progress_seconds
+    from podcast_mcp.engines.ffmpeg.runtime import _progress_seconds
 
     assert _progress_seconds("out_time_us=1500000") == 1.5
     assert _progress_seconds("out_time_ms=2000000") == 2.0
@@ -607,7 +607,7 @@ def test_measure_loudness_full_parses_summary(tmp_path: Path):
         f"{_SUMMARY_LINE}\n\n  Integrated loudness:\n    I:         -16.0 LUFS\n\n"
         "  Loudness range:\n    LRA:         7.0 LU\n\n  True peak:\n    Peak:       -1.4 dBFS\n"
     )
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(stderr=summary, returncode=0)
         result = eng.measure_loudness_full(wav)
     assert result == {
@@ -635,7 +635,7 @@ def test_measure_loudness_full_discards_summary_from_failed_run(tmp_path: Path, 
         with patch.object(eng, "_run_with_progress", side_effect=failed_run):
             assert eng.measure_loudness_full(wav, on_progress=lambda *_: None, total_sec=2) is None
     else:
-        with patch("podcast_mcp.engines.ffmpeg.run") as run:
+        with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
             run.return_value = subprocess.CompletedProcess([], 1, stderr=_EBUR128_SUMMARY)
             assert eng.measure_loudness_full(wav) is None
 
@@ -644,7 +644,7 @@ def test_measure_loudness_full_returns_none_without_integrated(tmp_path: Path):
     eng = FFmpegEngine()
     wav = tmp_path / "x.wav"
     wav.write_bytes(b"x")
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(stderr="nothing useful", returncode=0)
         assert eng.measure_loudness_full(wav) is None
 
@@ -768,7 +768,7 @@ def test_master_loudness_forwards_measure_progress(tmp_path: Path):
             ),
         ),
         patch.object(eng, "loudnorm_input_stats", return_value=None) as stats,
-        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        patch("podcast_mcp.engines.ffmpeg.runtime.run") as run,
     ):
         run.return_value = MagicMock(stderr="", returncode=0)
         eng.master_loudness(
@@ -795,7 +795,7 @@ def test_master_loudness_two_pass_uses_measured_values(tmp_path: Path):
                 rebases_audio_reads=False,
             ),
         ),
-        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        patch("podcast_mcp.engines.ffmpeg.runtime.run") as run,
     ):
         run.side_effect = [
             MagicMock(stderr=_EBUR128_SUMMARY, returncode=0),
@@ -836,7 +836,7 @@ def test_master_loudness_falls_back_when_measure_fails(tmp_path: Path):
         ),
         patch.object(eng, "loudnorm_input_stats", return_value=None),
     ):
-        with patch("podcast_mcp.engines.ffmpeg.run") as run:
+        with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
             run.return_value = MagicMock(stderr="", returncode=0)
             result = eng.master_loudness(src, out, integrated_lufs=-16.0, true_peak_db=-1.5)
     cmd = run.call_args[0][0]
@@ -892,7 +892,7 @@ def test_build_track_filter_arnndn_escapes_colons_in_path():
 
 def test_ffmpeg_engine_defaults_resolve_binaries():
     with patch(
-        "podcast_mcp.engines.ffmpeg.resolve_ffmpeg_pair",
+        "podcast_mcp.engines.ffmpeg.runtime.resolve_ffmpeg_pair",
         return_value=FFmpegPair("/resolved/ffmpeg", "/resolved/ffprobe", (9, 0, 2), "explicit"),
     ):
         eng = FFmpegEngine()
@@ -932,7 +932,7 @@ def test_render_spectrogram(sample_wav: Path, tmp_path: Path):
 def test_visual_diagnostics_bound_ffmpeg_threads(tmp_path: Path):
     source = tmp_path / "sample.wav"
     eng = FFmpegEngine()
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(returncode=0)
         eng.render_spectrogram(source, tmp_path / "spec.png")
         spectrogram_cmd = run.call_args[0][0]
@@ -954,7 +954,7 @@ def test_extract_segment(tmp_path: Path):
     out = tmp_path / "clip.wav"
     with (
         patch.object(FFmpegEngine, "audio_start_sec", return_value=0.0),
-        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        patch("podcast_mcp.engines.ffmpeg.runtime.run") as run,
     ):
         run.return_value = MagicMock(returncode=0)
         result = eng.extract_segment(source, out, 0.5, 1.0)
@@ -971,7 +971,7 @@ def test_render_showwavespic_with_segment(tmp_path: Path):
     png = tmp_path / "wave.png"
     with (
         patch.object(eng, "extract_segment") as extract,
-        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        patch("podcast_mcp.engines.ffmpeg.runtime.run") as run,
     ):
         extract.return_value = tmp_path / "seg.wav"
         run.return_value = MagicMock(returncode=0)
@@ -984,7 +984,7 @@ def test_render_showwavespic_full_file(tmp_path: Path):
     source = tmp_path / "sample.wav"
     eng = FFmpegEngine()
     png = tmp_path / "wave.png"
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(returncode=0)
         result = eng.render_showwavespic(source, png)
     assert result == png
@@ -994,7 +994,7 @@ def test_render_stacked_showwavespic(tmp_path: Path):
     source = tmp_path / "sample.wav"
     eng = FFmpegEngine()
     png = tmp_path / "stack.png"
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(returncode=0)
         result = eng.render_stacked_showwavespic([source, source], png)
     assert result == png
@@ -1042,7 +1042,7 @@ def test_join_audio_parts_defaults_to_concat(tmp_path: Path):
     p1 = tmp_path / "a.wav"
     p2 = tmp_path / "b.wav"
     out = tmp_path / "joined_default.wav"
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         eng.join_audio_parts([p1, p2], out)
         cmd = " ".join(str(x) for x in run.call_args[0][0])
         assert "concat" in cmd
@@ -1065,7 +1065,7 @@ def test_join_audio_parts_concat_without_crossfade(tmp_path: Path):
     p1 = tmp_path / "a.wav"
     p2 = tmp_path / "b.wav"
     out = tmp_path / "joined_hard.wav"
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         eng.join_audio_parts([p1, p2], out, crossfade_ms_between=[0])
         cmd = " ".join(str(x) for x in run.call_args[0][0])
         assert "concat" in cmd
@@ -1078,7 +1078,7 @@ def test_join_audio_parts_uses_acrossfade(tmp_path: Path):
     p1 = tmp_path / "a.wav"
     p2 = tmp_path / "b.wav"
     out = tmp_path / "joined.wav"
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         eng.join_audio_parts([p1, p2], out, crossfade_ms_between=[40])
         cmd = " ".join(str(x) for x in run.call_args[0][0])
         assert "acrossfade" in cmd
@@ -1266,7 +1266,7 @@ def test_window_png_keeps_visible_marks_without_xbin(sample_wav: Path, tmp_path:
         return subprocess.run(cmd, **kwargs)
 
     with (
-        patch("podcast_mcp.engines.ffmpeg.run", side_effect=ffmpeg_without_xbin),
+        patch("podcast_mcp.engines.ffmpeg.runtime.run", side_effect=ffmpeg_without_xbin),
         pytest.raises(PlotAnnotationUnavailableError, match="XBIN"),
     ):
         eng.annotate_time_marks(
@@ -1300,7 +1300,7 @@ def test_window_png_keeps_the_source_when_annotation_is_incomplete(
         return subprocess.CompletedProcess(cmd, 0)
 
     with (
-        patch("podcast_mcp.engines.ffmpeg.run", side_effect=truncated_output),
+        patch("podcast_mcp.engines.ffmpeg.runtime.run", side_effect=truncated_output),
         pytest.raises(ValueError),
     ):
         eng.annotate_time_marks(png, [], png, window_start=2.0, window_end=6.0)
@@ -1329,20 +1329,20 @@ def test_overlay_png_returns_false_on_bad_filter(sample_wav: Path, tmp_path: Pat
 def test_listed_names_are_cached_and_a_failed_listing_is_not():
     eng = FFmpegEngine()
     listing = MagicMock(stdout=" T.. drawbox   V->V  Draw a colored box\n", returncode=0)
-    with patch("podcast_mcp.engines.ffmpeg.run", return_value=listing) as spawned:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run", return_value=listing) as spawned:
         first = eng._listed_names("-filters")
         assert first is not None and "drawbox" in first
         assert eng._listed_names("-filters") is first
         assert spawned.call_count == 1
     broken = FFmpegEngine()
-    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=FileNotFoundError):
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run", side_effect=FileNotFoundError):
         assert broken._listed_names("-filters") is None
         assert broken._has_filter("drawbox") is False
         assert broken._has_filter("drawbox") is False
         assert broken._has_filter("drawtext") is False
         assert broken._listed_names("-filters") is None
     listing = MagicMock(stdout=" T.. drawbox   V->V  Draw a colored box\n", returncode=0)
-    with patch("podcast_mcp.engines.ffmpeg.run", return_value=listing) as spawned:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run", return_value=listing) as spawned:
         assert broken._has_filter("drawbox") is True
         assert broken._has_filter("drawbox") is True
         assert spawned.call_count == 1
@@ -1358,25 +1358,26 @@ def test_supports_encode_needs_the_encoder_and_the_muxer_and_a_readable_listing(
         return MagicMock(stdout=listings[cmd[-1]], returncode=0)
 
     eng = FFmpegEngine()
-    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=fake_run) as spawned:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run", side_effect=fake_run) as spawned:
         assert eng.supports_encode("aac", "ipod") is True
         assert eng.supports_encode("aac", "ogg") is False
         assert eng.supports_encode("libopus", "ipod") is False
         assert spawned.call_count == 2
     half = FFmpegEngine()
     with patch(
-        "podcast_mcp.engines.ffmpeg.run",
+        "podcast_mcp.engines.ffmpeg.runtime.run",
         side_effect=lambda cmd, **_k: MagicMock(
             stdout=listings[cmd[-1]], returncode=1 if cmd[-1] == "-muxers" else 0
         ),
     ):
         assert half.supports_encode("aac", "ipod") is None
     denied = FFmpegEngine()
-    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=PermissionError):
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run", side_effect=PermissionError):
         assert denied.supports_encode("aac", "ipod") is None
     broken = FFmpegEngine()
     with patch(
-        "podcast_mcp.engines.ffmpeg.run", side_effect=subprocess.TimeoutExpired("ffmpeg", 10)
+        "podcast_mcp.engines.ffmpeg.runtime.run",
+        side_effect=subprocess.TimeoutExpired("ffmpeg", 10),
     ):
         assert broken.supports_encode("aac", "ipod") is None
 
@@ -1426,7 +1427,7 @@ def _filter_complex(cmd: list[str]) -> str:
 
 def test_mix_tracks_sums_at_unity(tmp_path: Path):
     eng = FFmpegEngine()
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         eng.mix_tracks([(tmp_path / "a.wav", 0.0), (tmp_path / "b.wav", -3.0)], tmp_path / "m.wav")
     fc = _filter_complex(run.call_args[0][0])
     assert "amix=inputs=2:duration=longest:normalize=0" in fc
@@ -1443,7 +1444,7 @@ def test_mix_tracks_sums_at_unity(tmp_path: Path):
 def test_mix_tracks_trims_to_the_peak_ceiling(tmp_path: Path, peak_line, trim_filter):
     eng = FFmpegEngine()
     out = tmp_path / "mix.wav"
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.side_effect = [
             MagicMock(stderr=f"  True peak:\n{peak_line}\n", returncode=0),
             MagicMock(returncode=0),
@@ -1466,7 +1467,7 @@ def test_mix_tracks_trims_to_the_peak_ceiling(tmp_path: Path, peak_line, trim_fi
 def test_mix_tracks_sums_at_a_given_trim_without_measuring(tmp_path: Path):
     eng = FFmpegEngine()
     out = tmp_path / "mix.wav"
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         eng.mix_tracks([(tmp_path / "a.wav", 0.0)], out, trim_db=-3.1)
     (render,) = (c[0][0] for c in run.call_args_list)
     assert _filter_complex(render) == "[0:a]volume=0.0dB,volume=-3.1dB[out]"
@@ -1478,7 +1479,7 @@ def test_mix_tracks_warns_when_the_peak_is_unmeasured(tmp_path: Path, caplog):
     eng = FFmpegEngine()
     out = tmp_path / "mix.wav"
     with (
-        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        patch("podcast_mcp.engines.ffmpeg.runtime.run") as run,
         caplog.at_level("WARNING", logger="podcast_mcp.engines.ffmpeg"),
     ):
         run.side_effect = [MagicMock(stderr="no summary", returncode=0), MagicMock(returncode=0)]
@@ -1506,7 +1507,7 @@ def test_mix_tracks_uses_the_completed_peak_summary(
         f"    Peak: {final_peak} dBFS\n"
     )
     tracks = [(tmp_path / f"{i}.wav", 0.0) for i in range(track_count)]
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.side_effect = [MagicMock(stderr=stderr, returncode=0), MagicMock(returncode=0)]
         assert eng.mix_tracks(tracks, out, peak_ceiling_db=-1.0) == out
     render = run.call_args_list[1][0][0]
@@ -1584,7 +1585,7 @@ def test_measure_loudness_blocks_parses_framelog(tmp_path: Path):
         "[Parsed_ebur128_1 @ 0x1] t: 0.399977   TARGET:-23 LUFS    M: -41.8 S:-120.7     I: -41.8 LUFS       LRA:   0.0 LU\n"
         "[Parsed_ebur128_1 @ 0x1] Summary:\n\n  Integrated loudness:\n    I:         -41.8 LUFS\n"
     )
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         run.return_value = MagicMock(stderr=stderr, returncode=0)
         got = eng.measure_loudness_blocks(wav, af="highpass=f=80")
         af1 = run.call_args[0][0]
@@ -1610,7 +1611,7 @@ def test_render_timeline_reuses_inputs_for_repeated_resolved_sources(tmp_path: P
     ]
     with (
         patch.object(FFmpegEngine, "audio_start_sec", return_value=0.0),
-        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        patch("podcast_mcp.engines.ffmpeg.runtime.run") as run,
     ):
         engine.render_timeline(
             tmp_path / "out.wav", SequenceAudio(placed[0], tuple(placed[1:])), "anull"
@@ -1681,12 +1682,12 @@ def test_silence_uses_the_engine_selected_pair(tmp_path: Path, monkeypatch):
 
     monkeypatch.setenv("PODCAST_MCP_FFMPEG", "environment-ffmpeg")
     with patch(
-        "podcast_mcp.engines.ffmpeg.resolve_ffmpeg_pair",
+        "podcast_mcp.engines.ffmpeg.runtime.resolve_ffmpeg_pair",
         return_value=FFmpegPair("selected-ffmpeg", "selected-ffprobe", (9, 0, 2), "explicit"),
     ):
         engine = FFmpegEngine(ffmpeg="selected-ffmpeg", ffprobe="selected-ffprobe")
     invocation = Mock()
-    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.run", invocation)
+    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.runtime.run", invocation)
     output = tmp_path / "silence.wav"
 
     assert engine.silence(output, 1.25) == output
@@ -1732,7 +1733,7 @@ def test_concat_with_gap_pins_both_argv_lists_and_removes_the_silence_file(tmp_p
             silence.write_bytes(b"x")
         return MagicMock(returncode=0)
 
-    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=make_silence) as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run", side_effect=make_silence) as run:
         assert eng.concat_with_gap(a, b, out, gap_sec=0.25, rate=44100, channels=2) == out
 
     assert [c.args[0] for c in run.call_args_list] == [
@@ -1752,7 +1753,7 @@ def test_concat_with_gap_pins_both_argv_lists_and_removes_the_silence_file(tmp_p
 
 def test_concat_with_gap_uses_a_mono_layout_for_one_channel(tmp_path: Path):
     eng = FFmpegEngine()
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         eng.concat_with_gap(
             tmp_path / "a.wav", tmp_path / "b.wav", tmp_path / "o.wav",
             gap_sec=1.0, rate=48000, channels=1,
@@ -1774,7 +1775,7 @@ def test_concat_with_gap_removes_the_silence_file_when_the_join_fails(tmp_path: 
         raise subprocess.CalledProcessError(1, cmd)
 
     with (
-        patch("podcast_mcp.engines.ffmpeg.run", side_effect=fake),
+        patch("podcast_mcp.engines.ffmpeg.runtime.run", side_effect=fake),
         pytest.raises(subprocess.CalledProcessError),
     ):
         eng.concat_with_gap(
@@ -1792,7 +1793,7 @@ def test_concat_with_gap_leaves_no_silence_file_when_the_silence_render_fails(tm
         raise subprocess.CalledProcessError(1, cmd)
 
     with (
-        patch("podcast_mcp.engines.ffmpeg.run", side_effect=fake) as run,
+        patch("podcast_mcp.engines.ffmpeg.runtime.run", side_effect=fake) as run,
         pytest.raises(subprocess.CalledProcessError),
     ):
         eng.concat_with_gap(

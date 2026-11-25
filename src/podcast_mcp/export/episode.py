@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.engines.ffmpeg import ENCODE_CANCELLED, FFmpegEngine
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg.runtime import ENCODE_CANCELLED
 from podcast_mcp.export.audio import (
     ExportFormatSpec,
     export_wav_enabled,

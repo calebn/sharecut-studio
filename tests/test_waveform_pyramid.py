@@ -1054,7 +1054,7 @@ def test_complete_decode_requires_final_timestamp_evidence(tmp_path, progress):
                 rebases_audio_reads=False,
             ),
         ),
-        patch("podcast_mcp.engines.ffmpeg.popen", side_effect=spawn),
+        patch("podcast_mcp.engines.ffmpeg.runtime.popen", side_effect=spawn),
     ):
         _, _, chunks = eng.stream_pcm_f32(tmp_path / "tone.m4a")
         with pytest.raises(RuntimeError, match="timestamp"):
@@ -1069,7 +1069,7 @@ def test_stream_timeout_sec_overrides_the_default_watchdog(tmp_path):
     eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
-        patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
+        patch("podcast_mcp.engines.ffmpeg.runtime.popen", return_value=proc),
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _ImmediateTimer),
     ):
         _, _, chunks = eng.stream_pcm_f32(tmp_path / "stuck.wav", timeout_sec=60.0)
@@ -1084,7 +1084,7 @@ def test_stream_timer_kills_stuck_process(tmp_path):
     eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
-        patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc) as popen,
+        patch("podcast_mcp.engines.ffmpeg.runtime.popen", return_value=proc) as popen,
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _ImmediateTimer),
     ):
         _, _, chunks = eng.stream_pcm_f32(tmp_path / "stuck.wav")
@@ -1132,7 +1132,7 @@ def test_read_pcm_f32_chains_asetpts_onto_existing_af_filter(tmp_path):
         stderr.write(b"out_time_us=2000000\nprogress=end\n")
         return proc
 
-    with patch("podcast_mcp.engines.ffmpeg.popen", side_effect=spawn) as popen:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.popen", side_effect=spawn) as popen:
         list(
             FFmpegEngine._read_pcm_f32(
                 argv,
@@ -1162,7 +1162,7 @@ def test_window_trims_by_timestamp_and_uses_short_timer(tmp_path):
     eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "audio_start_sec", return_value=0.0),
-        patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc) as popen,
+        patch("podcast_mcp.engines.ffmpeg.runtime.popen", return_value=proc) as popen,
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LazyTimer),
     ):
         out = eng.decode_window_f32(tmp_path / "a.wav", 800, 4, 8000, 2)
@@ -1187,7 +1187,7 @@ def test_stream_close_kills_running_process(tmp_path):
     eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
-        patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
+        patch("podcast_mcp.engines.ffmpeg.runtime.popen", return_value=proc),
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LazyTimer),
     ):
         _, _, chunks = eng.stream_pcm_f32(tmp_path / "a.wav", chunk_frames=100)
@@ -1207,7 +1207,7 @@ def test_stream_watchdog_is_disarmed_while_the_consumer_holds_a_chunk(tmp_path):
     eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
-        patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
+        patch("podcast_mcp.engines.ffmpeg.runtime.popen", return_value=proc),
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LazyTimer),
     ):
         _, _, chunks = eng.stream_pcm_f32(tmp_path / "a.wav", chunk_frames=100)
@@ -1239,7 +1239,7 @@ def test_stream_watchdog_that_fires_after_the_read_is_ignored(tmp_path, code):
     eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
-        patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
+        patch("podcast_mcp.engines.ffmpeg.runtime.popen", return_value=proc),
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LateTimer),
     ):
         _, _, chunks = eng.stream_pcm_f32(tmp_path / "a.wav", chunk_frames=100)
@@ -1266,7 +1266,7 @@ def test_stream_stale_watchdog_after_the_next_arm_is_ignored(tmp_path):
     eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
-        patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
+        patch("podcast_mcp.engines.ffmpeg.runtime.popen", return_value=proc),
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _StaleTimer),
     ):
         _, _, chunks = eng.stream_pcm_f32(tmp_path / "a.wav", chunk_frames=100)
@@ -1287,7 +1287,7 @@ def test_stream_failure_reports_the_stderr_tail(tmp_path):
     eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
-        patch("podcast_mcp.engines.ffmpeg.popen", side_effect=_popen),
+        patch("podcast_mcp.engines.ffmpeg.runtime.popen", side_effect=_popen),
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LazyTimer),
     ):
         _, _, chunks = eng.stream_pcm_f32(tmp_path / "a.wav")
@@ -1313,14 +1313,14 @@ def test_stream_clean_eof_and_missing_pipe(tmp_path):
         patch.object(FFmpegEngine, "audio_start_sec", return_value=0.0),
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LazyTimer),
     ):
-        with patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc):
+        with patch("podcast_mcp.engines.ffmpeg.runtime.popen", return_value=proc):
             _, _, chunks = eng.stream_pcm_f32(tmp_path / "a.wav", chunk_frames=100)
             assert [len(c) for c in chunks] == [100, 50]
         proc.kill.assert_not_called()
-        with patch("podcast_mcp.engines.ffmpeg.popen", return_value=empty):
+        with patch("podcast_mcp.engines.ffmpeg.runtime.popen", return_value=empty):
             assert eng.decode_window_f32(tmp_path / "a.wav", 0, 10, 8000, 1).shape == (0, 1)
         empty.stdout = None
-        with patch("podcast_mcp.engines.ffmpeg.popen", return_value=empty):
+        with patch("podcast_mcp.engines.ffmpeg.runtime.popen", return_value=empty):
             _, _, chunks = eng.stream_pcm_f32(tmp_path / "a.wav")
             with pytest.raises(RuntimeError, match="stdout"):
                 list(chunks)

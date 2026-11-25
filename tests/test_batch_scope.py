@@ -31,7 +31,7 @@ def decodes(monkeypatch: pytest.MonkeyPatch) -> list[Path]:
         return np.zeros(4, dtype=np.float32)
 
     monkeypatch.setattr(
-        ffmpeg,
+        ffmpeg.runtime,
         "resolve_ffmpeg_pair",
         lambda *args, **kwargs: FFmpegPair(
             "/admitted/ffmpeg", "/admitted/ffprobe", (9, 0, 2), "explicit"

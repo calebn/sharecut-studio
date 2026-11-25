@@ -40,6 +40,7 @@ from podcast_mcp.engines.audio import (
 )
 from podcast_mcp.engines.audition_plot import annotate_plot, png_dimensions
 from podcast_mcp.engines.effect_filters import format_effect, graph_rate
+from podcast_mcp.engines.ffmpeg import runtime
 from podcast_mcp.engines.mastering import (
     LIMITER_MARGIN_DB,
     LIMITER_MAX_RENDERS,
@@ -80,8 +81,6 @@ from podcast_mcp.util.binaries import (
     FFmpegPair,
     FFmpegPairResolutionError,
     in_process_problem,
-    resolve_ffmpeg,
-    resolve_ffmpeg_pair,
 )
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.parallel import run_parallel
@@ -92,10 +91,7 @@ from podcast_mcp.util.process import (
     CalledProcessError,
     TimeoutExpired,
     is_in_process_media_tool,
-    popen,
-    run,
 )
-from podcast_mcp.util.progress import raise_if_cancel_requested
 from podcast_mcp.util.project_state import FileRevision, file_revision
 
 # Raw float32 PCM decode (waveform pyramid builds and deep-zoom windows). The
@@ -104,10 +100,6 @@ from podcast_mcp.util.project_state import FileRevision, file_revision
 PCM_STREAM_CHUNK_FRAMES = 1_048_576
 PCM_STREAM_TIMEOUT_SEC = 600.0
 PCM_WINDOW_TIMEOUT_SEC = 30.0
-# Bytes of ffmpeg stderr kept for a failed decode's error message.
-PCM_STDERR_TAIL_BYTES = 2048
-CANCEL_POLL_SEC = 0.1
-ENCODE_CANCELLED = "Encoding cancelled"
 # Guest-safe input protocols (same whitelist as ``probe(untrusted=True)``).
 _UNTRUSTED_PROTOCOLS = "file,crypto,data"
 _PACKET_SCAN_TIMEOUT_SEC = 120.0
@@ -255,14 +247,6 @@ def _effect_filter(fx: ProcessingEffect) -> str | None:
     return format_effect(fx.effect, fx.params)
 
 
-_PROGRESS_TIME_RE = re.compile(r"^out_time_(?:us|ms)=(\d+)$")  # both are microseconds
-
-
-def _progress_seconds(line: str) -> float | None:
-    m = _PROGRESS_TIME_RE.match(line.strip())
-    return int(m.group(1)) / 1_000_000 if m else None
-
-
 _LOUDNORM_HEADER_RE = re.compile(r"^\[Parsed_loudnorm_\d+ @ [^\]\n]*\]", re.MULTILINE)
 
 
@@ -291,16 +275,8 @@ _EBUR128_BLOCK_RE = re.compile(r"\bt:\s*(\d+(?:\.\d+)?)\s+TARGET:.*?\bM:\s*(-?\d
 
 # Match on ``\n`` only, never ``str.splitlines()``, which also breaks on U+2028.
 _FILTER_LOG_LINE_RE = re.compile(r"^\[Parsed_(\w+?)_\d+ @ ([^\]\n]*)\] ?([^\n]*)", re.MULTILINE)
-_ANSI_SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
 _EMPTY_OUTPUT_RE = re.compile(r"^\[out#\d+/null @ [^\]\n]*\] Output file is empty", re.MULTILINE)
 _EBUR128_SUMMARY_RE = re.compile(r"^\[Parsed_ebur128_\d+ @ [^\]\n]*\] Summary:", re.MULTILINE)
-
-
-def _stderr_text(stderr: str | bytes | None) -> str:
-    """ffmpeg stderr as text with ``\n`` line ends; undecodable tag bytes become U+FFFD."""
-    if isinstance(stderr, bytes):
-        stderr = stderr.decode("utf-8", "replace")
-    return _ANSI_SGR_RE.sub("", stderr or "").replace("\r\n", "\n").replace("\r", "\n")
 
 
 def filter_log_text(stderr: str | bytes | None, filter_name: str) -> str:
@@ -309,16 +285,18 @@ def filter_log_text(stderr: str | bytes | None, filter_name: str) -> str:
     Only lines from the instance that printed last (its ``@ <addr>``) count: the real filter logs
     after the metadata dump, and a forged line in a raw-printed tag key cannot know its address.
     """
-    lines = [m for m in _FILTER_LOG_LINE_RE.finditer(_stderr_text(stderr)) if m[1] == filter_name]
+    lines = [
+        m for m in _FILTER_LOG_LINE_RE.finditer(runtime._stderr_text(stderr)) if m[1] == filter_name
+    ]
     return "\n".join(m[3] for m in lines if m[2] == lines[-1][2]) if lines else ""
 
 
 def decoded_no_frames(stderr: str | bytes | None) -> bool:
-    return _EMPTY_OUTPUT_RE.search(_stderr_text(stderr)) is not None
+    return _EMPTY_OUTPUT_RE.search(runtime._stderr_text(stderr)) is not None
 
 
 def ebur128_summary_text(stderr: str | bytes | None) -> str:
-    text = _stderr_text(stderr)
+    text = runtime._stderr_text(stderr)
     starts = [m.end() for m in _EBUR128_SUMMARY_RE.finditer(text)]
     return text[starts[-1] :] if starts else ""
 
@@ -534,7 +512,7 @@ def _read_audio_extent(ffprobe: str, path: str, *, untrusted: bool) -> tuple[flo
     if untrusted:
         cmd.extend(["-protocol_whitelist", _UNTRUSTED_PROTOCOLS])
     cmd.append(path)
-    proc = popen(cmd, stdout=PIPE, stderr=DEVNULL)
+    proc = runtime.popen(cmd, stdout=PIPE, stderr=DEVNULL)
     lock = threading.Lock()
     expired = False
     finished = False
@@ -621,44 +599,6 @@ def _mono_chunks(chunks: Generator[np.ndarray, None, None]) -> Generator[np.ndar
         chunks.close()
 
 
-def _run_cancellable(cmd: list[str], cancel_check: Callable[[], bool]) -> None:
-    """Run ``cmd``; kill it and raise ``CancelledProgress`` once ``cancel_check()`` is true.
-
-    A nonzero exit after a cancel was requested is the cancel too, not a failure: the
-    child may have been stopped by the same interrupt (#1164).
-    """
-    with (
-        tempfile.TemporaryFile() as err,
-        spawn_or_too_long(popen, cmd, stdout=DEVNULL, stderr=err) as proc,
-    ):
-        try:
-            while True:
-                try:
-                    rc = proc.wait(timeout=CANCEL_POLL_SEC)
-                    break
-                except TimeoutExpired:
-                    raise_if_cancel_requested(cancel_check, ENCODE_CANCELLED)
-        except BaseException:
-            proc.kill()
-            proc.wait()
-            raise
-        if rc != 0:
-            raise_if_cancel_requested(cancel_check, ENCODE_CANCELLED)
-            err.seek(0)
-            raise CalledProcessError(rc, cmd, stderr=err.read())
-
-
-def _pcm_decode_error(code: int, timed_out: bool, timeout_sec: float, err: IO[bytes]) -> str:
-    """``RuntimeError`` text for a failed PCM decode: exit code, watchdog, stderr tail."""
-    msg = f"ffmpeg PCM decode failed (exit {code})"
-    if timed_out:
-        msg += f"; killed by the {timeout_sec:g} s watchdog"
-    err.seek(0, 2)
-    err.seek(max(0, err.tell() - PCM_STDERR_TAIL_BYTES))
-    tail = err.read().decode("utf-8", "replace").strip()
-    return f"{msg}: {tail}" if tail else msg
-
-
 def _mask_endpoint(
     seconds: float, rate: int, origin: int, transforms: tuple[FrameTransform, ...]
 ) -> str:
@@ -675,7 +615,7 @@ class FFmpegEngine:
         *,
         _admitted_pair: FFmpegPair | None = None,
     ) -> None:
-        pair = _admitted_pair or resolve_ffmpeg_pair(ffmpeg, ffprobe)
+        pair = _admitted_pair or runtime.resolve_ffmpeg_pair(ffmpeg, ffprobe)
         self.ffmpeg = pair.ffmpeg
         self.ffprobe = pair.ffprobe
         self.source = pair.source
@@ -693,7 +633,7 @@ class FFmpegEngine:
         to the "Overall" section, so both kinds of fields are captured correctly.
         """
         cmd = [
-            ffmpeg or resolve_ffmpeg(),
+            ffmpeg or runtime.resolve_ffmpeg(),
             "-i",
             str(path),
             "-map",
@@ -704,7 +644,7 @@ class FFmpegEngine:
             "null",
             "-",
         ]
-        r = run(cmd, capture_output=True)
+        r = runtime.run(cmd, capture_output=True)
         ok = r.returncode == 0 and not decoded_no_frames(r.stderr)
         text = filter_log_text(r.stderr, "astats") if ok else ""
 
@@ -748,7 +688,7 @@ class FFmpegEngine:
             return dict.fromkeys(rates, np.concatenate(list(chunks)))
         commands = {
             rate: [
-                resolve_ffmpeg_pair().ffmpeg,
+                runtime.resolve_ffmpeg_pair().ffmpeg,
                 "-v",
                 "error",
                 "-f",
@@ -768,7 +708,7 @@ class FFmpegEngine:
             for rate in converting
         }
         processes = {
-            rate: popen(command, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+            rate: runtime.popen(command, stdin=PIPE, stdout=PIPE, stderr=PIPE)
             for rate, command in commands.items()
         }
         kept: list[np.ndarray] = []
@@ -824,7 +764,7 @@ class FFmpegEngine:
 
     def decode_full_f32(self, path: Path, *, sample_rate: int, layout: list[str]) -> np.ndarray:
         """Decode the first audio stream into a nonempty flat float32 byte view."""
-        result = run(
+        result = runtime.run(
             [
                 self.ffmpeg,
                 "-v",
@@ -850,7 +790,7 @@ class FFmpegEngine:
 
     def check_available(self) -> tuple[bool, str]:
         try:
-            pair = resolve_ffmpeg_pair(self.ffmpeg, self.ffprobe, force_refresh=True)
+            pair = runtime.resolve_ffmpeg_pair(self.ffmpeg, self.ffprobe, force_refresh=True)
         except FFmpegPairResolutionError as exc:
             return False, str(exc)
         if pair.is_in_process:
@@ -889,7 +829,9 @@ class FFmpegEngine:
             # Guest uploads: do not follow concat:/file: demuxer tricks.
             cmd.extend(["-protocol_whitelist", _UNTRUSTED_PROTOCOLS])
         cmd.append(str(path))
-        r = run(cmd, capture_output=True, text=True, check=True, timeout=_PACKET_SCAN_TIMEOUT_SEC)
+        r = runtime.run(
+            cmd, capture_output=True, text=True, check=True, timeout=_PACKET_SCAN_TIMEOUT_SEC
+        )
         data = json.loads(r.stdout)
         audio_streams = [s for s in data.get("streams", []) if s.get("codec_type") == "audio"]
         stream: dict[str, Any] = audio_streams[0] if audio_streams else {}
@@ -965,7 +907,7 @@ class FFmpegEngine:
         if untrusted:
             cmd.extend(["-protocol_whitelist", _UNTRUSTED_PROTOCOLS])
         cmd.append(str(path))
-        r = run(cmd, capture_output=True, text=True, timeout=_PACKET_SCAN_TIMEOUT_SEC)
+        r = runtime.run(cmd, capture_output=True, text=True, timeout=_PACKET_SCAN_TIMEOUT_SEC)
         lines = r.stdout.split() if r.returncode == 0 else []
         return _seconds(lines[0].rstrip(",")) if lines else None
 
@@ -1091,7 +1033,7 @@ class FFmpegEngine:
             "24",
             str(output_path),
         ]
-        with tempfile.TemporaryFile() as err, popen(argv, stdin=PIPE, stderr=err) as proc:
+        with tempfile.TemporaryFile() as err, runtime.popen(argv, stdin=PIPE, stderr=err) as proc:
             assert proc.stdin is not None
             try:
                 for chunk in chunks:
@@ -1192,7 +1134,7 @@ class FFmpegEngine:
                 body += ["-af", "asetpts=PTS-STARTPTS"]
             argv = [argv[0], "-progress", "pipe:2", *body, argv[-1]]
         with tempfile.TemporaryFile() as err:
-            proc = popen(argv, stdout=PIPE, stderr=err)
+            proc = runtime.popen(argv, stdout=PIPE, stderr=err)
             timed_out = threading.Event()
 
             watch_lock = threading.Lock()
@@ -1243,11 +1185,13 @@ class FFmpegEngine:
                     if short:
                         if code != 0:
                             raise RuntimeError(
-                                _pcm_decode_error(code, timed_out.is_set(), timeout_sec, err)
+                                runtime._pcm_decode_error(
+                                    code, timed_out.is_set(), timeout_sec, err
+                                )
                             )
                         if expected_duration_sec is not None:
                             err.seek(0, 2)
-                            err.seek(max(0, err.tell() - PCM_STDERR_TAIL_BYTES))
+                            err.seek(max(0, err.tell() - runtime.PCM_STDERR_TAIL_BYTES))
                             records = err.read().decode("utf-8", "replace").split("progress=")
                             final = (
                                 records[-2]
@@ -1258,7 +1202,7 @@ class FFmpegEngine:
                                 (
                                     seconds
                                     for line in reversed(final.splitlines())
-                                    if (seconds := _progress_seconds(line)) is not None
+                                    if (seconds := runtime._progress_seconds(line)) is not None
                                 ),
                                 None,
                             )
@@ -1669,7 +1613,9 @@ class FFmpegEngine:
                 )
         if clock_path is None:
             with ExitStack() as stack:
-                spawn_or_too_long(run, render_command(stack), check=True, capture_output=True)
+                spawn_or_too_long(
+                    runtime.run, render_command(stack), check=True, capture_output=True
+                )
         else:
             clock_path.parent.mkdir(parents=True, exist_ok=True)
             with tempfile.TemporaryDirectory(
@@ -1737,11 +1683,15 @@ class FFmpegEngine:
                     *cmd[1:],
                 ]
                 with stderr_path.open("wb") as stderr:
-                    result = spawn_or_too_long(run, observed_cmd, stdout=DEVNULL, stderr=stderr)
+                    result = spawn_or_too_long(
+                        runtime.run, observed_cmd, stdout=DEVNULL, stderr=stderr
+                    )
                 if result.returncode:
                     with stderr_path.open("rb") as error_stream:
                         error_stream.seek(0, 2)
-                        error_stream.seek(max(0, error_stream.tell() - PCM_STDERR_TAIL_BYTES))
+                        error_stream.seek(
+                            max(0, error_stream.tell() - runtime.PCM_STDERR_TAIL_BYTES)
+                        )
                         raise CalledProcessError(
                             result.returncode, observed_cmd, stderr=error_stream.read()
                         )
@@ -1854,7 +1804,7 @@ class FFmpegEngine:
                 "[out]",
                 str(output_path),
             ]
-            run(cmd, check=True, capture_output=True)
+            runtime.run(cmd, check=True, capture_output=True)
             return output_path
 
         list_file = output_path.parent / f".concat_{output_path.stem}.txt"
@@ -1876,7 +1826,7 @@ class FFmpegEngine:
                 "copy",
                 str(output_path),
             ]
-            run(cmd, check=True, capture_output=True)
+            runtime.run(cmd, check=True, capture_output=True)
             return output_path
         finally:
             list_file.unlink(missing_ok=True)
@@ -1893,7 +1843,7 @@ class FFmpegEngine:
     ) -> Path:
         silence = out.with_name(f".{out.stem}_gap.wav")
         try:
-            run(
+            runtime.run(
                 [
                     self.ffmpeg,
                     "-y",
@@ -1928,7 +1878,7 @@ class FFmpegEngine:
                 "pcm_s16le",
                 str(out),
             ]
-            run(cmd, check=True, capture_output=True)
+            runtime.run(cmd, check=True, capture_output=True)
         finally:
             silence.unlink(missing_ok=True)
         return out
@@ -1951,7 +1901,7 @@ class FFmpegEngine:
             f"{target}",
             str(output_path),
         ]
-        run(cmd, check=True, capture_output=True)
+        runtime.run(cmd, check=True, capture_output=True)
         return output_path
 
     def apply_gain(self, input_path: Path, output_path: Path, gain_db: float) -> Path:
@@ -1965,7 +1915,7 @@ class FFmpegEngine:
             f"volume={gain_db}dB",
             str(output_path),
         ]
-        run(cmd, check=True, capture_output=True)
+        runtime.run(cmd, check=True, capture_output=True)
         return output_path
 
     @staticmethod
@@ -2000,7 +1950,7 @@ class FFmpegEngine:
     ) -> None:
         tail = f"volume={trim_db}dB" if trim_db else None
         cmd = [self.ffmpeg, "-y", *self._sum_graph(track_wavs, tail), str(output_path)]
-        run(cmd, check=True, capture_output=True)
+        runtime.run(cmd, check=True, capture_output=True)
 
     def _sum_true_peak_db(
         self, track_wavs: list[tuple[Path, float]], span: tuple[float, float | None]
@@ -2015,7 +1965,7 @@ class FFmpegEngine:
             "null",
             "-",
         ]
-        r = run(cmd, check=True, capture_output=True, text=True)
+        r = runtime.run(cmd, check=True, capture_output=True, text=True)
         # FFmpeg may emit an empty summary while initializing the graph.
         peaks = _SUMMARY_TRUE_PEAK_RE.findall(r.stderr or "")
         return float(peaks[-1]) if peaks else None
@@ -2024,7 +1974,7 @@ class FFmpegEngine:
         self, output_path: Path, duration_sec: float, *, sample_rate: int = 48000, channels: int = 2
     ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        run(
+        runtime.run(
             [
                 self.ffmpeg,
                 "-y",
@@ -2164,7 +2114,7 @@ class FFmpegEngine:
             "-",
         ]
         if on_progress is None:
-            r = run(cmd, capture_output=True)
+            r = runtime.run(cmd, capture_output=True)
             if r.returncode != 0:
                 return None
             text = r.stderr
@@ -2214,7 +2164,7 @@ class FFmpegEngine:
         ffmpeg's true-peak pass omits.
         About a sixth of the cost of ``measure_loudness_full``.
         """
-        r = run(
+        r = runtime.run(
             [
                 self.ffmpeg,
                 "-i",
@@ -2249,12 +2199,12 @@ class FFmpegEngine:
     ) -> str:
         """Run ffmpeg with ``-progress pipe:1``, report (done_sec, total_sec), return stderr."""
         cmd = [argv[0], "-nostats", "-progress", "pipe:1", *argv[1:]]
-        with tempfile.TemporaryFile() as err, popen(cmd, stdout=PIPE, stderr=err) as proc:
+        with tempfile.TemporaryFile() as err, runtime.popen(cmd, stdout=PIPE, stderr=err) as proc:
             try:
                 if proc.stdout is None:
                     raise RuntimeError("ffmpeg progress pipe missing")
                 for raw in proc.stdout:
-                    done = _progress_seconds(raw.decode("utf-8", "replace"))
+                    done = runtime._progress_seconds(raw.decode("utf-8", "replace"))
                     if done is not None:
                         on_progress(min(done, total_sec), total_sec)
                 rc = proc.wait()
@@ -2413,7 +2363,7 @@ class FFmpegEngine:
         """Run ``ffmpeg -i input -af af *out_args output`` and return its stderr."""
         cmd = [self.ffmpeg, "-y", "-i", str(input_path), "-af", af, *out_args, str(output_path)]
         if on_progress is None:
-            return run(cmd, check=True, capture_output=True, text=True).stderr or ""
+            return runtime.run(cmd, check=True, capture_output=True, text=True).stderr or ""
         return self._run_with_progress(cmd, total_sec=total_sec, on_progress=on_progress)
 
     def filter_audio(
@@ -2443,7 +2393,7 @@ class FFmpegEngine:
             str(out_ch),
             str(output_path),
         ]
-        run(cmd, check=True, capture_output=True)
+        runtime.run(cmd, check=True, capture_output=True)
         return output_path
 
     def export_audio(
@@ -2483,9 +2433,9 @@ class FFmpegEngine:
             cmd.extend(extra_args)
         cmd.append(str(output_path))
         if cancel_check is None:
-            spawn_or_too_long(run, cmd, check=True, capture_output=True)
+            spawn_or_too_long(runtime.run, cmd, check=True, capture_output=True)
         else:
-            _run_cancellable(cmd, cancel_check)
+            runtime._run_cancellable(cmd, cancel_check)
         return output_path
 
     def export_mp3(
@@ -2524,14 +2474,14 @@ class FFmpegEngine:
             "null",
             "-",
         ]
-        r = run(cmd, capture_output=True)
-        stderr = _stderr_text(r.stderr)
+        r = runtime.run(cmd, capture_output=True)
+        stderr = runtime._stderr_text(r.stderr)
         if r.returncode != 0:
             log.warning(
                 "ebur128 measure failed for %s (exit %s): %s",
                 path,
                 r.returncode,
-                stderr[-PCM_STDERR_TAIL_BYTES:].strip(),
+                stderr[-runtime.PCM_STDERR_TAIL_BYTES :].strip(),
             )
             return []
         blocks = [
@@ -2557,7 +2507,7 @@ class FFmpegEngine:
             "null",
             "-",
         ]
-        r = run(cmd, capture_output=True)
+        r = runtime.run(cmd, capture_output=True)
         if r.returncode != 0:
             return None
         text = ebur128_summary_text(r.stderr)
@@ -2626,7 +2576,7 @@ class FFmpegEngine:
             "pcm_s16le",
             str(output_path),
         ]
-        run(cmd, check=True, capture_output=True)
+        runtime.run(cmd, check=True, capture_output=True)
         return output_path
 
     def generate_tone(
@@ -2654,7 +2604,7 @@ class FFmpegEngine:
         if gain_db != 0.0:
             cmd.extend(["-af", f"volume={gain_db}dB"])
         cmd.append(str(dest))
-        run(cmd, check=True, capture_output=True)
+        runtime.run(cmd, check=True, capture_output=True)
         return dest
 
     def render_spectrogram(
@@ -2691,7 +2641,7 @@ class FFmpegEngine:
             f"showspectrumpic=s={size}:scale={scale}:legend={legend_flag}",
             str(output_png),
         ]
-        run(cmd, check=True, capture_output=True)
+        runtime.run(cmd, check=True, capture_output=True)
         if tmp is not None:
             tmp.unlink(missing_ok=True)
         return output_png
@@ -2726,7 +2676,7 @@ class FFmpegEngine:
             "1",
             str(output_png),
         ]
-        run(cmd, check=True, capture_output=True)
+        runtime.run(cmd, check=True, capture_output=True)
         if tmp is not None:
             tmp.unlink(missing_ok=True)
         return output_png
@@ -2767,7 +2717,7 @@ class FFmpegEngine:
                 str(output_png),
             ]
         )
-        run(cmd, check=True, capture_output=True)
+        runtime.run(cmd, check=True, capture_output=True)
         return output_png
 
     def _listed_names(self, flag: str) -> set[str] | None:
@@ -2779,7 +2729,7 @@ class FFmpegEngine:
         if cached is not None:
             return cached
         try:
-            r = run(
+            r = runtime.run(
                 [self.ffmpeg, "-hide_banner", flag],
                 capture_output=True,
                 text=True,
@@ -2904,7 +2854,7 @@ class FFmpegEngine:
                 str(tmp),
             ]
             try:
-                run(cmd, check=True, capture_output=True)
+                runtime.run(cmd, check=True, capture_output=True)
             except CalledProcessError as exc:
                 stderr = exc.stderr or ""
                 if isinstance(stderr, bytes):
@@ -2953,7 +2903,7 @@ class FFmpegEngine:
                 str(tmp),
             ]
             try:
-                run(cmd, check=True, capture_output=True)
+                runtime.run(cmd, check=True, capture_output=True)
                 if dimensions is not None and png_dimensions(tmp) != dimensions:
                     return False
                 publish_completed_file(tmp, out_path)

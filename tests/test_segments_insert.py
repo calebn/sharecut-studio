@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.engines.ffmpeg import resolve_ffmpeg
+from podcast_mcp.engines.ffmpeg.runtime import resolve_ffmpeg
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (

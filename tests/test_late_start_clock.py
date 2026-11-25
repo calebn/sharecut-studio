@@ -332,7 +332,7 @@ def _probe_with_stream_start(
         ],
     }
     monkeypatch.setattr(
-        ffmpeg_module,
+        ffmpeg_module.runtime,
         "run",
         lambda *_a, **_k: SimpleNamespace(stdout=json.dumps(metadata), stderr=""),
     )

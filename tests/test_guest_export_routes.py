@@ -538,7 +538,8 @@ def test_each_guest_format_builds_exactly_the_expected_ffmpeg_command(
 
     commands: list[list[str]] = []
     monkeypatch.setattr(
-        "podcast_mcp.engines.ffmpeg._run_cancellable", lambda cmd, _cancel: commands.append(cmd)
+        "podcast_mcp.engines.ffmpeg.runtime._run_cancellable",
+        lambda cmd, _cancel: commands.append(cmd),
     )
     monkeypatch.setattr(FFmpegEngine, "supports_encode", lambda self, codec, muxer: True)
     engine = FFmpegEngine()
