@@ -41,7 +41,7 @@ Each saved automation envelope point requires an immutable `id` plus its mutable
 `time` and `value`. Creation boundaries allocate IDs before persistence. Editors
 preserve the ID when points move or reorder, so an index shift cannot attach a
 DOM node or selection to the wrong point. Saved records without point IDs are
-rejected. A new or moved point's `time` must lie in `[0, timeline end]`, where the end is `timeline_duration_sec` (the larger of `timeline.duration_sec` and the last clip end, else the longest track media). The `set_envelope` service enforces it for the GUI, MCP and every document command (#1336); points whose `(id, time)` is unchanged are not re-checked, so shortening the timeline never strands the rest of an envelope.
+rejected. A new or moved point's `time` must lie in `[0, timeline end]`, where the end is `timeline_duration_sec` (the larger of `timeline.duration_sec` and the last clip end, else the longest track media). The `set_envelope` service enforces it for the GUI, MCP and every document command (#1336); a point whose `time` equals a time already saved on that track is not re-checked, so shortening the timeline never strands the rest of an envelope.
 
 Changing only point IDs leaves audio render and reconciliation fingerprints
 unchanged. Volume-point times, values, and saved order contribute to those

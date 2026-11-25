@@ -52,11 +52,11 @@ def validate_envelope_point_times(
     points: Iterable[Mapping[str, Any]],
     timeline_end: float,
 ) -> None:
-    """Refuse a new or moved point whose time is outside ``[0, timeline_end]``.
+    """Refuse a point whose time is outside ``[0, timeline_end]``.
 
-    A point that keeps a saved time is exempt (a restored point keeps its time under a new id): a cut can shorten the
-    timeline under points already saved, and those must not block edits to the rest
-    of the envelope.
+    A point at a time already saved on the track is exempt, whatever its id: a cut can
+    shorten the timeline under saved points, and a restored point keeps its time under
+    a new id. Neither may block edits to the rest of the envelope.
     """
     saved = {p["time"] for p in volume_envelope_baseline(project, track_id)}
     for point in points:
