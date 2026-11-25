@@ -181,7 +181,14 @@ describe("ActionBar dock", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["Fix text", "Record", "Mute", "Move to speaker", "Copy"]);
+    ).toEqual([
+      "Fix text",
+      "Record",
+      "Mute",
+      "Move to speaker",
+      "Copy",
+      "Save as segment",
+    ]);
     await userEvent.click(
       within(menu).getByRole("menuitem", { name: "Record" }),
     );

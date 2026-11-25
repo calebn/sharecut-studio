@@ -10,6 +10,7 @@ import { VERBS, type VerbId } from "./verbs";
 export type MoreCommandId =
   | "paste"
   | "copy"
+  | "saveSegment"
   | "moveTrackUp"
   | "moveTrackDown"
   | "smoothJoins"
@@ -87,7 +88,12 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
       bar("more"),
       bar("inspect"),
     ],
-    more: [row("mute"), row("moveToSpeaker"), row("copy")],
+    more: [
+      row("mute"),
+      row("moveToSpeaker"),
+      row("copy"),
+      row("saveSegment", "host"),
+    ],
   },
   range: {
     bar: [
@@ -104,6 +110,7 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
       row("fillRoomTone", "hasGap"),
       row("moveToSpeaker"),
       row("copy"),
+      row("saveSegment", "host"),
     ],
   },
   clip: {
@@ -115,7 +122,13 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
       bar("more"),
       bar("inspect"),
     ],
-    more: [row("mute"), row("gain"), row("fade"), row("moveToTrack")],
+    more: [
+      row("mute"),
+      row("gain"),
+      row("fade"),
+      row("moveToTrack"),
+      row("saveSegment", "host"),
+    ],
   },
   seam: {
     bar: [
@@ -268,6 +281,7 @@ const MORE_COMMANDS: Readonly<
 > = {
   paste: { label: "Paste", icon: "clipboard-paste" },
   copy: { label: "Copy", icon: "copy" },
+  saveSegment: { label: "Save as segment", icon: null },
   moveTrackUp: { label: "Move track up", icon: null },
   moveTrackDown: { label: "Move track down", icon: null },
   smoothJoins: { label: "Smooth all joins", icon: null },

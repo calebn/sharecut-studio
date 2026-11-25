@@ -11,6 +11,7 @@ const FLAGS = [
   "helpDialogOpen",
   "modelsSheetOpen",
   "segmentLibraryOpen",
+  "saveSegmentOpen",
   "transcriptFindReplaceOpen",
 ] as const;
 type Flag = (typeof FLAGS)[number];
@@ -23,6 +24,7 @@ const SETTERS: Record<Flag, string> = {
   helpDialogOpen: "setHelpDialogOpen",
   modelsSheetOpen: "setModelsSheetOpen",
   segmentLibraryOpen: "setSegmentLibraryOpen",
+  saveSegmentOpen: "setSaveSegmentOpen",
   transcriptFindReplaceOpen: "setTranscriptFindReplaceOpen",
 };
 

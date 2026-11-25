@@ -76,6 +76,16 @@ export const SEGMENT_INSERT_REFUSALS = [
 
 export type SegmentInsertRefusal = (typeof SEGMENT_INSERT_REFUSALS)[number];
 
+export const SEGMENT_SAVE_REFUSALS = [
+  "segment_clip_too_short",
+  "segment_render_unsupported",
+  "segment_busy",
+  "segment_write_failed",
+  "segment_invalid",
+] as const;
+
+export type SegmentSaveRefusal = (typeof SEGMENT_SAVE_REFUSALS)[number];
+
 export type SegmentInsertAt = "start" | "end" | number;
 
 export interface SegmentInsertRequest {
@@ -211,6 +221,11 @@ export function segmentInsertRefusal(
 ): SegmentInsertRefusal | null {
   if (!(error instanceof ApiError)) return null;
   return SEGMENT_INSERT_REFUSALS.find((code) => code === error.code) ?? null;
+}
+
+export function segmentSaveRefusal(error: unknown): SegmentSaveRefusal | null {
+  if (!(error instanceof ApiError)) return null;
+  return SEGMENT_SAVE_REFUSALS.find((code) => code === error.code) ?? null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -54,6 +54,7 @@ export interface ChromeFlags {
   /** Models sheet: every model, its state and download. */
   modelsSheetOpen: boolean;
   segmentLibraryOpen: boolean;
+  saveSegmentOpen: boolean;
   /** Settings sheet: Appearance, Saved in, Longest automatic join fade, Models and Keyboard shortcuts. */
   settingsSheetOpen: boolean;
   /** Transcript find/replace panel open. */
@@ -581,6 +582,7 @@ export interface DawState {
   setHelpDialogOpen: (on: boolean, step?: HelpStep) => void;
   setModelsSheetOpen: (on: boolean) => void;
   setSegmentLibraryOpen: (on: boolean) => void;
+  setSaveSegmentOpen: (on: boolean) => void;
   setSettingsSheetOpen: (on: boolean) => void;
   setJoinMutationInFlight: (on: boolean) => void;
   setPendingDecisionInFlight: (editId: string | null) => void;
