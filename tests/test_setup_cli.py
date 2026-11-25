@@ -103,7 +103,7 @@ def test_setup_and_doctor_reject_missing_explicit_ffprobe(
     monkeypatch.setenv("PODCAST_MCP_FFMPEG", str(ffmpeg))
     monkeypatch.setenv("PODCAST_MCP_FFPROBE", str(tmp_path / "missing-ffprobe"))
 
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with patch("podcast_mcp.engines.ffmpeg.runtime.run") as run:
         result = runner.invoke(setup_app, [command])
 
     assert result.exit_code == (0 if command == "setup" else 1)

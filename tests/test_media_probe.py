@@ -167,6 +167,6 @@ def test_first_audio_duration_refuses_ffprobe_na_extent(
         ),
         stderr="",
     )
-    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.run", lambda *_args, **_kwargs: result)
+    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.runtime.run", lambda *_args, **_kwargs: result)
     assert probe_wav_duration_sec(path) == 3
     assert probe_first_audio_duration_sec(path) is None

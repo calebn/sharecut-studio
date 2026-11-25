@@ -7,7 +7,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-from podcast_mcp.engines.ffmpeg import ENCODE_CANCELLED, FFmpegEngine
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg.runtime import ENCODE_CANCELLED
 from podcast_mcp.util.atomic_render import render_atomic_all
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import raise_if_cancel_requested

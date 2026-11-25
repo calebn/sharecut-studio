@@ -74,7 +74,7 @@ def test_legacy_pick_unknown_without_disposition(monkeypatch, sample_wav):
     )
 
     done = SimpleNamespace(stdout=stdout, stderr="")
-    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.run", lambda *a, **k: done)
+    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.runtime.run", lambda *a, **k: done)
     assert engine.probe(sample_wav).legacy_default_audio_index is None
 
 

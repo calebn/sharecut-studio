@@ -232,7 +232,7 @@ def test_resampling_without_conversion_consumes_chunks_without_a_binary(
     def no_binary() -> typing.NoReturn:
         pytest.fail("no conversion needs no binary")
 
-    monkeypatch.setattr(ffmpeg, "resolve_ffmpeg_pair", no_binary)
+    monkeypatch.setattr(ffmpeg.runtime, "resolve_ffmpeg_pair", no_binary)
     visited: list[int] = []
 
     def chunks() -> typing.Iterator[np.ndarray]:
@@ -258,7 +258,7 @@ def test_resampling_empty_input_without_conversion_raises(
     def no_binary() -> typing.NoReturn:
         pytest.fail("no conversion needs no binary")
 
-    monkeypatch.setattr(ffmpeg, "resolve_ffmpeg_pair", no_binary)
+    monkeypatch.setattr(ffmpeg.runtime, "resolve_ffmpeg_pair", no_binary)
 
     with pytest.raises(ValueError):
         FFmpegEngine.resample_streams(iter([]), 48000, rates)

@@ -45,7 +45,7 @@ def test_astats_returns_expected_keys(sample_wav: Path):
 
 def test_astats_missing_field_returns_none(sample_wav: Path, monkeypatch):
     monkeypatch.setattr(
-        "podcast_mcp.engines.ffmpeg.run",
+        "podcast_mcp.engines.ffmpeg.runtime.run",
         lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="", stderr="no useful data"),
     )
     stats = FFmpegEngine.astats(sample_wav)

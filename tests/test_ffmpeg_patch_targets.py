@@ -1,7 +1,10 @@
 """Ratchet for #1815: what tests may patch on ``podcast_mcp.engines.ffmpeg``.
 
 A test may patch ``FFmpegEngine`` and its members. Any other name on the module is listed in
-ALLOWLIST, which equals what the tests patch today, so it only shrinks.
+ALLOWLIST, which equals what the tests patch today, so it only shrinks. The process seam lives in
+``podcast_mcp.engines.ffmpeg.runtime`` and its patchable names are listed in RUNTIME_ALLOWLIST.
+Every call site in the package reads a seam name as ``runtime.<name>`` at call time, so a patch of
+the runtime binding is the one the calling code reads; nothing re-exports a seam name.
 
 Read: a ``podcast_mcp.engines.ffmpeg.<name>`` string, and a ``setattr``/``delattr``/``patch.object``/
 ``patch.multiple`` call (builtin or method, positional or keyword) whose target is the module through
@@ -26,9 +29,11 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.engines import ffmpeg
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg import FFmpegEngine, runtime
 
 TESTS = Path(__file__).resolve().parent
+PACKAGE = TESTS.parent / "src" / "podcast_mcp" / "engines" / "ffmpeg"
+SRC = TESTS.parent / "src" / "podcast_mcp"
 MODULE = "podcast_mcp.engines.ffmpeg"
 PATCHERS = {"setattr", "delattr", "object", "patch", "multiple"}
 
@@ -36,16 +41,20 @@ ALLOWLIST = {
     "_PACKET_SCAN_TIMEOUT_SEC",
     "_drawtext_font",
     "_read_audio_extent",
-    "_run_cancellable",
     "file_revision",
     "negotiated_rates",
+    "shutil",
+    "spawn_or_too_long",
+    "threading",
+}
+
+RUNTIME = "runtime"
+RUNTIME_ALLOWLIST = {
+    "_run_cancellable",
     "popen",
     "resolve_ffmpeg",
     "resolve_ffmpeg_pair",
     "run",
-    "shutil",
-    "spawn_or_too_long",
-    "threading",
 }
 
 
@@ -57,7 +66,7 @@ MULTIPLE_OPTIONS = {"target", "spec", "create", "spec_set", "autospec", "new_cal
 def _target(segments: list[str]) -> tuple[str, str | None]:
     """The module attribute a dotted path names, and the engine member under it when it is the engine."""
     name = segments[0] or DYNAMIC
-    member = segments[1] if name == "FFmpegEngine" and len(segments) > 1 else None
+    member = segments[1] if name in {"FFmpegEngine", RUNTIME} and len(segments) > 1 else None
     return name, member
 
 
@@ -166,7 +175,11 @@ def _found() -> set[tuple[str, str | None]]:
 
 
 def _outside_the_engine(found: set[tuple[str, str | None]]) -> set[str]:
-    return {name for name, _ in found if name != "FFmpegEngine"}
+    return {name for name, _ in found if name not in {"FFmpegEngine", RUNTIME}}
+
+
+def _runtime_patched(found: set[tuple[str, str | None]]) -> set[str | None]:
+    return {member for name, member in found if name == RUNTIME}
 
 
 def test_tests_patch_only_the_engine_and_the_allowlisted_names() -> None:
@@ -174,6 +187,15 @@ def test_tests_patch_only_the_engine_and_the_allowlisted_names() -> None:
     assert patched == ALLOWLIST, (
         f"new patch targets on {MODULE}: {sorted(patched - ALLOWLIST)}; "
         f"drop from ALLOWLIST, no test patches them any more: {sorted(ALLOWLIST - patched)}"
+    )
+
+
+def test_tests_patch_only_the_allowlisted_runtime_names() -> None:
+    patched = _runtime_patched(_found())
+    assert patched == RUNTIME_ALLOWLIST, (
+        f"new patch targets on {MODULE}.{RUNTIME}: {sorted(map(str, patched - RUNTIME_ALLOWLIST))}; "
+        f"drop from RUNTIME_ALLOWLIST, no test patches them any more: "
+        f"{sorted(RUNTIME_ALLOWLIST - patched)}"
     )
 
 
@@ -185,6 +207,94 @@ def test_every_engine_member_a_test_patches_exists() -> None:
 
 def test_every_allowlisted_name_exists_on_the_module() -> None:
     assert not {name for name in ALLOWLIST if not hasattr(ffmpeg, name)}
+    assert not {name for name in RUNTIME_ALLOWLIST if not hasattr(runtime, name)}
+
+
+def test_no_seam_name_is_reachable_from_the_package() -> None:
+    assert not {name for name in RUNTIME_ALLOWLIST if name in vars(ffmpeg)}
+
+
+def _package_trees() -> dict[Path, ast.Module]:
+    return {p: ast.parse(p.read_text(encoding="utf-8")) for p in sorted(PACKAGE.glob("*.py"))}
+
+
+def _runtime_bound(tree: ast.Module) -> bool:
+    return any(
+        isinstance(node, ast.ImportFrom)
+        and (node.module == MODULE or (node.level == 1 and not node.module))
+        and any(a.name == RUNTIME and a.asname is None for a in node.names)
+        for node in ast.walk(tree)
+    )
+
+
+def _bare_seam_reads(tree: ast.Module) -> set[str]:
+    return {
+        node.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name)
+        and isinstance(node.ctx, ast.Load)
+        and node.id in RUNTIME_ALLOWLIST
+    }
+
+
+def _runtime_attribute_reads(tree: ast.Module) -> set[str]:
+    return {
+        node.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == RUNTIME
+        and node.attr in RUNTIME_ALLOWLIST
+    }
+
+
+def test_package_call_sites_read_every_seam_name_through_the_runtime_module() -> None:
+    trees = _package_trees()
+    assert PACKAGE / "runtime.py" in trees
+    facade = trees[PACKAGE / "__init__.py"]
+    assert _runtime_bound(facade)
+    assert _runtime_attribute_reads(facade) == RUNTIME_ALLOWLIST
+    for path, tree in trees.items():
+        if path.name == "runtime.py":
+            continue
+        assert _bare_seam_reads(tree) == set(), f"{path.name} reads a seam name bare"
+        if path.name != "__init__.py":
+            assert _runtime_attribute_reads(tree) == set() or _runtime_bound(tree), path.name
+
+
+def test_no_module_binds_a_seam_name_from_the_runtime_or_the_package() -> None:
+    offenders: list[str] = []
+    for path in sorted(SRC.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        in_package = PACKAGE in path.parents
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            absolute = node.module or ""
+            runtime_source = absolute == f"{MODULE}.{RUNTIME}" or (
+                in_package and node.level == 1 and absolute == RUNTIME
+            )
+            package_source = absolute == MODULE or (in_package and node.level == 1 and not absolute)
+            names = {a.name for a in node.names}
+            if runtime_source and names & RUNTIME_ALLOWLIST:
+                offenders.append(
+                    f"{path.name}: from runtime import {sorted(names & RUNTIME_ALLOWLIST)}"
+                )
+            if package_source and names & RUNTIME_ALLOWLIST:
+                offenders.append(
+                    f"{path.name}: from the package import {sorted(names & RUNTIME_ALLOWLIST)}"
+                )
+    assert not offenders
+
+
+def test_every_facade_allowlisted_name_is_read_by_the_facade_itself() -> None:
+    facade = _package_trees()[PACKAGE / "__init__.py"]
+    reads = {
+        node.id
+        for node in ast.walk(facade)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+    }
+    assert reads >= ALLOWLIST
 
 
 def test_the_scanner_reads_every_patch_spelling() -> None:
@@ -201,6 +311,8 @@ def test_the_scanner_reads_every_patch_spelling() -> None:
             "monkeypatch.setattr('podcast_mcp.engines.ffmpeg.FFmpegEngine.mix_tracks', x)",
             "monkeypatch.setattr(unrelated, 'run', x)",
             "monkeypatch.setattr(ff, name, x)",
+            "monkeypatch.setattr(ff.runtime, 'run', x)",
+            "patch('podcast_mcp.engines.ffmpeg.runtime.popen')",
         ]
     )
     assert _found_in(source) == {
@@ -211,8 +323,12 @@ def test_the_scanner_reads_every_patch_spelling() -> None:
         ("resolve_ffmpeg", None),
         ("FFmpegEngine", "probe"),
         ("FFmpegEngine", "mix_tracks"),
+        ("runtime", "run"),
+        ("runtime", "popen"),
     }
     assert _outside_the_engine({("FFmpegEngine", "probe"), ("run", None)}) == {"run"}
+    assert _outside_the_engine({("runtime", "run")}) == set()
+    assert _runtime_patched({("runtime", "run"), ("run", None)}) == {"run"}
 
 
 @pytest.mark.parametrize(
@@ -274,6 +390,22 @@ def test_the_scanner_reads_every_patch_spelling() -> None:
             "import podcast_mcp as pm\nsetattr(pm.engines.ffmpeg, 'run', x)",
             {("run", None)},
             id="top package alias chain",
+        ),
+        pytest.param(
+            "from podcast_mcp.engines.ffmpeg import runtime as rt\nsetattr(rt, 'run', x)",
+            {("runtime", "run")},
+            id="runtime module alias",
+        ),
+        pytest.param(
+            "from podcast_mcp.engines import ffmpeg as ff\n"
+            "patch.multiple(ff.runtime, run=x, popen=y)",
+            {("runtime", "run"), ("runtime", "popen")},
+            id="patch.multiple on runtime",
+        ),
+        pytest.param(
+            "patch('podcast_mcp.engines.ffmpeg.runtime')",
+            {("runtime", None)},
+            id="whole runtime module string",
         ),
         pytest.param(
             "patch('podcast_mcp.engines.ffmpeg')",

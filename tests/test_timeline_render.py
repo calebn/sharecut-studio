@@ -527,14 +527,14 @@ def test_render_many_gapless_clips_single_ffmpeg_pass(sample_wav: Path, tmp_path
     out = project.workspace_path() / "artifacts" / "host_many.wav"
 
     ffmpeg_calls = {"n": 0}
-    real_run = ff.run
+    real_run = ff.runtime.run
 
     def counting_run(cmd, *args, **kwargs):
         if isinstance(cmd, (list, tuple)) and cmd and str(cmd[0]).endswith("ffmpeg"):
             ffmpeg_calls["n"] += 1
         return real_run(cmd, *args, **kwargs)
 
-    with patch.object(ff, "run", side_effect=counting_run):
+    with patch.object(ff.runtime, "run", side_effect=counting_run):
         render_track_from_timeline(project, project.tracks[0], out, {}, engine=eng)
 
     assert ffmpeg_calls["n"] == 1
@@ -627,14 +627,14 @@ def test_render_gap_between_clips_pads_silence(sample_wav: Path, tmp_path: Path)
     ]
     out = ws / "gapped.wav"
     commands: list[str] = []
-    real_run = ff.run
+    real_run = ff.runtime.run
 
     def capture_run(cmd, *args, **kwargs):
         if isinstance(cmd, (list, tuple)):
             commands.append(" ".join(str(x) for x in cmd))
         return real_run(cmd, *args, **kwargs)
 
-    with patch.object(ff, "run", side_effect=capture_run):
+    with patch.object(ff.runtime, "run", side_effect=capture_run):
         render_track_from_timeline(project, project.tracks[0], out, {}, engine=eng)
 
     render_cmds = [c for c in commands if "filter_complex" in c]
@@ -674,14 +674,14 @@ def test_render_overlapping_clips_mixes(sample_wav: Path, tmp_path: Path):
     ]
     out = ws / "ov.wav"
     commands: list[str] = []
-    real_run = ff.run
+    real_run = ff.runtime.run
 
     def capture_run(cmd, *args, **kwargs):
         if isinstance(cmd, (list, tuple)):
             commands.append(" ".join(str(x) for x in cmd))
         return real_run(cmd, *args, **kwargs)
 
-    with patch.object(ff, "run", side_effect=capture_run):
+    with patch.object(ff.runtime, "run", side_effect=capture_run):
         render_track_from_timeline(project, project.tracks[0], out, {}, engine=eng)
 
     render_cmds = [c for c in commands if "filter_complex" in c]
@@ -718,14 +718,14 @@ def test_render_leading_offset_delays_first_clip(sample_wav: Path, tmp_path: Pat
     ]
     out = ws / "lead.wav"
     commands: list[str] = []
-    real_run = ff.run
+    real_run = ff.runtime.run
 
     def capture_run(cmd, *args, **kwargs):
         if isinstance(cmd, (list, tuple)):
             commands.append(" ".join(str(x) for x in cmd))
         return real_run(cmd, *args, **kwargs)
 
-    with patch.object(ff, "run", side_effect=capture_run):
+    with patch.object(ff.runtime, "run", side_effect=capture_run):
         render_track_from_timeline(project, project.tracks[0], out, {}, engine=eng)
 
     render_cmds = [c for c in commands if "filter_complex" in c]
@@ -898,7 +898,7 @@ def test_render_crossfade_join_absorbs_sub_tolerance_gap(sample_wav: Path, tmp_p
     out = ws / "xfade_gap.wav"
     import podcast_mcp.engines.ffmpeg as ff
 
-    real_run = ff.run
+    real_run = ff.runtime.run
     commands: list[str] = []
 
     def capture_run(cmd, *args, **kwargs):
@@ -906,7 +906,7 @@ def test_render_crossfade_join_absorbs_sub_tolerance_gap(sample_wav: Path, tmp_p
             commands.append(" ".join(str(x) for x in cmd))
         return real_run(cmd, *args, **kwargs)
 
-    with patch.object(ff, "run", side_effect=capture_run):
+    with patch.object(ff.runtime, "run", side_effect=capture_run):
         render_track_from_timeline(
             project,
             project.tracks[0],
@@ -962,7 +962,7 @@ def test_render_fade_join_uses_segment_afade_not_acrossfade(sample_wav: Path, tm
     out = ws / "fade.wav"
     import podcast_mcp.engines.ffmpeg as ff
 
-    real_run = ff.run
+    real_run = ff.runtime.run
     commands: list[str] = []
 
     def capture_run(cmd, *args, **kwargs):
@@ -988,7 +988,7 @@ def test_render_fade_join_uses_segment_afade_not_acrossfade(sample_wav: Path, tm
         return render_timeline(output_path, audio, *args, **kwargs)
 
     monkey = patch.object(eng, "render_timeline", side_effect=capture_graph)
-    with patch.object(ff, "run", side_effect=capture_run), monkey:
+    with patch.object(ff.runtime, "run", side_effect=capture_run), monkey:
         render_track_from_timeline(
             project,
             project.tracks[0],
@@ -1045,7 +1045,7 @@ def test_render_crossfade_join_calls_acrossfade(sample_wav: Path, tmp_path: Path
     out = ws / "soft.wav"
     import podcast_mcp.engines.ffmpeg as ff
 
-    real_run = ff.run
+    real_run = ff.runtime.run
     commands: list[str] = []
 
     def capture_run(cmd, *args, **kwargs):
@@ -1053,7 +1053,7 @@ def test_render_crossfade_join_calls_acrossfade(sample_wav: Path, tmp_path: Path
             commands.append(" ".join(str(x) for x in cmd))
         return real_run(cmd, *args, **kwargs)
 
-    with patch.object(ff, "run", side_effect=capture_run):
+    with patch.object(ff.runtime, "run", side_effect=capture_run):
         render_track_from_timeline(
             project,
             project.tracks[0],
@@ -1288,7 +1288,7 @@ def test_render_overlapping_multi_source_clips_mixes(sample_wav: Path, tmp_path:
         return real_run(cmd, *args, **kwargs)
 
     with (
-        patch.object(ff, "run", side_effect=capture_run),
+        patch.object(ff.runtime, "run", side_effect=capture_run),
         patch.object(proc, "run", side_effect=capture_run),
     ):
         render_track_from_timeline(project, project.tracks[0], out, {}, engine=eng)

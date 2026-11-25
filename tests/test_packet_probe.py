@@ -46,7 +46,7 @@ def packet_probe(tmp_path, monkeypatch):
         "streams": [{"codec_type": "audio", "sample_rate": "48000", "channels": 1}],
     }
     monkeypatch.setattr(
-        module,
+        module.runtime,
         "run",
         lambda *_args, **_kwargs: SimpleNamespace(stdout=json.dumps(metadata), stderr=""),
     )
@@ -71,7 +71,7 @@ def test_packet_reader_keeps_each_read_bounded(packet_probe, monkeypatch):
 
     child = PacketChild()
     child.stdout = ManyPackets()
-    monkeypatch.setattr(module, "popen", lambda *_args, **_kwargs: child)
+    monkeypatch.setattr(module.runtime, "popen", lambda *_args, **_kwargs: child)
     engine, path, _ = packet_probe
     assert engine.probe(path).require_duration_sec() == 50_000
     assert child.stdout.closed and child.reaped
@@ -86,7 +86,7 @@ def test_incomplete_or_invalid_packet_scan_never_publishes_a_prefix(
 ):
     engine, path, _ = packet_probe
     child = PacketChild(packets)
-    monkeypatch.setattr(module, "popen", lambda *_args, **_kwargs: child)
+    monkeypatch.setattr(module.runtime, "popen", lambda *_args, **_kwargs: child)
     info = engine.probe(path)
     assert info.duration_estimated
     with pytest.raises(CodedValueError):
@@ -104,7 +104,7 @@ def test_scan_failure_retries_and_complete_scan_reuses_result(packet_probe, monk
         children.append(child)
         return child
 
-    monkeypatch.setattr(module, "popen", spawn)
+    monkeypatch.setattr(module.runtime, "popen", spawn)
     first = engine.probe(path)
     assert first.duration_estimated is bool(exit_code)
     assert engine.probe(path).require_duration_sec() == 2
@@ -124,7 +124,7 @@ def test_scan_cache_partitions_trust_media_and_binary_revisions(
         assert kwargs == {"stdout": module.PIPE, "stderr": module.DEVNULL}
         return PacketChild()
 
-    monkeypatch.setattr(module, "popen", spawn)
+    monkeypatch.setattr(module.runtime, "popen", spawn)
     for _ in range(2):
         assert engine.probe(path).require_duration_sec() == 2
     assert len(commands) == 1
@@ -164,7 +164,7 @@ def test_file_changed_during_scan_does_not_cache_old_extent(
             changed.write_bytes(b"replacement revision")
         return PacketChild()
 
-    monkeypatch.setattr(module, "popen", spawn)
+    monkeypatch.setattr(module.runtime, "popen", spawn)
     assert engine.probe(path).duration_estimated
     assert engine.probe(path).require_duration_sec() == 2
     assert engine.probe(path).require_duration_sec() == 2
@@ -185,7 +185,7 @@ def test_timer_start_failure_still_kills_and_reaps_child(packet_probe, monkeypat
         def cancel(self):
             pass
 
-    monkeypatch.setattr(module, "popen", lambda *_args, **_kwargs: child)
+    monkeypatch.setattr(module.runtime, "popen", lambda *_args, **_kwargs: child)
     monkeypatch.setattr(module.threading, "Timer", BrokenTimer)
     with pytest.raises(RuntimeError, match="thread resource unavailable"):
         engine.probe(path)
@@ -203,14 +203,14 @@ def test_timer_start_failure_still_kills_and_reaps_child(packet_probe, monkeypat
 def test_packet_deadline_kills_and_reaps_stalled_or_busy_child(packet_probe, monkeypatch, script):
     engine, path, _ = packet_probe
     children = []
-    real_popen = module.popen
+    real_popen = module.runtime.popen
 
     def spawn(_cmd, **kwargs):
         child = real_popen([sys.executable, "-c", script], **kwargs)
         children.append(child)
         return child
 
-    monkeypatch.setattr(module, "popen", spawn)
+    monkeypatch.setattr(module.runtime, "popen", spawn)
     monkeypatch.setattr(module, "_PACKET_SCAN_TIMEOUT_SEC", 0.2)
     assert engine.probe(path).duration_estimated
     assert len(children) == 1
@@ -230,7 +230,7 @@ def test_writer_duration_gate_rejects_invalid_extent(duration):
 def test_nonfinite_declarations_require_a_scan(packet_probe, monkeypatch, declaration):
     engine, path, metadata = packet_probe
     metadata["streams"][0]["duration"] = declaration
-    monkeypatch.setattr(module, "popen", lambda *_args, **_kwargs: PacketChild())
+    monkeypatch.setattr(module.runtime, "popen", lambda *_args, **_kwargs: PacketChild())
     info = engine.probe(path)
     assert info.require_duration_sec() == 2
     assert info.audio_duration_sec is None
@@ -240,7 +240,7 @@ def test_video_matroska_scan_retains_declared_pcm_shortfall_check(packet_probe, 
     engine, path, metadata = packet_probe
     metadata["streams"][0]["duration"] = "4"
     metadata["streams"].append({"codec_type": "video"})
-    real_popen = module.popen
+    real_popen = module.runtime.popen
 
     def spawn(cmd, **kwargs):
         if "packet=pts_time,duration_time" in cmd:
@@ -248,7 +248,7 @@ def test_video_matroska_scan_retains_declared_pcm_shortfall_check(packet_probe, 
         script = "import os; os.write(2, b'out_time_us=1000000\\nprogress=end\\n')"
         return real_popen([sys.executable, "-c", script], **kwargs)
 
-    monkeypatch.setattr(module, "popen", spawn)
+    monkeypatch.setattr(module.runtime, "popen", spawn)
     assert engine.probe(path).audio_duration_sec == 4
     with pytest.raises(RuntimeError, match="ended short"):
         list(engine.stream_pcm_f32(path)[2])
@@ -261,7 +261,7 @@ def _first_pts_run(monkeypatch, *, returncode=0, stdout="0.021333,\n0.042667,\n"
         calls.append((cmd, kwargs))
         return SimpleNamespace(returncode=returncode, stdout=stdout, stderr="")
 
-    monkeypatch.setattr(module, "run", fake_run)
+    monkeypatch.setattr(module.runtime, "run", fake_run)
     return calls
 
 
@@ -350,7 +350,7 @@ def test_desktop_scan_failure_yields_without_the_shortfall_check(packet_probe, m
     metadata["streams"].append({"codec_type": "video"})
     monkeypatch.setattr(engine, "_scan_audio_extent", lambda *_a, **_k: None)
     seen: list[list[str]] = []
-    real_popen = module.popen
+    real_popen = module.runtime.popen
 
     def spawn(cmd, **kwargs):
         seen.append(list(cmd))
@@ -360,7 +360,7 @@ def test_desktop_scan_failure_yields_without_the_shortfall_check(packet_probe, m
         )
         return real_popen([sys.executable, "-c", script], **kwargs)
 
-    monkeypatch.setattr(module, "popen", spawn)
+    monkeypatch.setattr(module.runtime, "popen", spawn)
     info = engine.probe(path)
     assert info.duration_estimated is True
     rate, channels, chunks = engine.stream_pcm_f32(path)
@@ -376,14 +376,14 @@ def test_stream_pcm_f32_argv_puts_progress_pipe2_right_after_the_binary(tmp_path
     media.write_bytes(b"x")
     argv = engine._pcm_f32_argv(media, 8000, 2)
     captured: list[list[str]] = []
-    real_popen = module.popen
+    real_popen = module.runtime.popen
 
     def spawn(cmd, **kwargs):
         captured.append(list(cmd))
         script = "import os; os.write(2, b'out_time_us=1000000\\nprogress=end\\n')"
         return real_popen([sys.executable, "-c", script], **kwargs)
 
-    monkeypatch.setattr(module, "popen", spawn)
+    monkeypatch.setattr(module.runtime, "popen", spawn)
     list(
         FFmpegEngine._read_pcm_f32(
             argv, 2, chunk_frames=10, timeout_sec=30.0, expected_duration_sec=1.0

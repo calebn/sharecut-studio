@@ -46,7 +46,7 @@ def test_peak_count_uses_last_exact_label(
 ) -> None:
     stderr = "\n".join(f"[Parsed_astats_0 @ 0x1] {line}" for line in payload.splitlines())
     monkeypatch.setattr(
-        "podcast_mcp.engines.ffmpeg.run",
+        "podcast_mcp.engines.ffmpeg.runtime.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, stderr=stderr),
     )
 
@@ -73,7 +73,7 @@ def test_exact_labels_preserve_other_health_fields(monkeypatch: pytest.MonkeyPat
     ]
     stderr = "\n".join(f"[Parsed_astats_0 @ 0x1] {line}" for line in payload)
     monkeypatch.setattr(
-        "podcast_mcp.engines.ffmpeg.run",
+        "podcast_mcp.engines.ffmpeg.runtime.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, stderr=stderr),
     )
 
@@ -109,9 +109,9 @@ def test_astats_binary_selection_preserves_admission(
             argv, 0, stderr=b"[Parsed_astats_0 @ 0x1] Peak count: 2.5\n"
         )
 
-    monkeypatch.setattr(ffmpeg_module, "resolve_ffmpeg_pair", unexpected_pair)
-    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.resolve_ffmpeg", resolve)
-    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.run", run)
+    monkeypatch.setattr(ffmpeg_module.runtime, "resolve_ffmpeg_pair", unexpected_pair)
+    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.runtime.resolve_ffmpeg", resolve)
+    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.runtime.run", run)
 
     assert FFmpegEngine.astats(Path("audio.wav"), ffmpeg=binary)["peak_count"] == 2
     assert resolutions == ([] if binary else ["default"])
@@ -142,10 +142,10 @@ def test_astats_preserves_boundary_failure(monkeypatch: pytest.MonkeyPatch, boun
         raise failure
 
     monkeypatch.setattr(
-        "podcast_mcp.engines.ffmpeg.resolve_ffmpeg",
+        "podcast_mcp.engines.ffmpeg.runtime.resolve_ffmpeg",
         fail if boundary == "resolution" else lambda: "resolved-ffmpeg",
     )
-    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.run", fail)
+    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.runtime.run", fail)
 
     with pytest.raises(FileNotFoundError) as caught:
         FFmpegEngine.astats(Path("missing.wav"))

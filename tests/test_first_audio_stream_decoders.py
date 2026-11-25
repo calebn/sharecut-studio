@@ -122,8 +122,8 @@ def test_pcm_argv_keeps_the_map_after_the_duration_rewrite(
         seen.append(list(command))
         return real_popen(command, **kwargs)
 
-    real_popen = ffmpeg_module.popen
-    monkeypatch.setattr(ffmpeg_module, "popen", spy)
+    real_popen = ffmpeg_module.runtime.popen
+    monkeypatch.setattr(ffmpeg_module.runtime, "popen", spy)
     list(engine.stream_pcm_f32(path)[2])
     assert seen and "-progress" in seen[0]
     at = seen[0].index("-map")
@@ -231,7 +231,7 @@ def test_single_stream_decodes_match_a_default_pick(
     assert got.read_bytes() == want.read_bytes()
     assert engine.measure_loudness_blocks(single) == _loudness_blocks(single)
     mapped = (FFmpegEngine.astats(single), engine.measure_loudness(single))
-    monkeypatch.setattr(ffmpeg_module, "run", _without_map(ffmpeg_module.run))
+    monkeypatch.setattr(ffmpeg_module.runtime, "run", _without_map(ffmpeg_module.runtime.run))
     assert mapped == (FFmpegEngine.astats(single), engine.measure_loudness(single))
 
 

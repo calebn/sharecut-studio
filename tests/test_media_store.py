@@ -407,14 +407,14 @@ def test_upload_rejects_over_cap_declaration_without_a_packet_scan(
         ],
     }
     monkeypatch.setattr(
-        "podcast_mcp.engines.ffmpeg.run",
+        "podcast_mcp.engines.ffmpeg.runtime.run",
         lambda *_args, **_kwargs: SimpleNamespace(stdout=json.dumps(metadata), stderr=""),
     )
 
     def forbidden_scan(*_args, **_kwargs):
         pytest.fail("This fixture has a declared duration and must exercise the upload cap")
 
-    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.popen", forbidden_scan)
+    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.runtime.popen", forbidden_scan)
     assert engine.probe(sample_wav).duration_estimated is False
     root = ProjectWorkspace.open(minimal_project).project.workspace_path()
     with pytest.raises(CodedValueError):

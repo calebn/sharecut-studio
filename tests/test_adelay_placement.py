@@ -242,13 +242,13 @@ def test_render_pins_the_forced_rate_not_the_source_rate(tmp_path: Path) -> None
         (At(3.05, _impulse_at(tmp_path / "impulse.wav", 44100)),),
     )
     commands: list[str] = []
-    real_run = ff.run
+    real_run = ff.runtime.run
 
     def capture_run(cmd, *args, **kwargs):
         commands.append(" ".join(str(x) for x in cmd))
         return real_run(cmd, *args, **kwargs)
 
-    with patch.object(ff, "run", side_effect=capture_run):
+    with patch.object(ff.runtime, "run", side_effect=capture_run):
         FFmpegEngine().render_timeline(tmp_path / "out.wav", audio, "aformat=sample_rates=48000")
     assert any(
         "aformat=sample_rates=48000,adelay=delays=146400S" in command for command in commands
@@ -421,14 +421,14 @@ def test_plain_render_unreadable_non_wav_raises_render_rate_unresolved(tmp_path:
 
 def _captured_graphs(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     graphs: list[str] = []
-    real_run = ff.run
+    real_run = ff.runtime.run
 
     def capture_run(cmd, *args, **kwargs):
         if "-map" in cmd:
             graphs.append(cmd[cmd.index("-filter_complex") + 1])
         return real_run(cmd, *args, **kwargs)
 
-    monkeypatch.setattr(ff, "run", capture_run)
+    monkeypatch.setattr(ff.runtime, "run", capture_run)
     return graphs
 
 
@@ -572,13 +572,13 @@ def _m4a(path: Path, rate: int) -> SourceAudio:
 
 def _spawns(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     spawned: list[str] = []
-    real_run = ff.run
+    real_run = ff.runtime.run
 
     def counting_run(cmd, *args, **kwargs):
         spawned.append(Path(cmd[0]).name)
         return real_run(cmd, *args, **kwargs)
 
-    monkeypatch.setattr(ff, "run", counting_run)
+    monkeypatch.setattr(ff.runtime, "run", counting_run)
     monkeypatch.setattr(render_clock, "run", counting_run)
     return spawned
 
@@ -614,14 +614,14 @@ def test_plain_render_spawn_count(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 def _failing_run(
     monkeypatch: pytest.MonkeyPatch, fails: Callable[[list[str]], bool], error: OSError
 ) -> None:
-    real_run = ff.run
+    real_run = ff.runtime.run
 
     def run(cmd, *args, **kwargs):
         if fails([str(part) for part in cmd]):
             raise error
         return real_run(cmd, *args, **kwargs)
 
-    monkeypatch.setattr(ff, "run", run)
+    monkeypatch.setattr(ff.runtime, "run", run)
     monkeypatch.setattr(render_clock, "run", run)
 
 
@@ -690,7 +690,7 @@ def _render_long_graph(
             raise RuntimeError("render failed")
         return CompletedProcess(argv, 0)
 
-    monkeypatch.setattr(ff, "run", run)
+    monkeypatch.setattr(ff.runtime, "run", run)
     monkeypatch.setattr(render_clock, "run", run)
     render = FFmpegEngine().render_timeline
     if render_fails:
@@ -794,14 +794,14 @@ def test_clock_suite_file_form(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, 
 def test_small_graph_argv_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     audio = _delayed(tmp_path, 48000, [(48000, 1.0), (48000, 2.0), (48000, 3.05)])
     renders: list[list[str]] = []
-    real_run = ff.run
+    real_run = ff.runtime.run
 
     def capture_run(cmd, *args, **kwargs):
         if "-map" in cmd:
             renders.append([str(part) for part in cmd])
         return real_run(cmd, *args, **kwargs)
 
-    monkeypatch.setattr(ff, "run", capture_run)
+    monkeypatch.setattr(ff.runtime, "run", capture_run)
     out = tmp_path / "out.wav"
     FFmpegEngine().render_timeline(out, audio, "anull")
     pin = "aformat=sample_rates=48000"
@@ -847,7 +847,7 @@ def test_negotiated_inputs_follow_the_render_input_order(
     dry_run: list[tuple[Path, ...]] = []
     renders: list[list[str]] = []
     real_rates = ff.negotiated_rates
-    real_run = ff.run
+    real_run = ff.runtime.run
 
     def capture_rates(ffmpeg, ffprobe, filters, input_paths, names):
         dry_run.append(input_paths)
@@ -858,7 +858,7 @@ def test_negotiated_inputs_follow_the_render_input_order(
         return real_run(cmd, *args, **kwargs)
 
     monkeypatch.setattr(ff, "negotiated_rates", capture_rates)
-    monkeypatch.setattr(ff, "run", capture_run)
+    monkeypatch.setattr(ff.runtime, "run", capture_run)
     FFmpegEngine().render_timeline(tmp_path / "out.wav", audio, "anull")
     argv = renders[-1]
     inputs = tuple(Path(argv[i + 1]) for i, option in enumerate(argv) if option == "-i")
@@ -897,8 +897,8 @@ def test_run_cancellable_spawn_refusal(
     def popen(*args, **kwargs):
         raise refusal
 
-    monkeypatch.setattr(ff, "popen", popen)
-    _assert_refusal(refusal, coded, lambda: ff._run_cancellable(["ffmpeg"], lambda: False))
+    monkeypatch.setattr(ff.runtime, "popen", popen)
+    _assert_refusal(refusal, coded, lambda: ff.runtime._run_cancellable(["ffmpeg"], lambda: False))
 
 
 @pytest.mark.parametrize("refusal,coded", _REFUSALS)
@@ -922,7 +922,7 @@ def test_proxy_execute_spawn_refusal(
 def test_run_cancellable_real_oversized_argument_is_render_command_too_long() -> None:
     cmd = [sys.executable, "-c", "pass", *["x" * 100_000] * 50]
     with pytest.raises(CodedValueError) as error:
-        ff._run_cancellable(cmd, lambda: False)
+        ff.runtime._run_cancellable(cmd, lambda: False)
     assert error.value.code == "render_command_too_long"
     assert isinstance(error.value.__cause__, OSError)
     assert error.value.__cause__.errno == errno.E2BIG

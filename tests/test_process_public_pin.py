@@ -174,12 +174,12 @@ def test_ios_row_fails_closed_before_any_spawn(
 def test_engine_modules_bind_run_and_popen_by_name_so_patching_them_works(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # tests/test_first_audio_stream_decoders.py patches ffmpeg_module.run/.popen and drives
+    # tests/test_first_audio_stream_decoders.py patches ffmpeg_module.runtime.run/.popen and drives
     # the engine through them; this pins the binding that makes that possible.
-    assert ffmpeg_module.run is process.run
-    assert ffmpeg_module.popen is process.popen
+    assert ffmpeg_module.runtime.run is process.run
+    assert ffmpeg_module.runtime.popen is process.popen
     seen: list[object] = []
-    monkeypatch.setattr(ffmpeg_module, "run", lambda argv, **kw: seen.append(argv))
-    ffmpeg_module.run(["x"])
+    monkeypatch.setattr(ffmpeg_module.runtime, "run", lambda argv, **kw: seen.append(argv))
+    ffmpeg_module.runtime.run(["x"])
     assert seen == [["x"]]
-    assert process.run is not ffmpeg_module.run
+    assert process.run is not ffmpeg_module.runtime.run
