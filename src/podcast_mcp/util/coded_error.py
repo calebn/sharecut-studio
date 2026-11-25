@@ -93,8 +93,8 @@ _GUEST_MESSAGES = {
     "replacement_token_invalid": "Each replacement word needs a letter or number.",
     "review_version_not_found": "This link's audio isn't available right now. Ask the host to check it.",
     "roll_needs_abutting_clips": "These clips need to touch before their join can be rolled. Move one clip to the other or trim an edge.",
-    "share_capability_required": "This action isn't available on this link. Ask the host to update its access.",
     "share_acl_denied": "Your account is not on this link's guest list. Ask the host to invite you.",
+    "share_capability_required": "This action isn't available on this link. Ask the host to update its access.",
     "share_not_found": "This link isn't available right now; ask the host to check it.",
     "share_token_mismatch": "This link isn't available right now; ask the host to check it.",
     "speaker_backend_unavailable": "Speaker recognition isn't available on the host's computer. Ask the host to check it.",
@@ -197,8 +197,8 @@ class GuardRefusal(CodedError):
 
     Its message is written for any caller, a share guest included, and goes out as written
     unless it names a host path (see ``guard_http_error``); a refusal from the domain gets
-    guest copy by code instead. The HTTP adapter answers it
-    with ``gui.routes.deps.guard_http_error``.
+    guest copy by code instead. The HTTP adapter answers it with
+    ``gui.routes.deps.guard_http_error``.
     """
 
 
