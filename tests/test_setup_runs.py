@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import errno
+import os
 import shutil
 import threading
 from pathlib import Path
@@ -13,6 +14,7 @@ from podcast_mcp.engines.models.whisper import persist_whisper_model
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.app.recent_projects import recent_project_cards, record_recent
+from podcast_mcp.services.collaboration.share_registry import SqliteShareRegistry
 from podcast_mcp.services.jobs import Job, JobManager
 from podcast_mcp.services.jobs import setup_runs as queue_module
 from podcast_mcp.services.jobs.setup_runs import SetupRunQueue
@@ -415,6 +417,79 @@ def test_a_move_keeps_the_park_and_the_runs_its_studio_launched(
     assert queue._parked == {new_episode: queue._model_epoch()}
     reopened = SetupRunQueue(jobs, path, initial_project=new_launch)
     assert reopened.waiting(new_episode)
+
+
+def test_a_move_by_another_studio_keeps_the_launching_studio_as_owner(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    path = tmp_path / "setup-runs.json"
+    launch_project = (tmp_path / "pinned" / "episode.sharecut").resolve()
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    launching = SetupRunQueue(jobs, path, initial_project=launch_project)
+    assert launching.enqueue(imported_project)
+
+    other = SetupRunQueue(jobs, path)
+    other.moved(launch_project, tmp_path / "moved-pinned" / "episode.sharecut")
+
+    [entry] = launching._read()
+    assert entry.launch_project == launch_project
+    assert launching.waiting(imported_project)
+
+
+def test_a_run_that_ends_after_its_launching_studio_moved_is_removed(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    path = tmp_path / "setup-runs.json"
+    launch_project = (tmp_path / "pinned" / "episode.sharecut").resolve()
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    queue = SetupRunQueue(jobs, path, initial_project=launch_project)
+    assert queue.enqueue(imported_project)
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: True)
+    calls: list = []
+
+    def start(project_path, **_opts):
+        calls.append(project_path)
+        # The launching Studio's episode moves while this run is going.
+        queue.moved(launch_project, tmp_path / "moved-pinned" / "episode.sharecut")
+        return Job(id="first-run", kind="pipeline", status="error", error_code="pipeline_failed")
+
+    monkeypatch.setattr(jobs, "start", start)
+    queue._dispatch(threading.Event())
+    assert calls == [imported_project.resolve()]
+    assert queue._read() == []
+
+
+def test_a_partial_move_still_moves_the_queued_run(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    app = create_app(served_project=imported_project, host_mcp=False)
+    client = TestClient(app, client=("127.0.0.1", 5000))
+    assert client.post("/api/pipeline/setup-run", json={"path": str(imported_project)}).json() == {
+        "queued": True
+    }
+    episode_folder = imported_project.resolve().parent
+    real_rename = os.rename
+
+    def one_way(src, dst):
+        if Path(src) != episode_folder:
+            raise OSError("cannot go back")
+        return real_rename(src, dst)
+
+    def registry_fails(self, old, new):
+        raise RuntimeError("registry write failed")
+
+    monkeypatch.setattr("podcast_mcp.services.app.move_project.os.rename", one_way)
+    monkeypatch.setattr(SqliteShareRegistry, "rebase_workspace", registry_fails)
+    dest_parent = tmp_path / "elsewhere"
+    dest_parent.mkdir()
+    res = _move_served(client, imported_project, dest_parent)
+    assert res.headers.get("x-sharecut-error-code") == "project_moved_partial", res.text
+    moved = Path(res.json()["detail"]["project_path"]).resolve()
+    assert moved.is_file()
+    assert [entry.path for entry in app.state.setup_runs._read()] == [moved]
 
 
 def test_a_move_of_an_episode_with_no_queued_run_writes_no_queue(tmp_path: Path) -> None:
