@@ -583,16 +583,21 @@ def analyze_candidates(
     speaker_context: _SpeakerCutContext | None,
     peer_indexes: dict[str, PeerTrackSpeechIndex] | None,
     word_indexes: Mapping[str, CutWordIndex],
+    timeline_caches: TrackRmsCacheSet | None = None,
     max_workers: int | None = None,
 ) -> list[_AnalyzedCut | CutRejected]:
     """Analyze ``candidates``, results in candidate order (threads only when N >= 2).
+
+    ``timeline_caches`` is the stems set the workers read; a caller that goes on to apply the
+    cuts passes the same set on, and it must be built on the caller's thread (#1471).
 
     Duplicate pause trims are dropped after the proposals have been resolved against each
     other (:func:`_resolve_analyzed_cuts`), so a trim whose twin does not survive is not
     lost with it.
     """
     session_air = SessionAir(project, audio_caches=audio_caches, word_indexes=word_indexes)
-    timeline_caches = shared_timeline_rms_caches(project, defaults=defaults)
+    if timeline_caches is None:
+        timeline_caches = shared_timeline_rms_caches(project, defaults=defaults)
 
     def analyze(candidate: _CutCandidate) -> _AnalyzedCut | CutRejected:
         prepared = _prepare_candidate(

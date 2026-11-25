@@ -17,6 +17,7 @@ from podcast_mcp.edits.acoustic_word import (
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.cut_application import apply_auto_edits
 from podcast_mcp.edits.cut_policy import decision_policy, review_fields
+from podcast_mcp.edits.cut_proof import shared_timeline_rms_caches
 from podcast_mcp.edits.pause_floor import peer_speech_indexes
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
 from podcast_mcp.edits.tighten.acoustic_scan import _add_acoustic_candidates
@@ -270,6 +271,10 @@ def propose_tighten_edits(
 
         speaker_context = _speaker_cut_context(project) if candidates else None
         word_indexes = _word_indexes(project, candidates)
+        # Built here on the caller's thread (a pool worker would wait on the project lock
+        # that ``mutate`` holds, #1471) and shared with the apply below, whose
+        # cut-speech assessment would otherwise re-read each window from disk (#2364).
+        timeline_caches = shared_timeline_rms_caches(project, defaults=cfg)
         results = analyze_candidates(
             project,
             candidates,
@@ -278,6 +283,7 @@ def propose_tighten_edits(
             speaker_context=speaker_context,
             peer_indexes=peer_indexes,
             word_indexes=word_indexes,
+            timeline_caches=timeline_caches,
             max_workers=max_workers,
         )
         resolved = _resolve_analyzed_cuts(
@@ -295,7 +301,8 @@ def propose_tighten_edits(
     # Apply serially, in the same order the candidates were gathered, so decision
     # ordering/coalescing behavior is identical to the fully-serial path.
     proposed: list[EditDecision] = [
-        _apply_analyzed_cut(working, result, defaults=defaults) for result in resolved
+        _apply_analyzed_cut(working, result, defaults=defaults, timeline_caches=timeline_caches)
+        for result in resolved
     ]
     proposed_ids = {decision.id for decision in proposed}
     # Transcript order, not a set: coalescing moves each track's decisions to the
