@@ -204,4 +204,47 @@ describe("App styles", () => {
       /padding-block-start:\s*env\(safe-area-inset-top\)/,
     );
   });
+
+  it("gives Dismiss all its 44 px for every pointer, and wraps the group head instead of pushing it off the edge", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(
+      join(here, "styles/partials/review-stage.css"),
+      "utf8",
+    );
+    const rule = (selector: string) =>
+      css.match(new RegExp(`(?:^|\\n)${selector}\\s*\\{([^}]*)}`))?.[1];
+    const bulk = rule("\\.rv-bulk-action");
+    expect(bulk).toMatch(/min-block-size:\s*var\(--touch-min\)/);
+    expect(bulk).toMatch(/min-inline-size:\s*var\(--touch-min\)/);
+    expect(bulk).toMatch(/flex:\s*none/);
+    expect(bulk).toMatch(/white-space:\s*nowrap/);
+    // The rule sits at the top level, not inside a pointer media query.
+    const before = css.slice(0, css.indexOf(".rv-bulk-action"));
+    const depth = [...before].reduce(
+      (n, c) => n + (c === "{" ? 1 : c === "}" ? -1 : 0),
+      0,
+    );
+    expect(depth).toBe(0);
+    expect(css).not.toMatch(
+      /@media\s*\(pointer:\s*coarse\)\s*\{[^@]*\.rv-bulk-action/,
+    );
+    expect(css).toMatch(
+      /\.rv-group-head\s*\{[^}]*flex-wrap:\s*wrap;[^}]*row-gap:/,
+    );
+  });
+
+  it("lets the Listen dock grow and wrap its Comment button under the transport at large text", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(join(here, "styles/partials/system.css"), "utf8");
+    const rule = (selector: string) =>
+      css.match(new RegExp(`\\n${selector}\\s*\\{([^}]*)}`))?.[1];
+    const dock = rule("\\.sys-listen-dock");
+    expect(dock).toMatch(/block-size:\s*auto/);
+    expect(dock).toMatch(/min-block-size:\s*var\(--player-dock-height\)/);
+    expect(dock).toMatch(
+      /grid-template-rows:\s*var\(--touch-min\) var\(--control-height\)\s+auto;/,
+    );
+    expect(rule("\\.sys-listen-dock-transport")).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule("\\.sys-listen-dock-cluster")).toMatch(/flex-wrap:\s*nowrap/);
+  });
 });

@@ -2,8 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
-import { postDocumentCommand } from "./documentCommand";
-import { createRelocatedE2eProject } from "./liveProject";
+import { setRootFontSize } from "./rootFontSize";
 import { withShareableProject } from "./shareableProject";
 import {
   createReviewShare,
@@ -11,40 +10,12 @@ import {
   openHostShare,
 } from "./shareNavigation";
 import { goToStage, selectRangeSec } from "./stageNav";
+import { setTheme, withAppearance } from "./theme";
 import { withBrowserPages } from "./twoBrowserPages";
+import { hostEditsTheAudio, twoCopiesProject } from "./twoCopiesProject";
 
 const COMMAND_ROUTE = "**/api/review/*/daw/document/command";
 const ROW_TITLE = "Your cut at 0:11 overlaps a newer edit";
-
-function twoCopiesProject(prefix: string) {
-  const copy = createRelocatedE2eProject(prefix);
-  const data = JSON.parse(fs.readFileSync(copy.projectPath, "utf8"));
-  const clip = {
-    track_id: "reference",
-    source_start: 0,
-    source_end: 5,
-    fade_in_ms: 0,
-    fade_out_ms: 0,
-    join_in_mode: "fade",
-    source_id: null,
-  };
-  data.timeline.clips = [
-    { ...clip, id: "first-copy", timeline_start: 0 },
-    { ...clip, id: "second-copy", timeline_start: 10 },
-    {
-      ...clip,
-      id: "peer",
-      track_id: "guest",
-      source_end: 20,
-      timeline_start: 0,
-    },
-  ];
-  data.timeline.duration_sec = 20;
-  data.editorial.edit_decisions = [];
-  data.editorial.edit_log = [];
-  fs.writeFileSync(copy.projectPath, `${JSON.stringify(data, null, 2)}\n`);
-  return copy;
-}
 
 const PROOF_DIR = process.env.UI_PROOF_DIR;
 
@@ -127,21 +98,6 @@ async function seedStaleCut(page: Page, token: string): Promise<void> {
         };
       }),
     { key: `queue:${token}`, value: row },
-  );
-}
-
-async function hostEditsTheAudio(host: Page, projectPath: string) {
-  await postDocumentCommand(
-    host,
-    "e2e-host",
-    "SetClipFade",
-    {
-      clip_id: "second-copy",
-      fade_in_ms: 40,
-      fade_out_ms: 0,
-      expected: { fade_in_ms: 0, fade_out_ms: 0 },
-    },
-    projectPath,
   );
 }
 
@@ -339,6 +295,305 @@ test("on a phone with touch the row keeps its three buttons reachable and 44 px 
           await proof(guest!, "conflict-row-phone-390-touch");
           await group.getByRole("button", { name: names[2]! }).tap();
           await expect(attention(guest!)).toHaveCount(0);
+        },
+      );
+    },
+    undefined,
+    twoCopiesProject,
+  );
+});
+
+const DOCK_PROPERTY = "--player-dock-height";
+
+/** Three stale cuts a Commenter queued before the host edited the audio: all three are refused on replay. */
+async function seedStaleCuts(page: Page, token: string): Promise<void> {
+  const rows = [1, 2, 3].map((n) => ({
+    client_id: "viewer-e2e",
+    command_id: `e2e-stale-cut-${n}`,
+    client_seq: n,
+    type: "EditSelectedRange",
+    created_at: Date.now() + n,
+    payload: {
+      action: "cut",
+      targets: [
+        {
+          kind: "exact_range",
+          intervals: [{ start: 11, end: 12 }],
+          track_ids: ["reference"],
+          clips: [],
+          media_seals: { reference: "sealed-before-the-host-edit" },
+        },
+      ],
+    },
+  }));
+  await page.evaluate(
+    ({ key, value }) =>
+      new Promise<void>((resolve, reject) => {
+        const opened = indexedDB.open("podcast-daw-offline", 1);
+        opened.onerror = () => reject(opened.error);
+        opened.onsuccess = () => {
+          const db = opened.result;
+          const store = db.transaction("kv", "readwrite").objectStore("kv");
+          store.put(value, key);
+          store.transaction.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          store.transaction.onerror = () => reject(store.transaction.error);
+        };
+      }),
+    { key: `queue:${token}`, value: rows },
+  );
+}
+
+async function threeRefusedCuts(host: Page, guest: Page, projectPath: string) {
+  const token = await createReviewShare(host, projectPath, "commenter");
+  await openGuestShare(guest, token);
+  await guest.route(COMMAND_ROUTE, (route) => route.abort("failed"));
+  await seedStaleCuts(guest, token);
+  await guest.reload();
+  await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+  await hostEditsTheAudio(host, projectPath);
+  await reconnect(guest);
+  await expect(
+    attention(guest).getByRole("button", { name: /^Hear your cut/ }),
+  ).toHaveCount(3);
+}
+
+/** Every dock button lies wholly in the window and is what a tap at its centre reaches. */
+function dockButtons(page: Page) {
+  return page.evaluate(() => {
+    const window_ = { width: innerWidth, height: innerHeight };
+    const shown = [
+      ...document.querySelectorAll(".sys-listen-dock button"),
+    ].filter((button) => button.getBoundingClientRect().width > 0);
+    return shown.map((button) => {
+      const box = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        box.left + box.width / 2,
+        box.top + box.height / 2,
+      );
+      return {
+        name: button.getAttribute("aria-label") ?? button.textContent,
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        inWindow:
+          box.left >= 0 &&
+          box.right <= window_.width &&
+          box.top >= 0 &&
+          box.bottom <= window_.height,
+        reachable: hit === button || button.contains(hit),
+      };
+    });
+  });
+}
+
+/** The scrolling element that holds the Needs attention group (the queue sheet on a phone). */
+function sheetOf(page: Page) {
+  return attention(page).evaluate((group) => {
+    let node: HTMLElement | null = group.parentElement;
+    while (node && !/(auto|scroll)/.test(getComputedStyle(node).overflowY))
+      node = node.parentElement;
+    const sheet = node ?? document.documentElement;
+    const box = sheet.getBoundingClientRect();
+    const dock = document.querySelector(".sys-listen-dock");
+    return {
+      scrollWidth: sheet.scrollWidth,
+      clientWidth: sheet.clientWidth,
+      bottom: box.bottom,
+      dockTop: dock ? dock.getBoundingClientRect().top : null,
+    };
+  });
+}
+
+const PHONE_CELLS = [
+  { width: 390, height: 844 },
+  { width: 320, height: 568 },
+] as const;
+
+for (const { cell, theme } of withAppearance(PHONE_CELLS)) {
+  test(`at 32 px text on ${cell.width}x${cell.height} the Listen dock and the Needs attention head stay on screen with three conflicts`, async ({
+    browser,
+    page,
+  }) => {
+    await withShareableProject(
+      async (projectPath) => {
+        await openHostShare(page, projectPath);
+        await withBrowserPages(
+          browser,
+          [{ viewport: cell, hasTouch: true, isMobile: true }],
+          async ([guest]) => {
+            await setTheme(guest!, theme);
+            await threeRefusedCuts(page, guest!, projectPath);
+            await setRootFontSize(guest!, 32);
+            await setTheme(guest!, theme);
+
+            await expect
+              .poll(async () =>
+                (await dockButtons(guest!)).filter(
+                  (button) => !button.inWindow || !button.reachable,
+                ),
+              )
+              .toEqual([]);
+            if (cell.height > 600) {
+              // The reserve the sheets rest on follows the dock's real height.
+              await expect
+                .poll(() =>
+                  guest!.evaluate((property) => {
+                    const el = document.querySelector(".sys-listen-dock")!;
+                    const reserved = Number.parseFloat(
+                      document.documentElement.style.getPropertyValue(property),
+                    );
+                    return Math.abs(
+                      reserved - el.getBoundingClientRect().height,
+                    );
+                  }, DOCK_PROPERTY),
+                )
+                .toBeLessThanOrEqual(1);
+              const sheet = await sheetOf(guest!);
+              expect(sheet.bottom).toBeLessThanOrEqual(sheet.dockTop! + 0.5);
+              const names = await guest!
+                .locator(".sys-listen-dock button")
+                .evaluateAll((all) =>
+                  all.map((button) => {
+                    const box = button.getBoundingClientRect();
+                    return {
+                      name: button.getAttribute("aria-label"),
+                      left: box.left,
+                      right: box.right,
+                    };
+                  }),
+                );
+              const back = names.find((b) => b.name?.startsWith("Back"));
+              const comment = names.find((b) => b.name?.startsWith("Comment"));
+              expect(back!.left).toBeGreaterThanOrEqual(0);
+              expect(comment!.right).toBeLessThanOrEqual(cell.width);
+            }
+
+            const sheet = await sheetOf(guest!);
+            expect(sheet.scrollWidth).toBeLessThanOrEqual(sheet.clientWidth);
+            const dismiss = attention(guest!).getByRole("button", {
+              name: "Dismiss all",
+            });
+            await dismiss.scrollIntoViewIfNeeded();
+            const box = (await dismiss.boundingBox())!;
+            expect(box.x).toBeGreaterThanOrEqual(0);
+            expect(box.x + box.width).toBeLessThanOrEqual(cell.width);
+            expect(box.width).toBeGreaterThanOrEqual(150);
+            expect(
+              await dismiss.evaluate((el) => el.scrollWidth <= el.clientWidth),
+            ).toBe(true);
+            expect(
+              await dismiss.evaluate((el) => {
+                const at = el.getBoundingClientRect();
+                const hit = document.elementFromPoint(
+                  at.left + at.width / 2,
+                  at.top + at.height / 2,
+                );
+                return hit === el || el.contains(hit);
+              }),
+            ).toBe(true);
+            const hear = attention(guest!)
+              .getByRole("button", { name: /^Hear your cut/ })
+              .last();
+            await hear.scrollIntoViewIfNeeded();
+            await expect(hear).toBeInViewport({ ratio: 1 });
+          },
+        );
+      },
+      undefined,
+      twoCopiesProject,
+    );
+  });
+}
+
+test("a Viewer's dock keeps its token height at 32 px text", async ({
+  browser,
+  page,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await openHostShare(page, projectPath);
+      await withBrowserPages(
+        browser,
+        [
+          {
+            viewport: { width: 390, height: 844 },
+            hasTouch: true,
+            isMobile: true,
+          },
+        ],
+        async ([guest]) => {
+          const token = await createReviewShare(page, projectPath, "viewer");
+          await openGuestShare(guest!, token);
+          await setRootFontSize(guest!, 32);
+          const dock = guest!.locator(".sys-listen-dock");
+          await expect(dock).toBeVisible();
+          await expect(guest!.locator(".sys-listen-dock-comment")).toHaveCount(
+            0,
+          );
+          const height = (await dock.boundingBox())!.height;
+          expect(height).toBeCloseTo(9.8125 * 32, 0);
+          expect(
+            await guest!.evaluate(
+              (property) =>
+                document.documentElement.style.getPropertyValue(property),
+              DOCK_PROPERTY,
+            ),
+          ).toBe("");
+        },
+      );
+    },
+    undefined,
+    twoCopiesProject,
+  );
+});
+
+test("on a desktop at 16 and 32 px text Dismiss all is 44 px tall with a mouse and the Needs attention rows are reachable", async ({
+  browser,
+  page,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await openHostShare(page, projectPath);
+      await withBrowserPages(
+        browser,
+        [{ viewport: { width: 1280, height: 800 } }],
+        async ([guest]) => {
+          await threeRefusedCuts(page, guest!, projectPath);
+          const dismiss = attention(guest!).getByRole("button", {
+            name: "Dismiss all",
+          });
+          const at16 = (await dismiss.boundingBox())!;
+          expect(at16.height).toBeGreaterThanOrEqual(44);
+          expect(at16.width).toBeGreaterThanOrEqual(44);
+          await setRootFontSize(guest!, 32);
+          const at32 = (await dismiss.boundingBox())!;
+          expect(at32.height).toBeGreaterThanOrEqual(88);
+          expect(at32.width).toBeGreaterThanOrEqual(44);
+          for (const name of [
+            "Dismiss all",
+            "Hear your cut at 0:11",
+            "Suggest again here, your cut at 0:11",
+          ]) {
+            const button = attention(guest!)
+              .getByRole("button", { name })
+              .first();
+            await button.scrollIntoViewIfNeeded();
+            await expect(button).toBeInViewport({ ratio: 1 });
+            expect(
+              await button.evaluate((el) => {
+                const box = el.getBoundingClientRect();
+                const hit = document.elementFromPoint(
+                  box.left + box.width / 2,
+                  box.top + box.height / 2,
+                );
+                return hit === el || el.contains(hit);
+              }),
+            ).toBe(true);
+          }
         },
       );
     },

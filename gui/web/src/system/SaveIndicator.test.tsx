@@ -69,3 +69,43 @@ describe("SaveIndicator away", () => {
     },
   );
 });
+
+describe("SaveIndicator unkept", () => {
+  const sentences = {
+    blocked:
+      "Your browser isn't letting this page keep a saved copy. The page still works while the host answers.",
+    full: "This device has no room to keep a saved copy. The page still works while the host answers.",
+  } as const;
+
+  it.each(["blocked", "full"] as const)(
+    "says the saved copy is not kept when it is %s, in words and a title",
+    (storageCause) => {
+      const { container } = render(
+        <SaveIndicator state="unkept" storageCause={storageCause} />,
+      );
+      const light = container.querySelector(".sys-save")!;
+      expect(light).toHaveTextContent("Not kept on this device");
+      expect(light).toHaveAttribute("title", sentences[storageCause]);
+      expect(light.querySelector(".sr-only")).toHaveTextContent(
+        sentences[storageCause],
+      );
+    },
+  );
+
+  it("is not an alert, offers no Retry and is not a second live region", () => {
+    render(<SaveIndicator state="unkept" storageCause="blocked" />);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it.each(["blocked", "full"] as const)(
+    "has no axe violations when %s",
+    async (storageCause) => {
+      const { container } = render(
+        <SaveIndicator state="unkept" storageCause={storageCause} />,
+      );
+      await expectNoA11yViolations(container);
+    },
+  );
+});

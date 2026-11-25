@@ -15,6 +15,7 @@ import {
   loadHostCommandCount,
   loadHostCommandQueue,
   loadHostConflicts,
+  mergeOfflineSnapshot,
   type QueuedCommand,
   removeHostConflictsWhere,
   removeHostQueuedCommands,
@@ -792,5 +793,15 @@ describe("host persistence failure signal", () => {
       cause,
     );
     expect(signal).not.toHaveBeenCalled();
+  });
+});
+
+describe("a saved copy the device will not keep", () => {
+  it("rejects with the error and lets go of the database when put throws inside the read", async () => {
+    putFailure = { value: new DOMException("full", "QuotaExceededError") };
+    await expect(
+      mergeOfflineSnapshot("token", { project: { name: "Episode" } }),
+    ).rejects.toMatchObject({ name: "QuotaExceededError" });
+    expect(closed).toBe(1);
   });
 });

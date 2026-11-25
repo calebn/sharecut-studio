@@ -286,4 +286,50 @@ describe("saveStateOf", () => {
       );
     });
   });
+
+  describe("storage that keeps nothing", () => {
+    const guest = { ...quiet, guest: true };
+
+    it("says a guest's saved copy is not kept, with the cause", () => {
+      expect(
+        saveStateOf({ ...guest, storage: { snapshot: "blocked" } }),
+      ).toEqual({ kind: "unkept", cause: "blocked" });
+      expect(saveStateOf({ ...guest, storage: { queue: "full" } })).toEqual({
+        kind: "unkept",
+        cause: "full",
+      });
+    });
+
+    it("comes after away and busy and ahead of the saved copy, waiting and saved", () => {
+      const storage = { snapshot: "blocked" as const };
+      expect(saveStateOf({ ...guest, storage, away: "host" })).toMatchObject({
+        kind: "away",
+      });
+      expect(saveStateOf({ ...guest, storage, busy: true })).toEqual({
+        kind: "saving",
+      });
+      expect(
+        saveStateOf({ ...guest, storage, unreachable: true, pending: 1 }),
+      ).toMatchObject({ kind: "unkept" });
+      expect(saveStateOf({ ...guest, storage, pending: 2 })).toMatchObject({
+        kind: "unkept",
+      });
+    });
+
+    it("never says it of a host, and a host that cannot read its queue still fails", () => {
+      expect(
+        saveStateOf({ ...quiet, storage: { snapshot: "blocked" } }),
+      ).toEqual({ kind: "saved" });
+      expect(saveStateOf({ ...quiet, unreadable: true })).toEqual({
+        kind: "failed",
+        cause: "unreadable",
+      });
+    });
+
+    it("does not count a settings failure", () => {
+      expect(saveStateOf({ ...guest, storage: { prefs: "blocked" } })).toEqual({
+        kind: "saved",
+      });
+    });
+  });
 });
