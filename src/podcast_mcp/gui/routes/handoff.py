@@ -214,9 +214,10 @@ def keep_announced(app: Any) -> None:
             or pid_is_alive(current.pid)
         ):
             return
-        else:
-            state.replaced.add(current.instance)
         _announce_locked(app, state)
+        # Only once its file is replaced: a failed write leaves it named there, to retry.
+        if current is not None and state.announced is not None:
+            state.replaced.add(current.instance)
 
 
 @contextlib.asynccontextmanager

@@ -1263,8 +1263,9 @@ def test_an_announcement_the_studio_cannot_read_is_left_alone(minimal_project: P
         handoff_route.stopped(run_app)
 
 
+@pytest.mark.parametrize("left_behind", ["withdrawn", "ended"])
 def test_an_announcement_that_failed_to_write_is_tried_again(
-    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch, left_behind: str
 ) -> None:
     run_app = _loopback_studio(minimal_project, 8123)
     real = handoff_route.announce_studio_host
@@ -1277,9 +1278,12 @@ def test_an_announcement_that_failed_to_write_is_tried_again(
 
     try:
         handoff_route.stopped(_loopback_studio(minimal_project, 8124))
+        if left_behind == "ended":
+            _announce_ended_studio(minimal_project)
         monkeypatch.setattr(handoff_route, "announce_studio_host", flaky)
         handoff_route.keep_announced(run_app)
-        assert read_studio_host(minimal_project) is None
+        host = read_studio_host(minimal_project)
+        assert (host and host.instance) == (None if left_behind == "withdrawn" else "crashed")
         handoff_route.keep_announced(run_app)
         host = read_studio_host(minimal_project)
         assert host is not None
