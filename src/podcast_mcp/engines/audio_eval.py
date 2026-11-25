@@ -294,7 +294,7 @@ def _off_speaker(body: Piece, node: OffSpeakerAudio, seek: MediaSeek, sample_rat
 
     def at(seconds: float, *, ceil: bool = False) -> int:
         frame = (
-            math.ceil(seconds * sample_rate) if ceil else math.floor(seconds * sample_rate + 0.5)
+            math.ceil(seconds * sample_rate) if ceil else delay_frames(seconds, sample_rate)
         )
         return frame - origin
 
