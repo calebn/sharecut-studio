@@ -9,20 +9,19 @@ import {
 } from "react";
 import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
 import { CloseButton, Dialog } from "../ui";
+import { rootFontPx } from "../ui/rootFont";
 import type { SystemIconName } from "./icons";
 import { isImeKey } from "./imeKey";
 import {
-  CARD_WIDTH_PX,
   DOCK_PX,
   dragHeight,
   INSPECTOR_DETENTS,
   type InspectorBounds,
   type InspectorDetent,
   type InspectorRect,
-  placeCard,
+  placeCardAtRoot,
   riseVelocity,
   type Sample,
-  scaledMinBlock,
   settleDetent,
   steppedDetent,
   toggledDetent,
@@ -252,14 +251,7 @@ function Card({
   bounds,
   keepClear,
 }: InspectorCardProps) {
-  const scale = (rootRem() || DEFAULT_ROOT_PX) / DEFAULT_ROOT_PX;
-  const place = placeCard(
-    anchor,
-    bounds,
-    CARD_WIDTH_PX * scale,
-    scaledMinBlock(rootRem()),
-    keepClear,
-  );
+  const place = placeCardAtRoot(anchor, bounds, keepClear, rootFontPx());
   const style: CSSProperties = {
     insetInlineStart: place.inline,
     maxBlockSize: place.maxBlock,
@@ -300,12 +292,7 @@ function Card({
 }
 
 const DOCK_REM = 4;
-const DEFAULT_ROOT_PX = 16;
 const DOCK_TOLERANCE_PX = 0.5;
-
-function rootRem() {
-  return Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
-}
 
 type Drag = {
   start: number;
@@ -352,7 +339,7 @@ function Phone({
         el
           .querySelector<HTMLElement>(".sys-inspector-dock")
           ?.getBoundingClientRect().height ||
-        rootRem() * DOCK_REM ||
+        rootFontPx() * DOCK_REM ||
         DOCK_PX;
       drag.current = { start, container, dock, height: start };
       samples.current = [];

@@ -24,16 +24,16 @@ import {
   InspectorSheet,
 } from "../../system/InspectorSheet";
 import {
-  CARD_WIDTH_PX,
   cardFits,
   type InspectorBounds,
   type InspectorDetent,
   type InspectorRect,
-  placeCard,
+  placeCardAtRoot,
   scaledMinBlock,
 } from "../../system/inspectorSheetMath";
 import { areaRects } from "../../ui/anchoredPlacement";
 import { openerControl } from "../../ui/pressedControl";
+import { rootFontPx } from "../../ui/rootFont";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 import { useStyleObserver } from "../../ui/useStyleObserver";
 import { useHistoryControls } from "../frame/useHistoryControls";
@@ -274,8 +274,11 @@ function relativeRect(rect: DOMRect, frame: DOMRect): InspectorRect {
 
 const PICK_SELECTOR = '[data-hit-kind="bleed-attenuation"]';
 
-/** The part of `rect` inside every clip box, or null when nothing of it is left. */
-function within(rect: DOMRect, clips: readonly DOMRect[]): DOMRect | null {
+/** The part of `rect` inside every box, or null when nothing of it is left. */
+function clippedToBoxes(
+  rect: DOMRect,
+  clips: readonly DOMRect[],
+): DOMRect | null {
   const left = Math.max(rect.left, ...clips.map((c) => c.left));
   const top = Math.max(rect.top, ...clips.map((c) => c.top));
   const right = Math.min(rect.right, ...clips.map((c) => c.right));
@@ -326,6 +329,7 @@ function Card({
     [keepCornerClear, root],
   );
   const bleedSelected = selection?.kind === "bleedAttenuation";
+  // Read only to re-measure when the picks change.
   const bleedSnapshot = useSyncExternalStore(
     clipBleedSession.subscribe,
     clipBleedSession.getSnapshot,
@@ -362,7 +366,7 @@ function Card({
         ...areaRects([getCorner()]).map((rect) => relativeRect(rect, frame)),
         ...getPicks().flatMap((pick) => {
           const lanes = pick.closest(".timeline-scroll");
-          const clipped = within(pick.getBoundingClientRect(), [
+          const clipped = clippedToBoxes(pick.getBoundingClientRect(), [
             frame,
             ...(lanes ? [lanes.getBoundingClientRect()] : []),
           ]);
@@ -400,7 +404,7 @@ function Card({
   const takeover =
     placement !== null &&
     (!cardFits(placement.bounds.height, scaledMinBlock(rootFontPx())) ||
-      (bleedSelected && picksCovered(placement)));
+      (bleedSelected && anchor.visible && picksCovered(placement)));
   // The takeover has no Action bar beside it, so the sheet keeps the verbs.
   const sections = useBodySections(sheet.rangeActionsInSheet, !takeover);
   // The card hides while its anchor is out of view; the Action bar stays, pinned at the edge.
@@ -473,25 +477,9 @@ function Card({
   );
 }
 
-const DEFAULT_ROOT_FONT_PX = 16;
-
 /** Whether the card, placed as the sheet will place it, still lies over a keep-clear area. */
 function picksCovered({ anchor, bounds, keepClear }: Placement) {
-  const rootPx = rootFontPx();
-  return placeCard(
-    anchor,
-    bounds,
-    CARD_WIDTH_PX * (rootPx / DEFAULT_ROOT_FONT_PX),
-    scaledMinBlock(rootPx),
-    keepClear,
-  ).covered;
-}
-
-function rootFontPx() {
-  return (
-    Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
-    DEFAULT_ROOT_FONT_PX
-  );
+  return placeCardAtRoot(anchor, bounds, keepClear, rootFontPx()).covered;
 }
 
 const FIELD_VERBS: ReadonlySet<BarId> = new Set([

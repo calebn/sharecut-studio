@@ -1979,6 +1979,29 @@ describe("the Inspector card keeps clear of the join band picks", () => {
     expect(within(dialog).getByRole("button", { name: "Done" })).toBeVisible();
   });
 
+  it("does not take the screen while the selected anchor is scrolled away", async () => {
+    const { root, addPick, place } = frame();
+    addPick({ x: 8, y: 60, width: 828, height: 200 });
+    const lane = root.querySelector(".lane-row") as HTMLElement;
+    place(lane, { x: 0, y: 5000, width: 40, height: 60 });
+    mount(root);
+    await waitFor(() =>
+      expect(document.querySelector(".edit-inspector-slot")).toHaveAttribute(
+        "hidden",
+      ),
+    );
+    expect(document.querySelector(".sys-inspector--takeover")).toBeNull();
+  });
+
+  it("keeps the card off a track selection's corner without taking the screen", () => {
+    useDawStore.setState({ selection: TRACK });
+    const { root, addCorner } = frame();
+    addCorner({ x: 8, y: 20, width: 828, height: 300 });
+    mount(root, "tablet");
+    expect(document.querySelector(".sys-inspector--takeover")).toBeNull();
+    expect(document.querySelector(".sys-inspector--card")).not.toBeNull();
+  });
+
   it.each([
     ["track", TRACK],
     ["pending", { kind: "pending", id: "p1", trackId: "host" } as const],

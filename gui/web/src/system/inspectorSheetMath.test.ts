@@ -644,10 +644,23 @@ describe("inspectorSheetMath card placement around the join band picks", () => {
     expect(overlaps(boxOf(placed, bounds), wall)).toBe(true);
   });
 
-  it("does not call the card covered for an anchor it cannot clear with no other obstacle", () => {
+  it("reports not covered when the only anchor is the bar in a short frame", () => {
     const bounds = { width: 400, height: 120 };
     const bar = { x: 60, y: 40, width: 284, height: 46 };
     expect(placeCard(bar, bounds, WIDTH, MIN, []).covered).toBe(false);
+  });
+
+  it("slides a non-bleed card beside the corner when only the corner is kept clear", () => {
+    const bounds = { width: 844, height: 330 };
+    const bar = { x: 540, y: 20, width: 200, height: 30 };
+    const corner = { x: 480, y: 250, width: 350, height: 54 };
+    expect(placeCard(bar, bounds, WIDTH, MIN, [corner])).toEqual({
+      side: "below",
+      inline: 152,
+      block: 58,
+      maxBlock: 198,
+      covered: false,
+    });
   });
 
   it("keeps the gap between the card and a pick it was moved off", () => {
