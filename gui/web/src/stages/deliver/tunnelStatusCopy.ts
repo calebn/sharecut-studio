@@ -3,7 +3,7 @@ import type { TunnelLimit, TunnelStatus } from "../../types/tunnel";
 export const ONLINE_SHARING_GUIDE_URL =
   "https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md#tunnel-status";
 
-type TunnelTone = "ok" | "pending" | "problem" | "neutral";
+type TunnelTone = "ok" | "pending" | "caution" | "problem" | "neutral";
 
 type TunnelStatusCopy = {
   tone: TunnelTone;
@@ -38,7 +38,7 @@ export function tunnelStatusCopy(
       return { tone: "ok", headline: "Guests can open your links" };
     case "limited":
       return {
-        tone: "problem",
+        tone: "caution",
         headline:
           "Online sharing is limited: some links may not open for guests",
         fix: {

@@ -106,7 +106,7 @@ describe("tunnelStatusCopy", () => {
       "limited by the number of links",
       status("limited", null, "shares"),
       {
-        tone: "problem",
+        tone: "caution",
         headline:
           "Online sharing is limited: some links may not open for guests",
         fix: {
@@ -119,7 +119,7 @@ describe("tunnelStatusCopy", () => {
       "limited by this month's allowance",
       status("limited", null, "bandwidth"),
       {
-        tone: "problem",
+        tone: "caution",
         headline:
           "Online sharing is limited: some links may not open for guests",
         fix: {

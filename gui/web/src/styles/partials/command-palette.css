@@ -410,6 +410,10 @@ html[data-shell="phone"]
   --share-tunnel-dot: var(--color-warning);
 }
 
+.share-tunnel[data-tone="caution"] {
+  --share-tunnel-dot: var(--color-warning);
+}
+
 .share-tunnel[data-tone="problem"] {
   --share-tunnel-dot: var(--color-danger);
 }
@@ -460,6 +464,7 @@ html[data-shell="phone"]
   margin: 0;
 }
 
+.share-tunnel-contact > a,
 .share-tunnel-fix > a {
   display: inline-flex;
   align-items: center;
@@ -469,6 +474,7 @@ html[data-shell="phone"]
   text-underline-offset: 0.2em;
 }
 
+.share-tunnel-contact > a:focus-visible,
 .share-tunnel-fix > a:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
