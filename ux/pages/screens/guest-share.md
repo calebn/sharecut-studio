@@ -13,7 +13,7 @@ flowchart LR
 
 | Share setup | Surface | What the guest sees |
 |-------------|---------|---------------------|
-| Viewer, Commenter (default) or Editor | **ShareCut Studio guest** | Stages gated by role (a Commenter or Viewer link is Review alone, an Editor link has Edit, Review and Deliver). Role chip in the header. |
+| Viewer, Commenter (default) or Editor | **ShareCut Studio guest** | Stages gated by role (a Commenter or Viewer link is Review alone, an Editor link has Edit, Review and Deliver). Role chip in the header, except on a saved copy, which does not know the link's role and shows none. |
 | Any capability set without `view` (API only, no role mints one) | **Cover** | "This link doesn't open anything" with "Ask the person who sent it for a new link." beneath it. |
 
 ### While the link loads
