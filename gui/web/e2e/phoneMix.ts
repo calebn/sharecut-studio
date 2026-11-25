@@ -195,5 +195,22 @@ export async function checkNativeMixEdits(page: Page, projectPath: string) {
   await page.mouse.up();
   expect((await savedMix(page, projectPath))[0].db).toBe(first.db);
   expect(gainWrites).toBe(0);
+  // Regrab right after Escape on the same open sheet (#1034): the cancelled
+  // drag must leave nothing behind that swallows the next press.
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let step = 1; step <= 8; step += 1) {
+    await page.mouse.move(x - 8 * step, y);
+  }
+  await expect(volume).not.toHaveAttribute("aria-valuenow", String(first.db));
+  const regrabbed = Number(await volume.getAttribute("aria-valuenow"));
+  expect(regrabbed).toBeLessThan(first.db);
+  expect((await savedMix(page, projectPath))[0].db).toBe(first.db);
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await savedMix(page, projectPath))[0].db)
+    .toBe(regrabbed);
+  await expect(volume).toHaveAttribute("aria-valuenow", String(regrabbed));
+  expect(gainWrites).toBe(1);
   await reopened.getByRole("button", { name: "Close" }).click();
 }

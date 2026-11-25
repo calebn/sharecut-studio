@@ -193,6 +193,19 @@ describe("ScrubField drag", () => {
     expect(field()).toHaveAttribute("aria-valuenow", "100");
   });
 
+  it("starts a new drag right after Escape ended the previous one", () => {
+    const { calls, field } = setup();
+    dragBy(field(), 25);
+    fireEvent.keyDown(field(), { key: "Escape" });
+    fireEvent.pointerUp(field(), { pointerId: 1 });
+    calls.onPreview.mockClear();
+    dragBy(field(), 40);
+    expect(calls.onPreview).toHaveBeenCalled();
+    expect(field()).toHaveAttribute("aria-valuenow", "140");
+    fireEvent.pointerUp(field(), { pointerId: 1 });
+    expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(140);
+  });
+
   it("treats a drag that ends where it began as no change", () => {
     const { calls, field } = setup();
     dragBy(field(), 25);
