@@ -64,14 +64,14 @@ describe("usePendingSections", () => {
       screen.getByRole("spinbutton", { name: "Source start" }),
     ).toBeTruthy();
     expect(screen.getByRole("spinbutton", { name: "Source end" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Reject" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cut" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Keep" })).toBeTruthy();
   });
 
   it("drops Approve and Reject only where the Action bar is shown", () => {
     open({ kind: "pending", id: "edit-1", trackId: edit.track_id }, true);
-    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
   });
 
   it("drops the preview footer where the Action bar plays and seeks, and keeps it without one", () => {
@@ -94,8 +94,8 @@ describe("usePendingSections", () => {
     expect(
       screen.getByRole("spinbutton", { name: "Source start" }),
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Reject" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cut" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Keep" })).toBeTruthy();
   });
 
   it("says when the edit is gone", () => {

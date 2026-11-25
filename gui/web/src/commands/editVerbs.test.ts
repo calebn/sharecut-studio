@@ -2543,13 +2543,84 @@ describe("the Action bar's Approve and Reject on every pending edit", () => {
     },
   );
 
-  it("a bar click on Approve for a leave suggestion sends one ApproveEdits and applies nothing", async () => {
+  const leaving = {
+    summary: "Left it alone.",
+    historyHead: "h-leave",
+    queued: false,
+  } as never;
+
+  it.each([
+    ["a leave suggestion", { suggested_action: "leave" }],
+    [
+      "a split that suggests leaving",
+      { type: "split", suggested_action: "leave" },
+    ],
+    [
+      "an exact range that suggests leaving",
+      { ...exact, suggested_action: "leave" },
+    ],
+  ] as const)(
+    "a bar click on Leave for %s applies leave with one Undo and never cuts",
+    async (_name, over) => {
+      withEdit(over);
+      vi.mocked(api.applySuggestedActions).mockResolvedValue(leaving);
+      expect(model().primary).toMatchObject({ id: "approve", label: "Leave" });
+      expect(keepOf()?.label).toBe("Reject");
+      await runEditVerb("approve", factsOf()!);
+      expect(api.applySuggestedActions).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/episode",
+        ["pending-cut"],
+      );
+      expect(api.approveEdits).toHaveBeenCalledTimes(0);
+      expect(useDawStore.getState().feedbackToast?.undo).toBe("h-leave");
+      expect(useDawStore.getState().selection).toBeNull();
+    },
+  );
+
+  it("leaves a queued Leave selected and says it sends later", async () => {
     withEdit({ suggested_action: "leave" });
-    vi.mocked(api.approveEdits).mockResolvedValue(reviewed);
-    expect(model().primary?.id).toBe("approve");
+    vi.mocked(api.applySuggestedActions).mockResolvedValue({
+      queued: true,
+      summary: null,
+      historyHead: null,
+    });
     await runEditVerb("approve", factsOf()!);
-    expect(api.approveEdits).toHaveBeenCalledTimes(1);
-    expect(api.applySuggestedActions).toHaveBeenCalledTimes(0);
+    expect(announced()).toBe("Saved. It sends when you reconnect.");
+    expect(useDawStore.getState().selection?.kind).toBe("pending");
+  });
+
+  it.each([
+    ["a cut", { suggested_action: "cut" }],
+    ["no action", { suggested_action: null }],
+    ["a split", { type: "split", suggested_action: "cut" }],
+    ["an exact range", exact],
+  ] as const)(
+    "a bar click on the accept verb for %s approves the edit and applies nothing",
+    async (_name, over) => {
+      withEdit(over);
+      vi.mocked(api.approveEdits).mockResolvedValue(reviewed);
+      await runEditVerb(model().primary!.id, factsOf()!);
+      expect(api.approveEdits).toHaveBeenCalledTimes(1);
+      expect(api.applySuggestedActions).toHaveBeenCalledTimes(0);
+    },
+  );
+
+  it("sends one identical request for a leave suggestion from the bar and from Backspace", async () => {
+    for (const run of [
+      () => runEditVerb("approve", factsOf()!),
+      () => execute("edit.delete"),
+    ]) {
+      vi.clearAllMocks();
+      withEdit({ type: "split", suggested_action: "leave" });
+      vi.mocked(api.applySuggestedActions).mockResolvedValue(leaving);
+      await run();
+      expect(vi.mocked(api.applySuggestedActions).mock.calls).toEqual([
+        ["/tmp/episode", ["pending-cut"]],
+      ]);
+      expect(api.approveEdits).toHaveBeenCalledTimes(0);
+      expect(api.rejectEdits).toHaveBeenCalledTimes(0);
+      expect(useDawStore.getState().feedbackToast?.undo).toBe("h-leave");
+    }
   });
 
   it("approves an exact range that suggests shortening, never applying the suggested action", async () => {

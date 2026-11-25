@@ -16,6 +16,7 @@ import {
   playPendingPreview,
   warmPendingPreview,
 } from "../../audio/pendingPreview";
+import { pendingBarWords } from "../../commands/pendingDecision";
 import { executePointerCommand } from "../../commands/pointer";
 import { registerDawCommands } from "../../commands/register";
 import {
@@ -49,6 +50,7 @@ const setCommentActionDone = vi.fn();
 const patchComment = vi.fn();
 const refreshProject = vi.fn();
 const approveEdits = vi.fn();
+const applySuggestedActions = vi.fn();
 const waiveTranscriptRefine = vi.fn();
 const updatePendingEdit = vi.fn();
 
@@ -76,6 +78,7 @@ vi.mock("../../api", () => ({
   patchComment: (...args: unknown[]) => patchComment(...args),
   refreshProject: (...args: unknown[]) => refreshProject(...args),
   approveEdits: (...args: unknown[]) => approveEdits(...args),
+  applySuggestedActions: (...args: unknown[]) => applySuggestedActions(...args),
   waiveTranscriptRefine: (...args: unknown[]) => waiveTranscriptRefine(...args),
   rejectEdits: vi.fn(async () => ({
     queued: false,
@@ -156,6 +159,8 @@ describe("PendingEditBody", () => {
     addCommentReply.mockReset().mockResolvedValue(null);
     setCommentActionDone.mockReset().mockResolvedValue(null);
     refreshProject.mockReset();
+    applySuggestedActions.mockReset();
+    useDawStore.setState({ feedbackToast: null });
     approveEdits.mockReset().mockResolvedValue({
       queued: false,
       count: 1,
@@ -406,14 +411,87 @@ describe("PendingEditBody", () => {
       false,
       true,
     ],
+  ])("words the sheet's verbs for %s: %s", (_name, edit, verbsOnBar, shown) => {
+    render(<PendingEditBody edit={edit} verbsOnBar={verbsOnBar} />);
+    const words = pendingBarWords(edit);
+    expect(!!screen.queryByRole("button", { name: words.accept })).toBe(shown);
+    expect(!!screen.queryByRole("button", { name: words.reject })).toBe(shown);
+  });
+
+  it.each([
+    ["leave", {}],
+    ["a split that suggests leaving", { type: "split" as const }],
+    [
+      "an exact range that suggests leaving",
+      {
+        exact_range: { kind: "exact_range", intervals: [], clips: [] } as never,
+      },
+    ],
   ])(
-    "offers Approve and Reject in the sheet for %s: %s",
-    (_name, edit, verbsOnBar, shown) => {
-      render(<PendingEditBody edit={edit} verbsOnBar={verbsOnBar} />);
-      expect(!!screen.queryByRole("button", { name: "Approve" })).toBe(shown);
-      expect(!!screen.queryByRole("button", { name: "Reject" })).toBe(shown);
+    "the sheet's Leave for %s dismisses it and never cuts",
+    async (_name, over) => {
+      const edit = { ...barEdit, suggested_action: "leave" as const, ...over };
+      useDawStore
+        .getState()
+        .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
+      applySuggestedActions.mockResolvedValueOnce({
+        queued: false,
+        summary: "Left it alone.",
+        historyHead: "h-leave",
+      });
+      render(<PendingEditBody edit={edit} />);
+      expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+      fireEvent.click(await screen.findByRole("button", { name: "Leave" }));
+      await waitFor(() =>
+        expect(applySuggestedActions).toHaveBeenCalledExactlyOnceWith(
+          "/tmp/p.json",
+          ["ed1"],
+        ),
+      );
+      expect(approveEdits).not.toHaveBeenCalled();
+      expect(useDawStore.getState().feedbackToast?.undo).toBe("h-leave");
     },
   );
+
+  it("sends one identical leave request from the sheet's Leave and from the bar's Backspace through the open sheet", async () => {
+    registerDawCommands();
+    const edit = {
+      ...barEdit,
+      type: "split" as const,
+      suggested_action: "leave" as const,
+    };
+    const surfaces = [
+      async () =>
+        fireEvent.click(await screen.findByRole("button", { name: "Leave" })),
+      async () => void (await executePointerCommand("edit.delete")),
+    ];
+    for (const run of surfaces) {
+      cleanup();
+      applySuggestedActions.mockReset().mockResolvedValue({
+        queued: false,
+        summary: "Left it alone.",
+        historyHead: "h-leave",
+      });
+      approveEdits.mockClear();
+      useDawStore
+        .getState()
+        .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
+      useDawStore
+        .getState()
+        .setSelection({ kind: "pending", id: edit.id, trackId: edit.track_id });
+      render(<PendingEditBody edit={edit} />);
+      await waitFor(() =>
+        expect(screen.queryByText("Checking queued timing…")).toBeNull(),
+      );
+      await run();
+      await waitFor(() => expect(applySuggestedActions).toHaveBeenCalled());
+      expect(applySuggestedActions.mock.calls).toEqual([
+        ["/tmp/p.json", ["ed1"]],
+      ]);
+      expect(approveEdits).not.toHaveBeenCalled();
+      expect(useDawStore.getState().feedbackToast?.undo).toBe("h-leave");
+    }
+  });
 
   it("does not save when a field is opened and left unchanged, and keeps sub-ms precision", async () => {
     const user = userEvent.setup();
