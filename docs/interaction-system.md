@@ -89,9 +89,12 @@ Each thing is declared once. A second map from the same key is a bug.
    out, the bar stays on screen at the nearest edge (`sys-actions--pinned`)
    with its verbs, and gains **Show edit** (a pending edit) or **Show
    selection** (every other anchored kind) before Clear. The control runs the
-   command `view.revealSelection` (palette, no key; view only, so MCP and CLI
-   have no twin): it scrolls both axes instantly (`utils/timelineReveal.ts`
-   `revealAnchor`) and never moves the playhead, the selection or focus. The
+   command `view.revealSelection` (palette, no key; it changes no project, so MCP and CLI
+   have no twin): on desktop and tablet it scrolls both axes instantly
+   (`utils/timelineReveal.ts` `revealAnchor`) and never moves the playhead,
+   the selection or focus; on the phone, where the view scrubs the fixed
+   playhead, it seeks to the selection's start like Seek to start, and still
+   leaves the selection and focus alone. The
    floating bar shows it only while pinned and drops it when the anchor is
    back; the phone dock, which has no pin state, always shows it. Reaching the
    pinned state announces "<label> to return to it" once, politely. The
