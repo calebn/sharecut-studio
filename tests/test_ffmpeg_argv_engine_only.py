@@ -15,7 +15,7 @@ import pytest
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "podcast_mcp"
 
 # util/binaries.py admits the ffmpeg pair that FFmpegEngine depends on, so it cannot route through it.
-EXEMPT = {"engines/ffmpeg.py", "util/binaries.py"}
+EXEMPT = {"engines/ffmpeg.py", "engines/ffmpeg/", "util/binaries.py"}
 BINARIES = {"ffmpeg", "ffprobe"}
 RESOLVERS = {"resolve_ffmpeg", "resolve_ffprobe"}
 
@@ -28,6 +28,12 @@ FFMPEG_ARGV: dict[str, int] = {
     "engines/timeline_render.py": 1,
     "services/media/proxy_media.py": 1,
 }
+
+
+def _exempt(relative: str) -> bool:
+    return any(
+        relative.startswith(entry) if entry.endswith("/") else relative == entry for entry in EXEMPT
+    )
 
 
 def _is_binary(expr: ast.expr) -> bool:
@@ -58,7 +64,7 @@ def _counts() -> dict[str, int]:
     found: Counter[str] = Counter()
     for path in sorted(PACKAGE.rglob("*.py")):
         relative = path.relative_to(PACKAGE).as_posix()
-        if relative in EXEMPT:
+        if _exempt(relative):
             continue
         count = _count_source(path.read_text(encoding="utf-8"))
         if count:
@@ -85,7 +91,19 @@ def test_the_allowlist_has_no_stale_files() -> None:
 
 
 def test_the_exempt_files_exist() -> None:
-    assert all((PACKAGE / relative).is_file() for relative in EXEMPT)
+    engine = PACKAGE / "engines" / "ffmpeg.py"
+    package = PACKAGE / "engines" / "ffmpeg"
+    assert engine.is_file() or any(package.glob("*.py"))
+    assert (PACKAGE / "util" / "binaries.py").is_file()
+
+
+def test_the_exemption_matches_the_module_and_the_package_but_not_a_lookalike() -> None:
+    assert _exempt("engines/ffmpeg.py")
+    assert _exempt("engines/ffmpeg/runtime.py")
+    assert _exempt("util/binaries.py")
+    assert not _exempt("engines/ffmpeg_extra.py")
+    assert not _exempt("engines/ffmpegs/runtime.py")
+    assert not _exempt("engines/align.py")
 
 
 def test_the_cap_check_fails_one_above_a_cap_and_for_an_uncapped_file() -> None:
