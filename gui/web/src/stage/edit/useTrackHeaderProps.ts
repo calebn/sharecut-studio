@@ -76,9 +76,8 @@ function moveTrack(id: string, direction: -1 | 1): void {
 /**
  * The props of one track header, read from the store: the mute state this
  * listener hears, solo, selection, the saved volume, the live level and the
- * clip light. The callbacks are
- * module functions, so a header redraws only when one of its own values
- * changes, never for a sibling or a playhead frame.
+ * clip light. The callbacks are module functions, so a header redraws only
+ * when one of its own values changes, never for a sibling or a playhead frame.
  */
 export function useTrackHeaderProps(
   own: TrackHeaderOwn,
