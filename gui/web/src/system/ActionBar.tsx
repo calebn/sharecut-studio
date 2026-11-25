@@ -500,7 +500,7 @@ function Dock({
       (trailing || reserveEnd ? 1 + trailingSlots : 0),
     measure.width > 0 ? dockCapacity(measure) - lost : undefined,
   );
-  const measureStart = () => {
+  const measureStart = useCallback(() => {
     const start = startRef.current;
     if (!start) return;
     const next = readDockMeasure(start);
@@ -511,7 +511,7 @@ function Dock({
         ? prev
         : next,
     );
-  };
+  }, []);
   useResizeObserver(startRef, measureStart);
   useLayoutEffect(() => {
     const start = startRef.current;
@@ -523,7 +523,17 @@ function Dock({
       start.scrollWidth > start.clientWidth + 1
     )
       setExtra({ key, buttons: lost + 1 });
-  });
+    // Re-check whenever a fold input changes (the key covers the verbs and the
+    // measured slot, the counts what the fold left) and after each button
+    // given up (lost), so the loop ends once nothing overflows or none is left.
+  }, [
+    measureStart,
+    measure.width,
+    folded.items.length,
+    folded.more.length,
+    key,
+    lost,
+  ]);
   const gated = folded.items.find((item) => item.disabledReason);
   const { note, describedBy } = useDisabledReasonNote(
     gated?.disabledReason,
