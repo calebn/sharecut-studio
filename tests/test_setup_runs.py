@@ -343,7 +343,7 @@ def test_an_episode_that_is_gone_is_dropped(
     assert calls == []
 
 
-def test_a_moved_episode_folder_leaves_a_dead_entry_that_never_starts(
+def test_a_folder_moved_outside_studio_leaves_a_dead_entry_that_never_starts(
     imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     jobs = JobManager()
@@ -357,6 +357,88 @@ def test_a_moved_episode_folder_leaves_a_dead_entry_that_never_starts(
         queue._dispatch(threading.Event())
     assert len(queue._read()) == 1
     assert calls == []
+
+
+def _move_served(client: TestClient, project: Path, dest_parent: Path):
+    return client.post(
+        "/api/project/move", json={"path": str(project), "dest_parent": str(dest_parent)}
+    )
+
+
+def test_a_queued_episode_moved_in_studio_keeps_its_run_at_the_new_path(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    app = create_app(served_project=imported_project, host_mcp=False)
+    client = TestClient(app, client=("127.0.0.1", 5000))
+    assert client.post("/api/pipeline/setup-run", json={"path": str(imported_project)}).json() == {
+        "queued": True
+    }
+    dest_parent = tmp_path / "elsewhere"
+    dest_parent.mkdir()
+    res = _move_served(client, imported_project, dest_parent)
+    assert res.status_code == 200, res.text
+    moved = Path(res.json()["project_path"]).resolve()
+    queue = app.state.setup_runs
+    assert [entry.path for entry in queue._read()] == [moved]
+    assert queue.waiting(moved)
+    assert not queue.waiting(imported_project)
+    assert client.get("/api/pipeline/status").json()["waiting_for_setup"] is True
+
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: True)
+    calls = _failing_start(queue.jobs, monkeypatch, None)
+    queue._dispatch(threading.Event())
+    assert calls == [moved]
+    assert queue._read() == []
+
+
+def test_a_move_keeps_the_park_and_the_runs_its_studio_launched(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = JobManager()
+    path = tmp_path / "setup-runs.json"
+    launch_project = (tmp_path / "pinned" / "episode.sharecut").resolve()
+    monkeypatch.setattr(queue_module, "_models_ready", lambda _entry: False)
+    queue = SetupRunQueue(jobs, path, initial_project=launch_project)
+    assert queue.enqueue(imported_project)
+    old = imported_project.resolve()
+    queue._parked[old] = queue._model_epoch()
+    new_episode = (tmp_path / "moved" / "episode.sharecut").resolve()
+    new_launch = (tmp_path / "moved-pinned" / "episode.sharecut").resolve()
+
+    queue.moved(imported_project, new_episode)
+    queue.moved(launch_project, new_launch)
+
+    [entry] = queue._read()
+    assert (entry.path, entry.launch_project) == (new_episode, new_launch)
+    assert queue._launch_project == new_launch
+    assert queue._parked == {new_episode: queue._model_epoch()}
+    reopened = SetupRunQueue(jobs, path, initial_project=new_launch)
+    assert reopened.waiting(new_episode)
+
+
+def test_a_move_of_an_episode_with_no_queued_run_writes_no_queue(tmp_path: Path) -> None:
+    path = tmp_path / "setup-runs.json"
+    SetupRunQueue(JobManager(), path).moved(tmp_path / "a.sharecut", tmp_path / "b.sharecut")
+    assert not path.exists()
+
+
+def test_a_queue_that_cannot_follow_does_not_undo_the_move(
+    imported_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app = create_app(served_project=imported_project, host_mcp=False)
+    client = TestClient(app, client=("127.0.0.1", 5000))
+
+    def fail(_old, _new):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(app.state.setup_runs, "moved", fail)
+    dest_parent = tmp_path / "elsewhere"
+    dest_parent.mkdir()
+    res = _move_served(client, imported_project, dest_parent)
+    assert res.status_code == 200, res.text
+    assert Path(res.json()["project_path"]).is_file()
+    assert not imported_project.exists()
 
 
 def test_an_unreachable_episode_stays_queued(
