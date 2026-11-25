@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { GuestLoadFailure } from "../../guestLoadFailure";
+import { largeText } from "../../storybook/largeText";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
 import { GuestPageCover, NotServedCover } from "./StatusCovers";
 
@@ -149,16 +150,6 @@ export const BadLinkWithVeryLongUnsentText: Story = {
       canvas.getByRole("button", { name: "Copy your comment" }),
     ).toBeVisible();
   },
-};
-
-/** The root text at 32 px (200%), the size at which the button once left the window. */
-const largeText = () => {
-  const root = document.documentElement;
-  const before = root.style.fontSize;
-  root.style.fontSize = "32px";
-  return () => {
-    root.style.fontSize = before;
-  };
 };
 
 /** Try now lies in the window once the browser has laid it out; jsdom has no layout (height 0). */

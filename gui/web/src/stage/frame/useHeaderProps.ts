@@ -46,14 +46,12 @@ const MENU_COMMANDS: Record<string, string> = {
 
 /** Closing the role hint is the one settings write a guest makes: a browser that refuses it keeps none, and says so once. */
 function keepSettingsOrSay(kept: boolean): void {
-  if (kept === false) {
+  if (kept) reportStorageOk("prefs");
+  else
     reportStorageFailure(
       "prefs",
       new DOMException("This browser keeps no settings.", "SecurityError"),
     );
-    return;
-  }
-  reportStorageOk("prefs");
 }
 
 /**
