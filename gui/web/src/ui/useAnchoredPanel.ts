@@ -36,6 +36,8 @@ export type DialogAnchor = {
   /** Which edge of `ref` the panel lines up with; centered when left out. */
   align?: "start" | "center" | "end";
   clearTop?: () => number;
+  /** The viewport x the panel must stay right of, as `clearTop` is the y it stays below. */
+  clearStart?: () => number;
   /**
    * Where to place against instead of `ref`'s own rect: the visible part of a
    * partly scrolled anchor, or the edge point a pinned one sits nearest. Null
@@ -62,6 +64,7 @@ export function useAnchoredPanel(
   const prefer = anchor?.prefer;
   const align = anchor?.align ?? "center";
   const clearTop = anchor?.clearTop;
+  const clearStart = anchor?.clearStart;
   const rectOf = anchor?.rect;
   const active = enabled && anchorRef != null;
 
@@ -91,6 +94,11 @@ export function useAnchoredPanel(
     const excluded = areaRects(exclusion?.elements() ?? []);
     const withinEl = withinRef?.current;
     const viewport = visualViewportBox(avoidRef?.current ?? null);
+    const startX = clearStart?.() ?? 0;
+    if (startX > viewport.left) {
+      viewport.width = Math.max(0, viewport.width - (startX - viewport.left));
+      viewport.left = startX;
+    }
     const placed =
       excluded.length > 0 && withinEl
         ? placeAnchoredExcluding(

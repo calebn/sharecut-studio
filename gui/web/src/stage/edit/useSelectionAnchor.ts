@@ -145,6 +145,8 @@ type SelectionAnchor = {
   readonly exclusion: AnchorExclusion;
   readonly moves: readonly unknown[];
   readonly clearTop: () => number;
+  /** Where the pinned bar's room begins: the right edge of the sticky track headers, 0 while attached. */
+  readonly clearStart: () => number;
   /** False until the anchor is found and while its node is detached. */
   readonly present: boolean;
   /** True while the anchor has scrolled wholly out of its box. */
@@ -271,6 +273,14 @@ export function useSelectionAnchor(
     return scroll ? timelineChromeBottom(scroll) : 0;
   }, []);
 
+  const clearStart = useCallback(() => {
+    const el = ref.current;
+    if (!el?.isConnected || !measureNode(el).pinned) return 0;
+    const scroll = el.closest<HTMLElement>(".timeline-scroll");
+    const header = scroll?.querySelector<HTMLElement>(".track-headers");
+    return header ? header.getBoundingClientRect().right : 0;
+  }, []);
+
   const rect = useCallback(() => {
     const el = ref.current;
     if (!el?.isConnected) return null;
@@ -283,6 +293,7 @@ export function useSelectionAnchor(
   return {
     ref,
     clearTop,
+    clearStart,
     exclusion,
     moves,
     rect,

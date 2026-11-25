@@ -83,8 +83,8 @@ Each thing is declared once. A second map from the same key is a bug.
 7. **A selection that scrolls away keeps its bar.** The floating Action bar
    answers to bounds math, not to an observer: the anchor's rect against its
    scroller (the timeline less its sticky track headers and ruler; the Script
-   pane for a word), clipped to the visual viewport (`ui/anchorPin.ts`
-   `pinOf`; `useSelectionAnchor` only decides when to measure). Any overlap
+   pane for a word), clipped to the visual viewport (`useSelectionAnchor` builds that box, `ui/anchorPin.ts`
+   `pinOf` does the bounds math). The pinned bar also stays right of the sticky track headers. Any overlap
    keeps the bar attached beside the visible part. Once the anchor is wholly
    out, the bar stays on screen at the nearest edge (`sys-actions--pinned`)
    with its verbs, and gains **Show edit** (a pending edit) or **Show

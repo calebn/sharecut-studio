@@ -130,12 +130,16 @@ function RevealButton({
     () => () => {
       const active = document.activeElement;
       if (!active?.hasAttribute("data-reveal-selection")) return;
-      active
-        .closest(".sys-actions")
-        ?.querySelector<HTMLElement>(
+      const bar = active.closest<HTMLElement>(".sys-actions");
+      // Clear or Close; with neither, the bar's first other enabled control.
+      const next =
+        bar?.querySelector<HTMLElement>(
           '[aria-label="Clear selection"], [data-inspector-close]',
-        )
-        ?.focus({ preventScroll: true });
+        ) ??
+        bar?.querySelector<HTMLElement>(
+          "button:not([data-reveal-selection]):not([disabled]):not([aria-disabled=true])",
+        );
+      next?.focus({ preventScroll: true });
     },
     [],
   );
@@ -153,7 +157,8 @@ function RevealButton({
       {floating ? (
         <span>{label}</span>
       ) : (
-        <span className="sys-actions-dock-label">{label}</span>
+        // The dock's 48 px slot holds only the short word; the name stays whole.
+        <span className="sys-actions-dock-label">Show</span>
       )}
     </CommandButton>
   );
@@ -347,6 +352,7 @@ function EditActionBarImpl({
               moves: anchor.moves,
               clearTop: anchor.clearTop,
               rect: anchor.rect,
+              clearStart: anchor.clearStart,
               pinned,
             }
           : { form: "dock" }
@@ -362,6 +368,7 @@ function EditActionBarImpl({
       primary={model.primary ?? undefined}
       trailing={trailing}
       leadingSlots={model.leading === "scope" ? 1 : 0}
+      trailingSlots={!floating && reveal ? 1 : 0}
       reserveEnd={inInspector}
       moreRequest={moreRequest}
       onVerb={onVerb}

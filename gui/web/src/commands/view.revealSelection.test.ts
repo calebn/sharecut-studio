@@ -105,7 +105,7 @@ describe("view.revealSelection", () => {
     const edit = {
       id: "p1",
       timeline_start: 12,
-      source_start: 12,
+      source_start: 5,
     };
     const project = useDawStore.getState().project;
     useDawStore.setState({
@@ -127,5 +127,42 @@ describe("view.revealSelection", () => {
     expect(useDawStore.getState().playheadSec).toBe(12);
     expect(useDawStore.getState().selection).toMatchObject({ id: "p1" });
     expect(scroll).not.toHaveBeenCalled();
+  });
+
+  it("has no place to seek an edit with no timeline time on the phone, and never uses its source time", async () => {
+    const project = useDawStore.getState().project;
+    useDawStore.setState({
+      shellBreakpoint: "phone",
+      project: {
+        ...project,
+        pending_edits: [{ id: "p2", timeline_start: null, source_start: 9 }],
+      } as never,
+      selection: { kind: "pending", id: "p2", trackId: "t" },
+      playheadSec: 3,
+    });
+    const node = document.createElement("div");
+    document.body.append(node);
+    reveal.selectionAnchor.set({ current: node });
+
+    const result = await execute("view.revealSelection");
+
+    node.remove();
+    expect(result.status).toBe("disabled");
+    expect(useDawStore.getState().playheadSec).toBe(3);
+  });
+
+  it("brings back the latest registered anchor when two docks are mounted", async () => {
+    const older = document.createElement("div");
+    const newer = document.createElement("div");
+    document.body.append(older, newer);
+    reveal.selectionAnchor.set({ current: older });
+    reveal.selectionAnchor.set({ current: newer });
+    const spy = vi.spyOn(reveal, "revealAnchor").mockImplementation(() => {});
+
+    await execute("view.revealSelection");
+
+    older.remove();
+    newer.remove();
+    expect(spy).toHaveBeenCalledWith(newer);
   });
 });

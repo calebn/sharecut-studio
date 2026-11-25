@@ -830,7 +830,16 @@ function Scrolled({
           if (el) el.getBoundingClientRect = () => domRect(SCROLL);
         }}
       >
-        {header > 0 ? <div className="track-headers" /> : null}
+        {header > 0 ? (
+          <div
+            className="track-headers"
+            ref={(el) => {
+              if (el)
+                el.getBoundingClientRect = () =>
+                  domRect({ left: 0, top: 0, right: header, bottom: 600 });
+            }}
+          />
+        ) : null}
         <div className="lane-row" data-track-id={MIRA}>
           <div className="lane-inner">
             <div className="range-overlay" ref={measured} />
@@ -976,7 +985,7 @@ describe("EditActionBar pinned to the viewport", () => {
     render(<Scrolled form="dock" clear />);
     const bar = screen.getByRole("group", { name: "Edit actions" });
     const show = within(bar).getByRole("button", { name: "Show selection" });
-    expect(show).toHaveTextContent("Show selection");
+    expect(show).toHaveTextContent(/^Show$/);
     const names = within(bar)
       .getAllByRole("button")
       .map((b) => b.getAttribute("aria-label") ?? b.textContent);
@@ -1012,6 +1021,71 @@ describe("EditActionBar pinned to the viewport", () => {
     ).toBeInTheDocument();
     moveAnchor({ left: 100, top: 200, right: 400, bottom: 240 });
     expect(screen.queryByRole("button", { name: "Show edit" })).toBeNull();
+  });
+
+  it("marks the bar pinned only while it is, so the pinned look has a hook", () => {
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled />);
+    expect(floatingBar()).not.toHaveClass("sys-actions--pinned");
+    moveAnchor(AWAY);
+    expect(floatingBar()).toHaveClass("sys-actions--pinned");
+  });
+
+  it("keeps the pinned bar right of the sticky track headers", () => {
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(
+      function (this: HTMLElement) {
+        return this.classList.contains("track-headers") ? 300 : 200;
+      },
+    );
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled header={300} />);
+    moveAnchor({ left: 100, top: 200, right: 250, bottom: 240 });
+    const bar = floatingBar() as HTMLElement;
+    expect(Number.parseFloat(bar.style.left)).toBeGreaterThanOrEqual(300);
+  });
+
+  it("moves focus to another bar control, not the page, when Show unmounts and there is no Clear", () => {
+    vi.spyOn(reveal, "revealAnchor").mockImplementation(() => {});
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled />);
+    moveAnchor(AWAY);
+    const show = screen.getByRole("button", { name: "Show edit" });
+    show.focus();
+    moveAnchor(IN_VIEW);
+    expect(screen.queryByRole("button", { name: "Show edit" })).toBeNull();
+    expect(document.activeElement).not.toBe(document.body);
+    expect(floatingBar()).toContainElement(
+      document.activeElement as HTMLElement,
+    );
+  });
+
+  it("gives the dock no Show where neither Clear nor Close holds its slot", () => {
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled form="dock" />);
+    expect(screen.queryByRole("button", { name: "Show edit" })).toBeNull();
+  });
+
+  it("folds a verb into More for Show's slot so the dock's start slot never overflows", () => {
+    const verbCount = (withShow: boolean) => {
+      host(EDIT_SELECTIONS.rangeOnAllTracks);
+      const { unmount } = render(
+        withShow ? (
+          <Scrolled form="dock" clear />
+        ) : (
+          <EditActionBar form="dock" root={null} clear />
+        ),
+      );
+      const start = document.querySelector(
+        ".sys-dock-slot--start",
+      ) as HTMLElement;
+      const n = within(start)
+        .getAllByRole("button")
+        .filter((b) => b.getAttribute("aria-label") !== "More").length;
+      unmount();
+      return n;
+    };
+    // The end slot holds Show and Clear, two controls: the verbs give up one slot.
+    expect(verbCount(true)).toBe(verbCount(false) - 1);
   });
 
   it("measures again when the scroller resizes, with no scroll event", () => {

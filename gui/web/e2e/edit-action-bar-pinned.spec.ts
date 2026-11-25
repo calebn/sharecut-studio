@@ -69,7 +69,7 @@ for (const size of SIZES) {
         const actions = bar(page);
         const show = actions.getByRole("button", { name: "Show edit" });
         if (size.phone) {
-          // The dock has no pin state: it always carries Show edit, in the
+          // The dock has no pin state: it carries Show edit while its anchor is drawn, in the
           // one trailing slot, and fits the screen with the verbs.
           await expect(show).toBeVisible();
           await expect(actions).toBeInViewport({ ratio: 1 });
@@ -80,6 +80,8 @@ for (const size of SIZES) {
             actions.getByRole("button", { name: "Clear selection" }),
           ).toBeVisible();
           await expectPageAxeClean(page);
+          const timecode = page.getByText(/^\d\d:\d\d\.\d{3}$/).first();
+          const start = (await timecode.textContent()) ?? "";
           // Scrub the view away (a scroll moves the fixed playhead), then
           // Show edit seeks back to the edit's start.
           await page.evaluate(() => {
@@ -88,8 +90,10 @@ for (const size of SIZES) {
             if (scroller) scroller.scrollLeft = scroller.scrollWidth;
           });
           await expect(anchor(page)).not.toBeInViewport();
+          await expect(timecode).not.toHaveText(start);
           await show.click();
           await expect(anchor(page)).toBeInViewport();
+          await expect(timecode).toHaveText(start);
           await expect(
             anchor(page).locator('[aria-pressed="true"]'),
           ).toHaveCount(1);

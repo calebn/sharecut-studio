@@ -31,7 +31,8 @@ function selectionStartSec(
 ): number | null {
   if (selection?.kind === "pending") {
     const edit = project.pending_edits.find((e) => e.id === selection.id);
-    return edit ? (edit.timeline_start ?? edit.source_start) : null;
+    // `source_start` is on the source clock, so a null timeline time has no place to seek to.
+    return edit?.timeline_start ?? null;
   }
   return selectionSpan(selection, project)?.start ?? null;
 }
@@ -131,6 +132,11 @@ export function registerViewCommands(): void {
       // the same seek as Seek to start (the selection stays as it is).
       const at = selectionStartSec(s.selection, s.project);
       if (at !== null) return seekTransport(at);
+      if (s.selection.kind === "pending")
+        return {
+          status: "disabled",
+          reason: "This edit has no place on the timeline",
+        };
     }
     revealAnchor(anchor);
     return { status: "ok" };
