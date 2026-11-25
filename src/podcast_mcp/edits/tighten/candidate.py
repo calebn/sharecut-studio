@@ -31,10 +31,9 @@ class _SpeakerCutContext:
     # False when loading failed: the snapshot then reads as "no profiles", and cut scope
     # loads for itself so the failure still marks the verdict cache unstable.
     loaded: bool = True
-    # One run's scored windows, shared by the bleed guard and every cut-scope check.
-    role_memo: dict[tuple[str, float, float], dict[str, Any] | None] = field(
-        default_factory=dict, compare=False
-    )
+    # One analysis pass's scored windows (and its one speaker backend), shared by the bleed guard
+    # and every cut-scope check; apply builds its own context.
+    role_memo: speaker_id.RoleMemo = field(default_factory=speaker_id.RoleMemo, compare=False)
 
     def scope_snapshot(self) -> SpeakerScopeSnapshot | None:
         if not self.loaded:
