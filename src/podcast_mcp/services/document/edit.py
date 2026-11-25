@@ -71,6 +71,7 @@ from podcast_mcp.project.history.manager import (
     snapshot_from_project,
 )
 from podcast_mcp.project.history.rollback import RollbackOutcome
+from podcast_mcp.services.document import cut_range_results as crr
 from podcast_mcp.services.document.edit_results import SuggestedActionsApplied
 from podcast_mcp.services.document.service_base import CutMutatingService
 from podcast_mcp.services.document.suggested_actions import revise_suggested_actions
@@ -699,7 +700,7 @@ class EditService(CutMutatingService):
         track_ids: list[str] | None = None,
         use_inaudible_opt: bool | None = None,
         application_intent: CutIntent = CutIntent.PROGRAMMATIC,
-    ) -> dict:
+    ) -> crr.CutRangeResult:
         """Cut a timeline range: ripple closes it on every track; gap leaves silence.
 
         ``track_ids`` name whose material the cut means to remove. A ripple asks to
@@ -712,7 +713,7 @@ class EditService(CutMutatingService):
         if mode is EditMode.GAP:
             with self.ws.transaction() as project:
                 selected = tids or dialogue_track_ids(project)
-                return self._apply_cut(
+                out = self._apply_cut(
                     "cut range",
                     plan_ripple_delete(
                         project,
@@ -727,6 +728,7 @@ class EditService(CutMutatingService):
                     ripple=False,
                     params={"timeline_start": start, "timeline_end": end, "track_ids": selected},
                 )
+                return crr.cut_range_result(out)
         with self.ws.transaction() as project:
             removal = plan_ripple_delete(
                 project,
@@ -749,7 +751,7 @@ class EditService(CutMutatingService):
                 },
             )
         if out.get("needs_confirmation") is not None:
-            return out
+            return crr.cut_range_result(out)
         # Advisory only - does not block the edit
         try:
             dialogue_ids = dialogue_track_ids(self.ws.project)
@@ -765,14 +767,14 @@ class EditService(CutMutatingService):
                 ).to_dict()
         except Exception as exc:
             log.debug("join quality advisory skipped: %s", exc)
-        return out
+        return crr.cut_range_result(out)
 
     def ripple_delete_text(
         self,
         query: str,
         *,
         use_inaudible_opt: bool | None = None,
-    ) -> dict:
+    ) -> crr.RippleDeleteTextResult:
         self._require_refine_clear()
         with self.ws.transaction() as project:
             removal = plan_ripple_delete_text(
@@ -787,7 +789,7 @@ class EditService(CutMutatingService):
                 operation="ripple_delete_text",
                 params={"query": query, "use_inaudible_opt": use_inaudible_opt},
             )
-        return {**out, "query": query}
+        return crr.ripple_delete_text_result({**out, "query": query})
 
     def list_applied_edits(
         self,

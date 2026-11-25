@@ -116,7 +116,7 @@ START, END = 0.2, 0.65
 
 
 def _as_dict(result: Any) -> dict:
-    return result.model_dump(mode="json") if hasattr(result, "model_dump") else result
+    return result.model_dump() if hasattr(result, "model_dump") else result
 
 
 @pytest.fixture(autouse=True)

@@ -659,18 +659,26 @@ def edit_ripple_delete_cmd(
 
     def ripple_text() -> dict:
         with cli_override(override_checks):
-            return EditService(ws).ripple_delete_text(
-                query or "", use_inaudible_opt=inaudible_opt and not override_checks
+            return (
+                EditService(ws)
+                .ripple_delete_text(
+                    query or "", use_inaudible_opt=inaudible_opt and not override_checks
+                )
+                .model_dump()
             )
 
     def ripple_range() -> dict:
         with cli_override(override_checks):
-            return EditService(ws).cut_range(
-                start or 0.0,
-                end or 0.0,
-                mode=EditMode.RIPPLE,
-                track_ids=list(track),
-                use_inaudible_opt=inaudible_opt and not override_checks,
+            return (
+                EditService(ws)
+                .cut_range(
+                    start or 0.0,
+                    end or 0.0,
+                    mode=EditMode.RIPPLE,
+                    track_ids=list(track),
+                    use_inaudible_opt=inaudible_opt and not override_checks,
+                )
+                .model_dump()
             )
 
     if query:

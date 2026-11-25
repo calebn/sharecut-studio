@@ -77,7 +77,7 @@ def test_edit_service_timeline_and_transcript(tmp_path, sample_wav) -> None:
     assert low
 
     r = svc.cut_range(0.5, 1.0, mode=EditMode.RIPPLE)
-    assert r["operation"] == "ripple_delete"
+    assert r.operation == "ripple_delete"
 
     TimelineService(svc.ws).insert_gap(1.0, 0.5)
     faded = TimelineService(svc.ws).fade_joins(dry_run=True)

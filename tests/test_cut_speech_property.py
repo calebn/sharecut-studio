@@ -227,7 +227,7 @@ class _Op:
                 application_intent=CutIntent.HUMAN_BOUNDARIES
                 if confirm
                 else CutIntent.PROGRAMMATIC,
-            )
+            ).model_dump()
         elif self.kind == "trim":
             token = boundary_context(
                 load_project(self.path),

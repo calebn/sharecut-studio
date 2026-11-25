@@ -571,19 +571,25 @@ def paste_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 def cut_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     """Cut a timeline range (clipboard cut) in the payload's edit mode. Apply-only."""
-    return EditService(ws).cut_range(
-        float(p["start"]),
-        float(p["end"]),
-        mode=EditMode(p["mode"]),
-        track_ids=[str(t) for t in p.get("track_ids") or []],
-        use_inaudible_opt=p.get("use_inaudible_opt"),
-        application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
+    return (
+        EditService(ws)
+        .cut_range(
+            float(p["start"]),
+            float(p["end"]),
+            mode=EditMode(p["mode"]),
+            track_ids=[str(t) for t in p.get("track_ids") or []],
+            use_inaudible_opt=p.get("use_inaudible_opt"),
+            application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
+        )
+        .model_dump()
     )
 
 
 def ripple_delete_text(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).ripple_delete_text(
-        p["query"], use_inaudible_opt=p.get("use_inaudible_opt")
+    return (
+        EditService(ws)
+        .ripple_delete_text(p["query"], use_inaudible_opt=p.get("use_inaudible_opt"))
+        .model_dump()
     )
 
 
