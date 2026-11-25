@@ -28,6 +28,7 @@ import {
   minimalProject,
   sampleTrack,
 } from "../../test/fixtures";
+import * as reveal from "../../utils/timelineReveal";
 import { BounceRunContext } from "../hosts/bounceRunnerContext";
 import { EditActionBar } from "./EditActionBar";
 
@@ -498,31 +499,6 @@ describe("EditActionBar floating", () => {
     ).toBeNull();
   });
 
-  it("hides while its anchor is scrolled out of view and returns with it", () => {
-    let report: (visible: boolean) => void = () => {};
-    vi.stubGlobal(
-      "IntersectionObserver",
-      class {
-        constructor(cb: (e: { isIntersecting: boolean }[]) => void) {
-          report = (visible) => cb([{ isIntersecting: visible }]);
-        }
-        observe() {}
-        disconnect() {}
-      },
-    );
-    host(EDIT_SELECTIONS.rangeOnAllTracks);
-    render(<Floating />);
-    act(() => report(false));
-    expect(
-      screen.queryByRole("group", { name: "Selection actions" }),
-    ).toBeNull();
-    act(() => report(true));
-    expect(
-      screen.getByRole("group", { name: "Selection actions" }),
-    ).toBeInTheDocument();
-    vi.unstubAllGlobals();
-  });
-
   it("runs a verb on click through the command bus", async () => {
     host(EDIT_SELECTIONS.clip, { playheadSec: 9 });
     const { container } = render(<Floating />);
@@ -552,7 +528,21 @@ describe("EditActionBar against the timeline ruler", () => {
     const [root, setRoot] = useState<HTMLElement | null>(null);
     return (
       <div ref={setRoot}>
-        <div className="timeline-scroll">
+        <div
+          className="timeline-scroll"
+          ref={(el) => {
+            if (el)
+              el.getBoundingClientRect = () =>
+                ({
+                  left: 0,
+                  right: 800,
+                  top: 60,
+                  bottom: 600,
+                  width: 800,
+                  height: 540,
+                }) as DOMRect;
+          }}
+        >
           <div
             className="timeline-ruler"
             ref={(el) => {
@@ -611,9 +601,13 @@ describe("EditActionBar against the timeline ruler", () => {
     expect(bar).toBeVisible();
   });
 
-  it("hides the bar when the selection is scrolled under the ruler", () => {
-    const { bar } = barAt(40);
-    expect(bar).not.toBeVisible();
+  it("pins the bar below the ruler when the selection is scrolled under it", () => {
+    const { bar, top } = barAt(40);
+    expect(bar).toBeVisible();
+    expect(top).toBeGreaterThanOrEqual(RULER_BOTTOM);
+    expect(
+      screen.getByRole("button", { name: "Show selection" }),
+    ).toBeVisible();
   });
 });
 
@@ -788,5 +782,199 @@ describe("EditActionBar in the Inspector dock", () => {
     expect(
       screen.queryByRole("button", { name: "Clear selection" }),
     ).toBeNull();
+  });
+});
+
+type R = { left: number; top: number; right: number; bottom: number };
+const SCROLL: R = { left: 0, top: 0, right: 800, bottom: 600 };
+const IN_VIEW: R = { left: 200, top: 200, right: 300, bottom: 240 };
+const AWAY: R = { left: 1500, top: 200, right: 1600, bottom: 240 };
+
+const domRect = (r: R) =>
+  ({
+    ...r,
+    x: r.left,
+    y: r.top,
+    width: r.right - r.left,
+    height: r.bottom - r.top,
+  }) as DOMRect;
+
+let anchorRect: R = IN_VIEW;
+
+function Scrolled({
+  form = "floating",
+  clear = false,
+}: {
+  form?: "floating" | "dock";
+  clear?: boolean;
+}) {
+  const [root, setRoot] = useState<HTMLElement | null>(null);
+  const measured = (el: HTMLElement | null) => {
+    if (el) el.getBoundingClientRect = () => domRect(anchorRect);
+  };
+  return (
+    <div ref={setRoot}>
+      <div
+        className="timeline-scroll"
+        ref={(el) => {
+          if (el) el.getBoundingClientRect = () => domRect(SCROLL);
+        }}
+      >
+        <div className="lane-row" data-track-id={MIRA}>
+          <div className="lane-inner">
+            <div className="range-overlay" ref={measured} />
+            <div data-pending-id="pending-cut" ref={measured} />
+            <div data-clip-id="a" ref={measured} />
+          </div>
+        </div>
+      </div>
+      <EditActionBar form={form} root={root} clear={clear} />
+    </div>
+  );
+}
+
+function moveAnchor(next: R) {
+  act(() => {
+    anchorRect = next;
+    window.dispatchEvent(new Event("scroll"));
+  });
+}
+
+const floatingBar = () =>
+  screen.queryByRole("group", { name: "Selection actions" });
+
+describe("EditActionBar pinned to the viewport", () => {
+  beforeEach(() => {
+    anchorRect = IN_VIEW;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(40);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(200);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("shows no Show control while the selection is in view", () => {
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled />);
+    expect(floatingBar()).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Show / })).toBeNull();
+  });
+
+  it("keeps its verbs and adds Show edit once the pending edit scrolls away, and drops it on return", () => {
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled />);
+    moveAnchor(AWAY);
+    const bar = floatingBar();
+    expect(bar).toBeInTheDocument();
+    expect(
+      within(bar as HTMLElement).getByRole("button", { name: "Cut" }),
+    ).toBeEnabled();
+    expect(
+      within(bar as HTMLElement).getByRole("button", { name: "Keep" }),
+    ).toBeEnabled();
+    expect(
+      within(bar as HTMLElement).getByRole("button", { name: "Show edit" }),
+    ).toHaveTextContent("Show edit");
+    moveAnchor(IN_VIEW);
+    expect(screen.queryByRole("button", { name: "Show edit" })).toBeNull();
+  });
+
+  it("never hides a pinned bar and keeps it inside the viewport", () => {
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled />);
+    moveAnchor({ left: 200, top: 5000, right: 300, bottom: 5040 });
+    const bar = floatingBar() as HTMLElement;
+    expect(bar.style.visibility).not.toBe("hidden");
+    expect(Number.parseFloat(bar.style.top)).toBeLessThan(window.innerHeight);
+    expect(Number.parseFloat(bar.style.top)).toBeGreaterThanOrEqual(0);
+  });
+
+  it.each([
+    ["a pending edit", EDIT_SELECTIONS.suggestion, "Show edit"],
+    ["a clip", EDIT_SELECTIONS.clip, "Show selection"],
+    ["a range", EDIT_SELECTIONS.rangeOnAllTracks, "Show selection"],
+  ])("names the control for %s", (_name, selection, label) => {
+    host(selection);
+    render(<Scrolled />);
+    moveAnchor(AWAY);
+    const show = screen.getByRole("button", { name: label });
+    expect(show).toHaveTextContent(label);
+  });
+
+  it("runs view.revealSelection on click without touching the selection or playhead", async () => {
+    const spy = vi.spyOn(reveal, "revealAnchor").mockImplementation(() => {});
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled />);
+    moveAnchor(AWAY);
+    await userEvent.click(screen.getByRole("button", { name: "Show edit" }));
+    await act(async () => {});
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().selection).toEqual(
+      EDIT_SELECTIONS.suggestion,
+    );
+    expect(useDawStore.getState().playheadSec).toBe(8);
+  });
+
+  it("orders Show after the verbs and before Clear", () => {
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled clear />);
+    moveAnchor(AWAY);
+    const names = within(floatingBar() as HTMLElement)
+      .getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label") ?? b.textContent);
+    expect(names.slice(-2)).toEqual(["Show edit", "Clear selection"]);
+  });
+
+  it("announces the way back once on the move away, not on every scroll tick", () => {
+    host(EDIT_SELECTIONS.suggestion);
+    const announceStatus = vi.fn();
+    useDawStore.setState({ announceStatus });
+    render(<Scrolled />);
+    expect(announceStatus).not.toHaveBeenCalled();
+    moveAnchor(AWAY);
+    moveAnchor({ ...AWAY, left: 1600, right: 1700 });
+    moveAnchor({ ...AWAY, left: 1700, right: 1800 });
+    expect(announceStatus).toHaveBeenCalledTimes(1);
+    expect(announceStatus).toHaveBeenCalledWith("Show edit to return to it");
+  });
+
+  it("moves focus to Clear, not the page, when Show unmounts under it", async () => {
+    vi.spyOn(reveal, "revealAnchor").mockImplementation(() => {});
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled clear />);
+    moveAnchor(AWAY);
+    const show = screen.getByRole("button", { name: "Show edit" });
+    show.focus();
+    expect(show).toHaveFocus();
+    moveAnchor(IN_VIEW);
+    expect(screen.queryByRole("button", { name: "Show edit" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Clear selection" }),
+    ).toHaveFocus();
+  });
+
+  it("always shows the control on the dock, before Clear, and keeps both at 320 px", () => {
+    host(EDIT_SELECTIONS.rangeOnAllTracks);
+    render(<Scrolled form="dock" clear />);
+    const bar = screen.getByRole("group", { name: "Edit actions" });
+    const show = within(bar).getByRole("button", { name: "Show selection" });
+    expect(show).toHaveTextContent("Show selection");
+    const names = within(bar)
+      .getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label") ?? b.textContent);
+    expect(names.slice(-2)).toEqual(["Show selection", "Clear selection"]);
+    expect(
+      within(bar).getByRole("button", { name: "Clear selection" }),
+    ).toBeInTheDocument();
+  });
+
+  it("labels the dock control Show edit for a pending edit", () => {
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled form="dock" clear />);
+    expect(
+      screen.getByRole("button", { name: "Show edit" }),
+    ).toBeInTheDocument();
   });
 });

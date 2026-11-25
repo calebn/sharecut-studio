@@ -41,7 +41,10 @@ const FILE_SURFACES: Record<string, string[]> = {
   "stage/edit/clipSections.tsx": ["clipInspector"],
   "stage/edit/trackSections.tsx": ["trackInspector"],
   "stage/edit/EditCornerView.tsx": ["editCorner"],
-  "stage/edit/EditActionBar.tsx": ["actionBar.clearSelection"],
+  "stage/edit/EditActionBar.tsx": [
+    "actionBar.clearSelection",
+    "actionBar.revealSelection",
+  ],
   "stage/edit/PlusMenu.tsx": ["editPlusMenu"],
   "stage/hosts/clearSelectionAction.tsx": ["scriptHeader"],
   "tracks/SoloChip.tsx": ["trackHeaders.soloChip"],
