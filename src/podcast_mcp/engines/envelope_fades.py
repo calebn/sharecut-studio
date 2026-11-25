@@ -127,9 +127,11 @@ def _dip_gain_at(points: list[EnvPoint], time: float) -> float:
     )
     before = [p for p in dips if p.time <= time]
     after = [p for p in dips if p.time > time]
-    if not before or not after:
+    if not before:
         return 1.0
     left = before[-1]
+    if not after:
+        return left.value
     right = after[0]
     return left.value + (right.value - left.value) * (time - left.time) / (right.time - left.time)
 
