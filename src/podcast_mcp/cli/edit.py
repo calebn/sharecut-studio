@@ -443,8 +443,8 @@ def edit_duck_cmd(
     track: list[str] | None = typer.Option(
         None,
         "--track",
-        help="Track to duck; repeat for several. Omitted: every unmuted music track and "
-        "every track with a duck-under-dialogue segment.",
+        help="Track to duck; repeat for several. Omitted: every unmuted music track "
+        "(including a music segment lane) and every track with a duck-under-dialogue segment.",
     ),
     dialogue_track: list[str] | None = typer.Option(
         None,

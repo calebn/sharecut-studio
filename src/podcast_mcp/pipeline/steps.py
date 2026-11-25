@@ -47,7 +47,7 @@ from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import ProgressTask, resolve_progress_task
 from podcast_mcp.util.project_state import current_cancel_check, with_render_lock
-from podcast_mcp.util.tracks import tracks_with_audio
+from podcast_mcp.util.tracks import track_has_audio, tracks_with_audio
 
 log = logging.getLogger(__name__)
 
@@ -1007,6 +1007,38 @@ def _reusable_premix_summary(
     return "reused premix.wav"
 
 
+def _refresh_segment_lane_stems(
+    project: EpisodeProject,
+    defaults: dict[str, Any],
+    rendered: dict[str, Any],
+    eng: Any,
+) -> int:
+    from podcast_mcp.engines.play_audit import publish_stem, stem_fingerprint, stem_matches
+
+    refreshed = 0
+    for track in project.tracks:
+        if (
+            track.media is not None
+            or track.role == TrackRole.DIALOGUE
+            or track.id not in rendered
+            or not track_has_audio(project, track)
+        ):
+            continue
+        fingerprint = stem_fingerprint(project, track.id, defaults=defaults)
+        if stem_matches(project, track.id, fingerprint):
+            continue
+        out = publish_stem(
+            project,
+            track.id,
+            functools.partial(eng.render_dialogue_track, project, track, defaults=defaults),
+            clear_invalidations=False,
+            defaults=defaults,
+        )
+        rendered[track.id] = str(out)
+        refreshed += 1
+    return refreshed
+
+
 @with_render_lock
 def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.engines.play_audit import (
@@ -1043,6 +1075,7 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         "Mixing with music",
         prefer_parent=True,
     ) as prog:
+        lane_refreshed = _refresh_segment_lane_stems(project, defaults, rendered, eng)
         prog.set_phase("envelopes", "Building music envelopes…")
         music_envelopes = 0
         duck_stale = 0
@@ -1114,6 +1147,8 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         )
         prog.message(f"{len(mixed)} tracks mixed")
     summary = f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
+    if lane_refreshed:
+        summary += f", {lane_refreshed} segment lane stems refreshed"
     if duck_stale:
         summary += f", {duck_stale} fade points moved under ducking, re-run ducking"
     if legacy_replaced:

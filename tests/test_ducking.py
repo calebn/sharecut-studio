@@ -56,6 +56,8 @@ from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.document_sync.payloads import ENVELOPE_POINTS_MAX, validate_payload
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.coded_error import CodedValueError
+from test_segments_insert import _insert, _save
+from test_segments_insert import project as seeded_episode  # noqa: F401
 
 runner = CliRunner()
 DEPTH = -18.0
@@ -556,6 +558,58 @@ class TestTargets:
         ]
         assert select_targets(project, None, []) == ["music", "m2"]
 
+    def test_a_music_segment_lane_is_a_default_target_without_the_flag_or_a_store_read(
+        self, tmp_path
+    ) -> None:
+        project = make_project(tmp_path)
+        project.timeline.tracks += [
+            Track(id="bed", label="Bed", role=TrackRole.MUSIC),
+            Track(id="held", label="Held", role=TrackRole.MUSIC, muted=True),
+            Track(id="sting", label="Sting", role=TrackRole.SFX),
+        ]
+        for track_id in ("bed", "held", "sting"):
+            project.timeline.clips.append(
+                Clip(
+                    id=f"s-{track_id}",
+                    track_id=track_id,
+                    source_start=0,
+                    source_end=3,
+                    timeline_start=5,
+                    segment_ref=ref(track_id),
+                )
+            )
+        store = FakeStore({("bed", 1): False, ("sting", 1): False})
+        reads: list[str] = []
+        original = store.get
+
+        def spy(segment_id: str, version: int):
+            reads.append(segment_id)
+            return original(segment_id, version)
+
+        store.get = spy  # type: ignore[method-assign]
+        warnings: list[str] = []
+        assert select_targets(project, None, warnings, store) == ["music", "bed"]
+        assert "bed" not in reads and not warnings
+
+    def test_a_lone_music_segment_lane_is_enough_and_explicit_ids_still_work(
+        self, tmp_path
+    ) -> None:
+        project = make_project(tmp_path)
+        project.timeline.tracks[1].muted = True
+        project.timeline.tracks.append(Track(id="bed", label="Bed", role=TrackRole.MUSIC))
+        project.timeline.clips.append(
+            Clip(
+                id="s-bed",
+                track_id="bed",
+                source_start=0,
+                source_end=3,
+                timeline_start=5,
+                segment_ref=ref("bed"),
+            )
+        )
+        assert select_targets(project, None, []) == ["bed"]
+        assert select_targets(project, ["bed"], []) == ["bed"]
+
     def test_named_tracks_override_and_may_be_intro_or_sfx(self, tmp_path) -> None:
         project = make_project(tmp_path)
         project.timeline.tracks.append(Track(id="intro", label="I", role=TrackRole.INTRO))
@@ -1019,3 +1073,41 @@ def test_envelope_range_check_exempts_only_saved_times(tmp_path: Path) -> None:
     with pytest.raises(CodedValueError) as error:
         validate_envelope_point_times(project, "music", [{"id": "a", "time": 501.0}], 10.0)
     assert error.value.code == "out_of_range"
+
+
+@pytest.fixture
+def dispatcher_grant():
+    from podcast_mcp.project.store import WriteGrantKind, write_grant
+
+    with write_grant(WriteGrantKind.DISPATCHER):
+        yield
+
+
+def test_the_cli_ducks_a_saved_music_segment_lane_by_default(
+    dispatcher_grant,
+    tmp_path: Path,
+    seeded_episode: str,  # noqa: F811
+) -> None:
+    path = Path(seeded_episode)
+    proj = load_project(path)
+    proj.tracks = [t for t in proj.tracks if t.id == "host"]
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=7.2, end=7.8),
+                TranscriptWord(text="there", start=7.9, end=8.5),
+            ],
+        )
+    ]
+    save_project(proj, path)
+    segment = _save(tmp_path, "Bed", role="music", fader_db=0.0)
+    assert _insert(seeded_episode, segment.id, 7.0, "--own-lane").exit_code == 0
+    lane = next(c.track_id for c in load_project(path).clips if c.segment_ref)
+
+    result = runner.invoke(app, ["edit", "duck", "--project", seeded_episode])
+
+    assert result.exit_code == 0, result.output
+    out = json.loads(result.output)
+    assert [t["track_id"] for t in out["tracks"]] == [lane]
+    assert envelopes(path)[lane]

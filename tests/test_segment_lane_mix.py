@@ -524,3 +524,79 @@ def test_the_mix_leaves_a_segment_lanes_own_envelope_untouched(
     proj.automation_envelopes = [own]
     _mix(proj)
     assert proj.automation_envelopes == [own]
+
+
+def _silence_lane(proj: EpisodeProject, lane: str) -> None:
+    proj.automation_envelopes.append(
+        AutomationEnvelope(
+            track_id=lane,
+            points=[
+                AutomationPoint(id="p0", time=0.0, value=0.0),
+                AutomationPoint(id="p1", time=100.0, value=0.0),
+            ],
+        )
+    )
+
+
+def test_a_bare_mix_refreshes_a_lane_stem_made_stale_by_an_envelope(
+    episode_path: str, tmp_path: Path
+) -> None:
+    proj = _lane_project(episode_path, tmp_path)
+    lane = _lane_id(proj)
+    defaults = load_defaults()
+    _mix(proj)
+    assert _peak(premix_path(proj), 8.2, 8.8) > 1000
+    own = AutomationEnvelope(
+        track_id=lane,
+        points=[
+            AutomationPoint(id="p0", time=0.0, value=0.0),
+            AutomationPoint(id="p1", time=100.0, value=0.0),
+        ],
+    )
+    proj.automation_envelopes.append(own)
+    assert not stem_is_fresh(proj, lane, defaults=defaults)
+    assert premix_is_stale(proj, defaults)
+
+    summary = steps.mix_with_music(proj, defaults)
+
+    assert "1 segment lane stems refreshed" in summary
+    assert stem_is_fresh(proj, lane, defaults=defaults)
+    assert _peak(_stem(proj, lane), 8.2, 8.8) == 0
+    assert _peak(premix_path(proj), 8.2, 8.8) == 0
+    assert not premix_is_stale(proj, defaults)
+    assert proj.automation_envelopes == [own]
+    assert steps.mix_with_music(proj, defaults) == "reused premix.wav"
+
+
+def test_a_mix_with_fresh_lane_stems_does_not_re_render_them(
+    episode_path: str, tmp_path: Path
+) -> None:
+    proj = _lane_project(episode_path, tmp_path)
+    lane = _lane_id(proj)
+    defaults = load_defaults()
+    _mix(proj)
+    stamp = _stem(proj, lane).stat().st_mtime_ns
+    proj.track_by_id(lane).fader_db = -6.0
+
+    summary = steps.mix_with_music(proj, defaults)
+
+    assert "segment lane" not in summary
+    assert _stem(proj, lane).stat().st_mtime_ns == stamp
+
+
+def test_the_pipeline_runner_only_step_mix_applies_a_lane_envelope(
+    episode_path: str, tmp_path: Path
+) -> None:
+    from podcast_mcp.pipeline.runner import PipelineRunner
+
+    proj = _lane_project(episode_path, tmp_path)
+    lane = _lane_id(proj)
+    defaults = load_defaults()
+    _mix(proj)
+    _silence_lane(proj, lane)
+
+    run = PipelineRunner(defaults=defaults).run(proj, only_step="mix_with_music")
+
+    assert "segment lane stems refreshed" in (run.steps[-1].message or "")
+    assert _peak(premix_path(proj), 8.2, 8.8) == 0
+    assert not premix_is_stale(proj, defaults)
