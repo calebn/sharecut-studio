@@ -222,7 +222,7 @@ def review_preview_session_suggestion_cmd(
     except CodedError as exc:
         typer.echo(describe_error(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(json.dumps(result, indent=2))
+    typer.echo(json.dumps(result.model_dump(), indent=2))
 
 
 @review_app.command("set-active")

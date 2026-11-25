@@ -142,17 +142,16 @@ def hear_session_suggestion_tool(
     from podcast_mcp.services.document import SessionSuggestionService
 
     ws = ProjectWorkspace.open(project_path)
-    return to_json(
-        SessionSuggestionService(ws).preview(
-            suggestion_id,
-            mode=mode,
-            take_index=take_index,
-            pad_sec=pad_sec,
-            gap_sec=gap_sec,
-            rerender=rerender,
-            dry_run=dry_run,
-        )
+    result = SessionSuggestionService(ws).preview(
+        suggestion_id,
+        mode=mode,
+        take_index=take_index,
+        pad_sec=pad_sec,
+        gap_sec=gap_sec,
+        rerender=rerender,
+        dry_run=dry_run,
     )
+    return to_json(result.model_dump())
 
 
 def set_active_review_version_tool(

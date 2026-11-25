@@ -190,7 +190,7 @@ def _svc(ws) -> SessionSuggestionService:
 
 def _hear(ws, sid: str = SUGGESTION, **kwargs):
     kwargs.setdefault("dry_run", True)
-    return _svc(ws).preview(sid, **kwargs)
+    return _svc(ws).preview(sid, **kwargs).model_dump()
 
 
 # --- windows ---
