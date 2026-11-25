@@ -17,6 +17,7 @@ import {
 } from "../../edit/joinRender";
 import { muteRegionsOverlapping } from "../../edit/muteRegions";
 import { seamsOnTrack } from "../../edit/seam";
+import { trimEdgeLimits } from "../../edit/trimLimits";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { canApplyPass12, canSuggestStructural } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -35,7 +36,6 @@ import {
   clipGainDb,
 } from "../../utils/audio";
 import { clipEdgeCurve, type FadeEdge } from "../../utils/fadeCurves";
-import { trimEdgeLimits } from "../../utils/trimLimits";
 import {
   endClipGainPreview,
   previewBaselineDb,

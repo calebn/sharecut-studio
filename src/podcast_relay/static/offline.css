@@ -21,19 +21,3 @@ code {
   padding: 0.1em 0.35em;
   border-radius: var(--radius-md);
 }
-
-button {
-  font: inherit;
-  min-block-size: var(--tap-comfortable);
-  padding: var(--s-1) var(--s1);
-  border: 0;
-  border-radius: var(--radius-lg);
-  color: var(--color-accent-on-solid);
-  background: var(--color-accent-solid);
-  cursor: pointer;
-}
-
-button:focus-visible {
-  outline: 0.125rem solid var(--color-accent-text);
-  outline-offset: 0.125rem;
-}

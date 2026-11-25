@@ -1,7 +1,7 @@
 """contracts/trim-edge-limits.json: the DAW's trim clamp matches ``trim_edge_limits``.
 
 Every client clamp of a clip edge (a held strip nudge, a handle drag, the peer a
-ripple preview moves) reads gui/web/src/utils/trimLimits.ts. These cases pin the
+ripple preview moves) reads gui/web/src/edit/trimLimits.ts. These cases pin the
 server's answer, across recordings and takes; the Vitest suite reads the same cases
 against the mirror.
 """

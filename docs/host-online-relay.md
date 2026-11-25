@@ -26,7 +26,7 @@ returns a stable "host offline" page to guests.
 
 ### Studio brings the tunnel up on its own
 
-When online sharing is set up (a relay address, and either a host token or a relay that enrolls hosts, see [Access control](#access-control)), Sharecut Studio keeps
+When online sharing is set up (a relay address and a host token), Sharecut Studio keeps
 your links reachable while it is open. It connects when the open project has a live
 share or record link, or within a couple of seconds of you making one. It disconnects
 two minutes after the last live link ends, and when you quit. If `podcast tunnel` is
@@ -50,7 +50,7 @@ converges to it every `POLL_SEC` (2 s). The first matching row wins:
 |-----------|------|---------|
 | Host cannot hold a tunnel (`host_platform.current().can_host_tunnel` is false: iOS, unknown), or the GUI is bound beyond loopback | `Idle(not_capable)` | none |
 | No listen port yet (a bare `TestClient`) | `Idle(not_listening)` | none |
-| No `relay.yaml` or relay env, or no host token and no relay address named in `relay_url` or `PODCAST_RELAY_URL` | `Idle(not_set_up)` | none, no host-id file written |
+| No `relay.yaml` or relay env, or no host token | `Idle(not_set_up)` | none, no host-id file written |
 | The client ended on its own for this exact config (the relay refused it, or the client failed to start) | `Idle(rejected)` until the config changes, with one warning naming the error type | none |
 | No served project | `Idle(no_project)` | none |
 | A live `podcast tunnel` file for this identity | `Idle(elsewhere)` | none, the CLI is untouched |
@@ -145,7 +145,6 @@ never contain a host token or share token (see § Redaction).
 |-------|------|-------------|
 | `connecting` | `Tunnel connecting to relay.example.com:8443` (relay host only) | `connecting` |
 | `connected` | `Tunnel connected: https://share.example.com (3 shares)` (public base URL, shares the relay accepted) | `online` |
-| `connected`, limited | `Tunnel connected: https://share.example.com (3 shares, limited: bandwidth)` (see Caps) | `limited` |
 | `disconnected` | `Tunnel disconnected (network: connection lost)` | `reconnecting` |
 | `reconnecting` | `Tunnel reconnecting in 2.3s (attempt 2)` | `reconnecting` |
 | `failed` | `Tunnel failed (auth: relay rejected the host token or host id). Check the host token …` | `offline` |
@@ -173,11 +172,10 @@ classified by `services/collaboration/tunnel_failure.py`:
 | `timeout` | Connect timed out, or keepalive pings went unanswered | yes |
 | `relay closed` | The relay closed the socket (`close code N`), restarted, or answered HTTP 5xx | yes |
 | `rate limited` | The relay rate limited tunnel registration | yes |
-| `unavailable` | The install was revoked: a `lease_refused:denied` reply, close `4403 install denied` or a denied enrollment | **no** |
-| `auth` | Close code `4403`, an `invalid host_token for host_id` reply, a `legacy_tier_ended` or `lease_refused:build_too_old` reply, a failed enrollment (denied, build too old), or HTTP 401/403 | **no** |
+| `auth` | Close code `4403`, an `invalid host_token for host_id` reply, or HTTP 401/403 | **no** |
 | `config` | Close code `4400`, HTTP 404 (no `/tunnel` endpoint), or an invalid relay URL | **no** |
 
-An `auth`, `unavailable` or `config` failure prints the `failed` line with its fix and exits `1`;
+An `auth` or `config` failure prints the `failed` line with its fix and exits `1`;
 retrying cannot fix a wrong token or URL. `TunnelClient.run(max_attempts=N)` (library use) gives up after N
 consecutive failures with `Tunnel gave up after N attempts (…)`. The relay `ping`
 frame (logger `podcast_mcp.services.collaboration.tunnel`) and the 15 s status heartbeat
@@ -203,10 +201,9 @@ never maps `/api/tunnel`). It reads every file and reports one `state`:
 | `state` | When | Invite sheet line |
 |---------|------|-------------------|
 | `online` | A tunnel is connected | Guests can open your links |
-| `limited` | Connected, and the relay holds links back (`limit` is `shares` or `bandwidth`; see Caps). Ranks just below `online` when several tunnels report | Online sharing is limited: some links may not open for guests, with a "How to fix" disclosure |
 | `connecting` | Starting up | Connecting… guests can open your links once you're online |
 | `reconnecting` | Dropped and retrying | Reconnecting… guests may see a brief interruption, then "Trying again in N s" (a still "Next try at" clock time under reduced motion) |
-| `offline` | Failed (auth, config, gave up; `reason_kind` `unavailable` reads "Online sharing is unavailable right now." with a contact link instead of the fix disclosure), or a live snapshot not refreshed for 45 s to 10 minutes whose process is not known to be gone (a frozen process, a sleeping laptop) | Not reachable online: guests can't open links until you're back online, with a "How to fix" disclosure and a link to this section |
+| `offline` | Failed (auth, config, gave up), or a live snapshot not refreshed for 45 s to 10 minutes whose process is not known to be gone (a frozen process, a sleeping laptop) | Not reachable online: guests can't open links until you're back online, with a "How to fix" disclosure and a link to this section |
 | `off` | Stopped (Ctrl-C, SIGTERM, or any exit but a failure), a live snapshot whose process is gone (killed, crashed), a file nothing has written for 10 minutes, or no snapshot yet while relay settings exist (`relay.yaml` at the default path, `PODCAST_RELAY_URL` or `PODCAST_RELAY_HOST_TOKEN`) | Online sharing is off, with "How to turn it on" |
 | `not_set_up` | No snapshot and no relay settings: a local-only host | No line |
 
@@ -257,262 +254,6 @@ connecting line prints only `host[:port]`.
 
 ---
 
-## Access control
-
-A relay operator decides which installs may use the relay. Two credentials exist, and the
-relay accepts both:
-
-| Credential | Who gets it | Presented as | Revoked by |
-|------------|-------------|--------------|------------|
-| Host token | The operator hands it out (the self-host model, unchanged) | `hello.host_token` | Editing `PODCAST_RELAY_HOST_TOKENS` and restarting |
-| Lease | The install enrolls for it, with no sign-up and nothing to type | `hello.lease` | The deny file, `PODCAST_RELAY_MIN_BUILD`, `PODCAST_RELAY_EPOCH`, or a new signing key id |
-
-With no `PODCAST_RELAY_SIGNING_KEY` the relay has no `/enroll` routes (they answer 404)
-and behaves exactly as it did before: host tokens only. A host with an
-explicit `host_token` never enrolls and uses the token unchanged. The shared shapes live in
-`util/relay_protocol` (`lease.py`, `enroll.py`); the relay side is `podcast_relay/policy.py`
-(`RelayPolicy`) and `routes/enroll.py`; the host side is
-`services/collaboration/enrollment.py`.
-
-### Enrolling and renewing
-
-The host asks the relay for a lease the first time it needs one, when a relay URL is named in
-`relay.yaml` or `PODCAST_RELAY_URL` and no host token is set. It never enrolls against the
-loopback default. A named relay that answers `404` to `GET /enroll` has no signing key; the host
-then reads "not set up" again, as it did before enrollment existed, until it restarts or gains a
-host token, instead of showing a failure.
-
-1. `GET /enroll` returns `{"enroll": true, "pow_bits": N, "epoch": E, "now": T}`, with `now` the
-   relay's clock in seconds. A 404 here means the relay does not enroll hosts. The host never
-   solves more than 26 bits whatever `pow_bits` says.
-2. `POST /enroll` with `seed`, `platform`, `build`, `proof` (`{"ts", "nonce"}`) and, when the host
-   holds one, `previous` (a lease this relay signed earlier). The relay, not the host, assigns the
-   install id: a random 128-bit id, so no client can name an install that is not its own. The
-   proof is hashcash over a `seed` the host picks for this one enrollment:
-   `sha256("sharecut-enroll-v2\n<seed>\n<ts>\n<nonce>")` starts with `pow_bits` zero bits
-   (default 20, about a second of work, solved off the event loop). `ts` is the relay's time as
-   the host last saw it (`now`), and the relay accepts it within 2 minutes of its own clock, and the relay refuses a seed it has already accepted in that window, so a proof
-   pays for one enrollment. Proof of work is a speed bump. The defense is the limits below. A
-   `previous` lease with a valid signature, expired or not, keeps its install id (the install's
-   share tokens stay bound to it); a denied one is refused with `403 install_denied`. A lease the
-   relay cannot verify, as after a signing key rotation with no overlap key, is ignored and the
-   install gets a new id.
-3. The reply is `{"now", "install_id", "lease", "claim_key", "exp", "renew_at"}`. The host stores
-   all of it and signs in with `host_id` set to that `install_id`. A lease lives 7 days and is renewed
-   at half life.
-4. `POST /enroll/renew` with `{"lease", "build"}` returns a fresh lease and the same claim key
-   with no proof of work. The host sends the build now running, so an update moves its lease past
-   a raised `PODCAST_RELAY_MIN_BUILD`. The host renews while the tunnel is up and also before a
-   connect when the stored lease is past half life or was issued to another build. A failed
-   renewal keeps the still valid lease and retries after 1 s, doubling to 60 s with up to a
-   quarter added as jitter and never sooner than the relay's `Retry-After`. A lease the relay
-   refuses, or one that expired, is renewed or replaced by a new enrollment that presents it as
-   `previous`, so the install keeps its id. A renewal answered with `lease_refused:denied` stops
-   the host with the revoked-install message and enrolls nothing.
-
-A lease is `base64url(claims) "." base64url(Ed25519 signature)` with `kid`, `install_id`,
-`epoch`, `exp`, `build` and `platform`. The relay holds only public keys, so verification needs no
-database.
-
-Enrollment is rate limited by `util/rate_limit` limiters (`podcast_relay/limits.py`):
-
-| Limiter | Key | Default | Env prefix |
-|---------|-----|---------|------------|
-| `enroll_subnet` | the client's /24 (IPv4) or /48 (IPv6) | 5 burst, 5 per day | `PODCAST_RELAY_ENROLL_SUBNET` |
-| `enroll_global` | all clients | 60 burst, 10 per minute | `PODCAST_RELAY_ENROLL_GLOBAL` |
-| `renew` | the install | 6 burst, 6 per minute | `PODCAST_RELAY_RENEW` |
-
-A refused enrollment answers `400 invalid_enrollment` or `400 proof_invalid` (with
-`pow_bits`), `403 install_denied`, `426 build_too_old` or `429` with `Retry-After`.
-
-### The tunnel hello
-
-`hello` takes `lease` or the legacy `host_token`; a lease wins when both are sent. The relay
-checks the signature by `kid`, then `exp`, `epoch`, the deny set and `min_build`, and that the
-lease's `install_id` equals the hello `host_id`, so a lease cannot be lent to another identity.
-A refused lease gets `{"type": "error", "detail": "lease_refused:<reason>"}` and close code
-`4403`. Reasons: `malformed`, `bad_signature`, `unknown_kid`, `expired`, `wrong_epoch`,
-`denied`, `build_too_old`, `wrong_install`. The host classifies `4403` as `auth`, except that a
-lease the host can replace (`malformed`, `unknown_kid`, `bad_signature`, `expired`, `wrong_epoch`,
-`wrong_install`) is renewed or re-enrolled with no failure shown, which is how a rotated key or
-a raised epoch heals itself. Expiry is checked at hello, and a live tunnel is closed with
-`4403 lease expired` when the lease it said hello with expires, so a tunnel never outlives its credential (at most 7 days). The host
-has renewed at half life by then and its reconnect says hello with the fresh lease; it reads the
-close as a lease to replace, not a failure. Deny, epoch and build are not rechecked on a live
-tunnel; a denied id is closed within 5 s by the deny watcher, and an epoch bump or a raised
-`PODCAST_RELAY_MIN_BUILD` takes effect at each tunnel's expiry.
-
-### Share claims and the claim key
-
-Share claims (`share_claims.py`) are HMACs the host signs and the relay verifies. For a lease
-host the secret is the install's claim key, `HMAC-SHA256(master_key, "sharecut-claim-key-v1\n" +
-install_id)`. It depends on the install and the relay master key, and not on the lease, so a
-renewal, a re-enrollment, an epoch bump or a rotated signing key never changes it and never
-invalidates a claim the host already signed. The relay derives it per session, and the host
-learns it from the `claim_key` field of the enroll and renew replies and stores it with the
-lease. The claim key stops a guest, or another tenant of the relay, from forging a share claim
-for an install. It does not stop someone who holds the install's lease: `POST /enroll/renew`
-with the lease alone, and `POST /enroll` with it as `previous` (even expired), both return the
-claim key. A stolen lease therefore gives the thief the install's tunnel and the right to sign
-its share claims, for as long as the install is not denied. Revoke it by adding the install id
-to the deny file (see Revoking access); that closes the live tunnel and refuses the lease's
-renewal and re-enrollment. Keep the lease file private (mode 0600). The master key is `PODCAST_RELAY_MASTER_KEY`. It is
-required, at least 32 characters, whenever `PODCAST_RELAY_SIGNING_KEY` is set: the relay refuses
-to start without it, because a master key derived from the signing key would change claim keys,
-and so every share claim, the day the signing key rotates. Generate it once (`openssl rand -hex
-32`), keep it with the deny file, and never change it: changing it invalidates every claim.
-
-### Revoking access
-
-| To cut off | Do | Effect |
-|------------|----|--------|
-| One install | Add its id to the file named by `PODCAST_RELAY_DENY_FILE` | Within 5 s the relay closes its live tunnel with `4403` and refuses its enroll, renew and hello |
-| Old builds | Set `PODCAST_RELAY_MIN_BUILD` (dotted number) and restart | Older builds cannot enroll or connect, and renewal needs the new build |
-| Everything issued so far | Raise `PODCAST_RELAY_EPOCH` by one and restart | Old leases are refused at hello. For 24 h after the restart a lease one epoch behind may still renew, so hosts that are online keep their install; after that it must enroll again, keeping its install id. Live tunnels end at their lease's expiry |
-| A leaked or farmed key set | Change `PODCAST_RELAY_SIGNING_KID` and the signing key, keep `PODCAST_RELAY_MASTER_KEY`, and restart | Every lease dies; honest hosts enroll again within seconds under new install ids. Claim keys derive from the master key, so a rotation alone never invalidates a claim |
-
-`PODCAST_RELAY_MIN_BUILD` compares the build a host reports about itself, so it is an upgrade
-nudge for honest hosts and not a barrier: a modified client can claim any build. An abuser cut off
-by the deny file can still enroll again under a new id; what limits that is the enrollment limits
-above, not the deny file.
-
-The deny file holds one install id per line; `#` starts a comment. A missing file means no one
-is denied. The relay rereads it every 5 s (`DENY_RELOAD_SEC`).
-
-### Operator setup
-
-```bash
-openssl genpkey -algorithm ed25519 -out relay-key.pem
-export PODCAST_RELAY_SIGNING_KEY=/etc/podcast-relay/relay-key.pem
-export PODCAST_RELAY_SIGNING_KID=k1
-export PODCAST_RELAY_MASTER_KEY=$(openssl rand -hex 32)   # generate once, then keep it
-export PODCAST_RELAY_DENY_FILE=/etc/podcast-relay/deny.txt
-```
-
-Run directly, the relay starts with no `PODCAST_RELAY_HOST_TOKENS`. The production compose file
-keeps them required, because builds that predate enrollment present them. Put the key in a
-directory the container mounts read-only (`PODCAST_RELAY_KEY_DIR`, default `./relay-keys`, at
-`/run/relay-keys`), and set `PODCAST_RELAY_SIGNING_KEY=/run/relay-keys/relay-key.pem` and
-`PODCAST_RELAY_MASTER_KEY` in the Compose environment. The host tokens are still checked for length.
-The deny file and the usage database default to the
-`relay_state` volume, `/var/lib/sharecut-relay/deny.txt` and `usage.sqlite3`. During a key rotation, keep honoring
-the old key for a while by listing it in `PODCAST_RELAY_PUBLIC_KEYS` as `kid:base64url(raw
-public key)`. All variables are in the [environment variable table in setup.md](setup.md).
-`cryptography` ships with the `relay` extra and the relay image.
-
-### On the host
-
-The install id the relay assigned, the lease, the claim key and the offset between the relay's
-clock and this computer's (so a wrong clock still reads `exp` and `renew_at` right) are stored in
-`relay_lease.json` beside `relay.yaml`, with mode 0600, for one relay; a different relay URL
-ignores it. The host id in `relay.yaml` is not the install id and is used only by a host
-token. This repo has no keychain helper and no keyring dependency, so the OS keychain is not used yet. An enrollment
-failure takes the same path as any other failed try, in plain words:
-
-| Situation | Kind | Message the host sees | Retried |
-|-----------|------|-----------------------|---------|
-| The address does not enroll hosts (404) | `config` | online sharing is not available at this address | no |
-| The install was denied | `unavailable` | online sharing is unavailable right now (the Invite sheet adds a contact link) | no |
-| The build is below `min_build` | `auth` | this version of ShareCut is too old for online sharing (update, then start again) | no |
-| Rate limited | `rate limited` | too many sign-ups from this network, trying again later | yes, after `Retry-After` |
-| Network, timeout, 5xx | `network`, `timeout`, `relay closed` | the usual reason | yes |
-
-The words tunnel, relay, lease and token stay out of these strings
-(`tests/test_tunnel_enrollment_live.py`). `auth` and `config` keep the existing Invite sheet
-lines. `unavailable` (a revoked install, whether the relay refuses its enroll, renew or hello or
-closes a live tunnel with `4403 install denied`) is final and never retried. The GUI shows
-"Online sharing is unavailable right now." and **Contact support or report this**, which opens
-`support_url` from `GET /api/tunnel/status`. That is the distribution's support link, the one
-the Help dialog uses (`PODCAST_DISTRIBUTION_SUPPORT_URL`, default the project's GitHub issues).
-A guest of a denied install sees the offline page, because its tunnel is gone.
-
-### Caps
-
-Once a relay has a signing key, every tunnel is metered (`podcast_relay/caps.py`,
-`usage.py`). A relay with no signing key builds no meter, so a self-hosted relay is not limited.
-Bytes are counted in both directions through the tunnel: guest request bodies and guest socket
-text going to the host, response chunks and socket text coming back.
-
-| Cap | Default | Env | When it is reached |
-|-----|---------|-----|--------------------|
-| Live shares per install | 5 | `PODCAST_RELAY_INSTALL_MAX_SHARES` | `register` still succeeds. Shares already live keep their place and new ones are left out. The ack carries `"limited": "shares"` and `"refused": N` |
-| Bytes per install per UTC month | 20 GB (`20000000000`) | `PODCAST_RELAY_INSTALL_MONTHLY_BYTES` | Guests get the paused page (below) and open sockets close with `1013 sharing paused` until the month turns |
-| Byte rate per host connection | 4 MiB/s | `PODCAST_RELAY_SESSION_BYTES_PER_SEC` | Responses are paced, not refused |
-| Byte rate for the whole relay | 64 MiB/s | `PODCAST_RELAY_GLOBAL_BYTES_PER_SEC` | The same pacing, shared by every tunnel, so many farmed identities share one ceiling instead of starving real hosts |
-| Idle cutoff | 120 s | `PODCAST_RELAY_IDLE_SEC` | A guest socket with no frame either way for this long closes with `1001 idle`; a proxied response that sends nothing for this long ends, and the guest sees a truncated body with no error, so a host that stays silent that long mid-response (a slow render, say) cuts its own guest off |
-
-`0` turns a cap off. Counters live in memory. Set `PODCAST_RELAY_USAGE_DB` to a file, for
-example beside the deny file, and the relay writes them every 10 s and on shutdown and reads them
-back at start, so a restart keeps the month. With no file a restart starts the month at zero. A
-new UTC month clears every counter. The relay runs one process; point two relays at one file and
-they overwrite each other. A crash loses the counts since the last write, up to 10 s of them; a
-failed write is logged and retried, and the deny-file watcher likewise logs and keeps its last list
-when the file cannot be read.
-
-**What each side sees.** A guest of a paused link gets the offline page with "This link is paused
-for now" (JSON `503 {"detail": "sharing paused"}` for the page's own API and agent calls). The host
-gets a `{"type": "limit", "kind": "shares" | "bandwidth" | ""}` frame whenever its limit changes
-(an empty kind clears it), and the register ack carries the same word. The client maps a
-connected tunnel with a limit to the `limited` state, in the status record as `"state": "limited"`
-and `"limit"`. It is not a failure, so nothing retries or backs off. The Invite sheet reads
-"Online sharing is limited: some links may not open for guests" with a **How to fix** line per
-limit.
-
-| Phase | `limit` | GUI `state` |
-|-------|---------|-------------|
-| `connected` | none | `online` |
-| `connected` | `shares` or `bandwidth` | `limited` |
-
-### Legacy tier
-
-A tunnel that presents a host token on a relay that also has a signing key is the legacy tier. It
-exists for builds that cannot enroll. Its limits are keyed on what a host cannot change for free,
-never on the `host_id` it sends, which is its own choice. Each tunnel gets one share
-(`PODCAST_RELAY_LEGACY_MAX_SHARES`). All tunnels that present the same host token share one
-monthly allowance (`PODCAST_RELAY_LEGACY_MONTHLY_BYTES`, default 2 GB, keyed on a hash of the
-token) and at most `PODCAST_RELAY_LEGACY_MAX_TUNNELS` run at once (default 4; the next is refused
-with `rate limit exceeded` and close `4429`). All legacy hosts connecting from one address share
-one allowance (`PODCAST_RELAY_LEGACY_IP_MONTHLY_BYTES`, default 4 GB). A `host_id` that matches
-a denied install id is refused with `lease_refused:denied`, and denying an id closes a live legacy
-tunnel that presented it. The tier never reaches a relay with no
-signing key. `PODCAST_RELAY_LEGACY_TIER=0` ends it: a host token is refused with
-`{"type": "error", "detail": "legacy_tier_ended"}` and close `4403`, and the host reads "online
-sharing no longer accepts this access key" with the fix "Remove the access key from your settings
-so ShareCut can sign in on its own, then start online sharing again."
-
-### Guest page headers
-
-On a relay with a signing key, every response the relay proxies carries `X-Content-Type-Options: nosniff`. A proxied HTML
-response also carries, by default, `Content-Security-Policy-Report-Only` with `form-action 'none'`,
-`connect-src 'self'` plus the relay's own `wss://` origin, `object-src 'none'`, `base-uri 'none'`
-and `frame-ancestors 'none'` (`podcast_relay/guest_headers.py`). A host cannot send its own: the
-relay passes only an allowlist of response headers. Report-Only sends no report anywhere, so it
-shows violations in a guest's developer console and enforces nothing; the guest app has not been
-proven under enforcement. `PODCAST_RELAY_CSP_ENFORCE=1` sends the same policy as
-`Content-Security-Policy`. A relay with no signing key adds neither header and proxies responses as it
-always has.
-
-### First-visit notice
-
-A guest who opens a `/r/` or `/rec/` page of a legacy-tier host sees a short relay page first:
-"This link is shared through ShareCut" and **Continue** (`podcast_relay/notice.py`). It exists
-because the relay cannot vouch for what such a host serves. **Continue** posts to
-`/notice/continue?next=<path>`, which refuses a POST that does not come from a page of the relay's
-own origin (`Sec-Fetch-Site: same-origin`, or an `Origin` with the relay's host when the browser
-sends no fetch metadata; anything else gets `403`), so another site cannot pre-continue a visitor,
-and which sets a session cookie, `sc_notice=1` (HttpOnly,
-SameSite=Lax, Secure over https, no expiry), and answers `303` back to the same path and query. The
-notice says the browser must allow cookies, because with cookies blocked the visitor lands on it again. The
-cookie is the relay's own; nothing is stored on the host, and the relay still drops every cookie a
-host sets. `next` must start with `/r/` or `/rec/` and cannot contain `//` or a backslash, so the
-route cannot redirect elsewhere. The notice appears once per browser session, only for legacy-tier
-hosts, and only for a top-level page navigation: a `GET` that sends `Sec-Fetch-Mode: navigate` and
-`Sec-Fetch-Dest: document`, or, from a browser that sends neither, `Accept: text/html`. Assets,
-`/api/review`, `/api/rec`, `/mcp`, sockets and audio never see it. Enrolled installs and relays with
-no signing key never show it.
-
----
-
 ## Quick start (local Compose)
 
 No hosted account required to develop or test.
@@ -548,7 +289,7 @@ podcast review share create \
 
 ```yaml
 relay_url: ws://127.0.0.1:8080/tunnel   # or wss://share.example.com/tunnel
-host_token: <from relay admin>   # optional when the relay enrolls hosts, see Access control
+host_token: <from relay admin>
 public_base_url: http://127.0.0.1:8080
 local_gui_url: http://127.0.0.1:8765
 # Optional stable tunnel identity (env: PODCAST_RELAY_HOST_ID). Must equal the

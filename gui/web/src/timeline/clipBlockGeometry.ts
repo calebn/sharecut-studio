@@ -1,10 +1,10 @@
-import type { ClipRow } from "../types/project";
 import {
   clipGeometryDuringRoll,
   type EditMode,
   type RollPreview,
   type TrimEdge,
-} from "../utils/clipEdgePreview";
+} from "../edit/clipEdgePreview";
+import type { ClipRow } from "../types/project";
 import {
   clipTimingDelta,
   livePieces,

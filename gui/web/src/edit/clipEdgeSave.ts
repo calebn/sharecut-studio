@@ -5,10 +5,9 @@
  */
 import { clipFadeBaseline, setClipFade, trimClipEdge } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
-import { hasPendingLaneGeometry } from "../document/pendingDrafts";
 import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow, HistoryEntryId } from "../types/project";
-import type { EditMode, TrimEdge } from "../utils/clipEdgePreview";
+import type { EditMode, TrimEdge } from "./clipEdgePreview";
 
 /**
  * The mode every clip-edge trim previews and saves with: one value, so a
@@ -17,19 +16,12 @@ import type { EditMode, TrimEdge } from "../utils/clipEdgePreview";
  */
 export const TRIM_MODE: EditMode = "ripple";
 
-/** Said where a trim cannot start: the host does not yet hold the lane the person sees. */
-export const TRIM_WAITS_LINE =
-  "This clip is waiting to send. Trim it again once it has.";
-
 export type ClipEdgeChange =
   | { kind: "fade"; inMs: number; outMs: number }
   | { kind: "trim"; edge: TrimEdge; mode: EditMode; sourceSec: number };
 
-/**
- * A save that went out: the History entry it left, for the toast's Undo (null
- * while queued). `queued` is a trim kept to send later, which is not saved yet.
- */
-export type EdgeSaved = { undo: HistoryEntryId | null; queued?: boolean };
+/** A save that went out: the History entry it left, for the toast's Undo (null while queued). */
+export type EdgeSaved = { undo: HistoryEntryId | null };
 
 /**
  * Saves `change` to `clip`; a ripple trim moves every dialogue track. Returns null
@@ -67,7 +59,6 @@ async function send(
     );
     return { undo };
   }
-  if (hasPendingLaneGeometry(clip.track_id)) throw new Error(TRIM_WAITS_LINE);
   const { id, source_start, source_end, timeline_start, source_id } = clip;
   const boundary = await loadBoundaryContext(
     projectPath,
@@ -75,7 +66,7 @@ async function send(
     [{ id, source_start, source_end, timeline_start, source_id }],
   );
   if (!fresh()) return null;
-  const { undo, queued } = await trimClipEdge(
+  const { undo } = await trimClipEdge(
     projectPath,
     id,
     change.edge,
@@ -83,5 +74,5 @@ async function send(
     change.mode,
     boundary.token,
   );
-  return { undo, queued };
+  return { undo };
 }

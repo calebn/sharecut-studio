@@ -22,7 +22,10 @@ def check_config(
     relay_config: Path | None = typer.Option(
         None,
         "--relay-config",
-        help="Host relay YAML (default: ~/.config/podcast_mcp/relay.yaml).",
+        help=(
+            "Host relay YAML (default: ~/.config/podcast_mcp/relay.yaml). When no host_id is "
+            "set, the check creates relay_host_id next to this file."
+        ),
     ),
     distribution_profile: Path | None = typer.Option(
         None,
@@ -30,7 +33,10 @@ def check_config(
         help="Build-time public distribution profile JSON.",
     ),
 ) -> None:
-    """Report missing requirements without making network requests."""
+    """Report missing requirements without making network requests.
+
+    Self-hosted mode may create ``relay_host_id`` next to the relay config.
+    """
     result = run_config_checks(
         mode,
         relay_config=relay_config,

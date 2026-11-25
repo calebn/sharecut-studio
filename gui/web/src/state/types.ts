@@ -1,3 +1,4 @@
+import type { RippleTrim } from "../edit/ripplePreview";
 import type { PresenceDeltaChanges, SessionRoster } from "../presence/roster";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import type { PipelineJobSnapshot } from "../types/pipeline";
@@ -21,7 +22,6 @@ import type {
   ViewerSessionSnapshot,
 } from "../types/session";
 import type { LaneHeightMode } from "../utils/laneHeightPref";
-import type { RippleTrim } from "../utils/ripplePreview";
 import type { WaveformScaleMode } from "../waveform/types";
 import type { AfterCutSliceState } from "./afterCutSlice";
 import type { ComposerSession } from "./composerSession";
@@ -406,7 +406,7 @@ export interface DawState {
   /**
    * The ripple trim a drag or a focused handle's arrows are previewing, or
    * null. Every lane it ripples draws where its later clips go
-   * (utils/ripplePreview.ts); a project switch clears it.
+   * (edit/ripplePreview.ts); a project switch clears it.
    */
   rippleTrim: RippleTrim | null;
   /** Hover/focus Stale pill → highlight stale lanes on the timeline. */

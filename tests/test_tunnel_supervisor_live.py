@@ -254,25 +254,3 @@ def test_quit_with_open_guest_stream_completes(relay, project, open_studio) -> N
 
 def _file_phase(path: Path) -> str:
     return str(json.loads(path.read_text(encoding="utf-8"))["phase"])
-
-
-def test_studio_with_a_named_service_and_no_key_signs_in_and_serves(
-    relay, project, open_studio, monkeypatch, tmp_path
-) -> None:
-    from tests.relay_enroll import enable_enrollment
-
-    enable_enrollment(monkeypatch, tmp_path)
-    monkeypatch.delenv("PODCAST_RELAY_HOST_TOKEN")
-    enrolling = create_relay_app()
-    token = mint_record_link(project)
-    with live_relay(monkeypatch, host_token=HOST_TOKEN, app=enrolling) as ws_base:
-        monkeypatch.setenv("PODCAST_RELAY_URL", f"{ws_base}/tunnel")
-        monkeypatch.setenv("PODCAST_RELAY_PUBLIC_BASE_URL", ws_base.replace("ws://", "http://"))
-
-        with open_studio() as studio:
-            session = wait_for(lambda: enrolling.state.relay.tunnel_for_token(token))
-            assert session is not None
-            assert wait_for(lambda: _state(studio) == "online")
-            assert session.host_token == ""
-            assert session.install_id == "install-1"
-            assert session.install_id != load_relay_config().host_id

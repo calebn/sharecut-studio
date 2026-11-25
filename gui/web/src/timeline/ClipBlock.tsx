@@ -9,11 +9,13 @@ import {
   useState,
 } from "react";
 import { runPointerCommand } from "../commands/pointer";
+import { type RollPreview } from "../edit/clipEdgePreview";
 import {
   type ClipMovePointerInfo,
   type ClipSelectMods,
   waveformTicksToTimeline,
 } from "../edit/clipMove";
+import { rippleTrimOf } from "../edit/ripplePreview";
 import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
 import { listenForInterrupt } from "../hooks/useInterruptCancel";
 import { useSnapTicks, useSplitGuideOnClip } from "../hooks/useSnapTicks";
@@ -21,9 +23,7 @@ import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useCoachTip } from "../system/useCoachTip";
 import type { ClipRow } from "../types/project";
-import { type RollPreview } from "../utils/clipEdgePreview";
 import { EMPTY_ARR } from "../utils/empty";
-import { rippleTrimOf } from "../utils/ripplePreview";
 import { useStableCallback } from "../utils/useStableCallback";
 import {
   clipDrawsPieces,

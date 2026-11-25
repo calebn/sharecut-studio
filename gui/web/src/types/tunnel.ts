@@ -5,7 +5,6 @@
  */
 export type TunnelState =
   | "online"
-  | "limited"
   | "connecting"
   | "reconnecting"
   | "offline"
@@ -18,21 +17,13 @@ export type TunnelReasonKind =
   | "relay closed"
   | "rate limited"
   | "auth"
-  | "unavailable"
   | "config"
   | "error";
-
-/** What the sharing service holds back while online sharing is connected. */
-export type TunnelLimit = "shares" | "bandwidth";
 
 export type TunnelStatus = {
   state: TunnelState;
   reason: string | null;
   reason_kind: TunnelReasonKind | null;
-  /** Set while `state` is `limited`. */
-  limit?: TunnelLimit | null;
-  /** Where to report a problem; the Help dialog's link. */
-  support_url?: string;
   relay_host: string | null;
   public_base_url: string | null;
   share_count: number | null;

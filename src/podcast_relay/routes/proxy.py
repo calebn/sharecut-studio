@@ -21,15 +21,7 @@ from podcast_mcp.util.proxy_paths import proxy_path_is_safe
 from podcast_mcp.util.rate_limit import is_review_audio_path
 from podcast_mcp.util.rate_limit_http import rate_limited_response
 from podcast_mcp.util.relay_protocol.protocol import msg, new_id
-from podcast_relay.guest_headers import proxied_security_headers
 from podcast_relay.limits import check_proxy_rpm, get_relay_limiters, relay_rate_limit_enabled
-from podcast_relay.notice import (
-    CONTINUE_PATH,
-    continue_response,
-    has_seen_notice,
-    is_page_navigation,
-    notice_response,
-)
 from podcast_relay.offline import offline_page
 from podcast_relay.state import PendingHttp, RelayState
 
@@ -46,16 +38,6 @@ _OFFLINE_RECORD_HTML = offline_page(
     title="Studio not open yet",
     heading="Studio not open yet",
     body_html=("<p>The host isn't connected. Keep this link; try again when they are online.</p>"),
-)
-
-_PAUSED_MESSAGE = (
-    "Sharing for this link is paused for now because it has reached its limit. "
-    "Try again later, or ask the person who sent it to check."
-)
-_PAUSED_HTML = offline_page(
-    title="Link paused",
-    heading="This link is paused for now",
-    body_html=f"<p>{_PAUSED_MESSAGE}</p>",
 )
 
 _HOP_BY_HOP_RESP = frozenset(
@@ -113,26 +95,6 @@ def _response_headers(headers: dict[str, str]) -> dict[str, str]:
     return out
 
 
-_PAUSED_HEADERS = {
-    "Retry-After": "3600",
-    "Cache-Control": "no-store",
-    "X-Robots-Tag": "noindex",
-}
-
-
-def _paused_response(path_suffix: str) -> Response:
-    if (
-        path_suffix.startswith(("api/review", "api/rec", "mcp"))
-        or path_suffix.rstrip("/") == "r/mcp"
-    ):
-        return JSONResponse(
-            {"detail": "sharing paused", "message": _PAUSED_MESSAGE},
-            status_code=503,
-            headers=_PAUSED_HEADERS,
-        )
-    return HTMLResponse(_PAUSED_HTML, status_code=503, headers=_PAUSED_HEADERS)
-
-
 async def proxy_to_host(
     state: RelayState,
     request: Request,
@@ -173,20 +135,6 @@ async def proxy_to_host(
     if mcp_path and "mcp" not in caps:
         return JSONResponse({"detail": "share does not allow mcp"}, status_code=403)
 
-    meter = session.meter
-    if meter is not None:
-        exhausted = meter.exhausted()
-        if exhausted or session.limit_kind:
-            await state.notify_limit(session)
-        if exhausted:
-            return _paused_response(path_suffix)
-        if (
-            state.unverified(session)
-            and is_page_navigation(request, path_suffix)
-            and not has_seen_notice(request)
-        ):
-            return notice_response(request)
-
     client_ip = request.client.host if request.client else None
     rpm = check_proxy_rpm(token=token, client_ip=client_ip, path_suffix=path_suffix)
     if not rpm.allowed:
@@ -225,8 +173,6 @@ async def proxy_to_host(
     except BodyTooLarge:
         _release_gates()
         return payload_too_large_response(limit)
-    if meter is not None:
-        meter.charge(len(body))
 
     req_id = new_id()
     pending = PendingHttp()
@@ -265,27 +211,13 @@ async def proxy_to_host(
 
         out_headers = _response_headers(pending.headers)
         media = pending.headers.get("content-type") or pending.headers.get("Content-Type")
-        if meter is not None:
-            out_headers.update(
-                proxied_security_headers(media, f"{request.url.scheme}://{request.url.netloc}")
-            )
-        idle = meter.idle_sec if meter is not None and meter.idle_sec > 0 else None
 
         async def _stream() -> Any:
             try:
                 while True:
-                    try:
-                        chunk = await asyncio.wait_for(pending.queue.get(), idle)
-                    except TimeoutError:
-                        break
+                    chunk = await pending.queue.get()
                     if chunk is None:
                         break
-                    if meter is not None:
-                        meter.charge(len(chunk))
-                        if meter.exhausted():
-                            await state.notify_limit(session)
-                            break
-                        await meter.pace(len(chunk))
                     yield chunk
             finally:
                 session.pending.pop(req_id, None)
@@ -309,12 +241,6 @@ async def proxy_to_host(
 
 def build_proxy_router(state: RelayState) -> APIRouter:
     router = APIRouter()
-
-    if state.meter is not None:
-
-        @router.post(CONTINUE_PATH)
-        async def notice_continue(request: Request) -> Response:
-            return continue_response(request)
 
     @router.api_route(
         "/r/{token}",

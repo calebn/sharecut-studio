@@ -119,7 +119,7 @@ CI places pytest, browser, and extras temporary work in [private disk temporary 
 | *(core)* | typer, faster-whisper ≥ 1.1 (VAD, `hotwords`, `hallucination_silence_threshold`), PyAV ≥ 11 and < 19 (faster-whisper 1.2.1 passes `metadata_errors` to `av.open`, which PyAV 19 rejects), mcp ≥ 2.2 and < 3 (`mcp/args.py`, `mcp/tool_errors.py` and `gui/host_mcp.py` rely on SDK internals; their client tests catch drift on a minor bump), onnxruntime + huggingface-hub ≥ 2.0 (its `httpx2` HTTP stack; used by forced alignment when its optional model is installed), … | Always — `uv sync` with no extras |
 | `dev` | pytest, coverage, mypy, ruff, bandit, vulture, deptry, pre-commit, pyaaf2 | Running `make test` / `make lint-py`, check-only commit hooks, and AAF export tests |
 | `gui` | fastapi ≥0.116.1, starlette ≥0.47, anyio ≥4, uvicorn, httpx, boto3, websockets ≥14 | `podcast gui` / review share host |
-| `relay` | fastapi ≥0.116.1, starlette ≥0.47, uvicorn, websockets ≥14, cryptography ≥43 (Ed25519 lease signing) | `podcast-relay` edge process |
+| `relay` | fastapi ≥0.116.1, starlette ≥0.47, uvicorn, websockets ≥14 | `podcast-relay` edge process |
 | `object-store` | boto3 | Optional S3-compatible review media (also pulled by `gui`) |
 | `prosody` | `praat-parselmouth` (Praat in Python; no torch) | `analyze_prosody` pipeline step / `audition_context` prosody window — [pipeline.md § Prosody profile](pipeline.md#prosody-profile) |
 | `aaf` | pyaaf2 1.7.1 | Experimental editable AAF export — [daw-editing.md § Experimental AAF export](daw-editing.md#experimental-editable-aaf-export) |
@@ -702,6 +702,9 @@ The tunnel identity `host_id` (`PODCAST_RELAY_HOST_ID` / YAML `host_id`) default
 a uuid minted once and persisted as `relay_host_id` next to `relay.yaml`; it must
 match the `host_id:` prefix when the relay pins this host's secret (see
 [host-online-relay.md](host-online-relay.md) § Security notes).
+`podcast config check --mode self-hosted` loads the config the same way, so it also
+creates `relay_host_id` next to the checked file when no `host_id` is set; copy the
+example before checking it, and the checkout stays clean.
 Object-store precedence is environment, YAML, then disabled. The only
 object-store environment names are
 `PODCAST_OBJECT_STORE_ENDPOINT_URL`, `PODCAST_OBJECT_STORE_REGION`,
@@ -855,26 +858,6 @@ read pipeline settings.
 | `PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY` |  | Admin secret for `podcast relay bucket-setup`. |
 | `PODCAST_RELAY_HOST_TOKENS` |  | Relay-side map of host_id:secret entries (relay process). |
 | `PODCAST_RELAY_RATE_LIMIT` |  | Relay-side rate limiting; 0 disables (relay process). |
-| `PODCAST_RELAY_SIGNING_KEY` |  | Path to the relay's Ed25519 private key (PEM). Setting it turns on enrollment and leases; unset, the relay accepts host tokens only (relay process). |
-| `PODCAST_RELAY_SIGNING_KID` | `k1` | Key id stamped on new leases (relay process). |
-| `PODCAST_RELAY_PUBLIC_KEYS` |  | Extra kid:base64url public keys whose leases the relay still accepts, for key rotation overlap (relay process). |
-| `PODCAST_RELAY_MASTER_KEY` |  | Secret of at least 32 characters the per-install share-claim keys derive from; required when a signing key is set, and keep it when the key rotates (relay process). |
-| `PODCAST_RELAY_EPOCH` | `1` | Lease epoch the relay accepts; raise it to cut off every older lease (relay process). |
-| `PODCAST_RELAY_MIN_BUILD` |  | Oldest app build (dotted number) allowed to enroll or connect (relay process). |
-| `PODCAST_RELAY_DENY_FILE` |  | File of denied install ids, one per line; reread every 5 s and live tunnels of denied installs are closed (relay process). |
-| `PODCAST_RELAY_ENROLL_POW_BITS` | `20` | Leading zero bits of the enrollment proof of work (relay process). |
-| `PODCAST_RELAY_USAGE_DB` |  | SQLite file for the relay's monthly usage counters, for example beside the deny file. Unset keeps them in memory and a restart forgets them (relay process). |
-| `PODCAST_RELAY_INSTALL_MAX_SHARES` | `5` | Live shares one enrolled install may advertise; 0 is no cap (relay process). |
-| `PODCAST_RELAY_INSTALL_MONTHLY_BYTES` | `20000000000` | Bytes one enrolled install may proxy per calendar month, both directions; 0 is no cap (relay process). |
-| `PODCAST_RELAY_SESSION_BYTES_PER_SEC` | `4194304` | Byte rate one host connection may sustain toward guests; 0 is no cap (relay process). |
-| `PODCAST_RELAY_GLOBAL_BYTES_PER_SEC` | `67108864` | Byte rate the whole relay may sustain, so many identities cannot starve real ones; 0 is no cap (relay process). |
-| `PODCAST_RELAY_IDLE_SEC` | `120` | Seconds with no traffic before the relay ends a guest stream; 0 is no cutoff (relay process). |
-| `PODCAST_RELAY_LEGACY_TIER` | `1` | With a signing key set, 0 refuses hosts that still present a host token (relay process). |
-| `PODCAST_RELAY_LEGACY_MAX_SHARES` | `1` | Live shares a legacy host-token host may advertise when a signing key is set (relay process). |
-| `PODCAST_RELAY_LEGACY_MAX_TUNNELS` | `4` | Concurrent tunnels one legacy host token may hold when a signing key is set; 0 is no cap (relay process). |
-| `PODCAST_RELAY_LEGACY_MONTHLY_BYTES` | `2000000000` | Bytes all tunnels of one legacy host token may proxy per calendar month; 0 is no cap (relay process). |
-| `PODCAST_RELAY_LEGACY_IP_MONTHLY_BYTES` | `4000000000` | Bytes all legacy hosts behind one address may proxy per calendar month; 0 is no cap (relay process). |
-| `PODCAST_RELAY_CSP_ENFORCE` |  | 1 sends the guest page Content-Security-Policy instead of Report-Only (relay process). |
 | `PODCAST_RELAY_ALLOW_OPEN_TUNNEL` |  | Let the relay start with no host tokens, local/dev only (1, true, yes, on). |
 | `PODCAST_RELAY_HOST` | `0.0.0.0` | Interface the relay binds. |
 | `PODCAST_RELAY_PORT` | `8081` | Port the relay binds. |
@@ -961,12 +944,6 @@ read pipeline settings.
 | `PODCAST_RELAY_WS_PRESENCE_BURST` | `60` | Burst allowance for relay presence messages. |
 | `PODCAST_RELAY_REGISTER_RPM` | `60` | Requests per minute allowed for relay tunnel registrations. |
 | `PODCAST_RELAY_REGISTER_BURST` | `20` | Burst allowance for relay tunnel registrations. |
-| `PODCAST_RELAY_ENROLL_SUBNET_RPM` | `0.0035` | Requests per minute allowed for relay enrollments per client subnet (/24, or /48 for IPv6). |
-| `PODCAST_RELAY_ENROLL_SUBNET_BURST` | `5` | Burst allowance for relay enrollments per client subnet (/24, or /48 for IPv6). |
-| `PODCAST_RELAY_ENROLL_GLOBAL_RPM` | `10` | Requests per minute allowed for relay enrollments across all clients. |
-| `PODCAST_RELAY_ENROLL_GLOBAL_BURST` | `60` | Burst allowance for relay enrollments across all clients. |
-| `PODCAST_RELAY_RENEW_RPM` | `6` | Requests per minute allowed for relay lease renewals per install. |
-| `PODCAST_RELAY_RENEW_BURST` | `6` | Burst allowance for relay lease renewals per install. |
 <!-- settings:end -->
 
 ## Read-only GUI viewer
@@ -1142,7 +1119,7 @@ services. Their implementation is under `src/podcast_mcp/services/support/`.
 Pipeline execution, configuration, and component bootstrap use the public
 `podcast_mcp.services.pipeline` facade.
 
-If ShareCut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine. Nothing is uploaded when the zip is created, and there is **no telemetry**. Home and Studio Help can preview the files and submit the zip with a description after explicit consent when `PODCAST_REPORT_RELAY_URL` points to a configured relay. The description and ZIP link become public; the relay keeps the ZIP for 30 days. The relay does not scrub the zip again, so the zip is scrubbed before it leaves your machine: `sanitize` masks a link token inside any share route path (also when percent-encoded in a query string) and the bundle masks every token the share registry holds, and any prefix of one from 6 characters, wherever it appears in a log line or exception text. The uvicorn request and WebSocket lines are filtered when they are written, so the raw `sidecar.log` holds no token either (`gui/log_redaction.py`). Self-hosted installations can keep using Open support and attach the local zip manually.
+If ShareCut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine. Nothing is uploaded when the zip is created, and there is **no telemetry**. Home and Studio Help can preview the files and submit the zip with a description after explicit consent when `PODCAST_REPORT_RELAY_URL` points to a configured relay. The description and ZIP link become public; the relay keeps the ZIP for 30 days. The relay does not scrub the zip again, so the zip is scrubbed before it leaves your machine: `sanitize` masks a link token inside any share route path (also when percent-encoded in a query string) and the bundle masks every token the share registry holds, and any prefix of one from 6 characters, and every configured secret it can read, by exact value only so ordinary words stay readable. Configured secrets are the relay host token and `PODCAST_RELAY_HOST_TOKENS` secrets, object-store keys (also the admin pair in `relay-admin.yaml`), session and boot tokens, the report token and OAuth client secrets, from the environment, `relay.yaml` (its secret lines are still read when the file has a syntax error elsewhere) or an OAuth client JSON file; values under eight characters are skipped, and a host token given only as a `--host-token` flag is not known to it. Masking applies wherever the value appears in a log line or exception text. The uvicorn request and WebSocket lines are filtered when they are written, so the raw `sidecar.log` holds no token either (`gui/log_redaction.py`). Self-hosted installations can keep using Open support and attach the local zip manually.
 
 ```bash
 podcast doctor --bundle            # writes ~/Downloads/sharecut-diagnostics-<UTC>-<nonce>.zip

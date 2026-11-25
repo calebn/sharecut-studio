@@ -9,6 +9,7 @@ import {
 } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
 import { isCrossfadeJoin, isCutJoin } from "../edit/joinRender";
+import { rippleDetail } from "../edit/ripplePreview";
 import type { CoachHint } from "../system/CoachTip";
 import type { ClipRow } from "../types/project";
 import { RippleMark } from "../ui/RippleMark";
@@ -18,7 +19,6 @@ import {
   piecesSourceToTimelineNearest,
   type VirtualPiece,
 } from "../utils/clipTiming";
-import { rippleDetail } from "../utils/ripplePreview";
 import type { ClipBlockGeometry } from "./clipBlockGeometry";
 import { FadeCurves } from "./FadeCurves";
 import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";

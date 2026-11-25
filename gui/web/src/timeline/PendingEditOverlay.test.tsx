@@ -342,9 +342,6 @@ describe("PendingEditOverlay handles", () => {
         0,
         5,
         false,
-        undefined,
-        undefined,
-        { refusalInline: true },
       ),
     );
   });
@@ -363,9 +360,6 @@ describe("PendingEditOverlay handles", () => {
         0,
         4.3,
         false,
-        undefined,
-        undefined,
-        { refusalInline: true },
       ),
     );
   });
@@ -394,9 +388,6 @@ describe("PendingEditOverlay handles", () => {
           0,
           expected,
           false,
-          undefined,
-          undefined,
-          { refusalInline: true },
         ),
       );
       expect(resource.resolveTicks).toHaveBeenCalledTimes(
@@ -1369,7 +1360,7 @@ describe("the pending-edit overlay carries no review bar", () => {
         dragEnd(document.body);
         await waitFor(() =>
           expect(useDawStore.getState().statusAnnouncement).toBe(
-            "That edit's end could not be saved right now, so it is back where it was. Try moving it again in a moment.",
+            "retime refused",
           ),
         );
         expect(useDawStore.getState().feedbackToast?.tone).toBe("error");

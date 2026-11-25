@@ -9,18 +9,12 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from podcast_mcp.util.relay_protocol.lease import (
-    LEASE_EXPIRED_CLOSE_REASON,
-    LeaseError,
-    LeaseRefusal,
-)
 from podcast_mcp.util.relay_protocol.protocol import msg, new_id
 from podcast_mcp.util.ws_delivery import ws_close_details
 from podcast_relay.limits import check_register
 from podcast_relay.state import (
     PendingHttp,
     RelayState,
-    TunnelRefused,
     TunnelSession,
     close_relay_guest_stream,
 )
@@ -44,18 +38,6 @@ async def _ingest_http_response(pending: PendingHttp, data: dict[str, Any]) -> N
         await pending.queue.put(None)
 
 
-async def _close_at_expiry(state: RelayState, session: TunnelSession, exp: int) -> None:
-    """End a lease tunnel when its lease does, so a live tunnel never outlives its credential.
-
-    The host's keep-alive renewal has already swapped in a fresh lease by then, and its
-    reconnect says hello with that one.
-    """
-    assert state.policy is not None
-    await asyncio.sleep(max(0.0, exp - state.policy.clock()))
-    with contextlib.suppress(Exception):
-        await session.writer.close(4403, LEASE_EXPIRED_CLOSE_REASON)
-
-
 def build_tunnel_router(state: RelayState) -> APIRouter:
     router = APIRouter()
 
@@ -71,28 +53,7 @@ def build_tunnel_router(state: RelayState) -> APIRouter:
                 return
             host_token = str(first.get("host_token") or "")
             host_id = str(first.get("host_id") or new_id())
-            lease_token = str(first.get("lease") or "")
-            install_id = ""
-            lease_exp = 0
-            if lease_token:
-                try:
-                    if state.policy is None:
-                        raise LeaseError(LeaseRefusal.UNKNOWN_KID)
-                    lease = state.policy.check(lease_token, install_id=host_id)
-                    install_id, lease_exp = lease.install_id, lease.exp
-                except LeaseError as exc:
-                    await websocket.send_json(
-                        msg("error", detail=f"lease_refused:{exc.refusal.value}")
-                    )
-                    await websocket.close(code=4403)
-                    return
-                host_token = ""
-            if not install_id and state.meter is not None and not state.meter.config.legacy_enabled:
-                await websocket.send_json(msg("error", detail="legacy_tier_ended"))
-                await websocket.close(code=4403)
-                return
-            reg_key = install_id or host_token
-            reg = check_register(reg_key)
+            reg = check_register(host_token)
             if not reg.allowed:
                 await websocket.send_json(
                     msg(
@@ -104,7 +65,7 @@ def build_tunnel_router(state: RelayState) -> APIRouter:
                 )
                 await websocket.close(code=4429)
                 return
-            if not install_id and not state.token_ok(host_token, host_id=host_id):
+            if not state.token_ok(host_token, host_id=host_id):
                 await websocket.send_json(msg("error", detail="invalid host_token for host_id"))
                 await websocket.close(code=4403)
                 return
@@ -112,22 +73,8 @@ def build_tunnel_router(state: RelayState) -> APIRouter:
                 host_id=host_id,
                 websocket=websocket,
                 host_token=host_token,
-                install_id=install_id,
-                meter=state.meter.session(
-                    install_id=install_id,
-                    host_token=host_token,
-                    client_ip=websocket.client.host if websocket.client else "",
-                )
-                if state.meter is not None
-                else None,
             )
-            try:
-                await state.register_tunnel(session)
-            except TunnelRefused as refused:
-                session = None
-                await websocket.send_json(msg("error", detail=refused.detail, **refused.frame))
-                await websocket.close(code=refused.code)
-                return
+            await state.register_tunnel(session)
             await session.send(msg("hello", host_id=host_id, ok=True))
 
             async def _pump_to_host() -> None:
@@ -139,17 +86,12 @@ def build_tunnel_router(state: RelayState) -> APIRouter:
                     await session.send(payload)
 
             host_pump = asyncio.create_task(_pump_to_host())
-            expiry = (
-                asyncio.create_task(_close_at_expiry(state, session, lease_exp))
-                if lease_exp
-                else None
-            )
             try:
                 while True:
                     data = await websocket.receive_json()
                     mtype = data.get("type")
                     if mtype == "register":
-                        reg2 = check_register(reg_key)
+                        reg2 = check_register(host_token)
                         if not reg2.allowed:
                             await session.send(
                                 msg(
@@ -164,12 +106,13 @@ def build_tunnel_router(state: RelayState) -> APIRouter:
                         if not isinstance(shares, list):
                             shares = []
                         await state.update_shares(host_id, shares, expected_session=session)
-                        session.limit_kind = state.limit_kind(session)
-                        ack = msg("register", ok=True, share_count=len(session.share_tokens))
-                        if session.limit_kind:
-                            ack["limited"] = session.limit_kind
-                            ack["refused"] = session.refused_shares
-                        await session.send(ack)
+                        await session.send(
+                            msg(
+                                "register",
+                                ok=True,
+                                share_count=len(session.share_tokens),
+                            )
+                        )
                     elif mtype == "http_response":
                         req_id = str(data.get("id") or "")
                         pending = session.pending.get(req_id)
@@ -221,10 +164,10 @@ def build_tunnel_router(state: RelayState) -> APIRouter:
                         await session.send(msg("error", detail=f"unknown type {mtype!r}"))
             finally:
                 session.to_host.close(discard=True)
-                for task in filter(None, (host_pump, expiry)):
-                    task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError, Exception):
-                        await task
+                if not host_pump.done():
+                    host_pump.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await host_pump
         except WebSocketDisconnect:
             pass
         finally:

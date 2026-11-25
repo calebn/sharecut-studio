@@ -1,10 +1,10 @@
 import { act, fireEvent, render } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { setClipFade, trimClipEdge } from "../api";
+import { trimNeighborBounds } from "../edit/trimLimits";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { parseHistoryEntryId } from "../types/project";
-import { trimNeighborBounds } from "../utils/trimLimits";
 import { useClipEdgeHandles } from "./useClipEdgeHandles";
 
 const FADE_HEAD = parseHistoryEntryId("h-fade");
@@ -85,21 +85,6 @@ it.each([
     });
   },
 );
-
-it("a trim that is only queued says it is kept, not saved, and offers no Undo", async () => {
-  vi.mocked(trimClipEdge).mockResolvedValue({ queued: true, undo: null });
-  const button = render(<Harness handle="trim-out" />).getByRole("button");
-  fireEvent.pointerDown(button, { pointerId: 1, clientX: 150 });
-  fireEvent.pointerMove(button, { pointerId: 1, clientX: 140 });
-  await act(async () =>
-    fireEvent.pointerUp(button, { pointerId: 1, clientX: 140 }),
-  );
-  const toast = useDawStore.getState().feedbackToast;
-  expect(toast?.message).toBe(
-    "Trim kept. It sends when you can reach the host.",
-  );
-  expect(toast?.undo ?? null).toBeNull();
-});
 
 it("clears a gesture message when the drag ends without a change", async () => {
   const button = render(<Harness handle="trim-out" />).getByRole("button");

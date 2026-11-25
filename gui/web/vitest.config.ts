@@ -1,16 +1,16 @@
 import { configDefaults, defineConfig } from "vitest/config";
 
 const nodeTestFiles = [
-  "src/utils/clipEdgePreview.test.ts",
+  "src/edit/clipEdgePreview.test.ts",
   "src/edit/clipboard.test.ts",
   "src/edit/dragThreshold.test.ts",
   "src/edit/fadeLimits.test.ts",
   "src/edit/joinRender.test.ts",
   "src/edit/nudgeBoundaries.test.ts",
   "src/edit/rangeSelection.test.ts",
-  "src/utils/ripplePreview.test.ts",
+  "src/edit/ripplePreview.test.ts",
   "src/edit/rollLimits.test.ts",
-  "src/utils/trimLimits.test.ts",
+  "src/edit/trimLimits.test.ts",
   "src/utils/time.test.ts",
   "src/utils/timebase.test.ts",
   "src/utils/zoom.test.ts",

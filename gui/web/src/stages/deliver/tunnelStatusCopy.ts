@@ -1,15 +1,13 @@
-import type { TunnelLimit, TunnelStatus } from "../../types/tunnel";
+import type { TunnelStatus } from "../../types/tunnel";
 
 export const ONLINE_SHARING_GUIDE_URL =
   "https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md#tunnel-status";
 
-type TunnelTone = "ok" | "pending" | "caution" | "problem" | "neutral";
+type TunnelTone = "ok" | "pending" | "problem" | "neutral";
 
 type TunnelStatusCopy = {
   tone: TunnelTone;
   headline: string;
-  /** Show the contact link under the headline: nothing on this computer can fix it. */
-  contact?: boolean;
   /** The next step in plain words, behind a disclosure so the headline stays a consequence. */
   fix?: { summary: string; body: string };
 };
@@ -22,13 +20,6 @@ const OFFLINE_FIX: Record<"auth" | "config" | "other", string> = {
     "Check that this computer is awake and connected to the internet. If online sharing stopped, start it again.",
 };
 
-const LIMITED_FIX: Record<TunnelLimit, string> = {
-  shares:
-    "Only a few links can be open online at once. Turn off links you no longer need, then start online sharing again.",
-  bandwidth:
-    "Your links have used this month's online sharing allowance. Guests can open them again next month.",
-};
-
 /** Host-facing words for online sharing: what guests experience, with the fix tucked away. */
 export function tunnelStatusCopy(
   status: TunnelStatus,
@@ -36,16 +27,6 @@ export function tunnelStatusCopy(
   switch (status.state) {
     case "online":
       return { tone: "ok", headline: "Guests can open your links" };
-    case "limited":
-      return {
-        tone: "caution",
-        headline:
-          "Online sharing is limited: some links may not open for guests",
-        fix: {
-          summary: "How to fix",
-          body: LIMITED_FIX[status.limit ?? "shares"],
-        },
-      };
     case "connecting":
       return {
         tone: "pending",
@@ -57,13 +38,6 @@ export function tunnelStatusCopy(
         headline: "Reconnecting… guests may see a brief interruption",
       };
     case "offline": {
-      if (status.reason_kind === "unavailable") {
-        return {
-          tone: "problem",
-          headline: "Online sharing is unavailable right now.",
-          contact: true,
-        };
-      }
       const kind =
         status.reason_kind === "auth" || status.reason_kind === "config"
           ? status.reason_kind

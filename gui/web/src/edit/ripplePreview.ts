@@ -17,7 +17,7 @@ import {
 } from "../types/limits.generated";
 import type { ClipRow, ProjectView, TrackView } from "../types/project";
 import type { EditMode, TrimEdge } from "./clipEdgePreview";
-import { clampToTrimLimits, trimEdgeLimits } from "./trimLimits";
+import { trimEdgeLimits } from "./trimLimits";
 
 export type Span = { start: number; end: number };
 
@@ -313,52 +313,6 @@ export function trimDraft(
     c.id === clipId ? trimmed : c,
   );
   return { ...project, clips: { ...project.clips, tracks } };
-}
-
-/**
- * `project` with a queued `TrimClipEdge` laid over it: `trimDraft` at the
- * place `plan_trim` clamps `sourceSec` to. It reads the clip's edge from
- * `project`, so a project that already holds the trim comes back unchanged
- * (the draft is invisible once the server's answer lands), and it ends the
- * timeline at its last clip as the saved trim does. A trim the server
- * would refuse (an unknown clip, a ripple that moves a clip before zero)
- * shows nothing; the command's own failure says why.
- */
-export function patchClipTrim(
-  project: ProjectView,
-  clipId: string,
-  edge: TrimEdge,
-  sourceSec: number,
-  mode: EditMode,
-): ProjectView {
-  for (const [trackId, lane] of Object.entries(project.clips.tracks)) {
-    const index = lane.findIndex((c) => c.id === clipId);
-    if (index < 0) continue;
-    const clip = lane[index]!;
-    const target = clampToTrimLimits(
-      sourceSec,
-      trimEdgeLimits(lane, index, edge, mode),
-    );
-    if (
-      Math.abs(target - (edge === "in" ? clip.source_start : clip.source_end)) <
-      1e-12
-    )
-      return project;
-    try {
-      const trimmed = trimDraft(project, trackId, clipId, edge, target, mode);
-      // `update_timeline_duration`: the saved trim ends the timeline at its last clip.
-      const end = Math.max(
-        0,
-        ...Object.values(trimmed.clips.tracks).flatMap((clips) =>
-          clips.map((c) => c.timeline_end),
-        ),
-      );
-      return end > 0 ? { ...trimmed, timeline_duration_sec: end } : trimmed;
-    } catch {
-      return project;
-    }
-  }
-  return project;
 }
 
 /** "later −6.7 s": how far a ripple moves the later clips. */

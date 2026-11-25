@@ -1,5 +1,5 @@
 :8080 {
-	@relay path /healthz /llms.txt /tunnel /enroll /enroll/renew /notice/continue /r/* /rec/* /api* /mcp* /auth*
+	@relay path /healthz /llms.txt /tunnel /r/* /rec/* /api* /mcp* /auth*
 	handle @relay {
 		reverse_proxy podcast-relay:8081
 	}

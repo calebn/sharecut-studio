@@ -2,9 +2,9 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipFade, trimClipEdge } from "../api";
 import { runFocusedClipHandle } from "../commands/focusedClipHandle";
+import { trimNeighborBounds } from "../edit/trimLimits";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
-import { trimNeighborBounds } from "../utils/trimLimits";
 import { useClipEdgeHandles } from "./useClipEdgeHandles";
 
 vi.mock("../api", async (original) => ({

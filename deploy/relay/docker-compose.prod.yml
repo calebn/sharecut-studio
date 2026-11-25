@@ -17,13 +17,7 @@ services:
   podcast-relay:
     image: ${RELAY_IMAGE:?set RELAY_IMAGE}
     environment:
-      # Old builds present these tokens, so production keeps them required.
       PODCAST_RELAY_HOST_TOKENS: ${PODCAST_RELAY_HOST_TOKENS:?set PODCAST_RELAY_HOST_TOKENS}
-      # Enrollment: set the key path (inside the container, under /run/relay-keys) and master key.
-      PODCAST_RELAY_SIGNING_KEY: ${PODCAST_RELAY_SIGNING_KEY:-}
-      PODCAST_RELAY_MASTER_KEY: ${PODCAST_RELAY_MASTER_KEY:-}
-      PODCAST_RELAY_DENY_FILE: ${PODCAST_RELAY_DENY_FILE:-/var/lib/sharecut-relay/deny.txt}
-      PODCAST_RELAY_USAGE_DB: ${PODCAST_RELAY_USAGE_DB:-/var/lib/sharecut-relay/usage.sqlite3}
       PODCAST_RELAY_PORT: "8081"
       PODCAST_RELAY_FORWARDED_ALLOW_IPS: "*"
       PODCAST_REPORT_STORE: /var/lib/sharecut-reports
@@ -31,8 +25,6 @@ services:
       PODCAST_REPORT_GITHUB_TOKEN: ${PODCAST_REPORT_GITHUB_TOKEN:-}
     volumes:
       - report_data:/var/lib/sharecut-reports
-      - relay_state:/var/lib/sharecut-relay
-      - ${PODCAST_RELAY_KEY_DIR:-./relay-keys}:/run/relay-keys:ro
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
@@ -72,4 +64,3 @@ volumes:
   caddy_data:
   caddy_config:
   report_data:
-  relay_state:

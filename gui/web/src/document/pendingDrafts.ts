@@ -1,9 +1,7 @@
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { AutomationPoint, ProjectView, TrackView } from "../types/project";
-import type { EditMode, TrimEdge } from "../utils/clipEdgePreview";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
 import { type ClipFadeCurves, payloadFadeCurves } from "../utils/fadeCurves";
-import { patchClipTrim } from "../utils/ripplePreview";
 import { documentAuthority } from "./authorityState";
 import {
   type ClipMoveItem,
@@ -27,19 +25,6 @@ type Draft =
       curves: ClipFadeCurves;
     }
   | { kind: "gain"; clipId: string; gainDb: number }
-  /**
-   * A queued clip-edge trim, kept as the command asked for it (one per command,
-   * applied in queue order like the server's replay) and worked out against the
-   * latest project each time, so a ripple across tracks shows exactly as the
-   * server will apply it.
-   */
-  | {
-      kind: "trim";
-      clipId: string;
-      edge: TrimEdge;
-      sourceSec: number;
-      mode: EditMode;
-    }
   /**
    * One saved bound of a pending edit, keyed per edge so a save of the other
    * edge never replaces it. A save that sends no baseline (the overlay drag)
@@ -165,24 +150,6 @@ export function beginDocumentDraft(
       ]);
     }
     entries.push(...gains);
-  } else if (
-    type === DocumentCommand.TrimClipEdge &&
-    typeof payload.clip_id === "string" &&
-    (payload.edge === "in" || payload.edge === "out") &&
-    (payload.mode === "ripple" || payload.mode === "gap") &&
-    typeof payload.source_sec === "number" &&
-    Number.isFinite(payload.source_sec)
-  ) {
-    entries.push([
-      commandId,
-      {
-        kind: "trim",
-        clipId: payload.clip_id,
-        edge: payload.edge,
-        sourceSec: payload.source_sec,
-        mode: payload.mode,
-      },
-    ]);
   } else if (
     type === DocumentCommand.RenameProject &&
     typeof payload.name === "string"
@@ -317,63 +284,10 @@ export function clearPreviewDraft(key: string, owner: symbol): boolean {
   if (held?.kind !== "preview" || held.owner !== owner) return false;
   return current().delete(id);
 }
-/**
- * True when a pending command (queued, or sent and not yet answered) has moved
- * a clip of `trackId` away from where the host holds it. A boundary token is
- * the host's digest of the track as it stands, so a trim asked for against
- * the drafted lane would be refused as stale: it waits until they agree.
- */
-export function hasPendingLaneGeometry(trackId: string): boolean {
-  const held = documentAuthority.project;
-  if (!held) return false;
-  const drafted = overlayDocumentDrafts(held, false);
-  const was = held.clips.tracks[trackId] ?? [];
-  const now = drafted.clips.tracks[trackId] ?? [];
-  return (
-    was.length !== now.length ||
-    was.some((clip, i) => {
-      const other = now[i];
-      return (
-        other === undefined ||
-        clip.id !== other.id ||
-        clip.source_id !== other.source_id ||
-        clip.source_start !== other.source_start ||
-        clip.source_end !== other.source_end ||
-        clip.timeline_start !== other.timeline_start
-      );
-    })
-  );
-}
 export function finishDocumentDraft(commandId: string): void {
   if (heldAcks.has(commandId)) return;
   for (const [key, value] of current())
     if (value.commandId === commandId) drafts.delete(key);
-}
-/**
- * Finish every trim draft the project already holds. A trim the host took from
- * another tab never reaches this tab's own drain, so nothing else would end its
- * draft, and the next Undo would be trimmed again by it. A draft for a clip
- * that is not there yet stays: the command that brings the clip may still wait.
- */
-export function finishTrimDraftsHeldBy(project: ProjectView): void {
-  const clips = new Set(
-    Object.values(project.clips.tracks).flatMap((lane) =>
-      lane.map((clip) => clip.id),
-    ),
-  );
-  for (const { commandId, draft } of [...current().values()])
-    if (
-      draft.kind === "trim" &&
-      clips.has(draft.clipId) &&
-      patchClipTrim(
-        project,
-        draft.clipId,
-        draft.edge,
-        draft.sourceSec,
-        draft.mode,
-      ) === project
-    )
-      finishDocumentDraft(commandId);
 }
 export function holdDocumentDraftUntil(commandId: string, seq: number): void {
   current();
@@ -424,15 +338,6 @@ export function overlayDocumentDrafts(
         break;
       case "gain":
         result = patchClipGain(result, draft.clipId, draft.gainDb);
-        break;
-      case "trim":
-        result = patchClipTrim(
-          result,
-          draft.clipId,
-          draft.edge,
-          draft.sourceSec,
-          draft.mode,
-        );
         break;
       case "pendingRange": {
         const range = ranges.get(draft.editId);

@@ -12,7 +12,6 @@ import { markerVariant, pendingKind } from "../utils/editMarkerRegistry";
 import { pendingEditTrackIds } from "../utils/edits";
 import {
   pendingReasonLabel,
-  pendingRetimeRefusal,
   pendingTypeLabel,
 } from "../utils/pendingEditLabels";
 import { formatTimeMs } from "../utils/time";
@@ -173,10 +172,7 @@ function PendingEditRegion({
   const regionRef = useRef<HTMLDivElement>(null);
   const scheduleResizeUpdateRef = useRef<(() => void) | null>(null);
   const currentGesture = useRef<Gesture>(IDLE);
-  // Which save owns each guard (its controller): an earlier save that is aborted, then finishes
-  // after a newer drag has started, must not release the newer save's guards.
-  const commitPendingRef = useRef<AbortController | null>(null);
-  const inFlightOwnerRef = useRef<AbortController | null>(null);
+  const commitPendingRef = useRef(false);
   const wasSelected = useRef(selected);
   const [gesture, setGesture] = useState<Gesture>(IDLE);
   const [portalPosition, setPortalPosition] = useState({ left: 0, top: 0 });
@@ -361,18 +357,6 @@ function PendingEditRegion({
       useDawStore.getState().projectEpoch === capture.projectEpoch
     );
   };
-  const boundsAreCaptured = (current: PendingEditView, capture: DragCapture) =>
-    current.source_start === capture.sourceStart &&
-    current.source_end === capture.sourceEnd;
-  const isOwnSavedBounds = (current: PendingEditView, capture: DragCapture) => {
-    const active = currentGesture.current;
-    return (
-      active.kind === "settling" &&
-      active.controller === capture.controller &&
-      current.source_start === active.preview.sourceStart &&
-      current.source_end === active.preview.sourceEnd
-    );
-  };
   const freshProjectAndEdit = (capture: DragCapture) => {
     const state = useDawStore.getState();
     const current = state.project?.pending_edits.find(
@@ -420,9 +404,8 @@ function PendingEditRegion({
         state.shareAuthor,
         current?.author,
       ) &&
-      current !== undefined &&
-      (boundsAreCaptured(current, capture) ||
-        isOwnSavedBounds(current, capture)) &&
+      current?.source_start === capture.sourceStart &&
+      current.source_end === capture.sourceEnd &&
       current.track_id === capture.trackId &&
       samePlacement
     );
@@ -442,7 +425,7 @@ function PendingEditRegion({
         ) {
           active.controller.abort();
           currentGesture.current = IDLE;
-          commitPendingRef.current = null;
+          commitPendingRef.current = false;
           setGesture(IDLE);
         }
       }),
@@ -529,7 +512,7 @@ function PendingEditRegion({
       edit.source_start == null ||
       edit.source_end == null ||
       !canAdjust ||
-      commitPendingRef.current !== null ||
+      commitPendingRef.current ||
       currentGesture.current.kind !== "idle"
     ) {
       return;
@@ -615,12 +598,10 @@ function PendingEditRegion({
     };
     currentGesture.current = settling;
     setGesture(settling);
-    commitPendingRef.current = active.controller;
-    inFlightOwnerRef.current = active.controller;
+    commitPendingRef.current = true;
     // The Action bar's Cut and Keep read this: they must not decide the bounds being replaced.
     useDawStore.getState().setPendingRetimeInFlight(active.editId);
     let resolvingSnapTicks = true;
-    let sent = false;
     try {
       const focusSec =
         active.edge === "start" ? preview.sourceStart : preview.sourceEnd;
@@ -660,7 +641,6 @@ function PendingEditRegion({
         return;
       }
       resolvingSnapTicks = false;
-      sent = true;
       await onCommitSpan(
         active.projectPath,
         active.projectEpoch,
@@ -671,36 +651,21 @@ function PendingEditRegion({
         resolvedPreview.sourceEnd,
       );
     } catch (error) {
-      const live = useDawStore.getState();
-      let message: string | null = null;
-      if (sent) {
-        if (
-          live.projectPath === active.projectPath &&
-          live.projectEpoch === active.projectEpoch
-        ) {
-          message = pendingRetimeRefusal(error, active.edge);
-        }
-      } else if (
+      if (
         !active.controller.signal.aborted &&
         gestureIsCurrent(active) &&
         freshProjectAndEdit(active)
       ) {
-        message = resolvingSnapTicks
+        const message = resolvingSnapTicks
           ? "Nearby waveform snap points could not be loaded. Try again."
           : errorMessage(error);
-      }
-      if (message !== null) {
-        live.announceStatus(message, { tone: "error" });
+        useDawStore.getState().announceStatus(message, { tone: "error" });
       }
     } finally {
-      if (commitPendingRef.current === active.controller)
-        commitPendingRef.current = null;
-      if (inFlightOwnerRef.current === active.controller) {
-        inFlightOwnerRef.current = null;
-        const live = useDawStore.getState();
-        if (live.pendingRetimeInFlight === active.editId)
-          live.setPendingRetimeInFlight(null);
-      }
+      commitPendingRef.current = false;
+      const live = useDawStore.getState();
+      if (live.pendingRetimeInFlight === active.editId)
+        live.setPendingRetimeInFlight(null);
       const current = currentGesture.current;
       if (
         current.kind === "settling" &&

@@ -26,7 +26,6 @@ import { scheduleTranscriptDetailHydrate } from "./hydrateTranscriptDetail";
 import {
   clearPreviewDraft,
   finishDocumentDraft,
-  finishTrimDraftsHeldBy,
   holdDocumentDraftUntil,
   overlayDocumentDrafts,
   releaseHeldDrafts,
@@ -349,7 +348,6 @@ export function applyDocumentSnapshot(
   documentAuthority.phase = { kind: "ready" };
   noteDocumentSeq(seq);
   releaseHeldDrafts(seq);
-  finishTrimDraftsHeldBy(next);
   noteDocumentFile(snap);
   const displayed = show(next);
   scheduleTranscriptDetailHydrate(next);

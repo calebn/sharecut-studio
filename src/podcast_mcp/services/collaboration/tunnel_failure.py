@@ -12,8 +12,6 @@ import socket
 from dataclasses import dataclass
 from enum import StrEnum
 
-from podcast_mcp.util.relay_protocol.lease import LEASE_EXPIRED_CLOSE_REASON
-
 
 class FailureKind(StrEnum):
     NETWORK = "network"
@@ -21,20 +19,15 @@ class FailureKind(StrEnum):
     RELAY_CLOSED = "relay closed"
     RATE_LIMITED = "rate limited"
     AUTH = "auth"
-    UNAVAILABLE = "unavailable"
     CONFIG = "config"
     ERROR = "error"
 
-
-UNAVAILABLE_FIX = "If you think this is a mistake, contact support."
-UNAVAILABLE_DETAIL = "online sharing is unavailable right now"
 
 _FATAL_HINT: dict[FailureKind, str] = {
     FailureKind.AUTH: (
         "Check the host token (--host-token, PODCAST_RELAY_HOST_TOKEN or relay.yaml) "
         "and the host id, then run podcast tunnel again."
     ),
-    FailureKind.UNAVAILABLE: UNAVAILABLE_FIX,
     FailureKind.CONFIG: "Check relay_url (it must end in /tunnel), then run podcast tunnel again.",
 }
 
@@ -59,10 +52,6 @@ class TunnelFailure:
     kind: FailureKind
     detail: str
     retry_after_sec: float = 0.0
-    # Plain-words next step that replaces the host-token hint (an enrolled host has no token).
-    fix: str = ""
-    # The relay no longer honors the stored lease, but a fresh enrollment can replace it.
-    stale_lease: bool = False
 
     @property
     def fatal(self) -> bool:
@@ -70,7 +59,7 @@ class TunnelFailure:
 
     @property
     def hint(self) -> str:
-        return self.fix or _FATAL_HINT.get(self.kind, "")
+        return _FATAL_HINT.get(self.kind, "")
 
     @property
     def reason(self) -> str:
@@ -85,49 +74,9 @@ class TunnelError(RuntimeError):
         self.failure = failure
 
 
-_STALE_LEASE_CODES = frozenset(
-    {"expired", "wrong_epoch", "unknown_kid", "bad_signature", "malformed", "wrong_install"}
-)
-UPDATE_FIX = "Update ShareCut, then start online sharing again."
-SWITCHED_OFF_FIX = "Ask whoever runs the sharing service, or use a different one."
-SWITCHED_OFF_DETAIL = "online sharing is turned off for this copy of ShareCut"
-LEGACY_ENDED_DETAIL = "online sharing no longer accepts this access key"
-LEGACY_ENDED_FIX = (
-    "Remove the access key from your settings so ShareCut can sign in on its own, "
-    "then start online sharing again."
-)
-
-
-def unavailable() -> TunnelFailure:
-    """The install was revoked: no retry helps, and the host is pointed at support."""
-    return TunnelFailure(FailureKind.UNAVAILABLE, UNAVAILABLE_DETAIL)
-
-
-def _lease_rejection(code: str) -> TunnelFailure:
-    if code in _STALE_LEASE_CODES:
-        return TunnelFailure(
-            FailureKind.RELAY_CLOSED,
-            "online sharing is signing this computer in again",
-            stale_lease=True,
-        )
-    if code == "build_too_old":
-        return TunnelFailure(
-            FailureKind.AUTH,
-            "this version of ShareCut is too old for online sharing",
-            fix=UPDATE_FIX,
-        )
-    if code == "denied":
-        return unavailable()
-    return TunnelFailure(FailureKind.AUTH, SWITCHED_OFF_DETAIL, fix=SWITCHED_OFF_FIX)
-
-
 def relay_rejection(detail: str, *, retry_after_sec: float = 0.0) -> TunnelFailure:
     """Classify an ``error`` frame the relay sent in place of a hello acknowledgement."""
     lowered = detail.lower()
-    if lowered.startswith("lease_refused:"):
-        return _lease_rejection(lowered.partition(":")[2])
-    if lowered == "legacy_tier_ended":
-        return TunnelFailure(FailureKind.AUTH, LEGACY_ENDED_DETAIL, fix=LEGACY_ENDED_FIX)
     if "host_token" in lowered:
         return TunnelFailure(FailureKind.AUTH, "relay rejected the host token or host id")
     if "rate limit" in lowered:
@@ -142,10 +91,6 @@ def relay_rejection(detail: str, *, retry_after_sec: float = 0.0) -> TunnelFailu
 
 
 def _from_close_frame(code: int | None, reason: str) -> TunnelFailure:
-    if code == _CLOSE_AUTH and reason == "install denied":
-        return _lease_rejection("denied")
-    if code == _CLOSE_AUTH and reason == LEASE_EXPIRED_CLOSE_REASON:
-        return _lease_rejection("expired")
     if code == _CLOSE_AUTH:
         return TunnelFailure(FailureKind.AUTH, "relay rejected the host token or host id")
     if code == _CLOSE_BAD_REQUEST:
@@ -169,7 +114,6 @@ def _from_os_error(exc: OSError) -> TunnelFailure:
 
 def classify_failure(exc: BaseException) -> TunnelFailure:
     """Map any connect or session error to a ``TunnelFailure``."""
-    import httpx
     from websockets.exceptions import (
         ConnectionClosed,
         InvalidHandshake,
@@ -185,10 +129,6 @@ def classify_failure(exc: BaseException) -> TunnelFailure:
             frame.code if frame else None,
             (frame.reason if frame else "") or "",
         )
-    if isinstance(exc, httpx.TimeoutException):
-        return TunnelFailure(FailureKind.TIMEOUT, "relay did not answer in time")
-    if isinstance(exc, httpx.TransportError):
-        return TunnelFailure(FailureKind.NETWORK, "connection lost")
     if isinstance(exc, InvalidURI):
         return TunnelFailure(FailureKind.CONFIG, "relay_url is not a valid websocket URL")
     if isinstance(exc, InvalidStatus):

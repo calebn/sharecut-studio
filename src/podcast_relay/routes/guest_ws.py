@@ -46,12 +46,6 @@ async def bridge_guest_ws(
         await _reject(4403, f"share does not allow {required_cap}")
         return
 
-    meter = session.meter
-    if meter is not None and meter.exhausted():
-        await state.notify_limit(session)
-        await _reject(1013, "sharing paused")
-        return
-
     gate_held = False
     if relay_rate_limit_enabled():
         lim = get_relay_limiters()
@@ -82,21 +76,12 @@ async def bridge_guest_ws(
             )
         )
 
-        loop = asyncio.get_running_loop()
-        last_traffic = loop.time()
-
         async def _pump_to_guest() -> None:
-            nonlocal last_traffic
             try:
                 while True:
                     text = await stream.queue.get()
                     if text is None:
                         break
-                    last_traffic = loop.time()
-                    if meter is not None:
-                        size = len(text.encode("utf-8"))
-                        meter.charge(size)
-                        await meter.pace(size)
                     await guest_writer.send(text)
             except TimeoutError:
                 close_relay_guest_stream(
@@ -120,18 +105,10 @@ async def bridge_guest_ws(
 
         closing = asyncio.create_task(close_stream())
         try:
-            idle = meter.idle_sec if meter is not None and meter.idle_sec > 0 else None
             while True:
                 done, _pending = await asyncio.wait(
-                    {pump, recv, closing},
-                    return_when=asyncio.FIRST_COMPLETED,
-                    timeout=None if idle is None else max(0.0, last_traffic + idle - loop.time()),
+                    {pump, recv, closing}, return_when=asyncio.FIRST_COMPLETED
                 )
-                if not done:
-                    if loop.time() - last_traffic >= (idle or 0.0):
-                        await guest_writer.close(1001, "idle")
-                        break
-                    continue
                 if pump in done or closing in done:
                     break
                 if recv in done:
@@ -141,17 +118,9 @@ async def bridge_guest_ws(
                         break
                     except Exception:
                         break
-                    frame_bytes = len(text.encode("utf-8"))
-                    if frame_bytes > GUEST_FRAME_MAX_BYTES:
+                    if len(text.encode("utf-8")) > GUEST_FRAME_MAX_BYTES:
                         await guest_writer.close(4400, "frame too large")
                         break
-                    last_traffic = loop.time()
-                    if meter is not None:
-                        meter.charge(frame_bytes)
-                        if meter.exhausted():
-                            await state.notify_limit(session)
-                            await guest_writer.close(1013, "sharing paused")
-                            break
                     if relay_rate_limit_enabled():
                         lim = get_relay_limiters()
                         bucket = lim.ws_presence if is_presence_ws_text(text) else lim.ws_msg

@@ -20,7 +20,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from podcast_mcp.config.defaults import repo_root
-from podcast_mcp.config.runtime import forget_non_enrolling_relays
 from podcast_mcp.engines import timeline_render
 from podcast_mcp.models import EpisodeProject, Track, load_project, save_project
 from podcast_mcp.project.store import WriteGrantKind, write_grant
@@ -34,7 +33,6 @@ from podcast_mcp.util import object_store as object_store_util
 from podcast_mcp.util import pinned_media
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.host_platform import WINDOWS, HostPlatform, using
-from podcast_relay.limits import reset_relay_limiters_for_tests
 from process_caches import reset_isolated_caches
 from sentinel_home import TOOLCHAIN_CACHES, artifact_files, passthrough_env, stray_files
 
@@ -171,12 +169,6 @@ def _isolate_host_limiters() -> None:
         yield
     finally:
         reset_host_limiters_for_tests()
-
-
-@pytest.fixture(autouse=True)
-def _isolate_relay_limiters() -> None:
-    reset_relay_limiters_for_tests()
-    forget_non_enrolling_relays()
 
 
 @pytest.fixture(autouse=True)

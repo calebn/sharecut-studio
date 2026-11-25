@@ -11,22 +11,20 @@ import {
   type ClipHandleAction,
   registerFocusedClipHandle,
 } from "../commands/focusedClipHandle";
-import { keptLine } from "../comments/keptLine";
-import { hasPendingLaneGeometry } from "../document/pendingDrafts";
-import { saveClipEdge, TRIM_MODE, TRIM_WAITS_LINE } from "../edit/clipEdgeSave";
+import { clampTrimSourceSec, type TrimEdge } from "../edit/clipEdgePreview";
+import { saveClipEdge, TRIM_MODE } from "../edit/clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "../edit/clipHandleSteps";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
 import { nudgeAxis, nudgeStep } from "../edit/nudge";
 import { softBoundaries } from "../edit/nudgeBoundaries";
+import { trimDraft } from "../edit/ripplePreview";
+import { trimNeighborBounds } from "../edit/trimLimits";
 import { useInterruptCancel } from "../hooks/useInterruptCancel";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
 import { errorMessage } from "../utils/apiError";
-import { clampTrimSourceSec, type TrimEdge } from "../utils/clipEdgePreview";
-import { trimDraft } from "../utils/ripplePreview";
-import { trimNeighborBounds } from "../utils/trimLimits";
 import type { ClipHandle } from "./ClipBlockView";
 import type { ClipFadePreview, ClipTrimPreview } from "./clipBlockGeometry";
 import { HIT_KINDS } from "./inputContract";
@@ -227,10 +225,6 @@ export function useClipEdgeHandles(context: Context) {
     )
       return null;
     const c = latest.current;
-    if (handle.startsWith("trim") && hasPendingLaneGeometry(c.trackId)) {
-      s.announceStatus(TRIM_WAITS_LINE);
-      return null;
-    }
     const capture: Capture = {
       clip: c.clip,
       trackId: c.trackId,
@@ -375,22 +369,15 @@ export function useClipEdgeHandles(context: Context) {
         after.projectPath === c.projectPath &&
         after.projectEpoch === c.projectEpoch
       )
-        after.announceStatus(
-          saved.queued
-            ? keptLine("Trim", null)
-            : d.kind === "fade"
-              ? "Fade saved"
-              : "Trim saved",
-          { undo: saved.undo },
-        );
+        after.announceStatus(d.kind === "fade" ? "Fade saved" : "Trim saved", {
+          undo: saved.undo,
+        });
     } catch (error) {
-      // A fade or trim that is still in flight is shown over the saved clip, so
-      // the clip the gesture captured no longer matches what is on screen:
-      // only a switched project silences the failure.
-      const after = useDawStore.getState();
       if (
-        after.projectPath === c.projectPath &&
-        after.projectEpoch === c.projectEpoch
+        fresh(c) ||
+        (d.kind === "fade" &&
+          useDawStore.getState().projectPath === c.projectPath &&
+          useDawStore.getState().projectEpoch === c.projectEpoch)
       )
         useDawStore
           .getState()

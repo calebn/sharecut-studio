@@ -1,11 +1,11 @@
 import { useCallback, useMemo } from "react";
 import { commitSeamRoll, seamRollLimits } from "../commands/seamRoll";
+import type { RollPreview } from "../edit/clipEdgePreview";
 import { type Seam, seamsOnTrack, seamTitle } from "../edit/seam";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { Seam as SeamMark, type SeamRoll } from "../system/Seam";
-import type { RollPreview } from "../utils/clipEdgePreview";
 import { joinKind, markerLabel } from "../utils/editMarkerRegistry";
 import { formatRulerTime } from "../utils/time";
 import { dragMayStart } from "./hitRouting";
