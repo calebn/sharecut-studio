@@ -1,5 +1,5 @@
 {
-  "$comment": "Where a clip's trim edge may go: [lo, hi] in source seconds. gui/web/src/utils/trimLimits.ts trimEdgeLimits mirrors engines/clips_ops.trim_edge_limits, and every client clamp (a held strip nudge, a handle drag, a ripple peer) reads it. gui/web/src/utils/trimLimits.test.ts and tests/test_trim_edge_limits_contract.py both read these cases. Clips are [id, timeline_start, source_start, source_end, source_id] on the case's track (default host), source_id null = the track's own media. A clip with no source_id plays the track media; a clip with one plays that source. Two clips play the same recording when their source_id matches or their files do (the host_t1 source is the host track's media file).",
+  "$comment": "Where a clip's trim edge may go: [lo, hi] in source seconds. gui/web/src/utils/trimLimits.ts trimEdgeLimits mirrors engines/clips_ops.trim_edge_limits, and every client clamp (a held strip nudge, a handle drag, a ripple peer) reads it. gui/web/src/utils/trimLimits.test.ts and tests/test_trim_edge_limits_contract.py both read these cases. Clips are [id, timeline_start, source_start, source_end, source_id, steps?] on the case's track (default host), source_id null = the track's own media; steps, when present, is [[at, delta_sec], ...] in source seconds (the clip's timing map; a negative delta is a skip, and the tests give it the quiet span the server requires). A timed clip's timeline length includes its deltas. A pair with lo > hi means no legal range and is pinned as is. A clip with no source_id plays the track media; a clip with one plays that source. Two clips play the same recording when their source_id matches or their files do (the host_t1 source is the host track's media file).",
   "constants": { "min_clip_span_sec": 0.05, "time_eps_sec": 1e-9 },
   "tracks": [
     { "id": "host", "role": "dialogue", "media_path": "raw/host_t1.wav", "duration_sec": 600 },
@@ -113,6 +113,132 @@
       "clips": [["a", 2, 5, 9, "host_t1"]],
       "clip_id": "a", "edge": "in", "mode": "gap",
       "limits": [3, 8.95]
+    },
+    {
+      "name": "timed in edge stops before the first step",
+      "clips": [["a", 0, 10, 20, null, [[15, 0.2]]]],
+      "clip_id": "a", "edge": "in", "mode": "ripple",
+      "limits": [0, 14.999999]
+    },
+    {
+      "name": "timed out edge stops after the last step",
+      "clips": [["a", 0, 10, 20, null, [[15, 0.2]]]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [15.000001, 600]
+    },
+    {
+      "name": "timed out edge stops after the last skip",
+      "clips": [["a", 0, 10, 20, null, [[15, -0.5]]]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [15.500001, 600]
+    },
+    {
+      "name": "timed skip: in edge",
+      "clips": [["a", 0, 10, 20, null, [[15, -0.5]]]],
+      "clip_id": "a", "edge": "in", "mode": "ripple",
+      "limits": [0, 14.999999]
+    },
+    {
+      "name": "timed multi-step: first caps in, last floors out",
+      "clips": [["a", 0, 10, 20, null, [[12, 0.1], [17, 0.1]]]],
+      "clip_id": "a", "edge": "in", "mode": "ripple",
+      "limits": [0, 11.999999]
+    },
+    {
+      "name": "timed multi-step out",
+      "clips": [["a", 0, 10, 20, null, [[12, 0.1], [17, 0.1]]]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [17.000001, 600]
+    },
+    {
+      "name": "multi-step, last is a skip",
+      "clips": [["a", 0, 10, 20, null, [[12, 0.1], [17, -0.4]]]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [17.400001, 600]
+    },
+    {
+      "name": "first step at the clip start leaves the in edge fixed",
+      "clips": [["a", 0, 10, 20, null, [[10.0000005, 0.2]]]],
+      "clip_id": "a", "edge": "in", "mode": "ripple",
+      "limits": [0, 10]
+    },
+    {
+      "name": "skip ending at source end caps the out floor",
+      "clips": [["a", 0, 10, 20, null, [[19.5, -0.5]]]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [20, 600]
+    },
+    {
+      "name": "skip past source end caps the out floor (tolerance)",
+      "clips": [["a", 0, 10, 20, null, [[19.7, -0.3]]]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [20, 600]
+    },
+    {
+      "name": "out floor vs min span: step near start",
+      "clips": [["a", 0, 10, 20, null, [[10.01, 0.2]]]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [10.05, 600]
+    },
+    {
+      "name": "inverted out: next clip start below clearance",
+      "clips": [["a", 0, 10, 20, null, [[15, -0.5]]], ["b", 12, 15.2, 25, null]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [15.500001, 15.2]
+    },
+    {
+      "name": "inverted in: previous end above clearance",
+      "clips": [["p", -6, 5, 16, null], ["a", 0, 10, 20, null, [[15, 0.2]]]],
+      "clip_id": "a", "edge": "in", "mode": "ripple",
+      "limits": [16, 14.999999]
+    },
+    {
+      "name": "in with prev, timed",
+      "clips": [["p", -4, 5, 14, null], ["a", 0, 10, 20, null, [[15, 0.2]]]],
+      "clip_id": "a", "edge": "in", "mode": "ripple",
+      "limits": [14, 14.999999]
+    },
+    {
+      "name": "untimed neighbour of timed clip",
+      "clips": [["a", 0, 10, 20, null, [[15, 0.2]]], ["b", 10.2, 100, 110, null]],
+      "clip_id": "b", "edge": "in", "mode": "ripple",
+      "limits": [20, 109.95]
+    },
+    {
+      "name": "timed neighbour: out edge of untimed",
+      "clips": [["u", 0, 10, 20, null], ["t", 10, 30, 40, null, [[35, 0.2]]]],
+      "clip_id": "u", "edge": "out", "mode": "ripple",
+      "limits": [10.05, 30]
+    },
+    {
+      "name": "gap out: timed room counts the step's length",
+      "clips": [["a", 5, 10, 20, null, [[15, 0.2]]], ["b", 17, 100, 110, null]],
+      "clip_id": "a", "edge": "out", "mode": "gap",
+      "limits": [15.000001, 21.8]
+    },
+    {
+      "name": "gap out: skip shortens clip so room grows",
+      "clips": [["a", 5, 10, 20, null, [[15, -0.5]]], ["b", 17, 100, 110, null]],
+      "clip_id": "a", "edge": "out", "mode": "gap",
+      "limits": [15.500001, 22.5]
+    },
+    {
+      "name": "gap in: room before a timed clip",
+      "clips": [["p", 0, 0, 2, null], ["a", 5, 10, 20, null, [[15, 0.2]]]],
+      "clip_id": "a", "edge": "in", "mode": "gap",
+      "limits": [7, 14.999999]
+    },
+    {
+      "name": "gap in: preceding timed clip's length",
+      "clips": [["p", 0, 0, 2, null, [[1, 0.5]]], ["a", 5, 10, 20, null, [[15, 0.2]]]],
+      "clip_id": "a", "edge": "in", "mode": "gap",
+      "limits": [7.5, 14.999999]
+    },
+    {
+      "name": "gap out ripple equal: ripple mode same clips",
+      "clips": [["a", 5, 10, 20, null, [[15, 0.2]]], ["b", 17, 100, 110, null]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [15.000001, 100]
     }
   ]
 }

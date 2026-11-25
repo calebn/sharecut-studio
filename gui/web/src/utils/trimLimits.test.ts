@@ -9,8 +9,9 @@ import {
 } from "../test/contractProject";
 import { clipRow } from "../test/fixtures";
 import { SRC_ROOT } from "../test/sourceFiles";
+import type { ClipRow } from "../types/project";
 import type { EditMode, TrimEdge } from "./clipEdgePreview";
-import { trimEdgeLimits } from "./trimLimits";
+import { hasTrimRange, trimEdgeLimits } from "./trimLimits";
 
 type Contract = {
   tracks: ContractTrack[];
@@ -86,5 +87,55 @@ describe("clips of two different sources", () => {
       lo: 0.05,
       hi: 20,
     });
+  });
+});
+
+describe("clips with timing corrections", () => {
+  const timed = (extra: Partial<ClipRow> = {}) =>
+    clipRow({
+      id: "a",
+      source_start: 10,
+      source_end: 20,
+      source_duration_sec: 600,
+      timeline_start: 0,
+      timeline_end: 10.2,
+      timing: {
+        steps: [{ at: 15, delta_sec: 0.2 }],
+        method: "cut",
+        micro_fade_ms: 0,
+      },
+      ...extra,
+    });
+
+  it("stops the in edge before the first step and the out edge after the last", () => {
+    expect(trimEdgeLimits([timed()], 0, "in", "ripple").hi).toBeCloseTo(
+      14.999999,
+      9,
+    );
+    expect(trimEdgeLimits([timed()], 0, "out", "ripple").lo).toBeCloseTo(
+      15.000001,
+      9,
+    );
+  });
+
+  it("leaves a share guest's row untimed: it has timing_steps but no timing", () => {
+    const guest = timed({ timing: undefined, timing_steps: 1 });
+    expect(trimEdgeLimits([guest], 0, "in", "ripple")).toEqual({
+      lo: 0,
+      hi: 19.95,
+    });
+    expect(trimEdgeLimits([guest], 0, "out", "ripple")).toEqual({
+      lo: 10.05,
+      hi: 600,
+    });
+  });
+
+  it("pins every inverted contract pair as no legal range", () => {
+    const inverted = CONTRACT.cases.filter((c) => c.limits[0] > c.limits[1]);
+    expect(inverted.length).toBeGreaterThan(0);
+    for (const c of inverted)
+      expect(hasTrimRange({ lo: c.limits[0], hi: c.limits[1] }), c.name).toBe(
+        false,
+      );
   });
 });

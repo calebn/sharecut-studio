@@ -3,12 +3,16 @@
  * `engines/clips_ops.trim_edge_limits`. A held nudge, a handle drag and the
  * peer a ripple preview moves all clamp here, so none of them previews a place
  * the save would refuse. `contracts/trim-edge-limits.json` pins it to the server.
+ * A clip with a timing map also stops at its own corrections, as the server does
+ * (`utils/stepClearance.ts`). The pair is returned as the server computes it, so
+ * `lo > hi` is possible: that means no legal range (`hasTrimRange`).
  */
 
 import { MIN_EDGE_SPAN_SEC, TIME_EPS_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 import { type EditMode, type TrimEdge } from "./clipEdgePreview";
 import { sameRecording } from "./recordingIdentity";
+import { firstStepClearance, lastStepClearance } from "./stepClearance";
 
 /** `trim_edge_limits`' own tolerance when it looks for the next or previous clip in time. */
 const EPS = TIME_EPS_SEC;
@@ -48,7 +52,13 @@ export function trimEdgeLimits(
         hi = Math.min(hi, clip.source_end + Math.max(0, room));
       }
     }
-    return { lo: clip.source_start + MIN_EDGE_SPAN_SEC, hi };
+    return {
+      lo: Math.max(
+        clip.source_start + MIN_EDGE_SPAN_SEC,
+        lastStepClearance(clip),
+      ),
+      hi,
+    };
   }
   let lo = prev && sameRecording(clip, prev) ? Math.max(0, prev.source_end) : 0;
   if (mode === "gap") {
@@ -61,7 +71,20 @@ export function trimEdgeLimits(
     const room = clip.timeline_start - preceding;
     lo = Math.max(lo, clip.source_start - Math.max(0, room));
   }
-  return { lo, hi: clip.source_end - MIN_EDGE_SPAN_SEC };
+  return {
+    lo,
+    hi: Math.min(clip.source_end - MIN_EDGE_SPAN_SEC, firstStepClearance(clip)),
+  };
+}
+
+/**
+ * Whether `limits` leave an edge anywhere to go. `trim_edge_limits` can return
+ * `lo > hi` (a neighbour or the media end is past a timing correction); the
+ * server then refuses the trim (`trim_no_legal_range`), so a caller must not
+ * move, preview or save that edge rather than clamp into the inverted pair.
+ */
+export function hasTrimRange(limits: TrimLimits): boolean {
+  return limits.lo <= limits.hi + EPS;
 }
 
 /** `value` moved inside `limits`, as `plan_trim` clamps the edge it is asked for. */

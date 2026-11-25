@@ -19,6 +19,7 @@ import {
   minimalProject,
   sampleTrack,
 } from "../../test/fixtures";
+import { noRangeLane } from "../../test/timedTrimLane";
 import type { ClipRow } from "../../types/project";
 import { CLIP_READ_ONLY_REASON } from "./clipReadOnly";
 import { inspectorHeading } from "./inspectorHeading";
@@ -143,6 +144,18 @@ describe("clip content", () => {
       expect.any(Function),
     );
     await expectNoA11yViolations(container);
+  });
+
+  it("shows an out edge with no legal range as read-only and bounds an ordinary one", () => {
+    open(noRangeLane());
+    expect(
+      screen.getByRole("spinbutton", { name: "Source end" }),
+    ).toHaveAttribute("aria-readonly", "true");
+    cleanup();
+    open(noRangeLane(false));
+    expect(
+      screen.getByRole("spinbutton", { name: "Source end" }),
+    ).not.toHaveAttribute("aria-readonly");
   });
 
   it("sets the clip's Length and End on the timeline by trimming the out edge", async () => {

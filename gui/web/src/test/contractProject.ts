@@ -63,7 +63,10 @@ export function contractClipRow(
     track_id: track.id,
     source_id: sourceId,
     timeline_start: timelineStart,
-    timeline_end: timelineStart + (sourceEnd - sourceStart),
+    timeline_end:
+      timelineStart +
+      (sourceEnd - sourceStart) +
+      (steps ?? []).reduce((sum, [, delta]) => sum + delta, 0),
     source_start: sourceStart,
     source_end: sourceEnd,
     source_duration_sec: source ? source.duration_sec : media.duration_sec,
