@@ -416,8 +416,8 @@ export function offsetInChunk(
 /**
  * `timeline_render._gap_edge_fade`: an edge facing a gap keeps its own fade,
  * but never less than the declick fade, capped at half the clip. The browser
- * uses the default declick length; a mapped clip under a changed
- * `inaudible_cuts.micro_fade_ms` renders with that setting instead.
+ * uses the default declick length; on a lane with a timing-mapped clip the
+ * render uses `inaudible_cuts.micro_fade_ms` for every clip instead.
  */
 function gapEdgeFadeSec(clip: ClipRow, storedMs: number): number {
   const declick = Math.min(
