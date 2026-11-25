@@ -260,7 +260,7 @@ base, `podcast bootstrap` reports the missing source for this component, finishe
 others and exits non-zero. In a source build, pick one:
 
 - `PODCAST_MCP_SPEAKER_ECAPA_MODEL=/path/model.onnx` uses a file you hold (not pin-checked).
-- `PODCAST_OWNER_CDN_BASE=https://your-host` (an origin that serves `models/speaker-ecapa/ecapa-voxceleb-embedding.onnx`).
+- `PODCAST_OWNER_CDN_BASE=https://your-host` (an origin that serves `models/speaker-ecapa/ecapa-voxceleb-embedding.onnx`; the file must match the pinned sha256, and `scripts/export_ecapa_onnx.py` produces a model that does not, so use it only with `PODCAST_MCP_SPEAKER_ECAPA_MODEL`).
 - `PODCAST_BOOTSTRAP_CDN_BASE` (the optional asset mirror below) with the same file under its `models/speaker-ecapa/` prefix.
 
 The environment variable beats the generated file. The base must be HTTPS on a public
@@ -402,8 +402,11 @@ source checkout has no origin, so the command below needs one first: set
 host you control, or pass `--archive` with an archive you already hold. Otherwise
 install FFmpeg from a system package and point `PODCAST_MCP_FFMPEG` and
 `PODCAST_MCP_FFPROBE` at it. A fork that builds releases sets its own
-`SHARECUT_OWNER_CDN_BASE` and serves the pinned archives; an official build
-(`PODCAST_REQUIRE_OWNER_CDN=1`) accepts only the documented first-party host.
+`SHARECUT_OWNER_CDN_BASE` and serves the pinned archives (the archives must be the
+pinned bytes: build them with `scripts/build_ffmpeg.py` only if you also repin the
+catalog). The official release workflow hard-codes `PODCAST_REQUIRE_OWNER_CDN=1`, which
+accepts only the documented first-party host, so a fork that publishes its own releases
+removes that line from its copy of the workflow.
 
 With an origin set, a source checkout can select the pair explicitly after
 acquiring it:
@@ -829,6 +832,7 @@ read pipeline settings.
 | `PODCAST_MCP_FFPROBE` |  | Explicit ffprobe executable. |
 | `PODCAST_MCP_FFMPEG_BUNDLE` |  | Directory holding the desktop app's bundled FFmpeg pair. |
 | `PODCAST_BOOTSTRAP_CDN_BASE` |  | Public HTTPS mirror base for bootstrap assets. |
+| `PODCAST_REQUIRE_OWNER_CDN` |  | Set to `1` by official release builds: the build fails unless the recorded owner CDN base names the documented first-party host. |
 | `PODCAST_OWNER_CDN_BASE` |  | HTTPS origin that serves the pinned speaker model and FFmpeg archives; official builds embed it, a source build has none. |
 | `WHISPER_CPP_BIN` |  | whisper-cli executable. |
 | `WHISPER_CPP_MODEL` |  | whisper.cpp model file. |
