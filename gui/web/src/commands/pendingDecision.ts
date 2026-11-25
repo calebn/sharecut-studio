@@ -112,11 +112,6 @@ export function pendingCutWords(
 export const EXACT_RANGE_REVIEW_REASON =
   "Only the host or an Editor can review exact range proposals.";
 
-/**
- * How the accept verb applies a pending edit. "own" applies its suggested action (a leave
- * dismisses it and never touches audio); "cut" approves the edit's cut. A leave suggestion is
- * never "cut", on any surface.
- */
 export function pendingAcceptRoute(
   edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
 ): "own" | "cut" {

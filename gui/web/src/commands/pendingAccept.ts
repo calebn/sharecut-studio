@@ -7,11 +7,6 @@ import {
 } from "../utils/pendingReviewPass";
 import { pendingAcceptRoute } from "./pendingDecision";
 
-/**
- * The one executor behind every accept verb on a pending edit: the Action bar, the Edit Sheet
- * and Backspace. A cut approves the edit; every other route applies its suggested action in one
- * undo step, and a leave dismisses it without touching audio.
- */
 export async function acceptPending(
   projectPath: string,
   edit: PendingEditView,
