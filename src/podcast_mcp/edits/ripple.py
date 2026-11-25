@@ -16,11 +16,14 @@ from typing import Literal
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.clips_ops import (
+    StepStop,
     clips_for_track,
+    no_legal_range_message,
     remove_timeline_range_from_clips,
     set_track_clips,
     shift_clips_timeline,
     split_clip_at,
+    step_limit_stop,
     trim_edge_limits,
     update_timeline_duration,
 )
@@ -179,6 +182,9 @@ class TrimPlan:
     moves: tuple[EdgeMove, ...]
     scope: tuple[str, ...]
     removal: RippleRemoval | None
+    # The timing correction that held this edge short; peers on other tracks that
+    # clamp by their own correction are not reported.
+    step_stop: StepStop | None = None
 
     @property
     def unchanged(self) -> bool:
@@ -264,19 +270,17 @@ def plan_trim(
         raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")
     lo, hi = trim_edge_limits(project, clip, edge, mode)
     if lo > hi:
-        raise CodedValueError(
-            "This edge cannot move: a timing correction inside the clip and the next clip's "
-            "start leave no legal position. Split the clip at the correction or move the "
-            "neighbouring clip first.",
-            code="trim_no_legal_range",
-        )
+        raise CodedValueError(no_legal_range_message(clip), code="trim_no_legal_range")
     target = min(max(float(source_sec), lo), hi)
+    stop = step_limit_stop(clip, edge, float(source_sec), hi if edge == "in" else lo)
     old = _edge_sec(clip, edge)
     delta = old - target if edge == "in" else target - old
     instant = _timeline_edge(clip, edge)
     moves = [EdgeMove(clip.id, clip.track_id, target)]
     if mode is EditMode.GAP or abs(delta) < 1e-12:
-        return TrimPlan(clip.id, clip.track_id, edge, mode, instant, delta, tuple(moves), (), None)
+        return TrimPlan(
+            clip.id, clip.track_id, edge, mode, instant, delta, tuple(moves), (), None, stop
+        )
     scope = ripple_track_ids(project, [clip.track_id])
     for tid in scope:
         if tid == clip.track_id:
@@ -301,7 +305,16 @@ def plan_trim(
         start, end = (instant + delta, instant) if edge == "out" else (instant, instant - delta)
         removal = RippleRemoval.of([TrackExtent(clip.track_id, start, end)])
     return TrimPlan(
-        clip.id, clip.track_id, edge, mode, instant, delta, tuple(moves), tuple(scope), removal
+        clip.id,
+        clip.track_id,
+        edge,
+        mode,
+        instant,
+        delta,
+        tuple(moves),
+        tuple(scope),
+        removal,
+        stop,
     )
 
 

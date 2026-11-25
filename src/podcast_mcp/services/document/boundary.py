@@ -8,7 +8,12 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
-from podcast_mcp.engines.clips_ops import neighbour_clips, roll_join_limits, trim_edge_limits
+from podcast_mcp.engines.clips_ops import (
+    neighbour_clips,
+    no_legal_range_message,
+    roll_join_limits,
+    trim_edge_limits,
+)
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.play_audit import track_render_hash
 from podcast_mcp.models import Clip, EditMode, EpisodeProject
@@ -142,7 +147,7 @@ def boundary_context(
     ):
         raise CodedValueError("boundary bounds must be finite", code="boundary_bounds_not_finite")
     if lo > hi:
-        raise CodedValueError("boundary has no legal range", code="boundary_no_legal_range")
+        raise CodedValueError(no_legal_range_message(clips[0]), code="boundary_no_legal_range")
     geometry = [ClipGeometry.from_clip(c) for c in clips]
     if expected_geometry is not None and geometry != expected_geometry:
         raise DocumentConflictError("boundary changed; reload its current position")

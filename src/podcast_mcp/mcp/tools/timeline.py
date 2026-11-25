@@ -507,7 +507,9 @@ def trim_clip_edge_tool(
     moves that edge too, and every other track loses or gains the same span.
     ``mode="gap"`` moves only the grabbed edge and leaves silence or fills the gap to
     the neighbouring clip; nothing else moves. Expansion is clamped to unused source
-    between the neighbouring clips. The fix for a ``speech_crosses_cut`` hypothesis
+    between the neighbouring clips. A timing correction inside the clip can stop the edge
+    short of ``source_sec``; the reply then carries ``step_stop`` with where it stopped
+    and why. The fix for a ``speech_crosses_cut`` hypothesis
     from ``audition_context_tool`` is its ``evidence.fix`` (clip, edge, source_sec,
     mode). Same operation as the DAW trim handle (``TrimClipEdge``); undoable. Follow
     with ``render_preview``.
@@ -553,7 +555,9 @@ def roll_clip_join_tool(
     Same operation as the Studio roll seam (``RollClipJoin``); undoable. The clips must
     abut (touch within the join tolerance, see ``clips_abut``); across a gap the call is
     refused with ``error_code`` ``roll_needs_abutting_clips`` and nothing changes. Use
-    ``trim_clip_edge_tool`` to move one edge and ripple instead.
+    ``trim_clip_edge_tool`` to move one edge and ripple instead. A timing correction
+    inside either clip can stop the roll short; the reply then carries ``step_stop``
+    with where it stopped and why.
     """
     ws = ProjectWorkspace.open(project_path)
     token = (

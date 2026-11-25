@@ -577,6 +577,54 @@ def _last_step_clearance(clip: Clip) -> float:
     return min(clip.source_end, last.at + max(0.0, -last.delta_sec) + MIN_STEP_GAP_SEC)
 
 
+@dataclass(frozen=True, slots=True)
+class StepStop:
+    """A timing correction that held an edge or join short of what was asked."""
+
+    clip_id: str
+    edge: Literal["in", "out"]
+    step_at_sec: float
+    stopped_at_sec: float
+
+
+def step_limit_stop(
+    clip: Clip, edge: Literal["in", "out"], requested: float, applied_limit: float
+) -> StepStop | None:
+    """The correction that held a trim at ``applied_limit``, if one did.
+
+    Reads the clamp, not the neighbours: the request went past the limit it was held
+    to, and that limit is the correction's clearance. A tie with another bound reports
+    the correction, which does bind.
+    """
+    if clip.timing is None:
+        return None
+    if edge == "in":
+        if requested > applied_limit + SPAN_EPS_S and (
+            _first_step_clearance(clip) <= applied_limit + SPAN_EPS_S
+        ):
+            return StepStop(clip.id, "in", clip.timing.steps[0].at, applied_limit)
+        return None
+    if requested < applied_limit - SPAN_EPS_S and (
+        _last_step_clearance(clip) >= applied_limit - SPAN_EPS_S
+    ):
+        return StepStop(clip.id, "out", clip.timing.steps[-1].at, applied_limit)
+    return None
+
+
+def no_legal_range_message(clip: Clip) -> str:
+    """Why an edge cannot move at all; names the correction only on a corrected clip."""
+    if clip.timing is None:
+        return (
+            "This edge cannot move: the neighbouring clip or the end of the recording "
+            "leaves it no legal position. Try moving or trimming the neighbouring clip first."
+        )
+    return (
+        "This edge cannot move: the clip's timing correction, the neighbouring clip or "
+        "the end of the recording leaves it no legal position. Try moving or trimming the "
+        "neighbouring clip first."
+    )
+
+
 def trim_edge_limits(
     project: EpisodeProject, clip: Clip, edge: str, mode: EditMode
 ) -> tuple[float, float]:
@@ -970,6 +1018,33 @@ def roll_join_limits(
     max_pos = min(max_pos, _first_step_clearance(right) - right.source_start)
     max_neg = min(max_neg, left.source_end - _last_step_clearance(left))
     return -max(0.0, max_neg), max(0.0, max_pos)
+
+
+def roll_step_stop(
+    project: EpisodeProject, left_clip_id: str, right_clip_id: str, delta_sec: float
+) -> StepStop | None:
+    """The correction that held a roll short of ``delta_sec``, if one did.
+
+    Only the right clip's first correction can stop a later roll and only the left
+    clip's last one an earlier roll. Compared in delta space, like the limits.
+    """
+    lo, hi = roll_join_limits(project, left_clip_id, right_clip_id)
+    left, right, _, _ = neighbour_clips(project, left_clip_id, right_clip_id)
+    if delta_sec > 0:
+        if (
+            right.timing is not None
+            and delta_sec > hi + SPAN_EPS_S
+            and _first_step_clearance(right) - right.source_start <= hi + SPAN_EPS_S
+        ):
+            return StepStop(right.id, "in", right.timing.steps[0].at, right.source_start + hi)
+        return None
+    if (
+        left.timing is not None
+        and delta_sec < lo - SPAN_EPS_S
+        and left.source_end - _last_step_clearance(left) <= -lo + SPAN_EPS_S
+    ):
+        return StepStop(left.id, "out", left.timing.steps[-1].at, left.source_end + lo)
+    return None
 
 
 def pin_clip_source_id(project: EpisodeProject, clip: Clip) -> None:
