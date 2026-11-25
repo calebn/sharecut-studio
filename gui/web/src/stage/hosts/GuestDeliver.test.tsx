@@ -172,4 +172,15 @@ describe("GuestDeliver cut total", () => {
     );
     expect(await screen.findByText(text)).toBeInTheDocument();
   });
+
+  it("shows no cut line while the total is unknown", async () => {
+    asGuest("edit");
+    render(
+      <EditorCutTotal.Provider value={null}>
+        <GuestDeliver />
+      </EditorCutTotal.Provider>,
+    );
+    await screen.findByRole("heading", { name: "Files" });
+    expect(screen.queryByText(/Edits saved|No cuts yet/)).toBeNull();
+  });
 });
