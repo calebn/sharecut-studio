@@ -67,15 +67,15 @@ def bed_wav(tmp_path: Path) -> Path:
     return _lavfi_wav(tmp_path / "bed6.wav", "sine=frequency=440:duration=6")
 
 
-def _mixed_project(minimal_project, wav, tmp_workspace, defaults, words=True):
+def _mixed_project(minimal_project, wav, tmp_workspace, defaults, words=True, spoken=(3.0, 4.0)):
     project = _dialogue_project(minimal_project, wav, tmp_workspace)
     if words:
         project.transcripts = [
             Transcript(
                 track_id="host",
                 words=[
-                    TranscriptWord(text="hello", start=3.0, end=3.5),
-                    TranscriptWord(text="there", start=3.5, end=4.0),
+                    TranscriptWord(text="hello", start=spoken[0], end=(spoken[0] + spoken[1]) / 2),
+                    TranscriptWord(text="there", start=(spoken[0] + spoken[1]) / 2, end=spoken[1]),
                 ],
             )
         ]
@@ -188,3 +188,42 @@ def test_the_re_run_hint_follows_a_fade_length_change_next_to_a_dip(
     assert "1 fade points moved under ducking, re-run ducking" in steps.mix_with_music(
         project, longer_out
     )
+
+
+def test_ducking_before_the_first_mix_is_kept_and_the_summary_asks_for_a_rerun(
+    minimal_project, bed_wav, tmp_workspace, engine_ready
+) -> None:
+    defaults = load_defaults()
+    defaults["mix"]["fade_in_sec"] = 0.5
+    defaults["mix"]["fade_out_sec"] = 0.5
+    project = _mixed_project(minimal_project, bed_wav, tmp_workspace, defaults, spoken=(0.2, 1.5))
+    save_project(project, minimal_project)
+    result = submit_host_command_result(str(minimal_project), "ApplyDucking", {})
+    assert result["applied"] is True
+    project = load_project(minimal_project)
+    dipped = [p for p in _points(project) if p[0].startswith("duck:")]
+    assert dipped
+    summary = steps.mix_with_music(project, defaults)
+    assert "re-run ducking" in summary
+    assert all(p in _points(project) for p in dipped)
+    assert "re-run ducking" not in steps.mix_with_music(project, defaults)
+
+
+def test_a_pan_envelope_listed_first_and_a_pan_only_track_survive_the_mix(
+    minimal_project, bed_wav, tmp_workspace, engine_ready
+) -> None:
+    defaults = load_defaults()
+    project = _mixed_project(minimal_project, bed_wav, tmp_workspace, defaults, words=False)
+    pan = AutomationEnvelope(
+        track_id="bed", parameter="pan", points=[AutomationPoint(id="p", time=0.0, value=0.5)]
+    )
+    project.automation_envelopes = [pan]
+    steps.mix_with_music(project, defaults)
+    assert pan in project.automation_envelopes
+    assert project.volume_envelope_for("bed") is not None
+    project.automation_envelopes.reverse()
+    volume = project.volume_envelope_for("bed")
+    before = [(p.id, p.time, p.value) for p in volume.points]
+    steps.mix_with_music(project, defaults)
+    assert pan in project.automation_envelopes
+    assert _points(project) == before

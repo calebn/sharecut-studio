@@ -484,3 +484,48 @@ def test_adopting_a_plain_legacy_fade_with_a_dip_far_from_the_ramps_does_not() -
     dip = EnvPoint(generated_point_id(100.0, 0.126), 100.0, 0.126)
     result = merge_fades([*old, dip], 600.0, 2.0, 3.0)
     assert result.replaced_legacy == 4 and result.replaced_under_duck == 0
+
+
+def test_ducking_before_the_first_mix_asks_for_a_rerun_at_the_head_and_the_tail() -> None:
+    head = plan_envelope([(0.5, 6.0)], [], DEPTH, 30.0, 1000).points
+    assert merge_fades(head, 30.0, 2.0, 3.0).replaced_under_duck >= 1
+    tail = plan_envelope([(25.0, 29.5)], [], DEPTH, 30.0, 1000).points
+    assert merge_fades(tail, 30.0, 2.0, 3.0).replaced_under_duck >= 1
+    middle = plan_envelope([(10.0, 12.0)], [], DEPTH, 30.0, 1000).points
+    assert merge_fades(middle, 30.0, 2.0, 3.0).replaced_under_duck == 0
+    first = merge_fades(head, 30.0, 2.0, 3.0).points
+    assert merge_fades(first, 30.0, 2.0, 3.0).replaced_under_duck == 0
+
+
+def test_a_retyped_lowered_fade_point_is_the_users_and_survives_a_new_length() -> None:
+    first = merged([])
+    in1 = next(p for p in first if "in1" in p.id)
+    retyped = EnvPoint(f"{BASE_PREFIX}{in1.id}:1.0:0.125", in1.time, 0.4)
+    points = [retyped if p is in1 else p for p in first]
+    result = merge_fades(points, 10.0, 4.0, 3.0)
+    assert retyped in result.points
+    assert not any(p.id.startswith("mix:fade:in1:") for p in result.points)
+
+
+def test_a_retyped_lowered_legacy_point_blocks_adoption() -> None:
+    old = _uuid_fade(10.0, 2.0, 3.0)
+    retyped = EnvPoint(f"{BASE_PREFIX}{old[1].id}:1.0:0.125", 2.0, 0.4)
+    result = merge_fades([old[0], retyped, old[2], old[3]], 10.0, 2.0, 3.0)
+    assert result.replaced_legacy == 0 and retyped in result.points
+
+
+def test_two_points_in_one_slot_in_an_unsorted_envelope_never_collide() -> None:
+    at3 = EnvPoint(fade_point_id("in1", 3.0, 1.0), 3.0, 1.0)
+    at2 = EnvPoint(fade_point_id("in1", 2.0, 1.0), 2.0, 1.0)
+    result = merge_fades([at3, at2], 10.0, 2.0, 3.0).points
+    ids = [p.id for p in result]
+    assert len(ids) == len(set(ids)) and at2 in result
+    assert merge_fades(result, 10.0, 2.0, 3.0).points == result
+
+
+def test_a_dip_check_does_not_count_fade_points() -> None:
+    from podcast_mcp.engines.envelope_fades import _near_dip
+
+    assert not _near_dip(merged([]), 0.0, 100.0)
+    assert not _near_dip([lowered("in1", 2.0, 1.0, 0.2)], 0.0, 100.0)
+    assert _near_dip([EnvPoint(generated_point_id(1.0, 0.1), 1.0, 0.1)], 0.0, 2.0)
