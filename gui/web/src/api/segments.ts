@@ -84,7 +84,6 @@ export interface SegmentInsertRequest {
   version?: number;
 }
 
-/** What `InsertSegment` did, as the journal stores it. */
 export interface SegmentInsertApplied {
   operation: "insert_segment";
   affected_tracks: string[];
@@ -109,7 +108,6 @@ export const SEGMENT_INSERT_APPLIED_KEYS = [
   "tracks",
 ] as const satisfies readonly (keyof SegmentInsertApplied)[];
 
-/** The insert's reply: `queued` when it was saved to send later, so nothing was applied yet. */
 export type SegmentInsertOutcome =
   | {
       queued: false;
@@ -130,7 +128,6 @@ export interface SegmentCommentMove {
   to: number;
 }
 
-/** What an insert would do (the dry run); nothing was written. */
 export interface SegmentInsertPreview {
   dry_run: true;
   segment_id: string;
@@ -209,7 +206,6 @@ export async function loadSegmentDrift(
   return (await res.json()) as SegmentDriftRow[];
 }
 
-/** The refusal code of a failed insert or preview, or null for any other failure. */
 export function segmentInsertRefusal(
   error: unknown,
 ): SegmentInsertRefusal | null {
@@ -258,16 +254,6 @@ function appliedInsert(value: unknown): SegmentInsertApplied {
   };
 }
 
-/**
- * Insert a library segment into the episode at `path` as one undoable edit.
- *
- * Pass the preview's `segment_version` as `request.version`, so the user
- * applies the version they saw rather than whichever is newest by then. Show
- * `applied.at` and `applied.duration_sec` from the reply, not the preview's:
- * `"end"` is resolved under the document lock. A queued reply carries no
- * result and no history head. Rejects with an `ApiError` whose code
- * `segmentInsertRefusal` names.
- */
 export async function insertSegment(
   path: string,
   request: SegmentInsertRequest,
@@ -288,11 +274,6 @@ export async function insertSegment(
   };
 }
 
-/**
- * What inserting the segment at `at` would move; writes nothing. Its
- * `segment_version` is the one to pass to `insertSegment`; its `at` may differ
- * from the apply reply's when the timeline changed in between.
- */
 export async function previewSegmentInsert(
   path: string,
   request: SegmentInsertRequest,
