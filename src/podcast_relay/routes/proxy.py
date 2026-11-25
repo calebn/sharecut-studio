@@ -113,15 +113,24 @@ def _response_headers(headers: dict[str, str]) -> dict[str, str]:
     return out
 
 
+_PAUSED_HEADERS = {
+    "Retry-After": "3600",
+    "Cache-Control": "no-store",
+    "X-Robots-Tag": "noindex",
+}
+
+
 def _paused_response(path_suffix: str) -> Response:
     if (
         path_suffix.startswith(("api/review", "api/rec", "mcp"))
         or path_suffix.rstrip("/") == "r/mcp"
     ):
         return JSONResponse(
-            {"detail": "sharing paused", "message": _PAUSED_MESSAGE}, status_code=503
+            {"detail": "sharing paused", "message": _PAUSED_MESSAGE},
+            status_code=503,
+            headers=_PAUSED_HEADERS,
         )
-    return HTMLResponse(_PAUSED_HTML, status_code=503)
+    return HTMLResponse(_PAUSED_HTML, status_code=503, headers=_PAUSED_HEADERS)
 
 
 async def proxy_to_host(
