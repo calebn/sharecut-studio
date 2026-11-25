@@ -438,7 +438,6 @@ AUDITED_TWINS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "CrossfadeJoins": (("crossfade_joins_tool",), ("podcast edit crossfade-joins",)),
     "SetJoinMode": (("set_join_mode_tool",), ("podcast doc submit",)),
     "InsertGap": (("insert_gap_tool",), ("podcast edit insert-gap",)),
-    "InsertSegment": (("segment_insert_tool",), ("podcast segment insert",)),
     "MoveByText": (("move_by_text_tool",), ("podcast edit move",)),
     "SuggestPendingEdit": (("submit_document_command_tool",), ("podcast doc submit",)),
 }
@@ -451,6 +450,13 @@ def test_an_audited_type_records_the_twins_that_submit_it(command_type: str) -> 
     assert spec.gui is NO_GUI_SENDER
     for decision, names in ((spec.mcp, mcp), (spec.cli, cli)):
         assert decision == named(*names)
+
+
+def test_a_segment_insert_is_sent_by_the_web_client_and_keeps_its_agent_twins() -> None:
+    spec = COMMANDS["InsertSegment"]
+    assert spec.gui is GUI_SENT
+    assert spec.mcp == named("segment_insert_tool")
+    assert spec.cli == named("podcast segment insert")
 
 
 def test_a_comment_delete_is_sent_by_the_bar_and_keeps_its_agent_twins() -> None:
