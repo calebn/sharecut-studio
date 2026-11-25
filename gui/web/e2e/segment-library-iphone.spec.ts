@@ -11,8 +11,6 @@ import {
 import { setRootFontSize } from "./rootFontSize";
 import { withAppearance } from "./theme";
 
-/** The Segment library on Home and in its sheet, on an iPhone and on a desktop, with /api/segments mocked. */
-
 type MockRow = Record<string, unknown>;
 
 const LIBRARY: MockRow[] = [

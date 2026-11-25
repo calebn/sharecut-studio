@@ -21,7 +21,6 @@ export function SegmentLibrarySheetView({ open, onClose, library }: ViewProps) {
       onClose={onClose}
       title={LIBRARY_LABEL}
       detent="full"
-      panelClassName="segment-library-sheet"
     >
       <SegmentLibraryBody library={library} layout="list" />
     </Sheet>

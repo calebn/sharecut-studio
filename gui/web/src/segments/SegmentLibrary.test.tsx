@@ -335,6 +335,22 @@ describe("removing a segment", () => {
     await waitFor(() => expect(empty).toHaveFocus());
   });
 
+  it("sends one removal when Remove is pressed again while it is in flight", async () => {
+    const pending = deferred();
+    removeSegment.mockReturnValueOnce(pending.promise);
+    const user = userEvent.setup();
+    await ready();
+    const confirm = await askToRemove(user);
+    const button = within(confirm).getByRole("button", { name: "Remove" });
+    await user.click(button);
+    await user.click(button);
+    await user.keyboard("{Enter}");
+    expect(removeSegment).toHaveBeenCalledTimes(1);
+    await act(async () => pending.resolve());
+    await screen.findByText("Removed Acme sponsor read from the library.");
+    expect(removeSegment).toHaveBeenCalledTimes(1);
+  });
+
   it("ignores a second Remove while one is in flight and keeps focus for the first", async () => {
     const pending = deferred();
     removeSegment.mockReturnValueOnce(pending.promise);

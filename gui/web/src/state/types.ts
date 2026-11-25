@@ -53,7 +53,6 @@ export interface ChromeFlags {
   helpDialogStep: HelpStep;
   /** Models sheet: every model, its state and download. */
   modelsSheetOpen: boolean;
-  /** Segment library sheet: the saved segments, their audition and removal. */
   segmentLibraryOpen: boolean;
   /** Settings sheet: Appearance, Saved in, Longest automatic join fade, Models and Keyboard shortcuts. */
   settingsSheetOpen: boolean;

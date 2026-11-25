@@ -13,12 +13,8 @@ import {
   Pill,
   registerInlineConfirm,
 } from "../ui";
-import {
-  formatLength,
-  KIND_LABEL,
-  segmentLengthSec,
-  versionTag,
-} from "./format";
+import { formatTimeShort } from "../utils/time";
+import { KIND_LABEL, segmentLengthSec, versionTag } from "./format";
 
 export type RowLayout = "table" | "list";
 
@@ -244,7 +240,7 @@ export function SegmentRowView(props: RowProps) {
               <Pill>{KIND_LABEL[row.kind] ?? KIND_LABEL.other}</Pill>
             </td>
             <td className="segment-cell-length">
-              {formatLength(segmentLengthSec(row))}
+              {formatTimeShort(segmentLengthSec(row))}
             </td>
           </>
         )}
@@ -268,7 +264,7 @@ export function SegmentRowView(props: RowProps) {
             <span className="segment-meta">
               <Pill>{KIND_LABEL[row.kind] ?? KIND_LABEL.other}</Pill>
               <span className="segment-length">
-                {formatLength(segmentLengthSec(row))}
+                {formatTimeShort(segmentLengthSec(row))}
               </span>
             </span>
           </>

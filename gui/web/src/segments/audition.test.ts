@@ -138,6 +138,24 @@ describe("audition", () => {
     });
   });
 
+  it("ignores a refused play of a segment that is no longer the one playing", async () => {
+    let rejectFirst: (reason: unknown) => void = () => {};
+    play.mockReturnValueOnce(
+      new Promise<void>((_, reject) => {
+        rejectFirst = reject;
+      }),
+    );
+    const { result } = renderHook(() => useAudition());
+    act(() => toggleAudition(row("a"), "a"));
+    act(() => toggleAudition(row("b"), "a"));
+    await act(async () => rejectFirst(new DOMException("no", "AbortError")));
+    expect(result.current).toEqual({
+      playingId: "b",
+      failedId: null,
+      owner: "a",
+    });
+  });
+
   it("marks the row failed when play is refused, and clears it on the next play", async () => {
     play.mockRejectedValueOnce(new DOMException("no", "NotAllowedError"));
     const { result } = renderHook(() => useAudition());
