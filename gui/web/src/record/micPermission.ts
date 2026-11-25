@@ -21,6 +21,8 @@ export const MIC_ERROR_COPY = "Couldn't open the microphone. Retry.";
 export const MIC_GRANT_HINT_COPY =
   "Allow the microphone before you accept recording.";
 export const MIC_PROMPTING_COPY = "Waiting for the browser microphone prompt…";
+export const HOST_MIC_STILL_WAITING_COPY =
+  "Still waiting for microphone permission.";
 export const MIC_PROMPT_SLOW_MS = 10_000;
 export const MIC_SAVED_DEVICE_MISSING_COPY =
   "Your saved microphone isn't available, so the default input is in use.";

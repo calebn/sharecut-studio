@@ -17,12 +17,14 @@ import {
   deviceTone,
   END_SESSION_PENDING_COPY,
   HEARING_COPY,
+  HOST_MIC_STILL_WAITING_COPY,
   HOST_PARTICIPANT_ID,
   type HostRoom,
   hostMicStatus,
   hostRoomPhase,
   LOCAL_KEEPER_COPY,
   liveTakeOpen,
+  MIC_PROMPT_SLOW_MS,
   MIC_RETRY_LABEL,
   MIC_SAVED_DEVICE_MISSING_COPY,
   moreRoomToneReason,
@@ -322,6 +324,29 @@ function RecordStageBody({
   const elapsed = useElapsedSince(receivedAtMs, ticking);
   const meter = useInputPeakDb(cap.stream);
   const micStatus = hostMicStatus(cap.micStatus, cap.micLost);
+  const pendingMicSession =
+    micStatus === "prompting" && cap.micPending
+      ? snapshot?.session_id
+      : undefined;
+  const [slowMicSession, setSlowMicSession] = useState<string>();
+  if (!pendingMicSession && slowMicSession) {
+    setSlowMicSession(undefined);
+  }
+  useEffect(() => {
+    if (!pendingMicSession) return;
+    const timer = setTimeout(
+      () => setSlowMicSession(pendingMicSession),
+      MIC_PROMPT_SLOW_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [pendingMicSession]);
+  const micStillWaiting =
+    Boolean(pendingMicSession) && pendingMicSession === slowMicSession;
+  useEffect(() => {
+    if (deviceOpen && micStillWaiting) {
+      announceStatus(HOST_MIC_STILL_WAITING_COPY, { toast: false });
+    }
+  }, [announceStatus, deviceOpen, micStillWaiting]);
   const paused = state === "paused";
   const live = state === "recording";
   const sheetMic = useSheetMic(
@@ -651,6 +676,7 @@ function RecordStageBody({
   ) : undefined;
   const micNotes = [
     cap.staleMic ? MIC_SAVED_DEVICE_MISSING_COPY : null,
+    micStillWaiting ? HOST_MIC_STILL_WAITING_COPY : null,
     micStatus === "denied" ? copyForMicStatus("denied") : null,
   ].filter((note): note is string => !!note);
   const devices =
