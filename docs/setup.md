@@ -182,7 +182,7 @@ from its new place. Standalone CLI and MCP import and pipeline commands keep the
 | `whisper` | A `faster-whisper` model (`--whisper-model large-v3-turbo` by default) | Required before pipeline/transcribe runs. Pipeline Run will not auto-download; use bootstrap, the ShareCut Studio Setup card on Home (or the Models sheet), or the Pipeline picker. Smaller sizes (`tiny.en` … `medium.en`, `large-v3`) trade accuracy for disk. On the iPhone host the row is a whisper.cpp file instead: `small.en-q5_1` (190 MB, default) or `base.en-q5_1` (60 MB, less accurate), downloaded from Hugging Face with a sha256 and size pin ([transcribe-backends.md](transcribe-backends.md#iphone-models)); the pinning paragraph below does not apply to them. Catalog sizes are pinned: `podcast_mcp.engines.models.whisper.WHISPER_PINS` records the Hugging Face revision and every file's sha256. They are hashed uncached at download, by the pre-run gate and at load (each about 1–3 s for the large models, on every run that transcribes), and memoised per file in status checks (Pipeline badge, bootstrap status, the catalog picker, Studio's early Run check, `podcast doctor`). A mismatch that survives the download reports `[fail] whisper: Whisper speech model downloaded but isn't the expected version. Run: podcast bootstrap --component whisper --whisper-model <model> --upgrade` (status checks name the same command); any download (`--upgrade`, a plain bootstrap, or a Studio **Download**) re-fetches a cached snapshot that fails its pin. A catalog snapshot cached at another revision reads as not downloaded until bootstrap fetches the pin. Other faster-whisper sizes (`tiny`, `base`, `large-v2`, `distil-*`, …) are unpinned. |
 | `rnnoise` | An RNNoise `.rnnn` model | `noise_reduction_rnnoise` FX preset, or the `arnndn` effect without `params.model`: adding either to a track without the model is refused (`model_needed`) instead of failing at render |
 | `word-aligner` | Pinned wav2vec2-base CTC ONNX snapshot (~360 MB, English; **recommended**: installed by a bare `podcast bootstrap` and by Studio's **Get ready**, or by name; once downloaded, `transcribe.forced_alignment.enabled` (default unset) turns forced alignment on by itself. Without the snapshot, unset remains unavailable and an explicit `true` blocks the run with this command; Studio shows that saved request checked and lets a person turn it off. #780. Every snapshot file (`vocab.json`, `config.json`, `preprocessor_config.json`, the ONNX) is checked against a pinned per-file sha256 manifest at download, at load (before `vocab.json` is read) and in status checks (Pipeline badge, bootstrap status, `podcast doctor`; memoised per file on path/size/mtime) and, uncached, in bootstrap's cache check, so a corrupt or swapped snapshot is re-fetched instead of skipped (and reports [fail] if the fresh download still does not match), and any download (including Studio's **Get** action for Word timing) re-fetches it; a failed load is not retried for the rest of that run) | `transcribe.forced_alignment.enabled`; `PODCAST_MCP_WORD_ALIGNER_MODEL` points at a local snapshot dir. Studio: **Get** on the Word timing row of the Models sheet or the approximate-timing row in Prepare (`POST /api/bootstrap/run` `components: ["word-aligner"]`); `GET /api/bootstrap/status` lists it in `models` (`id: "word-aligner"`, `tier: "recommended"`, so never in `ready`). The status check hashes an unchanged snapshot once per process, keyed by path/size/mtime/pin, and remembers a pin mismatch the same way until a re-download changes the file. |
-| `speaker-ecapa` | Pinned ONNX build of the SpeechBrain ECAPA speaker-embedding network (~80 MB, Apache-2.0; **recommended**: installed by a bare `podcast bootstrap` and by Studio's **Get ready**, or by name). Runs on `onnxruntime`, so it needs no torch and works in the packaged app. It is the only speaker model. Checked against its pinned sha256 at download and in status checks. | Speaker enroll, score, attribute, gate-track and split. `resolve_speaker_backend()` returns it (`ecapa-onnx`); its embeddings match SpeechBrain ECAPA (cosine 1.0, `scripts/export_ecapa_onnx.py`), so profiles enrolled with SpeechBrain keep matching. `PODCAST_MCP_SPEAKER_ECAPA_MODEL` points at a local ONNX file. The manifest carries a direct first-party CDN url for the file, so a stock build downloads it with no mirror configured; the sha256 pin rejects any other bytes. |
+| `speaker-ecapa` | Pinned ONNX build of the SpeechBrain ECAPA speaker-embedding network (~80 MB, Apache-2.0; **recommended**: installed by a bare `podcast bootstrap` and by Studio's **Get ready**, or by name). Runs on `onnxruntime`, so it needs no torch and works in the packaged app. It is the only speaker model. Checked against its pinned sha256 at download and in status checks. | Speaker enroll, score, attribute, gate-track and split. `resolve_speaker_backend()` returns it (`ecapa-onnx`); its embeddings match SpeechBrain ECAPA (cosine 1.0, `scripts/export_ecapa_onnx.py`), so profiles enrolled with SpeechBrain keep matching. `PODCAST_MCP_SPEAKER_ECAPA_MODEL` points at a local ONNX file. Official builds embed the first-party CDN origin at build time and download the file from it; a source or fork build has no origin until you set one (see [Speaker model](#speaker-model)). The sha256 pin rejects any other bytes. |
 
 **Word aligner tiers.** `word-aligner` bootstraps the single pinned tier the
 pipeline uses (`onnx-base`); `scripts/benchmark_forced_aligners.py` benchmarks
@@ -265,7 +265,10 @@ others and exits non-zero. In a source build, pick one:
 
 The environment variable beats the generated file. The base must be HTTPS on a public
 host, with no user, query or fragment. An official build (`PODCAST_REQUIRE_OWNER_CDN=1`)
-also fails unless the base names the documented first-party host. `scripts/owner_cdn.py write --base <origin>` records one for a build you package.
+also fails unless the base names the documented first-party host. `scripts/owner_cdn.py write --base <origin>` records one for a build you package, and
+`--cdn-base` on `scripts/ffmpeg_payload.py` wins over the environment variable. A value that
+is not HTTPS, names a private host or carries a user, query or fragment is rejected and
+reads as no base.
 
 #### Check a public bootstrap mirror
 
@@ -392,8 +395,18 @@ podcast doctor
 
 ## Acquire the pinned FFmpeg pair
 
-Desktop packaging uses the same prebuilt importer as CI. A source checkout can
-select that pair explicitly after acquiring it:
+Desktop packaging uses the same prebuilt importer as CI. Official builds and CI
+get the owner CDN origin from the `SHARECUT_OWNER_CDN_BASE` repository variable. A
+source checkout has no origin, so the command below needs one first: set
+`PODCAST_OWNER_CDN_BASE` (or pass `--cdn-base`; the flag wins over the variable) to a
+host you control, or pass `--archive` with an archive you already hold. Otherwise
+install FFmpeg from a system package and point `PODCAST_MCP_FFMPEG` and
+`PODCAST_MCP_FFPROBE` at it. A fork that builds releases sets its own
+`SHARECUT_OWNER_CDN_BASE` and serves the pinned archives; an official build
+(`PODCAST_REQUIRE_OWNER_CDN=1`) accepts only the documented first-party host.
+
+With an origin set, a source checkout can select the pair explicitly after
+acquiring it:
 
 ```bash
 python scripts/ffmpeg_payload.py --output /absolute/path/sharecut-ffmpeg

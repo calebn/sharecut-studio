@@ -803,6 +803,13 @@ def stage_owner_cdn() -> None:
         subprocess.run([*command, "check", "--require"], check=True, timeout=60)
 
 
+def unstage_owner_cdn() -> None:
+    """Remove the recorded base so a later source build or wheel does not inherit it."""
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts/owner_cdn.py"), "clear"], check=True, timeout=60
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     binaries: Path = args.out
@@ -872,7 +879,10 @@ def main(argv: list[str] | None = None) -> int:
     clear_freeze_complete(runtime)
     copy_web_dist(runtime, rebuild=args.rebuild_web)
     stage_owner_cdn()
-    freeze_python(runtime, extension_wheels_dir=args.extension_wheels_dir)
+    try:
+        freeze_python(runtime, extension_wheels_dir=args.extension_wheels_dir)
+    finally:
+        unstage_owner_cdn()
     ensure_ffmpeg_payload(runtime, triple)
     compile_launchers(binaries, triple)
     print(f"runtime: {runtime}")
