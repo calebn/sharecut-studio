@@ -1176,12 +1176,7 @@ def test_a_mint_whose_room_listings_both_fail_is_not_reported_as_success(
     assert _live_record_rooms(ws) == {retry["session_id"]}
 
 
-@pytest.mark.usefixtures("effects")
-def test_a_failed_verification_listing_after_a_good_revoke_lists_the_revoked_rooms(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
-):
-    ws = _seed(minimal_project, sample_wav)
-    prior = _room(ws)
+def _verification_listing_fails(monkeypatch) -> None:
     real = ShareService._live_other_record_rooms
     calls = {"n": 0}
 
@@ -1192,11 +1187,42 @@ def test_a_failed_verification_listing_after_a_good_revoke_lists_the_revoked_roo
         return real(self, session_id)
 
     monkeypatch.setattr(ShareService, "_live_other_record_rooms", second_fails)
+
+
+@pytest.mark.usefixtures("effects")
+def test_a_failed_verification_listing_after_a_good_revoke_reports_no_stale_rooms(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog
+):
+    ws = _seed(minimal_project, sample_wav)
+    prior = _room(ws)
+    _verification_listing_fails(monkeypatch)
+    with caplog.at_level("ERROR"):
+        room = ShareService(ws).create_record_room()
+    assert "failed to verify previous record rooms" in caplog.text
+    assert room["session_id"] != prior["session_id"]
+    assert _live_record_rooms(ws) == {room["session_id"]}
+
+
+@pytest.mark.usefixtures("effects")
+def test_a_failed_verification_listing_lists_only_rooms_whose_revoke_was_partial(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    prior = _room(ws)
+    real_revoke = ShareService.revoke
+
+    def guest_fails(self, token, **kwargs):
+        if token == prior["guest"]["token"]:
+            raise OSError("disk")
+        return real_revoke(self, token, **kwargs)
+
+    monkeypatch.setattr(ShareService, "revoke", guest_fails)
+    _verification_listing_fails(monkeypatch)
     with pytest.raises(RecordStaleLinksError) as stale:
         ShareService(ws).create_record_room()
     assert stale.value.unverified is False
     assert stale.value.stale_session_ids == [prior["session_id"]]
-    assert _live_record_rooms(ws) == {stale.value.session_id}
+    assert _live_record_rooms(ws) == {prior["session_id"], stale.value.session_id}
 
 
 @pytest.mark.usefixtures("effects")
