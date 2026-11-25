@@ -878,8 +878,8 @@ def main(argv: list[str] | None = None) -> int:
     runtime.mkdir(parents=True, exist_ok=True)
     clear_freeze_complete(runtime)
     copy_web_dist(runtime, rebuild=args.rebuild_web)
-    stage_owner_cdn()
     try:
+        stage_owner_cdn()
         freeze_python(runtime, extension_wheels_dir=args.extension_wheels_dir)
     finally:
         unstage_owner_cdn()

@@ -958,3 +958,43 @@ def test_sidecar_clears_the_recorded_owner_base_after_the_wheel_is_built(monkeyp
     calls = _owner_cdn_calls(monkeypatch, mod)
     mod.unstage_owner_cdn()
     assert [call[-2:] for call in calls] == [[str(ROOT / "scripts/owner_cdn.py"), "clear"]]
+
+
+@pytest.mark.parametrize("failure", [None, "stage", "freeze"])
+def test_sidecar_main_always_clears_the_recorded_owner_base(monkeypatch, tmp_path, failure):
+    mod = _load_build_sidecar()
+    events = []
+    (tmp_path / "sharecut-runtime").mkdir()
+    monkeypatch.delenv("APPLE_SIGNING_IDENTITY", raising=False)
+    monkeypatch.setattr(mod, "require_rustc", lambda: None)
+    monkeypatch.setattr(mod, "runtime_is_complete", lambda *_a, **_k: False)
+    monkeypatch.setattr(mod, "assert_production_web_dist", lambda *_a: None)
+    monkeypatch.setattr(mod, "copy_web_dist", lambda *_a, **_k: None)
+    monkeypatch.setattr(mod, "ensure_ffmpeg_payload", lambda *_a, **_k: None)
+    monkeypatch.setattr(mod, "compile_launchers", lambda *_a: None)
+
+    def stage():
+        events.append("stage")
+        if failure == "stage":
+            raise RuntimeError("no owner base")
+
+    def freeze(*_a, **_k):
+        events.append("freeze")
+        if failure == "freeze":
+            raise RuntimeError("freeze failed")
+
+    monkeypatch.setattr(mod, "stage_owner_cdn", stage)
+    monkeypatch.setattr(mod, "freeze_python", freeze)
+    monkeypatch.setattr(mod, "unstage_owner_cdn", lambda: events.append("unstage"))
+    args = ["--out", str(tmp_path), "--triple", "x86_64-pc-windows-msvc"]
+    if failure:
+        with pytest.raises(RuntimeError):
+            mod.main(args)
+    else:
+        assert mod.main(args) == 0
+    expected = {
+        None: ["stage", "freeze", "unstage"],
+        "stage": ["stage", "unstage"],
+        "freeze": ["stage", "freeze", "unstage"],
+    }[failure]
+    assert events == expected
