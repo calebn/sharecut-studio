@@ -97,6 +97,11 @@ verbs (`commands/editVerbs.ts`), the Inspector's review body and the review
 queue. `timeline/PendingEditOverlay.test.tsx` covers the overlay's handle drag
 and floating label; delayed document adoption and reply-head Undo are covered in
 `commands/editVerbs.test.ts` and `stage/edit/PendingEditBody.test.tsx`.
+`commands/pendingAccept.ts` is the one executor for the accept verb on every
+surface (Action bar, Edit Sheet, Backspace), and `pendingAcceptRoute` in
+`commands/pendingDecision.ts` picks its route. A leave suggestion applies its
+own action (a dismissal, one Undo, no audio cut) and is never sent to
+ApproveEdits, split and exact range included.
 
 ## Targets
 

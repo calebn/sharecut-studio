@@ -38,7 +38,7 @@ describe("acceptPending", () => {
 
   it.each(edits)("sends %o down its route only", async (edit) => {
     await acceptPending("/tmp/p", edit as never);
-    const own = pendingAcceptRoute(edit) === "own";
+    const own = pendingAcceptRoute(edit as never) === "own";
     expect(api.applySuggestedActions).toHaveBeenCalledTimes(own ? 1 : 0);
     expect(api.approveEdits).toHaveBeenCalledTimes(own ? 0 : 1);
   });

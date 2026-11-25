@@ -50,6 +50,8 @@ export type DecisionCardProps = {
   confidence?: number;
   children?: ReactNode;
   verb?: VerbId;
+  /** The primary's word when the verb's own does not fit: "Leave". */
+  verbLabel?: string;
   /** Why the primary cannot be used; it is also off by swipe. */
   verbDisabledReason?: string;
   /** Seconds the change saves. Derive it from the waveform range so it follows a dragged handle. */
@@ -262,6 +264,7 @@ export function DecisionCard(props: DecisionCardProps) {
     confidence,
     children,
     verb,
+    verbLabel,
     verbDisabledReason,
     savedSeconds,
     audition,
@@ -509,7 +512,10 @@ export function DecisionCard(props: DecisionCardProps) {
         <ActionBarInline
           form={phone ? "dock" : "inline"}
           verb={verb ?? meta.verb}
-          verbLabel={verb && verb !== meta.verb ? undefined : meta.verbLabel}
+          verbLabel={
+            verbLabel ??
+            (verb && verb !== meta.verb ? undefined : meta.verbLabel)
+          }
           verbNoteId={verbNoteId}
           verbDisabledReason={verbReason}
           readOnly={readOnly}

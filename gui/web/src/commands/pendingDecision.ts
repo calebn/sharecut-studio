@@ -112,8 +112,22 @@ export function pendingCutWords(
 export const EXACT_RANGE_REVIEW_REASON =
   "Only the host or an Editor can review exact range proposals.";
 
+/**
+ * How the accept verb applies a pending edit. "own" applies its suggested action (a leave
+ * dismisses it and never touches audio); "cut" approves the edit's cut. A leave suggestion is
+ * never "cut", on any surface.
+ */
+export function pendingAcceptRoute(
+  edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
+): "own" | "cut" {
+  return edit.suggested_action === "leave" ||
+    (pendingOffersCut(edit) && edit.suggested_action !== "cut")
+    ? "own"
+    : "cut";
+}
+
 export type PendingBarWords = {
-  accept: "Cut" | "Shorten" | "Lower" | "Approve";
+  accept: "Cut" | "Shorten" | "Lower" | "Leave" | "Approve";
   reject: "Keep" | "Reject";
   acceptBusy: string;
   rejectBusy: string;
@@ -122,19 +136,21 @@ export type PendingBarWords = {
 export function pendingBarWords(
   edit: Pick<PendingEditView, "type" | "exact_range" | "suggested_action">,
 ): PendingBarWords {
-  if (!pendingOffersCut(edit))
+  if (pendingOffersCut(edit)) {
+    const { label, busy } = pendingCutWords(edit);
     return {
-      accept: "Approve",
-      reject: "Reject",
-      acceptBusy: "Approving…",
-      rejectBusy: "Rejecting…",
+      accept: label as PendingBarWords["accept"],
+      reject: "Keep",
+      acceptBusy: busy,
+      rejectBusy: "Keeping…",
     };
-  const { label, busy } = pendingCutWords(edit);
+  }
+  const leaves = pendingAcceptRoute(edit) === "own";
   return {
-    accept: label as PendingBarWords["accept"],
-    reject: "Keep",
-    acceptBusy: busy,
-    rejectBusy: "Keeping…",
+    accept: leaves ? "Leave" : "Approve",
+    reject: "Reject",
+    acceptBusy: leaves ? "Leaving…" : "Approving…",
+    rejectBusy: "Rejecting…",
   };
 }
 

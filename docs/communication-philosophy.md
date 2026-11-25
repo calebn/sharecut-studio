@@ -114,7 +114,7 @@ to UX partners; for UI copy, this table wins.
 | Possible missed word | The label on a Queue suggestion that the project's speech recogniser, hearing that sound alone, writes down as a word the transcript missed. It is a hint, and its suggested action is Leave, so applying suggested actions (agent and CLI only) keeps the audio and dismisses the suggestion (#1434) | "Missed word detected", "Rejected", "filler:acoustic:possible_word" |
 | Seam diamond | The 6 px diamond on the lane's top edge at each seam: filled for a cut, hollow for a split. Click selects the Seam; dragging rolls it. Named like "Split at 0:05.0" | "badge", "join badge", "edit marker" |
 | Cut all | A Review Queue group's bulk button, and the Find bar's button for every match: the verb and the count, `Cut all 3`; one cuttable item says plain `Cut`. One undo reverts the group or the whole search. Each row's own Cut and Keep decide one hit | "Apply all", "Accept all", "Apply eligible" |
-| Suggested action | What the app proposes for a sound: cut, shorten, lower or leave, picked from one table per kind of sound. The label under each hit says which | "Auto-fix", "Safe", "Eligible" |
+| Suggested action | What the app proposes for a sound: cut, shorten, lower or leave, picked from one table per kind of sound. The label under each hit says which. The accept verb on the Action bar and in the Edit Sheet says the same word: Cut, Shorten, Lower, or **Leave** (busy "Leaving…") for a leave, a split or exact range that suggests leaving included. Leave dismisses the suggestion without touching audio and is one Undo; **Approve** is only for an edit with no suggested action, a split or an exact range that does not suggest leaving | "Auto-fix", "Safe", "Eligible", "Approve" on a leave suggestion |
 | Hold a word, then drag | The touch way to make a word range: press and hold a word until it arms, then drag across more words. One finger moving before the hold scrolls and selects nothing. The hint names it instead of Mod+X | "long-press select", "drag to select" |
 | Pending edit | A proposed edit awaiting approve/reject | — |
 | Suggest cut | Propose a cut from the transcript | — |
@@ -414,7 +414,7 @@ the empty state, not a separate discovery task.
   its place (#1690). For a logical approval recorded across two commands,
   the first toast's Undo is refused and the pass toast's Undo takes back both
   edits (#1677). Transcript word fixes, Suppress, Ignore and Restore, a range Cut or
-  Mute, single pending-edit Cut and Keep (Approve and Reject on the Action bar for a split, an exact range or a suggestion with no accept action), the Review queue's group verbs (which confirm inline only when the gate holds), track reorder and track removal offer it; blade, trim and the other timeline edits
+  Mute, single pending-edit Cut and Keep (Approve and Reject on the Action bar for a split, an exact range or a suggestion with no accept action; Leave and Reject for a leave suggestion), the Review queue's group verbs (which confirm inline only when the gate holds), track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
 - A stale fade gesture says "This clip changed. Nothing was saved. Adjust the
   fade again." Timeline handles and phone nudges use the visible announcement;
