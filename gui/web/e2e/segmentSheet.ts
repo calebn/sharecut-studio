@@ -32,11 +32,39 @@ export async function expectActionsPinned(
   }
 }
 
+/**
+ * A screen so short in rem (large text on a small phone) that a pinned footer
+ * would starve the form: the actions sit at the end of the scrolling body.
+ */
+export async function expectActionsInBody(
+  sheet: Locator,
+  names: readonly [string, string],
+) {
+  await expect(sheet.locator(".sys-sheet-footer")).toHaveCount(0);
+  for (const name of names) {
+    const button = sheet
+      .locator(".sys-sheet-scroll")
+      .getByRole("button", { name, exact: true });
+    await button.scrollIntoViewIfNeeded();
+    await expect(button).toBeInViewport({ ratio: 0.5 });
+    const panel = await box(sheet);
+    const rect = await box(button);
+    expect(rect.y + rect.height / 2).toBeLessThanOrEqual(
+      panel.y + panel.height,
+    );
+  }
+}
+
 /** Expand, Collapse and the height slider all move the sheet and keep the footer inside it. */
 export async function expectResizes(
   sheet: Locator,
   names: readonly [string, string],
+  where: "footer" | "body" = "footer",
 ) {
+  const reached = () =>
+    where === "footer"
+      ? expectActionsPinned(sheet, names)
+      : expectActionsInBody(sheet, names);
   const slider = sheet.getByRole("slider", { name: "Sheet height" });
   const start = await detentOf(sheet);
   const settle = async (want: string) => {
@@ -56,8 +84,9 @@ export async function expectResizes(
     await settle("full");
     await expect(slider).toHaveAttribute("aria-valuetext", "Full height");
     const full = await box(sheet);
-    expect(full.height).toBeGreaterThan(before.height + 20);
-    await expectActionsPinned(sheet, names);
+    if (where === "footer")
+      expect(full.height).toBeGreaterThan(before.height + 20);
+    await reached();
   }
   await sheet
     .getByRole("button", { name: "Collapse to strip", exact: true })
@@ -65,10 +94,12 @@ export async function expectResizes(
   await settle("peek");
   const strip = await box(sheet);
   await sheet
-    .getByRole("button", { name: "Expand to full height", exact: true })
+    .getByRole("button", { name: "Expand to half height", exact: true })
     .tap();
   await settle("half");
-  expect((await box(sheet)).height).toBeGreaterThan(strip.height + 20);
+  // The slot is already as small as the strip in the cramped cell, so only the state changes.
+  if (where === "footer")
+    expect((await box(sheet)).height).toBeGreaterThan(strip.height + 20);
   await slider.focus();
   await slider.press("End");
   await settle("full");

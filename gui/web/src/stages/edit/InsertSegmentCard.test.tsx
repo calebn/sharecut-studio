@@ -22,6 +22,8 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
+const crampedScreen = () => vi.stubGlobal("innerHeight", 300);
+
 type Handlers = Pick<
   InsertSegmentCardProps,
   "loadPreview" | "onInsert" | "onClose"
@@ -674,6 +676,19 @@ describe("InsertSegmentCard bottom", () => {
     }
     expect(insertButton()).toHaveAttribute("form", form?.id);
     expect(insertButton()).toHaveAccessibleDescription("Pick a segment first.");
+  });
+
+  it("keeps the actions in the form on a cramped screen", async () => {
+    crampedScreen();
+    render(
+      <InsertSegmentCard {...data()} {...handlersOf()} form="bottom" open />,
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Insert segment",
+    });
+    expect(dialog.querySelector(".sys-sheet-footer")).toBeNull();
+    expect(dialog.querySelector("form")).toContainElement(insertButton());
+    expect(dialog).toHaveClass("bottom-sheet--full");
   });
 
   it("inserts from the footer by click and by Enter", async () => {

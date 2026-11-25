@@ -1,4 +1,10 @@
-import { type ReactNode, type RefObject, useEffect, useRef } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { BottomSheet, CloseButton, Dialog } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
 import type { SystemIconName } from "./icons";
@@ -36,8 +42,12 @@ export type SheetProps = {
   /**
    * Bottom form: a drawer detent, or `fit`, as tall as its rows (capped at the
    * slot) with no grabber, for a short list such as the Create here menu.
+   * Without `onDetentChange` this is the starting height: the sheet resizes
+   * itself, starts here again on each open, and ignores a changed prop while
+   * open. Pass `onDetentChange` as well to control the height.
    */
   detent?: DrawerDetent | "fit";
+  /** Makes the bottom form's detent controlled: the host owns it and `detent` wins. */
   onDetentChange?: (detent: DrawerDetent) => void;
   /** Extra class on the Dialog or BottomSheet panel, for a sheet with its own width. */
   panelClassName?: string;
@@ -111,6 +121,15 @@ export function Sheet({
   focusTitleOnOpen,
 }: SheetProps) {
   const heading = step ? step.title : title;
+  const initial: DrawerDetent = detent === "fit" ? "half" : detent;
+  const controlled = onDetentChange !== undefined;
+  const [own, setOwn] = useState(initial);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setOwn(initial);
+  }
+  const shown = controlled ? initial : own;
   const headingRef = useRef<HTMLHeadingElement>(null);
   const rowsRef = useRef<HTMLDivElement>(null);
   const hadStep = useRef(false);
@@ -191,14 +210,17 @@ export function Sheet({
             : undefined
         }
         className={panelClassName}
-        size={detent}
+        size={detent === "fit" ? "fit" : shown}
         drawer={
           detent === "fit"
             ? undefined
             : {
                 detents: ["peek", "half", "full"],
-                detent,
-                onDetentChange: (next) => onDetentChange?.(next),
+                detent: shown,
+                onDetentChange: (next) => {
+                  if (!controlled) setOwn(next);
+                  onDetentChange?.(next);
+                },
                 label: "Sheet height",
               }
         }

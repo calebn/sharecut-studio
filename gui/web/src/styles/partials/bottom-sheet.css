@@ -216,6 +216,11 @@ html[data-shell="phone"] .bottom-sheet-root {
     height: max(min(45%, 17.5rem), min(100%, 9rem));
   }
 
+  .bottom-sheet .sys-sheet-bottom .sys-sheet-footer {
+    padding-block: var(--space-2)
+      calc(var(--space-2) + env(safe-area-inset-bottom));
+  }
+
   .bottom-sheet--half:has(.modifier-inspector),
   .bottom-sheet--half:has(.range-actions--sheet) {
     height: min(70%, 22rem);

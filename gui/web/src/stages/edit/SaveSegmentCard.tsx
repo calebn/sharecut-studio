@@ -2,6 +2,7 @@ import {
   type FormEvent,
   type RefObject,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -11,6 +12,7 @@ import { SEGMENT_KINDS } from "../../edit/segmentSelection";
 import { Button, Field } from "../../ui";
 import { InlineError } from "../../ui/InlineError";
 import { SegmentCardFrame } from "./SegmentCardFrame";
+import { useCrampedSheet } from "./useCrampedSheet";
 
 const TITLE = "Save as segment";
 const NAME_REQUIRED = "Enter a name for the segment.";
@@ -122,13 +124,47 @@ function useSaveForm(
   };
 }
 
+function SaveActions({
+  saving,
+  onClose,
+  formId,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  formId: string;
+}) {
+  return (
+    <div className="sys-segment-actions">
+      <Button
+        type="button"
+        onClick={onClose}
+        disabledReason={saving ? SAVING : undefined}
+      >
+        Cancel
+      </Button>
+      <Button
+        type="submit"
+        form={formId}
+        variant="primary"
+        disabledReason={saving ? SAVING : undefined}
+      >
+        Save
+      </Button>
+    </div>
+  );
+}
+
 function SaveSegmentForm({
   summary,
   onClose,
   field,
   bottom,
+  pinned,
+  formId,
   state,
 }: Pick<Common, "summary" | "onClose"> & {
+  formId: string;
+  pinned: boolean;
   field: RefObject<HTMLInputElement | null>;
   bottom: boolean;
   state: FormState;
@@ -157,6 +193,7 @@ function SaveSegmentForm({
 
   return (
     <form
+      id={formId}
       className={
         bottom
           ? "sys-segment-form sys-segment-form--bottom"
@@ -208,22 +245,9 @@ function SaveSegmentForm({
         </p>
       ) : null}
       <InlineError message={failure} />
-      <div className="sys-segment-actions">
-        <Button
-          type="button"
-          onClick={onClose}
-          disabledReason={saving ? SAVING : undefined}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          variant="primary"
-          disabledReason={saving ? SAVING : undefined}
-        >
-          Save
-        </Button>
-      </div>
+      {pinned ? null : (
+        <SaveActions saving={saving} onClose={onClose} formId={formId} />
+      )}
     </form>
   );
 }
@@ -233,14 +257,20 @@ export function SaveSegmentCard(props: SaveSegmentCardProps) {
   const field = useRef<HTMLInputElement>(null);
   const state = useSaveForm(props, field);
   const { busy } = state;
+  const formId = useId();
+  const cramped = useCrampedSheet();
+  const pinned = props.form === "bottom" && !cramped;
+  const close = () => {
+    if (!busy.current) props.onClose();
+  };
   const content = (
     <SaveSegmentForm
       summary={props.summary}
-      onClose={() => {
-        if (!busy.current) props.onClose();
-      }}
+      onClose={close}
+      formId={formId}
       field={field}
       bottom={props.form === "bottom"}
+      pinned={pinned}
       state={state}
     />
   );
@@ -252,7 +282,15 @@ export function SaveSegmentCard(props: SaveSegmentCardProps) {
     initialFocusRef: field,
   };
   return props.form === "bottom" ? (
-    <SegmentCardFrame {...frame} form="bottom">
+    <SegmentCardFrame
+      {...frame}
+      form="bottom"
+      footer={
+        pinned ? (
+          <SaveActions saving={state.saving} onClose={close} formId={formId} />
+        ) : undefined
+      }
+    >
       {content}
     </SegmentCardFrame>
   ) : (

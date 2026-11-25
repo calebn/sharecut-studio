@@ -1,6 +1,7 @@
 import type { ReactNode, RefObject } from "react";
 import { Sheet } from "../../system/Sheet";
 import { Dialog } from "../../ui";
+import { opensFull } from "./useCrampedSheet";
 
 export type SegmentCardFrameProps = {
   title: string;
@@ -11,7 +12,7 @@ export type SegmentCardFrameProps = {
   children: ReactNode;
 } & (
   | { form?: "anchored"; anchorRef: RefObject<HTMLElement | null> }
-  | { form: "bottom"; anchorRef?: undefined }
+  | { form: "bottom"; anchorRef?: undefined; footer?: ReactNode }
 );
 
 export function SegmentCardFrame(props: SegmentCardFrameProps) {
@@ -21,7 +22,14 @@ export function SegmentCardFrame(props: SegmentCardFrameProps) {
   };
   if (props.form === "bottom") {
     return (
-      <Sheet form="bottom" title={title} open={open} onClose={onClose}>
+      <Sheet
+        form="bottom"
+        title={title}
+        open={open}
+        onClose={onClose}
+        footer={props.footer}
+        detent={opensFull() ? "full" : "half"}
+      >
         {children}
       </Sheet>
     );

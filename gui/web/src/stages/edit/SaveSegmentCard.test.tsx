@@ -8,6 +8,8 @@ import { SaveSegmentCard, type SaveSegmentCardProps } from "./SaveSegmentCard";
 
 afterEach(() => vi.unstubAllGlobals());
 
+const crampedScreen = () => vi.stubGlobal("innerHeight", 300);
+
 type Handlers = Pick<SaveSegmentCardProps, "onSave" | "onClose">;
 
 function Anchored({ handlers }: { handlers: Handlers }) {
@@ -249,6 +251,19 @@ describe("SaveSegmentCard bottom", () => {
       "form",
       form?.id,
     );
+  });
+
+  it("keeps the actions in the form on a cramped screen", async () => {
+    crampedScreen();
+    render(<Bottom handlers={handlersOf()} />);
+    const dialog = await screen.findByRole("dialog", {
+      name: "Save as segment",
+    });
+    expect(dialog.querySelector(".sys-sheet-footer")).toBeNull();
+    expect(dialog.querySelector("form")).toContainElement(
+      screen.getByRole("button", { name: "Save" }),
+    );
+    expect(dialog).toHaveClass("bottom-sheet--full");
   });
 
   it("saves on Enter in the Name field", async () => {
