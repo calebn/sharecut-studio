@@ -317,10 +317,8 @@ class SpeakerScopeSnapshot:
 
     profiles: Mapping[str, Any]
     config: Any
-    # Roles already scored this run, shared with the bleed guard: a window is embedded once.
-    role_memo: dict[tuple[str, float, float], dict[str, Any] | None] | None = field(
-        default=None, compare=False
-    )
+    # Roles scored in one analysis pass, shared with the bleed guard so a window is embedded once.
+    role_memo: speaker_id.RoleMemo | None = field(default=None, compare=False)
 
 
 def resolve_cut_scope(
