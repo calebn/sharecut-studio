@@ -29,7 +29,7 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.engines import ffmpeg
-from podcast_mcp.engines.ffmpeg import FFmpegEngine, diagnostics, runtime
+from podcast_mcp.engines.ffmpeg import FFmpegEngine, diagnostics, probe, runtime
 
 TESTS = Path(__file__).resolve().parent
 PACKAGE = TESTS.parent / "src" / "podcast_mcp" / "engines" / "ffmpeg"
@@ -38,9 +38,6 @@ MODULE = "podcast_mcp.engines.ffmpeg"
 PATCHERS = {"setattr", "delattr", "object", "patch", "multiple"}
 
 ALLOWLIST = {
-    "_PACKET_SCAN_TIMEOUT_SEC",
-    "_read_audio_extent",
-    "file_revision",
     "negotiated_rates",
     "spawn_or_too_long",
     "threading",
@@ -49,6 +46,8 @@ ALLOWLIST = {
 RUNTIME = "runtime"
 DIAGNOSTICS = "diagnostics"
 DIAGNOSTICS_ALLOWLIST = {"_drawtext_font"}
+PROBE = "probe"
+PROBE_ALLOWLIST = {"_PACKET_SCAN_TIMEOUT_SEC", "_read_audio_extent", "file_revision"}
 RUNTIME_ALLOWLIST = {
     "_run_cancellable",
     "popen",
@@ -74,7 +73,7 @@ def _target(segments: list[str]) -> tuple[str, str | None]:
     name = segments[0] or DYNAMIC
     member = (
         segments[1]
-        if name in {"FFmpegEngine", RUNTIME, DIAGNOSTICS} and len(segments) > 1
+        if name in {"FFmpegEngine", RUNTIME, DIAGNOSTICS, PROBE} and len(segments) > 1
         else None
     )
     return name, member
@@ -167,7 +166,7 @@ def _found_in(source: str) -> set[tuple[str, str | None]]:
     found: set[tuple[str, str | None]] = set()
     for node in ast.walk(tree):
         text = _text(node) if isinstance(node, ast.Constant) else None
-        if text is not None and text.startswith(MODULE + "."):
+        if text is not None and text.startswith(MODULE + ".") and ":" not in text:
             found.add(_target(text[len(MODULE) + 1 :].split(".")))
         elif isinstance(node, ast.Call):
             found |= _call_targets(node, imports)
@@ -185,7 +184,7 @@ def _found() -> set[tuple[str, str | None]]:
 
 
 def _outside_the_engine(found: set[tuple[str, str | None]]) -> set[str]:
-    return {name for name, _ in found if name not in {"FFmpegEngine", RUNTIME, DIAGNOSTICS}}
+    return {name for name, _ in found if name not in {"FFmpegEngine", RUNTIME, DIAGNOSTICS, PROBE}}
 
 
 def _runtime_patched(found: set[tuple[str, str | None]]) -> set[str | None]:
@@ -213,6 +212,12 @@ def test_diagnostics_submodule_patches_are_the_listed_members() -> None:
     patched = {member for name, member in _found() if name == DIAGNOSTICS}
     assert patched == DIAGNOSTICS_ALLOWLIST
     assert all(hasattr(diagnostics, name) for name in DIAGNOSTICS_ALLOWLIST)
+
+
+def test_probe_submodule_patches_are_the_listed_members() -> None:
+    patched = {member for name, member in _found() if name == PROBE}
+    assert patched == PROBE_ALLOWLIST
+    assert all(hasattr(probe, name) for name in PROBE_ALLOWLIST)
 
 
 def test_every_engine_member_a_test_patches_exists() -> None:
@@ -579,7 +584,11 @@ def test_the_process_use_scanner(source: str, lines: list[int]) -> None:
     assert _direct_process_uses(ast.parse(source)) == lines
 
 
-KNOWN_MIXIN_BINDINGS = {("encode.py", "spawn_or_too_long")}
+KNOWN_MIXIN_BINDINGS = {
+    ("encode.py", "spawn_or_too_long"),
+    ("probe.py", "threading"),
+    ("decode.py", "threading"),
+}
 FACADE_ONLY = {"__init__.py"}
 MIXIN_IMPORT_EXEMPT = {"__init__.py", "runtime.py"}
 HOST = "host"

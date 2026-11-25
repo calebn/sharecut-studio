@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-import functools
 import json
 import math
 import re
 import tempfile
 import threading
-from collections.abc import Callable, Generator, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import ExitStack, suppress
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 from itertools import pairwise
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -38,6 +37,16 @@ from podcast_mcp.engines.audio import (
 )
 from podcast_mcp.engines.effect_filters import format_effect, graph_rate
 from podcast_mcp.engines.ffmpeg import runtime
+from podcast_mcp.engines.ffmpeg.decode import (
+    PCM_STREAM_CHUNK_FRAMES as PCM_STREAM_CHUNK_FRAMES,
+)
+from podcast_mcp.engines.ffmpeg.decode import (
+    PCM_STREAM_TIMEOUT_SEC as PCM_STREAM_TIMEOUT_SEC,
+)
+from podcast_mcp.engines.ffmpeg.decode import (
+    PCM_WINDOW_TIMEOUT_SEC as PCM_WINDOW_TIMEOUT_SEC,
+)
+from podcast_mcp.engines.ffmpeg.decode import DecodeMixin
 from podcast_mcp.engines.ffmpeg.diagnostics import DiagnosticsMixin
 from podcast_mcp.engines.ffmpeg.encode import EncodeMixin
 from podcast_mcp.engines.ffmpeg.filter_log import decoded_no_frames, filter_log_text
@@ -52,8 +61,20 @@ from podcast_mcp.engines.ffmpeg.mix import (
 from podcast_mcp.engines.ffmpeg.mix import (
     logged_headroom_trim_db as logged_headroom_trim_db,
 )
+from podcast_mcp.engines.ffmpeg.probe import (
+    LATE_MPEG_AUDIO_MESSAGE as LATE_MPEG_AUDIO_MESSAGE,
+)
+from podcast_mcp.engines.ffmpeg.probe import (
+    MAX_PROBED_AUDIO_EXTENT_SEC as MAX_PROBED_AUDIO_EXTENT_SEC,
+)
+from podcast_mcp.engines.ffmpeg.probe import (
+    AudioProbe as AudioProbe,
+)
+from podcast_mcp.engines.ffmpeg.probe import (
+    LateMpegAudioError as LateMpegAudioError,
+)
+from podcast_mcp.engines.ffmpeg.probe import ProbeMixin
 from podcast_mcp.engines.media_seek import MediaSeek
-from podcast_mcp.engines.mono_downmix import ffmpeg_mono_mean_layout
 from podcast_mcp.engines.render_clock import (
     ClockBinding,
     clock_error,
@@ -80,30 +101,12 @@ from podcast_mcp.util.binaries import (
     in_process_problem,
 )
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import (
     DEVNULL,
     PIPE,
     CalledProcessError,
     TimeoutExpired,
-    is_in_process_media_tool,
 )
-from podcast_mcp.util.project_state import FileRevision, file_revision
-
-# Raw float32 PCM decode (waveform pyramid builds and deep-zoom windows). The
-# timeouts are watchdogs armed only while waiting on ffmpeg for one chunk, so
-# consumer time between chunks never counts toward them.
-PCM_STREAM_CHUNK_FRAMES = 1_048_576
-PCM_STREAM_TIMEOUT_SEC = 600.0
-PCM_WINDOW_TIMEOUT_SEC = 30.0
-# Guest-safe input protocols (same whitelist as ``probe(untrusted=True)``).
-_UNTRUSTED_PROTOCOLS = "file,crypto,data"
-_PACKET_SCAN_TIMEOUT_SEC = 120.0
-MAX_PROBED_AUDIO_EXTENT_SEC = 7 * 24 * 3600.0
-_PACKET_RECORD_BYTES = 4096
-# Audio starting this much after the container start is a leading gap, not codec priming.
-_AUDIO_START_GAP_SEC = 0.02
-
 
 ENVELOPE_FRAME_SAMPLES = 256
 
@@ -219,198 +222,6 @@ def _effect_filter(fx: ProcessingEffect) -> str | None:
     return format_effect(fx.effect, fx.params)
 
 
-LATE_MPEG_AUDIO_MESSAGE = "audio starts late in an MPEG transport stream; re-encode it"
-
-
-class LateMpegAudioError(CodedValueError):
-    def __init__(self) -> None:
-        super().__init__(LATE_MPEG_AUDIO_MESSAGE, code="invalid_audio")
-
-
-@dataclass
-class AudioProbe:
-    # Length of the first audio stream, counted from its first sample.
-    duration_sec: float
-    sample_rate: int
-    channels: int
-    # How far that first sample sits past the container start; 0.0 at or below codec priming.
-    audio_start_sec: float = field(kw_only=True)
-    # True when ffmpeg rebases this file's audio-only reads while `-ss` keeps the container clock,
-    # so a nonzero ``audio_start_sec`` cannot place a windowed read (MPEG-TS and MPEG-PS).
-    rebases_audio_reads: bool = field(kw_only=True)
-    duration_estimated: bool = False
-    audio_duration_sec: float | None = None
-    # The decoder's sample format (``s16``, ``fltp``, ...), when ffprobe reports one.
-    sample_fmt: str | None = None
-    # Audio streams in the file.
-    audio_stream_count: int = 1
-    # Audio stream FFmpeg's automatic pick chose before analysis read the first one
-    # (default-flagged, else most channels, lowest index on ties); None when ffprobe
-    # lacked the fields to tell. The packet-count term of FFmpeg's score is not modelled.
-    legacy_default_audio_index: int | None = 0
-
-    def require_duration_sec(self, *, maximum_sec: float | None = None) -> float:
-        """Return a known positive first-audio extent suitable for stored geometry."""
-        if (
-            self.duration_estimated
-            or self.audio_stream_count < 1
-            or not math.isfinite(self.duration_sec)
-            or self.duration_sec <= 0
-            or (maximum_sec is not None and self.duration_sec > maximum_sec)
-        ):
-            if self.rebases_audio_reads:
-                raise LateMpegAudioError
-            raise CodedValueError(
-                "audio duration is unavailable or outside its bound", code="invalid_audio"
-            )
-        return self.duration_sec
-
-
-def _legacy_audio_pick(audio_streams: list[dict[str, Any]]) -> int | None:
-    scores: list[tuple[int, int]] = []
-    for s in audio_streams:
-        default = (s.get("disposition") or {}).get("default")
-        channels = s.get("channels")
-        if default is None or channels is None:
-            return None if len(audio_streams) > 1 else 0
-        scores.append((int(default), int(channels)))
-    return max(range(len(scores)), key=lambda k: (scores[k], -k), default=0)
-
-
-def _seconds(value: Any) -> float | None:
-    """A finite float from an ffprobe field, or None for "N/A", empty or non-finite."""
-    try:
-        seconds = float(value)
-    except (TypeError, ValueError):
-        return None
-    return seconds if math.isfinite(seconds) else None
-
-
-def _rebases_audio_only_reads(probe_json: dict[str, Any]) -> bool:
-    """MPEG-TS and MPEG-PS: ffmpeg zeroes an audio-only read's clock while `-ss` keeps the container's."""
-    names = str(probe_json.get("format", {}).get("format_name", "")).split(",")
-    return "mpegts" in names or "mpeg" in names
-
-
-def _stream_duration_unreliable(probe_json: dict[str, Any]) -> bool:
-    """Containers whose declarations can omit packets or later logical streams."""
-    names = str(probe_json.get("format", {}).get("format_name", ""))
-    if "mpegts" in names or "ogg" in names:
-        return True
-    if "matroska" not in names and "webm" not in names:
-        return False
-    return any(
-        s.get("codec_type") == "video" and not s.get("disposition", {}).get("attached_pic")
-        for s in probe_json.get("streams", [])
-    )
-
-
-class _AudioExtentUnavailable(Exception):
-    pass
-
-
-def _read_audio_extent(ffprobe: str, path: str, *, untrusted: bool) -> tuple[float, float]:
-    cmd = [
-        ffprobe,
-        "-v",
-        "error",
-        "-select_streams",
-        "a:0",
-        "-show_entries",
-        "packet=pts_time,duration_time",
-        "-of",
-        "csv=p=0",
-    ]
-    if untrusted:
-        cmd.extend(["-protocol_whitelist", _UNTRUSTED_PROTOCOLS])
-    cmd.append(path)
-    proc = runtime.popen(cmd, stdout=PIPE, stderr=DEVNULL)
-    lock = threading.Lock()
-    expired = False
-    finished = False
-
-    def expire() -> None:
-        nonlocal expired
-        with lock:
-            if not finished:
-                expired = True
-                with suppress(OSError):
-                    proc.kill()
-
-    timer = threading.Timer(_PACKET_SCAN_TIMEOUT_SEC, expire)
-    timer.daemon = True
-    end = 0.0
-    first_pts: float | None = None
-    previous_pts: float | None = None
-    try:
-        timer.start()
-        assert proc.stdout is not None
-        while line := proc.stdout.readline(_PACKET_RECORD_BYTES):
-            if len(line) == _PACKET_RECORD_BYTES and not line.endswith(b"\n"):
-                raise _AudioExtentUnavailable
-            fields = line.split(b",")
-            pts = _seconds(fields[0])
-            if pts is None:
-                continue
-            if previous_pts is not None and pts <= previous_pts:
-                raise _AudioExtentUnavailable
-            previous_pts = pts
-            if first_pts is None:
-                first_pts = pts
-            duration = _seconds(fields[1]) if len(fields) > 1 else None
-            if duration is not None and duration < 0:
-                raise _AudioExtentUnavailable
-            packet_end = pts + (duration or 0.0)
-            if not math.isfinite(packet_end):
-                raise _AudioExtentUnavailable
-            end = max(end, packet_end)
-        rc = proc.wait()
-        with lock:
-            finished = True
-            if expired or rc or end <= 0 or first_pts is None:
-                raise _AudioExtentUnavailable
-        return first_pts, end
-    finally:
-        with lock:
-            finished = True
-        timer.cancel()
-        if proc.poll() is None:
-            proc.kill()
-        if proc.stdout is not None:
-            proc.stdout.close()
-        proc.wait()
-
-
-@functools.lru_cache(maxsize=1024)
-def _cached_audio_extent(
-    ffprobe: str, binary_revision: FileRevision, path: str, revision: FileRevision, untrusted: bool
-) -> tuple[float, float]:
-    extent = _read_audio_extent(ffprobe, path, untrusted=untrusted)
-    if file_revision(Path(path)) != revision or file_revision(Path(ffprobe)) != binary_revision:
-        raise _AudioExtentUnavailable
-    return extent
-
-
-def _read_exact(stream: IO[bytes], size: int) -> bytearray:
-    """Read *size* bytes, looping on short pipe reads; shorter only at EOF."""
-    buf = bytearray()
-    while len(buf) < size:
-        part = stream.read(size - len(buf))
-        if not part:
-            break
-        buf += part
-    return buf
-
-
-def _mono_chunks(chunks: Generator[np.ndarray, None, None]) -> Generator[np.ndarray, None, None]:
-    """``(frames, 1)`` chunks as 1-D arrays; closing this closes (and kills) the decode."""
-    try:
-        for chunk in chunks:
-            yield chunk.reshape(-1)
-    finally:
-        chunks.close()
-
-
 def _mask_endpoint(
     seconds: float, rate: int, origin: int, transforms: tuple[FrameTransform, ...]
 ) -> str:
@@ -419,7 +230,7 @@ def _mask_endpoint(
     return _sample_frame_expression(math.ceil(seconds * rate) - origin, rate)
 
 
-class FFmpegEngine(EncodeMixin, MixMixin, DiagnosticsMixin, LoudnessMixin):
+class FFmpegEngine(EncodeMixin, MixMixin, DiagnosticsMixin, LoudnessMixin, ProbeMixin, DecodeMixin):
     def __init__(
         self,
         ffmpeg: str | None = None,
@@ -574,32 +385,6 @@ class FFmpegEngine(EncodeMixin, MixMixin, DiagnosticsMixin, LoudnessMixin):
             results[from_rate] = np.concatenate(kept)
         return {rate: results[rate] for rate in rates}
 
-    def decode_full_f32(self, path: Path, *, sample_rate: int, layout: list[str]) -> np.ndarray:
-        """Decode the first audio stream into a nonempty flat float32 byte view."""
-        result = runtime.run(
-            [
-                self.ffmpeg,
-                "-v",
-                "error",
-                "-i",
-                str(path),
-                "-map",
-                "0:a:0",
-                *layout,
-                "-ar",
-                str(sample_rate),
-                "-f",
-                "f32le",
-                "pipe:1",
-            ],
-            capture_output=True,
-            check=True,
-        )
-        samples = np.frombuffer(result.stdout, dtype=np.float32)
-        if samples.size == 0:
-            raise NoAudioDecodedError(path)
-        return samples
-
     def check_available(self) -> tuple[bool, str]:
         try:
             pair = runtime.resolve_ffmpeg_pair(self.ffmpeg, self.ffprobe, force_refresh=True)
@@ -620,365 +405,6 @@ class FFmpegEngine(EncodeMixin, MixMixin, DiagnosticsMixin, LoudnessMixin):
         if result.returncode == 0:
             return True, result.stdout.splitlines()[0] if result.stdout else "ok"
         return False, result.stderr or "ffprobe failed"
-
-    def audio_start_sec(self, path: Path) -> float:
-        """How far ``path``'s first audio sample sits past its container start."""
-        from podcast_mcp.engines.media_probe import audio_start_sec
-
-        return audio_start_sec(path)
-
-    def probe(self, path: Path, *, untrusted: bool = False) -> AudioProbe:
-        cmd = [
-            self.ffprobe,
-            "-v",
-            "warning",
-            "-print_format",
-            "json",
-            "-show_format",
-            "-show_streams",
-        ]
-        if untrusted:
-            # Guest uploads: do not follow concat:/file: demuxer tricks.
-            cmd.extend(["-protocol_whitelist", _UNTRUSTED_PROTOCOLS])
-        cmd.append(str(path))
-        r = runtime.run(
-            cmd, capture_output=True, text=True, check=True, timeout=_PACKET_SCAN_TIMEOUT_SEC
-        )
-        data = json.loads(r.stdout)
-        audio_streams = [s for s in data.get("streams", []) if s.get("codec_type") == "audio"]
-        stream: dict[str, Any] = audio_streams[0] if audio_streams else {}
-        fmt = data.get("format", {})
-        container = _seconds(fmt.get("duration"))
-        audio_duration = _seconds(stream.get("duration"))
-        duration = container or audio_duration or 0.0
-        bitrate_estimated = "estimating duration from bitrate" in (r.stderr or "").lower()
-        if bitrate_estimated:
-            audio_duration = None
-        scan_failed = False
-        rebases_reads = False
-        audio_start = 0.0
-        scan_end: float | None = None
-        if audio_streams:
-            container_start = _seconds(fmt.get("start_time")) or 0.0
-            audio_start = (_seconds(stream.get("start_time")) or 0.0) - container_start
-            if (
-                not (audio_duration and audio_duration > 0)
-                or bitrate_estimated
-                or _stream_duration_unreliable(data)
-            ):
-                scan = self._scan_audio_extent(path, untrusted=untrusted)
-                # Container headers can be stale or short, so they never bound the scan; only an
-                # impossible value (a forged pts) fails it.
-                if scan is None or not 0 < scan[1] - scan[0] <= MAX_PROBED_AUDIO_EXTENT_SEC:
-                    scan_failed = True
-                else:
-                    audio_start = scan[0] - container_start
-                    scan_end = scan[1]
-            else:
-                duration = audio_duration
-            if audio_start > _AUDIO_START_GAP_SEC:
-                # Priming and pre-skip sit in the first packet's pts but not in the decoded audio.
-                decoded = self._first_decoded_pts(path, untrusted=untrusted)
-                if decoded is not None:
-                    audio_start = decoded - container_start
-            else:
-                audio_start = 0.0
-            if scan_end is not None:
-                duration = scan_end - container_start - audio_start
-            # A forged start would push every seek out of range, like a forged extent.
-            scan_failed = scan_failed or audio_start > MAX_PROBED_AUDIO_EXTENT_SEC
-            rebases_reads = audio_start > _AUDIO_START_GAP_SEC and _rebases_audio_only_reads(data)
-            scan_failed = scan_failed or rebases_reads
-        return AudioProbe(
-            duration_sec=duration,
-            sample_rate=int(stream.get("sample_rate") or 48000),
-            channels=int(stream.get("channels") or 1),
-            audio_start_sec=audio_start,
-            rebases_audio_reads=rebases_reads,
-            duration_estimated=not audio_streams or scan_failed or not math.isfinite(duration),
-            audio_duration_sec=audio_duration,
-            sample_fmt=stream.get("sample_fmt") or None,
-            audio_stream_count=len(audio_streams),
-            legacy_default_audio_index=_legacy_audio_pick(audio_streams),
-        )
-
-    def _first_decoded_pts(self, path: Path, *, untrusted: bool) -> float | None:
-        cmd = [
-            self.ffprobe,
-            "-v",
-            "error",
-            "-select_streams",
-            "a:0",
-            "-read_intervals",
-            "%+#4",
-            "-show_entries",
-            "frame=pts_time",
-            "-of",
-            "csv=p=0",
-        ]
-        if untrusted:
-            cmd.extend(["-protocol_whitelist", _UNTRUSTED_PROTOCOLS])
-        cmd.append(str(path))
-        r = runtime.run(cmd, capture_output=True, text=True, timeout=_PACKET_SCAN_TIMEOUT_SEC)
-        lines = r.stdout.split() if r.returncode == 0 else []
-        return _seconds(lines[0].rstrip(",")) if lines else None
-
-    def _scan_audio_extent(self, path: Path, *, untrusted: bool) -> tuple[float, float] | None:
-        """a:0's first packet pts and the end of its last packet, or None when the scan fails."""
-        try:
-            resolved = path.resolve()
-            if is_in_process_media_tool(self.ffprobe):
-                # No file identifies the installed backend, so its answer is never cached.
-                return _read_audio_extent(self.ffprobe, str(resolved), untrusted=untrusted)
-            binary = Path(self.ffprobe).resolve()
-            return _cached_audio_extent(
-                str(binary),
-                file_revision(binary),
-                str(resolved),
-                file_revision(resolved),
-                untrusted,
-            )
-        except (OSError, _AudioExtentUnavailable):
-            return None
-
-    def stream_pcm_f32(
-        self,
-        path: Path,
-        *,
-        chunk_frames: int = PCM_STREAM_CHUNK_FRAMES,
-        timeout_sec: float | None = None,
-    ) -> tuple[int, int, Generator[np.ndarray, None, None]]:
-        """Decode *path* to interleaved float32 PCM at its native rate and layout.
-
-        Returns ``(sample_rate, channels, chunks)``; each chunk is a
-        ``(frames, channels)`` float32 array of ``chunk_frames`` frames (the
-        last may be shorter). ffmpeg starts on first ``next()`` and is killed
-        when the generator closes, or when one chunk waits on ffmpeg longer than
-        ``timeout_sec`` (``PCM_STREAM_TIMEOUT_SEC`` when None; the consumer's time between chunks does not
-        count). A non-zero exit raises ``RuntimeError`` with the tail of ffmpeg's
-        stderr. A successful whole-file exit also raises when the normalized
-        final output timestamp is materially short of the declared audio-stream
-        duration. Timestamp gaps retain the decoder's packed PCM samples.
-        """
-        if chunk_frames < 1:
-            raise CodedValueError("chunk_frames must be >= 1", code="invalid_arguments")
-        info = self.probe(path, untrusted=True)
-        sample_rate, channels = info.sample_rate, max(1, info.channels)
-        argv = self._pcm_f32_argv(path, sample_rate, channels)
-        expected_duration = info.audio_duration_sec
-        if (
-            info.duration_estimated
-            or info.audio_stream_count != 1
-            or expected_duration is None
-            or expected_duration <= 0
-        ):
-            expected_duration = None
-        return (
-            sample_rate,
-            channels,
-            self._read_pcm_f32(
-                argv,
-                channels,
-                chunk_frames=chunk_frames,
-                timeout_sec=PCM_STREAM_TIMEOUT_SEC if timeout_sec is None else timeout_sec,
-                expected_duration_sec=expected_duration,
-            ),
-        )
-
-    def stream_mono_f32(
-        self, path: Path, *, sample_rate: int, chunk_frames: int = PCM_STREAM_CHUNK_FRAMES
-    ) -> Generator[np.ndarray, None, None]:
-        """Decode *path* downmixed to mono at ``sample_rate`` as 1-D float32 chunks.
-
-        The streaming counterpart of ``engines.ungated_audio.load_mono_full`` (the same
-        channel-mean mono downmix, so the concatenated chunks equal its array) for
-        callers that must not hold a whole multi-hour track. Chunks are ``chunk_frames``
-        long (the last may be shorter). Same process lifetime, watchdog and error
-        reporting as :meth:`stream_pcm_f32`; arguments are validated eagerly.
-        """
-        if chunk_frames < 1 or sample_rate < 1:
-            raise CodedValueError(
-                "chunk_frames and sample_rate must be >= 1", code="invalid_arguments"
-            )
-        argv = self._pcm_f32_argv(path, sample_rate, 1)
-        return _mono_chunks(
-            self._read_pcm_f32(
-                argv, 1, chunk_frames=chunk_frames, timeout_sec=PCM_STREAM_TIMEOUT_SEC
-            )
-        )
-
-    def decode_window_f32(
-        self, path: Path, start_frame: int, frames: int, sample_rate: int, channels: int
-    ) -> np.ndarray:
-        """Decode ``frames`` frames from ``start_frame`` as ``(n, channels)`` float32.
-
-        ``n < frames`` only at end of media. Bounded by the ``PCM_WINDOW_TIMEOUT_SEC`` watchdog.
-        """
-        if start_frame < 0 or frames < 0 or sample_rate < 1 or channels < 1:
-            raise CodedValueError("invalid PCM window", code="invalid_arguments")
-        if frames == 0:
-            return np.zeros((0, channels), dtype=np.float32)
-        # ``-frames:a`` counts decoder packets, not samples, so the read below
-        # stops at exactly ``frames``; ``-t`` (with slack) only bounds the decode.
-        argv = self._pcm_f32_argv(
-            path,
-            sample_rate,
-            channels,
-            start_sec=start_frame / sample_rate,
-            duration_sec=(frames + 64) / sample_rate,
-        )
-        parts = list(
-            self._read_pcm_f32(
-                argv,
-                channels,
-                chunk_frames=frames,
-                timeout_sec=PCM_WINDOW_TIMEOUT_SEC,
-                max_frames=frames,
-            )
-        )
-        if not parts:
-            return np.zeros((0, channels), dtype=np.float32)
-        return np.concatenate(parts)
-
-    def _pcm_f32_argv(
-        self,
-        path: Path,
-        sample_rate: int,
-        channels: int,
-        *,
-        start_sec: float | None = None,
-        duration_sec: float | None = None,
-    ) -> list[str]:
-        argv = [
-            self.ffmpeg,
-            "-nostdin",
-            "-hide_banner",
-            "-v",
-            "error",
-            "-protocol_whitelist",
-            _UNTRUSTED_PROTOCOLS,
-            "-threads",
-            "1",
-        ]
-        lead_sec = 0.0 if start_sec is None else self.audio_start_sec(path)
-        seek = MediaSeek.at(start_sec or 0.0, lead_sec=lead_sec)
-        argv += [
-            *seek.input_args(),
-            "-i",
-            str(path),
-            "-map",
-            "0:a:0",
-            *seek.output_args(duration_sec),
-        ]
-        layout = ffmpeg_mono_mean_layout(path) if channels == 1 else ["-ac", str(channels)]
-        argv += ["-f", "f32le", *layout, "-ar", str(sample_rate), "pipe:1"]
-        return argv
-
-    @staticmethod
-    def _read_pcm_f32(
-        argv: list[str],
-        channels: int,
-        *,
-        chunk_frames: int,
-        timeout_sec: float,
-        max_frames: int | None = None,
-        expected_duration_sec: float | None = None,
-    ) -> Generator[np.ndarray, None, None]:
-        if expected_duration_sec is not None:
-            body = list(argv[1:-1])
-            try:
-                af_idx = body.index("-af")
-                body[af_idx + 1] = f"{body[af_idx + 1]},asetpts=PTS-STARTPTS"
-            except ValueError:
-                body += ["-af", "asetpts=PTS-STARTPTS"]
-            argv = [argv[0], "-progress", "pipe:2", *body, argv[-1]]
-        with tempfile.TemporaryFile() as err:
-            proc = runtime.popen(argv, stdout=PIPE, stderr=err)
-            timed_out = threading.Event()
-
-            watch_lock = threading.Lock()
-            # Generation of the armed watchdog (0 = disarmed). Each chunk arms a
-            # new one, so a timer from an earlier chunk that runs late is stale.
-            armed = 0
-
-            def _watchdog(gen: int) -> None:
-                # A timer that fires after its chunk's read (and EOF wait)
-                # finished, even once the next chunk has armed, is ignored.
-                with watch_lock:
-                    if armed != gen:
-                        return
-                    timed_out.set()
-                    proc.kill()
-
-            timer: threading.Timer | None = None
-            frame_bytes = 4 * channels
-            remaining = max_frames
-            gen = 0
-            try:
-                stdout = proc.stdout
-                if stdout is None:
-                    raise RuntimeError("ffmpeg stdout pipe missing")
-                while remaining is None or remaining > 0:
-                    want = chunk_frames if remaining is None else min(chunk_frames, remaining)
-                    # Armed only while waiting on ffmpeg: time the consumer spends
-                    # between chunks (level builds, a busy pool) never counts.
-                    gen += 1
-                    with watch_lock:
-                        armed = gen
-                    timer = threading.Timer(timeout_sec, functools.partial(_watchdog, gen))
-                    timer.daemon = True
-                    timer.start()
-                    buf = _read_exact(stdout, want * frame_bytes)
-                    short = len(buf) < want * frame_bytes
-                    code = proc.wait() if short else 0
-                    with watch_lock:
-                        armed = 0
-                    timer.cancel()
-                    frames = len(buf) // frame_bytes
-                    if frames:
-                        if remaining is not None:
-                            remaining -= frames
-                        yield np.frombuffer(buf, dtype="<f4", count=frames * channels).reshape(
-                            frames, channels
-                        )
-                    if short:
-                        if code != 0:
-                            raise RuntimeError(
-                                runtime._pcm_decode_error(
-                                    code, timed_out.is_set(), timeout_sec, err
-                                )
-                            )
-                        if expected_duration_sec is not None:
-                            err.seek(0, 2)
-                            err.seek(max(0, err.tell() - runtime.PCM_STDERR_TAIL_BYTES))
-                            records = err.read().decode("utf-8", "replace").split("progress=")
-                            final = (
-                                records[-2]
-                                if len(records) > 1 and records[-1].strip() == "end"
-                                else ""
-                            )
-                            done_sec = next(
-                                (
-                                    seconds
-                                    for line in reversed(final.splitlines())
-                                    if (seconds := runtime._progress_seconds(line)) is not None
-                                ),
-                                None,
-                            )
-                            if done_sec is None:
-                                raise RuntimeError("ffmpeg PCM decode has no final timestamp")
-                            if done_sec + 0.25 < expected_duration_sec:
-                                raise RuntimeError(
-                                    f"ffmpeg PCM decode ended short: {done_sec:.3f} s "
-                                    f"of {expected_duration_sec:.3f} s"
-                                )
-                        return
-            finally:
-                if timer is not None:
-                    timer.cancel()
-                if proc.poll() is None:
-                    proc.kill()
-                proc.wait()
 
     def build_track_filter(
         self,

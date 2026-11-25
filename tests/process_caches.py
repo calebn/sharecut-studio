@@ -21,7 +21,7 @@ from podcast_mcp.engines.track_evidence import RetainedEvidence
 from podcast_mcp.util.bounded_cache import BoundedCache
 
 ISOLATED: dict[str, str] = {
-    "podcast_mcp.engines.ffmpeg:_cached_audio_extent": (
+    "podcast_mcp.engines.ffmpeg.probe:_cached_audio_extent": (
         "Tests replace packet subprocess output and deadlines without changing file revisions."
     ),
     "podcast_mcp.services.media.object_store_cors:_cache": (

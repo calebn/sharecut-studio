@@ -19,6 +19,8 @@ from podcast_mcp.util.progress import raise_if_cancel_requested
 
 # Bytes of ffmpeg stderr kept for a failed decode's error message.
 PCM_STDERR_TAIL_BYTES = 2048
+# Guest-safe input protocols (same whitelist as ``probe(untrusted=True)``).
+_UNTRUSTED_PROTOCOLS = "file,crypto,data"
 CANCEL_POLL_SEC = 0.1
 ENCODE_CANCELLED = "Encoding cancelled"
 

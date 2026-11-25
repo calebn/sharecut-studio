@@ -635,7 +635,7 @@ def test_a_record_that_is_read_is_the_newest_and_outlives_an_unread_one(
 
 # Bump evidence_records.RECORD_REV and this pin together whenever the code that decides what the
 # evidence is changes: a record of the old code is otherwise read as if it were the new code's.
-EVIDENCE_CODE_PIN = "c06a2a4e843bffb2"
+EVIDENCE_CODE_PIN = "c69e5e411ecb8e2d"
 EVIDENCE_RECORD_REV_PIN = 2
 
 
@@ -748,10 +748,10 @@ def test_every_engine_module_a_build_runs_is_pinned_or_named_as_part_of_the_key(
 
 
 def test_a_change_to_the_probe_moves_the_pin_digest() -> None:
-    assert "def probe(" in inspect.getsource(FFmpegEngine)
+    assert "def probe(" in inspect.getsource(FFmpegEngine.probe)
     root = Path(track_evidence.__file__).resolve().parent
     engine_files = [f for f in _evidence_files(root) if f.startswith("ffmpeg/")]
-    probe_file = next(f for f in engine_files if "def probe(" in (root / f).read_text("utf-8"))
+    probe_file = next(f for f in engine_files if f == "ffmpeg/probe.py")
     assert _evidence_code_digest({probe_file: "\n# probe forced to one channel\n"}) != (
         _evidence_code_digest()
     )
