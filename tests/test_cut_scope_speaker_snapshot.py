@@ -56,7 +56,9 @@ class _Loads:
         self.context_loads += 1
         return type("Ctx", (), {"speaker_id": CONFIG})()
 
-    def assess(self, _project, _track, _start, _end, cfg, backend=None, *, profiles=None):
+    def assess(
+        self, _project, _track, _start, _end, cfg, backend=None, *, profiles=None, role_memo=None
+    ):
         self.assessed.append((cfg, profiles))
         return {"role": "bleed"}
 

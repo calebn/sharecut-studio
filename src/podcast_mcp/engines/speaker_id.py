@@ -826,7 +826,17 @@ def assess_speaker_cut_role(
     backend: SpeakerBackend | None = None,
     *,
     profiles: dict[str, SpeakerProfile] | None = None,
+    role_memo: dict[tuple[str, float, float], dict[str, Any] | None] | None = None,
 ) -> dict[str, Any] | None:
+    """Classify a cut window as own, bleed or uncertain.
+
+    ``role_memo`` is a per-run cache the caller owns: one run holds one set of profiles,
+    config and stems, so a window it asks about twice (the bleed guard, then the cut-scope
+    check, then the apply) is embedded once. Never share it across runs.
+    """
+    memo_key = (cut_track_id, src_start, src_end)
+    if role_memo is not None and memo_key in role_memo:
+        return role_memo[memo_key]
     if profiles is None:
         profiles = load_all_profiles(project)
     if not profiles:
@@ -836,12 +846,15 @@ def assess_speaker_cut_role(
     if ws is None:
         return None
     role, match_id = _classify_role(ws, cut_track_id, cfg)
-    return {
+    result = {
         "role": role,
         "match_identity": match_id,
         "match_home_track": ws.best_track_id if role == "bleed" else cut_track_id,
         "margin": ws.margin,
     }
+    if role_memo is not None:
+        role_memo[memo_key] = result
+    return result
 
 
 def extend_intervals_with_speaker_gaps(
