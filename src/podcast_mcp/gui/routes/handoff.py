@@ -94,8 +94,12 @@ class StudioHostState:
     @property
     def address(self) -> str | None:
         """The address local processes reach this Studio at: loopback for a bind a client may
-        ping (a wildcard bind answers there too), else the bound address itself, or None when
-        it is not known."""
+        ping (a wildcard bind answers there too, on its own family's loopback), else the bound
+        address itself, or None when it is not known.
+
+        An IPv6 wildcard (``::``) announces ``::1``: an IPv6-only socket (Windows) never answers
+        on ``127.0.0.1``, and a dual-stack one sees an IPv4 caller as ``::ffff:127.0.0.1``, a
+        peer the handoff routes do not count as this computer (#2534)."""
         if self.bind_host in {"", "localhost"}:
             return "127.0.0.1"
         literal = self.listen_host or self.bind_host
@@ -104,7 +108,7 @@ class StudioHostState:
         except ValueError:
             return None
         if address.is_unspecified:
-            return "127.0.0.1"
+            return "::1" if address.version == 6 else "127.0.0.1"
         return str(address)
 
 
