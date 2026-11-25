@@ -153,9 +153,7 @@ def segment_insert_cmd(
     project: Path = typer.Argument(..., help="Path to episode.sharecut"),
     segment_id: str = typer.Argument(..., metavar="SEGMENT", help="A segment id"),
     at: str = typer.Option(
-        ...,
-        "--at",
-        help="Where: start, end or a timeline second. Later content moves unless --own-lane",
+        ..., "--at", help="Where: start, end or a timeline second. Later content moves"
     ),
     version: int | None = typer.Option(None, "--version", help="Segment version. Default: newest"),
     dry_run: bool = typer.Option(
@@ -168,8 +166,7 @@ def segment_insert_cmd(
         False,
         "--own-lane",
         help="Move nothing: every lane goes on a new track. Plays at full level until ducked "
-        "(podcast edit duck ducks it only if the segment was saved to duck under dialogue, "
-        "else name the track with --track)",
+        "(podcast edit duck)",
     ),
     as_json: bool = typer.Option(False, "--json", help="The result as JSON"),
 ) -> None:
