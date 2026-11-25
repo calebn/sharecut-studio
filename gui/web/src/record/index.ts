@@ -28,6 +28,8 @@ export {
 } from "./liveCommentQueue";
 export {
   copyForMicStatus,
+  HOST_MIC_STILL_WAITING_COPY,
+  MIC_PROMPT_SLOW_MS,
   MIC_RETRY_LABEL,
   MIC_SAVED_DEVICE_MISSING_COPY,
 } from "./micPermission";
