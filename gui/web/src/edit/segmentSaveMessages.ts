@@ -13,6 +13,8 @@ const REFUSALS: Record<SegmentSaveRefusal, string> = {
     "Your library is busy with another save. Try again in a moment.",
   segment_write_failed:
     "Your library could not be written to. Check that there is room on the disk, then try again.",
+  segment_name_invalid:
+    "Use a name with at least one letter or digit from a to z, so the library can file it.",
   segment_invalid:
     "That selection cannot be saved as a segment. Pick a different clip or range.",
 };

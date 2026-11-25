@@ -82,6 +82,7 @@ export const SEGMENT_SAVE_REFUSALS = [
   "segment_busy",
   "segment_write_failed",
   "segment_invalid",
+  "segment_name_invalid",
 ] as const;
 
 export type SegmentSaveRefusal = (typeof SEGMENT_SAVE_REFUSALS)[number];

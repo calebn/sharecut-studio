@@ -161,7 +161,7 @@ Loading is a skeleton after 300 ms, a failed read shows the reason with Try agai
 - `role` is not sent, so the server takes it from the first clip's track.
 - No route exposes `guess_kind`, so the card repeats it: the selection starting within the first 120 s is Intro, ending within the last 120 s of the timeline is Outro, else Other (`SEGMENT_EDGE_SEC` matches `EDGE_SEC` in `segment_capture.py`). The chosen kind is always sent, so the saved kind is the one the card showed.
 
-The toast reads "Saved {name} to your library" (`added`), "Saved {name} as version {n}" (`new_version`) or "{name} is already in your library" (`unchanged`), with no Undo. `segmentSaveRefusal` names the codes `segment_clip_too_short`, `segment_render_unsupported`, `segment_busy`, `segment_write_failed` and `segment_invalid`; each has a plain sentence (`edit/segmentSaveMessages.ts`) shown in the card, which stays open. Any other failure says "That did not save. Try again."
+The toast reads "Saved {name} to your library" (`added`), "Saved {name} as version {n}" (`new_version`) or "{name} is already in your library" (`unchanged`), with no Undo. `segmentSaveRefusal` names the codes `segment_clip_too_short`, `segment_render_unsupported`, `segment_busy`, `segment_write_failed`, `segment_invalid` and `segment_name_invalid` (a name with no ASCII letter or digit, which the library cannot turn into an id); each has a plain sentence (`edit/segmentSaveMessages.ts`) shown in the card, which stays open. Any other failure says "That did not save. Try again."
 
 ## Show kit
 

@@ -107,6 +107,7 @@ describe("segmentSaveRefusal", () => {
       "segment_busy",
       "segment_write_failed",
       "segment_invalid",
+      "segment_name_invalid",
     ])
       expect(segmentSaveRefusal(new ApiError("x", code, 400))).toBe(code);
     expect(segmentSaveRefusal(new ApiError("x", "other", 400))).toBeNull();

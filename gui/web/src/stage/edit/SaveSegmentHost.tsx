@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { saveSegment } from "../../api";
 import { selectionAnchor } from "../../commands/timelineReveal";
 import { segmentSavedMessage } from "../../edit/segmentSaveMessages";
@@ -27,11 +27,16 @@ export function SaveSegmentHost() {
     [anchorElement],
   );
   const usable = found?.ok === true;
+  const saving = useRef(false);
+  const lastUsable = useRef<typeof found>(null);
+  if (!open) lastUsable.current = null;
+  else if (found?.ok) lastUsable.current = found;
   useEffect(() => {
-    if (open && !usable) setOpen(false);
+    if (open && !usable && !saving.current) setOpen(false);
   }, [open, usable, setOpen]);
 
-  if (!open || !found?.ok) return null;
+  const shown = found?.ok ? found : saving.current ? lastUsable.current : null;
+  if (!open || !shown?.ok) return null;
   const onSave = async ({
     name,
     kind,
@@ -39,17 +44,22 @@ export function SaveSegmentHost() {
     name: string;
     kind: Parameters<typeof saveSegment>[0]["kind"];
   }) => {
-    const result = await saveSegment({
-      path: projectPath,
-      name,
-      kind,
-      ...found.request,
-    });
-    useDawStore.getState().announceStatus(segmentSavedMessage(name, result));
+    saving.current = true;
+    try {
+      const result = await saveSegment({
+        path: projectPath,
+        name,
+        kind,
+        ...shown.request,
+      });
+      useDawStore.getState().announceStatus(segmentSavedMessage(name, result));
+    } finally {
+      saving.current = false;
+    }
   };
   const common = {
-    summary: found.summary,
-    defaultKind: found.defaultKind,
+    summary: shown.summary,
+    defaultKind: shown.defaultKind,
     onSave,
     onClose: () => setOpen(false),
   };
