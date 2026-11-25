@@ -129,13 +129,22 @@ def _missing_version_refusal(row: dict[str, Any], version_id: str) -> CodedKeyEr
     """The refusal for a link whose review version is gone; the link itself stays as it is.
 
     It opens again once the version is back. A guest page asks many times, so the host's log
-    gets one warning per workspace and version in this process and debug lines after that.
+    gets one warning each time a workspace's version goes missing and debug lines after that.
     """
-    seen = (str(row.get("project_workspace") or ""), version_id)
+    seen = _refusal_key(row, version_id)
     level = logging.DEBUG if seen in _REFUSED_VERSIONS else logging.WARNING
     _REFUSED_VERSIONS.add(seen)
     log.log(level, "Refusing share: review version %s missing from %s", version_id, seen[0])
     return CodedKeyError(f"review version not found: {version_id}", code="review_version_not_found")
+
+
+def _version_resolved(row: dict[str, Any], version_id: str) -> None:
+    """A version that is back warns again the next time it goes missing (#3984)."""
+    _REFUSED_VERSIONS.discard(_refusal_key(row, version_id))
+
+
+def _refusal_key(row: dict[str, Any], version_id: str) -> tuple[str, str]:
+    return str(row.get("project_workspace") or ""), version_id
 
 
 # Guest DAW audio kinds - never raw (host media paths) or arbitrary kinds.
@@ -1109,6 +1118,7 @@ def open_resolved_share_workspace(row: dict[str, Any]) -> tuple[dict[str, Any], 
             get_version(ws.project, vid)
         except KeyError:
             raise _missing_version_refusal(row, vid) from None
+        _version_resolved(row, vid)
     return row, ws
 
 
@@ -1575,8 +1585,10 @@ def share_daw_waveform_tiles(
         live = _current_review_version_ids(project_path)
         if live:
             vid = ""
-    if vid and vid not in _current_review_version_ids(project_path):
-        raise _missing_version_refusal(row, vid)
+    if vid:
+        if vid not in _current_review_version_ids(project_path):
+            raise _missing_version_refusal(row, vid)
+        _version_resolved(row, vid)
     if not has_capability(row.get("capabilities"), CAP_VIEW):
         raise CodedPermissionError("share does not allow view", code="share_capability_required")
     if not ref.startswith(_GUEST_WAVEFORM_REFS):
