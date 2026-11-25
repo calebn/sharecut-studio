@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,12 +38,16 @@ from podcast_mcp.util.coded_error import (
     GuardRefusal,
     HostSetupError,
     SignInRequiredError,
+    guest_message_for_code,
 )
 from podcast_mcp.util.host_session_wire import SESSION_COOKIE
 from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, busy_message
 from podcast_mcp.util.proxy_paths import is_relayed_request
+from podcast_mcp.util.redact import mentions_host_path
 from podcast_mcp.util.tool_refusal import tool_refusal
+
+logger = logging.getLogger(__name__)
 
 ERROR_CODE_HEADER = "X-Sharecut-Error-Code"
 NO_STORE = {"Cache-Control": "no-store"}
@@ -105,12 +110,17 @@ def guard_http_error(exc: GuardRefusal) -> HTTPException:
     """HTTP 401 (sign-in needed), 403 (denied) or 404 (unknown share) for an auth guard's refusal.
 
     The 401 detail is a dict the sign-in page reads; the others are the message as a string.
+    A message that names a host path is replaced by the code's guest copy.
     """
+    message = str(exc)
+    if mentions_host_path(message):
+        logger.warning("Guard refusal %s withheld a host path: %r", exc.code, message)
+        message = guest_message_for_code(exc.code)
     if isinstance(exc, SignInRequiredError):
-        detail = {"error": exc.code, "message": str(exc), "login_path": SHARE_LOGIN_PATH}
+        detail = {"error": exc.code, "message": message, "login_path": SHARE_LOGIN_PATH}
         return coded_http_error(401, detail, code=exc.code)
     status = 404 if isinstance(exc, KeyError) else 403
-    return coded_http_error(status, str(exc), code=exc.code)
+    return coded_http_error(status, message, code=exc.code)
 
 
 async def guard_exception_handler(request: Request, exc: Exception) -> Response:

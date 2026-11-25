@@ -24,7 +24,7 @@ from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.record.service import RecordSessionService
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.services.session_sync.service import SessionSyncService
-from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
+from podcast_mcp.util.coded_error import guest_message_for_code
 
 
 @pytest.fixture
@@ -444,5 +444,5 @@ def test_guest_review_revocation_during_admission_remains_terminal(
         with TestClient(create_app()).websocket_connect(f"/api/review/{token}/daw/ws") as socket:
             socket.receive_json()
     assert failure.value.code == 4403
-    assert failure.value.reason == GENERIC_GUEST_MESSAGE
+    assert failure.value.reason == guest_message_for_code("share_not_found")
     assert not [r for r in caplog.records if r.exc_info]
