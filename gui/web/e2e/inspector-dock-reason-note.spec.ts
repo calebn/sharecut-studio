@@ -104,6 +104,19 @@ for (const { width, height } of [
         expect(
           await verbs.evaluate((el) => el.scrollWidth - el.clientWidth),
         ).toBeLessThanOrEqual(1);
+        const slot = (await verbs
+          .locator(".sys-dock-slot--start")
+          .boundingBox())!;
+        const controls = verbs.locator(".sys-dock-slot--start button");
+        expect(await controls.count()).toBeGreaterThan(0);
+        expect(noteBox.width).toBeGreaterThanOrEqual(70);
+        for (let i = 0; i < (await controls.count()); i += 1) {
+          const box = (await controls.nth(i).boundingBox())!;
+          expect(box.width).toBeGreaterThanOrEqual(40);
+          expect(box.x + box.width).toBeLessThanOrEqual(
+            slot.x + slot.width + 1,
+          );
+        }
         await expect
           .poll(async () => {
             await frames(page);
