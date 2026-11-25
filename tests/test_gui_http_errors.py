@@ -17,6 +17,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.media.transcript_precorrect import TranscriptContextBusyError
+from podcast_mcp.util.coded_error import AccessDeniedError, SignInRequiredError, UnknownShareError
 from podcast_mcp.util.project_state import (
     LOCK_BUSY_MESSAGE,
     PROJECT_BUSY_MESSAGE,
@@ -423,3 +424,34 @@ def test_oversized_guest_upload_carries_an_error_code(
     )
     assert res.status_code == 413
     assert res.headers[CODE] == "payload_too_large"
+
+
+@pytest.mark.parametrize(
+    ("exc", "status", "code"),
+    [
+        (
+            AccessDeniedError("denied at /Users/host/Episode/project.json", code="authz_denied"),
+            403,
+            "authz_denied",
+        ),
+        (
+            UnknownShareError("no share at C:\\Users\\host\\share.json", code="share_not_found"),
+            404,
+            "share_not_found",
+        ),
+        (
+            SignInRequiredError("sign in via /home/host/.config/auth"),
+            401,
+            "authentication_required",
+        ),
+    ],
+)
+def test_guard_refusal_naming_a_host_path_sends_approved_copy(exc, status, code):
+    from podcast_mcp.gui.routes.deps import guard_http_error
+    from podcast_mcp.util.coded_error import guest_message_for_code
+
+    error = guard_http_error(exc)
+    assert error.status_code == status
+    sent = error.detail["message"] if isinstance(error.detail, dict) else error.detail
+    assert sent == guest_message_for_code(code)
+    assert not any(part in sent for part in ("/Users", "C:\\", "/home/", ".json"))

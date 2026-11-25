@@ -32,6 +32,8 @@ GENERIC_GUEST_MESSAGE = "That didn't work; ask the host to check this episode."
 """Fallback for a code without approved guest-facing copy."""
 
 _GUEST_MESSAGES = {
+    "authentication_required": "Sign in to open this link.",
+    "authz_denied": "This action is only available to the host.",
     "clip_not_found": "That clip is unavailable. Reload the page to see the latest version.",
     "cut_scope_changed": "That edit was not applied. Nothing was changed. Select it again to try another cut, or leave a comment for the host.",
     "empty_text": "Enter some text and try again.",
@@ -91,6 +93,9 @@ _GUEST_MESSAGES = {
     "replacement_token_invalid": "Each replacement word needs a letter or number.",
     "review_version_not_found": "This link's audio isn't available right now. Ask the host to check it.",
     "roll_needs_abutting_clips": "These clips need to touch before their join can be rolled. Move one clip to the other or trim an edge.",
+    "share_acl_denied": "Your account is not on this link's guest list. Ask the host to invite you.",
+    "share_not_found": "This link isn't available right now; ask the host to check it.",
+    "share_token_mismatch": "This link isn't available right now; ask the host to check it.",
     "share_capability_required": "This action isn't available on this link. Ask the host to update its access.",
     "speaker_backend_unavailable": "Speaker recognition isn't available on the host's computer. Ask the host to check it.",
     "speaker_enrolled_count_mismatch": "More speakers have voice samples than the speaker count. Raise the count or leave a speaker out.",
