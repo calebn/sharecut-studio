@@ -11,7 +11,7 @@ hooks:
 	chmod +x .githooks/pre-commit
 
 # Idempotent per-checkout/worktree provisioning: hooks + venv (CI extras) + gui/web node_modules.
-# The pre-commit hook runs this automatically in an unprovisioned worktree.
+# The pre-commit hook stops and asks for this in an unprovisioned worktree.
 worktree-setup:
 	sh scripts/worktree-setup.sh
 

@@ -7,7 +7,7 @@ cd "$(git rev-parse --show-toplevel)"
 # Fresh worktrees have no .venv / node_modules yet. Installing them is the developer's
 # call, so stop and say how instead of running setup from a commit.
 if [ ! -x .venv/bin/python ] || [ ! -x gui/web/node_modules/.bin/lint-staged ]; then
-  echo "pre-commit: this checkout has no .venv or gui/web/node_modules yet." >&2
+  echo "pre-commit: this checkout is missing .venv/bin/python or gui/web/node_modules/.bin/lint-staged." >&2
   echo "pre-commit: run make worktree-setup, then commit again." >&2
   exit 1
 fi

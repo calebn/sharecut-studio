@@ -4,7 +4,7 @@
 #   - Python venv with the same extras CI installs (dev, gui, relay, prosody)
 #   - gui/web node_modules (lint-staged + Biome for the pre-commit hook)
 # Safe to re-run; each step is a fast no-op when already current.
-# Also invoked automatically by .githooks/pre-commit when a worktree is unprovisioned.
+# .githooks/pre-commit stops and asks for this when a worktree is unprovisioned.
 set -e
 cd "$(git rev-parse --show-toplevel)"
 [ -f scripts/node-env.sh ] && . scripts/node-env.sh
