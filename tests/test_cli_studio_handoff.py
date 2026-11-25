@@ -1206,30 +1206,95 @@ def test_a_studio_takes_the_announcement_back_when_the_other_studio_on_its_proje
     assert read_studio_host(minimal_project) is None
 
 
-@pytest.mark.parametrize("left_behind", ["ended", "unreadable"])
-def test_a_studio_takes_back_an_announcement_no_live_studio_answers_for(
-    minimal_project: Path, left_behind: str
+def _announce_ended_studio(project: Path, instance: str = "crashed") -> None:
+    announce_studio_host(
+        project,
+        StudioHost(
+            instance=instance,
+            pid=_ended_pid(),
+            host="127.0.0.1",
+            port=8124,
+            token="t",
+            version="0",
+        ),
+    )
+
+
+def test_a_studio_takes_back_an_announcement_naming_an_ended_process(
+    minimal_project: Path,
 ) -> None:
     run_app = _loopback_studio(minimal_project, 8123)
     try:
-        if left_behind == "ended":
-            announce_studio_host(
-                minimal_project,
-                StudioHost(
-                    instance="crashed",
-                    pid=_ended_pid(),
-                    host="127.0.0.1",
-                    port=8124,
-                    token="t",
-                    version="0",
-                ),
-            )
-        else:
-            studio_host_path(minimal_project).write_text("{", encoding="utf-8")
+        _announce_ended_studio(minimal_project)
         handoff_route.keep_announced(run_app)
         host = read_studio_host(minimal_project)
         assert host is not None
         assert (host.instance, host.port) == (run_app.state.studio_host.instance, 8123)
+    finally:
+        handoff_route.stopped(run_app)
+
+
+def test_a_replaced_studio_that_writes_the_file_again_is_left_alone(
+    minimal_project: Path,
+) -> None:
+    """A Studio this one replaced as ended, writing again, lives where its pid cannot be seen
+    (another computer sharing the folder, another container): the two must not take turns."""
+    run_app = _loopback_studio(minimal_project, 8123)
+    try:
+        _announce_ended_studio(minimal_project, "elsewhere")
+        handoff_route.keep_announced(run_app)
+        _announce_ended_studio(minimal_project, "elsewhere")
+        handoff_route.keep_announced(run_app)
+        host = read_studio_host(minimal_project)
+        assert host is not None and host.instance == "elsewhere"
+    finally:
+        handoff_route.stopped(run_app)
+
+
+def test_an_announcement_the_studio_cannot_read_is_left_alone(minimal_project: Path) -> None:
+    """A folder that cannot keep the file private makes every announcement unreadable, a
+    Studio's own included; rewriting it every check would only make two Studios take turns."""
+    run_app = _loopback_studio(minimal_project, 8123)
+    try:
+        studio_host_path(minimal_project).write_text("{", encoding="utf-8")
+        handoff_route.keep_announced(run_app)
+        assert studio_host_path(minimal_project).read_text(encoding="utf-8") == "{"
+    finally:
+        handoff_route.stopped(run_app)
+
+
+def test_an_announcement_that_failed_to_write_is_tried_again(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_app = _loopback_studio(minimal_project, 8123)
+    real = handoff_route.announce_studio_host
+    failures = [OSError("disk full")]
+
+    def flaky(project: Path, host: StudioHost) -> None:
+        if failures:
+            raise failures.pop()
+        real(project, host)
+
+    try:
+        handoff_route.stopped(_loopback_studio(minimal_project, 8124))
+        monkeypatch.setattr(handoff_route, "announce_studio_host", flaky)
+        handoff_route.keep_announced(run_app)
+        assert read_studio_host(minimal_project) is None
+        handoff_route.keep_announced(run_app)
+        host = read_studio_host(minimal_project)
+        assert host is not None
+        assert (host.instance, host.port) == (run_app.state.studio_host.instance, 8123)
+    finally:
+        handoff_route.stopped(run_app)
+
+
+def test_a_project_whose_file_is_gone_gets_no_new_announcement(minimal_project: Path) -> None:
+    run_app = _loopback_studio(minimal_project, 8123)
+    try:
+        handoff_route.stopped(_loopback_studio(minimal_project, 8124))
+        minimal_project.unlink()
+        handoff_route.keep_announced(run_app)
+        assert not studio_host_path(minimal_project).exists()
     finally:
         handoff_route.stopped(run_app)
 
