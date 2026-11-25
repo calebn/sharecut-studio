@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -987,3 +988,28 @@ def test_a_retried_insert_returns_the_stored_result_and_inserts_once(
     assert json.dumps(retry["command"]["payload"]["result"]) == json.dumps(stored)
     assert _layout(project) == after_first
     assert json.dumps(SegmentInsertApplied.model_validate(stored).journal()) == json.dumps(stored)
+
+
+def test_the_web_key_lists_match_the_insert_models() -> None:
+    from podcast_mcp.services.document import SegmentInsertApplied, SegmentInsertPreview
+
+    source = (Path(__file__).parent.parent / "gui/web/src/api/segments.ts").read_text("utf-8")
+
+    def keys(name: str) -> set[str]:
+        block = re.search(rf"export const {name} = \[(.*?)\] as const", source, re.DOTALL)
+        assert block, name
+        return set(re.findall(r'"(\w+)"', block.group(1)))
+
+    assert keys("SEGMENT_INSERT_PREVIEW_KEYS") == set(SegmentInsertPreview.model_fields)
+    applied = SegmentInsertApplied(
+        operation="insert_segment",
+        segment_id="a",
+        segment_version=1,
+        at=0.0,
+        duration_sec=1.0,
+        affected_tracks=[],
+        clip_count=0,
+        timeline_duration_sec=None,
+        tracks={},
+    )
+    assert keys("SEGMENT_INSERT_APPLIED_KEYS") == set(applied.journal())
