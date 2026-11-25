@@ -6480,6 +6480,16 @@ input.sys-edit-fix {
   overflow-y: auto;
 }
 
+.sys-segment-placement {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
 .sys-segment-option {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

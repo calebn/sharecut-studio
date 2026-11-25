@@ -9,6 +9,7 @@ import {
   insertPreview,
   LIBRARY,
   MULTI_VERSION,
+  PLACEMENT_LIBRARY,
   segment,
 } from "../../segments/fixtures";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -403,6 +404,225 @@ describe("InsertSegmentCard anchored", () => {
     expect(
       screen.getByRole("button", { name: "Insert" }),
     ).toHaveAccessibleDescription("Your saved segments could not be read.");
+  });
+});
+
+describe("InsertSegmentCard placement", () => {
+  const own = () =>
+    screen.getByRole("radio", { name: /Play over the episode/ });
+  const ripple = () =>
+    screen.getByRole("radio", { name: /Move the rest later/ });
+  const choose = () => userEvent.click(own());
+  const rows = PLACEMENT_LIBRARY;
+
+  it("hides the choice until a segment is picked and on an empty library", async () => {
+    const { unmount } = render(
+      <Anchored handlers={handlersOf()} rows={rows} />,
+    );
+    await screen.findByRole("radio", { name: /Cold open/ });
+    expect(
+      screen.queryByRole("group", { name: "What happens to the episode" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("radio", { name: /Play over the episode/ }),
+    ).toBeNull();
+    unmount();
+    render(<Anchored handlers={handlersOf()} rows={[]} />);
+    await screen.findByText(INSERT_EMPTY_LIBRARY);
+    expect(screen.queryByRole("radio")).toBeNull();
+  });
+
+  it("defaults every segment to Move the rest later, with no placement sent", async () => {
+    const handlers = handlersOf();
+    render(<Anchored handlers={handlers} rows={rows} />);
+    await pick(/Warm bed/);
+    expect(
+      screen.getByRole("group", { name: "What happens to the episode" }),
+    ).toBeVisible();
+    expect(ripple()).toBeChecked();
+    expect(own()).toBeEnabled();
+    expect(ripple()).toHaveAccessibleName(/Later clips, chapters and comments/);
+    expect(own()).toHaveAccessibleName(/The segment gets its own track/);
+    expect(screen.queryByText(/Music under dialogue/)).toBeNull();
+    await screen.findByText(/Preview, from the saved episode/);
+    expect(handlers.loadPreview).toHaveBeenLastCalledWith(
+      { segment_id: "bed-5c1d", at: 42 },
+      expect.any(AbortSignal),
+    );
+    await userEvent.click(insertButton());
+    expect(handlers.onInsert).toHaveBeenCalledWith({
+      name: "Warm bed",
+      request: { segment_id: "bed-5c1d", at: 42, version: 1 },
+    });
+  });
+
+  it("previews and inserts with placement own_lane only when chosen", async () => {
+    const handlers = handlersOf({
+      loadPreview: vi.fn((request) =>
+        Promise.resolve(
+          insertPreview({
+            segment_id: request.segment_id,
+            at: 42,
+            clips_moved: 0,
+            ...(request.placement ? { placement: request.placement } : {}),
+          }),
+        ),
+      ),
+    });
+    render(<Anchored handlers={handlers} rows={rows} />);
+    await pick(/Warm bed/);
+    await choose();
+    expect(own()).toBeChecked();
+    await waitFor(() =>
+      expect(handlers.loadPreview).toHaveBeenLastCalledWith(
+        { segment_id: "bed-5c1d", at: 42, placement: "own_lane" },
+        expect.any(AbortSignal),
+      ),
+    );
+    await screen.findByText("Adds 0:22 at 0:42 on a new track.");
+    await userEvent.click(insertButton());
+    expect(handlers.onInsert).toHaveBeenCalledWith({
+      name: "Warm bed",
+      request: {
+        segment_id: "bed-5c1d",
+        at: 42,
+        version: 1,
+        placement: "own_lane",
+      },
+    });
+  });
+
+  it("returns to the default when another segment is picked", async () => {
+    render(<Anchored handlers={handlersOf()} rows={rows} />);
+    await pick(/Warm bed/);
+    await choose();
+    await pick(/Acme sponsor read/);
+    expect(ripple()).toBeChecked();
+    expect(own()).not.toBeChecked();
+  });
+
+  it("disables own lane for a dialogue segment, says why and resets a checked one", async () => {
+    const handlers = handlersOf();
+    const { baseElement } = render(
+      <Anchored handlers={handlers} rows={rows} />,
+    );
+    await pick(/Warm bed/);
+    await choose();
+    await pick(/Host read/);
+    expect(own()).toBeDisabled();
+    expect(ripple()).toBeChecked();
+    const hint =
+      "Dialogue segments always move later content. They cannot have their own lane.";
+    expect(screen.getByText(hint)).toBeVisible();
+    expect(own()).toHaveAccessibleDescription(expect.stringContaining(hint));
+    await waitFor(() =>
+      expect(handlers.loadPreview).toHaveBeenLastCalledWith(
+        { segment_id: "read-3e8b", at: 42 },
+        expect.any(AbortSignal),
+      ),
+    );
+    await expectNoA11yViolations(baseElement);
+  });
+
+  it("drops a late ripple preview after the placement changes", async () => {
+    const pending: {
+      resolve: (value: SegmentInsertPreview) => void;
+      signal: AbortSignal;
+      placement?: string;
+    }[] = [];
+    const handlers = handlersOf({
+      loadPreview: vi.fn(
+        (request, signal) =>
+          new Promise<SegmentInsertPreview>((resolve) => {
+            pending.push({ resolve, signal, placement: request.placement });
+          }),
+      ),
+    });
+    render(<Anchored handlers={handlers} rows={rows} />);
+    await pick(/Warm bed/);
+    await act(async () => pending[0]!.resolve(insertPreview({ at: 42 })));
+    await screen.findByText("Adds 0:22 at 0:42.");
+    expect(insertButton()).toBeEnabled();
+    await choose();
+    expect(insertButton()).toBeDisabled();
+    expect(screen.queryByText("Adds 0:22 at 0:42.")).toBeNull();
+    expect(pending[1]!.placement).toBe("own_lane");
+    await act(async () =>
+      pending[1]!.resolve(insertPreview({ at: 42, clips_moved: 0 })),
+    );
+    expect(await screen.findByText(/on a new track/)).toBeVisible();
+    expect(insertButton()).toBeEnabled();
+    await userEvent.click(ripple());
+    expect(insertButton()).toBeDisabled();
+  });
+
+  it.each([
+    [
+      "saved to duck",
+      true,
+      "It plays at full level over the voices until it is ducked. Duck music under dialogue lowers it under speech.",
+    ],
+    [
+      "not saved to duck",
+      false,
+      "It plays at full level. It was not saved to duck under dialogue.",
+    ],
+  ])(
+    "words the own-lane preview truthfully (%s)",
+    async (_label, duck, line) => {
+      const row = segment({
+        id: "bed-5c1d",
+        name: "Warm bed",
+        kind: "other",
+        role: "music",
+        duck_under_dialogue: duck,
+      });
+      render(<Anchored handlers={handlersOf()} rows={[row]} />);
+      await pick(/Warm bed/);
+      await choose();
+      expect(await screen.findByText(line)).toBeVisible();
+      expect(
+        screen.getByText("Adds 0:22 at 0:42 on a new track."),
+      ).toBeVisible();
+      expect(
+        screen.getByText("Nothing already in the episode moves."),
+      ).toBeVisible();
+      expect(screen.getByText("The episode becomes 10:22 long.")).toBeVisible();
+      expect(
+        screen.queryByText(/ducked automatically|will be ducked/),
+      ).toBeNull();
+    },
+  );
+
+  it.each([
+    [
+      "segment_placement_unsupported",
+      "Dialogue segments cannot have their own lane. Choose Move the rest later.",
+    ],
+    [
+      "segment_placement_invalid",
+      "That placement is not available. Pick a placement again.",
+    ],
+  ])("explains %s on the preview and on insert", async (code, message) => {
+    const loadPreview = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError("raw", code, 400))
+      .mockResolvedValue(insertPreview({ at: 42 }));
+    const onInsert = vi.fn().mockRejectedValue(new ApiError("raw", code, 400));
+    render(
+      <Anchored handlers={handlersOf({ loadPreview, onInsert })} rows={rows} />,
+    );
+    await pick(/Warm bed/);
+    expect(await screen.findByText(message)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByText(/Preview, from the saved episode/);
+    await choose();
+    await screen.findByText(/on a new track/);
+    await userEvent.click(insertButton());
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    if (code === "segment_placement_unsupported") {
+      expect(ripple()).toBeChecked();
+    }
   });
 });
 

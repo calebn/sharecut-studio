@@ -97,6 +97,36 @@ describe("InsertSegmentHost", () => {
     expect(toast?.undo).toBe("h-9");
   });
 
+  it("says an own-lane insert went over the episode, with Undo", async () => {
+    vi.mocked(api.insertSegment).mockResolvedValue({
+      queued: false,
+      applied: { ...APPLIED, placement: "own_lane" },
+      historyHead: "h-10" as never,
+    });
+    render(<InsertSegmentHost />);
+    open();
+    await pickIntro();
+    await userEvent.click(
+      screen.getByRole("radio", { name: /Play over the episode/ }),
+    );
+    await screen.findByText(/on a new track/);
+    await userEvent.click(screen.getByRole("button", { name: "Insert" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.insertSegmentOpen).toBe(false),
+    );
+    expect(api.insertSegment).toHaveBeenCalledWith("/tmp/episode", {
+      segment_id: "intro-9f3a",
+      at: "start",
+      version: 1,
+      placement: "own_lane",
+    });
+    const toast = useDawStore.getState().feedbackToast;
+    expect(toast?.message).toBe(
+      "Inserted Cold open over the episode: 0:22 at 0:00",
+    );
+    expect(toast?.undo).toBe("h-10");
+  });
+
   it("offers no Undo when the reply has no history head", async () => {
     vi.mocked(api.insertSegment).mockResolvedValue({
       queued: false,

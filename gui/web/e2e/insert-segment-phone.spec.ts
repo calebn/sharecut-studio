@@ -22,6 +22,16 @@ const LIBRARY = [
     clips: [{ audio: "intro.flac", offset_sec: 0, duration_sec: 22 }],
   },
   {
+    id: "bed-5c1d",
+    name: "Warm bed",
+    kind: "other",
+    role: "music",
+    duck_under_dialogue: true,
+    version: 1,
+    versions: [1],
+    clips: [{ audio: "bed.flac", offset_sec: 0, duration_sec: 90 }],
+  },
+  {
     id: "outro-77de",
     version: 2,
     damaged: true,
@@ -79,7 +89,21 @@ async function mockInsert(page: Page): Promise<Mocked> {
     (url) => /^\/api\/segments\/[^/]+\/insert-preview$/.test(url.pathname),
     async (route) => {
       mocked.previews.push(new URL(route.request().url()).search);
-      await route.fulfill({ json: PREVIEW });
+      const own =
+        new URL(route.request().url()).searchParams.get("placement") ===
+        "own_lane";
+      await route.fulfill({
+        json: own
+          ? {
+              ...PREVIEW,
+              segment_id: "bed-5c1d",
+              clips_moved: 0,
+              timeline_duration_after_sec: 60,
+              tracks_added: ["trk_bed"],
+              placement: "own_lane",
+            }
+          : PREVIEW,
+      });
     },
   );
   await page.route(
@@ -164,6 +188,48 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       expect(mocked.commands[0]).toMatchObject({
         type: "InsertSegment",
         payload: { segment_id: "intro-9f3a", at: "start", version: 1 },
+      });
+      expect(mocked.commands[0]?.payload).not.toHaveProperty("placement");
+    });
+
+    test("a music segment can play over the episode, with 44 px choice rows", async ({
+      page,
+    }) => {
+      const mocked = await mockInsert(page);
+      const sheet = await openCard(page, theme);
+      if (cell.fontPx) await setRootFontSize(page, cell.fontPx);
+      await sheet
+        .getByRole("radio", { name: /Warm bed/ })
+        .check({ force: true });
+      const rest = sheet.getByRole("radio", { name: /Move the rest later/ });
+      const over = sheet.getByRole("radio", { name: /Play over the episode/ });
+      await expect(rest).toBeChecked();
+      await over.check({ force: true });
+      await expect(
+        sheet.getByText("Adds 0:22 at 0:00 on a new track."),
+      ).toBeVisible();
+      await expect(
+        sheet.getByText("Nothing already in the episode moves."),
+      ).toBeVisible();
+      expect(mocked.previews.at(-1)).toContain("placement=own_lane");
+      for (const radio of [rest, over]) {
+        const box = await radio
+          .locator("xpath=ancestor::label[1]")
+          .boundingBox();
+        expect(box?.height ?? 0).toBeGreaterThanOrEqual(43);
+      }
+      await expectTouchTargets(sheet);
+      await expectNoHorizontalScroll(page);
+      await sheet.getByRole("button", { name: "Insert" }).tap();
+      await expect(sheet).toHaveCount(0);
+      expect(mocked.commands).toHaveLength(1);
+      expect(mocked.commands[0]).toMatchObject({
+        type: "InsertSegment",
+        payload: {
+          segment_id: "bed-5c1d",
+          version: 1,
+          placement: "own_lane",
+        },
       });
     });
   });

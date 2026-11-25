@@ -1,7 +1,10 @@
 import { withSessionTokenQuery } from "../sessionAuth";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { HistoryEntryId } from "../types/project";
-import type { SegmentSaveRequest as GeneratedSaveRequest } from "../types/project.generated";
+import type {
+  SegmentSaveRequest as GeneratedSaveRequest,
+  TrackRole,
+} from "../types/project.generated";
 import { ApiError } from "../utils/apiError";
 import { replyHistoryHead, submitDocumentCommand } from "./documentEdits";
 import { apiFetch, HOST_KEY } from "./http";
@@ -23,6 +26,8 @@ export interface SegmentRow {
   version: number;
   versions: number[];
   clips: SegmentClipRow[];
+  role?: TrackRole | null;
+  duck_under_dialogue?: boolean;
   [key: string]: unknown;
 }
 
@@ -72,6 +77,8 @@ export const SEGMENT_INSERT_REFUSALS = [
   "segment_media_invalid",
   "segment_write_failed",
   "segment_position_out_of_range",
+  "segment_placement_unsupported",
+  "segment_placement_invalid",
 ] as const;
 
 export type SegmentInsertRefusal = (typeof SEGMENT_INSERT_REFUSALS)[number];

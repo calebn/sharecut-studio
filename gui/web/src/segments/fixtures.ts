@@ -31,6 +31,23 @@ export const MULTI_VERSION: SegmentRow = segment({
   ],
 });
 
+export const MUSIC_BED: SegmentRow = segment({
+  id: "bed-5c1d",
+  name: "Warm bed",
+  kind: "other",
+  role: "music",
+  duck_under_dialogue: true,
+  clips: [{ audio: "bed.flac", offset_sec: 0, duration_sec: 90 }],
+});
+
+export const DIALOGUE_READ: SegmentRow = segment({
+  id: "read-3e8b",
+  name: "Host read",
+  kind: "other",
+  role: "dialogue",
+  clips: [{ audio: "read.flac", offset_sec: 0, duration_sec: 30 }],
+});
+
 export const DAMAGED: DamagedSegmentRow = {
   id: "outro-77de",
   version: 2,
@@ -40,6 +57,14 @@ export const DAMAGED: DamagedSegmentRow = {
 };
 
 export const LIBRARY: SegmentListRow[] = [HEALTHY, MULTI_VERSION, DAMAGED];
+
+export const PLACEMENT_LIBRARY: SegmentListRow[] = [
+  HEALTHY,
+  MULTI_VERSION,
+  MUSIC_BED,
+  DIALOGUE_READ,
+  DAMAGED,
+];
 
 export const LONG_NAME = segment({
   id: "long-1",

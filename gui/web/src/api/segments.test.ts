@@ -286,6 +286,29 @@ describe("segment insert", () => {
     );
   });
 
+  it("forwards placement only when the request carries it", async () => {
+    vi.mocked(submitDocumentCommand).mockResolvedValue(envelope(applied));
+    await insertSegment("/p", { segment_id: "a-1", at: 2, version: 1 });
+    expect(vi.mocked(submitDocumentCommand).mock.calls.at(-1)?.[2]).toEqual({
+      segment_id: "a-1",
+      at: 2,
+      version: 1,
+    });
+    vi.mocked(apiFetch).mockResolvedValue(json(preview));
+    await previewSegmentInsert("/p", { segment_id: "a-1", at: 2 });
+    expect(vi.mocked(apiFetch).mock.calls.at(-1)?.[1]).toEqual({
+      host: "/api/segments/a-1/insert-preview?path=%2Fp&at=2",
+    });
+  });
+
+  it("recognises both placement refusal codes", () => {
+    for (const code of [
+      "segment_placement_unsupported",
+      "segment_placement_invalid",
+    ])
+      expect(segmentInsertRefusal(new ApiError("x", code, 400))).toBe(code);
+  });
+
   it("sends and previews the own-lane placement, and keeps it in the applied result", async () => {
     vi.mocked(submitDocumentCommand).mockResolvedValue(
       envelope({ ...applied, placement: "own_lane" }),

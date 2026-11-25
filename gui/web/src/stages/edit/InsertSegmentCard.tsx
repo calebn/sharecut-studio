@@ -11,14 +11,19 @@ import {
   type SegmentInsertPreview,
   type SegmentInsertRequest,
   type SegmentListRow,
+  type SegmentPlacement,
   type SegmentRow,
+  segmentInsertRefusal,
 } from "../../api";
 import {
+  DIALOGUE_OWN_LANE_HINT,
   defaultInsertPosition,
   INSERT_POSITIONS,
   type InsertPosition,
   insertAtOf,
   insertPreviewLines,
+  isDialogueSegment,
+  PLACEMENT_OPTIONS,
   segmentInsertMessage,
   segmentPreviewMessage,
 } from "../../edit/segmentInsertMessages";
@@ -91,6 +96,8 @@ type FormState = {
   pick: (id: string) => void;
   position: InsertPosition;
   pickPosition: (value: InsertPosition) => void;
+  placement: SegmentPlacement;
+  pickPlacement: (value: SegmentPlacement) => void;
   current: PreviewState | null;
   retryPreview: () => void;
   failure: string | null;
@@ -111,6 +118,8 @@ function useInsertForm(
   const { loadPreview } = props;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [picked, setPicked] = useState<InsertPosition | null>(null);
+  const [pickedPlacement, setPickedPlacement] =
+    useState<SegmentPlacement | null>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [round, setRound] = useState(0);
   const [failure, setFailure] = useState<string | null>(null);
@@ -124,24 +133,38 @@ function useInsertForm(
   const position =
     picked ?? (selected ? defaultInsertPosition(selected.kind) : "playhead");
   const at = selected ? insertAtOf(position, playheadSec, timelineEnd) : null;
-  const key = selected ? `${selected.id}|${String(at)}|${round}` : null;
+  const placement: SegmentPlacement = isDialogueSegment(selected)
+    ? "ripple"
+    : (pickedPlacement ?? "ripple");
+  const key = selected
+    ? `${selected.id}|${String(at)}|${placement}|${round}`
+    : null;
   const current = preview && preview.key === key ? preview : null;
 
   const segmentId = selected?.id ?? null;
   useEffect(() => {
     if (segmentId === null || at === null || key === null) return;
     const controller = new AbortController();
-    loadPreview({ segment_id: segmentId, at }, controller.signal)
+    loadPreview(
+      {
+        segment_id: segmentId,
+        at,
+        ...(placement === "own_lane" ? { placement } : {}),
+      },
+      controller.signal,
+    )
       .then((data) => {
         if (controller.signal.aborted) return;
         setPreview({ key, data });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
+        if (segmentInsertRefusal(error) === "segment_placement_unsupported")
+          setPickedPlacement(null);
         setPreview({ key, error: segmentPreviewMessage(error) });
       });
     return () => controller.abort();
-  }, [segmentId, at, key, loadPreview]);
+  }, [segmentId, at, placement, key, loadPreview]);
 
   const disabledReason = inserting
     ? INSERTING
@@ -175,11 +198,14 @@ function useInsertForm(
           segment_id: selected.id,
           at,
           version: ready.segment_version,
+          ...(placement === "own_lane" ? { placement } : {}),
         },
       });
       busy.current = false;
       onClose();
     } catch (error) {
+      if (segmentInsertRefusal(error) === "segment_placement_unsupported")
+        setPickedPlacement(null);
       setFailure(segmentInsertMessage(error));
       insertInFlight.current = false;
       busy.current = false;
@@ -201,12 +227,19 @@ function useInsertForm(
     pick: (id) => {
       if (insertInFlight.current) return;
       setSelectedId(id);
+      setPickedPlacement(null);
       setFailure(null);
     },
     position,
     pickPosition: (value) => {
       if (insertInFlight.current) return;
       setPicked(value);
+      setFailure(null);
+    },
+    placement,
+    pickPlacement: (value) => {
+      if (insertInFlight.current) return;
+      setPickedPlacement(value);
       setFailure(null);
     },
     current,
@@ -261,6 +294,50 @@ function SegmentOption({
   );
 }
 
+function PlacementGroup({
+  name,
+  placement,
+  dialogue,
+  disabled,
+  onPick,
+}: {
+  name: string;
+  placement: SegmentPlacement;
+  dialogue: boolean;
+  disabled: boolean;
+  onPick: (value: SegmentPlacement) => void;
+}) {
+  const hintId = useId();
+  return (
+    <fieldset className="sys-segment-placement">
+      <legend className="ui-field-label">What happens to the episode</legend>
+      {PLACEMENT_OPTIONS.map((option) => {
+        const blocked = dialogue && option.value === "own_lane";
+        return (
+          <label key={option.value} className="sys-segment-option">
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={placement === option.value}
+              disabled={disabled || blocked}
+              aria-describedby={blocked ? hintId : undefined}
+              onChange={() => onPick(option.value)}
+            />
+            {option.label}
+            <span className="sys-segment-option-meta">{option.hint}</span>
+          </label>
+        );
+      })}
+      {dialogue ? (
+        <p id={hintId} className="sys-segment-summary">
+          {DIALOGUE_OWN_LANE_HINT}
+        </p>
+      ) : null}
+    </fieldset>
+  );
+}
+
 function InsertSegmentForm({
   state,
   onClose,
@@ -276,6 +353,7 @@ function InsertSegmentForm({
 }) {
   const { rows, selected, current, inserting } = state;
   const group = useId();
+  const placementGroup = useId();
   const firstUsable = rows?.findIndex(usable) ?? -1;
   const listed = rows !== null && rows.length > 0;
 
@@ -337,6 +415,15 @@ function InsertSegmentForm({
               />
             ))}
           </fieldset>
+          {selected ? (
+            <PlacementGroup
+              name={placementGroup}
+              placement={state.placement}
+              dialogue={isDialogueSegment(selected)}
+              disabled={inserting}
+              onPick={state.pickPlacement}
+            />
+          ) : null}
           <Field label="Position">
             {(control) => (
               <select
@@ -375,7 +462,11 @@ function InsertSegmentForm({
                   Preview, from the saved episode:
                 </p>
                 <ul className="sys-segment-preview-lines">
-                  {insertPreviewLines(current.data).map((line) => (
+                  {insertPreviewLines(
+                    current.data,
+                    state.placement,
+                    selected,
+                  ).map((line) => (
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
