@@ -68,6 +68,7 @@ from podcast_mcp.util.batch_scope import batch_scope, frozen_state, unscoped
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.project_state import file_revision
 from test_bleed_alignment_surfaces import _workspace as _bleed_surfaces_workspace
+from test_combined_commit_contract import _speaker_seams
 from test_room_tone_extract import (
     FLOOR_DB,
     SPEECH_THEN_ROOM,
@@ -274,6 +275,8 @@ class Case:
     build: Callable[[Path], ProjectWorkspace] | None = None
     # The roles whose track or clip the payload targets; empty for a command without a target.
     roles: tuple[TrackRole, ...] = ROLES
+    # Stands in for model-backed inputs the command reads, such as speaker scoring.
+    seams: Callable[[pytest.MonkeyPatch], None] | None = None
 
 
 def _once(payload: Payload, setup: Setup | None = None, **kwargs: Any) -> Case:
@@ -837,6 +840,11 @@ CASES: dict[str, Case] = {
     "SetTranscriptWordSuppressed": Case(
         lambda r, t: {"track_id": "host", "word_index": 0, "suppressed": True}, roles=DIALOGUE
     ),
+    "LabelSpeakerWindow": Case(
+        lambda r, t: {"track_id": "host", "start_sec": 0.0, "end_sec": 10.0},
+        roles=DIALOGUE,
+        seams=_speaker_seams,
+    ),
     "SetTranscriptWordTiming": Case(
         lambda r, t: {
             "target": {"track_id": "host", "source_id": None, "word_index": 0},
@@ -1063,8 +1071,14 @@ def _steps(template: Path, tmp_path: Path, command_type: str, role: TrackRole | 
 
 @pytest.mark.parametrize(("command_type", "role"), _params())
 def test_a_guest_learns_of_every_proxy_artifact_change(
-    template: Path, tmp_path: Path, command_type: str, role: TrackRole | None
+    template: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    command_type: str,
+    role: TrackRole | None,
 ) -> None:
+    if (seams := CASES[command_type].seams) is not None:
+        seams(monkeypatch)
     steps = run_case(template, tmp_path, command_type, role)
     for step in steps:
         assert step.key_moved or not step.artifacts_moved, (

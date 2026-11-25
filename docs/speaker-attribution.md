@@ -22,6 +22,7 @@ podcast speaker compare --project PATH --start 978.65 --end 979.49
 podcast speaker compare --project PATH --track-a host --start-a 10 --end-a 12 \
   --track-b guest --start-b 20 --end-b 22
 podcast speaker label --project PATH --track host --start 10 --end 12 --dry-run
+podcast speaker label --project PATH --track host --start 10 --end 12 --apply
 podcast speaker gate-track --project PATH --dry-run
 podcast speaker gate-track --project PATH --apply
 podcast speaker set-speaker-count --project PATH --speakers 2
@@ -51,7 +52,7 @@ Store `analysis.speaker_id.expected_speaker_count` in `transcript_context.yaml` 
 
 To give each person their own lane, split the track: `podcast speaker split --project PATH --track T --speakers N` (`--dry-run` by default; `--apply` to split), or `speaker_split_tool`. It needs the speaker count and a real embedding backend; `--enroll NAME=START:END` names a speaker and seeds their cluster; enroll some or all speakers (recommended: blind Resemblyzer clustering can split one voice), and the rest are clustered. Lanes share the media, muted where another speaker owns the audio. Hand-overs land in pauses measured on the recording's own levels; a short reply keeps its whole voiced run, and a hand-over that stays inside a voiced run is flagged as crosstalk. Flagged crosstalk plays on its likeliest speaker's lane (default `--crosstalk owner`), on both lanes (`--crosstalk both`, twice in the mix) or on a shared lane (`--crosstalk lane`). One undo step. ShareCut Studio's **Split speakers…** (track inspector and command palette) runs the same service as a job with a speaker count and optional names; it does not enroll, and reports overlapping speech, and stretches it is unsure of after the split, with one Undo. Design, lab accuracy and failure modes: [multitrack-ingest.md § Split one recording by speaker](multitrack-ingest.md#split-one-recording-by-speaker).
 
-To keep one lane and only label words, enroll segment profiles with distinct `speaker_id` values and optional `--home-track` for bleed attribution. `label` applies `speaker_match_*` on overlapping words.
+To keep one lane and only label words, enroll segment profiles with distinct `speaker_id` values and optional `--home-track` for bleed attribution. `label` applies `speaker_match_*` on overlapping words (and, for another speaker's voice, suppression when `auto_suppress` is on). `--apply` (or `speaker_label_tool` with `dry_run` off) saves through the `LabelSpeakerWindow` document command: one undo step, and an open Studio sees the change (#1849).
 
 ## When the pipeline runs it
 

@@ -137,6 +137,11 @@ SNAPSHOT: dict[str, tuple[str, str, str]] = {
         "transcript.set_transcript_word_timing",
         "editor",
     ),
+    "LabelSpeakerWindow": (
+        "LabelSpeakerWindowPayload",
+        "speaker.label_speaker_window",
+        "host",
+    ),
     "AddChapter": ("AddChapterPayload", "markers.add_chapter", "editor"),
     "UpdateChapter": ("UpdateChapterPayload", "markers.update_chapter", "editor"),
     "DeleteChapter": ("DeleteChapterPayload", "markers.delete_chapter", "editor"),
@@ -245,7 +250,7 @@ def _access(command_type: str) -> str:
 
 def test_snapshot_covers_every_command_type() -> None:
     assert set(SNAPSHOT) == set(get_args(DocumentCommandType))
-    assert len(SNAPSHOT) == 93
+    assert len(SNAPSHOT) == 94
 
 
 @pytest.mark.parametrize("command_type", sorted(SNAPSHOT))

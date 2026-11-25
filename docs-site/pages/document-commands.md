@@ -64,6 +64,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `FillRoomTone` | — | `end_sec` (number \| null), `speaker` (string \| null), `start_sec` (number \| null), `track_id` (string \| null) |
 | `InsertGap` | `at_time` (number) | `duration_sec` (number) |
 | `InsertSegment` | `at` (number \| start \| end), `segment_id` (string) | `placement` (ripple \| own_lane), `version` (integer \| null) |
+| `LabelSpeakerWindow` | `end_sec` (number), `start_sec` (number), `track_id` (string) | — |
 | `MoveByText` | `destination_query` (string), `source_query` (string) | `position` (string) |
 | `MoveClips` | `clips` (array[object]) | — |
 | `MoveSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
@@ -125,7 +126,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClipDetails` | `id` (string) | `approved` (boolean \| null), `title` (string \| null) |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 93 command types._
+_Generated 94 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

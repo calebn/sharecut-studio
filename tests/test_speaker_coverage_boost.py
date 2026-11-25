@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 import numpy as np
 
-from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.tighten.candidate import _cut_span_is_bleed_not_owner
 from podcast_mcp.engines.speaker_id import (
     MockSpeakerBackend,
@@ -213,7 +212,6 @@ def test_label_window_skips_out_of_window_words(tmp_path, sample_wav) -> None:
             SpeakerIdConfig(min_margin=0.1),
             MockSpeakerBackend(),
             dry_run=True,
-            defaults=load_defaults(),
         )
 
 

@@ -15,7 +15,6 @@ import numpy as np
 log = logging.getLogger(__name__)
 
 from podcast_mcp import settings
-from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.align import (
     _MAX_WAV_CHANNELS,
     _MAX_WAV_RATE,
@@ -760,7 +759,6 @@ def label_window(
     backend: SpeakerBackend,
     *,
     dry_run: bool = True,
-    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     ws = score_window(project, track_id, start_sec, end_sec, cfg, backend)
     if ws is None:
@@ -810,11 +808,6 @@ def label_window(
                     ),
                 )
             changed += 1
-
-    if not dry_run and changed:
-        from podcast_mcp.engines.transcript_sync import rebuild_combined
-
-        rebuild_combined(project, defaults=defaults)
 
     return {
         "labeled": changed,

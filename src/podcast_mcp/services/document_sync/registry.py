@@ -39,6 +39,7 @@ from podcast_mcp.services.document_sync.handlers import (
     history,
     markers,
     session_suggestion,
+    speaker,
     transcript,
 )
 from podcast_mcp.util.coded_error import CodedValueError
@@ -516,6 +517,15 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             gui=GUI_SENT,
             mcp=named("set_word_timing_tool"),
             cli=named("podcast transcript set-word-timing"),
+        ),
+        "LabelSpeakerWindow": CommandSpec(
+            payload=p.LabelSpeakerWindowPayload,
+            handler=speaker.label_speaker_window,
+            host_only_reason="speaker labels are scored against the host's voice profiles",
+            family="transcript",
+            gui=NO_GUI_SENDER,
+            mcp=named("speaker_label_tool"),
+            cli=named("podcast speaker label"),
         ),
         "AddChapter": CommandSpec(
             payload=p.AddChapterPayload,

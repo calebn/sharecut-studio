@@ -5,6 +5,7 @@ from mcp.server import MCPServer
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.models import SpeakerSplitCrosstalk
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document_sync import submit_host_command_result
 from podcast_mcp.services.media import SpeakerService, coerce_enrollment
 from podcast_mcp.util.progress import resolve_progress
 
@@ -70,9 +71,20 @@ def speaker_label_tool(
     end_sec: float,
     dry_run: bool = True,
 ) -> str:
-    """Assign the window's speaker label on a track (dry_run by default)."""
-    ws = ProjectWorkspace.open(project_path)
-    return to_json(SpeakerService(ws).label(track_id, start_sec, end_sec, dry_run=dry_run))
+    """Assign the window's speaker label on a track (dry_run by default).
+
+    An apply submits ``LabelSpeakerWindow``, which saves the labels; undoable.
+    """
+    if dry_run:
+        ws = ProjectWorkspace.open(project_path)
+        return to_json(SpeakerService(ws).label(track_id, start_sec, end_sec))
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "LabelSpeakerWindow",
+            {"track_id": track_id, "start_sec": start_sec, "end_sec": end_sec},
+        )
+    )
 
 
 def speaker_set_count_tool(

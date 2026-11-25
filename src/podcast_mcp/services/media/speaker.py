@@ -196,9 +196,11 @@ class SpeakerService:
         track_id: str,
         start_sec: float,
         end_sec: float,
-        *,
-        dry_run: bool = True,
     ) -> dict[str, Any]:
+        """Preview what labelling the window would change; writes nothing.
+
+        Applying goes through the ``LabelSpeakerWindow`` document command (#1849).
+        """
         ctx = load_transcript_context(self.ws.project.workspace_path())
         backend = resolve_speaker_backend()
         return label_window(
@@ -208,8 +210,7 @@ class SpeakerService:
             end_sec,
             ctx.speaker_id,
             backend,
-            dry_run=dry_run,
-            defaults=self.ws.effective_config(),
+            dry_run=True,
         )
 
     def gate_track(

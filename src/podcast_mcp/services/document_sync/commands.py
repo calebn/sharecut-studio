@@ -52,6 +52,7 @@ DocumentCommandType = Literal[
     "SetTranscriptWordAutomatic",
     "SetTranscriptWordsIgnored",
     "SetTranscriptWordTiming",
+    "LabelSpeakerWindow",
     "AddChapter",
     "UpdateChapter",
     "DeleteChapter",
