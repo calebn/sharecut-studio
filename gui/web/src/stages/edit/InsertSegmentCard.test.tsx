@@ -174,13 +174,29 @@ describe("InsertSegmentCard anchored", () => {
     });
     render(<Anchored handlers={handlers} />);
     await pick(/Cold open/);
-    expect(await screen.findByText("Nothing moves.")).toBeVisible();
-    expect(screen.getByText("1 chapter moves later.")).toBeVisible();
+    expect(await screen.findByText("1 chapter moves later.")).toBeVisible();
+    expect(screen.queryByText("Nothing moves.")).toBeNull();
     expect(screen.getByText("2 comments move later.")).toBeVisible();
     expect(screen.getByText("3 pending edits move later.")).toBeVisible();
     expect(screen.getByText("Adds a new lane.")).toBeVisible();
     expect(screen.queryByText(/trk_9/)).toBeNull();
     expect(screen.getByText("The episode becomes 10:22 long.")).toBeVisible();
+  });
+
+  it("says nothing moves only when nothing moves", async () => {
+    const handlers = handlersOf({
+      loadPreview: vi.fn().mockResolvedValue(
+        insertPreview({
+          clips_moved: 0,
+          chapters_moved: [],
+          comments_moved: [],
+          pending_edits_moved: 0,
+        }),
+      ),
+    });
+    render(<Anchored handlers={handlers} />);
+    await pick(/Cold open/);
+    expect(await screen.findByText("Nothing moves.")).toBeVisible();
   });
 
   it("keeps Insert off until the current preview is back and drops a late reply", async () => {
@@ -363,6 +379,9 @@ describe("InsertSegmentCard anchored", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetryLoad).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", { name: "Insert" }),
+    ).toHaveAccessibleDescription("Your saved segments could not be read.");
   });
 });
 
