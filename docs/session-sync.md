@@ -394,6 +394,7 @@ The existing service path avoids that new lock contract in this sweep.
 | `list-chapters` | None | Read or analysis only. |
 | `list-clips` | None | Read or analysis only. |
 | `list-envelope` | None | Read or analysis only. |
+| `duck` | Typed `ApplyDucking` | One command row, the same command `apply_ducking_tool` sends; `--dry-run` has no row. |
 | `list-applied` | None | Read or analysis only. |
 | `render-status` | None | Read or analysis only. |
 | `shorten-gaps` | External | The CLI stays on the direct path; the `shorten_gaps_tool` MCP tool submits the typed `ShortenWordGaps` command. |
@@ -639,6 +640,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `SetTranscriptWordAutomatic` | `TranscriptService.set_word_automatic` | `track_id`, `source_id?`, `word_index`, `expected_text?` — clears `audibility_locked` only (#824); `suppressed` waits for the next reconcile pass; returns `WordAutomaticResult` |
 | `SetTranscriptWordsIgnored` | `TranscriptService.set_words_ignored` | `track_id`, `source_id?`, `start_word_index`, `end_word_index` (`ge=0`), `ignored`, `expected_text?` — text-and-audio hide (#633): words stay in the transcript, only their audio is muted at render; an Editor link may run it; returns `WordsIgnoredResult` |
 | `SetEnvelope` | `PipelineService.set_envelope` | `track_id`, `points: [{time, value, id?}]`, and required `expected_points: [{time, value, id}]` baseline (unique IDs; each list ≤ 10 000 points); missing IDs on new points are generated before the command is journaled. Only the track's volume envelope (`parameter` `volume`/`gain`/unset, via `EpisodeProject.volume_envelope_for`) is compared and replaced; `pan` and other parameters are untouched. The handler reloads the project under the submit lock and rejects a stale baseline with a 409 before mutation/history/logging. Floats compare exactly, so clients must echo the server's points verbatim (never rounded or clamped). Host MCP `set_envelope` submits this same command (optional `expected_points`; default baseline is the envelope read at call time). |
+| `ApplyDucking` | `PipelineService.set_envelopes` (operation `apply_ducking`) | `track_ids?`, `dialogue_track_ids?`, `depth_db?` (-40 to 0), `attack_sec`, `hold_sec`, `release_sec`, `min_gap_sec`, `min_speech_sec`, `dry_run`, `expected_plan_token?`. Host only. Plans from transcript speech inside the transaction, writes every target track's volume envelope in one mutation (one history step), and refuses with a conflict when `expected_plan_token` no longer matches. `dry_run` returns the plan and token without a journal row or history entry; see [envelopes.md § Ducking](envelopes.md#ducking) |
 | `AddChapter` | `TimelineService.add_chapter` (returns `ChapterMarker`) | `time`, `title` (timeline clocks) |
 | `UpdateChapter` | `TimelineService.update_chapter` (returns `ChapterMarker`) | `old_time`, `old_title`, `time`, `title` |
 | `DeleteChapter` | `TimelineService.delete_chapter` (returns `DeletedChapter`: `deleted`, `time`, `title`) | `time`, `title` |

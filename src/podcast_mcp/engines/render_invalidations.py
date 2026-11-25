@@ -35,7 +35,7 @@ _FX_OPS = frozenset(
 _GAIN_OPS = frozenset({"set_gain", "balance_levels", "set_track_gain"})
 # A track mute is mix state: it changes no stem, so it has no cause here.
 _MUTE_OPS = frozenset({"set_mute", "mute_bleed"})
-_ENVELOPE_OPS = frozenset({"set_envelope"})
+_ENVELOPE_OPS = frozenset({"set_envelope", "apply_ducking"})
 _CLIP_OPS = frozenset(
     {
         "set_clip_fade",

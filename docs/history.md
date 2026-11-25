@@ -210,6 +210,8 @@ Each `HistoryEntry` may include:
 - `operation` — stable tool name (e.g. `ripple_delete`, `approve_edits`, `render_preview`)
 - `params` — echoed invocation args (`timeline_start`, `fade_ms`, `track_id`, …)
 
+`apply_ducking` (`ApplyDucking`, [envelopes.md § Ducking](envelopes.md#ducking)) is one mutation for all the tracks it writes, so it is one history entry and one undo restores every track's envelope exactly. A dry run, and a rerun that changes nothing, make no entry.
+
 `HistoryService.status()` returns a typed cursor, count, current label, head ID,
 and undo/redo flags. `HistoryService.list_entries()` returns a separate typed
 result with flat `entries` and grouped `groups`. The CLI and MCP commands keep

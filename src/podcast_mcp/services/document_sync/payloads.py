@@ -33,6 +33,13 @@ from podcast_mcp.edits.strip_silence import (
     DEFAULT_STRIP_OVER_VOICE_FLOOR_DB,
 )
 from podcast_mcp.edits.timeline_ops import DEFAULT_SHORTEN_GAP_SEC
+from podcast_mcp.engines.ducking import (
+    DEFAULT_ATTACK_SEC,
+    DEFAULT_HOLD_SEC,
+    DEFAULT_MIN_GAP_SEC,
+    DEFAULT_MIN_SPEECH_SEC,
+    DEFAULT_RELEASE_SEC,
+)
 from podcast_mcp.models.episode import (
     CLIP_GAIN_MAX_DB,
     CLIP_GAIN_MIN_DB,
@@ -732,6 +739,80 @@ class SetEnvelopePayload(BaseModel):
         return value
 
 
+class ApplyDuckingPayload(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    track_ids: list[str] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        description="Tracks whose volume is ducked. Omitted, every unmuted music track and every "
+        "track holding a library segment marked duck-under-dialogue. A dialogue track is refused.",
+    )
+    dialogue_track_ids: list[str] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        description="Dialogue tracks whose speech ducks the bed. Omitted, every unmuted dialogue "
+        "track with a transcript.",
+    )
+    depth_db: float | None = Field(
+        default=None,
+        ge=-40.0,
+        le=0.0,
+        allow_inf_nan=False,
+        description="How far the bed dips under speech, in dB below its own level. Omitted, the "
+        "project's mix.music_under_vo_db (-18 dB by default). 0 removes an earlier dip.",
+    )
+    attack_sec: float = Field(
+        default=DEFAULT_ATTACK_SEC,
+        ge=0.0,
+        le=10.0,
+        allow_inf_nan=False,
+        description="Seconds the bed takes to reach the dip, ending on the first word.",
+    )
+    hold_sec: float = Field(
+        default=DEFAULT_HOLD_SEC,
+        ge=0.0,
+        le=10.0,
+        allow_inf_nan=False,
+        description="Seconds the dip holds after the last word of a run; shorter pauses are bridged.",
+    )
+    release_sec: float = Field(
+        default=DEFAULT_RELEASE_SEC,
+        ge=0.0,
+        le=10.0,
+        allow_inf_nan=False,
+        description="Seconds the bed takes to come back to its level.",
+    )
+    min_gap_sec: float = Field(
+        default=DEFAULT_MIN_GAP_SEC,
+        ge=0.0,
+        le=10.0,
+        allow_inf_nan=False,
+        description="Least time the bed must sit at its level between two dips; closer dips merge.",
+    )
+    min_speech_sec: float = Field(
+        default=DEFAULT_MIN_SPEECH_SEC,
+        ge=0.0,
+        le=10.0,
+        allow_inf_nan=False,
+        description="Speech shorter than this (a click, a breath word) does not duck the bed.",
+    )
+    dry_run: bool = Field(
+        default=False,
+        description="Plan only: nothing is written and no history entry is made. The reply "
+        "carries plan_token; send it as expected_plan_token to apply exactly that plan.",
+    )
+    expected_plan_token: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description="The plan_token of a dry run. If the project changed so the plan differs, "
+        "the command is a conflict and writes nothing.",
+    )
+
+
 class EditSelectedRangePayload(BaseModel):
     model_config = {"extra": "forbid"}
 
@@ -1391,6 +1472,11 @@ class SetEnvelopeCommand(DocumentCommandEnvelope):
     payload: SetEnvelopePayload
 
 
+class ApplyDuckingCommand(DocumentCommandEnvelope):
+    type: Literal["ApplyDucking"] = "ApplyDucking"
+    payload: ApplyDuckingPayload
+
+
 class EditSelectedRangeCommand(DocumentCommandEnvelope):
     type: Literal["EditSelectedRange"] = "EditSelectedRange"
     payload: EditSelectedRangePayload
@@ -1640,6 +1726,7 @@ DocumentCommandBody = Annotated[
     | UpdateSocialClipDetailsCommand
     | DeleteSocialClipCommand
     | SetEnvelopeCommand
+    | ApplyDuckingCommand
     | EditSelectedRangeCommand
     | SuggestPendingEditCommand
     | StageTimeRangeCutCommand

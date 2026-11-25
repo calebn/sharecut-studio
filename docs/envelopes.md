@@ -16,6 +16,26 @@ no-change gesture still saves nothing.
 
 The current point-array domain also supports coincident times as explicit steps. Stable time ordering preserves saved order within a tie: the preceding interval approaches the first point in that group, and the last point supplies the value at and after the timestamp. A group at the first timestamp holds its first value before that timestamp. GUI creation may reject a new collision without discarding or merging saved points.
 
+## Ducking
+
+`ApplyDucking` (`apply_ducking_tool`, `podcast edit duck`) writes the dip of a bed under dialogue as ordinary volume points, so every point stays editable and undoable. `engines/ducking.py` holds the pure engine; `services/pipeline/ducking.py` picks the tracks and plans.
+
+**Where speech comes from.** Transcript words of every unmuted dialogue track (or the `dialogue_track_ids` you name), mapped through the clip map onto the timeline clock, so cuts, ripples, moves and inserted gaps are already counted. Words marked ignored, suppressed or suspect, and spans a clip mutes in place, do not duck; a lowered span still plays, so it still ducks. Speech with no transcript does not duck, and a project with no dialogue words refuses with `ducking_no_dialogue_activity`. There is no threshold: transcript activity is on or off.
+
+**Which tracks dip.** `track_ids` omitted: every unmuted music track with media, plus every non-dialogue track holding a library segment marked duck-under-dialogue (a segment the library cannot read is skipped with a warning). An intro, outro or sound track dips only when named. A dialogue track is refused (`ducking_dialogue_target`).
+
+**Shape.** Defaults: depth is `mix.music_under_vo_db` (-18 dB; the `depth_db` payload field overrides it), attack 0.25 s, hold 0.35 s, release 0.8 s, minimum gap 0.30 s, minimum speech 0.12 s. Speech shorter than the minimum is dropped, pauses no longer than the hold are bridged, and two dips merge when the bed would sit at full level between them for less than the minimum gap. Each dip is four points: unity at onset minus attack, depth at the onset (the ramp ends on the first word), depth until last word plus hold, unity after the release. A ramp cut by the timeline edge keeps its slope. A depth of 0 dB writes no dip and removes an earlier one.
+
+**Composing with what is there.** The result is the exact minimum of the track's existing envelope and the dip, so a fade or a hand-placed point is never raised: it is lowered where the dip is deeper, and a boost above unity is capped at unity wherever ducking applies. A point past the timeline end plays nothing and is left as saved.
+
+**Reruns, without a format change.** Generated points carry `duck:g:<sha1 of time and value>` ids. A point counts as generated only while its time and value still hash to its id; a point you moved or retyped is yours and stays (its id becomes `duck:u:...`). A saved point the dip lowered keeps its identity in its id, `duck:b:<original id>:<original value>`. A rerun drops pristine generated points, puts lowered points back, and recomputes, so the same input gives the same points, a rerun with another depth equals a fresh run, and a rerun that changes nothing makes no history entry. An edit you make to a `duck:b` point's value is reverted by the next rerun; move or add a point instead, or undo.
+
+**Size.** The envelope holds at most 10 000 points. Over that, the minimum gap doubles up to six times and the result says `coarsened`; if it still does not fit the command refuses with `ducking_too_many_points`.
+
+**Preview, then apply.** `dry_run` plans without writing: no history entry, no journal row. The reply carries `plan_token`; send it as `expected_plan_token` and the apply is a conflict if the plan changed since. One apply is one undo step for every track.
+
+**Not covered yet.** `mix_with_music` still rebuilds each music track's fade envelope on a pipeline run and erases a dip, so duck after the mix step; merging the two belongs to the Studio slice. Ducking is host only. Rendered stems go stale with the reason "envelope" after an apply. The sound of the result (the bed's level under speech, the first word not clipped, no pumping) needs a listen on a render; unit tests prove the points.
+
 ## Rendering and playback caches
 
 The host track renderer evaluates envelope gain once per FFmpeg audio frame after track assembly. Frame evaluation approximates a continuously varying curve at frame boundaries; it does not promise sample-by-sample interpolation. Segment rendering adds the destination window’s start to its local filter clock, so a segment beginning at 4 seconds evaluates the same destination curve as the full track. Processing-effect filter ordering is unchanged.

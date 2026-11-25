@@ -63,6 +63,7 @@ DocumentCommandType = Literal[
     "UpdateSocialClipDetails",
     "DeleteSocialClip",
     "SetEnvelope",
+    "ApplyDucking",
     "EditSelectedRange",
     "SuggestPendingEdit",
     "StageTimeRangeCut",

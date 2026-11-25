@@ -605,6 +605,14 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             mcp=named("set_envelope"),
             cli=named("podcast edit list-envelope", GENERIC_CLI),
         ),
+        "ApplyDucking": CommandSpec(
+            payload=p.ApplyDuckingPayload,
+            handler=markers.apply_ducking,
+            host_only_reason="writes volume envelopes on several tracks at once",
+            gui=NO_GUI_SENDER,
+            mcp=named("apply_ducking_tool"),
+            cli=named("podcast edit duck", GENERIC_CLI),
+        ),
         "EditSelectedRange": CommandSpec(
             payload=p.EditSelectedRangePayload,
             handler=edits.edit_selected_range,

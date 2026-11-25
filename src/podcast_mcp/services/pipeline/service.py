@@ -350,37 +350,57 @@ class PipelineService:
         )
 
     def set_envelope(self, track_id: str, points: list[dict]) -> int:
-        def mutate(p) -> int:
-            if p.track_by_id(track_id) is None:
-                raise CodedValueError(
-                    f"Volume envelope track {track_id!r} no longer exists",
-                    code="envelope_track_missing",
-                )
-            validate_envelope_point_times(p, track_id, points, timeline_duration_sec(p))
-            pts = [
-                AutomationPoint(
-                    id=str(point["id"]) if "id" in point else str(uuid4()),
-                    time=float(point["time"]),
-                    value=float(point["value"]),
-                )
-                for point in points
-            ]
-            # Replace only the volume envelope; other parameters (e.g. pan) are not ours.
-            current = p.volume_envelope_for(track_id)
-            if current is None:
-                p.automation_envelopes.append(AutomationEnvelope(track_id=track_id, points=pts))
-            else:
-                index = next(i for i, e in enumerate(p.automation_envelopes) if e is current)
-                p.automation_envelopes[index] = AutomationEnvelope(
-                    track_id=track_id, parameter=current.parameter, points=pts
-                )
-            return len(pts)
+        return self.set_envelopes({track_id: points})[track_id]
+
+    def set_envelopes(
+        self,
+        envelopes: Mapping[str, list[dict]],
+        *,
+        operation: str | None = None,
+        label: str = "set envelope",
+    ) -> dict[str, int]:
+        """Replace several tracks' volume envelopes in one mutation: one history entry, one undo."""
+
+        def mutate(p) -> dict[str, int]:
+            duration = timeline_duration_sec(p)
+            return {
+                track_id: self._write_volume_envelope(p, track_id, points, duration)
+                for track_id, points in envelopes.items()
+            }
 
         return self.ws.mutate(
-            "before set envelope",
-            f"after set envelope {track_id}",
+            f"before {label}",
+            f"after {label} {', '.join(envelopes)}",
             mutate,
+            operation=operation,
         )
+
+    @staticmethod
+    def _write_volume_envelope(p, track_id: str, points: list[dict], duration: float) -> int:
+        if p.track_by_id(track_id) is None:
+            raise CodedValueError(
+                f"Volume envelope track {track_id!r} no longer exists",
+                code="envelope_track_missing",
+            )
+        validate_envelope_point_times(p, track_id, points, duration)
+        pts = [
+            AutomationPoint(
+                id=str(point["id"]) if "id" in point else str(uuid4()),
+                time=float(point["time"]),
+                value=float(point["value"]),
+            )
+            for point in points
+        ]
+        # Replace only the volume envelope; other parameters (e.g. pan) are not ours.
+        current = p.volume_envelope_for(track_id)
+        if current is None:
+            p.automation_envelopes.append(AutomationEnvelope(track_id=track_id, points=pts))
+        else:
+            index = next(i for i, e in enumerate(p.automation_envelopes) if e is current)
+            p.automation_envelopes[index] = AutomationEnvelope(
+                track_id=track_id, parameter=current.parameter, points=pts
+            )
+        return len(pts)
 
     def render_preview(
         self,

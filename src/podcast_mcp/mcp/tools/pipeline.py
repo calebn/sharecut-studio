@@ -213,6 +213,58 @@ def set_envelope(
     return f"Envelope set for {track_id} ({count} points)"
 
 
+def apply_ducking_tool(
+    project_path: str,
+    track_ids: list[str] | None = None,
+    dialogue_track_ids: list[str] | None = None,
+    depth_db: float | None = None,
+    attack_sec: float | None = None,
+    hold_sec: float | None = None,
+    release_sec: float | None = None,
+    min_gap_sec: float | None = None,
+    min_speech_sec: float | None = None,
+    dry_run: bool = False,
+    expected_plan_token: str | None = None,
+) -> str:
+    """Duck music under dialogue: write volume keyframes that dip the bed while people speak.
+
+    The dip follows the transcript's word times on the timeline, so cuts and moves are
+    already counted; words marked ignored or suppressed and muted spans do not duck. Points are
+    ordinary envelope points (edit them with ``set_envelope``). A fade or hand-placed point is
+    never raised, only lowered where the dip is deeper. Run again to recompute: earlier
+    generated points are replaced and lowered points restored first. One call is one undo step
+    for every track.
+
+    ``track_ids`` omitted ducks every unmuted music track and every segment track marked
+    duck-under-dialogue; name tracks to duck others (a dialogue track is refused).
+    ``depth_db`` omitted is the project's ``mix.music_under_vo_db`` (-18 dB by default).
+    Preview with ``dry_run=true`` (no write, no history entry), then pass the reply's
+    ``plan_token`` as ``expected_plan_token`` to apply exactly that plan; a changed project
+    is a conflict. Speech that has no transcript does not duck. ``mix_with_music`` still
+    rebuilds the fade envelope, so run it before ducking, not after.
+    """
+    from podcast_mcp.services.document_sync import submit_host_command_result
+
+    given = {
+        "track_ids": track_ids,
+        "dialogue_track_ids": dialogue_track_ids,
+        "depth_db": depth_db,
+        "attack_sec": attack_sec,
+        "hold_sec": hold_sec,
+        "release_sec": release_sec,
+        "min_gap_sec": min_gap_sec,
+        "min_speech_sec": min_speech_sec,
+        "expected_plan_token": expected_plan_token,
+    }
+    payload: dict[str, object] = {k: v for k, v in given.items() if v is not None}
+    payload["dry_run"] = dry_run
+    result = submit_host_command_result(project_path, "ApplyDucking", payload)
+    for track in result.get("tracks", []):
+        track.pop("speech_regions", None)
+        track.pop("envelope", None)
+    return to_json(result)
+
+
 def render_preview(project_path: str, rerender: bool = True) -> str:
     """Render a preview mix and return its status and path."""
     ws = ProjectWorkspace.open(project_path)
@@ -284,6 +336,7 @@ def register(mcp: MCPServer) -> None:
         pipeline_set_config_tool,
         pipeline_analyze_tool,
         set_envelope,
+        apply_ducking_tool,
         render_preview,
         render_final,
         export_audio_tool,

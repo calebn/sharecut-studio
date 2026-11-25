@@ -1083,13 +1083,12 @@ _PARAM_SPECS: tuple[_ParamSpec, ...] = (
     _ParamSpec(
         path="mix.music_under_vo_db",
         label="Music under VO",
-        description="Bed level under dialogue.",
+        description="How far Duck under dialogue (apply_ducking) dips a bed under speech.",
         minimum=-40.0,
         maximum=0.0,
         unit="dB",
         group="common",
         section="mix",
-        affects=("mix_with_music",),
     ),
     _ParamSpec(
         path="mix.fade_in_sec",
