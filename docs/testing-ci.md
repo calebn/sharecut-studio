@@ -395,6 +395,8 @@ with axe before the collected results are asserted.
 | export: bounce the mix to a non-silent WAV | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
 | advances playback across browser engines | `gui/web/e2e-compat/browser-matrix.spec.ts` | Audio playback | Pass | Pass | Not run |
 | persists an offline comment across reload and replays its command | `gui/web/e2e-compat/browser-matrix.spec.ts` | IndexedDB | Pass | Pass | Not run |
+| a clip trim that queues offline stays where it was put in every engine | `gui/web/e2e-compat/trim-clip-queued.spec.ts` | IndexedDB | Pass | Pass | Not run |
+| a second trim of a clip whose first trim is queued waits for it in every engine | `gui/web/e2e-compat/trim-clip-queued.spec.ts` | IndexedDB | Pass | Pass | Not run |
 | applies document updates after the socket reconnects | `gui/web/e2e-compat/browser-matrix.spec.ts` | WebSocket | Pass | Pass | Not run |
 | rasterizes waveform tiles on every engine | `gui/web/e2e-compat/browser-matrix.spec.ts` | Waveform | Pass | Pass | Not run |
 | keeps the listening shell usable on a touch phone | `gui/web/e2e-compat/browser-matrix.spec.ts` | CSS / layout | Pass | Pass | Not run |
