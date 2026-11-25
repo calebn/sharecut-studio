@@ -60,8 +60,10 @@ The document context splits editing by theme, each service under 40 public
 methods and each module under 850 lines: `EditService` (cuts, approval
 decisions, tighten proposals), `TimelineService` (clip geometry, joins, fades,
 segments, chapters), `TranscriptService` (transcription, export and word
-edits), `AnalysisService` (effects, loudness, bleed, audibility, reconcile and
-cut-boundary previews). They share `WorkspaceService` and `CutMutatingService`
+edits), `AnalysisService` (effects, loudness, bleed and reconcile writes and
+cut-boundary previews) on top of `AnalysisReportService` in
+`analysis_reports.py` (the read-only cleanup, fade, audibility, bleed and
+reconcile reports). They share `WorkspaceService` and `CutMutatingService`
 from `service_base.py`; `tests/test_module_size_budget.py` holds the budgets.
 Document sync owns `apply_external_document_edit`: it compares committed project
 state under project ownership, then publishes changed CLI applies outside the

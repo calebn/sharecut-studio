@@ -1,4 +1,4 @@
-"""Effects, loudness, fades recommendations, bleed, audibility and reconcile."""
+"""Effects, loudness, fade, bleed and reconcile writes and cut-boundary previews."""
 
 from __future__ import annotations
 
@@ -6,20 +6,12 @@ import logging
 from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal
 
 from podcast_mcp.edits.audio_quality import (
     apply_fade_recommendations,
-    audio_diagnostics_report,
-    bleed_words,
-    cleanup_analysis_report,
-    fade_recommendations,
-    gate_overreach_report,
     suppress_bleed_words,
     suppress_low_audibility_words,
-)
-from podcast_mcp.edits.audio_quality import (
-    low_audibility_words as audit_low_audibility_words,
 )
 from podcast_mcp.edits.inaudible_cuts import (
     optimize_source_cut_range,
@@ -47,18 +39,10 @@ from podcast_mcp.edits.strip_silence import (
 )
 from podcast_mcp.edits.transcript_bleed_mute import apply_transcript_bleed_mute
 from podcast_mcp.edits.transcript_reconcile import (
-    audibility_map as build_audibility_map,
-)
-from podcast_mcp.edits.transcript_reconcile import (
-    flagged_words as list_flagged_transcript_words,
-)
-from podcast_mcp.edits.transcript_reconcile import (
-    overlap_duplicate_report,
-    reconciliation_status_report,
     run_reconciliation,
 )
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.services.document.effects import EffectsService
+from podcast_mcp.services.document.analysis_reports import AnalysisReportService
 from podcast_mcp.services.document.fade_recommendation_results import (
     AppliedFadeRecommendations,
     AppliedFadeUpdates,
@@ -77,7 +61,6 @@ from podcast_mcp.util.timeline_zoom import snap_tick_decimals
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 log = logging.getLogger(__name__)
-T = TypeVar("T")
 
 
 def _alignment_preview(plan: AlignmentPlan) -> dict[str, Any]:
@@ -88,7 +71,7 @@ def _alignment_preview(plan: AlignmentPlan) -> dict[str, Any]:
     }
 
 
-class AnalysisService(EffectsService):
+class AnalysisService(AnalysisReportService):
     def strip_silence(
         self,
         *,
@@ -305,50 +288,6 @@ class AnalysisService(EffectsService):
             measured, stale=reason is not None, stale_reason=reason, balance=balance
         )
 
-    def analyze_cleanup(
-        self,
-        *,
-        track_id: str | None = None,
-        speaker: str | None = None,
-        progress: ProgressReporter | None = None,
-    ) -> dict:
-        tid: str | None = None
-        if track_id or speaker:
-            tid = self._resolve(track_id, speaker)
-        return cleanup_analysis_report(
-            self.ws.project, track_id=tid, progress=progress, defaults=self.ws.effective_config()
-        )
-
-    def audio_diagnostics(
-        self,
-        *,
-        track_id: str | None = None,
-        speaker: str | None = None,
-        start_sec: float | None = None,
-        end_sec: float | None = None,
-    ) -> dict:
-        tid = self._resolve(track_id, speaker)
-        return audio_diagnostics_report(
-            self.ws.project,
-            tid,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            defaults=self.ws.effective_config(),
-        )
-
-    def recommend_fades(
-        self,
-        *,
-        track_id: str | None = None,
-        speaker: str | None = None,
-    ) -> list[dict]:
-        tid: str | None = None
-        if track_id or speaker:
-            tid = self._resolve(track_id, speaker)
-        return fade_recommendations(
-            self.ws.project, track_id=tid, defaults=self.ws.effective_config()
-        )
-
     def apply_fade_recommendations(self, recommendations: list[dict]) -> AppliedFadeUpdates:
         return self.ws.mutate(
             "before apply fade recommendations",
@@ -370,20 +309,6 @@ class AnalysisService(EffectsService):
             return AppliedFadeRecommendations(applied_fade_updates=0, recommendation_count=0)
         return applied_fade_recommendations(self.apply_fade_recommendations(recs), len(recs))
 
-    def low_audibility_words(
-        self,
-        *,
-        track_id: str | None = None,
-        speaker: str | None = None,
-        progress: ProgressReporter | None = None,
-    ) -> list[dict]:
-        tid: str | None = None
-        if track_id or speaker:
-            tid = self._resolve(track_id, speaker)
-        return audit_low_audibility_words(
-            self.ws.project, track_id=tid, progress=progress, defaults=self.ws.effective_config()
-        )
-
     def suppress_low_audibility(
         self,
         *,
@@ -404,27 +329,6 @@ class AnalysisService(EffectsService):
             "before suppress low audibility",
             "after suppress low audibility",
             mutate,
-        )
-
-    def list_bleed_words(
-        self,
-        *,
-        track_id: str | None = None,
-        speaker: str | None = None,
-        start_sec: float | None = None,
-        end_sec: float | None = None,
-        progress: ProgressReporter | None = None,
-    ) -> list[dict]:
-        tid: str | None = None
-        if track_id or speaker:
-            tid = self._resolve(track_id, speaker)
-        return bleed_words(
-            self.ws.project,
-            track_id=tid,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            progress=progress,
-            defaults=self.ws.effective_config(),
         )
 
     def suppress_bleed(
@@ -496,21 +400,6 @@ class AnalysisService(EffectsService):
             end_sec=end_sec,
             apply=False,
             progress=progress,
-        )
-
-    def overlap_duplicates(
-        self,
-        *,
-        start_sec: float | None = None,
-        end_sec: float | None = None,
-        progress: ProgressReporter | None = None,
-    ) -> dict:
-        return overlap_duplicate_report(
-            self.ws.project,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            progress=progress,
-            defaults=self.ws.effective_config(),
         )
 
     def align_retained_bleed(
@@ -736,49 +625,6 @@ class AnalysisService(EffectsService):
                     lambda p: adopt_project_state(p, candidate),
                 )
             return {**result, **applied}
-
-    def gate_overreach(
-        self,
-        *,
-        track_id: str | None = None,
-        speaker: str | None = None,
-        progress: ProgressReporter | None = None,
-    ) -> dict:
-        tid = self._resolve(track_id, speaker)
-        return gate_overreach_report(
-            self.ws.project, tid, progress=progress, defaults=self.ws.effective_config()
-        )
-
-    def audibility_map(
-        self,
-        *,
-        track_id: str | None = None,
-        speaker: str | None = None,
-        progress: ProgressReporter | None = None,
-    ) -> list[dict]:
-        tid: str | None = None
-        if track_id or speaker:
-            tid = self._resolve(track_id, speaker)
-        return build_audibility_map(
-            self.ws.project, track_id=tid, progress=progress, defaults=self.ws.effective_config()
-        )
-
-    def flagged_words(
-        self,
-        *,
-        track_id: str | None = None,
-        speaker: str | None = None,
-        progress: ProgressReporter | None = None,
-    ) -> list[dict]:
-        tid: str | None = None
-        if track_id or speaker:
-            tid = self._resolve(track_id, speaker)
-        return list_flagged_transcript_words(
-            self.ws.project, track_id=tid, progress=progress, defaults=self.ws.effective_config()
-        )
-
-    def reconciliation_status(self) -> dict:
-        return reconciliation_status_report(self.ws.project, defaults=self.ws.effective_config())
 
     def preview_reconcile_transcript(
         self,
