@@ -481,6 +481,57 @@ test.describe("presence follow phone", () => {
   });
 });
 
+for (const [width, root] of [
+  [820, 24],
+  [1_000, 32],
+] as const) {
+  test(`the enlarged Player Stop following target works next to the frame edge at ${root}px text`, async ({
+    browser,
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await withTwoBrowserPages(
+        browser,
+        { viewport: DESKTOP },
+        { viewport: { width, height: 900 }, hasTouch: true },
+        async (leader, follower) => {
+          await openHostShare(leader, projectPath);
+          await goToStage(leader, "prepare");
+          const token = await createReviewShare(leader, projectPath, "editor");
+          await openGuestShare(follower, token);
+          await followUntilPillVisible(follower);
+          await follower.locator("html").evaluate((html, px) => {
+            html.style.fontSize = `${px}px`;
+          }, root);
+
+          const stop = follower
+            .locator(".stage-frame-player")
+            .getByRole("button", { name: /^Stop following/ });
+          await expect(stop).toBeVisible();
+          const target = await stop.evaluate((button) => {
+            const box = button.getBoundingClientRect();
+            const frameRight = button
+              .closest(".stage-frame")!
+              .getBoundingClientRect().right;
+            const x = frameRight - 2;
+            const y = (box.top + box.bottom) / 2;
+            return {
+              x,
+              y,
+              buttonRight: box.right,
+              reaches: button.contains(document.elementFromPoint(x, y)),
+            };
+          });
+          expect(target.x).toBeGreaterThan(target.buttonRight);
+          expect(target.reaches).toBe(true);
+          await follower.touchscreen.tap(target.x, target.y);
+          await expect(stop).toHaveCount(0);
+          await expect(followPill(follower)).toHaveCount(0);
+        },
+      );
+    });
+  });
+}
+
 test.describe("presence follow guest share", () => {
   test("guest follows host on a share token", async ({ browser }) => {
     await withHostGuestPages(browser, "viewer", async (pageA, pageB) => {
