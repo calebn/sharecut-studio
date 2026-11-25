@@ -105,11 +105,6 @@ def plan_ducking_dry_run(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, A
 
 
 def apply_ducking(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    """Duck the chosen tracks under dialogue: one mutation, so one undo step for every track.
-
-    The plan is computed here, inside the document transaction after a reload, so it is made from
-    the project the write lands on. ``expected_plan_token`` ties the write to a dry run's plan.
-    """
     if p.get("dry_run"):
         return plan_ducking_dry_run(ws, p)
     ws.reload()
