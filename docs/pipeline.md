@@ -17,7 +17,7 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 13. `focus_from_transcript` — No-op unless `focus.auto_apply`
 14. `analyze_fillers_pauses` — Mark filler words and long pauses (**no-op** unless `tighten.enabled`). Manual `propose_edits` uses `tighten.edit_mode` (`ripple` default, or `mute`, which keeps the time, so pacing never shrinks or drops a mute to keep `min_gap_after_filler_sec`); every cut stays clear of the flanking kept words' measured voices, read against each track's own voice floor rather than a fixed dBFS level, or is skipped as `kept_voice` ([filler-cut-quality.md](filler-cut-quality.md), **Kept words keep their voice** and **Voice floor**); `tighten.intensity` (`light`/`medium`/`aggressive`, [filler-cut-quality.md § Intensity presets](filler-cut-quality.md#intensity-presets)) overlays preset values at propose time. The step also binds the room tone each proposed padded cut will play ([filler-cut-quality.md](filler-cut-quality.md#decision-a-cut-plays-the-room-tone-it-was-bound-to)), so a preview and every later approve play one fill.
 15. `tighten_from_transcript` — Apply the filler and pause edit decisions that need no review (**no-op** unless `tighten.enabled`); a pause trim that fails a filler check waits for `approve_edits`
-16. `apply_sound_actions` — Propose and apply each non-speech sound's suggested action (cut, lower or leave; [filler-cut-quality.md § Non-speech sounds](filler-cut-quality.md#decision-non-speech-sounds-get-a-suggested-action-not-a-cut-or-keep-verdict)) in this one step, so one undo reverts it. **On by default** and independent of `tighten.enabled`: it runs on `tighten.apply_non_speech` (no-op when false, which leaves the sounds pending). It uses the proposals on the project only when `analyze_fillers_pauses` completed earlier in the same run; otherwise (tighten off, `--from apply_sound_actions`, `--only`, a skipped analysis) it scans for sounds itself and keeps only the non-speech kinds (unclear sounds, laughs and possible missed words); filler, pause, repetition and restart proposals are never applied here and stay behind `tighten.enabled`. That self-scan turns the Whisper word probe off for the scan only (`propose_edits` and `analyze_fillers_pauses` still use `tighten.acoustic_gap_filler.word_probe`): acoustic defaults already Leave or Lower, so the probe cannot cut a real word and only adds load (#1608). The scan runs in a `batch_scope` and `frozen_state` shared with its worker threads, so each track's render fingerprint is read once, not once per sound, and each recording's identity stat is the first call's (lab tape, 4 leaves: about 150 s to about 105 s wall and 312 s to 225 s CPU on a loaded Mac after the fingerprint share; identity stats were the next limiter). Only this step drops a sound already lowered or left (`editorial.sound_actions`): it skips a pending proposal when one record and the proposal each cover at least 75% of the longer of the two (same track, same recording), so a re-run keeps a lower the editor removed by hand removed. `analyze_fillers_pauses`, `propose_edits` and Studio still list such a sound as pending. A laugh whose peer-speech check could not read audio stays pending and is reported as held; it is never recorded as a leave. A laugh with another speaker over it is lowered on its own track; a cut the speech guard would hold applies as the ripple across every dialogue track, and the summary names how many cuts went over another speaker
+16. `apply_sound_actions` — Propose and apply each non-speech sound's suggested action (cut, lower or leave; [filler-cut-quality.md § Non-speech sounds](filler-cut-quality.md#decision-non-speech-sounds-get-a-suggested-action-not-a-cut-or-keep-verdict)) in this one step, so one undo reverts it. **On by default** and independent of `tighten.enabled`: it runs on `tighten.apply_non_speech` (no-op when false, which leaves the sounds pending). It uses the proposals on the project only when `analyze_fillers_pauses` completed earlier in the same run; otherwise (tighten off, `--from apply_sound_actions`, `--only`, a skipped analysis) it scans for sounds itself and keeps only the non-speech kinds (unclear sounds, laughs and possible missed words); filler, pause, repetition and restart proposals are never applied here and stay behind `tighten.enabled`. That self-scan turns the Whisper word probe off for the scan only (`propose_edits` and `analyze_fillers_pauses` still use `tighten.acoustic_gap_filler.word_probe`): acoustic defaults already Leave or Lower, so the probe cannot cut a real word and only adds load (#1608). The scan runs in a `batch_scope` and `frozen_state` shared with any worker threads (serial unless `max_workers` is N >= 2), so each track's render fingerprint is read once, not once per sound, and each recording's identity stat is the first call's (lab tape, 4 leaves: about 150 s to about 105 s wall and 312 s to 225 s CPU on a loaded Mac after the fingerprint share; identity stats were the next limiter). Only this step drops a sound already lowered or left (`editorial.sound_actions`): it skips a pending proposal when one record and the proposal each cover at least 75% of the longer of the two (same track, same recording), so a re-run keeps a lower the editor removed by hand removed. `analyze_fillers_pauses`, `propose_edits` and Studio still list such a sound as pending. A laugh whose peer-speech check could not read audio stays pending and is reported as held; it is never recorded as a leave. A laugh with another speaker over it is lowered on its own track; a cut the speech guard would hold applies as the ripple across every dialogue track, and the summary names how many cuts went over another speaker
 17. `fill_gate_holes` — room tone under each dialogue track's source-gate holes, the digital silence a recorder's noise gate (Zoom) leaves between words: the track's recorded bed, else comfort noise matched to its own noise under its speech, never another track. Sets `timeline.tracks[].gate_fill`; render sums the fill under the track's media, so own audio stays byte-identical. See [§ Gate fill](#gate-fill)
 18. `clean_audio` — HPF per dialogue track
 19. `compress_tracks` — acompressor on dialogue (attack/release/makeup from `compression.*`; default makeup 0, minimum 0 as in the effect schema; balance measures after it; the step owns each dialogue chain's single acompressor: any existing one, whether from an earlier run, the `podcast_standard` preset or `add_effect`, is overwritten in place with `compression.*` (position and bypass kept), extra acompressors are removed, and both are logged and counted in the step summary; to keep a hand-tuned compressor, skip the step: MCP `pipeline_run(skip_steps=["compress_tracks"])`, CLI `--skip compress_tracks`, or uncheck **Compress tracks** in the Pipeline pane)
@@ -474,12 +474,11 @@ re-merges it once per mutation when one exists and its inputs moved. History tri
 preserving the redo tail.
 
 Step **order** is always strictly sequential (each step's input is the previous
-step's output) — but three steps parallelize the independent work they loop over
+step's output) — but two steps parallelize the independent work they loop over
 internally, via a shared thread-pool helper (`util/parallel.py`):
 
 | Step | What runs concurrently |
 |------|-------------------------|
-| `analyze_fillers_pauses` | Candidate gathering runs one task per dialogue track (including the per-gap acoustic scan for `filler:acoustic`, vectorized NumPy over the shared audio cache). Every filler, pause, repetition, restart, or acoustic candidate across **all** tracks is then analyzed (waveform boundary snap, risk assessment, fade sizing) in one shared pool; overlaps are resolved and decisions applied serially in the original order |
 | `assemble_timeline` / `render_dialogue_stems` | Each track's stem is rendered concurrently (`_render_track_stems`) |
 | `export_deliverables` | Each configured output format is encoded concurrently |
 
@@ -540,7 +539,7 @@ gated tracks against evidence without the transcript gate before rendering the
 final gate-driving metadata, so the published stem matches its saved hash.
 
 Tighten proposal snapshots speaker profiles and speaker-ID settings once before
-parallel candidate analysis. The read-only snapshot gives every candidate the
+candidate analysis (serial unless `max_workers` is N >= 2). The read-only snapshot gives every candidate the
 same bleed decision inputs and avoids repeated profile file reads.
 
 Writers of stems, premix and master (stem render, mix, master, export, Refresh, bleed-mute apply, on-demand `ensure_stem`) hold the per-workspace render lock `artifacts/render.lock` (cross-process, re-entrant; #482). A second export or Refresh waits instead of mixing over the same premix. An export and `render_final` take the render lock first and only then checkpoint the saved project, so they render it as saved when the wait ends. A waiter polls in 0.5 s slices: a cancelled pipeline run, export or Refresh (the GUI render-preview job, which a cancel also stops between its assemble and mix steps), or a cancelled host MCP request, stops waiting (`CancelledProgress`), and after 60 min it raises `RenderBusyError` (a `ProjectBusyError`, so a `filelock.Timeout`, with a fixed message; every adapter's busy-lock choke point maps it to `project_busy` — GUI routes to HTTP 503, the CLI's root `BusyErrorGroup` to `Error: <message>` + exit 1, MCP tools and guest remote MCP to a structured `is_error` result, #488). MCP `apply_transcript_gate_tool` waits at most 30 s (`REQUEST_RENDER_LOCK_TIMEOUT_SEC`) so an agent is not left waiting up to an hour; cancelling the request stops the wait sooner ([nl-editing.md](nl-editing.md#cancelling-a-long-tool)). Playback never queues behind a render: processed playback with `rerender` waits at most 2 s, then plays a segment render of the current edits instead of rebuilding the stem (also when the project lock is busy; this does not set `render_busy`); a premix rerender (`play --source premix --rerender`, GUI `/api/audio?rerender=1`) and a transport stem build wait at most 2 s, then serve the premix or stem already on disk, which may be stale, and report `render_busy` (`TransportPath.render_busy`, `PlayResult.render_busy`, `render_busy` in `podcast play` / MCP play JSON, and the `X-Sharecut-Render-Busy: 1` header on `/api/audio`); a stem fallback also reports `stem_is_fresh`. A busy project lock (`filelock.Timeout` after 30 s, from `ensure_stem`'s invalidation clear or the premix save) takes the same fallback without `render_busy`, because it comes after the render: the file on disk is the fresh one. With nothing on disk they re-raise the timeout, which `/api/audio` maps to HTTP 503 `project_busy`. Lock order: render lock, then the project locks (`project_state_lock`, `project_commit_lock`); never take the render lock while holding those (a first acquire under the commit lock raises `RuntimeError`). Pipeline steps and `rerender_preview`, whose first argument is the project, use the `@with_render_lock` decorator; services, which hold `self.ws.project`, use `with render_lock(project):`. `apply_transcript_bleed_mute(dry_run=False)` requires its caller to hold the lock. Stem worker threads never take it (the file lock is thread-local). Readers never take it.
@@ -551,12 +550,12 @@ Configure via `performance.max_workers` in `pipeline.yaml`:
 
 ```yaml
 performance:
-  max_workers: 0   # 0 = auto (cpu_budget-based, capped at 8); 1 = serial; N = explicit cap. Tighten proposals stay serial unless N >= 1
+  max_workers: 0   # 0 = auto (cpu_budget-based, capped at 8); 1 = serial; N = explicit cap. Tighten proposals stay serial unless N >= 2
 ```
 
 `performance.accelerator` is `auto` (default) or `cpu`. The hardware probe (`util/hardware.py`) detects an NVIDIA GPU, Apple Silicon (Core ML), DirectML, the ONNX Runtime execution providers and the cores this process may use (affinity and container quota); `podcast doctor` and the support bundle print the result in plain words. `PODCAST_ACCELERATOR=cpu` overrides the setting for support. Speech-to-text is the first step to read them: on a machine with an NVIDIA GPU that CTranslate2 can use and enough GPU memory for the chosen Whisper model (about 1 GB for tiny and base, 2 GB for small, 3.5 GB for the default `large-v3-turbo`, 5.5 GB for `large-v3`), faster-whisper runs on the GPU (float16, else int8_float16, else int8), and on the CPU (int8) everywhere else, including Apple Silicon, where CTranslate2 has no GPU backend. If the GPU model will not load, or a run fails with an error that names CUDA, cuBLAS, cuDNN or the GPU (GPU out of memory, missing CUDA libraries, driver mismatch), each engine (one per pipeline step) logs one warning (with the error) and redoes the work on the CPU, and stays on the CPU until it is rebuilt (the next run, or a restart of a long-lived server); other run errors, including a host out-of-memory error, are raised as before, so a bad file is not transcribed twice. The span check used by tighten (`edits/acoustic_word.py`) stays on the CPU until GPU output is proven equivalent for it. The CUDA runtime libraries (cuBLAS, cuDNN) are not installed by Studio: without them the CPU is used. The transcript cache key has no device in it, so a transcript made on either device is reused on the other. Every other model path adopts the probe in its own change.
 
-Worker and thread counts start from one number, `cpu_budget()` in `util/hardware.py`: the cores this process may really use, which is the smaller of the logical cores, the CPU affinity and the container CPU quota. Code does not call `os.cpu_count()` (a test enforces it), so a container limited to 2 cores gets 2-core pools instead of the host's 16. `performance.max_workers` still overrides the automatic worker count. Tighten proposals (`propose_tighten_edits`) ignore the automatic count and stay serial when `max_workers` is 0 (auto) or unset; an explicit N >= 1 opts in to N threads. Their candidate analysis is GIL-bound numpy and Python, so threads lose at every size (#2364: on 4 CPUs a 600-word synthetic project took 8.3 s serial and 15.2 s on auto, and threads lost from 150 to 2400 words).
+Worker and thread counts start from one number, `cpu_budget()` in `util/hardware.py`: the cores this process may really use, which is the smaller of the logical cores, the CPU affinity and the container CPU quota. Code does not call `os.cpu_count()` (a test enforces it), so a container limited to 2 cores gets 2-core pools instead of the host's 16. `performance.max_workers` still overrides the automatic worker count. Tighten proposals (`propose_tighten_edits`) ignore the automatic count and stay serial when `max_workers` is 0 (auto) or unset, and for N = 1; an explicit N >= 2 opts in to N threads. Their candidate analysis is mostly GIL-bound numpy and Python. Measured on the synthetic benchmark project (4 CPUs, #2364), threads lost from 150 to 2400 words: 1000 words took 13.0 s serial and 23.3 s on 4 threads, and 600 words took 8.3 s serial and 15.2 s on auto. Projects with enrolled speaker profiles (ONNX embedding) or raw non-WAV media (ffmpeg window reads) were not measured, and can set an explicit `max_workers` N >= 2 to try threads.
 
 Supported hardware, as of this release:
 
@@ -652,7 +651,7 @@ points.
 
 ### Per-track audio cache (the bigger win)
 
-Independent of thread-pool parallelism, `analyze_fillers_pauses` decodes each
+Independent of any thread pool, `analyze_fillers_pauses` decodes each
 track's raw source audio once for each required sample rate up front
 (`edits/audio_cache.py::TrackAudioCache`, built in `propose_tighten_edits`):
 8 kHz for join/RMS measurement and 16 kHz for waveform-boundary and breath
@@ -661,8 +660,8 @@ analysis. Each later cached window read is an in-memory NumPy slice. The
 stems; `analyze_gate_overreach` also caches raw-audio reads.
 A pause trim reads the speech-band level of every dialogue track around the pause. The
 band filter is an FFT, so `TrackAudioCache.band_levels` (`BandLevels`) makes the levels
-a 30 s block at a time, once per track and run, under a lock the parallel candidates
-share, and the word indexes it reads the room between words with are built once per
+a 30 s block at a time, once per track and run, under a lock the candidates
+share when threads are on, and the word indexes it reads the room between words with are built once per
 run (`_word_indexes`). On a 1-hour, 4-track episode with 300 pauses the levels cost
 7 s in all (every block once) and 4 ms a call after that, where filtering each pause's
 own window took 52 s (172 ms a call).
@@ -675,7 +674,7 @@ The full cleanup report passes one processed-stem cache set through its
 subanalyses, and the project join sweep shares source decode and calibration
 per track while checking each join with a bounded high-rate window.
 
-Measured on a real 65-minute, 2-track episode (`analyze_fillers_pauses`, 181 final
+Measured before #2364 (when tighten analysis was threaded by default) on a real 65-minute, 2-track episode (`analyze_fillers_pauses`, 181 final
 decisions, byte-identical output across all variants):
 
 | Variant | Time | vs. original |
@@ -685,13 +684,13 @@ decisions, byte-identical output across all variants):
 | + per-track audio cache (serial) | 11.2s | 9.9x |
 | + audio cache + parallelism | 10.9s | **10.1x** |
 
-Both optimizations are complementary and safe to run together. The historical
+The cache is the win; threads are optional. The historical
 benchmark's uncached path spent most of its time spawning `ffmpeg` for each
 candidate window. Current PCM WAV window reads use the in-process decoder;
 other containers retain the `ffmpeg` fallback. The cache still eliminates
 repeated decoding and leaves the remaining per-candidate work small enough that
 thread-pool overhead and the cache's one-time decode cost roughly cancel out
-further concurrency gains for this step. Parallelism still matters more for
+further concurrency gains for this step, which is why tighten proposals now default to serial (#2364). Parallelism still matters more for
 `assemble_timeline` (real per-track rendering work, not just tiny reads) and for
 episodes with more dialogue tracks.
 
@@ -699,7 +698,7 @@ episodes with more dialogue tracks.
 per proposal run, in two bands, over its whole length (`edits/session_air.py`), where the
 first version read a window around each pause. On `tests/benchmark_tighten.py`'s
 1000-word synthetic project (two tracks), `propose_tighten_edits` takes a median of 11.3 s
-serial and 9.9 s threaded (`performance.max_workers` 1 and 0, measured before #2364 made 0 serial for tighten) against 9.1 s and 7.2 s on
+serial and 9.9 s threaded (`performance.max_workers` 1 and 0, measured before #2364 made 0 serial for tighten; on current code the same project takes 13.0 s serial and 23.3 s on 4 threads) against 9.1 s and 7.2 s on
 `main`, over four alternating runs per side (11.0 to 11.5 s, 9.8 to 10.0 s; 9.0 to 9.3 s,
 7.1 to 7.3 s). The branch proposes more decisions (160 against 116, the extra pause trims
 that now get their air), so the cost per decision is 70 ms serial and 62 ms threaded
