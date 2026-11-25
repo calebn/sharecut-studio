@@ -658,12 +658,16 @@ def edit_strip_silence_cmd(
     ws = ProjectWorkspace.open(project)
     result = apply_external_document_edit(
         ws,
-        lambda: AnalysisService(ws).strip_silence(
-            track_id=track,
-            speaker=speaker,
-            over_voice_floor_db=over_voice_floor_db,
-            min_duration_sec=min_duration,
-            use_inaudible_opt=inaudible_opt,
+        lambda: (
+            AnalysisService(ws)
+            .strip_silence(
+                track_id=track,
+                speaker=speaker,
+                over_voice_floor_db=over_voice_floor_db,
+                min_duration_sec=min_duration,
+                use_inaudible_opt=inaudible_opt,
+            )
+            .model_dump()
         ),
     )
     typer.echo(json.dumps(result, indent=2))

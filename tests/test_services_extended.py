@@ -47,6 +47,7 @@ from podcast_mcp.services.document import (
     EditService,
     PlayRequest,
     PlayService,
+    StripSilenceResult,
     TimelineService,
     TranscriptService,
 )
@@ -1380,18 +1381,33 @@ def test_edit_cut_text_match(minimal_project, sample_wav) -> None:
 
 def test_edit_strip_silence(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    report = {"removed_sec": 0.3, "clips": 2}
+    report = {
+        "track_id": "host",
+        "silence_intervals": 1,
+        "clips_created": 2,
+        "removed_sec": 0.3,
+        "timeline_duration_sec": 3.0,
+    }
     with patch(
         "podcast_mcp.services.document.analysis.strip_silence", return_value=report
     ) as strip:
         out = AnalysisService(ws).strip_silence(speaker="Host", over_voice_floor_db=3.0)
     strip.assert_called_once()
-    assert out == report
+    assert out == StripSilenceResult(**report)
 
 
 def test_strip_silence_defaults_are_the_named_constants(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    with patch("podcast_mcp.services.document.analysis.strip_silence", return_value={}) as strip:
+    report = {
+        "track_id": "host",
+        "silence_intervals": 0,
+        "clips_created": 1,
+        "removed_sec": 0.0,
+        "timeline_duration_sec": 1.0,
+    }
+    with patch(
+        "podcast_mcp.services.document.analysis.strip_silence", return_value=report
+    ) as strip:
         AnalysisService(ws).strip_silence(speaker="Host")
     assert strip.call_args.kwargs["over_voice_floor_db"] == DEFAULT_STRIP_OVER_VOICE_FLOOR_DB
     assert strip.call_args.kwargs["min_duration_sec"] == DEFAULT_STRIP_MIN_DURATION_SEC

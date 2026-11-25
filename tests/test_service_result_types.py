@@ -36,7 +36,7 @@ DICT_RETURNS: dict[str, int] = {
     "collaboration/share_registry.py": 4,
     "collaboration/tunnel.py": 1,
     "collaboration/tunnel_status.py": 4,
-    "document/analysis.py": 29,
+    "document/analysis.py": 27,
     "document/bleed_inspection.py": 1,
     "document/cross_process_sync.py": 2,
     "document/edit.py": 6,
