@@ -77,7 +77,8 @@ keeps its full height beside it, the player and tab bar step aside while it
 is open, and the on-screen keyboard only shortens the column, so its title and
 **Close** stay in view. Narrower screens and portrait keep the bottom sheet.
 Closing the inspector returns the phone's tab bar. On a tablet, closing the
-inspector keeps your Script choice.
+inspector keeps your Script choice. If you switch from touch to a mouse
+while the tablet Inspector card is open, **Close** stays where it was.
 Selecting a word in Text can open a word sheet. The comment list in Review seeks to
 the comment; comment actions are on that comment's card in the Review queue.
 

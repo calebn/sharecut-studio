@@ -228,6 +228,21 @@
   }
 }
 
+/* A touch-to-mouse switch removes the Range toggle. Keep the excluded
+   corner's footprint while a tablet Inspector card is open, so the card
+   doesn't move under the first pointer press. */
+.edit-corner-range-slot[data-reserved] {
+  display: none;
+}
+
+@media (any-pointer: coarse) {
+  .edit-workspace:has(.edit-inspector-slot:not([hidden]) .sys-inspector--card)
+    .edit-corner-range-slot[data-reserved] {
+    display: block;
+    visibility: hidden;
+  }
+}
+
 .plus-menu {
   display: block;
 }
