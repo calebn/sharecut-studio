@@ -198,7 +198,7 @@ Research snapshot: **August 2026** (iOS 27 / macOS 27 developer season). Update 
 ### In-repo start list (read in this order)
 
 1. This file (thesis + interim rules + this section).
-2. [`engines/ffmpeg/`](../src/podcast_mcp/engines/ffmpeg/) (`__init__.py`, `diagnostics.py`, `encode.py`, `mix.py`) — the `AudioEngine` contract (methods below).
+2. [`engines/ffmpeg/`](../src/podcast_mcp/engines/ffmpeg/) (`__init__.py`, `diagnostics.py`, `encode.py`, `filter_log.py`, `loudness.py`, `mix.py`) — the `AudioEngine` contract (methods below).
 3. [`tests/test_ffmpeg_engine.py`](../tests/test_ffmpeg_engine.py) + [`tests/test_ffmpeg_integration.py`](../tests/test_ffmpeg_integration.py) + [`tests/test_timeline_render.py`](../tests/test_timeline_render.py) — a libav backend must keep these green (or an equivalent suite).
 4. [`mcp/tools/__init__.py`](../src/podcast_mcp/mcp/tools/__init__.py) `register_all` — host tool surface; live catalog https://docs.sharecut.studio/#/capabilities
 5. [`schemas/document-commands.schema.json`](../schemas/document-commands.schema.json) — GUI mutations; chat can call these instead of every MCP tool.
