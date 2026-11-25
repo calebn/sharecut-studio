@@ -156,6 +156,7 @@ def test_a_second_assemble_replaces_the_first_and_leaves_no_staging(tmp_path: Pa
     sim = root / "gui/desktop/src-tauri/ios-ffmpeg/out/sim/FFmpeg.framework/FFmpeg"
     sim.parent.mkdir(parents=True)
     sim.write_bytes(b"sim")
+    (sim.parent / "Info.plist").write_bytes(plistlib.dumps({"CFBundleName": "FFmpeg"}))
     tool.assemble(root, FakeXcodebuild())
     assert (xcframework(root) / "ios-arm64-simulator/FFmpeg.framework/FFmpeg").is_file()
     assert sorted(p.name for p in xcframework(root).parent.iterdir()) == [
@@ -209,6 +210,41 @@ def test_the_check_fails_for_a_half_made_slice(tmp_path: Path) -> None:
     (xcframework(root) / "ios-arm64/FFmpeg.framework/FFmpeg").unlink()
     assert tool.check(root, "iphoneos") is not None
     assert tool.check(root, "iphonesimulator") is None
+
+
+@pytest.mark.parametrize("half_built", ["device", "sim"])
+def test_a_slice_whose_build_stopped_before_its_info_plist_is_not_built(
+    tmp_path: Path, half_built: str
+) -> None:
+    # build_ffmpeg.sh links the binary first and writes Info.plist after it.
+    root = checkout(tmp_path)
+    (
+        root / f"gui/desktop/src-tauri/ios-ffmpeg/out/{half_built}/FFmpeg.framework/Info.plist"
+    ).unlink()
+    whole = "sim" if half_built == "device" else "device"
+    assert list(tool.built_slices(root)) == [whole]
+    runner = FakeXcodebuild()
+    assert tool.assemble(root, runner) == [whole]
+    assert runner.calls[0].count("-framework") == 1
+    assert not (xcframework(root) / LIBRARY[half_built][0]).exists()
+
+
+def test_assemble_with_only_a_half_built_slice_says_which_target_to_run(tmp_path: Path) -> None:
+    root = checkout(tmp_path, ("sim",))
+    (root / "gui/desktop/src-tauri/ios-ffmpeg/out/sim/FFmpeg.framework/Info.plist").unlink()
+    runner = FakeXcodebuild()
+    with pytest.raises(tool.FrameworkError, match="make ios-ffmpeg-sim"):
+        tool.assemble(root, runner)
+    assert runner.calls == []
+
+
+def test_the_check_fails_for_a_slice_without_its_info_plist(tmp_path: Path) -> None:
+    root = checkout(tmp_path)
+    tool.assemble(root, FakeXcodebuild())
+    (xcframework(root) / "ios-arm64-simulator/FFmpeg.framework/Info.plist").unlink()
+    problem = tool.check(root, "iphonesimulator")
+    assert problem is not None and "make ios-ffmpeg-sim" in problem
+    assert tool.check(root, "iphoneos") is None
 
 
 def test_the_check_fails_for_an_unreadable_index(tmp_path: Path) -> None:
@@ -531,6 +567,21 @@ def test_the_whisper_check_fails_for_a_half_made_slice_or_unreadable_index(
     assert tool.check(root, "iphoneos", "whisper") is not None
     (whisper_xcframework(root) / "Info.plist").write_bytes(b"<plist><dict>")
     assert tool.check(root, "iphonesimulator", "whisper") is not None
+
+
+def test_a_whisper_slice_without_its_info_plist_is_left_out_and_fails_the_check(
+    tmp_path: Path,
+) -> None:
+    # build_whisper.sh links the binary and checks its exports before it writes Info.plist.
+    root = whisper_checkout(tmp_path)
+    (root / "gui/desktop/src-tauri/ios-whisper/out/sim/Whisper.framework/Info.plist").unlink()
+    assert list(tool.built_slices(root, "whisper")) == ["device"]
+    assert tool.assemble(root, FakeWhisperXcodebuild(), framework="whisper") == ["device"]
+    assert tool.check(root, "iphoneos", "whisper") is None
+    problem = tool.check(root, "iphonesimulator", "whisper")
+    assert problem is not None and "make ios-whisper-sim" in problem
+    (whisper_xcframework(root) / "ios-arm64/Whisper.framework/Info.plist").unlink()
+    assert tool.check(root, "iphoneos", "whisper") is not None
 
 
 def test_an_unknown_framework_is_refused() -> None:

@@ -99,13 +99,22 @@ def spec_for(framework: str) -> Spec:
 
 
 def built_slices(root: Path, framework: str = "ffmpeg") -> dict[str, Path]:
+    """The slices whose build finished.
+
+    The build scripts link the binary first and write ``Info.plist`` last, so a slice without its
+    ``Info.plist`` is a build that stopped part way and is left out like one never built.
+    """
     spec = spec_for(framework)
     found = {}
     for name in VARIANTS:
         built = root / spec.out / name / spec.framework
-        if (built / spec.binary).is_file():
+        if is_whole(built, spec):
             found[name] = built
     return found
+
+
+def is_whole(framework: Path, spec: Spec) -> bool:
+    return (framework / spec.binary).is_file() and (framework / "Info.plist").is_file()
 
 
 def create_argv(frameworks: Sequence[Path], output: Path) -> list[str]:
@@ -204,7 +213,7 @@ def check(root: Path, sdk: str, framework: str = "ffmpeg") -> str | None:
         raise FrameworkError(f"unsupported SDK {sdk}: use iphoneos or iphonesimulator")
     target = spec.targets[SDKS[sdk]]
     found = slice_framework(root / PAYLOAD / spec.xcframework, SDKS[sdk])
-    if found is None or not (found / spec.binary).is_file():
+    if found is None or not is_whole(found, spec):
         return f"{spec.xcframework} has no {spec.framework} for {sdk}: run make {target}"
     return None
 

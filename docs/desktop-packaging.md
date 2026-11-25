@@ -269,7 +269,10 @@ into it; there is no sidecar process.
   copy stays hidden as `.FFmpeg.xcframework.old.<pid>`. The assemble holds an exclusive `flock` on
   `ios-payload/.native-frameworks.lock`, shared with the Whisper assemble, so `make -j ios-ffmpeg`
   runs the two assembles one after the other, never together. A device-only
-  assemble drops the Simulator slice until `make ios-ffmpeg-sim` runs again. `ffmpeg_framework.py
+  assemble drops the Simulator slice until `make ios-ffmpeg-sim` runs again. A slice counts as
+  built only when its binary and its `Info.plist` are both there (the build scripts write
+  `Info.plist` last), so a build that stopped part way is left out like one never built, and
+  `check` fails a slice without its `Info.plist`. `ffmpeg_framework.py
   check --sdk iphoneos|iphonesimulator` finds the slice through the xcframework's `Info.plist`
   (slice names are never guessed) and is what the template's "Check FFmpeg framework" pre-build
   phase and `ios_sim.sh` call: a missing slice stops the build with the `make` target to run,
