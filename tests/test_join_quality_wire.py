@@ -286,6 +286,8 @@ def test_worst_edge_placement_reason_wording():
     assert placement.reasons(cfg, cfg.sample_rate) == [
         "worst edge placement +0/+3 ms within +-3 ms"
     ]
+    both = _Placement(0.5, [], False, -round(3 * cfg.sample_rate / 1000.0), placement.right_shift)
+    assert both.reasons(cfg, cfg.sample_rate) == ["worst edge placement -3/+3 ms within +-3 ms"]
     assert _Placement(0.5, [], False, 0, 0).reasons(cfg, cfg.sample_rate) == []
 
 
