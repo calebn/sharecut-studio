@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from podcast_mcp.edits.cut_safety import SpeakerScopeSnapshot
@@ -31,9 +31,15 @@ class _SpeakerCutContext:
     # False when loading failed: the snapshot then reads as "no profiles", and cut scope
     # loads for itself so the failure still marks the verdict cache unstable.
     loaded: bool = True
+    # One run's scored windows, shared by the bleed guard and every cut-scope check.
+    role_memo: dict[tuple[str, float, float], dict[str, Any] | None] = field(
+        default_factory=dict, compare=False
+    )
 
     def scope_snapshot(self) -> SpeakerScopeSnapshot | None:
-        return SpeakerScopeSnapshot(self.profiles, self.config) if self.loaded else None
+        if not self.loaded:
+            return None
+        return SpeakerScopeSnapshot(self.profiles, self.config, self.role_memo)
 
 
 def _speaker_cut_context(project: EpisodeProject) -> _SpeakerCutContext | None:
@@ -100,7 +106,13 @@ def _cut_span_is_bleed_not_owner(
         if context is None or not context.profiles:
             return False
         role = speaker_id.assess_speaker_cut_role(
-            project, track_id, start, end, context.config, profiles=context.profiles
+            project,
+            track_id,
+            start,
+            end,
+            context.config,
+            profiles=context.profiles,
+            role_memo=context.role_memo,
         )
         return bool(role and role.get("role") == "bleed")
     except Exception as exc:

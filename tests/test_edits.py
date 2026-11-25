@@ -272,3 +272,46 @@ def test_propose_tighten_edits_uses_threads_by_default_with_enrolled_profiles(
     ):
         _propose_with_performance(performance)
     assert seen == expected
+
+
+def test_propose_tighten_embeds_each_cut_window_once_with_enrolled_profiles():
+    import collections
+
+    import numpy as np
+
+    from podcast_mcp.engines import speaker_id as sid
+
+    class _Backend:
+        def embed(self, samples, sample_rate):
+            return np.ones(4, dtype=np.float32)
+
+        def name(self):
+            return "stub"
+
+    seen: collections.Counter[tuple[str, float, float]] = collections.Counter()
+    real = sid.score_window
+
+    def spy(project, track_id, start, end, *args, **kwargs):
+        seen[(track_id, start, end)] += 1
+        return real(project, track_id, start, end, *args, **kwargs)
+
+    def profiles(project):
+        return {
+            t.track_id: sid.SpeakerProfile(
+                speaker_id=t.track_id,
+                track_id=t.track_id,
+                embedding=[1.0] * 4,
+                enrollment_sec=30.0,
+                stem_hash="x",
+            )
+            for t in project.transcripts
+        }
+
+    with (
+        patch.object(sid, "load_all_profiles", side_effect=profiles),
+        patch.object(sid, "resolve_speaker_backend", return_value=_Backend()),
+        patch.object(sid, "score_window", side_effect=spy),
+    ):
+        _propose_with_performance({"max_workers": 1})
+    assert seen
+    assert max(seen.values()) == 1

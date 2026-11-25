@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
@@ -317,6 +317,10 @@ class SpeakerScopeSnapshot:
 
     profiles: Mapping[str, Any]
     config: Any
+    # Roles already scored this run, shared with the bleed guard: a window is embedded once.
+    role_memo: dict[tuple[str, float, float], dict[str, Any] | None] | None = field(
+        default=None, compare=False
+    )
 
 
 def resolve_cut_scope(
@@ -352,6 +356,7 @@ def resolve_cut_scope(
                 src_end,
                 config,
                 profiles=profiles,
+                role_memo=speaker.role_memo if speaker is not None else None,
             )
             if role and role.get("role") == "bleed":
                 return ResolvedCutScope("speaker_bleed")
