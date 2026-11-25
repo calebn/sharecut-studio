@@ -193,7 +193,7 @@ async function expectHeaderContained(header: Locator) {
 
 /** The track's details hold its meter and clip light: the header shows the ring and a clipped badge. */
 async function openReferenceDetails(page: Page) {
-  if (await clearClip(page).isVisible()) return;
+  await expect(clearClip(page)).toBeHidden();
   await trackHeaderButton(page, "reference").click();
   await expect(clearClip(page)).toBeVisible();
 }
@@ -247,6 +247,7 @@ test("real premix exposes per-track peaks, clipping, and responsive controls", a
         await expect(clearClip(host)).toBeDisabled();
         await expect(referenceHeader).not.toHaveAttribute("data-clipped");
         await expect(host.locator(".pill.audio-error")).toHaveCount(0);
+        await closeTrackDetails(host);
 
         // A shared link has no timeline in the stage frame, so the guest-proxy
         // meters have no surface; the host's own track headers carry the rest.
