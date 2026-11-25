@@ -284,6 +284,7 @@ class WriteGrantKind(StrEnum):
     LEGACY_COMMENT = "legacy_comment"
     LEGACY_RECORD_LANDING = "legacy_record_landing"
     LEGACY_SESSION_ACCEPT = "legacy_session_accept"
+    LEGACY_PIPELINE_RUN = "legacy_pipeline_run"
 
 
 class UnscopedProjectWriteError(RuntimeError):
