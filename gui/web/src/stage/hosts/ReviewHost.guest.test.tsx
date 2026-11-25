@@ -741,6 +741,7 @@ describe("Review queue for a guest", () => {
     it("keeps the field before the card on a desktop", () => {
       join("comment");
       render(<ReviewHost guestShare />);
+      expect(docked()).toBe(false);
       expect(above()).toBe(true);
     });
 
@@ -753,6 +754,7 @@ describe("Review queue for a guest", () => {
         ...composing({ startSec: 1, endSec: null }),
       });
       render(<ReviewHost />);
+      expect(docked()).toBe(false);
       expect(above()).toBe(true);
     });
   });
