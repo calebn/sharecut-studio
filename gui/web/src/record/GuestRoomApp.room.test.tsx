@@ -453,6 +453,29 @@ describe("GuestRoomApp in the room", () => {
     ).toBeInTheDocument();
   });
 
+  it("moves focus to You left the room, and to the room's title after Join again", async () => {
+    fakeRoom({ snapshot: { state: "lobby" } });
+    const { rerender } = render(<GuestRoomApp token="t" />);
+    await userEvent.click(leave());
+    (current.room as { left: boolean }).left = true;
+    rerender(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByRole("heading", { name: "You left the room" }),
+    ).toHaveFocus();
+    const loading = fakeRoom({ snapshot: { state: "lobby" } });
+    (loading as { bootstrap: unknown }).bootstrap = null;
+    await userEvent.click(screen.getByRole("button", { name: "Join again" }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+    fakeRoom({ snapshot: { state: "lobby" } });
+    rerender(<GuestRoomApp token="t" />);
+    expect(leave()).toBeInTheDocument();
+    const title = screen.getByRole("heading", { level: 1 });
+    expect(title).toHaveFocus();
+    // A browser drops focus to the page when a focused element stops being
+    // focusable; jsdom does not, so the attribute is what pins it here.
+    expect(title).toHaveAttribute("tabindex", "-1");
+  });
+
   it("offers Retry when the guest can't hear the room", async () => {
     const room = fakeRoom();
     room.monitor.error = "Signal lost";

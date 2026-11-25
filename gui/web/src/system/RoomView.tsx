@@ -109,7 +109,7 @@ export type RoomViewProps = {
   statusKnown?: boolean;
   /** Placeholder tiles and title, an inert dock, no pill, rail or Comments sheet. */
   loading?: boolean;
-  /** Focus the title when this turns true. */
+  /** Focus the title when this turns true. The title stays focusable by script either way. */
   focusTitle?: boolean;
 };
 
@@ -332,7 +332,10 @@ export function RoomView({
           <h1
             className="sys-room-view-title"
             ref={titleRef}
-            tabIndex={focusTitle ? -1 : undefined}
+            // Always focusable by script: a title focused in the loading shell
+            // stays focused when the room loads, where a browser would drop
+            // focus to the page if the title stopped being focusable.
+            tabIndex={-1}
           >
             {loading ? (
               <>
