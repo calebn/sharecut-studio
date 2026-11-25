@@ -4,6 +4,9 @@ inputs:
   output:
     description: Complete native payload destination
     default: ""
+  owner-cdn-base:
+    description: Owner CDN base URL (callers pass the SHARECUT_OWNER_CDN_BASE repository variable)
+    default: ""
 runs:
   using: composite
   steps:
@@ -11,7 +14,7 @@ runs:
       shell: bash
       env:
         PAYLOAD_OUTPUT: ${{ inputs.output }}
-        PODCAST_OWNER_CDN_BASE: ${{ vars.SHARECUT_OWNER_CDN_BASE }}
+        PODCAST_OWNER_CDN_BASE: ${{ inputs.owner-cdn-base }}
       run: python scripts/ffmpeg_payload.py --output "${PAYLOAD_OUTPUT:-$RUNNER_TEMP/sharecut-ffmpeg}" --github-env
     - name: Verify downstream standard CPython
       if: runner.os == 'Windows'
