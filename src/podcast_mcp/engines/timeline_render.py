@@ -428,7 +428,11 @@ def _require_segment_sources(project: EpisodeProject, track: Track, clips: list[
         if clip.segment_ref is None:
             continue
         source = project.source_by_id(clip.source_id) if clip.source_id else None
-        if source is None or not resolve_under_workspace(project, source.path).is_file():
+        try:
+            present = source is not None and resolve_under_workspace(project, source.path).is_file()
+        except ValueError:
+            present = False
+        if not present:
             raise CodedValueError(
                 f"segment lane {track.id!r}: the source for clip {clip.id!r} is missing. "
                 "Re-insert the segment or restore its audio file.",

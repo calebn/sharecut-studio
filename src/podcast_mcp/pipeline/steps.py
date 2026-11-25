@@ -1028,7 +1028,8 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         missing = sorted(tid for tid in mix_gains(project) if tid not in rendered)
         if missing:
             raise CodedValueError(
-                f"track {missing[0]!r} has no rendered stem, so it cannot be mixed",
+                f"track {missing[0]!r} has no rendered stem, so it cannot be mixed. "
+                "Run assemble_timeline first.",
                 code="stem_missing",
             )
     reused = _reusable_premix_summary(project, defaults, rendered)

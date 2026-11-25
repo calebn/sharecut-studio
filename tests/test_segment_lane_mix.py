@@ -22,6 +22,7 @@ from podcast_mcp.engines.play_audit import (
     read_premix_hash,
     stem_is_fresh,
 )
+from podcast_mcp.engines.timeline_render import _require_segment_sources
 from podcast_mcp.engines.waveform_media import _project_candidates
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -399,6 +400,20 @@ def test_a_lane_whose_source_is_gone_is_named_in_the_error(
 
     with pytest.raises(CodedValueError, match=lane) as caught:
         steps.assemble_timeline(proj, load_defaults())
+    assert caught.value.code == "segment_source_missing"
+
+
+def test_a_lane_source_outside_the_workspace_is_a_coded_error(
+    episode_path: str, tmp_path: Path
+) -> None:
+    proj = _lane_project(episode_path, tmp_path)
+    lane = _lane_id(proj)
+    clip = next(c for c in proj.clips if c.track_id == lane)
+    proj.source_by_id(clip.source_id).path = "../../elsewhere.wav"
+    track = next(t for t in proj.tracks if t.id == lane)
+
+    with pytest.raises(CodedValueError, match=lane) as caught:
+        _require_segment_sources(proj, track, [clip])
     assert caught.value.code == "segment_source_missing"
 
 
