@@ -309,6 +309,63 @@ describe("Menu", () => {
     }
   });
 
+  it("closes an open fallback menu whose trigger goes away", async () => {
+    const proto = HTMLElement.prototype as Partial<HTMLElement>;
+    const { showPopover, hidePopover } = proto;
+    delete proto.showPopover;
+    delete proto.hidePopover;
+    try {
+      const onOpenChange = vi.fn();
+      function DetachableMenu({ attached }: { attached: boolean }) {
+        const [open, setOpen] = useState(true);
+        return (
+          <Menu
+            open={open}
+            onOpenChange={(next) => {
+              onOpenChange(next);
+              setOpen(next);
+            }}
+            label="Detachable menu"
+            trigger={({ ref, ...props }) =>
+              attached ? (
+                <button
+                  type="button"
+                  {...props}
+                  ref={(node) => {
+                    ref(node);
+                  }}
+                >
+                  Open
+                </button>
+              ) : null
+            }
+          >
+            <MenuItem>One</MenuItem>
+          </Menu>
+        );
+      }
+      const { rerender } = render(<DetachableMenu attached />);
+      expect(
+        screen.getByRole("menu", { name: "Detachable menu" }),
+      ).toHaveAttribute("data-menu-mode", "fallback");
+      rerender(<DetachableMenu attached />);
+      expect(onOpenChange).not.toHaveBeenCalled();
+      rerender(<DetachableMenu attached={false} />);
+      expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+      rerender(<DetachableMenu attached />);
+      expect(
+        screen.queryByRole("menu", { name: "Detachable menu" }),
+      ).toBeNull();
+      expect(screen.getByRole("button", { name: "Open" })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    } finally {
+      proto.showPopover = showPopover;
+      proto.hidePopover = hidePopover;
+    }
+  });
+
   it("forwards direct container focus from the second item without selection", async () => {
     const user = userEvent.setup();
     render(<Fixture />);

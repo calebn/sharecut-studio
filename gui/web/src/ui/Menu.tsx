@@ -163,6 +163,20 @@ export function Menu({
     );
   }, [mode]);
 
+  const placedRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!open || mode !== "fallback") {
+      placedRef.current = false;
+    } else if (portalTarget) {
+      placedRef.current = true;
+    } else if (placedRef.current) {
+      // A placed fallback panel whose trigger is gone after the commit (not
+      // one re-registering in the same commit) closes instead of staying open.
+      placedRef.current = false;
+      close();
+    }
+  }, [open, mode, portalTarget, close]);
+
   useLayoutEffect(() => {
     if (!open || (mode === "fallback" && !portalTarget)) {
       return;
