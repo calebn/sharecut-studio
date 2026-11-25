@@ -315,6 +315,74 @@ describe("applyOsMediaSession", () => {
   });
 });
 
+describe("applyOsMediaSession when a write throws", () => {
+  it("goes on to the handlers, state and position when the metadata write throws", () => {
+    const { session, calls } = specSession();
+    const failing: MediaSessionLike = Object.create(session, {
+      metadata: {
+        set() {
+          throw new TypeError("artwork");
+        },
+      },
+    });
+    const next = projectOsMediaSession(PLAYING);
+    const result = applyOsMediaSession(
+      failing,
+      next,
+      OS_SESSION_OFF,
+      noHandlers,
+      metadata,
+    );
+    expect(calls).toContain("handler:play:fn");
+    expect(calls).toContain("state:playing");
+    expect(calls).toContain("position:125/600@1");
+    // The metadata was not written, so the next change writes it again.
+    expect(result.applied).toEqual({ ...next, metadata: null });
+    expect(result.failed.map((f) => f.write)).toEqual(["metadata"]);
+  });
+
+  it("keeps the state and position as they were when their writes throw", () => {
+    const { session } = specSession();
+    const failing: MediaSessionLike = Object.create(session, {
+      playbackState: {
+        set() {
+          throw new TypeError("state");
+        },
+      },
+      setPositionState: {
+        value() {
+          throw new TypeError("position");
+        },
+      },
+    });
+    const playing = projectOsMediaSession(PLAYING);
+    const off = applyOsMediaSession(
+      failing,
+      OS_SESSION_OFF,
+      playing,
+      noHandlers,
+      metadata,
+    );
+    expect(off.applied).toEqual({
+      ...OS_SESSION_OFF,
+      playbackState: playing.playbackState,
+      positionState: playing.positionState,
+    });
+    expect(off.failed.map((f) => f.write)).toEqual([
+      "playbackState",
+      "positionState",
+    ]);
+  });
+
+  it("reports no failure and applies the whole state when every write succeeds", () => {
+    const { session } = specSession();
+    const next = projectOsMediaSession(PLAYING);
+    expect(
+      applyOsMediaSession(session, next, OS_SESSION_OFF, noHandlers, metadata),
+    ).toEqual({ applied: next, failed: [] });
+  });
+});
+
 describe("osActionHandlers", () => {
   type PreviewState = "none" | "playing" | "ended";
   function fakeCommands(playing: boolean, preview: PreviewState = "none") {

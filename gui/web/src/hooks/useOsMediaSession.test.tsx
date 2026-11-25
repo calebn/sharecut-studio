@@ -219,6 +219,56 @@ describe("useOsMediaSession", () => {
     expect(reportError).toHaveBeenCalledTimes(1);
   });
 
+  it("still declares the state, position and handlers when the metadata write throws, and retries it", () => {
+    hydrateGuest();
+    vi.stubGlobal("reportError", vi.fn());
+    let refuse = true;
+    vi.stubGlobal(
+      "MediaMetadata",
+      class {
+        title: string;
+        constructor(init: { title: string }) {
+          if (refuse) throw new TypeError("artwork");
+          this.title = init.title;
+        }
+      },
+    );
+    renderHook(() => useOsMediaSession());
+    act(() => useDawStore.getState().setIsPlaying(true));
+    expect(session.metadata).toBeNull();
+    expect(session.playbackState).toBe("playing");
+    expect(handlers.get("play")).not.toBeNull();
+    expect(session.setPositionState).toHaveBeenCalled();
+    refuse = false;
+    act(() => useDawStore.getState().setIsPlaying(false));
+    expect(session.metadata?.title).toBe("Episode 12");
+    expect(session.playbackState).toBe("paused");
+  });
+
+  it("reports each failing write once, not only the first failure of the page", () => {
+    hydrateGuest();
+    const reportError = vi.fn();
+    vi.stubGlobal("reportError", reportError);
+    vi.stubGlobal(
+      "MediaMetadata",
+      class {
+        constructor() {
+          throw new TypeError("artwork");
+        }
+      },
+    );
+    session.setPositionState.mockImplementation(() => {
+      throw new TypeError("rejected");
+    });
+    renderHook(() => useOsMediaSession());
+    startThenPause();
+    act(() => useDawStore.getState().setIsPlaying(true));
+    expect(reportError.mock.calls.map(([e]) => (e as Error).message)).toEqual([
+      "artwork",
+      "rejected",
+    ]);
+  });
+
   it("stops a source preview when the OS pauses and the transport is idle", () => {
     hydrateGuest();
     renderHook(() => useOsMediaSession());

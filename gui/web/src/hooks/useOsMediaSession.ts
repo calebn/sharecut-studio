@@ -5,6 +5,7 @@ import {
   OS_SESSION_OFF,
   type OsMediaSessionState,
   type OsTransportCommands,
+  type OsWriteFailure,
   osActionHandlers,
   osDiscontinuityKey,
   osTransportInput,
@@ -60,16 +61,24 @@ export function useOsMediaSession(): void {
     let appliedKey = "";
     let startedPath: string | null = null;
     let seen: ReturnType<typeof useDawStore.getState> | null = null;
-    let reported = false;
+    // One report per kind of write: a browser that refuses one refuses it on
+    // every change, so later ones would only repeat it.
+    const reported = new Set<OsWriteFailure["write"]>();
     const write = (next: OsMediaSessionState) => {
-      try {
-        applyOsMediaSession(session, next, applied, handlers, makeMetadata);
-      } catch (error) {
-        if (!reported && typeof globalThis.reportError === "function")
+      const result = applyOsMediaSession(
+        session,
+        next,
+        applied,
+        handlers,
+        makeMetadata,
+      );
+      applied = result.applied;
+      for (const { write: kind, error } of result.failed) {
+        if (reported.has(kind)) continue;
+        reported.add(kind);
+        if (typeof globalThis.reportError === "function")
           globalThis.reportError(error);
-        reported = true;
       }
-      applied = next;
     };
     const sync = (state: ReturnType<typeof useDawStore.getState>) => {
       if (seen && sameOsInputs(seen, state)) return;
