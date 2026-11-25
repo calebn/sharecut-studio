@@ -47,6 +47,7 @@ def notice_response(request: Request) -> Response:
     body = (
         "<p>Someone shared this from their own computer. ShareCut hasn't reviewed it, "
         "so only continue if you know and trust the person who sent it.</p>\n"
+        "<p>Your browser needs to allow cookies for this page to continue.</p>\n"
         f'<form method="post" action="{html.escape(action)}">'
         '<button type="submit">Continue</button></form>'
     )

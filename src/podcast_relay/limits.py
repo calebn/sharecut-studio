@@ -105,14 +105,18 @@ def client_subnet(client_ip: str | None) -> str:
 
 
 def check_enroll(client_ip: str | None) -> RateLimitDecision:
-    """Global rate first, then the client's subnet, so a refused global never spends a subnet slot."""
+    """Subnet first, then the global rate, so a refused subnet never spends a global token.
+
+    A client that has used up its own /24 can then only hurt itself, not hold the shared bucket
+    empty and lock every other install out of enrolling.
+    """
     if not relay_rate_limit_enabled():
         return RateLimitDecision(allowed=True, bucket="relay_enroll_subnet")
     lim = get_relay_limiters()
-    overall = lim.enroll_global.allow("all")
-    if not overall.allowed:
-        return overall
-    return lim.enroll_subnet.allow(client_subnet(client_ip))
+    own = lim.enroll_subnet.allow(client_subnet(client_ip))
+    if not own.allowed:
+        return own
+    return lim.enroll_global.allow("all")
 
 
 def check_renew(install_id: str) -> RateLimitDecision:

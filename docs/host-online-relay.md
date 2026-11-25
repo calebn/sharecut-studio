@@ -502,6 +502,7 @@ own origin (`Sec-Fetch-Site: same-origin`, or an `Origin` with the relay's host 
 sends no fetch metadata; anything else gets `403`), so another site cannot pre-continue a visitor,
 and which sets a session cookie, `sc_notice=1` (HttpOnly,
 SameSite=Lax, Secure over https, no expiry), and answers `303` back to the same path and query. The
+notice says the browser must allow cookies, because with cookies blocked the visitor lands on it again. The
 cookie is the relay's own; nothing is stored on the host, and the relay still drops every cookie a
 host sets. `next` must start with `/r/` or `/rec/` and cannot contain `//` or a backslash, so the
 route cannot redirect elsewhere. The notice appears once per browser session, only for legacy-tier
