@@ -394,7 +394,7 @@ class PipelineService:
             duplicate = next(i for i in ids if ids.count(i) > 1)
             raise CodedValueError(
                 f"Volume envelope for {track_id!r} has more than one point with id "
-                f"{duplicate!r}; envelope point ids must be unique.",
+                f"{duplicate!r}; envelope point IDs must be unique.",
                 code="envelope_duplicate_point_id",
             )
         current = p.volume_envelope_for(track_id)
