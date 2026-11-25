@@ -5,7 +5,7 @@ import {
 } from "../stage/frame/attentionLabel";
 import type { DecisionKind } from "../system/decisionKinds";
 import { KIND_META } from "../system/decisionKinds";
-import { formatSeconds, formatSpan, hasCutsSaved } from "../system/seconds";
+import { formatSpan, hasCutsSaved } from "../system/seconds";
 import { verbOf } from "../system/verbDisplay";
 import type { VerbId } from "../system/verbs";
 import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
@@ -349,8 +349,8 @@ export function resultText(item: ReviewItem): string {
     verb === KIND_META[item.kind].verb
       ? (KIND_META[item.kind].verbLabel ?? verbOf(verb).label)
       : verbOf(verb).label;
-  return item.savedSeconds > 0
-    ? `${word} ${formatSeconds(item.savedSeconds)}`
+  return hasCutsSaved(item.savedSeconds)
+    ? `${word} ${formatSpan(item.savedSeconds)}`
     : word;
 }
 

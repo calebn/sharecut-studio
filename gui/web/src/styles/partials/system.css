@@ -1252,6 +1252,11 @@ button.sys-version-line {
   display: none;
 }
 
+/* The cuts figure is a unit-bearing span ("−4 min 10 s"); it never wraps. */
+.sys-player-cuts {
+  white-space: nowrap;
+}
+
 .sys-player-host:is(
     [data-fit="3"],
     [data-fit="4"],

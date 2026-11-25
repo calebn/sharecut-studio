@@ -274,6 +274,15 @@ describe("resultText", () => {
     );
     expect(resultText(item({ result: "kept" }))).toBe("Kept");
   });
+
+  it("writes the figure by the cut-total rule", () => {
+    expect(resultText(item({ result: "applied", savedSeconds: 72 }))).toBe(
+      "Cut 1 min 12 s",
+    );
+    expect(resultText(item({ result: "applied", savedSeconds: 0.04 }))).toBe(
+      "Cut",
+    );
+  });
 });
 
 describe("decisionMessage", () => {
@@ -283,6 +292,24 @@ describe("decisionMessage", () => {
       "Cut 2 · saves 1.4 s",
     );
     expect(decisionMessage(QUEUE_ITEMS, ["f1", "f2"], "kept")).toBe("Kept 2");
+  });
+
+  it("words a large bulk total as a span", () => {
+    const rows = [
+      item({ id: "a", savedSeconds: 40 }),
+      item({ id: "b", savedSeconds: 32 }),
+    ];
+    expect(decisionMessage(rows, ["a", "b"], "applied")).toBe(
+      "Cut 2 · saves 1 min 12 s",
+    );
+  });
+
+  it("drops the saves tail when the bulk rounds to nothing", () => {
+    const tiny = [
+      item({ id: "a", savedSeconds: 0.01 }),
+      item({ id: "b", savedSeconds: 0.01 }),
+    ];
+    expect(decisionMessage(tiny, ["a", "b"], "applied")).toBe("Cut 2");
   });
 });
 
