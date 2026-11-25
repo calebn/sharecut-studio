@@ -3,6 +3,7 @@ import { dispatchComposer } from "../../commands/composer";
 import { skipListen } from "../../commands/listenSeek";
 import { runPointerCommand } from "../../commands/pointer";
 import { useTranscriptDetail } from "../../document/useTranscriptDetail";
+import { useCutTotal } from "../../hooks/useEditorCutTotal";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { rosterDisplayName } from "../../presence/colors";
 import { followDetail } from "../../presence/followSync";
@@ -76,6 +77,7 @@ export function usePlayerProps(
     reviewPeaks: s.reviewPeaks,
     loadFailed: s.listenLoadFailed,
   }));
+  const removedSeconds = useCutTotal(project?.edit_impact.total_removed_sec);
   const playheadSec = useDawStore((s) => s.playheadSec);
   // What was playing when A was pressed, so letting go goes back to it.
   const beforeOriginal = useRef<AuditionMode>("mix");
@@ -168,9 +170,7 @@ export function usePlayerProps(
     playing,
     time: clock.current,
     total: clock.total,
-    cuts: project
-      ? cutsLabel(project.edit_impact.total_removed_sec)
-      : undefined,
+    cuts: removedSeconds === null ? undefined : cutsLabel(removedSeconds),
     rate:
       followingClientId == null && playbackRate > 1 ? playbackRate : undefined,
     state,

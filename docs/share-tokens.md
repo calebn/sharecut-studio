@@ -789,7 +789,8 @@ project, as the host does, not the share's pinned review version. Both are reads
 one is a 422, `-32602` over MCP). The `edit_impact` and `social_clips` fields of the Studio
 project view stay placeholders (zero and empty) for every role: that view is pushed to all guests
 through one shared event stream, so showing an Editor the real values there needs a per-role
-stream; until then the Editor takes them from these two reads. Approving, rejecting, proposing and
+stream. The Editor’s Player and Deliver read the same cut total from the existing edit-impact
+route and refresh it when the saved edit head changes. Approving, rejecting, proposing and
 exporting social clips stay with the host; an Editor adds, changes and deletes a candidate by
 document command as before.
 

@@ -12,6 +12,7 @@ import { postDocumentCommand } from "./documentCommand";
 import { expectFeedback } from "./feedback";
 import { withSharedProject } from "./guestLink";
 import { openGuestShare } from "./shareNavigation";
+import { deliverPage, goToStage } from "./stageNav";
 
 /**
  * An Editor on a review link edits the host's episode with the hand edits the
@@ -232,6 +233,61 @@ test("an Editor's Cut on a phone lands on the host's episode and Undo on the toa
       await toast(guest!).getByRole("button", { name: /undo/i }).tap();
       await expect(cutMark(host!, "0.3 s")).toHaveCount(0);
       expect(await spans(host!, projectPath, "reference")).toEqual([[0, 60]]);
+    },
+  );
+});
+
+test("an Editor's phone Player and Deliver agree with the host's cut total", async ({
+  browser,
+}) => {
+  await withSharedProject(
+    browser,
+    [PHONE],
+    ["editor"],
+    async ([host, guest], links, projectPath) => {
+      await openGuestShare(guest!, links.editor!);
+      await guest!.getByRole("button", { name: "Dismiss hint" }).tap();
+      await guest!
+        .getByRole("group", { name: "Edit surface" })
+        .getByRole("button", { name: "Script" })
+        .tap();
+      const words = script(guest!).locator(
+        '.sys-script-word[data-word-key^="reference:"]',
+      );
+      await words.nth(2).click();
+      await words.nth(8).click({ modifiers: ["Shift"] });
+      await expect(words.nth(8)).toHaveAttribute("data-selected");
+      await pressCut(guest!, "EditSelectedRange");
+
+      const hostView = await host!.request.get(
+        `/api/project?path=${encodeURIComponent(projectPath)}&phase=full`,
+      );
+      expect(hostView.ok()).toBe(true);
+      const { edit_impact } = (await hostView.json()) as {
+        edit_impact: { total_removed_sec: number };
+      };
+      const seconds = edit_impact.total_removed_sec;
+      expect(seconds).toBeGreaterThan(0.5);
+      const hostCuts = host!.locator(".sys-player-cuts");
+      await expect(hostCuts).toHaveText(/−/);
+      await expect(guest!.locator(".sys-player-cuts")).toHaveText(
+        (await hostCuts.textContent()) ?? "",
+      );
+
+      await goToStage(guest!, "deliver");
+      const files = deliverPage(guest!).getByRole("region", { name: "Files" });
+      await expect(
+        files.getByText(`Edits saved ${seconds.toFixed(1)} s`, { exact: true }),
+      ).toBeVisible();
+
+      await guest!
+        .getByRole("region", { name: "Playback controls" })
+        .getByRole("button", { name: "Undo", exact: true })
+        .tap();
+      await expect(guest!.locator(".sys-player-cuts")).toHaveCount(0);
+      await expect(
+        files.getByText("Edits saved 0.0 s", { exact: true }),
+      ).toBeVisible();
     },
   );
 });
