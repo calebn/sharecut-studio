@@ -652,6 +652,48 @@ def test_cli_cleanup_cancels_with_the_given_gh(repo: Repo, monkeypatch) -> None:
     assert own not in repo.remote_branches()
 
 
+@pytest.mark.parametrize(
+    "error",
+    [FileNotFoundError("gh"), json.JSONDecodeError("bad", "", 0), KeyError("workflow_runs")],
+    ids=["no-gh", "bad-json", "missing-key"],
+)
+def test_cleanup_deletes_branches_when_listing_runs_breaks(repo: Repo, error: Exception) -> None:
+    develop = repo.remote_sha("develop")
+    own = f"promote/{'a' * 12}-{EPOCH}-77-2"
+    sh(repo.other, "push", "-q", "origin", f"{develop}:refs/heads/{own}")
+
+    class Broken(FakeGh):
+        def runs(self, workflow: str, branch: str, head_sha: str) -> list:
+            raise error
+
+    promote.cleanup(promote.Git(repo.clone), run_id="77", attempt="2", now=EPOCH, gh=Broken())
+
+    assert own not in repo.remote_branches()
+
+
+def test_cli_cleanup_builds_gh_from_the_repository_env(repo: Repo, monkeypatch) -> None:
+    develop = repo.remote_sha("develop")
+    own = "promote/abcabcabcabc-1-9-3"
+    sh(repo.other, "push", "-q", "origin", f"{develop}:refs/heads/{own}")
+    monkeypatch.setenv("GITHUB_RUN_ID", "9")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "3")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/name")
+    gh = FakeGh(outcomes={"test.yml": ("in_progress", None)})
+    gh.dispatched.append(("test.yml", own, {}))
+    built: list[str] = []
+
+    def fake_cli(repo_name: str) -> FakeGh:
+        built.append(repo_name)
+        return gh
+
+    monkeypatch.setattr(promote, "GhCli", fake_cli)
+
+    assert promote.main(["cleanup"], git=promote.Git(repo.clone)) == 0
+
+    assert built == ["owner/name"]
+    assert gh.cancelled == [gh.run_id("test.yml")]
+
+
 def test_cli_run_passes_flags_through(repo: Repo, monkeypatch) -> None:
     gh = FakeGh()
     monkeypatch.setattr(promote.time, "sleep", lambda _: None)

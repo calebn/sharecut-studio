@@ -421,8 +421,8 @@ def cancel_branch_runs(git: Git, gh: Gh, branch: str) -> None:
     try:
         sha = git.rev_parse(branch)
         runs = [found[-1] if (found := gh.runs(w, branch, sha)) else None for w in CI_WORKFLOWS]
-    except subprocess.CalledProcessError:
-        print(f"could not list the runs on {branch}")
+    except (subprocess.CalledProcessError, OSError, ValueError, KeyError) as exc:
+        print(f"could not list the runs on {branch}: {type(exc).__name__}")
         return
     cancel_unfinished(gh, runs)
 
