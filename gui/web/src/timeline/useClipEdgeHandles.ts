@@ -153,15 +153,15 @@ function clipEdgeTicks(
   edge: TrimEdge,
   limits: TrimLimits | null,
 ): number[] {
-  const s = useDawStore.getState();
-  const project = s.projectEditBasis();
+  const { playheadSec: playhead, projectEditBasis } = useDawStore.getState();
+  const project = projectEditBasis();
   if (!project || !limits) return [];
   const rippled =
     TRIM_MODE === "ripple"
       ? new Set(rippleTrackIds(project.tracks, [clip.track_id]))
       : new Set<string>();
   const edited = edge === "in" ? clip.timeline_start : clip.timeline_end;
-  const times = [s.playheadSec];
+  const times = [playhead];
   for (const [trackId, lane] of Object.entries(project.clips.tracks)) {
     for (const other of lane) {
       if (other.id === clip.id) continue;
