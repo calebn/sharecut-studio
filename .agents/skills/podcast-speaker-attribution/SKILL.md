@@ -46,6 +46,7 @@ podcast speaker compare --project PATH --start S --end E
 podcast speaker gate-track --project PATH --dry-run
 podcast speaker gate-track --project PATH --apply
 podcast speaker label --project PATH --track T --start S --end E --dry-run
+podcast speaker label --project PATH --track T --start S --end E --apply
 podcast speaker set-speaker-count --project PATH --speakers N
 podcast speaker attribute --project PATH --dry-run
 podcast speaker split --project PATH --track T --speakers N --dry-run
@@ -70,6 +71,8 @@ Progress is automatic on MCP/CLI (relay tool headlines; do not invent status). S
 ## MCP
 
 `speaker_enroll_tool`, `speaker_compare_window_tool`, `speaker_compare_pair_tool`, `speaker_gate_track_tool`, `speaker_label_tool`, `speaker_set_count_tool`, `speaker_attribute_tool`, `speaker_split_tool`, `speaker_move_lane_span_tool`, `speaker_score_tool`, `speaker_profiles_tool`, `speaker_doctor_tool`
+
+`speaker_label_tool` with `dry_run` off (or `podcast speaker label --apply`) saves the labels as one undo step that an open Studio sees.
 
 ## Hand off to audition
 
