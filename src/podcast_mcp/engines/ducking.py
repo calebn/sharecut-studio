@@ -10,8 +10,11 @@ tells them from the person's own points without a project-format change:
 
 - ``duck:g:<sha1(time|value)>`` is a generated point. It counts as ours only while its time
   and value still hash to its id; a point the person moved or retyped is theirs and survives.
-- ``duck:b:<id>:<value>`` is a person's point the dip lowered. A rerun puts back ``<id>`` and
-  ``<value>`` before it recomputes, so the same input always gives the same points.
+- ``duck:u:<hash>`` is a generated point the person moved or retyped. It stays as a local
+  ceiling: it can lower the result at its own time but never anchors the rest of the track.
+- ``duck:b:<id>:<value>:<lowered>`` is a person's point the dip lowered to ``<lowered>``. A
+  rerun puts back ``<id>`` and ``<value>`` before it recomputes while the point still holds
+  ``<lowered>``; a point retyped to another value is the person's and keeps what they typed.
 """
 
 from __future__ import annotations
@@ -19,8 +22,8 @@ from __future__ import annotations
 import hashlib
 import itertools
 import math
-from bisect import bisect_right
-from collections.abc import Iterable, Sequence
+from bisect import bisect_left, bisect_right
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, replace
 from typing import NamedTuple
 
@@ -104,21 +107,22 @@ def generated_point_id(time: float, value: float) -> str:
     return GENERATED_PREFIX + digest.hexdigest()[:_ID_HASH_CHARS]
 
 
-def _lowered_id(original_id: str, original_value: float) -> str:
-    return f"{BASE_PREFIX}{original_id}:{original_value!r}"
+def _lowered_id(original_id: str, original_value: float, lowered_value: float) -> str:
+    return f"{BASE_PREFIX}{original_id}:{original_value!r}:{lowered_value!r}"
 
 
-def _parse_lowered(point_id: str) -> tuple[str, float] | None:
+def _parse_lowered(point_id: str) -> tuple[str, float, float] | None:
     if not point_id.startswith(BASE_PREFIX):
         return None
-    original_id, sep, raw = point_id[len(BASE_PREFIX) :].rpartition(":")
-    if not sep or not original_id:
+    rest, sep_low, raw_low = point_id[len(BASE_PREFIX) :].rpartition(":")
+    original_id, sep_orig, raw_orig = rest.rpartition(":")
+    if not sep_low or not sep_orig or not original_id:
         return None
     try:
-        value = float(raw)
+        original, lowered = float(raw_orig), float(raw_low)
     except ValueError:
         return None
-    return (original_id, value) if math.isfinite(value) else None
+    return (original_id, original, lowered) if math.isfinite(original + lowered) else None
 
 
 def restore_base(points: Iterable[AutomationPoint | EnvPoint]) -> tuple[list[EnvPoint], int]:
@@ -126,7 +130,8 @@ def restore_base(points: Iterable[AutomationPoint | EnvPoint]) -> tuple[list[Env
 
     Returns the points sorted by time and how many generated points were dropped. A generated
     point whose time or value no longer matches its id was edited by a person, so it stays,
-    under an id that a future generated point cannot take.
+    under an id that a future generated point cannot take. A lowered point retyped by a person
+    keeps the typed value.
     """
     kept: list[EnvPoint] = []
     dropped = 0
@@ -140,7 +145,9 @@ def restore_base(points: Iterable[AutomationPoint | EnvPoint]) -> tuple[list[Env
             continue
         lowered = _parse_lowered(pid)
         if lowered is not None:
-            kept.append(EnvPoint(lowered[0], time, lowered[1]))
+            original_id, original, written = lowered
+            restored = original if abs(value - written) <= _FLAT_EPS else value
+            kept.append(EnvPoint(original_id, time, restored))
             continue
         kept.append(EnvPoint(pid, time, value))
     kept.sort(key=lambda p: p.time)
@@ -185,8 +192,7 @@ def _q(time: float) -> float:
     return round(time, TIME_DIGITS)
 
 
-def _interp(poly: Sequence[tuple[float, float]], time: float) -> float:
-    times = [t for t, _ in poly]
+def _interp(poly: Sequence[tuple[float, float]], times: Sequence[float], time: float) -> float:
     index = bisect_right(times, time)
     if index == 0:
         return poly[0][1]
@@ -228,12 +234,13 @@ def duck_polyline(
                 continue
             time = _q(ordered[-1][0] + 10**-TIME_DIGITS)
         ordered.append((time, value))
+    ordered_times = [t for t, _ in ordered]
     out: Polyline = []
     if ordered[0][0] < 0.0:
-        out.append((0.0, _interp(ordered, 0.0)))
+        out.append((0.0, _interp(ordered, ordered_times, 0.0)))
     out.extend((t, v) for t, v in ordered if 0.0 <= t <= duration and not (out and out[-1][0] == t))
     if ordered[-1][0] > duration:
-        out.append((duration, _interp(ordered, duration)))
+        out.append((duration, _interp(ordered, ordered_times, duration)))
     return out
 
 
@@ -251,21 +258,51 @@ def _base_value(times: Sequence[float], points: Sequence[EnvPoint], time: float)
     return left.value + (right.value - left.value) * (time - left.time) / (right.time - left.time)
 
 
+_OPEN = math.inf
+
+
+def _ceiling_polyline(
+    poly: Polyline, base_at: Callable[[float], float]
+) -> tuple[Polyline, list[float], list[bool]]:
+    """The dip with its unity ends lifted to the bed's own level, and which segments are open.
+
+    A segment between two unity ends is a pause between dips: nothing caps the bed there, so a
+    boost above unity survives. A unity end sits at ``max(1, bed)``, so a ramp starts from the
+    bed's level rather than from a step down to unity.
+    """
+    lifted = [(t, max(1.0, base_at(t)) if v == 1.0 else v) for t, v in poly]
+    open_segment = [poly[i][1] == 1.0 and poly[i + 1][1] == 1.0 for i in range(len(poly) - 1)]
+    return lifted, [t for t, _ in lifted], open_segment
+
+
 def _compose(base: Sequence[EnvPoint], poly: Polyline, duration: float) -> list[EnvPoint]:
+    anchors = [p for p in base if not p.id.startswith(USER_PREFIX)]
+    local = {p.time for p in base if p.id.startswith(USER_PREFIX)}
+    anchor_times = [p.time for p in anchors]
     base_times = [p.time for p in base]
     duck_times = [t for t, _ in poly]
     union = sorted(set(base_times) | set(duck_times))
 
-    def duck_at(time: float) -> float:
-        return _interp(poly, time)
-
     def base_at(time: float) -> float:
-        return _base_value(base_times, base, time)
+        return _base_value(anchor_times, anchors, time)
+
+    lifted, lifted_times, open_segment = _ceiling_polyline(poly, base_at)
+
+    def duck_at(time: float) -> float:
+        index = bisect_left(lifted_times, time)
+        if index < len(lifted_times) and lifted_times[index] == time:
+            return lifted[index][1]
+        if index == 0 or index == len(lifted_times) or open_segment[index - 1]:
+            return _OPEN
+        return _interp(lifted, lifted_times, time)
 
     generated_times: set[float] = set()
     for left, right in itertools.pairwise(union):
-        gap_left = base_at(left) - duck_at(left)
-        gap_right = base_at(right) - duck_at(right)
+        ceil_left, ceil_right = duck_at(left), duck_at(right)
+        if _OPEN in (ceil_left, ceil_right):
+            continue
+        gap_left = base_at(left) - ceil_left
+        gap_right = base_at(right) - ceil_right
         if (gap_left > _FLAT_EPS and gap_right < -_FLAT_EPS) or (
             gap_left < -_FLAT_EPS and gap_right > _FLAT_EPS
         ):
@@ -287,8 +324,11 @@ def _compose(base: Sequence[EnvPoint], poly: Polyline, duration: float) -> list[
         if point is None:
             value = min(base_at(time), ceiling)
             cells.append(EnvPoint(generated_point_id(time, value), time, value))
-        elif point.value > ceiling and point.time <= duration:
-            cells.append(EnvPoint(_lowered_id(point.id, point.value), time, ceiling))
+            continue
+        if time in local:
+            ceiling = min(ceiling, base_at(time))
+        if point.value > ceiling and point.time <= duration:
+            cells.append(EnvPoint(_lowered_id(point.id, point.value, ceiling), time, ceiling))
         else:
             cells.append(point)
     return _drop_collinear(cells)
@@ -360,14 +400,16 @@ def plan_envelope(
     if params.depth_db >= 0:
         return _plan_once([], base, replaced, params, duration)
     gap = params.min_gap_sec
+    tried = gap
     for step in range(MAX_COARSEN_STEPS + 1):
         plan = _plan_once(spans, base, replaced, replace(params, min_gap_sec=gap), duration)
         if len(plan.points) <= max_points:
             return replace(plan, coarsened=step > 0)
+        tried = gap
         gap = max(gap * 2.0, 0.1)
     raise CodedValueError(
         f"Ducking would write more than {max_points} envelope points even with the dips "
-        f"merged across pauses up to {gap:.1f} s. Raise min_gap_sec or hold_sec, or duck a "
+        f"merged across pauses up to {tried:.1f} s. Raise min_gap_sec or hold_sec, or duck a "
         "shorter range.",
         code="ducking_too_many_points",
     )

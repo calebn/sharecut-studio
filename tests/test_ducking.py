@@ -199,7 +199,7 @@ class TestComposition:
     def test_a_user_point_inside_the_dip_is_lowered_and_remembered(self) -> None:
         result = plan([(10.0, 12.0)], [EnvPoint("mine", 11.0, 0.8)])
         lowered = next(p for p in result.points if p.time == 11.0)
-        assert lowered.id == f"{BASE_PREFIX}mine:0.8"
+        assert lowered.id == f"{BASE_PREFIX}mine:0.8:{lowered.value!r}"
         assert lowered.value == pytest.approx(GAIN)
         assert result.lowered == 1 and result.kept_user_points == 1
 
@@ -207,9 +207,58 @@ class TestComposition:
         result = plan([(10.0, 12.0)], [EnvPoint("quiet", 11.0, 0.01)])
         assert EnvPoint("quiet", 11.0, 0.01) in result.points
 
-    def test_a_boost_above_unity_is_capped_where_ducking_applies(self) -> None:
-        result = plan([(10.0, 12.0)], [EnvPoint("loud", 30.0, 1.5)])
-        assert max(p.value for p in result.points) <= 1.0
+    def test_a_boost_above_unity_stays_where_no_dip_applies(self) -> None:
+        result = plan([(10.0, 12.0)], [EnvPoint("loud", 50.0, 1.5)])
+        assert EnvPoint("loud", 50.0, 1.5) in result.points
+        assert at(result.points, 30.0) == pytest.approx(1.5)
+        assert at(result.points, 50.0) == pytest.approx(1.5)
+        assert at(result.points, 11.0) == pytest.approx(GAIN)
+        assert max(p.value for p in result.points) <= 1.5
+
+    def test_a_boost_is_lowered_only_where_the_dip_is_below_it(self) -> None:
+        result = plan([(10.0, 12.0)], [EnvPoint("loud", 11.0, 1.5)])
+        assert at(result.points, 11.0) == pytest.approx(GAIN)
+        assert at(result.points, 40.0) == pytest.approx(1.5)
+        assert max(p.value for p in result.points) <= 1.5
+        again = plan([(10.0, 12.0)], result.points)
+        assert again.points == result.points
+        assert plan([(10.0, 12.0)], result.points, depth_db=0.0).points == [
+            EnvPoint("loud", 11.0, 1.5)
+        ]
+
+    def test_a_retyped_lowered_point_is_the_persons_and_not_reverted(self) -> None:
+        first = plan([(10.0, 12.0)], [EnvPoint("mine", 11.0, 0.8)])
+        lowered = next(p for p in first.points if p.id.startswith(BASE_PREFIX))
+        retyped = [EnvPoint(p.id, p.time, 0.05) if p.id == lowered.id else p for p in first.points]
+        again = plan([(10.0, 12.0)], retyped)
+        assert at(again.points, 11.0) == pytest.approx(0.05)
+        assert EnvPoint("mine", 11.0, 0.05) in again.points
+        assert plan([(10.0, 12.0)], again.points).points == again.points
+        flat = plan([(10.0, 12.0)], retyped, depth_db=0.0)
+        assert flat.points == [EnvPoint("mine", 11.0, 0.05)]
+
+    def test_a_point_retyped_above_the_dip_keeps_the_typed_value_as_its_base(self) -> None:
+        first = plan([(10.0, 12.0)], [EnvPoint("mine", 11.0, 0.8)])
+        lowered = next(p for p in first.points if p.id.startswith(BASE_PREFIX))
+        retyped = [EnvPoint(p.id, p.time, 0.5) if p.id == lowered.id else p for p in first.points]
+        flat = plan([(10.0, 12.0)], retyped, depth_db=0.0)
+        assert flat.points == [EnvPoint("mine", 11.0, 0.5)]
+
+    def test_editing_one_generated_point_does_not_collapse_the_bed(self) -> None:
+        spans = [(10.0, 12.0), (14.0, 15.0), (40.0, 41.0)]
+        first = plan(spans)
+        target = next(p for p in first.points if p.time == 10.0)
+        assert target.value == pytest.approx(GAIN)
+        edited = [EnvPoint(p.id, p.time, 0.063) if p.id == target.id else p for p in first.points]
+        again = plan(spans, edited)
+        assert at(again.points, 10.0) == pytest.approx(0.063)
+        for time in (14.5, 40.5):
+            assert at(again.points, time) == pytest.approx(GAIN, abs=1e-6)
+        for time in (0.0, 5.0, 9.0, 25.0, 30.0, 50.0, 59.0):
+            assert at(again.points, time) == pytest.approx(1.0)
+        assert plan(spans, again.points).points == again.points
+        others = [p for p in first.points if p.id != target.id]
+        assert at(first.points, 11.0) == at(plan(spans, others).points, 11.0)
 
     def test_a_point_past_the_timeline_end_is_left_exactly_as_saved(self) -> None:
         stale = EnvPoint("late", 90.0, 1.0)
@@ -232,6 +281,7 @@ class TestComposition:
         again = plan([(10.0, 12.0)], edited)
         assert len({p.id for p in again.points}) == len(again.points)
         assert again.kept_user_points == 1
+        assert at(again.points, 30.0) == pytest.approx(1.0)
 
     def test_a_lowered_point_is_restored_before_a_rerun_with_another_depth(self) -> None:
         user = [EnvPoint("mine:with:colons", 11.0, 0.8)]
@@ -265,6 +315,18 @@ class TestBudget:
         with pytest.raises(CodedValueError) as raised:
             plan(self.many_blips(40), duration=200.0, max_points=2)
         assert raised.value.code == "ducking_too_many_points"
+        assert "19.2 s" in str(raised.value)
+        assert "38.4" not in str(raised.value)
+
+    def test_planning_many_regions_with_a_dense_base_is_fast(self) -> None:
+        import time as clock
+
+        spans = [(i * 4.0, i * 4.0 + 1.5) for i in range(2500)]
+        base = [EnvPoint(f"b{i}", i * 33.0, 0.4 + (i % 5) * 0.1) for i in range(300)]
+        started = clock.perf_counter()
+        result = plan(spans, base, duration=10000.0)
+        assert clock.perf_counter() - started < 2.0
+        assert result.generated > 0
 
 
 def random_case(seed: int):
@@ -307,8 +369,7 @@ def test_properties_over_random_inputs(seed: int) -> None:
 
     for point in points:
         if point.id.startswith(GENERATED_PREFIX) or point.time <= duration:
-            ceiling = min(1.0, at(base, point.time))
-            assert point.value <= ceiling + 1e-9
+            assert point.value <= at(base, point.time) + 1e-9
             assert point.value >= min(gain, at(base, point.time)) - 1e-9
     assert [p.time for p in points] == sorted({p.time for p in points})
     generated = [p for p in points if p.id.startswith(GENERATED_PREFIX)]
@@ -328,9 +389,11 @@ def test_properties_over_random_inputs(seed: int) -> None:
     poly = duck_polyline(result.regions, p, duration)
     for step in range(0, int(duration * 20)):
         time = step / 20.0
-        expected = min(at(base, time), poly_at(poly, time), max(at(base, time), 0.0))
-        expected = min(expected, 1.0)
-        assert at(points, time) == pytest.approx(expected, abs=2e-3)
+        exact = min(at(base, time), poly_at(poly, time))
+        assert at(points, time) <= at(base, time) + 2e-3
+        assert at(points, time) >= exact - 2e-3
+        if all(b.value <= 1.0 for b in base):
+            assert at(points, time) == pytest.approx(exact, abs=2e-3)
 
 
 @pytest.mark.parametrize("seed", SEEDS)
@@ -616,7 +679,8 @@ class TestCommand:
         assert points["f3"] == (60.0, 0.0)
         assert points["f2"] == (55.0, 1.0)
         lowered = {i for i in points if i.startswith(BASE_PREFIX)}
-        assert lowered == {f"{BASE_PREFIX}f1:1.0"}
+        assert len(lowered) == 1
+        assert next(iter(lowered)).startswith(f"{BASE_PREFIX}f1:1.0:")
 
     def test_a_rerun_changes_nothing_and_makes_no_history_entry(self, duck_project) -> None:
         duck(duck_project)
@@ -774,9 +838,10 @@ class TestSurfaces:
         assert result.exit_code == 0, result.output
         assert json.loads(result.output)["result"]["dry_run"] is True
 
-    def test_the_mcp_tool_summarises_without_the_points(self, duck_project) -> None:
+    def test_the_mcp_tool_returns_the_plan_on_a_dry_run(self, duck_project) -> None:
         dry = json.loads(mcp_server.apply_ducking_tool(str(duck_project), dry_run=True))
-        assert dry["dry_run"] is True and "envelope" not in dry["tracks"][0]
+        assert dry["dry_run"] is True
+        assert dry["tracks"][0]["envelope"] and dry["tracks"][0]["speech_regions"]
         applied = json.loads(
             mcp_server.apply_ducking_tool(
                 str(duck_project), track_ids=["music2"], expected_plan_token=None, depth_db=-12.0
