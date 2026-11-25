@@ -180,6 +180,7 @@ describe("editFacts", () => {
     exactRange: false,
     pendingSplit: false,
     commentResolved: false,
+    socialApproved: false,
     clipboardHasAudio: false,
     role: "host",
   };
@@ -390,6 +391,33 @@ describe("editFacts", () => {
       commentResolved: true,
       suggestedAction: null,
     });
+  });
+
+  it("tells an approved social clip from one still proposed", () => {
+    const clip = {
+      track_id: "host",
+      start: 2,
+      end: 6,
+      score: 0.5,
+      title_suggestion: "",
+      review_required: false,
+    };
+    const p = project({
+      social_clips: [
+        { ...clip, id: "kept", approved: true },
+        { ...clip, id: "idea", approved: false },
+      ],
+    });
+    expect(editFacts({ kind: "social", id: "kept" }, p, ctx)).toMatchObject({
+      kind: "social",
+      socialApproved: true,
+    });
+    expect(
+      editFacts({ kind: "social", id: "idea" }, p, ctx).socialApproved,
+    ).toBe(false);
+    expect(
+      editFacts({ kind: "social", id: "gone" }, p, ctx).socialApproved,
+    ).toBe(false);
   });
 
   it("passes the role and clipboard through", () => {

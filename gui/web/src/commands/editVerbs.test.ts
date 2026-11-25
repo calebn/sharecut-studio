@@ -2349,6 +2349,38 @@ describe("Approve and Keep on a suggestion", () => {
     expect(api.updateSocialClipDetails).toHaveBeenCalledOnce();
   });
 
+  it("refuses Approve on a social clip that is already approved and writes nothing", async () => {
+    const project = editFixtureProject();
+    host(
+      { kind: "social", id: "clip-1" },
+      {
+        project: {
+          ...project,
+          social_clips: [
+            {
+              id: "clip-1",
+              track_id: MIRA,
+              start: 1,
+              end: 4,
+              score: 0.5,
+              title_suggestion: "",
+              approved: true,
+              review_required: false,
+            },
+          ],
+        },
+      },
+    );
+    const facts = factsOf()!;
+    expect(facts.socialApproved).toBe(true);
+    expect(barModelOf(facts, useDawStore.getState()).primary).toBeNull();
+    expect(await runEditVerb("approve", facts)).toEqual({
+      status: "disabled",
+      reason: "Already approved",
+    });
+    expect(api.updateSocialClipDetails).not.toHaveBeenCalled();
+  });
+
   it("sends RejectEdits for Keep and never restores clip bleed", async () => {
     const restoreBleed = vi.fn(() => ({ status: "ok" as const }));
     registerCommand("edit.restoreClipBleed", restoreBleed);

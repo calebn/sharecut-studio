@@ -22,6 +22,7 @@ const facts = (over: Partial<EditFacts>): EditFacts => ({
   exactRange: false,
   pendingSplit: false,
   commentResolved: false,
+  socialApproved: false,
   clipboardHasAudio: false,
   role: "host",
   ...over,
@@ -265,6 +266,16 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
       bar: ["hear", "comment", "remove", "inspect"],
       more: [],
       primary: "approve",
+    },
+  ],
+  [
+    "approved social clip",
+    { kind: "social", socialApproved: true },
+    {
+      leading: null,
+      bar: ["hear", "comment", "remove", "inspect"],
+      more: [],
+      primary: null,
     },
   ],
   [

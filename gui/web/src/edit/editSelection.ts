@@ -53,6 +53,8 @@ export interface EditFacts {
   readonly exactRange: boolean;
   readonly pendingSplit: boolean;
   readonly commentResolved: boolean;
+  /** A social clip the host already approved, so Approve has nothing left to do. */
+  readonly socialApproved: boolean;
   readonly clipboardHasAudio: boolean;
   readonly role: EditRole;
 }
@@ -274,6 +276,11 @@ export function editFacts(
       selection?.kind === "comment" &&
       (project.comments.find((comment) => comment.id === selection.id)
         ?.resolved ??
+        false),
+    socialApproved:
+      selection?.kind === "social" &&
+      (project.social_clips.find((clip) => clip.id === selection.id)
+        ?.approved ??
         false),
     clipboardHasAudio: ctx.clipboardHasAudio,
     role: ctx.role,
