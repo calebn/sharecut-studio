@@ -23,6 +23,7 @@ from podcast_mcp.engines.mute_regions import (
     muted_source_spans,
     source_span_is_muted,
 )
+from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 from podcast_mcp.models import (
     ClipMuteRegion,
     EditDecision,
@@ -221,12 +222,18 @@ def _decision_for_analyzed(result: _AnalyzedCut) -> EditDecision:
 
 
 def _apply_analyzed_cut(
-    project: EpisodeProject, result: _AnalyzedCut, *, defaults: EffectiveConfig
+    project: EpisodeProject,
+    result: _AnalyzedCut,
+    *,
+    defaults: EffectiveConfig,
+    timeline_caches: TrackRmsCacheSet | None = None,
 ) -> EditDecision:
     """Append the decision; the caller must have passed `_resolve_analyzed_cuts`."""
     decision = _decision_for_analyzed(result)
     if decision.review_required and (is_pause_reason(decision.reason) or result.peers_speaking):
-        record_suggested_cut_speech(project, decision, defaults=defaults)
+        record_suggested_cut_speech(
+            project, decision, defaults=defaults, timeline_caches=timeline_caches
+        )
     project.edit_decisions.append(decision)
     return decision
 

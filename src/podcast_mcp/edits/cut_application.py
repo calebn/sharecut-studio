@@ -1927,7 +1927,11 @@ def resize_source_remove(
 
 
 def record_suggested_cut_speech(
-    project: EpisodeProject, decision: EditDecision, *, defaults: EffectiveConfig
+    project: EpisodeProject,
+    decision: EditDecision,
+    *,
+    defaults: EffectiveConfig,
+    timeline_caches: TrackRmsCacheSet | None = None,
 ) -> None:
     """Record on a suggested session ripple the other speech it would cut.
 
@@ -1951,6 +1955,7 @@ def record_suggested_cut_speech(
             defaults=defaults,
         ),
         defaults=defaults,
+        timeline_caches=timeline_caches,
     )
 
 
