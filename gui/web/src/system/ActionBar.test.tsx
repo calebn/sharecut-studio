@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { barScene, EDIT_SELECTIONS, itemsOf } from "../test/actionBarFixtures";
 import { ActionBar, SelectionCount } from "./ActionBar";
@@ -128,6 +128,209 @@ describe("ActionBar dock with a wide leading chip and an end control", () => {
         .getAllByRole("button")
         .map((b) => b.textContent),
     ).toEqual(["Hear", "Split", "More", "Cut", "Clear selection"]);
+  });
+});
+
+describe("foldDock with a measured capacity", () => {
+  const edit = itemsOf(["hearBefore", "hearAfter", "keep", "comment", "more"]);
+  const word = itemsOf(["hear", "split", "comment", "fixText"]);
+
+  it("counts an A/B pair as two buttons and More as one", () => {
+    const folded = foldDock(edit, [], 1, 3);
+    expect(ids(folded.items)).toEqual(["hearBefore", "hearAfter"]);
+    expect(ids(folded.more)).toEqual(["keep", "comment"]);
+  });
+
+  it("keeps Keep when four buttons fit, and folds only Comment", () => {
+    const folded = foldDock(edit, [], 1, 4);
+    expect(ids(folded.items)).toEqual(["hearBefore", "hearAfter", "keep"]);
+    expect(ids(folded.more)).toEqual(["comment"]);
+  });
+
+  it("counts More for a plain more list even when nothing folds", () => {
+    const folded = foldDock(
+      itemsOf(["hear", "split"]),
+      itemsOf(["copy"]),
+      1,
+      2,
+    );
+    expect(ids(folded.items)).toEqual(["hear"]);
+    expect(ids(folded.more)).toEqual(["split", "copy"]);
+  });
+
+  it("folds only Fix text when a word's four verbs and More fit in four", () => {
+    const folded = foldDock(word, [], 1, 4);
+    expect(ids(folded.items)).toEqual(["hear", "split", "comment"]);
+    expect(ids(folded.more)).toEqual(["fixText"]);
+  });
+
+  it("folds nothing when the verbs and More fit", () => {
+    const folded = foldDock(word, [], 1, 5);
+    expect(ids(folded.items)).toEqual(["hear", "split", "comment", "fixText"]);
+    expect(folded.more).toEqual([]);
+  });
+
+  it("never splits an A/B pair", () => {
+    const folded = foldDock(edit, [], 1, 2);
+    expect(ids(folded.items)).toEqual([]);
+    expect(ids(folded.more)).toEqual([
+      "hearBefore",
+      "hearAfter",
+      "keep",
+      "comment",
+    ]);
+  });
+});
+
+describe("ActionBar dock with a leading chip and no end control", () => {
+  it("reserves the chip's slot, so one fewer verb is drawn", () => {
+    render(
+      <ActionBar
+        placement={{ form: "dock" }}
+        items={itemsOf(["hear", "split", "comment", "fixText"])}
+        primary={{ id: "cut" }}
+        leading={<span>chip</span>}
+        leadingSlots={1}
+        onVerb={vi.fn()}
+      />,
+    );
+    const bar = screen.getByRole("group", { name: "Actions" });
+    expect(
+      within(bar)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Hear", "Split", "Comment", "More", "Cut"]);
+  });
+});
+
+describe("ActionBar dock measuring its start slot", () => {
+  const CHIP = 50;
+  let slotWidth = 0;
+  let overflow: (() => number) | undefined;
+
+  const PROPS = ["clientWidth", "scrollWidth", "offsetWidth"] as const;
+  const saved = new Map<string, PropertyDescriptor | undefined>();
+  const stub = (
+    name: (typeof PROPS)[number],
+    read: (el: HTMLElement) => number,
+  ) => {
+    Object.defineProperty(HTMLElement.prototype, name, {
+      configurable: true,
+      get(this: HTMLElement) {
+        return read(this);
+      },
+    });
+  };
+  const onStart = (el: HTMLElement) =>
+    el.classList.contains("sys-dock-slot--start");
+
+  beforeEach(() => {
+    slotWidth = 0;
+    overflow = undefined;
+    for (const name of PROPS)
+      saved.set(
+        name,
+        Object.getOwnPropertyDescriptor(HTMLElement.prototype, name),
+      );
+    stub("clientWidth", (el) => (onStart(el) ? slotWidth : 0));
+    stub("scrollWidth", (el) =>
+      onStart(el) ? (overflow ? overflow() : slotWidth) : 0,
+    );
+    stub("offsetWidth", (el) => (el.dataset.chip ? CHIP : 0));
+  });
+
+  afterEach(() => {
+    for (const name of PROPS) {
+      const original = saved.get(name);
+      if (original)
+        Object.defineProperty(HTMLElement.prototype, name, original);
+      else
+        delete (HTMLElement.prototype as unknown as Record<string, unknown>)[
+          name
+        ];
+    }
+  });
+
+  const names = () =>
+    within(screen.getByRole("group", { name: "Actions" }))
+      .getAllByRole("button")
+      .map((b) => b.textContent);
+
+  function edit() {
+    render(
+      <ActionBar
+        placement={{ form: "dock" }}
+        items={itemsOf(["hearBefore", "hearAfter", "keep", "comment"])}
+        primary={{ id: "cut" }}
+        trailing={<button type="button">Clear selection</button>}
+        trailingSlots={1}
+        onVerb={vi.fn()}
+      />,
+    );
+  }
+
+  function word() {
+    render(
+      <ActionBar
+        placement={{ form: "dock" }}
+        items={itemsOf(["hear", "split", "comment", "fixText"])}
+        more={itemsOf(["copy"])}
+        primary={{ id: "cut" }}
+        leading={<span data-chip="1">chip</span>}
+        leadingSlots={1}
+        onVerb={vi.fn()}
+      />,
+    );
+  }
+
+  it("folds Keep and Comment for a pending edit in a 164 px slot", () => {
+    slotWidth = 164;
+    edit();
+    expect(names()).toEqual(["A", "B", "More", "Cut", "Clear selection"]);
+  });
+
+  it("keeps Keep for a pending edit in a 218 px slot", () => {
+    slotWidth = 218;
+    edit();
+    expect(names()).toEqual([
+      "A",
+      "B",
+      "Keep",
+      "More",
+      "Cut",
+      "Clear selection",
+    ]);
+  });
+
+  it("folds only Fix text for a word in a 260 px slot with its chip", () => {
+    slotWidth = 260;
+    word();
+    expect(names()).toEqual(["Hear", "Split", "Comment", "More", "Cut"]);
+  });
+
+  it("folds nothing for a word in a 314 px slot", () => {
+    slotWidth = 314;
+    word();
+    expect(names()).toEqual([
+      "Hear",
+      "Split",
+      "Comment",
+      "Fix text",
+      "More",
+      "Cut",
+    ]);
+  });
+
+  it("folds one more verb when the slot still overflows, then settles", () => {
+    slotWidth = 260;
+    const reads = vi.fn();
+    overflow = () => {
+      reads();
+      return reads.mock.calls.length === 1 ? slotWidth + 5 : slotWidth;
+    };
+    word();
+    expect(names()).toEqual(["Hear", "Split", "More", "Cut"]);
+    expect(reads.mock.calls.length).toBeLessThan(10);
   });
 });
 
