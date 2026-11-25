@@ -666,32 +666,32 @@ def test_guest_applied_edits_shapes(monkeypatch):
     monkeypatch.setattr(rt, "TOOL_HANDLERS", {**rt.TOOL_HANDLERS, "guest_ping": lambda: "pong"})
     assert rt.call_tool("guest_ping", {}) == "pong"
 
-    class Hit:
-        def model_dump(self):
-            return {"text": "hi", "project_path": "/Users/secret"}
+    views: list[str] = []
 
-    monkeypatch.setattr(
-        "podcast_mcp.edits.transcript_search.search_transcript",
-        lambda *_a, **_k: [Hit(), {"text": "dict", "project_path": "/x"}, "plain"],
-    )
+    def view(token: str) -> dict:
+        views.append(token)
+        return {
+            "transcript": {
+                "utterances": [
+                    {"text": "hi there", "speaker": "Host", "ignored_word_indices": [3]},
+                    "not a row",
+                    {"text": "say hi", "project_path": "/Users/secret"},
+                ]
+            }
+        }
+
+    monkeypatch.setattr(rt, "share_daw_project_view", view)
     monkeypatch.setattr(
         rt,
         "get_remote_mcp_context",
-        lambda: type(
-            "C",
-            (),
-            {
-                "capabilities": ["view"],
-                "workspace": type(
-                    "W", (), {"project": object(), "effective_config": lambda self: {}}
-                )(),
-            },
-        )(),
+        lambda: type("C", (), {"capabilities": ["view"], "token": "tok"})(),
     )
     rows = rt.guest_search_transcript("hi", limit=10)
-    assert rows[0]["text"] == "hi"
-    assert "project_path" not in rows[0]
-    assert rows[2]["text"] == "plain"
+    assert views == ["tok"]
+    assert rows == [
+        {"text": "hi there", "speaker": "Host", "utterance_index": 0},
+        {"text": "say hi", "utterance_index": 2},
+    ]
 
 
 _HOST_SECRET = "/Users/host/private/episode/raw/host.wav"
