@@ -7,9 +7,9 @@ from typing import Any
 from podcast_mcp.edits.envelopes import envelope_matches_baseline
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import ClipService, EditService, TimelineService
+from podcast_mcp.services.document_sync.ducking import check_plan_token, plan_ducking
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.pipeline import PipelineService
-from podcast_mcp.services.pipeline.ducking import check_plan_token, plan_ducking
 
 
 def add_chapter(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

@@ -358,10 +358,10 @@ class PipelineService:
         *,
         operation: str | None = None,
         label: str = "set envelope",
-    ) -> dict[str, int]:
+    ) -> Mapping[str, int]:
         """Replace several tracks' volume envelopes in one mutation: one history entry, one undo."""
 
-        def mutate(p) -> dict[str, int]:
+        def mutate(p) -> Mapping[str, int]:
             duration = timeline_duration_sec(p)
             return {
                 track_id: self._write_volume_envelope(p, track_id, points, duration)
