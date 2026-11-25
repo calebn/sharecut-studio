@@ -1299,7 +1299,9 @@ page) with the hidden status "Joining the room…". Once the code is loaded, the
 shows the Room shell at once instead of a blank screen: placeholder tiles (`RoomView` with
 `loading`), a dimmed inert dock, no status pill or Comments rail. After 4 s
 (`SKELETON_RETRY_MS`) the alert slot adds "Still connecting…" with **Retry**, which looks
-the room up again, moves focus to the page title and restarts the 4 s count. This shell
+the room up again, moves focus to the page title and restarts the 4 s count. The title
+keeps focus when the room loads behind it, as it does after **Join again**, because it
+stays focusable by script. This shell
 belongs to the guest and producer link; the host's own seat in the Record stage is
 unaffected.
 
