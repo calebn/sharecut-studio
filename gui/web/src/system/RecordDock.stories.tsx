@@ -144,8 +144,13 @@ export const GuestLeaveHeld: Story = {
     await expect(leave).toHaveAttribute("aria-disabled", "true");
     await userEvent.click(leave);
     await expect(
-      within(canvasElement).getByText("You can leave after this take."),
+      within(canvasElement).getByText("You can leave after this take.", {
+        selector: ".sys-dock-hint",
+      }),
     ).toBeVisible();
+    await expect(within(canvasElement).getByRole("status")).toHaveTextContent(
+      "You can leave after this take.",
+    );
   },
 };
 
