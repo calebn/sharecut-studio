@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { openHostProject } from "./overlayReachability";
 import { armRange, goToStage, setScrub } from "./stageNav";
+import { trackHeaderButton } from "./trackHeader";
 
 const fields = (page: Page) =>
   page.getByRole("region", { name: "Range fields" });
@@ -11,27 +12,33 @@ const undoButton = (page: Page) =>
   page.locator(".sys-header-history").getByRole("button", { name: /^Undo/ });
 
 test.describe("typed range from scratch on desktop", () => {
-  test("arming seeds a draft and the first commit selects a range", async ({
-    page,
-  }) => {
-    await openHostProject(page);
-    await armRange(page);
-    await expect(fields(page)).toBeVisible();
-    await expect(field(page, "In")).toHaveAttribute("aria-valuenow", "0");
-    await expect(field(page, "Out")).toHaveAttribute("aria-valuenow", "5");
-    await expect(field(page, "Length")).toHaveAttribute("aria-valuenow", "5");
-    await expect(page.locator(".range-overlay")).toHaveCount(0);
+  for (const trackSelected of [false, true]) {
+    test(`first typed range commit keeps focus ${trackSelected ? "with a selected track" : "without a selected track"}`, async ({
+      page,
+    }) => {
+      await openHostProject(page);
+      if (trackSelected) await trackHeaderButton(page, "reference").click();
+      await armRange(page);
+      await expect(fields(page)).toBeVisible();
+      await expect(field(page, "In")).toHaveAttribute("aria-valuenow", "0");
+      await expect(field(page, "Out")).toHaveAttribute("aria-valuenow", "5");
+      await expect(field(page, "Length")).toHaveAttribute("aria-valuenow", "5");
+      await expect(page.locator(".range-overlay")).toHaveCount(0);
 
-    await field(page, "In").focus();
-    await field(page, "In").press("Enter");
-    await page.keyboard.press("Control+A");
-    await page.keyboard.type("3");
-    await page.keyboard.press("Enter");
+      await field(page, "In").focus();
+      await field(page, "In").press("Enter");
+      await page.keyboard.press("Control+A");
+      await page.keyboard.type("3");
+      await page.keyboard.press("Enter");
 
-    await expect(page.locator(".range-overlay").first()).toBeVisible();
-    await expect(field(page, "In")).toHaveAttribute("aria-valuenow", "3");
-    await expect(field(page, "Out")).toHaveAttribute("aria-valuenow", "5");
-  });
+      await expect(page.locator(".range-overlay").first()).toBeVisible();
+      await expect(field(page, "In")).toHaveAttribute("aria-valuenow", "3");
+      await expect(field(page, "In")).toBeFocused();
+      await page.keyboard.press("ArrowUp");
+      await expect(field(page, "In")).toHaveAttribute("aria-valuenow", "3.01");
+      await expect(field(page, "Out")).toHaveAttribute("aria-valuenow", "5");
+    });
+  }
 
   test("leaving Edit and returning preserves the uncommitted range draft", async ({
     page,

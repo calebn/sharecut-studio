@@ -204,9 +204,13 @@ function useBodySections(
   rangeActionsInSheet: boolean,
   barShown = false,
 ): readonly InspectorSection[] {
-  const envelope = useEnvelopePointSections(useDaw((s) => s.selection));
+  const { selection, rangeArmed } = useDaw((s) => ({
+    selection: s.selection,
+    rangeArmed: s.rangeArmed,
+  }));
+  const envelope = useEnvelopePointSections(selection);
   const rebuilt = useSelectionSections(
-    useDaw((s) => s.selection),
+    selection,
     rangeActionsInSheet,
     barShown,
   );
@@ -228,6 +232,9 @@ function useBodySections(
     ],
     [rangeActionsInSheet],
   );
+  // The draft and its committed range share the same fields when a track was selected.
+  if (rangeActionsInSheet && rangeArmed && selection?.kind === "track")
+    return legacy;
   if (rebuilt) return rebuilt;
   if (!envelope) return legacy;
   return rangeActionsInSheet ? [...envelope, rangeSection] : envelope;
@@ -408,7 +415,11 @@ function Card({
   // The takeover has no Action bar beside it, so the sheet keeps the verbs.
   const sections = useBodySections(sheet.rangeActionsInSheet, !takeover);
   // The card hides while its anchor is out of view; the Action bar stays, pinned at the edge.
-  const shown = placement !== null && (anchor.visible || selection === null);
+  const shown =
+    placement !== null &&
+    (anchor.visible ||
+      selection === null ||
+      (selection.kind === "range" && anchor.resolving));
   const focus = useInspectorFocus(popoverId ? panel : box, shown);
   const hadPopover = useRef(false);
   useEffect(() => {
