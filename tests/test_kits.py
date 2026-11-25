@@ -293,6 +293,29 @@ def _import_code(tmp_path: Path, bundle: Path) -> str:
     return err.value.code
 
 
+def test_a_bundle_file_that_is_no_kit_member_is_named_as_such_not_as_unsafe(
+    tmp_path: Path, library: tuple[str, str]
+) -> None:
+    _, bundle = _export(tmp_path, library)
+
+    def message(extra: str) -> str:
+        kits, segments = _fresh(tmp_path, f"victim-{len(extra)}")
+        tampered = _tampered(
+            bundle, tmp_path / f"{len(extra)}.sharecutkit", lambda m: {**m, extra: b"x"}
+        )
+        with pytest.raises(CodedValueError) as err:
+            import_kit_bundle(kits, segments, tampered)
+        assert err.value.code == "kit_bundle_invalid"
+        return str(err.value)
+
+    stray = message("other.flac")
+    assert "'other.flac'" in stray
+    assert "not part of a kit" in stray
+    assert "unsafe" not in stray
+    for unsafe in ("../evil", "sub/dir.txt"):
+        assert "unsafe" in message(unsafe)
+
+
 def test_import_refuses_hostile_or_broken_bundles(tmp_path: Path, library: tuple[str, str]) -> None:
     _, bundle = _export(tmp_path, library)
 
