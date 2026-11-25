@@ -1,4 +1,5 @@
 import { useShallow } from "zustand/react/shallow";
+import { useEditorCutTotal } from "../../hooks/useEditorCutTotal";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { ArchiveLink } from "../../stages/deliver/ArchiveLink";
 import { DeliverSection } from "../../stages/deliver/DeliverSection";
@@ -7,6 +8,7 @@ import { FeedPanel } from "../../stages/deliver/FeedPanel";
 import { feedAccessOf } from "../../stages/deliver/feedLogic";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
+import { formatSeconds } from "../../system/seconds";
 import { Button, InlineError } from "../../ui";
 import { canEditStage } from "../../utils/can";
 import { useStageScroll } from "../useStageScroll";
@@ -32,6 +34,7 @@ export function GuestDeliver({ loadFailure }: Props) {
       guestMode: s.guestMode,
     })),
   );
+  const removedSeconds = useEditorCutTotal();
   const shell = useViewportClass();
   const scrollRef = useStageScroll("deliver", "body", ".dv-page");
   const state = hostStateOf(project, loadFailure);
@@ -71,6 +74,11 @@ export function GuestDeliver({ loadFailure }: Props) {
                     ) : undefined
                   }
                 >
+                  {removedSeconds != null ? (
+                    <p className="dv-note">
+                      Edits saved {formatSeconds(removedSeconds)}
+                    </p>
+                  ) : null}
                   {files.currentLoad === "loading" ? (
                     <p className="dv-note" role="status">
                       Loading exported files…

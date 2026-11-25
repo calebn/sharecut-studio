@@ -5,6 +5,7 @@ import { registerDawCommands } from "./commands/register";
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { FeedbackToast } from "./feedback/FeedbackToast";
 import { HelpHost } from "./home/HelpHost";
+import { EditorCutTotalProvider } from "./hooks/EditorCutTotalProvider";
 import { useAutoRefreshMix } from "./hooks/useAutoRefreshMix";
 import { useBackOnline } from "./hooks/useBackOnline";
 import { useDocumentTitle } from "./hooks/useDocumentTitle";
@@ -283,21 +284,23 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
             <ShareFlowProvider>
               {engines}
               <div data-daw-app-chrome>
-                <StageFrame guestShare={guestShare} sheets={EDIT_SHEETS}>
-                  {(viewAnchor) => (
-                    <>
-                      <StageHost
-                        viewAnchor={viewAnchor}
-                        guestShare={guestShare}
-                        loadFailure={loadFailure}
-                        onRetryLoad={() => {
-                          retryBootstrap();
-                          requestSavedCopyReopen();
-                        }}
-                      />
-                    </>
-                  )}
-                </StageFrame>
+                <EditorCutTotalProvider>
+                  <StageFrame guestShare={guestShare} sheets={EDIT_SHEETS}>
+                    {(viewAnchor) => (
+                      <>
+                        <StageHost
+                          viewAnchor={viewAnchor}
+                          guestShare={guestShare}
+                          loadFailure={loadFailure}
+                          onRetryLoad={() => {
+                            retryBootstrap();
+                            requestSavedCopyReopen();
+                          }}
+                        />
+                      </>
+                    )}
+                  </StageFrame>
+                </EditorCutTotalProvider>
               </div>
               <CommandPalette />
               <HostMcpDialog
