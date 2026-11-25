@@ -22,10 +22,11 @@ import { softBoundaries } from "../edit/nudgeBoundaries";
 import { useInterruptCancel } from "../hooks/useInterruptCancel";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { RIPPLE_EDGE_EPS_SEC, TIME_EPS_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { clampTrimSourceSec, type TrimEdge } from "../utils/clipEdgePreview";
-import { trimDraft } from "../utils/ripplePreview";
+import { rippleTrackIds, trimDraft } from "../utils/ripplePreview";
 import {
   clampToTrimLimits,
   hasTrimRange,
@@ -128,6 +129,72 @@ function captureLimits(clip: ClipRow): EdgeLimits | null {
   ];
   const index = lane?.findIndex((row) => row.id === clip.id) ?? -1;
   return lane && index >= 0 ? edgeLimits(lane, index) : null;
+}
+
+/**
+ * The source seconds where `clip`'s trimmed `edge` lands on a place that stays
+ * put during this trim: the playhead, as a move snaps to it, and the edges of
+ * other clips. A ripple trim moves every later clip on the lanes it ripples,
+ * so on those lanes only the end of a clip that ends before the edited point
+ * (the clip's start for an in edge, its end for an out edge) is offered. A
+ * start there is either moved by the ripple or cut into by a shortening out
+ * edge, and an end at the edited point is a peer that moves with the trim.
+ * Every edge of a clip on a lane the trim does not ripple stays put. A ripple
+ * trim of the in edge keeps the clip's start where it is and moves its end,
+ * so a target there is the place the saved end lands on, which the landing
+ * outline shows. An out edge, and a gap trim's in edge, land the edge itself
+ * on the target. A clip with a timing map cannot cross a correction at either
+ * edge, so a source second moves its edge by the same timeline second. Only
+ * targets inside the edge's limits are offered, so none pulls a drag against
+ * a limit.
+ */
+function clipEdgeTicks(
+  clip: ClipRow,
+  edge: TrimEdge,
+  limits: TrimLimits | null,
+): number[] {
+  const s = useDawStore.getState();
+  const project = s.projectEditBasis();
+  if (!project || !limits) return [];
+  const rippled =
+    TRIM_MODE === "ripple"
+      ? new Set(rippleTrackIds(project.tracks, [clip.track_id]))
+      : new Set<string>();
+  const edited = edge === "in" ? clip.timeline_start : clip.timeline_end;
+  const times = [s.playheadSec];
+  for (const [trackId, lane] of Object.entries(project.clips.tracks)) {
+    for (const other of lane) {
+      if (other.id === clip.id) continue;
+      if (!rippled.has(trackId)) {
+        times.push(other.timeline_start, other.timeline_end);
+      } else if (other.timeline_end < edited - RIPPLE_EDGE_EPS_SEC) {
+        times.push(other.timeline_end);
+      }
+    }
+  }
+  const toSource = (t: number) =>
+    edge === "out"
+      ? clip.source_end + (t - clip.timeline_end)
+      : TRIM_MODE === "ripple"
+        ? clip.source_start - (t - clip.timeline_end)
+        : clip.source_start + (t - clip.timeline_start);
+  const out: number[] = [];
+  for (const sec of times.map(toSource).sort((a, b) => a - b)) {
+    if (sec < limits.lo - TIME_EPS_SEC || sec > limits.hi + TIME_EPS_SEC)
+      continue;
+    const last = out[out.length - 1];
+    if (last == null || sec - last > TIME_EPS_SEC) out.push(sec);
+  }
+  return out;
+}
+
+/** `ticks` with each of `extra` that none of them already holds. */
+function mergeTicks(ticks: readonly number[], extra: number[]): number[] {
+  const out = [...ticks];
+  for (const sec of extra) {
+    if (!ticks.some((t) => Math.abs(t - sec) <= TIME_EPS_SEC)) out.push(sec);
+  }
+  return out;
 }
 
 function projectEdge(draft: Draft, candidate: number): Draft {
@@ -274,13 +341,10 @@ export function useClipEdgeHandles(context: Context) {
       return null;
     }
     const limits = captureLimits(c.clip);
+    const edge = handle.endsWith("in") ? "in" : "out";
     // A timing correction can leave an edge no legal range (`trim_no_legal_range`):
     // the handle then neither previews nor saves.
-    if (
-      handle.startsWith("trim") &&
-      limits &&
-      !hasTrimRange(limits[handle.endsWith("in") ? "in" : "out"])
-    )
+    if (handle.startsWith("trim") && limits && !hasTrimRange(limits[edge]))
       return null;
     const capture: Capture = {
       limits,
@@ -289,12 +353,18 @@ export function useClipEdgeHandles(context: Context) {
       neighborSourceLo: c.neighborSourceLo,
       neighborSourceHi: c.neighborSourceHi,
       zoomPxPerSec: c.zoomPxPerSec,
-      ticks: [...c.getTicks()],
+      // A trim also snaps to other clips' edges and the playhead, where the
+      // same Snap switch and magnet apply.
+      ticks: handle.startsWith("trim")
+        ? mergeTicks(
+            c.getTicks(),
+            clipEdgeTicks(c.clip, edge, limits?.[edge] ?? null),
+          )
+        : [...c.getTicks()],
       projectPath: s.projectPath,
       projectEpoch: s.projectEpoch,
     };
     if (!fresh(capture)) return null;
-    const edge = handle.endsWith("in") ? "in" : "out";
     const next: Draft = handle.startsWith("fade")
       ? {
           phase: "preview",
