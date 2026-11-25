@@ -14,6 +14,7 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
+from podcast_mcp.edits.envelopes import validate_envelope_point_times
 from podcast_mcp.engines.ducking import (
     BASE_PREFIX,
     GENERATED_PREFIX,
@@ -979,3 +980,14 @@ def test_ducking_after_a_cut_restores_points_past_the_new_end(tmp_path: Path) ->
     for payload in ({}, {"depth_db": 0.0}):
         duck(path, **payload)
         assert envelopes(path)["music"]
+
+
+def test_envelope_range_check_exempts_only_saved_times(tmp_path: Path) -> None:
+    project = load_project(write_project(tmp_path))
+    project.volume_envelope_for("music").points.append(
+        AutomationPoint(id="a", time=500.0, value=1.0)
+    )
+    validate_envelope_point_times(project, "music", [{"id": "b", "time": 500.0}], 10.0)
+    with pytest.raises(CodedValueError) as error:
+        validate_envelope_point_times(project, "music", [{"id": "a", "time": 501.0}], 10.0)
+    assert error.value.code == "out_of_range"
