@@ -140,7 +140,19 @@ def merge_fades(
     if not any(_fade_view(p) is not None for p in current):
         legacy = _legacy_fade_indices(current, fade_in, fade_out)
         removed_lowered = sum(1 for i in legacy if current[i].id.startswith(BASE_PREFIX))
+        old_ones = [
+            (lowered[1] if (lowered := parse_lowered(current[i].id)) else current[i].value, i)
+            for i in legacy
+        ]
+        ramp_times = [current[i].time for v, i in old_ones if v == 1.0]
         current = [p for i, p in enumerate(current) if i not in legacy]
+        if legacy and ramp_times and not removed_lowered:
+            new_in, new_out = targets[1][1], targets[2][1]
+            old_in, old_out = min(ramp_times), max(ramp_times)
+            if _near_dip(current, 0.0, max(old_in, new_in)) or _near_dip(
+                current, min(old_out, new_out), math.inf
+            ):
+                removed_lowered += 1
 
     owner: dict[str, int] = {}  # slot -> index of the point that holds it
     for index, point in enumerate(current):
