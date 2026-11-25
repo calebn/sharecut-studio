@@ -100,7 +100,10 @@ def _checked_entries(
     total = 0
     for info in infos:
         name = info.filename
-        if not (name_ok or _ENTRY_NAME.fullmatch)(name) or ".." in name:
+        safe = bool(_ENTRY_NAME.fullmatch(name)) and ".." not in name
+        if not (name_ok(name) if name_ok else safe) or ".." in name:
+            if name_ok and safe:
+                raise _invalid(f"The bundle holds {name!r}, which is not part of a {prefix}.", code)
             raise _invalid(f"The bundle holds an unsafe file name: {name!r}.", code)
         if name.casefold() in folded:
             raise _invalid(
