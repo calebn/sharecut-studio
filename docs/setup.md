@@ -702,6 +702,9 @@ The tunnel identity `host_id` (`PODCAST_RELAY_HOST_ID` / YAML `host_id`) default
 a uuid minted once and persisted as `relay_host_id` next to `relay.yaml`; it must
 match the `host_id:` prefix when the relay pins this host's secret (see
 [host-online-relay.md](host-online-relay.md) § Security notes).
+`podcast config check --mode self-hosted` loads the config the same way, so it also
+creates `relay_host_id` next to the checked file when no `host_id` is set; copy the
+example before checking it, and the checkout stays clean.
 Object-store precedence is environment, YAML, then disabled. The only
 object-store environment names are
 `PODCAST_OBJECT_STORE_ENDPOINT_URL`, `PODCAST_OBJECT_STORE_REGION`,
@@ -1142,7 +1145,7 @@ services. Their implementation is under `src/podcast_mcp/services/support/`.
 Pipeline execution, configuration, and component bootstrap use the public
 `podcast_mcp.services.pipeline` facade.
 
-If ShareCut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine. Nothing is uploaded when the zip is created, and there is **no telemetry**. Home and Studio Help can preview the files and submit the zip with a description after explicit consent when `PODCAST_REPORT_RELAY_URL` points to a configured relay. The description and ZIP link become public; the relay keeps the ZIP for 30 days. The relay does not scrub the zip again, so the zip is scrubbed before it leaves your machine: `sanitize` masks a link token inside any share route path (also when percent-encoded in a query string) and the bundle masks every token the share registry holds, and any prefix of one from 6 characters, wherever it appears in a log line or exception text. The uvicorn request and WebSocket lines are filtered when they are written, so the raw `sidecar.log` holds no token either (`gui/log_redaction.py`). Self-hosted installations can keep using Open support and attach the local zip manually.
+If ShareCut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine. Nothing is uploaded when the zip is created, and there is **no telemetry**. Home and Studio Help can preview the files and submit the zip with a description after explicit consent when `PODCAST_REPORT_RELAY_URL` points to a configured relay. The description and ZIP link become public; the relay keeps the ZIP for 30 days. The relay does not scrub the zip again, so the zip is scrubbed before it leaves your machine: `sanitize` masks a link token inside any share route path (also when percent-encoded in a query string) and the bundle masks every token the share registry holds, and any prefix of one from 6 characters, and every configured secret it can read, by exact value only so ordinary words stay readable. Configured secrets are the relay host token and `PODCAST_RELAY_HOST_TOKENS` secrets, object-store keys (also the admin pair in `relay-admin.yaml`), session and boot tokens, the report token and OAuth client secrets, from the environment, `relay.yaml` (its secret lines are still read when the file has a syntax error elsewhere) or an OAuth client JSON file; values under eight characters are skipped, and a host token given only as a `--host-token` flag is not known to it. Masking applies wherever the value appears in a log line or exception text. The uvicorn request and WebSocket lines are filtered when they are written, so the raw `sidecar.log` holds no token either (`gui/log_redaction.py`). Self-hosted installations can keep using Open support and attach the local zip manually.
 
 ```bash
 podcast doctor --bundle            # writes ~/Downloads/sharecut-diagnostics-<UTC>-<nonce>.zip

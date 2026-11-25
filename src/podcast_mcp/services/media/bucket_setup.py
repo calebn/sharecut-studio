@@ -19,7 +19,11 @@ from pathlib import Path
 from typing import Any, Literal
 
 from podcast_mcp import settings
-from podcast_mcp.config.runtime import ObjectStoreConfig, default_relay_config_path
+from podcast_mcp.config.runtime import (
+    RELAY_ADMIN_FILENAME,
+    ObjectStoreConfig,
+    default_relay_config_path,
+)
 from podcast_mcp.services.media.object_store_cors import (
     CorsProbe,
     Fetcher,
@@ -30,7 +34,7 @@ from podcast_mcp.util import host_platform
 
 ADMIN_ID_ENV = "PODCAST_OBJECT_STORE_ADMIN_ACCESS_KEY_ID"
 ADMIN_SECRET_ENV = "PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY"
-ADMIN_FILENAME = "relay-admin.yaml"
+ADMIN_FILENAME = RELAY_ADMIN_FILENAME
 _ADMIN_YAML_KEYS = frozenset({"access_key_id", "secret_access_key"})
 
 _NEEDED_METHODS = frozenset({"GET", "HEAD"})

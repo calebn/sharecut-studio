@@ -26,6 +26,7 @@ import podcast_mcp
 from podcast_mcp import settings
 from podcast_mcp.config.defaults import cache_dir, whisper_cache_dir
 from podcast_mcp.config.distribution import runtime_distribution_metadata
+from podcast_mcp.config.runtime import configured_secrets
 from podcast_mcp.engines.models.whisper import resolve_whisper_model, whisper_model_is_cached
 from podcast_mcp.models import EPISODE_PROJECT_FILENAME, EpisodeProject
 from podcast_mcp.models.episode import ProjectUnreadableError
@@ -574,9 +575,12 @@ class DiagnosticsService:
             redact_tokens = compile_secret_redactor(
                 sorted(get_share_registry().known_tokens()), min_prefix=TOKEN_PREFIX_MIN
             )
+            # Configured values are human-chosen, so only the exact value is masked: a
+            # prefix rule would also hide ordinary text such as "change" or "podcast".
+            redact_configured = compile_secret_redactor(configured_secrets())
 
             def redact_collected_text(text: str) -> str:
-                return sanitize(redact_tokens(text), **redaction)
+                return sanitize(redact_configured(redact_tokens(text)), **redaction)
 
             def redact_report_text(text: str) -> str:
                 return redact_collected_text(sanitize(text, **redaction))
