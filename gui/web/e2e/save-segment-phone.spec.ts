@@ -4,7 +4,7 @@ import { expectFeedback } from "./feedback";
 import { expectNoHorizontalScroll, expectTouchTargets } from "./modelsMock";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { setRootFontSize } from "./rootFontSize";
-import { openProject } from "./stageNav";
+import { openProject, openToolsIfFolded } from "./stageNav";
 import { setTheme, type Theme, withAppearance } from "./theme";
 
 const CELLS = [
@@ -39,10 +39,11 @@ async function openCard(page: Page, theme: Theme) {
   const clip = page.locator(".clip-hit").first();
   await clip.tap();
   await expect(clip).toHaveAttribute("aria-pressed", "true");
-  await page
+  const more = page
     .getByRole("group", { name: "Edit actions" })
-    .getByRole("button", { name: "More", exact: true })
-    .tap();
+    .getByRole("button", { name: "More", exact: true });
+  await openToolsIfFolded(page, more);
+  await more.tap();
   await page
     .getByRole("menuitem", { name: "Save as segment", exact: true })
     .tap();
