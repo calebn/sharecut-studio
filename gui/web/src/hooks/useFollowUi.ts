@@ -5,11 +5,10 @@ import {
   serverNowMs,
   withProgrammaticUi,
 } from "../presence/followSync";
+import { followCapsOf } from "../presence/goToPlan";
 import { sessionClientList } from "../presence/roster";
 import { wireSelectionPatch } from "../session/wire";
-import { guestHearsMixOnly } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { stageRoleOf } from "../state/stageRoutes";
 
 export function useFollowUi(): void {
   const followingClientId = useDawStore((s) => s.followingClientId);
@@ -60,11 +59,7 @@ export function useFollowUi(): void {
     if (!ui && !hasSel && !missingSel) {
       return;
     }
-    const caps = {
-      guestShare: guestHearsMixOnly(guestMode),
-      breakpoint: shellBreakpoint,
-      role: stageRoleOf(guestMode),
-    };
+    const caps = followCapsOf(guestMode, shellBreakpoint);
     const uiSig = ui
       ? JSON.stringify({
           tab: ui.tab,
