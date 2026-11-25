@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { moveSpeakerLaneSpan } from "../../api/speakerMoveLaneSpan";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import * as reveal from "../../commands/timelineReveal";
 import { clearClipboard } from "../../edit/clipboard";
 import { makeRangeTarget } from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
@@ -28,7 +29,10 @@ import {
   minimalProject,
   sampleTrack,
 } from "../../test/fixtures";
-import * as reveal from "../../utils/timelineReveal";
+import {
+  FakeResizeObserver,
+  stubResizeObserver,
+} from "../../test/resizeObserver";
 import { BounceRunContext } from "../hosts/bounceRunnerContext";
 import { EditActionBar } from "./EditActionBar";
 
@@ -804,9 +808,15 @@ let anchorRect: R = IN_VIEW;
 function Scrolled({
   form = "floating",
   clear = false,
+  extraDock = false,
+  header = 0,
 }: {
   form?: "floating" | "dock";
   clear?: boolean;
+  /** A second dock, as the Tools or Inspector sheet mounts beside the workspace's. */
+  extraDock?: boolean;
+  /** Width of the sticky track-header column. */
+  header?: number;
 }) {
   const [root, setRoot] = useState<HTMLElement | null>(null);
   const measured = (el: HTMLElement | null) => {
@@ -820,6 +830,7 @@ function Scrolled({
           if (el) el.getBoundingClientRect = () => domRect(SCROLL);
         }}
       >
+        {header > 0 ? <div className="track-headers" /> : null}
         <div className="lane-row" data-track-id={MIRA}>
           <div className="lane-inner">
             <div className="range-overlay" ref={measured} />
@@ -829,6 +840,9 @@ function Scrolled({
         </div>
       </div>
       <EditActionBar form={form} root={root} clear={clear} />
+      {extraDock ? (
+        <EditActionBar form="dock" root={root} inInspector onClose={() => {}} />
+      ) : null}
     </div>
   );
 }
@@ -938,6 +952,8 @@ describe("EditActionBar pinned to the viewport", () => {
     moveAnchor({ ...AWAY, left: 1700, right: 1800 });
     expect(announceStatus).toHaveBeenCalledTimes(1);
     expect(announceStatus).toHaveBeenCalledWith("Show edit to return to it");
+    moveAnchor(IN_VIEW);
+    expect(announceStatus).toHaveBeenCalledTimes(1);
   });
 
   it("moves focus to Clear, not the page, when Show unmounts under it", async () => {
@@ -955,7 +971,7 @@ describe("EditActionBar pinned to the viewport", () => {
     ).toHaveFocus();
   });
 
-  it("always shows the control on the dock, before Clear, and keeps both at 320 px", () => {
+  it("shows the control on the dock whenever the anchor is drawn, before Clear, and keeps both at 320 px", () => {
     host(EDIT_SELECTIONS.rangeOnAllTracks);
     render(<Scrolled form="dock" clear />);
     const bar = screen.getByRole("group", { name: "Edit actions" });
@@ -968,6 +984,64 @@ describe("EditActionBar pinned to the viewport", () => {
     expect(
       within(bar).getByRole("button", { name: "Clear selection" }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps Show working on the dock that stays when a sheet's dock unmounts", async () => {
+    const spy = vi.spyOn(reveal, "revealAnchor").mockImplementation(() => {});
+    host(EDIT_SELECTIONS.rangeOnAllTracks);
+    const { rerender } = render(<Scrolled form="dock" clear extraDock />);
+    rerender(<Scrolled form="dock" clear />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show selection" }),
+    );
+    await act(async () => {});
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("pins an anchor that sits under the sticky track headers", () => {
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(
+      function (this: HTMLElement) {
+        return this.classList.contains("track-headers") ? 300 : 200;
+      },
+    );
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled header={300} />);
+    moveAnchor({ left: 100, top: 200, right: 250, bottom: 240 });
+    expect(
+      screen.getByRole("button", { name: "Show edit" }),
+    ).toBeInTheDocument();
+    moveAnchor({ left: 100, top: 200, right: 400, bottom: 240 });
+    expect(screen.queryByRole("button", { name: "Show edit" })).toBeNull();
+  });
+
+  it("measures again when the scroller resizes, with no scroll event", () => {
+    stubResizeObserver();
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled />);
+    expect(screen.queryByRole("button", { name: "Show edit" })).toBeNull();
+    anchorRect = AWAY;
+    act(() => {
+      for (const ro of FakeResizeObserver.all) ro.fire();
+    });
+    expect(
+      screen.getByRole("button", { name: "Show edit" }),
+    ).toBeInTheDocument();
+  });
+
+  it("pins an anchor past the scroller's right edge though the window still shows it", () => {
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled />);
+    moveAnchor({ left: 850, top: 200, right: 950, bottom: 240 });
+    expect(
+      screen.getByRole("button", { name: "Show edit" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no bar for an anchor with no area, instead of parking it at the corner", () => {
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled />);
+    moveAnchor({ left: 0, top: 0, right: 0, bottom: 0 });
+    expect(floatingBar()).toBeNull();
   });
 
   it("labels the dock control Show edit for a pending edit", () => {

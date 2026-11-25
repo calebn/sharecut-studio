@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { revealAnchor } from "../../commands/timelineReveal";
 import { SelectionSheetBody } from "../../inspector/SelectionSheetBody";
 import { useDaw } from "../../state/useDaw";
 import type { BarId } from "../../system/editActionSets";
@@ -31,7 +32,6 @@ import { areaRects } from "../../ui/anchoredPlacement";
 import { openerControl } from "../../ui/pressedControl";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 import { useStyleObserver } from "../../ui/useStyleObserver";
-import { revealAnchor } from "../../utils/timelineReveal";
 import { useHistoryControls } from "../frame/useHistoryControls";
 import { CommentPopover } from "./CommentPopover";
 import { commentTarget } from "./commentSections";

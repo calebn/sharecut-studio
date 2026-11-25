@@ -148,7 +148,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
 | Clear solo | `track.clearSolo` | Project loaded, on a link with a timeline | Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key) |
 | Back to playhead | `view.followPlayhead` | editStage | Follow the playhead again during playback and bring it into view in the timeline (no default key) |
-| Show selection | `view.revealSelection` | hasInspectorSelection | Scroll the timeline back to the selection's anchor when the Action bar is pinned away from it; a view move on desktop and tablet, a seek to the selection's start on the phone (fixed playhead), no key |
+| Show selection | `view.revealSelection` | hasInspectorSelection | Scroll the timeline back to the selection's anchor when the Action bar is pinned away from it; a view move on desktop and tablet, a seek of the playhead to the selection's start on the phone (fixed playhead), no key |
 | Fit tracks to window height | `view.fitTracksHeight` | Project loaded, on a link with a timeline | Toggle: fill the stage height, or a fixed track height |
 | Snap to cut points | `view.toggleSnap` | Project loaded, on a link with a timeline | The Snap toggle in the Edit corner: moves, trims and the suggestion Start/End pull to nearby cut points. Alt inverts it for one gesture |
 | Export transcript… | `export.transcript` | Loaded host project | Go to Deliver and focus the Transcript Export → export/ |

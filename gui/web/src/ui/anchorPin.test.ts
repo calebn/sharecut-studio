@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pinOf } from "./anchorPin";
+import { anchorLost, pinOf } from "./anchorPin";
 
 const box = { left: 100, top: 100, right: 500, bottom: 400 };
 const at = (left: number, top: number, right: number, bottom: number) => ({
@@ -71,5 +71,20 @@ describe("pinOf", () => {
       pinned: false,
       rect: box,
     });
+  });
+});
+
+describe("anchorLost", () => {
+  it.each([
+    ["zero size", at(150, 150, 150, 150)],
+    ["zero height", at(150, 150, 300, 150)],
+    ["zero width", at(150, 150, 150, 300)],
+  ])("is lost for a %s anchor in a laid-out box", (_n, rect) => {
+    expect(anchorLost(rect, box)).toBe(true);
+  });
+
+  it("is not lost for a drawn anchor, or when the box is not laid out", () => {
+    expect(anchorLost(at(150, 150, 300, 200), box)).toBe(false);
+    expect(anchorLost(at(0, 0, 0, 0), at(0, 0, 0, 0))).toBe(false);
   });
 });

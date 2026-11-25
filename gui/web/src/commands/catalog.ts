@@ -569,7 +569,8 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["scroll", "reveal", "locate", "bring back"],
     when: "hasInspectorSelection",
     notes:
-      "Scroll the timeline back to the selection's anchor when the Action bar is pinned away from it; a view move on desktop and tablet, a seek to the selection's start on the phone (fixed playhead), no key",
+      "Scroll the timeline back to the selection's anchor when the Action bar is pinned away from it; a view move on desktop and tablet, a seek of the playhead to the selection's start on the phone (fixed playhead), no key",
+    breaksFollow: true,
   },
   "view.waveformZoomIn": {
     id: "view.waveformZoomIn",

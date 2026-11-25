@@ -12,7 +12,6 @@ import {
   STAGE_SHEETS,
   type StageSheet,
 } from "../types/stage";
-import { revealAnchor, selectionAnchor } from "../utils/timelineReveal";
 import {
   clampZoomPxPerSec,
   discreteZoomFactor,
@@ -21,6 +20,7 @@ import {
 import { registerCommand } from "./execute";
 import { fixTextAvailability } from "./fixTextAvailability";
 import { seekTransport } from "./seek";
+import { revealAnchor, selectionAnchor } from "./timelineReveal";
 
 const ZOOM_TO_SELECTION_FILL = 0.9;
 const NO_PROJECT = { status: "disabled", reason: "No project" } as const;
@@ -124,6 +124,8 @@ export function registerViewCommands(): void {
     if (!s.selection) return { status: "disabled", reason: "Nothing selected" };
     const anchor = selectionAnchor.get();
     if (!anchor) return { status: "disabled", reason: "Nothing to show" };
+    // Playback follow would page the view straight back off the anchor.
+    suspendTimelineFollow();
     if (s.shellBreakpoint === "phone") {
       // The phone's playhead is fixed and the view scrubs, so the way back is
       // the same seek as Seek to start (the selection stays as it is).

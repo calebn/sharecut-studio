@@ -185,7 +185,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.view.revealSelection": {
     label: "Show selection",
-    tooltip: "Scroll the timeline back to the selection",
+    tooltip:
+      "Scroll the timeline back to the selection (seeks the playhead on the phone)",
   },
   "daw.stage.record": {
     label: "Go to Record",

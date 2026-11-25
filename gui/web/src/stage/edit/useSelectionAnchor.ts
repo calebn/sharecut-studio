@@ -7,13 +7,14 @@ import {
   useState,
 } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { scrollerOf } from "../../commands/timelineReveal";
 import { useDawStore } from "../../state/dawStore";
 import type { Selection } from "../../types/project";
 import { type AnchorRect, visualViewportBox } from "../../ui/anchoredPlacement";
-import { type Pin, pinOf } from "../../ui/anchorPin";
+import { anchorLost, type Pin, pinOf } from "../../ui/anchorPin";
 import type { AnchorExclusion } from "../../ui/useAnchoredPanel";
+import { useResizeObserver } from "../../ui/useResizeObserver";
 import { timelineChromeBottom } from "../../utils/timelineChrome";
-import { scrollerOf } from "../../utils/timelineReveal";
 import { timelineHeaderOffsetWidth } from "../../utils/timelineViewport";
 import { timelineCorner } from "./timelineCorner";
 
@@ -45,6 +46,9 @@ function pinBox(node: HTMLElement): AnchorRect {
   const scroll = scrollerOf(node);
   if (!scroll) return box;
   const rect = scroll.getBoundingClientRect();
+  // The client box, so an anchor under a scrollbar is out of it.
+  const width = scroll.clientWidth || rect.width;
+  const height = scroll.clientHeight || rect.height;
   const timeline = scroll.matches(".timeline-scroll");
   return {
     left: Math.max(
@@ -56,13 +60,21 @@ function pinBox(node: HTMLElement): AnchorRect {
       rect.top,
       timeline ? timelineChromeBottom(scroll) : 0,
     ),
-    right: Math.min(box.right, rect.right),
-    bottom: Math.min(box.bottom, rect.bottom),
+    right: Math.min(box.right, rect.left + (scroll.clientLeft || 0) + width),
+    bottom: Math.min(box.bottom, rect.top + (scroll.clientTop || 0) + height),
   };
 }
 
-const pinOfNode = (node: HTMLElement): Pin =>
-  pinOf(node.getBoundingClientRect(), pinBox(node));
+type Measure = Pin & { readonly lost: boolean };
+
+function measureNode(node: HTMLElement): Measure {
+  const rect = node.getBoundingClientRect();
+  const box = pinBox(node);
+  // Only an anchor inside a scroller can be told from one the page has not
+  // drawn yet; every selectable node lives in one.
+  const lost = scrollerOf(node) !== null && anchorLost(rect, box);
+  return { ...pinOf(rect, box), lost };
+}
 
 function findSelectionAnchor(
   root: ParentNode,
@@ -153,7 +165,7 @@ export function useSelectionAnchor(
   const ref = useRef<HTMLElement | null>(null);
   const excludeRef = useRef<HTMLElement | null>(null);
   const withinRef = useRef<HTMLElement | null>(null);
-  const [pinned, setPinned] = useState(false);
+  const [state, setState] = useState({ pinned: false, lost: false });
   const [node, setNode] = useState<HTMLElement | null>(null);
   const [excluded, setExcluded] = useState<HTMLElement | null>(null);
   const { project, zoomPxPerSec } = useDawStore(
@@ -202,19 +214,26 @@ export function useSelectionAnchor(
   // The pin is the bounds math; the observer and the scroll listeners only say
   // when to redo it, since the observer's root (the window) misses the sticky
   // ruler and track headers.
+  const remeasure = useCallback(() => {
+    const next =
+      node?.isConnected === true
+        ? measureNode(node)
+        : { pinned: false, lost: false };
+    setState((was) =>
+      was.pinned === next.pinned && was.lost === next.lost
+        ? was
+        : { pinned: next.pinned, lost: next.lost },
+    );
+  }, [node]);
   useLayoutEffect(() => {
-    if (!node || !node.isConnected) {
-      setPinned(false);
-      return;
-    }
-    const measure = () => setPinned(pinOfNode(node).pinned);
-    measure();
+    remeasure();
+    if (!node || !node.isConnected) return;
     let frame = 0;
     const schedule = () => {
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
-        measure();
+        remeasure();
       });
     };
     window.addEventListener("scroll", schedule, true);
@@ -222,7 +241,7 @@ export function useSelectionAnchor(
     const observer =
       typeof IntersectionObserver === "undefined"
         ? null
-        : new IntersectionObserver(measure, { threshold: 0 });
+        : new IntersectionObserver(remeasure, { threshold: 0 });
     observer?.observe(node);
     return () => {
       window.removeEventListener("scroll", schedule, true);
@@ -230,7 +249,14 @@ export function useSelectionAnchor(
       observer?.disconnect();
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [node, moves]);
+  }, [node, moves, remeasure]);
+  // A scroller that moves or resizes with no window event (a column toggle,
+  // the Inspector opening) changes the box without a scroll.
+  useResizeObserver(
+    () => (node ? scrollerOf(node) : null),
+    remeasure,
+    node !== null,
+  );
 
   const exclusion = useMemo<AnchorExclusion>(
     () => ({
@@ -247,10 +273,13 @@ export function useSelectionAnchor(
 
   const rect = useCallback(() => {
     const el = ref.current;
-    return el?.isConnected ? pinOfNode(el).rect : null;
+    if (!el?.isConnected) return null;
+    const measured = measureNode(el);
+    return measured.lost ? null : measured.rect;
   }, []);
 
-  const present = enabled && node !== null && node.isConnected;
+  const present = enabled && node !== null && node.isConnected && !state.lost;
+  const pinned = state.pinned;
   return {
     ref,
     clearTop,

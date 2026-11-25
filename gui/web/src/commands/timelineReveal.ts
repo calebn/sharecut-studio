@@ -1,31 +1,53 @@
 import type { RefObject } from "react";
-import { revealLane } from "../stage/edit/useRevealEditedLane";
 import { useDawStore } from "../state/dawStore";
-import { clamp } from "./math";
-import { timelineHeaderOffsetWidth } from "./timelineViewport";
+import { clamp } from "../utils/math";
+import { pinnedChromeBottom } from "../utils/timelineChrome";
+import { timelineHeaderOffsetWidth } from "../utils/timelineViewport";
 
-let current: RefObject<HTMLElement | null> | null = null;
+const registered: RefObject<HTMLElement | null>[] = [];
 
 /**
  * The anchor node of the selection whose Action bar is on screen, which
- * `view.revealSelection` brings back. The bar sets it; a command has no other
- * way to name a node.
+ * `view.revealSelection` brings back. Each bar registers its own ref (the phone
+ * can mount three docks at once) and releases only that ref, so closing one
+ * sheet's dock never takes the workspace dock's anchor with it.
  */
 export const selectionAnchor = {
   set(ref: RefObject<HTMLElement | null>) {
-    current = ref;
+    if (!registered.includes(ref)) registered.push(ref);
   },
-  /** Drops `ref` only if it is still the registered one. */
   release(ref: RefObject<HTMLElement | null>) {
-    if (current === ref) current = null;
+    const at = registered.indexOf(ref);
+    if (at >= 0) registered.splice(at, 1);
   },
   clear() {
-    current = null;
+    registered.length = 0;
   },
+  /** The latest registered anchor that is still on the page. */
   get(): HTMLElement | null {
-    return current?.current?.isConnected ? current.current : null;
+    for (let i = registered.length - 1; i >= 0; i--) {
+      const el = registered[i]?.current;
+      if (el?.isConnected) return el;
+    }
+    return null;
   },
 };
+
+export const laneSelector = (trackId: string) =>
+  `.lane-row[data-track-id=${JSON.stringify(trackId)}]`;
+
+/** Scrolls lane `trackId` whole between the pinned chrome and its scroller's end. */
+export function revealLane(trackId: string): void {
+  const lane = document.querySelector(laneSelector(trackId));
+  const scroller = lane?.closest<HTMLElement>(".timeline-scroll");
+  if (!lane || !scroller) return;
+  const chrome = pinnedChromeBottom(scroller);
+  const box = lane.getBoundingClientRect();
+  const below = box.bottom - scroller.getBoundingClientRect().bottom;
+  if (below > 0) scroller.scrollTop += Math.min(below, box.top - chrome);
+  const hidden = chrome - lane.getBoundingClientRect().top;
+  if (hidden > 0) scroller.scrollTop -= hidden;
+}
 
 const SCROLLS = /^(auto|scroll|overlay)$/;
 
