@@ -1324,3 +1324,103 @@ def test_guest_http_listing_retry_recovers_registry_before_authorization(
         third = client.post(endpoint, json=payload)
         repeated_text = third.json()["result"]["content"][0]["text"]
         assert json.loads(repeated_text)["tracks"]["host"][0]["recording_key"] == key
+
+
+def test_guest_search_never_finds_or_returns_a_struck_word(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """A guest's transcript search reads the guest's own transcript (#3798): struck words
+    neither match nor come back, and a hit carries only the guest row's keys."""
+    from podcast_mcp.engines.transcript_sync import rebuild_combined
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.2, end=0.6, confidence=0.9),
+                TranscriptWord(text="secret", start=0.6, end=0.8, confidence=0.9, ignored=True),
+                TranscriptWord(text="world", start=0.8, end=1.2, confidence=0.9),
+            ],
+        )
+    ]
+    rebuild_combined(ws.project, defaults=ws.effective_config())
+    ws.save()
+    share = _share(
+        ws, monkeypatch, tmp_workspace, capabilities_for_role("editor", with_mcp=True), "editor"
+    )
+    token = share["token"]
+
+    def search(query: str) -> list[dict]:
+        found = _call(token, "guest_search_transcript", {"query": query, "limit": 5})
+        assert "error" not in found, found
+        return json.loads(found["result"]["content"][0]["text"])
+
+    assert search("secret") == []
+    assert search("hello secret") == []
+    hits = search("hello")
+    assert [hit["text"] for hit in hits] == ["hello world"]
+    assert set(hits[0]) <= {
+        "track_id",
+        "source_id",
+        "speaker",
+        "start",
+        "end",
+        "text",
+        "timeline_start",
+        "timeline_end",
+        "utterance_index",
+    }
+    assert hits[0]["utterance_index"] == 0
+    assert len(search("o")) == 1
+
+
+def test_search_guest_transcript_reads_only_the_guest_rows():
+    """The search helper matches the guest row text, so a host's struck word (carried in
+    ``text`` with ``text_without_ignored`` beside it) never matches or comes back (#3798)."""
+    from podcast_mcp.gui.mapper import GuestWords, guest_transcript
+    from podcast_mcp.services.remote_mcp.tools import search_guest_transcript
+
+    host_rows = {
+        "utterances": [
+            {
+                "track_id": "host",
+                "source_id": "s1",
+                "speaker": "Host",
+                "start": 0.2,
+                "end": 1.2,
+                "text": "hello secret world",
+                "text_without_ignored": "hello world",
+                "ignored_word_indices": [1],
+                "project_path": "/Users/host/show.sharecut",
+                "timeline_start": 0.2,
+                "timeline_end": 1.2,
+            },
+            {"track_id": "host", "text": "secret only", "suppressed_only": True},
+            {"track_id": "guest", "start": 2.0, "end": 2.5, "text": "Hello again"},
+        ]
+    }
+    guest = guest_transcript(host_rows, words=GuestWords.NONE)
+
+    assert search_guest_transcript(guest, "secret") == []
+    assert search_guest_transcript(guest, "hello secret") == []
+    hits = search_guest_transcript(guest, "hello")
+    assert [(hit["text"], hit["utterance_index"]) for hit in hits] == [
+        ("hello world", 0),
+        ("Hello again", 1),
+    ]
+    assert set(hits[0]) == {
+        "track_id",
+        "source_id",
+        "speaker",
+        "start",
+        "end",
+        "text",
+        "timeline_start",
+        "timeline_end",
+        "utterance_index",
+    }
+    assert search_guest_transcript(guest, "hello", limit=1) == hits[:1]
+    assert search_guest_transcript(guest, "  ") == []
+    assert search_guest_transcript(None, "hello") == []

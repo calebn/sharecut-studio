@@ -6,7 +6,7 @@ import functools
 import inspect
 import json
 import typing
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError, create_model
@@ -60,6 +60,7 @@ from podcast_mcp.util.coded_error import (
 )
 from podcast_mcp.util.guest_render import require_guest_render
 from podcast_mcp.util.progress import install_guest_tool_progress
+from podcast_mcp.util.text import normalize_text
 from podcast_mcp.util.tool_refusal import guest_failure_detail
 
 if typing.TYPE_CHECKING:
@@ -159,28 +160,52 @@ def guest_list_applied_edits() -> Any:
     return {}
 
 
+GUEST_SEARCH_HIT_FIELDS = (
+    "track_id",
+    "source_id",
+    "speaker",
+    "start",
+    "end",
+    "text",
+    "timeline_start",
+    "timeline_end",
+)
+"""What a guest search hit carries: the guest transcript row's place and text (#3798)."""
+
+
+def search_guest_transcript(
+    transcript: Mapping[str, Any] | None, query: str, limit: int = 20
+) -> list[dict[str, Any]]:
+    """Utterance rows of a guest transcript view whose text holds ``query``.
+
+    Reads the guest's own view, whose rows already leave out struck and suppressed words
+    and keep only guest fields, so a struck word neither matches nor comes back (#3798).
+    ``utterance_index`` is the row's place in that view.
+    """
+    q = normalize_text(query)
+    rows = transcript.get("utterances") if isinstance(transcript, Mapping) else None
+    if not q or not isinstance(rows, list):
+        return []
+    hits: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping) or q not in normalize_text(str(row.get("text") or "")):
+            continue
+        hit = {key: row[key] for key in GUEST_SEARCH_HIT_FIELDS if key in row}
+        hit["utterance_index"] = index
+        hits.append(hit)
+        if len(hits) >= max(1, limit):
+            break
+    return hits
+
+
 def guest_search_transcript(query: str, limit: int = 20) -> list[dict[str, Any]]:
-    """Search combined transcript text (guest-safe; no project_path)."""
+    """Search the guest's transcript text (struck words left out; no host fields)."""
     _require_tool("guest_search_transcript")
     ctx = get_remote_mcp_context()
     if not has_capability(ctx.capabilities, CAP_VIEW):
         raise CodedPermissionError("share does not allow view", code="share_capability_required")
-    from podcast_mcp.edits.transcript_search import search_transcript
-
-    hits = search_transcript(
-        ctx.workspace.project, query=query, defaults=ctx.workspace.effective_config()
-    )
-    out: list[dict[str, Any]] = []
-    for h in hits[: max(1, limit)]:
-        if hasattr(h, "model_dump"):
-            row = h.model_dump()
-        elif isinstance(h, dict):
-            row = dict(h)
-        else:
-            row = {"text": str(h)}
-        row.pop("project_path", None)
-        out.append(row)
-    return out
+    view = share_daw_project_view(ctx.token)
+    return search_guest_transcript(view.get("transcript"), query, limit)
 
 
 def guest_render_status() -> dict[str, Any]:
