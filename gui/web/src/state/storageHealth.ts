@@ -13,8 +13,8 @@ export const PREFS_SENTENCE =
 
 const SENTENCES: Record<StorageCause, string> = {
   blocked:
-    "Your browser isn't letting this page keep a saved copy. The page still works while the host answers.",
-  full: "This device has no room to keep a saved copy. The page still works while the host answers.",
+    "Your browser isn't letting this page keep a saved copy. The page still works while the host answers. If the host stops, what you write here is lost when you close the page.",
+  full: "This device has no room to keep a saved copy. The page still works while the host answers. If the host stops, what you write here is lost when you close the page.",
 };
 
 export function storageSentence(cause: StorageCause): string {

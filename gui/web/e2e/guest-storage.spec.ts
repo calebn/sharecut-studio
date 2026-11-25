@@ -12,9 +12,9 @@ import { withBrowserPages } from "./twoBrowserPages";
 import { hostEditsTheAudio, twoCopiesProject } from "./twoCopiesProject";
 
 const BLOCKED_SENTENCE =
-  "Your browser isn't letting this page keep a saved copy. The page still works while the host answers.";
+  "Your browser isn't letting this page keep a saved copy. The page still works while the host answers. If the host stops, what you write here is lost when you close the page.";
 const FULL_SENTENCE =
-  "This device has no room to keep a saved copy. The page still works while the host answers.";
+  "This device has no room to keep a saved copy. The page still works while the host answers. If the host stops, what you write here is lost when you close the page.";
 const PREFS_SENTENCE =
   "This browser isn't keeping your settings. They reset when you reload.";
 const LIGHT = "Not kept on this device";

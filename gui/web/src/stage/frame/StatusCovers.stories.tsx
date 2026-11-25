@@ -184,7 +184,7 @@ export const HostAsleepBrowserKeepsNoCopy: Story = {
       failure={{ kind: "unreachable" }}
       trying={false}
       onRetry={fn()}
-      note="Your browser isn't letting this page keep a saved copy. The page still works while the host answers."
+      note="Your browser isn't letting this page keep a saved copy. The page still works while the host answers. If the host stops, what you write here is lost when you close the page."
     />
   ),
   play: async ({ canvasElement }) => {
