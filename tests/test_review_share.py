@@ -3103,6 +3103,35 @@ def test_a_version_lost_again_after_it_came_back_warns_again(
     assert [r.levelno for r in refusals] == [logging.WARNING, logging.WARNING]
 
 
+def test_a_follow_latest_link_lost_again_after_a_newer_version_warns_again(
+    minimal_project, sample_wav, tmp_workspace, caplog
+):
+    import logging
+
+    from podcast_mcp.services.collaboration.share import open_share_workspace
+    from podcast_mcp.util.coded_error import CodedKeyError
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    first = ReviewService(ws).publish(label="First")
+    token = ShareService(ws).create(
+        review_version_id=first["id"], capabilities=["view"], follow_latest=True
+    )["token"]
+    ReviewService(ws).publish(label="Second")
+
+    with caplog.at_level(logging.DEBUG, logger="podcast_mcp.services.collaboration.share"):
+        versions = _drop_versions(minimal_project)
+        with pytest.raises(CodedKeyError):
+            open_share_workspace(token)
+        _bring_versions_back(minimal_project, versions)
+        open_share_workspace(token)
+        _drop_versions(minimal_project)
+        with pytest.raises(CodedKeyError):
+            open_share_workspace(token)
+
+    refusals = [r for r in caplog.records if "Refusing share" in r.getMessage()]
+    assert [r.levelno for r in refusals] == [logging.WARNING, logging.WARNING]
+
+
 def test_a_refusal_warns_again_for_another_version_in_the_same_workspace(
     minimal_project, sample_wav, tmp_workspace, caplog
 ):
