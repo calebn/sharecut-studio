@@ -46,7 +46,10 @@ def _audit_aliases(tree: ast.AST) -> set[str]:
 
 
 def _strays(path: Path) -> list[str]:
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    source = path.read_text(encoding="utf-8")
+    if "audio_audit" not in source:
+        return []
+    tree = ast.parse(source)
     aliases = _audit_aliases(tree) | {"audio_audit"}
     found: list[str] = []
     for node in ast.walk(tree):
