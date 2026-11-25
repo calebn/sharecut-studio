@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines import audio_audit, track_evidence
+from podcast_mcp.engines import audio_audit, pcm_cache, track_evidence
 from podcast_mcp.engines.audio import Audio
 from podcast_mcp.engines.track_evidence import Declined, Evidence
 from podcast_mcp.models import EpisodeProject
@@ -49,7 +49,7 @@ def _three_chained(tmp_path: Path) -> EpisodeProject:
     return project
 
 
-def _build(project: EpisodeProject) -> audio_audit.TrackRmsCacheSet:
+def _build(project: EpisodeProject) -> pcm_cache.TrackRmsCacheSet:
     return audio_audit.build_track_rms_caches(project, unprocessed=True, defaults=load_defaults())
 
 
@@ -87,7 +87,7 @@ class _Probe:
                 self._running -= 1
 
 
-def _serial(project: EpisodeProject) -> dict[str, audio_audit.TrackRmsCache]:
+def _serial(project: EpisodeProject) -> dict[str, pcm_cache.TrackRmsCache]:
     """What one-track-at-a-time ``rms`` gives, the path the builder used before it was concurrent."""
     defaults = load_defaults()
     with batch_scope():
@@ -233,7 +233,7 @@ def test_the_pool_does_not_need_the_project_lock_the_caller_holds(
     _ffmpeg_or_skip()
     project = _three_chained(tmp_path)
     probe = _Probe(monkeypatch, meet=3)
-    outcome: list[audio_audit.TrackRmsCacheSet] = []
+    outcome: list[pcm_cache.TrackRmsCacheSet] = []
 
     def hold_and_build() -> None:
         with project_state_lock(project), batch_scope():

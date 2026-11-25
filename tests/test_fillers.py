@@ -2062,7 +2062,7 @@ def test_analyze_candidates_passes_timeline_rms_caches_to_cut_scope():
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
     from podcast_mcp.edits.tighten.candidate import _CutCandidate, _word_indexes
     from podcast_mcp.edits.tighten.prepare import analyze_candidates
-    from podcast_mcp.engines.audio_audit import TrackRmsCache, TrackRmsCacheSet
+    from podcast_mcp.engines.pcm_cache import TrackRmsCache, TrackRmsCacheSet
 
     words = [
         TranscriptWord(text="um", start=1.0, end=1.2),
@@ -2490,7 +2490,7 @@ def test_join_continuity_verdicts_and_scorer_errors():
     import numpy as np
 
     from podcast_mcp.edits.audio_cache import TrackAudioCache
-    from podcast_mcp.engines.audio_audit import TrackRmsCache
+    from podcast_mcp.engines.pcm_cache import TrackRmsCache
 
     silent = TrackRmsCache(np.zeros(16_000 * 3, dtype=np.float32), 16_000)
     sentinel_cache = TrackAudioCache(silent, silent)

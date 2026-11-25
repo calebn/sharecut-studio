@@ -120,7 +120,8 @@ def test_atomic_media_replacement_preserving_time_and_size_rechecks_owner_and_pe
 def test_pregate_reconcile_reuses_only_fresh_ungated_stems(tmp_path, monkeypatch, state):
     from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.engines import timeline_render
-    from podcast_mcp.engines.audio_audit import TrackRmsCache, build_track_rms_caches
+    from podcast_mcp.engines.audio_audit import build_track_rms_caches
+    from podcast_mcp.engines.pcm_cache import TrackRmsCache
     from podcast_mcp.engines.play_audit import write_stem_hash
 
     project = _episode(tmp_path)

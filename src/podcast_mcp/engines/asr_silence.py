@@ -702,8 +702,8 @@ def digital_silence_fraction(path: Path) -> float | None:
 
 def flag_silent_words_in_file(words: Sequence[TranscriptWord], path: Path) -> int | None:
     """Flag silent words in ``path``; ``None`` (logged as a warning) when it cannot be decoded."""
-    from podcast_mcp.engines.audio_audit import TrackRmsCache
     from podcast_mcp.engines.level_profile import frame_levels_db
+    from podcast_mcp.engines.pcm_cache import TrackRmsCache
 
     try:
         track = TrackRmsCache.from_timeline_stem(path)

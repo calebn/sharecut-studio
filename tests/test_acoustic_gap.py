@@ -47,8 +47,8 @@ from podcast_mcp.edits.tighten.collect import _collect_candidates
 from podcast_mcp.edits.tighten.propose import _flag_possible_words
 from podcast_mcp.edits.tighten_reasons import is_likely_laugh_reason, is_possible_word_reason
 from podcast_mcp.edits.transcript_cuts import coalesce_edits
-from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.engines.whisper_device import WhisperPlacement
 from podcast_mcp.models import (

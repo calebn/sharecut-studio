@@ -27,10 +27,11 @@ from podcast_mcp.engines.audio import (
     SourceAudio,
     SourceMuteEnvelope,
 )
-from podcast_mcp.engines.audio_audit import TrackRmsCache, build_track_rms_caches
+from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.engines.audio_eval import ArrayReader, evaluate_resampled, plan_audio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.level_profile import LevelProfile, track_profile
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.engines.track_evidence import Declined
 from podcast_mcp.engines.ungated_audio import resampler_grid, resampler_locality
 from podcast_mcp.engines.windowed_rms import (

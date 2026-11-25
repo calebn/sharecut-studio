@@ -7,7 +7,7 @@ from unittest.mock import patch
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_speech import _own_sound
 from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent
-from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
+from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
 
 

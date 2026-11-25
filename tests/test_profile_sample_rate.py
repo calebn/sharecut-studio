@@ -21,11 +21,11 @@ from podcast_mcp.edits.audio_cache import (
 )
 from podcast_mcp.edits.speech_energy_guard import _voice_reach_db
 from podcast_mcp.engines.audio_audit import (
-    TrackRmsCache,
     build_track_rms_caches,
     measure_timeline_rms_db,
     measure_window_rms_db,
 )
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
 from podcast_mcp.util.tracks import track_audio_path
 

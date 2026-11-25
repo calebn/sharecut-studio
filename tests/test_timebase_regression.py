@@ -66,7 +66,7 @@ def test_follow_transcript_interval_not_at_source_position(tmp_path):
 
 def test_audibility_uses_timeline_not_source(monkeypatch, tmp_path):
     """compute_word_audibility_map must RMS the mapped timeline window."""
-    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.engines import audio_audit, pcm_cache
 
     p = _compressed_project(tmp_path)
     seen: list[tuple[float, float]] = []
@@ -86,7 +86,7 @@ def test_audibility_uses_timeline_not_source(monkeypatch, tmp_path):
 
     monkeypatch.setattr(audio_audit, "_rms_for_track_at_timeline", fake_rms)
     monkeypatch.setattr(
-        audio_audit, "build_track_rms_caches", lambda _p, **_kw: audio_audit.TrackRmsCacheSet()
+        audio_audit, "build_track_rms_caches", lambda _p, **_kw: pcm_cache.TrackRmsCacheSet()
     )
 
     rows = audio_audit.compute_word_audibility_map(p, defaults=load_defaults())

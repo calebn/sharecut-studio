@@ -14,7 +14,7 @@ from podcast_mcp.edits.word_onset import (
     voice_onset,
     voice_separates,
 )
-from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.models import Transcript, TranscriptWord
 
 RATE = 16_000

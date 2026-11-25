@@ -20,7 +20,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.util.dsp import (
     bool_runs,
     bridge_short_dips,

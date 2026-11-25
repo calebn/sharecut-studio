@@ -40,7 +40,7 @@ from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.timebase import SourceSec
 
 if TYPE_CHECKING:
-    from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
+    from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 from podcast_mcp.edits.join_continuity import JoinContinuityConfig
 from podcast_mcp.edits.pause_floor import PeerTrackSpeechIndex, retained_pause_floor_sec
 from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent

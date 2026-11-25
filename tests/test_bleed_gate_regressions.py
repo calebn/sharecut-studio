@@ -206,7 +206,7 @@ def test_refresh_does_not_clear_stale_when_audio_changes_after_reconciliation(
 
 
 def test_same_track_noise_and_transcript_gates_keep_separate_attribution(tmp_path, monkeypatch):
-    from podcast_mcp.engines.audio_audit import TrackRmsCache
+    from podcast_mcp.engines.pcm_cache import TrackRmsCache
     from podcast_mcp.models import ProcessingChain, ProcessingEffect
 
     project = audio_project(tmp_path)

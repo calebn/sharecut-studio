@@ -14,9 +14,6 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audio_quality import suppress_low_audibility_words
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
-    CopyPath,
-    TrackRmsCache,
-    TrackRmsCacheSet,
     analyze_cleanup,
     analyze_gate_overreach,
     build_track_rms_caches,
@@ -31,6 +28,7 @@ from podcast_mcp.engines.audio_audit import (
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.level_profile import LevelProfile
+from podcast_mcp.engines.pcm_cache import RMS_SAMPLE_RATE, CopyPath, TrackRmsCache, TrackRmsCacheSet
 from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (
@@ -101,8 +99,8 @@ def test_list_low_audibility_flags_quiet_word(sample_wav: Path, tmp_path: Path):
     ]
 
     with (
-        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db", return_value=-50.0),
-        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.profile", new=_floor_at(-40.0)),
+        patch("podcast_mcp.engines.pcm_cache.TrackRmsCache.rms_db", return_value=-50.0),
+        patch("podcast_mcp.engines.pcm_cache.TrackRmsCache.profile", new=_floor_at(-40.0)),
     ):
         flagged = list_low_audibility_words(project, track_id="host", defaults=load_defaults())
     assert len(flagged) == 1
@@ -252,7 +250,7 @@ def test_recommend_boundary_fades_adjacent_clips(tmp_path: Path):
     ]
     with (
         patch(
-            "podcast_mcp.engines.audio_audit.TrackRmsCache.from_timeline_stem",
+            "podcast_mcp.engines.pcm_cache.TrackRmsCache.from_timeline_stem",
             side_effect=Exception("no cache"),
         ),
         patch(
@@ -311,7 +309,7 @@ def test_recommend_boundary_fades_treats_sub_tolerance_gap_as_join(tmp_path: Pat
     ]
     with (
         patch(
-            "podcast_mcp.engines.audio_audit.TrackRmsCache.from_timeline_stem",
+            "podcast_mcp.engines.pcm_cache.TrackRmsCache.from_timeline_stem",
             side_effect=Exception("no cache"),
         ),
         patch("podcast_mcp.engines.audio_audit._processed_track_path", return_value=None),
@@ -791,7 +789,7 @@ def test_analyze_cleanup_matches_separate_scans(tmp_path: Path):
             return_value=-50.0,
         ),
         floors_at(-35.0),
-        patch("podcast_mcp.engines.audio_audit.file_level_profile", return_value=_floor_at(-35.0)),
+        patch("podcast_mcp.engines.pcm_cache.file_level_profile", return_value=_floor_at(-35.0)),
     ):
         expected_low = {
             tid: list_low_audibility_words(project, track_id=tid, defaults=load_defaults())
@@ -1187,8 +1185,8 @@ def test_list_low_audibility_uses_proc_cache(sample_wav: Path, tmp_path: Path):
     ]
     write_stem_hash(project, "host", defaults=load_defaults())
     with (
-        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db", return_value=-55.0),
-        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.profile", new=_floor_at(-40.0)),
+        patch("podcast_mcp.engines.pcm_cache.TrackRmsCache.rms_db", return_value=-55.0),
+        patch("podcast_mcp.engines.pcm_cache.TrackRmsCache.profile", new=_floor_at(-40.0)),
     ):
         flagged = list_low_audibility_words(project, track_id="host", defaults=load_defaults())
     assert len(flagged) == 1
@@ -1280,7 +1278,7 @@ def test_analyze_cleanup_shares_cache_set(tmp_path: Path, monkeypatch):
     project.timeline.tracks = [
         Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
     ]
-    shared = aa.TrackRmsCacheSet()
+    shared = TrackRmsCacheSet()
     builds = []
     seen = []
     monkeypatch.setattr(aa, "build_track_rms_caches", lambda _, **_kw: builds.append(1) or shared)
@@ -1309,7 +1307,7 @@ def test_rms_db_edge_cases(monkeypatch):
     assert rms_db(np.array([], dtype=np.float32)) == DIGITAL_SILENCE_DB
     assert rms_db(np.zeros(100, dtype=np.float32)) == DIGITAL_SILENCE_DB
     assert rms_db(np.zeros(100, dtype=np.float32), floor_db=-400.0) == -400.0
-    cache = aa.TrackRmsCache(np.zeros(16_000, dtype=np.float32), 16_000)
+    cache = TrackRmsCache(np.zeros(16_000, dtype=np.float32), 16_000)
     assert cache.rms_db(0.0, 0.5) == DIGITAL_SILENCE_DB
     assert cache.rms_db(5.0, 6.0) is None
     monkeypatch.setattr(aa, "load_mono_window", lambda *a, **k: np.array([], dtype=np.float32))
@@ -1721,7 +1719,7 @@ def test_analyze_cleanup_suggest_mode_includes_text_match_loser(tmp_path: Path):
             return_value=-35.0,
         ),
         patch(
-            "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
+            "podcast_mcp.engines.pcm_cache.TrackRmsCacheSet.echo_pairs",
             new=lambda self: [room_pair("host", "guest"), room_pair("guest", "host")],
         ),
     ):
@@ -2074,7 +2072,7 @@ def test_bleed_needs_a_measured_path_from_the_louder_mic(tmp_path: Path, paths, 
             side_effect=lambda project, track_id, t0, t1, **kw: levels[track_id],
         ),
         patch(
-            "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
+            "podcast_mcp.engines.pcm_cache.TrackRmsCacheSet.echo_pairs",
             new=lambda self: [_bleed_path(a, b) for a, b in paths],
         ),
     ):
@@ -2323,7 +2321,7 @@ def test_cache_window_before_the_offset_clamps_to_the_cache_start():
 def test_cached_and_uncached_window_reads_return_the_same_samples(tmp_path: Path):
     from podcast_mcp.engines import audio_audit as aa
 
-    rate = aa._RMS_SAMPLE_RATE
+    rate = RMS_SAMPLE_RATE
     raw = tmp_path / "raw"
     raw.mkdir()
     noise = np.random.default_rng(7).uniform(-0.5, 0.5, 6 * rate)

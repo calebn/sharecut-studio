@@ -20,7 +20,7 @@ from podcast_mcp.util.dsp import frame_peak_db
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 if TYPE_CHECKING:
-    from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
+    from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 
 
 def _segment_shift_sec(steps: LagSteps, source_sec: float) -> float:

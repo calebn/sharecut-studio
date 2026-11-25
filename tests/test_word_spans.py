@@ -19,7 +19,7 @@ from podcast_mcp.edits.word_spans import (
     trim_implausible_words,
     trim_project_word_spans,
 )
-from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.models import (
     EpisodeProject,
     MediaAsset,

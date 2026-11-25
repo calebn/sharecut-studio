@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines import audio_audit, audio_eval, track_evidence
+from podcast_mcp.engines import audio_audit, audio_eval, pcm_cache, track_evidence
 from podcast_mcp.engines.audio import (
     At,
     CrossfadeAudio,
@@ -498,7 +498,7 @@ def test_fast_cache_equals_the_rendered_cache(tmp_path: Path, render_calls: list
     track = project.track_by_id("caleb")
     stem = tmp_path / "stem.wav"
     render_track_from_timeline(project, track, stem, defaults)
-    rendered = audio_audit.TrackRmsCache.from_timeline_stem(stem)
+    rendered = pcm_cache.TrackRmsCache.from_timeline_stem(stem)
 
     render_calls.clear()
     fast = track_evidence.rms(project, "caleb", defaults)
