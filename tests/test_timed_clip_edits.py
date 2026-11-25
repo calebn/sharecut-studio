@@ -5,8 +5,12 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits import ripple
+from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim
 from podcast_mcp.edits.timeline_ops import split_clips_at
+from podcast_mcp.engines import clips_ops
 from podcast_mcp.engines.clips_ops import (
+    move_clips,
     punch_timeline_range_from_clips,
     remove_timeline_range_from_clips,
     roll_clip_join,
@@ -290,3 +294,123 @@ def test_timing_hole_split_reports_the_mutation_owned_right_piece() -> None:
             "right_clip_id": right.id,
         }
     ]
+
+
+def _follower() -> Clip:
+    return Clip(id="n", track_id="host", source_start=100, source_end=110, timeline_start=125)
+
+
+@pytest.mark.parametrize("mode", [EditMode.RIPPLE, EditMode.GAP])
+@pytest.mark.parametrize(("edge", "sec"), [("out", 0.0), ("in", 1000.0)])
+def test_trimming_past_the_step_limit_stops_at_it_and_keeps_the_steps(
+    mode: EditMode, edge: str, sec: float
+) -> None:
+    clip = _clip(_STEPS)
+    follower = _follower()
+    project = _project([clip, follower])
+    plan = plan_trim(project, "a", edge, sec, mode)
+    apply_trim_geometry(project, plan, defaults=_DEFAULTS)
+    trimmed = next(c for c in project.clips if c.id == "a")
+    moved = next(c for c in project.clips if c.id == "n")
+    assert trimmed.timing == clip.timing
+    assert Clip.model_validate(trimmed.model_dump()).timing == clip.timing
+    if edge == "out":
+        assert 31 < trimmed.source_end < 31.001
+    else:
+        assert 19.999 < trimmed.source_start < 20
+    if mode is EditMode.GAP and edge == "in":
+        assert trimmed.timeline_start == pytest.approx(100 + trimmed.source_start - 10)
+        assert trimmed.timeline_end == pytest.approx(clip.timeline_end)
+    else:
+        assert trimmed.timeline_end == pytest.approx(clip.timeline_end + plan.delta)
+    ripples = mode is EditMode.RIPPLE
+    assert moved.timeline_start == pytest.approx(125 + (plan.delta if ripples else 0))
+
+
+@pytest.mark.parametrize(
+    ("span", "removed", "punched"),
+    [
+        (
+            (108.0, 110.0),
+            [(10, 18, 100), (20, 30, 110), (31, 40, 120)],
+            [(10, 18, 100), (20, 30, 112), (31, 40, 122)],
+        ),
+        (
+            (112.0, 114.0),
+            [(10, 20, 100), (22, 30, 112), (31, 40, 120)],
+            [(10, 20, 100), (22, 30, 114), (31, 40, 122)],
+        ),
+        (
+            (121.0, 123.0),
+            [(10, 20, 100), (20, 29, 112), (32, 40, 121)],
+            [(10, 20, 100), (20, 29, 112), (32, 40, 123)],
+        ),
+    ],
+    ids=["ends_on_a_step", "starts_on_a_step", "equals_the_quiet_span"],
+)
+def test_a_cut_on_a_step_or_over_a_quiet_span_keeps_the_audio_in_place(
+    span: tuple[float, float],
+    removed: list[tuple[float, float, float]],
+    punched: list[tuple[float, float, float]],
+) -> None:
+    for cut, expected in (
+        (remove_timeline_range_from_clips, removed),
+        (punch_timeline_range_from_clips, punched),
+    ):
+        out = cut([_clip(_STEPS)], *span, defaults=_DEFAULTS)
+        assert _played(*out) == expected
+        for piece in out:
+            Clip.model_validate(piece.model_dump())
+
+
+def test_moving_a_timed_clip_keeps_its_steps_and_shifts_every_piece() -> None:
+    clip = _clip(_STEPS)
+    timing = clip.timing.model_copy(deep=True)
+    before = _played(clip)
+    project = _project([clip])
+    (moved,) = move_clips(project, [{"clip_id": "a", "timeline_start": 500.0, "track_id": "host"}])
+    assert moved.timing == timing
+    assert _played(moved) == [(a, b, at + 400) for a, b, at in before]
+    assert moved.timeline_end == 131 + 400
+
+
+def test_a_bypassed_clamp_cannot_save_a_step_outside_the_clip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(clips_ops, "roll_join_limits", lambda *a, **k: (-1000.0, 1000.0))
+    left = _clip([{"at": 20, "delta_sec": 2}], id="l", source_end=30)
+    right = _clip(
+        [{"at": 50, "delta_sec": 1}],
+        id="r",
+        source_start=30,
+        source_end=60,
+        timeline_start=left.timeline_end,
+    )
+    project = _project([left, right])
+    for delta in (-15.0, 25.0):
+        with pytest.raises(ValueError, match="outside"):
+            roll_clip_join(project, "l", "r", delta)
+        assert (left.source_end, right.source_start) == (30, 30)
+
+    monkeypatch.setattr(ripple, "trim_edge_limits", lambda *a, **k: (-1000.0, 1000.0))
+    trim_clip = _clip(_STEPS)
+    trim_project = _project([trim_clip])
+    for edge, sec in (("out", 25.0), ("in", 25.0)):
+        plan = plan_trim(trim_project, "a", edge, sec, EditMode.RIPPLE)
+        with pytest.raises(ValueError, match="outside"):
+            apply_trim_geometry(trim_project, plan, defaults=_DEFAULTS)
+        (kept,) = trim_project.timeline.clips
+        assert (kept.source_start, kept.source_end) == (10, 40)
+        assert kept.timing == trim_clip.timing
+
+
+def test_a_trim_with_no_legal_range_is_refused_with_a_clear_error() -> None:
+    clip = _clip([{"at": 20, "delta_sec": 2}], source_end=40)
+    neighbour = Clip(
+        id="n", track_id="host", source_start=12, source_end=50, timeline_start=clip.timeline_end
+    )
+    project = _project([clip, neighbour])
+    with pytest.raises(CodedValueError) as excinfo:
+        plan_trim(project, "a", "out", 35.0, EditMode.RIPPLE)
+    assert excinfo.value.code == "trim_no_legal_range"
+    assert (clip.source_start, clip.source_end) == (10, 40)
