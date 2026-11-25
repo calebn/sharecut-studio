@@ -187,6 +187,22 @@ def test_the_global_enrollment_rate_caps_across_subnets(
     assert (res.status_code, res.json()["bucket"]) == (429, "relay_enroll_global")
 
 
+def test_a_subnet_refusal_does_not_spend_the_global_enrollment_rate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    enable_enrollment(monkeypatch, tmp_path, PODCAST_RELAY_ENROLL_GLOBAL_BURST="8")
+    client = TestClient(create_relay_app())
+    for _ in range(5):
+        _enroll(client)
+    body = enroll_body()
+    for _ in range(20):
+        assert client.post("/enroll", json=body).status_code == 429
+
+    from podcast_relay.limits import get_relay_limiters
+
+    assert get_relay_limiters().enroll_global.allow("all").allowed
+
+
 @pytest.mark.parametrize(
     ("address", "bucket"),
     [
