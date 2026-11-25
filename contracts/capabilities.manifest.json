@@ -3787,8 +3787,7 @@
       "service": "services/document save_segment (library write, not project history)",
       "industry_standard_key": false,
       "gates": [
-        "editStage",
-        "host"
+        "editStage"
       ],
       "surfaces": {
         "command": "segment.save",
