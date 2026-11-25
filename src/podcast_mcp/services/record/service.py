@@ -87,6 +87,13 @@ _AUTHORITIES: dict[str, tuple[threading.RLock, set[tuple[str, str]]]] = {}
 _SID_CACHE: BoundedCache[str, tuple[float, str | None]] = BoundedCache(256)
 
 
+class RecordRoomChangedError(RecordStateError):
+    """The host attachment raced a room change."""
+
+    def __init__(self) -> None:
+        super().__init__("record room changed during host attachment")
+
+
 class LeaseInUseError(PermissionError):
     """A live tab already holds this participant lease."""
 
@@ -436,11 +443,13 @@ def begin_record_session(
         from podcast_mcp.services.record.sessions import persist_session_summary
 
         persist_session_summary(project, str(outgoing))
-    store.reset(empty_record_snapshot(session_id, room_target).model_dump(), guard=guard)
-    _participants_for(project).clear_except(session_id)
-    live_comment_store_for(project).clear_all()
-    clear_connections_for_hub(hub)
-    invalidate_record_session_cache(project)
+    authority, _removed_ids = _authority_for(project)
+    with authority:
+        store.reset(empty_record_snapshot(session_id, room_target).model_dump(), guard=guard)
+        _participants_for(project).clear_except(session_id)
+        live_comment_store_for(project).clear_all()
+        clear_connections_for_hub(hub)
+        invalidate_record_session_cache(project)
 
 
 def assert_no_open_take(project: EpisodeProject) -> None:
@@ -483,6 +492,19 @@ class RecordSessionService:
                 last = sid
         _SID_CACHE.put(cache_key, (now, last))
         return last
+
+    @staticmethod
+    def started_session_id(project: EpisodeProject, attached_sid: str | None) -> str | None:
+        """Keep the host in its started room until a new room has a snapshot."""
+        session_id = RecordSessionService.active_session_id(project)
+        if not session_id:
+            return None
+        started_sid = (_store_for(project).get_snapshot() or {}).get("session_id")
+        if started_sid == session_id:
+            return session_id
+        if started_sid == attached_sid:
+            return attached_sid
+        return None
 
     def _saved_project(self) -> EpisodeProject:
         """The project as saved now, so edits made after this service was built are seen."""
@@ -767,9 +789,9 @@ class RecordSessionService:
                 capabilities=capabilities,
                 host_offline_since=inferred_since,
             )
-        except Exception:
+        except Exception as exc:
             last, beat = _release_connection(pid, connection_id, hub_key=self._hub_key)
-            if last and beat is not None:
+            if last and beat is not None and not isinstance(exc, RecordRoomChangedError):
                 _persist_host_offline_since(self._store, beat)
             if stopped_watching and watching_connection_id is not None:
                 self._resume_watching(watching_connection_id)
@@ -858,6 +880,8 @@ class RecordSessionService:
             if cmd.type == "Join" and cmd.role != "host" and current.session_id != self.session_id:
                 raise RecordAuthzError("invite_closed")
             if cmd.type == "Join" and cmd.role == "host":
+                if current.session_id != self.session_id:
+                    raise RecordRoomChangedError
                 since = host_offline_since
                 if since is None:
                     since = infer_host_offline_since(hub, current, now_wall_ms=wall)
@@ -900,6 +924,8 @@ class RecordSessionService:
         if cmd.type == "Comment" and idempotent:
             self._upsert_comment(cmd)
         api = self.snapshot()
+        if cmd.type == "Join" and cmd.role == "host" and api["session_id"] != self.session_id:
+            raise RecordRoomChangedError
         if idempotent:
             return api
         event = drop_absolute_path_strings(

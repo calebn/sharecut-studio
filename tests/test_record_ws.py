@@ -689,14 +689,10 @@ def test_host_record_watcher_survives_a_failed_poll(
         assert roster[HOST_PARTICIPANT_ID]["connected"] is True
 
 
-def test_a_host_that_joined_a_room_before_its_mint_finished_joins_again(
+def test_host_waits_for_the_record_room_to_start(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    """A mint writes the room's links before it starts the room (#4564).
-
-    A host socket that sees the links joins at once. Starting the room then resets its
-    snapshot and drops the host's connection, so the watcher joins again on its next poll.
-    """
+    import threading
     from urllib.parse import quote
 
     from podcast_mcp.services.record import invalidate_record_session_cache
@@ -709,9 +705,20 @@ def test_a_host_that_joined_a_room_before_its_mint_finished_joins_again(
     client = TestClient(create_app())
     url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
     session_id = "0123456789ab"
+    polls = 0
+    polled = threading.Event()
+    room_links = RecordSessionService.active_session_id
 
-    def echo(m: dict) -> bool:
-        return m.get("plane") == "record" and m.get("type") == "Echo"
+    def observe_poll(project):
+        nonlocal polls
+        sid = room_links(project)
+        if sid == session_id:
+            polls += 1
+            if polls >= 3:
+                polled.set()
+        return sid
+
+    monkeypatch.setattr(RecordSessionService, "active_session_id", staticmethod(observe_poll))
 
     with client.websocket_connect(url) as host:
         assert host.receive_json()["type"] == "Snapshot"
@@ -719,13 +726,18 @@ def test_a_host_that_joined_a_room_before_its_mint_finished_joins_again(
             role="guest", session_id=session_id, require_room=False
         )
         invalidate_record_session_cache(ws.project)
-        _drain_until(host, echo, n=40)
+        assert polled.wait(10)
+        svc = RecordSessionService(ws.project, session_id=session_id)
+        assert svc.snapshot()["participants"] == []
 
         begin_record_session(ws.project, session_id)
 
-        rejoined = _drain_until(host, echo, n=40)
-        assert rejoined["participant_id"] == HOST_PARTICIPANT_ID
-        svc = RecordSessionService(ws.project, session_id=session_id)
+        joined = _drain_until(
+            host, lambda m: m.get("plane") == "record" and m.get("type") == "Echo", n=40
+        )
+        assert joined["participant_id"] == HOST_PARTICIPANT_ID
+        assert joined["snapshot"]["session_id"] == session_id
+        assert joined["snapshot"]["state"] == "lobby"
         roster = {p["participant_id"]: p for p in svc.snapshot()["participants"]}
         assert roster[HOST_PARTICIPANT_ID]["connected"] is True
 
@@ -1673,32 +1685,21 @@ def test_host_ws_reattaches_when_record_session_changes(
     from urllib.parse import quote
 
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
-    orig = RecordSessionService.active_session_id
-    seen = {"n": 0}
-
-    def flip(project):
-        seen["n"] += 1
-        sid = orig(project)
-        if seen["n"] >= 2 and sid:
-            return f"{sid}-next"
-        return sid
-
-    monkeypatch.setattr(
-        RecordSessionService,
-        "active_session_id",
-        staticmethod(flip),
-    )
+    monkeypatch.setattr("podcast_mcp.gui.routes.host.HOST_RECORD_ATTACH_POLL_S", 0.05)
     url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-flip&role=viewer&label=Host"
+
+    def record_echo(message):
+        return message.get("plane") == "record" and message.get("type") == "Echo"
+
     with client.websocket_connect(url) as host:
-        _drain_until(host, lambda m: m.get("plane") == "record")
-        host.send_json({"type": "Presence", "playhead_sec": 0, "client_seq": 2, "meta": {}})
-        rec = _drain_until(
-            host,
-            lambda m: m.get("plane") == "record" and m.get("type") in {"Echo", "Snapshot"},
-            n=40,
-        )
-        assert rec["plane"] == "record"
-        assert room["session_id"]
+        before = _drain_until(host, record_echo)
+        assert before["snapshot"]["session_id"] == room["session_id"]
+
+        new_room = ShareService(ws).create_record_room()
+
+        after = _drain_until(host, record_echo, n=40)
+        assert after["snapshot"]["session_id"] == new_room["session_id"]
+        assert after["snapshot"]["state"] == "lobby"
 
 
 def test_host_ws_teardown_survives_record_disconnect_error(
