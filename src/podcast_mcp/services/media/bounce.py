@@ -22,6 +22,7 @@ from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 from podcast_mcp.util.project_state import snapshot_project
+from podcast_mcp.util.tracks import tracks_with_audio
 
 BOUNCE_CANCELLED = "Bounce cancelled"
 
@@ -53,12 +54,13 @@ def _slug(parts: list[str]) -> str:
 
 def _bounceable_tracks(project, wanted: set[str] | None) -> list[Track]:
     tracks: list[Track] = []
+    audible = tracks_with_audio(project)
     for track in project.tracks:
         if wanted is not None and track.id not in wanted:
             continue
         if wanted is None and track.muted:
             continue
-        if track.role not in _BOUNCEABLE_ROLES or not track.media:
+        if track.role not in _BOUNCEABLE_ROLES or track.id not in audible:
             continue
         tracks.append(track)
     return tracks

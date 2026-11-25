@@ -38,8 +38,10 @@ def render_range_audio(
 
     from podcast_mcp.config.defaults import mix_peak_ceiling_db
     from podcast_mcp.engines.timeline_render import render_track_segment
+    from podcast_mcp.util.tracks import tracks_with_audio
 
     target = resolve_range(project, target)
+    audible = tracks_with_audio(project)
     engine = FFmpegEngine()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(dir=output_path.parent) as directory:
@@ -53,7 +55,7 @@ def render_range_audio(
                 stems = []
                 for tid in target.track_ids:
                     track = project.track_by_id(tid)
-                    if track is None or track.media is None:
+                    if track is None or tid not in audible:
                         continue
                     stem = Path(directory) / f"{index}-{tid}.wav"
                     render_track_segment(project, tid, interval.start, interval.end, stem, defaults)

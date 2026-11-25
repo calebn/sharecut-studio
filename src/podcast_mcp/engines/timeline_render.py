@@ -421,6 +421,21 @@ def _restore_dependencies(project: EpisodeProject, track: Track, *, defaults: Ef
     return None
 
 
+def _require_segment_sources(project: EpisodeProject, track: Track, clips: list[Clip]) -> None:
+    if track.media:
+        return
+    for clip in clips:
+        if clip.segment_ref is None:
+            continue
+        source = project.source_by_id(clip.source_id) if clip.source_id else None
+        if source is None or not resolve_under_workspace(project, source.path).is_file():
+            raise CodedValueError(
+                f"segment lane {track.id!r}: the source for clip {clip.id!r} is missing. "
+                "Re-insert the segment or restore its audio file.",
+                code="segment_source_missing",
+            )
+
+
 def render_track_from_timeline(
     project: EpisodeProject,
     track: Track,
@@ -429,23 +444,22 @@ def render_track_from_timeline(
     *,
     engine: FFmpegEngine | None = None,
 ) -> Path:
-    if not track.media:
-        raise CodedValueError(
-            f"track {track.id} has no media. Add media to that track first.",
-            code="track_has_no_media",
-        )
-
     dependencies = _restore_dependencies(project, track, defaults=defaults)
     eng = engine or FFmpegEngine()
-    primary = resolve_under_workspace(project, track.media.path)
 
     track_clips = clips_for_track(project, track.id)
+    _require_segment_sources(project, track, track_clips)
     if not track_clips and track.timeline_empty:
         return eng.silence(
             output_path, max(0.05, project.timeline.duration_sec or timeline_duration_sec(project))
         )
     if not track_clips:
-        probe = eng.probe(primary)
+        if not track.media:
+            raise CodedValueError(
+                f"track {track.id} has no media. Add media to that track first.",
+                code="track_has_no_media",
+            )
+        probe = eng.probe(resolve_under_workspace(project, track.media.path))
         track_clips = [
             Clip(
                 id=f"clip_{track.id}_full",
@@ -1459,6 +1473,7 @@ def render_track_segment(
         )
     dependencies = _restore_dependencies(project, track, defaults=defaults)
     track_clips = clips_for_track(project, track.id)
+    _require_segment_sources(project, track, track_clips)
     if not track_clips and track.timeline_empty:
         return (engine or FFmpegEngine()).silence(output_path, timeline_end - timeline_start)
     if not track_clips:

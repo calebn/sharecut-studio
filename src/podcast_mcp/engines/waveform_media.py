@@ -41,7 +41,7 @@ from podcast_mcp.engines.waveform_pyramid import (
 )
 from podcast_mcp.models import EpisodeProject, Track, load_project, project_file_path
 from podcast_mcp.util.fingerprint import FileStamp, file_stamp
-from podcast_mcp.util.tracks import stem_path
+from podcast_mcp.util.tracks import stem_path, tracks_with_audio
 from podcast_mcp.util.workspace_paths import (
     resolve_under_workspace,
     resolve_within,
@@ -142,8 +142,9 @@ def _retained_source_ids(project: EpisodeProject, track_id: str | None = None) -
 
 def _project_candidates(project: EpisodeProject) -> list[_Candidate | None]:
     found = [_track_candidate(project, t) for t in project.tracks]
+    audible = tracks_with_audio(project)
     found += [_source_candidate(project, s) for s in _retained_source_ids(project)]
-    found += [_stem_candidate(project, t.id) for t in project.tracks if t.media is not None]
+    found += [_stem_candidate(project, t.id) for t in project.tracks if t.id in audible]
     return found
 
 

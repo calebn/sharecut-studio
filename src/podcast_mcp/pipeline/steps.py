@@ -42,9 +42,11 @@ from podcast_mcp.pipeline.helpers import (
 )
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.batch_scope import batch_scope, frozen_state
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import ProgressTask, resolve_progress_task
 from podcast_mcp.util.project_state import current_cancel_check, with_render_lock
+from podcast_mcp.util.tracks import tracks_with_audio
 
 log = logging.getLogger(__name__)
 
@@ -808,7 +810,8 @@ def _stem_inputs_changed(
     """
     from podcast_mcp.engines.play_audit import track_render_hash
 
-    live = {t.id for t in project.tracks if t.role in render_roles and t.media}
+    audible = tracks_with_audio(project)
+    live = {t.id for t in project.tracks if t.role in render_roles and t.id in audible}
     return live != expected.keys() or any(
         track_render_hash(project, tid, defaults=defaults) != h for tid, h in expected.items()
     )
@@ -875,10 +878,11 @@ def _render_track_stems(
     # stem_fingerprint re-enters project_state_lock (an RLock) inside this hold.
     with project_state_lock(project):
         initial_revision = project_file_revision(project)
+        audible = tracks_with_audio(project)
         fingerprints = {
             t.id: stem_fingerprint(project, t.id, defaults=defaults)
             for t in project.tracks
-            if t.role in render_roles and t.media
+            if t.role in render_roles and t.id in audible
         }
     rendered: dict[str, Path] = {}
     expected: dict[str, str] = {}  # track id -> render hash its published stem matches
@@ -895,9 +899,7 @@ def _render_track_stems(
         else:
             stale.add(track_id)
     render_project = snapshot_project(project) if stale else project
-    to_render = [
-        t for t in render_project.tracks if t.id in stale and t.role in render_roles and t.media
-    ]
+    to_render = [t for t in render_project.tracks if t.id in stale and t.role in render_roles]
     for track in to_render:
         expected[track.id] = track_render_hash(render_project, track.id, defaults=defaults)
 
@@ -1020,6 +1022,15 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         # No reconciliation stale mark: see ensure_current_premix (#621).
         assemble_timeline(project, defaults)
     rendered = json.loads(meta_path.read_text(encoding="utf-8"))
+    if any(tid not in rendered for tid in mix_gains(project)):
+        assemble_timeline(project, defaults)
+        rendered = json.loads(meta_path.read_text(encoding="utf-8"))
+        missing = sorted(tid for tid in mix_gains(project) if tid not in rendered)
+        if missing:
+            raise CodedValueError(
+                f"track {missing[0]!r} has no rendered stem, so it cannot be mixed",
+                code="stem_missing",
+            )
     reused = _reusable_premix_summary(project, defaults, rendered)
     if reused is not None:
         return reused

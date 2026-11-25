@@ -51,7 +51,7 @@ from podcast_mcp.util.project_state import (
     RENDER_LOCK_TIMEOUT_SEC,
     snapshot_project,
 )
-from podcast_mcp.util.tracks import stem_path
+from podcast_mcp.util.tracks import stem_path, tracks_with_audio
 from podcast_mcp.util.wav import open_wav
 
 from .play_compose import _PlayCompose
@@ -425,8 +425,9 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
         """Mix ``project``'s audible tracks over ``[start, end]`` into ``out`` at ``trim_db``."""
         with tempfile.TemporaryDirectory(dir=out.parent) as directory:
             segments: list[tuple[Path, float]] = []
+            audible = tracks_with_audio(project)
             for track in project.tracks:
-                if track.muted or track.media is None:
+                if track.muted or track.id not in audible:
                     continue
                 segment = Path(directory) / f"{track.id}.wav"
                 if track.id in stems:

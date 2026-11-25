@@ -54,7 +54,7 @@ Outputs land in `{workspace}/export/bounces/`.
 
 - Deliver's Download all archive packs only the current audio, transcript,
   chapters and feed files; bounces and DAW packages are never in it
-- Omit `track_ids` / `--tracks` → all **non-muted** mixable tracks with media
+- Omit `track_ids` / `--tracks` → all **non-muted** mixable tracks with media or an inserted segment
 - Renders stems into a **private bounce temp dir** (does not overwrite shared
   `artifacts/tracks/` — safe concurrent with GUI refresh-mix)
 - Unscoped bounce clamps to clip timeline extent (`timeline_duration_sec`) when

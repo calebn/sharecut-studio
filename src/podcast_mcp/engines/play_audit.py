@@ -27,7 +27,12 @@ from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
-from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path, stem_path
+from podcast_mcp.util.tracks import (
+    dialogue_track_ids,
+    recording_audio_path,
+    stem_path,
+    tracks_with_audio,
+)
 from podcast_mcp.util.wav import rendered_wav_is_complete
 
 # Stems are timeline-clock WAVs; tolerate encoder/container rounding.
@@ -602,8 +607,9 @@ def stem_matches(project: EpisodeProject, track_id: str, fingerprint: StemFinger
 
 
 def mix_gains(project: EpisodeProject) -> dict[str, float]:
-    """The tracks the mix step mixes (media, not muted) and each one's output gain."""
-    return {t.id: t.output_gain_db for t in project.tracks if t.media and not t.muted}
+    """The tracks the mix step mixes (audible, not muted) and each one's output gain."""
+    audible = tracks_with_audio(project)
+    return {t.id: t.output_gain_db for t in project.tracks if t.id in audible and not t.muted}
 
 
 def mix_render_hash(
@@ -719,7 +725,8 @@ def premix_stale_vs_mix(project: EpisodeProject, defaults: EffectiveConfig) -> b
         return False
     stored = read_premix_hash(project)
     if stored is None:
-        return any(t.fader_db or t.muted for t in project.tracks if t.media)
+        audible = tracks_with_audio(project)
+        return any(t.fader_db or t.muted for t in project.tracks if t.id in audible)
     ceiling = mix_peak_ceiling_db(defaults)
     return stored != mix_render_hash(mix_gains(project), ceiling, defaults=defaults)
 
