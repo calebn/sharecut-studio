@@ -85,7 +85,7 @@ Install hooks once per clone or git worktree (`./install.sh` does this too):
 make worktree-setup   # hooks + venv + gui/web node_modules (lint-staged)
 ```
 
-The pre-commit hook provisions a fresh worktree itself, and runs the check-only hooks via `pre-commit` or, when that is not installed, `uvx pre-commit`.
+In a fresh worktree the pre-commit hook stops until you run `make worktree-setup`. It runs the check-only hooks via `pre-commit` or, when that is not installed, `uvx pre-commit`.
 
 When the rule genuinely does not apply, waive it with a commit trailer instead of skipping silently: `git commit --trailer "Docs-Sync-Waive: ux-pack <reason>"`.
 

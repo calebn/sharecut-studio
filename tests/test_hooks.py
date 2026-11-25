@@ -120,6 +120,23 @@ def test_pre_commit_stops_in_an_unprovisioned_checkout_and_falls_back_to_uvx() -
     assert "worktree-setup:\n\tsh scripts/worktree-setup.sh" in make
 
 
+def test_pre_commit_in_an_unprovisioned_worktree_stops_without_installing(
+    tmp_path: Path,
+) -> None:
+    _main, wt = _repo_with_worktree(tmp_path)
+    bin_dir, log = _stub_bin(tmp_path)
+    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+
+    out = subprocess.run(
+        ["sh", ".githooks/pre-commit"], cwd=wt, env=env, capture_output=True, text=True
+    )
+
+    assert out.returncode == 1
+    assert "run make worktree-setup, then commit again" in out.stderr
+    assert not log.exists()
+    assert not (wt / ".venv").exists()
+
+
 def _fake_node(bin_dir: Path, version: str) -> None:
     bin_dir.mkdir(parents=True)
     node = bin_dir / "node"
