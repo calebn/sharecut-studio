@@ -70,7 +70,7 @@ Map tools onto interaction **shapes**. Shared inspector chrome; specialized body
 
 | Shape | Examples (MCP / domain) | Project storage | DAW today |
 |-------|-------------------------|-----------------|-----------|
-| **A. Discrete edit events** | pending `EditDecision`, applied `edit_log`, approve/reject, restore one source mute | `editorial.edit_decisions`, `editorial.edit_log` | Pending Cut/Keep on the Action bar for a cut, shorten or lower suggestion, and Approve/Reject there for a split, an exact range or a suggestion with no accept action + source MUTE Restore and History Undo; seam/edge ticks (projected through current clips) |
+| **A. Discrete edit events** | pending `EditDecision`, applied `edit_log`, approve/reject, restore one source mute | `editorial.edit_decisions`, `editorial.edit_log` | Pending Cut/Keep on the Action bar for a cut, shorten or lower suggestion, and Approve/Reject there for a split, an exact range or a suggestion with no accept action + source MUTE Restore and History Undo; seam/edge ticks (projected through current clips); a pending edit scrolled out of view keeps its Action bar pinned at the edge with **Show edit** (`view.revealSelection`) |
 | **B. Boundary / join properties** | fade in/out, `join_in_mode`, **clip edge trim** (`TrimClipEdge`) | `timeline.clips[].fade_*`, `join_in_mode`, `source_*` | Trim handles + ghost waveform; fade curves with top-corner fade handles; join mode |
 | **C. Continuous processors** | cleanup / EQ / gate / compressor chains | `mix.processing_chains[]` | Track inspector per-effect bypass; FX vs Raw audition |
 | **D. Content text** | word/phrase correct, suppress flags | `transcripts.per_track[].words[]` | Edit toggle → select word → inspector (correct / suppress) |
@@ -102,7 +102,7 @@ Select on timeline or list
 
 | Shape | Selection | Inspector body | Preview |
 |-------|-----------|----------------|---------|
-| **A Edit point** | Drag handles on cut overlay; click pending/applied band | Range (source + timeline), reason, confidence; Cut / Keep on the Action bar (Approve / Reject there for a split, an exact range or a suggestion with no accept action); source MUTE Restore or Open History; Ask thread | Hear before / Hear after on the Action bar (Current / Suggested / A/B on a sheet with no bar) rendered around the pending band |
+| **A Edit point** | Drag handles on cut overlay; click pending/applied band (scroll it away and the Action bar stays pinned at the edge with Show edit; Show selection for other kinds) | Range (source + timeline), reason, confidence; Cut / Keep on the Action bar (Approve / Reject there for a split, an exact range or a suggestion with no accept action); source MUTE Restore or Open History; Ask thread | Hear before / Hear after on the Action bar (Current / Suggested / A/B on a sheet with no bar) rendered around the pending band |
 | **B Join / fade** | Select a clip or Seam diamond | Fade in and Fade out Scrub fields, then the Start join and End join rows: join type, Length and Offset | Play across join |
 | **C FX** | Track inspector FX chain list (the header carries no FX badge) | Per-effect bypass + params; reorder later | FX vs Raw audition; bypass honored in render |
 | **D Transcript** | Enter on a selected word, F2 on a focused word, or touch double-tap → Fix text | Word text, confidence, suppressed chip | Play utterance |
