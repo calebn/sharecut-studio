@@ -2108,15 +2108,19 @@ def test_edges_facing_gaps_finds_the_edges_that_meet_silence():
         )
 
     # a and b touch; c follows a 20 ms gap; d sits inside the long e, so only e's end
-    # faces the gap before f.
+    # faces the 30 ms gap before f. g follows a gap longer than the join tolerance, and
+    # the two h pieces are one clip a timing map cut, so neither counts.
     clips = [
         clip("a", 0.0, 1.0),
         clip("b", 1.0, 2.0),
         clip("c", 2.02, 3.0),
         clip("e", 3.0, 6.0),
         clip("d", 4.0, 5.0),
-        clip("f", 7.0, 8.0),
+        clip("f", 6.03, 8.0),
+        clip("g", 9.0, 10.0),
+        clip("h", 10.0, 11.0),
+        clip("h", 11.02, 12.0),
     ]
     gap_in, gap_out = edges_facing_gaps(clips)
-    assert gap_in == [False, False, True, False, False, True]
-    assert gap_out == [False, True, False, True, False, False]
+    assert gap_in == [False, False, True, False, False, True, False, False, False]
+    assert gap_out == [False, True, False, True, False, False, False, False, False]

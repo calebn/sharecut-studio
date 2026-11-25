@@ -530,21 +530,22 @@ describe("proxyMath", () => {
       manifest(),
     );
     expect(slices.map((s) => s.whenTimelineSec)).toEqual([0, 2.04, 5]);
-    // Each edge facing a gap gets the declick fade, a cut join included.
+    // Each edge facing the short gap gets the declick fade, a cut join
+    // included. The longer gap before c keeps each edge's own fade.
     const [a, b, c] = slices;
     expect(a.envelope.fadeInSec).toBe(0);
     expect(a.envelope.fadeOutSec).toBeCloseTo(0.01, 9);
     expect(b.envelope.fadeInSec).toBeCloseTo(0.01, 9);
-    expect(b.envelope.fadeOutSec).toBeCloseTo(0.01, 9);
-    expect(c.envelope.fadeInSec).toBeCloseTo(0.01, 9);
+    expect(b.envelope.fadeOutSec).toBe(0);
+    expect(c.envelope.fadeInSec).toBe(0);
     expect(c.envelope.fadeOutSec).toBe(0);
   });
 
-  it("keeps a longer stored fade on an edge facing a gap", () => {
+  it("keeps a longer stored fade on an edge facing a short gap", () => {
     const [a, b] = buildSchedule(
       [
         clip({ id: "a", timeline_start: 0, timeline_end: 2, fade_out_ms: 80 }),
-        clip({ id: "b", timeline_start: 3, timeline_end: 3.004 }),
+        clip({ id: "b", timeline_start: 2.02, timeline_end: 2.024 }),
       ],
       0,
       20,

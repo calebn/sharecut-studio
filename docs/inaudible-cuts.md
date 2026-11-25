@@ -198,7 +198,8 @@ predicate (`clips_abut` / `abutting_pairs` in `engines/clips_ops.py`) across
 clip editing, audio audit, and timeline rendering. Gaps at or below the
 tolerance are treated as joins for editing and audit; larger gaps remain
 intentional timeline space. Render plays every gap as silence, with a declick
-fade on each edge that faces one, and blends only a seam with no gap (#2496).
+fade on each edge that faces a gap inside the tolerance, and blends only a seam
+with no gap (#2496).
 Render-side consequences (gap silence, crossfade overlap) are in
 [filler-cut-quality.md § Render joins](filler-cut-quality.md#render-joins).
 

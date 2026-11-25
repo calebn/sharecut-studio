@@ -121,10 +121,12 @@ export function clipIdsBeforeCut(
 
 /**
  * `timeline_render.edges_facing_gaps`, per lane: the clips whose start or end
- * meets a gap rather than another clip. Render plays a gap as silence (#2496),
- * so such an edge gets at least the declick fade whatever its join says. An
- * edge faces a gap when no earlier clip on the lane reaches the clip's start;
- * the edge facing it from the left is the end of the clip that reached furthest.
+ * meets a short gap rather than another clip. Render plays a gap as silence
+ * (#2496), and a gap within the join tolerance used to be closed, so such an
+ * edge gets at least the declick fade whatever its join says. An edge faces a
+ * gap when no earlier clip on the lane reaches the clip's start; the edge
+ * facing it from the left is the end of the clip that reached furthest. A
+ * longer gap keeps each edge's own fade.
  */
 export function edgesFacingGaps(
   clips: readonly Pick<
@@ -140,7 +142,13 @@ export function edgesFacingGaps(
   );
   for (const clip of ordered) {
     const furthest = reach.get(clip.track_id);
-    if (furthest && clip.timeline_start - furthest.end > TIME_EPS_SEC) {
+    const gap = furthest ? clip.timeline_start - furthest.end : 0;
+    if (
+      furthest &&
+      furthest.id !== clip.id &&
+      gap > TIME_EPS_SEC &&
+      gap <= JOIN_GAP_TOLERANCE_SEC + TIME_EPS_SEC
+    ) {
       gapIn.add(clip.id);
       gapOut.add(furthest.id);
     }
