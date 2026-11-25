@@ -796,6 +796,9 @@ def stage_owner_cdn() -> None:
     command = [sys.executable, str(ROOT / "scripts/owner_cdn.py")]
     if base := os.environ.get("PODCAST_OWNER_CDN_BASE", "").strip():
         subprocess.run([*command, "write", "--base", base], check=True, timeout=60)
+    else:
+        # A base recorded by an earlier build must not reach this one.
+        subprocess.run([*command, "clear"], check=True, timeout=60)
     if os.environ.get("PODCAST_REQUIRE_OWNER_CDN") == "1":
         subprocess.run([*command, "check", "--require"], check=True, timeout=60)
 

@@ -8,6 +8,7 @@ module that names the permitted owner host (tests/test_owner_cdn.py guards that)
 from __future__ import annotations
 
 import json
+from urllib.parse import urlsplit
 
 from podcast_mcp import settings
 from podcast_mcp.util.contracts import contracts_dir
@@ -21,7 +22,19 @@ def clean_base(value: object) -> str | None:
     """``value`` as an https origin without a trailing slash, or None when it is not usable."""
     from podcast_mcp.util.asset_sources import _sanitize_cdn_base  # that module imports this one
 
-    return _sanitize_cdn_base(value) if isinstance(value, str) else None
+    base = _sanitize_cdn_base(value) if isinstance(value, str) else None
+    if base is None:
+        return None
+    parsed = urlsplit(base)
+    if parsed.query or parsed.fragment or parsed.username or parsed.password or "?" in base:
+        return None
+    return base
+
+
+def is_owner_host(base: str) -> bool:
+    """True when ``base`` names one of the documented first-party hosts exactly."""
+    parsed = urlsplit(base)
+    return parsed.hostname in OWNER_HOSTS and parsed.port is None
 
 
 def _generated_base() -> str | None:
