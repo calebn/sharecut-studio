@@ -35,7 +35,7 @@ export function placeLikeRender(clips: readonly ClipRow[]): {
   readonly overlapOut: ReadonlyMap<string, number>;
   readonly borrowIn: ReadonlyMap<string, number>;
   readonly borrowOut: ReadonlyMap<string, number>;
-  /** Clock shift (seconds the lane runs earlier) once `clip` is placed. */
+  /** Clock shift once `clip` is placed: always 0, since no gap moves a lane (#2496). */
   readonly shiftAfter: ReadonlyMap<string, number>;
 } {
   const overlapIn = new Map<string, number>();
@@ -66,11 +66,6 @@ export function placeLikeRender(clips: readonly ClipRow[]): {
     });
     let prev: ClipRow | undefined;
     let componentEnd = Number.NaN;
-    let frontier = 0;
-    // Ends of the components left behind; only the last one still grows or shrinks.
-    let settledEnd = 0;
-    let authoredFrontier = 0;
-    let clockShift = 0;
     for (const clip of ordered) {
       const hIn = borrowIn.get(clip.id) ?? 0;
       const hOut = borrowOut.get(clip.id) ?? 0;
@@ -81,20 +76,15 @@ export function placeLikeRender(clips: readonly ClipRow[]): {
         start = componentEnd - 2 * hIn;
         componentEnd += body - 2 * hIn;
       } else {
-        start = Math.max(0, clip.timeline_start - clockShift);
-        if (prev && Math.abs(start - componentEnd) <= 1e-6) {
-          componentEnd += body;
-        } else {
-          if (prev) settledEnd = Math.max(settledEnd, componentEnd);
-          componentEnd = start + body;
-        }
+        // Every clip plays at its timeline start: no gap moves the lane (#2496).
+        start = Math.max(0, clip.timeline_start);
+        componentEnd =
+          prev && Math.abs(start - componentEnd) <= 1e-6
+            ? componentEnd + body
+            : start + body;
       }
       placedStart.set(clip.id, start + hIn);
-      frontier = Math.max(settledEnd, componentEnd);
-      authoredFrontier = Math.max(authoredFrontier, clip.timeline_end);
-      clockShift = authoredFrontier - frontier;
-      shiftAfter.set(clip.id, clockShift);
-      if (prev && hIn > 0) shiftAfter.set(prev.id, clockShift);
+      shiftAfter.set(clip.id, 0);
       prev = clip;
     }
   }
