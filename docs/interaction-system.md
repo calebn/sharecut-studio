@@ -96,8 +96,8 @@ Each thing is declared once. A second map from the same key is a bug.
    playhead, it seeks to the selection's start like Seek to start, and still
    leaves the selection and focus alone. The
    floating bar shows it only while pinned and drops it when the anchor is
-   back; the phone dock, which has no pin state, shows it whenever the anchor is
-   drawn and Clear or Close holds the slot it rides in. Reaching the
+   back; the phone dock, which has no pin state, shows it (labelled "Show", named in full) whenever the anchor is
+   drawn and Clear or Close sits beside it, at the cost of one verb folded into More. Reaching the
    pinned state announces "<label> to return to it" once, politely. The
    Inspector card still hides while its anchor is away and coexists with the
    pinned bar.

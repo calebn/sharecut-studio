@@ -329,8 +329,14 @@ function EditActionBarImpl({
     />
   ) : undefined;
   // On the dock it rides in Clear's or Close's slot, so it never costs a verb its place.
+  // The phone seeks to an edit's timeline time; one with none has nowhere to go.
+  const placeless =
+    selection?.kind === "pending" &&
+    project.pending_edits.find((e) => e.id === selection.id)?.timeline_start ==
+      null;
   const reveal =
-    (floating ? pinned : anchor.present && end !== undefined) && selection ? (
+    (floating ? pinned : anchor.present && end !== undefined && !placeless) &&
+    selection ? (
       <RevealButton floating={floating} label={revealLabel} />
     ) : null;
   const trailing =

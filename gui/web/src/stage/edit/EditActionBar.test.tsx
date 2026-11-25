@@ -866,6 +866,98 @@ function moveAnchor(next: R) {
 const floatingBar = () =>
   screen.queryByRole("group", { name: "Selection actions" });
 
+/** The whole timeline drawn on screen: sticky ruler and marker lane above the lanes. */
+function OnScreenTimeline({ selection: _s }: { selection?: unknown }) {
+  const [root, setRoot] = useState<HTMLElement | null>(null);
+  const box = (r: R) => (el: HTMLElement | null) => {
+    if (el) el.getBoundingClientRect = () => domRect(r);
+  };
+  return (
+    <div ref={setRoot}>
+      <div
+        className="timeline-area"
+        ref={box({ left: 0, top: 0, right: 800, bottom: 600 })}
+      >
+        <div className="timeline-scroll" ref={box(SCROLL)}>
+          <div
+            className="timeline-ruler"
+            ref={box({ left: 0, top: 0, right: 800, bottom: 30 })}
+          />
+          <div
+            className="marker-lane"
+            ref={box({ left: 0, top: 30, right: 800, bottom: 60 })}
+          >
+            <span
+              data-hit-kind="comment"
+              data-hit-id="open"
+              ref={box({ left: 200, top: 35, right: 216, bottom: 55 })}
+            />
+          </div>
+          <div
+            className="lane-row"
+            data-track-id={MIRA}
+            ref={box({ left: 0, top: 100, right: 800, bottom: 220 })}
+          >
+            <div className="lane-inner">
+              <div
+                className="range-overlay"
+                ref={box({ left: 200, top: 110, right: 300, bottom: 150 })}
+              />
+              <div
+                data-pending-id="pending-cut"
+                ref={box({ left: 200, top: 110, right: 300, bottom: 150 })}
+              />
+              <div
+                data-clip-id="a"
+                ref={box({ left: 200, top: 110, right: 300, bottom: 150 })}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+      <EditActionBar form="floating" root={root} />
+    </div>
+  );
+}
+
+describe("a selection that is on screen is never pinned", () => {
+  beforeEach(() => {
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(40);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(200);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([
+    ["a comment pin in the sticky marker lane", EDIT_SELECTIONS.comment],
+    ["a clip", EDIT_SELECTIONS.clip],
+    ["a range", EDIT_SELECTIONS.rangeOnAllTracks],
+    ["a pending edit", EDIT_SELECTIONS.suggestion],
+    ["a seam", EDIT_SELECTIONS.seam],
+    ["a track", { kind: "track", trackId: MIRA }],
+    ["a chapter", { kind: "chapter", id: "c", time: 3 }],
+    ["a social clip", { kind: "social", id: "s1" }],
+    [
+      "an envelope point",
+      { kind: "envelopePoint", trackId: MIRA, pointId: "p1" },
+    ],
+  ])("%s", (_name, selection) => {
+    host(selection);
+    render(<OnScreenTimeline />);
+    expect(screen.queryByRole("button", { name: /^Show / })).toBeNull();
+    expect(document.querySelector(".sys-actions--pinned")).toBeNull();
+  });
+
+  it("still shows the comment's bar, beside its pin", () => {
+    host(EDIT_SELECTIONS.comment);
+    render(<OnScreenTimeline />);
+    expect(floatingBar()).toBeInTheDocument();
+  });
+});
+
 describe("EditActionBar pinned to the viewport", () => {
   beforeEach(() => {
     anchorRect = IN_VIEW;
@@ -1057,6 +1149,49 @@ describe("EditActionBar pinned to the viewport", () => {
     expect(floatingBar()).toContainElement(
       document.activeElement as HTMLElement,
     );
+  });
+
+  it("gives a phone dock no Show for a pending edit with no timeline time", () => {
+    host(EDIT_SELECTIONS.suggestion, {
+      project: {
+        ...editFixtureProject(),
+        pending_edits: editFixtureProject().pending_edits.map((e) => ({
+          ...e,
+          timeline_start: null,
+        })),
+      },
+    });
+    render(<Scrolled form="dock" clear />);
+    expect(screen.queryByRole("button", { name: /^Show / })).toBeNull();
+  });
+
+  it("does not hold an attached bar right of the headers, only a pinned one", () => {
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(
+      function (this: HTMLElement) {
+        return this.classList.contains("track-headers") ? 300 : 200;
+      },
+    );
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled header={300} />);
+    moveAnchor({ left: 310, top: 200, right: 330, bottom: 240 });
+    expect(screen.queryByRole("button", { name: "Show edit" })).toBeNull();
+    const bar = floatingBar() as HTMLElement;
+    expect(Number.parseFloat(bar.style.left)).toBeLessThan(300);
+  });
+
+  it("skips a disabled control when it hands focus on from Show", () => {
+    vi.spyOn(reveal, "revealAnchor").mockImplementation(() => {});
+    host(EDIT_SELECTIONS.suggestion);
+    render(<Scrolled />);
+    moveAnchor(AWAY);
+    const first = within(floatingBar() as HTMLElement).getAllByRole(
+      "button",
+    )[0];
+    (first as HTMLButtonElement).disabled = true;
+    screen.getByRole("button", { name: "Show edit" }).focus();
+    moveAnchor(IN_VIEW);
+    expect(document.activeElement).not.toBe(first);
+    expect(document.activeElement).not.toBe(document.body);
   });
 
   it("gives the dock no Show where neither Clear nor Close holds its slot", () => {

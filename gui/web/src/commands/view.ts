@@ -125,19 +125,18 @@ export function registerViewCommands(): void {
     if (!s.selection) return { status: "disabled", reason: "Nothing selected" };
     const anchor = selectionAnchor.get();
     if (!anchor) return { status: "disabled", reason: "Nothing to show" };
+    const phone = s.shellBreakpoint === "phone";
+    // The phone's playhead is fixed and the view scrubs, so the way back is
+    // the same seek as Seek to start (the selection stays as it is).
+    const at = phone ? selectionStartSec(s.selection, s.project) : null;
+    if (phone && at === null && s.selection.kind === "pending")
+      return {
+        status: "disabled",
+        reason: "This edit has no place on the timeline",
+      };
     // Playback follow would page the view straight back off the anchor.
     suspendTimelineFollow();
-    if (s.shellBreakpoint === "phone") {
-      // The phone's playhead is fixed and the view scrubs, so the way back is
-      // the same seek as Seek to start (the selection stays as it is).
-      const at = selectionStartSec(s.selection, s.project);
-      if (at !== null) return seekTransport(at);
-      if (s.selection.kind === "pending")
-        return {
-          status: "disabled",
-          reason: "This edit has no place on the timeline",
-        };
-    }
+    if (at !== null) return seekTransport(at);
     revealAnchor(anchor);
     return { status: "ok" };
   });

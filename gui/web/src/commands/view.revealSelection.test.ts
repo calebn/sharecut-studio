@@ -95,6 +95,29 @@ describe("view.revealSelection", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  it("does not suspend the playhead follow when the phone has nowhere to seek", async () => {
+    const project = useDawStore.getState().project;
+    useDawStore.setState({
+      shellBreakpoint: "phone",
+      isPlaying: true,
+      timelineFollowPlayhead: true,
+      project: {
+        ...project,
+        pending_edits: [{ id: "p3", timeline_start: null, source_start: 9 }],
+      } as never,
+      selection: { kind: "pending", id: "p3", trackId: "t" },
+    });
+    const node = document.createElement("div");
+    document.body.append(node);
+    reveal.selectionAnchor.set({ current: node });
+
+    const result = await execute("view.revealSelection");
+
+    node.remove();
+    expect(result.status).toBe("disabled");
+    expect(useDawStore.getState().timelineFollowPlayhead).toBe(true);
+  });
+
   it("is disabled with nothing selected", async () => {
     useDawStore.setState({ selection: null });
     const result = await execute("view.revealSelection");
