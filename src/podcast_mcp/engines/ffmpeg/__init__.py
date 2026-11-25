@@ -194,6 +194,7 @@ def automatic_gain_expression(
     return gain
 
 
+# 3: use the completed graph's true-peak summary for headroom trim (#855).
 # 4: premixes cached with trim 0.0 from an unmeasured peak must re-mix (#2890).
 MIX_SEMANTICS_REV = 4
 
