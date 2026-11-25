@@ -1,4 +1,3 @@
-import type { DocumentCommandOptions } from "../services/commandQueue";
 import { withSessionTokenQuery } from "../sessionAuth";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { HistoryEntryId } from "../types/project";
@@ -272,7 +271,7 @@ function appliedInsert(value: unknown): SegmentInsertApplied {
 export async function insertSegment(
   path: string,
   request: SegmentInsertRequest,
-  opts?: DocumentCommandOptions,
+  opts?: Parameters<typeof submitDocumentCommand>[3],
 ): Promise<SegmentInsertOutcome> {
   const reply = await submitDocumentCommand(
     path,
