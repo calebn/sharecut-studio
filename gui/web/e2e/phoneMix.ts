@@ -195,8 +195,9 @@ export async function checkNativeMixEdits(page: Page, projectPath: string) {
   await page.mouse.up();
   expect((await savedMix(page, projectPath))[0].db).toBe(first.db);
   expect(gainWrites).toBe(0);
-  // Regrab right after Escape on the same open sheet (#1034): the cancelled
-  // drag must leave nothing behind that swallows the next press.
+  // Regrab right after Escape on the same open sheet (#1034): a smoke check in
+  // a real browser. It does not fail if cancelDrag forgets to reset its drag
+  // (the mouse-up above clears it); ScrubField.test.tsx is the guard for that.
   await page.mouse.move(x, y);
   await page.mouse.down();
   for (let step = 1; step <= 8; step += 1) {
