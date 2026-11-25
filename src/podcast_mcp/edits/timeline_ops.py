@@ -1487,8 +1487,8 @@ def fill_with_room_tone(
     ``no_source`` or ``nothing_to_fill``.
 
     Only gaps wider than ``min_gap_sec`` are filled; the default is the shared join
-    tolerance, so pairs that already render as a join are left alone. A gap with no
-    room tone near it stays a gap.
+    tolerance, so a short gap at a join is left alone and plays as silence between the
+    render's declick fades (#2496). A gap with no room tone near it stays a gap.
     """
     clips = clips_for_track(project, track_id)
     if within is not None:

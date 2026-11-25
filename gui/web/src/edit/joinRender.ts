@@ -1,4 +1,7 @@
-import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
+import {
+  JOIN_GAP_TOLERANCE_SEC,
+  TIME_EPS_SEC,
+} from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 import { joinKind, joinModeOf } from "../utils/editMarkerRegistry";
 import { joinLengthMaxMs } from "./fadeLimits";
@@ -114,6 +117,37 @@ export function clipIdsBeforeCut(
     }
   }
   return ids;
+}
+
+/**
+ * `timeline_render.edges_facing_gaps`, per lane: the clips whose start or end
+ * meets a gap rather than another clip. Render plays a gap as silence (#2496),
+ * so such an edge gets at least the declick fade whatever its join says. An
+ * edge faces a gap when no earlier clip on the lane reaches the clip's start;
+ * the edge facing it from the left is the end of the clip that reached furthest.
+ */
+export function edgesFacingGaps(
+  clips: readonly Pick<
+    ClipRow,
+    "id" | "track_id" | "timeline_start" | "timeline_end"
+  >[],
+): { readonly gapIn: Set<string>; readonly gapOut: Set<string> } {
+  const gapIn = new Set<string>();
+  const gapOut = new Set<string>();
+  const reach = new Map<string, { id: string; end: number }>();
+  const ordered = [...clips].sort(
+    (a, b) => a.timeline_start - b.timeline_start,
+  );
+  for (const clip of ordered) {
+    const furthest = reach.get(clip.track_id);
+    if (furthest && clip.timeline_start - furthest.end > TIME_EPS_SEC) {
+      gapIn.add(clip.id);
+      gapOut.add(furthest.id);
+    }
+    if (!furthest || clip.timeline_end > furthest.end)
+      reach.set(clip.track_id, { id: clip.id, end: clip.timeline_end });
+  }
+  return { gapIn, gapOut };
 }
 
 export function clipIdsBeforeBlend(clips: readonly ClipRow[]): Set<string> {

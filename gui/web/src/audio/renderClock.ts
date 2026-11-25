@@ -1,4 +1,3 @@
-import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 
 function borrowSec(left: ClipRow, right: ClipRow): number {
@@ -24,8 +23,9 @@ function borrowSec(left: ClipRow, right: ClipRow): number {
  * Place each lane's clips as render does. A blending crossfade centres on the
  * seam: the left clip plays on past its end and the right clip starts before
  * its start, each by `borrowOut` / `borrowIn` seconds of its recording, so the
- * join adds and removes no time. Only a gap inside the join tolerance closes up
- * and shifts the rest of the lane. `placed` clips start where their own audio
+ * join adds and removes no time. Every other clip plays where the timeline puts
+ * it, so a gap renders as silence however short it is and no clip shifts the
+ * lane (#2496). `placed` clips start where their own audio
  * starts on the render clock; `overlapIn` / `overlapOut` are the blend lengths
  * (twice the borrow) that replace the edge fades.
  */
@@ -82,9 +82,7 @@ export function placeLikeRender(clips: readonly ClipRow[]): {
         componentEnd += body - 2 * hIn;
       } else {
         start = Math.max(0, clip.timeline_start - clockShift);
-        if (Math.abs(start - frontier) <= JOIN_GAP_TOLERANCE_SEC)
-          start = frontier;
-        if (prev && Math.abs(start - componentEnd) < 1e-9) {
+        if (prev && Math.abs(start - componentEnd) <= 1e-6) {
           componentEnd += body;
         } else {
           if (prev) settledEnd = Math.max(settledEnd, componentEnd);

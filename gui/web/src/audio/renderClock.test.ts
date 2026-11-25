@@ -112,20 +112,15 @@ describe("render clock pinned to timeline_render._place_clips (#1888)", () => {
     },
   );
 
-  it("shifts only the lane that closes a gap, and carries the shift on", () => {
+  it("keeps a gap inside the join tolerance as silence and moves nothing (#2496)", () => {
     const c = CASES.find(
-      (x) =>
-        x.name === "a_gap_inside_the_tolerance_closes_up_and_shifts_the_rest",
+      (x) => x.name === "a_gap_inside_the_join_tolerance_stays_silence",
     );
     if (!c) throw new Error("missing case");
     const clock = buildRenderClock(rows(c));
-    expect(clock.identity).toBe(false);
-    expect(clock.renderedAt("host", 3.9)).toBeCloseTo(3.9, 9);
-    expect(clock.renderedAt("host", 6)).toBeCloseTo(5.97, 9);
-    expect(clock.renderedAt("host", 9)).toBeCloseTo(8.94, 9);
-    expect(clock.renderedAt("host", 30)).toBeCloseTo(29.94, 9);
-    expect(clock.authoredAt("host", 5.97)).toBeCloseTo(6, 9);
-    expect(clock.authoredAt("host", 29.94)).toBeCloseTo(30, 9);
+    expect(clock.identity).toBe(true);
+    expect(clock.renderedAt("host", 6)).toBe(6);
+    expect(clock.renderedAt("host", 30)).toBe(30);
   });
 
   it("stays the identity through float noise in abutting cut clips", () => {

@@ -222,8 +222,8 @@ def test_window_opening_just_before_a_clip_after_a_gap_equals_the_stem(
 ) -> None:
     """A window that starts a few ms before a clip that follows a pause keeps the pause (#2498).
 
-    The stem snaps a clip to the one before it only when the gap is under JOIN_GAP_TOLERANCE_SEC;
-    the window must not snap to its own start because it cannot see the clip it opens after.
+    Neither the stem nor the window closes a gap (#2496), so the window keeps the pause
+    and returns its full length.
     """
     eng = FFmpegEngine()
     if not eng.check_available()[0]:

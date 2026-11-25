@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
-from heapq import heappop, heappush
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
@@ -36,7 +35,6 @@ from podcast_mcp.engines.audio import (
 )
 from podcast_mcp.engines.bleed_restore import RestoreSupport, active_restore_regions
 from podcast_mcp.engines.clips_ops import (
-    JOIN_GAP_TOLERANCE_SEC,
     MuteIndex,
     clips_for_track,
     crossfade_borrow_sec,
@@ -51,6 +49,7 @@ from podcast_mcp.engines.mute_regions import (
     mute_spans_for_source_window,
     room_tone_fills_for_source_window,
 )
+from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.engines.render_clock import read_render_clock
 from podcast_mcp.engines.room_tone_tiles import Tile, tile_span
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
@@ -65,7 +64,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_gate import BleedGatePlan
 
-RENDER_SEMANTICS_REV = 24
+RENDER_SEMANTICS_REV = 25
 _MAX_GRID_RATE = 192_000
 
 
@@ -389,6 +388,35 @@ def _segment_fade_in(prev: Clip | None, clip: Clip, *, first: bool, blended: boo
     return clip.fade_in_ms / 1000.0
 
 
+def edges_facing_gaps(clips: list[Clip]) -> tuple[list[bool], list[bool]]:
+    """Which edges of a lane's start-sorted clips face a gap rather than another clip.
+
+    Render plays a gap as the silence the timeline shows (#2496), so an edge that meets it
+    needs a declick fade whatever its join says: a cut only joins two clips that touch. An
+    edge faces a gap when no earlier clip reaches the clip's start; the edge facing it from
+    the left is the end of the clip that reached furthest. A lane's first start and last end
+    face no other clip and keep their own fades.
+    """
+    gap_in = [False] * len(clips)
+    gap_out = [False] * len(clips)
+    reach_index: int | None = None
+    for index, clip in enumerate(clips):
+        if reach_index is not None and (
+            clip.timeline_start - clips[reach_index].timeline_end > SPAN_EPS_S
+        ):
+            gap_in[index] = True
+            gap_out[reach_index] = True
+        if reach_index is None or clip.timeline_end > clips[reach_index].timeline_end:
+            reach_index = index
+    return gap_in, gap_out
+
+
+def _gap_edge_fade(stored_ms: int, clip: Clip, micro_fade_ms: int) -> float:
+    """An edge facing a gap keeps its own fade, but never less than the declick fade."""
+    declick = min(micro_fade_ms / 1000.0, (clip.timeline_end - clip.timeline_start) / 2)
+    return max(stored_ms / 1000.0, declick)
+
+
 def _segment_fade_out(clip: Clip, nxt: Clip | None, *, last: bool, blended: bool) -> float:
     # A cut is per join: the next clip's cut drops this clip's fade-out.
     if not last or (nxt is not None and nxt.join_in_mode == ClipJoinMode.CUT):
@@ -643,11 +671,6 @@ class _PreparedClip:
     content: _ClipContent | None
     borrow_in: float = 0.0
     piece: int = 0
-    # Set instead of content for an item that ends at or before a window's start: where it ends
-    # (seconds from the window start, <= 0) and whether it was a hole that plays silence. It
-    # carries no audio, only what decides if the window's first clip snaps to it (#2498).
-    before_window_end: float | None = None
-    silent_before: bool = False
 
 
 @dataclass
@@ -672,44 +695,34 @@ def _place_clips(
 ) -> _PlacedTrack:
     """Lay the prepared clips out in components and mix them.
 
+    Every clip plays where the timeline puts it, so a gap between two clips renders as the
+    silence the timeline shows, however short it is (#2496). Only an explicit tighten edit
+    closes a gap. Clips that touch chain into one component, and a blending crossfade
+    overlaps its two bodies on the seam, which adds and removes no time.
+
     With ``rate`` (a track grid) every position and length below is a whole number of
-    frames, so the microsecond residual of ``duration()`` cannot accumulate in the frontier
-    and move a later component one sample (#2456). Without it they are float seconds.
+    frames, so the microsecond residual of ``duration()`` cannot accumulate and move a
+    later component one sample (#2456). Without it they are float seconds, and a clip
+    within a microsecond of the end before it still chains onto it.
     """
     scale = rate or 1
-    tolerance = JOIN_GAP_TOLERANCE_SEC * scale
-    join_epsilon = 0.0 if rate else 1e-9
+    join_epsilon = 0.0 if rate else 1e-6
 
     def units(seconds: float) -> float:
         return float(round(seconds * scale)) if rate else seconds
 
     components: list[_Component] = []
-    ends: list[tuple[float, int]] = []
     silent_tail = 0.0
-    after_silent_hole = False
     previous_component: int | None = None
-    authored_frontier = 0.0
-    clock_shift = 0.0
-    frontier = 0.0
-    seeded = False
     for item in prepared:
         content = item.content
-        if item.before_window_end is not None:
-            end_before = units(item.before_window_end)
-            if not item.silent_before:
-                frontier = max(frontier, end_before) if seeded else end_before
-                seeded = True
-            after_silent_hole = item.silent_before
-            previous_component = None
-            continue
         if content is None:
             previous_component = None
             continue
         body = content.body
         if body is None:
             previous_component = None
-            after_silent_hole = True
-            silent_tail = max(silent_tail, units(content.timeline_end) - clock_shift)
+            silent_tail = max(silent_tail, units(content.timeline_end))
             continue
         body_duration = units(duration(body))
         if item.borrow_in > 0 and previous_component is not None:
@@ -717,28 +730,18 @@ def _place_clips(
             overlap = 2 * item.borrow_in
             left.audio = CrossfadeAudio(left.audio, body, overlap)
             left.end += body_duration - units(overlap)
+            continue
+        start = max(0.0, units(content.timeline_start))
+        if (
+            previous_component is not None
+            and abs(start - components[previous_component].end) <= join_epsilon
+        ):
+            left = components[previous_component]
+            left.audio = SequenceAudio(left.audio, (body,))
+            left.end += body_duration
         else:
-            start = max(0.0, units(content.timeline_start) - clock_shift)
-            if abs(start - frontier) <= tolerance and not after_silent_hole:
-                start = max(frontier, 0.0)
-            after_silent_hole = False
-            if (
-                previous_component is not None
-                and abs(start - components[previous_component].end) <= join_epsilon
-            ):
-                left = components[previous_component]
-                left.audio = SequenceAudio(left.audio, (body,))
-                left.end += body_duration
-            else:
-                components.append(_Component(start, body, start + body_duration))
-                previous_component = len(components) - 1
-        component = components[previous_component]
-        heappush(ends, (-component.end, previous_component))
-        while ends and -ends[0][0] != components[ends[0][1]].end:
-            heappop(ends)
-        frontier = -ends[0][0]
-        authored_frontier = max(authored_frontier, units(content.timeline_end))
-        clock_shift = authored_frontier - frontier
+            components.append(_Component(start, body, start + body_duration))
+            previous_component = len(components) - 1
     if not components:
         raise CodedValueError(
             "no clips to render. Add a clip to the track first.", code="missing_argument"
@@ -746,8 +749,8 @@ def _place_clips(
     ats = [At(component.start / scale, component.audio) for component in components]
     extent = None
     if window_length is not None:
-        extent = RequestedExtent((units(window_length) - clock_shift) / scale)
-    elif silent_tail > frontier:
+        extent = RequestedExtent(units(window_length) / scale)
+    elif silent_tail > max(component.end for component in components):
         extent = RequestedExtent(silent_tail / scale)
     return _PlacedTrack(
         MixAudio(ats[0], tuple(ats[1:])),
@@ -858,19 +861,6 @@ def _stem_leaf_bounds(
     return bounds[0] - borrow_in, bounds[1] + borrow_out
 
 
-def _before_window(
-    clip: Clip, grid: TrackGrid | None, window: tuple[float, float] | None, origin_frame: int
-) -> float | None:
-    """Where a clip ends, in seconds from the window start, when the window leaves it out
-    because it ends before the window; None otherwise."""
-    if window is None:
-        return None
-    if grid is not None:
-        last = grid.frame(clip.timeline_end)
-        return (last - origin_frame) / grid.rate if last <= origin_frame else None
-    return clip.timeline_end - window[0] if clip.timeline_end <= window[0] else None
-
-
 def placed_track_audio(
     project: EpisodeProject,
     track: Track,
@@ -896,17 +886,11 @@ def placed_track_audio(
         project, track, sorted_clips, grid, window, origin_frame, mutes
     )
     stem_parts: tuple | None = None
+    gap_in, gap_out = edges_facing_gaps(sorted_clips)
     for index, clip in enumerate(sorted_clips):
         timeline_start, timeline_end, source_bounds = spans[index]
         if source_bounds is None:
-            prepared.append(
-                _PreparedClip(
-                    clip,
-                    None,
-                    piece=pieces[index],
-                    before_window_end=_before_window(clip, grid, window, origin_frame),
-                )
-            )
+            prepared.append(_PreparedClip(clip, None, piece=pieces[index]))
             continue
         borrow_in = borrow[index]
         borrow_out = borrow[index + 1] if index + 1 < len(sorted_clips) else 0.0
@@ -926,18 +910,20 @@ def placed_track_audio(
         ignored = ignored_lookup.for_clip(clip)
         prev = sorted_clips[index - 1] if index else None
         nxt = sorted_clips[index + 1] if index + 1 < len(sorted_clips) else None
-        fade_in_sec = (
-            _segment_fade_in(prev, clip, first=True, blended=blends[index] > 0)
-            if timeline_start <= clip.timeline_start + 1e-4
-            else 0.0
-        )
-        fade_out_sec = (
-            _segment_fade_out(
+        if timeline_start > clip.timeline_start + 1e-4:
+            fade_in_sec = 0.0
+        elif gap_in[index]:
+            fade_in_sec = _gap_edge_fade(clip.fade_in_ms, clip, micro_fade_ms)
+        else:
+            fade_in_sec = _segment_fade_in(prev, clip, first=True, blended=blends[index] > 0)
+        if timeline_end < clip.timeline_end - 1e-4:
+            fade_out_sec = 0.0
+        elif gap_out[index]:
+            fade_out_sec = _gap_edge_fade(clip.fade_out_ms, clip, micro_fade_ms)
+        else:
+            fade_out_sec = _segment_fade_out(
                 clip, nxt, last=True, blended=index + 1 < len(blends) and blends[index + 1] > 0
             )
-            if timeline_end >= clip.timeline_end - 1e-4
-            else 0.0
-        )
         leaf = SourceAudio(
             path=src,
             src_start=source_start,
@@ -1036,7 +1022,6 @@ def _with_hole_fills(
 ) -> list[_PreparedClip]:
     out: list[_PreparedClip] = []
     origin_sec = window[0] if window else 0.0
-    ended_before: tuple[TimingHole, float, float, int] | None = None
     for index, item in enumerate(prepared):
         out.append(item)
         hole = holes.get(index)
@@ -1055,18 +1040,13 @@ def _with_hole_fills(
                 (first - origin_frame) / grid.rate,
                 (last - origin_frame) / grid.rate,
             )
-            before_end = (whole_last - origin_frame) / grid.rate if window else None
         else:
             start, end = hole.start, hole.end
             if window:
                 start, end = max(start, window[0]), min(end, window[1])
             gap_sec, skip_sec = hole.end - hole.start, start - hole.start
             placed_start, placed_end = start - origin_sec, end - origin_sec
-            before_end = hole.end - origin_sec if window else None
         if placed_end <= placed_start:
-            if before_end is not None and before_end <= 0:
-                out.append(_PreparedClip(hole.parent, None, before_window_end=before_end))
-                ended_before = (hole, gap_sec, before_end, len(out) - 1)
             continue
         body = _hole_room_tone(
             project,
@@ -1081,35 +1061,7 @@ def _with_hole_fills(
         out.append(
             _PreparedClip(hole.parent, _ClipContent(placed_start, placed_end, body), piece=-1)
         )
-    if ended_before is not None and ended_before[3] == _last_before_window(out):
-        hole, gap_sec, before_end, at = ended_before
-        silent = (
-            _hole_room_tone(
-                project,
-                track,
-                hole,
-                gap_sec=gap_sec,
-                skip_sec=0.0,
-                length_sec=gap_sec,
-                micro_fade_ms=micro_fade_ms,
-                grid=grid,
-            )
-            is None
-        )
-        out[at] = _PreparedClip(
-            hole.parent, None, before_window_end=before_end, silent_before=silent
-        )
     return out
-
-
-def _last_before_window(items: list[_PreparedClip]) -> int:
-    """Index of the last item in the run of before-window markers that opens the list."""
-    last = -1
-    for index, item in enumerate(items):
-        if item.before_window_end is None:
-            break
-        last = index
-    return last
 
 
 def _render_placed_track(

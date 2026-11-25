@@ -139,6 +139,15 @@ def clips_abut(left: Clip, right: Clip) -> bool:
     return right.timeline_start - left.timeline_end <= JOIN_GAP_TOLERANCE_SEC
 
 
+def clips_touch(left: Clip, right: Clip) -> bool:
+    """True when ``right`` starts at or before ``left``'s end, to within float noise.
+
+    Render plays every gap as silence (#2496), so only a seam with no gap can blend: a
+    crossfade across a gap would have to move audio to close it.
+    """
+    return right.timeline_start - left.timeline_end <= SPAN_EPS_S
+
+
 def abutting_pairs(clips: Sequence[Clip]) -> list[tuple[Clip, Clip]]:
     """Neighbouring ``(left, right)`` pairs of timeline-sorted ``clips`` that form a join."""
     return [(left, right) for left, right in pairwise(clips) if clips_abut(left, right)]
@@ -678,7 +687,7 @@ CrossfadeBlocked = Literal["not_abutting", "no_fade_out", "no_fade_in", "no_head
 
 
 def _authored_block_reason(left: Clip, right: Clip) -> CrossfadeBlocked | None:
-    if not clips_abut(left, right):
+    if not clips_touch(left, right):
         return "not_abutting"
     if left.fade_out_ms <= 0:
         return "no_fade_out"

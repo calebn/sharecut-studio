@@ -466,11 +466,19 @@ def test_a_gap_under_the_minimum_blend_reports_no_headroom():
     assert "join_borrow_sec" not in fields
 
 
-def test_the_float_gap_of_twenty_ms_still_blends():
+def test_a_crossfade_across_a_twenty_ms_gap_plays_its_fades_over_the_silence():
+    """Render keeps every gap as silence (#2496), so only a seam with no gap can blend."""
     left = _clip("a", 1.0, 4.28, fade_out_ms=40)
     right = _clip("b", 4.3, 7.3, fade_in_ms=40, join_in_mode=ClipJoinMode.CROSSFADE)
-    assert 4.3 - 4.28 < 0.02
-    assert crossfade_borrow_sec(_project(left, right), left, right) == pytest.approx(0.01)
+    project = _project(left, right)
+    assert crossfade_borrow_sec(project, left, right) == 0.0
+    assert crossfade_block_reason(left, right, project) == "not_abutting"
+
+
+def test_a_seam_off_by_float_noise_still_blends():
+    left = _clip("a", 1.0, 4.28, fade_out_ms=40)
+    right = _clip("b", 4.28 + 1e-12, 7.3, fade_in_ms=40, join_in_mode=ClipJoinMode.CROSSFADE)
+    assert crossfade_borrow_sec(_project(left, right), left, right) == pytest.approx(0.02)
 
 
 @pytest.mark.parametrize("gap", [0.0, 5e-5, -5e-5])

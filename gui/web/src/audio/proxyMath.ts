@@ -1,5 +1,10 @@
-import { clipIdsBeforeCut, isCutJoin } from "../edit/joinRender";
+import {
+  clipIdsBeforeCut,
+  edgesFacingGaps,
+  isCutJoin,
+} from "../edit/joinRender";
 import { DocumentCommand } from "../types/documentCommands.generated";
+import { SPLIT_MICRO_FADE_MS } from "../types/limits.generated";
 import type { ClipRow, FadeCurve, ProjectView } from "../types/project";
 import { clipGainDb, dbToLinear } from "../utils/audio";
 import { clipEdgeCurve } from "../utils/fadeCurves";
@@ -408,6 +413,20 @@ export function offsetInChunk(
   return Math.max(0, srcSec - chunkFileStartSec(idx, chunkSec, overlapMs));
 }
 
+/**
+ * `timeline_render._gap_edge_fade`: an edge facing a gap keeps its own fade,
+ * but never less than the declick fade, capped at half the clip. The browser
+ * uses the default declick length; a mapped clip under a changed
+ * `inaudible_cuts.micro_fade_ms` renders with that setting instead.
+ */
+function gapEdgeFadeSec(clip: ClipRow, storedMs: number): number {
+  const declick = Math.min(
+    SPLIT_MICRO_FADE_MS / 1000,
+    (clip.timeline_end - clip.timeline_start) / 2,
+  );
+  return Math.max(Math.max(0, storedMs) / 1000, declick);
+}
+
 export function buildSchedule(
   authoredClips: readonly ClipRow[],
   windowStartSec: number,
@@ -425,6 +444,7 @@ export function buildSchedule(
     borrowOut,
   } = placeLikeRender(authoredClips);
   const beforeCut = clipIdsBeforeCut([...clips]);
+  const { gapIn, gapOut } = edgesFacingGaps(authoredClips);
   for (const placedClip of clips) {
     // A blending join plays `borrow` seconds of the recording beyond each edge.
     const lead = borrowIn.get(placedClip.id) ?? 0;
@@ -473,25 +493,30 @@ export function buildSchedule(
       automaticMute: binding?.bakesMutes
         ? []
         : automaticSpansOf(clip.off_speaker_mute_regions),
-      // A blending join replaces both edge fades with the overlap's ramps.
+      // A blending join replaces both edge fades with the overlap's ramps. An
+      // edge facing a gap never cuts: it keeps its fade, at least the declick.
       fadeInSec:
         overlapInSec > 0
           ? overlapInSec
-          : isCutJoin(clip)
-            ? 0
-            : Math.max(0, clip.fade_in_ms) / 1000,
+          : gapIn.has(clip.id)
+            ? gapEdgeFadeSec(placedClip, clip.fade_in_ms)
+            : isCutJoin(clip)
+              ? 0
+              : Math.max(0, clip.fade_in_ms) / 1000,
       fadeOutSec:
         overlapAfter > 0
           ? overlapAfter
-          : beforeCut.has(clip.id)
-            ? 0
-            : Math.max(0, clip.fade_out_ms) / 1000,
+          : gapOut.has(clip.id)
+            ? gapEdgeFadeSec(placedClip, clip.fade_out_ms)
+            : beforeCut.has(clip.id)
+              ? 0
+              : Math.max(0, clip.fade_out_ms) / 1000,
       fadeInCurve:
-        overlapInSec > 0 || isCutJoin(clip)
+        overlapInSec > 0 || (isCutJoin(clip) && !gapIn.has(clip.id))
           ? "linear"
           : clipEdgeCurve(clip, "in"),
       fadeOutCurve:
-        overlapAfter > 0 || beforeCut.has(clip.id)
+        overlapAfter > 0 || (beforeCut.has(clip.id) && !gapOut.has(clip.id))
           ? "linear"
           : clipEdgeCurve(clip, "out"),
       gainLinear: dbToLinear(clipGainDb(clip)),
