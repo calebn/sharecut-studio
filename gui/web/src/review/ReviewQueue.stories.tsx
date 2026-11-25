@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { largeText } from "../storybook/largeText";
 import { reviewContent } from "../storybook/reviewContent";
 import { QUEUE_ITEMS } from "../storybook/reviewFixtures";
 import { ReviewStageHarness } from "../storybook/reviewHarness";
@@ -327,15 +328,6 @@ function largeTextFrame(width: string): NonNullable<Story["decorators"]> {
     ),
   ];
 }
-
-const largeText = () => {
-  const root = document.documentElement;
-  const before = root.style.fontSize;
-  root.style.fontSize = "32px";
-  return () => {
-    root.style.fontSize = before;
-  };
-};
 
 /** Dismiss all stays wholly in its frame, and the frame does not scroll sideways. */
 const headFitsFrame: NonNullable<Story["play"]> = async ({ canvasElement }) => {
