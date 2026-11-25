@@ -273,6 +273,24 @@ def test_studio_announces_itself_privately_and_withdraws_on_exit(
     assert read_studio_host(minimal_project) is None
 
 
+def test_a_studio_on_the_ipv6_wildcard_takes_the_command_on_ipv6_loopback(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--host ::`` announces ``::1``, which answers whether or not the socket is dual-stack (#2534)."""
+    run, stop = _start_studio(minimal_project, monkeypatch, "::")
+    try:
+        host = read_studio_host(minimal_project)
+        assert host is not None
+        assert (host.host, host.port) == ("::1", run.port)
+        result = comment_add(minimal_project, "over ipv6")
+    finally:
+        stop()
+
+    assert result.returncode == 0, result.stderr
+    assert comment_bodies(minimal_project) == ["over ipv6"]
+    assert [argv[:2] for argv in run.commands] == [["comment", "add"]]
+
+
 def test_command_runs_in_studio_and_waits_for_studio_to_release_the_project(
     studio: StudioRun,
 ) -> None:
@@ -1075,8 +1093,8 @@ def test_a_live_studio_http_error_stops_the_command_without_a_direct_write(
         ("::1", "::1", "::1"),
         ("0.0.0.0", None, "127.0.0.1"),
         ("0.0.0.0", "0.0.0.0", "127.0.0.1"),
-        ("::", None, "127.0.0.1"),
-        ("::", "::", "127.0.0.1"),
+        ("::", None, "::1"),
+        ("::", "::", "::1"),
         ("127.0.0.2", None, "127.0.0.2"),
         ("127.0.0.2", "127.0.0.2", "127.0.0.2"),
         ("192.0.2.2", None, "192.0.2.2"),
