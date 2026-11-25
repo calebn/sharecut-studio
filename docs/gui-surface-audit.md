@@ -164,6 +164,26 @@ old build before the layout fix. Eight beta-story coverage-policy tests pass.
   long enough to show the phone bar and the list resolves empty, focus follows
   the active tile into the empty layout.
 
+- [#2963](https://github.com/calebn/sharecut-studio/issues/2963) tracks outdated
+  Timeline header entries in the [stage inventory](design/stages/inventory.md).
+  `CMP-TRACK-HEADERS` describes an initials chip, a reorder handle, and an FX
+  badge, and names files and stories that no longer exist. The current header is
+  `System/TrackHeader` (`system/TrackHeader.tsx`), mounted by
+  `stage/edit/TrackColumn.tsx` through `useTrackHeaderProps.ts`. It shows an
+  avatar with a live level ring, which goes hollow while the stem is out of date
+  and gets a danger ring and badge while the clip light is lit. The phone form
+  keeps only the avatar. The track name is the select button's accessible name,
+  and the FX chain, role and speaker are in the track details. The inventory's
+  locator row names `Open track details` and `Reorder track` buttons that no
+  longer exist, and its coverage row says the column has no stories, but
+  `Stages/Edit/TrackColumn` has them now.
+  For `INT-REORDER`, dragging starts anywhere on the header except its controls,
+  with a fine pointer only. Shift+Up or Shift+Down on the select button also
+  moves a track. So do bare Up or Down while the track is selected in its
+  details, the Move track up and Move track down actions, and the command
+  palette. The current stories are `Reordering` and `DropLine` in
+  `system/TrackHeader.stories.tsx`.
+
 - [#3543](https://github.com/calebn/sharecut-studio/issues/3543) tracks a Fix text
   shortcut mismatch in the [Edit stage spec](design/stages/spec-edit.md).
   Typing with a Script word selected leaves the selection in place. To open
