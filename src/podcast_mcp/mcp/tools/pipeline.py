@@ -238,7 +238,8 @@ def apply_ducking_tool(
     ``track_ids`` omitted ducks every unmuted music track and every segment track marked
     duck-under-dialogue; name tracks to duck others (a dialogue track is refused).
     ``depth_db`` omitted is the project's ``mix.music_under_vo_db`` (-18 dB by default).
-    Preview with ``dry_run=true`` (no write, no history entry), then pass the reply's
+    Preview with ``dry_run=true`` (no write, no history entry; the reply carries each track's
+    envelope and speech regions), then pass the reply's
     ``plan_token`` as ``expected_plan_token`` to apply exactly that plan; a changed project
     is a conflict. Speech that has no transcript does not duck. ``mix_with_music`` still
     rebuilds the fade envelope, so run it before ducking, not after.
@@ -259,9 +260,6 @@ def apply_ducking_tool(
     payload: dict[str, object] = {k: v for k, v in given.items() if v is not None}
     payload["dry_run"] = dry_run
     result = submit_host_command_result(project_path, "ApplyDucking", payload)
-    for track in result.get("tracks", []):
-        track.pop("speech_regions", None)
-        track.pop("envelope", None)
     return to_json(result)
 
 
