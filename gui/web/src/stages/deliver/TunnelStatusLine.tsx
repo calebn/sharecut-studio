@@ -52,7 +52,7 @@ export function TunnelStatusLine({ status }: { status: TunnelStatus }) {
       </p>
       {retry ? <p className="share-tunnel-retry">{retry}</p> : null}
       {copy.contact && status.support_url ? (
-        <p className="share-tunnel-retry">
+        <p className="share-tunnel-retry share-tunnel-contact">
           <a href={status.support_url} target="_blank" rel="noreferrer">
             Contact support or report this{" "}
             <span className="sr-only">(opens in a new tab)</span>

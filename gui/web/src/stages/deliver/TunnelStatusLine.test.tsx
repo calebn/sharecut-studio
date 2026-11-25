@@ -155,6 +155,16 @@ describe("TunnelStatusLine", () => {
     expect(screen.queryByText("How to fix")).not.toBeInTheDocument();
   });
 
+  it("draws a limited state as a caution, not a problem", () => {
+    const { container } = render(
+      <TunnelStatusLine status={status("limited", { limit: "shares" })} />,
+    );
+    expect(container.querySelector(".share-tunnel")).toHaveAttribute(
+      "data-tone",
+      "caution",
+    );
+  });
+
   it("explains a limited state without retrying", () => {
     render(
       <TunnelStatusLine status={status("limited", { limit: "bandwidth" })} />,
