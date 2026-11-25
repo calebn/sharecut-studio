@@ -8,7 +8,7 @@ import { FeedPanel } from "../../stages/deliver/FeedPanel";
 import { feedAccessOf } from "../../stages/deliver/feedLogic";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
-import { formatSeconds } from "../../system/seconds";
+import { formatCutsSaved } from "../../system/seconds";
 import { Button, InlineError } from "../../ui";
 import { canEditStage } from "../../utils/can";
 import { useStageScroll } from "../useStageScroll";
@@ -18,6 +18,11 @@ import { hostStateOf, type LoadFailure } from "./hostModels";
 import { useDeliverFiles } from "./useDeliverFiles";
 
 type Props = { loadFailure?: LoadFailure | null };
+
+function savedNote(seconds: number): string {
+  const cuts = formatCutsSaved(seconds);
+  return seconds > 0 && cuts !== "No cuts yet" ? `Edits saved ${cuts}` : cuts;
+}
 
 const NO_FILES = "No exported files yet. Ask the host to export.";
 
@@ -75,9 +80,7 @@ export function GuestDeliver({ loadFailure }: Props) {
                   }
                 >
                   {removedSeconds != null ? (
-                    <p className="dv-note">
-                      Edits saved {formatSeconds(removedSeconds)}
-                    </p>
+                    <p className="dv-note">{savedNote(removedSeconds)}</p>
                   ) : null}
                   {files.currentLoad === "loading" ? (
                     <p className="dv-note" role="status">

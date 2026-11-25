@@ -1,6 +1,6 @@
 import { capabilityOf } from "../../models";
 import type { StatusRowState } from "../../system/StatusRow";
-import { formatSeconds } from "../../system/seconds";
+import { formatCutsSaved } from "../../system/seconds";
 import type { LoudnessId } from "../../types/pipeline";
 import type { StageId } from "../../types/stage";
 import type { ModelNeeded } from "../../utils/apiError";
@@ -193,7 +193,7 @@ export function readinessRows(facts: ReadinessFacts): ReadinessRow[] {
       id: "saved",
       state: "done",
       title: "Edits saved",
-      detail: formatSeconds(facts.editsSaved),
+      detail: formatCutsSaved(facts.editsSaved),
     },
   ];
 }
