@@ -21,18 +21,19 @@ export function useCrampedSheet(): boolean {
   const [probe, setProbe] = useState<HTMLElement | null>(null);
   const measure = () => setCramped(viewportRem() < CRAMPED_REM);
   useEffect(() => {
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  });
-  // A probe one rem wide resizes when the text size changes, which fires no window event.
-  useEffect(() => {
+    const onResize = () => setCramped(viewportRem() < CRAMPED_REM);
+    window.addEventListener("resize", onResize);
+    // A probe one rem wide resizes when the text size changes, which fires no window event.
     const element = document.createElement("div");
     element.setAttribute("aria-hidden", "true");
     element.style.cssText =
       "position:fixed;inline-size:1rem;block-size:0;visibility:hidden;pointer-events:none";
     document.body.append(element);
     setProbe(element);
-    return () => element.remove();
+    return () => {
+      window.removeEventListener("resize", onResize);
+      element.remove();
+    };
   }, []);
   useResizeObserver(probe, measure);
   return cramped;
