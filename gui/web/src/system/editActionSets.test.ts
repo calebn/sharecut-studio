@@ -43,7 +43,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
         "more",
         "inspect",
       ],
-      more: ["mute", "moveToSpeaker", "copy"],
+      more: ["mute", "moveToSpeaker", "copy", "saveSegment"],
       primary: "cut",
     },
   ],
@@ -53,7 +53,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: "scope",
       bar: ["hear", "split", "comment", "fixText", "record", "more", "inspect"],
-      more: ["mute", "moveToSpeaker", "copy"],
+      more: ["mute", "moveToSpeaker", "copy", "saveSegment"],
       primary: "cut",
     },
   ],
@@ -73,7 +73,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: "scope",
       bar: ["hear", "split", "comment", "record", "export", "more", "inspect"],
-      more: ["mute", "moveToSpeaker", "copy"],
+      more: ["mute", "moveToSpeaker", "copy", "saveSegment"],
       primary: "cut",
     },
   ],
@@ -83,7 +83,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: "scope",
       bar: ["hear", "split", "comment", "record", "export", "more", "inspect"],
-      more: ["mute", "fillRoomTone", "moveToSpeaker", "copy"],
+      more: ["mute", "fillRoomTone", "moveToSpeaker", "copy", "saveSegment"],
       primary: "cut",
     },
   ],
@@ -93,7 +93,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: null,
       bar: ["hear", "split", "comment", "cut", "more", "inspect"],
-      more: ["mute", "gain", "fade", "moveToTrack"],
+      more: ["mute", "gain", "fade", "moveToTrack", "saveSegment"],
       primary: null,
     },
   ],
@@ -103,7 +103,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: "count",
       bar: ["hear", "split", "comment", "cut", "more", "inspect"],
-      more: ["mute", "gain", "fade", "moveToTrack"],
+      more: ["mute", "gain", "fade", "moveToTrack", "saveSegment"],
       primary: null,
     },
   ],

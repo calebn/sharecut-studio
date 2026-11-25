@@ -2746,3 +2746,40 @@ describe("focusing Start after Inspect", () => {
     expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
   });
 });
+
+describe("Save as segment", () => {
+  const row = () =>
+    barModelOf(factsOf()!, useDawStore.getState()).more.find(
+      (item) => item.id === "saveSegment",
+    );
+
+  it("is a More row on a clip and opens the card", async () => {
+    host(EDIT_SELECTIONS.clip);
+    expect(row()).toEqual({ id: "saveSegment" });
+    expect(await execute("segment.save")).toEqual({ status: "ok" });
+    expect(useDawStore.getState().chrome.saveSegmentOpen).toBe(true);
+    useDawStore.getState().setSaveSegmentOpen(false);
+  });
+
+  it("is a More row on a range over every track", async () => {
+    host(EDIT_SELECTIONS.rangeOnAllTracks);
+    expect(row()).toEqual({ id: "saveSegment" });
+    expect(await execute("segment.save")).toEqual({ status: "ok" });
+    useDawStore.getState().setSaveSegmentOpen(false);
+  });
+
+  it("is absent for a guest and refuses without a selection", async () => {
+    host(EDIT_SELECTIONS.clip, {
+      projectPath: "share:tok",
+      guestMode: "edit",
+      shareCapabilities: EDITOR_CAPABILITIES,
+    });
+    expect(row()).toBeUndefined();
+    host(EDIT_SELECTIONS.playhead);
+    expect(await execute("segment.save")).toEqual({
+      status: "disabled",
+      reason: "Select a clip or a range to save",
+    });
+    expect(useDawStore.getState().chrome.saveSegmentOpen).toBe(false);
+  });
+});

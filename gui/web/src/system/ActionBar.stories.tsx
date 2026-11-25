@@ -332,7 +332,13 @@ export const RangeWithGap: Story = {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["Mute", "Fill room tone", "Move to speaker", "Copy"]);
+    ).toEqual([
+      "Mute",
+      "Fill room tone",
+      "Move to speaker",
+      "Copy",
+      "Save as segment",
+    ]);
   },
 };
 

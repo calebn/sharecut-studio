@@ -588,6 +588,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Mute selected range",
     tooltip: "Mute selected range",
   },
+  "daw.segment.save": {
+    label: "Save as segment",
+    tooltip: "Save the selected clips or range to your segment library",
+  },
   "daw.range.fillRoomTone": {
     label: "Fill range with room tone",
     tooltip: "Fill the clip-free time in a range with the track's room tone",
