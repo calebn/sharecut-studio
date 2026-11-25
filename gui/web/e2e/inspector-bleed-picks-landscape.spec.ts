@@ -110,8 +110,15 @@ async function openCard(page: Page, clip: string, withComment: number | null) {
     .click();
   await expect(picks(page)).toHaveCount(2);
   await expect(inspector(page)).toBeVisible();
-  // The card places itself when the bands arrive; let it settle.
-  await page.waitForTimeout(400);
+  let last = "";
+  await expect
+    .poll(async () => {
+      const now = JSON.stringify((await boxes(page)).card);
+      const settled = now === last;
+      last = now;
+      return settled;
+    })
+    .toBe(true);
 }
 
 async function boxes(page: Page) {
@@ -152,7 +159,6 @@ const overlaps = (a: Box, b: Box) =>
   Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) > 0;
 
 async function expectCardClearOfPicks(page: Page) {
-  // Hit-testable at the centre, and the whole pick clear of the card's box.
   await expect.poll(() => everyPickIsHit(page)).toEqual([true, true]);
   const pickBoxes = await picks(page).evaluateAll((els) =>
     els.map((el) => {
@@ -163,7 +169,6 @@ async function expectCardClearOfPicks(page: Page) {
   const { card: cardBox, bar } = await boxes(page);
   if (cardBox) {
     for (const pick of pickBoxes) expect(overlaps(cardBox, pick)).toBe(false);
-    // Inside the frame the card is placed in.
     const frame = await card(page).evaluate((el: HTMLElement) => {
       const r = (
         el.offsetParent ?? document.documentElement
@@ -178,7 +183,6 @@ async function expectCardClearOfPicks(page: Page) {
     expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(
       frame.y + frame.height + 0.5,
     );
-    // The Action bar is not covered by the card.
     if (bar) expect(overlaps(cardBox, bar)).toBe(false);
   }
   if (bar) {

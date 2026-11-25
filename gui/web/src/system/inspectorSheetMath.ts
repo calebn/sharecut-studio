@@ -1,4 +1,5 @@
 import { clamp } from "../utils/math";
+import { DEFAULT_REM_PX } from "./rulerMath";
 
 export type InspectorDetent = "dock" | "half" | "full";
 
@@ -29,7 +30,7 @@ export const CARD_MIN_BLOCK_PX = 140;
 
 /** `CARD_MIN_BLOCK_PX` at this root font size; an unreadable root size counts as the default 16 px. */
 export function scaledMinBlock(rootPx: number) {
-  return CARD_MIN_BLOCK_PX * ((rootPx || 16) / 16);
+  return CARD_MIN_BLOCK_PX * ((rootPx || DEFAULT_REM_PX) / DEFAULT_REM_PX);
 }
 
 /**
@@ -60,6 +61,8 @@ type CardPlacement = {
   /** The card still overlaps a keep-clear area: no placement cleared it. */
   covered: boolean;
 };
+
+type BlockPlacement = Omit<CardPlacement, "inline" | "covered">;
 
 export function detentHeight(
   detent: InspectorDetent,
@@ -140,7 +143,7 @@ function placeCardBlock(
   minBlock: number,
   top: number,
   bottom: number,
-): Omit<CardPlacement, "inline" | "covered"> {
+): BlockPlacement {
   const tallest = height * CARD_MAX_SHARE;
   const belowEdge = anchor.y + anchor.height + CARD_GAP_PX;
   const aboveEdge = anchor.y - CARD_GAP_PX;
@@ -168,6 +171,8 @@ function placeCardBlock(
  * keep-clear area, slide beside them or place the card in the nearest usable
  * vertical band around the keep-clear areas. Keep the normal position if
  * none can hold a usable card.
+ * `covered` is true when no placement cleared a keep-clear area and the card
+ * stays over one at the normal position.
  */
 export function placeCard(
   anchor: InspectorRect,
@@ -185,18 +190,23 @@ export function placeCard(
     ...placeCardBlock(anchor, bounds.height, minBlock, min, bottom),
     inline,
   };
-  const overlapsBox = (rect: InspectorRect, top: number, x: number) =>
-    x < rect.x + rect.width - CLEAR_EPSILON &&
-    x + width > rect.x + CLEAR_EPSILON &&
-    top < rect.y + rect.height - CLEAR_EPSILON &&
-    top + normal.maxBlock > rect.y + CLEAR_EPSILON;
-
-  const padded = (rect: InspectorRect) => ({
-    left: rect.x - CARD_GAP_PX,
-    right: rect.x + rect.width + CARD_GAP_PX,
-    top: rect.y - CARD_GAP_PX,
-    end: rect.y + rect.height + CARD_GAP_PX,
+  const boxOf = (rect: InspectorRect, pad: number) => ({
+    left: rect.x - pad,
+    right: rect.x + rect.width + pad,
+    top: rect.y - pad,
+    end: rect.y + rect.height + pad,
   });
+  const padded = (rect: InspectorRect) => boxOf(rect, CARD_GAP_PX);
+  const overlaps = (
+    box: ReturnType<typeof boxOf>,
+    x: number,
+    top: number,
+    height: number,
+  ) =>
+    x + width > box.left + CLEAR_EPSILON &&
+    x < box.right - CLEAR_EPSILON &&
+    top + height > box.top + CLEAR_EPSILON &&
+    top < box.end - CLEAR_EPSILON;
   const hasArea = (rect: InspectorRect) => rect.width > 0 && rect.height > 0;
   const obstacles = [anchor, ...keepClear].filter(hasArea).map(padded);
   const normalTop =
@@ -204,13 +214,7 @@ export function placeCard(
       ? normal.block
       : bounds.height - normal.block - normal.maxBlock;
   const clearsAt = (x: number, top: number, height: number) =>
-    obstacles.every(
-      (o) =>
-        x + width <= o.left + CLEAR_EPSILON ||
-        x >= o.right - CLEAR_EPSILON ||
-        top + height <= o.top + CLEAR_EPSILON ||
-        top >= o.end - CLEAR_EPSILON,
-    );
+    obstacles.every((o) => !overlaps(o, x, top, height));
   const clearAt = (x: number) => clearsAt(x, normalTop, normal.maxBlock);
   if (clearAt(inline)) return { ...normal, covered: false };
 
@@ -231,9 +235,7 @@ export function placeCard(
         [Math.max(...areas.map((o) => o.end)), bottom],
       ]
     : [[min, bottom]];
-  const anchorClearance = (
-    placement: Omit<CardPlacement, "inline" | "covered">,
-  ) =>
+  const anchorClearance = (placement: BlockPlacement) =>
     placement.side === "below"
       ? placement.block - anchor.y - anchor.height
       : placement.block + anchor.y - bounds.height;
@@ -263,6 +265,24 @@ export function placeCard(
     ...normal,
     covered: keepClear
       .filter(hasArea)
-      .some((rect) => overlapsBox(rect, normalTop, inline)),
+      .some((rect) =>
+        overlaps(boxOf(rect, 0), inline, normalTop, normal.maxBlock),
+      ),
   };
+}
+
+/** `placeCard` for a card whose width and minimum height scale with this root font size. */
+export function placeCardAtRoot(
+  anchor: InspectorRect,
+  bounds: InspectorBounds,
+  keepClear: readonly InspectorRect[] | undefined,
+  rootPx: number,
+) {
+  return placeCard(
+    anchor,
+    bounds,
+    CARD_WIDTH_PX * (rootPx / DEFAULT_REM_PX),
+    scaledMinBlock(rootPx),
+    keepClear,
+  );
 }
