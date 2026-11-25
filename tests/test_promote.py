@@ -59,6 +59,7 @@ class Repo:
 def repo(tmp_path: Path, monkeypatch) -> Repo:
     monkeypatch.setenv("SHARECUT_BASE_BRANCH", "develop")
     monkeypatch.delenv("GITHUB_REF", raising=False)
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
     origin = tmp_path / "origin.git"
     sh(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
     seed = tmp_path / "seed"
@@ -598,6 +599,57 @@ def test_cli_cleanup_uses_the_env_run_identity(repo: Repo, monkeypatch) -> None:
     assert promote.main(["cleanup"], git=promote.Git(repo.clone)) == 0
 
     assert "promote/abcabcabcabc-1-9-3" not in repo.remote_branches()
+
+
+def test_cleanup_cancels_only_this_runs_unfinished_runs_before_deleting(repo: Repo) -> None:
+    develop = repo.remote_sha("develop")
+    own = f"promote/{'a' * 12}-{EPOCH}-77-2"
+    stale = f"promote/{'b' * 12}-{EPOCH}-5-1"
+    for name in (own, stale):
+        sh(repo.other, "push", "-q", "origin", f"{develop}:refs/heads/{name}")
+    gh = FakeGh(outcomes={"test.yml": ("in_progress", None), "desktop.yml": ("in_progress", None)})
+    gh.dispatched += [
+        ("test.yml", own, {}),
+        ("secret-scan.yml", own, {}),
+        ("desktop.yml", stale, {}),
+    ]
+
+    promote.cleanup(promote.Git(repo.clone), run_id="77", attempt="2", now=EPOCH + 2 * 86400, gh=gh)
+
+    assert gh.cancelled == [gh.run_id("test.yml")]
+    assert {(w, b, s) for w, b, s in gh.polls} == {(w, own, develop) for w in promote.CI_WORKFLOWS}
+    assert sorted(repo.remote_branches()) == ["develop", "main"]
+
+
+def test_cleanup_deletes_this_runs_branch_when_its_runs_cannot_be_listed(repo: Repo) -> None:
+    develop = repo.remote_sha("develop")
+    own = f"promote/{'a' * 12}-{EPOCH}-77-2"
+    sh(repo.other, "push", "-q", "origin", f"{develop}:refs/heads/{own}")
+
+    class Unlistable(FakeGh):
+        def runs(self, workflow: str, branch: str, head_sha: str) -> list:
+            raise subprocess.CalledProcessError(1, "gh", stderr="boom")
+
+    gh = Unlistable()
+    promote.cleanup(promote.Git(repo.clone), run_id="77", attempt="2", now=EPOCH, gh=gh)
+
+    assert gh.cancelled == []
+    assert own not in repo.remote_branches()
+
+
+def test_cli_cleanup_cancels_with_the_given_gh(repo: Repo, monkeypatch) -> None:
+    develop = repo.remote_sha("develop")
+    own = "promote/abcabcabcabc-1-9-3"
+    sh(repo.other, "push", "-q", "origin", f"{develop}:refs/heads/{own}")
+    monkeypatch.setenv("GITHUB_RUN_ID", "9")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "3")
+    gh = FakeGh(outcomes={"test.yml": ("queued", None)})
+    gh.dispatched.append(("test.yml", own, {}))
+
+    assert promote.main(["cleanup"], git=promote.Git(repo.clone), gh=gh) == 0
+
+    assert gh.cancelled == [gh.run_id("test.yml")]
+    assert own not in repo.remote_branches()
 
 
 def test_cli_run_passes_flags_through(repo: Repo, monkeypatch) -> None:
