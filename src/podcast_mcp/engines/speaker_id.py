@@ -830,9 +830,10 @@ def assess_speaker_cut_role(
 ) -> dict[str, Any] | None:
     """Classify a cut window as own, bleed or uncertain.
 
-    ``role_memo`` is a per-run cache the caller owns: one run holds one set of profiles,
-    config and stems, so a window it asks about twice (the bleed guard, then the cut-scope
-    check, then the apply) is embedded once. Never share it across runs.
+    ``role_memo`` is a cache the caller owns for one analysis pass: a pass holds one set of
+    profiles, config and stems, so a window asked about twice (the bleed guard, then the
+    cut-scope checks) is embedded once. Threads may race to fill a key, which only costs a
+    duplicate embedding. Never share it across passes or with a different config or backend.
     """
     memo_key = (cut_track_id, src_start, src_end)
     if role_memo is not None and memo_key in role_memo:
