@@ -464,6 +464,70 @@ describe("ReviewQueue", () => {
     expect(getByRole("button", { name: /all 2$/ })).toBeInTheDocument();
   });
 
+  it("reads a clean-cuts total as a span and leaves it out when it rounds to nothing", () => {
+    const risky = {
+      id: "c",
+      kind: "pause" as const,
+      at: 3,
+      savedSeconds: 0.5,
+      risk: { rank: 3 as const, reason: "Join may be audible" },
+    };
+    const view = (secs: number) => (
+      <ReviewQueue
+        items={[
+          { id: "a", kind: "filler" as const, at: 1, savedSeconds: secs },
+          { id: "b", kind: "pause" as const, at: 2, savedSeconds: secs },
+          risky,
+        ]}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+        onBulkIds={vi.fn()}
+      />
+    );
+    const { unmount } = render(view(35));
+    const btn = screen.getByRole("button", { name: "Cut 2 clean edits" });
+    expect(btn.previousElementSibling?.textContent).toBe("1 min 10 s");
+    unmount();
+    render(view(0.01));
+    const quiet = screen.getByRole("button", { name: "Cut 2 clean edits" });
+    expect(
+      quiet.previousElementSibling?.classList.contains("rv-group-count"),
+    ).toBe(true);
+  });
+
+  it("reads a group's bulk total as a span and omits it when it rounds to nothing", () => {
+    const rows = (secs: number) =>
+      [1, 2, 3].map((n) => ({
+        id: `f${n}`,
+        kind: "filler" as const,
+        at: n,
+        savedSeconds: secs,
+      }));
+    const view = (secs: number) => (
+      <ReviewQueue
+        items={rows(secs)}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+        onVerb={vi.fn()}
+      />
+    );
+    const { container, unmount } = render(view(30));
+    const bulk = container.querySelector(".rv-bulk");
+    expect(bulk?.previousElementSibling?.textContent).toBe("1 min 30 s");
+    unmount();
+    const quiet = render(view(0.01));
+    const bulk2 = quiet.container.querySelector(".rv-bulk");
+    expect(
+      bulk2?.previousElementSibling?.classList.contains("rv-group-count"),
+    ).toBe(true);
+  });
+
   it("filters by speaker only when two people have edits", () => {
     const onSpeaker = vi.fn();
     const edits = [

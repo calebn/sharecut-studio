@@ -17,7 +17,7 @@ import { Sheet } from "../system/Sheet";
 import { Skeleton } from "../system/Skeleton";
 import { StatusRow } from "../system/StatusRow";
 import { SystemIcon } from "../system/SystemIcon";
-import type { TimeRange } from "../system/seconds";
+import { hasCutsSaved, type TimeRange } from "../system/seconds";
 import { Button } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { stepUndecided } from "./advance";
@@ -589,7 +589,7 @@ export function ReviewStage({
               thread={selected && thread?.(selected)}
               why={selected?.blocked ? (card.why ?? BLOCKED_WHY) : card.why}
               waveform={wave && { ...wave, onAdjust: adjust }}
-              savedSeconds={savedSeconds > 0 ? savedSeconds : undefined}
+              savedSeconds={hasCutsSaved(savedSeconds) ? savedSeconds : undefined}
               audition={
                 wave || card.change
                   ? { side, onSide: setSide, onHear: hear }
