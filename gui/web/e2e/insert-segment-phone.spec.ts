@@ -253,7 +253,10 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       page,
     }) => {
       const mocked = await mockInsert(page);
-      const sheet = await openCard(page, theme);
+      const size = cell.resize
+        ? { width: cell.width, height: cell.height }
+        : null;
+      const sheet = await openCard(page, theme, size);
       if (cell.fontPx) await setRootFontSize(page, cell.fontPx);
       await sheet
         .getByRole("radio", { name: /Warm bed/ })
