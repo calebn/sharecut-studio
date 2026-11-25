@@ -543,6 +543,53 @@ describe("PendingEditBody", () => {
     expect((updatePendingEdit.mock.calls[0] as unknown[])[3]).toBe(12.5);
   });
 
+  it("says a queued Cut from the sheet's own button once, in the sheet, with no toast", async () => {
+    approveEdits.mockResolvedValueOnce({
+      queued: true,
+      count: null,
+      historyHead: null,
+    });
+    render(<PendingEditBody edit={sessionCut} />);
+    await waitFor(() =>
+      expect(screen.queryByText("Checking queued timing…")).toBeNull(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: pendingBarWords(sessionCut).accept }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Still sending.",
+    );
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+  });
+
+  it("sends the sheet's Leave once when it is clicked twice before the reply", async () => {
+    const edit = { ...barEdit, suggested_action: "leave" as const };
+    replaceStoredEdit(edit);
+    let finish: (value: unknown) => void = () => {};
+    applySuggestedActions.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    render(<PendingEditBody edit={edit} />);
+    await waitFor(() =>
+      expect(screen.queryByText("Checking queued timing…")).toBeNull(),
+    );
+    const leave = screen.getByRole("button", { name: "Leave" });
+    fireEvent.click(leave);
+    fireEvent.click(leave);
+    finish({
+      queued: false,
+      summary: "Done.",
+      historyHead: "h",
+      appliedCount: 1,
+    });
+    await waitFor(() =>
+      expect(useDawStore.getState().feedbackToast?.undo).toBe("h"),
+    );
+    expect(applySuggestedActions).toHaveBeenCalledTimes(1);
+  });
+
   it("announces nothing when the selection changes during a Cut from the bar, as main's bar path did", async () => {
     let finish: (value: unknown) => void = () => {};
     approveEdits.mockReturnValueOnce(
