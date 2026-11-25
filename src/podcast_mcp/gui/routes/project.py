@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import threading
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
@@ -50,6 +52,8 @@ from podcast_mcp.services.document_sync import (
     parse_view_projection,
 )
 from podcast_mcp.services.session_sync import is_loopback_host
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 _HOST_GATE = [Depends(host_gate)]
@@ -330,11 +334,24 @@ def move_project_folder(
             serve=(lambda target: set_served_project(app, target)) if pinned else (lambda _t: None),
         )
     except MovePartial as exc:
+        _follow_setup_runs(app, path, exc.project_path)
         detail = {"detail": str(exc), "project_path": str(exc.project_path)}
         raise coded_http_error(409, detail, code=exc.code) from exc
     except MoveRefused as exc:
         raise coded_http_error(_MOVE_STATUS.get(exc.code, 409), str(exc), code=exc.code) from exc
+    _follow_setup_runs(app, moved.previous_path, moved.project_path)
     return {"project_path": str(moved.project_path), "previous_path": str(moved.previous_path)}
+
+
+def _follow_setup_runs(app: Any, old: Path, new: Path) -> None:
+    """Point a queued first run at the moved episode (#4088); the move itself already stands."""
+    queue = getattr(app.state, "setup_runs", None)
+    if queue is None:
+        return
+    try:
+        queue.moved(old, new)
+    except Exception:
+        log.warning("Could not move the queued setup run of %s", old, exc_info=True)
 
 
 @router.post("/api/projects/recent/duplicate", dependencies=_HOST_GATE)

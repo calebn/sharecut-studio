@@ -178,6 +178,35 @@ class SetupRunQueue:
             self._replace([*entries, intent])
         return True
 
+    def moved(self, old_project: Path, new_project: Path) -> None:
+        """Follow an episode Studio moved: queued runs that name its old project file name the new one.
+
+        That covers the episode's own run and the runs a Studio launched on it queued for other
+        episodes, so the queue still starts them and this Studio still owns them.
+        """
+        old, new = old_project.resolve(), new_project.resolve()
+        if self._launch_project == old:
+            self._launch_project = new
+        with hold_shared_file_lock(self.path.with_suffix(".lock"), timeout=2):
+            if old in self._parked:
+                self._parked[new] = self._parked.pop(old)
+            entries = self._read()
+
+            def follow(path: Path | None) -> Path | None:
+                return new if path == old else path
+
+            followed = [
+                entry.model_copy(
+                    update={
+                        "path": follow(entry.path),
+                        "launch_project": follow(entry.launch_project),
+                    }
+                )
+                for entry in entries
+            ]
+            if followed != entries:
+                self._replace(followed)
+
     def _remove(self, entry: SetupRun) -> None:
         with hold_shared_file_lock(self.path.with_suffix(".lock"), timeout=2):
             self._replace([queued for queued in self._read() if queued != entry])
