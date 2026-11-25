@@ -26,6 +26,7 @@ import secrets
 import socket
 import threading
 import uuid
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -46,12 +47,14 @@ from podcast_mcp.services.app import (
     env_differences,
     new_instance_id,
     new_token,
+    read_studio_host,
     withdraw_studio_host,
 )
 from podcast_mcp.services.document import queue_room_tone_pools
 from podcast_mcp.services.jobs import LIVE_JOB_STATUSES
 from podcast_mcp.services.session_sync import is_loopback_host
 from podcast_mcp.util import host_platform
+from podcast_mcp.util.process import pid_is_alive
 from podcast_mcp.util.proxy_paths import is_relayed_request
 
 log = logging.getLogger(__name__)
@@ -62,6 +65,8 @@ HEARTBEAT_SEC = 5.0
 #: A handed-off command that has run this long is probably waiting for Studio's own job.
 BUSY_NOTICE_AFTER_SEC = 2.0
 BUSY_NOTICE_EVERY_SEC = 30.0
+#: How often a serving Studio checks that its announcement is still there (#2534).
+ANNOUNCE_CHECK_SEC = 2.0
 _PINGABLE_ADDRESSES = ("127.0.0.1", "::1")
 
 
@@ -169,6 +174,52 @@ def _withdraw(project_path: Path, state: StudioHostState) -> None:
         withdraw_studio_host(project_path, state.instance)
     except OSError:
         log.warning("Could not withdraw the Studio announcement for %s", project_path)
+
+
+def keep_announced(app: Any) -> None:
+    """Announce again when the file no longer points at a live Studio (#2534).
+
+    Two Studios on one project share one announcement, and the last to announce wins. When
+    that one withdraws (it closed, or switched project) or its process ended without
+    withdrawing, the other would be left with no pointer and the CLI would write directly,
+    racing it. A Studio still announcing the project therefore takes the file back when it is
+    gone, unreadable, or names a process that has ended. It leaves a live Studio's
+    announcement alone, so two Studios never take turns overwriting it: a Studio withdraws
+    only its own file when it stops serving the project, so a live one named there still
+    serves it.
+    """
+    state = _state(app)
+    with state.announce_lock:
+        announced = state.announced
+        if announced is None:
+            return
+        current = read_studio_host(announced)
+        if current is not None and (
+            current.instance == state.instance or pid_is_alive(current.pid)
+        ):
+            return
+        _announce_locked(app, state)
+
+
+@contextlib.asynccontextmanager
+async def keeping_announced(app: Any) -> AsyncIterator[None]:
+    """Run ``keep_announced`` every ``ANNOUNCE_CHECK_SEC`` while the server runs."""
+
+    async def check() -> None:
+        while True:
+            await asyncio.sleep(ANNOUNCE_CHECK_SEC)
+            try:
+                await asyncio.to_thread(keep_announced, app)
+            except Exception:
+                log.warning("Could not check the Studio announcement", exc_info=True)
+
+    task = asyncio.create_task(check(), name="studio-announcement")
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
 
 def listening(app: Any, *, port: int, host: str | None = None) -> None:
