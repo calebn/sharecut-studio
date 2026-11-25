@@ -351,7 +351,7 @@ def _join_metrics(
                 timebase="source",
                 audio_caches=audio_caches,
             )
-            .model_dump(mode="json")
+            .model_dump()
         )
     except ValidationError:
         raise
