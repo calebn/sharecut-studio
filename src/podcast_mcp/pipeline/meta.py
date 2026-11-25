@@ -354,7 +354,10 @@ _PARAM_SPECS: tuple[_ParamSpec, ...] = (
     _ParamSpec(
         path="performance.max_workers",
         label="Max workers",
-        description="Parallel workers for stem render, filler analysis, and export (0 = auto).",
+        description=(
+            "Parallel workers for stem render and export (0 = auto). "
+            "Tighten analysis is serial unless N is set explicitly."
+        ),
         minimum=0,
         maximum=32,
         group="common",
