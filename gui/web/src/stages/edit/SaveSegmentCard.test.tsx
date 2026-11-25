@@ -195,3 +195,41 @@ describe("SaveSegmentCard bottom", () => {
     });
   });
 });
+
+describe("SaveSegmentCard kind default", () => {
+  const props = handlersOf();
+
+  it("follows the guessed kind until the user picks one", async () => {
+    const { rerender } = render(
+      <SaveSegmentCard
+        summary="1 clip, 0:05"
+        defaultKind="intro"
+        {...props}
+        form="bottom"
+        open
+      />,
+    );
+    const kind = await screen.findByRole("combobox", { name: "Kind" });
+    rerender(
+      <SaveSegmentCard
+        summary="1 clip, 0:05"
+        defaultKind="outro"
+        {...props}
+        form="bottom"
+        open
+      />,
+    );
+    expect(kind).toHaveValue("outro");
+    await userEvent.selectOptions(kind, "sting");
+    rerender(
+      <SaveSegmentCard
+        summary="1 clip, 0:05"
+        defaultKind="other"
+        {...props}
+        form="bottom"
+        open
+      />,
+    );
+    expect(kind).toHaveValue("sting");
+  });
+});

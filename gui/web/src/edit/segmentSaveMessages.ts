@@ -1,6 +1,10 @@
-import { type SegmentSaveResult, segmentSaveRefusal } from "../api";
+import {
+  type SegmentSaveRefusal,
+  type SegmentSaveResult,
+  segmentSaveRefusal,
+} from "../api";
 
-const REFUSALS = {
+const REFUSALS: Record<SegmentSaveRefusal, string> = {
   segment_clip_too_short:
     "A clip in this selection is too short to save. Move the edge of the range, or pick whole clips.",
   segment_render_unsupported:
@@ -11,7 +15,7 @@ const REFUSALS = {
     "Your library could not be written to. Check that there is room on the disk, then try again.",
   segment_invalid:
     "That selection cannot be saved as a segment. Pick a different clip or range.",
-} as const;
+};
 
 export const SAVE_FAILED = "That did not save. Try again.";
 

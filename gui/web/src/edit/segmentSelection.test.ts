@@ -121,6 +121,34 @@ describe("segmentSelectionOf", () => {
     });
   });
 
+  it("never counts a track that has audio but no clips as a clip", () => {
+    const base = project([one]);
+    const p = {
+      ...base,
+      tracks: [
+        ...base.tracks,
+        sampleTrack({ id: "t9", has_source_audio: true, duration_sec: 900 }),
+      ],
+    };
+    const target = makeRangeTarget(
+      p,
+      [{ start: 301.5, end: 315 }],
+      ["t1", "t9"],
+    )!;
+    expect(segmentSelectionOf(p, { kind: "range", target })).toMatchObject({
+      ok: true,
+      clipCount: 1,
+      request: { time_range: "301.500-315.000" },
+    });
+    expect(
+      segmentSelectionOf(p, {
+        kind: "clip",
+        id: "clip_t9_full",
+        trackId: "t9",
+      }),
+    ).toMatchObject({ ok: false });
+  });
+
   it("refuses a range of several stretches", () => {
     const p = project([one, two]);
     const target = makeRangeTarget(

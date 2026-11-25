@@ -62,6 +62,11 @@ function SaveSegmentForm({
   const [failure, setFailure] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const saveInFlight = useRef(false);
+  const kindTouched = useRef(false);
+
+  useEffect(() => {
+    if (!kindTouched.current) setKind(defaultKind);
+  }, [defaultKind]);
 
   useEffect(() => {
     if (!bottom) return;
@@ -141,7 +146,10 @@ function SaveSegmentForm({
             {...control}
             disabled={saving}
             value={kind}
-            onChange={(event) => setKind(event.target.value as SegmentKind)}
+            onChange={(event) => {
+              kindTouched.current = true;
+              setKind(event.target.value as SegmentKind);
+            }}
           >
             {SEGMENT_KINDS.map((option) => (
               <option key={option} value={option}>
