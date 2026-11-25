@@ -489,8 +489,8 @@ def test_a_cache_key_reads_the_native_build_id_once(
 
 @pytest.mark.parametrize(
     "build_id",
-    [b"9.0.1+abcd", b"8.1.0+abcd", b"10.0.0+abcd", b"dev+abcd"],
-    ids=["below-minimum", "older-major", "newer-major", "no-version"],
+    [b"9.0.1+abcd", b"8.1.0+abcd", b"10.0.0+abcd", b"dev+abcd", b"dev-9.0.2+abcd"],
+    ids=["below-minimum", "older-major", "newer-major", "no-version", "version-not-leading"],
 )
 def test_a_build_id_outside_the_ffmpeg_policy_leaves_the_pair_unavailable(
     host: None, monkeypatch: pytest.MonkeyPatch, build_id: bytes
