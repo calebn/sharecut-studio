@@ -382,6 +382,55 @@ describe("RecordDock", () => {
       },
     );
 
+    it("speaks the opening after a dock that had no Leave line became held, and clears it after 5 s", () => {
+      vi.useFakeTimers();
+      const { rerender } = render(<RecordDock seat="guest" />);
+      rerender(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveHeld: held }}
+        />,
+      );
+      expect(spoken()).toHaveTextContent("");
+      rerender(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning }}
+        />,
+      );
+      expect(spoken()).toHaveTextContent(warning);
+      act(() => {
+        vi.advanceTimersByTime(4900);
+      });
+      expect(spoken()).toHaveTextContent(warning);
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+      expect(spoken()).toHaveTextContent("");
+    });
+
+    it("stops speaking the warning when Leave is held again", () => {
+      const { rerender } = render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveHeld: held }}
+        />,
+      );
+      rerender(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning }}
+        />,
+      );
+      rerender(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveHeld: held }}
+        />,
+      );
+      expect(spoken()).toHaveTextContent("");
+    });
+
     it("stays quiet for a Leave that was open from the start", () => {
       render(
         <RecordDock
