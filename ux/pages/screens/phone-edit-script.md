@@ -14,6 +14,11 @@ header to return to the word. The button returns when **Fix text** closes.
 Clearing the selection leaves saved corrections in place.
 With the Script hidden on the Timeline surface, the dock's **Clear** does the same for a selection of words.
 
+On a phone held sideways with little vertical room, Script can show just one
+transcript row while **Fix text** is open. The field stays in view, and fewer
+surrounding words fit in the scrollable pane. Use **Cancel fix** to return to
+the word and read more context before reopening the field.
+
 Cut previews belong to their own recording. A cut does not hide an equal-index
 word from another recording, even when its text is identical. Find excludes cut
 previews and does not join a phrase across an applied cut.
