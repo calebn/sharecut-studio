@@ -691,7 +691,7 @@ describe("InsertSegmentCard bottom", () => {
     expect(dialog).toHaveClass("bottom-sheet--full");
   });
 
-  it("inserts from the footer by click and by Enter", async () => {
+  it("inserts from the footer by click", async () => {
     const handlers = handlersOf();
     render(<InsertSegmentCard {...data()} {...handlers} form="bottom" open />);
     await pick(/Cold open/);
@@ -706,11 +706,12 @@ describe("InsertSegmentCard bottom", () => {
     await pick(/Cold open/);
     await screen.findByText(/Preview, from the saved episode/);
     insertButton().focus();
+    await waitFor(() => expect(insertButton()).toHaveFocus());
     await userEvent.keyboard("{Enter}");
     await waitFor(() => expect(handlers.onInsert).toHaveBeenCalledTimes(1));
   });
 
-  it("keeps Cancel off while inserting, and the failure in the form", async () => {
+  it("describes Cancel as off while inserting", async () => {
     const onInsert = vi.fn(() => new Promise<void>(() => {}));
     render(
       <InsertSegmentCard
