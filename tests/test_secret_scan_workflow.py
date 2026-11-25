@@ -117,6 +117,12 @@ _OWNER_HOST_FIXTURE_ALLOWLIST: dict[tuple[str, str], str] = {
     ("tests/test_desktop_pack_scripts.py", "cdn.sharecut." + "studio"): (
         "asserts the desktop shell source never embeds the production CDN base"
     ),
+    ("tests/test_ffmpeg_payload.py", "cdn.sharecut." + "studio"): (
+        "asserts the owner CDN base is accepted for the FFmpeg payload and never embedded in its source"
+    ),
+    ("tests/test_owner_cdn.py", "cdn.sharecut." + "studio"): (
+        "pins the single documented first-party CDN host and the files allowed to name it"
+    ),
     ("tests/test_speaker_ecapa_onnx.py", "cdn.sharecut." + "studio"): (
         "asserts the exact production speaker-model URLs"
     ),
