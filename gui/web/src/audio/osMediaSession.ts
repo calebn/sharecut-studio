@@ -143,12 +143,28 @@ export type MediaSessionLike = Pick<
 
 type OsActionHandlers = Readonly<Record<OsAction, MediaSessionActionHandler>>;
 
+/** A write the browser refused; the state keeps the earlier value for it. */
+export type OsWriteFailure = Readonly<{
+  write: "metadata" | "playbackState" | "positionState";
+  error: unknown;
+}>;
+
+export type OsApplyResult = Readonly<{
+  /** What the browser now holds: `next`, except where a write threw. */
+  applied: OsMediaSessionState;
+  failed: readonly OsWriteFailure[];
+}>;
+
 /**
  * Writes the change from `prev` to `next`: metadata, then state, then position.
  * Blink recomputes the extrapolation rate when the state is set, so the fresh
  * position goes last. The position is written on every call that has one, not
  * only on a difference: WebKit extrapolates from the time of the last write, so
  * a resume at an unchanged position would otherwise jump ahead by the whole pause.
+ *
+ * Each write stands alone: one the browser refuses does not stop the later
+ * ones, and it keeps its earlier value in `applied` so the next change tries
+ * it again.
  */
 export function applyOsMediaSession(
   session: MediaSessionLike,
@@ -156,10 +172,26 @@ export function applyOsMediaSession(
   prev: OsMediaSessionState,
   handlers: OsActionHandlers,
   makeMetadata: (metadata: { title: string }) => MediaMetadata,
-): void {
+): OsApplyResult {
+  const failed: OsWriteFailure[] = [];
+  const attempt = (write: OsWriteFailure["write"], run: () => void) => {
+    try {
+      run();
+      return true;
+    } catch (error) {
+      failed.push({ write, error });
+      return false;
+    }
+  };
+  let metadata = prev.metadata;
   if (prev.metadata?.title !== next.metadata?.title) {
-    session.metadata = next.metadata ? makeMetadata(next.metadata) : null;
-  }
+    if (
+      attempt("metadata", () => {
+        session.metadata = next.metadata ? makeMetadata(next.metadata) : null;
+      })
+    )
+      metadata = next.metadata;
+  } else metadata = next.metadata;
   if (prev.handlersOn !== next.handlersOn) {
     for (const action of OS_ACTIONS)
       setHandler(session, action, next.handlersOn ? handlers[action] : null);
@@ -167,11 +199,34 @@ export function applyOsMediaSession(
       for (const action of OS_CLEARED_ACTIONS)
         setHandler(session, action, null);
   }
+  let playbackState = next.playbackState;
   if (prev.playbackState !== next.playbackState) {
-    session.playbackState = next.playbackState;
+    if (
+      !attempt("playbackState", () => {
+        session.playbackState = next.playbackState;
+      })
+    )
+      playbackState = prev.playbackState;
   }
-  if (next.positionState) session.setPositionState(next.positionState);
-  else if (prev.positionState) session.setPositionState();
+  let positionState = next.positionState;
+  if (next.positionState || prev.positionState) {
+    if (
+      !attempt("positionState", () => {
+        if (next.positionState) session.setPositionState(next.positionState);
+        else session.setPositionState();
+      })
+    )
+      positionState = prev.positionState;
+  }
+  return {
+    applied: {
+      metadata,
+      playbackState,
+      positionState,
+      handlersOn: next.handlersOn,
+    },
+    failed,
+  };
 }
 
 function setHandler(
