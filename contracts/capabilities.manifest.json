@@ -2860,6 +2860,27 @@
       }
     },
     {
+      "id": "agent.ducking",
+      "label": "Duck music under dialogue",
+      "effect": "project",
+      "service": "PipelineService / ApplyDucking document command",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "apply_ducking_tool"
+        ],
+        "cli": "podcast edit duck",
+        "skill": "podcast-mix-music"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
       "id": "agent.history",
       "label": "History",
       "effect": "project",

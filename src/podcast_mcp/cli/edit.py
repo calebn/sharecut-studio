@@ -437,6 +437,60 @@ def edit_list_envelope_cmd(
     typer.echo(json.dumps({"points": EditService(ws).envelope_points(track)}, indent=2))
 
 
+@edit_app.command("duck")
+def edit_duck_cmd(
+    project: Path = typer.Option(..., "--project"),
+    track: list[str] | None = typer.Option(
+        None,
+        "--track",
+        help="Track to duck; repeat for several. Omitted: every unmuted music track and "
+        "every track with a duck-under-dialogue segment.",
+    ),
+    dialogue_track: list[str] | None = typer.Option(
+        None,
+        "--dialogue-track",
+        help="Dialogue track whose speech ducks the bed; repeat for several. Omitted: all.",
+    ),
+    depth_db: float | None = typer.Option(
+        None,
+        "--depth-db",
+        min=-40.0,
+        max=0.0,
+        help="Dip depth in dB. Omitted: the project's mix.music_under_vo_db (-18 by default).",
+    ),
+    attack: float | None = typer.Option(None, "--attack", min=0.0, max=10.0),
+    hold: float | None = typer.Option(None, "--hold", min=0.0, max=10.0),
+    release: float | None = typer.Option(None, "--release", min=0.0, max=10.0),
+    min_gap: float | None = typer.Option(None, "--min-gap", min=0.0, max=10.0),
+    min_speech: float | None = typer.Option(None, "--min-speech", min=0.0, max=10.0),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Plan only; write nothing."),
+    plan_token: str | None = typer.Option(
+        None, "--plan-token", help="Apply only if the plan still matches this dry run's token."
+    ),
+) -> None:
+    """Duck music under dialogue: one undo step writes the dip as volume keyframes.
+
+    Prints the result as JSON. A dry run also prints each track's points and speech regions.
+    """
+    from podcast_mcp.services.document_sync import submit_host_command_result
+
+    given = {
+        "track_ids": track or None,
+        "dialogue_track_ids": dialogue_track or None,
+        "depth_db": depth_db,
+        "attack_sec": attack,
+        "hold_sec": hold,
+        "release_sec": release,
+        "min_gap_sec": min_gap,
+        "min_speech_sec": min_speech,
+        "expected_plan_token": plan_token,
+    }
+    payload: dict[str, Any] = {k: v for k, v in given.items() if v is not None}
+    payload["dry_run"] = dry_run
+    result = submit_host_command_result(str(project), "ApplyDucking", payload)
+    typer.echo(json.dumps(result, indent=2))
+
+
 @edit_app.command("impact")
 def edit_impact_cmd(
     project: Path = typer.Option(..., "--project"),

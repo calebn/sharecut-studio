@@ -43,7 +43,7 @@ CLIP_SLICE_COMMANDS: frozenset[str] = frozenset(
 
 FX_SLICE_COMMANDS: frozenset[str] = frozenset({"SetEffectBypass", "AddEffect", "RemoveEffect"})
 
-ENVELOPE_SLICE_COMMANDS: frozenset[str] = frozenset({"SetEnvelope"})
+ENVELOPE_SLICE_COMMANDS: frozenset[str] = frozenset({"SetEnvelope", "ApplyDucking"})
 
 MIX_SLICE_COMMANDS: frozenset[str] = frozenset(
     {"SetTrackFader", "SetTrackMute", "ExtractRoomToneBed", "ClearExtractedRoomToneBed"}

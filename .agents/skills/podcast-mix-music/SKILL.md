@@ -15,7 +15,7 @@ From `.agents/defaults/pipeline.yaml`:
 
 - Music under VO: ~-18 dB relative level on track
 - Fade in: 2s, fade out: 3s
-- Ducking depth: -10 dB (future: envelope from speech boundaries)
+- Ducking depth: `mix.music_under_vo_db` (-18 dB), applied by `apply_ducking_tool`, not by the pipeline step
 
 The premix is a unity sum (no 1/N) trimmed to `mix.premix_peak_ceiling_db` (true peak).
 
@@ -30,6 +30,16 @@ The premix is a unity sum (no 1/N) trimmed to `mix.premix_peak_ceiling_db` (true
 podcast track add --project episode.sharecut --id bed --file music/bed.wav --role music
 podcast pipeline run --project episode.sharecut --only mix_with_music
 ```
+
+## Duck music under dialogue
+
+After the mix step has built the fade envelopes, run `apply_ducking_tool` (`podcast edit duck --project episode.sharecut`). It reads the transcript, so transcribe first. Preview with `dry_run=true`, then pass the reply's `plan_token` as `expected_plan_token` to apply exactly that plan. One call is one undo step for every track.
+
+- Omit `track_ids` to duck every unmuted music track; name tracks to duck an intro, outro or sound track. A dialogue track is refused.
+- `depth_db` omitted is `mix.music_under_vo_db`. Other knobs: `attack_sec`, `hold_sec`, `release_sec`, `min_gap_sec`, `min_speech_sec`. There is no threshold.
+- Fades and your own points are only ever lowered, never raised. Run it again after changing the cut or the settings: earlier generated points are replaced.
+- `mix_with_music` rebuilds the fade envelope and erases the dip, so run ducking after it, not before.
+- Speech with no transcript does not duck. Listen to a render for the level under speech and the first word.
 
 ## Custom envelopes
 

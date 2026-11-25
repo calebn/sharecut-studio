@@ -232,7 +232,7 @@ def _stored_asks(row: dict[str, Any]) -> dict[str, Any]:
     return {"needs_confirmation": ask} if ask is not None else {}
 
 
-def dry_run_result(ws: ProjectWorkspace, command: DocumentCommand) -> RestoreResult | None:
+def dry_run_result(ws: ProjectWorkspace, command: DocumentCommand) -> dict[str, Any] | None:
     """What ``command`` returns without changing anything, or None when it is a real edit.
 
     A dry run, and a Restore that plans to a conflict, read the project and write nothing,
@@ -245,7 +245,11 @@ def dry_run_result(ws: ProjectWorkspace, command: DocumentCommand) -> RestoreRes
             EditService(ws).revert_applied(command.payload["ids"], dry_run=True)
         )
         if command.payload.get("dry_run") or planned.status == "conflict":
-            return planned
+            return planned.model_dump()
+    if command.type == "ApplyDucking" and command.payload.get("dry_run"):
+        from podcast_mcp.services.document_sync.handlers.markers import plan_ducking_dry_run
+
+        return plan_ducking_dry_run(ws, command.payload)
     return None
 
 
@@ -770,7 +774,7 @@ class DocumentSyncService:
 
         from podcast_mcp.services.document_sync.projections import projection_for_command
 
-        if command.type in {"SetEnvelope", "FillRoomTone"}:
+        if command.type in {"SetEnvelope", "FillRoomTone", "ApplyDucking"}:
             from podcast_mcp.services.document_sync.payloads import validate_payload
 
             # Normalize first so a retry compares the stored payload.
@@ -801,7 +805,6 @@ class DocumentSyncService:
         )
         planned = None if is_retry else dry_run_result(self.ws, command)
         if planned is not None:
-            planned_result = planned.model_dump()
             seq = _journal_server_seq(self.store)
             reply: dict[str, Any] = {
                 "ok": True,
@@ -812,11 +815,11 @@ class DocumentSyncService:
                     "client_seq": command.client_seq,
                     "role": command.role,
                     "type": command.type,
-                    "payload": {**command.payload, "result": planned_result},
+                    "payload": {**command.payload, "result": planned},
                     "server_seq": seq,
                 },
                 "server_seq": seq,
-                **_restore_conflicts(command, planned_result, audience),
+                **_restore_conflicts(command, planned, audience),
             }
             if command.payload.get("dry_run"):
                 reply["dry_run"] = True

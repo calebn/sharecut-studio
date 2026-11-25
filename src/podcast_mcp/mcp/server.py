@@ -123,6 +123,7 @@ from podcast_mcp.mcp.tools.kits import (  # noqa: E402, F401
     kit_show_tool,
 )
 from podcast_mcp.mcp.tools.pipeline import (  # noqa: E402, F401
+    apply_ducking_tool,
     bounce_audio_tool,
     export_audio_tool,
     pipeline_analyze_tool,

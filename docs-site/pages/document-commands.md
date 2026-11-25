@@ -40,6 +40,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `AddSocialClip` | `end` (number), `start` (number), `track_id` (string) | `title` (string \| null) |
 | `AddTrack` | — | `label` (string \| null), `role` (string \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `ApplyAutoEdits` | — | — |
+| `ApplyDucking` | — | `attack_sec` (number), `depth_db` (number \| null), `dialogue_track_ids` (array \| null), `dry_run` (boolean), `expected_plan_token` (string \| null), `hold_sec` (number), `min_gap_sec` (number), `min_speech_sec` (number), `release_sec` (number), `track_ids` (array \| null) |
 | `ApplyEditPlan` | `edits` (array[object]) | `review_required` (boolean), `use_inaudible_opt` (boolean \| null) |
 | `ApplyFadeRecommendationList` | `recommendations` (array[object]) | — |
 | `ApplyFadeRecommendations` | — | `track_id` (string \| null) |
@@ -124,7 +125,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClipDetails` | `id` (string) | `approved` (boolean \| null), `title` (string \| null) |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 92 command types._
+_Generated 93 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

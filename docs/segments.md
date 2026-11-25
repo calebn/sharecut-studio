@@ -86,7 +86,7 @@ Errors: `segment_bundle_invalid` (bad zip, names, sizes or manifest), `segment_b
 
 **What stays put.** Music and sfx tracks the segment does not land on do not ripple (the same scope as `insert_gap`), so a music bed spanning the point stays continuous. The inserted audio has no transcript words, so text-based edits see no words there. Project names, hashes and the copied audio live in the project, which a share guest receives; the library itself and the `InsertSegment` command stay host only.
 
-**What is applied.** The clips' source windows, offsets, fades and join modes. The segment's `chapter_title`, when it has one, becomes a chapter marker at `at`. `duck_under_dialogue` is stored in the library but not applied: the project has no ducking model yet.
+**What is applied.** The clips' source windows, offsets, fades and join modes. The segment's `chapter_title`, when it has one, becomes a chapter marker at `at`. `duck_under_dialogue` is stored in the library, not copied into the project. `ApplyDucking` reads it from the library through each clip's `segment_ref` when it picks tracks to duck, so a library edit after the insert shows only on the next ducking run ([envelopes.md § Ducking](envelopes.md#ducking)).
 
 Project format: `Clip.segment_ref` is optional and absent from a clip that has none, so existing projects load and save unchanged. Under the [compatibility boundary](project-format.md#compatibility-boundary) the project version stays `2.0` and no upgrade tooling is needed before the first beta build; the shape lock is refreshed.
 
