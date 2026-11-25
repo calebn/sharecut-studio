@@ -9,6 +9,7 @@ vi.mock("../../api", async (importOriginal) => ({
 }));
 vi.mock("../../stages/deliver/FeedPanel", () => ({ FeedPanel: () => null }));
 
+import { EditorCutTotal } from "../../hooks/useEditorCutTotal";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
@@ -155,4 +156,20 @@ describe("GuestDeliver files", () => {
       expect(listed.list).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("GuestDeliver cut total", () => {
+  it.each([
+    [0, "No cuts yet"],
+    [3.2, "Edits saved 3.2 s shorter"],
+    [72, "Edits saved 1 min 12 s shorter"],
+  ])("words a total of %s s as %s", async (seconds, text) => {
+    asGuest("edit");
+    render(
+      <EditorCutTotal.Provider value={seconds}>
+        <GuestDeliver />
+      </EditorCutTotal.Provider>,
+    );
+    expect(await screen.findByText(text)).toBeInTheDocument();
+  });
 });

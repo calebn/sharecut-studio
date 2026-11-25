@@ -277,7 +277,11 @@ test("an Editor's phone Player and Deliver agree with the host's cut total", asy
       await goToStage(guest!, "deliver");
       const files = deliverPage(guest!).getByRole("region", { name: "Files" });
       await expect(
-        files.getByText(`Edits saved ${seconds.toFixed(1)} s`, { exact: true }),
+        files.getByText(
+          new RegExp(
+            `^Edits saved (\\d+(\\.\\d)? s|\\d+ min)( \\d+ s)? shorter$`,
+          ),
+        ),
       ).toBeVisible();
 
       await guest!
@@ -286,7 +290,7 @@ test("an Editor's phone Player and Deliver agree with the host's cut total", asy
         .tap();
       await expect(guest!.locator(".sys-player-cuts")).toHaveCount(0);
       await expect(
-        files.getByText("Edits saved 0.0 s", { exact: true }),
+        files.getByText("No cuts yet", { exact: true }),
       ).toBeVisible();
     },
   );

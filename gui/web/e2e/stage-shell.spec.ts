@@ -42,6 +42,17 @@ import {
 import { openScript } from "./transcriptEdit";
 import { withBrowserPages, withTwoBrowserPages } from "./twoBrowserPages";
 
+/** The Deliver row's wording for a cut total (independent of the app's formatter). */
+function cutsSavedText(sec: number): string {
+  const tenths = Math.round(sec * 10);
+  if (tenths < 100) return `${(tenths / 10).toFixed(1)} s shorter`;
+  const whole = Math.round(sec);
+  const min = Math.floor(whole / 60);
+  const rest = whole % 60;
+  if (min === 0) return `${rest} s shorter`;
+  return rest === 0 ? `${min} min shorter` : `${min} min ${rest} s shorter`;
+}
+
 const diagnosticTest = test.extend<{}, { privateDiagnostic: void }>({
   trace: "off",
   screenshot: "off",
@@ -348,7 +359,7 @@ test.describe("Stage shell on desktop", () => {
 
       await openStageProject(page, projectPath, { stage: "deliver" });
       await expect(
-        editsSaved.getByText("0.0 s", { exact: true }),
+        editsSaved.getByText("No cuts yet", { exact: true }),
       ).toBeVisible();
       expect(await removedSeconds()).toBe(0);
       await page.request.post("/api/transcript/refine/waive", {
@@ -367,7 +378,7 @@ test.describe("Stage shell on desktop", () => {
       await reloadProject(page);
       await goToStage(page, "deliver");
       await expect(
-        editsSaved.getByText("10.0 s", { exact: true }),
+        editsSaved.getByText("10 s shorter", { exact: true }),
       ).toBeVisible();
 
       await postHistoryMove(
@@ -380,7 +391,7 @@ test.describe("Stage shell on desktop", () => {
       await reloadProject(page);
       await goToStage(page, "deliver");
       await expect(
-        editsSaved.getByText("0.0 s", { exact: true }),
+        editsSaved.getByText("No cuts yet", { exact: true }),
       ).toBeVisible();
     });
   });
@@ -639,20 +650,20 @@ test.describe("Stage shell on a phone", () => {
         .getByRole("listitem")
         .filter({ hasText: "Edits saved" });
       await expect(
-        editsSaved.getByText(`${savedSeconds.toFixed(1)} s`, { exact: true }),
+        editsSaved.getByText(cutsSavedText(savedSeconds), { exact: true }),
       ).toBeVisible();
 
       await openHome(page, { dismissSetup: false });
       await openStageProject(page, projectPath, { stage: "deliver" });
       expect(await removedSeconds()).toBeCloseTo(savedSeconds);
       await expect(
-        editsSaved.getByText(`${savedSeconds.toFixed(1)} s`, { exact: true }),
+        editsSaved.getByText(cutsSavedText(savedSeconds), { exact: true }),
       ).toBeVisible();
 
       await page.keyboard.press("ControlOrMeta+z");
       await expect.poll(removedSeconds).toBe(0);
       await expect(
-        editsSaved.getByText("0.0 s", { exact: true }),
+        editsSaved.getByText("No cuts yet", { exact: true }),
       ).toBeVisible();
     });
   });

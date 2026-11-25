@@ -568,7 +568,13 @@ describe("readiness rows say what they mean", () => {
     );
     expect(row("chapters", { ...CLEAR_FACTS, chapters: 7 })?.detail).toBe("7");
     expect(row("saved", { ...CLEAR_FACTS, editsSaved: 4.5 })?.detail).toBe(
-      "4.5 s",
+      "4.5 s shorter",
+    );
+    expect(row("saved", { ...CLEAR_FACTS, editsSaved: 0 })?.detail).toBe(
+      "No cuts yet",
+    );
+    expect(row("saved", { ...CLEAR_FACTS, editsSaved: 72 })?.detail).toBe(
+      "1 min 12 s shorter",
     );
     expect(row("unsure", { ...CLEAR_FACTS, unsureWordsLeft: 3 })?.detail).toBe(
       "3 left",

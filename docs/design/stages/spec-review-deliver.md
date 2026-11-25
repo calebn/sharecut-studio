@@ -496,7 +496,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 - **Today:** none. The export dialog doesn't warn about pending edits or stale mix (desktop F11).
 - **Fate:** new.
-- **Spec:** a list of Check rows, 48 px each, in two columns on desktop (one on phone): "Suggestions decided 14 of 14", "Comments resolved 2 of 3", "Unsure words checked 0 left", "Mix up to date", "Loudness −16.0 LUFS" (after export: measured; before: target with "will be checked"), "Peaks under −1.5 dBTP", "Chapters 5", "Edits saved 23.6 s" (the same number as Review). Each open row has a fix button that opens the right stage with the item selected ("Resolve" opens Review on that comment). The section title is a sentence that summarizes: "Ready to export" or "2 things left. You can still export." Nothing here blocks Export.
+- **Spec:** a list of Check rows, 48 px each, in two columns on desktop (one on phone): "Suggestions decided 14 of 14", "Comments resolved 2 of 3", "Unsure words checked 0 left", "Mix up to date", "Loudness −16.0 LUFS" (after export: measured; before: target with "will be checked"), "Peaks under −1.5 dBTP", "Chapters 5", "Edits saved 24 s shorter" ("No cuts yet" when nothing was cut). Each open row has a fix button that opens the right stage with the item selected ("Resolve" opens Review on that comment). The section title is a sentence that summarizes: "Ready to export" or "2 things left. You can still export." Nothing here blocks Export.
 - **Shared elements used:** Readiness check list, Check row.
 - **Story to build:** `Stages/Deliver/Readiness` stories `AllClear`, `ItemsOpen`, `AfterExport`, `Phone`.
 

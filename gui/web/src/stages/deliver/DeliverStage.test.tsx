@@ -1360,7 +1360,7 @@ describe("rendering the whole page", () => {
       "2 left",
       "Edited since the last mix",
       "−2.1 dBTP",
-      "23.6 s",
+      "24 s shorter",
     ]) {
       expect(text).toContain(part);
     }
@@ -2675,7 +2675,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…In30.00sOut90.00sSaves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…In30.00sOut90.00sSaves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "desktop: blocked clipboard": {
           "buttons": [
@@ -2737,7 +2737,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wFrozen on Rough cutPress Ctrl C0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wFrozen on Rough cutPress Ctrl C0:00 / 52:001515AB",
         },
         "desktop: done in the app": {
           "buttons": [
@@ -2804,7 +2804,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoReveal in folderExport againmp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoReveal in folderExport againmp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: done in the browser": {
           "buttons": [
@@ -2867,7 +2867,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoDownload allExport againmp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Chapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoDownload allExport againmp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Chapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: error": {
           "buttons": [],
@@ -2937,7 +2937,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "running",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.ExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.ExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "desktop: guest": {
           "buttons": [],
@@ -3023,7 +3023,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkMake a mix to shareRefresh mix0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkMake a mix to shareRefresh mix0:00 / 52:001515AB",
         },
         "desktop: ready": {
           "buttons": [
@@ -3083,7 +3083,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "desktop: stale": {
           "buttons": [
@@ -3145,7 +3145,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExport againExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExport againExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "desktop: the model missing": {
           "buttons": [
@@ -3208,7 +3208,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBManageGetExportNeeds the transcription model.Chapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBManageGetExportNeeds the transcription model.Chapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "desktop: with a link": {
           "buttons": [
@@ -3270,7 +3270,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: without a link": {
           "buttons": [
@@ -3330,7 +3330,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "phone: a Part range": {
           "buttons": [
@@ -3390,7 +3390,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…In30.00sOut90.00sSaves to Field Notes/exportChangeListen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…In30.00sOut90.00sSaves to Field Notes/exportChangeListen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: blocked clipboard": {
           "buttons": [
@@ -3452,7 +3452,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wFrozen on Rough cutPress Ctrl CChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wFrozen on Rough cutPress Ctrl CChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: done in the app": {
           "buttons": [
@@ -3519,7 +3519,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealListen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveReveal in folderExport again0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealListen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveReveal in folderExport again0:00 / 52:001515AB",
         },
         "phone: done in the browser": {
           "buttons": [
@@ -3582,7 +3582,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Listen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveDownload allExport again0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Listen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveDownload allExport again0:00 / 52:001515AB",
         },
         "phone: error": {
           "buttons": [],
@@ -3652,7 +3652,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "running",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.Listen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.Listen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: guest": {
           "buttons": [],
@@ -3739,7 +3739,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMake a mix to shareRefresh mixChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMake a mix to shareRefresh mixChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: ready": {
           "buttons": [
@@ -3799,7 +3799,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: stale": {
           "buttons": [
@@ -3861,7 +3861,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExport againListen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExport againListen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: the model missing": {
           "buttons": [
@@ -3924,7 +3924,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBManageGetListen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExportNeeds the transcription model.0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBManageGetListen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExportNeeds the transcription model.0:00 / 52:001515AB",
         },
         "phone: with a link": {
           "buttons": [
@@ -3986,7 +3986,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: without a link": {
           "buttons": [
@@ -4046,7 +4046,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved24 s shorterEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
       }
     `);
