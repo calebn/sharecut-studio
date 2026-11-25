@@ -1,5 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { attentionRegionLabel } from "../../stage/frame/attentionLabel";
+import {
+  getStorageHealth,
+  resetStorageHealth,
+} from "../../state/storageHealth";
 import { offlineConflict } from "../../test/fixtures";
 import {
   ATTENTION_POLL_MS,
@@ -177,5 +182,64 @@ describe("dismissing one conflict", () => {
       await dismissOneConflict(KEY, first);
     });
     expect(result.current.status).toBe("ready");
+  });
+});
+
+describe("a device that will not open its saved edits", () => {
+  const blocked = new DOMException("blocked", "SecurityError");
+  const label = (status: string) =>
+    attentionRegionLabel({
+      pending: 0,
+      conflictCount: 0,
+      unreadable: status === "unreadable",
+      dismissFailed: false,
+    });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    resetStorageHealth();
+    store.loadGuestAttention.mockReset();
+    store.loadHostAttention.mockReset();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("is not saved edits that could not be read, for a guest", async () => {
+    store.loadGuestAttention.mockRejectedValue(blocked);
+    const { result } = renderHook(() => useOfflineAttention(KEY));
+    await flush();
+    expect(result.current.status).toBe("ready");
+    expect(result.current.loaded).toBe(true);
+    expect(result.current.conflicts).toEqual([]);
+    expect(label(result.current.status)).not.toContain(
+      "Saved edits could not be read",
+    );
+    expect(getStorageHealth()).toEqual({ queue: "blocked" });
+  });
+
+  it("clears the cause once a read works again", async () => {
+    store.loadGuestAttention.mockRejectedValueOnce(blocked);
+    store.loadGuestAttention.mockResolvedValue({ pending: 0, conflicts: [] });
+    const { result } = renderHook(() => useOfflineAttention(KEY));
+    await flush();
+    expect(getStorageHealth()).toEqual({ queue: "blocked" });
+    await act(() => vi.advanceTimersByTimeAsync(ATTENTION_POLL_MS));
+    expect(result.current.status).toBe("ready");
+    expect(getStorageHealth()).toEqual({});
+  });
+
+  it("still calls damaged data on a guest's device unreadable", async () => {
+    store.loadGuestAttention.mockRejectedValue(new Error("damaged"));
+    const { result } = renderHook(() => useOfflineAttention(KEY));
+    await flush();
+    expect(result.current.status).toBe("unreadable");
+    expect(getStorageHealth()).toEqual({});
+  });
+
+  it("still calls it unreadable for a host, who has lost a real queue", async () => {
+    store.loadHostAttention.mockRejectedValue(blocked);
+    const { result } = renderHook(() => useOfflineAttention("/tmp/p.json"));
+    await flush();
+    expect(result.current.status).toBe("unreadable");
+    expect(getStorageHealth()).toEqual({});
   });
 });

@@ -861,6 +861,13 @@ describe("ReviewQueue", () => {
       expect(held).toHaveAttribute("aria-describedby", reason.id);
     });
 
+    it("marks Dismiss all as a bulk action so it keeps its 44 px height with a mouse", () => {
+      renderQueue(attention());
+      expect(screen.getByRole("button", { name: "Dismiss all" })).toHaveClass(
+        "rv-bulk-action",
+      );
+    });
+
     it("dismisses all conflicts and is held while reading", async () => {
       const onDismissAll = vi.fn();
       const { rerender } = renderQueue(attention({ onDismissAll }));

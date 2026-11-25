@@ -1,13 +1,18 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { fontsReady } from "./fontsReady";
 import {
   expectCoverInWindow,
   failBootstrap,
+  NARROW_PHONE,
   press,
   SHORT_WINDOW,
   SIZES,
   withGuestLink,
 } from "./guestLink";
+import { guestSavedCopy } from "./offlineQueue";
+import { setRootFontSize } from "./rootFontSize";
+import { openGuestShare } from "./shareNavigation";
+import { setTheme, withAppearance } from "./theme";
 
 const ASLEEP_TITLE = "The host's computer is asleep";
 const FAILED_TITLE = "This link did not load";
@@ -287,3 +292,77 @@ test.describe("where the cover's body starts", () => {
     });
   }
 });
+
+/** Try now lies wholly in the window and is what a press at its centre reaches. */
+async function expectTryNowReachable(guest: Page) {
+  const button = guest
+    .getByRole("main")
+    .getByRole("button", { name: "Try now" });
+  await expect(button).toBeVisible();
+  await fontsReady(guest);
+  const fit = await button.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(
+      box.left + box.width / 2,
+      box.top + box.height / 2,
+    );
+    return {
+      left: box.left,
+      right: box.right,
+      top: box.top,
+      bottom: box.bottom,
+      width: innerWidth,
+      height: innerHeight,
+      self: hit === el || el.contains(hit),
+    };
+  });
+  expect(fit.left).toBeGreaterThanOrEqual(0);
+  expect(fit.right).toBeLessThanOrEqual(fit.width);
+  expect(fit.top).toBeGreaterThanOrEqual(0);
+  expect(fit.bottom, JSON.stringify(fit)).toBeLessThanOrEqual(fit.height);
+  expect(fit.self).toBe(true);
+}
+
+const GUARD_CELLS = [
+  { width: 390, height: 844, touch: true, name: "phone" },
+  { width: 320, height: 568, touch: true, name: NARROW_PHONE.name },
+  { width: 1280, height: 800, touch: false, name: "desktop" },
+] as const;
+
+for (const { cell: size, theme } of withAppearance(GUARD_CELLS)) {
+  test.describe(`guard (already fixed): Try now at 32 px text, ${size.width}x${size.height}`, () => {
+    test("stays on screen over a saved copy of the episode", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        await openGuestShare(guest, token);
+        await expect.poll(() => guestSavedCopy(guest, token)).not.toBeNull();
+        await guest.route(`**/api/review/${token}/**`, (route) =>
+          route.abort("connectionrefused"),
+        );
+        await guest.reload();
+        await setRootFontSize(guest, 32);
+        await setTheme(guest, theme);
+        await expect(
+          guest.getByRole("heading", { name: ASLEEP_TITLE }),
+        ).toBeVisible();
+        await expectTryNowReachable(guest);
+      });
+    });
+
+    if (size.width !== NARROW_PHONE.width)
+      // The plain cover at 320x568 is a known gap, deferred in #3891: Try now sits below the fold there and is reached by scrolling the page.
+      test("stays on screen on the plain cover", async ({ browser }) => {
+        await withGuestLink(browser, size, async (guest, token) => {
+          await failBootstrap(guest, token, "abort");
+          await guest.goto(`/r/${token}`);
+          await setRootFontSize(guest, 32);
+          await setTheme(guest, theme);
+          await expect(
+            guest.getByRole("heading", { name: ASLEEP_TITLE }),
+          ).toBeVisible();
+          await expectTryNowReachable(guest);
+        });
+      });
+  });
+}
