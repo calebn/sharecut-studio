@@ -181,35 +181,48 @@ class SetupRunQueue:
     def moved(self, old_project: Path, new_project: Path) -> None:
         """Follow an episode Studio moved: queued runs that name its old project file name the new one.
 
-        That covers the episode's own run and the runs a Studio launched on it queued for other
-        episodes, so the queue still starts them and this Studio still owns them.
+        The episode's own run follows, and so does its park. When this Studio was launched on
+        the episode, the runs it queued for other episodes follow too, so it still owns them
+        after the move and after a restart there. Another Studio's runs keep their owner.
         """
         old, new = old_project.resolve(), new_project.resolve()
-        if self._launch_project == old:
-            self._launch_project = new
+        launched_here = self._launch_project == old
+
+        def follow_path(path: Path) -> Path:
+            return new if path == old else path
+
+        def follow_launch(path: Path | None) -> Path | None:
+            return new if launched_here and path == old else path
+
         with hold_shared_file_lock(self.path.with_suffix(".lock"), timeout=2):
-            if old in self._parked:
-                self._parked[new] = self._parked.pop(old)
             entries = self._read()
-
-            def follow(path: Path | None) -> Path | None:
-                return new if path == old else path
-
             followed = [
                 entry.model_copy(
                     update={
-                        "path": follow(entry.path),
-                        "launch_project": follow(entry.launch_project),
+                        "path": follow_path(entry.path),
+                        "launch_project": follow_launch(entry.launch_project),
                     }
                 )
                 for entry in entries
             ]
             if followed != entries:
                 self._replace(followed)
+            if old in self._parked:
+                self._parked[new] = self._parked.pop(old)
+            if launched_here:
+                self._launch_project = new
 
     def _remove(self, entry: SetupRun) -> None:
+        # Matched by episode, not by every field: a move may have re-keyed the entry's launching
+        # Studio while its run was going (#4088).
         with hold_shared_file_lock(self.path.with_suffix(".lock"), timeout=2):
-            self._replace([queued for queued in self._read() if queued != entry])
+            self._replace(
+                [
+                    queued
+                    for queued in self._read()
+                    if (queued.path, queued.created_at) != (entry.path, entry.created_at)
+                ]
+            )
 
     def _dispatch(self, stop: threading.Event) -> None:
         job = self.jobs.get_job()
