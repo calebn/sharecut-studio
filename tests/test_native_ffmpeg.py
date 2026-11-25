@@ -469,6 +469,59 @@ def test_unknown_id_is_linked_but_the_pair_is_unavailable(
             binaries.in_process_build_id()
 
 
+def test_a_cache_key_reads_the_native_build_id_once(
+    host: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.ungated_audio import ffmpeg_build_id
+
+    _link(monkeypatch)
+    calls: list[str] = []
+    native = binaries._native_build_id
+
+    def counted() -> str:
+        calls.append("build_id")
+        return native()
+
+    monkeypatch.setattr(binaries, "_native_build_id", counted)
+    assert ffmpeg_build_id() == (IN_PROCESS_FFMPEG, (9, 0, 2), "9.0.2+abcd")
+    assert calls == ["build_id"]
+
+
+@pytest.mark.parametrize(
+    "build_id",
+    [b"9.0.1+abcd", b"8.1.0+abcd", b"10.0.0+abcd", b"dev+abcd"],
+    ids=["below-minimum", "older-major", "newer-major", "no-version"],
+)
+def test_a_build_id_outside_the_ffmpeg_policy_leaves_the_pair_unavailable(
+    host: None, monkeypatch: pytest.MonkeyPatch, build_id: bytes
+) -> None:
+    from podcast_mcp.services.support import doctor
+
+    fake = _link(monkeypatch, build_id=build_id)
+    with process.using_in_process_backend(NativeFFmpegBackend(fake)):
+        assert binaries.in_process_problem() == binaries.IN_PROCESS_UNSUPPORTED_BUILD
+        assert binaries.IN_PROCESS_PAIR.is_available() is False
+        info = doctor.ffmpeg_probe_info()["ffmpeg"]
+        assert info["ok"] is False
+        assert info["version"] == binaries.IN_PROCESS_UNSUPPORTED_BUILD
+        assert info["build_id"] is None
+
+
+@pytest.mark.parametrize("build_id", [b"9.0.2+abcd", b"9.1.0+abcd"], ids=["pinned", "later-9"])
+def test_doctor_reports_the_linked_build_id_for_both_tools(
+    host: None, monkeypatch: pytest.MonkeyPatch, build_id: bytes
+) -> None:
+    from podcast_mcp.services.support import doctor
+
+    fake = _link(monkeypatch, build_id=build_id)
+    with process.using_in_process_backend(NativeFFmpegBackend(fake)):
+        assert binaries.in_process_problem() is None
+        info = doctor.ffmpeg_probe_info()
+    assert info["ffmpeg"]["ok"] is True
+    assert info["ffmpeg"]["build_id"] == build_id.decode()
+    assert info["ffprobe"]["build_id"] == build_id.decode()
+
+
 def test_build_id_is_thread_safe(host: None, monkeypatch: pytest.MonkeyPatch) -> None:
     _link(monkeypatch)
     with ThreadPoolExecutor(8) as pool:

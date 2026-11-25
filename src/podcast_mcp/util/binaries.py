@@ -56,6 +56,9 @@ IN_PROCESS_NOT_INSTALLED = (
     "ShareCut's in-process FFmpeg is linked but its backend is not installed."
 )
 IN_PROCESS_BAD_BUILD_ID = "ShareCut's in-process FFmpeg is linked but reports no valid build id."
+IN_PROCESS_UNSUPPORTED_BUILD = (
+    "ShareCut's in-process FFmpeg is linked but its build id names no supported FFmpeg release."
+)
 IN_PROCESS_PAIR = FFmpegPair(
     IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, IN_PROCESS_VERSION, IN_PROCESS_SOURCE
 )
@@ -79,37 +82,60 @@ def _native_build_id() -> str:
     return native_ffmpeg.build_id()
 
 
-def in_process_build_id() -> str:
-    """The linked core's build id, else the unlinked sentinel; a bad id raises, never falls back."""
-    if _in_process_linked():
-        return _native_build_id()
-    return IN_PROCESS_BUILD_ID
-
-
 _ID_VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)(?!\d)")
 
 
-def in_process_version() -> tuple[int, int, int]:
-    """The leading ``major.minor.patch`` of the linked core's build id, else ``(0, 0, 0)``."""
-    if not _in_process_linked():
-        return IN_PROCESS_VERSION
-    found = _ID_VERSION.match(_native_build_id())
+def _id_version(build_id: str) -> tuple[int, int, int]:
+    """The leading ``major.minor.patch`` of a build id, else ``(0, 0, 0)``."""
+    found = _ID_VERSION.match(build_id)
     if found is None:
         return IN_PROCESS_VERSION
     major, minor, patch = found.groups()
     return int(major), int(minor), int(patch)
 
 
+def in_process_identity() -> tuple[tuple[int, int, int], str]:
+    """The linked core's version and build id from one native call, else the unlinked sentinels.
+
+    A bad id raises, never falls back.
+    """
+    if not _in_process_linked():
+        return IN_PROCESS_VERSION, IN_PROCESS_BUILD_ID
+    build_id = _native_build_id()
+    return _id_version(build_id), build_id
+
+
+def in_process_build_id() -> str:
+    """The linked core's build id, else the unlinked sentinel; a bad id raises, never falls back."""
+    return in_process_identity()[1]
+
+
+def in_process_version() -> tuple[int, int, int]:
+    """The leading ``major.minor.patch`` of the linked core's build id, else ``(0, 0, 0)``."""
+    return in_process_identity()[0]
+
+
+def _supported_version(version: tuple[int, int, int]) -> bool:
+    policy = ffmpeg_policy()
+    return version[0] == policy["supported_major"] and version >= tuple(policy["minimum_version"])
+
+
 def in_process_problem() -> str | None:
-    """Why the in-process pair cannot run now, or ``None``: not linked, not installed, bad build id."""
+    """Why the in-process pair cannot run now, or ``None``.
+
+    Not linked, not installed, a bad build id, or a build id whose leading version is not a
+    supported FFmpeg release under ``contracts/ffmpeg-build.json``.
+    """
     if not _in_process_linked():
         return IN_PROCESS_NOT_LINKED
     if not _in_process_installed():
         return IN_PROCESS_NOT_INSTALLED
     try:
-        _native_build_id()
+        build_id = _native_build_id()
     except OSError:
         return IN_PROCESS_BAD_BUILD_ID
+    if not _supported_version(_id_version(build_id)):
+        return IN_PROCESS_UNSUPPORTED_BUILD
     return None
 
 
@@ -219,8 +245,7 @@ def _version(command: str, name: str) -> tuple[int, int, int]:
             f"{command!r} did not report a numeric {name} 9 release. {_INSTALL_HINT}"
         )
     version = (int(match[2]), int(match[3]), int(match[4] or 0))
-    policy = ffmpeg_policy()
-    if version[0] != policy["supported_major"] or version < tuple(policy["minimum_version"]):
+    if not _supported_version(version):
         raise FFmpegPairResolutionError(
             f"{command!r} reports unsupported {'.'.join(map(str, version))}. {_INSTALL_HINT}"
         )
