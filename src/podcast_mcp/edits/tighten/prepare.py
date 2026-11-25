@@ -585,7 +585,7 @@ def analyze_candidates(
     word_indexes: Mapping[str, CutWordIndex],
     max_workers: int | None = None,
 ) -> list[_AnalyzedCut | CutRejected]:
-    """Analyze ``candidates`` in parallel, results in candidate order.
+    """Analyze ``candidates``, results in candidate order (threads only when N >= 2).
 
     Duplicate pause trims are dropped after the proposals have been resolved against each
     other (:func:`_resolve_analyzed_cuts`), so a trim whose twin does not survive is not

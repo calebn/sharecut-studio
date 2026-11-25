@@ -209,26 +209,35 @@ def test_propose_tighten_edits_parallel_matches_serial_and_preserves_order():
 
 
 @pytest.mark.parametrize(
-    ("performance", "expected"),
+    ("performance", "expected", "pools"),
     [
-        ({"max_workers": None}, [1, 1]),
-        ({"max_workers": 0}, [1, 1]),
-        ({}, [1, 1]),
-        ({"max_workers": 3}, [3, 3]),
+        ({"max_workers": None}, [1, 1], []),
+        ({"max_workers": 0}, [1, 1], []),
+        ({}, [1, 1], []),
+        ({"max_workers": 3}, [3, 3], [2, 3]),
     ],
 )
-def test_propose_tighten_edits_pool_size_follows_max_workers(performance, expected):
+def test_propose_tighten_edits_pool_size_follows_max_workers(performance, expected, pools):
+    from concurrent.futures import ThreadPoolExecutor
+
     from podcast_mcp.util.parallel import run_parallel
 
     seen: list[int | None] = []
+    built: list[int | None] = []
 
     def recording(*args, **kwargs):
         seen.append(kwargs.get("max_workers"))
         return run_parallel(*args, **kwargs)
 
+    def recording_pool(*args, **kwargs):
+        built.append(kwargs.get("max_workers"))
+        return ThreadPoolExecutor(*args, **kwargs)
+
     with (
         patch("podcast_mcp.edits.tighten.propose.run_parallel", side_effect=recording),
         patch("podcast_mcp.edits.tighten.prepare.run_parallel", side_effect=recording),
+        patch("podcast_mcp.util.parallel.ThreadPoolExecutor", side_effect=recording_pool),
     ):
         _propose_with_performance(performance)
     assert seen == expected
+    assert built == pools

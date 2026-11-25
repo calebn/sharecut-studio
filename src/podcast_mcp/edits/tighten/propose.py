@@ -217,7 +217,7 @@ def propose_tighten_edits(
         # Decode each track's raw audio once up front (see edits/audio_cache.py) instead
         # of spawning an ffmpeg subprocess per tiny window read inside every candidate's
         # analysis -- this is the dominant cost at scale, well beyond what thread-pool
-        # parallelism alone can buy back. Read-only; safe to share across the pools below.
+        # threading alone can buy back. Read-only; safe to share with worker threads when N >= 2 is set.
         # Every dialogue track is decoded, a transcript or not: a session ripple removes the
         # same window from all of them, and a pause trim reads each (``SessionAir``).
         audio_caches = build_track_audio_caches(
@@ -230,7 +230,8 @@ def propose_tighten_edits(
             for transcript in project.transcripts
         )
         copy_lags = PeerCopyLags(project) if can_scan else None
-        # Serial unless N is set: the analysis is GIL-bound and threads lost at every size (#2364).
+        # Serial unless an explicit N >= 2 opts in: on the 4-CPU synthetic benchmark threads lost
+        # at 150 to 2400 words (#2364); enrolled-profile and non-WAV projects were not measured.
         max_workers = cfg.get("performance", {}).get("max_workers") or 1
 
         def _gather(transcript: Transcript) -> tuple[list[_CutCandidate], dict[str, int]]:
@@ -254,10 +255,10 @@ def propose_tighten_edits(
             )
             return found, counts
 
-        # Gather candidates per transcript in parallel (the acoustic gap scan is
+        # Gather candidates per transcript (serial unless N >= 2; the acoustic gap scan is
         # per-gap DSP), keeping transcript order -- the same order
-        # analyze_fillers_and_pauses visits them in -- so the analysis pool below is
-        # shared across tracks instead of parallelizing one track at a time.
+        # analyze_fillers_and_pauses visits them in -- so one analysis pass
+        # covers all tracks instead of one track at a time.
         skip_counts: dict[str, int] = {}
         candidates: list[_CutCandidate] = []
         for found, counts in run_parallel(
