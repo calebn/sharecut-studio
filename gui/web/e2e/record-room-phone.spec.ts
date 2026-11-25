@@ -265,7 +265,9 @@ test.describe("record room on a phone", () => {
           // Playwright treats aria-disabled as not enabled; a held Leave stays pressable on purpose.
           await leave.tap({ force: true });
           await expect(
-            guest.getByText("You can leave after this take."),
+            guest.locator(".sys-dock-hint", {
+              hasText: "You can leave after this take.",
+            }),
           ).toBeVisible();
 
           await ensureHostRecordCommand(host, projectPath, "Pause", "paused");
