@@ -58,6 +58,12 @@ RUNTIME_ALLOWLIST = {
 }
 
 
+VALUE_USE_CALLEE = "spawn_or_too_long"
+PROCESS_MODULE = "podcast_mcp.util.process"
+PROCESS_SEAMS = {"run", "popen"}
+KNOWN_DIRECT_PROCESS_USES = 1
+
+
 DYNAMIC = "<dynamic target>"
 WHOLE_MODULE = "<whole module>"
 MULTIPLE_OPTIONS = {"target", "spec", "create", "spec_set", "autospec", "new_callable"}
@@ -214,8 +220,13 @@ def test_no_seam_name_is_reachable_from_the_package() -> None:
     assert not {name for name in RUNTIME_ALLOWLIST if name in vars(ffmpeg)}
 
 
+@functools.cache
 def _package_trees() -> dict[Path, ast.Module]:
-    return {p: ast.parse(p.read_text(encoding="utf-8")) for p in sorted(PACKAGE.glob("*.py"))}
+    return {p: ast.parse(p.read_text(encoding="utf-8")) for p in sorted(PACKAGE.rglob("*.py"))}
+
+
+def _readers() -> dict[Path, ast.Module]:
+    return {p: t for p, t in _package_trees().items() if p.name != "runtime.py"}
 
 
 def _runtime_bound(tree: ast.Module) -> bool:
@@ -251,15 +262,82 @@ def _runtime_attribute_reads(tree: ast.Module) -> set[str]:
 def test_package_call_sites_read_every_seam_name_through_the_runtime_module() -> None:
     trees = _package_trees()
     assert PACKAGE / "runtime.py" in trees
-    facade = trees[PACKAGE / "__init__.py"]
-    assert _runtime_bound(facade)
-    assert _runtime_attribute_reads(facade) == RUNTIME_ALLOWLIST
-    for path, tree in trees.items():
-        if path.name == "runtime.py":
-            continue
+    assert _runtime_bound(trees[PACKAGE / "__init__.py"])
+    readers = _readers()
+    reads = set().union(*(_runtime_attribute_reads(tree) for tree in readers.values()))
+    assert reads == RUNTIME_ALLOWLIST, (
+        f"not read through runtime anywhere in the package: {sorted(RUNTIME_ALLOWLIST - reads)}; "
+        f"read but not allowlisted: {sorted(reads - RUNTIME_ALLOWLIST)}"
+    )
+    for path, tree in readers.items():
         assert _bare_seam_reads(tree) == set(), f"{path.name} reads a seam name bare"
-        if path.name != "__init__.py":
-            assert _runtime_attribute_reads(tree) == set() or _runtime_bound(tree), path.name
+        assert not _runtime_attribute_reads(tree) or _runtime_bound(tree), path.name
+
+
+def _seam_value_uses(tree: ast.Module) -> list[int]:
+    """Lines where ``runtime.<seam>`` is not called and not the first argument of ``spawn_or_too_long``."""
+    parents = {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+    lines: list[int] = []
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == RUNTIME
+            and node.attr in RUNTIME_ALLOWLIST
+        ):
+            continue
+        parent = parents[node]
+        called = isinstance(parent, ast.Call) and parent.func is node
+        handed = (
+            isinstance(parent, ast.Call)
+            and _call_name(parent.func) == VALUE_USE_CALLEE
+            and bool(parent.args)
+            and parent.args[0] is node
+        )
+        if not (called or handed):
+            lines.append(node.lineno)
+    return sorted(lines)
+
+
+def _direct_process_uses(tree: ast.Module) -> list[int]:
+    """Lines that read ``run`` or ``popen`` off ``podcast_mcp.util.process`` under any import spelling."""
+    imports = _imports(tree)
+    lines: list[int] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and node.attr in PROCESS_SEAMS
+            and isinstance(node.value, ast.Name)
+            and imports.get(node.value.id) == PROCESS_MODULE
+        ) or (
+            isinstance(node, ast.ImportFrom)
+            and node.module == PROCESS_MODULE
+            and any(a.name in PROCESS_SEAMS for a in node.names)
+        ):
+            lines.append(node.lineno)
+    return sorted(lines)
+
+
+def test_no_seam_read_is_kept_as_a_value() -> None:
+    offenders = [
+        f"{path.name}:{line}"
+        for path, tree in _readers().items()
+        for line in _seam_value_uses(tree)
+    ]
+    assert not offenders, f"runtime seam read kept as a value, not called at the site: {offenders}"
+
+
+def test_no_new_direct_process_seam_use_in_the_package() -> None:
+    uses = {
+        f"{path.name}:{line}": None
+        for path, tree in _package_trees().items()
+        if path.name != "runtime.py"
+        for line in _direct_process_uses(tree)
+    }
+    assert len(uses) == KNOWN_DIRECT_PROCESS_USES, (
+        f"expected {KNOWN_DIRECT_PROCESS_USES} direct process.run/popen uses outside runtime.py, "
+        f"found {len(uses)} at {sorted(uses)}; call runtime.run/runtime.popen instead"
+    )
 
 
 def test_no_module_binds_a_seam_name_from_the_runtime_or_the_package() -> None:
@@ -287,11 +365,11 @@ def test_no_module_binds_a_seam_name_from_the_runtime_or_the_package() -> None:
     assert not offenders
 
 
-def test_every_facade_allowlisted_name_is_read_by_the_facade_itself() -> None:
-    facade = _package_trees()[PACKAGE / "__init__.py"]
+def test_every_allowlisted_name_is_read_by_the_package_itself() -> None:
     reads = {
         node.id
-        for node in ast.walk(facade)
+        for tree in _readers().values()
+        for node in ast.walk(tree)
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
     }
     assert reads >= ALLOWLIST
@@ -439,6 +517,62 @@ def test_the_scanner_closes_the_blind_forms(
     source: str, expected: set[tuple[str, str | None]]
 ) -> None:
     assert _found_in(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "lines"),
+    [
+        pytest.param(
+            "runtime.run(a)\nruntime.popen(a)\nruntime._run_cancellable(a)", [], id="calls"
+        ),
+        pytest.param(
+            "spawn_or_too_long(runtime.run, a, check=True)", [], id="handed to the spawner"
+        ),
+        pytest.param("_run = runtime.run", [1], id="alias assignment"),
+        pytest.param("x = runtime.popen", [1], id="popen alias"),
+        pytest.param("def f(run=runtime.run):\n    pass", [1], id="default argument"),
+        pytest.param("g(runtime.run)", [1], id="handed to another callee"),
+        pytest.param("spawn_or_too_long(a, runtime.run)", [1], id="not the first argument"),
+        pytest.param("spawn_or_too_long(run=runtime.run)", [1], id="keyword argument"),
+        pytest.param("y = [runtime.resolve_ffmpeg]", [1], id="other seam name in a list"),
+        pytest.param("other.run\nruntime.name", [], id="unrelated attributes"),
+    ],
+)
+def test_the_value_use_scanner(source: str, lines: list[int]) -> None:
+    assert _seam_value_uses(ast.parse(source)) == lines
+
+
+@pytest.mark.parametrize(
+    ("source", "lines"),
+    [
+        pytest.param("from podcast_mcp.util import process\nprocess.run(a)", [2], id="module run"),
+        pytest.param(
+            "from podcast_mcp.util import process\nprocess.popen(a)", [2], id="module popen"
+        ),
+        pytest.param(
+            "from podcast_mcp.util import process as p\nz = p.run", [2], id="aliased module value"
+        ),
+        pytest.param("from podcast_mcp.util.process import run", [1], id="from import run"),
+        pytest.param("import podcast_mcp.util.process as p\np.popen(a)", [2], id="import as"),
+        pytest.param(
+            "from podcast_mcp.util import process\nprocess.PIPE\nprocess.is_in_process_media_tool",
+            [],
+            id="other process names",
+        ),
+        pytest.param("from podcast_mcp.util.process import PIPE", [], id="other import"),
+        pytest.param(
+            "import subprocess\nsubprocess.run(a)\nprocess.run(a)", [], id="not the module"
+        ),
+    ],
+)
+def test_the_process_use_scanner(source: str, lines: list[int]) -> None:
+    assert _direct_process_uses(ast.parse(source)) == lines
+
+
+def test_the_package_scan_is_package_wide() -> None:
+    names = {p.name for p in _package_trees()}
+    assert {"__init__.py", "runtime.py"} <= names
+    assert _package_trees() is _package_trees()
 
 
 def test_the_scan_runs_once() -> None:
