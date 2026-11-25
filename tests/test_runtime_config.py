@@ -638,12 +638,11 @@ def test_configured_secrets_reads_oauth_client_files_from_the_config_dir(
     assert configured_secrets(tmp_path / "relay.yaml", environ={}) == (client_secret,)
 
 
-def test_configured_secrets_masks_only_the_secret_half_of_host_token_pairs(
-    tmp_path: Path,
-) -> None:
-    first, second = _fake("pair-one"), _fake("pair-two")
-    env = {"PODCAST_RELAY_HOST_TOKENS": f"host-a:{first},host-b:{second},broken"}
-    assert set(configured_secrets(tmp_path / "relay.yaml", environ=env)) == {first, second}
+def test_configured_secrets_reads_host_token_entries_like_the_relay(tmp_path: Path) -> None:
+    first, second, bare = _fake("pair-one"), _fake("pair-two"), _fake("bare-entry")
+    env = {"PODCAST_RELAY_HOST_TOKENS": f"host-a:{first}, host-b:{second},{bare},short"}
+    found = set(configured_secrets(tmp_path / "relay.yaml", environ=env))
+    assert found == {first, second, bare}
 
 
 def test_configured_secrets_ignores_a_malformed_object_store_block(tmp_path: Path) -> None:
