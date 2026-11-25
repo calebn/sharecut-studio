@@ -17,6 +17,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
+from join_placement_helpers import force_placement
 from podcast_mcp.cli.main import app
 from podcast_mcp.mcp.tools.edits import join_label_tool
 from podcast_mcp.models import (
@@ -240,6 +241,12 @@ def _norm_result(result: dict) -> dict:
         "label": {**result["label"], "ts": "<ts>"},
         "features": {**result["features"], "natural_p95": 0.2831},
     }
+
+
+@pytest.fixture(autouse=True)
+def _pin_winning_placement(monkeypatch):
+    """The nine edge placements score within 0.0023, so pin the winner (index 2) the pins use."""
+    return force_placement(monkeypatch, 2)
 
 
 @pytest.fixture
@@ -799,3 +806,13 @@ def test_mcp_join_label_tool_errors_raise(ws, minimal_project):
         join_label_tool(str(minimal_project), 0.8, "pass")
     assert no_track.value.code == "missing_argument"
     assert _label_lines(ws) == []
+
+
+def test_join_label_report_follows_the_forced_winning_placement(ws, monkeypatch):
+    force_placement(monkeypatch, 6)  # (dl, dr) = (+tol, 0) instead of the pinned (0, +tol)
+    result = TimelineService(ws).join_label(
+        track_id="host", join_sec=0.8, verdict="pass", timebase="timeline"
+    )
+    assert result.model_dump()["features"]["reasons"][0] == (
+        "worst edge placement +3/+0 ms within +-3 ms"
+    )
