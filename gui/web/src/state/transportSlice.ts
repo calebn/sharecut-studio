@@ -2,7 +2,7 @@ import type { StateCreator } from "zustand";
 import { guestHearsMixOnly } from "../shareMode";
 import type { AuditionMode, SessionRegion } from "../types/session";
 import { clampToSession } from "../utils/time";
-import { afterTransport } from "./composerSession";
+import { afterStop, afterTransport } from "./composerSession";
 import type { DawStore } from "./types";
 
 type TransportSlice = Pick<
@@ -188,7 +188,7 @@ export const createTransportSlice: StateCreator<
       sourcePreview: null,
       sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       isPlaying: false,
-      ...(s.isPlaying ? afterTransport(s, false) : {}),
+      ...afterStop(s),
       ...unshuttledRate(s),
       playheadSec: stopTargetSec(s),
       playheadSeekRevision: s.playheadSeekRevision + 1,
