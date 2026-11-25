@@ -416,12 +416,28 @@ def dispatch_storybook(gh: Gh, target: str, no_push: bool) -> int:
     return 0
 
 
-def cleanup(git: Git, *, run_id: str, attempt: str, now: float) -> None:
+def cancel_branch_runs(git: Git, gh: Gh, branch: str) -> None:
+    """Cancel the unfinished CI runs on ``branch``: a cancelled promote job leaves them running."""
+    try:
+        sha = git.rev_parse(branch)
+        runs = [found[-1] if (found := gh.runs(w, branch, sha)) else None for w in CI_WORKFLOWS]
+    except subprocess.CalledProcessError:
+        print(f"could not list the runs on {branch}")
+        return
+    cancel_unfinished(gh, runs)
+
+
+def cleanup(git: Git, *, run_id: str, attempt: str, now: float, gh: Gh | None = None) -> None:
     git.fetch()
     suffix = f"-{run_id}-{attempt}"
     for name in git.promote_branches():
         stamp = created_at(name)
-        if stamp is not None and (name.endswith(suffix) or now - stamp > STALE_SECONDS):
+        if stamp is None:
+            continue
+        own = name.endswith(suffix)
+        if own and gh is not None:
+            cancel_branch_runs(git, gh, name)
+        if own or now - stamp > STALE_SECONDS:
             git.delete(name)
 
 
@@ -448,7 +464,9 @@ def main(argv: Sequence[str] | None = None, *, git: Git | None = None, gh: Gh | 
             print(f"refusing to promote from {ref}: run from {branches.release()}")
             return 1
     if args.command == "cleanup":
-        cleanup(git, run_id=args.run_id, attempt=args.attempt, now=time.time())
+        repo = os.environ.get("GITHUB_REPOSITORY")
+        gh = gh or (GhCli(repo) if repo else None)
+        cleanup(git, run_id=args.run_id, attempt=args.attempt, now=time.time(), gh=gh)
         return 0
     gh = gh or GhCli(os.environ["GITHUB_REPOSITORY"])
     return promote(
