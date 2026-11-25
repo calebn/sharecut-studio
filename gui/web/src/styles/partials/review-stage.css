@@ -75,7 +75,6 @@
   font-size: var(--font-size-ui);
 }
 
-/* At large text the head wraps: the button drops under the name instead of leaving the sheet. */
 .rv-group-head {
   flex-wrap: wrap;
   row-gap: var(--space-3);

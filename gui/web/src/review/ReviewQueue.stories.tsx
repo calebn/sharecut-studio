@@ -329,7 +329,6 @@ function largeTextFrame(width: string): NonNullable<Story["decorators"]> {
   ];
 }
 
-/** Dismiss all stays wholly in its frame, and the frame does not scroll sideways. */
 const headFitsFrame: NonNullable<Story["play"]> = async ({ canvasElement }) => {
   const frame = canvasElement.querySelector<HTMLElement>(
     "[style*='inline-size']",

@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from "react";
 
-/** What this device may not keep: the saved copy, the edits waiting to send, or the browser's settings. */
 export type StorageArea = "snapshot" | "queue" | "prefs";
 export type StorageCause = "blocked" | "full";
 export type StorageHealth = Readonly<
@@ -24,7 +23,6 @@ export function storageSentence(cause: StorageCause): string {
 /** A failure that is not clearly blocked or full has to repeat before it is said. */
 const OTHER_FAILURES_TO_SAY = 2;
 
-/** Full (any browser's quota error) or blocked (the browser refuses storage), else other. */
 export function classifyStorageError(
   error: unknown,
 ): "full" | "blocked" | "other" {
@@ -50,7 +48,7 @@ function publish(next: StorageHealth): void {
   for (const listener of [...listeners]) listener();
 }
 
-/** A failed write. The store changes only when what is said changes, so a poll that fails every few seconds says nothing new. */
+/** Publishes only when what is said changes, so a poll that keeps failing says nothing new. */
 export function reportStorageFailure(area: StorageArea, error: unknown): void {
   const kind = classifyStorageError(error);
   if (kind === "other") {
@@ -64,7 +62,6 @@ export function reportStorageFailure(area: StorageArea, error: unknown): void {
   publish({ ...health, [area]: cause });
 }
 
-/** A write or read that worked: the area is kept again. */
 export function reportStorageOk(area: StorageArea): void {
   otherFailures.delete(area);
   if (health[area] === undefined) return;

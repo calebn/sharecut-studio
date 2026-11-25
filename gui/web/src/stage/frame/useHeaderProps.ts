@@ -44,7 +44,7 @@ const MENU_COMMANDS: Record<string, string> = {
   agent: "mcp.connect",
 };
 
-/** Closing the role hint is the one settings write a guest makes: a browser that refuses it keeps none, and says so once. */
+/** Closing the role hint is the guest's one settings write; a refusing browser is said so once. */
 function keepSettingsOrSay(kept: boolean): void {
   if (kept) reportStorageOk("prefs");
   else

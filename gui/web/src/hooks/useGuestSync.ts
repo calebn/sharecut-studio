@@ -49,7 +49,7 @@ import {
 import { useStableCallback } from "../utils/useStableCallback";
 import { isTerminalWsClose } from "../utils/wsClose";
 
-/** Keep the newest project as the saved copy; a device that will not keep it is said once, not on every poll. */
+/** A device that will not keep the copy is said once, not on every poll. */
 function keepSavedCopy(token: string, project: ProjectView): void {
   void mergeOfflineSnapshot(token, { project }).then(
     (written) => {

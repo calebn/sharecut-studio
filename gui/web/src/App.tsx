@@ -552,7 +552,7 @@ function AppInner({ bootName }: { bootName: string | null }) {
         let browserBlocksCopy = false;
         const saved = await loadOfflineSnapshot(reviewToken).catch(
           (readError: unknown) => {
-            // Only a browser that refuses the database can be told on a reload; a copy that was never written or no longer fits cannot.
+            // Only a refused database is told on reload; a missing copy or one too big to fit is not.
             browserBlocksCopy = classifyStorageError(readError) === "blocked";
             return undefined;
           },

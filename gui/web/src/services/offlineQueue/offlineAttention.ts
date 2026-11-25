@@ -221,7 +221,7 @@ function refresh(projectPath: string, source: Source, manual = false): void {
     })
     .catch((error: unknown) => {
       if (reading !== source.generation) return;
-      // A guest whose browser will not open or fill its database has no saved edits to lose: that is said as a device fact, not as damaged edits.
+      // A guest whose database is refused has no saved edits to lose: say it as a device fact.
       if (
         shareTokenFromKey(projectPath) &&
         classifyStorageError(error) !== "other"

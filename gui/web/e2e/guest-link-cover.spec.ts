@@ -293,7 +293,6 @@ test.describe("where the cover's body starts", () => {
   }
 });
 
-/** Try now lies wholly in the window and is what a press at its centre reaches. */
 async function expectTryNowReachable(guest: Page) {
   const button = guest
     .getByRole("main")
@@ -351,7 +350,7 @@ for (const { cell: size, theme } of withAppearance(GUARD_CELLS)) {
     });
 
     if (size.width !== NARROW_PHONE.width)
-      // The plain cover at 320x568 is a known gap, deferred in #3891: Try now sits below the fold there and is reached by scrolling the page.
+      // Known gap (#3891): on the plain cover at 320x568, Try now sits below the fold.
       test("stays on screen on the plain cover", async ({ browser }) => {
         await withGuestLink(browser, size, async (guest, token) => {
           await failBootstrap(guest, token, "abort");

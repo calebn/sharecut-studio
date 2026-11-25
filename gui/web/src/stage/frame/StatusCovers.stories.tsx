@@ -178,7 +178,6 @@ export const YouAreOfflineLargeText: Story = {
   },
 };
 
-/** A browser that will not open its database says so once, under the cover's own sentence. */
 export const HostAsleepBrowserKeepsNoCopy: Story = {
   render: () => (
     <GuestPageCover

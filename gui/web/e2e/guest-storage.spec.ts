@@ -22,7 +22,6 @@ const ASLEEP_TITLE = "The host's computer is asleep";
 
 type Probe = { said: string[]; failures: number };
 
-/** Every message the page's one status region speaks, and how many times a stubbed call failed, from before any script runs. */
 async function watch(page: Page) {
   await page.addInitScript(() => {
     const probe: Probe = { said: [], failures: 0 };
@@ -47,14 +46,12 @@ const timesSaid = async (page: Page, sentence: string) =>
   (await probe(page)).said.filter((text) => text === sentence).length;
 
 const STUBS = {
-  /** The browser refuses to open the database at all. */
   blockedDatabase: () => {
     IDBFactory.prototype.open = () => {
       (window as unknown as { __probe: Probe }).__probe.failures++;
       throw new DOMException("blocked", "SecurityError");
     };
   },
-  /** The database opens and reads, and every write is refused for room. */
   fullDatabase: () => {
     IDBObjectStore.prototype.put = () => {
       (window as unknown as { __probe: Probe }).__probe.failures++;
@@ -77,7 +74,6 @@ const STUBS = {
 
 type Stub = keyof typeof STUBS;
 
-/** A commenter's phone with `stub` installed before the page loads; `run` gets the guest, its token and the host. */
 async function withStubbedGuest(
   browser: Parameters<typeof withBrowserPages>[0],
   page: Page,
@@ -111,7 +107,6 @@ async function withStubbedGuest(
 
 const light = (guest: Page) => guest.locator(".sys-save").first();
 
-/** The host edits the audio, so the guest's page has one more change to keep a copy of. */
 async function oneMoreWrite(guest: Page, page: Page, projectPath: string) {
   const before = (await probe(guest)).failures;
   await hostEditsTheAudio(page, projectPath);
