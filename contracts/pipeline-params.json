@@ -450,7 +450,6 @@
     "join_continuity.weight_weighted_spectral",
     "master.qc_lufs_tolerance_lu",
     "master.qc_true_peak_tolerance_db",
-    "mix.duck_db",
     "prosody.boundary_min_strength",
     "prosody.max_segment_sec",
     "prosody.top_prominent_words",

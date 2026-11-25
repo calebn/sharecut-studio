@@ -235,8 +235,8 @@ def apply_ducking_tool(
     generated points are replaced and lowered points restored first. One call is one undo step
     for every track.
 
-    ``track_ids`` omitted ducks every unmuted music track and every segment track marked
-    duck-under-dialogue; name tracks to duck others (a dialogue track is refused).
+    ``track_ids`` omitted ducks every unmuted music track (a music segment lane included) and
+    every segment track marked duck-under-dialogue; name tracks to duck others (a dialogue track is refused).
     ``depth_db`` omitted is the project's ``mix.music_under_vo_db`` (-18 dB by default).
     Preview with ``dry_run=true`` (no write, no history entry; the reply carries each track's
     envelope and speech regions), then pass the reply's

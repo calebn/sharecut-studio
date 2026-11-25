@@ -19,6 +19,7 @@ from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.document_sync.payloads import ENVELOPE_POINTS_MAX
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.tracks import track_has_audio
 
 _AUTO_ROLES = frozenset({TrackRole.MUSIC})
 
@@ -108,13 +109,16 @@ def _explicit_targets(project: EpisodeProject, track_ids: Sequence[str]) -> list
 
 
 def _segment_tracks(
-    project: EpisodeProject, store: SegmentLibrary | None, warnings: list[str]
+    project: EpisodeProject,
+    store: SegmentLibrary | None,
+    warnings: list[str],
+    skip: frozenset[str] = frozenset(),
 ) -> list[str]:
     wanted: dict[str, bool] = {}
     library: SegmentLibrary | None = store
     found: list[str] = []
     for track in project.tracks:
-        if track.role == TrackRole.DIALOGUE or track.muted:
+        if track.role == TrackRole.DIALOGUE or track.muted or track.id in skip:
             continue
         for clip in project.clips:
             ref = clip.segment_ref
@@ -149,12 +153,14 @@ def select_targets(
     music = [
         t.id
         for t in project.tracks
-        if t.role in _AUTO_ROLES and t.media is not None and not t.muted
+        if t.role in _AUTO_ROLES and not t.muted and track_has_audio(project, t)
     ]
-    chosen = list(dict.fromkeys([*music, *_segment_tracks(project, store, warnings)]))
+    segments = _segment_tracks(project, store, warnings, frozenset(music))
+    chosen = list(dict.fromkeys([*music, *segments]))
     if not chosen:
         raise CodedValueError(
-            "No music or duck-under-dialogue segment track to duck. Name the tracks with track_ids.",
+            "No music track, music segment lane or duck-under-dialogue segment track to duck. "
+            "Name the tracks with track_ids.",
             code="ducking_no_targets",
         )
     return chosen

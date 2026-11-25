@@ -31,7 +31,6 @@ mix:
   music_under_vo_db: -18.0
   fade_in_sec: 2.0
   fade_out_sec: 3.0
-  duck_db: -10.0
 
 transcribe:
   model: base
