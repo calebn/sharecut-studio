@@ -43,6 +43,10 @@ if TYPE_CHECKING:
         ServedFile,
         plan_archive,
     )
+    from podcast_mcp.services.document.fade_recommendation_results import (
+        AppliedFadeRecommendations,
+        AppliedFadeUpdates,
+    )
     from podcast_mcp.services.document.feed import (
         SHOW_KEY,
         FeedService,
@@ -158,6 +162,8 @@ __all__ = [
     "SHOW_KEY",
     "AlignAcceptService",
     "AnalysisService",
+    "AppliedFadeRecommendations",
+    "AppliedFadeUpdates",
     "ArchivePlan",
     "BoundaryEdit",
     "BoundaryTarget",
@@ -258,6 +264,8 @@ __all__ = [
 _MODULE_BY_NAME = {
     "AlignAcceptService": "align_accept",
     "AnalysisService": "analysis",
+    "AppliedFadeUpdates": "fade_recommendation_results",
+    "AppliedFadeRecommendations": "fade_recommendation_results",
     "BoundaryEdit": "boundary",
     "BoundaryTarget": "boundary",
     "ClipGeometry": "boundary",
