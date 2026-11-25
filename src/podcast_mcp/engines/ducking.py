@@ -1,22 +1,3 @@
-"""Ducking: volume keyframes that dip a bed under dialogue, computed from transcript activity.
-
-Pure: no I/O, floats in and floats out. Dialogue activity is read from the project's
-transcript words projected onto the timeline clock (the clock envelope times use), and the
-dip is composed with the track's existing volume envelope as an exact piecewise-linear
-minimum, so a fade or a hand-placed point is never raised.
-
-Points the engine writes carry their origin in ``AutomationPoint.id``, which is how a rerun
-tells them from the person's own points without a project-format change:
-
-- ``duck:g:<sha1(time|value)>`` is a generated point. It counts as ours only while its time
-  and value still hash to its id; a point the person moved or retyped is theirs and survives.
-- ``duck:u:<hash>`` is a generated point the person moved or retyped. It stays as a local
-  ceiling: it can lower the result at its own time but never anchors the rest of the track.
-- ``duck:b:<id>:<value>:<lowered>`` is a person's point the dip lowered to ``<lowered>``. A
-  rerun puts back ``<id>`` and ``<value>`` before it recomputes while the point still holds
-  ``<lowered>``; a point retyped to another value is the person's and keeps what they typed.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -126,14 +107,8 @@ def _parse_lowered(point_id: str) -> tuple[str, float, float] | None:
 
 
 def restore_base(points: Iterable[AutomationPoint | EnvPoint]) -> tuple[list[EnvPoint], int]:
-    """The person's own points, with our generated ones dropped and lowered ones put back.
-
-    Returns the points sorted by time and how many generated points were dropped. A generated
-    point whose time or value no longer matches its id was edited by a person, so it stays,
-    under an id that a future generated point cannot take. A lowered point retyped by a person
-    keeps the typed value.
-    """
     kept: list[EnvPoint] = []
+    renamed: list[tuple[int, str]] = []
     dropped = 0
     for point in points:
         pid, time, value = point.id, point.time, point.value
@@ -141,7 +116,8 @@ def restore_base(points: Iterable[AutomationPoint | EnvPoint]) -> tuple[list[Env
             if pid == generated_point_id(time, value):
                 dropped += 1
                 continue
-            kept.append(EnvPoint(USER_PREFIX + pid[len(GENERATED_PREFIX) :], time, value))
+            renamed.append((len(kept), USER_PREFIX + pid[len(GENERATED_PREFIX) :]))
+            kept.append(EnvPoint(pid, time, value))
             continue
         lowered = _parse_lowered(pid)
         if lowered is not None:
@@ -150,6 +126,15 @@ def restore_base(points: Iterable[AutomationPoint | EnvPoint]) -> tuple[list[Env
             kept.append(EnvPoint(original_id, time, restored))
             continue
         kept.append(EnvPoint(pid, time, value))
+    renamed_at = {index for index, _ in renamed}
+    taken = {p.id for index, p in enumerate(kept) if index not in renamed_at}
+    for index, base_id in renamed:
+        candidate, counter = base_id, 1
+        while candidate in taken:
+            candidate = f"{base_id}:{counter}"
+            counter += 1
+        taken.add(candidate)
+        kept[index] = kept[index]._replace(id=candidate)
     kept.sort(key=lambda p: p.time)
     return kept, dropped
 
@@ -157,11 +142,6 @@ def restore_base(points: Iterable[AutomationPoint | EnvPoint]) -> tuple[list[Env
 def speech_regions(
     spans: Iterable[tuple[float, float]], params: DuckingParams, duration: float
 ) -> list[tuple[float, float]]:
-    """Speech runs on the timeline, short blips dropped, and runs a dip would not separate merged.
-
-    Two runs merge when the music would spend less than ``min_gap_sec`` at full level between
-    their dips: the next run's attack starts less than that after the previous release ends.
-    """
     floor = max(params.min_speech_sec, MIN_RAMP_SEC)
     clipped = [
         (max(0.0, float(s)), min(float(duration), float(e)))
@@ -207,11 +187,6 @@ def _interp(poly: Sequence[tuple[float, float]], times: Sequence[float], time: f
 def duck_polyline(
     regions: Sequence[tuple[float, float]], params: DuckingParams, duration: float
 ) -> Polyline:
-    """The dip as ``(time, gain)`` breakpoints: unity, ramp to depth, hold, ramp back to unity.
-
-    The ramp down ends on the speech onset, so the first word is never clipped. Ramps cut by
-    the timeline edges keep their slope: the edge gets the interpolated value, not a jump.
-    """
     if not regions or duration <= 0:
         return []
     gain = params.gain
@@ -264,12 +239,6 @@ _OPEN = math.inf
 def _ceiling_polyline(
     poly: Polyline, base_at: Callable[[float], float]
 ) -> tuple[Polyline, list[float], list[bool]]:
-    """The dip with its unity ends lifted to the bed's own level, and which segments are open.
-
-    A segment between two unity ends is a pause between dips: nothing caps the bed there, so a
-    boost above unity survives. A unity end sits at ``max(1, bed)``, so a ramp starts from the
-    bed's level rather than from a step down to unity.
-    """
     lifted = [(t, max(1.0, base_at(t)) if v == 1.0 else v) for t, v in poly]
     open_segment = [poly[i][1] == 1.0 and poly[i + 1][1] == 1.0 for i in range(len(poly) - 1)]
     return lifted, [t for t, _ in lifted], open_segment
@@ -382,21 +351,8 @@ def plan_envelope(
     duration: float,
     max_points: int,
 ) -> DuckingPlan:
-    """The track's volume points with the dip composed in.
-
-    ``spans`` are timeline seconds of dialogue activity. A depth of 0 dB, or no activity, gives
-    back the person's own points with an earlier dip removed. A point past the timeline end plays
-    nothing, so it is left exactly as saved. Over ``max_points`` the minimum gap
-    doubles up to ``MAX_COARSEN_STEPS`` times, then the plan refuses rather than truncate.
-    """
     params.check()
-    live: list[EnvPoint] = []
-    inert: list[EnvPoint] = []
-    for point in current:
-        beyond = point.time > duration and point.id != generated_point_id(point.time, point.value)
-        (inert if beyond else live).append(EnvPoint(point.id, point.time, point.value))
-    base, replaced = restore_base(live)
-    base = sorted([*base, *inert], key=lambda p: p.time)
+    base, replaced = restore_base(current)
     if params.depth_db >= 0:
         return _plan_once([], base, replaced, params, duration)
     gap = params.min_gap_sec
@@ -431,12 +387,6 @@ def _word_counts_as_speech(word: TranscriptWord) -> bool:
 def dialogue_activity(
     project: EpisodeProject, track_ids: Sequence[str]
 ) -> list[tuple[float, float]]:
-    """Timeline spans where the named dialogue tracks are audibly speaking, merged and sorted.
-
-    Words are source-clock and go through the clip map, so cuts, ripples and moves are already
-    in the timeline's positions. Suppressed, ignored and suspect words are left out, and so are
-    the spans a clip mutes in place (a lowered span still plays, so it stays).
-    """
     timeline = SessionTimeline(project)
     spans: list[tuple[float, float]] = []
     for track_id in track_ids:
@@ -472,7 +422,6 @@ def _without_mutes(
 
 
 def dialogue_sources(project: EpisodeProject, explicit: Sequence[str] | None) -> list[str]:
-    """The dialogue tracks whose speech ducks the bed: the named ones, else every mixed one."""
     if explicit is None:
         return mixed_dialogue_track_ids(project)
     out: list[str] = []

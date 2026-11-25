@@ -283,6 +283,33 @@ class TestComposition:
         assert again.kept_user_points == 1
         assert at(again.points, 30.0) == pytest.approx(1.0)
 
+    def test_moving_a_regenerated_point_again_keeps_ids_unique(self) -> None:
+        spans = [(5.0, 7.0)]
+        result = plan(spans, duration=30.0)
+        for delta in (0.1, 0.2, 0.3):
+            target = [p for p in result.points if p.id.startswith(GENERATED_PREFIX)][1]
+            edited = [
+                EnvPoint(p.id, round(p.time + delta, 3), p.value) if p is target else p
+                for p in result.points
+            ]
+            result = plan(spans, edited, duration=30.0)
+            ids = [p.id for p in result.points]
+            assert len(ids) == len(set(ids))
+            AutomationEnvelope(
+                track_id="m",
+                points=[
+                    AutomationPoint(id=p.id, time=p.time, value=p.value) for p in result.points
+                ],
+            )
+            assert plan(spans, result.points, duration=30.0).points == result.points
+
+    def test_a_bed_point_past_the_end_is_restored_by_a_replan(self) -> None:
+        user = [EnvPoint("u", 11.0, 0.9), EnvPoint("e", 20.0, 1.0)]
+        ducked = plan([(10.0, 12.0)], user, duration=30.0)
+        assert any(p.id.startswith(BASE_PREFIX) for p in ducked.points)
+        shortened = plan([(10.0, 12.0)], ducked.points, duration=10.8, depth_db=0.0)
+        assert shortened.points == user
+
     def test_a_lowered_point_is_restored_before_a_rerun_with_another_depth(self) -> None:
         user = [EnvPoint("mine:with:colons", 11.0, 0.8)]
         deep = plan([(10.0, 12.0)], user, depth_db=-30.0)
@@ -890,3 +917,53 @@ def test_set_envelopes_refuses_a_missing_track_before_writing_any(envelope_proje
         PipelineService(ws).set_envelopes({"host": good, "nobody": good})
     assert raised.value.code == "envelope_track_missing"
     assert ProjectWorkspace.open(envelope_project).project.volume_envelope_for("host") is None
+
+
+def test_set_envelopes_refuses_duplicate_point_ids_with_a_code(envelope_project) -> None:
+    ws = ProjectWorkspace.open(envelope_project)
+    twice = [{"id": "a", "time": 1.0, "value": 0.5}, {"id": "a", "time": 2.0, "value": 0.5}]
+    with pytest.raises(CodedValueError) as raised:
+        PipelineService(ws).set_envelopes({"host": twice})
+    assert raised.value.code == "envelope_duplicate_point_id"
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_random_hand_edits_always_build_a_valid_envelope(seed: int) -> None:
+    rng = random.Random(seed)
+    extra_ids = itertools.count()
+    spans = [(5.0, 7.0), (12.0, 15.0), (20.0, 21.0)]
+    for _ in range(150):
+        points = plan(spans, duration=30.0).points
+        for _ in range(rng.randint(1, 6)):
+            current = plan(spans, points, duration=30.0).points
+            edited = list(current)
+            for _ in range(rng.randint(1, 3)):
+                if not edited:
+                    break
+                index = rng.randrange(len(edited))
+                point = edited[index]
+                action = rng.choice(["move", "retype", "delete", "extra"])
+                if action == "move":
+                    edited[index] = EnvPoint(
+                        point.id,
+                        round(max(0.0, point.time + rng.choice([-0.2, 0.1, 0.2])), 3),
+                        point.value,
+                    )
+                elif action == "retype":
+                    edited[index] = EnvPoint(point.id, point.time, round(rng.uniform(0.1, 1.0), 3))
+                elif action == "delete":
+                    del edited[index]
+                else:
+                    edited.append(
+                        EnvPoint(f"x{next(extra_ids)}", round(rng.uniform(0, 29), 3), 0.7)
+                    )
+            ids = {p.id for p in edited}
+            if len(ids) != len(edited):
+                break
+            points = plan(spans, edited, duration=30.0).points
+            assert len({p.id for p in points}) == len(points)
+            AutomationEnvelope(
+                track_id="m",
+                points=[AutomationPoint(id=p.id, time=p.time, value=p.value) for p in points],
+            )
+            assert plan(spans, points, duration=30.0).points == points

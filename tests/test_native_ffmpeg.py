@@ -6,6 +6,7 @@ import contextlib
 import ctypes
 import ctypes.util
 import errno
+import gc
 import importlib.util
 import inspect
 import io
@@ -622,10 +623,12 @@ def open_fd_count() -> int:
 def test_no_fd_leak_over_20_runs(host: None) -> None:
     fake = FakeNative(out=b"x", err=b"y")
     run_child(fake, [IN_PROCESS_FFMPEG], input=b"", capture_output=True)
+    gc.collect()
     before = open_fd_count()
     for _ in range(20):
         done = run_child(fake, [IN_PROCESS_FFMPEG], input=b"a", capture_output=True)
         assert done.stdout == b"x"
+    gc.collect()
     assert open_fd_count() == before
 
 
