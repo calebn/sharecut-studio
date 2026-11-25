@@ -156,6 +156,7 @@
 
 .sys-save--offline svg,
 .sys-save--unreachable svg,
+.sys-save--unkept svg,
 .sys-save--away svg,
 .sys-save--failed svg {
   inline-size: 1rem;
@@ -1579,9 +1580,7 @@ html[data-frame-short][data-shell="phone"] .sys-player-comment--guest {
 .sys-listen-dock {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-rows:
-    var(--touch-min) var(--control-height)
-    calc(var(--target-dock-primary) + var(--space-6) / 2);
+  grid-template-rows: var(--touch-min) var(--control-height) auto;
   grid-template-areas:
     "strip strip strip"
     "elapsed centre total"
@@ -1590,7 +1589,9 @@ html[data-frame-short][data-shell="phone"] .sys-player-comment--guest {
   align-content: start;
   column-gap: var(--space-3);
   box-sizing: border-box;
-  block-size: var(--player-dock-height);
+  /* Never shorter than the token; at large text the Comment button wraps under Play and the dock grows (Player.tsx hands the sheets the new height). */
+  block-size: auto;
+  min-block-size: var(--player-dock-height);
   padding-inline: var(--space-4);
   background: var(--color-bg-elevated);
   border-block-start: 1px solid var(--color-border-subtle);
@@ -1656,10 +1657,21 @@ html[data-frame-short][data-shell="phone"] .sys-player-comment--guest {
 .sys-listen-dock-transport {
   grid-area: transport;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
   min-inline-size: 0;
+  min-block-size: calc(var(--target-dock-primary) + var(--space-6) / 2);
+}
+
+/* Back, Play and Forward stay one run; Comment wraps under them when the text is large. */
+.sys-listen-dock-cluster {
+  display: flex;
+  flex-wrap: nowrap;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .sys-listen-dock .sys-player-skip {
@@ -1730,6 +1742,12 @@ html[data-frame-short] .sys-listen-dock {
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "elapsed strip transport status";
   block-size: var(--player-height);
+  min-block-size: 0;
+}
+
+html[data-frame-short] .sys-listen-dock-transport {
+  flex-wrap: nowrap;
+  min-block-size: 0;
 }
 
 html[data-frame-short] .sys-listen-dock-strip {

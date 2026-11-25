@@ -151,6 +151,61 @@ export const BadLinkWithVeryLongUnsentText: Story = {
   },
 };
 
+/** The root text at 32 px (200%), the size at which the button once left the window. */
+const largeText = () => {
+  const root = document.documentElement;
+  const before = root.style.fontSize;
+  root.style.fontSize = "32px";
+  return () => {
+    root.style.fontSize = before;
+  };
+};
+
+/** Try now lies in the window once the browser has laid it out; jsdom has no layout (height 0). */
+const tryNowInWindow = async (canvasElement: HTMLElement) => {
+  const button = within(canvasElement).getByRole("button", { name: "Try now" });
+  const box = button.getBoundingClientRect();
+  if (box.height === 0) return;
+  await expect(box.left).toBeGreaterThanOrEqual(0);
+  await expect(box.right).toBeLessThanOrEqual(window.innerWidth);
+  await expect(box.bottom).toBeLessThanOrEqual(window.innerHeight);
+};
+
+export const HostAsleepLargeText: Story = {
+  beforeEach: largeText,
+  render: () => <ReviewLinkCover failure={{ kind: "unreachable" }} />,
+  play: async ({ canvasElement }) => {
+    await tryNowInWindow(canvasElement);
+  },
+};
+
+export const YouAreOfflineLargeText: Story = {
+  beforeEach: largeText,
+  render: () => <ReviewLinkCover failure={{ kind: "offline" }} />,
+  play: async ({ canvasElement }) => {
+    await tryNowInWindow(canvasElement);
+  },
+};
+
+/** A browser that will not open its database says so once, under the cover's own sentence. */
+export const HostAsleepBrowserKeepsNoCopy: Story = {
+  render: () => (
+    <GuestPageCover
+      failure={{ kind: "unreachable" }}
+      trying={false}
+      onRetry={fn()}
+      note="Your browser isn't letting this page keep a saved copy. The page still works while the host answers."
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText(
+        /isn't letting this page keep a saved copy/,
+      ),
+    ).toBeVisible();
+  },
+};
+
 export const HostAsleep: Story = {
   render: () => <ReviewLinkCover failure={{ kind: "unreachable" }} />,
   play: async ({ canvasElement }) => {

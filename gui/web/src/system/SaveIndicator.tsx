@@ -1,4 +1,9 @@
 import type { HostCause } from "../state/hostReach";
+import {
+  STORAGE_LIGHT,
+  type StorageCause,
+  storageSentence,
+} from "../state/storageHealth";
 import { SystemIcon } from "./SystemIcon";
 
 export type SaveIndicatorProps = {
@@ -8,9 +13,12 @@ export type SaveIndicatorProps = {
     | "offline"
     | "waiting"
     | "unreachable"
+    | "unkept"
     | "away"
     | "failed";
   cause?: HostCause;
+  /** Unkept: why this device keeps no saved copy. */
+  storageCause?: StorageCause;
   /** Saved: show the check for the 2 s after a save. */
   justSaved?: boolean;
   /** Offline, unreachable or away: edits waiting to send. */
@@ -35,6 +43,7 @@ export function SaveIndicator({
   waiting,
   savedAt,
   cause = "host",
+  storageCause = "blocked",
   compact,
   onRetry,
   onDownload,
@@ -110,6 +119,22 @@ export function SaveIndicator({
             {waiting}
           </span>
         ) : null}
+      </span>
+    );
+  }
+  if (state === "unkept") {
+    // Not a live region and not an alert: the frame's one status region says it once, and nothing here is for the guest to press.
+    const sentence = storageSentence(storageCause);
+    return (
+      <span className={`sys-save sys-save--unkept${size}`} title={sentence}>
+        <SystemIcon name="cloud-off" size={16} className="sys-tone-warning" />
+        <span className="sys-save-short" aria-hidden="true">
+          Not kept
+        </span>
+        <span className="sys-save-text">
+          {STORAGE_LIGHT}
+          <span className="sr-only">. {sentence}</span>
+        </span>
       </span>
     );
   }

@@ -1,5 +1,6 @@
 import type { OfflineConflict } from "../../services/offlineQueue/offlineStore";
 import type { HostCause } from "../../state/hostReach";
+import type { StorageCause, StorageHealth } from "../../state/storageHealth";
 
 /** What a host can say about the last change, derived from the send and queue state. */
 export type SaveState =
@@ -7,6 +8,7 @@ export type SaveState =
   | { kind: "saved" }
   | { kind: "waiting"; count: number; guest?: boolean }
   | { kind: "unreachable"; count: number }
+  | { kind: "unkept"; cause: StorageCause }
   | { kind: "away"; cause: HostCause; count: number }
   | {
       kind: "unknown";
@@ -33,6 +35,8 @@ type SaveStateInput = {
   loaded: boolean;
   /** A send ended and the queue has not been read since, so the counts are stale. */
   settling: boolean;
+  /** What this device has refused to keep. */
+  storage?: StorageHealth;
 };
 
 /**
@@ -57,7 +61,9 @@ export function latestSaveOutcome(
  * settling wins over what is left because an edit on its way, or one whose
  * outcome is not yet read back, is the freshest fact. Then an unknown outcome,
  * and edits waiting; the rest is saved. Null until the queue has been
- * read once, so a project never claims "Saved" before it knows.
+ * read once, so a project never claims "Saved" before it knows. A guest's
+ * device that will not keep the saved copy or the waiting edits says so ahead of
+ * the saved copy, waiting and saved: "Saved" must not show while nothing is kept.
  */
 export function saveStateOf(input: SaveStateInput): SaveState | null {
   if (input.away && !input.unreadable) {
@@ -66,6 +72,10 @@ export function saveStateOf(input: SaveStateInput): SaveState | null {
   if (input.busy || input.settling) return { kind: "saving" };
   if (input.unreadable) return { kind: "failed", cause: "unreadable" };
   if (!input.loaded) return null;
+  const unkept = input.guest
+    ? (input.storage?.snapshot ?? input.storage?.queue)
+    : undefined;
+  if (unkept) return { kind: "unkept", cause: unkept };
   if (input.unreachable) return { kind: "unreachable", count: input.pending };
   const blocked = input.conflicts.findLast(
     (c) => c.kind === "refused" && c.blocksSave === true && !c.dismissed,

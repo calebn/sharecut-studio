@@ -21,7 +21,7 @@ const meta: Meta<typeof SaveIndicator> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'A small glyph after the title. Saved shows nothing, or a check for 2 s after a save. Saving is a hollow ring, Offline an amber slashed cloud with a count, Away the same cloud with "Can\'t reach the host" or "You\'re offline" (an open page whose host or device stopped answering; one status sentence, "This page keeps trying."), Unreachable a hollow amber cloud with "Saved copy" (a guest reading the cached copy because the host cannot be reached), Failed a red octagon with Retry and Download a copy. Every state also has a text name for assistive tech.\n\n**Motion.** The check fades out after 2 s with `--motion-state` in the animation pass; the 2 s hold is the caller\'s.',
+          'A small glyph after the title. Saved shows nothing, or a check for 2 s after a save. Saving is a hollow ring, Offline an amber slashed cloud with a count, Away the same cloud with "Can\'t reach the host" or "You\'re offline" (an open page whose host or device stopped answering; one status sentence, "This page keeps trying."), Unreachable a hollow amber cloud with "Saved copy" (a guest reading the cached copy because the host cannot be reached), Unkept the same cloud with "Not kept on this device" (a guest browser that blocks or has no room for the saved copy; one sentence in the title and for assistive tech, no alert), Failed a red octagon with Retry and Download a copy. Every state also has a text name for assistive tech.\n\n**Motion.** The check fades out after 2 s with `--motion-state` in the animation pass; the 2 s hold is the caller\'s.',
       },
     },
   },
@@ -59,6 +59,30 @@ export const Offline: Story = {
     await expect(within(canvasElement).getByRole("status")).toHaveTextContent(
       "2 waiting",
     );
+  },
+};
+export const UnkeptBlocked: Story = {
+  args: { state: "unkept", storageCause: "blocked" },
+  play: async ({ canvasElement }) => {
+    const light = canvasElement.querySelector(".sys-save");
+    await expect(light).toHaveTextContent("Not kept on this device");
+    await expect(light).toHaveAttribute(
+      "title",
+      "Your browser isn't letting this page keep a saved copy. The page still works while the host answers.",
+    );
+    await expect(within(canvasElement).queryByRole("alert")).toBeNull();
+  },
+};
+export const UnkeptFull: Story = {
+  args: { state: "unkept", storageCause: "full" },
+  play: async ({ canvasElement }) => {
+    const light = canvasElement.querySelector(".sys-save");
+    await expect(light).toHaveTextContent("Not kept on this device");
+    await expect(light).toHaveAttribute(
+      "title",
+      "This device has no room to keep a saved copy. The page still works while the host answers.",
+    );
+    await expect(within(canvasElement).queryByRole("alert")).toBeNull();
   },
 };
 export const AwayHost: Story = {

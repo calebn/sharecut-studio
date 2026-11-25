@@ -4,6 +4,7 @@
  * and role, like the other `sharecut.*` conveniences, so a Commenter who is
  * later given an Editor link sees the new sentence once.
  */
+
 import type { ReviewRole } from "../types/roles.generated";
 import { readLocal, writeLocal } from "./storage";
 
@@ -21,6 +22,7 @@ export function roleHintSeen(role: RoleHintRole): boolean {
   return readLocal(key(role)) === "1";
 }
 
-export function markRoleHintSeen(role: RoleHintRole): void {
-  writeLocal(key(role), "1");
+/** Whether the browser kept it: false when storage is blocked or full. */
+export function markRoleHintSeen(role: RoleHintRole): boolean {
+  return writeLocal(key(role), "1");
 }

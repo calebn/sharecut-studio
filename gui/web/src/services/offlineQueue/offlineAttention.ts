@@ -6,6 +6,11 @@ import {
 } from "../../state/documentSendOrder";
 import { loadOutbox } from "../../state/outboxStore";
 import {
+  classifyStorageError,
+  reportStorageFailure,
+  reportStorageOk,
+} from "../../state/storageHealth";
+import {
   dismissConflicts,
   dismissHostConflicts,
   loadGuestAttention,
@@ -199,6 +204,7 @@ function refresh(projectPath: string, source: Source, manual = false): void {
   read(projectPath)
     .then(({ pending, waitingPosts, conflicts, queuedCommandIds }) => {
       if (reading !== source.generation) return;
+      if (shareTokenFromKey(projectPath)) reportStorageOk("queue");
       source.queuedCommandIds = queuedCommandIds;
       set(source, {
         pending,
@@ -213,13 +219,28 @@ function refresh(projectPath: string, source: Source, manual = false): void {
         settling: documentActivityBusy(projectPath),
       });
     })
-    .catch(() => {
-      if (reading === source.generation) {
+    .catch((error: unknown) => {
+      if (reading !== source.generation) return;
+      // A guest whose browser will not open or fill its database has no saved edits to lose: that is said as a device fact, not as damaged edits.
+      if (
+        shareTokenFromKey(projectPath) &&
+        classifyStorageError(error) !== "other"
+      ) {
+        reportStorageFailure("queue", error);
         set(source, {
-          status: "unreadable",
+          status: "ready",
+          loaded: true,
+          pending: 0,
+          waitingPosts: 0,
+          conflicts: [],
           settling: documentActivityBusy(projectPath),
         });
+        return;
       }
+      set(source, {
+        status: "unreadable",
+        settling: documentActivityBusy(projectPath),
+      });
     });
 }
 

@@ -15,11 +15,16 @@ export function readLocal(key: string): string | null {
   }
 }
 
-export function writeLocal(key: string, value: string): void {
+/** Whether the value was kept: false when storage is blocked, full or missing. */
+export function writeLocal(key: string, value: string): boolean {
   try {
-    globalThis.localStorage?.setItem(key, value);
+    const storage = globalThis.localStorage;
+    if (!storage) return false;
+    storage.setItem(key, value);
+    return true;
   } catch {
     /* SecurityError / quota: preference just is not persisted */
+    return false;
   }
 }
 

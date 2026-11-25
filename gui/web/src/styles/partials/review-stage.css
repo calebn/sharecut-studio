@@ -75,9 +75,25 @@
   font-size: var(--font-size-ui);
 }
 
+/* At large text the head wraps: the button drops under the name instead of leaving the sheet. */
+.rv-group-head {
+  flex-wrap: wrap;
+  row-gap: var(--space-3);
+}
+
 .rv-group-name {
+  flex: 0 1 auto;
+  min-inline-size: 0;
   color: var(--color-text-primary);
   font-weight: 600;
+}
+
+/* Dismiss all is 44 px for a mouse as well as a finger: the review is worked with both. */
+.rv-bulk-action {
+  flex: none;
+  min-block-size: var(--touch-min);
+  min-inline-size: var(--touch-min);
+  white-space: nowrap;
 }
 
 .rv-group-reason {

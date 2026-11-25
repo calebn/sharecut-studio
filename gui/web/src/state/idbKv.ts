@@ -4,6 +4,12 @@ export const STORE = "kv";
 
 export function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      reject(
+        new DOMException("This browser has no database.", "SecurityError"),
+      );
+      return;
+    }
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -49,20 +55,27 @@ export async function idbSet(key: string, value: unknown): Promise<void> {
   }
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).put(value, key);
-    tx.oncomplete = () => {
+    let settled = false;
+    const finish = (error: unknown, failed: boolean) => {
+      if (settled) return;
+      settled = true;
       db.close();
-      resolve();
+      if (failed) reject(error);
+      else resolve();
     };
-    tx.onabort = () => {
-      db.close();
-      reject(tx.error ?? new Error("IndexedDB transaction aborted"));
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    try {
+      const tx = db.transaction(STORE, "readwrite");
+      tx.oncomplete = () => finish(undefined, false);
+      tx.onabort = () =>
+        finish(tx.error ?? new Error("IndexedDB transaction aborted"), true);
+      tx.onerror = () =>
+        finish(tx.error ?? new Error("IndexedDB transaction failed"), true);
+      // A refused write (quota) fails its request, which bubbles to onerror, then aborts the transaction.
+      tx.objectStore(STORE).put(value, key);
+    } catch (error) {
+      // put throws at once for a store that is full or closed; leave the page nothing uncaught.
+      finish(error, true);
+    }
   });
 }
 

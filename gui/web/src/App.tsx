@@ -53,6 +53,7 @@ import {
   subscribeSavedCopyReopen,
 } from "./state/savedCopy";
 import { cleanShareName } from "./state/shareName";
+import { classifyStorageError, storageSentence } from "./state/storageHealth";
 import { DawProvider } from "./state/store";
 import {
   collectKeptPosts,
@@ -93,7 +94,7 @@ function shareRouteFromLocation(): {
 }
 
 type BootstrapError =
-  | { failure: GuestLoadFailure; unsent?: UnsentText[] }
+  | { failure: GuestLoadFailure; unsent?: UnsentText[]; note?: string }
   | { message: string; hint?: string };
 type GuestAccess = {
   key: string;
@@ -548,8 +549,13 @@ function AppInner({ bootName }: { bootName: string | null }) {
         }
         // A saved copy that cannot be read is no saved copy: the guest still
         // gets the cover for the failure, never the host's Home.
+        let browserBlocksCopy = false;
         const saved = await loadOfflineSnapshot(reviewToken).catch(
-          () => undefined,
+          (readError: unknown) => {
+            // Only a browser that refuses the database can be told on a reload; a copy that was never written or no longer fits cannot.
+            browserBlocksCopy = classifyStorageError(readError) === "blocked";
+            return undefined;
+          },
         );
         if (standing() !== "newest") return;
         const cachedProject = saved?.project as ProjectView | undefined;
@@ -577,7 +583,12 @@ function AppInner({ bootName }: { bootName: string | null }) {
           };
           return;
         }
-        outcome = { kind: "error", error: { failure } };
+        outcome = {
+          kind: "error",
+          error: browserBlocksCopy
+            ? { failure, note: storageSentence("blocked") }
+            : { failure },
+        };
       } finally {
         tracker.flight = tracker.flight.filter((one) => one !== controller);
         const now = standing();
@@ -634,6 +645,7 @@ function AppInner({ bootName }: { bootName: string | null }) {
         trying={trying}
         onRetry={retry}
         unsent={error.unsent}
+        note={error.note}
       />
     );
   }

@@ -34,6 +34,7 @@ import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { subscribeHostBack, watchHostReach } from "../state/hostReach";
 import { loadOutbox, setOutboxDrainRequester } from "../state/outboxStore";
+import { reportStorageFailure, reportStorageOk } from "../state/storageHealth";
 import { SANITY_POLL_MS } from "../state/syncCadence";
 import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import type { ProjectView, TimelineComment } from "../types/project";
@@ -47,6 +48,16 @@ import {
 } from "../utils/guestProgress";
 import { useStableCallback } from "../utils/useStableCallback";
 import { isTerminalWsClose } from "../utils/wsClose";
+
+/** Keep the newest project as the saved copy; a device that will not keep it is said once, not on every poll. */
+function keepSavedCopy(token: string, project: ProjectView): void {
+  void mergeOfflineSnapshot(token, { project }).then(
+    (written) => {
+      if (written) reportStorageOk("snapshot");
+    },
+    (error: unknown) => reportStorageFailure("snapshot", error),
+  );
+}
 
 function guestWsUrl(token: string, clientId: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -143,9 +154,7 @@ export function useGuestSync(
           if (wsOpenRef.current || closed || !isCurrentDocumentScope(scope))
             return;
           const next = applyDocumentSnapshot(snapshot, { scope });
-          if (next) {
-            void mergeOfflineSnapshot(token, { project: next });
-          }
+          if (next) keepSavedCopy(token, next);
         })
         .catch(() => undefined);
     };
@@ -244,7 +253,7 @@ export function useGuestSync(
         const next = applyDocumentSnapshot(snap as DocumentSnapshot, {
           scope,
         });
-        if (next) void mergeOfflineSnapshot(token, { project: next });
+        if (next) keepSavedCopy(token, next);
       }
     };
 

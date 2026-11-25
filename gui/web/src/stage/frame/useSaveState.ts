@@ -12,6 +12,7 @@ import {
 import { isShareProjectKey, shareTokenFromKey } from "../../shareMode";
 import { useHostCause } from "../../state/hostReach";
 import { useReadsSavedCopy } from "../../state/savedCopy";
+import { useStorageHealth } from "../../state/storageHealth";
 import { useDaw } from "../../state/useDaw";
 import { useDocumentBusy } from "../../state/useDocumentBusy";
 import { latestSaveOutcome, type SaveState, saveStateOf } from "./saveState";
@@ -56,6 +57,7 @@ export function useSaveState(): {
   const token = shareTokenFromKey(projectPath);
   const hostCause = useHostCause(token);
   const attention = useOfflineAttention(projectPath || null);
+  const storage = useStorageHealth();
   const state = !projectPath
     ? null
     : saveStateOf({
@@ -69,6 +71,7 @@ export function useSaveState(): {
           attention.status === "unreadable" || attention.status === "retrying",
         loaded: attention.loaded,
         settling: attention.settling,
+        storage,
       });
   const latest = latestSaveOutcome(attention.conflicts);
   const showsDismissedOutcome = latest?.dismissed && latest.kind === "unknown";
