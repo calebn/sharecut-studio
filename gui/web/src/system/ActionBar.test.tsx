@@ -142,9 +142,9 @@ describe("foldDock with a measured capacity", () => {
   });
 
   it("keeps Keep when four buttons fit, and folds only Comment", () => {
-    const folded = foldDock(edit, [], 1, 4);
+    const folded = foldDock(edit, itemsOf(["copy"]), 1, 4);
     expect(ids(folded.items)).toEqual(["hearBefore", "hearAfter", "keep"]);
-    expect(ids(folded.more)).toEqual(["comment"]);
+    expect(ids(folded.more)).toEqual(["comment", "copy"]);
   });
 
   it("counts More for a plain more list even when nothing folds", () => {
@@ -159,9 +159,9 @@ describe("foldDock with a measured capacity", () => {
   });
 
   it("folds only Fix text when a word's four verbs and More fit in four", () => {
-    const folded = foldDock(word, [], 1, 4);
+    const folded = foldDock(word, itemsOf(["copy"]), 1, 4);
     expect(ids(folded.items)).toEqual(["hear", "split", "comment"]);
-    expect(ids(folded.more)).toEqual(["fixText"]);
+    expect(ids(folded.more)).toEqual(["fixText", "copy"]);
   });
 
   it("folds nothing when the verbs and More fit", () => {
@@ -261,6 +261,7 @@ describe("ActionBar dock measuring its start slot", () => {
       <ActionBar
         placement={{ form: "dock" }}
         items={itemsOf(["hearBefore", "hearAfter", "keep", "comment"])}
+        more={itemsOf(["copy"])}
         primary={{ id: "cut" }}
         trailing={<button type="button">Clear selection</button>}
         trailingSlots={1}
@@ -306,6 +307,12 @@ describe("ActionBar dock measuring its start slot", () => {
     slotWidth = 260;
     word();
     expect(names()).toEqual(["Hear", "Split", "Comment", "More", "Cut"]);
+  });
+
+  it("leaves 2 px of slack, so a slot that is 1 px short of four buttons holds three", () => {
+    slotWidth = 243;
+    word();
+    expect(names()).toEqual(["Hear", "Split", "More", "Cut"]);
   });
 
   it("folds nothing for a word in a 314 px slot", () => {
