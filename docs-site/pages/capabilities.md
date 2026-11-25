@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**161** capabilities · **125** ShareCut Studio commands · **66** keyed · **221** MCP tools · **18** skills on rows (+ **19** hub skills).
+**162** capabilities · **126** ShareCut Studio commands · **66** keyed · **221** MCP tools · **18** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -141,6 +141,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Cut selected range | project | `range.cut` | — (Context action with explicit range selection) | — | `actionBar` | `propose_range_cut_tool` | `podcast edit propose-range-cut` | — | — | none · none |
 | Mute selected range | project | `range.mute` | — (Context action with explicit range selection) | — | `actionBar` | `propose_range_mute_tool` | — | — | — | none · none |
 | Save as segment | project | `segment.save` | — (Context action with explicit clip or range selection) | — | `actionBar` | `segment_save_tool` | `podcast segment save` | — | — | none · none |
+| Insert segment | project | `segment.insert` | — (Context action started from the Action bar at the playhead or on a selection) | — | `actionBar` | `segment_insert_tool` | `podcast segment insert` | — | — | none · none |
 | Fill range with room tone | project | `range.fillRoomTone` | — (Context action with explicit range selection) | — | `actionBar` | `fill_with_room_tone_tool` | `podcast doc submit` | — | — | none · none |
 | Move to speaker | project | `range.moveSpeakerLane` | — (Context action with explicit range selection on one split lane) | — | `actionBar` | `speaker_move_lane_span_tool` | `podcast speaker move-lane-span` | `podcast-speaker-attribution` | — | none · none |
 | Comment on range | project | `range.comment` | — (Context action with explicit range selection) | — | `actionBar` | `add_comment_tool` | `podcast comment add` | — | — | none · none |

@@ -196,9 +196,7 @@ describe("ActionBar dock", () => {
   });
 
   it("draws the playhead verbs with no grip and no More", () => {
-    const scene = barScene(EDIT_SELECTIONS.playhead, {
-      clipboardHasAudio: true,
-    });
+    const scene = barScene(EDIT_SELECTIONS.playhead);
     render(
       <ActionBar
         placement={{ form: "dock" }}
@@ -208,7 +206,26 @@ describe("ActionBar dock", () => {
     );
     expect(
       screen.getAllByRole("button").map((button) => button.textContent),
-    ).toEqual(["Split", "Add chapter", "Record", "Paste", "Export"]);
+    ).toEqual(["Split", "Add chapter", "Record", "Export", "Insert segment"]);
+  });
+
+  it("folds Insert segment into More at the playhead when Paste takes a slot", () => {
+    const scene = barScene(EDIT_SELECTIONS.playhead, {
+      clipboardHasAudio: true,
+    });
+    const folded = foldDock(scene.items, scene.more, 0);
+    render(
+      <ActionBar
+        placement={{ form: "dock" }}
+        items={folded.items}
+        more={folded.more}
+        onVerb={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getAllByRole("button").map((button) => button.textContent),
+    ).toEqual(["Split", "Add chapter", "Record", "Paste", "Export", "More"]);
+    expect(ids(folded.more)).toEqual(["insertSegment"]);
   });
 
   it("pairs A/B in one slot", () => {

@@ -163,6 +163,15 @@ Loading is a skeleton after 300 ms, a failed read shows the reason with Try agai
 
 The toast reads "Saved {name} to your library" (`added`), "Saved {name} as version {n}" (`new_version`) or "{name} is already in your library" (`unchanged`), with no Undo. `segmentSaveRefusal` names the codes `segment_clip_too_short`, `segment_render_unsupported`, `segment_busy`, `segment_write_failed`, `segment_invalid` and `segment_name_invalid` (a name with no ASCII letter or digit, which the library cannot turn into an id); each has a plain sentence (`edit/segmentSaveMessages.ts`) shown in the card, which stays open. Any other failure says "That did not save. Try again."
 
+**Insert segment.** The host's Action bar has an Insert segment item when only the playhead is set, and a More row for a clip or a range. Both run the `segment.insert` command (host only, not a palette row, no key), which sets `chrome.insertSegmentOpen`; `stage/edit/InsertSegmentHost.tsx` shows `InsertSegmentCard` (an anchored popover on desktop, a bottom sheet on a phone). Both cards share `SegmentCardFrame` and keep their form state above it, so crossing the phone and desktop breakpoint with a card open keeps the name, the pick and a save or insert in flight.
+
+- The list comes from `loadSegments` when the card opens. A damaged row shows its problem and cannot be picked. An empty library says "Your library is empty. Save clips as a segment first, with Save as segment in the More menu."
+- Position is At start, At end or At playhead. It starts from the kind (`intro` is start, `outro` is end, else playhead) until the person picks one. The request carries `"start"`, `"end"` or the playhead in seconds (three decimals); a playhead at or past the end of the timeline is sent as `"end"`. The playhead is read when the card opens.
+- Every change of segment or position calls `previewSegmentInsert` with an `AbortSignal`; a late reply for an earlier choice is dropped, and Insert is off until the preview for the current choice is back. The preview reads the saved file, so the card labels it "Preview, from the saved episode". It says what is added and where, how many clips, chapters, comments and pending edits move later (or "Nothing moves."), "Adds a new lane." for `tracks_added` (never a track id) and the new length.
+- Insert always ripples: `InsertSegment` has no option to leave later audio in place, so the card has none.
+- `insertSegment` passes the preview's `segment_version`. The toast shows the apply reply's `at` and `duration_sec` ("Inserted Cold open: 0:22 at 0:00") and offers Undo with the reply's history head. With no head there is no Undo. A queued reply says the change "was sent for the host to apply", with no Undo and no claim that anything moved.
+- `segmentInsertRefusal` names `segment_unknown`, `segment_version_invalid`, `segment_unreadable`, `segment_busy`, `segment_hash_mismatch`, `segment_media_invalid`, `segment_write_failed` and `segment_position_out_of_range`; each has a plain sentence (`edit/segmentInsertMessages.ts`) shown in the card, which stays open. Any other failure says "That did not insert. Try again." While an insert runs, Escape, Cancel and the scrim do nothing.
+
 ## Show kit
 
 A kit is an ordered list of library segments with where each goes, for example an intro at the start and an outro at the end. A new episode applies it in one command. The kit is offered, never applied by itself: nothing in the app applies a kit unless someone runs `kit apply` or calls `kit_apply_tool`. Inserting at `start` ripples later audio, as every insert does.
@@ -227,7 +236,7 @@ A kit (its newest version) is usable when every entry's segment version, the pin
 ## Not built yet
 
 - Ducking under dialogue, and a Studio screen or an "update this segment" command for drift (the report exists, see [Drift](#drift)).
-- Studio screens to insert a segment into an episode, rename one, or export and import a kit (Studio lists, auditions, removes and saves from a selection, see [Studio](#studio)).
+- Studio screens to rename a segment or to export and import a kit (Studio lists, auditions, removes, saves from a selection and inserts, see [Studio](#studio)).
 - A compound document command that makes a whole kit one undo step.
 - `podcast segment export ID... -o FILE.sharecutkit` and `segment import FILE.sharecutkit` (the kit commands do this, see the kit section above).
 - Capturing a transcript or a chapter title.

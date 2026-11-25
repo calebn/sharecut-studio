@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { saveSegment } from "../../api";
 import { selectionAnchor } from "../../commands/timelineReveal";
 import { segmentSavedMessage } from "../../edit/segmentSaveMessages";
-import { segmentSelectionOf } from "../../edit/segmentSelection";
+import {
+  type SegmentSelection,
+  segmentSelectionOf,
+} from "../../edit/segmentSelection";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { SaveSegmentCard } from "../../stages/edit/SaveSegmentCard";
 import { useDawStore } from "../../state/dawStore";
@@ -27,14 +30,17 @@ export function SaveSegmentHost() {
     [anchorElement],
   );
   const usable = found?.ok === true;
-  const [frozen, setFrozen] = useState<typeof found>(null);
+  const [frozen, setFrozen] = useState<{
+    selection: SegmentSelection;
+    projectPath: string;
+  } | null>(null);
   if (!open && frozen) setFrozen(null);
   useEffect(() => {
     if (open && !usable && !frozen) setOpen(false);
   }, [open, usable, frozen, setOpen]);
 
-  const shown = found?.ok ? found : frozen;
-  if (!open || !shown?.ok) return null;
+  const shown = frozen?.selection ?? (found?.ok ? found : null);
+  if (!open || !shown) return null;
   const onSave = async ({
     name,
     kind,
@@ -42,12 +48,13 @@ export function SaveSegmentHost() {
     name: string;
     kind: Parameters<typeof saveSegment>[0]["kind"];
   }) => {
-    setFrozen(shown);
+    const held = frozen ?? { selection: shown, projectPath };
+    setFrozen(held);
     const result = await saveSegment({
-      path: projectPath,
+      path: held.projectPath,
       name,
       kind,
-      ...shown.request,
+      ...held.selection.request,
     });
     useDawStore.getState().announceStatus(segmentSavedMessage(name, result));
   };

@@ -6468,6 +6468,62 @@ input.sys-edit-fix {
   flex: 1 1 6rem;
 }
 
+.sys-segment-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+  max-block-size: 14rem;
+  overflow-y: auto;
+}
+
+.sys-segment-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
+  column-gap: var(--space-3);
+  min-block-size: var(--touch-min);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.sys-segment-option:has(input:checked) {
+  background: var(--color-accent-subtle);
+}
+
+.sys-segment-option--damaged {
+  cursor: default;
+  color: var(--color-text-secondary);
+}
+
+.sys-segment-option input {
+  grid-row: 1 / span 2;
+  align-self: start;
+  margin-block-start: var(--space-1);
+}
+
+.sys-segment-option-meta {
+  grid-column: 2;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-field);
+}
+
+.sys-segment-preview-lines {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-field);
+}
+
+.sys-segment-form--bottom .sys-segment-list {
+  max-block-size: none;
+}
+
 .sys-segment-form--bottom :is(input, select, button) {
   min-block-size: var(--touch-min);
 }

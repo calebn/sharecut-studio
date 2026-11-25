@@ -261,3 +261,63 @@ describe("SaveSegmentCard kind default", () => {
     expect(kind).toHaveValue("sting");
   });
 });
+
+describe("SaveSegmentCard across the phone and desktop forms", () => {
+  function Switching({ handlers }: { handlers: Handlers }) {
+    const anchor = useRef<HTMLButtonElement>(null);
+    const [bottom, setBottom] = useState(false);
+    const common = {
+      summary: "3 clips, 0:22",
+      defaultKind: "intro" as const,
+      ...handlers,
+    };
+    return (
+      <>
+        <button ref={anchor} type="button" onClick={() => setBottom(!bottom)}>
+          Switch form
+        </button>
+        {bottom ? (
+          <SaveSegmentCard {...common} form="bottom" open />
+        ) : (
+          <SaveSegmentCard {...common} anchorRef={anchor} />
+        )}
+      </>
+    );
+  }
+
+  it("keeps the name, the kind and the save in flight when the form changes", async () => {
+    let finish!: () => void;
+    const onSave = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const handlers = handlersOf(onSave);
+    render(<Switching handlers={handlers} />);
+    await userEvent.type(
+      await screen.findByRole("textbox", { name: "Name" }),
+      "Cold open",
+    );
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Kind" }),
+      "sting",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Switch form", hidden: true }),
+    );
+    expect(await screen.findByRole("textbox", { name: "Name" })).toHaveValue(
+      "Cold open",
+    );
+    expect(screen.getByRole("combobox", { name: "Kind" })).toHaveValue("sting");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Saving to your library.",
+    );
+    await userEvent.keyboard("{Enter}");
+    expect(onSave).toHaveBeenCalledTimes(1);
+    finish();
+    await waitFor(() => expect(handlers.onClose).toHaveBeenCalledTimes(1));
+  });
+});

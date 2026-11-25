@@ -1,4 +1,9 @@
-import type { DamagedSegmentRow, SegmentListRow, SegmentRow } from "../api";
+import type {
+  DamagedSegmentRow,
+  SegmentInsertPreview,
+  SegmentListRow,
+  SegmentRow,
+} from "../api";
 
 export function segment(over: Partial<SegmentRow> = {}): SegmentRow {
   return {
@@ -41,3 +46,27 @@ export const LONG_NAME = segment({
   name: "A very long segment name that keeps going so the row has to wrap under text zoom without a horizontal scrollbar",
   kind: "other",
 });
+
+export function insertPreview(
+  over: Partial<SegmentInsertPreview> = {},
+): SegmentInsertPreview {
+  return {
+    dry_run: true,
+    segment_id: "intro-9f3a",
+    segment_version: 1,
+    at: 0,
+    duration_sec: 22,
+    timeline_duration_before_sec: 600,
+    timeline_duration_after_sec: 622,
+    clips_moved: 4,
+    clips_added: 1,
+    clips_from_segment: 1,
+    chapters_moved: [],
+    chapter_added: null,
+    comments_moved: [],
+    pending_edits_moved: 0,
+    tracks_added: [],
+    tracks: {},
+    ...over,
+  };
+}

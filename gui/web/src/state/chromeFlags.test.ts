@@ -12,6 +12,7 @@ const FLAGS = [
   "modelsSheetOpen",
   "segmentLibraryOpen",
   "saveSegmentOpen",
+  "insertSegmentOpen",
   "transcriptFindReplaceOpen",
 ] as const;
 type Flag = (typeof FLAGS)[number];
@@ -25,6 +26,7 @@ const SETTERS: Record<Flag, string> = {
   modelsSheetOpen: "setModelsSheetOpen",
   segmentLibraryOpen: "setSegmentLibraryOpen",
   saveSegmentOpen: "setSaveSegmentOpen",
+  insertSegmentOpen: "setInsertSegmentOpen",
   transcriptFindReplaceOpen: "setTranscriptFindReplaceOpen",
 };
 

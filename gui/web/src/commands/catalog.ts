@@ -414,6 +414,16 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Opens the Save as segment card for the selected clips or range. The Action bar's More menu offers it. Host only; the library is outside the project, so it has no Undo",
   },
+  "segment.insert": {
+    id: "segment.insert",
+    category: "edit",
+    label: "Insert segment",
+    keywords: ["library", "intro", "outro", "sponsor", "sting", "reuse", "add"],
+    when: "editStage",
+    paletteRunnable: false,
+    notes:
+      "Opens the Insert segment card: pick a library segment and a position (start, end or playhead), read the preview, then insert. The Action bar offers it at the playhead and in More for a clip or range. Host only; inserting moves later audio and is one Undo step",
+  },
   "range.fillRoomTone": {
     id: "range.fillRoomTone",
     mutates: true,
