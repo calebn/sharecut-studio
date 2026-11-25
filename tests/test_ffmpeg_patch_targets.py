@@ -569,7 +569,7 @@ def test_the_process_use_scanner(source: str, lines: list[int]) -> None:
     assert _direct_process_uses(ast.parse(source)) == lines
 
 
-KNOWN_MIXIN_BINDINGS = {("encode.py", "spawn_or_too_long")}
+KNOWN_MIXIN_BINDINGS = {("encode.py", "spawn_or_too_long"), ("mix.py", "shutil")}
 FACADE_ONLY = {"__init__.py"}
 MIXIN_IMPORT_EXEMPT = {"__init__.py", "runtime.py"}
 HOST = "host"
