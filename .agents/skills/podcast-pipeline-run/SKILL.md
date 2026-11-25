@@ -72,7 +72,7 @@ Rationale and details: [docs/pipeline.md § Long raw sessions](../../../docs/pip
 
 **Unattended:** `podcast pipeline run --unattended` or `PODCAST_BATCH=1` auto-waives the align (small moves only; a move or held candidate above `align.large_move_sec`, or unlocked drift above it, stops the run) and refine gates when `align.accept.mode` / `analysis.transcript_refine.mode` are `waive_unattended` (default). Agents in MCP sessions leave this unset and clear gates with **podcast-align-audio** / **podcast-transcript-refine**.
 
-**Performance:** `analyze_fillers_pauses`, `assemble_timeline`/`render_dialogue_stems`, and `export_deliverables` parallelize their internal per-track/per-candidate/per-format work by default (`performance.max_workers` in `pipeline.yaml`, `0` = auto). Step order itself never changes. Set `max_workers: 1` for deterministic single-threaded reproduction while debugging a specific cut/render issue. Details: [docs/pipeline.md#performance](../../../docs/pipeline.md#performance).
+**Performance:** `assemble_timeline`/`render_dialogue_stems` and `export_deliverables` parallelize their internal per-track/per-format work by default (`performance.max_workers` in `pipeline.yaml`, `0` = auto). Tighten analysis stays serial unless `max_workers` is set to N >= 1 (#2364). Step order itself never changes. Set `max_workers: 1` for deterministic single-threaded reproduction while debugging a specific cut/render issue. Details: [docs/pipeline.md#performance](../../../docs/pipeline.md#performance).
 
 ## Commands
 

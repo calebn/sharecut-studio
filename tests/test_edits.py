@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import propose_tighten_edits
 from podcast_mcp.models import (
@@ -128,7 +130,7 @@ def _two_track_filler_project() -> EpisodeProject:
     return project
 
 
-def test_propose_tighten_edits_parallel_matches_serial_and_preserves_order():
+def _propose_with_performance(performance: dict) -> list[tuple[str, float, float, str]]:
     from podcast_mcp.edits.filler_pacing import FillerPacingResult
 
     defaults = {
@@ -163,28 +165,32 @@ def test_propose_tighten_edits_parallel_matches_serial_and_preserves_order():
             CutRisk(score=0.1, reasons=[]),
         )
 
+    project = _two_track_filler_project()
+    run_defaults = {
+        **defaults,
+        "performance": performance,
+    }
+    with (
+        patch(
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
+            side_effect=deterministic_optimize,
+        ),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=20),
+        patch(
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
+            side_effect=lambda _project, _track_id, start, end, **_kwargs: FillerPacingResult(
+                start=start, end=end
+            ),
+        ),
+    ):
+        propose_tighten_edits(project, run_defaults)
+    return [(e.track_id, e.start, e.end, e.reason) for e in project.edit_decisions]
+
+
+def test_propose_tighten_edits_parallel_matches_serial_and_preserves_order():
     def run(max_workers: int) -> list[tuple[str, float, float, str]]:
-        project = _two_track_filler_project()
-        run_defaults = {
-            **defaults,
-            "performance": {"max_workers": max_workers},
-        }
-        with (
-            patch(
-                "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
-                side_effect=deterministic_optimize,
-            ),
-            patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
-            patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=20),
-            patch(
-                "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
-                side_effect=lambda _project, _track_id, start, end, **_kwargs: FillerPacingResult(
-                    start=start, end=end
-                ),
-            ),
-        ):
-            propose_tighten_edits(project, run_defaults)
-        return [(e.track_id, e.start, e.end, e.reason) for e in project.edit_decisions]
+        return _propose_with_performance({"max_workers": max_workers})
 
     serial = run(max_workers=1)
     parallel = run(max_workers=4)
@@ -200,3 +206,29 @@ def test_propose_tighten_edits_parallel_matches_serial_and_preserves_order():
         if not seen_tracks or seen_tracks[-1] != t:
             seen_tracks.append(t)
     assert len(seen_tracks) == len(set(track_order))
+
+
+@pytest.mark.parametrize(
+    ("performance", "expected"),
+    [
+        ({"max_workers": None}, [1, 1]),
+        ({"max_workers": 0}, [1, 1]),
+        ({}, [1, 1]),
+        ({"max_workers": 3}, [3, 3]),
+    ],
+)
+def test_propose_tighten_edits_pool_size_follows_max_workers(performance, expected):
+    from podcast_mcp.util.parallel import run_parallel
+
+    seen: list[int | None] = []
+
+    def recording(*args, **kwargs):
+        seen.append(kwargs.get("max_workers"))
+        return run_parallel(*args, **kwargs)
+
+    with (
+        patch("podcast_mcp.edits.tighten.propose.run_parallel", side_effect=recording),
+        patch("podcast_mcp.edits.tighten.prepare.run_parallel", side_effect=recording),
+    ):
+        _propose_with_performance(performance)
+    assert seen == expected

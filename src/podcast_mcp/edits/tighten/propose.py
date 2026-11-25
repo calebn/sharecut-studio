@@ -230,7 +230,8 @@ def propose_tighten_edits(
             for transcript in project.transcripts
         )
         copy_lags = PeerCopyLags(project) if can_scan else None
-        max_workers = cfg.get("performance", {}).get("max_workers")
+        # Serial unless N is set: the analysis is GIL-bound and threads lost at every size (#2364).
+        max_workers = cfg.get("performance", {}).get("max_workers") or 1
 
         def _gather(transcript: Transcript) -> tuple[list[_CutCandidate], dict[str, int]]:
             # Per-track skip counts: each worker fills its own dict, merged below.

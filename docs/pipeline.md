@@ -551,12 +551,12 @@ Configure via `performance.max_workers` in `pipeline.yaml`:
 
 ```yaml
 performance:
-  max_workers: 0   # 0 = auto (cpu_budget-based, capped at 8); 1 = serial; N = explicit cap
+  max_workers: 0   # 0 = auto (cpu_budget-based, capped at 8); 1 = serial; N = explicit cap. Tighten proposals stay serial unless N >= 1
 ```
 
 `performance.accelerator` is `auto` (default) or `cpu`. The hardware probe (`util/hardware.py`) detects an NVIDIA GPU, Apple Silicon (Core ML), DirectML, the ONNX Runtime execution providers and the cores this process may use (affinity and container quota); `podcast doctor` and the support bundle print the result in plain words. `PODCAST_ACCELERATOR=cpu` overrides the setting for support. Speech-to-text is the first step to read them: on a machine with an NVIDIA GPU that CTranslate2 can use and enough GPU memory for the chosen Whisper model (about 1 GB for tiny and base, 2 GB for small, 3.5 GB for the default `large-v3-turbo`, 5.5 GB for `large-v3`), faster-whisper runs on the GPU (float16, else int8_float16, else int8), and on the CPU (int8) everywhere else, including Apple Silicon, where CTranslate2 has no GPU backend. If the GPU model will not load, or a run fails with an error that names CUDA, cuBLAS, cuDNN or the GPU (GPU out of memory, missing CUDA libraries, driver mismatch), each engine (one per pipeline step) logs one warning (with the error) and redoes the work on the CPU, and stays on the CPU until it is rebuilt (the next run, or a restart of a long-lived server); other run errors, including a host out-of-memory error, are raised as before, so a bad file is not transcribed twice. The span check used by tighten (`edits/acoustic_word.py`) stays on the CPU until GPU output is proven equivalent for it. The CUDA runtime libraries (cuBLAS, cuDNN) are not installed by Studio: without them the CPU is used. The transcript cache key has no device in it, so a transcript made on either device is reused on the other. Every other model path adopts the probe in its own change.
 
-Worker and thread counts start from one number, `cpu_budget()` in `util/hardware.py`: the cores this process may really use, which is the smaller of the logical cores, the CPU affinity and the container CPU quota. Code does not call `os.cpu_count()` (a test enforces it), so a container limited to 2 cores gets 2-core pools instead of the host's 16. `performance.max_workers` still overrides the automatic worker count.
+Worker and thread counts start from one number, `cpu_budget()` in `util/hardware.py`: the cores this process may really use, which is the smaller of the logical cores, the CPU affinity and the container CPU quota. Code does not call `os.cpu_count()` (a test enforces it), so a container limited to 2 cores gets 2-core pools instead of the host's 16. `performance.max_workers` still overrides the automatic worker count. Tighten proposals (`propose_tighten_edits`) ignore the automatic count and stay serial when `max_workers` is 0 (auto) or unset; an explicit N >= 1 opts in to N threads. Their candidate analysis is GIL-bound numpy and Python, so threads lose at every size (#2364: on 4 CPUs a 600-word synthetic project took 8.3 s serial and 15.2 s on auto, and threads lost from 150 to 2400 words).
 
 Supported hardware, as of this release:
 
@@ -572,7 +572,8 @@ To decide whether a model path should use the accelerator, run `python scripts/b
 
 The ONNX models (word aligner, speaker embedding) load through `engines/onnx_session.py`. Each has an `ACCELERATE_*` flag in its module, off by default, that lets the session try the accelerator providers and rebuild on the CPU if loading or running fails. Measured on Apple Silicon with Core ML (#2249): the word aligner was 2.37x slower, used 6.75x the memory and its output differed (5e-3), the speaker embedding was 1.17x slower with 3.8x the memory, and Silero VAD was faster (18 vs 29 ms) but used 1.77x the memory, so all three stay on the CPU. Flip a flag only when the benchmark above passes its verdict on the target hardware.
 
-Set `max_workers: 1` to force fully serial, single-threaded execution — useful when
+Tighten proposals already run serially under `max_workers: 0` (#2364). Set `max_workers: 1` to force every parallel step
+serial and single-threaded — useful when
 debugging a specific cut/render issue and you want deterministic, reproducible
 single-threaded behavior. `master_loudness` is not parallelized
 (its plan and renders depend on the ebur128 pass-1 measurement of the same file).
@@ -698,7 +699,7 @@ episodes with more dialogue tracks.
 per proposal run, in two bands, over its whole length (`edits/session_air.py`), where the
 first version read a window around each pause. On `tests/benchmark_tighten.py`'s
 1000-word synthetic project (two tracks), `propose_tighten_edits` takes a median of 11.3 s
-serial and 9.9 s threaded (`performance.max_workers` 1 and 0) against 9.1 s and 7.2 s on
+serial and 9.9 s threaded (`performance.max_workers` 1 and 0, measured before #2364 made 0 serial for tighten) against 9.1 s and 7.2 s on
 `main`, over four alternating runs per side (11.0 to 11.5 s, 9.8 to 10.0 s; 9.0 to 9.3 s,
 7.1 to 7.3 s). The branch proposes more decisions (160 against 116, the extra pause trims
 that now get their air), so the cost per decision is 70 ms serial and 62 ms threaded
