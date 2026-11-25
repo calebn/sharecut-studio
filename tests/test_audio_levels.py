@@ -15,6 +15,7 @@ from podcast_mcp.edits.audio_cache import BandLevels, build_track_audio_caches, 
 from podcast_mcp.engines import audio_audit as audio_audit_module
 from podcast_mcp.engines import decode_memo
 from podcast_mcp.engines import level_profile as level_profile_module
+from podcast_mcp.engines import pcm_cache as pcm_cache_module
 from podcast_mcp.engines.level_profile import (
     SILENT,
     LevelProfile,
@@ -228,6 +229,7 @@ def test_the_profile_of_a_track_is_decoded_once_per_audio_file(tmp_path, monkeyp
 
     monkeypatch.setattr(level_profile_module, "load_mono_full", counting)
     monkeypatch.setattr(audio_audit_module, "load_mono_full", counting)
+    monkeypatch.setattr(pcm_cache_module, "load_mono_full", counting)
 
     first = track_level_profile(project, "host")
     second = track_level_profile(project, "host")
