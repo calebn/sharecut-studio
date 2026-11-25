@@ -231,9 +231,11 @@ def propose_tighten_edits(
             for transcript in project.transcripts
         )
         copy_lags = PeerCopyLags(project) if can_scan else None
-        # Serial unless an explicit N >= 2 opts in: on the 4-CPU synthetic benchmark threads lost
-        # at 150 to 2400 words (#2364); enrolled-profile and non-WAV projects were not measured.
-        max_workers = cfg.get("performance", {}).get("max_workers") or 1
+        # Serial unless the user sets N >= 2 or enrolled speaker profiles are loaded: on the
+        # 4-CPU synthetic benchmark threads lost at 150 to 2400 words because the analysis is
+        # GIL-bound Python (#2364), but the speaker-embedding model releases the GIL.
+        configured_workers = cfg.get("performance", {}).get("max_workers") or 0
+        max_workers = configured_workers or 1
 
         def _gather(transcript: Transcript) -> tuple[list[_CutCandidate], dict[str, int]]:
             # Per-track skip counts: each worker fills its own dict, merged below.
@@ -270,6 +272,11 @@ def propose_tighten_edits(
                 skip_counts[key] = skip_counts.get(key, 0) + n
 
         speaker_context = _speaker_cut_context(project) if candidates else None
+        analysis_workers = (
+            configured_workers
+            if configured_workers
+            else (0 if speaker_context is not None and speaker_context.profiles else 1)
+        )
         word_indexes = _word_indexes(project, candidates)
         # Built here on the caller's thread (a pool worker would wait on the project lock
         # that ``mutate`` holds, #1471) and shared with the apply below, whose
@@ -284,7 +291,7 @@ def propose_tighten_edits(
             peer_indexes=peer_indexes,
             word_indexes=word_indexes,
             timeline_caches=timeline_caches,
-            max_workers=max_workers,
+            max_workers=analysis_workers,
         )
         resolved = _resolve_analyzed_cuts(
             candidates,

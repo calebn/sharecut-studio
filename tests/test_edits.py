@@ -241,3 +241,34 @@ def test_propose_tighten_edits_pool_size_follows_max_workers(performance, expect
         _propose_with_performance(performance)
     assert seen == expected
     assert built == pools
+
+
+@pytest.mark.parametrize(
+    ("performance", "expected"),
+    [
+        ({}, [1, 0]),
+        ({"max_workers": 0}, [1, 0]),
+        ({"max_workers": 1}, [1, 1]),
+        ({"max_workers": 3}, [3, 3]),
+    ],
+)
+def test_propose_tighten_edits_uses_threads_by_default_with_enrolled_profiles(
+    performance, expected
+):
+    from podcast_mcp.edits.tighten import candidate as cand
+    from podcast_mcp.util.parallel import run_parallel
+
+    seen: list[int | None] = []
+
+    def recording(*args, **kwargs):
+        seen.append(kwargs.get("max_workers"))
+        return run_parallel(*args, **kwargs)
+
+    enrolled = cand._SpeakerCutContext(None, {"host": object()}, loaded=False)
+    with (
+        patch("podcast_mcp.edits.tighten.propose._speaker_cut_context", return_value=enrolled),
+        patch("podcast_mcp.edits.tighten.propose.run_parallel", side_effect=recording),
+        patch("podcast_mcp.edits.tighten.prepare.run_parallel", side_effect=recording),
+    ):
+        _propose_with_performance(performance)
+    assert seen == expected
