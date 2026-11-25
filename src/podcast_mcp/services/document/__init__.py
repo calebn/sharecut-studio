@@ -152,6 +152,7 @@ if TYPE_CHECKING:
         TrimHeldResult,
         TrimUnchangedResult,
     )
+    from podcast_mcp.services.document.warm_preview_results import WarmPreviewResult
 
 __all__ = [
     "DEFAULT_LIMIT",
@@ -238,6 +239,7 @@ __all__ = [
     "TrimBoundaryTarget",
     "TrimHeldResult",
     "TrimUnchangedResult",
+    "WarmPreviewResult",
     "WordAutomaticResult",
     "WordSuppressedResult",
     "WordTimingTarget",
@@ -363,6 +365,7 @@ _MODULE_BY_NAME = {
     "TrimAppliedResult": "trim_edge_results",
     "TrimHeldResult": "trim_edge_results",
     "TrimUnchangedResult": "trim_edge_results",
+    "WarmPreviewResult": "warm_preview_results",
     "TranscriptService": "transcript",
     "TranscriptEmptyError": "transcript",
     "ExportBusyError": "transcript",
