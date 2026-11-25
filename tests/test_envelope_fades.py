@@ -121,8 +121,12 @@ def test_a_new_duration_moves_the_fade_and_leaves_the_rest(name) -> None:
     assert len({p.id for p in result}) == len(result)
 
 
+def _dip(start: float, end: float, dur: float) -> list[EnvPoint]:
+    return plan_envelope([(start, end)], [], DEPTH, dur, 1000).points
+
+
 def test_replacing_a_fade_point_next_to_a_dip_is_reported() -> None:
-    first = merged(EXTRAS["duck_g"])
+    first = merged(_dip(5.0, 6.0, 20.0), dur=20.0)
     assert merge_fades(first, 20.0, 2.0, 3.0).replaced_under_duck == 0
     assert merge_fades(merged([]), 20.0, 2.0, 3.0).replaced_under_duck == 0
     assert merge_fades(merged(EXTRAS["duck_b_fade"]), 20.0, 2.0, 3.0).replaced_under_duck == 0
@@ -351,10 +355,10 @@ def test_a_user_envelope_equal_to_the_old_shape_for_the_current_settings_is_repl
 
 
 def test_the_re_run_hint_counts_only_fade_points_near_a_dip() -> None:
-    first = merged([EnvPoint(generated_point_id(50.0, 0.12), 50.0, 0.12)], dur=100.0)
+    first = merged(_dip(50.0, 51.0, 100.0), dur=100.0)
     assert merge_fades(first, 100.0, 4.0, 3.0).replaced_under_duck == 0
     assert merge_fades(first, 100.0, 2.0, 6.0).replaced_under_duck == 0
-    near = merged([EnvPoint(generated_point_id(98.0, 0.12), 98.0, 0.12)], dur=100.0)
+    near = merged(_dip(97.5, 99.5, 100.0), dur=100.0)
     assert merge_fades(near, 100.0, 2.0, 6.0).replaced_under_duck >= 1
     assert merge_fades(near, 200.0, 2.0, 3.0).replaced_under_duck >= 1
     lowered_point = merged([lowered("out0", 97.0, 1.0, 0.2)], dur=100.0)
@@ -481,8 +485,8 @@ def test_adopting_a_plain_legacy_fade_next_to_a_dip_asks_for_a_ducking_rerun() -
 
 def test_adopting_a_plain_legacy_fade_with_a_dip_far_from_the_ramps_does_not() -> None:
     old = _uuid_fade(500.0, 2.0, 3.0)
-    dip = EnvPoint(generated_point_id(100.0, 0.126), 100.0, 0.126)
-    result = merge_fades([*old, dip], 600.0, 2.0, 3.0)
+    dip = _dip(100.0, 101.0, 600.0)
+    result = merge_fades([*old, *dip], 600.0, 2.0, 3.0)
     assert result.replaced_legacy == 4 and result.replaced_under_duck == 0
 
 
@@ -543,8 +547,8 @@ def test_a_deleted_fade_end_next_to_a_dip_asks_for_a_rerun() -> None:
     dip_in = EnvPoint(generated_point_id(1.0, 0.126), 1.0, 0.126)
     result = merge_fades([*_without(base, "in0"), dip_in], 10.0, 2.0, 3.0)
     assert result.replaced_under_duck >= 1
-    far = EnvPoint(generated_point_id(5.0, 0.126), 5.0, 0.126)
-    assert merge_fades([*_without(base, "out1"), far], 10.0, 2.0, 3.0).replaced_under_duck == 0
+    far = _dip(4.8, 5.0, 10.0)
+    assert merge_fades([*_without(base, "out1"), *far], 10.0, 2.0, 3.0).replaced_under_duck == 0
 
 
 def test_a_dip_entirely_past_the_stem_end_does_not_ask_for_a_rerun() -> None:
@@ -587,3 +591,12 @@ def test_a_span_enclosed_by_a_dip_asks_for_a_rerun() -> None:
     assert merge_fades(points, 8.0, 2.0, 3.0).replaced_under_duck >= 1
     after = plan_envelope([(4.0, 19.0)], [], DEPTH, 20.0, 1000).points
     assert merge_fades(after, 3.5, 2.0, 3.0).replaced_under_duck == 0
+
+
+def test_a_held_duck_tail_encloses_the_fade_span() -> None:
+    held = plan_envelope([(3.5, 10.0)], [], DuckingParams(depth_db=-18.0), 4.5, 1000).points
+    assert held[-1].value < 1.0
+    assert merge_fades(held, 8.0, 2.0, 3.0).replaced_under_duck >= 1
+    lone = [EnvPoint(generated_point_id(3.0, 0.126), 3.0, 0.126)]
+    assert merge_fades(lone, 8.0, 2.0, 3.0).replaced_under_duck >= 1
+    assert merge_fades(lone, 2.0, 0.5, 0.5).replaced_under_duck == 0
