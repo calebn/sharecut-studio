@@ -689,6 +689,47 @@ def test_host_record_watcher_survives_a_failed_poll(
         assert roster[HOST_PARTICIPANT_ID]["connected"] is True
 
 
+def test_a_host_that_joined_a_room_before_its_mint_finished_joins_again(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """A mint writes the room's links before it starts the room (#4564).
+
+    A host socket that sees the links joins at once. Starting the room then resets its
+    snapshot and drops the host's connection, so the watcher joins again on its next poll.
+    """
+    from urllib.parse import quote
+
+    from podcast_mcp.services.record import invalidate_record_session_cache
+    from podcast_mcp.services.record.service import begin_record_session
+    from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
+
+    _isolate()
+    monkeypatch.setattr("podcast_mcp.gui.routes.host.HOST_RECORD_ATTACH_POLL_S", 0.05)
+    ws = _seed_premix(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
+    session_id = "0123456789ab"
+
+    def echo(m: dict) -> bool:
+        return m.get("plane") == "record" and m.get("type") == "Echo"
+
+    with client.websocket_connect(url) as host:
+        assert host.receive_json()["type"] == "Snapshot"
+        ShareService(ws).create_record_token(
+            role="guest", session_id=session_id, require_room=False
+        )
+        invalidate_record_session_cache(ws.project)
+        _drain_until(host, echo, n=40)
+
+        begin_record_session(ws.project, session_id)
+
+        rejoined = _drain_until(host, echo, n=40)
+        assert rejoined["participant_id"] == HOST_PARTICIPANT_ID
+        svc = RecordSessionService(ws.project, session_id=session_id)
+        roster = {p["participant_id"]: p for p in svc.snapshot()["participants"]}
+        assert roster[HOST_PARTICIPANT_ID]["connected"] is True
+
+
 def test_host_record_watcher_gives_up_on_a_room_whose_join_keeps_failing(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
