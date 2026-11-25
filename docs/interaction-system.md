@@ -90,13 +90,14 @@ Each thing is declared once. A second map from the same key is a bug.
    with its verbs, and gains **Show edit** (a pending edit) or **Show
    selection** (every other anchored kind) before Clear. The control runs the
    command `view.revealSelection` (palette, no key; it changes no project, so MCP and CLI
-   have no twin): on desktop and tablet it scrolls both axes instantly
-   (`utils/timelineReveal.ts` `revealAnchor`) and never moves the playhead,
+   have no twin; on the phone it seeks the playhead): on desktop and tablet it scrolls both axes instantly
+   (`commands/timelineReveal.ts` `revealAnchor`) and never moves the playhead,
    the selection or focus; on the phone, where the view scrubs the fixed
    playhead, it seeks to the selection's start like Seek to start, and still
    leaves the selection and focus alone. The
    floating bar shows it only while pinned and drops it when the anchor is
-   back; the phone dock, which has no pin state, always shows it. Reaching the
+   back; the phone dock, which has no pin state, shows it whenever the anchor is
+   drawn and Clear or Close holds the slot it rides in. Reaching the
    pinned state announces "<label> to return to it" once, politely. The
    Inspector card still hides while its anchor is away and coexists with the
    pinned bar.
@@ -593,6 +594,6 @@ consistency epic tracks them.
 | --- | --- |
 | Result ownership and coincident feedback | Export, in Deliver and in place, retains original start blockers, bind the returned ID, and keep bound unverified outcomes through abort or follower failure until reset. One shell transaction joins fresh chip copy and ready outcomes. Receipt failure is live-only; verified fragments alone enter the toast. Unclaimed outcomes keep their observed copy. |
 | Menus: one primitive, context menus from one descriptor | `stages/edit/CreateMenu.tsx` (hosted by `timeline/TimelineCreateMenu.tsx`) and `stages/edit/TargetChooser.tsx` (hosted by `timeline/TimelineChooser.tsx`) hand-roll `role="menu"` (in the top layer). The create menu now opens on right click and on the Menu key or Shift+F10 over a focused target (`hitRouting.ts` `openCreate`, #1793); marker buttons are focusable, while a keyboard user without a focused target reaches the create actions through the palette and keys. |
-| A selection that scrolls away keeps its bar | A multi-selected clip answers to the first of its clips that is drawn. The floating bar's Show control has no key (the command is `view.revealSelection`, palette only, by the `view.followPlayhead` precedent), and MCP and CLI have no twin because the command only moves the local view. |
+| A selection that scrolls away keeps its bar | A multi-selected clip answers to the first of its clips that is drawn. The floating bar's Show control has no key (the command is `view.revealSelection`, palette only, by the `view.followPlayhead` precedent), and MCP and CLI have no twin because the command only moves the local view and, on the phone, seeks the local playhead. |
 | Confirms: one primitive | The model download is a Model need row (`stages/prepare/ReadyList.tsx`, the Deliver Episode file section, the Review Queue's job slot, `JobModelBanner`), not an `askConfirm`; hand fixes are asked on the Re-transcribe row. |
 | Confirms: model not downloaded | No modal. `ModelNeedRow` (`models/ModelNeedRow.tsx`) shows in place inside the job that needs the model: "Needs {what} · {size}" with **Get**, a progress bar with **Cancel**, a plain failure with **Try again**, and **Manage** for the Models sheet. It appears in the Review Queue's job slot (Find more), the Deliver Episode file section, and under the header for a job that failed for a model (`JobModelBanner`). `useModelResume` runs the stopped step again once, by itself, when the model lands; a model refused again after it landed fails the step instead of looping. In the Models sheet the same row is the 64 px list row. Focus moves to the row's Get when it appears on Deliver and stays on the row's control as Get gives way to Cancel. |
