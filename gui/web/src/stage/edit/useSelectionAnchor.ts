@@ -156,8 +156,8 @@ type SelectionAnchor = {
   readonly pinned: boolean;
   /** Where to place a bar against: fresh on every call, never off screen. */
   readonly rect: () => AnchorRect | null;
-  /** Layout has not yet located the anchor for the new selection. */
-  readonly resolving: boolean;
+  /** Layout has not yet located the anchor after entering range selection. */
+  readonly resolvingRange: boolean;
   /** The anchor is found and inside its box; the Inspector card hides otherwise. */
   readonly visible: boolean;
 };
@@ -173,10 +173,11 @@ export function useSelectionAnchor(
   const excludeRef = useRef<HTMLElement | null>(null);
   const withinRef = useRef<HTMLElement | null>(null);
   const [state, setState] = useState({ pinned: false, lost: false });
+  const rangeSelected = selection?.kind === "range";
   const [located, setLocated] = useState<{
     node: HTMLElement | null;
-    selection: Selection;
-  }>({ node: null, selection: null });
+    forRange: boolean;
+  }>({ node: null, forRange: false });
   const { node } = located;
   const [excluded, setExcluded] = useState<HTMLElement | null>(null);
   const { project, zoomPxPerSec } = useDawStore(
@@ -199,9 +200,9 @@ export function useSelectionAnchor(
       withinRef.current = within;
       setExcluded(header);
       setLocated((was) =>
-        was.node === found && was.selection === selection
+        was.node === found && was.forRange === rangeSelected
           ? was
-          : { node: found, selection },
+          : { node: found, forRange: rangeSelected },
       );
     };
     resolve();
@@ -219,7 +220,7 @@ export function useSelectionAnchor(
       observer.disconnect();
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [root, within, selection, enabled, project, zoomPxPerSec]);
+  }, [root, within, selection, rangeSelected, enabled, project, zoomPxPerSec]);
 
   const moves = useMemo(
     () => [zoomPxPerSec, node, selection, excluded, root],
@@ -312,7 +313,7 @@ export function useSelectionAnchor(
     rect,
     present,
     pinned,
-    resolving: enabled && located.selection !== selection,
+    resolvingRange: enabled && rangeSelected && !located.forRange,
     visible: present && !pinned,
   };
 }
