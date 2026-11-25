@@ -457,9 +457,11 @@ live region speaks the new edit's own message; the visible text is the count.
    clear at the nearest position beside it, above it or below it, and the card
    keeps clear of the bar. Where the card's minimum height would reach the bar,
    it slides beside the bar, or else shortens to the room above or below it
-   (at least half its minimum height). Where no position clears everything,
-   the normal placement stands and the bar or the card may cover what it
-   would otherwise clear.
+   (at least half its minimum height). For an automatic reduction the join band
+   picks in view are cleared the same way, and where no position clears them
+   the Inspector takes the screen so they stay reachable. Where no position
+   clears everything else, the normal placement stands and the bar or the card
+   may cover what it would otherwise clear.
 
 ## Where primitives and tokens live
 

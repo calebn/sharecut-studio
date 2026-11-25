@@ -11,8 +11,10 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { revealAnchor } from "../../commands/timelineReveal";
+import { clipBleedSession } from "../../edit/clipBleedSession";
 import { SelectionSheetBody } from "../../inspector/SelectionSheetBody";
 import { useDaw } from "../../state/useDaw";
 import type { BarId } from "../../system/editActionSets";
@@ -22,10 +24,12 @@ import {
   InspectorSheet,
 } from "../../system/InspectorSheet";
 import {
+  CARD_WIDTH_PX,
   cardFits,
   type InspectorBounds,
   type InspectorDetent,
   type InspectorRect,
+  placeCard,
   scaledMinBlock,
 } from "../../system/inspectorSheetMath";
 import { areaRects } from "../../ui/anchoredPlacement";
@@ -268,6 +272,19 @@ function relativeRect(rect: DOMRect, frame: DOMRect): InspectorRect {
   };
 }
 
+const PICK_SELECTOR = '[data-hit-kind="bleed-attenuation"]';
+
+/** The part of `rect` inside every clip box, or null when nothing of it is left. */
+function within(rect: DOMRect, clips: readonly DOMRect[]): DOMRect | null {
+  const left = Math.max(rect.left, ...clips.map((c) => c.left));
+  const top = Math.max(rect.top, ...clips.map((c) => c.top));
+  const right = Math.min(rect.right, ...clips.map((c) => c.right));
+  const bottom = Math.min(rect.bottom, ...clips.map((c) => c.bottom));
+  return right > left && bottom > top
+    ? new DOMRect(left, top, right - left, bottom - top)
+    : null;
+}
+
 function Card({
   sheet,
   heading,
@@ -308,6 +325,21 @@ function Card({
     () => (keepCornerClear ? timelineCorner(root) : null),
     [keepCornerClear, root],
   );
+  const bleedSelected = selection?.kind === "bleedAttenuation";
+  const bleedSnapshot = useSyncExternalStore(
+    clipBleedSession.subscribe,
+    clipBleedSession.getSnapshot,
+    clipBleedSession.getSnapshot,
+  );
+  const getPicks = useCallback(
+    () =>
+      bleedSelected && root
+        ? [...root.querySelectorAll<HTMLElement>(PICK_SELECTOR)].filter(
+            (pick) => !pick.closest("[data-range-armed]"),
+          )
+        : [],
+    [bleedSelected, root],
+  );
   const measure = useCallback(() => {
     if (!root) return;
     const frame = root.getBoundingClientRect();
@@ -326,12 +358,20 @@ function Card({
           ? relativeRect(controls, frame)
           : { x: frame.width / 2, y: frame.height, width: 0, height: 0 },
       ),
-      keepClear: areaRects([getCorner()]).map((rect) =>
-        relativeRect(rect, frame),
-      ),
+      keepClear: [
+        ...areaRects([getCorner()]).map((rect) => relativeRect(rect, frame)),
+        ...getPicks().flatMap((pick) => {
+          const lanes = pick.closest(".timeline-scroll");
+          const clipped = within(pick.getBoundingClientRect(), [
+            frame,
+            ...(lanes ? [lanes.getBoundingClientRect()] : []),
+          ]);
+          return clipped ? [rounded(relativeRect(clipped, frame))] : [];
+        }),
+      ],
     };
     setPlacement((was) => (samePlacement(was, next) ? was : next));
-  }, [root, anchor.ref, getCorner]);
+  }, [root, anchor.ref, getCorner, getPicks]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a zoom, a new anchor node or a new selection moves the anchor
   useLayoutEffect(() => {
     measure();
@@ -346,9 +386,9 @@ function Card({
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", onScroll, true);
     };
-  }, [measure, anchor.moves, anchor.visible]);
+  }, [measure, anchor.moves, anchor.visible, bleedSnapshot]);
   useResizeObserver(
-    [root, getCorner, () => getCorner()?.parentElement],
+    [root, getCorner, () => getCorner()?.parentElement, getPicks],
     measure,
   );
   useStyleObserver(
@@ -359,7 +399,8 @@ function Card({
   const history = useTakeoverHistory();
   const takeover =
     placement !== null &&
-    !cardFits(placement.bounds.height, scaledMinBlock(rootFontPx()));
+    (!cardFits(placement.bounds.height, scaledMinBlock(rootFontPx())) ||
+      (bleedSelected && picksCovered(placement)));
   // The takeover has no Action bar beside it, so the sheet keeps the verbs.
   const sections = useBodySections(sheet.rangeActionsInSheet, !takeover);
   // The card hides while its anchor is out of view; the Action bar stays, pinned at the edge.
@@ -433,6 +474,18 @@ function Card({
 }
 
 const DEFAULT_ROOT_FONT_PX = 16;
+
+/** Whether the card, placed as the sheet will place it, still lies over a keep-clear area. */
+function picksCovered({ anchor, bounds, keepClear }: Placement) {
+  const rootPx = rootFontPx();
+  return placeCard(
+    anchor,
+    bounds,
+    CARD_WIDTH_PX * (rootPx / DEFAULT_ROOT_FONT_PX),
+    scaledMinBlock(rootPx),
+    keepClear,
+  ).covered;
+}
 
 function rootFontPx() {
   return (
