@@ -207,6 +207,10 @@ def run_reconcile_benchmark(project: EpisodeProject) -> PipelineBenchmarkResult:
             side_effect=counting_mono,
         ),
         patch(
+            "podcast_mcp.engines.pcm_cache.load_mono_full",
+            side_effect=counting_mono,
+        ),
+        patch(
             "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
             side_effect=fake_rms,
         ),
