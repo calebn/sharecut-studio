@@ -1,9 +1,9 @@
 import type { SegmentKind, SegmentSaveRequest } from "../api";
 import { selectedClipIdsOf } from "../state/selection";
-import type { ProjectView, Selection } from "../types/project";
+import type { ClipRow, ProjectView, Selection } from "../types/project";
 import { formatTimeShort } from "../utils/time";
 import { timelineEndSec } from "./pickupTarget";
-import { rangeClips, resolveSelectionRange } from "./rangeSelection";
+import { resolveSelectionRange } from "./rangeSelection";
 
 export const SEGMENT_EDGE_SEC = 120;
 
@@ -66,6 +66,9 @@ function found(
   };
 }
 
+const savedClips = (project: ProjectView): ClipRow[] =>
+  project.tracks.flatMap((track) => project.clips.tracks[track.id] ?? []);
+
 const secondsText = (sec: number) => sec.toFixed(3);
 
 export function segmentSelectionOf(
@@ -76,7 +79,7 @@ export function segmentSelectionOf(
   if (selection?.kind === "clip") {
     const ids = selectedClipIdsOf(selection);
     const wanted = new Set(ids);
-    const clips = rangeClips(project).filter((clip) => wanted.has(clip.id));
+    const clips = savedClips(project).filter((clip) => wanted.has(clip.id));
     if (!clips.length || clips.length !== wanted.size)
       return { ok: false, reason: "The selected clips changed" };
     return found(
@@ -97,7 +100,7 @@ export function segmentSelectionOf(
   const { start, end } = target.intervals[0]!;
   if (!(end > start)) return { ok: false, reason: NO_SEGMENT_SELECTION };
   const held = new Set(target.track_ids);
-  const inSpan = rangeClips(project).filter(
+  const inSpan = savedClips(project).filter(
     (clip) => clip.timeline_start < end && clip.timeline_end > start,
   );
   if (inSpan.some((clip) => !held.has(clip.track_id)))
