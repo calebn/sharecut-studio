@@ -2807,6 +2807,10 @@ describe("Save as segment", () => {
       shareCapabilities: EDITOR_CAPABILITIES,
     });
     expect(row()).toBeUndefined();
+    expect(await execute("segment.save")).toMatchObject({
+      status: "disabled",
+      reason: expect.stringMatching(/host/i),
+    });
     host(EDIT_SELECTIONS.playhead);
     expect(await execute("segment.save")).toEqual({
       status: "disabled",

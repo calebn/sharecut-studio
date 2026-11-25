@@ -118,9 +118,37 @@ describe("SaveSegmentCard anchored", () => {
     await waitFor(() => expect(handlers.onClose).toHaveBeenCalledTimes(1));
   });
 
+  it("stays open on Escape and Cancel while saving, so a failure is not lost", async () => {
+    let fail!: (error: unknown) => void;
+    const onSave = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    const handlers = handlersOf(onSave);
+    render(<Anchored handlers={handlers} />);
+    await userEvent.type(
+      await screen.findByRole("textbox", { name: "Name" }),
+      "Intro{Enter}",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Saving to your library.",
+    );
+    await userEvent.keyboard("{Escape}");
+    expect(handlers.onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    fail(new Error("offline"));
+    expect(
+      await screen.findByText("That did not save. Try again."),
+    ).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    expect(handlers.onClose).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ["segment_clip_too_short", /too short/],
-    ["segment_render_unsupported", /room tone/],
+    ["segment_render_unsupported", /muted speakers/],
     ["segment_busy", /busy/],
     ["segment_write_failed", /could not be written/],
     ["segment_invalid", /cannot be saved/],

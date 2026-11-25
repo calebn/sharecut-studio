@@ -140,7 +140,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Play range | session | `range.play` | — (Context action with explicit range selection) | — | `actionBar` | — | — | — | — | none · none |
 | Cut selected range | project | `range.cut` | — (Context action with explicit range selection) | — | `actionBar` | `propose_range_cut_tool` | `podcast edit propose-range-cut` | — | — | none · none |
 | Mute selected range | project | `range.mute` | — (Context action with explicit range selection) | — | `actionBar` | `propose_range_mute_tool` | — | — | — | none · none |
-| Save as segment | session | `segment.save` | — (Context action with explicit clip or range selection) | — | `actionBar` | `segment_save_tool` | `podcast segment save` | — | — | none · none |
+| Save as segment | project | `segment.save` | — (Context action with explicit clip or range selection) | — | `actionBar` | `segment_save_tool` | `podcast segment save` | — | — | none · none |
 | Fill range with room tone | project | `range.fillRoomTone` | — (Context action with explicit range selection) | — | `actionBar` | `fill_with_room_tone_tool` | `podcast doc submit` | — | — | none · none |
 | Move to speaker | project | `range.moveSpeakerLane` | — (Context action with explicit range selection on one split lane) | — | `actionBar` | `speaker_move_lane_span_tool` | `podcast speaker move-lane-span` | `podcast-speaker-attribution` | — | none · none |
 | Comment on range | project | `range.comment` | — (Context action with explicit range selection) | — | `actionBar` | `add_comment_tool` | `podcast comment add` | — | — | none · none |
