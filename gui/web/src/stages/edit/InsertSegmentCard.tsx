@@ -146,9 +146,13 @@ function useInsertForm(
   const disabledReason = inserting
     ? INSERTING
     : !selected
-      ? rows && rows.length > 0 && rows.some(usable)
-        ? PICK_FIRST
-        : "There is no segment to insert."
+      ? rows === null
+        ? props.loadError
+          ? "Your saved segments could not be read."
+          : LOADING_LIBRARY
+        : rows.length > 0 && rows.some(usable)
+          ? PICK_FIRST
+          : "There is no segment to insert."
       : !current
         ? CHECKING
         : current.error

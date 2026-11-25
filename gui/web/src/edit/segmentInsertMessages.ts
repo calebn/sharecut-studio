@@ -77,10 +77,16 @@ export function insertPreviewLines(preview: SegmentInsertPreview): string[] {
     lines.push(
       `Moves ${plural(preview.clips_moved, "clip", "clips")} later by ${formatTimeShort(preview.duration_sec)}.`,
     );
-  else lines.push("Nothing moves.");
   const chapters = preview.chapters_moved.length;
-  if (chapters > 0) lines.push(laterText(chapters, "chapter", "chapters"));
   const comments = preview.comments_moved.length;
+  if (
+    preview.clips_moved === 0 &&
+    chapters === 0 &&
+    comments === 0 &&
+    preview.pending_edits_moved === 0
+  )
+    lines.push("Nothing moves.");
+  if (chapters > 0) lines.push(laterText(chapters, "chapter", "chapters"));
   if (comments > 0) lines.push(laterText(comments, "comment", "comments"));
   if (preview.pending_edits_moved > 0)
     lines.push(
