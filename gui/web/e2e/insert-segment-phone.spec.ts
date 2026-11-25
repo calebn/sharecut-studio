@@ -4,12 +4,20 @@ import { expectFeedback } from "./feedback";
 import { expectNoHorizontalScroll, expectTouchTargets } from "./modelsMock";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { setRootFontSize } from "./rootFontSize";
+import { expectActionsPinned, expectResizes } from "./segmentSheet";
 import { openProject, openToolsIfFolded } from "./stageNav";
 import { setTheme, type Theme, withAppearance } from "./theme";
 
 const CELLS = [
-  { name: "390x844", width: 390, height: 844, fontPx: null },
-  { name: "320x568-200pct", width: 320, height: 568, fontPx: 32 },
+  { name: "390x844", width: 390, height: 844, fontPx: null, resize: true },
+  { name: "320x740", width: 320, height: 740, fontPx: null, resize: true },
+  {
+    name: "320x568-200pct",
+    width: 320,
+    height: 568,
+    fontPx: 32,
+    resize: false,
+  },
 ] as const;
 
 const LIBRARY = [
@@ -126,10 +134,19 @@ async function mockInsert(page: Page): Promise<Mocked> {
   return mocked;
 }
 
-async function openCard(page: Page, theme: Theme) {
+async function openCard(
+  page: Page,
+  theme: Theme,
+  size: { width: number; height: number } | null,
+) {
   await openProject(page, e2eProjectPath);
+  if (size) await page.setViewportSize(size);
   await setTheme(page, theme);
   await openPhoneTimeline(page);
+  return openInsert(page);
+}
+
+async function openInsert(page: Page) {
   const insert = page
     .getByRole("group", { name: "Edit actions" })
     .getByRole("button", { name: "Insert segment", exact: true });
@@ -162,6 +179,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       isMobile: true,
       deviceScaleFactor: 1,
     });
+    if (cell.resize) test.use({ viewport: { width: 1280, height: 800 } });
 
     test.beforeEach(async ({ page }) => {
       await page.emulateMedia({
@@ -173,7 +191,10 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       page,
     }) => {
       const mocked = await mockInsert(page);
-      const sheet = await openCard(page, theme);
+      const size = cell.resize
+        ? { width: cell.width, height: cell.height }
+        : null;
+      const sheet = await openCard(page, theme, size);
       if (cell.fontPx) await setRootFontSize(page, cell.fontPx);
       const option = sheet.getByRole("radio", { name: /Cold open/ });
       await expect(option).toBeVisible();
@@ -245,6 +266,45 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
           placement: "own_lane",
         },
       });
+    });
+
+    test("keeps Cancel and Insert pinned, and Expand and Collapse resize the sheet", async ({
+      page,
+    }) => {
+      await mockInsert(page);
+      const size = cell.resize
+        ? { width: cell.width, height: cell.height }
+        : null;
+      const sheet = await openCard(page, theme, size);
+      if (cell.fontPx) await setRootFontSize(page, cell.fontPx);
+      await expect(sheet).toHaveClass(/bottom-sheet--half/);
+      await expectActionsPinned(sheet, ["Cancel", "Insert"]);
+      const scroll = sheet.locator(".sys-sheet-scroll");
+      expect(await scroll.evaluate((el) => el.scrollTop)).toBe(0);
+      expect(
+        await scroll.evaluate((el) => el.clientHeight),
+      ).toBeGreaterThanOrEqual(64);
+      await expectResizes(sheet, ["Cancel", "Insert"]);
+      await expectNoHorizontalScroll(page);
+    });
+
+    test("Cancel closes the sheet and the next open starts at half", async ({
+      page,
+    }) => {
+      await mockInsert(page);
+      const size = cell.resize
+        ? { width: cell.width, height: cell.height }
+        : null;
+      const sheet = await openCard(page, theme, size);
+      if (cell.fontPx) await setRootFontSize(page, cell.fontPx);
+      await sheet
+        .getByRole("button", { name: "Expand to full height", exact: true })
+        .tap();
+      await expect(sheet).toHaveClass(/bottom-sheet--full/);
+      await sheet.getByRole("button", { name: "Cancel", exact: true }).tap();
+      await expect(sheet).toHaveCount(0);
+      const again = await openInsert(page);
+      await expect(again).toHaveClass(/bottom-sheet--half/);
     });
   });
 }

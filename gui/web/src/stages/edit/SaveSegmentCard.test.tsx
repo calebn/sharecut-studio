@@ -184,6 +184,15 @@ describe("SaveSegmentCard anchored", () => {
     );
   });
 
+  it("keeps Cancel and Save inside the form on the anchored card", async () => {
+    render(<Anchored handlers={handlersOf()} />);
+    const form = (await screen.findByRole("dialog")).querySelector("form");
+    expect(form).toContainElement(screen.getByRole("button", { name: "Save" }));
+    expect(form).toContainElement(
+      screen.getByRole("button", { name: "Cancel" }),
+    );
+  });
+
   it("closes on Cancel without saving", async () => {
     const handlers = handlersOf();
     render(<Anchored handlers={handlers} />);
@@ -221,6 +230,49 @@ describe("SaveSegmentCard bottom", () => {
       name: "Sponsor read",
       kind: "other",
     });
+  });
+
+  it("pins Cancel and Save in the sheet footer, outside the form", async () => {
+    render(<Bottom handlers={handlersOf()} />);
+    const dialog = await screen.findByRole("dialog", {
+      name: "Save as segment",
+    });
+    const footer = dialog.querySelector<HTMLElement>(".sys-sheet-footer");
+    const form = dialog.querySelector("form");
+    expect(footer).not.toBeNull();
+    for (const name of ["Cancel", "Save"]) {
+      const button = screen.getByRole("button", { name });
+      expect(footer).toContainElement(button);
+      expect(form).not.toContainElement(button);
+    }
+    expect(screen.getByRole("button", { name: "Save" })).toHaveAttribute(
+      "form",
+      form?.id,
+    );
+  });
+
+  it("saves on Enter in the Name field", async () => {
+    const handlers = handlersOf();
+    render(<Bottom handlers={handlers} />);
+    const name = await screen.findByRole("textbox", { name: "Name" });
+    await userEvent.type(name, "Sponsor read{Enter}");
+    expect(handlers.onSave).toHaveBeenCalledWith({
+      name: "Sponsor read",
+      kind: "other",
+    });
+  });
+
+  it("keeps Cancel off while saving", async () => {
+    const onSave = vi.fn(() => new Promise<void>(() => {}));
+    render(<Bottom handlers={handlersOf(onSave)} />);
+    await userEvent.type(
+      await screen.findByRole("textbox", { name: "Name" }),
+      "Sponsor read",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      screen.getByRole("button", { name: "Cancel" }),
+    ).toHaveAccessibleDescription("Saving to your library.");
   });
 });
 
