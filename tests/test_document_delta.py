@@ -220,6 +220,48 @@ def test_guest_delta_is_diffed_after_sanitization_and_host_variant_is_private(mi
     assert sanitize_guest_document_event(host_document_event(event))["snapshot"]["resync"] is True
 
 
+def _seed_cuttable(path: Path) -> None:
+    from podcast_mcp.models import Clip, Track, TrackRole, load_project, save_project
+
+    project = load_project(path)
+    project.tracks = [Track(id="room", label="Room", role=TrackRole.DIALOGUE)]
+    project.clips = [
+        Clip(id="clip_room", track_id="room", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    ]
+    save_project(project, path)
+
+
+def test_guest_delta_for_a_cut_replaces_edit_impact_exactly_once(minimal_project):
+    _seed_cuttable(minimal_project)
+    svc = DocumentSyncService.open(minimal_project)
+    cut = command(
+        "CutRange",
+        {
+            "start": 2.0,
+            "end": 3.5,
+            "mode": "ripple",
+            "track_ids": ["room"],
+            "use_inaudible_opt": False,
+            "override_audio_checks": True,
+        },
+    )
+    with patch("podcast_mcp.services.document_sync.service.get_hub") as hub:
+        result = svc.submit(cut, audience="guest")
+        event = hub.return_value.publish.call_args.args[1]
+
+    guest = sanitize_guest_document_event(event)
+    operations = guest["snapshot"]["delta"]["operations"]
+    impact = [op for op in operations if op["section"] == "edit_impact"]
+
+    assert guest["snapshot"]["delta"]["audience"] == "guest"
+    assert result["snapshot"] == guest["snapshot"]
+    assert len(impact) == 1
+    assert impact[0]["type"] == "replace"
+    assert impact[0]["value"]["total_removed_sec"] == pytest.approx(1.5)
+    assert impact[0]["value"]["pending_review_count"] == 0
+    assert impact[0]["value"]["by_track_sec"] == {}
+
+
 def test_undo_and_external_mutations_remain_replacements(minimal_project):
     svc = DocumentSyncService.open(minimal_project)
     svc.submit(comment())

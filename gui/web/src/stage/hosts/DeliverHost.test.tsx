@@ -1111,7 +1111,21 @@ describe("Deliver host readiness facts", () => {
     render(<DeliverStage />);
     const row = (await screen.findByText("Edits saved")).closest("li");
     expect(row).not.toBeNull();
-    expect(row).toHaveTextContent("23.6 s");
+    expect(row).toHaveTextContent("24 s shorter");
+    expect(row).not.toHaveTextContent("23.6");
+  });
+
+  it("says No cuts yet when the edits removed nothing", async () => {
+    const base = projectAt("h1");
+    useDawStore.getState().setProject({
+      ...base,
+      edit_impact: { ...base.edit_impact, total_removed_sec: 0 },
+    });
+    render(<DeliverStage />);
+    const row = (await screen.findByText("Edits saved")).closest("li");
+    expect(row).not.toBeNull();
+    expect(row).toHaveTextContent("No cuts yet");
+    expect(row).not.toHaveTextContent("0.0 s");
   });
 });
 

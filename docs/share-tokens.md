@@ -786,10 +786,12 @@ project, as the host does, not the share's pinned review version. Both are reads
 `PODCAST_GUEST_RENDER`, nothing recorded) and their MCP twins are `guest_edit_impact` and
 `guest_social_clips`, offered by the same Editor gate; a Viewer or a Commenter gets 403
 `share_capability_required` (`-32003` over MCP). The query takes only those fields (an unknown
-one is a 422, `-32602` over MCP). The `edit_impact` and `social_clips` fields of the Studio
-project view stay placeholders (zero and empty) for every role: that view is pushed to all guests
-through one shared event stream, so showing an Editor the real values there needs a per-role
-stream; until then the Editor takes them from these two reads. Approving, rejecting, proposing and
+one is a 422, `-32602` over MCP). In the Studio
+project view, `edit_impact.total_removed_sec` is the real figure for every role (one duration, no
+track ids), while
+`edit_impact.pending_review_count` and `by_track_sec` and `social_clips` stay placeholders (zero and
+empty): that view is pushed to all guests through one shared event stream, so showing an Editor
+those needs a per-role stream; until then the Editor takes them from these two reads. Approving, rejecting, proposing and
 exporting social clips stay with the host; an Editor adds, changes and deletes a candidate by
 document command as before.
 

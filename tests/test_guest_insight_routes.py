@@ -391,17 +391,48 @@ def test_the_request_models_forbid_unknown_fields() -> None:
             model.model_validate({"path": "/x"})
 
 
-def test_the_studio_view_keeps_its_placeholders_for_every_role(world) -> None:
+def test_the_studio_view_carries_the_real_cut_total_and_keeps_the_other_placeholders(world) -> None:
     from podcast_mcp.services.collaboration.share import share_daw_project_view
 
+    host = edit_impact_report(world.ws.project)
     for role in ("viewer", "commenter", "editor"):
         view = share_daw_project_view(world.tokens[role])
-        assert view["edit_impact"] == {
-            "pending_review_count": 0,
-            "total_removed_sec": 0.0,
-            "by_track_sec": {},
-        }
+        assert view["edit_impact"]["pending_review_count"] == 0
+        assert view["edit_impact"]["by_track_sec"] == {}
+        assert view["edit_impact"]["total_removed_sec"] == pytest.approx(3.8)
+        assert view["edit_impact"]["total_removed_sec"] == host["total_removed_sec"]
         assert view["social_clips"] == []
+
+
+def test_the_studio_view_follows_an_editor_cut(world) -> None:
+    from podcast_mcp.services.collaboration.share import share_daw_project_view
+    from podcast_mcp.services.document_sync import DocumentSyncService
+    from podcast_mcp.services.document_sync.commands import DocumentCommand
+
+    before = share_daw_project_view(world.tokens["editor"])["edit_impact"]["total_removed_sec"]
+    assert before == pytest.approx(3.8)
+
+    DocumentSyncService(world.ws).submit(
+        DocumentCommand(
+            type="CutRange",
+            payload={
+                "start": 2.0,
+                "end": 2.5,
+                "mode": "ripple",
+                "track_ids": ["room"],
+                "use_inaudible_opt": False,
+                "override_audio_checks": True,
+            },
+            client_id="editor-cut",
+            role="editor",
+            client_seq=1,
+        )
+    )
+
+    for role in ("viewer", "commenter", "editor"):
+        after = share_daw_project_view(world.tokens[role])["edit_impact"]
+        assert after["total_removed_sec"] > before
+        assert after["pending_review_count"] == 0 and after["by_track_sec"] == {}
 
 
 def test_only_an_editor_is_offered_the_tools(world) -> None:

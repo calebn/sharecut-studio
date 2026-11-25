@@ -316,7 +316,7 @@ The viewer, its launch, routes, decisions, timeline layers and frontend internal
 - `GET /r/{token}` and `GET /rec/{token}` for an unknown, revoked, ended or wrong-kind token still return 200 with the app shell (no share hooks; only a fixed title, `noindex` meta and `<base href="/">` are injected, so the body is the same for every dead token). The guest app then shows its invalid-link cover ("Ask the host for a new link."); the `/api/review/{token}/*` and `/api/rec/{token}/*` endpoints keep their coded 4xx JSON.
 - JSON responses (project, waveform status, …) are gzip-compressed when the client accepts encoding (`GZipMiddleware`). Document `/api/host/ws` (and guest dual-plane WS) negotiate permessage-deflate.
 - Guest ShareCut Studio (`share:{token}`) does **not** poll `/api/pipeline/*` — pipeline status is host-only.
-- Guest `daw/project` keeps a zeroed `edit_impact` stub (safe for the Stage bar badges), empties
+- Guest `daw/project` carries the real `edit_impact.total_removed_sec` (the rest of `edit_impact` stays a zeroed stub, safe for the Stage bar badges), empties
   `social_clips`, and strips transcript `words[]`; guest waveforms are the host's raw-media pyramid tiles (no stems, no PCM).
 - Record lobby (`/rec/{token}`) fetches `GET /api/rec/{token}/bootstrap` then
   connects `WS /api/rec/{token}/ws` (Join / Consent / roster / WebRTC Signal)

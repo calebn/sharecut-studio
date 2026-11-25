@@ -312,6 +312,92 @@ def test_sanitize_guest_project_view_strips_paths():
     assert "/Users/" not in blob
 
 
+def test_sanitize_guest_keeps_a_finite_total_removed_sec_and_zeroes_the_rest():
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+
+    out = sanitize_guest_project_view(
+        {
+            "edit_impact": {
+                "pending_review_count": 4,
+                "total_removed_sec": 23.6,
+                "by_track_sec": {"t1": 1.0},
+                "segments": [{"id": "x", "track_id": "t1"}],
+            }
+        }
+    )
+
+    assert out["edit_impact"] == {
+        "pending_review_count": 0,
+        "total_removed_sec": 23.6,
+        "by_track_sec": {},
+    }
+    assert sanitize_guest_project_view({"edit_impact": {"total_removed_sec": 0}})["edit_impact"][
+        "total_removed_sec"
+    ] in (0, 0.0)
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [True, False, float("nan"), float("inf"), -1.0, -0.5, "12.5", None, [3.0]],
+)
+def test_sanitize_guest_total_removed_sec_falls_back_to_zero(bad):
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+
+    out = sanitize_guest_project_view({"edit_impact": {"total_removed_sec": bad}})
+
+    assert out["edit_impact"] == {
+        "pending_review_count": 0,
+        "total_removed_sec": 0.0,
+        "by_track_sec": {},
+    }
+    assert isinstance(out["edit_impact"]["total_removed_sec"], float)
+
+
+@pytest.mark.parametrize("bad", ["nope", 7, [1.0], None])
+def test_sanitize_guest_non_dict_edit_impact_falls_back_to_zero(bad):
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+
+    out = sanitize_guest_project_view({"edit_impact": bad})
+
+    assert out["edit_impact"] == {
+        "pending_review_count": 0,
+        "total_removed_sec": 0.0,
+        "by_track_sec": {},
+    }
+
+
+def test_sanitize_guest_impact_by_track_is_a_fresh_dict_each_time():
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+
+    first = sanitize_guest_project_view({"edit_impact": {"total_removed_sec": 1.0}})
+    first["edit_impact"]["by_track_sec"]["x"] = 1.0
+    second = sanitize_guest_project_view({"edit_impact": {"total_removed_sec": 1.0}})
+
+    assert second["edit_impact"]["by_track_sec"] == {}
+
+
+def test_sanitize_guest_document_event_carries_the_cut_total_in_a_full_project():
+    from podcast_mcp.services.collaboration.share import sanitize_guest_document_event
+
+    out = sanitize_guest_document_event(
+        {
+            "type": "Applied",
+            "plane": "document",
+            "command": {"type": "Undo"},
+            "snapshot": {
+                "server_seq": 4,
+                "project": {"edit_impact": {"total_removed_sec": 12.0, "by_track_sec": {"a": 1}}},
+            },
+        }
+    )
+
+    assert out["snapshot"]["project"]["edit_impact"] == {
+        "pending_review_count": 0,
+        "total_removed_sec": 12.0,
+        "by_track_sec": {},
+    }
+
+
 def test_sanitize_guest_forces_transcript_words_false_when_words_omitted():
     from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
@@ -1410,6 +1496,60 @@ def test_guest_daw_ws_snapshots_and_fanout(minimal_project, sample_wav, tmp_work
         blob = str(doc_evt)
         assert "workspace_dir" not in blob
         assert "/Users/" not in blob
+
+
+def test_guest_daw_ws_cut_frame_carries_the_new_cut_total(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.models import Clip, Track, TrackRole
+    from podcast_mcp.services.document_sync import DocumentSyncService
+    from podcast_mcp.services.document_sync.commands import DocumentCommand
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ws.project.tracks = [Track(id="room", label="Room", role=TrackRole.DIALOGUE)]
+    ws.project.clips = [
+        Clip(id="clip_room", track_id="room", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    ]
+    ws.save()
+    ver = ReviewService(ws).publish(label="GuestWSCut")
+    token = ShareService(ws).create(review_version_id=ver["id"], capabilities=["play", "view"])[
+        "token"
+    ]
+    client = TestClient(create_app())
+
+    with client.websocket_connect(f"/api/review/{token}/daw/ws") as guest_ws:
+        for _ in range(2):
+            guest_ws.receive_json()
+        DocumentSyncService(ws).submit(
+            DocumentCommand(
+                type="CutRange",
+                payload={
+                    "start": 2.0,
+                    "end": 3.5,
+                    "mode": "ripple",
+                    "track_ids": ["room"],
+                    "use_inaudible_opt": False,
+                    "override_audio_checks": True,
+                },
+                client_id="host-cut",
+                role="editor",
+                client_seq=1,
+            )
+        )
+        cut_evt = None
+        for _ in range(10):
+            msg = guest_ws.receive_json()
+            if msg.get("type") == "Applied" and msg.get("plane") == "document":
+                cut_evt = msg
+                break
+
+    assert cut_evt is not None
+    assert cut_evt["command"] == {"type": "CutRange"}
+    delta = cut_evt["snapshot"]["delta"]
+    impact = [op for op in delta["operations"] if op["section"] == "edit_impact"]
+    assert delta["audience"] == "guest"
+    assert len(impact) == 1 and impact[0]["type"] == "replace"
+    assert impact[0]["value"]["total_removed_sec"] == pytest.approx(1.5)
 
 
 def test_guest_daw_ws_leases_the_cross_process_watcher(
@@ -4008,3 +4148,15 @@ def test_guest_daw_ws_names_the_guest_by_share_id_not_token(
         c.get("label") for c in session["snapshot"].get("clients", []) if c["client_id"] == guest_id
     ]
     assert labels == ["Guest"]
+
+
+def test_sanitize_guest_total_removed_sec_is_always_a_float_even_for_an_int_input():
+    """Integer durations are normalised to float so the wire type never varies."""
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+
+    for raw in (0, 3, 120):
+        total = sanitize_guest_project_view({"edit_impact": {"total_removed_sec": raw}})[
+            "edit_impact"
+        ]["total_removed_sec"]
+        assert isinstance(total, float)
+        assert total == float(raw)

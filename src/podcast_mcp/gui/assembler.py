@@ -262,7 +262,7 @@ def dump_project_projection(
     """Dict payload for HTTP/WS. ``SHELL``/``FULL`` are complete views; others are patches.
 
     Guest DETAIL is hydration flags only (no ``words[]`` or history).
-    ``sanitize_guest_project_view`` only strips paths. CLIPS/FX/ENVELOPES include
+    ``sanitize_guest_project_view`` strips paths. CLIPS/FX/ENVELOPES include
     ``tracks`` + ``render_status`` so stem freshness updates with the slice; MIX
     is just those two (a fader or mute change stales the premix).
     ``TRANSCRIPT_AUDIO`` is DETAIL plus that same ``tracks``/``render_status``

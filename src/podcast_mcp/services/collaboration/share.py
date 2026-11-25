@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 import threading
 import time
@@ -1330,9 +1331,24 @@ def sanitize_guest_project_view(
                 for row in applied["records"]
             ],
         }
-    # Guest ShareCut Studio keeps a zeroed impact stub so StatusBar stays safe.
+    # Guest ShareCut Studio keeps a zeroed impact stub so StatusBar stays safe, except
+    # total_removed_sec: one duration, no track ids, which the Player's cuts pill shows.
     if full or "edit_impact" in out:
-        out["edit_impact"] = dict(_GUEST_IMPACT_STUB)
+        impact = out.get("edit_impact")
+        raw = impact.get("total_removed_sec") if isinstance(impact, dict) else None
+        total = (
+            float(raw)
+            if isinstance(raw, (int, float))
+            and not isinstance(raw, bool)
+            and math.isfinite(raw)
+            and raw > 0
+            else 0.0
+        )
+        out["edit_impact"] = {
+            **_GUEST_IMPACT_STUB,
+            "by_track_sec": {},
+            "total_removed_sec": total,
+        }
     if full or "social_clips" in out:
         out["social_clips"] = []
     if "edit_boundaries" in out:
