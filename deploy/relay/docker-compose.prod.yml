@@ -17,8 +17,8 @@ services:
   podcast-relay:
     image: ${RELAY_IMAGE:?set RELAY_IMAGE}
     environment:
-      # Legacy host tokens stay optional: set them, a signing key, or both.
-      PODCAST_RELAY_HOST_TOKENS: ${PODCAST_RELAY_HOST_TOKENS:-}
+      # Old builds present these tokens, so production keeps them required.
+      PODCAST_RELAY_HOST_TOKENS: ${PODCAST_RELAY_HOST_TOKENS:?set PODCAST_RELAY_HOST_TOKENS}
       # Enrollment: set the key path (inside the container, under /run/relay-keys) and master key.
       PODCAST_RELAY_SIGNING_KEY: ${PODCAST_RELAY_SIGNING_KEY:-}
       PODCAST_RELAY_MASTER_KEY: ${PODCAST_RELAY_MASTER_KEY:-}
