@@ -350,8 +350,8 @@ export const PENDING_SECTIONS: readonly InspectorSection[] = [
               <DefItem label="Confidence">0.82</DefItem>
             </DefinitionList>
             <div className="modifier-primary-actions">
-              <Button variant="primary">Approve</Button>
-              <Button>Reject</Button>
+              <Button variant="primary">Cut</Button>
+              <Button>Keep</Button>
             </div>
           </div>
         ),
