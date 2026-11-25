@@ -122,7 +122,11 @@ and floating label; delayed document adoption and reply-head Undo are covered in
 surface (Action bar, Edit Sheet, Backspace), and `pendingAcceptRoute` in
 `commands/pendingDecision.ts` picks its route. A leave suggestion applies its
 own action (a dismissal, one Undo, no audio cut) and is never sent to
-ApproveEdits, split and exact range included.
+ApproveEdits, split and exact range included. `commands/pendingAccept.test.ts`,
+`commands/pendingDecision.test.ts` and `e2e/pending-leave-action-bar.spec.ts`
+cover the route. The Review queue and Decision card say **Leave** for the same
+suggestion, and its decided row and Undo read **Left alone** (`itemVerbLabel` in `review/reviewQueueModel.ts`, a label only: the
+queue still decides it through `rejectEdits`, which keeps the audio).
 
 ## Targets
 

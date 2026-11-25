@@ -192,7 +192,7 @@ flowchart LR
 | Join fade | `crossfade_ms` (applied as fade lengths on approve) |
 | Clip join | `SetClipJoin`: mode (`fade` / `crossfade` / `cut`) plus both edge fades in one undo step; a crossfade needs fades to overlap |
 | Track | track id |
-| Actions | Cut / Keep on the Action bar (Approve / Reject on the timeline card and for an exact range) · Start and End Scrub fields |
+| Actions | Cut / Keep on the Action bar (Leave / Reject for a suggestion to leave alone; Approve / Reject on the timeline card and for an exact range) · Start and End Scrub fields |
 
 ### Transcript word chip
 
