@@ -603,6 +603,14 @@ class SetTranscriptWordTimingPayload(BaseModel):
     end: float = Field(gt=0, allow_inf_nan=False)
 
 
+class LabelSpeakerWindowPayload(BaseModel):
+    """Label the words of one track that overlap ``start_sec``..``end_sec`` with their speaker."""
+
+    track_id: str = Field(min_length=1)
+    start_sec: float = Field(ge=0, allow_inf_nan=False)
+    end_sec: float = Field(gt=0, allow_inf_nan=False)
+
+
 class SetTranscriptWordSuppressedPayload(BaseModel):
     track_id: str
     source_id: str | None = Field(
@@ -1409,6 +1417,11 @@ class SetTranscriptWordTimingCommand(DocumentCommandEnvelope):
     payload: SetTranscriptWordTimingPayload
 
 
+class LabelSpeakerWindowCommand(DocumentCommandEnvelope):
+    type: Literal["LabelSpeakerWindow"] = "LabelSpeakerWindow"
+    payload: LabelSpeakerWindowPayload
+
+
 class SetTranscriptWordSuppressedCommand(DocumentCommandEnvelope):
     type: Literal["SetTranscriptWordSuppressed"] = "SetTranscriptWordSuppressed"
     payload: SetTranscriptWordSuppressedPayload
@@ -1722,6 +1735,7 @@ DocumentCommandBody = Annotated[
     | SetTranscriptWordAutomaticCommand
     | SetTranscriptWordsIgnoredCommand
     | SetTranscriptWordTimingCommand
+    | LabelSpeakerWindowCommand
     | AddChapterCommand
     | UpdateChapterCommand
     | DeleteChapterCommand

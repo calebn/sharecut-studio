@@ -34,6 +34,7 @@ export type DocumentCommandType =
   | "FillRoomTone"
   | "InsertGap"
   | "InsertSegment"
+  | "LabelSpeakerWindow"
   | "MoveByText"
   | "MoveClips"
   | "MoveSegment"
@@ -130,6 +131,7 @@ export const DocumentCommand = {
   FillRoomTone: "FillRoomTone",
   InsertGap: "InsertGap",
   InsertSegment: "InsertSegment",
+  LabelSpeakerWindow: "LabelSpeakerWindow",
   MoveByText: "MoveByText",
   MoveClips: "MoveClips",
   MoveSegment: "MoveSegment",

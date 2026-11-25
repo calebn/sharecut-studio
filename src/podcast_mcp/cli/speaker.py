@@ -95,8 +95,22 @@ def speaker_label_cmd(
     end: float = typer.Option(..., "--end"),
     dry_run: bool = typer.Option(True, "--dry-run/--apply"),
 ) -> None:
-    ws = ProjectWorkspace.open(project)
-    result = SpeakerService(ws).label(track, start, end, dry_run=dry_run)
+    """Label one track's words in a window with their speaker (``--apply`` saves, undoable)."""
+    if dry_run:
+        result = SpeakerService(ProjectWorkspace.open(project)).label(track, start, end)
+    else:
+        from podcast_mcp.services.document_sync import (
+            host_command_result,
+            submit_host_document_command,
+        )
+
+        reply = submit_host_document_command(
+            project,
+            "LabelSpeakerWindow",
+            {"track_id": track, "start_sec": start, "end_sec": end},
+            client_id="cli",
+        )
+        result = host_command_result(reply)
     typer.echo(json.dumps(result, indent=2))
 
 

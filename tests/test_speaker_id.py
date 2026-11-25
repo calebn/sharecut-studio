@@ -404,7 +404,6 @@ def test_label_window_dry_run(tmp_path, sample_wav) -> None:
             cfg,
             MockSpeakerBackend(),
             dry_run=True,
-            defaults=load_defaults(),
         )
     assert out["labeled"] == 1
     assert out["role"] == "bleed"
@@ -457,7 +456,7 @@ def test_speaker_service_segment_enroll_label_and_count(tmp_path, sample_wav) ->
             "podcast_mcp.services.media.speaker.label_window",
             return_value={"labeled": 1, "role": "own"},
         ):
-            labeled = svc.label("host", 1.0, 1.5, dry_run=True)
+            labeled = svc.label("host", 1.0, 1.5)
         assert labeled["labeled"] == 1
 
         with (
@@ -508,7 +507,6 @@ def test_assess_speaker_cut_role_and_label_apply(tmp_path, sample_wav) -> None:
             "podcast_mcp.engines.speaker_id.score_window",
             return_value=own,
         ),
-        patch("podcast_mcp.engines.transcript_sync.rebuild_combined") as rebuild,
     ):
         out = label_window(
             proj,
@@ -518,10 +516,8 @@ def test_assess_speaker_cut_role_and_label_apply(tmp_path, sample_wav) -> None:
             cfg,
             MockSpeakerBackend(),
             dry_run=False,
-            defaults=load_defaults(),
         )
     assert out["labeled"] == 1
-    rebuild.assert_called_once()
 
 
 def test_resolve_expected_speaker_count_unknown(tmp_path) -> None:
@@ -713,9 +709,7 @@ def test_label_window_errors_and_uncertain(tmp_path, sample_wav) -> None:
         margin=0.01,
     )
     with patch("podcast_mcp.engines.speaker_id.score_window", return_value=None):
-        assert "error" in label_window(
-            proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend(), defaults=load_defaults()
-        )
+        assert "error" in label_window(proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend())
     with patch(
         "podcast_mcp.engines.speaker_id.score_window",
         return_value=uncertain,
@@ -728,7 +722,6 @@ def test_label_window_errors_and_uncertain(tmp_path, sample_wav) -> None:
             cfg,
             MockSpeakerBackend(),
             dry_run=True,
-            defaults=load_defaults(),
         )
     assert out["labeled"] == 0
     assert out["role"] == "uncertain"
@@ -747,9 +740,7 @@ def test_label_window_errors_and_uncertain(tmp_path, sample_wav) -> None:
         "podcast_mcp.engines.speaker_id.score_window",
         return_value=own,
     ):
-        bad = label_window(
-            proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend(), defaults=load_defaults()
-        )
+        bad = label_window(proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend())
     assert bad.get("error") == "no transcript"
 
 
@@ -857,7 +848,6 @@ def test_label_window_bleed_apply(tmp_path, sample_wav) -> None:
             "podcast_mcp.engines.speaker_id.score_window",
             return_value=bleed,
         ),
-        patch("podcast_mcp.engines.transcript_sync.rebuild_combined") as rebuild,
     ):
         out = label_window(
             proj,
@@ -867,11 +857,9 @@ def test_label_window_bleed_apply(tmp_path, sample_wav) -> None:
             cfg,
             MockSpeakerBackend(),
             dry_run=False,
-            defaults=load_defaults(),
         )
     assert out["role"] == "bleed"
     assert out["labeled"] == 1
-    rebuild.assert_called_once()
     word = proj.transcript_for_track("host").words[0]
     assert word.speaker_match_track == "guest"
     assert word.suppressed is True
@@ -898,7 +886,6 @@ def test_label_window_bleed_apply_respects_lock(tmp_path, sample_wav) -> None:
     )
     with (
         patch("podcast_mcp.engines.speaker_id.score_window", return_value=bleed),
-        patch("podcast_mcp.engines.transcript_sync.rebuild_combined"),
     ):
         label_window(
             proj,
@@ -908,7 +895,6 @@ def test_label_window_bleed_apply_respects_lock(tmp_path, sample_wav) -> None:
             cfg,
             MockSpeakerBackend(),
             dry_run=False,
-            defaults=load_defaults(),
         )
     word = proj.transcript_for_track("host").words[0]
     assert word.suppressed is False
@@ -1166,7 +1152,6 @@ def test_label_window_own_apply(tmp_path, sample_wav) -> None:
             "podcast_mcp.engines.speaker_id.score_window",
             return_value=own,
         ),
-        patch("podcast_mcp.engines.transcript_sync.rebuild_combined") as rebuild,
     ):
         out = label_window(
             proj,
@@ -1176,11 +1161,9 @@ def test_label_window_own_apply(tmp_path, sample_wav) -> None:
             cfg,
             MockSpeakerBackend(),
             dry_run=False,
-            defaults=load_defaults(),
         )
     assert out["role"] == "own"
     assert out["labeled"] == 1
-    rebuild.assert_called_once()
 
 
 def test_compare_window_picks_highest_own_margin(tmp_path, sample_wav) -> None:

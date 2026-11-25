@@ -106,6 +106,7 @@ from podcast_mcp.services.document.boundary import (
     TrimBoundaryTarget,
     boundary_context,
 )
+from podcast_mcp.services.document_sync.handlers.speaker import label_speaker_window
 from podcast_mcp.services.media import SpeakerService, TranscriptPrecorrectService
 from podcast_mcp.services.pipeline import PipelineService, rerender_preview
 from podcast_mcp.services.record.landing import RecordLandingService
@@ -773,9 +774,8 @@ def _speaker_seams(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(f"{engine}.load_all_profiles", lambda _project: profiles)
     monkeypatch.setattr(f"{engine}.enroll_track", lambda _p, tid, *_a, **_k: profiles[tid])
     monkeypatch.setattr(f"{engine}._speech_regions", lambda _p, tid: [(0.0, 1.5)] * (tid == "host"))
-    monkeypatch.setattr(
-        "podcast_mcp.services.media.speaker.load_transcript_context", lambda _p: context
-    )
+    for module in ("services.media.speaker", "services.document_sync.handlers.speaker"):
+        monkeypatch.setattr(f"podcast_mcp.{module}.load_transcript_context", lambda _p: context)
 
 
 def _host_friend_is_bleed(project: EpisodeProject) -> None:
@@ -839,6 +839,14 @@ SPEAKER_CASES = [
     Case(
         "speaker_home_gate",
         lambda ws: SpeakerService(ws).gate_track(track_id="host", dry_run=False),
+        ("welcome back", "thanks for having me"),
+        configure=_speaker_seams,
+        s3_changes=True,
+        s3_untouched=(State.NONE,),
+    ),
+    Case(
+        "speaker_label_window",
+        lambda ws: label_speaker_window(ws, {"track_id": "host", "start_sec": 0.0, "end_sec": 1.5}),
         ("welcome back", "thanks for having me"),
         configure=_speaker_seams,
         s3_changes=True,
@@ -1020,26 +1028,6 @@ def test_combined_after_command(
 ) -> None:
     seen = run_case(case, state, tmp_path, ten_second_silence_wav, monkeypatch)
     assert_contract(case, state, seen)
-
-
-@pytest.mark.parametrize("state", list(State), ids=lambda state: f"{state}-rebuilt-in-memory-only")
-def test_speaker_label_window_rebuilds_memory_and_saves_nothing(
-    state: State, tmp_path: Path, ten_second_silence_wav: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """``SpeakerService.label`` changes words without ``ws.mutate``, so no commit lands.
-
-    The window's words are updated and combined is rebuilt on the open project only: the
-    saved file, ``combined.json`` and history keep what they held on entry.
-    """
-    _speaker_seams(monkeypatch)
-    ws = open_workspace(tmp_path / "ep", ten_second_silence_wav, state)
-    seen = observe(ws, lambda w: SpeakerService(w).label("host", 0.0, 1.5, dry_run=False))
-    assert texts(seen.memory) == ("welcome back", "thanks for having me")
-    assert seen.memory == seen.expected_rebuilt
-    assert not seen.moved
-    assert seen.saved == seen.entry
-    assert seen.snapshot == seen.entry
-    assert seen.combined_json == seen.entry_json
 
 
 @pytest.mark.parametrize("state", [State.FRESH], ids=lambda state: f"{state}-s2-changes")

@@ -18,6 +18,7 @@ TRANSCRIPT_AUDIO_COMMANDS: frozenset[str] = frozenset(
         "SetTranscriptWordSuppressed",
         "SetTranscriptWordsIgnored",
         "SetTranscriptWordTiming",
+        "LabelSpeakerWindow",
     }
 )
 TRANSCRIPT_WORD_COMMANDS: frozenset[str] = (
