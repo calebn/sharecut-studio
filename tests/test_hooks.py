@@ -109,11 +109,11 @@ def test_worktree_setup_skips_npm_ci_when_node_modules_current(tmp_path: Path) -
     assert not any(c.startswith("npm") for c in calls)
 
 
-def test_pre_commit_self_provisions_and_falls_back_to_uvx() -> None:
+def test_pre_commit_stops_in_an_unprovisioned_checkout_and_falls_back_to_uvx() -> None:
     text = (ROOT / ".githooks" / "pre-commit").read_text(encoding="utf-8")
-    assert "sh scripts/worktree-setup.sh" in text
+    assert "worktree-setup.sh" not in text
+    assert "run make worktree-setup, then commit again" in text
     assert "uvx pre-commit run --hook-stage pre-commit" in text
-    assert "exit 1" not in text
     # Branches cut before node-env.sh existed still run this hook via a shared hooksPath.
     assert "[ -f scripts/node-env.sh ] && . scripts/node-env.sh" in text
     make = (ROOT / "Makefile").read_text(encoding="utf-8")
