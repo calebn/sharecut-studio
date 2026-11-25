@@ -967,3 +967,15 @@ def test_random_hand_edits_always_build_a_valid_envelope(seed: int) -> None:
                 points=[AutomationPoint(id=p.id, time=p.time, value=p.value) for p in points],
             )
             assert plan(spans, points, duration=30.0).points == points
+
+
+def test_ducking_after_a_cut_restores_points_past_the_new_end(tmp_path: Path) -> None:
+    path = write_project(tmp_path)
+    duck(path)
+    project = load_project(path)
+    project.timeline.duration_sec = 1.5
+    project.timeline.clips[0].source_end = 1.5
+    save_project(project, path)
+    for payload in ({}, {"depth_db": 0.0}):
+        duck(path, **payload)
+        assert envelopes(path)["music"]

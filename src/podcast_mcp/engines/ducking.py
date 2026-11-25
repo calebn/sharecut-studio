@@ -123,6 +123,7 @@ def restore_base(points: Iterable[AutomationPoint | EnvPoint]) -> tuple[list[Env
         if lowered is not None:
             original_id, original, written = lowered
             restored = original if abs(value - written) <= _FLAT_EPS else value
+            renamed.append((len(kept), original_id))
             kept.append(EnvPoint(original_id, time, restored))
             continue
         kept.append(EnvPoint(pid, time, value))
