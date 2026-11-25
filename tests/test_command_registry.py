@@ -156,6 +156,7 @@ SNAPSHOT: dict[str, tuple[str, str, str]] = {
     ),
     "DeleteSocialClip": ("DeleteSocialClipPayload", "markers.delete_social_clip", "editor"),
     "SetEnvelope": ("SetEnvelopePayload", "markers.set_envelope", "editor"),
+    "ApplyDucking": ("ApplyDuckingPayload", "markers.apply_ducking", "host"),
     "EditSelectedRange": (
         "EditSelectedRangePayload",
         "edits.edit_selected_range",
@@ -244,7 +245,7 @@ def _access(command_type: str) -> str:
 
 def test_snapshot_covers_every_command_type() -> None:
     assert set(SNAPSHOT) == set(get_args(DocumentCommandType))
-    assert len(SNAPSHOT) == 92
+    assert len(SNAPSHOT) == 93
 
 
 @pytest.mark.parametrize("command_type", sorted(SNAPSHOT))
@@ -509,6 +510,7 @@ def test_a_type_that_names_the_generic_surface_is_one_the_generic_tool_accepts()
             ("podcast episode set-join-fade-limit",),
         ),
         ("SetEnvelope", ("set_envelope",), ("podcast edit list-envelope", GENERIC_CLI)),
+        ("ApplyDucking", ("apply_ducking_tool",), ("podcast edit duck", GENERIC_CLI)),
         ("FillRoomTone", ("fill_with_room_tone_tool",), (GENERIC_CLI,)),
         ("SetTranscriptWordsIgnored", ("set_words_ignored_tool",), (GENERIC_CLI,)),
         ("RenameProject", (GENERIC_MCP,), (GENERIC_CLI,)),

@@ -1181,6 +1181,220 @@
       "title": "ApplyAutoEditsPayload",
       "type": "object"
     },
+    "ApplyDuckingCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/ApplyDuckingPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "ApplyDucking",
+          "default": "ApplyDucking",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "ApplyDuckingCommand",
+      "type": "object"
+    },
+    "ApplyDuckingPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "attack_sec": {
+          "default": 0.25,
+          "description": "Seconds the bed takes to reach the dip, ending on the first word.",
+          "maximum": 10.0,
+          "minimum": 0.0,
+          "title": "Attack Sec",
+          "type": "number"
+        },
+        "depth_db": {
+          "anyOf": [
+            {
+              "maximum": 0.0,
+              "minimum": -40.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "How far the bed dips under speech, in dB below its own level. Omitted, the project's mix.music_under_vo_db (-18 dB by default). 0 removes an earlier dip.",
+          "title": "Depth Db"
+        },
+        "dialogue_track_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 64,
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dialogue tracks whose speech ducks the bed. Omitted, every unmuted dialogue track with a transcript.",
+          "title": "Dialogue Track Ids"
+        },
+        "dry_run": {
+          "default": false,
+          "description": "Plan only: nothing is written and no history entry is made. The reply carries plan_token; send it as expected_plan_token to apply exactly that plan.",
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "expected_plan_token": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The plan_token of a dry run. If the project changed so the plan differs, the command is a conflict and writes nothing.",
+          "title": "Expected Plan Token"
+        },
+        "hold_sec": {
+          "default": 0.35,
+          "description": "Seconds the dip holds after the last word of a run; shorter pauses are bridged.",
+          "maximum": 10.0,
+          "minimum": 0.0,
+          "title": "Hold Sec",
+          "type": "number"
+        },
+        "min_gap_sec": {
+          "default": 0.3,
+          "description": "Least time the bed must sit at its level between two dips; closer dips merge.",
+          "maximum": 10.0,
+          "minimum": 0.0,
+          "title": "Min Gap Sec",
+          "type": "number"
+        },
+        "min_speech_sec": {
+          "default": 0.12,
+          "description": "Speech shorter than this (a click, a breath word) does not duck the bed.",
+          "maximum": 10.0,
+          "minimum": 0.0,
+          "title": "Min Speech Sec",
+          "type": "number"
+        },
+        "release_sec": {
+          "default": 0.8,
+          "description": "Seconds the bed takes to come back to its level.",
+          "maximum": 10.0,
+          "minimum": 0.0,
+          "title": "Release Sec",
+          "type": "number"
+        },
+        "track_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 64,
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tracks whose volume is ducked. Omitted, every unmuted music track and every track holding a library segment marked duck-under-dialogue. A dialogue track is refused.",
+          "title": "Track Ids"
+        }
+      },
+      "title": "ApplyDuckingPayload",
+      "type": "object"
+    },
     "ApplyEditPlanCommand": {
       "properties": {
         "causation_id": {
@@ -12957,6 +13171,7 @@
       "AddSocialClip": "#/$defs/AddSocialClipCommand",
       "AddTrack": "#/$defs/AddTrackCommand",
       "ApplyAutoEdits": "#/$defs/ApplyAutoEditsCommand",
+      "ApplyDucking": "#/$defs/ApplyDuckingCommand",
       "ApplyEditPlan": "#/$defs/ApplyEditPlanCommand",
       "ApplyFadeRecommendationList": "#/$defs/ApplyFadeRecommendationListCommand",
       "ApplyFadeRecommendations": "#/$defs/ApplyFadeRecommendationsCommand",
@@ -13202,6 +13417,9 @@
     },
     {
       "$ref": "#/$defs/SetEnvelopeCommand"
+    },
+    {
+      "$ref": "#/$defs/ApplyDuckingCommand"
     },
     {
       "$ref": "#/$defs/EditSelectedRangeCommand"

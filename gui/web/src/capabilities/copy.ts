@@ -447,6 +447,9 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "agent.pipeline": {
     label: "Pipeline / master / bounce",
   },
+  "agent.ducking": {
+    label: "Duck music under dialogue",
+  },
   "agent.history": {
     label: "History",
   },

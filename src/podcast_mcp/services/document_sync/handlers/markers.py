@@ -9,6 +9,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import ClipService, EditService, TimelineService
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.pipeline import PipelineService
+from podcast_mcp.services.pipeline.ducking import check_plan_token, plan_ducking
 
 
 def add_chapter(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
@@ -95,6 +96,33 @@ def set_envelope(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     points = list(p.get("points") or [])
     n = PipelineService(ws).set_envelope(track_id, points)
     return {"track_id": p["track_id"], "count": n}
+
+
+def plan_ducking_dry_run(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    ws.reload()
+    plans = plan_ducking(ws.project, p, ws.effective_config())
+    return {**plans.result(with_points=True), "dry_run": True, "applied": False}
+
+
+def apply_ducking(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    """Duck the chosen tracks under dialogue: one mutation, so one undo step for every track.
+
+    The plan is computed here, inside the document transaction after a reload, so it is made from
+    the project the write lands on. ``expected_plan_token`` ties the write to a dry run's plan.
+    """
+    if p.get("dry_run"):
+        return plan_ducking_dry_run(ws, p)
+    ws.reload()
+    plans = plan_ducking(ws.project, p, ws.effective_config())
+    check_plan_token(plans, p.get("expected_plan_token"))
+    applied = plans.changed
+    if applied:
+        PipelineService(ws).set_envelopes(
+            {t.track_id: [pt._asdict() for pt in t.plan.points] for t in plans.tracks if t.changed},
+            operation="apply_ducking",
+            label="apply ducking",
+        )
+    return {**plans.result(with_points=False), "dry_run": False, "applied": applied}
 
 
 def suggest_pending_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
