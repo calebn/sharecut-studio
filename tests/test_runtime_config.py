@@ -4,9 +4,12 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp import settings
 from podcast_mcp.config.runtime import (
+    SECRET_ENV_NAMES,
     RelayConfig,
     RuntimeConfigError,
+    configured_secrets,
     default_relay_config_path,
     load_host_runtime_config,
     load_object_store_config,
@@ -451,3 +454,53 @@ def test_object_store_env_overrides_yaml_for_every_field(tmp_path: Path) -> None
     assert overridden.access_key_id == "env-access-key"
     assert overridden.secret_access_key == "env-secret-key"
     assert overridden.cdn_endpoint == "https://env-cdn.example.test"
+
+
+def test_configured_secrets_reads_env_and_yaml_without_writing(tmp_path: Path) -> None:
+    path = tmp_path / "relay.yaml"
+    path.write_text(
+        "host_token: yaml-host-token-1\n"
+        "object_store:\n"
+        "  access_key_id: yaml-access-key-1\n"
+        "  secret_access_key: yaml-secret-key-1\n",
+        encoding="utf-8",
+    )
+    env = {
+        "PODCAST_RELAY_HOST_TOKEN": "env-host-token-1",
+        "PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY": "env-admin-secret-1",
+        "PODCAST_SESSION_TOKEN": "env-session-token-1",
+        "PODCAST_SIDECAR_BOOT_TOKEN": "  env-boot-token-1  ",
+        "PODCAST_REPORT_GITHUB_TOKEN": "short",
+    }
+    found = configured_secrets(path, environ=env)
+    assert set(found) == {
+        "yaml-host-token-1",
+        "yaml-access-key-1",
+        "yaml-secret-key-1",
+        "env-host-token-1",
+        "env-admin-secret-1",
+        "env-session-token-1",
+        "env-boot-token-1",
+    }
+    assert [p.name for p in tmp_path.iterdir()] == ["relay.yaml"]
+
+
+@pytest.mark.parametrize("content", [b"host_token: [unclosed\n", b"\xff\xfe\x00bad", b"- a\n- b\n"])
+def test_configured_secrets_survives_an_unreadable_config(tmp_path: Path, content: bytes) -> None:
+    path = tmp_path / "relay.yaml"
+    path.write_bytes(content)
+    env = {"PODCAST_RELAY_HOST_TOKEN": "env-host-token-1"}
+    assert configured_secrets(path, environ=env) == ("env-host-token-1",)
+    assert configured_secrets(tmp_path / "missing.yaml", environ={}) == ()
+    assert not (tmp_path / "relay_host_id").exists()
+
+
+def test_configured_secrets_ignores_a_malformed_object_store_block(tmp_path: Path) -> None:
+    path = tmp_path / "relay.yaml"
+    path.write_text("host_token: yaml-host-token-1\nobject_store: nope\n", encoding="utf-8")
+    assert configured_secrets(path, environ={}) == ("yaml-host-token-1",)
+
+
+def test_secret_env_names_are_declared_settings() -> None:
+    declared = {variable.name for variable in settings.VARIABLES}
+    assert set(SECRET_ENV_NAMES) <= declared

@@ -26,6 +26,7 @@ id_ed25519.*
 deploy/relay/.env
 credentials.json
 **/relay.yaml
+config/relay_host_id
 dist/
 build/
 *.egg-info/

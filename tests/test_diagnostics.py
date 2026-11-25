@@ -178,6 +178,106 @@ def test_build_bundle_masks_link_tokens_in_the_report_and_log(
     assert "quokka" not in text
 
 
+RELAY_TOKEN = "relay-host-tok-Zq81xLmP"
+STORE_SECRET = "s3-secret-Kj82nd9QpLw0"
+STORE_KEY_ID = "s3-keyid-Vb47ctR2mXe9"
+ADMIN_SECRET = "admin-secret-Hd63fsA0yUi5"
+
+
+def _bundle_text(path: Path) -> str:
+    with zipfile.ZipFile(path) as zf:
+        return "\n".join(zf.read(name).decode() for name in zf.namelist())
+
+
+def _plant_in_log_and_doctor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, secrets: list[str]
+) -> Path:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    (tmp_path / "home").mkdir(exist_ok=True)
+    monkeypatch.setattr(
+        diagnostics_mod,
+        "get_share_registry",
+        lambda: SimpleNamespace(known_tokens=lambda: frozenset()),
+    )
+    joined = " and ".join(secrets)
+    monkeypatch.setattr(
+        "podcast_mcp.services.support.diagnostics.run_doctor_checks",
+        lambda _p=None: DoctorReport(checks=[DoctorCheck("warn", f"relay refused {joined}")]),
+    )
+    log = tmp_path / "sidecar.log"
+    log.write_text(f"connecting with {joined} ok\nplain line\n")
+    monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
+    return log
+
+
+def test_build_bundle_masks_configured_secrets_from_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "config" / "relay.yaml"
+    monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(config))
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", RELAY_TOKEN)
+    monkeypatch.setenv("PODCAST_OBJECT_STORE_SECRET_ACCESS_KEY", STORE_SECRET)
+    monkeypatch.setenv("PODCAST_OBJECT_STORE_ACCESS_KEY_ID", STORE_KEY_ID)
+    monkeypatch.setenv("PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY", ADMIN_SECRET)
+    secrets = [RELAY_TOKEN, STORE_SECRET, STORE_KEY_ID, ADMIN_SECRET]
+    _plant_in_log_and_doctor(tmp_path, monkeypatch, secrets)
+
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out")
+
+    text = _bundle_text(report.path)
+    for secret in secrets:
+        assert secret not in text
+    assert "relay refused <redacted>" in text
+    assert "plain line" in text
+    assert not config.parent.exists()
+
+
+def test_build_bundle_masks_configured_secrets_from_relay_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "relay.yaml"
+    config.write_text(
+        f"host_token: {RELAY_TOKEN}\n"
+        "object_store:\n"
+        "  endpoint_url: https://s3.example.test\n"
+        "  region: region-1\n"
+        "  bucket: media\n"
+        f"  access_key_id: {STORE_KEY_ID}\n"
+        f"  secret_access_key: {STORE_SECRET}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(config))
+    for name in ("PODCAST_RELAY_HOST_TOKEN", "PODCAST_OBJECT_STORE_SECRET_ACCESS_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    secrets = [RELAY_TOKEN, STORE_SECRET, STORE_KEY_ID]
+    _plant_in_log_and_doctor(tmp_path, monkeypatch, secrets)
+
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out")
+
+    text = _bundle_text(report.path)
+    for secret in secrets:
+        assert secret not in text
+    assert "plain line" in text
+    assert not (tmp_path / "relay_host_id").exists()
+
+
+@pytest.mark.parametrize("content", [None, b"host_token: [unclosed\n", b"\xff\xfe\x00bad"])
+def test_build_bundle_survives_an_unreadable_relay_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: bytes | None
+) -> None:
+    config = tmp_path / "relay.yaml"
+    if content is not None:
+        config.write_bytes(content)
+    monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(config))
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", RELAY_TOKEN)
+    _plant_in_log_and_doctor(tmp_path, monkeypatch, [RELAY_TOKEN])
+
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out")
+
+    assert RELAY_TOKEN not in _bundle_text(report.path)
+    assert not (tmp_path / "relay_host_id").exists()
+
+
 def test_build_bundle_size_bound(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "podcast_mcp.services.support.diagnostics.run_doctor_checks",

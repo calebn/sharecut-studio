@@ -468,6 +468,56 @@ def load_host_runtime_config(
     return HostRuntimeConfig(relay=relay, object_store=object_store)
 
 
+SECRET_ENV_NAMES = (
+    "PODCAST_RELAY_HOST_TOKEN",
+    "PODCAST_OBJECT_STORE_ACCESS_KEY_ID",
+    "PODCAST_OBJECT_STORE_SECRET_ACCESS_KEY",
+    "PODCAST_OBJECT_STORE_ADMIN_ACCESS_KEY_ID",
+    "PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY",
+    "PODCAST_SESSION_TOKEN",
+    "PODCAST_SIDECAR_BOOT_TOKEN",
+    "PODCAST_GOOGLE_OAUTH_CLIENT_SECRET",
+    "PODCAST_GITHUB_OAUTH_CLIENT_SECRET",
+    "PODCAST_REPORT_GITHUB_TOKEN",
+)
+_MIN_SECRET_LENGTH = 8
+_SECRET_YAML_FIELDS = ("access_key_id", "secret_access_key")
+
+
+def configured_secrets(
+    config_path: Path | None = None,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> tuple[str, ...]:
+    """Secret values configured in the environment or ``relay.yaml``, for redaction.
+
+    Read-only and best effort: it never raises, never mints ``relay_host_id`` and
+    returns what it could read. Both sources are listed, not just the winning one,
+    because a stale value in either can reach a log. Values shorter than eight
+    characters are skipped so a placeholder cannot mask ordinary text.
+    """
+    found: dict[str, None] = {}
+
+    def add(value: object) -> None:
+        text = _clean(value)
+        if len(text) >= _MIN_SECRET_LENGTH:
+            found[text] = None
+
+    try:
+        env = settings.environ() if environ is None else environ
+        for name in SECRET_ENV_NAMES:
+            add(env.get(name))
+        file_cfg = _read_mapping(config_path or default_relay_config_path())
+        add(file_cfg.get("host_token"))
+        store = file_cfg.get("object_store")
+        if isinstance(store, Mapping):
+            for key in _SECRET_YAML_FIELDS:
+                add(store.get(key))
+    except Exception:
+        log.debug("could not read every configured secret", exc_info=True)
+    return tuple(found)
+
+
 def load_object_store_config(
     config_path: Path | None = None,
     *,
