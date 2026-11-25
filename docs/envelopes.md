@@ -38,7 +38,7 @@ The current point-array domain also supports coincident times as explicit steps.
 
 ## Rendering and playback caches
 
-The host track renderer evaluates envelope gain once per FFmpeg audio frame after track assembly. Frame evaluation approximates a continuously varying curve at frame boundaries; it does not promise sample-by-sample interpolation. Segment rendering adds the destination window’s start to its local filter clock, so a segment beginning at 4 seconds evaluates the same destination curve as the full track. Processing-effect filter ordering is unchanged.
+The host track renderer evaluates envelope gain once per FFmpeg audio frame after track assembly; a track with an envelope is cut into 256-sample frames first, so the gain steps at most about 5 ms late. The expression is a balanced tree of `if` tests, so an envelope of thousands of points stays within FFmpeg's nesting limit. Frame evaluation approximates a continuously varying curve at frame boundaries; it does not promise sample-by-sample interpolation. Segment rendering adds the destination window’s start to its local filter clock, so a segment beginning at 4 seconds evaluates the same destination curve as the full track. Processing-effect filter ordering is unchanged.
 
 Renderer semantics revision 11 invalidates stems and host play-segment cache keys generated under the preceding envelope behavior. Existing guest source-clock proxies do not evaluate volume envelopes; this change does not alter that route or guest permissions. Offline rendered PCM evidence does not establish physical playback, heard quality, or guest playback parity.
 
