@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from podcast_mcp.edits.range_target import range_geometry, range_media_seal
 from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.gui.assembler import build_project_view
+from podcast_mcp.gui.mapper import guest_transcript, map_transcript_utterances_to_timeline
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     Clip,
@@ -532,3 +533,90 @@ def test_a_guest_row_text_leaves_out_the_words_the_host_struck(guest, role):
         assert row["text"] == "Um.", name
         assert row["ignored_word_indices"] == [1], name
         assert "text_without_ignored" not in row, name
+
+
+def _host_and_guest_texts(ws: ProjectWorkspace) -> list[tuple[str, str]]:
+    rebuild_combined(ws.project, defaults=ws.effective_config())
+    mapped = map_transcript_utterances_to_timeline(
+        ws.project, ws.project.combined_transcript.model_dump()
+    )
+    guest_rows = guest_transcript(mapped, words=GuestWords.READING)["utterances"]
+    return [
+        (host["text"], guest_row["text"])
+        for host, guest_row in zip(mapped["utterances"], guest_rows, strict=True)
+    ]
+
+
+def _w(text: str, start: float, end: float, *, ignored: bool = False) -> TranscriptWord:
+    return TranscriptWord(text=text, start=start, end=end, confidence=0.9, ignored=ignored)
+
+
+@pytest.mark.parametrize(
+    ("words", "expected"),
+    [
+        pytest.param(
+            [_w("Um.", 0.2, 0.6), _w("welcome", 0.8, 1.2, ignored=True), _w("now", 1.2, 1.2)],
+            [("Um. welcome now", "Um. now")],
+            id="zero-length-last-word",
+        ),
+        pytest.param(
+            [
+                _w("long", 0.0, 1.9),
+                _w("a", 0.1, 0.2),
+                _w("b", 1.2, 1.3, ignored=True),
+                _w("c", 1.4, 1.5),
+            ],
+            [("long a", "long a"), ("b c", "c")],
+            id="long-word-from-the-row-before",
+        ),
+        pytest.param(
+            [
+                _w("long", 0.0, 1.9, ignored=True),
+                _w("a", 0.1, 0.2),
+                _w("b", 1.2, 1.3, ignored=True),
+                _w("c", 1.4, 1.5),
+            ],
+            [("long a", "a"), ("b c", "c")],
+            id="struck-long-word-from-the-row-before",
+        ),
+        pytest.param(
+            [
+                _w("um", 0.2, 0.3),
+                _w("so", 0.4, 0.5),
+                _w("um", 0.6, 0.7, ignored=True),
+                _w("yeah", 0.8, 0.9),
+                _w("ok", 0.9, 0.9),
+            ],
+            [("um so um yeah ok", "um so yeah ok")],
+            id="only-the-second-of-two-equal-words",
+        ),
+        pytest.param(
+            [
+                _w("the", 0.0, 1.9),
+                _w("a", 0.1, 0.2),
+                _w("the", 1.2, 1.3),
+                _w("cat", 1.35, 1.4),
+                _w("the", 1.45, 1.5, ignored=True),
+            ],
+            [("the a", "the a"), ("the cat the", "the cat")],
+            id="equal-word-after-a-spill",
+        ),
+        pytest.param(
+            [
+                _w("so", 0.2, 0.6),
+                _w("like", 0.8, 1.0, ignored=True),
+                _w("um", 1.2, 1.2, ignored=True),
+            ],
+            [("so like um", "so")],
+            id="struck-zero-length-last-word",
+        ),
+    ],
+)
+def test_a_guest_row_leaves_out_only_its_struck_words(guest, words, expected):
+    """A row's window can cover fewer or more words than its text (a zero-length last
+    word, a long word from the row before), and a struck word can equal a kept one; a
+    guest still gets the host's text with exactly the struck words left out (#3798)."""
+    _client, _open_share, path = guest
+    ws = ProjectWorkspace.open(path)
+    ws.project.transcripts[0].words = words
+    assert _host_and_guest_texts(ws) == expected

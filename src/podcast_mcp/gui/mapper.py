@@ -406,22 +406,44 @@ def _ignored_word_indices_for_utterance(
     )
 
 
-def _text_without_ignored(
+RowTextKey = tuple[float, float, str]
+"""A combined row's ``(start, end, text)``: what ``merge_transcripts`` writes for one run."""
+
+
+def _struck_run_texts(words: Sequence[Any]) -> dict[RowTextKey, str]:
+    """Each run holding a struck (ignored) word, keyed like its combined row, to its text
+    without the struck words (#3798).
+
+    Rebuilds the runs ``merge_transcripts`` made the rows from (kept words in list
+    order, split at ``utterance_runs`` gaps), so a row's text is matched word for word
+    and only its struck words are left out.
+    """
+    kept = [word for word in words if not getattr(word, "suppressed", False)]
+    texts: dict[RowTextKey, str] = {}
+    for run in utterance_runs(kept):
+        run_words = kept[run.start : run.stop]
+        if not any(getattr(word, "ignored", False) for word in run_words):
+            continue
+        key = (float(run_words[0].start), float(run_words[-1].end), utterance_text(run_words))
+        texts[key] = utterance_text(
+            [word for word in run_words if not getattr(word, "ignored", False)]
+        )
+    return texts
+
+
+def _covered_text_without_ignored(
     words: Sequence[Any],
     intervals: HalfOpenIntervalIndex,
     source_start: float,
     source_end: float,
 ) -> str:
-    """The row's text with its struck (ignored) words left out (#3798).
-
-    Built like ``utterance_text`` from the kept words the row's own window covers,
-    so a reader who never sees struck words never receives their text either.
-    """
-    covered = _covered_word_ordinals(words, intervals, source_start, source_end)
+    """The row's covered kept words minus struck ones: for a row no run matches
+    (a combined transcript older than its words), so no struck word it covers is sent."""
+    covered = sorted(_covered_word_ordinals(words, intervals, source_start, source_end))
     return utterance_text(
         [
             words[index]
-            for index in sorted(covered)
+            for index in covered
             if not getattr(words[index], "suppressed", False)
             and not getattr(words[index], "ignored", False)
         ]
@@ -780,6 +802,7 @@ def map_transcript_utterances_to_timeline(
 
     mapped: list[dict[str, Any]] = []
     word_indexes: dict[tuple[str, str | None, bool], _MappedWordIndex] = {}
+    struck_texts: dict[tuple[str, str | None], dict[RowTextKey, str]] = {}
     for position, (row, recording) in enumerate(zip(rows, row_recordings, strict=True)):
         track_id = row["track_id"]
         key = recording.key
@@ -811,15 +834,20 @@ def map_transcript_utterances_to_timeline(
         )
         if ignored_word_indices:
             row["ignored_word_indices"] = ignored_word_indices
-            shown = _text_without_ignored(
+        if recording.words_key not in struck_texts:
+            struck_texts[recording.words_key] = _struck_run_texts(raw_words[recording.words_key])
+        text = str(row.get("text") or "")
+        shown = struck_texts[recording.words_key].get((source_start, source_end, text))
+        if shown is None and ignored_word_indices:
+            shown = _covered_text_without_ignored(
                 raw_words[recording.words_key],
                 raw_intervals[recording.words_key],
                 source_start,
                 source_end,
             )
-            if shown != row.get("text"):
-                # Guests read this in place of ``text`` (``guest_transcript``).
-                row["text_without_ignored"] = shown
+        if shown is not None and shown != text:
+            # Guests read this in place of ``text`` (``guest_transcript``).
+            row["text_without_ignored"] = shown
         locked_word_indices = _locked_word_indices_for_utterance(
             raw_words[recording.words_key],
             raw_intervals[recording.words_key],
