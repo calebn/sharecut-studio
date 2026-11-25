@@ -8,13 +8,14 @@ from collections.abc import Callable, Mapping
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.edits.cut_application import apply_suggested_to_project
 from podcast_mcp.edits.pad_binder import bind_pending_pad_picks
 from podcast_mcp.engines import TranscriptionEngine
+from podcast_mcp.engines.ducking import EnvPoint
+from podcast_mcp.engines.envelope_fades import merge_fades
 from podcast_mcp.engines.ffmpeg import logged_headroom_trim_db
 from podcast_mcp.engines.mastering import (
     MasterQcLimits,
@@ -1044,28 +1045,32 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
     ) as prog:
         prog.set_phase("envelopes", "Building music envelopes…")
         music_envelopes = 0
+        duck_stale = 0
         for track in _music_tracks(project, rendered):
             fade_in = float(mix_cfg.get("fade_in_sec", 2.0))
             fade_out = float(mix_cfg.get("fade_out_sec", 3.0))
             path = Path(rendered[track.id])
             probe = eng.probe(path)
             dur = probe.duration_sec
-            project.automation_envelopes = [
-                e for e in project.automation_envelopes if e.track_id != track.id
-            ]
-            project.automation_envelopes.append(
-                AutomationEnvelope(
-                    track_id=track.id,
-                    points=[
-                        AutomationPoint(id=str(uuid4()), time=0.0, value=0.0),
-                        AutomationPoint(id=str(uuid4()), time=fade_in, value=1.0),
-                        AutomationPoint(
-                            id=str(uuid4()), time=max(fade_in, dur - fade_out), value=1.0
-                        ),
-                        AutomationPoint(id=str(uuid4()), time=dur, value=0.0),
-                    ],
-                )
+            current = project.volume_envelope_for(track.id)
+            merged = merge_fades(
+                [EnvPoint(pt.id, pt.time, pt.value) for pt in current.points] if current else [],
+                dur,
+                fade_in,
+                fade_out,
             )
+            duck_stale += merged.replaced_under_duck
+            points = [AutomationPoint(id=m.id, time=m.time, value=m.value) for m in merged.points]
+            if current is None:
+                if points:
+                    project.automation_envelopes.append(
+                        AutomationEnvelope(track_id=track.id, points=points)
+                    )
+            elif points != current.points:
+                index = next(i for i, e in enumerate(project.automation_envelopes) if e is current)
+                project.automation_envelopes[index] = AutomationEnvelope(
+                    track_id=track.id, parameter=current.parameter, points=points
+                )
             out = publish_stem(
                 project,
                 track.id,
@@ -1106,7 +1111,10 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
             defaults=defaults,
         )
         prog.message(f"{len(mixed)} tracks mixed")
-    return f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
+    summary = f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
+    if duck_stale:
+        summary += f", {duck_stale} fade points moved under ducking, re-run ducking"
+    return summary
 
 
 @with_render_lock

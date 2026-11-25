@@ -92,7 +92,7 @@ def _lowered_id(original_id: str, original_value: float, lowered_value: float) -
     return f"{BASE_PREFIX}{original_id}:{original_value!r}:{lowered_value!r}"
 
 
-def _parse_lowered(point_id: str) -> tuple[str, float, float] | None:
+def parse_lowered(point_id: str) -> tuple[str, float, float] | None:
     if not point_id.startswith(BASE_PREFIX):
         return None
     rest, sep_low, raw_low = point_id[len(BASE_PREFIX) :].rpartition(":")
@@ -119,7 +119,7 @@ def restore_base(points: Iterable[AutomationPoint | EnvPoint]) -> tuple[list[Env
             renamed.append((len(kept), USER_PREFIX + pid[len(GENERATED_PREFIX) :]))
             kept.append(EnvPoint(pid, time, value))
             continue
-        lowered = _parse_lowered(pid)
+        lowered = parse_lowered(pid)
         if lowered is not None:
             original_id, original, written = lowered
             restored = original if abs(value - written) <= _FLAT_EPS else value
