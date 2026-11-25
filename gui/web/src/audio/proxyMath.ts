@@ -494,7 +494,7 @@ export function buildSchedule(
         ? []
         : automaticSpansOf(clip.off_speaker_mute_regions),
       // A blending join replaces both edge fades with the overlap's ramps. An
-      // edge facing a gap never cuts: it keeps its fade, at least the declick.
+      // edge facing a short gap never cuts: it keeps its fade, at least the declick.
       fadeInSec:
         overlapInSec > 0
           ? overlapInSec

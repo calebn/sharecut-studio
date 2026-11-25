@@ -35,6 +35,7 @@ from podcast_mcp.engines.audio import (
 )
 from podcast_mcp.engines.bleed_restore import RestoreSupport, active_restore_regions
 from podcast_mcp.engines.clips_ops import (
+    JOIN_GAP_TOLERANCE_SEC,
     MuteIndex,
     clips_for_track,
     crossfade_borrow_sec,
@@ -389,23 +390,26 @@ def _segment_fade_in(prev: Clip | None, clip: Clip, *, first: bool, blended: boo
 
 
 def edges_facing_gaps(clips: list[Clip]) -> tuple[list[bool], list[bool]]:
-    """Which edges of a lane's start-sorted clips face a gap rather than another clip.
+    """Which edges of a lane's start-sorted clips face a short gap rather than another clip.
 
-    Render plays a gap as the silence the timeline shows (#2496), so an edge that meets it
-    needs a declick fade whatever its join says: a cut only joins two clips that touch. An
+    Render plays a gap as the silence the timeline shows (#2496). A gap no longer than the
+    join tolerance used to be closed on render, so its two edges played as a cut; now that
+    it stays open, each edge that meets it gets a declick fade whatever its join says. An
     edge faces a gap when no earlier clip reaches the clip's start; the edge facing it from
-    the left is the end of the clip that reached furthest. A lane's first start and last end
-    face no other clip and keep their own fades.
+    the left is the end of the clip that reached furthest. A longer gap keeps each edge's
+    own fade, as it always has, and the pieces a timing map cuts one clip into keep the
+    fades that cut gave them.
     """
     gap_in = [False] * len(clips)
     gap_out = [False] * len(clips)
     reach_index: int | None = None
     for index, clip in enumerate(clips):
-        if reach_index is not None and (
-            clip.timeline_start - clips[reach_index].timeline_end > SPAN_EPS_S
-        ):
-            gap_in[index] = True
-            gap_out[reach_index] = True
+        if reach_index is not None:
+            reach = clips[reach_index]
+            gap = clip.timeline_start - reach.timeline_end
+            if SPAN_EPS_S < gap <= JOIN_GAP_TOLERANCE_SEC + SPAN_EPS_S and reach.id != clip.id:
+                gap_in[index] = True
+                gap_out[reach_index] = True
         if reach_index is None or clip.timeline_end > clips[reach_index].timeline_end:
             reach_index = index
     return gap_in, gap_out
