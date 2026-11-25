@@ -1,8 +1,10 @@
+import type { DocumentCommandOptions } from "../services/commandQueue";
 import { withSessionTokenQuery } from "../sessionAuth";
 import { DocumentCommand } from "../types/documentCommands.generated";
+import type { HistoryEntryId } from "../types/project";
 import type { SegmentSaveRequest as GeneratedSaveRequest } from "../types/project.generated";
 import { ApiError } from "../utils/apiError";
-import { submitDocumentCommand } from "./documentEdits";
+import { replyHistoryHead, submitDocumentCommand } from "./documentEdits";
 import { apiFetch, HOST_KEY } from "./http";
 
 export type SegmentKind = "intro" | "outro" | "sponsor" | "sting" | "other";
@@ -64,6 +66,9 @@ export interface SegmentDriftRow {
 
 export const SEGMENT_INSERT_REFUSALS = [
   "segment_unknown",
+  "segment_version_invalid",
+  "segment_unreadable",
+  "segment_busy",
   "segment_hash_mismatch",
   "segment_media_invalid",
   "segment_write_failed",
@@ -92,6 +97,27 @@ export interface SegmentInsertApplied {
   duration_sec: number;
   tracks: Record<string, string>;
 }
+
+export const SEGMENT_INSERT_APPLIED_KEYS = [
+  "operation",
+  "affected_tracks",
+  "clip_count",
+  "timeline_duration_sec",
+  "segment_id",
+  "segment_version",
+  "at",
+  "duration_sec",
+  "tracks",
+] as const satisfies readonly (keyof SegmentInsertApplied)[];
+
+/** The insert's reply: `queued` when it was saved to send later, so nothing was applied yet. */
+export type SegmentInsertOutcome =
+  | {
+      queued: false;
+      applied: SegmentInsertApplied;
+      historyHead: HistoryEntryId | null;
+    }
+  | { queued: true; historyHead: null };
 
 export interface SegmentChapterMove {
   title: string;
@@ -124,6 +150,25 @@ export interface SegmentInsertPreview {
   tracks_added: string[];
   tracks: Record<string, string>;
 }
+
+export const SEGMENT_INSERT_PREVIEW_KEYS = [
+  "dry_run",
+  "segment_id",
+  "segment_version",
+  "at",
+  "duration_sec",
+  "timeline_duration_before_sec",
+  "timeline_duration_after_sec",
+  "clips_moved",
+  "clips_added",
+  "clips_from_segment",
+  "chapters_moved",
+  "chapter_added",
+  "comments_moved",
+  "pending_edits_moved",
+  "tracks_added",
+  "tracks",
+] as const satisfies readonly (keyof SegmentInsertPreview)[];
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -173,23 +218,82 @@ export function segmentInsertRefusal(
   return SEGMENT_INSERT_REFUSALS.find((code) => code === error.code) ?? null;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function strings(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : [];
+}
+
+function appliedInsert(value: unknown): SegmentInsertApplied {
+  if (!isRecord(value) || value.operation !== "insert_segment")
+    throw new Error("The insert reply is missing its result.");
+  const { segment_id, segment_version, at, duration_sec, clip_count } = value;
+  if (
+    typeof segment_id !== "string" ||
+    typeof segment_version !== "number" ||
+    typeof at !== "number" ||
+    typeof duration_sec !== "number" ||
+    typeof clip_count !== "number"
+  )
+    throw new Error("The insert reply is malformed.");
+  const total = value.timeline_duration_sec;
+  const lanes = isRecord(value.tracks) ? value.tracks : {};
+  return {
+    operation: "insert_segment",
+    affected_tracks: strings(value.affected_tracks),
+    clip_count,
+    timeline_duration_sec: typeof total === "number" ? total : null,
+    segment_id,
+    segment_version,
+    at,
+    duration_sec,
+    tracks: Object.fromEntries(
+      Object.entries(lanes).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+      ),
+    ),
+  };
+}
+
 /**
  * Insert a library segment into the episode at `path` as one undoable edit.
- * Rejects with an `ApiError` whose code `segmentInsertRefusal` names.
+ *
+ * Pass the preview's `segment_version` as `request.version`, so the user
+ * applies the version they saw rather than whichever is newest by then. Show
+ * `applied.at` and `applied.duration_sec` from the reply, not the preview's:
+ * `"end"` is resolved under the document lock. A queued reply carries no
+ * result and no history head. Rejects with an `ApiError` whose code
+ * `segmentInsertRefusal` names.
  */
 export async function insertSegment(
   path: string,
   request: SegmentInsertRequest,
-): Promise<SegmentInsertApplied> {
-  const result = await submitDocumentCommand(
+  opts?: DocumentCommandOptions,
+): Promise<SegmentInsertOutcome> {
+  const reply = await submitDocumentCommand(
     path,
     DocumentCommand.InsertSegment,
     { ...request },
+    opts,
   );
-  return result as unknown as SegmentInsertApplied;
+  if (reply.queued === true) return { queued: true, historyHead: null };
+  const payload = isRecord(reply.command) ? reply.command.payload : null;
+  return {
+    queued: false,
+    applied: appliedInsert(isRecord(payload) ? payload.result : null),
+    historyHead: replyHistoryHead(reply),
+  };
 }
 
-/** What inserting the segment at `at` would move; writes nothing. */
+/**
+ * What inserting the segment at `at` would move; writes nothing. Its
+ * `segment_version` is the one to pass to `insertSegment`; its `at` may differ
+ * from the apply reply's when the timeline changed in between.
+ */
 export async function previewSegmentInsert(
   path: string,
   request: SegmentInsertRequest,

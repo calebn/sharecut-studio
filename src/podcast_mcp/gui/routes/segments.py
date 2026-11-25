@@ -82,7 +82,11 @@ def insert_preview(
     at: str,
     version: int | None = None,
 ) -> dict[str, Any]:
-    """What inserting the segment at ``at`` would move: a dry run that writes nothing."""
+    """What inserting the segment at ``at`` would move: a dry run that writes nothing.
+
+    ``version`` is a bare ``int`` and not ``Query(ge=1)`` so that 0 reaches
+    ``segment_version_invalid`` like the CLI and MCP instead of a 422.
+    """
     project_path = resolve_project(path, request)
     pin_served_if_allowed(request, project_path)
     store = SegmentStore()
