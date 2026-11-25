@@ -138,9 +138,10 @@ def _missing_version_refusal(row: dict[str, Any], version_id: str) -> CodedKeyEr
     return CodedKeyError(f"review version not found: {version_id}", code="review_version_not_found")
 
 
-def _version_resolved(row: dict[str, Any], version_id: str) -> None:
+def _version_resolved(row: dict[str, Any], *version_ids: str) -> None:
     """A version that is back warns again the next time it goes missing (#3984)."""
-    _REFUSED_VERSIONS.discard(_refusal_key(row, version_id))
+    for version_id in version_ids:
+        _REFUSED_VERSIONS.discard(_refusal_key(row, version_id))
 
 
 def _refusal_key(row: dict[str, Any], version_id: str) -> tuple[str, str]:
@@ -1107,7 +1108,7 @@ def open_share_workspace(
 def open_resolved_share_workspace(row: dict[str, Any]) -> tuple[dict[str, Any], ProjectWorkspace]:
     """Open the episode and resolve the review version of a row from ``lookup_share``."""
     ws = workspace_from_share_row(row, author=share_author(row))
-    vid = str(row.get("review_version_id") or "")
+    recorded = vid = str(row.get("review_version_id") or "")
     if vid and row.get("follow_latest"):
         # A follow-latest link serves the active version; downstream readers of
         # row["review_version_id"] then follow it without knowing about links (#1763).
@@ -1118,7 +1119,8 @@ def open_resolved_share_workspace(row: dict[str, Any]) -> tuple[dict[str, Any], 
             get_version(ws.project, vid)
         except KeyError:
             raise _missing_version_refusal(row, vid) from None
-        _version_resolved(row, vid)
+        # A follow-latest link is refused under its recorded version, so forget that too.
+        _version_resolved(row, vid, recorded)
     return row, ws
 
 
@@ -1584,6 +1586,7 @@ def share_daw_waveform_tiles(
         # only refuses when the project has lost every version it could serve.
         live = _current_review_version_ids(project_path)
         if live:
+            _version_resolved(row, vid)
             vid = ""
     if vid:
         if vid not in _current_review_version_ids(project_path):
