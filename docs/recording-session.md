@@ -125,6 +125,8 @@ a producer becomes recorded next take. Prefix ↔ kind is enforced: `/r/` with a
 cover says the link is invalid and to ask the host for a new link (the API stays 404;
 the cover shipped in PR 2322).
 
+The Studio host socket waits for the room snapshot to start before joining its roster.
+
 Minting a new room **ends the previous one** when it can: after the new room and
 its `begin_record_session` succeed, every guest and producer token of earlier rooms
 is revoked, so an old link cannot admit anyone into today's room and shows the same

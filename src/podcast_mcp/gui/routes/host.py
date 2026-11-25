@@ -31,6 +31,7 @@ from podcast_mcp.services.record import (
     HOST_PARTICIPANT_ID,
     LeaseInUseError,
     RecordAuthzError,
+    RecordRoomChangedError,
     RecordSessionService,
     RecordStateError,
     RoomFullError,
@@ -206,7 +207,7 @@ async def host_ws(
     async def attach_record_locked() -> None:
         nonlocal record, record_queue, attached_sid, failed_sid, fail_until
         session_id = await run_in_threadpool(
-            RecordSessionService.active_session_id, workspace.project
+            RecordSessionService.started_session_id, workspace.project, attached_sid
         )
         if record is not None and attached_sid == session_id and session_id and not claim_lost():
             return
@@ -214,18 +215,19 @@ async def host_ws(
             await detach_record()
         if not session_id or time.monotonic() < fail_until:
             return
-        record = await run_in_threadpool(
+        pending_record = await run_in_threadpool(
             RecordSessionService, workspace.project, session_id=session_id
         )
         record_queue = hub.subscribe(record_hub_key(workspace.project), loop)
         try:
             echo, snapshot = await run_in_threadpool(
-                record.join,
+                pending_record.join,
                 role="host",
                 display_name=label or "Host",
                 client_id=f"record-join:{client_id}",
                 connection_id=connection_id,
             )
+            record = pending_record
             attached_sid = session_id
             failed_sid = None
             await send(
@@ -239,6 +241,8 @@ async def host_ws(
             )
             await send({"type": "Snapshot", "snapshot": snapshot}, "record")
             record_tasks.spawn(pump(record_queue, "record"))
+        except RecordRoomChangedError:
+            await detach_record()
         except (
             RecordStateError,
             RecordAuthzError,
@@ -263,7 +267,7 @@ async def host_ws(
             sid: str | None = None
             try:
                 sid = await run_in_threadpool(
-                    RecordSessionService.active_session_id, workspace.project
+                    RecordSessionService.started_session_id, workspace.project, attached_sid
                 )
                 if (sid != attached_sid or claim_lost()) and (not sid or sid != failed_sid):
                     await attach_record()

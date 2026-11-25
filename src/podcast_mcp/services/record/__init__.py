@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.record.service import (
         InviteClosure,
         LeaseInUseError,
+        RecordRoomChangedError,
         RecordSessionService,
         assert_no_open_take,
         begin_record_session,
@@ -82,6 +83,7 @@ __all__ = [
     "RecordLandingError",
     "RecordLandingService",
     "RecordRole",
+    "RecordRoomChangedError",
     "RecordSessionService",
     "RecordStateError",
     "RecordTakeOpenError",
@@ -131,6 +133,7 @@ _MODULE_BY_NAME = {
     "RecordTakeOpenError": "landing",
     "RecordRole": "state",
     "InviteClosure": "service",
+    "RecordRoomChangedError": "service",
     "RecordSessionService": "service",
     "RecordStateError": "reducer",
     "RecordUploadError": "upload",
