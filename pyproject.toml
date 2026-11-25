@@ -18,8 +18,8 @@ dependencies = [
     "av>=11,<19; sys_platform != 'ios'",
     # Imported directly by the opt-in forced aligner (#714); faster-whisper already
     # installs both, so this only makes the dependency explicit (deptry DEP003).
-    "onnxruntime>=1.17.0; sys_platform != 'ios' and (sys_platform != 'darwin' or platform_machine != 'x86_64')",
-    "onnxruntime==1.23.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    # Intel Macs stay on 1.23.2 through [tool.uv] constraint-dependencies below.
+    "onnxruntime>=1.17.0; sys_platform != 'ios'",
     "huggingface-hub>=2.0",
     "numpy>=1.26.0",
     "rich>=13.7.0",
@@ -113,6 +113,16 @@ collaboration = "podcast_mcp.extensions.collaboration:create"
 
 # hatch_build.py adds the web build to the sdist and wheel when it has been built.
 # Runtime twin of wheel-web-dist: podcast_mcp.gui.static_assets.packaged_gui_dist().
+[tool.uv]
+# ONNX Runtime 1.23.2 is the last release with Intel macOS wheels, so Intel Macs
+# stay on it (docs/setup.md). This lives here rather than as an exact pin in
+# [project] dependencies so Dependabot's uv updates keep moving onnxruntime on
+# every other platform without proposing an Intel bump that cannot install.
+# Drop it when Intel Macs are no longer supported.
+constraint-dependencies = [
+    "onnxruntime==1.23.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+]
+
 [tool.hatch.build.hooks.custom]
 web-dist = "gui/web/dist"
 wheel-web-dist = "podcast_mcp/gui/web_dist"
