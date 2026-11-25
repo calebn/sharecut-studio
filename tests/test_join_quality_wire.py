@@ -213,10 +213,41 @@ def _check_detectors(report: dict) -> None:
 # ---------------------------------------------------------------- existing join
 
 
-@pytest.mark.parametrize("timebase", ["timeline", "source"])
-def test_existing_join_report_shape(tmp_path, monkeypatch, timebase):
-    path = _build(tmp_path, monkeypatch)
-    report = _service(path, track_id="host", join_sec=2.0, timebase=timebase)
+def _force_placement(monkeypatch, index: int) -> dict:
+    """Make the placement at 0-based `index` the strict winner of the join's nine-way
+    worst-placement search (order: dl in (0, -tol, +tol), dr in (0, -tol, +tol)).
+
+    The real scores sit within ~0.002 of each other, so which placement wins is CPU
+    dependent; forcing it keeps the report pin deterministic. Detector hits stay real."""
+    from podcast_mcp.edits import join_continuity as jc
+
+    original_wp = jc._worst_placement
+    original_score = jc.score_splice_samples
+    state: dict = {"join": False, "n": 0, "scored": []}
+
+    def score(*args, **kwargs):
+        risk, hits = original_score(*args, **kwargs)
+        if state["join"]:
+            risk = 0.9 if state["n"] == index else 0.1
+            state["n"] += 1
+        return risk, hits
+
+    def worst_placement(*args, **kwargs):
+        # the join's own call uses the default inaudible=True; calibration passes False
+        state["join"], state["n"] = bool(kwargs.get("inaudible", True)), 0
+        try:
+            return original_wp(*args, **kwargs)
+        finally:
+            if state["join"]:
+                state["scored"].append(state["n"])
+            state["join"] = False
+
+    monkeypatch.setattr(jc, "score_splice_samples", score)
+    monkeypatch.setattr(jc, "_worst_placement", worst_placement)
+    return state
+
+
+def _check_existing_join_shape(report: dict, timebase: str) -> None:
     _check_report(report, mode="existing_join", timebase=timebase)
     _check_detectors(report)
     assert report["join_sec"] == 2.0
@@ -225,7 +256,28 @@ def test_existing_join_report_shape(tmp_path, monkeypatch, timebase):
     assert report["natural_p95"] == round(report["natural_p95"], 4)
     assert report["ranker"] is None
     assert report["risk"] == round(report["risk"], 4)
-    assert all(isinstance(reason, str) and reason for reason in report["reasons"])
+
+
+@pytest.mark.parametrize("timebase", ["timeline", "source"])
+def test_existing_join_report_shape(tmp_path, monkeypatch, timebase):
+    state = _force_placement(monkeypatch, 2)  # (dl, dr) = (0, +tol)
+    path = _build(tmp_path, monkeypatch)
+    report = _service(path, track_id="host", join_sec=2.0, timebase=timebase)
+    assert state["scored"] and set(state["scored"]) == {9}  # nine placements per join
+    _check_existing_join_shape(report, timebase)
+    assert report["reasons"][0] == "worst edge placement +0/+3 ms within +-3 ms"
+
+
+@pytest.mark.parametrize("timebase", ["timeline", "source"])
+def test_existing_join_report_without_a_shifted_placement_has_no_placement_reason(
+    tmp_path, monkeypatch, timebase
+):
+    state = _force_placement(monkeypatch, 0)  # the unshifted (0, 0) placement wins
+    path = _build(tmp_path, monkeypatch)
+    report = _service(path, track_id="host", join_sec=2.0, timebase=timebase)
+    assert state["scored"] and set(state["scored"]) == {9}
+    _check_existing_join_shape(report, timebase)
+    assert not any(r.startswith("worst edge placement") for r in report["reasons"])
 
 
 def test_worst_edge_placement_reason_wording():
