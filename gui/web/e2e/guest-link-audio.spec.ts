@@ -10,13 +10,16 @@ import {
   withSharedProject,
 } from "./guestLink";
 import { hostEdit } from "./guestTranscript";
+import { createRelocatedE2eProject } from "./liveProject";
 import {
   guestLinkAudio,
   guestSavedCopy,
   SHARED_AUDIO_CACHE,
 } from "./offlineQueue";
 import { playButton } from "./playback";
-import { openGuestShare } from "./shareNavigation";
+import { silenceWav, withShareableProject } from "./shareableProject";
+import { createReviewShare, openGuestShare } from "./shareNavigation";
+import { parseTimecodeSec } from "./timecode";
 import { withBrowserPages } from "./twoBrowserPages";
 
 /**
@@ -307,6 +310,112 @@ test("a guest sees an audio-load error and can retry after a failed chunk reques
     await expect.poll(() => clock.advanced()).toBe(true);
     await expect(pill).toHaveCount(0);
   });
+});
+
+const LONG_EPISODE_SEC = 320;
+
+function longGuestEpisode(prefix: string) {
+  const fixture = createRelocatedE2eProject(prefix);
+  const project = JSON.parse(fs.readFileSync(fixture.projectPath, "utf8")) as {
+    timeline: {
+      tracks: { media: { path: string; duration_sec: number } }[];
+      clips: { source_end: number }[];
+      duration_sec: number;
+    };
+  };
+  const audio = silenceWav(LONG_EPISODE_SEC);
+  for (let frame = 0; frame < LONG_EPISODE_SEC * 48_000; frame++) {
+    const sample = Math.sin((2 * Math.PI * 220 * frame) / 48_000);
+    audio.writeInt16LE(Math.round(1_300 * sample), 44 + 2 * frame);
+  }
+  for (const track of project.timeline.tracks) {
+    track.media.duration_sec = LONG_EPISODE_SEC;
+    fs.writeFileSync(path.join(fixture.workspaceDir, track.media.path), audio);
+  }
+  for (const clip of project.timeline.clips) clip.source_end = LONG_EPISODE_SEC;
+  project.timeline.duration_sec = LONG_EPISODE_SEC;
+  fs.writeFileSync(fixture.projectPath, JSON.stringify(project));
+  return fixture;
+}
+
+test("guest playback survives a ten-second chunk outage mid-listen", async ({
+  page: host,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  await withShareableProject(
+    async (projectPath) => {
+      const token = await createReviewShare(host, projectPath, "viewer");
+      const guest = await browser.newPage({
+        viewport: { width: 1_440, height: 900 },
+      });
+      try {
+        const extensionChunk = /\/daw\/proxy\/reference\/[^/]+\/3$/;
+        const matches = (url: URL) => extensionChunk.test(url.pathname);
+        const outageMs = 10_000;
+        let outageStart: number | undefined;
+        let failures = 0;
+        let recovered = false;
+        guest.on("response", (response) => {
+          if (matches(new URL(response.url())) && response.ok())
+            recovered = true;
+        });
+        await guest.route(matches, (route) => {
+          const now = performance.now();
+          outageStart ??= now;
+          if (now - outageStart >= outageMs) return route.continue();
+          failures++;
+          return route.fulfill({ status: 503, body: "temporary chunk outage" });
+        });
+        await open(guest, token);
+        const pause = guest.getByRole("button", { name: "Pause", exact: true });
+        const clock = guest.locator(
+          ".stage-frame-player .sys-player-now, .sys-player--expanded .sys-player-now",
+        );
+        const played = async () => parseTimecodeSec(await clock.innerText());
+        await playButton(guest).click();
+        await expect(pause).toBeVisible();
+        await expect.poll(played).toBeGreaterThan(1);
+        await guest.keyboard.press("l");
+        await guest.keyboard.press("l");
+        await expect(guest.getByLabel("Playback speed 4×")).toBeVisible();
+
+        await expect
+          .poll(() => failures, { timeout: 30_000 })
+          .toBeGreaterThan(0);
+        const atOutage = await played();
+        expect(atOutage).toBeGreaterThan(0);
+        await expect
+          .poll(
+            async () => {
+              const time = await played();
+              return {
+                advanced: time > atOutage + 8,
+                stillBlocked:
+                  outageStart !== undefined &&
+                  performance.now() - outageStart < outageMs &&
+                  !recovered,
+              };
+            },
+            { timeout: 8_000 },
+          )
+          .toEqual({ advanced: true, stillBlocked: true });
+        await expect(pause).toBeVisible();
+        await expect.poll(() => recovered).toBe(true);
+        expect(failures).toBeGreaterThan(1);
+        // Chunk 3 begins at 180 s. Playback must cross into the recovered audio.
+        await expect.poll(played, { timeout: 50_000 }).toBeGreaterThan(185);
+        await expect(pause).toBeVisible();
+        await expect(
+          guest.getByRole("button", { name: "Retry", exact: true }),
+        ).toHaveCount(0);
+      } finally {
+        await guest.close();
+      }
+    },
+    undefined,
+    longGuestEpisode,
+  );
 });
 
 test("a live link replays from the device without asking the server again", async ({
