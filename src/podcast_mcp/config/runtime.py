@@ -511,7 +511,7 @@ SECRET_ENV_NAMES = (
 )
 _MIN_SECRET_LENGTH = 8
 RELAY_ADMIN_FILENAME = "relay-admin.yaml"
-# ``host_id:secret`` pairs; only the secret half is a secret.
+# Bare secrets and ``host_id:secret`` pairs (the relay's own parser); the host id is not a secret.
 _PAIR_ENV_NAMES = frozenset({"PODCAST_RELAY_HOST_TOKENS"})
 # OAuth client JSON files (env name, default file name in the config directory).
 _OAUTH_FILE_ENV = (
@@ -595,8 +595,11 @@ def configured_secrets(
         for name in SECRET_ENV_NAMES:
             value = env.get(name)
             if name in _PAIR_ENV_NAMES:
-                for pair in (value or "").split(","):
-                    yield pair.partition(":")[2]
+                from podcast_mcp.util.relay_protocol.share_claims import parse_host_token_map
+
+                shared, by_host = parse_host_token_map(value or "")
+                yield from shared
+                yield from by_host.values()
             else:
                 yield value
 
