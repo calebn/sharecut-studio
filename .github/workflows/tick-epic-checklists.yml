@@ -1,0 +1,50 @@
+name: tick-epic-checklists
+
+on:
+  issues:
+    types: [closed]
+  pull_request:
+    types: [closed]
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Number of a merged PR whose closed issues to wait for first
+        type: number
+        required: false
+      dry-run:
+        description: Print what would be ticked and write nothing
+        type: boolean
+        default: true
+  schedule:
+    - cron: "53 5 * * 1"
+
+permissions:
+  issues: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: tick-epic-checklists
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'issues' && github.event.issue.state_reason == 'completed') || (github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.ref || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Tick the epic checklist lines whose references are done
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run || 'false' }}
+        run: python scripts/tick_epic_checklists.py
