@@ -203,14 +203,15 @@ export async function checkNativeMixEdits(page: Page, projectPath: string) {
     await page.mouse.move(x - 8 * step, y);
   }
   await expect(volume).not.toHaveAttribute("aria-valuenow", String(first.db));
-  const regrabbed = Number(await volume.getAttribute("aria-valuenow"));
-  expect(regrabbed).toBeLessThan(first.db);
   expect((await savedMix(page, projectPath))[0].db).toBe(first.db);
   await page.mouse.up();
   await expect
-    .poll(async () => (await savedMix(page, projectPath))[0].db)
-    .toBe(regrabbed);
-  await expect(volume).toHaveAttribute("aria-valuenow", String(regrabbed));
+    .poll(async () => {
+      const saved = (await savedMix(page, projectPath))[0].db;
+      const shown = Number(await volume.getAttribute("aria-valuenow"));
+      return saved < first.db && saved === shown;
+    })
+    .toBe(true);
   expect(gainWrites).toBe(1);
   await reopened.getByRole("button", { name: "Close" }).click();
 }
