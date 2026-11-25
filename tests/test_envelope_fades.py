@@ -529,3 +529,54 @@ def test_a_dip_check_does_not_count_fade_points() -> None:
     assert not _near_dip(merged([]), 0.0, 100.0)
     assert not _near_dip([lowered("in1", 2.0, 1.0, 0.2)], 0.0, 100.0)
     assert _near_dip([EnvPoint(generated_point_id(1.0, 0.1), 1.0, 0.1)], 0.0, 2.0)
+
+
+def _without(points, slot):
+    return [p for p in points if f"mix:fade:{slot}:" not in p.id]
+
+
+def test_a_deleted_fade_end_next_to_a_dip_asks_for_a_rerun() -> None:
+    dip = EnvPoint(generated_point_id(8.5, 0.126), 8.5, 0.126)
+    base = merged([], dur=10.0)
+    result = merge_fades([*_without(base, "out1"), dip], 10.0, 2.0, 3.0)
+    assert result.replaced_under_duck >= 1
+    dip_in = EnvPoint(generated_point_id(1.0, 0.126), 1.0, 0.126)
+    result = merge_fades([*_without(base, "in0"), dip_in], 10.0, 2.0, 3.0)
+    assert result.replaced_under_duck >= 1
+    far = EnvPoint(generated_point_id(5.0, 0.126), 5.0, 0.126)
+    assert merge_fades([*_without(base, "out1"), far], 10.0, 2.0, 3.0).replaced_under_duck == 0
+
+
+def test_a_dip_entirely_past_the_stem_end_does_not_ask_for_a_rerun() -> None:
+    points = plan_envelope([(10.0, 12.0)], [], DEPTH, 30.0, 1000).points
+    assert merge_fades(points, 6.0, 2.0, 3.0).replaced_under_duck == 0
+
+
+@pytest.mark.parametrize("order_swapped", [False, True])
+def test_a_stale_managed_duplicate_in_a_slot_is_replaced(order_swapped) -> None:
+    in0 = EnvPoint(fade_point_id("in0", 0.0, 0.0), 0.0, 0.0)
+    in1 = EnvPoint(fade_point_id("in1", 2.0, 1.0), 2.0, 1.0)
+    out0 = EnvPoint(fade_point_id("out0", 2.0, 1.0), 2.0, 1.0)
+    stale = EnvPoint(fade_point_id("in1", 3.0, 1.0), 3.0, 1.0)
+    out1 = EnvPoint(fade_point_id("out1", 4.0, 0.0), 4.0, 0.0)
+    pair = [stale, in1] if order_swapped else [in1, stale]
+    result = merge_fades([in0, *pair, out0, out1], 4.0, 1.0, 3.0).points
+    assert stale not in result
+    assert sum(1 for p in result if "mix:fade:in1:" in p.id) == 1
+    assert tv(fades(result)) == legacy(4.0, 1.0, 3.0)
+    assert merge_fades(result, 4.0, 1.0, 3.0).points == result
+
+
+def test_a_user_moved_duplicate_in_a_slot_is_kept() -> None:
+    first = merged([])
+    mine = EnvPoint(fade_point_id("in1", 2.0, 1.0), 3.0, 1.0)
+    result = merge_fades([*first, mine], 10.0, 2.0, 3.0).points
+    assert mine in result
+
+
+def test_a_nudged_fade_point_does_not_swallow_or_duplicate_a_slot() -> None:
+    first = merged([])
+    nudged = [p._replace(time=p.time + 1e-7) if "in1" in p.id else p for p in first]
+    result = merge_fades(nudged, 10.0, 2.0, 3.0).points
+    ids = [p.id for p in result]
+    assert len(ids) == len(set(ids)) == 4

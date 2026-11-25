@@ -140,7 +140,16 @@ def merge_fades(
     targets = fade_targets(dur, fade_in, fade_out)
     if not targets:
         return FadeMerge(current, 0)
+    wanted = {slot: (time, value) for slot, time, value in targets}
+    ramp_in, ramp_out = wanted["in1"][0], wanted["out0"][0]
+
+    def span(slot: str, old_time: float | None = None) -> tuple[float, float]:
+        if slot.startswith("in"):
+            return 0.0, ramp_in if old_time is None else max(old_time, ramp_in)
+        return ramp_out if old_time is None else min(old_time, ramp_out), dur
+
     legacy: set[int] = set()
+    removed_lowered = 0
     if not any(_fade_view(p) is not None for p in current):
         legacy = _legacy_fade_indices(current, fade_in, fade_out)
         removed_lowered = sum(1 for i in legacy if current[i].id.startswith(BASE_PREFIX))
@@ -151,62 +160,61 @@ def merge_fades(
         ramp_times = [current[i].time for v, i in old_ones if v == 1.0]
         current = [p for i, p in enumerate(current) if i not in legacy]
         if legacy and ramp_times and not removed_lowered:
-            new_in, new_out = targets[1][1], targets[2][1]
-            old_in, old_out = min(ramp_times), max(ramp_times)
-            if _near_dip(current, 0.0, max(old_in, new_in)) or _near_dip(
-                current, min(old_out, new_out), math.inf
-            ):
+            in_span = span("in1", min(ramp_times))
+            out_span = span("out0", max(ramp_times))
+            if _near_dip(current, *in_span) or _near_dip(current, *out_span):
                 removed_lowered += 1
+
+    def pristine(point: EnvPoint, view: tuple[str, str, float]) -> bool:
+        return view[1] == fade_point_id(view[0], point.time, view[2]) and not _retyped(point)
 
     owner: dict[str, int] = {}
     for index, point in enumerate(current):
         view = _fade_view(point)
-        if view is not None and view[0] not in owner:
-            owner[view[0]] = index
+        if view is None:
+            continue
+        slot = view[0]
+        if slot not in owner:
+            owner[slot] = index
+        elif view[1] == fade_point_id(slot, *wanted[slot]) and not _retyped(point):
+            first = _fade_view(current[owner[slot]])
+            if first is not None and first[1] != view[1]:
+                owner[slot] = index
 
-    wanted = {slot: (time, value) for slot, time, value in targets}
     kept: list[EnvPoint] = []
     satisfied: set[str] = set()
     user_owned: set[str] = set()
-    replaced_under_duck = removed_lowered if legacy else 0
+    replaced_under_duck = removed_lowered
     for index, point in enumerate(current):
         view = _fade_view(point)
-        if view is None or owner[view[0]] != index:
+        if view is None:
             kept.append(point)
             continue
-        slot, original_id, original_value = view
-        if original_id != fade_point_id(slot, point.time, original_value) or _retyped(point):
+        slot, original_id, _ = view
+        is_owner = owner[slot] == index
+        if is_owner and not pristine(point, view):
             user_owned.add(slot)
             kept.append(point)
-        elif original_id == fade_point_id(slot, *wanted[slot]):
+        elif not is_owner and not pristine(point, view):
+            kept.append(point)
+        elif is_owner and original_id == fade_point_id(slot, *wanted[slot]):
             satisfied.add(slot)
             kept.append(point)
-        elif point.id.startswith(BASE_PREFIX):
+        elif point.id.startswith(BASE_PREFIX) or _near_dip(current, *span(slot, point.time)):
             replaced_under_duck += 1
-        else:
-            target_time = wanted[slot][0]
-            lo, hi = (
-                (0.0, max(point.time, target_time))
-                if slot.startswith("in")
-                else (min(point.time, target_time), math.inf)
-            )
-            if _near_dip(current, lo, hi):
+
+    if not legacy:
+        for slot in wanted:
+            if slot not in owner and _near_dip(current, *span(slot)):
                 replaced_under_duck += 1
 
-    kept_ids = {p.id for p in kept}
     fresh = [
         EnvPoint(fade_point_id(slot, time, value), time, value)
         for slot, time, value in targets
         if slot not in satisfied and slot not in user_owned
     ]
-    if not legacy:
-        for slot, time, _ in targets:
-            if slot in owner:
-                continue
-            lo, hi = (0.0, time) if slot.startswith("in") else (time, math.inf)
-            if _near_dip(current, lo, hi):
-                replaced_under_duck += 1
-    fresh = [p for p in fresh if p.id not in kept_ids]
+    held = {p.id: (p.time, p.value) for p in kept}
+    fresh = [p for p in fresh if held.get(p.id) != (p.time, p.value)]
 
     def order(point: EnvPoint) -> tuple[float, int, int]:
         view = _fade_view(point)
