@@ -101,6 +101,7 @@ const VIEWER_ROWS = [
   ["edit.clearSelection", "Nothing selected"],
   ["edit.nextOccurrence", "No other matches to jump to"],
   ["range.play", "Choose a range"],
+  ["view.revealSelection", "Nothing selected"],
   ["help.guides", null],
   ["presence.unfollow", "Not following"],
 ];
@@ -123,6 +124,7 @@ const COMMENTER_ROWS = [
   ["range.mute", "Choose a range"],
   ["range.comment", "Choose a range"],
   ["comment.draftAt", null],
+  ["view.revealSelection", "Nothing selected"],
   ["help.guides", null],
   ["presence.unfollow", "Not following"],
 ];

@@ -70,3 +70,45 @@ describe("useAnchoredPanel keeping clear of an element that moves by its style",
     expect(root.contains(first)).toBe(false);
   });
 });
+
+describe("useAnchoredPanel with a rect source", () => {
+  function place(anchorTop: number, rect?: () => DOMRect | null) {
+    const anchor = document.createElement("div");
+    anchor.getBoundingClientRect = () => new DOMRect(500, anchorTop, 100, 20);
+    const panel = document.createElement("div");
+    Object.defineProperty(panel, "offsetWidth", { value: 100 });
+    Object.defineProperty(panel, "offsetHeight", { value: 40 });
+    document.body.append(anchor, panel);
+    renderHook(() =>
+      useAnchoredPanel(
+        { current: panel },
+        {
+          reason: "The panel stays beside its subject.",
+          ref: { current: anchor },
+          rect,
+        },
+        true,
+      ),
+    );
+    anchor.remove();
+    panel.remove();
+    return panel;
+  }
+
+  it("places against the node's own rect without one", () => {
+    expect(place(300).style.top).toBe("328px");
+  });
+
+  it("places against the given rect, not the node's", () => {
+    const panel = place(300, () => new DOMRect(500, 100, 100, 20));
+    expect(panel.style.top).toBe("128px");
+  });
+
+  it("keeps the panel on screen for an anchor far below it, placed by an edge point", () => {
+    const panel = place(50_000, () => new DOMRect(500, 768, 0, 0));
+    const top = Number.parseFloat(panel.style.top);
+    expect(top).toBeGreaterThanOrEqual(0);
+    expect(top + 40).toBeLessThanOrEqual(768);
+    expect(panel.style.visibility).not.toBe("hidden");
+  });
+});

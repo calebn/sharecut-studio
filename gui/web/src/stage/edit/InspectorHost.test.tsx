@@ -61,6 +61,42 @@ afterEach(() => {
   clearRegisteredCommands();
 });
 
+/**
+ * Gives the timeline scroller a box and every selection anchor a rect inside
+ * it, or far outside while `away` is set; the pin is bounds math, and the
+ * observer only says when to redo it.
+ */
+function stubAnchorBounds() {
+  const state = { away: false };
+  const rect = (l: number, t: number, r: number, b: number) =>
+    ({
+      x: l,
+      y: t,
+      left: l,
+      top: t,
+      right: r,
+      bottom: b,
+      width: r - l,
+      height: b - t,
+    }) as DOMRect;
+  const spy = vi
+    .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+    .mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("timeline-scroll"))
+        return rect(0, 0, 1000, 800);
+      if (
+        this.matches(
+          ".lane-row, [data-clip-id], [data-pending-id], .range-overlay, .sys-script-word",
+        )
+      )
+        return state.away
+          ? rect(5000, 5000, 5100, 5040)
+          : rect(100, 100, 200, 140);
+      return rect(0, 0, 0, 0);
+    });
+  return { state, spy };
+}
+
 function Keys() {
   useDawKeymapListener();
   return null;
@@ -746,23 +782,22 @@ describe("the Inspector card on the desktop and the tablet", () => {
   });
 
   it("hides the card while its anchor is out of view and keeps the Inspector open", async () => {
-    let report = (_visible: boolean) => {};
+    let notify = () => {};
     vi.stubGlobal(
       "IntersectionObserver",
       class {
-        callback: (entries: { isIntersecting: boolean }[]) => void;
-        constructor(
-          callback: (entries: { isIntersecting: boolean }[]) => void,
-        ) {
-          this.callback = callback;
-          report = (isIntersecting) => this.callback([{ isIntersecting }]);
+        constructor(callback: () => void) {
+          notify = callback;
         }
-        observe() {
-          report(true);
-        }
+        observe() {}
         disconnect() {}
       },
     );
+    const bounds = stubAnchorBounds();
+    const report = (visible: boolean) => {
+      bounds.state.away = !visible;
+      notify();
+    };
     stubViewportShell("desktop");
     render(<EditWorkspace />);
     await inspect();
@@ -772,6 +807,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
     expect(useDawStore.getState().inspectorKey).not.toBeNull();
     act(() => report(true));
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
+    bounds.spy.mockRestore();
   });
 
   it("reveals an offscreen selected clip when Inspect opens", async () => {
@@ -1041,35 +1077,33 @@ describe("the Inspector card on the desktop and the tablet", () => {
   });
 
   it("measures the card again when its anchor comes back into view", async () => {
-    let report = (_visible: boolean) => {};
+    let notify = () => {};
     vi.stubGlobal(
       "IntersectionObserver",
       class {
-        callback: (entries: { isIntersecting: boolean }[]) => void;
-        constructor(
-          callback: (entries: { isIntersecting: boolean }[]) => void,
-        ) {
-          this.callback = callback;
-          report = (isIntersecting) => this.callback([{ isIntersecting }]);
+        constructor(callback: () => void) {
+          notify = callback;
         }
-        observe() {
-          report(true);
-        }
+        observe() {}
         disconnect() {}
       },
     );
-    const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    const bounds = stubAnchorBounds();
+    const report = (visible: boolean) => {
+      bounds.state.away = !visible;
+      notify();
+    };
     stubViewportShell("desktop");
     const { container } = render(<EditWorkspace />);
     await inspect();
     const root = container.querySelector(".edit-workspace");
     const rootCalls = () =>
-      spy.mock.contexts.filter((el) => el === root).length;
+      bounds.spy.mock.contexts.filter((el) => el === root).length;
     act(() => report(false));
     const hidden = rootCalls();
     act(() => report(true));
     expect(rootCalls()).toBeGreaterThan(hidden);
-    spy.mockRestore();
+    bounds.spy.mockRestore();
   });
 
   it("returns focus to the first opener under StrictMode", async () => {
