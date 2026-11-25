@@ -264,6 +264,18 @@ for (const { shell, viewport } of SHELLS) {
             await inspectSelection(page);
             const dialog = sheet(page);
             const time = dialog.getByRole("spinbutton", { name: "Time" });
+            await expect(time).toBeVisible();
+            if (shell === "phone") {
+              expect(
+                await page.evaluate(
+                  () => matchMedia("(pointer: fine)").matches,
+                ),
+              ).toBe(true);
+              expect(
+                (await time.boundingBox())?.height,
+                "the phone's Time target stays full height with a mouse",
+              ).toBeGreaterThanOrEqual(44);
+            }
             await time.press("Enter");
             const input = dialog.getByRole("textbox", { name: "Time" });
             await input.fill("48");
@@ -334,6 +346,15 @@ for (const { shell, viewport } of SHELLS) {
             await expectPageAxeClean(page, ".sys-inspector");
 
             const start = dialog.getByRole("spinbutton", { name: "Start" });
+            const end = dialog.getByRole("spinbutton", { name: "End" });
+            if (shell === "phone") {
+              for (const field of [start, end]) {
+                await expect(field).toBeVisible();
+                expect(
+                  (await field.boundingBox())?.height,
+                ).toBeGreaterThanOrEqual(44);
+              }
+            }
             await start.press("Enter");
             const input = dialog.getByRole("textbox", { name: "Start" });
             await input.fill("19");

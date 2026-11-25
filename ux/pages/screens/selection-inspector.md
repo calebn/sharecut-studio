@@ -34,6 +34,11 @@ If another editor changes a social clip's saved **Title** while you have a draft
 
 While a chapter saves, **Title** and **Time** are read-only and marked busy. A note below them asks you to try again when the save finishes. If the **Time** textbox is open, it keeps focus.
 
+On the phone layout, Inspector Scrub fields keep a 44 px target with a mouse
+or touch. With focus in **Title** or a Scrub field, the keyboard Undo shortcut
+does not undo a saved project change. Move focus out of the field before using
+the shortcut, or use the app's **Undo** button.
+
 A selected automatic reduction (from the clip's Inspect automatic audio reduction button or its Timeline overlay) opens in the same sheet: the plan, rendered-audio and saved-choice facts, the regions in the clip, **Refresh regions** and **Undo Restore** (Hear before, Hear after and Keep, which restores the original audio, are on the Action bar). A share link reads that the project host alone can inspect and restore it.
 
 A selected comment with no pending edit behind it opens as a comment popover when you press Inspect: a 320 px card in the top layer beside its pin, holding the shared comment card (author, the time that seeks, the comment text, action items, replies and a **Reply** field that sends on Enter). It sits clear of the floating Action bar and hides while the chrome above the lanes would cover it or its pin is out of view (the Action bar instead stays on screen, pinned at the edge with Show edit). Escape or Close dismisses it and returns focus to where you opened it. On a phone the same thread is in the Inspector bottom sheet, and on a tablet holding an agent range it stays in the Inspector card so the range actions keep their place. The Reply field takes focus on open. Escape in a reply with text leaves the field and keeps the text; a second Escape closes. The popover stays mounted, hidden, while its pin is scrolled out of view. Resolve and Remove are on the Action bar; a resolved comment shows **Resolved by** and **Reopen** in the popover or sheet. A share link without reply permission has no Reply field, and a share link never sees Resolve, Reopen or Remove.

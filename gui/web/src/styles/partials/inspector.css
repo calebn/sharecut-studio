@@ -228,6 +228,7 @@ html[data-shell="phone"] .modifier-footer-actions .ui-segmented {
   }
 }
 
+html[data-shell="phone"] .sys-inspector .sys-scrub-box,
 html[data-shell="phone"] .sys-inline-edit.inspector-text-field,
 html[data-shell="phone"] .track-sheet-switch,
 html[data-shell="phone"] .track-sheet-action {
