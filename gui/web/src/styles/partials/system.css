@@ -8165,6 +8165,12 @@ html[data-shell="phone"] .fade-shape > .ui-segmented > .ui-control {
   min-inline-size: 0;
 }
 
+/* A gated verb's reason takes about a quarter of the row and wraps; the bar keeps the rest. */
+.sys-inspector-dock > .sys-actions-reason {
+  flex: 0 0 26%;
+  overflow-wrap: anywhere;
+}
+
 .sys-inspector-grip {
   position: absolute;
   z-index: 1;
