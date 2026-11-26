@@ -133,7 +133,7 @@ export function endGate(
 export const END_ROOM_UNCHECKED_REASON =
   "Open Record to check this room before ending it.";
 
-export type EndRoomCheck =
+type EndRoomCheck =
   | { kind: "blocked"; reason: string }
   | { kind: "ask"; names: string[] }
   | { kind: "now" };
