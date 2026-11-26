@@ -647,3 +647,129 @@ def test_composer_observer_failure_preserves_published_files(tmp_path):
     )
     assert [path.read_bytes() for path in paths] == [b"new master", b"MP3"]
     assert [spec.ext for spec in captured[0]] == ["wav", "mp3"]
+
+
+# --- the export render record (#2806): artifacts/export_render.json ------------------------
+
+
+def _record_file(project: EpisodeProject) -> Path:
+    return project.artifacts_dir() / "export_render.json"
+
+
+def _export_ep(project: EpisodeProject, config: dict | None = None, **kwargs) -> list[Path]:
+    mastered = project.artifacts_dir() / "mastered.wav"
+    mastered.write_bytes(b"RIFF")
+    eng = MagicMock()
+    eng.export_audio.side_effect = _writes_output
+    return export_episode_deliverables(project, eng, mastered, {"export": config or MP3}, **kwargs)
+
+
+def test_an_export_records_the_edit_head_and_the_audio_stamps(tmp_path: Path):
+    from podcast_mcp.export.render_record import read_export_render
+
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.ensure_dirs()
+    project.chapters = [ChapterMarker(time=0.0, title="Start")]
+
+    paths = _export_ep(project)
+
+    record = read_export_render(project)
+    assert record is not None
+    assert record["version"] == 1
+    assert record["edit_head_id"] == project.history.edit_head_id()
+    assert set(record["files"]) == {"ep.wav", "ep.mp3"}
+    for name, stamp in record["files"].items():
+        stat = (project.export_dir() / name).stat()
+        assert list(stamp) == [stat.st_size, stat.st_mtime_ns]
+    assert {p.name for p in paths} >= {"ep.chapters.json"}
+    assert "ep.chapters.json" not in record["files"]
+
+
+def test_the_record_names_no_transcript_file(tmp_path: Path):
+    from podcast_mcp.export.render_record import read_export_render
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.ensure_dirs()
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="Hello", start=0.0, end=0.4)],
+        )
+    ]
+
+    paths = _export_ep(project)
+
+    assert {"ep.md", "ep.srt"} <= {p.name for p in paths}
+    record = read_export_render(project)
+    assert record is not None
+    assert set(record["files"]) == {"ep.wav", "ep.mp3"}
+
+
+def test_a_plan_with_no_audio_writes_no_audio_stamps(tmp_path: Path):
+    from podcast_mcp.export.render_record import read_export_render
+
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.ensure_dirs()
+    project.chapters = [ChapterMarker(time=0.0, title="Start")]
+
+    _export_ep(project, {"wav": False, "formats": []})
+
+    record = read_export_render(project)
+    assert record is None or record["files"] == {}
+
+
+def test_the_helper_names_the_record_path_under_artifacts(tmp_path: Path):
+    from podcast_mcp.export.render_record import export_render_path
+
+    project = EpisodeProject.create("ep", str(tmp_path))
+
+    assert export_render_path(project) == _record_file(project)
+
+
+def test_a_failed_export_keeps_the_previous_record_bytes(tmp_path: Path):
+    from podcast_mcp.export.render_record import write_export_render
+
+    project = _project_with_previous_export(tmp_path)
+    write_export_render(project, "old-head", [project.export_dir() / "ep.wav"])
+    before = _record_file(project).read_bytes()
+    assert json.loads(before)["edit_head_id"] == "old-head"
+    mastered = project.artifacts_dir() / "mastered.wav"
+    mastered.write_bytes(b"NEW-WAV")
+    eng = MagicMock()
+    eng.export_audio.side_effect = subprocess.CalledProcessError(1, ["ffmpeg"])
+
+    with pytest.raises(subprocess.CalledProcessError):
+        export_episode_deliverables(project, eng, mastered, {"export": MP3})
+
+    assert _record_file(project).read_bytes() == before
+
+
+def test_a_cancelled_export_keeps_the_previous_record_bytes(tmp_path: Path):
+    from podcast_mcp.export.render_record import write_export_render
+
+    project = _project_with_previous_export(tmp_path)
+    write_export_render(project, "old-head", [project.export_dir() / "ep.wav"])
+    before = _record_file(project).read_bytes()
+    mastered = project.artifacts_dir() / "mastered.wav"
+    mastered.write_bytes(b"NEW-WAV")
+    eng = MagicMock()
+    eng.export_audio.side_effect = _writes_output
+
+    with pytest.raises(CancelledProgress):
+        export_episode_deliverables(
+            project, eng, mastered, {"export": MP3}, cancel_check=lambda: True
+        )
+
+    assert _record_file(project).read_bytes() == before
+
+
+def test_a_record_that_cannot_be_written_never_fails_the_export(tmp_path: Path):
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.ensure_dirs()
+    _record_file(project).mkdir()
+
+    paths = _export_ep(project)
+
+    assert [p.name for p in paths] == ["ep.wav", "ep.mp3"]
+    assert _export_listing(project) == {"ep.mp3": b"MP3", "ep.wav": b"RIFF"}

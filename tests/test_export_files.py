@@ -6,6 +6,8 @@ import asyncio
 import contextlib
 import http.client
 import io
+import json
+import os
 import socket
 import subprocess
 import threading
@@ -1503,3 +1505,175 @@ def test_a_member_vanishing_mid_stream_closes_the_connection_short_of_its_length
 )
 def test_the_archive_name_has_an_ascii_fallback_beside_its_utf8_name(name, header) -> None:
     assert export_files_routes._attachment(name) == header
+
+
+# --- canonical audio currentness follows the recorded edit head (#2806) ---------------------
+# The record is artifacts/export_render.json: {"version": 1, "edit_head_id": str,
+# "files": {"<export-relative name>": [size, mtime_ns]}}. It is written here by hand so the
+# listing judge is tested on its own; the writer is tested in tests/test_export_audio.py.
+
+
+def _edit(ws: ProjectWorkspace) -> None:
+    from podcast_mcp.models import MediaAsset, Track, TrackRole
+
+    def add_track(project: EpisodeProject) -> None:
+        project.tracks.append(
+            Track(
+                id="host",
+                label="host",
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path="raw/host.wav"),
+                fader_db=-6.0,
+            )
+        )
+
+    ws.mutate("edit", "edit", add_track)
+
+
+def _record(
+    ws: ProjectWorkspace,
+    head: str | None = None,
+    names: tuple[str, ...] = ("wav", "mp3"),
+) -> Path:
+    stem = sanitize_export_stem(ws.project.name)
+    files = {}
+    for ext in names:
+        stat = (ws.project.export_dir() / f"{stem}.{ext}").stat()
+        files[f"{stem}.{ext}"] = [stat.st_size, stat.st_mtime_ns]
+    body = {
+        "version": 1,
+        "edit_head_id": head if head is not None else ws.project.history.edit_head_id(),
+        "files": files,
+    }
+    path = ws.project.artifacts_dir() / "export_render.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(body), encoding="utf-8")
+    return path
+
+
+def _audio_current(ws: ProjectWorkspace) -> dict[str, bool]:
+    stem = sanitize_export_stem(ws.project.name)
+    rows = {f.id: f.current for f in ExportFilesService(ws).list()}
+    return {ext: rows[f"{stem}.{ext}"] for ext in ("wav", "mp3")}
+
+
+def test_audio_without_a_record_stays_current_after_an_edit(ws, folder) -> None:
+    _edit(ws)
+
+    assert _audio_current(ws) == {"wav": True, "mp3": True}
+
+
+def test_audio_is_current_while_the_edit_head_matches_the_record(ws, folder) -> None:
+    _record(ws)
+
+    assert _audio_current(ws) == {"wav": True, "mp3": True}
+
+
+def test_an_edit_after_the_export_makes_only_the_audio_rows_stale(ws, folder) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    _record(ws)
+    before = {f.id: f.current for f in ExportFilesService(ws).list()}
+
+    _edit(ws)
+    after = {f.id: f.current for f in ExportFilesService(ws).list()}
+
+    assert (after[f"{stem}.wav"], after[f"{stem}.mp3"]) == (False, False)
+    assert after["clips/cold-open_c1.wav"] == before["clips/cold-open_c1.wav"]
+    for name in (f"{stem}.md", f"{stem}.srt", f"{stem}.chapters.json"):
+        assert after[name] == before[name]
+
+
+def test_undo_makes_the_audio_current_again_and_redo_stale(ws, folder) -> None:
+    _record(ws)
+    _edit(ws)
+    assert _audio_current(ws) == {"wav": False, "mp3": False}
+
+    ws.undo()
+    assert _audio_current(ws) == {"wav": True, "mp3": True}
+
+    ws.redo()
+    assert _audio_current(ws) == {"wav": False, "mp3": False}
+
+
+def test_a_render_preview_entry_does_not_make_the_audio_stale(ws, folder) -> None:
+    from podcast_mcp.project.history import HistoryManager
+    from podcast_mcp.project.store import ProjectStore
+
+    _edit(ws)
+    _record(ws)
+    project = load_project(ws.path)
+    HistoryManager(ProjectStore(ws.path)).record(
+        project, "render", force=True, operation="render_preview"
+    )
+    save_project(project, ws.path)
+
+    reopened = ProjectWorkspace.open(ws.path)
+    assert reopened.project.history.edit_head_id() == ws.project.history.edit_head_id()
+    assert _audio_current(reopened) == {"wav": True, "mp3": True}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "{not json",
+        json.dumps({"version": 2, "edit_head_id": "x", "files": {}}),
+        json.dumps({"version": 1, "files": {}}),
+    ],
+    ids=["corrupt", "unknown-version", "missing-edit-head"],
+)
+def test_an_unusable_record_leaves_the_audio_current(ws, folder, body) -> None:
+    _edit(ws)
+    (ws.project.artifacts_dir() / "export_render.json").write_text(body, encoding="utf-8")
+
+    assert _audio_current(ws) == {"wav": True, "mp3": True}
+
+
+def test_a_file_rewritten_after_the_record_is_not_current_with_a_valid_record(ws, folder) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    _record(ws)
+    (folder / f"{stem}.wav").write_bytes(WAV + b"rewritten")
+
+    assert _audio_current(ws) == {"wav": False, "mp3": True}
+
+
+def test_a_file_with_only_a_changed_mtime_is_not_current_with_a_valid_record(ws, folder) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    _record(ws)
+    stat = (folder / f"{stem}.mp3").stat()
+    os.utime(folder / f"{stem}.mp3", ns=(stat.st_atime_ns, stat.st_mtime_ns + 5_000_000_000))
+
+    assert _audio_current(ws) == {"wav": True, "mp3": False}
+
+
+def test_a_file_absent_from_a_valid_record_is_not_current(ws, folder) -> None:
+    _record(ws, names=("wav",))
+
+    assert _audio_current(ws) == {"wav": True, "mp3": False}
+
+
+def test_stale_audio_drops_out_of_download_all(ws, folder) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    _record(ws)
+    _edit(ws)
+
+    plan = plan_archive(ExportFilesService(ws).listed(), stem=stem)
+
+    assert plan is not None
+    names = {member.name for member in plan.members}
+    assert f"{stem}.wav" not in names
+    assert f"{stem}.mp3" not in names
+    assert f"{stem}.chapters.json" in names
+
+
+def test_a_relocated_workspace_lists_its_audio_as_current(ws, folder, tmp_path) -> None:
+    from podcast_mcp.project.io import copy_relocated_workspace
+
+    _record(ws)
+    _edit(ws)
+    assert _audio_current(ws) == {"wav": False, "mp3": False}
+
+    copied = copy_relocated_workspace(ws.path, tmp_path / "relocated")
+
+    relocated = ProjectWorkspace.open(copied)
+    assert not (relocated.project.artifacts_dir() / "export_render.json").exists()
+    assert _audio_current(relocated) == {"wav": True, "mp3": True}

@@ -16,6 +16,7 @@ from podcast_mcp.export.audio import (
 )
 from podcast_mcp.export.chapters import render_chapters_json
 from podcast_mcp.export.names import sanitize_export_stem
+from podcast_mcp.export.render_record import write_export_render
 from podcast_mcp.export.transcript import (
     READABLE_TRANSCRIPT_FORMAT,
     TRANSCRIPT_FORMATS,
@@ -53,9 +54,14 @@ def export_episode_deliverables(
     ``persist_project`` saves the project before the feed file is published, so the guid and
     number the feed carries are never lost.
 
+    Once the files are published, ``artifacts/export_render.json`` records the edit head read at
+    the start and the size and mtime of each audio file, so the listing can tell audio edited
+    since the export; a failure to write it never fails the export.
+
     Callers hold render_lock. Preparation failure or cancellation before publication
     preserves previous outputs. Final replacements are not a cross-file transaction.
     """
+    head = project.history.edit_head_id()
     export_cfg = defaults.get("export", {})
     stem = project.export_dir() / sanitize_export_stem(project.name)
     specs = resolve_episode_audio_plan(export_cfg)
@@ -98,6 +104,11 @@ def export_episode_deliverables(
     if chapters_path not in sidecars:
         with suppress(OSError):
             chapters_path.unlink(missing_ok=True)
+    audio_suffixes = {f".{spec.ext}" for spec in specs}
+    with suppress(OSError, ValueError):
+        write_export_render(
+            project, head, [path for path in written if path.suffix in audio_suffixes]
+        )
     # The feed file follows the audio it names. Imported here: the feed reads export names.
     from podcast_mcp.feed.writer import write_after_export
 
