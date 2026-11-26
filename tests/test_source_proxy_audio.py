@@ -34,6 +34,9 @@ from podcast_mcp.models.episode import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.project.store import WriteGrantKind, write_grant
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.media import proxy_media, proxy_variants
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.hashing import sha256_file, short_digest
 from podcast_mcp.util.wav import open_wav
@@ -727,3 +730,86 @@ def test_arnndn_first_effect_on_44k1_source_records_the_forced_rate(tmp_path, mo
     clock = clocks[-1]
     assert clock.native.audio.sample_rate == 44100
     assert (clock.producer.sample_rate, clock.consumer.sample_rate) == (48000, 48000)
+
+
+def test_arnndn_padding_keeps_window_and_guest_chunk_extents(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    project = ws.project
+    rate = 48_000
+    block_frames = 480
+    boundary_frames = round(proxy_media.CHUNK_SEC * rate)
+    source_frames = boundary_frames + 157
+    padded_frames = boundary_frames + block_frames
+    source = project.workspace_path() / "raw" / "odd.wav"
+    samples = 12_000 * np.sin(2 * np.pi * 299 * np.arange(source_frames) / rate)
+    with wave.open(str(source), "wb") as handle:
+        handle.setparams((1, 2, rate, 0, "NONE", "not compressed"))
+        handle.writeframes(samples.astype("<i2").tobytes())
+    model = project.workspace_path() / "synthetic.rnnn"
+    _model(model)
+    track = Track(
+        id="host",
+        label="Host",
+        media=MediaAsset(path="raw/odd.wav", duration_sec=source_frames / rate),
+    )
+    project.tracks = [track]
+    project.clips = [
+        Clip(
+            id="odd",
+            track_id=track.id,
+            source_start=0,
+            source_end=source_frames / rate,
+            timeline_start=0,
+        )
+    ]
+    project.timeline.duration_sec = source_frames / rate
+    project.processing_chains = [
+        ProcessingChain(
+            track_id=track.id,
+            effects=[ProcessingEffect(effect="arnndn", params={"model": str(model)})],
+        )
+    ]
+    with write_grant(WriteGrantKind.DISPATCHER):
+        ws.save()
+
+    engine = FFmpegEngine()
+    defaults = load_defaults()
+    stem = play_audit.stem_path(project, track.id)
+    timeline_render.render_track_from_timeline(project, track, stem, defaults, engine=engine)
+    with wave.open(str(stem), "rb") as handle:
+        assert (handle.getframerate(), handle.getnframes()) == (rate, padded_frames)
+    assert play_audit.stem_duration_matches_timeline(project, track.id)
+
+    # The odd tail pads the effect input, then the timeline renderer crops the requested window.
+    window_frames = 9_199
+    segment = project.workspace_path() / "window.wav"
+    timeline_render.render_track_segment(
+        project,
+        track.id,
+        (source_frames - window_frames) / rate,
+        source_frames / rate,
+        segment,
+        defaults,
+        engine=engine,
+    )
+    with wave.open(str(segment), "rb") as handle:
+        assert (handle.getframerate(), handle.getnframes()) == (rate, window_frames)
+
+    with write_grant(WriteGrantKind.DISPATCHER):
+        generation = proxy_variants.ensure_proxy_manifest(ws)
+    descriptor = proxy_variants.proxy_manifest_payload(generation, "fixture")["tracks"][track.id]
+    assert descriptor["duration_sec"] == padded_frames / rate
+    assert descriptor["chunk_count"] == len(descriptor["urls"]) == 2
+    last_index = descriptor["chunk_count"] - 1
+    chunk = proxy_variants.accepted_proxy_chunk_path(
+        ws, track.id, last_index, expected_hash=descriptor["hash"]
+    )
+    probe = engine.probe(chunk)
+    assert (probe.sample_rate, probe.channels) == (rate, 1)
+    pcm = subprocess.run(
+        [engine.ffmpeg, "-v", "error", "-i", str(chunk), "-f", "s16le", "-"],
+        check=True,
+        capture_output=True,
+    ).stdout
+    expected_frames = round(descriptor["overlap_ms"] * rate / 1000) + block_frames
+    assert len(pcm) == expected_frames * 2

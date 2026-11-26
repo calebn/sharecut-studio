@@ -681,7 +681,7 @@ class _PreparedClip:
 class _Component:
     start: float  # frames on a track grid, else seconds
     audio: Audio
-    end: float
+    end: float  # same units as start
 
 
 @dataclass(frozen=True)
@@ -712,7 +712,7 @@ def _place_clips(
     scale = rate or 1
     join_epsilon = 0.0 if rate else 1e-6
 
-    def units(seconds: float) -> float:
+    def to_units(seconds: float) -> float:
         return float(round(seconds * scale)) if rate else seconds
 
     components: list[_Component] = []
@@ -726,16 +726,16 @@ def _place_clips(
         body = content.body
         if body is None:
             previous_component = None
-            silent_tail = max(silent_tail, units(content.timeline_end))
+            silent_tail = max(silent_tail, to_units(content.timeline_end))
             continue
-        body_duration = units(duration(body))
+        body_duration = to_units(duration(body))
         if item.borrow_in > 0 and previous_component is not None:
             left = components[previous_component]
             overlap = 2 * item.borrow_in
             left.audio = CrossfadeAudio(left.audio, body, overlap)
-            left.end += body_duration - units(overlap)
+            left.end += body_duration - to_units(overlap)
             continue
-        start = max(0.0, units(content.timeline_start))
+        start = max(0.0, to_units(content.timeline_start))
         if (
             previous_component is not None
             and abs(start - components[previous_component].end) <= join_epsilon
@@ -753,7 +753,7 @@ def _place_clips(
     ats = [At(component.start / scale, component.audio) for component in components]
     extent = None
     if window_length is not None:
-        extent = RequestedExtent(units(window_length) / scale)
+        extent = RequestedExtent(to_units(window_length) / scale)
     elif silent_tail > max(component.end for component in components):
         extent = RequestedExtent(silent_tail / scale)
     return _PlacedTrack(
@@ -814,13 +814,16 @@ def _spans_and_borrow(
             cells.append(None)
             continue
         path = resolve_clip_audio_path(project, track, clip)
-        origin = grid.source_frame(path, clip.source_start) + start - first
-        cells.append((start, end, origin))
+        source_origin = grid.source_frame(path, clip.source_start) + start - first
+        cells.append((start, end, source_origin))
         spans.append(
             (
                 start / grid.rate,
                 end / grid.rate,
-                (grid.source_time(path, origin), grid.source_time(path, origin + end - start)),
+                (
+                    grid.source_time(path, source_origin),
+                    grid.source_time(path, source_origin + end - start),
+                ),
             )
         )
     blends = [0.0] * len(sorted_clips)
@@ -855,10 +858,10 @@ def _stem_leaf_bounds(
     borrow_in = borrow[index]
     borrow_out = borrow[index + 1] if index + 1 < len(borrow) else 0.0
     if grid and (cell := cells[index]):
-        start, end, origin = cell
+        start, end, source_origin = cell
         return (
-            grid.source_time(src, origin - grid.frame(borrow_in)),
-            grid.source_time(src, origin + end - start + grid.frame(borrow_out)),
+            grid.source_time(src, source_origin - grid.frame(borrow_in)),
+            grid.source_time(src, source_origin + end - start + grid.frame(borrow_out)),
         )
     bounds = spans[index][2]
     assert bounds is not None
@@ -900,9 +903,9 @@ def placed_track_audio(
         borrow_out = borrow[index + 1] if index + 1 < len(sorted_clips) else 0.0
         src = resolve_clip_audio_path(project, track, clip)
         if grid and (cell := cells[index]):
-            start, end, origin = cell
-            source_start = grid.source_time(src, origin - grid.frame(borrow_in))
-            source_end = grid.source_time(src, origin + end - start + grid.frame(borrow_out))
+            start, end, source_origin = cell
+            source_start = grid.source_time(src, source_origin - grid.frame(borrow_in))
+            source_end = grid.source_time(src, source_origin + end - start + grid.frame(borrow_out))
             placed_start = (start - origin_frame) / grid.rate
             placed_end = (end - origin_frame) / grid.rate
         else:
