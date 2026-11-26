@@ -78,7 +78,7 @@ const HTML_200: FailedAnswer = {
 const RELAY_503 = json(503, {
   detail: "host offline",
   message:
-    "This review link is valid, but the project host is not connected. Ask them to run podcast tunnel.",
+    "This link isn't available right now because the project host is not connected. Ask them to run podcast tunnel.",
 });
 
 /** Words no reader may meet beside the marker: the relay's command and the server's own path text. */

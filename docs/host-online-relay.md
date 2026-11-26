@@ -502,37 +502,51 @@ always has.
 
 A guest who opens a `/r/` or `/rec/` page of a legacy-tier host sees a short relay page first:
 "This link is shared through ShareCut" and **Continue** (`podcast_relay/notice.py`). It exists
-because the relay cannot vouch for what such a host serves. **Continue** posts to
-`/api/relay/notice/continue` with the return path in a hidden `next` field of the form body, so the
-path no longer appears as a `?next=` query on that POST. That is the only change to what is
-logged: the guest's own `GET /r/<token>/` still appears in access logs until token redaction
-lands. The route parses the body by hand (`application/x-www-form-urlencoded` only, at most 4 KiB,
-first `next` value), without `python-multipart`, which the relay image does not install. For notice
-pages served before this change, whose form still posts `?next=`, the route reads `next` from the
-query only when the body has no `next` key at all (a blank `next=` in the body is a `404`, with no
-query fallback); that fallback goes once those pages have expired. The route refuses a POST that does not come from a page of the relay's
-own origin (`Sec-Fetch-Site: same-origin`, or an `Origin` with the relay's host when the browser
-sends no fetch metadata; anything else gets `403`), so another site's page cannot pre-continue a visitor. The check trusts a header, so it holds
-for browsers only: a script can send `Sec-Fetch-Site: same-origin` itself. It runs first, so a
-cross-site page in a browser cannot spend a visitor's rate limit. Next comes the
-`notice_continue` limit per client IP (`PODCAST_RELAY_NOTICE_CONTINUE_RPM` / `_BURST`, default 30
-per minute, burst 10): a refusal is `429` with `Retry-After` and a short page that says to wait a
-few seconds and try again. The key is the exact client IP, so guests behind one NAT share a bucket
-(hence the burst of 10), and a script behind that NAT can empty it for the others. Behind a proxy
-the relay must see the real client address (`PODCAST_RELAY_FORWARDED_ALLOW_IPS`), or every guest
-shares one bucket. With `PODCAST_RELAY_FORWARDED_ALLOW_IPS=*` the limit is only as trustworthy as
-the edge proxy: it must overwrite, not append to, a client-sent `X-Forwarded-For`, or a caller can
-rotate the header to dodge the limit or spend another address's bucket. A request with no client
-address shares one `unknown` bucket. Limits are per relay process. The route then sets a session cookie, `sc_notice=1` (HttpOnly,
-SameSite=Lax, Secure over https, no expiry), and answers `303` back to the same path and query. The
-notice says the browser must allow cookies, because with cookies blocked the visitor lands on it again. The
-cookie is the relay's own; nothing is stored on the host, and the relay still drops every cookie a
-host sets. `next` must start with `/r/` or `/rec/` and cannot contain `//` or a backslash, so the
-route cannot redirect elsewhere. The notice appears once per browser session, only for legacy-tier
-hosts, and only for a top-level page navigation: a `GET` that sends `Sec-Fetch-Mode: navigate` and
-`Sec-Fetch-Dest: document`, or, from a browser that sends neither, `Accept: text/html`. Assets,
-`/api/review`, `/api/rec`, `/mcp`, sockets and audio never see it. Enrolled installs and relays with
-no signing key never show it.
+because the relay cannot vouch for what such a host serves.
+
+**Continue** posts to `/api/relay/notice/continue` with the return path in a hidden `next` field
+of the form body, so the path no longer appears as a `?next=` query on that POST. That is the only
+change to what is logged: the guest's own `GET /r/<token>/` still appears in access logs until
+token redaction lands. The route parses the body by hand (`application/x-www-form-urlencoded`
+only, at most 4 KiB, first `next` value), without `python-multipart`, which the relay image does
+not install.
+
+For notice pages served before this change, whose form still posts `?next=`, the route reads
+`next` from the query only when the body has no `next` key at all (a blank `next=` in the body is
+a `404`, with no query fallback). That fallback goes once those pages have expired.
+
+The route refuses a POST that does not come from a page of the relay's own origin
+(`Sec-Fetch-Site: same-origin`, or an `Origin` with the relay's host when the browser sends no
+fetch metadata; anything else gets `403`), so another site's page cannot pre-continue a visitor.
+The check trusts a header, so it holds for browsers only: a script can send
+`Sec-Fetch-Site: same-origin` itself. It runs first, so a cross-site page in a browser cannot
+spend a visitor's rate limit.
+
+Next comes the `notice_continue` limit per client IP (`PODCAST_RELAY_NOTICE_CONTINUE_RPM` /
+`_BURST`, default 30 per minute, burst 10). A refusal is `429` with `Retry-After` and a short page
+that says to wait a few seconds and try again. `PODCAST_RELAY_RATE_LIMIT=0` turns this limit off
+along with the other relay limits. Limits are per relay process.
+
+The key is the exact client IP, so guests behind one NAT share a bucket (hence the burst of 10),
+and a script behind that NAT can empty it for the others. Behind a proxy the relay must see the
+real client address (`PODCAST_RELAY_FORWARDED_ALLOW_IPS`), or every guest shares one bucket. With
+`PODCAST_RELAY_FORWARDED_ALLOW_IPS=*` the limit is only as trustworthy as the edge proxy: it must
+overwrite, not append to, a client-sent `X-Forwarded-For`, or a caller can rotate the header to
+dodge the limit or spend another address's bucket. A request with no client address shares one
+`unknown` bucket.
+
+The route then sets a session cookie, `sc_notice=1` (HttpOnly, SameSite=Lax, Secure over https,
+no expiry), and answers `303` back to the same path and query. The notice says the browser must
+allow cookies, because with cookies blocked the visitor lands on it again. The cookie is the
+relay's own; nothing is stored on the host, and the relay still drops every cookie a host sets.
+`next` must start with `/r/` or `/rec/` and cannot contain `//` or a backslash, so the route
+cannot redirect elsewhere.
+
+The notice appears once per browser session, only for legacy-tier hosts, and only for a top-level
+page navigation: a `GET` that sends `Sec-Fetch-Mode: navigate` and `Sec-Fetch-Dest: document`,
+or, from a browser that sends neither, `Accept: text/html`. Assets, `/api/review`, `/api/rec`,
+`/mcp`, sockets and audio never see it. Enrolled installs and relays with no signing key never
+show it.
 
 ---
 
@@ -1131,7 +1145,7 @@ or a `GateSpec` (attribute, bucket name, env name, default in-flight limit). The
 class builds one `KeyedLimiter` or `ConcurrencyGate` per row and `reset()` walks the
 rows, so a new limiter is one row plus one annotated attribute.
 `tests/test_limiter_table.py` pins every env name and default and fails when an
-attribute and its row disagree. The host table holds 26 env names, the relay table 14.
+attribute and its row disagree. The host table holds 36 env names, the relay table 22.
 `podcast_relay` is a separate deployable but already imports `podcast_mcp.util`, so
 both composites share the one `LimiterSet`.
 
