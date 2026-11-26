@@ -1342,6 +1342,10 @@ def _recon(path: str) -> dict:
     return reconciliation_status(load_project(Path(path)), defaults=load_defaults())
 
 
+def _end(path: str) -> float:
+    return max(c.timeline_end for c in load_project(Path(path)).clips)
+
+
 def _two_speakers(path: str) -> None:
     proj = load_project(Path(path))
     proj.tracks.append(
@@ -1360,46 +1364,32 @@ def _two_speakers(path: str) -> None:
 
 
 @pytest.mark.parametrize("role", ["intro", "music"])
-def test_a_ripple_insert_of_a_non_dialogue_segment_keeps_reconciliation_fresh(
+def test_a_ripple_insert_at_the_end_leaves_reconciliation_fresh(
     tmp_path: Path, project: str, role: str
 ) -> None:
     segment = _save(tmp_path, f"Fresh {role}", role=role)
     _stamp_fresh(project)
     assert _recon(project)["stale"] is False
 
-    assert _insert(project, segment.id, 0.0).exit_code == 0
+    assert _insert(project, segment.id, _end(project)).exit_code == 0
 
     status = _recon(project)
     assert status["stale"] is False
     assert status["reconciliation_stale_flag"] is False
     assert status["last_reconciliation_hash"] == status["fingerprint"]
-    moved = next(c for c in load_project(Path(project)).clips if c.id == "c2")
-    assert moved.timeline_start == 6.0
+    unmoved = next(c for c in load_project(Path(project)).clips if c.id == "c2")
+    assert unmoved.timeline_start == 4.0
 
 
-def test_a_kept_insert_still_marks_the_stems_stale(tmp_path: Path, project: str) -> None:
-    segment = _save(tmp_path, "Stem Intro")
+def test_an_insert_that_moves_dialogue_marks_reconciliation_stale(
+    tmp_path: Path, project: str
+) -> None:
+    segment = _save(tmp_path, "Head Intro")
     _stamp_fresh(project)
-    before = len(load_project(Path(project)).render.invalidations)
 
     assert _insert(project, segment.id, 0.0).exit_code == 0
 
-    proj = load_project(Path(project))
-    assert len(proj.render.invalidations) > before
-    assert proj.render.invalidations[-1].track_ids == ["host"]
-
-
-def test_a_ripple_insert_after_every_dialogue_clip_keeps_reconciliation_fresh(
-    tmp_path: Path, project: str
-) -> None:
-    segment = _save(tmp_path, "Tail Outro", role="outro")
-    _stamp_fresh(project)
-
-    end = max(c.timeline_end for c in load_project(Path(project)).clips)
-
-    assert _insert(project, segment.id, end).exit_code == 0
-
-    assert _recon(project)["stale"] is False
+    assert _recon(project)["stale"] is True
 
 
 def test_an_insert_between_dialogue_clips_on_two_tracks_marks_reconciliation_stale(
@@ -1487,22 +1477,6 @@ def test_a_project_never_reconciled_stays_stale(tmp_path: Path, project: str) ->
     assert _recon(project)["stale"] is True
 
 
-def test_undo_and_redo_of_a_kept_insert_mark_reconciliation_stale(
-    tmp_path: Path, project: str
-) -> None:
-    segment = _save(tmp_path, "History Intro")
-    _stamp_fresh(project)
-    assert _insert(project, segment.id, 0.0).exit_code == 0
-    assert _recon(project)["stale"] is False
-
-    assert runner.invoke(app, ["undo", "--project", project]).exit_code == 0
-    assert _recon(project)["stale"] is True
-
-    _stamp_fresh(project)
-    assert runner.invoke(app, ["redo", "--project", project]).exit_code == 0
-    assert _recon(project)["stale"] is True
-
-
 def test_an_own_lane_insert_leaves_reconciliation_fresh(tmp_path: Path, project: str) -> None:
     segment = _save(tmp_path, "Lane Bed", role="music")
     _stamp_fresh(project)
@@ -1536,12 +1510,12 @@ def test_a_ripple_insert_moves_every_dialogue_track_by_the_same_length(
     assert _recon(project)["stale"] is True
 
 
-def test_export_qc_has_no_stale_reconciliation_issue_after_a_kept_insert(
+def test_export_qc_has_no_stale_reconciliation_issue_after_an_insert_at_the_end(
     tmp_path: Path, project: str
 ) -> None:
     segment = _save(tmp_path, "Qc Intro")
     _stamp_fresh(project)
-    assert _insert(project, segment.id, 0.0).exit_code == 0
+    assert _insert(project, segment.id, _end(project)).exit_code == 0
 
     qc = write_export_qc(load_project(Path(project)), defaults=load_defaults())
 

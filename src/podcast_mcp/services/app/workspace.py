@@ -357,7 +357,6 @@ class ProjectWorkspace:
         operation: str | None = None,
         params: dict | None = None,
         on_failure: Callable[[RollbackOutcome], None] | None = None,
-        keeps_reconciliation: Callable[[EpisodeProject], bool] | None = None,
     ) -> T:
         """Run ``fn`` on the saved project as an undoable mutation and commit it, inside ``transaction()``.
 
@@ -365,10 +364,6 @@ class ProjectWorkspace:
         process commits in between (#213). A slow ``fn`` holds it for its whole run.
         ``transaction()`` may first adopt the saved project in place: ``fn`` receives the
         current project, so do not keep sub-object references from before the call.
-
-        ``keeps_reconciliation`` is asked under the lock, on the project as it is before ``fn``:
-        when it says yes and reconciliation is fresh, an audio change from ``fn`` leaves it fresh
-        (stems are still marked stale). Without it every audio change marks reconciliation stale.
         """
         with self.transaction():
             try:
@@ -383,7 +378,6 @@ class ProjectWorkspace:
                     operation=operation,
                     params=params,
                     on_failure=on_failure,
-                    keeps_reconciliation=keeps_reconciliation,
                 )
             except BaseException:
                 # A failed save may have changed the in-memory project or the file.
