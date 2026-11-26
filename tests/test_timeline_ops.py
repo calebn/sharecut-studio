@@ -385,6 +385,30 @@ def test_crossfade_joins_leaves_a_join_with_a_zero_length_clip_alone() -> None:
     assert summary["fade_ms"] == 0
 
 
+def test_crossfade_joins_skips_short_gaps_in_preview_and_apply() -> None:
+    project = _crossfade_run((2.0, {}), (2.0, {}), (2.0, {}))
+    project.clips[1].timeline_start += 0.03
+    project.clips[2].timeline_start += 0.03
+    before = project.model_copy(deep=True)
+
+    preview = crossfade_joins(project, fade_ms=25, defaults={}, dry_run=True)
+    assert project == before
+    applied = crossfade_joins(project, fade_ms=25, defaults={})
+
+    assert preview == {**applied, "dry_run": True}
+    assert applied["join_count"] == 1
+    assert applied["clamped_joins"] == 0
+    assert project.clips[0] == before.clips[0]
+    assert project.clips[1].fade_in_ms == before.clips[1].fade_in_ms
+    assert project.clips[1].join_in_mode == before.clips[1].join_in_mode
+    assert project.clips[1].fade_out_ms == 25
+    assert project.clips[2].fade_in_ms == 25
+    assert project.clips[2].join_in_mode == ClipJoinMode.CROSSFADE
+    assert [clip.timeline_start for clip in project.clips] == [
+        clip.timeline_start for clip in before.clips
+    ]
+
+
 def test_crossfade_joins_without_joins_reports_the_request() -> None:
     p = _crossfade_run((2.0, {}), (2.0, {}))
     p.clips[1].timeline_start = 5.0

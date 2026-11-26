@@ -101,7 +101,8 @@ def test_roll_clip_join_clamps_to_min_span(minimal_project):
     assert c2.timeline_start == pytest.approx(c1.timeline_end)
 
 
-def test_roll_refuses_clips_with_a_gap_between_them(minimal_project):
+@pytest.mark.parametrize("right_start", [5.03, 10.0])
+def test_roll_refuses_clips_with_a_gap_between_them(minimal_project, right_start):
     """A roll keeps the pair flush, so across a gap it would pull the right clip left; refuse it."""
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.timeline.tracks = [
@@ -114,7 +115,9 @@ def test_roll_refuses_clips_with_a_gap_between_them(minimal_project):
     ]
     ws.project.timeline.clips = [
         Clip(id="c1", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
-        Clip(id="c2", track_id="host", source_start=5.0, source_end=15.0, timeline_start=10.0),
+        Clip(
+            id="c2", track_id="host", source_start=5.0, source_end=15.0, timeline_start=right_start
+        ),
     ]
     project = ws.project
     with pytest.raises(CodedValueError) as refused:
@@ -122,7 +125,7 @@ def test_roll_refuses_clips_with_a_gap_between_them(minimal_project):
     assert refused.value.code == "roll_needs_abutting_clips"
     assert [(c.source_start, c.source_end, c.timeline_start) for c in project.clips] == [
         (0.0, 5.0, 0.0),
-        (5.0, 15.0, 10.0),
+        (5.0, 15.0, right_start),
     ]
 
 
