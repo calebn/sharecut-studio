@@ -772,7 +772,7 @@ describe("InsertSegmentCard bottom", () => {
     expect(insertButton()).toHaveAccessibleDescription("Pick a segment first.");
   });
 
-  it("brings the placement choice into view when a segment is picked", async () => {
+  it("brings the placement choice into view on the first tap, not on later picks or arrow keys", async () => {
     const scroll = vi.fn();
     Element.prototype.scrollIntoView = scroll;
     render(
@@ -794,7 +794,26 @@ describe("InsertSegmentCard bottom", () => {
     await userEvent.click(
       await screen.findByRole("radio", { name: /Warm bed/ }),
     );
-    await waitFor(() => expect(scroll).toHaveBeenCalledTimes(2));
+    await userEvent.keyboard("{ArrowUp}");
+    expect(scroll).toHaveBeenCalledTimes(1);
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  });
+
+  it("does not scroll when the first pick is from the keyboard", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    render(
+      <InsertSegmentCard
+        {...data(PLACEMENT_LIBRARY)}
+        {...handlersOf()}
+        form="bottom"
+        open
+      />,
+    );
+    await screen.findByRole("dialog", { name: "Insert segment" });
+    await waitFor(() => expect(screen.getAllByRole("radio")[0]).toHaveFocus());
+    await userEvent.keyboard("{ArrowDown}");
+    expect(scroll).not.toHaveBeenCalled();
     Reflect.deleteProperty(Element.prototype, "scrollIntoView");
   });
 
