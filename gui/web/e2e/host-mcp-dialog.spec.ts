@@ -123,7 +123,9 @@ for (const shell of SHELLS) {
         .getByRole("button", { name: "Copy URL", exact: true })
         .click();
       await expect(dialog.getByText("Copied MCP URL")).toBeVisible();
-      await expect(dialog.getByRole("status")).toHaveText("Copied MCP URL");
+      await expect(dialog.locator(".share-dialog-status")).toHaveText(
+        "Copied MCP URL",
+      );
       await expect(dialog.getByRole("alert")).toHaveCount(0);
       const during = await layoutBoxes(dialog);
       expectSameBox(during.footer, before.footer, "footer");
@@ -141,7 +143,7 @@ for (const shell of SHELLS) {
       await expect(
         dialog.getByRole("button", { name: "Copy URL", exact: true }),
       ).toBeVisible();
-      await expect(dialog.getByRole("status")).toHaveText("");
+      await expect(dialog.locator(".share-dialog-status")).toHaveText("");
       const after = await layoutBoxes(dialog);
       expectSameBox(after.footer, before.footer, "footer after clear");
       expectSameBox(after.textarea, before.textarea, "textarea after clear");
@@ -164,7 +166,7 @@ for (const shell of SHELLS) {
       await expect(pressed).toBeFocused();
       await expect(dialog.getByRole("alert")).toHaveCount(1);
       await expect(dialog.getByRole("alert")).toHaveText(COPY_FAILED_MESSAGE);
-      await expect(dialog.getByRole("status")).toHaveText("");
+      await expect(dialog.locator(".share-dialog-status")).toHaveText("");
       expect(
         await dialog
           .getByRole("alert")
