@@ -235,14 +235,20 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       await expectNoHorizontalScroll(page);
     });
 
-    test("is left out of Home when there are no kits", async ({ page }) => {
+    test("shows an empty Kits section on Home when there are segments but no kits", async ({
+      page,
+    }) => {
       const mock = await mockKits(page, []);
       await openHome(page);
       await expect(
         page.getByRole("region", { name: "Segment library" }),
       ).toBeVisible();
       await expect.poll(() => mock.lists).toBeGreaterThan(0);
-      await expect(page.getByRole("region", { name: "Kits" })).toHaveCount(0);
+      const section = page.getByRole("region", { name: "Kits" });
+      await expect(section).toContainText("No kits yet");
+      await expect(
+        section.getByRole("button", { name: "New kit" }),
+      ).toBeVisible();
     });
   });
 }

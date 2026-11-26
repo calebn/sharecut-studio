@@ -13,6 +13,8 @@ export const UNREADABLE_NOTE = "It can't be exported until that is fixed.";
 
 type Props = {
   row: KitListRow;
+  /** Marks the row a save just added or changed. */
+  highlighted?: boolean;
   onExport: (row: KitRow) => void;
 };
 
@@ -55,7 +57,7 @@ function RowMenu({
   );
 }
 
-export function KitRowView({ row, onExport }: Props) {
+export function KitRowView({ row, highlighted = false, onExport }: Props) {
   if (isDamagedKit(row)) {
     return (
       <li className="kit-row" data-kit-row={row.id} data-damaged>
@@ -79,6 +81,8 @@ export function KitRowView({ row, onExport }: Props) {
       className="kit-row"
       data-kit-row={row.id}
       data-unusable={!row.usable || undefined}
+      data-new={highlighted || undefined}
+      tabIndex={-1}
     >
       <div className="kit-main">
         <span className="kit-name">{row.name}</span>

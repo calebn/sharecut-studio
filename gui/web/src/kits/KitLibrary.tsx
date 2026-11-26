@@ -1,16 +1,26 @@
 import { useId, useRef, useState } from "react";
 import { useDawStore } from "../state/dawStore";
 import { useBundleImport } from "../system/importSheet/BundleImportContext";
-import { KITS_LABEL, KitLibraryBody } from "./KitLibraryBody";
+import { KITS_LABEL, KitLibraryBody, type KitSegments } from "./KitLibraryBody";
+import { healthySegments } from "./kitEditorCopy";
 import type { KitLibraryState } from "./useKitLibrary";
 
 type Props = {
   library: KitLibraryState;
-  /** On Home the section is left out when there are no kits and nothing went wrong. */
+  /** The segment library, which New kit builds from. Without it there is no New kit button. */
+  segments?: KitSegments;
+  /**
+   * On Home the section is left out when there are no kits, nothing went wrong and there is
+   * no segment to build one from.
+   */
   omitWhenEmpty?: boolean;
 };
 
-export function KitLibrary({ library, omitWhenEmpty = false }: Props) {
+export function KitLibrary({
+  library,
+  segments,
+  omitWhenEmpty = false,
+}: Props) {
   const headingId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -18,7 +28,15 @@ export function KitLibrary({ library, omitWhenEmpty = false }: Props) {
   const imports = useBundleImport();
   if (!hosted) return null;
   const empty = library.rows === null || library.rows.length === 0;
-  if (omitWhenEmpty && empty && library.error === null && failure === null)
+  const canBuild =
+    segments !== undefined && healthySegments(segments.rows).length > 0;
+  if (
+    omitWhenEmpty &&
+    empty &&
+    library.error === null &&
+    failure === null &&
+    !canBuild
+  )
     return null;
   return (
     <section className="kit-library" aria-labelledby={headingId}>
@@ -35,6 +53,7 @@ export function KitLibrary({ library, omitWhenEmpty = false }: Props) {
       </h2>
       <KitLibraryBody
         library={library}
+        segments={segments}
         failure={failure}
         onFailure={setFailure}
         focusTarget={heading}

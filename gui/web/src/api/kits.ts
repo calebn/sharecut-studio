@@ -1,3 +1,7 @@
+import type {
+  KitSaveEntry as GeneratedSaveEntry,
+  KitSaveRequest as GeneratedSaveRequest,
+} from "../types/project.generated";
 import { ApiError } from "../utils/apiError";
 import { documentClientId } from "../utils/documentClient";
 import { cancelStaged, commitStaged, stageBundle } from "./bundleImport";
@@ -131,6 +135,59 @@ export function isDamagedKit(row: KitListRow): row is DamagedKitRow {
 export async function loadKits(signal?: AbortSignal): Promise<KitListRow[]> {
   const res = await apiFetch(HOST_KEY, { host: "/api/kits" }, { signal });
   return (await res.json()) as KitListRow[];
+}
+
+/** One segment of a kit being saved. A version is left out so the entry follows the newest. */
+export type KitSaveEntry = Omit<GeneratedSaveEntry, "at"> & {
+  at: "start" | "end" | number;
+};
+
+export type KitSaveRequest = Omit<GeneratedSaveRequest, "entries"> & {
+  entries: KitSaveEntry[];
+};
+
+export interface KitSaveResult {
+  status: KitImportOutcome;
+  id: string;
+  version: number;
+}
+
+/** Codes a kit save is refused with; the first three are the sheet's own mistakes to fix. */
+export const KIT_SAVE_REFUSALS = [
+  "kit_name_invalid",
+  "kit_invalid",
+  "kit_segment_missing",
+  "kit_busy",
+  "kit_write_failed",
+  "kit_no_room",
+] as const;
+
+export type KitSaveRefusal = (typeof KIT_SAVE_REFUSALS)[number];
+
+export function kitSaveRefusal(error: unknown): KitSaveRefusal | null {
+  if (!(error instanceof ApiError)) return null;
+  return KIT_SAVE_REFUSALS.find((code) => code === error.code) ?? null;
+}
+
+/**
+ * Saves a kit: a new one, the next version of the kit with that name, or nothing
+ * (`unchanged`). The reply is the outcome, not the row; read the list again.
+ */
+export async function saveKit(
+  request: KitSaveRequest,
+  signal?: AbortSignal,
+): Promise<KitSaveResult> {
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/kits" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+      signal,
+    },
+  );
+  return (await res.json()) as KitSaveResult;
 }
 
 export interface KitFileDownload {

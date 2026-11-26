@@ -56,7 +56,13 @@ function libraries() {
     reveal: vi.fn(),
     remove: vi.fn(async () => null),
   };
-  const kits: KitLibraryState = { rows: [], error: null, reload: vi.fn() };
+  const kits: KitLibraryState = {
+    rows: [],
+    error: null,
+    highlightId: null,
+    reload: vi.fn(),
+    reveal: vi.fn(),
+  };
   return { segments, kits };
 }
 

@@ -11,10 +11,12 @@ import {
   KIT_TOO_LARGE_MESSAGE,
   type KitListRow,
   type KitOffer,
+  kitSaveRefusal,
   loadKitOffer,
   loadKits,
   partialImport,
   previewKitImport,
+  saveKit,
 } from "./kits";
 
 vi.mock("./http", async (importOriginal) => ({
@@ -281,5 +283,40 @@ describe("kit import routes", () => {
     expect(
       partialImport(new ApiError("x", "kit_busy", 409, null, null)),
     ).toBeNull();
+  });
+});
+
+describe("kit save route", () => {
+  it("posts the name and the entries, and nothing else", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(
+      json({ status: "added", id: "show-kit-1a2b", version: 1 }),
+    );
+    const request = {
+      name: "Show Kit",
+      entries: [
+        { segment_id: "intro-9f3a", at: "start" as const },
+        { segment_id: "outro-77de", at: "end" as const },
+      ],
+    };
+    expect(await saveKit(request)).toEqual({
+      status: "added",
+      id: "show-kit-1a2b",
+      version: 1,
+    });
+    const [key, route, init] = vi.mocked(apiFetch).mock.calls[0];
+    expect(key).toBe(HOST_KEY);
+    expect(route).toEqual({ host: "/api/kits" });
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init?.body as string)).toEqual(request);
+  });
+
+  it("names the refusal codes the sheet knows and no others", () => {
+    const refused = (code: string | null) =>
+      kitSaveRefusal(new ApiError("no", code, 409));
+    expect(refused("kit_segment_missing")).toBe("kit_segment_missing");
+    expect(refused("kit_busy")).toBe("kit_busy");
+    expect(refused("project_write_failed")).toBeNull();
+    expect(refused(null)).toBeNull();
+    expect(kitSaveRefusal(new Error("kit_busy"))).toBeNull();
   });
 });

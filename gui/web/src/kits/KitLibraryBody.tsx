@@ -1,12 +1,15 @@
-import { type RefObject, useEffect, useRef } from "react";
-import type { KitListRow, KitRow } from "../api";
+import { type RefObject, useEffect, useRef, useState } from "react";
+import type { KitListRow, KitRow, KitSaveResult, SegmentListRow } from "../api";
 import { exportedMessage } from "../segments/importMessages";
 import { useDawStore } from "../state/dawStore";
 import { Skeleton } from "../system/Skeleton";
+import { SystemIcon } from "../system/SystemIcon";
 import { Button, InlineError } from "../ui";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { exportKitFile } from "./exportKit";
+import { KitEditorSheet, NEW_KIT_LABEL } from "./KitEditorSheet";
 import { KitRowView } from "./KitRowView";
+import { kitSavedMessage } from "./kitSaveMessages";
 import type { KitLibraryState } from "./useKitLibrary";
 
 export const KITS_LABEL = "Kits";
@@ -15,8 +18,16 @@ export const KITS_EMPTY_TEXT =
   "No kits yet. A kit is a saved set of segments, such as your intro and outro.";
 export const KITS_LOAD_FAILED_TEXT = "Couldn't load the kits.";
 
+/** What New kit needs of the segment library: its rows, and a way to read them again. */
+export type KitSegments = {
+  rows: readonly SegmentListRow[] | null;
+  reload: () => void;
+};
+
 type Props = {
   library: KitLibraryState;
+  /** Offers New kit when given; left out where a kit cannot be built. */
+  segments?: KitSegments;
   /** What an export last failed with; held by the section so it outlives an emptied list. */
   failure: string | null;
   onFailure: (message: string | null) => void;
@@ -26,18 +37,38 @@ type Props = {
 
 export function KitLibraryBody({
   library,
+  segments,
   failure,
   onFailure,
   focusTarget,
 }: Props) {
-  const { rows, error, reload } = library;
+  const { rows, error, reload, reveal, highlightId } = library;
   const exporting = useRef(false);
+  const body = useRef<HTMLDivElement>(null);
+  const [editing, setEditing] = useState(false);
+  // The saved kit that takes focus once the list shows it.
+  const revealed = useRef<string | null>(null);
   const lifetime = useRef<AbortController | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     lifetime.current = controller;
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (highlightId === null || revealed.current !== highlightId) return;
+    revealed.current = null;
+    const row = Array.from(
+      body.current?.querySelectorAll<HTMLElement>("[data-kit-row]") ?? [],
+    ).find((item) => item.dataset.kitRow === highlightId);
+    row?.focus();
+  }, [highlightId, rows]);
+
+  const saved = (result: KitSaveResult, name: string, count: number) => {
+    revealed.current = result.id;
+    reveal(result.id);
+    useDawStore.getState().announceStatus(kitSavedMessage(name, result, count));
+  };
 
   const exportRow = async (row: KitRow) => {
     if (exporting.current) return;
@@ -100,6 +131,7 @@ export function KitLibraryBody({
           <KitRowView
             key={row.id}
             row={row}
+            highlighted={highlightId === row.id}
             onExport={(target) => void exportRow(target)}
           />
         ))}
@@ -108,10 +140,26 @@ export function KitLibraryBody({
   }
 
   return (
-    <div className="kit-library-body">
+    <div ref={body} className="kit-library-body">
       <p className="sr-only" role="status">
         {loading ? "Loading the kits" : ""}
       </p>
+      {segments ? (
+        <div className="kit-library-actions">
+          <Button className="kit-new-button" onClick={() => setEditing(true)}>
+            <SystemIcon name="plus" size={16} />
+            {NEW_KIT_LABEL}
+          </Button>
+          <KitEditorSheet
+            open={editing}
+            onClose={() => setEditing(false)}
+            segments={segments.rows}
+            kits={rows}
+            onSaved={saved}
+            onSegmentsChanged={segments.reload}
+          />
+        </div>
+      ) : null}
       <InlineError message={failure} />
       {content}
     </div>

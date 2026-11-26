@@ -35,7 +35,7 @@ export function SegmentLibrarySheetView({
       <BundleImportHost segments={library} kits={kits}>
         <div className="kit-sheet-stack">
           <SegmentLibraryBody library={library} layout="list" />
-          {kits ? <KitLibrary library={kits} /> : null}
+          {kits ? <KitLibrary library={kits} segments={library} /> : null}
         </div>
       </BundleImportHost>
     </Sheet>
