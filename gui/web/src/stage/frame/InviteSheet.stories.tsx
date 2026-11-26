@@ -189,6 +189,33 @@ export const AtRecordLinks: Story = {
   }),
 };
 
+export const RecordLinksLocalOnly: Story = {
+  args: {
+    at: "record",
+    options: shareOptionsFixture({
+      rows: [
+        hostShareRow({ ...GUEST, url: "http://127.0.0.1:8080/rec/guest-1" }),
+        hostShareRow({
+          ...PRODUCER,
+          url: "http://127.0.0.1:8080/rec/producer-1",
+        }),
+      ],
+      tunnel: tunnel("not_set_up"),
+    }),
+  },
+  ...launched(openInvite, async (dialog) => {
+    const view = within(dialog);
+    await waitFor(() =>
+      expect(
+        view.getByText(/Online sharing isn't set up on this computer/),
+      ).toBeVisible(),
+    );
+    await expect(
+      view.getByRole("link", { name: /How to turn on online sharing/ }),
+    ).toBeVisible();
+  }),
+};
+
 export const RecordRoomOpenRecord: Story = {
   args: {
     options: shareOptionsFixture({
