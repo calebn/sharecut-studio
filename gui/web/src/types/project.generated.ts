@@ -407,6 +407,11 @@ export interface RoomToneFill {
   source_id?: string | null;
 }
 
+/** Add a checked, waiting ``.sharecutseg`` upload to the library. */
+export interface SegmentImportCommit {
+  token: string;
+}
+
 /** Where a clip came from in the segment library, kept so a later slice can see drift. ``content_sha256`` is the stored version's ``SegmentFile.content_sha256`` at insert time. */
 export interface SegmentRef {
   segment_id: string;
