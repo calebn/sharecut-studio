@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { documentClientId } from "../utils/documentClient";
 import { apiFetch, HOST_KEY } from "./http";
-import { applyKit, type KitOffer, loadKitOffer } from "./kits";
+import {
+  applyKit,
+  downloadKitFile,
+  isDamagedKit,
+  type KitListRow,
+  type KitOffer,
+  loadKitOffer,
+  loadKits,
+} from "./kits";
 
 vi.mock("./http", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./http")>()),
@@ -60,5 +68,62 @@ describe("kit routes", () => {
     await expect(
       applyKit("/p/ep.sharecut", { id: "show-1", version: 3 }),
     ).rejects.toThrow("kit_changed");
+  });
+});
+
+describe("kit library routes", () => {
+  it("lists the kits, healthy and damaged rows together", async () => {
+    const rows: KitListRow[] = [
+      {
+        id: "show-kit-1",
+        name: "Show Kit",
+        version: 1,
+        versions: [1],
+        entries: 2,
+        missing: 0,
+        usable: true,
+        problem: null,
+      },
+      {
+        id: "bad-2",
+        damaged: true,
+        version: 1,
+        usable: false,
+        problem: "unreadable",
+        code: "kit_invalid",
+      },
+    ];
+    vi.mocked(apiFetch).mockResolvedValue(json(rows));
+    const list = await loadKits();
+    expect(list).toEqual(rows);
+    expect(list.map(isDamagedKit)).toEqual([false, true]);
+    const call = vi.mocked(apiFetch).mock.calls[0];
+    expect(call[0]).toBe(HOST_KEY);
+    expect(call[1]).toEqual({ host: "/api/kits" });
+  });
+
+  it("downloads the file whole and names it from the server's file name", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response("zip", {
+        headers: {
+          "content-disposition": 'attachment; filename="show-kit.sharecutkit"',
+        },
+      }),
+    );
+    const { blob, filename } = await downloadKitFile("show-kit-1a2b");
+    expect(filename).toBe("show-kit.sharecutkit");
+    expect(await blob.text()).toBe("zip");
+    expect(vi.mocked(apiFetch).mock.calls[0][1]).toEqual({
+      host: "/api/kits/show-kit-1a2b/export",
+    });
+  });
+
+  it("falls back to the id when the server names no usable file", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response("zip", {
+        headers: { "content-disposition": 'attachment; filename="a b.zip"' },
+      }),
+    );
+    expect((await downloadKitFile("a-1")).filename).toBe("a-1.sharecutkit");
   });
 });
