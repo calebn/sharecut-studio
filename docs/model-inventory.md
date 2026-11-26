@@ -22,7 +22,7 @@ Every row has the same shape: `model_status` reports it as `installed`, `update_
 | --- | --- | --- | --- | --- |
 | Whisper, catalog size | Pinned snapshot; a mismatch is `update_needed` | Bytes | Via the progress callback; `test_pinned_download_stops_when_the_sink_raises` shows the exception propagates out of a faked hub download | At status time and after download |
 | Whisper, size outside the pinned catalog | Weights present on disk | One start tick, no byte count | Only before the download starts | No |
-| RNNoise | File present; never `update_needed` | Bytes per 1 MiB | Per 1 MiB chunk | sha256 at download time only |
+| RNNoise | Default file is sha256-checked and a wrong or truncated one is `update_needed`; an override file via `PODCAST_MCP_RNNOISE_MODEL` is never hashed; set a custom model you want to keep there, because a different file at the default path shows `update_needed` and is refused until replaced | Bytes per 1 MiB | Per 1 MiB chunk | sha256 at status time and at download; a bare bootstrap re-downloads a default file that fails it |
 | Word aligner | Pinned snapshot; a mismatch is `update_needed` | Bytes | Via the progress callback; `test_pinned_download_stops_when_the_sink_raises` shows the exception propagates out of a faked hub download | At status time and after download; an override directory skips `verify_word_aligner_snapshot` |
 | Speaker model | Default file is sha256-checked; an override file via `PODCAST_MCP_SPEAKER_ECAPA_MODEL` is not | Bytes per 1 MiB | Per 1 MiB chunk | sha256 at status time and at download; with an override set no download is attempted |
 

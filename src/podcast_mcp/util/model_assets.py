@@ -28,6 +28,7 @@ from podcast_mcp.util.asset_sources import (
     download_first_ok,
     ordered_http_urls,
 )
+from podcast_mcp.util.model_manifest import manifest_mismatch
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +57,26 @@ def resolve_rnnoise_model() -> Path:
     )
 
 
+def rnnoise_pin() -> str | None:
+    """The pinned sha256 of the default model, or None when unpinned or the manifest is unreadable."""
+    try:
+        sha = asset_entry("rnnoise").get("sha256")
+    except AssetSourceError:
+        return None
+    return sha.strip().lower() if isinstance(sha, str) and sha.strip() else None
+
+
+def rnnoise_pin_mismatch(path: Path, *, memoize: bool) -> str | None:
+    """Why the default model is not the pinned file, or None. A user override is never checked."""
+    if rnnoise_override() is not None or (pin := rnnoise_pin()) is None:
+        return None
+    return manifest_mismatch(path.parent, ((path.name, pin),), memoize=memoize)
+
+
 def bootstrap_rnnoise_model(*, force: bool = False, on_progress: OnProgress | None = None) -> Path:
-    """Download the RNNoise model into the cache dir, skipping if already present."""
+    """Download the RNNoise model into the cache dir, skipping a present file that matches the pin."""
     path = rnnoise_model_path()
-    if path.is_file() and not force:
+    if path.is_file() and not force and rnnoise_pin_mismatch(path, memoize=False) is None:
         return path
     meta = asset_entry("rnnoise")
     filename = str(meta.get("filename") or RNNOISE_MODEL_NAME)

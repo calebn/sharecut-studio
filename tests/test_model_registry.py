@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import replace
 from pathlib import Path
 
@@ -8,6 +9,8 @@ import pytest
 from podcast_mcp.engines.models import registry
 from podcast_mcp.engines.models.registry import MODELS, model_spec, models_for
 from podcast_mcp.services.pipeline import bootstrap as boot
+from podcast_mcp.util import model_assets, model_manifest
+from podcast_mcp.util.asset_sources import asset_entry
 
 
 @pytest.fixture(autouse=True)
@@ -128,6 +131,77 @@ def test_rnnoise_status_follows_the_model_file(tmp_path: Path, monkeypatch) -> N
     ready = boot.model_status("rnnoise")
     assert ready["state"] == "installed"
     assert "hint" not in ready
+
+
+def _pin_rnnoise(monkeypatch: pytest.MonkeyPatch, payload: bytes) -> Path:
+    entry = {**asset_entry("rnnoise"), "sha256": hashlib.sha256(payload).hexdigest()}
+    monkeypatch.setattr(model_assets, "asset_entry", lambda name: entry)
+    monkeypatch.delenv("PODCAST_MCP_RNNOISE_MODEL", raising=False)
+    path = model_assets.rnnoise_model_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def test_rnnoise_default_wrong_bytes_is_update_needed(monkeypatch: pytest.MonkeyPatch) -> None:
+    path = _pin_rnnoise(monkeypatch, b"pinned")
+    path.write_bytes(b"truncated")
+    row = boot.model_status("rnnoise")
+    assert row["state"] == "update_needed"
+    assert row["bootstrap"] == "podcast bootstrap --component rnnoise --upgrade"
+    assert "does not match its pinned download" in row["hint"]
+
+
+def test_rnnoise_default_pinned_bytes_is_installed(monkeypatch: pytest.MonkeyPatch) -> None:
+    path = _pin_rnnoise(monkeypatch, b"pinned")
+    path.write_bytes(b"pinned")
+    row = boot.model_status("rnnoise")
+    assert row["state"] == "installed"
+    assert "hint" not in row
+
+
+@pytest.mark.parametrize("memoize", [True, False])
+def test_rnnoise_status_passes_the_callers_memoize(
+    monkeypatch: pytest.MonkeyPatch, memoize: bool
+) -> None:
+    path = _pin_rnnoise(monkeypatch, b"pinned")
+    path.write_bytes(b"pinned")
+    seen: list[bool] = []
+    real = registry.rnnoise_pin_mismatch
+
+    def spy(model: Path, *, memoize: bool) -> str | None:
+        seen.append(memoize)
+        return real(model, memoize=memoize)
+
+    monkeypatch.setattr(registry, "rnnoise_pin_mismatch", spy)
+    boot.model_status("rnnoise", memoize=memoize)
+    assert seen == [memoize]
+
+
+def test_rnnoise_override_is_never_hashed_or_replaced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pin_rnnoise(monkeypatch, b"pinned")
+    model = tmp_path / "mine.rnnn"
+    model.write_bytes(b"arbitrary user model")
+    monkeypatch.setenv("PODCAST_MCP_RNNOISE_MODEL", str(model))
+
+    def boom(path: Path) -> str:
+        raise AssertionError(f"hashed {path}")
+
+    monkeypatch.setattr(model_manifest, "sha256_file", boom)
+    row = boot.model_status("rnnoise")
+    assert row["state"] == "installed"
+    assert model.read_bytes() == b"arbitrary user model"
+
+
+def test_rnnoise_manifest_without_sha256_is_not_checked(monkeypatch: pytest.MonkeyPatch) -> None:
+    entry = {k: v for k, v in asset_entry("rnnoise").items() if k != "sha256"}
+    monkeypatch.setattr(model_assets, "asset_entry", lambda name: entry)
+    monkeypatch.delenv("PODCAST_MCP_RNNOISE_MODEL", raising=False)
+    path = model_assets.rnnoise_model_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"anything")
+    assert boot.model_status("rnnoise")["state"] == "installed"
 
 
 def test_status_models_come_only_from_the_registry() -> None:

@@ -59,6 +59,7 @@ from podcast_mcp.util.model_assets import (
     resolve_rnnoise_model,
     rnnoise_model_path,
     rnnoise_override,
+    rnnoise_pin_mismatch,
 )
 from podcast_mcp.util.model_missing import ModelMissing
 
@@ -158,7 +159,13 @@ def _rnnoise_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
         resolve_rnnoise_model()
     except FileNotFoundError as exc:
         return ModelProblem(str(exc), "podcast bootstrap --component rnnoise")
-    return None
+    mismatch = rnnoise_pin_mismatch(rnnoise_model_path(), memoize=memoize)
+    if mismatch is None:
+        return None
+    fix = "podcast bootstrap --component rnnoise --upgrade"
+    return ModelProblem(
+        f"RNNoise model does not match its pinned download ({mismatch}). Run: {fix}", fix, True
+    )
 
 
 def _rnnoise_install(
