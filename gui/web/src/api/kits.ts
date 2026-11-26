@@ -216,17 +216,13 @@ export const KIT_TOO_LARGE_MESSAGE = "That file is too large to import here.";
 const KIT_IMPORT = "/api/kits/import";
 
 /**
- * A reverse proxy or tunnel in front of the host may refuse a large body with its own 413
- * or cut the connection; neither carries a kit code.
+ * A reverse proxy or tunnel in front of the host may refuse a large body with its own 413,
+ * which carries no kit code. A dropped connection is not this: it says so and can be retried.
  */
 function isTooLarge(failure: unknown): boolean {
   if (!(failure instanceof ApiError)) return false;
   if (failure.code === "kit_upload_too_large") return false;
-  return (
-    failure.code === "payload_too_large" ||
-    failure.code === "network_error" ||
-    failure.status === 413
-  );
+  return failure.code === "payload_too_large" || failure.status === 413;
 }
 
 /** Sends the file as the raw body (no FormData); nothing is added to the libraries. */

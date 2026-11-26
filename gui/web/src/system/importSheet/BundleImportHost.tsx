@@ -1,4 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import { audioFilesFromDrop } from "../../ingest/dropLabels";
 import { KitImportPreview } from "../../kits/KitImportPreview";
 import { useKitImport } from "../../kits/useKitImport";
 import type { KitLibraryState } from "../../kits/useKitLibrary";
@@ -16,7 +17,7 @@ import {
   ONE_FILE_ONLY,
 } from "./bundleCopy";
 import { classifyBundle } from "./classifyBundle";
-import { WAIT_TO_DROP } from "./importCopy";
+import { IMPORT_FAILED, WAIT_TO_DROP } from "./importCopy";
 
 type Props = {
   segments: SegmentLibraryState;
@@ -30,6 +31,9 @@ type Props = {
 function carriesFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
+
+export const AUDIO_NOT_ADDED =
+  "Audio in the same drop wasn't added. Drop it on its own.";
 
 function refuse(message: string): void {
   useDawStore.getState().announceStatus(message, { tone: "error" });
@@ -78,9 +82,13 @@ export function BundleImportHost({
 
   const importing =
     segmentImport.state.phase !== "idle" || kitImport.state.phase !== "idle";
-  const busyRef = useRef(importing);
+  // A file in flight blocks a new one; a preview or an error does not (it is replaced).
+  const busy = [segmentImport.state.phase, kitImport.state.phase].some(
+    (phase) => phase === "uploading" || phase === "committing",
+  );
+  const busyRef = useRef(busy);
   useEffect(() => {
-    busyRef.current = importing;
+    busyRef.current = busy;
   });
 
   useEffect(() => {
@@ -91,6 +99,8 @@ export function BundleImportHost({
 
   const chooseSegment = segmentImport.choose;
   const chooseKit = kitImport.choose;
+  const cancelSegment = segmentImport.cancel;
+  const cancelKit = kitImport.cancel;
   const choose = useCallback(
     (file: File) => {
       if (busyRef.current || classifying.current) {
@@ -100,15 +110,21 @@ export function BundleImportHost({
       classifying.current = true;
       void classifyBundle(file)
         .then((kind) => {
-          if (kind === "kit") chooseKit(file);
-          else if (kind === "segment") chooseSegment(file);
-          else refuse(NOT_A_BUNDLE_FILE);
+          // One sheet at a time: a waiting file of the other kind is dropped first.
+          if (kind === "kit") {
+            cancelSegment();
+            chooseKit(file);
+          } else if (kind === "segment") {
+            cancelKit();
+            chooseSegment(file);
+          } else refuse(NOT_A_BUNDLE_FILE);
         })
+        .catch(() => refuse(IMPORT_FAILED))
         .finally(() => {
           classifying.current = false;
         });
     },
-    [chooseKit, chooseSegment],
+    [chooseKit, chooseSegment, cancelKit, cancelSegment],
   );
 
   // A segment or kit file dropped anywhere on the page. This listens on the document, which
@@ -129,13 +145,17 @@ export function BundleImportHost({
     };
     const drop = (event: DragEvent) => {
       if (!carriesFiles(event) || event.defaultPrevented) return;
-      const files = Array.from(event.dataTransfer?.files ?? []).filter(
-        looksLikeBundle,
-      );
+      const dropped = Array.from(event.dataTransfer?.files ?? []);
+      const files = dropped.filter(looksLikeBundle);
       if (files.length === 0) return;
+      // Claiming the drop also keeps the window's audio drop from seeing it.
       event.preventDefault();
       if (files.length > 1) refuse(ONE_FILE_ONLY);
-      else latest.current(files[0] as File);
+      else {
+        latest.current(files[0] as File);
+        if (audioFilesFromDrop(dropped).length > 0)
+          useDawStore.getState().announceStatus(AUDIO_NOT_ADDED);
+      }
     };
     document.addEventListener("dragover", over);
     document.addEventListener("drop", drop);
@@ -146,8 +166,8 @@ export function BundleImportHost({
   }, [hosted, listening]);
 
   const controls = useMemo<BundleImportControls>(
-    () => ({ choose, busy: importing, inputRef, buttonRef, kitsHeadingRef }),
-    [choose, importing],
+    () => ({ choose, busy, inputRef, buttonRef, kitsHeadingRef }),
+    [choose, busy],
   );
 
   if (!hosted) return <>{children}</>;
