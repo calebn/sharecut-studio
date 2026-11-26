@@ -9,7 +9,7 @@ import {
 import { openScript } from "./transcriptEdit";
 import { withBrowserPages } from "./twoBrowserPages";
 
-test("an Editor words menu keeps Mute on ignored words without host Restore", async ({
+test("an Editor never sees a host-struck word, and its words menu offers Mute without host Restore", async ({
   browser,
 }) => {
   await withShareableProject(async (projectPath) => {
@@ -33,8 +33,14 @@ test("an Editor words menu keeps Mute on ignored words without host Restore", as
         const token = await createReviewShare(host, projectPath, "editor");
         await openGuestShare(editor, token);
         const script = await openScript(editor);
-        const word = script.locator('[data-word-key="reference::3"]');
-        await expect(word).toHaveAttribute("data-state", "muted");
+        await expect(
+          script.locator('[data-word-key="reference::3"]'),
+        ).toHaveCount(0);
+        await expect(
+          script.locator('[data-word-key="reference::2"]'),
+        ).toHaveCount(1);
+        const word = script.locator('[data-word-key="reference::4"]');
+        await expect(word).toHaveCount(1);
         await word.click();
         await expect(word).toHaveAttribute("data-selected");
         await editor

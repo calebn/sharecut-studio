@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { expect, type Page } from "@playwright/test";
 import { openProject } from "./stageNav";
 
@@ -65,16 +67,37 @@ export async function openGuestShare(page: Page, token: string): Promise<void> {
 
 export type ReviewShareRole = "viewer" | "commenter" | "editor";
 
-/** Create a review share for `projectPath` and return its token. */
+/**
+ * Serve the project's Viewer and Commenter links live, as a version published before
+ * the frozen review view (#3605) is: the server serves a version live when it holds
+ * no `timeline.json`. A frozen Commenter cannot suggest edits, so a spec on how the
+ * host answers a Commenter's proposal starts from a live link.
+ */
+export function serveLinksLive(projectPath: string): void {
+  const reviews = path.join(path.dirname(projectPath), "artifacts", "review");
+  if (!fs.existsSync(reviews)) return;
+  for (const entry of fs.readdirSync(reviews, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    fs.rmSync(path.join(reviews, entry.name, "timeline.json"), { force: true });
+  }
+}
+
+/**
+ * Create a review share for `projectPath` and return its token. Links serve live by
+ * default so a spec that edits the host or suggests as a guest sees what it did before
+ * #3605; pass `{ frozen: true }` for a spec of the frozen view itself.
+ */
 export async function createReviewShare(
   host: Page,
   projectPath: string,
   role: ReviewShareRole = "viewer",
+  options: { frozen?: boolean } = {},
 ): Promise<string> {
   const created = await host.request.post("/api/shares", {
     data: { path: projectPath, role },
   });
   expect(created.ok(), await created.text()).toBeTruthy();
+  if (!options.frozen) serveLinksLive(projectPath);
   const body = (await created.json()) as { share: { token: string } };
   return body.share.token;
 }
