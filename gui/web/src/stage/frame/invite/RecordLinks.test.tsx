@@ -150,7 +150,7 @@ describe("Record room local-only note", () => {
     );
   });
 
-  it("[FAILS-OLD] says nothing while the status is still being read", () => {
+  it("[GUARD] says nothing while the status is still being read", () => {
     renderRooms({ tunnel: null, tunnelPending: true }, { rows: rows(LOCAL) });
     expect(noteOf()).toBeNull();
     expect(screen.queryByText(/isn't set up/)).toBeNull();
