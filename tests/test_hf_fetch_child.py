@@ -734,3 +734,182 @@ def test_a_decoy_huggingface_hub_in_the_cwd_is_not_imported_by_a_real_child(
 
     assert not marker.exists()
     assert json.loads(out.decode().splitlines()[-1])["error"] == "LocalEntryNotFoundError"
+
+
+def _hang_until(go: Path) -> str:
+    return (
+        "import pathlib, threading\n"
+        f"go = pathlib.Path({str(go)!r})\n"
+        "while not go.exists():\n"
+        "    threading.Event().wait(0.01)\n"
+    )
+
+
+def _gauge(monkeypatch: pytest.MonkeyPatch, values: list[int], go: Path, after: int) -> None:
+    """Cache bytes: ``values`` in order, then let the child finish and report ``after``."""
+    queue = iter(values)
+
+    def gauge(*_a: Any) -> int:
+        value = next(queue, None)
+        if value is None:
+            go.touch()
+            return after
+        return value
+
+    monkeypatch.setattr(model_manifest, "_cache_bytes", gauge)
+
+
+def test_progress_never_exceeds_the_total_when_the_cache_holds_more(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    go = tmp_path / "go"
+    _stub(monkeypatch, _hang_until(go) + "import sys; sys.exit(1)")
+    monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
+    _gauge(monkeypatch, [0, 5000, 5000], go, after=5000)
+    events: list[int] = []
+
+    with pytest.raises(HubChildError):
+        download_pinned_snapshot(
+            PIN, tmp_path / "hub", on_progress=lambda p: events.append(p.bytes)
+        )
+
+    assert max(events) == 100, events
+
+
+def test_progress_never_goes_backwards_when_the_cache_shrinks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    go = tmp_path / "go"
+    _stub(monkeypatch, _hang_until(go) + "import sys; sys.exit(1)")
+    monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: None)
+    # Baseline 0, a tick at 50, then the cache shrinks (an .incomplete file replaced) to 30.
+    _gauge(monkeypatch, [0, 50, 50], go, after=30)
+    events: list[int] = []
+
+    with pytest.raises(HubChildError):
+        download_pinned_snapshot(
+            PIN, tmp_path / "hub", on_progress=lambda p: events.append(p.bytes)
+        )
+
+    assert events == sorted(events), events
+    assert events[-1] == 50
+
+
+@pytest.mark.parametrize("force", [True, False])
+def test_force_download_reaches_the_child_spec(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, force: bool
+) -> None:
+    seen = tmp_path / "seen.json"
+    _stub(
+        monkeypatch,
+        f"import shutil, sys; shutil.copy(sys.argv[1], {str(seen)!r}); "
+        'print(\'{"error": "E", "kind": "other"}\'); sys.exit(1)',
+    )
+    monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
+
+    with pytest.raises(HubChildError):
+        download_pinned_snapshot(PIN, tmp_path / "hub", force=force)
+
+    assert json.loads(seen.read_text())["force_download"] is force
+
+
+@pytest.mark.skipif(os.name == "nt", reason="process groups are POSIX; Windows uses a new group")
+def test_the_child_is_its_own_process_group_leader(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    seen = tmp_path / "group"
+    _stub(
+        monkeypatch,
+        f"import os, sys; open({str(seen)!r}, 'w').write(f'{{os.getpgrp()}} {{os.getpid()}}'); "
+        'print(\'{"error": "E", "kind": "other"}\'); sys.exit(1)',
+    )
+    monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
+
+    with pytest.raises(HubChildError):
+        download_pinned_snapshot(PIN, tmp_path / "hub")
+
+    group, pid = seen.read_text().split()
+    assert group == pid
+    assert int(group) != os.getpgrp()
+
+
+def test_the_parent_closes_the_childs_stdin_when_the_child_finishes(
+    monkeypatch: pytest.MonkeyPatch, spawned: list[Any], tmp_path: Path
+) -> None:
+    _stub(monkeypatch, 'import sys; print(\'{"error": "E", "kind": "other"}\'); sys.exit(1)')
+    monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
+
+    with pytest.raises(HubChildError):
+        download_pinned_snapshot(PIN, tmp_path / "hub")
+
+    assert spawned[0].stdin.closed
+
+
+def test_the_parent_closes_the_childs_stdin_on_cancel(
+    monkeypatch: pytest.MonkeyPatch, spawned: list[Any], tmp_path: Path
+) -> None:
+    _stub(monkeypatch, "import threading; threading.Event().wait(60)")
+    monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
+
+    ticks: list[int] = []
+
+    def sink(progress: DownloadProgress) -> None:
+        ticks.append(progress.bytes)
+        if len(ticks) == 3:  # past the first report and into the polling loop
+            raise CancelledProgress("cancelled")
+
+    with pytest.raises(CancelledProgress):
+        download_pinned_snapshot(PIN, tmp_path / "hub", on_progress=sink)
+
+    assert spawned[0].stdin.closed
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected"),
+    [
+        ("http", "http"),
+        ("network", "network"),
+        ("disk", "disk"),
+        ("other", "other"),
+        ("odd", "other"),
+    ],
+)
+def test_a_hub_child_error_keeps_only_known_kinds(kind: str, expected: str) -> None:
+    assert HubChildError(kind, "m").kind == expected
+
+
+@pytest.mark.parametrize("kind", [5, None, ["http"], {"kind": "http"}])
+def test_a_child_result_with_a_non_string_kind_is_an_other_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, kind: object
+) -> None:
+    payload = {"error": "E", "message": "m", "kind": kind}
+    _stub(monkeypatch, f"import json,sys; print(json.dumps({payload!r})); sys.exit(1)")
+    monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
+
+    with pytest.raises(HubChildError) as raised:
+        download_pinned_snapshot(PIN, tmp_path / "hub")
+
+    assert raised.value.kind == "other"
+
+
+def test_the_final_report_keeps_the_high_water_mark_when_the_cache_shrank(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    snapshot = tmp_path / "snap"
+    snapshot.mkdir()
+    (snapshot / "model.bin").write_bytes(b"model")
+    go = tmp_path / "go"
+    _stub(
+        monkeypatch,
+        _hang_until(go) + f"import json; print(json.dumps({{'path': {str(snapshot)!r}}}))\n",
+    )
+    monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: None)
+    _gauge(monkeypatch, [0, 50, 50], go, after=30)
+    events: list[int] = []
+
+    download_pinned_snapshot(
+        _payload_pin(), tmp_path / "hub", on_progress=lambda p: events.append(p.bytes)
+    )
+
+    assert events == sorted(events), events
+    assert events[-1] == 50
