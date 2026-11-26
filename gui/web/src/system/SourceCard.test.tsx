@@ -241,6 +241,37 @@ describe("SourceCard", () => {
     expect(screen.getAllByText(sentence)).toHaveLength(1);
   });
 
+  it("does not say it while the card is splitting", () => {
+    render(<Card state="splitting" canSplit />);
+    expect(
+      screen.queryByText(
+        "Voices talking at once are not pulled apart: that stretch plays once, on one track.",
+      ),
+    ).toBeNull();
+  });
+
+  it("gives each card's sentence its own id", () => {
+    render(
+      <>
+        <Card state="split-prompt" name="Maya" />
+        <Card state="split-prompt" name="Jon" />
+      </>,
+    );
+    const [first, second] = screen.getAllByText(
+      "Voices talking at once are not pulled apart: that stretch plays once, on one track.",
+    );
+    expect(first?.id).not.toBe("");
+    expect(first?.id).not.toBe(second?.id);
+    expect(
+      screen.getByRole("button", { name: "Split Jon" }),
+    ).toHaveAccessibleDescription(second?.textContent ?? "");
+    expect(
+      screen
+        .getByRole("button", { name: "Split Jon" })
+        .getAttribute("aria-describedby"),
+    ).toBe(second?.id);
+  });
+
   it("puts the card's name in Remove, Split, Replace and Move", async () => {
     render(
       <Card name="Maya" canSplit onMoveUp={vi.fn()} onMoveDown={vi.fn()} />,
