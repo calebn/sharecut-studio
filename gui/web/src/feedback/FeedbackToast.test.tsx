@@ -1714,12 +1714,10 @@ describe("FeedbackToast", () => {
       for (const id of ["e1", "e2", "e3"]) {
         real(id, ids);
         act(() => {
-          useDawStore
-            .getState()
-            .announceStatus("Cut to clipboard", {
-              undo: entry(id),
-              kind: "cut",
-            });
+          useDawStore.getState().announceStatus("Cut to clipboard", {
+            undo: entry(id),
+            kind: "cut",
+          });
         });
       }
       expect(screen.getByText("3 cuts")).toBeVisible();
@@ -1734,12 +1732,10 @@ describe("FeedbackToast", () => {
       for (const id of ["e1", "e2", "e3"]) {
         real(id, ids);
         act(() => {
-          useDawStore
-            .getState()
-            .announceStatus("Cut to clipboard", {
-              undo: entry(id),
-              kind: "cut",
-            });
+          useDawStore.getState().announceStatus("Cut to clipboard", {
+            undo: entry(id),
+            kind: "cut",
+          });
         });
       }
       act(() => real("s0", ids));

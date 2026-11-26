@@ -30,7 +30,7 @@ import {
 import { claimTopLayerFloor } from "../ui/topLayerFloor";
 import { errorMessage, isPermanentRejection } from "../utils/apiError";
 import { plainError } from "../utils/plainError";
-import { entryUndone } from "./entryUndone";
+import { entryPlace } from "./entryUndone";
 import {
   FEEDBACK_FOCUS_ATTRIBUTE,
   hasValidFocusedFeedbackAction,
@@ -209,12 +209,19 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     toast?.undo ??
     toast?.lapsed?.entries.at(-1) ??
     null;
-  const retired =
-    toast != null &&
-    toast.tone !== "error" &&
-    !undoing &&
-    retireEntry != null &&
-    entryUndone(history, retireEntry);
+  // Latched per toast: a new edit that drops the entry must not bring back the claim.
+  const latch = useRef<{ id: number; retired: boolean } | null>(null);
+  const place =
+    toast != null && toast.tone !== "error" && !undoing && retireEntry != null
+      ? entryPlace(history, retireEntry)
+      : "present";
+  if (latch.current?.id !== toast?.id)
+    latch.current = toast ? { id: toast.id, retired: false } : null;
+  if (latch.current) {
+    if (place === "undone") latch.current.retired = true;
+    else if (place === "present") latch.current.retired = false;
+  }
+  const retired = latch.current?.retired === true;
   const toastId = toast?.id;
   const toastMessage = toast?.message;
   const spokenFor = useRef<number | undefined>(undefined);
@@ -263,10 +270,23 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   }, [toast, modal, modalPanel]);
 
   useEffect(() => {
-    if (toast?.undo && undoEntry == null) {
+    if (toast?.undo && (undoEntry == null || retired)) {
       useDawStore.getState().dropFeedbackUndo(toast.id);
     }
-  }, [toast, undoEntry]);
+  }, [toast, undoEntry, retired]);
+
+  // A merged toast half walked back would count edits that are gone and Undo all would be refused as stale.
+  const newest = toast?.merged?.entries[0];
+  const partlyWalkedBack =
+    toast?.merged != null &&
+    !undoing &&
+    !retired &&
+    newest != null &&
+    entryPlace(history, newest) === "undone";
+  useEffect(() => {
+    if (partlyWalkedBack && toast)
+      useDawStore.getState().dismissFeedbackToast(toast.id);
+  }, [partlyWalkedBack, toast]);
 
   const undo = async (
     message: string,
@@ -389,7 +409,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   const shareRetry =
     share && retry?.id === toast?.id ? retry?.message : undefined;
   const onUndo =
-    toast && undoEntry
+    toast && undoEntry && !retired
       ? () => {
           if (undoing) return;
           void undo(
@@ -403,7 +423,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
         : undefined;
 
   const runnableAction =
-    toast?.action && (undoEntry != null || toast.undo == null)
+    toast?.action && !retired && (undoEntry != null || toast.undo == null)
       ? toast.action
       : undefined;
   return createPortal(
