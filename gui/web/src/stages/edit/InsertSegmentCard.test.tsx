@@ -743,6 +743,7 @@ describe("InsertSegmentCard placement", () => {
 describe("InsertSegmentCard bottom", () => {
   afterEach(() => {
     Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+    vi.restoreAllMocks();
   });
 
   it("is one sheet with the same list and a labelled dialog", async () => {
@@ -890,7 +891,9 @@ describe("InsertSegmentCard bottom", () => {
     );
     await screen.findByRole("dialog", { name: "Insert segment" });
     await userEvent.click(screen.getAllByText(/outro-77de/)[0]);
-    await waitFor(() => expect(screen.getAllByRole("radio")[1]).toHaveFocus());
+    const usable = screen.getAllByRole("radio")[1];
+    usable.focus();
+    await waitFor(() => expect(usable).toHaveFocus());
     await userEvent.keyboard("{ArrowDown}");
     expect(scroll).not.toHaveBeenCalled();
   });
