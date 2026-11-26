@@ -1125,3 +1125,168 @@ def test_the_rnnoise_size_pin_failure_is_a_pin_mismatch(tmp_path: Path) -> None:
     assert failure.kind == "pin_mismatch"
     assert failure.plain.endswith("Run: podcast bootstrap --component rnnoise --upgrade")
     assert str(tmp_path) not in failure.plain
+
+
+def _probed_spec(tmp_path: Path, probe: Callable[..., Any]):
+    model = tmp_path / "speaker.onnx"
+    model.write_bytes(b"pinned")
+
+    def install(variant, force, on_progress):
+        return {"ok": True, "path": str(model)}
+
+    spec = replace(
+        registry.model_spec("speaker-ecapa"),
+        install=install,
+        probe=probe,
+        probe_file=lambda variant: model,
+    )
+    return spec, model
+
+
+def test_install_model_records_a_probe_failure_and_returns_instead_of_raising(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.engines.models import load_probe
+
+    def probe(*_a, **_k):
+        raise RuntimeError("unsupported opset 99")
+
+    spec, model = _probed_spec(tmp_path, probe)
+
+    result = _install(spec)
+
+    assert result["ok"] is True
+    assert result["loads"] is False
+    assert "unsupported opset 99" in result["load_error"]
+    recorded = load_probe.failure(model)
+    assert recorded is not None
+    assert "unsupported opset 99" in recorded
+
+
+def test_install_model_forgets_a_stale_failure_when_the_probe_passes(tmp_path: Path) -> None:
+    from podcast_mcp.engines.models import load_probe
+
+    spec, model = _probed_spec(tmp_path, lambda *_a, **_k: None)
+    load_probe.record(model, "RuntimeError: stale")
+    _install(spec)
+    assert load_probe.failure(model) is None
+
+
+def test_install_model_clears_an_old_failure_before_probing(tmp_path: Path) -> None:
+    from podcast_mcp.engines.models import load_probe
+
+    seen: list[str | None] = []
+    spec, model = _probed_spec(tmp_path, lambda *_a, **_k: seen.append(load_probe.failure(model)))
+    load_probe.record(model, "RuntimeError: stale")
+
+    result = _install(spec)
+
+    assert seen == [None]
+    assert "load_error" not in result
+    assert result.get("loads", True) is True
+    assert load_probe.failure(model) is None
+
+
+def test_install_model_does_not_probe_a_failed_install(tmp_path: Path) -> None:
+    probed: list[bool] = []
+    spec, _model = _probed_spec(tmp_path, lambda *_a, **_k: probed.append(True))
+
+    def failing(variant, force, on_progress):
+        raise AssertionError("not a download problem")
+
+    with pytest.raises(AssertionError):
+        _install(replace(spec, install=failing))
+    assert probed == []
+
+
+def test_speaker_and_aligner_rows_carry_a_probe_and_the_others_do_not() -> None:
+    probes = {spec.id: spec.probe for spec in registry.MODELS}
+    assert probes["speaker-ecapa"] is not None
+    assert probes["word-aligner"] is not None
+    assert probes["whisper"] is None
+    assert probes["rnnoise"] is None
+
+
+def test_install_model_does_not_cache_a_memory_error(tmp_path: Path) -> None:
+    from podcast_mcp.engines.models import load_probe
+
+    def probe(*_a, **_k):
+        raise MemoryError("out of memory")
+
+    spec, model = _probed_spec(tmp_path, probe)
+
+    result = _install(spec)
+
+    assert result["loads"] is False
+    assert "MemoryError" in result["load_error"]
+    assert load_probe.failure(model) is None
+
+
+def test_install_model_does_not_cache_a_keyboard_interrupt(tmp_path: Path) -> None:
+    from podcast_mcp.engines.models import load_probe
+
+    def probe(*_a, **_k):
+        raise KeyboardInterrupt
+
+    spec, model = _probed_spec(tmp_path, probe)
+
+    with pytest.raises(KeyboardInterrupt):
+        _install(spec)
+    assert load_probe.failure(model) is None
+
+
+def test_install_model_names_the_file_by_basename_in_the_recorded_error(tmp_path: Path) -> None:
+    def probe(*_a, **_k):
+        raise RuntimeError(f"Load model from {tmp_path / 'speaker.onnx'} failed")
+
+    spec, _model = _probed_spec(tmp_path, probe)
+
+    result = _install(spec)
+
+    assert str(tmp_path) not in result["load_error"]
+    assert "speaker.onnx" in result["load_error"]
+
+
+def test_a_skipped_install_with_no_cached_failure_builds_no_session(tmp_path: Path) -> None:
+    probed: list[bool] = []
+    spec, _model = _probed_spec(tmp_path, lambda *_a, **_k: probed.append(True))
+    skipped = replace(
+        spec, install=lambda variant, force, on_progress: {"ok": True, "skipped": True}
+    )
+
+    result = _install(skipped)
+
+    assert result == {"ok": True, "skipped": True}
+    assert probed == []
+
+
+def test_a_skipped_install_retries_a_cached_failure_and_clears_it(tmp_path: Path) -> None:
+    from podcast_mcp.engines.models import load_probe
+
+    probed: list[bool] = []
+    spec, model = _probed_spec(tmp_path, lambda *_a, **_k: probed.append(True))
+    skipped = replace(
+        spec, install=lambda variant, force, on_progress: {"ok": True, "skipped": True}
+    )
+    load_probe.record(model, "RuntimeError: stale")
+
+    result = _install(skipped)
+
+    assert probed == [True]
+    assert result.get("loads", True) is True
+    assert load_probe.failure(model) is None
+
+
+def test_run_bootstrap_keeps_ok_true_and_carries_the_load_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def probe(*_a, **_k):
+        raise RuntimeError("unsupported opset 99")
+
+    spec, _model = _probed_spec(tmp_path, probe)
+    monkeypatch.setattr(boot, "model_spec", lambda _name: spec)
+    out = boot.run_bootstrap(["speaker-ecapa"])
+
+    assert out["ok"] is True
+    assert out["results"]["speaker-ecapa"]["loads"] is False
+    assert "unsupported opset 99" in out["results"]["speaker-ecapa"]["load_error"]

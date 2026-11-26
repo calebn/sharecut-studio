@@ -505,3 +505,197 @@ def test_backend_routing_reports_the_polled_problem_without_a_second_check(
     with pytest.raises(speaker_id.SpeakerModelMissing):
         speaker_id.resolve_speaker_backend("ecapa-onnx")
     assert seen == [True]
+
+
+def _pinned_speaker_file(monkeypatch: pytest.MonkeyPatch) -> Path:
+    _pin_to(monkeypatch, b"pinned")
+    target = speaker_ecapa.speaker_ecapa_path()
+    target.write_bytes(b"pinned")
+    return target
+
+
+def test_a_pin_matching_file_that_failed_to_load_is_unsupported(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record
+
+    target = _pinned_speaker_file(monkeypatch)
+    assert model_record("speaker-ecapa", memoize=False)["state"] == "installed"
+    load_probe.record(target, "RuntimeError: unsupported opset 99")
+
+    row = model_record("speaker-ecapa", memoize=False)
+
+    assert row["state"] == "unsupported"
+    assert "unsupported opset 99" in row["hint"]
+    assert "downloaded but cannot be loaded on this machine" in row["hint"]
+    assert "podcast bootstrap --component speaker-ecapa" in row["hint"]
+
+
+def test_the_unsupported_hint_has_no_double_period(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record
+
+    target = _pinned_speaker_file(monkeypatch)
+    load_probe.record(target, "InvalidProtobuf: Protobuf parsing failed.")
+
+    hint = model_record("speaker-ecapa", memoize=False)["hint"]
+
+    assert "Protobuf parsing failed. " in hint
+    assert ".." not in hint
+
+
+def test_a_cached_load_success_stays_installed(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record
+
+    load_probe.record(_pinned_speaker_file(monkeypatch), None)
+    row = model_record("speaker-ecapa", memoize=False)
+    assert row["state"] == "installed"
+    assert "hint" not in row
+
+
+def test_status_polls_never_load_the_speaker_model(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record
+
+    def boom(*_a, **_k):
+        raise AssertionError("a status poll loaded the model")
+
+    target = _pinned_speaker_file(monkeypatch)
+    monkeypatch.setattr(speaker_ecapa, "OnnxModel", boom)
+    monkeypatch.setattr(speaker_ecapa.EcapaOnnx, "_load", boom)
+    assert model_record("speaker-ecapa")["state"] == "installed"
+    load_probe.record(target, "RuntimeError: boom")
+    assert model_record("speaker-ecapa")["state"] == "unsupported"
+    assert component_status()["models"][-1]["state"] == "unsupported"
+
+
+def test_a_new_file_stamp_clears_the_cached_speaker_failure(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record
+
+    target = _pinned_speaker_file(monkeypatch)
+    load_probe.record(target, "RuntimeError: boom")
+    stat = target.stat()
+    os.utime(target, ns=(stat.st_atime_ns, stat.st_mtime_ns + 5_000_000_000))
+    assert model_record("speaker-ecapa", memoize=False)["state"] == "installed"
+
+
+def test_forget_clears_the_cached_speaker_failure(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record
+
+    target = _pinned_speaker_file(monkeypatch)
+    load_probe.record(target, "RuntimeError: boom")
+    load_probe.forget(target)
+    assert model_record("speaker-ecapa", memoize=False)["state"] == "installed"
+
+
+def test_a_failure_does_not_hide_a_pin_mismatch(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record
+
+    target = _pinned_speaker_file(monkeypatch)
+    load_probe.record(target, "RuntimeError: boom")
+    target.write_bytes(b"swapped")
+    assert model_record("speaker-ecapa", memoize=False)["state"] == "update_needed"
+
+
+def test_a_failed_embedder_load_records_the_error_and_reraises(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import load_probe
+
+    target = model_dir / "any.onnx"
+    target.write_bytes(b"stub")
+
+    def broken(*_a, **_k):
+        raise RuntimeError("unsupported opset 99")
+
+    monkeypatch.setattr(speaker_ecapa, "OnnxModel", broken)
+    with pytest.raises(RuntimeError, match="unsupported opset 99"):
+        speaker_ecapa.EcapaOnnx(target)._load()
+    recorded = load_probe.failure(target)
+    assert recorded is not None
+    assert "RuntimeError" in recorded
+    assert "unsupported opset 99" in recorded
+
+
+def test_a_failed_pinned_embedder_load_shows_unsupported_in_status(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models.registry import model_record
+
+    _pinned_speaker_file(monkeypatch)
+
+    def broken(*_a, **_k):
+        raise RuntimeError("unsupported opset 99")
+
+    monkeypatch.setattr(speaker_ecapa, "OnnxModel", broken)
+    with pytest.raises(RuntimeError):
+        speaker_ecapa.EcapaOnnx().embed(_signal())
+    row = model_record("speaker-ecapa")
+    assert row["state"] == "unsupported"
+    assert "unsupported opset 99" in row["hint"]
+
+
+def test_a_successful_embedder_load_clears_the_cached_failure(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import load_probe
+
+    target = model_dir / "any.onnx"
+    target.write_bytes(b"stub")
+    load_probe.record(target, "RuntimeError: stale")
+    session = object()
+    monkeypatch.setattr(speaker_ecapa, "OnnxModel", lambda *_a, **_k: session)
+    assert speaker_ecapa.EcapaOnnx(target)._load() is session
+    assert load_probe.failure(target) is None
+
+
+def test_a_memory_error_building_the_embedder_is_not_cached(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import load_probe
+
+    target = model_dir / "any.onnx"
+    target.write_bytes(b"stub")
+
+    def broken(*_a, **_k):
+        raise MemoryError("out of memory")
+
+    monkeypatch.setattr(speaker_ecapa, "OnnxModel", broken)
+    with pytest.raises(MemoryError):
+        speaker_ecapa.EcapaOnnx(target)._load()
+    assert load_probe.failure(target) is None
+
+
+def test_an_override_load_failure_says_to_fix_or_unset_it(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record
+
+    override = model_dir / "mine.onnx"
+    override.write_bytes(b"stub")
+    monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(override))
+    load_probe.record(override, "RuntimeError: unsupported opset 99")
+
+    row = model_record("speaker-ecapa", memoize=False)
+
+    assert row["state"] == "unsupported"
+    assert "--upgrade" not in row["hint"]
+    assert "unset PODCAST_MCP_SPEAKER_ECAPA_MODEL" in row["hint"]

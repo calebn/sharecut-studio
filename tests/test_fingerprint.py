@@ -24,6 +24,7 @@ STAMPED = {
     "podcast_mcp/engines/decoded_source.py",
     "podcast_mcp/engines/evidence_records.py",
     "podcast_mcp/engines/gate_fill.py",
+    "podcast_mcp/engines/models/load_probe.py",
     "podcast_mcp/engines/pcm_cache.py",
     "podcast_mcp/engines/play_audit.py",
     "podcast_mcp/engines/render_clock.py",

@@ -202,7 +202,7 @@ def _stub_installers(monkeypatch: pytest.MonkeyPatch) -> list[str]:
             installed.append(spec.id)
             return {"ok": True, "path": f"/stub/{spec.id}"}
 
-        return replace(spec, install=install)
+        return replace(spec, install=install, probe=None)
 
     monkeypatch.setattr(registry, "MODELS", tuple(stub(s) for s in registry.MODELS))
     monkeypatch.setattr("podcast_mcp.cli.setup_cmd.MODELS", registry.MODELS)
@@ -280,6 +280,7 @@ def _stock_speaker_download(monkeypatch: pytest.MonkeyPatch) -> _ModelOpener:
     monkeypatch.setattr(
         speaker_ecapa, "asset_entry", lambda asset_id: {**real(asset_id), "sha256": sha}
     )
+    monkeypatch.setattr(speaker_ecapa.EcapaOnnx, "_load", lambda self: None)
     opener = _ModelOpener(payload)
     monkeypatch.setattr(asset_sources, "_https_opener", lambda: opener)
     return opener
@@ -415,3 +416,20 @@ def test_doctor_reports_rnnoise_and_silero_status() -> None:
     result = runner.invoke(app, ["doctor"])
     assert "rnnoise model" in result.stdout
     assert "silero-vad" in result.stdout
+
+
+def test_bootstrap_warns_when_a_downloaded_model_cannot_load() -> None:
+    with patch(
+        "podcast_mcp.cli.setup_cmd.install_model",
+        return_value={
+            "ok": True,
+            "path": "/tmp/speaker.onnx",
+            "loads": False,
+            "load_error": "RuntimeError: unsupported opset 99",
+        },
+    ):
+        result = runner.invoke(app, ["bootstrap", "--component", "speaker-ecapa"])
+    assert result.exit_code == 0
+    assert "[ok]" not in result.stdout
+    assert "[warn] speaker-ecapa" in result.stderr
+    assert "RuntimeError: unsupported opset 99" in result.stderr

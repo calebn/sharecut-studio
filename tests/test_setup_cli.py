@@ -57,6 +57,29 @@ def test_setup_shows_missing_override_hint_and_keeps_bootstrap_command(tmp_path,
     assert "Fix: podcast bootstrap --component speaker-ecapa" in result.stdout
 
 
+def test_setup_prints_the_hint_of_an_unsupported_model(tmp_path, monkeypatch):
+    import hashlib
+
+    from podcast_mcp.engines.models import load_probe, speaker_ecapa
+
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    real = speaker_ecapa.asset_entry
+    sha = hashlib.sha256(b"pinned").hexdigest()
+    monkeypatch.setattr(
+        speaker_ecapa, "asset_entry", lambda asset_id: {**real(asset_id), "sha256": sha}
+    )
+    target = speaker_ecapa.speaker_ecapa_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"pinned")
+    load_probe.record(target, "RuntimeError: unsupported opset 99")
+
+    result = runner.invoke(setup_app, ["setup"])
+
+    assert result.exit_code == 0
+    assert "  speaker-ecapa: unsupported" in result.stdout
+    assert "unsupported opset 99" in result.stdout
+
+
 def test_setup_says_update_needed_for_a_pin_mismatch(tmp_path, monkeypatch):
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     monkeypatch.setattr(

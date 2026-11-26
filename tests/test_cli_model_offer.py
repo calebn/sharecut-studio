@@ -58,7 +58,12 @@ def missing(monkeypatch: pytest.MonkeyPatch) -> _Model:
     monkeypatch.setitem(
         registry._BY_ID,
         "speaker-ecapa",
-        replace(SPEAKER, problem=lambda variant, memoize: model.problem, install=model.install),
+        replace(
+            SPEAKER,
+            problem=lambda variant, memoize: model.problem,
+            install=model.install,
+            probe=None,
+        ),
     )
     return model
 

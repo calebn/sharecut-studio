@@ -75,6 +75,9 @@ def setup(
         status = model_status(spec.id, whisper if spec.id == "whisper" else None)
         if status["state"] == "installed":
             typer.echo(f"  {spec.id}: ready ({spec.purpose})")
+        elif status["state"] == "unsupported":
+            typer.echo(f"  {spec.id}: unsupported ({spec.purpose}, {status['size']})")
+            typer.echo(f"    {status['hint']}")
         else:
             word = "update needed" if status["state"] == "update_needed" else "missing"
             typer.echo(
@@ -222,7 +225,13 @@ def install_and_report(
     if model := result.get("model"):
         detail = f"{detail} ({model})"
     with lines():
-        typer.echo(f"{verb} {spec.id}: {detail}")
+        if result.get("loads") is False:
+            typer.echo(
+                f"[warn] {spec.id} downloaded but cannot be loaded here: {result['load_error']}",
+                err=True,
+            )
+        else:
+            typer.echo(f"{verb} {spec.id}: {detail}")
         if result.get("persist_error"):
             typer.echo(
                 f"[warn] could not persist Whisper preference: {result['persist_error']}",

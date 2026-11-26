@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import Any, Literal, TypedDict
 
+from podcast_mcp.engines.models import load_probe
 from podcast_mcp.engines.models.registry import (
     MODELS,
     ModelSpec,
@@ -257,13 +258,18 @@ def install_model(
     Download progress runs as a ``bootstrap.bytes`` child of the current progress task.
     A known failure raises ``InstallFailure`` (the only place it is classified) after logging
     its cause with the traceback; anything else is a bug and raises as it was. ``cancel_check`` stops a download mid-stream.
+
+    A row with a ``probe`` is loaded once after a download that changed the file, or to retry a
+    remembered failure: a file that cannot load is recorded in ``load_probe`` (unless the
+    failure was a ``MemoryError``) and returned with ``loads: False`` and ``load_error``, not raised.
     """
     install = spec.install
     if not persist_preference and spec.install_without_preference is not None:
         install = spec.install_without_preference
+    variant = whisper_model if spec.id == "whisper" else None
     with _ByteRelay(spec.id, spec.label, cancel_check) as relay:
         try:
-            return install(whisper_model if spec.id == "whisper" else None, force, relay)
+            result = install(variant, force, relay)
         except CancelledProgress:
             raise
         except Exception as exc:
@@ -277,6 +283,21 @@ def install_model(
                 raise
             logger.warning("bootstrap of %s failed: %s", spec.id, failure.plain, exc_info=exc)
             raise failure from exc
+    if spec.probe is None or spec.probe_file is None or (path := spec.probe_file(variant)) is None:
+        return result
+    if result.get("skipped") and load_probe.failure(path) is None:
+        return result
+    load_probe.forget(path)
+    try:
+        spec.probe(variant)
+    except Exception as exc:
+        error = load_probe.error_text(exc, path)
+        if not isinstance(exc, MemoryError):
+            load_probe.record(path, error)
+        logger.warning("%s downloaded but does not load: %s", spec.id, error, exc_info=exc)
+        return {**result, "loads": False, "load_error": error}
+    load_probe.record(path, None)
+    return result
 
 
 @dataclass(frozen=True)
