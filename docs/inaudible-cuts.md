@@ -344,7 +344,7 @@ See also [filler-cut-quality.md](filler-cut-quality.md) for gate + re-enable cri
 - Tighten / NL cuts: `.agents/skills/podcast-tighten-dialogue/SKILL.md`, `.agents/skills/podcast-edit-natural-language/SKILL.md`
 - Join QA: `.agents/skills/podcast-inaudible-cuts/SKILL.md`
 Tighten proposals build a read-only word index per track before cut
-analysis (threaded only when `max_workers` is N >= 2). Boundary snapping and next-word lookups reuse it, including the
+analysis (built on the caller's thread; the candidate analysis after it uses threads by default only with enrolled speaker profiles, otherwise only when `max_workers` is N >= 2). Boundary snapping and next-word lookups reuse it, including the
 original transcript order when words are unsorted. Candidate-specific retained
 boundary exclusions use a nearest-valid lookup against that span. The pause
 floor reads a per-proposal peer-word overlap index; acoustic gap checks read the

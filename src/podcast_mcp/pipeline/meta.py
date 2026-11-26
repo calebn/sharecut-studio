@@ -357,7 +357,7 @@ _PARAM_SPECS: tuple[_ParamSpec, ...] = (
         description=(
             "Parallel workers for stem render and export (0 = auto). "
             "Tighten analysis uses threads (automatic count, capped at the CPU budget) when "
-            "speaker profiles are enrolled and this is 0; 1 forces serial, and without "
+            "speaker profiles are enrolled and this is 0 or unset; 1 forces serial, and without "
             "profiles it is serial unless N >= 2 is set."
         ),
         minimum=0,
