@@ -108,7 +108,7 @@ function flagOf(
   const width = grouped
     ? GROUP_BORDER_PX + rem * (2 * GROUP_PAD_REM + GROUP_CHAR_REM * text.length)
     : FLAG_PX;
-  const side = first.x + width > geometry.width ? "left" : "right";
+  const side = first.x + 1 + width > geometry.width ? "left" : "right";
   return {
     key: people
       .map((person) => person.id)
