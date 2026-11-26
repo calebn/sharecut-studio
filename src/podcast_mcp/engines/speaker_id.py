@@ -311,13 +311,14 @@ def _profile_media_key(path: Path) -> str:
 
 
 @lru_cache(maxsize=64)
-def _content_digest(path: str, revision_key: str) -> str:
-    return sha256_file(Path(path))
+def _content_digest(identity: tuple[str, str]) -> str:
+    """Digest of the file at ``identity[0]``; the revision key in ``identity[1]`` keys the memo."""
+    return sha256_file(Path(identity[0]))
 
 
 def _profile_content_key(path: Path) -> str:
     """Location-independent identity of a stem: size, full-file digest and the ``:a0`` marker."""
-    digest = _content_digest(str(path), file_revision_key(path))
+    digest = _content_digest((str(path), file_revision_key(path)))
     key = f"{path.stat().st_size}:{digest}"
     return f"{key}:a0" if has_several_audio_streams(path) else key
 
