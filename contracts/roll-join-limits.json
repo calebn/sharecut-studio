@@ -58,6 +58,16 @@
   ],
   "cases": [
     {
+      "name": "short gap cannot roll",
+      "clips": [
+        ["left", 0, 0, 10, "long"],
+        ["right", 10.03, 10, 20, "right"]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "error": true
+    },
+    {
       "name": "longer-left-recording",
       "clips": [
         [
@@ -882,7 +892,7 @@
       ]
     },
     {
-      "name": "near-abutment",
+      "name": "touching within float noise",
       "clips": [
         [
           "left",
@@ -893,7 +903,7 @@
         ],
         [
           "right",
-          4.049,
+          4.0000000005,
           10,
           14,
           "right"
@@ -1063,7 +1073,7 @@
       "error": true
     },
     {
-      "name": "exact-abut-tolerance",
+      "name": "50 ms gap cannot roll",
       "clips": [
         [
           "left",
@@ -1082,16 +1092,7 @@
       ],
       "left_clip_id": "left",
       "right_clip_id": "right",
-      "limits": [
-        -3.95,
-        3.95
-      ],
-      "clamps": [
-        [
-          3,
-          3
-        ]
-      ]
+      "error": true
     },
     {
       "name": "right-first-timing-step",

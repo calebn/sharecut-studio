@@ -1,8 +1,7 @@
-import { MIN_EDGE_SPAN_SEC } from "../types/limits.generated";
+import { MIN_EDGE_SPAN_SEC, TIME_EPS_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 import { sameRecording } from "../utils/recordingIdentity";
 import { firstStepClearance, lastStepClearance } from "../utils/stepClearance";
-import { clipsAbut } from "./joinRender";
 
 export interface RollJoinInterval {
   left: ClipRow;
@@ -25,7 +24,7 @@ export function rollJoinInterval(
     !right ||
     right.id !== rightClipId ||
     left.track_id !== right.track_id ||
-    !clipsAbut(left, right)
+    right.timeline_start - left.timeline_end > TIME_EPS_SEC
   )
     return null;
   const prev = clips[index - 1];

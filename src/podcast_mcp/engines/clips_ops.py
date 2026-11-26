@@ -1001,7 +1001,7 @@ def roll_join_limits(
     the pair flush, so it would pull the right clip across the gap.
     """
     left, right, track_clips, left_idx = neighbour_clips(project, left_clip_id, right_clip_id)
-    if not clips_abut(left, right):
+    if not clips_touch(left, right):
         raise CodedValueError(
             "These clips have a gap between them, so there is no join to roll. "
             "Move one clip to touch the other, or trim an edge instead.",

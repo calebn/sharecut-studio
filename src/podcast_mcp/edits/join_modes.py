@@ -15,6 +15,7 @@ from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
 from podcast_mcp.engines.clips_ops import (
     abutting_pairs,
     clips_for_track,
+    clips_touch,
     join_render_fields,
     neighbour_clips,
     previous_clip,
@@ -320,7 +321,7 @@ def crossfade_joins(
     defaults: EffectiveConfig,
     dry_run: bool = False,
 ) -> dict:
-    """Set abutting joins to crossfade mode: each join edge gets the longer of its fade and
+    """Set joins with no timeline gap to crossfade mode: each join edge gets the longer of its fade and
     ``fade_ms`` (default ``tighten.crossfade_ms``), then ``clamp_clip_fades`` fits both clips.
 
     A manual edit, not held to the Longest automatic join fade. A join where either edge would
@@ -340,6 +341,8 @@ def crossfade_joins(
     join_count = 0
     for tid in track_ids:
         for left, right in abutting_pairs(clips_for_track(project, tid)):
+            if not clips_touch(left, right):
+                continue
             join_count += 1
             left_in, left_out = fades.get(left.id, (left.fade_in_ms, left.fade_out_ms))
             right_in, right_out = fades.get(right.id, (right.fade_in_ms, right.fade_out_ms))

@@ -259,7 +259,7 @@ def crossfade_joins_tool(
     fade_ms: int | None = None,
     dry_run: bool = False,
 ) -> str:
-    """Add crossfades at edit joins on a track, bounded by the clips only; dry_run previews."""
+    """Add crossfades at joins with no timeline gap; dry_run previews without writing."""
     if dry_run:
         ws = ProjectWorkspace.open(project_path)
         return to_json(
