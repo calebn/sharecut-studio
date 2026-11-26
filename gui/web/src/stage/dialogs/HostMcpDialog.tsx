@@ -1,5 +1,5 @@
 import {
-  type FocusEvent,
+  type SyntheticEvent,
   useCallback,
   useEffect,
   useRef,
@@ -18,7 +18,9 @@ const COPIED_MS = 2000;
 
 type CopiedKey = "url" | "snippet";
 
-function selectAll(event: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
+function selectAll(
+  event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>,
+) {
   event.currentTarget.select();
 }
 
@@ -102,10 +104,12 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
         if (!acceptsSession(session.epoch) || gen !== generation.current) {
           return;
         }
+        clearCopiedTimer();
+        setCopied(null);
         setError(COPY_FAILED_MESSAGE);
       }
     },
-    [markCopied, session.epoch, acceptsSession],
+    [markCopied, clearCopiedTimer, session.epoch, acceptsSession],
   );
 
   return (
@@ -149,6 +153,7 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
               className="share-dialog-select"
               readOnly
               onFocus={selectAll}
+              onClick={selectAll}
               value={url}
             />
           )}
@@ -160,6 +165,7 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
               className="host-mcp-snippet"
               readOnly
               onFocus={selectAll}
+              onClick={selectAll}
               rows={8}
               value={snippet}
               spellCheck={false}

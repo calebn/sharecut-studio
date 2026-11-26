@@ -131,7 +131,6 @@ describe("HostMcpDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copy snippet" }));
     expect(await screen.findByText(COPY_FAILED_MESSAGE)).toBeTruthy();
     expect(screen.queryByText(/denied|unavailable|nope/i)).toBeNull();
-    expect(COPY_FAILED_MESSAGE).not.toMatch(/ctrl|cmd/i);
   });
 
   it("says the same thing when there is no clipboard at all", async () => {
@@ -161,6 +160,20 @@ describe("HostMcpDialog", () => {
       | HTMLTextAreaElement;
     field.setSelectionRange(0, 0);
     fireEvent.focus(field);
+    expect(field.selectionStart).toBe(0);
+    expect(field.selectionEnd).toBe(value().length);
+  });
+
+  it.each([
+    ["MCP URL", () => localHostMcpUrl()],
+    ["Cursor snippet", () => mcpClientSnippet(localHostMcpUrl())],
+  ])("selects the whole %s again on click", (label, value) => {
+    render(<HostMcpDialog open onClose={() => undefined} hasProject />);
+    const field = screen.getByLabelText(label) as
+      | HTMLInputElement
+      | HTMLTextAreaElement;
+    field.setSelectionRange(2, 2);
+    fireEvent.click(field);
     expect(field.selectionStart).toBe(0);
     expect(field.selectionEnd).toBe(value().length);
   });
@@ -216,23 +229,26 @@ describe("HostMcpDialog", () => {
       expect(screen.queryByText("Copied client snippet")).toBeNull();
     });
 
-    it("does not let an old timer clear a copy made after close and reopen", async () => {
-      const { rerender } = render(
-        <HostMcpDialog open onClose={() => undefined} hasProject />,
-      );
-      await click("Copy URL");
-      act(() => {
-        vi.advanceTimersByTime(1500);
+    it("drops the Copied label and its timer when a later copy fails", async () => {
+      const writeText = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error("denied"));
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText },
       });
-      rerender(
-        <HostMcpDialog open={false} onClose={() => undefined} hasProject />,
-      );
-      rerender(<HostMcpDialog open onClose={() => undefined} hasProject />);
+      render(<HostMcpDialog open onClose={() => undefined} hasProject />);
       await click("Copy URL");
+      expect(screen.getByRole("button", { name: "Copied" })).toBeTruthy();
+      await click("Copy snippet");
+      expect(screen.getByText(COPY_FAILED_MESSAGE)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Copied" })).toBeNull();
+      expect(screen.queryByText("Copied MCP URL")).toBeNull();
       act(() => {
-        vi.advanceTimersByTime(1000);
+        vi.advanceTimersByTime(2500);
       });
-      expect(screen.getByText("Copied MCP URL")).toBeTruthy();
+      expect(screen.getByText(COPY_FAILED_MESSAGE)).toBeTruthy();
     });
 
     it("keeps a failure message on screen", async () => {

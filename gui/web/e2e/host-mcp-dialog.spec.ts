@@ -35,6 +35,22 @@ async function denyClipboard(page: Page) {
   });
 }
 
+test("a real mouse click leaves the whole URL and snippet selected", async ({
+  page,
+}) => {
+  const dialog = await openConnectAgent(page);
+  for (const label of ["MCP URL", "Cursor snippet"]) {
+    await dialog.getByLabel(label).click();
+    const selected = await dialog
+      .getByLabel(label)
+      .evaluate(
+        (el: HTMLInputElement | HTMLTextAreaElement) =>
+          el.selectionStart === 0 && el.selectionEnd === el.value.length,
+      );
+    expect(selected, label).toBe(true);
+  }
+});
+
 for (const shell of SHELLS) {
   test.describe(`Connect agent: ${shell.name}`, () => {
     test.use({
