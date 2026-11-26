@@ -14,6 +14,7 @@ import {
   shareCopyKey,
   shareRowsOf,
 } from "../../../stages/deliver/shareLogic";
+import { ONLINE_SHARING_GUIDE_URL } from "../../../stages/deliver/tunnelStatusCopy";
 import type { HostShareRow } from "../../../types/shares";
 import {
   Button,
@@ -22,7 +23,7 @@ import {
   registerInlineConfirm,
 } from "../../../ui";
 import { BUSY_REASON, useDisabledReasonNote } from "../../../ui/disabledReason";
-import { copyReasonOf } from "./inviteLogic";
+import { copyReasonOf, localOnlyNoteOf, roomIsLocalOnly } from "./inviteLogic";
 
 type EndProps = {
   options: ShareOptions;
@@ -81,6 +82,8 @@ function RoomCard({
 }: EndProps & { room: RecordRoomGroup }) {
   const { busy } = options;
   const labelId = useId();
+  const noteId = useId();
+  const localOnly = roomIsLocalOnly(room, options.tunnel);
   const endButton = useRef<HTMLButtonElement>(null);
   const [asking, setAsking] = useState(false);
   const snapshot = useRecordHostStore((s) => s.snapshot);
@@ -151,6 +154,7 @@ function RoomCard({
           options={options}
           link={guest}
           linkRole="guest"
+          noteId={localOnly ? noteId : undefined}
           fallbackKey={room.sessionId}
         />
       ))}
@@ -161,10 +165,21 @@ function RoomCard({
             options={options}
             link={producer}
             linkRole="producer"
+            noteId={localOnly ? noteId : undefined}
             fallbackKey={`${room.sessionId}-producer`}
           />
         ),
       )}
+      {localOnly ? (
+        <p id={noteId} className="inv-note">
+          {localOnlyNoteOf(options.tunnel)} Turn on online sharing to invite
+          anyone.{" "}
+          <a href={ONLINE_SHARING_GUIDE_URL} target="_blank" rel="noreferrer">
+            How to turn on online sharing{" "}
+            <span className="sr-only">(opens in a new tab)</span>
+          </a>
+        </p>
+      ) : null}
       {ask ? (
         <InlineConfirm
           prompt={endRoomPrompt(check.names)}
@@ -201,11 +216,13 @@ function RoomLink({
   link,
   linkRole,
   fallbackKey,
+  noteId,
 }: {
   options: ShareOptions;
   link: HostShareRow | null;
   linkRole: keyof typeof ROOM_LINK_COPY;
   fallbackKey: string;
+  noteId?: string;
 }) {
   const { busy, copiedKey, onCopy, onReplaceInvite } = options;
   const labelId = useId();
@@ -234,7 +251,7 @@ function RoomLink({
       <div className="inv-actions">
         <Button
           disabledReason={copyReason}
-          aria-describedby={labelId}
+          aria-describedby={noteId ? `${labelId} ${noteId}` : labelId}
           onClick={() =>
             onCopy(
               "link",

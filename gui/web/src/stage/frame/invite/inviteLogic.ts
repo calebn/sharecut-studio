@@ -1,7 +1,10 @@
-import type {
-  ShareChoices,
-  ShareOptions,
+import {
+  type RecordRoomGroup,
+  reachOf,
+  type ShareChoices,
+  type ShareOptions,
 } from "../../../stages/deliver/shareLogic";
+import type { TunnelStatus } from "../../../types/tunnel";
 import { BUSY_REASON } from "../../../ui/disabledReason";
 
 export const LOOKING_REASON = "Looking for your links…";
@@ -31,4 +34,25 @@ export function needsMixFor(
     a.withMcp === row.choices.withMcp &&
     a.freeze === row.choices.freeze
   );
+}
+
+/** Whether a guest or producer link the host can still copy is only reachable on this network. */
+export function roomIsLocalOnly(
+  room: RecordRoomGroup,
+  tunnel: TunnelStatus | null | undefined,
+): boolean {
+  return [...room.guests, ...room.producers].some(
+    (row) =>
+      row.url !== null &&
+      row.url !== undefined &&
+      !row.invite_closed &&
+      reachOf(tunnel, row.url) === "network",
+  );
+}
+
+/** Why the room's links stop at this network: sharing was turned off, or was never set up. */
+export function localOnlyNoteOf(tunnel: TunnelStatus | null | undefined) {
+  return tunnel?.state === "off"
+    ? "Online sharing is off, so only people on this network can open these links."
+    : "Online sharing isn't set up on this computer, so only people on this network can open these links.";
 }

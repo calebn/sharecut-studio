@@ -88,7 +88,7 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 
 | Term | Meaning |
 |------|---------|
-| **Record link** | Public URL `{base}/rec/{token}` for a record session (not `/r/{token}`). |
+| **Record link** | Public URL `{base}/rec/{token}` for a record session (not `/r/{token}`). With online sharing off or not set up the URL only opens on the host's network, and the Invite sheet's Record room card says so beside the links. |
 | **Room** | One `session_id` with a guest token and a producer token, both `{base}/rec/{token}`. |
 | **Take** | One host Start → Stop. Lands sequentially on the timeline. |
 | **Pause** | Host freezes the recording clock for everyone; monitor stays live; paused time collapses. |
