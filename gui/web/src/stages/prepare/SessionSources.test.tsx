@@ -32,6 +32,7 @@ function source(id: string, state: PrepareSource["state"]): PrepareSource {
     fileName: `${id}.wav`,
     audioTime: "5:00 of audio",
     voices: 2,
+    canSplit: state === "split-prompt",
     progress: 0.2,
     splitDetail: "1 of 9",
     cause: "Could not tell the voices apart.",
@@ -66,6 +67,29 @@ describe("SessionSources routing", () => {
     expect(handlers.onCancelSplit).toHaveBeenCalledWith("third");
     await userEvent.click(screen.getByRole("button", { name: /Try again/ }));
     expect(handlers.onRetry).toHaveBeenCalledWith("fourth");
+  });
+
+  it("says what Split does not do on each card that offers Split", () => {
+    render(
+      <SessionSources
+        session={{
+          ...session(),
+          sources: [
+            source("first", "split-prompt"),
+            source("second", "split-prompt"),
+            source("third", "ready"),
+          ],
+        }}
+        firstIndex={1}
+        actions={actions()}
+      />,
+    );
+    const sentence =
+      "Voices talking at once are not pulled apart: that stretch plays once, on one track.";
+    expect(screen.getAllByText(sentence)).toHaveLength(2);
+    expect(
+      screen.getAllByRole("button", { name: /^Split/ })[0],
+    ).toHaveAccessibleDescription(sentence);
   });
 });
 

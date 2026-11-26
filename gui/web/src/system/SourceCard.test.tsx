@@ -225,6 +225,22 @@ describe("SourceCard", () => {
     ).toHaveLength(1);
   });
 
+  it("says what Split does not do, only where Split is shown", () => {
+    const sentence =
+      "Voices talking at once are not pulled apart: that stretch plays once, on one track.";
+    const { rerender } = render(<Card state="split-prompt" />);
+    expect(screen.getAllByText(sentence)).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "Split voice 2" }),
+    ).toHaveAccessibleDescription(sentence);
+    rerender(<Card state="split-prompt" canSplit={false} />);
+    expect(screen.queryByText(sentence)).toBeNull();
+    rerender(<Card />);
+    expect(screen.queryByText(sentence)).toBeNull();
+    rerender(<Card canSplit />);
+    expect(screen.getAllByText(sentence)).toHaveLength(1);
+  });
+
   it("puts the card's name in Remove, Split, Replace and Move", async () => {
     render(
       <Card name="Maya" canSplit onMoveUp={vi.fn()} onMoveDown={vi.fn()} />,

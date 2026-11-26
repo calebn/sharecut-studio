@@ -54,6 +54,7 @@ const APP_COPY = [
   ".sys-chips-note",
   ".sys-chips-count",
   ".sys-stepper-reason",
+  ".sys-source-limit",
   ".sys-adv-value",
   ".sys-adv-help",
   ".sys-adv-reason",

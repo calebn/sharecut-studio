@@ -3993,9 +3993,15 @@ button.sys-picker-option:focus-visible {
   font-size: var(--font-size-emphasis);
 }
 
+.sys-source-limit,
 .sys-stepper-reason {
   color: var(--color-text-secondary);
   font-size: var(--font-size-ui);
+}
+
+.sys-source-limit {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 @container sys-source (max-width: 40rem) {
