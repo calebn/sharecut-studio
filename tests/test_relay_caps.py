@@ -107,7 +107,8 @@ def signing_relay(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **env: str) -
 
 
 def visible_text(page: str) -> str:
-    return re.sub(r"<style>.*?</style>", "", page, flags=re.S).lower()
+    unstyled = re.sub(r"<style>.*?</style>", "", page, flags=re.S)
+    return re.sub(r"<[^>]*>", "", unstyled).lower()
 
 
 def client(app: FastAPI) -> AsyncClient:
@@ -279,7 +280,7 @@ def test_the_register_ack_names_the_limit(monkeypatch: pytest.MonkeyPatch, tmp_p
 
     app = signing_relay(monkeypatch, tmp_path, PODCAST_RELAY_INSTALL_MAX_SHARES="2")
     http = TestClient(app)
-    grant = http.post("/enroll", json=enroll_body()).json()
+    grant = http.post("/api/relay/enroll", json=enroll_body()).json()
     shares = attach_share_claims(
         [{"token": t, "capabilities": ["view"]} for t in ("a", "b", "c")],
         host_id=grant["install_id"],
@@ -595,7 +596,7 @@ async def test_a_guest_of_a_legacy_host_sees_the_notice_once_per_browser_session
         assert PAGE.decode() not in first.text
 
         passed = await http.post(
-            "/notice/continue?next=%2Fr%2Ftok%2F%3Ft%3D12", headers=SAME_ORIGIN
+            "/api/relay/notice/continue?next=%2Fr%2Ftok%2F%3Ft%3D12", headers=SAME_ORIGIN
         )
         assert passed.status_code == 303
         assert passed.headers["location"] == "/r/tok/?t=12"
@@ -675,7 +676,7 @@ async def test_continue_only_returns_to_a_link_page(
     app = signing_relay(monkeypatch, tmp_path)
     async with client(app) as http:
         res = await http.post(
-            f"/notice/continue?next={quote(target, safe='')}", headers=SAME_ORIGIN
+            f"/api/relay/notice/continue?next={quote(target, safe='')}", headers=SAME_ORIGIN
         )
 
     assert res.status_code == 404
@@ -689,7 +690,7 @@ async def test_a_relay_with_no_signing_key_has_no_continue_route(
     monkeypatch.delenv("PODCAST_RELAY_SIGNING_KEY", raising=False)
     monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", LEGACY_SECRET)
     async with client(create_relay_app()) as http:
-        res = await http.post("/notice/continue?next=%2Fr%2Fx", headers=SAME_ORIGIN)
+        res = await http.post("/api/relay/notice/continue?next=%2Fr%2Fx", headers=SAME_ORIGIN)
 
     assert res.status_code == 404
 
@@ -711,7 +712,7 @@ async def test_another_site_cannot_post_the_continue_cookie_onto_a_visitor(
 ) -> None:
     app = signing_relay(monkeypatch, tmp_path)
     async with client(app) as http:
-        res = await http.post("/notice/continue?next=%2Fr%2Ftok%2F", headers=headers)
+        res = await http.post("/api/relay/notice/continue?next=%2Fr%2Ftok%2F", headers=headers)
 
     assert res.status_code == 403
     assert "set-cookie" not in res.headers
@@ -724,7 +725,8 @@ async def test_a_browser_that_sends_only_origin_may_continue_from_the_same_origi
     app = signing_relay(monkeypatch, tmp_path)
     async with client(app) as http:
         res = await http.post(
-            "/notice/continue?next=%2Fr%2Ftok%2F", headers={"origin": "https://relay.test"}
+            "/api/relay/notice/continue?next=%2Fr%2Ftok%2F",
+            headers={"origin": "https://relay.test"},
         )
 
     assert res.status_code == 303

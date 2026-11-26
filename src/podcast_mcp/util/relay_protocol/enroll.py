@@ -1,4 +1,4 @@
-"""Enrollment wire shapes and the hashcash proof a host attaches to ``POST /enroll``.
+"""Enrollment wire shapes and the hashcash proof a host attaches to ``POST /api/relay/enroll``.
 
 The proof binds a timestamp and a nonce to a ``seed`` the host picks for this one enrollment:
 ``sha256`` of the challenge must start with ``bits`` zero bits. The relay refuses a seed it has
@@ -22,8 +22,8 @@ POW_FRESH_SEC = 120
 MAX_POW_BITS = 26
 SEED_RE = re.compile(r"^[A-Za-z0-9]{16,64}$")
 
-ENROLL_PATH = "/enroll"
-RENEW_PATH = "/enroll/renew"
+ENROLL_PATH = "/api/relay/enroll"
+RENEW_PATH = "/api/relay/enroll/renew"
 
 
 @dataclass(frozen=True, slots=True)

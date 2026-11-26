@@ -1,11 +1,18 @@
 """Caddy relay templates expose only relay endpoints."""
 
+import fnmatch
 import os
 import re
 import subprocess
 from pathlib import Path
 
 import yaml
+from fastapi.testclient import TestClient
+from tests.relay_enroll import enable_enrollment
+
+from podcast_mcp.util.relay_protocol.enroll import ENROLL_PATH, RENEW_PATH
+from podcast_relay.app import create_relay_app
+from podcast_relay.notice import CONTINUE_PATH
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -19,13 +26,23 @@ def test_caddyfiles_allowlist_relay_prefixes() -> None:
     assert "/api/rec/" in local
 
 
-def test_caddyfiles_route_enrollment_and_the_notice_to_the_relay() -> None:
+def test_every_enrollment_path_the_relay_serves_matches_a_caddy_relay_pattern(
+    monkeypatch, tmp_path: Path
+) -> None:
+    enable_enrollment(monkeypatch, tmp_path)
+    client = TestClient(create_relay_app())
+    served = sorted({ENROLL_PATH, RENEW_PATH, CONTINUE_PATH})
+    assert client.get(ENROLL_PATH).status_code == 200
+    assert client.post(RENEW_PATH, json={}).status_code != 404
+    assert client.post(CONTINUE_PATH).status_code != 404
     for filename in ("Caddyfile.prod", "Caddyfile.local"):
         config = (ROOT / "deploy/relay" / filename).read_text(encoding="utf-8")
         matcher = next(line for line in config.splitlines() if "@relay path" in line)
-        routed = matcher.split("path", 1)[1].split()
-        for path in ("/enroll", "/enroll/renew", "/notice/continue"):
-            assert path in routed, f"{filename} does not route {path}"
+        patterns = matcher.split("path", 1)[1].split()
+        for path in served:
+            assert any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns), (
+                f"{filename} does not route {path}"
+            )
 
 
 def test_caddyfile_prod_has_no_static_site_or_owner_hosts() -> None:

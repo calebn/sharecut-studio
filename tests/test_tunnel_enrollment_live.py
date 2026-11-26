@@ -374,7 +374,9 @@ def test_an_updated_build_renews_its_lease_past_a_raised_min_build(relay, projec
 
 def test_the_sixth_enrollment_from_one_subnet_waits_and_retries(relay, project, store) -> None:
     for _ in range(5):
-        res = httpx.post(f"{relay.ws_base.replace('ws://', 'http://')}/enroll", json=enroll_body())
+        res = httpx.post(
+            f"{relay.ws_base.replace('ws://', 'http://')}/api/relay/enroll", json=enroll_body()
+        )
         assert res.status_code == 200
     client = _client(relay, project, store)
 

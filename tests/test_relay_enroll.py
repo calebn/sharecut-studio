@@ -60,9 +60,17 @@ def client(deny_file: Path) -> TestClient:
 
 
 def _enroll(client: TestClient, **kwargs) -> dict:
-    res = client.post("/enroll", json=enroll_body(**kwargs))
+    res = client.post("/api/relay/enroll", json=enroll_body(**kwargs))
     assert res.status_code == 200, res.text
     return res.json()
+
+
+def test_the_old_enrollment_and_notice_paths_answer_404(client: TestClient) -> None:
+    assert client.get("/enroll").status_code == 404
+    assert client.post("/enroll", json=enroll_body()).status_code == 404
+    assert client.post("/enroll/renew", json={"lease": "x", "build": "1"}).status_code == 404
+    assert client.post("/notice/continue?next=%2Fr%2Fx").status_code == 404
+    assert client.get("/api/relay/enroll").status_code == 200
 
 
 def _hello(client: TestClient, **fields) -> tuple[dict, int | None]:
@@ -99,7 +107,7 @@ def test_enroll_returns_a_seven_day_lease_and_the_stable_claim_key(client) -> No
 def test_enroll_info_names_the_difficulty_and_the_relay_time(client) -> None:
     client.app.state.relay.policy.clock = lambda: 1_700_000_000.9
 
-    assert client.get("/enroll").json() == {
+    assert client.get("/api/relay/enroll").json() == {
         "enroll": True,
         "pow_bits": 6,
         "epoch": 1,
@@ -111,7 +119,7 @@ def test_enroll_and_renew_replies_carry_the_relay_time(client) -> None:
     grant = _enroll(client)
     client.app.state.relay.policy.clock = lambda: time.time() + 100
 
-    renewed = client.post("/enroll/renew", json={"lease": grant["lease"]}).json()
+    renewed = client.post("/api/relay/enroll/renew", json={"lease": grant["lease"]}).json()
 
     assert abs(grant["now"] - time.time()) < 5
     assert abs(renewed["now"] - (time.time() + 100)) < 5
@@ -126,7 +134,7 @@ def test_a_proof_below_the_difficulty_is_refused_with_the_required_bits(client) 
         if not pow_is_valid(body["seed"], EnrollProof(ts, format(n, "x")), bits=6, now=ts)
     )
 
-    res = client.post("/enroll", json=body)
+    res = client.post("/api/relay/enroll", json=body)
 
     assert (res.status_code, res.json()) == (400, {"detail": "proof_invalid", "pow_bits": 6})
 
@@ -134,7 +142,7 @@ def test_a_proof_below_the_difficulty_is_refused_with_the_required_bits(client) 
 def test_a_proof_for_another_install_is_refused(client) -> None:
     body = foreign_proof_body("someone-else-1234567")
 
-    assert client.post("/enroll", json=body).json()["detail"] == "proof_invalid"
+    assert client.post("/api/relay/enroll", json=body).json()["detail"] == "proof_invalid"
 
 
 def test_a_stale_proof_is_refused(client) -> None:
@@ -142,7 +150,7 @@ def test_a_stale_proof_is_refused(client) -> None:
     app_policy = client.app.state.relay.policy
     app_policy.clock = lambda: time.time() + 3600
 
-    assert client.post("/enroll", json=body).json()["detail"] == "proof_invalid"
+    assert client.post("/api/relay/enroll", json=body).json()["detail"] == "proof_invalid"
 
 
 @pytest.mark.parametrize(
@@ -150,7 +158,7 @@ def test_a_stale_proof_is_refused(client) -> None:
     [{}, {"seed": "a b", "platform": "x", "build": "1", "proof": {"ts": 1, "nonce": "n"}}],
 )
 def test_a_malformed_enrollment_is_refused(client, body) -> None:
-    res = client.post("/enroll", json=body)
+    res = client.post("/api/relay/enroll", json=body)
 
     assert (res.status_code, res.json()) == (400, {"detail": "invalid_enrollment"})
 
@@ -158,7 +166,7 @@ def test_a_malformed_enrollment_is_refused(client, body) -> None:
 def test_a_padded_enrollment_past_the_body_cap_is_refused(client) -> None:
     padded = json.dumps(enroll_body()).encode() + b" " * 5000
 
-    res = client.post("/enroll", content=padded)
+    res = client.post("/api/relay/enroll", content=padded)
 
     assert (res.status_code, res.json()) == (400, {"detail": "invalid_enrollment"})
 
@@ -167,7 +175,7 @@ def test_the_sixth_enrollment_from_one_subnet_is_rate_limited(client) -> None:
     for _ in range(5):
         _enroll(client)
 
-    res = client.post("/enroll", json=enroll_body())
+    res = client.post("/api/relay/enroll", json=enroll_body())
 
     assert res.status_code == 429
     assert res.json()["bucket"] == "relay_enroll_subnet"
@@ -182,7 +190,7 @@ def test_the_global_enrollment_rate_caps_across_subnets(
 
     _enroll(client)
     _enroll(client)
-    res = client.post("/enroll", json=enroll_body())
+    res = client.post("/api/relay/enroll", json=enroll_body())
 
     assert (res.status_code, res.json()["bucket"]) == (429, "relay_enroll_global")
 
@@ -196,7 +204,7 @@ def test_a_subnet_refusal_does_not_spend_the_global_enrollment_rate(
         _enroll(client)
     body = enroll_body()
     for _ in range(20):
-        assert client.post("/enroll", json=body).status_code == 429
+        assert client.post("/api/relay/enroll", json=body).status_code == 429
 
     from podcast_relay.limits import get_relay_limiters
 
@@ -224,10 +232,10 @@ def test_a_build_below_min_build_cannot_enroll(
     enable_enrollment(monkeypatch, tmp_path, PODCAST_RELAY_MIN_BUILD="0.2.0")
     client = TestClient(create_relay_app())
 
-    res = client.post("/enroll", json=enroll_body(build="0.1.9"))
+    res = client.post("/api/relay/enroll", json=enroll_body(build="0.1.9"))
 
     assert (res.status_code, res.json()) == (426, {"detail": "build_too_old"})
-    assert client.post("/enroll", json=enroll_body(build="0.2.0")).status_code == 200
+    assert client.post("/api/relay/enroll", json=enroll_body(build="0.2.0")).status_code == 200
 
 
 def test_the_relay_assigns_a_random_128_bit_install_id(
@@ -246,16 +254,16 @@ def test_the_relay_assigns_a_random_128_bit_install_id(
 def test_an_install_id_in_the_enrollment_body_is_refused(client) -> None:
     body = enroll_body() | {"install_id": "victim-install"}
 
-    res = client.post("/enroll", json=body)
+    res = client.post("/api/relay/enroll", json=body)
 
     assert (res.status_code, res.json()) == (400, {"detail": "invalid_enrollment"})
 
 
 def test_a_proof_pays_for_one_enrollment(client) -> None:
     body = enroll_body()
-    assert client.post("/enroll", json=body).status_code == 200
+    assert client.post("/api/relay/enroll", json=body).status_code == 200
 
-    again = client.post("/enroll", json=body)
+    again = client.post("/api/relay/enroll", json=body)
 
     assert (again.status_code, again.json()["detail"]) == (400, "proof_invalid")
 
@@ -269,7 +277,7 @@ def test_a_denied_install_is_told_so_when_it_renews(
     deny.write_text(f"# abuse\n{grant['install_id']}  # farm\n")
     client.app.state.relay.policy.reload_deny()
 
-    res = client.post("/enroll/renew", json={"lease": grant["lease"]})
+    res = client.post("/api/relay/enroll/renew", json={"lease": grant["lease"]})
 
     assert (res.status_code, res.json()) == (401, {"detail": "lease_refused:denied"})
 
@@ -281,7 +289,7 @@ def test_enrolling_with_a_previous_lease_keeps_its_install_id_even_after_it_expi
     client.app.state.relay.policy.clock = time.time
     body = enroll_body() | {"previous": first["lease"]}
 
-    res = client.post("/enroll", json=body)
+    res = client.post("/api/relay/enroll", json=body)
 
     assert res.status_code == 200
     assert res.json()["install_id"] == first["install_id"]
@@ -290,7 +298,7 @@ def test_enrolling_with_a_previous_lease_keeps_its_install_id_even_after_it_expi
 def test_a_previous_lease_the_relay_did_not_sign_is_ignored(client) -> None:
     body = enroll_body() | {"previous": "e30.AAAA"}
 
-    res = client.post("/enroll", json=body)
+    res = client.post("/api/relay/enroll", json=body)
 
     assert (res.status_code, res.json()["install_id"]) == (200, "install-1")
 
@@ -304,7 +312,7 @@ def test_a_denied_install_cannot_enroll_again_under_its_own_id(
     deny.write_text(f"{first['install_id']}\n")
     client.app.state.relay.policy.reload_deny()
 
-    res = client.post("/enroll", json=enroll_body() | {"previous": first["lease"]})
+    res = client.post("/api/relay/enroll", json=enroll_body() | {"previous": first["lease"]})
 
     assert (res.status_code, res.json()) == (403, {"detail": "install_denied"})
 
@@ -329,7 +337,7 @@ def test_renew_issues_a_fresh_lease_with_the_same_claim_key_and_no_proof(client)
     app_policy = client.app.state.relay.policy
     app_policy.clock = lambda: time.time() + 4 * 24 * 3600
 
-    res = client.post("/enroll/renew", json={"lease": first["lease"]})
+    res = client.post("/api/relay/enroll/renew", json={"lease": first["lease"]})
 
     assert res.status_code == 200, res.text
     renewed = res.json()
@@ -346,7 +354,7 @@ def test_claims_signed_before_a_renewal_still_verify_after_it(client) -> None:
         host_id=INSTALL,
         secret=first["claim_key"],
     )
-    renewed = client.post("/enroll/renew", json={"lease": first["lease"]}).json()
+    renewed = client.post("/api/relay/enroll/renew", json={"lease": first["lease"]}).json()
 
     with client.websocket_connect("/tunnel") as ws:
         ws.send_json({"type": "hello", "host_id": INSTALL, "lease": renewed["lease"]})
@@ -359,7 +367,7 @@ def test_an_expired_lease_cannot_renew_or_connect(client) -> None:
     grant = _enroll(client)
     client.app.state.relay.policy.clock = lambda: time.time() + LEASE_LIFETIME_SEC + 10
 
-    res = client.post("/enroll/renew", json={"lease": grant["lease"]})
+    res = client.post("/api/relay/enroll/renew", json={"lease": grant["lease"]})
 
     assert (res.status_code, res.json()) == (401, {"detail": "lease_refused:expired"})
     assert _hello(client, lease=grant["lease"]) == (
@@ -371,9 +379,12 @@ def test_an_expired_lease_cannot_renew_or_connect(client) -> None:
 def test_renew_is_rate_limited_per_install(client) -> None:
     grant = _enroll(client)
     for _ in range(6):
-        assert client.post("/enroll/renew", json={"lease": grant["lease"]}).status_code == 200
+        assert (
+            client.post("/api/relay/enroll/renew", json={"lease": grant["lease"]}).status_code
+            == 200
+        )
 
-    res = client.post("/enroll/renew", json={"lease": grant["lease"]})
+    res = client.post("/api/relay/enroll/renew", json={"lease": grant["lease"]})
 
     assert (res.status_code, res.json()["bucket"]) == (429, "relay_renew")
 
@@ -390,14 +401,14 @@ def test_epoch_bump_refuses_old_leases_at_hello_but_lets_them_renew_for_a_day(
         {"type": "error", "detail": "lease_refused:wrong_epoch"},
         4403,
     )
-    renewed = bumped.post("/enroll/renew", json={"lease": old["lease"]})
+    renewed = bumped.post("/api/relay/enroll/renew", json={"lease": old["lease"]})
     assert renewed.status_code == 200
     assert peek_lease(renewed.json()["lease"]).epoch == 2
     assert peek_lease(renewed.json()["lease"]).install_id == old["install_id"]
     assert _hello(bumped, lease=renewed.json()["lease"])[0]["ok"] is True
 
     bumped.app.state.relay.policy.clock = lambda: time.time() + 25 * 3600
-    late = bumped.post("/enroll/renew", json={"lease": old["lease"]})
+    late = bumped.post("/api/relay/enroll/renew", json={"lease": old["lease"]})
     assert (late.status_code, late.json()) == (401, {"detail": "lease_refused:wrong_epoch"})
 
 
@@ -408,7 +419,9 @@ def test_a_lease_two_epochs_behind_cannot_renew(
     old = _enroll(TestClient(create_relay_app()))
     monkeypatch.setenv("PODCAST_RELAY_EPOCH", "3")
 
-    res = TestClient(create_relay_app()).post("/enroll/renew", json={"lease": old["lease"]})
+    res = TestClient(create_relay_app()).post(
+        "/api/relay/enroll/renew", json={"lease": old["lease"]}
+    )
 
     assert res.status_code == 401
 
@@ -516,8 +529,8 @@ def test_a_relay_with_no_signing_key_has_no_enrollment_and_still_takes_tokens(
     monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", "legacy-secret-" + "x" * 20)
     client = TestClient(create_relay_app())
 
-    assert client.get("/enroll").status_code == 404
-    assert client.post("/enroll", json={}).status_code == 404
+    assert client.get("/api/relay/enroll").status_code == 404
+    assert client.post("/api/relay/enroll", json={}).status_code == 404
     assert client.app.state.relay.policy is None
     assert _hello(client, host_token="legacy-secret-" + "x" * 20)[0]["ok"] is True
     assert _hello(client, host_token="wrong")[1] == 4403
@@ -568,8 +581,8 @@ def test_denylisting_an_install_closes_its_live_tunnel_within_the_reload_window(
         http_base = ws_base.replace("ws://", "http://")
         import httpx
 
-        grant = httpx.post(f"{http_base}/enroll", json=enroll_body()).json()
-        other = httpx.post(f"{http_base}/enroll", json=enroll_body()).json()
+        grant = httpx.post(f"{http_base}/api/relay/enroll", json=enroll_body()).json()
+        other = httpx.post(f"{http_base}/api/relay/enroll", json=enroll_body()).json()
 
         async def scenario() -> tuple[int | None, bool]:
             async with (
@@ -655,8 +668,8 @@ def test_renew_reports_the_running_build_and_moves_a_lease_past_a_raised_min_bui
     monkeypatch.setenv("PODCAST_RELAY_MIN_BUILD", "0.2.0")
     client = TestClient(create_relay_app())
 
-    stale = client.post("/enroll/renew", json={"lease": old["lease"]})
-    updated = client.post("/enroll/renew", json={"lease": old["lease"], "build": "0.2.1"})
+    stale = client.post("/api/relay/enroll/renew", json={"lease": old["lease"]})
+    updated = client.post("/api/relay/enroll/renew", json={"lease": old["lease"], "build": "0.2.1"})
 
     assert (stale.status_code, stale.json()) == (426, {"detail": "build_too_old"})
     assert updated.status_code == 200

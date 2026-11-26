@@ -267,7 +267,7 @@ relay accepts both:
 | Host token | The operator hands it out (the self-host model, unchanged) | `hello.host_token` | Editing `PODCAST_RELAY_HOST_TOKENS` and restarting |
 | Lease | The install enrolls for it, with no sign-up and nothing to type | `hello.lease` | The deny file, `PODCAST_RELAY_MIN_BUILD`, `PODCAST_RELAY_EPOCH`, or a new signing key id |
 
-With no `PODCAST_RELAY_SIGNING_KEY` the relay has no `/enroll` routes (they answer 404)
+With no `PODCAST_RELAY_SIGNING_KEY` the relay has no `/api/relay/enroll` routes (they answer 404)
 and behaves exactly as it did before: host tokens only. A host with an
 explicit `host_token` never enrolls and uses the token unchanged. The shared shapes live in
 `util/relay_protocol` (`lease.py`, `enroll.py`); the relay side is `podcast_relay/policy.py`
@@ -278,14 +278,14 @@ explicit `host_token` never enrolls and uses the token unchanged. The shared sha
 
 The host asks the relay for a lease the first time it needs one, when a relay URL is named in
 `relay.yaml` or `PODCAST_RELAY_URL` and no host token is set. It never enrolls against the
-loopback default. A named relay that answers `404` to `GET /enroll` has no signing key; the host
+loopback default. A named relay that answers `404` to `GET /api/relay/enroll` has no signing key; the host
 then reads "not set up" again, as it did before enrollment existed, until it restarts or gains a
 host token, instead of showing a failure.
 
-1. `GET /enroll` returns `{"enroll": true, "pow_bits": N, "epoch": E, "now": T}`, with `now` the
+1. `GET /api/relay/enroll` returns `{"enroll": true, "pow_bits": N, "epoch": E, "now": T}`, with `now` the
    relay's clock in seconds. A 404 here means the relay does not enroll hosts. The host never
    solves more than 26 bits whatever `pow_bits` says.
-2. `POST /enroll` with `seed`, `platform`, `build`, `proof` (`{"ts", "nonce"}`) and, when the host
+2. `POST /api/relay/enroll` with `seed`, `platform`, `build`, `proof` (`{"ts", "nonce"}`) and, when the host
    holds one, `previous` (a lease this relay signed earlier). The relay, not the host, assigns the
    install id: a random 128-bit id, so no client can name an install that is not its own. The
    proof is hashcash over a `seed` the host picks for this one enrollment:
@@ -300,7 +300,7 @@ host token, instead of showing a failure.
 3. The reply is `{"now", "install_id", "lease", "claim_key", "exp", "renew_at"}`. The host stores
    all of it and signs in with `host_id` set to that `install_id`. A lease lives 7 days and is renewed
    at half life.
-4. `POST /enroll/renew` with `{"lease", "build"}` returns a fresh lease and the same claim key
+4. `POST /api/relay/enroll/renew` with `{"lease", "build"}` returns a fresh lease and the same claim key
    with no proof of work. The host sends the build now running, so an update moves its lease past
    a raised `PODCAST_RELAY_MIN_BUILD`. The host renews while the tunnel is up and also before a
    connect when the stored lease is past half life or was issued to another build. A failed
@@ -351,8 +351,8 @@ renewal, a re-enrollment, an epoch bump or a rotated signing key never changes i
 invalidates a claim the host already signed. The relay derives it per session, and the host
 learns it from the `claim_key` field of the enroll and renew replies and stores it with the
 lease. The claim key stops a guest, or another tenant of the relay, from forging a share claim
-for an install. It does not stop someone who holds the install's lease: `POST /enroll/renew`
-with the lease alone, and `POST /enroll` with it as `previous` (even expired), both return the
+for an install. It does not stop someone who holds the install's lease: `POST /api/relay/enroll/renew`
+with the lease alone, and `POST /api/relay/enroll` with it as `previous` (even expired), both return the
 claim key. A stolen lease therefore gives the thief the install's tunnel and the right to sign
 its share claims, for as long as the install is not denied. Revoke it by adding the install id
 to the deny file (see Revoking access); that closes the live tunnel and refuses the lease's
@@ -497,7 +497,7 @@ always has.
 A guest who opens a `/r/` or `/rec/` page of a legacy-tier host sees a short relay page first:
 "This link is shared through ShareCut" and **Continue** (`podcast_relay/notice.py`). It exists
 because the relay cannot vouch for what such a host serves. **Continue** posts to
-`/notice/continue?next=<path>`, which refuses a POST that does not come from a page of the relay's
+`/api/relay/notice/continue?next=<path>`, which refuses a POST that does not come from a page of the relay's
 own origin (`Sec-Fetch-Site: same-origin`, or an `Origin` with the relay's host when the browser
 sends no fetch metadata; anything else gets `403`), so another site cannot pre-continue a visitor,
 and which sets a session cookie, `sc_notice=1` (HttpOnly,
