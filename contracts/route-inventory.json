@@ -293,15 +293,45 @@
     },
     {
       "gate": "host",
+      "handler": "podcast_mcp.gui.routes.kits:list_kits_route",
+      "method": "GET",
+      "path": "/api/kits"
+    },
+    {
+      "gate": "host",
       "handler": "podcast_mcp.gui.routes.kits:kit_apply_route",
       "method": "POST",
       "path": "/api/kits/apply"
     },
     {
       "gate": "host",
+      "handler": "podcast_mcp.gui.routes.kit_import:commit_import",
+      "method": "POST",
+      "path": "/api/kits/import"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.kit_import:preview_import",
+      "method": "POST",
+      "path": "/api/kits/import/preview"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.kit_import:cancel_import",
+      "method": "DELETE",
+      "path": "/api/kits/import/{staged_id}"
+    },
+    {
+      "gate": "host",
       "handler": "podcast_mcp.gui.routes.kits:kit_offer_route",
       "method": "GET",
       "path": "/api/kits/offer"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.kits:export_kit_route",
+      "method": "GET",
+      "path": "/api/kits/{kit_id}/export"
     },
     {
       "gate": "host",

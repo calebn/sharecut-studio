@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Mapping
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from podcast_mcp.gui.routes.bundle_files import export_response, export_stem
 from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
     coded_http_error,
@@ -18,7 +21,9 @@ from podcast_mcp.gui.routes.deps import (
 )
 from podcast_mcp.gui.routes.project import pin_served_if_allowed
 from podcast_mcp.segments.kit import KitStore
+from podcast_mcp.segments.kit_bundle import export_kit
 from podcast_mcp.segments.kit_offer import KitOffer
+from podcast_mcp.segments.kit_summary import kit_rows
 from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.services.document import report_kit_offer, submit_kit_apply
 from podcast_mcp.services.document_sync import DocumentConflictError
@@ -34,6 +39,22 @@ _APPLY_STATUS = {
     "kit_apply_failed": 500,
     "project_write_failed": 500,
 }
+KIT_STATUS = {
+    "kit_unknown": 404,
+    "kit_import_unknown": 404,
+    "kit_busy": 409,
+    "kit_import_committing": 409,
+    "kit_segment_missing": 409,
+    "kit_upload_too_large": 413,
+    "kit_bundle_invalid": 422,
+    "kit_hash_mismatch": 422,
+    "kit_schema_unsupported": 422,
+    "kit_invalid": 422,
+    "kit_bundle_too_large": 422,
+    "kit_staging_full": 429,
+    "kit_no_room": 507,
+    "kit_write_failed": 500,
+}
 
 
 class KitApplyRequest(BaseModel):
@@ -46,6 +67,27 @@ class KitApplyRequest(BaseModel):
 
 def _refuse(exc: CodedValueError) -> NoReturn:
     raise coded_exception_error(400, exc, code="kit_invalid") from exc
+
+
+def refuse_kit(exc: CodedValueError, statuses: Mapping[str, int] = KIT_STATUS) -> NoReturn:
+    raise coded_exception_error(statuses.get(exc.code, 400), exc, code="kit_invalid") from exc
+
+
+@router.get("/api/kits", dependencies=_HOST_GATE)
+def list_kits_route() -> list[dict[str, Any]]:
+    return kit_rows(KitStore(), SegmentStore())
+
+
+@router.get("/api/kits/{kit_id}/export", dependencies=_HOST_GATE)
+def export_kit_route(kit_id: str) -> FileResponse:
+    """The newest version as one ``<name>.sharecutkit`` file, built in a private folder removed afterwards."""
+    try:
+        return export_response(
+            f"{export_stem(kit_id, 'kit')}.sharecutkit",
+            lambda out: export_kit(KitStore(), SegmentStore(), kit_id, out),
+        )
+    except CodedValueError as exc:
+        refuse_kit(exc)
 
 
 @router.get("/api/kits/offer")

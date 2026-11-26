@@ -499,6 +499,14 @@ class SegmentImportCommit(BaseModel):
     token: str
 
 
+class KitImportCommit(BaseModel):
+    """Add a checked, waiting ``.sharecutkit`` upload to the library (a newer kit becomes the next version)."""
+
+    model_config = {"extra": "forbid"}
+
+    token: str
+
+
 class TranscriptExportRequest(BaseModel):
     path: str
     formats: list[str] = list(DEFAULT_TRANSCRIPT_EXPORT_FORMATS)

@@ -296,6 +296,11 @@ export interface GuestWordTimingTarget {
   word_index: number;
 }
 
+/** Add a checked, waiting ``.sharecutkit`` upload to the library (a newer kit becomes the next version). */
+export interface KitImportCommit {
+  token: string;
+}
+
 export interface PipelineAnalyzeRequest {
   path: string;
   apply?: boolean;
