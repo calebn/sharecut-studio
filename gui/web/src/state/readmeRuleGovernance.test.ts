@@ -143,8 +143,10 @@ describe("README rule: prefer useProjectMutation", () => {
     "home/HelpDialog.tsx",
     // The Deliver Share flow keeps its own busy, error and recovery state.
     "stage/hosts/shareFlow.tsx",
+    // One error line serves the start call and the later read of whether that job failed.
+    "stage/hosts/useGuestExport.ts",
   ];
-  const ALLOWLIST_SIZE = 4;
+  const ALLOWLIST_SIZE = 5;
 
   it("keeps API-call error state in useProjectMutation outside the allowlist", () => {
     expect(handRolledMutations(sourceFiles())).toEqual(ALLOWLIST);
