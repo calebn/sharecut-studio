@@ -11,16 +11,21 @@ it: a POST from another site is refused, so a page elsewhere cannot pre-continue
 from __future__ import annotations
 
 import html
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from starlette.requests import ClientDisconnect
 
+from podcast_relay.limits import check_notice_continue
 from podcast_relay.offline import offline_page
 
 NOTICE_COOKIE = "sc_notice"
 CONTINUE_PATH = "/api/relay/notice/continue"
 _PAGE_PREFIXES = ("r/", "rec/")
+_FORM_TYPE = "application/x-www-form-urlencoded"
+# The form holds one short path; this keeps a POST from making the relay buffer a large body.
+_MAX_FORM_BYTES = 4096
 
 
 def is_page_navigation(request: Request, path_suffix: str) -> bool:
@@ -43,12 +48,14 @@ def _return_to(request: Request) -> str:
 
 
 def notice_response(request: Request) -> Response:
-    action = f"{CONTINUE_PATH}?next={quote(_return_to(request), safe='')}"
+    # The return path rides in the body: the guest page's path can hold the share token.
+    next_field = html.escape(_return_to(request), quote=True)
     body = (
         "<p>Someone shared this from their own computer. ShareCut hasn't reviewed it, "
         "so only continue if you know and trust the person who sent it.</p>\n"
         "<p>Your browser needs to allow cookies for this page to continue.</p>\n"
-        f'<form method="post" action="{html.escape(action)}">'
+        f'<form method="post" action="{CONTINUE_PATH}">'
+        f'<input type="hidden" name="next" value="{next_field}">'
         '<button type="submit">Continue</button></form>'
     )
     page = offline_page(
@@ -85,12 +92,71 @@ def safe_return_path(target: str) -> str | None:
     return target
 
 
-def continue_response(request: Request) -> Response:
+def _refusal(text: str, status: int) -> Response:
+    return HTMLResponse(text, status_code=status, headers={"Cache-Control": "no-store"})
+
+
+def _too_many_response(retry_after: str) -> Response:
+    page = offline_page(
+        title="Too many tries",
+        heading="Too many tries",
+        body_html=(
+            "<p>Too many attempts from your network. "
+            "Wait a few seconds, then go back to the link and try again.</p>"
+        ),
+    )
+    return HTMLResponse(
+        page,
+        status_code=429,
+        headers={
+            "Retry-After": retry_after,
+            "Cache-Control": "no-store",
+            "X-Robots-Tag": "noindex",
+        },
+    )
+
+
+async def _read_form_next(request: Request) -> tuple[str | None, Response | None]:
+    """The form's first ``next`` value (None when absent), or a refusal.
+
+    Parsed by hand: Starlette's form parser needs a package the relay image does not install.
+    """
+    content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if content_type != _FORM_TYPE:
+        return None, _refusal("Unsupported media type", 415)
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > _MAX_FORM_BYTES:
+        return None, _refusal("Payload too large", 413)
+    raw = bytearray()
+    try:
+        async for chunk in request.stream():
+            raw += chunk
+            if len(raw) > _MAX_FORM_BYTES:
+                return None, _refusal("Payload too large", 413)
+    except ClientDisconnect:
+        return None, _refusal("Bad request", 400)
+    values = parse_qs(raw.decode("utf-8", "replace"), keep_blank_values=True).get("next")
+    return (values[0] if values else None), None
+
+
+async def continue_response(request: Request) -> Response:
+    # Order matters: a cross-site POST carries the victim's IP, so it must be refused before it
+    # can spend that IP's limiter tokens.
     if not is_same_origin_post(request):
-        return HTMLResponse("Forbidden", status_code=403)
-    target = safe_return_path(request.query_params.get("next", ""))
+        return _refusal("Forbidden", 403)
+    client_ip = request.client.host if request.client else None
+    decision = check_notice_continue(client_ip)
+    if not decision.allowed:
+        return _too_many_response(decision.retry_after_header)
+    posted, refusal = await _read_form_next(request)
+    if refusal is not None:
+        return refusal
+    # Pages served before this change still post ``?next=``; drop the fallback once they expire.
+    target = safe_return_path(
+        posted if posted is not None else request.query_params.get("next", "")
+    )
     if target is None:
-        return HTMLResponse("Not found", status_code=404)
+        return _refusal("Not found", 404)
     response = RedirectResponse(target, status_code=303)
     response.set_cookie(
         NOTICE_COOKIE,

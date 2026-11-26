@@ -221,6 +221,14 @@ RELAY_RATE_ROWS = [
         "PODCAST_RELAY_RENEW_BURST",
         6.0,
     ),
+    (
+        "notice_continue",
+        "relay_notice_continue",
+        "PODCAST_RELAY_NOTICE_CONTINUE_RPM",
+        30.0,
+        "PODCAST_RELAY_NOTICE_CONTINUE_BURST",
+        10.0,
+    ),
 ]
 RELAY_GATE_ROWS = [
     ("token_concurrent", "relay_token_concurrent", "PODCAST_RELAY_TOKEN_CONCURRENT", 24),
@@ -262,7 +270,7 @@ def test_host_and_relay_limiter_env_name_counts() -> None:
     host |= {r[2] for r in HOST_GATE_ROWS}
     relay = {r[2] for r in RELAY_RATE_ROWS} | {r[4] for r in RELAY_RATE_ROWS}
     relay |= {r[2] for r in RELAY_GATE_ROWS}
-    assert (len(host), len(relay)) == (36, 20)
+    assert (len(host), len(relay)) == (36, 22)
 
 
 @pytest.mark.parametrize(("attr", "bucket", "rpm_env", "rpm", "burst_env", "burst"), HOST_RATE_ROWS)
