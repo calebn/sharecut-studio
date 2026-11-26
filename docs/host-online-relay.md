@@ -525,12 +525,12 @@ page first:
 "This link is shared through ShareCut" and **Continue** (`podcast_relay/notice.py`). It exists
 because the relay cannot vouch for what such a host serves.
 
-**Continue** posts to `/api/relay/notice/continue` with the return path in a hidden `next` field
-of the form body, so the path no longer appears as a `?next=` query on that POST. That is the only
-change to what is logged: the guest's own `GET /r/<token>/` still appears in access logs
-(the TLS bullet under Security lists what Caddy redacts and what it does not). The route parses the body by hand (`application/x-www-form-urlencoded`
-only, at most 4 KiB, first `next` value), without `python-multipart`, which the relay image does
-not install.
+**Continue** posts to `/api/relay/notice/continue` with the return path in a hidden `next` field of
+the form body, so the path no longer appears as a `?next=` query on that POST. That is the only
+change to what is logged: the guest's own `GET /r/<token>/` appears in access logs with the token
+redacted (the TLS bullet under Security lists what Caddy redacts and what it does not). The route
+parses the body by hand (`application/x-www-form-urlencoded` only, at most 4 KiB, first `next`
+value), without `python-multipart`, which the relay image does not install.
 
 For notice pages served before this change, whose form still posts `?next=`, the route reads
 `next` from the query only when the body has no `next` key at all (a blank `next=` in the body is
