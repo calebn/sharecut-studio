@@ -1,9 +1,11 @@
 import {
   type CSSProperties,
   type ReactNode,
+  type Ref,
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -111,6 +113,10 @@ export type RoomViewProps = {
   loading?: boolean;
   /** Focus the title when this turns true. The title stays focusable by script either way. */
   focusTitle?: boolean;
+  /** The room's root element, for a caller that measures the dock. */
+  rootRef?: Ref<HTMLDivElement>;
+  /** Whether the phone Comments sheet is showing; false again on unmount. */
+  onCommentsSheetChange?: (open: boolean) => void;
 };
 
 type RailTab = "comments" | "takes";
@@ -200,6 +206,8 @@ export function RoomView({
   statusKnown = true,
   loading = false,
   focusTitle = false,
+  rootRef,
+  onCommentsSheetChange,
 }: RoomViewProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -246,6 +254,12 @@ export function RoomView({
   // comment is sent, so a cleared chip never comes back on its own mid-take.
   const draftTime = timeCleared === phaseKey(phase) ? null : pinned;
   const paused = phase.kind === "paused";
+
+  const commentsSheetOpen = model.sheetOpen && !declined && !loading;
+  useLayoutEffect(() => {
+    onCommentsSheetChange?.(commentsSheetOpen);
+    return () => onCommentsSheetChange?.(false);
+  }, [commentsSheetOpen, onCommentsSheetChange]);
 
   const closeSheet = useCallback(() => setNotesChoice(false), []);
   const showEveryone = noteVisibility ?? seat === "host";
@@ -304,6 +318,7 @@ export function RoomView({
 
   return (
     <div
+      ref={rootRef}
       className="sys-room-view"
       data-seat={seat}
       data-width={viewerWidth}
@@ -505,6 +520,7 @@ export function RoomView({
           form="bottom"
           title={panelsLabel}
           open={model.sheetOpen && !declined}
+          panelClassName="sys-room-comments"
           onClose={closeSheet}
           detent={detent}
           onDetentChange={setDetent}

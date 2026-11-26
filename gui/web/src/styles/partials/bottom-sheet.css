@@ -21,6 +21,22 @@ html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
   bottom: var(--frame-bottom-chrome);
 }
 
+/* The Room's Comments sheet rests on the dock, not on the frame chrome or the
+   screen edge. Only its own root moves, so no detent size changes and a Devices
+   sheet open beside it keeps its rest. The column rule zeroes the end padding
+   because the panel edge must meet the dock's; the row rule leaves it, which is
+   the notch clearance. The keyboard rule below wins while the keyboard is up. */
+html[data-room-sheet="bottom"]:not([data-keyboard="open"])
+  .bottom-sheet-root:has(> .bottom-sheet.sys-room-comments) {
+  bottom: var(--room-sheet-bottom);
+}
+
+html[data-room-sheet="end"]:not([data-keyboard="open"])
+  .bottom-sheet-root:has(> .bottom-sheet.sys-room-comments) {
+  inset-inline-end: var(--room-sheet-end);
+  padding-inline-end: 0;
+}
+
 /* A phone's sheet never covers the header row, at any detent: its slot starts at
    the header's bottom edge, so the Stage menu and Tools button stay reachable
    while a selection is open. The clearance below then counts the rows under

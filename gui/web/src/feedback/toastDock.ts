@@ -3,14 +3,17 @@ import { lastPressedRect } from "../ui/pressedControl";
 
 /**
  * Phone chrome docked to the bottom edge. The toast sits above the highest of
- * these that is shown: the tab bar, the Player,
+ * these that is shown: the tab bar, the Player, the Room dock,
  * the precision jog pad, or an open sheet (its grip, whose hit area rises above the sheet edge).
  */
+const ROOM_DOCK = ".sys-room-view-dock";
+
 const FLOOR_SELECTORS = [
   ".stage-frame-tabs",
   ".stage-frame-player",
   ".precision-jog",
   ".bottom-sheet:not(.bottom-sheet--column)",
+  ROOM_DOCK,
   ".sys-inspector--phone .sys-inspector-grip",
 ] as const;
 
@@ -119,6 +122,14 @@ function shownRects(selectors: readonly string[]): DOMRect[] {
   );
 }
 
+/** The Room dock sits above the tab bar, so the toast never rests lower than its top. */
+export function restTopWithDock(
+  restTopPx: number,
+  dockTopsPx: readonly number[],
+): number {
+  return Math.min(restTopPx, ...dockTopsPx);
+}
+
 /** A hidden chrome row leaves the viewport bottom. */
 function restTop(chrome: HTMLElement): number {
   const rect = chrome.getBoundingClientRect();
@@ -195,6 +206,9 @@ export function useToastDock(
         Number.parseFloat(rootStyle.getPropertyValue("--space-3")) || 0.5;
       const cardRect = card.getBoundingClientRect();
       const pressed = phone ? pressedExtent() : null;
+      const dockTops = phone
+        ? shownRects([ROOM_DOCK]).map((rect) => rect.top)
+        : [];
       const phoneOnly = phone
         ? {
             ceilingPx: Math.max(
@@ -208,7 +222,7 @@ export function useToastDock(
         : { ceilingPx: 0, floorTopsPx: [], pressedPx: null };
       const bottomPx = toastDockBottomPx({
         viewportHeight: window.innerHeight,
-        restTopPx: restTop(rest),
+        restTopPx: restTopWithDock(restTop(rest), dockTops),
         toastHeightPx: cardRect.height,
         gapPx: gapRem * rootPx,
         ...phoneOnly,
