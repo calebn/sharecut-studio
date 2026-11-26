@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import anyio
 from fastapi import APIRouter, Query, Request
-from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
+from podcast_mcp.gui.routes.bundle_files import stage_upload
 from podcast_mcp.gui.routes.deps import NO_STORE
 from podcast_mcp.gui.routes.segments import STATUS, refuse
 from podcast_mcp.gui.schemas import SegmentImportCommit
@@ -16,7 +15,7 @@ from podcast_mcp.segments.bundle import (
     import_bundle,
     preview_segment_bundle,
 )
-from podcast_mcp.segments.import_staging import ImportStaging, Upload
+from podcast_mcp.segments.import_staging import ImportStaging
 from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.util.body_limits import SEGMENT_IMPORT_PREVIEW_PATH
 from podcast_mcp.util.coded_error import CodedValueError
@@ -30,37 +29,6 @@ _REFUSED = {
     "segment_schema_unsupported": 422,
     "segment_invalid": 422,
 }
-_WRITE_BLOCK = 1 << 20
-
-
-def _too_large() -> CodedValueError:
-    return CodedValueError(
-        f"This file is larger than the {MAX_BUNDLE_BYTES // 1024**2} MiB a segment file can be.",
-        code="segment_upload_too_large",
-    )
-
-
-def _declared_length(request: Request) -> int | None:
-    raw = request.headers.get("content-length")
-    return int(raw) if raw is not None and raw.isascii() and raw.isdigit() else None
-
-
-async def _receive(request: Request, staging: ImportStaging, upload: Upload) -> None:
-    """Stream the request body into the partial file, never holding more than a block."""
-    received = 0
-    block = bytearray()
-    with staging.open_partial(upload) as target:
-        async for chunk in request.stream():
-            received += len(chunk)
-            if received > MAX_BUNDLE_BYTES:
-                raise _too_large()
-            block += chunk
-            if len(block) >= _WRITE_BLOCK:
-                await run_in_threadpool(staging.ensure_room, received)
-                await anyio.to_thread.run_sync(target.write, bytes(block))
-                block.clear()
-        await run_in_threadpool(staging.ensure_room, received)
-        await anyio.to_thread.run_sync(target.write, bytes(block))
 
 
 def _wire(token: str, preview: BundlePreview) -> dict[str, object]:
@@ -80,33 +48,16 @@ def _wire(token: str, preview: BundlePreview) -> dict[str, object]:
 @router.post(SEGMENT_IMPORT_PREVIEW_PATH)
 async def preview_import(request: Request) -> dict[str, object]:
     """Check an uploaded file (the raw request body) against the library without adding it."""
-    staging = ImportStaging(SegmentStore())
-    declared = _declared_length(request)
-    upload: Upload | None = None
-    finished = False
     try:
-        if declared is not None and declared > MAX_BUNDLE_BYTES:
-            raise _too_large()
-        upload = await run_in_threadpool(staging.begin, declared)
-        await _receive(request, staging, upload)
-        preview = await run_in_threadpool(preview_segment_bundle, SegmentStore(), upload.partial)
-        if await request.is_disconnected():
-            raise CodedValueError("The upload was cancelled.", code="segment_upload_cancelled")
-        staging.finish(upload)
-        finished = True
-        return _wire(upload.token, preview)
+        token, preview = await stage_upload(
+            request,
+            ImportStaging(SegmentStore()),
+            max_bytes=MAX_BUNDLE_BYTES,
+            check=lambda path: preview_segment_bundle(SegmentStore(), path),
+        )
     except CodedValueError as exc:
         refuse(exc, _REFUSED)
-    except OSError as exc:
-        refuse(
-            CodedValueError(
-                f"The file could not be stored: {exc.strerror or exc}.", code="segment_write_failed"
-            ),
-            _REFUSED,
-        )
-    finally:
-        if upload is not None and not finished:
-            staging.drop_partial(upload)
+    return _wire(token, preview)
 
 
 @router.get("/api/segments/import/{staged_id}/audio")
