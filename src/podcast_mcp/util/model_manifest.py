@@ -24,6 +24,7 @@ import os
 import sys
 import tempfile
 import threading
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -165,18 +166,70 @@ def _cache_bytes(pin: PinnedSnapshot, cache_dir: Path) -> int:
     return total
 
 
-def _child_result(proc: process.Child | process.Popen[Any]) -> dict[str, Any] | None:
-    """The child's one JSON line, or None when it left none."""
+_STDOUT_KEEP = 64 * 1024
+_STDERR_TAIL = 2048
+_STALE_SCRATCH_SEC = 3600.0
+_SCRATCH_PREFIX = ".fetch-child-"
+
+
+class _StdoutTail:
+    """Drain the child's stdout on a thread so a chatty child never blocks on a full pipe.
+
+    Only the last ``_STDOUT_KEEP`` bytes are kept; the result is the last JSON line.
+    """
+
+    def __init__(self, stream: Any) -> None:
+        self._stream = stream
+        self._tail = b""
+        self._thread = threading.Thread(target=self._drain, name="hf-child-stdout", daemon=True)
+        if stream is not None:
+            self._thread.start()
+
+    def _drain(self) -> None:
+        try:
+            while chunk := self._stream.read(65536):
+                self._tail = (self._tail + chunk)[-_STDOUT_KEEP:]
+        except (OSError, ValueError):
+            return
+
+    def result(self) -> dict[str, Any] | None:
+        """The child's one JSON line, or None when it left none."""
+        if self._thread.is_alive():
+            self._thread.join(timeout=5.0)
+        lines = [ln for ln in self._tail.decode("utf-8", "replace").splitlines() if ln.strip()]
+        try:
+            result = json.loads(lines[-1]) if lines else None
+        except ValueError:
+            return None
+        return result if isinstance(result, dict) else None
+
+
+def _int_or_none(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _sweep_stale_scratch(cache_dir: Path) -> None:
+    """Remove scratch files a killed parent left behind (best effort)."""
+    cutoff = time.time() - _STALE_SCRATCH_SEC
+    with contextlib.suppress(OSError):
+        for entry in os.scandir(cache_dir):
+            if entry.name.startswith(_SCRATCH_PREFIX):
+                with contextlib.suppress(OSError):
+                    if entry.stat().st_mtime < cutoff:
+                        os.unlink(entry.path)
+
+
+def _log_child_stderr(log_path: Path) -> None:
+    """Log the last bytes of the child's stderr before the scratch log is removed."""
     try:
-        raw = proc.stdout.read() if proc.stdout is not None else b""
-    except (OSError, ValueError):
-        return None
-    lines = [line for line in raw.decode("utf-8", "replace").splitlines() if line.strip()]
-    try:
-        result = json.loads(lines[-1]) if lines else None
-    except ValueError:
-        return None
-    return result if isinstance(result, dict) else None
+        with log_path.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, handle.tell() - _STDERR_TAIL))
+            tail = handle.read().decode("utf-8", "replace").strip()
+    except OSError:
+        return
+    if tail:
+        logger.warning("download child stderr (tail): %s", tail)
 
 
 def _run_child(
@@ -185,13 +238,15 @@ def _run_child(
     force_download: bool,
     total: int | None,
     on_progress: OnProgress | None,
-) -> Path:
+) -> Path | None:
     """Download in a child process, report its growth on disk, and kill it if ``on_progress`` raises.
 
-    Raises ``SpawnUnavailableError`` or ``OSError`` when the child cannot start (the caller
-    falls back) and ``HubChildError`` when it ran and failed.
+    Returns None when the child could not run (it could not start, or it left no result
+    before any bytes arrived), so the caller downloads in-process. Raises ``HubChildError``
+    when it ran and failed, and whatever ``on_progress`` raises.
     """
     cache_dir.mkdir(parents=True, exist_ok=True)
+    _sweep_stale_scratch(cache_dir)
     spec = {
         "repo": pin.hf_repo,
         "revision": pin.revision,
@@ -199,25 +254,44 @@ def _run_child(
         "cache_dir": str(cache_dir),
         "force_download": force_download,
     }
-    fd, spec_name = tempfile.mkstemp(prefix=".fetch-child-", suffix=".json", dir=cache_dir)
+    fd, spec_name = tempfile.mkstemp(prefix=_SCRATCH_PREFIX, suffix=".json", dir=cache_dir)
     spec_path = Path(spec_name)
     log_path = spec_path
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(spec, handle)
-        log_fd, log_name = tempfile.mkstemp(prefix=".fetch-child-", suffix=".log", dir=cache_dir)
+        log_fd, log_name = tempfile.mkstemp(prefix=_SCRATCH_PREFIX, suffix=".log", dir=cache_dir)
         log_path = Path(log_name)
         with os.fdopen(log_fd, "wb") as log:
             baseline = _cache_bytes(pin, cache_dir)
-            with process.detached_children():
-                proc = process.popen(
-                    _child_argv(spec_path),
-                    stdin=process.PIPE,
-                    stdout=process.PIPE,
-                    stderr=log,
-                    start_new_session=True,
+            try:
+                with process.detached_children():
+                    proc = process.popen(
+                        _child_argv(spec_path),
+                        stdin=process.PIPE,
+                        stdout=process.PIPE,
+                        stderr=log,
+                        start_new_session=True,
+                    )
+            except OSError as exc:
+                logger.warning(
+                    "download child could not start (%s); downloading in-process over plain HTTP",
+                    exc,
                 )
-        return _watch_child(proc, pin, cache_dir, baseline, total, on_progress)
+                return None
+        try:
+            path = _watch_child(proc, pin, cache_dir, baseline, total, on_progress)
+        except HubChildError:
+            _log_child_stderr(log_path)
+            raise
+        if path is None:
+            _log_child_stderr(log_path)
+            logger.warning(
+                "download child left no result (exit code %s) before any bytes arrived; "
+                "downloading in-process over plain HTTP",
+                proc.returncode,
+            )
+        return path
     finally:
         for scratch in (spec_path, log_path):
             with contextlib.suppress(OSError):
@@ -231,7 +305,13 @@ def _watch_child(
     baseline: int,
     total: int | None,
     on_progress: OnProgress | None,
-) -> Path:
+) -> Path | None:
+    stdout = _StdoutTail(proc.stdout)
+
+    def grown() -> int:
+        size = max(0, _cache_bytes(pin, cache_dir) - baseline)
+        return min(size, total) if total is not None else size
+
     shown = 0
     try:
         while True:
@@ -240,12 +320,9 @@ def _watch_child(
                 break
             except process.TimeoutExpired:
                 pass
-            if on_progress is None:
-                continue
-            grown = max(0, _cache_bytes(pin, cache_dir) - baseline)
-            grown = min(grown, total) if total is not None else grown
-            if grown > shown:
-                shown = grown
+            # Every tick, grown or not, so a stalled transfer still honours Cancel.
+            shown = max(shown, grown())
+            if on_progress is not None:
                 on_progress(DownloadProgress(shown, total))
     except BaseException:
         process.kill_child(proc)
@@ -253,15 +330,22 @@ def _watch_child(
             proc.wait(timeout=10)
         raise
     finally:
-        for stream in (proc.stdin,):
-            if stream is not None:
-                with contextlib.suppress(OSError, ValueError):
-                    stream.close()
-    result = _child_result(proc)
+        if proc.stdin is not None:
+            with contextlib.suppress(OSError, ValueError):
+                proc.stdin.close()
+    shown = max(shown, grown())
+    result = stdout.result()
     if proc.stdout is not None:
         with contextlib.suppress(OSError):
             proc.stdout.close()
+    if result is not None and "path" in result:
+        if not isinstance(result["path"], str) or not result["path"]:
+            result = None
+    elif result is not None and not ("kind" in result or "error" in result):
+        result = None
     if result is None:
+        if shown == 0:
+            return None
         raise HubChildError(
             "network", f"the download child exited with code {proc.returncode} and no result"
         )
@@ -272,12 +356,13 @@ def _watch_child(
                 if total is not None
                 else DownloadProgress(shown, None)
             )
-        return Path(str(result["path"]))
+        return Path(result["path"])
+    kind = result.get("kind")
     raise HubChildError(
-        str(result.get("kind", "other")),
+        kind if isinstance(kind, str) else "other",
         f"{result.get('error', 'error')}: {result.get('message', '')}",
-        status=result.get("status"),
-        errno=result.get("errno"),
+        status=_int_or_none(result.get("status")),
+        errno=_int_or_none(result.get("errno")),
         error=str(result.get("error", "")),
     )
 
@@ -473,13 +558,9 @@ def download_pinned_snapshot(
             on_progress(DownloadProgress(0, total))
             extra["tqdm_class"] = _byte_bar(on_progress, total)
         if _child_allowed():
-            try:
-                return _run_child(pin, cache_dir, force_download, total, on_progress)
-            except OSError as exc:
-                logger.warning(
-                    "download child could not start (%s); downloading in-process over plain HTTP",
-                    exc,
-                )
+            fetched = _run_child(pin, cache_dir, force_download, total, on_progress)
+            if fetched is not None:
+                return fetched
         with _plain_http_hub():
             return Path(
                 snapshot_download(
