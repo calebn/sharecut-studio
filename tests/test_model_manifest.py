@@ -544,50 +544,92 @@ def test_download_pinned_snapshot_downloads_inside_the_plain_http_window(
     _assert_restored(constants)
 
 
+_PLAIN_HTTP_VALUES: dict[str, object] = {
+    "DOWNLOAD_CHUNK_SIZE": 1024 * 1024,
+    "HF_HUB_DISABLE_XET": True,
+}
+
+
+class _RecordingLock:
+    """Wraps a real lock and remembers which thread holds it."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.owner: int | None = None
+
+    def acquire(self, *args: object, **kwargs: object) -> bool:
+        acquired = self._lock.acquire(*args, **kwargs)
+        if acquired:
+            self.owner = threading.get_ident()
+        return acquired
+
+    def release(self) -> None:
+        self.owner = None
+        self._lock.release()
+
+    def held_by_current_thread(self) -> bool:
+        return self.owner == threading.get_ident()
+
+    def __enter__(self) -> bool:
+        return self.acquire()
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.release()
+
+
 class _GuardedConstants:
     """Stands in for ``huggingface_hub.constants``; records every access made without the lock."""
 
     values: dict[str, object]
     fail_on: str | None
+    fail_with: type[BaseException]
     unlocked: list[str]
 
-    def __init__(self, fail_on: str | None = None) -> None:
+    def __init__(
+        self, fail_on: str | None = None, fail_with: type[BaseException] = RuntimeError
+    ) -> None:
         object.__setattr__(self, "values", {"DOWNLOAD_CHUNK_SIZE": _ORIGINAL_CHUNK})
         self.values["HF_HUB_DISABLE_XET"] = False
         object.__setattr__(self, "fail_on", fail_on)
+        object.__setattr__(self, "fail_with", fail_with)
         object.__setattr__(self, "unlocked", [])
 
     def __getattr__(self, name: str) -> object:
         values = object.__getattribute__(self, "values")
         if name not in values:
             raise AttributeError(name)
-        if not model_manifest._plain_http_lock.locked():
+        if not model_manifest._plain_http_lock.held_by_current_thread():
             self.unlocked.append(f"get {name}")
         return values[name]
 
     def __setattr__(self, name: str, value: object) -> None:
-        if not model_manifest._plain_http_lock.locked():
+        if not model_manifest._plain_http_lock.held_by_current_thread():
             self.unlocked.append(f"set {name}")
-        if name == self.fail_on and value is True:
-            raise RuntimeError(f"cannot set {name}")
+        if name == self.fail_on and value == _PLAIN_HTTP_VALUES[name]:
+            raise self.fail_with(f"cannot set {name}")
         self.values[name] = value
 
 
-def _use_guarded_constants(monkeypatch, fail_on: str | None = None) -> _GuardedConstants:
+def _use_guarded_constants(
+    monkeypatch, fail_on: str | None = None, fail_with: type[BaseException] = RuntimeError
+) -> _GuardedConstants:
     import huggingface_hub
 
     _hub_constants()
-    fake = _GuardedConstants(fail_on)
+    fake = _GuardedConstants(fail_on, fail_with)
     monkeypatch.setattr(huggingface_hub, "constants", fake)
+    monkeypatch.setattr(model_manifest, "_plain_http_lock", _RecordingLock())
     return fake
 
 
-def test_plain_http_hub_rolls_back_a_partial_patch_when_the_second_setting_fails(
-    monkeypatch,
+@pytest.mark.parametrize("exc_type", [RuntimeError, KeyboardInterrupt])
+@pytest.mark.parametrize("failing", ["DOWNLOAD_CHUNK_SIZE", "HF_HUB_DISABLE_XET"])
+def test_plain_http_hub_rolls_back_a_partial_patch_when_a_setting_fails(
+    monkeypatch, failing: str, exc_type: type[BaseException]
 ) -> None:
-    fake = _use_guarded_constants(monkeypatch, fail_on="HF_HUB_DISABLE_XET")
+    fake = _use_guarded_constants(monkeypatch, fail_on=failing, fail_with=exc_type)
 
-    with pytest.raises(RuntimeError, match="cannot set HF_HUB_DISABLE_XET"):
+    with pytest.raises(exc_type, match=f"cannot set {failing}"):
         with model_manifest._plain_http_hub():
             pytest.fail("the window must not open when a setting cannot be applied")
 
@@ -595,6 +637,19 @@ def test_plain_http_hub_rolls_back_a_partial_patch_when_the_second_setting_fails
     assert fake.values["HF_HUB_DISABLE_XET"] is False
     assert model_manifest._plain_http_depth == 0
     assert model_manifest._plain_http_originals == {}
+    assert model_manifest._plain_http_lock.owner is None
+
+    object.__setattr__(fake, "fail_on", None)
+    with model_manifest._plain_http_hub():
+        assert fake.values["DOWNLOAD_CHUNK_SIZE"] == 1024 * 1024
+        assert fake.values["HF_HUB_DISABLE_XET"] is True
+        assert model_manifest._plain_http_depth == 1
+
+    assert fake.values["DOWNLOAD_CHUNK_SIZE"] == _ORIGINAL_CHUNK
+    assert fake.values["HF_HUB_DISABLE_XET"] is False
+    assert model_manifest._plain_http_depth == 0
+    assert model_manifest._plain_http_originals == {}
+    assert fake.unlocked == []
 
 
 def test_plain_http_hub_changes_the_settings_only_while_holding_its_lock(monkeypatch) -> None:
