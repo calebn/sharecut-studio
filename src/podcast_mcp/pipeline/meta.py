@@ -356,7 +356,9 @@ _PARAM_SPECS: tuple[_ParamSpec, ...] = (
         label="Max workers",
         description=(
             "Parallel workers for stem render and export (0 = auto). "
-            "Tighten analysis uses threads when speaker profiles are enrolled, and is otherwise serial unless N >= 2 is set explicitly."
+            "Tighten analysis uses threads (automatic count, capped at the CPU budget) when "
+            "speaker profiles are enrolled and this is 0; 1 forces serial, and without "
+            "profiles it is serial unless N >= 2 is set."
         ),
         minimum=0,
         maximum=32,

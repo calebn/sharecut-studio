@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from unittest.mock import patch
 
 import pytest
@@ -243,19 +244,30 @@ def test_propose_tighten_edits_pool_size_follows_max_workers(performance, expect
     assert built == pools
 
 
+def _enrolled_context():
+    from podcast_mcp.edits.tighten import candidate as cand
+    from podcast_mcp.engines import speaker_id as sid
+
+    return cand._SpeakerCutContext(
+        sid.SpeakerIdConfig(), {"host": object(), "guest": object()}, loaded=True
+    )
+
+
 @pytest.mark.parametrize(
-    ("performance", "expected"),
+    ("performance", "budget", "expected"),
     [
-        ({}, [1, 0]),
-        ({"max_workers": 0}, [1, 0]),
-        ({"max_workers": 1}, [1, 1]),
-        ({"max_workers": 3}, [3, 3]),
+        ({}, 4, [1, 4]),
+        ({"max_workers": 0}, 4, [1, 4]),
+        ({}, 1, [1, 1]),
+        ({}, 2, [1, 2]),
+        ({}, 12, [1, 8]),
+        ({"max_workers": 1}, 4, [1, 1]),
+        ({"max_workers": 3}, 1, [3, 3]),
     ],
 )
 def test_propose_tighten_edits_uses_threads_by_default_with_enrolled_profiles(
-    performance, expected
+    performance, budget, expected
 ):
-    from podcast_mcp.edits.tighten import candidate as cand
     from podcast_mcp.util.parallel import run_parallel
 
     seen: list[int | None] = []
@@ -264,9 +276,12 @@ def test_propose_tighten_edits_uses_threads_by_default_with_enrolled_profiles(
         seen.append(kwargs.get("max_workers"))
         return run_parallel(*args, **kwargs)
 
-    enrolled = cand._SpeakerCutContext(None, {"host": object()}, loaded=False)
     with (
-        patch("podcast_mcp.edits.tighten.propose._speaker_cut_context", return_value=enrolled),
+        patch(
+            "podcast_mcp.edits.tighten.propose._speaker_cut_context",
+            return_value=_enrolled_context(),
+        ),
+        patch("podcast_mcp.edits.tighten.propose.cpu_budget", return_value=budget),
         patch("podcast_mcp.edits.tighten.propose.run_parallel", side_effect=recording),
         patch("podcast_mcp.edits.tighten.prepare.run_parallel", side_effect=recording),
     ):
@@ -323,6 +338,7 @@ def test_propose_tighten_embeds_each_cut_window_once_with_enrolled_profiles():
 
 
 def test_propose_tighten_decisions_match_serial_on_threads_with_enrolled_profiles():
+    import collections
     from types import SimpleNamespace
 
     import numpy as np
@@ -348,15 +364,47 @@ def test_propose_tighten_decisions_match_serial_on_threads_with_enrolled_profile
             for t in project.transcripts
         }
 
+    def stub_score(project, track_id, start, end, cfg, backend, profiles=None, **kwargs):
+        # Alternates by window so both roles occur on every track regardless of thread timing.
+        other = "guest" if track_id == "host" else "host"
+        owner = track_id if round(start * 10) % 2 == 0 else other
+        return sid.WindowScore(
+            track_id=track_id,
+            start_sec=start,
+            end_sec=end,
+            scores={track_id: 0.2, other: 0.9},
+            best_track_id=owner,
+            margin=0.9,
+            best_identity=owner,
+        )
+
+    real_assess = sid.assess_speaker_cut_role
+
     def run(workers: int):
+        roles: collections.Counter[str] = collections.Counter()
+        lock = threading.Lock()
+
+        def spy(*args, **kwargs):
+            result = real_assess(*args, **kwargs)
+            with lock:
+                roles[result["role"] if result else "none"] += 1
+            return result
+
         with (
             patch.object(sid, "load_all_profiles", side_effect=profiles),
             patch.object(sid, "resolve_speaker_backend", return_value=_Backend()),
+            patch.object(sid, "score_window", side_effect=stub_score),
+            patch.object(sid, "assess_speaker_cut_role", side_effect=spy),
             patch(
                 "podcast_mcp.project.transcript_context.load_transcript_context",
                 return_value=SimpleNamespace(speaker_id=sid.SpeakerIdConfig()),
             ),
         ):
-            return _propose_with_performance({"max_workers": workers})
+            return _propose_with_performance({"max_workers": workers}), roles
 
-    assert run(3) == run(1)
+    serial, serial_roles = run(1)
+    threaded, threaded_roles = run(3)
+    assert serial_roles["bleed"] > 0 and serial_roles["own"] > 0
+    assert threaded_roles["bleed"] > 0 and threaded_roles["own"] > 0
+    assert serial
+    assert threaded == serial
