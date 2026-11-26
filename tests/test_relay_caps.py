@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import html
 import json
 import re
 import sqlite3
@@ -44,10 +45,13 @@ def _unlimited_rate(monkeypatch: pytest.MonkeyPatch) -> None:
 class FakeHost:
     """A host websocket that answers every ``http`` frame with a fixed response."""
 
-    def __init__(self, *, body: bytes = PAGE, content_type: str = "text/html") -> None:
+    def __init__(
+        self, *, body: bytes = PAGE, content_type: str = "text/html", type_key: str = "Content-Type"
+    ) -> None:
         self.session: TunnelSession | None = None
         self.body = body
         self.content_type = content_type
+        self.type_key = type_key
         self.sent: list[dict[str, Any]] = []
         self.closed: list[tuple[int, str]] = []
 
@@ -58,7 +62,7 @@ class FakeHost:
                 self.session.pending[data["id"]],
                 {
                     "status": 200,
-                    "headers": {"Content-Type": self.content_type},
+                    "headers": {self.type_key: self.content_type},
                     "body_b64": base64.b64encode(self.body).decode(),
                     "eof": True,
                 },
@@ -616,9 +620,6 @@ async def test_a_guest_of_a_legacy_host_sees_the_notice_once_per_browser_session
         ("GET", "/r/tok/assets/app.js", {"sec-fetch-mode": "no-cors", "sec-fetch-dest": "script"}),
         ("GET", "/r/tok/", {"sec-fetch-mode": "navigate", "sec-fetch-dest": "iframe"}),
         ("GET", "/r/tok/", {"sec-fetch-mode": "cors", "sec-fetch-dest": "empty"}),
-        ("GET", "/api/review/tok/state", NAVIGATE),
-        ("GET", "/mcp/tok", NAVIGATE),
-        ("GET", "/api/rec/tok/state", NAVIGATE),
         ("POST", "/r/tok/", NAVIGATE),
         ("GET", "/r/tok/", {"accept": "audio/mpeg"}),
     ],
@@ -637,6 +638,253 @@ async def test_only_a_top_level_page_navigation_gets_the_notice(
         res = await http.request(method, path, headers=headers)
 
     assert "shared through ShareCut" not in res.text
+
+
+NEW_PAGE_PATHS = [
+    "/api/review/tok/",
+    "/api/review/tok/daw/export/archive?x=1",
+    "/api/rec/tok/state",
+    "/mcp/tok",
+    "/mcp/tok/x",
+]
+
+
+async def legacy_session(app: FastAPI, host: FakeHost | None = None) -> TunnelSession:
+    session = await host_session(app, host_id="old-host", host=host)
+    session.capabilities["tok"] = ["view", "mcp"]
+    return session
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", NEW_PAGE_PATHS)
+async def test_html_from_a_legacy_host_at_an_api_or_mcp_path_gets_the_notice_then_continues(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, path: str
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    session = await legacy_session(app)
+    async with client(app) as http:
+        first = await http.get(path, headers=NAVIGATE)
+        assert "This link is shared through ShareCut" in first.text
+        assert f'name="next" value="{path}"' in first.text
+        assert PAGE.decode() not in first.text
+        assert session.pending == {}
+
+        passed = await http.post(
+            "/api/relay/notice/continue", data={"next": path}, headers=SAME_ORIGIN
+        )
+        assert passed.status_code == 303
+        assert passed.headers["location"] == path
+
+        second = await http.get(path, headers=NAVIGATE)
+
+    assert second.text == PAGE.decode()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/api/review/tok/", "/mcp/tok"])
+@pytest.mark.parametrize(
+    "type_key", ["Content-Type", "content-type", "Content-type", "CONTENT-TYPE"]
+)
+@pytest.mark.parametrize(
+    "content_type",
+    ["text/html", "text/html; charset=utf-8", "TEXT/HTML", "  text/html ;charset=x"],
+)
+async def test_html_is_recognised_whatever_the_case_or_shape_of_the_host_s_content_type(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, path: str, type_key: str, content_type: str
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    await legacy_session(app, FakeHost(content_type=content_type, type_key=type_key))
+    async with client(app) as http:
+        res = await http.get(path, headers=NAVIGATE)
+
+    assert "This link is shared through ShareCut" in res.text
+    assert PAGE.decode() not in res.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("html_page", [True, False])
+async def test_the_notice_decision_leaves_no_concurrency_slot_held(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, html_page: bool
+) -> None:
+    from podcast_relay.limits import get_relay_limiters, reset_relay_limiters_for_tests
+
+    monkeypatch.setenv("PODCAST_RELAY_RATE_LIMIT", "1")
+    reset_relay_limiters_for_tests()
+    app = signing_relay(monkeypatch, tmp_path)
+    host = FakeHost() if html_page else FakeHost(body=b"PK", content_type="application/zip")
+    await legacy_session(app, host)
+    try:
+        async with client(app) as http:
+            res = await http.get("/api/review/tok/daw/export/archive", headers=NAVIGATE)
+        limiters = get_relay_limiters()
+        assert ("shared through ShareCut" in res.text) is html_page
+        assert limiters.token_concurrent._counts == {}
+        assert limiters.host_concurrent._counts == {}
+    finally:
+        reset_relay_limiters_for_tests()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/r/tok/", "/rec/tok/"])
+async def test_a_link_page_notice_is_shown_without_asking_the_host(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, path: str
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    host = FakeHost()
+    await legacy_session(app, host)
+    async with client(app) as http:
+        res = await http.get(path, headers=NAVIGATE)
+
+    assert "shared through ShareCut" in res.text
+    assert host.sent == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", NEW_PAGE_PATHS)
+@pytest.mark.parametrize(
+    ("content_type", "body"),
+    [
+        ("audio/mpeg", b"ID3-audio"),
+        ("application/zip", b"PK-zip"),
+        ("application/json", b'{"ok": true}'),
+        ("application/octet-stream", b"bytes"),
+    ],
+)
+async def test_a_download_or_json_at_an_api_or_mcp_path_streams_through_without_the_cookie(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    path: str,
+    content_type: str,
+    body: bytes,
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    await legacy_session(app, FakeHost(body=body, content_type=content_type))
+    async with client(app) as http:
+        res = await http.get(path, headers=NAVIGATE)
+
+    assert res.content == body
+    assert "set-cookie" not in res.headers
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", NEW_PAGE_PATHS)
+@pytest.mark.parametrize(
+    ("method", "headers"),
+    [
+        ("GET", {"sec-fetch-mode": "cors", "sec-fetch-dest": "empty"}),
+        ("GET", {"sec-fetch-mode": "navigate", "sec-fetch-dest": "iframe"}),
+        ("GET", {"sec-fetch-mode": "no-cors", "sec-fetch-dest": "audio"}),
+        ("POST", NAVIGATE),
+        ("HEAD", NAVIGATE),
+        ("GET", {"accept": "application/json"}),
+    ],
+)
+async def test_html_at_an_api_or_mcp_path_is_not_gated_for_a_non_navigation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    path: str,
+    method: str,
+    headers: dict[str, str],
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    await legacy_session(app)
+    async with client(app) as http:
+        res = await http.request(method, path, headers=headers)
+
+    assert "shared through ShareCut" not in res.text
+    if method != "HEAD":
+        assert res.text == PAGE.decode()
+
+
+@pytest.mark.asyncio
+async def test_an_api_page_is_judged_by_accept_when_the_browser_sends_no_fetch_metadata(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    await legacy_session(app)
+    async with client(app) as http:
+        page = await http.get("/api/review/tok/", headers={"accept": "text/html,*/*;q=0.8"})
+
+    assert "shared through ShareCut" in page.text
+
+
+@pytest.mark.asyncio
+async def test_the_notice_return_path_keeps_the_encoded_form_of_a_file_name(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    await legacy_session(app)
+    target = "/api/review/tok/daw/export/files/100%25%20a%2Fb.mp3?x=1"
+    async with client(app) as http:
+        first = await http.get(target, headers=NAVIGATE)
+        field = re.search(r'name="next" value="([^"]*)"', first.text)
+        assert field is not None
+        passed = await http.post(
+            "/api/relay/notice/continue",
+            data={"next": html.unescape(field.group(1))},
+            headers=SAME_ORIGIN,
+        )
+
+    assert 'value="/api/review/tok/daw/export/files/100%25%20a%2Fb.mp3?x=1"' in first.text
+    assert passed.status_code == 303
+    assert passed.headers["location"] == target
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "target",
+    [
+        "/api/review/../x",
+        "/api/review/%2e%2e/x",
+        "/mcp//x",
+        "/mcp/\\x",
+        "/api/rec/x\n",
+        "/api/review",
+        "/api/relay/x",
+        "/mcpx/",
+        "/mcp",
+        "/api/recfoo/x",
+    ],
+)
+async def test_continue_refuses_traversal_and_near_misses_of_the_api_prefixes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, target: str
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    async with client(app) as http:
+        res = await http.post(
+            "/api/relay/notice/continue", data={"next": target}, headers=SAME_ORIGIN
+        )
+
+    assert res.status_code == 404
+    assert "set-cookie" not in res.headers
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", NEW_PAGE_PATHS)
+async def test_an_enrolled_install_s_guests_never_see_the_notice_on_api_or_mcp_pages(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, path: str
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    session = await host_session(app, install_id="i1")
+    session.capabilities["tok"] = ["view", "mcp"]
+    async with client(app) as http:
+        res = await http.get(path, headers=NAVIGATE)
+
+    assert res.text == PAGE.decode()
+
+
+@pytest.mark.asyncio
+async def test_the_cookie_from_a_link_page_lets_an_api_page_navigation_through(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    session = await host_session(app, host_id="old-host")
+    session.capabilities["tok"] = ["view", "mcp"]
+    async with client(app) as http:
+        await http.post("/api/relay/notice/continue", data={"next": "/r/tok/"}, headers=SAME_ORIGIN)
+        res = await http.get("/api/review/tok/", headers=NAVIGATE)
+
+    assert res.text == PAGE.decode()
 
 
 @pytest.mark.asyncio

@@ -21,12 +21,13 @@ from podcast_mcp.util.proxy_paths import proxy_path_is_safe
 from podcast_mcp.util.rate_limit import is_review_audio_path
 from podcast_mcp.util.rate_limit_http import rate_limited_response
 from podcast_mcp.util.relay_protocol.protocol import msg, new_id
-from podcast_relay.guest_headers import proxied_security_headers
+from podcast_relay.guest_headers import is_html, proxied_security_headers
 from podcast_relay.limits import check_proxy_rpm, get_relay_limiters, relay_rate_limit_enabled
 from podcast_relay.notice import (
     CONTINUE_PATH,
     continue_response,
     has_seen_notice,
+    is_gated_before_forward,
     is_page_navigation,
     notice_response,
 )
@@ -113,6 +114,14 @@ def _response_headers(headers: dict[str, str]) -> dict[str, str]:
     return out
 
 
+def _header(headers: dict[str, str], name: str) -> str | None:
+    """A header value by name, whatever case the host used for the key."""
+    for key, value in headers.items():
+        if key.lower() == name:
+            return value
+    return None
+
+
 _PAUSED_HEADERS = {
     "Retry-After": "3600",
     "Cache-Control": "no-store",
@@ -174,6 +183,7 @@ async def proxy_to_host(
         return JSONResponse({"detail": "share does not allow mcp"}, status_code=403)
 
     meter = session.meter
+    notice_if_html = False
     if meter is not None:
         exhausted = meter.exhausted()
         if exhausted or session.limit_kind:
@@ -185,7 +195,9 @@ async def proxy_to_host(
             and is_page_navigation(request, path_suffix)
             and not has_seen_notice(request)
         ):
-            return notice_response(request)
+            if is_gated_before_forward(path_suffix):
+                return notice_response(request)
+            notice_if_html = True
 
     client_ip = request.client.host if request.client else None
     rpm = check_proxy_rpm(token=token, client_ip=client_ip, path_suffix=path_suffix)
@@ -263,8 +275,13 @@ async def proxy_to_host(
             _release_gates()
             return JSONResponse({"detail": "host timed out"}, status_code=504)
 
+        media = _header(pending.headers, "content-type")
+        if notice_if_html and is_html(media):
+            # The tunnel drops later chunks for an id with no pending entry.
+            session.pending.pop(req_id, None)
+            _release_gates()
+            return notice_response(request)
         out_headers = _response_headers(pending.headers)
-        media = pending.headers.get("content-type") or pending.headers.get("Content-Type")
         if meter is not None:
             out_headers.update(
                 proxied_security_headers(media, f"{request.url.scheme}://{request.url.netloc}")

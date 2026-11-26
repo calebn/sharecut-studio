@@ -1,11 +1,14 @@
 """First-visit notice for guests of an install the relay cannot vouch for.
 
 A guest who opens a page link (``/r/`` or ``/rec/``) of a legacy-tier host sees one short page
-first. Continue sets a session cookie of the relay's own and sends the guest on to the link. The
-cookie is not a secret: forging it only skips a courtesy notice for the person who forged it. It
-lives in the guest's browser, never on the host, and it is set before any host page has been
-served, so host script cannot have set it for anyone else. Only the notice page's own form may set
-it: a POST from another site is refused, so a page elsewhere cannot pre-continue a visitor.
+first. The same goes for a browser sent straight to ``/api/review/``, ``/api/rec/`` or ``/mcp/``,
+but only when the host answers with HTML: those paths also carry downloads and JSON, which the
+relay streams through untouched. Continue sets a session cookie of the relay's own and sends the
+guest on to the link. The cookie is not a secret: forging it only skips a courtesy notice for the
+person who forged it. It lives in the guest's browser, never on the host, and it is set before any
+host page has been served, so host script cannot have set it for anyone else. Only the notice
+page's own form may set it: a POST from another site is refused, so a page elsewhere cannot
+pre-continue a visitor.
 """
 
 from __future__ import annotations
@@ -22,14 +25,20 @@ from podcast_relay.offline import offline_page
 
 NOTICE_COOKIE = "sc_notice"
 CONTINUE_PATH = "/api/relay/notice/continue"
-_PAGE_PREFIXES = ("r/", "rec/")
+# Trailing slashes keep "mcpx/" and "api/recfoo/" out. One set of tuples drives the gate and the
+# return allowlist so they cannot drift.
+_GATED_BEFORE_FORWARD = ("r/", "rec/")
+# These paths serve downloads and JSON as well, so the host's response decides.
+_GATED_BY_RESPONSE = ("api/review/", "api/rec/", "mcp/")
+_PAGE_PREFIXES = _GATED_BEFORE_FORWARD + _GATED_BY_RESPONSE
+_RETURN_PREFIXES = tuple(f"/{prefix}" for prefix in _PAGE_PREFIXES)
 _FORM_TYPE = "application/x-www-form-urlencoded"
 # The form holds one short path; this keeps a POST from making the relay buffer a large body.
 _MAX_FORM_BYTES = 4096
 
 
 def is_page_navigation(request: Request, path_suffix: str) -> bool:
-    """True for a browser opening a link page, not for the page's own API, socket or audio calls."""
+    """True for a browser opening a link, not for the page's own fetch, socket or media calls."""
     if request.method != "GET" or not path_suffix.startswith(_PAGE_PREFIXES):
         return False
     mode = request.headers.get("sec-fetch-mode")
@@ -38,13 +47,21 @@ def is_page_navigation(request: Request, path_suffix: str) -> bool:
     return "text/html" in request.headers.get("accept", "")
 
 
+def is_gated_before_forward(path_suffix: str) -> bool:
+    """True for a link page, where the notice replaces the host's answer before it is asked."""
+    return path_suffix.startswith(_GATED_BEFORE_FORWARD)
+
+
 def has_seen_notice(request: Request) -> bool:
     return request.cookies.get(NOTICE_COOKIE) == "1"
 
 
 def _return_to(request: Request) -> str:
+    # The raw path keeps %25 and %2F in a file name; the decoded one would not round trip.
+    raw = request.scope.get("raw_path")
+    path = raw.decode("latin-1").split("?", 1)[0] if raw else request.url.path
     query = f"?{request.url.query}" if request.url.query else ""
-    return f"{request.url.path}{query}"
+    return f"{path}{query}"
 
 
 def notice_response(request: Request) -> Response:
@@ -82,7 +99,7 @@ def is_same_origin_post(request: Request) -> bool:
 def safe_return_path(target: str) -> str | None:
     """*target* when it stays on a link page of this origin, else None."""
     path = target.split("?", 1)[0]
-    if not target.startswith(("/r/", "/rec/")) or "//" in path or "\\" in target:
+    if not target.startswith(_RETURN_PREFIXES) or "//" in path or "\\" in target:
         return None
     if any(ord(ch) < 32 or ord(ch) == 127 for ch in target):
         return None
