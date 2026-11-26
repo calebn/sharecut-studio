@@ -181,6 +181,40 @@ def test_a_token_commits_once(client: TestClient, tmp_path: Path) -> None:
     assert (again.status_code, again.headers[CODE]) == (404, "segment_import_unknown")
 
 
+@pytest.mark.parametrize("code", ["segment_no_room", "segment_write_failed"])
+def test_a_full_disk_keeps_the_staged_file_for_a_retry(
+    client: TestClient,
+    tmp_path: Path,
+    staging_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    code: str,
+) -> None:
+    token = _preview(client, _file(tmp_path))["token"]
+    real = SegmentStore.add
+
+    def full(self: SegmentStore, folder: Path) -> object:
+        raise CodedValueError("disk", code=code)
+
+    monkeypatch.setattr(SegmentStore, "add", full)
+    res = client.post("/api/segments/import", json={"token": token})
+    assert res.headers[CODE] == code
+    assert _staged(staging_dir) == [f"{token}.sharecutseg"]
+
+    monkeypatch.setattr(SegmentStore, "add", real)
+    assert client.post("/api/segments/import", json={"token": token}).status_code == 200
+
+
+def test_a_cancel_that_loses_the_race_to_a_commit_is_a_409(
+    client: TestClient, tmp_path: Path, staging_dir: Path
+) -> None:
+    token = _preview(client, _file(tmp_path))["token"]
+    claimed = staging_dir / f".claim-{token}"
+    (staging_dir / f"{token}.sharecutseg").rename(claimed)
+    res = client.delete(f"/api/segments/import/{token}")
+    assert (res.status_code, res.headers[CODE]) == (409, "segment_import_committing")
+    assert claimed.exists()
+
+
 def test_a_busy_library_keeps_the_staged_file_for_a_retry(
     client: TestClient, tmp_path: Path, staging_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -493,3 +527,45 @@ def test_every_import_route_refuses_a_foreign_origin_and_a_relayed_request(
         )
         assert relayed.request(method, path, **kwargs).status_code in (401, 403)
     assert _staged(staging_dir) == []
+
+
+def test_a_declared_length_the_disk_cannot_take_is_refused_before_the_body(
+    client: TestClient, tmp_path: Path, staging_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(bundle, "free_bytes", lambda _path: 1)
+    res = client.post(PREVIEW, content=_file(tmp_path), headers=STREAM)
+    assert (res.status_code, res.headers[CODE]) == (507, "segment_no_room")
+    assert _staged(staging_dir) == []
+
+
+def test_a_cancel_with_a_wildcard_token_removes_nothing(
+    client: TestClient, tmp_path: Path, staging_dir: Path
+) -> None:
+    token = _preview(client, _file(tmp_path))["token"]
+    client.delete("/api/segments/import/*")
+    client.delete("/api/segments/import/..")
+    assert _staged(staging_dir) == [f"{token}.sharecutseg"]
+
+
+def test_a_symlink_in_the_staging_folder_is_not_a_waiting_file(
+    client: TestClient, tmp_path: Path, staging_dir: Path
+) -> None:
+    token = "a" * 32
+    target = tmp_path / "elsewhere.sharecutseg"
+    target.write_bytes(_file(tmp_path))
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    (staging_dir / f"{token}.sharecutseg").symlink_to(target)
+    res = client.post("/api/segments/import", json={"token": token})
+    assert (res.status_code, res.headers[CODE]) == (404, "segment_import_unknown")
+    assert SegmentStore().list() == []
+
+
+def test_a_full_staging_folder_of_uploads_in_progress_answers_429(
+    staging_dir: Path,
+) -> None:
+    staging = import_staging.ImportStaging(SegmentStore())
+    held = [staging.begin(None) for _ in range(import_staging.MAX_STAGED)]
+    with pytest.raises(CodedValueError) as raised:
+        staging.begin(None)
+    assert raised.value.code == "segment_staging_full"
+    assert len(held) == import_staging.MAX_STAGED
