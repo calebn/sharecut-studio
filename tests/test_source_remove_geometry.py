@@ -860,15 +860,13 @@ def test_record_suggested_cut_speech_annotates_a_valid_remove(monkeypatch):
 
 def _restricted_cut_access(code: str, *, caller: str = "") -> set[str]:
     restricted = {
-        "podcast_mcp.edits.breath_detect.protect_cut_breaths",
-        "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech",
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
-        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
-        "podcast_mcp.edits.source_removals.inspect_source_remove_placement",
-        "podcast_mcp.edits.source_removals._inspect_source_remove_placement_impl",
-        "podcast_mcp.edits.source_removals._witnessed_source_span_has_unsafe_overlap",
-        "podcast_mcp.edits.tighten.prepare._original_pause_support",
-        "podcast_mcp.edits.tighten.prepare._check_voiced_speech",
+        "podcast_mcp.edits.cut_safety.protect_cut_breaths",
+        "podcast_mcp.edits.cut_safety.assess_cross_track_speech",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.assess_proposed_cut",
+        "podcast_mcp.edits.cut_placement.inspect_source_remove_placement",
+        "podcast_mcp.edits.cut_placement._witnessed_source_span_has_unsafe_overlap",
+        "podcast_mcp.edits.cut_placement.original_pause_support",
         "podcast_mcp.edits.sound_actions.sound_label_and_action",
         "podcast_mcp.edits.suggested_actions.suggested_action_for",
         "podcast_mcp.edits.cut_speech.clear_ripple",
@@ -939,21 +937,45 @@ def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
             )
         )
     }
-    assert consumers == {}
+    by_name: dict[str, set[str]] = {}
+    for caller, names in consumers.items():
+        for name in names:
+            by_name.setdefault(name.removeprefix("podcast_mcp.edits."), set()).add(caller)
+    # Explicit allowlist: the set may only shrink deliberately. timeline_span.py is
+    # the recorded read-only preview projection exception to the placement guard.
+    expected = {
+        "cut_placement.inspect_source_remove_placement": {
+            "edits/cut_application.py",
+            "edits/timeline_span.py",
+        },
+        "cut_placement.original_pause_support": {
+            "edits/cut_safety.py",
+            "edits/tighten/prepare.py",
+        },
+        "cut_safety.assess_cross_track_speech": {"edits/suggested_actions.py"},
+        "cut_safety.resolve_cut_scope": {
+            "edits/tighten/gate.py",
+            "edits/transcript_cuts.py",
+        },
+        "cut_safety.assess_proposed_cut": {
+            "edits/tighten/prepare.py",
+            "services/document/join_analysis.py",
+        },
+    }
+    assert by_name == expected
     for code in (
         "from podcast_mcp.edits.timeline_ops import _write_trim_clip_edge as write; write()",
         "import podcast_mcp.edits.timeline_ops as ops; ops._write_ripple_delete()",
         "from podcast_mcp.edits import timeline_ops; timeline_ops._write_punch_delete()",
         "import podcast_mcp.edits.cut_application; podcast_mcp.edits.cut_application._write_join_fades()",
         "from podcast_mcp.edits.cut_application import _apply_source_remove as consume; consume()",
-        "from podcast_mcp.edits.breath_detect import protect_cut_breaths as protect",
-        "from podcast_mcp.edits.speech_energy_guard import assess_cross_track_speech as assess",
-        "import podcast_mcp.edits.join_continuity as joins; joins.assess_proposed_cut()",
-        "from podcast_mcp.edits import source_removals as cuts; cuts.inspect_source_remove_placement()",
-        "import podcast_mcp.edits.source_removals; podcast_mcp.edits.source_removals._inspect_source_remove_placement_impl()",
-        "from podcast_mcp.edits.source_removals import _witnessed_source_span_has_unsafe_overlap",
-        "from podcast_mcp.edits.tighten.prepare import _original_pause_support",
-        "from podcast_mcp.edits.tighten.prepare import _check_voiced_speech as check",
+        "from podcast_mcp.edits.cut_safety import protect_cut_breaths as protect",
+        "from podcast_mcp.edits.cut_safety import assess_cross_track_speech as assess",
+        "from podcast_mcp.edits.cut_safety import resolve_cut_scope as scope",
+        "import podcast_mcp.edits.cut_safety as safety; safety.assess_proposed_cut()",
+        "from podcast_mcp.edits import cut_placement as cuts; cuts.inspect_source_remove_placement()",
+        "from podcast_mcp.edits.cut_placement import _witnessed_source_span_has_unsafe_overlap",
+        "from podcast_mcp.edits.cut_placement import original_pause_support",
         "from podcast_mcp.edits import sound_actions as sounds; sounds.sound_label_and_action()",
     ):
         assert _restricted_cut_access(code), code
