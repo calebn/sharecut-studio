@@ -22,6 +22,7 @@ import {
   importedMessage,
   isUnchangedKit,
   KIT_EXPIRED,
+  markLanded,
   partialMessage,
 } from "./importMessages";
 
@@ -66,7 +67,7 @@ export function useKitImport({ onChanged, onDone }: Options): KitImport {
         fresh?.id ?? null,
       );
     },
-    onCommitFailed: (failure): CommitFailure => {
+    onCommitFailed: (failure, waiting): CommitFailure<KitImportPreview> => {
       const partial = partialImport(failure);
       if (partial && partial.added > 0) {
         landed.current = {
@@ -75,6 +76,7 @@ export function useKitImport({ onChanged, onDone }: Options): KitImport {
         };
         onChanged();
       }
+      const preview = markLanded(waiting, partial?.added ?? 0);
       const detail = errorMessage(failure, IMPORT_FAILED);
       const { added: sofar, total } = landed.current;
       const said =
@@ -83,12 +85,13 @@ export function useKitImport({ onChanged, onDone }: Options): KitImport {
         failure instanceof ApiError &&
         KIT_IMPORT_RETRY_CODES.has(failure.code)
       )
-        return { phase: "preview", notice: `${detail}${said}` };
+        return { phase: "preview", notice: `${detail}${said}`, preview };
       const dropped =
         !(failure instanceof ApiError) ||
         failure.code === null ||
         failure.code === NETWORK_ERROR_CODE;
-      if (dropped) return { phase: "preview", notice: `${detail}${said}` };
+      if (dropped)
+        return { phase: "preview", notice: `${detail}${said}`, preview };
       if (failure.code === "kit_import_unknown")
         return {
           phase: "error",

@@ -21,8 +21,8 @@ export type StagedImport<P extends Staged> = {
 };
 
 /** Where a failed commit leaves the sheet: back on the preview to try again, or on the error. */
-export type CommitFailure =
-  | { phase: "preview"; notice: string }
+export type CommitFailure<P extends Staged = Staged> =
+  | { phase: "preview"; notice: string; preview?: P }
   | { phase: "error"; message: string };
 
 export type StagedImportConfig<P extends Staged, R> = {
@@ -39,14 +39,14 @@ export type StagedImportConfig<P extends Staged, R> = {
    */
   settleWithoutCommit?: (preview: P) => (() => void) | null;
   /** Decides what a failed commit leaves; the default keeps the preview unless the file expired. */
-  onCommitFailed?: (failure: unknown, preview: P) => CommitFailure;
+  onCommitFailed?: (failure: unknown, preview: P) => CommitFailure<P>;
   /** Called when a new file is chosen, before it uploads. */
   onChosen?: () => void;
 };
 
 const IDLE = { phase: "idle" } as const;
 
-function defaultFailure(failure: unknown): CommitFailure {
+function defaultFailure(failure: unknown): CommitFailure<never> {
   const message = errorMessage(failure, IMPORT_FAILED);
   if (failure instanceof ApiError && failure.status === 404)
     return { phase: "error", message };
@@ -160,7 +160,7 @@ export function useStagedImport<P extends Staged, R>(
         }
         show({
           phase: "preview",
-          preview,
+          preview: next.preview ?? preview,
           notice: next.notice,
         });
       });

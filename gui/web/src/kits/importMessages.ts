@@ -91,3 +91,37 @@ export function alreadyThere(added: number, total: number): string {
   const of = total > 0 ? ` of ${total}` : "";
   return `${added}${of} ${total === 1 || (total === 0 && added === 1) ? "segment is" : "segments are"} already in your library.`;
 }
+
+/**
+ * The preview after a try that added `landed` segments before it stopped. The service
+ * applies the file's segments in order, so the first `landed` new ones are in the library
+ * now: they read "Already there" and leave the new counts, and Add finishes the rest.
+ */
+export function markLanded(
+  preview: KitImportPreview,
+  landed: number,
+): KitImportPreview {
+  if (landed <= 0) return preview;
+  const counts = { ...preview.counts };
+  const taken = new Map<string, boolean>();
+  let left = landed;
+  const entries = [...preview.entries]
+    .sort((a, b) => a.position - b.position)
+    .map((entry) => {
+      if (entry.outcome === "unchanged") return entry;
+      // An entry that names a segment an earlier entry already named is that same segment.
+      const key = `${entry.name}\u0000${entry.version}`;
+      let done = taken.get(key);
+      if (done === undefined) {
+        done = left > 0;
+        if (done) left -= 1;
+        taken.set(key, done);
+      }
+      if (!done) return entry;
+      if (entry.outcome === "added") counts.added -= 1;
+      else counts.new_version -= 1;
+      counts.unchanged += 1;
+      return { ...entry, outcome: "unchanged" as const };
+    });
+  return { ...preview, counts, entries };
+}
