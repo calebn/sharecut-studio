@@ -185,6 +185,49 @@ def test_role_memo_resolves_one_backend_for_every_window_scored_from_threads() -
     assert len(used) == 12 and all(b is backends[0] for b in used)
 
 
+def test_role_memo_hit_returns_cached_role_without_scoring_again() -> None:
+    from podcast_mcp.engines.speaker_id import RoleMemo, WindowScore
+    from podcast_mcp.models import EpisodeProject
+
+    scored: list[tuple[float, float]] = []
+
+    def score(project, track, start, end, cfg, backend, profiles=None):
+        scored.append((start, end))
+        if start == 2.0:
+            return None
+        return WindowScore(
+            track_id=track,
+            start_sec=start,
+            end_sec=end,
+            scores={"host": 0.1, "guest": 0.9},
+            best_track_id="guest",
+            margin=0.8,
+            best_identity="guest",
+        )
+
+    memo = RoleMemo()
+    proj = EpisodeProject.create("x", "/tmp")
+    cfg = SpeakerIdConfig(min_margin=0.1)
+
+    def ask(start: float):
+        return assess_speaker_cut_role(proj, "host", start, start + 0.5, cfg, role_memo=memo)
+
+    with (
+        patch("podcast_mcp.engines.speaker_id.resolve_speaker_backend", return_value=object()),
+        patch("podcast_mcp.engines.speaker_id.load_all_profiles", return_value=_profiles()),
+        patch("podcast_mcp.engines.speaker_id.score_window", side_effect=score),
+    ):
+        first = ask(1.0)
+        second = ask(1.0)
+        none_first = ask(2.0)
+        none_second = ask(2.0)
+    assert first and first["role"] == "bleed"
+    assert second is first
+    assert none_first is None and none_second is None
+    # The cached None is a hit too: an unscorable window is not scored again.
+    assert scored == [(1.0, 1.5), (2.0, 2.5)]
+
+
 def test_decode_window_samples_center_pads_short_span(tmp_path, sample_wav) -> None:
     wav = tmp_path / "t.wav"
     wav.write_bytes(sample_wav.read_bytes())
