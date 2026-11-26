@@ -398,3 +398,26 @@ def test_analyze_fillers_step_honours_config_intensity(minimal_project):
 
     assert any(r.startswith("pause:") for r in hits("medium"))
     assert not any(r.startswith("pause:") for r in hits("light"))
+
+
+def test_analyze_step_summary_names_the_english_only_probe_skip(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from podcast_mcp.edits.tighten.propose import format_tighten_propose_summary
+
+    counts = {"word_probe:language_unsupported": 1}
+    proposed = SimpleNamespace(summary=lambda: format_tighten_propose_summary([], counts))
+    monkeypatch.setattr(steps, "propose_tighten_edits", lambda *a, **k: proposed)
+    monkeypatch.setattr(steps, "_record_level_profiles", lambda project: None)
+    monkeypatch.setattr(steps, "bind_pending_pad_picks", lambda project, defaults: None)
+    monkeypatch.setattr(
+        "podcast_mcp.edits.transcript_refine_status.REFINE_GATE.assert_clear",
+        lambda *a, **k: None,
+    )
+    defaults = load_defaults()
+    defaults["tighten"]["enabled"] = True
+
+    out = steps.analyze_fillers_pauses(SimpleNamespace(), defaults)
+
+    assert "word_probe:" not in out
+    assert "word probe skipped on 1 track(s): the model reads English only" in out

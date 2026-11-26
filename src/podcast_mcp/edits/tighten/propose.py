@@ -47,7 +47,7 @@ from podcast_mcp.edits.tighten_reasons import (
     is_pause_reason,
     is_possible_word_reason,
 )
-from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
+from podcast_mcp.engines.models.whisper import ENGLISH_ONLY_READS, WhisperWeightsMissingError
 from podcast_mcp.engines.mute_regions import muted_source_spans
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
 from podcast_mcp.util.batch_scope import batch_scope
@@ -87,6 +87,9 @@ def format_tighten_propose_summary(
     failed = skips.get("word_probe:failed", 0)
     probe_text = f", {unavailable} word probe unavailable" if unavailable else ""
     probe_text += f", {failed} word probe failed" if failed else ""
+    refused = skips.get("word_probe:language_unsupported", 0)
+    if refused:
+        probe_text += f", word probe skipped on {refused} track(s): the model {ENGLISH_ONLY_READS}"
     return (
         f"{len(decisions)} proposed ({fillers} filler, {pauses} pause"
         f"{repeat_text}{acoustic_text}{extra}{acoustic_skip_text}{probe_text})"

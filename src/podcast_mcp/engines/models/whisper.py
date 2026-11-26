@@ -214,13 +214,17 @@ def english_only_whisper(name: str) -> bool:
     return name.endswith(".en") or name in _ENGLISH_ONLY_DISTIL
 
 
+ENGLISH_ONLY_REFUSAL_CODE = "transcription_language_unsupported"
+ENGLISH_ONLY_READS = "reads English only"
+
+
 def english_only_refusal(model_name: str, language: str) -> CodedValueError:
     """The error for asking an English-only model to transcribe ``language``."""
     return CodedValueError(
-        f"The transcription model {model_name} reads English only, so it can't "
+        f"The transcription model {model_name} {ENGLISH_ONLY_READS}, so it can't "
         f"transcribe language {language!r}. Set the language to English or use a "
         "multilingual model.",
-        code="transcription_language_unsupported",
+        code=ENGLISH_ONLY_REFUSAL_CODE,
     )
 
 
