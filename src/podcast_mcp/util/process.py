@@ -175,6 +175,39 @@ def kill_detached_children() -> None:
         _kill_unless_reaped(proc)
 
 
+def kill_child(proc: Child | subprocess.Popen[Any]) -> None:
+    """Kill ``proc`` and everything it started: its process group, or its tree on Windows.
+
+    For a child the caller owns (a download child it polls). A child already reaped is left
+    alone; one without a pid (a ``using_runner`` child) is killed through itself.
+    """
+    if proc.pid is None:
+        proc.kill()
+        return
+    _kill_unless_reaped(cast("subprocess.Popen[Any]", proc))
+
+
+def _taskkill_tree(pid: int) -> bool:
+    """End ``pid`` and its descendants (Windows has no process groups to signal).
+
+    False when ``taskkill`` could not run, so the caller kills the root alone.
+    """
+    root = os.environ.get("SYSTEMROOT", r"C:\Windows")
+    taskkill = str(Path(root) / "System32" / "taskkill.exe")
+    try:
+        subprocess.run(  # nosec B603
+            [taskkill, "/PID", str(pid), "/T", "/F"],
+            stdin=DEVNULL,
+            stdout=DEVNULL,
+            stderr=DEVNULL,
+            check=False,
+            timeout=_KILL_GRACE_SEC,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return True
+
+
 def _kill_unless_reaped(proc: subprocess.Popen[Any]) -> None:
     """Kill ``proc``'s group only while its pid still names it.
 
@@ -191,9 +224,12 @@ def _kill_unless_reaped(proc: subprocess.Popen[Any]) -> None:
             return
         if hasattr(os, "killpg"):
             os.killpg(proc.pid, signal.SIGKILL)
+        elif host_platform.current().is_nt:
+            if not _taskkill_tree(proc.pid):
+                proc.kill()
         else:
             proc.kill()
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         return
     finally:
         if held:
@@ -687,6 +723,14 @@ class InProcessChild:
         self.wait()
 
 
+def _group_flags(new_group: bool) -> dict[str, Any]:
+    """Windows has no sessions: a detached child gets its own console process group instead,
+    so a console Ctrl+C reaches only this process."""
+    if new_group and host_platform.current().is_nt:
+        return {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200)}
+    return {}
+
+
 def _spawn(
     cmd: list[str],
     *,
@@ -722,6 +766,7 @@ def _spawn(
             env=env,
             start_new_session=start_new_session or detach,
             shell=False,
+            **_group_flags(start_new_session or detach),
         )
 
     if not _detach_depth:
