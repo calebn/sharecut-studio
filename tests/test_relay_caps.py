@@ -725,6 +725,109 @@ async def test_the_notice_decision_leaves_no_concurrency_slot_held(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/api/review/tok/", "/api/rec/tok/state", "/mcp/tok"])
+@pytest.mark.parametrize(
+    "content_type",
+    [
+        "text/plain",
+        "text/csv; charset=utf-8",
+        "text/xml",
+        # A host that sends two Content-Type values reaches the relay joined into one string.
+        "text/html, application/zip",
+    ],
+)
+async def test_only_text_html_is_replaced_by_the_notice(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, path: str, content_type: str
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    await legacy_session(app, FakeHost(body=b"a,b", content_type=content_type))
+    async with client(app) as http:
+        res = await http.get(path, headers=NAVIGATE)
+
+    assert res.content == b"a,b"
+
+
+@pytest.mark.asyncio
+async def test_the_notice_path_releases_each_concurrency_gate_exactly_once(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from podcast_mcp.util.rate_limit import ConcurrencyGate
+    from podcast_relay.limits import reset_relay_limiters_for_tests
+
+    exits: list[str] = []
+    real_exit = ConcurrencyGate.exit
+
+    def counting_exit(self: ConcurrencyGate, key: str) -> None:
+        exits.append(key)
+        real_exit(self, key)
+
+    monkeypatch.setattr(ConcurrencyGate, "exit", counting_exit)
+    monkeypatch.setenv("PODCAST_RELAY_RATE_LIMIT", "1")
+    reset_relay_limiters_for_tests()
+    app = signing_relay(monkeypatch, tmp_path)
+    await legacy_session(app)
+    try:
+        async with client(app) as http:
+            res = await http.get("/api/review/tok/", headers=NAVIGATE)
+    finally:
+        reset_relay_limiters_for_tests()
+
+    assert "shared through ShareCut" in res.text
+    # One entry each in the token and the host gate, so a second release would add two more.
+    assert sorted(exits) == ["old-host", "tok"]
+
+
+@pytest.mark.asyncio
+async def test_a_percent_encoded_non_ascii_file_name_round_trips_through_the_notice(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Browsers send the path percent-encoded, and the notice keeps it that way.
+
+    A client that puts raw UTF-8 bytes in the request line is not covered: the raw path is
+    decoded as latin-1 for the form field, so such a name would not round trip.
+    """
+    app = signing_relay(monkeypatch, tmp_path)
+    await legacy_session(app)
+    target = "/api/review/tok/daw/export/files/caf%C3%A9.mp3"
+    async with client(app) as http:
+        first = await http.get(target, headers=NAVIGATE)
+        field = re.search(r'name="next" value="([^"]*)"', first.text)
+        assert field is not None
+        passed = await http.post(
+            "/api/relay/notice/continue",
+            data={"next": html.unescape(field.group(1))},
+            headers=SAME_ORIGIN,
+        )
+
+    assert field.group(1) == target
+    assert passed.headers["location"] == target
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("target", "status"),
+    [
+        ("/api/review/tok/x?next=//evil.test/", 303),
+        ("/mcp/tok?u=http://a.test//b", 303),
+        ("/api/review/tok//x?q=1", 404),
+        ("/api/rec//tok/state", 404),
+    ],
+)
+async def test_continue_checks_double_slashes_in_the_path_but_not_the_query(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, target: str, status: int
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    async with client(app) as http:
+        res = await http.post(
+            "/api/relay/notice/continue", data={"next": target}, headers=SAME_ORIGIN
+        )
+
+    assert res.status_code == status
+    if status == 303:
+        assert res.headers["location"] == target
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("path", ["/r/tok/", "/rec/tok/"])
 async def test_a_link_page_notice_is_shown_without_asking_the_host(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, path: str
