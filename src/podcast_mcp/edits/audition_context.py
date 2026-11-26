@@ -23,7 +23,9 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import median
-from typing import TYPE_CHECKING, Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Any, Literal
+
+from typing_extensions import TypedDict
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.comments import list_comments

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
 from uuid import uuid4
+
+from typing_extensions import TypedDict
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.cut_application import apply_ranges, assess_offer

@@ -7,9 +7,10 @@ from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast, get_args
+from typing import TYPE_CHECKING, Any, Literal, cast, get_args
 
 import yaml
+from typing_extensions import TypedDict
 
 from podcast_mcp.config.defaults import EffectiveConfig, join_micro_fade_ms, mix_peak_ceiling_db
 from podcast_mcp.engines.analysis_policy import AnalysisPolicy

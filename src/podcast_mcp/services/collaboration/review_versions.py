@@ -18,7 +18,9 @@ from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
 from threading import Lock
-from typing import Any, TypedDict, cast
+from typing import Any, cast
+
+from typing_extensions import TypedDict
 
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.fingerprint import file_stamp

@@ -9,7 +9,9 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, TypedDict
+from typing import Any
+
+from typing_extensions import TypedDict
 
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.project.io import open_project

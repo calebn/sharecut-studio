@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, TypedDict, cast
+from typing import Any, cast
+
+from typing_extensions import TypedDict
 
 from podcast_mcp.edits.extracted_bed import (
     bedless_reason,

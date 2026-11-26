@@ -10,7 +10,9 @@ from dataclasses import asdict, dataclass
 from enum import StrEnum
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, TypedDict, cast
+from typing import TYPE_CHECKING, Any, cast
+
+from typing_extensions import TypedDict
 
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.engines.ffmpeg import MASTER_SEMANTICS_REV, FFmpegEngine

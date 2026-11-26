@@ -12,8 +12,10 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal, NotRequired, TypedDict
+from typing import Any, Literal, NotRequired
 from uuid import uuid4
+
+from typing_extensions import TypedDict
 
 from podcast_mcp.edits.audio_check_override import OVERRIDE_FLAG, audio_check_override
 from podcast_mcp.edits.bleed_restore_targets import BleedRestoreChangedError

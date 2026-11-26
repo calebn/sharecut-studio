@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import Literal
+
+from typing_extensions import TypedDict
 
 from podcast_mcp.segments.kit import KitListing
 from podcast_mcp.segments.kit_summary import MissingEntry

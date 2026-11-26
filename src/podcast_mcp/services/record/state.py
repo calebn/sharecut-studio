@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
-from typing import Annotated, Any, Literal, NotRequired, TypedDict
+from typing import Annotated, Any, Literal, NotRequired
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
+from typing_extensions import TypedDict
 
 from podcast_mcp.util.coded_error import CodedValueError
 
