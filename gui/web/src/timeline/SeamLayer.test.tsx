@@ -91,6 +91,15 @@ describe("SeamLayer", () => {
     );
   });
 
+  it("keeps a short-gap seam selectable and fixes its roll handle", () => {
+    load([left, { ...right, timeline_start: 4.03, timeline_end: 9.03 }]);
+    const { onSelectSeam } = mount();
+    const hit = screen.getByRole("button", { name: /^Split at 0:04\.0/ });
+    expect(hit).toHaveAttribute("data-hit-fixed", "true");
+    fireEvent.click(hit);
+    expect(onSelectSeam).toHaveBeenCalledWith("eb:L:R");
+  });
+
   it("draws a filled diamond where a cut took time out", () => {
     load([left, { ...right, source_start: 7 }]);
     const { container } = mount();

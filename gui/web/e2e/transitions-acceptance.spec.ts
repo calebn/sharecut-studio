@@ -159,6 +159,57 @@ test("clip names identify audio and pending hatching fills the lane", async ({
   await expectPageAxeClean(page, ".sys-inspector");
 });
 
+test("a short gap keeps its Seam visible and fixes the roll handle", async ({
+  page,
+}) => {
+  await openProject(page, projectPath);
+  const lane = page.locator(".lane-row").first();
+  const clips = lane.locator(".clip-block");
+  await expect(clips).toHaveCount(1);
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("ControlOrMeta+K");
+  await expect(clips).toHaveCount(2);
+  const rightId = await clips.nth(1).getAttribute("data-clip-id");
+  const projectUrl = `/api/project?path=${encodeURIComponent(projectPath)}&phase=full`;
+  const response = await page.request.get(projectUrl);
+  expect(response.ok()).toBe(true);
+  const data: {
+    clips: {
+      tracks: Record<
+        string,
+        { id: string; track_id: string; timeline_start: number }[]
+      >;
+    };
+  } = await response.json();
+  const right = Object.values(data.clips.tracks)
+    .flat()
+    .find((clip) => clip.id === rightId);
+  if (!right) throw new Error("Missing the split's right clip");
+  const seam = lane.locator(".seam-mark .sys-seam-hit");
+  await expect(seam).toBeVisible();
+  await expect(seam).not.toHaveAttribute("data-hit-fixed", "true");
+
+  await postDocumentCommand(
+    page,
+    "e2e-transitions-gap",
+    "MoveClips",
+    {
+      clips: [
+        {
+          clip_id: right.id,
+          track_id: right.track_id,
+          timeline_start: right.timeline_start + 0.03,
+        },
+      ],
+    },
+    projectPath,
+  );
+
+  await expect(seam).toBeVisible();
+  await expect(seam).toHaveAttribute("data-hit-fixed", "true");
+});
+
 test("the Seam diamond rolls one join and Undo restores both clip bounds", async ({
   page,
 }) => {
