@@ -221,6 +221,19 @@ currently open episode is selected by ShareCut Studio for every request. This
 does not change stdio MCP sessions or guest/share-token MCP, which keep their
 existing transport behavior.
 
+Studio can tell you when an app last *used* this address, but not whether one is
+still connected: with no sessions there is nothing to keep track of. It remembers
+only the time of the most recent POST to `/mcp` that got a successful (2xx)
+answer, in memory, so the note disappears when Studio restarts. Requests that are
+refused (wrong `Origin` or `Host`, unsupported `Accept`, wrong method) do not
+count; a tool call that returns an error result still does, because the request
+reached Studio. Nothing about the request is stored, only the time. The host-only
+route `GET /api/host-mcp/activity` returns `mounted`, `last_request_at` and
+`age_seconds` (`mounted` is `false` when this Studio is not serving `/mcp`).
+"Used a minute ago" does not mean the app is still connected, and "never used" only
+means nothing has called since Studio started. Any local program that sends a valid
+request counts, not only an agent.
+
 Use POST for host MCP requests. GET and HEAD return `405 Allow: POST` rather
 than opening a standalone SSE stream that cannot receive events from another
 stateless request. Legacy clients that send `notifications/cancelled` as a

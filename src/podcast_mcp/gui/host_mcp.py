@@ -6,6 +6,7 @@ Public URL is ``POST http://127.0.0.1:8765/mcp``. Guest share MCP stays on
 
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -90,6 +91,31 @@ def streamable_host_http_app(*, host: str = "127.0.0.1") -> ASGIApp:
     )
 
 
+class HostMcpActivity:
+    """When a request last got a 2xx answer from the host ``/mcp`` route, for this app only.
+
+    Holds exactly one value: a ``(monotonic, wall)`` pair of floats. Nothing from the
+    request (body, headers, client address, method) is kept, and it lives in memory only,
+    so it resets when Studio restarts. The pair is replaced in one assignment and read in
+    one load, which is atomic under the GIL: the ASGI wrapper writes on the event loop
+    while the route handler reads on a worker thread, and a reader can never see one
+    request's monotonic value paired with another's wall time. No lock is needed.
+    """
+
+    def __init__(self) -> None:
+        self._stamp: tuple[float, float] | None = None
+
+    def touch(self) -> None:
+        self._stamp = (time.monotonic(), time.time())
+
+    def snapshot(self) -> tuple[float | None, float | None]:
+        """``(age_seconds, wall_epoch)``, both ``None`` before the first counted request."""
+        stamp = self._stamp
+        if stamp is None:
+            return None, None
+        return max(0.0, time.monotonic() - stamp[0]), stamp[1]
+
+
 class _BindRequestApp:
     """ASGI wrapper so Starlette ``Route`` does not treat the binder as ``func(request)``."""
 
@@ -99,10 +125,23 @@ class _BindRequestApp:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         token = _request_app.set(self._app)
+        activity: HostMcpActivity | None = getattr(self._app.state, "host_mcp_activity", None)
+        counted = False
+
+        async def counting_send(message: Any) -> None:
+            nonlocal counted
+            if message["type"] == "http.response.start" and 200 <= message["status"] < 300:
+                counted = True
+                if activity is not None:
+                    activity.touch()  # a long streamed call refreshes at its start and its end
+            await send(message)
+
         try:
-            await self._inner(scope, receive, send)
+            await self._inner(scope, receive, counting_send)
         finally:
             _request_app.reset(token)
+            if counted and activity is not None:
+                activity.touch()
 
 
 def mount_host_mcp(
@@ -121,9 +160,11 @@ def mount_host_mcp(
     install_host_project_injection()
     if not enabled:
         app.state.host_mcp_session_manager = None
+        app.state.host_mcp_activity = None
         return
     http_app = streamable_host_http_app(host=host)
     app.state.host_mcp_session_manager = mcp.session_manager
+    app.state.host_mcp_activity = HostMcpActivity()
     app.router.routes.append(
         Route(
             HOST_MCP_PATH,
