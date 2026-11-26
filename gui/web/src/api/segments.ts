@@ -6,6 +6,7 @@ import type {
   TrackRole,
 } from "../types/project.generated";
 import { ApiError } from "../utils/apiError";
+import { cancelStaged, commitStaged, stageBundle } from "./bundleImport";
 import { replyHistoryHead, submitDocumentCommand } from "./documentEdits";
 import { apiFetch, HOST_KEY } from "./http";
 
@@ -387,44 +388,25 @@ export function segmentAudioUrl(
   );
 }
 
-const OCTET_STREAM = { "Content-Type": "application/octet-stream" };
+const SEGMENT_IMPORT = "/api/segments/import";
 
 /** Sends the file as the raw body, so the browser streams it; nothing is added to the library. */
-export async function previewSegmentImport(
+export function previewSegmentImport(
   file: File,
   signal?: AbortSignal,
 ): Promise<SegmentImportPreview> {
-  const res = await apiFetch(
-    HOST_KEY,
-    { host: "/api/segments/import/preview" },
-    { method: "POST", headers: OCTET_STREAM, body: file, signal },
-  );
-  return (await res.json()) as SegmentImportPreview;
+  return stageBundle<SegmentImportPreview>(SEGMENT_IMPORT, file, signal);
 }
 
-export async function commitSegmentImport(
+export function commitSegmentImport(
   token: string,
   signal?: AbortSignal,
 ): Promise<SegmentSaveResult> {
-  const res = await apiFetch(
-    HOST_KEY,
-    { host: "/api/segments/import" },
-    {
-      method: "POST",
-      headers: JSON_HEADERS,
-      body: JSON.stringify({ token }),
-      signal,
-    },
-  );
-  return (await res.json()) as SegmentSaveResult;
+  return commitStaged<SegmentSaveResult>(SEGMENT_IMPORT, token, signal);
 }
 
-export async function cancelSegmentImport(token: string): Promise<void> {
-  await apiFetch(
-    HOST_KEY,
-    { host: `/api/segments/import/${encodeURIComponent(token)}` },
-    { method: "DELETE", keepalive: true },
-  );
+export function cancelSegmentImport(token: string): Promise<void> {
+  return cancelStaged(SEGMENT_IMPORT, token);
 }
 
 /** One clip of a waiting upload, for the preview's play button. */
