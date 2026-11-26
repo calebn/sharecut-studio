@@ -229,6 +229,8 @@ describe("TimelinePresence", () => {
   describe("flags you can press", () => {
     const pill = (c: HTMLElement) =>
       c.querySelector<HTMLElement>("button.sys-presence-hit");
+    const anchor = () =>
+      document.querySelector<HTMLElement>(".timeline-presence-anchor")!;
     const crowd = () =>
       seed([
         remote("bea", { playhead_sec: 2 }),
@@ -361,7 +363,7 @@ describe("TimelinePresence", () => {
       expect(document.activeElement).toBe(pill(container));
     });
 
-    it("closes on a press outside, and a press on its own flag closes it rather than reopening", async () => {
+    it("closes on a press outside, and a press on the unseen trigger over its own pill closes it", async () => {
       crowd();
       const { container } = render(
         <>
@@ -375,8 +377,125 @@ describe("TimelinePresence", () => {
       expect(screen.queryByRole("menu")).toBeNull();
       await userEvent.click(pill(container)!);
       await screen.findByRole("menu");
-      await userEvent.click(pill(container)!);
+      await userEvent.click(anchor());
       expect(screen.queryByRole("menu")).toBeNull();
+      await userEvent.click(pill(container)!);
+      expect(await screen.findByRole("menu")).toBeInTheDocument();
+    });
+
+    it("anchors the menu to the pill's own box and reaches the trigger out to the press area", async () => {
+      crowd();
+      const { container } = render(<Host />);
+      const box = (left: number, top: number, size: number) =>
+        new DOMRect(left, top, size, size);
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+        function (this: Element) {
+          if (this.classList.contains("sys-presence-flag"))
+            return box(30, 4, 16);
+          if (this.classList.contains("sys-presence-hit"))
+            return box(16, 0, 44);
+          return new DOMRect();
+        },
+      );
+      await userEvent.click(pill(container)!);
+      await screen.findByRole("menu");
+      const style = anchor().style;
+      expect(style.getPropertyValue("--anchor-left")).toBe("30px");
+      expect(style.getPropertyValue("--anchor-top")).toBe("4px");
+      expect(style.getPropertyValue("--anchor-width")).toBe("16px");
+      expect(style.getPropertyValue("--anchor-height")).toBe("16px");
+      expect(style.getPropertyValue("--anchor-press-left")).toBe("-14px");
+      expect(style.getPropertyValue("--anchor-press-top")).toBe("-4px");
+      expect(style.getPropertyValue("--anchor-press-width")).toBe("44px");
+      expect(style.getPropertyValue("--anchor-press-height")).toBe("44px");
+    });
+
+    it("hides its trigger from a virtual cursor and names the menu itself", async () => {
+      crowd();
+      const { container } = render(<Host />);
+      await userEvent.click(pill(container)!);
+      const menu = await screen.findByRole("menu", {
+        name: "3 people near 0:02",
+      });
+      expect(anchor()).toHaveAttribute("aria-hidden", "true");
+      expect(anchor()).toHaveAttribute("tabindex", "-1");
+      expect(menu.closest("[aria-hidden='true']")).toBeNull();
+      await expectNoA11yViolations(container);
+    });
+
+    it("closes when the window zooms or scrolls, and stays shut", async () => {
+      crowd();
+      const { container, rerender } = render(<Host canvasWidthPx={1200} />);
+      await userEvent.click(pill(container)!);
+      await screen.findByRole("menu");
+      rerender(<Host zoomPxPerSec={20} canvasWidthPx={1200} />);
+      expect(screen.queryByRole("menu")).toBeNull();
+      await userEvent.click(pill(container)!);
+      await screen.findByRole("menu");
+      act(() => useDawStore.setState({ scrollLeft: 700 }));
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+
+    it("leaves focus where the press put it after a press on empty space", async () => {
+      crowd();
+      const { container } = render(
+        <>
+          <div data-testid="empty">empty</div>
+          <TimelineRuler
+            canvasWidthPx={600}
+            viewportPx={300}
+            sessionSec={60}
+            zoomPxPerSec={10}
+            fixedPlayhead={false}
+            onSeek={vi.fn()}
+            onFit={vi.fn()}
+          />
+          <Host />
+        </>,
+      );
+      await userEvent.click(pill(container)!);
+      await screen.findByRole("menu");
+      await userEvent.click(screen.getByTestId("empty"));
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(document.activeElement).toBe(document.body);
+    });
+
+    it("drops a person who left from an open list while two remain", async () => {
+      crowd();
+      const { container } = render(<Host />);
+      await userEvent.click(pill(container)!);
+      await screen.findByRole("menu");
+      act(() =>
+        useDawStore.setState({
+          sessionClients: sessionRoster([
+            { client_id: "me", role: "viewer", playhead_sec: 1 },
+            remote("bea", { playhead_sec: 2 }),
+            remote("cy", { playhead_sec: 2.1 }),
+          ]),
+        }),
+      );
+      const menu = screen.getByRole("menu");
+      expect(
+        within(menu)
+          .getAllByRole("menuitem")
+          .map((row) => row.textContent),
+      ).toEqual(["BEA0:02", "CY0:02"]);
+    });
+
+    it("says how many were near even where the link opens only some of them", async () => {
+      seed([
+        remote("bea", { playhead_sec: 2 }),
+        remote("cy", {
+          playhead_sec: 2.1,
+          meta: { display_name: "CY", ui: { tab: "history" } },
+        }),
+      ]);
+      useDawStore.setState({ guestMode: "view" });
+      const { container } = render(<Host />);
+      await userEvent.click(pill(container)!);
+      const menu = await screen.findByRole("menu");
+      expect(menu).toHaveTextContent("2 people here");
+      expect(within(menu).getAllByRole("menuitem")).toHaveLength(1);
     });
 
     it("lists only the people the link can open where they are", async () => {
@@ -783,6 +902,28 @@ describe("TimelinePresence", () => {
       off();
       expect(notified).toBe(0);
       expect(useDawStore.getState().rulerCovered).toBe(held);
+    });
+
+    it("lets go of a label only past the wider margin: the host hands its last set back", () => {
+      const at = (sec: number) =>
+        sessionRoster([
+          { client_id: "me", role: "viewer", playhead_sec: 1 },
+          remote("bea", { playhead_sec: sec }),
+        ]);
+      seed([remote("bea", { playhead_sec: 2 })]);
+      const held = render(<Host />);
+      expect(covered()).toEqual(["0"]);
+      let heldAt = 2;
+      for (let sec = 2.1; sec < 6; sec += 0.1) {
+        act(() => useDawStore.setState({ sessionClients: at(sec) }));
+        if (covered().length === 0) break;
+        heldAt = sec;
+      }
+      expect(heldAt).toBeGreaterThan(2);
+      held.unmount();
+      seed([remote("bea", { playhead_sec: heldAt })]);
+      render(<Host />);
+      expect(covered()).toEqual([]);
     });
 
     it("publishes the flag's merged box: two people on one spot cover as one", () => {

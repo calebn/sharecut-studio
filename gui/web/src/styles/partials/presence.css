@@ -133,7 +133,7 @@
   pointer-events: none;
 }
 
-/* The group flag's menu is a sibling of the aria-hidden overlay, inside a window that takes no pointer, so its root takes it back. Its trigger is a fixed, unseen box where the flag was when the menu opened. */
+/* The group flag's menu is a sibling of the aria-hidden overlay, inside a window that takes no pointer, so its root takes it back for the panel. Its trigger is an unseen box over the pill where it was when the menu opened, reaching out to the flag's whole press area, so a press there is a press on the trigger. */
 .timeline-presence-menu {
   display: contents;
   pointer-events: auto;
@@ -143,12 +143,23 @@
   position: fixed;
   inset-block-start: var(--anchor-top);
   inset-inline-start: var(--anchor-left);
+  z-index: 2;
   inline-size: var(--anchor-width);
   block-size: var(--anchor-height);
   padding: 0;
   border: 0;
   opacity: 0;
-  pointer-events: none;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.timeline-presence-anchor::after {
+  content: "";
+  position: absolute;
+  inset-block-start: var(--anchor-press-top);
+  inset-inline-start: var(--anchor-press-left);
+  inline-size: var(--anchor-press-width);
+  block-size: var(--anchor-press-height);
 }
 
 .timeline-presence-dot {

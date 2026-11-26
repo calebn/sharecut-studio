@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MARKER_ROW_HEIGHT, RULER_HEIGHT } from "../utils/layout";
 import {
   coveredTicks,
   FLAG_PX,
@@ -113,6 +114,14 @@ describe("presenceHitPx", () => {
     expect(presenceHitPx("fine")).toBe(24);
     expect(presenceHitPx("coarse")).toBe(44);
     expect(presenceHitPx("fine", 20)).toBe(30);
+  });
+
+  it("stops at the ruler plus the marker row, so it never reaches lane 1 at larger text", () => {
+    const depth = RULER_HEIGHT + MARKER_ROW_HEIGHT;
+    expect(presenceHitPx("coarse", 20)).toBe(depth);
+    expect(presenceHitPx("coarse", 32)).toBe(depth);
+    expect(presenceHitPx("fine", 32)).toBe(depth);
+    expect(presenceHitPx("fine", 20)).toBeLessThanOrEqual(depth);
   });
 });
 

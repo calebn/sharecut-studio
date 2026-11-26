@@ -1342,13 +1342,18 @@ enforced-by:
 - gui/web/e2e-storybook/presence-flag.spec.ts::a marker away from every flag keeps its press, and the press area ends above the first lane
 - gui/web/e2e-storybook/presence-flag.spec.ts::a clip tap beside a person's line, below the ruler and the marker row, still selects the clip
 - gui/web/e2e-storybook/presence-flag.spec.ts::a pan that starts on a flag does not jump
+- gui/web/e2e-storybook/presence-flag.spec.ts::the press area stops above the first lane at twice the text size
+- gui/web/src/system/presenceMath.test.ts::stops at the ruler plus the marker row, so it never reaches lane 1 at larger text
 - gui/web/src/timeline/TimelinePresence.test.tsx::sizes the press area from the pointer in use: 24 px for a mouse, 44 px for a finger
 -->
 
 A remote playhead's flag on the Edit ruler is a real button whose own box is
-the press area: 24 px square for a mouse, 44 px square for a finger, from the
-last pointer used (`usePointerType`, passed to `presenceFlags` as `hit`, so the
-merge distance and the box are one number). A 16 px pill is drawn inside it. People
+the press area: 24 px square for a mouse, 44 px square for a finger at the
+default text size, from the last pointer used (`usePointerType`, passed to
+`presenceFlags` as `hit`, so the merge distance and the box are one number). The
+box scales with the root font size but is capped at 48 px, the fixed 24 px
+ruler plus one 24 px marker row, so larger text never takes it into the first
+lane. A 16 px pill is drawn inside it. People
 whose boxes would overlap share one `+N` flag, so no two press areas ever
 overlap. The button has `touch-action: manipulation`, so a swipe that starts on
 it pans the timeline and does not jump, and it is out of the tab order: the
@@ -1356,7 +1361,8 @@ people list in the header is the keyboard and screen-reader way to go to someone
 
 On a phone the box is 44 px tall from the top of the 24 px ruler, so it covers
 the ruler and the top 20 px of the marker row, and never reaches the first
-lane (the lane starts 48 px down). Inside that box a press goes to the flag.
+lane (the lane starts 48 px down, and the box stops there at any text size).
+Inside that box a press goes to the flag.
 That takes a marker's tap in its top 20 px wherever a person stands within a
 44 px span of it, and it takes the ruler's tap to seek there. It exists only
 where someone is, and a tap on the marker's lower part, on any clip and

@@ -1,5 +1,6 @@
 import { initials } from "../presence/colors";
 import type { PresencePerson } from "../presence/presencePeople";
+import { MARKER_ROW_HEIGHT, RULER_HEIGHT } from "../utils/layout";
 import {
   DEFAULT_REM_PX,
   labelInkSpan,
@@ -46,12 +47,15 @@ const GROUP_COUNT_CAP = 99;
 const COVER_PAD_REM = 0.25;
 const UNCOVER_PAD_REM = 0.375;
 
-/** The press area's side in px: 24 for a mouse and 44 for a finger at a 16 px root font. */
+/** The press area's side in px: 24 for a mouse and 44 for a finger at a 16 px root font. The ruler and marker row are fixed px, so larger text stops at their depth and the box never reaches lane 1. */
 export function presenceHitPx(
   pointer: "fine" | "coarse",
   rem: number = DEFAULT_REM_PX,
 ): number {
-  return (pointer === "coarse" ? HIT_TOUCH_REM : HIT_MOUSE_REM) * rem;
+  return Math.min(
+    (pointer === "coarse" ? HIT_TOUCH_REM : HIT_MOUSE_REM) * rem,
+    RULER_HEIGHT + MARKER_ROW_HEIGHT,
+  );
 }
 
 export type PresenceFlagPerson = {

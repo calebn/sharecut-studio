@@ -20,17 +20,15 @@ type GroupRow = {
   time: string;
 };
 
-/** A group flag's menu as it was when opened: where the flag was, who was in it and where they were. It does not follow the flag. */
+/** A group flag's menu as it was when opened: where the pill was, who was in it and where they were. It does not follow the flag. */
 type OpenGroup = {
   key: string;
   anchor: DOMRect;
+  press: DOMRect;
   members: readonly string[];
   label: string;
   rows: readonly GroupRow[];
 };
-
-/** The click that ends a press arrives within this long of its pointer down. */
-const PRESS_MS = 1000;
 
 const px = (value: number) => `${value}px`;
 const flagSelector = (key: string) => `[data-flag="${CSS.escape(key)}"]`;
@@ -39,14 +37,18 @@ const flagSelector = (key: string) => `[data-flag="${CSS.escape(key)}"]`;
  * The `+N` flag's menu. The system Presence overlay is aria-hidden and takes no
  * pointer, so the menu is rendered by the host beside it, not inside it. Its
  * open state is kept here against the members' ids: the flag can change key or
- * vanish as people move, and the menu stays as it was until fewer than two of
- * them are still on the ruler.
+ * vanish as people move, and the menu stays as it was until the window moves
+ * (a scroll or a zoom) or fewer than two of the members are still in one flag.
+ * Its trigger is an unseen box over the pill, so a press on the pill is a press
+ * on the trigger and toggles the menu shut.
  */
 export function usePresenceGroup({
   flags,
   jumpable,
   names,
   host,
+  start,
+  pxPerSecond,
   onGoTo,
 }: {
   flags: readonly PresenceFlag[];
@@ -54,13 +56,15 @@ export function usePresenceGroup({
   names: ReadonlyMap<string, string>;
   /** Holds the flags: where focus comes back to. */
   host: RefObject<HTMLElement | null>;
+  /** The window's left edge in seconds and its scale: the menu closes when either moves. */
+  start: number;
+  pxPerSecond: number;
   onGoTo: (id: string) => void;
 }): {
-  onGroup: (key: string, anchor: DOMRect) => void;
+  onGroup: (key: string, anchor: DOMRect, press: DOMRect) => void;
   menu: ReactNode;
 } {
   const [group, setGroup] = useState<OpenGroup | null>(null);
-  const closed = useRef({ key: "", at: Number.NEGATIVE_INFINITY });
   const present = useMemo(
     () => new Set(flags.flatMap((flag) => flag.people.map((p) => p.id))),
     [flags],
@@ -75,47 +79,51 @@ export function usePresenceGroup({
       )
     : 0;
   const shown = group !== null && together >= 2;
-  const close = useStableCallback(() => {
-    const press = window.event;
-    if (
-      group !== null &&
-      press?.type === "pointerdown" &&
-      press.target instanceof Element &&
-      press.target.closest(flagSelector(group.key))
-    ) {
-      closed.current = { key: group.key, at: performance.now() };
-    }
+  const returnFocus = useRef(false);
+  const close = useStableCallback(() => setGroup(null));
+  const choose = useStableCallback((id: string) => {
+    returnFocus.current = true;
+    onGoTo(id);
     setGroup(null);
   });
-  const onGroup = useStableCallback((key: string, anchor: DOMRect) => {
-    const flag = flags.find((item) => item.key === key);
-    const first = flag?.people[0];
-    if (flag === undefined || first === undefined) return;
-    const press = closed.current;
-    closed.current = { key: "", at: Number.NEGATIVE_INFINITY };
-    if (press.key === key && performance.now() - press.at < PRESS_MS) return;
-    setGroup({
-      key,
-      anchor,
-      members: flag.people.map((person) => person.id),
-      label: `${flag.people.length} people near ${formatTimeShort(first.time)}`,
-      rows: flag.people
-        .filter((person) => jumpable.has(person.id))
-        .map((person) => ({
-          id: person.id,
-          name: names.get(person.id) ?? person.name,
-          colorIndex: person.colorIndex,
-          time: formatTimeShort(person.time),
-        })),
-    });
-  });
+  const onGroup = useStableCallback(
+    (key: string, anchor: DOMRect, press: DOMRect) => {
+      const flag = flags.find((item) => item.key === key);
+      const first = flag?.people[0];
+      if (flag === undefined || first === undefined) return;
+      setGroup({
+        key,
+        anchor,
+        press,
+        members: flag.people.map((person) => person.id),
+        label: `${flag.people.length} people near ${formatTimeShort(first.time)}`,
+        rows: flag.people
+          .filter((person) => jumpable.has(person.id))
+          .map((person) => ({
+            id: person.id,
+            name: names.get(person.id) ?? person.name,
+            colorIndex: person.colorIndex,
+            time: formatTimeShort(person.time),
+          })),
+      });
+    },
+  );
+  useEffect(() => {
+    setGroup(null);
+  }, [start, pxPerSecond]);
   const opened = useRef<string | null>(null);
   useEffect(() => {
-    if (group !== null && !shown) setGroup(null);
+    if (group !== null && !shown) {
+      returnFocus.current = true;
+      setGroup(null);
+    }
     const key = shown ? group.key : null;
     const before = opened.current;
     opened.current = key;
     if (before === null || key !== null) return;
+    const restore = returnFocus.current;
+    returnFocus.current = false;
+    if (!restore) return;
     const active = document.activeElement;
     if (active && active !== document.body && active.isConnected) return;
     const target =
@@ -136,7 +144,7 @@ export function usePresenceGroup({
             type="button"
             {...trigger}
             tabIndex={-1}
-            aria-label={group.label}
+            aria-hidden="true"
             className="timeline-presence-anchor"
             style={
               {
@@ -144,6 +152,10 @@ export function usePresenceGroup({
                 "--anchor-left": px(group.anchor.left),
                 "--anchor-width": px(group.anchor.width),
                 "--anchor-height": px(group.anchor.height),
+                "--anchor-press-top": px(group.press.top - group.anchor.top),
+                "--anchor-press-left": px(group.press.left - group.anchor.left),
+                "--anchor-press-width": px(group.press.width),
+                "--anchor-press-height": px(group.press.height),
               } as CSSProperties
             }
           />
@@ -162,10 +174,7 @@ export function usePresenceGroup({
               key={row.id}
               detail={row.time}
               ariaDescription={`at ${row.time}`}
-              onSelect={() => {
-                onGoTo(row.id);
-                close();
-              }}
+              onSelect={() => choose(row.id)}
             >
               <span
                 className="timeline-presence-dot"
