@@ -162,7 +162,7 @@ function useInsertForm(
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         if (segmentInsertRefusal(error) === "segment_placement_unsupported")
-          setPickedPlacement(null);
+          setPickedPlacement("ripple");
         setPreview({ key, error: segmentPreviewMessage(error) });
       });
     return () => controller.abort();
@@ -207,7 +207,7 @@ function useInsertForm(
       onClose();
     } catch (error) {
       if (segmentInsertRefusal(error) === "segment_placement_unsupported")
-        setPickedPlacement(null);
+        setPickedPlacement("ripple");
       setFailure(segmentInsertMessage(error));
       insertInFlight.current = false;
       busy.current = false;

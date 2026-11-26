@@ -100,20 +100,26 @@ def keeps_reconciliation(
 ) -> bool:
     """Whether a ripple insert of ``segment`` at ``at`` leaves a fresh reconciliation valid.
 
-    True only for a ripple of a non-dialogue segment that splits no dialogue clip and moves
-    no clip off the dialogue tracks. Then every dialogue track shifts by the same length, so
-    the verdicts between tracks are unchanged. Call it on the project before the insert.
+    True only for a ripple of a non-dialogue segment that moves no clip off the dialogue
+    tracks and either moves every dialogue clip or none. Cross-track checks read the other
+    track's window, so a point between dialogue clips on different tracks (even 10 ms apart)
+    would change what they measure. Call it on the project before the insert.
     """
     if placement != "ripple" or segment.role is TrackRole.DIALOGUE:
         return False
     dialogue = set(dialogue_track_ids(project))
+    moved = stays = False
     for clip in project.clips:
         if clip.track_id in dialogue:
-            if clip.timeline_start + _EDGE_EPS_SEC < at < clip.timeline_end - _EDGE_EPS_SEC:
+            if clip.timeline_start >= at - _EDGE_EPS_SEC:
+                moved = True
+            elif clip.timeline_end > at + _EDGE_EPS_SEC:
                 return False
+            else:
+                stays = True
         elif clip.timeline_end > at + _EDGE_EPS_SEC:
             return False
-    return True
+    return not (moved and stays)
 
 
 def _unique_track_id(project: EpisodeProject, preferred: str) -> str:
