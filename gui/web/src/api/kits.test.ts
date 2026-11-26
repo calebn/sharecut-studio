@@ -163,6 +163,19 @@ describe("kit import routes", () => {
     expect(JSON.parse(init?.body as string)).toEqual({ token: "tok" });
   });
 
+  it("says so in plain words when a 2xx is not JSON, never the parser's text", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response("<html>Sign in to the network</html>", { status: 200 }),
+    );
+    const failure = await previewKitImport(file).catch((error) => error);
+    expect(failure).toBeInstanceOf(ApiError);
+    expect(failure.message).not.toMatch(/JSON|Unexpected|token/i);
+    expect(failure.message).toMatch(/can't read/);
+    await expect(commitKitImport("t")).rejects.toMatchObject({
+      code: "bad_reply",
+    });
+  });
+
   it("cancels with a keepalive DELETE on the escaped token", async () => {
     vi.mocked(apiFetch).mockResolvedValue(json({ cancelled: "a/b" }));
     await cancelKitImport("a/b");
@@ -174,12 +187,20 @@ describe("kit import routes", () => {
   it.each([
     ["a proxy's coded refusal", new ApiError("x", "payload_too_large", 413)],
     ["a proxy's bare 413", new ApiError("x", null, 413)],
-    ["a dropped connection", new ApiError("x", "network_error")],
   ])("says the file is too large for %s", async (_name, failure) => {
     vi.mocked(apiFetch).mockRejectedValue(failure);
     await expect(previewKitImport(file)).rejects.toMatchObject({
       message: KIT_TOO_LARGE_MESSAGE,
     });
+  });
+
+  it("says the connection dropped, not that the file is too large", async () => {
+    const dropped = new ApiError(
+      "Couldn't reach the server. Check your connection and try again.",
+      "network_error",
+    );
+    vi.mocked(apiFetch).mockRejectedValue(dropped);
+    await expect(previewKitImport(file)).rejects.toBe(dropped);
   });
 
   it("keeps the server's own words for its size limit and other refusals", async () => {
