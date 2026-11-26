@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { minimalProject } from "../test/fixtures";
 import { useDawStore } from "./dawStore";
 
@@ -31,6 +31,16 @@ describe("local source preview ownership", () => {
     expect(JSON.stringify(s.buildViewerSnapshot())).not.toContain(
       "sourcePreview",
     );
+  });
+  it("ends follow once when a source preview starts, and is silent when not following", () => {
+    const announce = vi.fn();
+    useDawStore.setState({ followingClientId: "other", playbackRate: 1.5, announceStatus: announce });
+    useDawStore.getState().beginSourcePreview(request);
+    expect(useDawStore.getState().followingClientId).toBeNull();
+    expect(useDawStore.getState().playbackRate).toBe(1);
+    expect(announce).toHaveBeenCalledTimes(1);
+    useDawStore.getState().beginSourcePreview({ ...request, startSec: 3, endSec: 4 });
+    expect(announce).toHaveBeenCalledTimes(1);
   });
   it("an explicit Stop cancels preview even when the timeline is already stopped", () => {
     useDawStore.getState().beginSourcePreview(request);
