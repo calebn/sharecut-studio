@@ -68,9 +68,7 @@ def test_two_track_cut_subtracts_pad_once_per_track_and_once_for_union():
 
 
 def test_multi_span_cut_subtracts_pad_once_per_record():
-    impact = _impact(
-        _record(replace_gap_sec=0.4, cut_spans={"host": [(1.0, 2.0), (5.0, 6.0)]})
-    )
+    impact = _impact(_record(replace_gap_sec=0.4, cut_spans={"host": [(1.0, 2.0), (5.0, 6.0)]}))
     assert impact.span_sec == pytest.approx(2.0)
     assert impact.net_sec == pytest.approx(1.6)
     assert impact.net_track_sec("host") == pytest.approx(1.6)
