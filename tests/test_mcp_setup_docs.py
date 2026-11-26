@@ -94,5 +94,5 @@ def test_docs_site_mcp_setup_troubleshooting_covers_the_last_used_line() -> None
     page = (Path(__file__).parents[1] / "docs-site" / "pages" / "mcp-setup.md").read_text()
     flat = " ".join(page.split())
 
-    assert 'No app has used this address since Studio started' in flat
+    assert "No app has used this address since Studio started" in flat
     assert "the port can change between runs" in flat
