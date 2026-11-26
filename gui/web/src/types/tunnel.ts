@@ -22,6 +22,9 @@ export type TunnelReasonKind =
   | "config"
   | "error";
 
+/** Why a failure happened, when `reason_kind` alone cannot say. Absent in older status files. */
+export type TunnelReasonCode = "relay_older";
+
 /** What the sharing service holds back while online sharing is connected. */
 export type TunnelLimit = "shares" | "bandwidth";
 
@@ -29,6 +32,7 @@ export type TunnelStatus = {
   state: TunnelState;
   reason: string | null;
   reason_kind: TunnelReasonKind | null;
+  reason_code?: TunnelReasonCode | null;
   /** Set while `state` is `limited`. */
   limit?: TunnelLimit | null;
   /** Where to report a problem; the Help dialog's link. */

@@ -650,3 +650,37 @@ def test_configured_secrets_ignores_a_malformed_object_store_block(tmp_path: Pat
     path = tmp_path / "relay.yaml"
     path.write_text(f"host_token: {host}\nobject_store: nope\n", encoding="utf-8")
     assert configured_secrets(path, environ={}) == (host,)
+
+
+def test_a_renew_404_leaves_a_signed_in_host_ready(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+    import time
+
+    import httpx
+
+    from podcast_mcp.services.collaboration.enrollment import (
+        Credentials,
+        Enrollment,
+        LeaseStore,
+        http_origin,
+    )
+
+    monkeypatch.setenv("PODCAST_RELAY_URL", "wss://relay.example.test/tunnel")
+    monkeypatch.setenv("PODCAST_RELAY_PUBLIC_BASE_URL", "https://relay.example.test")
+    monkeypatch.delenv("PODCAST_RELAY_HOST_TOKEN", raising=False)
+    cfg = ready_relay_config()
+    assert cfg is not None
+    store = LeaseStore(tmp_path / "lease.json")
+    now = int(time.time())
+    stored = Credentials("i1", "lease", "key", now + 3600, now - 5)
+    store.save(origin=http_origin(cfg.relay_url), credentials=stored)
+
+    async def missing(self, url, **kwargs):
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", missing)
+
+    assert asyncio.run(Enrollment(cfg, store=store, build="0.1.5").credentials()) == stored
+    assert ready_relay_config() is not None

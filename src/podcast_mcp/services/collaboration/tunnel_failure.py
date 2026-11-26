@@ -26,6 +26,7 @@ class FailureKind(StrEnum):
     ERROR = "error"
 
 
+RELAY_OLDER = "relay_older"
 UNAVAILABLE_FIX = "If you think this is a mistake, contact support."
 UNAVAILABLE_DETAIL = "online sharing is unavailable right now"
 
@@ -63,6 +64,8 @@ class TunnelFailure:
     fix: str = ""
     # The relay no longer honors the stored lease, but a fresh enrollment can replace it.
     stale_lease: bool = False
+    # Additive machine-readable cause for the GUI, which matches on it rather than on ``detail``.
+    reason_code: str | None = None
 
     @property
     def fatal(self) -> bool:

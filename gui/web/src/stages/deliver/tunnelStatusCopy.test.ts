@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type {
   TunnelLimit,
+  TunnelReasonCode,
   TunnelReasonKind,
   TunnelState,
   TunnelStatus,
@@ -15,9 +16,11 @@ function status(
   state: TunnelState,
   reasonKind: TunnelReasonKind | null = null,
   limit: TunnelLimit | null = null,
+  reasonCode?: TunnelReasonCode,
 ): TunnelStatus {
   return {
     limit,
+    ...(reasonCode ? { reason_code: reasonCode } : {}),
     state,
     reason: reasonKind ? `${reasonKind}: detail` : null,
     reason_kind: reasonKind,
@@ -103,6 +106,18 @@ describe("tunnelStatusCopy", () => {
       },
     ],
     [
+      "offline with an older sharing service",
+      status("offline", "config", null, "relay_older"),
+      {
+        tone: "problem",
+        headline: NOT_REACHABLE,
+        fix: {
+          summary: "How to fix",
+          body: "Your sharing service looks older than this version of ShareCut. Ask whoever runs it to update it, or check the address in your settings.",
+        },
+      },
+    ],
+    [
       "limited by the number of links",
       status("limited", null, "shares"),
       {
@@ -175,6 +190,11 @@ describe("tunnelStatusCopy", () => {
     const text = states
       .flatMap((s) =>
         kinds.map((k) => JSON.stringify(tunnelStatusCopy(status(s, k)))),
+      )
+      .concat(
+        JSON.stringify(
+          tunnelStatusCopy(status("offline", "config", null, "relay_older")),
+        ),
       )
       .join(" ");
     for (const banned of [

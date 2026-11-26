@@ -8,7 +8,7 @@ import os
 import stat
 import time
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import httpx
@@ -19,6 +19,7 @@ from tests.record_links import make_project, mint_record_link
 from tests.relay_enroll import enable_enrollment, enroll_body
 from tests.relay_live import live_relay
 
+from podcast_mcp.config import runtime as runtime_module
 from podcast_mcp.config.runtime import RelayConfig, ready_relay_config
 from podcast_mcp.services.collaboration import enrollment as enrollment_module
 from podcast_mcp.services.collaboration.enrollment import Enrollment, LeaseStore, http_origin
@@ -424,6 +425,7 @@ def test_a_relay_that_does_not_enroll_stops_with_a_plain_message(
         "online sharing is not available at this address",
     )
     assert failure.fatal
+    assert failure.reason_code is None
 
 
 def test_a_named_relay_that_does_not_enroll_reads_not_set_up_again_after_one_try(
@@ -457,6 +459,17 @@ def test_no_enrollment_failure_says_tunnel_relay_lease_or_token(status: int, bod
     assert not any(banned in words for banned in ("tunnel", "relay", "lease", "token"))
 
 
+@pytest.mark.parametrize("fatal", [False, True])
+def test_the_older_service_failure_says_tunnel_relay_lease_or_token_nowhere(fatal: bool) -> None:
+    from podcast_mcp.services.collaboration.enrollment import _older_service
+
+    failure = _older_service(fatal=fatal).failure
+
+    words = (failure.detail + " " + failure.fix).lower()
+    assert not any(banned in words for banned in ("tunnel", "relay", "lease", "token"))
+    assert (failure.fatal, failure.reason_code) == (fatal, "relay_older")
+
+
 def test_the_store_ignores_a_lease_for_another_relay(store) -> None:
     from podcast_mcp.services.collaboration.enrollment import Credentials
 
@@ -480,6 +493,354 @@ def test_the_store_ignores_a_lease_for_another_relay(store) -> None:
 )
 def test_http_origin(relay_url: str, origin: str) -> None:
     assert http_origin(relay_url) == origin
+
+
+def _past_renew(relay: Relay, store: LeaseStore, *, exp_in: float = 3600.0) -> None:
+    origin = http_origin(relay.config().relay_url)
+    stored = store.load(origin=origin)
+    assert stored is not None
+    now = int(time.time())
+    store.save(origin=origin, credentials=replace(stored, renew_at=now - 5, exp=now + int(exp_in)))
+
+
+def _renew_is_gone(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(enrollment_module, "RENEW_PATH", "/api/relay/renew-moved")
+
+
+def test_a_renew_404_keeps_the_stored_lease_and_the_tunnel_connecting(
+    relay, project, store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = mint_record_link(project)
+    asyncio.run(_serve(_client(relay, project, store), relay, token))
+    _past_renew(relay, store)
+    before = json.loads(store._path.read_text())
+    _renew_is_gone(monkeypatch)
+
+    asyncio.run(_serve(_client(relay, project, store), relay, token))
+
+    assert json.loads(store._path.read_text())["lease"] == before["lease"]
+    assert relay.config().relay_url not in runtime_module._NON_ENROLLING_RELAYS
+
+
+def test_three_renew_404s_in_a_row_stop_with_the_older_service_message(
+    relay, project, store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asyncio.run(_serve(_client(relay, project, store), relay, mint_record_link(project)))
+    _past_renew(relay, store)
+    _renew_is_gone(monkeypatch)
+    skew = [0.0]
+    enrollment = Enrollment(
+        relay.config(),
+        store=store,
+        build="0.1.5",
+        clock=lambda: time.time() + skew[0],
+        monotonic=lambda: time.monotonic() + skew[0],
+    )
+
+    async def attempts() -> list[object]:
+        results: list[object] = []
+        for _ in range(3):
+            skew[0] += enrollment_module.NOT_FOUND_MIN_SPAN_SEC / 2
+            try:
+                results.append(await enrollment.credentials())
+            except TunnelError as exc:
+                results.append(exc)
+        return results
+
+    first, second, third = asyncio.run(attempts())
+
+    assert isinstance(first, enrollment_module.Credentials)
+    assert isinstance(second, enrollment_module.Credentials)
+    assert isinstance(third, TunnelError)
+    failure = third.failure
+    assert (failure.kind, failure.fatal, failure.reason_code) == (
+        FailureKind.CONFIG,
+        True,
+        "relay_older",
+    )
+    assert "older than this version of ShareCut" in failure.detail
+    assert relay.config().relay_url not in runtime_module._NON_ENROLLING_RELAYS
+
+
+def test_a_renew_that_succeeds_resets_the_count_of_404s(
+    relay, project, store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asyncio.run(_serve(_client(relay, project, store), relay, mint_record_link(project)))
+    enrollment = Enrollment(relay.config(), store=store, build="0.1.5")
+
+    async def credentials_after_404s(count: int) -> None:
+        _past_renew(relay, store)
+        monkeypatch.setattr(enrollment_module, "RENEW_PATH", "/api/relay/renew-moved")
+        for _ in range(count):
+            await enrollment.credentials()
+
+    async def renew_for_real() -> None:
+        _past_renew(relay, store)
+        monkeypatch.undo()
+        await enrollment.credentials()
+
+    async def scenario() -> None:
+        await credentials_after_404s(2)
+        assert enrollment._not_found == 2
+        await renew_for_real()
+        assert enrollment._not_found == 0
+        await credentials_after_404s(2)
+        assert enrollment._not_found == 2
+
+    asyncio.run(scenario())
+
+
+def test_an_expired_lease_with_no_enrollment_endpoint_stops_with_the_older_service_message(
+    relay, project, store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asyncio.run(_serve(_client(relay, project, store), relay, mint_record_link(project)))
+    _past_renew(relay, store, exp_in=-10)
+    monkeypatch.setattr(enrollment_module, "ENROLL_PATH", "/api/relay/enroll-moved")
+
+    with pytest.raises(TunnelError) as caught:
+        asyncio.run(Enrollment(relay.config(), store=store, build="0.1.5").credentials())
+
+    failure = caught.value.failure
+    assert (failure.kind, failure.fatal, failure.reason_code) == (
+        FailureKind.CONFIG,
+        True,
+        "relay_older",
+    )
+    assert "older than this version of ShareCut" in failure.detail
+    assert relay.config().relay_url not in runtime_module._NON_ENROLLING_RELAYS
+
+
+def test_a_renew_404_does_not_stop_a_connected_tunnel_or_unready_the_host(
+    relay, project, store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = mint_record_link(project)
+    asyncio.run(_serve(_client(relay, project, store), relay, token))
+    _past_renew(relay, store)
+    _renew_is_gone(monkeypatch)
+    renews = 0
+    real_renew = Enrollment._renew
+
+    async def counted(self, stored):
+        nonlocal renews
+        renews += 1
+        return await real_renew(self, stored)
+
+    monkeypatch.setattr(Enrollment, "_renew", counted)
+    monkeypatch.delenv("PODCAST_RELAY_HOST_TOKEN", raising=False)
+    monkeypatch.setenv("PODCAST_RELAY_URL", relay.config().relay_url)
+    monkeypatch.setenv("PODCAST_RELAY_PUBLIC_BASE_URL", relay.config().public_base_url)
+
+    async def run() -> None:
+        task = asyncio.create_task(_client(relay, project, store).run())
+        try:
+            await until(lambda: relay.app.state.relay.tunnel_for_token(token) is not None)
+            await until(lambda: renews >= 4, timeout=15.0)
+            assert relay.app.state.relay.tunnel_for_token(token) is not None
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(run())
+
+    assert ready_relay_config() is not None
+
+
+class _ScriptedRenew:
+    """An Enrollment whose renew replies come from a script and whose clock the test moves."""
+
+    def __init__(self, store: LeaseStore, monkeypatch: pytest.MonkeyPatch, replies: list) -> None:
+        self.now = time.time()
+        self.mono = 1000.0
+        cfg = RelayConfig(
+            relay_url="wss://r.example.test/tunnel", public_base_url="https://r.example.test"
+        )
+        store.save(
+            origin=http_origin(cfg.relay_url),
+            credentials=enrollment_module.Credentials(
+                "i1", "lease", "key", int(self.now) + 10**6, int(self.now) - 5
+            ),
+        )
+        self.enrollment = Enrollment(
+            cfg,
+            store=store,
+            build="0.1.5",
+            clock=lambda: self.now,
+            monotonic=lambda: self.mono,
+        )
+        queue = iter(replies)
+
+        async def post(client, url, **kwargs):
+            reply = next(queue)
+            if isinstance(reply, Exception):
+                raise reply
+            return httpx.Response(reply, json={})
+
+        monkeypatch.setattr(httpx.AsyncClient, "post", post)
+
+    def run(self, steps: int, *, every: float, strict: bool = False) -> list[str]:
+        async def go() -> list[str]:
+            seen = []
+            for _ in range(steps):
+                try:
+                    await self.enrollment.credentials(strict=strict)
+                    seen.append("ok")
+                except TunnelError as exc:
+                    seen.append("fatal" if exc.failure.fatal else "retry")
+                except OSError:
+                    seen.append("error")
+                self.now += every
+                self.mono += every
+            return seen
+
+        return asyncio.run(go())
+
+
+def test_interleaved_404s_and_other_failures_never_go_fatal(
+    store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    replies = [404, 503, 404, httpx.ConnectError("down"), 404, 401, 404, 503, 404]
+    scripted = _ScriptedRenew(store, monkeypatch, replies)
+
+    seen = scripted.run(len(replies), every=400.0)
+
+    assert "fatal" not in seen
+    assert scripted.enrollment._not_found == 1
+
+
+def test_three_404s_inside_the_minimum_span_stay_non_fatal(
+    store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scripted = _ScriptedRenew(store, monkeypatch, [404] * 5)
+
+    assert scripted.run(5, every=10.0) == ["ok"] * 5
+    assert scripted.enrollment._not_found == 5
+
+
+def test_three_404s_spanning_the_minimum_are_fatal(store, monkeypatch: pytest.MonkeyPatch) -> None:
+    scripted = _ScriptedRenew(store, monkeypatch, [404] * 3)
+
+    seen = scripted.run(3, every=enrollment_module.NOT_FOUND_MIN_SPAN_SEC / 2)
+
+    assert seen == ["ok", "ok", "fatal"]
+
+
+def test_two_keep_fresh_404s_then_a_reconnect_still_gets_the_stored_lease(
+    store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scripted = _ScriptedRenew(store, monkeypatch, [404] * 3)
+
+    assert len(_waits(scripted.enrollment, 2, jitter=lambda: 0.0)) == 2
+
+    credentials = asyncio.run(scripted.enrollment.credentials())
+    assert credentials.lease == "lease"
+
+
+def test_one_or_two_404s_spanning_the_minimum_stay_non_fatal(
+    store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scripted = _ScriptedRenew(store, monkeypatch, [404] * 3)
+
+    seen = scripted.run(3, every=400.0)
+
+    assert seen == ["ok", "ok", "fatal"]
+
+
+def test_a_failure_that_is_not_a_404_clears_when_the_streak_began(
+    store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scripted = _ScriptedRenew(store, monkeypatch, [404, 503, 404, 404, 404])
+    scripted.run(2, every=1000.0)
+    assert scripted.enrollment._first_not_found is None
+
+    assert scripted.run(3, every=10.0) == ["ok"] * 3
+
+
+def test_an_error_that_is_not_a_tunnel_failure_ends_the_streak_too(
+    store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scripted = _ScriptedRenew(store, monkeypatch, [404, OSError("disk"), 404])
+
+    assert scripted.run(3, every=1.0) == ["ok", "error", "ok"]
+    assert scripted.enrollment._not_found == 1
+
+
+def test_a_wall_clock_jump_does_not_make_quick_404s_fatal(
+    store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scripted = _ScriptedRenew(store, monkeypatch, [404] * 3)
+    seen = scripted.run(1, every=1.0)
+    scripted.now += 8 * 3600
+
+    seen += scripted.run(2, every=1.0)
+
+    assert seen == ["ok"] * 3
+
+
+def test_a_wall_clock_step_back_does_not_delay_escalation(
+    store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scripted = _ScriptedRenew(store, monkeypatch, [404] * 3)
+    seen = scripted.run(1, every=200.0)
+    scripted.now -= 3600
+
+    seen += scripted.run(2, every=200.0)
+
+    assert seen == ["ok", "ok", "fatal"]
+
+
+def test_a_fresh_stored_lease_ends_the_404_streak(store, monkeypatch: pytest.MonkeyPatch) -> None:
+    scripted = _ScriptedRenew(store, monkeypatch, [404])
+    scripted.run(1, every=1.0)
+    assert scripted.enrollment._not_found == 1
+    origin = http_origin("wss://r.example.test/tunnel")
+    stored = store.load(origin=origin)
+    store.save(origin=origin, credentials=replace(stored, renew_at=int(scripted.now) + 1000))
+    monkeypatch.setattr(Enrollment, "_build_matches", lambda self, stored: True)
+
+    asyncio.run(scripted.enrollment.credentials())
+
+    assert (scripted.enrollment._not_found, scripted.enrollment._first_not_found) == (0, None)
+
+
+@pytest.mark.parametrize("with_previous", [False, True])
+def test_a_404_on_the_sign_up_post_keeps_the_address_message(
+    store, monkeypatch: pytest.MonkeyPatch, with_previous: bool
+) -> None:
+    scripted = _ScriptedRenew(store, monkeypatch, [])
+    if not with_previous:
+        store.clear()
+    else:
+        origin = http_origin("wss://r.example.test/tunnel")
+        stored = store.load(origin=origin)
+        store.save(origin=origin, credentials=replace(stored, exp=int(scripted.now) - 10))
+
+    async def probe(client, url, **kwargs):
+        return httpx.Response(200, json={"enroll": True, "pow_bits": 0, "now": int(scripted.now)})
+
+    async def refuse(client, url, **kwargs):
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", probe)
+    monkeypatch.setattr(httpx.AsyncClient, "post", refuse)
+
+    with pytest.raises(TunnelError) as caught:
+        asyncio.run(scripted.enrollment.credentials())
+
+    failure = caught.value.failure
+    assert (failure.kind, failure.detail, failure.reason_code) == (
+        FailureKind.CONFIG,
+        "online sharing is not available at this address",
+        None,
+    )
+
+
+def test_a_renew_404_for_a_lease_the_service_refused_is_fatal_at_once(
+    store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scripted = _ScriptedRenew(store, monkeypatch, [404])
+    scripted.enrollment.mark_stale()
+
+    assert scripted.run(1, every=0.0) == ["fatal"]
 
 
 def test_a_named_relay_without_a_token_is_ready_for_enrollment(

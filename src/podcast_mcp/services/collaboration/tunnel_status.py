@@ -7,6 +7,7 @@ feature. Snapshots live in one file per tunnel identity under the machine cache,
 the GUI finds them whatever ``--config`` the tunnel ran with. A file outlives its
 tunnel, so the reader derives each state from the recorded phase, whether the writing
 process still runs and how long ago it wrote (``_RULES``), and prunes abandoned files.
+``reason_code`` is an optional, additive cause beside ``reason_kind`` (absent from older files).
 Nothing here carries a token; text is redacted before it leaves the tracker.
 """
 
@@ -163,6 +164,7 @@ class TunnelStatus:
             "share_count": self.share_count,
             "reason": self.failure.reason if self.failure else None,
             "reason_kind": self.failure.kind.value if self.failure else None,
+            "reason_code": self.failure.reason_code if self.failure else None,
             "limit": self.limit,
             "retry_at": (self.since + self.retry_in_sec if self.retry_in_sec is not None else None),
             "since": self.since,
@@ -345,6 +347,7 @@ def _inactive_record(state: TunnelState, reason: str) -> dict[str, Any]:
         "share_count": None,
         "reason": reason,
         "reason_kind": None,
+        "reason_code": None,
         "limit": None,
         "retry_at": None,
         "since": None,
