@@ -378,3 +378,75 @@ def test_memoized_hashes_of_different_files_run_in_parallel(tmp_path: Path, monk
     small.join(5)
     assert finished_while_big_hashed
     assert small_result == [None]
+
+
+def _hub_constants():
+    from huggingface_hub import constants
+
+    return constants
+
+
+def test_fine_hub_chunks_sets_one_mib_inside_and_restores_after(monkeypatch) -> None:
+    constants = _hub_constants()
+    monkeypatch.setattr(constants, "DOWNLOAD_CHUNK_SIZE", 7 * 1024 * 1024)
+
+    with model_manifest._fine_hub_chunks():
+        assert constants.DOWNLOAD_CHUNK_SIZE == 1024 * 1024
+
+    assert constants.DOWNLOAD_CHUNK_SIZE == 7 * 1024 * 1024
+
+
+def test_fine_hub_chunks_restores_after_an_exception(monkeypatch) -> None:
+    constants = _hub_constants()
+    monkeypatch.setattr(constants, "DOWNLOAD_CHUNK_SIZE", 7 * 1024 * 1024)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        with model_manifest._fine_hub_chunks():
+            raise RuntimeError("boom")
+
+    assert constants.DOWNLOAD_CHUNK_SIZE == 7 * 1024 * 1024
+
+
+def test_fine_hub_chunks_nested_restores_the_original_once(monkeypatch) -> None:
+    constants = _hub_constants()
+    monkeypatch.setattr(constants, "DOWNLOAD_CHUNK_SIZE", 7 * 1024 * 1024)
+
+    with model_manifest._fine_hub_chunks():
+        with model_manifest._fine_hub_chunks():
+            assert constants.DOWNLOAD_CHUNK_SIZE == 1024 * 1024
+        assert constants.DOWNLOAD_CHUNK_SIZE == 1024 * 1024
+
+    assert constants.DOWNLOAD_CHUNK_SIZE == 7 * 1024 * 1024
+
+
+def test_fine_hub_chunks_overlapping_out_of_order_exit_restores_the_original(
+    monkeypatch,
+) -> None:
+    constants = _hub_constants()
+    monkeypatch.setattr(constants, "DOWNLOAD_CHUNK_SIZE", 7 * 1024 * 1024)
+    first = model_manifest._fine_hub_chunks()
+    second = model_manifest._fine_hub_chunks()
+
+    first.__enter__()
+    try:
+        second.__enter__()
+        try:
+            first.__exit__(None, None, None)
+            assert constants.DOWNLOAD_CHUNK_SIZE == 1024 * 1024
+        finally:
+            second.__exit__(None, None, None)
+    finally:
+        if constants.DOWNLOAD_CHUNK_SIZE != 7 * 1024 * 1024:
+            first.__exit__(None, None, None)
+
+    assert constants.DOWNLOAD_CHUNK_SIZE == 7 * 1024 * 1024
+
+
+def test_fine_hub_chunks_tolerates_a_hub_without_the_constant(monkeypatch) -> None:
+    constants = _hub_constants()
+    monkeypatch.delattr(constants, "DOWNLOAD_CHUNK_SIZE")
+
+    with model_manifest._fine_hub_chunks():
+        assert not hasattr(constants, "DOWNLOAD_CHUNK_SIZE")
+
+    assert not hasattr(constants, "DOWNLOAD_CHUNK_SIZE")

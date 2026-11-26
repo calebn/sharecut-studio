@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -29,6 +31,14 @@ from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.keyed_lock import KeyedLocks
 
 logger = logging.getLogger(__name__)
+
+HUB_CHUNK_BYTES = 1024 * 1024
+"""Bytes between Hugging Face progress updates (the library's own is 10 MiB)."""
+
+_MISSING = object()
+_hub_chunk_lock = threading.Lock()
+_hub_chunk_depth = 0
+_hub_chunk_original: object = _MISSING
 
 FileManifest = tuple[tuple[str, str], ...]
 """(path relative to the snapshot root, sha256 hex) for every pinned file."""
@@ -46,6 +56,33 @@ class PinnedSnapshot:
     def allow_patterns(self) -> list[str]:
         """Exactly the manifest's files, so a download never fetches an unverified file."""
         return manifest_files(self.file_sha256)
+
+
+@contextmanager
+def _fine_hub_chunks() -> Iterator[None]:
+    """Make huggingface_hub report bytes every 1 MiB so the bar moves and Cancel bites sooner.
+
+    The chunk size is a process-wide module attribute, so overlapping downloads share it:
+    the first in saves the original and the last out restores it. A hub without it is left alone.
+    """
+    global _hub_chunk_depth, _hub_chunk_original
+    from huggingface_hub import constants
+
+    with _hub_chunk_lock:
+        if _hub_chunk_depth == 0:
+            _hub_chunk_original = getattr(constants, "DOWNLOAD_CHUNK_SIZE", _MISSING)
+            if _hub_chunk_original is not _MISSING:
+                constants.DOWNLOAD_CHUNK_SIZE = HUB_CHUNK_BYTES
+            else:
+                logger.warning("huggingface_hub has no DOWNLOAD_CHUNK_SIZE; progress stays coarse")
+        _hub_chunk_depth += 1
+    try:
+        yield
+    finally:
+        with _hub_chunk_lock:
+            _hub_chunk_depth -= 1
+            if _hub_chunk_depth == 0 and _hub_chunk_original is not _MISSING:
+                constants.DOWNLOAD_CHUNK_SIZE = _hub_chunk_original  # type: ignore[assignment]
 
 
 def manifest_files(manifest: FileManifest) -> list[str]:
@@ -235,16 +272,17 @@ def download_pinned_snapshot(
             total = _dry_run_total(pin, cache_dir, force_download)
             on_progress(DownloadProgress(0, total))
             extra["tqdm_class"] = _byte_bar(on_progress, total)
-        return Path(
-            snapshot_download(
-                pin.hf_repo,
-                revision=pin.revision,
-                allow_patterns=pin.allow_patterns,
-                cache_dir=str(cache_dir),
-                force_download=force_download,
-                **extra,
+        with _fine_hub_chunks():
+            return Path(
+                snapshot_download(
+                    pin.hf_repo,
+                    revision=pin.revision,
+                    allow_patterns=pin.allow_patterns,
+                    cache_dir=str(cache_dir),
+                    force_download=force_download,
+                    **extra,
+                )
             )
-        )
 
     path = fetch(force)
     mismatch = manifest_mismatch(path, pin.file_sha256)
