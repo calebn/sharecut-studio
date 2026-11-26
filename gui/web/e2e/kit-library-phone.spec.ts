@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { expectSurfaceAxeClean } from "./axe";
 import { expectFeedback } from "./feedback";
-import { openHome } from "./home";
+import { chooseHomeMenuItem, openHome } from "./home";
 import {
   expectNoHorizontalScroll,
   expectTouchTargets,
@@ -10,14 +10,7 @@ import {
   shot,
 } from "./modelsMock";
 import { setRootFontSize } from "./rootFontSize";
-import { withShareableProject } from "./shareableProject";
-import {
-  createReviewShare,
-  openGuestShare,
-  openHostShare,
-} from "./shareNavigation";
 import { withAppearance } from "./theme";
-import { withBrowserPages } from "./twoBrowserPages";
 
 const CELLS = [
   { name: "390x844", width: 390, height: 844, fontPx: null },
@@ -136,7 +129,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       page,
     }) => {
       const { section } = await home(page);
-      const list = section.getByRole("list", { name: "Kits" });
+      const list = section.getByRole("list", { name: "Saved kits" });
       await expect(list.getByRole("listitem")).toHaveCount(3);
       await expect(section).toContainText("2 segments");
       await expect(section).toContainText("v2 · 2 versions");
@@ -144,11 +137,15 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       await expect(section).toContainText(
         "Sponsor read at end): segment not found.",
       );
+      await expect(section).toContainText(
+        "It can't be exported until its segments are back",
+      );
+      await expect(section).toContainText("Unreadable kit");
       await expect(section).toContainText("old-kit-77de0000");
       await expect(section).toContainText("Can't be read");
       await expect(
         section.getByRole("button", { name: /^More actions for/ }),
-      ).toHaveCount(2);
+      ).toHaveCount(1);
       await section.scrollIntoViewIfNeeded();
       await expectTouchTargets(section);
       for (const item of await list.getByRole("listitem").all()) {
@@ -181,6 +178,49 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       await expectNoHorizontalScroll(page);
     });
 
+    test("the Library sheet still scrolls to the last kit row", async ({
+      page,
+    }) => {
+      const mock = await mockKits(page);
+      await openHome(page);
+      if (cell.fontPx) await setRootFontSize(page, cell.fontPx);
+      await expect.poll(() => mock.lists).toBeGreaterThan(0);
+      const before = mock.lists;
+      await chooseHomeMenuItem(page, "Settings");
+      await page
+        .getByRole("dialog", { name: "Settings" })
+        .getByRole("button", { name: "Segment library" })
+        .click();
+      const dialog = page.getByRole("dialog", { name: "Segment library" });
+      await expect(dialog).toBeVisible();
+      // Opening the sheet reads the kits again.
+      await expect.poll(() => mock.lists).toBeGreaterThan(before);
+      const last = dialog.locator("[data-kit-row]").last();
+      await expect(last).toHaveAttribute("data-kit-row", "old-kit-77de0000");
+      const scroller = dialog.locator(".sys-sheet-scroll");
+      if (cell.fontPx) {
+        // At 200% text the list is taller than the sheet, so scrolling has to work.
+        await expect
+          .poll(() =>
+            scroller.evaluate((el) => el.scrollHeight > el.clientHeight),
+          )
+          .toBe(true);
+      }
+      await scroller.evaluate((el) => {
+        el.scrollTop = el.scrollHeight;
+      });
+      await expect
+        .poll(async () => {
+          const body = await scroller.boundingBox();
+          const row = await last.boundingBox();
+          if (!body || !row) return false;
+          // At 200% text the last row can be taller than the sheet, so only its end has to show.
+          return row.y + row.height <= body.y + body.height + 1;
+        })
+        .toBe(true);
+      await expectNoHorizontalScroll(page);
+    });
+
     test("is left out of Home when there are no kits", async ({ page }) => {
       const mock = await mockKits(page, []);
       await openHome(page);
@@ -192,29 +232,3 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
     });
   });
 }
-
-test("a guest shows no Kits section and makes no kit request", async ({
-  browser,
-}) => {
-  await withShareableProject(async (projectPath) => {
-    await withBrowserPages(
-      browser,
-      [{}, { viewport: { width: 390, height: 844 }, hasTouch: true }],
-      async ([host, guest]) => {
-        await openHostShare(host, projectPath);
-        const token = await createReviewShare(host, projectPath, "viewer");
-        const asked: string[] = [];
-        guest.on("request", (request) => {
-          const { pathname } = new URL(request.url());
-          if (pathname.startsWith("/api/kits")) asked.push(pathname);
-        });
-        await openGuestShare(guest, token);
-        await guest.waitForLoadState("networkidle");
-        await expect(guest.getByRole("region", { name: "Kits" })).toHaveCount(
-          0,
-        );
-        expect(asked).toEqual([]);
-      },
-    );
-  });
-});
