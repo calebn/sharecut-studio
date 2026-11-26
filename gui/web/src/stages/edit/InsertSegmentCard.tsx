@@ -263,7 +263,7 @@ function SegmentOption({
   row: SegmentListRow;
   name: string;
   checked: boolean;
-  onPick: () => void;
+  onPick: (pointer: boolean) => void;
   first: RefObject<HTMLInputElement | null> | null;
 }) {
   const damaged = isDamagedSegment(row);
@@ -288,7 +288,12 @@ function SegmentOption({
         value={row.id}
         checked={checked}
         disabled={damaged}
-        onChange={onPick}
+        onChange={(event) =>
+          onPick(
+            event.nativeEvent instanceof MouseEvent &&
+              event.nativeEvent.detail > 0,
+          )
+        }
       />
       {damaged ? row.id : row.name}
       <span className="sys-segment-option-meta">{meta}</span>
@@ -398,12 +403,14 @@ function InsertSegmentForm({
   const listed = rows !== null && rows.length > 0;
   const placementRef = useRef<HTMLFieldSetElement>(null);
   const pickedId = selected?.id ?? null;
+  const pointerPick = useRef(false);
   const shownFor = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     const previous = shownFor.current;
     shownFor.current = pickedId;
-    if (!bottom || previous === undefined || previous === pickedId) return;
+    const first = previous === null && pickedId !== null;
+    if (!bottom || !first || !pointerPick.current) return;
     placementRef.current?.scrollIntoView?.({ block: "nearest" });
   }, [bottom, pickedId]);
 
@@ -461,7 +468,10 @@ function InsertSegmentForm({
                 row={row}
                 name={group}
                 checked={selected?.id === row.id}
-                onPick={() => state.pick(row.id)}
+                onPick={(pointer) => {
+                  pointerPick.current = pointer;
+                  state.pick(row.id);
+                }}
                 first={index === firstUsable ? firstRadio : null}
               />
             ))}
