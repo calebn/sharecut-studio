@@ -98,6 +98,11 @@ if TYPE_CHECKING:
         PENDING_PREVIEW_PAD_MIN_SEC,
         PendingPreviewSpan,
     )
+    from podcast_mcp.services.document.retained_bleed_results import (
+        RetainedBleedAlignmentApplied,
+        RetainedBleedAlignmentModeResult,
+        RetainedBleedAlignmentPreview,
+    )
     from podcast_mcp.services.document.roll_join_results import (
         RollAppliedResult,
         RollUnchangedResult,
@@ -225,6 +230,9 @@ __all__ = [
     "PopulatedHistoryDiffResult",
     "ProposeSplitResult",
     "RemovedChapter",
+    "RetainedBleedAlignmentApplied",
+    "RetainedBleedAlignmentModeResult",
+    "RetainedBleedAlignmentPreview",
     "RollAppliedResult",
     "RollBoundaryTarget",
     "RollUnchangedResult",
@@ -382,6 +390,9 @@ _MODULE_BY_NAME = {
     "SplitClipResult": "split_results",
     "SplitAtTimeResult": "split_results",
     "StripSilenceResult": "strip_silence_results",
+    "RetainedBleedAlignmentApplied": "retained_bleed_results",
+    "RetainedBleedAlignmentModeResult": "retained_bleed_results",
+    "RetainedBleedAlignmentPreview": "retained_bleed_results",
     "ProposeSplitResult": "split_results",
     "SESSION_HEAR_PUBLIC_EXCLUDE": "session_hear_results",
     "SessionHearCurrentSide": "session_hear_results",

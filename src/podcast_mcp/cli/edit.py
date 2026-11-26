@@ -1607,7 +1607,7 @@ def edit_align_retained_bleed_cmd(
         "override_placement_lock": override_placement_lock,
     }
     if dry_run:
-        result = AnalysisService(ws).preview_retained_bleed_alignment(**params)
+        result = AnalysisService(ws).preview_retained_bleed_alignment(**params).model_dump()
     else:
         result = run_audio_edit(
             ws, "align_retained_bleed", params, lock_timeout=RENDER_LOCK_TIMEOUT_SEC

@@ -689,7 +689,7 @@ def align_retained_bleed_tool(
         "override_placement_lock": override_placement_lock,
     }
     if not apply:
-        return to_json(AnalysisService(ws).preview_retained_bleed_alignment(**params))
+        return to_json(AnalysisService(ws).preview_retained_bleed_alignment(**params).model_dump())
     return to_json(
         run_audio_edit(
             ws, "align_retained_bleed", params, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
