@@ -131,7 +131,6 @@ _PLACEMENT_GUARD_USERS = {
     "inspect_source_remove_placement": {
         "edits/cut_application",
         "edits/timeline_span",
-        "edits/transcript_cuts",
     },
     "require_source_remove": {"edits/decisions", "edits/transcript_cuts"},
 }
