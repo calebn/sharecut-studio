@@ -347,7 +347,9 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   // online sharing is polled, while Deliver or the Invite sheet shows them.
   const shareOffered = useHasFeature(FEATURE_SHARE_UI_MENU);
   const tunnelOffered = useHasFeature(FEATURE_TUNNEL_STATUS);
-  const tunnel = useTunnelStatus(shareOffered && tunnelOffered && onDeliver);
+  const tunnelPolled = shareOffered && tunnelOffered && onDeliver;
+  const tunnel = useTunnelStatus(tunnelPolled);
+  const tunnelPending = tunnelPolled && tunnel === null;
   useEffect(() => {
     if (!onDeliver || !shareOffered || !projectPath) return;
     reload();
@@ -816,6 +818,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       copiedKey,
       blockedKey,
       tunnel,
+      tunnelPending,
       reload,
       create,
       refreshMix,
@@ -838,6 +841,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       copiedKey,
       blockedKey,
       tunnel,
+      tunnelPending,
       reload,
       create,
       refreshMix,

@@ -23,7 +23,12 @@ import {
   registerInlineConfirm,
 } from "../../../ui";
 import { BUSY_REASON, useDisabledReasonNote } from "../../../ui/disabledReason";
-import { copyReasonOf, localOnlyNoteOf, roomIsLocalOnly } from "./inviteLogic";
+import {
+  copyReasonOf,
+  localOnlyNoteOf,
+  roomIsLocalOnly,
+  rowIsLocalOnly,
+} from "./inviteLogic";
 
 type EndProps = {
   options: ShareOptions;
@@ -83,7 +88,8 @@ function RoomCard({
   const { busy } = options;
   const labelId = useId();
   const noteId = useId();
-  const localOnly = roomIsLocalOnly(room, options.tunnel);
+  const localOnly =
+    !options.tunnelPending && roomIsLocalOnly(room, options.tunnel);
   const endButton = useRef<HTMLButtonElement>(null);
   const [asking, setAsking] = useState(false);
   const snapshot = useRecordHostStore((s) => s.snapshot);
@@ -251,7 +257,11 @@ function RoomLink({
       <div className="inv-actions">
         <Button
           disabledReason={copyReason}
-          aria-describedby={noteId ? `${labelId} ${noteId}` : labelId}
+          aria-describedby={
+            noteId && link && rowIsLocalOnly(link, options.tunnel)
+              ? `${labelId} ${noteId}`
+              : labelId
+          }
           onClick={() =>
             onCopy(
               "link",

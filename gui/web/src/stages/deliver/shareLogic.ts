@@ -242,6 +242,8 @@ export type ShareOptions = {
   blockedKey: ShareCopiedKey | null;
   /** Online sharing state; null or undefined when the `tunnel.status` feature is unavailable. */
   tunnel?: TunnelStatus | null;
+  /** The status is polled and has not answered; claims about reach wait for it. */
+  tunnelPending?: boolean;
   /** Why sharing is unavailable (the command's reason); undefined when it is available. */
   blockedReason?: string;
   /** Mints the link from the click that asks for it; `override` makes the listen link. */

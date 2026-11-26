@@ -31,6 +31,7 @@ type ShareRow = {
   follow_latest?: boolean;
   usable: boolean;
   session_id?: string | null;
+  record_role?: "guest" | "producer" | null;
 };
 
 /** The host's list of links for `projectPath`, every row, usable or not. */

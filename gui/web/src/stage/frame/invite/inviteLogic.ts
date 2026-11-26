@@ -4,6 +4,7 @@ import {
   type ShareChoices,
   type ShareOptions,
 } from "../../../stages/deliver/shareLogic";
+import type { HostShareRow } from "../../../types/shares";
 import type { TunnelStatus } from "../../../types/tunnel";
 import { BUSY_REASON } from "../../../ui/disabledReason";
 
@@ -36,17 +37,22 @@ export function needsMixFor(
   );
 }
 
-/** Whether a guest or producer link the host can still copy is only reachable on this network. */
+/** Whether an invite the host can still copy is only reachable on this network. */
+export function rowIsLocalOnly(
+  row: HostShareRow,
+  tunnel: TunnelStatus | null | undefined,
+): boolean {
+  return (
+    !!row.url && !row.invite_closed && reachOf(tunnel, row.url) === "network"
+  );
+}
+
 export function roomIsLocalOnly(
   room: RecordRoomGroup,
   tunnel: TunnelStatus | null | undefined,
 ): boolean {
-  return [...room.guests, ...room.producers].some(
-    (row) =>
-      row.url !== null &&
-      row.url !== undefined &&
-      !row.invite_closed &&
-      reachOf(tunnel, row.url) === "network",
+  return [...room.guests, ...room.producers].some((row) =>
+    rowIsLocalOnly(row, tunnel),
   );
 }
 

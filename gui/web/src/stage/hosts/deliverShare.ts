@@ -23,6 +23,7 @@ export function shareOptionsOf(
     copiedKey: flow.copiedKey,
     blockedKey: flow.blockedKey,
     tunnel: flow.tunnel,
+    tunnelPending: flow.tunnelPending,
     blockedReason: host.blockedReason,
     onCreate: flow.create,
     onRefreshMix: flow.refreshMix,

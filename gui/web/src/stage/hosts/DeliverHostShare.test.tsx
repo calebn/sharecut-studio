@@ -929,6 +929,36 @@ describe("online sharing", () => {
     expect(await screen.findByText(headline)).toBeVisible();
   });
 
+  it("says a Record room only works on this network once the status answers, never before", async () => {
+    server.shares = [
+      hostShareRow({
+        token: "g1",
+        kind: "record",
+        docs_role: null,
+        record_role: "guest",
+        session_id: "room-1",
+      }),
+    ];
+    let answer: (value: ReturnType<typeof status>) => void = () => undefined;
+    loadTunnelStatus.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    useDawStore.setState({ stage: "edit" });
+    render(<Host features={both} />);
+    openInvite("record");
+    expect(
+      await screen.findByRole("button", { name: "Copy guest link" }),
+    ).toBeVisible();
+    expect(screen.queryByText(/so only people on this network/)).toBeNull();
+    await act(async () => answer(status("off")));
+    expect(
+      await screen.findByText(/Online sharing is off, so only people on/),
+    ).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+  });
+
   it("marks a link only this network reaches with a slashed globe and a popover, and a public one with a filled globe", async () => {
     server.shares = [
       hostShareRow({
