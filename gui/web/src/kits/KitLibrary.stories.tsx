@@ -8,7 +8,14 @@ import {
 } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
 import { openDialogByLauncher } from "../test/storyDialog";
-import { DAMAGED, HEALTHY, KITS, LONG_NAME, UNUSABLE } from "./fixtures";
+import {
+  DAMAGED,
+  HEALTHY,
+  KITS,
+  LONG_NAME,
+  UNREADABLE,
+  UNUSABLE,
+} from "./fixtures";
 import { KitLibrary } from "./KitLibrary";
 import type { KitLibraryState } from "./useKitLibrary";
 
@@ -29,7 +36,7 @@ const meta: Meta<typeof KitLibrary> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The Kits section on Home, below the Segment library, and in the Segment library sheet. Each kit shows its name, version and how many segments it holds; More offers Export as file, which saves a .sharecutkit file (or opens the share sheet on a phone). A kit with a missing segment stays listed with a warning chip and the studio's own words, and can still be exported. A kit that cannot be read is listed with its id and problem, with no actions. Host only: guests never see it. Controls are 44 px.",
+          "The Kits section on Home, below the Segment library, and in the Segment library sheet. Each kit shows its name, version and how many segments it holds; More offers Export as file, which saves a .sharecutkit file, named by the studio (<name>.sharecutkit, or <id>.sharecutkit when it names none), or opens the share sheet on a phone. Export is offered only for a kit the studio says is usable. A kit that is not usable, because a segment is missing or cannot be read, stays listed with a warning chip, the studio's own words and a line that it cannot be exported yet, and has no More menu. A kit that cannot be read is listed with its id and problem, with no actions. Host only: guests never see it. Controls are 44 px.",
       },
     },
   },
@@ -65,6 +72,23 @@ export const Unusable: Story = {
     await expect(
       canvas.queryByRole("button", { name: "More actions for Launch week" }),
     ).toBeNull();
+  },
+};
+
+export const Unreadable: Story = {
+  args: { library: state({ rows: [HEALTHY, UNREADABLE] }) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText(UNREADABLE.problem as string)).toBeVisible();
+    await expect(
+      canvas.getByText("It can't be exported until that is fixed."),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "More actions for Bumper set" }),
+    ).toBeNull();
+    await expect(
+      canvas.getByRole("button", { name: "More actions for Show Kit" }),
+    ).toBeVisible();
   },
 };
 

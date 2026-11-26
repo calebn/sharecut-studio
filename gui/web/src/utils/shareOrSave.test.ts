@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type Mock,
+  vi,
+} from "vitest";
 import { shareOrSave } from "./shareOrSave";
 
 const FILE = { blob: new Blob(["zip"]), filename: "a.sharecutkit" };
@@ -6,7 +14,7 @@ const FILE = { blob: new Blob(["zip"]), filename: "a.sharecutkit" };
 function device(options: {
   coarse: boolean;
   canShare?: boolean;
-  share?: () => Promise<void>;
+  share?: (data: ShareData) => Promise<void>;
 }) {
   vi.stubGlobal(
     "matchMedia",
@@ -14,21 +22,28 @@ function device(options: {
   );
   Object.assign(navigator, {
     canShare:
-      options.canShare === undefined ? undefined : () => options.canShare,
+      options.canShare === undefined
+        ? undefined
+        : (data: ShareData) => canShare(data) ?? options.canShare,
     share: options.share,
   });
 }
 
 let clicked: string[];
+let hrefs: string[];
+let canShare: Mock<(data: ShareData) => boolean | undefined>;
 
 beforeEach(() => {
   clicked = [];
+  hrefs = [];
+  canShare = vi.fn<(data: ShareData) => boolean | undefined>();
   URL.createObjectURL = vi.fn(() => "blob:x");
   URL.revokeObjectURL = vi.fn();
   vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
     this: HTMLAnchorElement,
   ) {
     clicked.push(this.download);
+    hrefs.push(this.href);
   });
 });
 
@@ -105,5 +120,25 @@ describe("shareOrSave", () => {
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:x");
+  });
+
+  it("asks canShare about, and shares, the same single file", async () => {
+    const share = vi.fn(async (_data: ShareData) => {});
+    device({ coarse: true, canShare: true, share });
+    await shareOrSave(FILE);
+    const asked = canShare.mock.calls[0][0] as { files: File[] };
+    const shared = share.mock.calls[0][0];
+    expect(Object.keys(shared)).toEqual(["files"]);
+    expect(asked.files).toHaveLength(1);
+    expect(asked.files[0].name).toBe("a.sharecutkit");
+    expect(shared.files).toEqual(asked.files);
+  });
+
+  it("downloads through a hidden anchor on the object URL of the fetched file, then removes it", async () => {
+    device({ coarse: false });
+    await shareOrSave(FILE);
+    expect(URL.createObjectURL).toHaveBeenCalledWith(FILE.blob);
+    expect(hrefs).toEqual(["blob:x"]);
+    expect(document.querySelector("a[download]")).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api/kits";
+import { deferred } from "../test/deferred";
 import { KITS } from "./fixtures";
 import { useKitLibrary } from "./useKitLibrary";
 
@@ -83,5 +84,29 @@ describe("useKitLibrary", () => {
     const { unmount } = renderHook(() => useKitLibrary(true));
     unmount();
     expect(signal?.aborted).toBe(true);
+  });
+
+  it("ignores the answer of a read that a newer one replaced", async () => {
+    const first = deferred<typeof KITS>();
+    const second = deferred<typeof KITS>();
+    load.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const { result } = renderHook(() => useKitLibrary(true));
+    act(() => result.current.reload());
+    await act(async () => second.resolve(KITS.slice(1)));
+    expect(result.current.rows).toEqual(KITS.slice(1));
+    await act(async () => first.resolve(KITS));
+    expect(result.current.rows).toEqual(KITS.slice(1));
+  });
+
+  it("ignores the failure of a read that a newer one replaced", async () => {
+    const first = deferred<typeof KITS>();
+    const second = deferred<typeof KITS>();
+    load.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const { result } = renderHook(() => useKitLibrary(true));
+    act(() => result.current.reload());
+    await act(async () => second.resolve(KITS));
+    await act(async () => first.reject(new Error("late")));
+    expect(result.current.error).toBeNull();
+    expect(result.current.rows).toEqual(KITS);
   });
 });

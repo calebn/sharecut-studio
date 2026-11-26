@@ -51,6 +51,16 @@ const KITS: Row[] = [
       "1 segment of this kit is not in the library: entry 2 (Sponsor read at end): that segment can't be found.",
   },
   {
+    id: "bumper-set-9e4f0000",
+    name: "Bumper set",
+    version: 1,
+    versions: [1],
+    entries: 2,
+    missing: 0,
+    usable: false,
+    problem: "Entry 1 (Cold open): that segment's file can't be read.",
+  },
+  {
     id: "old-kit-77de0000",
     damaged: true,
     version: 1,
@@ -130,7 +140,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
     }) => {
       const { section } = await home(page);
       const list = section.getByRole("list", { name: "Saved kits" });
-      await expect(list.getByRole("listitem")).toHaveCount(3);
+      await expect(list.getByRole("listitem")).toHaveCount(4);
       await expect(section).toContainText("2 segments");
       await expect(section).toContainText("v2 · 2 versions");
       await expect(section).toContainText("Can't be added to an episode yet");
@@ -139,6 +149,10 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       );
       await expect(section).toContainText(
         "It can't be exported until its segments are back",
+      );
+      await expect(section).toContainText("that segment's file can't be read.");
+      await expect(section).toContainText(
+        "It can't be exported until that is fixed.",
       );
       await expect(section).toContainText("Unreadable kit");
       await expect(section).toContainText("old-kit-77de0000");
