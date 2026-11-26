@@ -16,6 +16,7 @@ _DEFAULT_WS_MAX = 16 * 1024 * 1024
 # Paths that enforce their own size caps (large audio uploads).
 _MEDIA_UPLOAD_SUFFIXES = ("/media/upload", "/daw/media/upload")
 SEGMENT_IMPORT_PREVIEW_PATH = "/api/segments/import/preview"
+KIT_IMPORT_PREVIEW_PATH = "/api/kits/import/preview"
 _RECORD_UPLOAD_MARKERS = ("/api/record/upload", "/api/rec/")
 RECORD_UPLOAD_MAX_PART_BYTES = 5 * 1024 * 1024
 
@@ -153,7 +154,7 @@ class MaxBodySizeMiddleware:
         self.limit = int(limit)
 
     def _is_media_upload(self, path: str) -> bool:
-        if path == SEGMENT_IMPORT_PREVIEW_PATH or any(
+        if path in (SEGMENT_IMPORT_PREVIEW_PATH, KIT_IMPORT_PREVIEW_PATH) or any(
             path.endswith(suffix) for suffix in _MEDIA_UPLOAD_SUFFIXES
         ):
             return True

@@ -107,6 +107,21 @@ def test_segment_file_routes_are_host_rows_and_host_bound(route: tuple[str, str]
     assert path_requires_host_binding(route[1])
 
 
+KIT_FILE_ROUTES = [
+    ("GET", "/api/kits"),
+    ("GET", "/api/kits/{kit_id}/export"),
+    ("POST", "/api/kits/import/preview"),
+    ("POST", "/api/kits/import"),
+    ("DELETE", "/api/kits/import/{staged_id}"),
+]
+
+
+@pytest.mark.parametrize("route", KIT_FILE_ROUTES, ids=lambda r: " ".join(r))
+def test_kit_file_routes_are_host_rows_and_host_bound(route: tuple[str, str]) -> None:
+    assert route in {(r["method"], r["path"]) for r in HOST_ROWS}
+    assert path_requires_host_binding(route[1])
+
+
 @pytest.mark.parametrize("prefix", NEW_PREFIXES)
 def test_every_new_prefix_has_a_host_row(prefix: str) -> None:
     assert any(r["path"] == prefix or r["path"].startswith(prefix + "/") for r in NEW_ROWS)
