@@ -432,7 +432,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
 
       await drop("take.wav", [1, 2, 3]);
       await expect(section.getByRole("alert")).toContainText(
-        "That isn't a segment file (.sharecutseg).",
+        "That isn't a segment or kit file (.sharecutseg, .sharecutkit).",
       );
       expect(mock.uploads).toHaveLength(0);
 

@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from "react";
 import { useDawStore } from "../state/dawStore";
+import { useBundleImport } from "../system/importSheet/BundleImportContext";
 import { KITS_LABEL, KitLibraryBody } from "./KitLibraryBody";
 import type { KitLibraryState } from "./useKitLibrary";
 
@@ -14,6 +15,7 @@ export function KitLibrary({ library, omitWhenEmpty = false }: Props) {
   const heading = useRef<HTMLHeadingElement>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const hosted = useDawStore((s) => s.guestMode === null);
+  const imports = useBundleImport();
   if (!hosted) return null;
   const empty = library.rows === null || library.rows.length === 0;
   if (omitWhenEmpty && empty && library.error === null && failure === null)
@@ -21,7 +23,10 @@ export function KitLibrary({ library, omitWhenEmpty = false }: Props) {
   return (
     <section className="kit-library" aria-labelledby={headingId}>
       <h2
-        ref={heading}
+        ref={(element) => {
+          heading.current = element;
+          if (imports) imports.kitsHeadingRef.current = element;
+        }}
         id={headingId}
         tabIndex={-1}
         className="sys-home-recent-title"

@@ -10,9 +10,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api/segments";
 import { useDawStore } from "../state/dawStore";
+import { BundleImportHost } from "../system/importSheet/BundleImportHost";
 import { expectNoA11yViolations } from "../test/a11y";
 import { deferred } from "../test/deferred";
 import { stubViewportShell } from "../test/viewportShell";
+import { zipFile } from "../test/zipFile";
 import { ApiError } from "../utils/apiError";
 import { stopAudition } from "./audition";
 import { HEALTHY, LIBRARY, SEGMENT_FILE, segment, waiting } from "./fixtures";
@@ -43,7 +45,11 @@ const TOKEN = "a".repeat(32);
 
 function Section() {
   const library = useSegmentLibrary();
-  return <SegmentLibrary library={library} layout="list" />;
+  return (
+    <BundleImportHost segments={library}>
+      <SegmentLibrary library={library} layout="list" />
+    </BundleImportHost>
+  );
 }
 
 const announced = () => useDawStore.getState().statusAnnouncement;
@@ -83,11 +89,14 @@ async function chooseFile() {
 }
 
 describe("Import", () => {
-  it("is a native button that opens the file picker, accepting the segment file and zip", async () => {
+  it("is a native button that opens the file picker, accepting segment files, kit files and zip", async () => {
     const view = render(<Section />);
     const button = await screen.findByRole("button", { name: "Import" });
     const input = picker(view.container);
-    expect(input).toHaveAttribute("accept", ".sharecutseg,application/zip");
+    expect(input).toHaveAttribute(
+      "accept",
+      ".sharecutseg,.sharecutkit,application/zip",
+    );
     expect(input).not.toHaveAttribute("multiple");
     const open = vi.spyOn(input, "click");
     await userEvent.click(button);
@@ -351,7 +360,7 @@ describe("drop", () => {
     fireEvent.dragOver(body, dropOf([SEGMENT_FILE()]));
     expect(body).toHaveAttribute("data-drop");
     expect(
-      screen.getByText("Drop a segment file to import it"),
+      screen.getByText("Drop a segment or kit file to import it"),
     ).toBeInTheDocument();
     fireEvent.dragLeave(body, { relatedTarget: document.body });
     expect(body).not.toHaveAttribute("data-drop");
@@ -364,7 +373,7 @@ describe("drop", () => {
     expect(preview.mock.calls[0][0].name).toBe("cold-open.sharecutseg");
   });
 
-  it("refuses a file that is not a segment file, naming the extension", async () => {
+  it("refuses a file that is not a segment or kit file, naming the extensions", async () => {
     const body = await list();
     const event = fireEvent.drop(
       body,
@@ -372,7 +381,7 @@ describe("drop", () => {
     );
     expect(event).toBe(false);
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "That isn't a segment file (.sharecutseg).",
+      "That isn't a segment or kit file (.sharecutseg, .sharecutkit).",
     );
     expect(preview).not.toHaveBeenCalled();
   });
@@ -381,7 +390,7 @@ describe("drop", () => {
     const body = await list();
     fireEvent.drop(body, dropOf([SEGMENT_FILE(), SEGMENT_FILE()]));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Import one segment file at a time.",
+      "Import one file at a time.",
     );
     expect(preview).not.toHaveBeenCalled();
   });
@@ -606,13 +615,13 @@ describe("drops that must not leave Studio or replace a waiting file", () => {
     expect(cancel).not.toHaveBeenCalled();
   });
 
-  it("accepts a zip by its type the way the picker does", async () => {
+  it("accepts a zip by its type and reads its entries to tell it is a segment", async () => {
     render(<Section />);
     const list = await screen.findByRole("list", { name: "Segment library" });
     const body = list.closest(".segment-library-body") as HTMLElement;
     fireEvent.drop(
       body,
-      filesOf([new File(["z"], "renamed.bin", { type: "application/zip" })]),
+      filesOf([zipFile("renamed (1).zip", ["segment.json", "clip-01.flac"])]),
     );
     await screen.findByRole("dialog", { name: "Import a segment" });
   });

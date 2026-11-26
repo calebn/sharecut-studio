@@ -7,8 +7,6 @@ import {
   CLOSE_LABEL,
   checkingMessage,
   IMPORT_FAILED,
-  WAIT_TO_DROP,
-  ZIP_TYPE,
 } from "../system/importSheet/importCopy";
 import type { ExportOutcome } from "../utils/shareOrSave";
 
@@ -20,18 +18,9 @@ export {
   CLOSE_LABEL,
   checkingMessage,
   IMPORT_FAILED,
-  WAIT_TO_DROP,
-  ZIP_TYPE,
 };
 
-export const IMPORT_LABEL = "Import";
 export const IMPORT_TITLE = "Import a segment";
-export const IMPORT_ACCEPT = ".sharecutseg,application/zip";
-export const SEGMENT_EXTENSION = ".sharecutseg";
-export const DROP_LABEL = "Drop a segment file to import it";
-export const DROP_HINT = "Have a segment file? Choose Import, or drop it here.";
-export const NOT_A_SEGMENT_FILE = "That isn't a segment file (.sharecutseg).";
-export const ONE_FILE_ONLY = "Import one segment file at a time.";
 export const SHOW_LABEL = "Show in library";
 export const PLAY_FAILED = "Couldn't play this file";
 
