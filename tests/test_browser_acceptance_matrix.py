@@ -28,7 +28,6 @@ GATE_PLAN_OUTPUT = {
 CI_MATRIX = "${{ fromJSON(needs.changes.outputs.e2e-matrix) }}"
 MAIN_COMMAND = "npm run test:e2e"
 MAIN_SHARD_RE = re.compile(r"^npm run test:e2e -- (e2e/\S+\.spec\.ts(?: e2e/\S+\.spec\.ts)*)$")
-MAIN_E2E_DIR = REPO_ROOT / "gui" / "web" / "e2e"
 COMPAT_COMMAND = "npm run test:e2e:compat"
 COMPAT_ENGINES = ("chromium", "webkit")
 CHROMIUM_MAIN_OWNERS = {
