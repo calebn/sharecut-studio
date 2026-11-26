@@ -8,6 +8,7 @@ errors carry the ``kit_`` codes.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import re
 import secrets
@@ -107,8 +108,11 @@ def export_kit(kits: KitStore, segments: SegmentStore, kit_id: str, out_path: Pa
         raise CodedValueError(missing_text(missing), code="kit_segment_missing")
     members: list[tuple[SegmentFile, Path]] = []
     seen: set[tuple[str, int]] = set()
-    for entry in kit.entries:
-        segment = segments.get(entry.segment_id, entry.version)
+    for position, entry in enumerate(kit.entries, start=1):
+        try:
+            segment = segments.get(entry.segment_id, entry.version)
+        except CodedValueError as exc:
+            raise _export_refusal(position, entry, exc) from exc
         if (segment.id, segment.version) not in seen:
             seen.add((segment.id, segment.version))
             members.append((segment, segments.path(segment.id, segment.version)))
@@ -123,10 +127,17 @@ def export_kit(kits: KitStore, segments: SegmentStore, kit_id: str, out_path: Pa
     for index, (segment, folder) in enumerate(members, start=1):
         for name in [SEGMENT_JSON, *sorted(segment.media)]:
             files.append((_member_name(index, name), folder / name))
-    manifest = "".join(
-        f"{sha256_file(source) if isinstance(source, Path) else _text_sha(source)}  {name}\n"
-        for name, source in files
-    )
+    try:
+        manifest = "".join(
+            f"{sha256_file(source) if isinstance(source, Path) else _text_sha(source)}  {name}\n"
+            for name, source in files
+        )
+    except CodedValueError as exc:
+        raise CodedValueError(
+            f"The kit {kit.name!r} cannot be exported: {exc} "
+            "Import the segment again, or save the kit again with segments you have.",
+            code="kit_segment_missing",
+        ) from exc
 
     def fill(handle: IO[bytes]) -> None:
         with zipfile.ZipFile(handle, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -175,6 +186,23 @@ def export_kit(kits: KitStore, segments: SegmentStore, kit_id: str, out_path: Pa
         raise _bundle_error(
             f"{out_path} could not be written: {exc.strerror or exc}.", "kit_write_failed"
         ) from exc
+
+
+def _export_refusal(position: int, entry: KitEntry, exc: CodedValueError) -> CodedValueError:
+    """A segment that cannot be read for an export, said as the kit's ``kit_segment_missing``."""
+    if not exc.code.startswith("segment_"):
+        return exc
+    return CodedValueError(
+        f"Entry {position} of this kit ({entry.label()}) cannot be exported: {exc} "
+        "Import the segment again, or save the kit again with segments you have.",
+        code="kit_segment_missing",
+    )
+
+
+def _os_failure(exc: OSError, what: str) -> CodedValueError:
+    """A raw disk error, said in the kit's retryable codes (``kit_no_room`` when the disk is full)."""
+    code = "kit_no_room" if exc.errno == errno.ENOSPC else "kit_write_failed"
+    return CodedValueError(f"{what}: {exc.strerror or exc}.", code=code)
 
 
 def _text_sha(text: str) -> str:
@@ -307,7 +335,10 @@ def _verify_kit_bundle(path: Path, root: Path) -> _Verified:
                 if (match := _MEMBER.fullmatch(name)) is None:
                     continue
                 dest = root / f"seg{match.group(1)}" / match.group(2)
-                dest.parent.mkdir(exist_ok=True)
+                try:
+                    dest.parent.mkdir(exist_ok=True)
+                except OSError as exc:
+                    raise _os_failure(exc, f"{path.name} cannot be unpacked") from exc
                 budget -= _unpack(archive, info, dest, budget, _PREFIX)
         except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError) as exc:
             raise _bundle_error(f"{path.name} cannot be unpacked.") from exc
@@ -315,7 +346,13 @@ def _verify_kit_bundle(path: Path, root: Path) -> _Verified:
         if (match := _MEMBER.fullmatch(name)) is None:
             continue
         source = root / f"seg{match.group(1)}" / match.group(2)
-        if sha256_file(source) != expected:
+        try:
+            actual = sha256_file(source)
+        except CodedValueError as exc:
+            raise _bundle_error(str(exc), "kit_write_failed") from exc
+        except OSError as exc:
+            raise _os_failure(exc, f"{name} cannot be checked") from exc
+        if actual != expected:
             raise _bundle_error(
                 f"{name} does not match its hash in {MANIFEST}.", "kit_hash_mismatch"
             )
@@ -380,12 +417,18 @@ def import_kit_bundle(
                 result = segments.add(root / f"seg{member.index}")
             except CodedValueError as exc:
                 raise _incomplete(_as_kit_error(exc), results, len(verified.members)) from exc
+            except OSError as exc:
+                failure = _os_failure(exc, "The segment library could not be written")
+                raise _incomplete(failure, results, len(verified.members)) from exc
             added[(member.segment.id, member.segment.version)] = result
             results.append(result)
         try:
             kit_result = kits.add(_rewritten(verified, added), keep_existing=on_conflict == "skip")
         except CodedValueError as exc:
             raise _incomplete(exc, results, len(verified.members)) from exc
+        except OSError as exc:
+            failure = _os_failure(exc, "The kit library could not be written")
+            raise _incomplete(failure, results, len(verified.members)) from exc
         return KitImportResult(kit_result, results)
 
 
