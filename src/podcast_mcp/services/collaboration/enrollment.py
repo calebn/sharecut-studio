@@ -1,6 +1,6 @@
 """Host-side enrollment: get a lease from the relay, keep it fresh, remember it between launches.
 
-A host with no ``host_token`` asks the relay for a lease on first use (``POST /enroll`` with a
+A host with no ``host_token`` asks the relay for a lease on first use (``POST /api/relay/enroll`` with a
 hashcash proof). The relay assigns the install id, and the host stores it beside the lease. The
 host renews the lease at half its life by presenting the old one. The install id, lease and
 per-install claim key are stored in one private file under the state root. Every failure is
@@ -137,7 +137,7 @@ def _failure(
 
 
 def _refusal(status: int, body: Mapping[str, Any], retry_after: str | None) -> TunnelError:
-    """The classified failure for a non-200 reply from ``/enroll``."""
+    """The classified failure for a non-200 reply from ``/api/relay/enroll``."""
     code = str(body.get("detail") or "")
     if status == 404:
         return _failure(

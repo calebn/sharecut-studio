@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from podcast_relay.offline import offline_page
 
 NOTICE_COOKIE = "sc_notice"
-CONTINUE_PATH = "/notice/continue"
+CONTINUE_PATH = "/api/relay/notice/continue"
 _PAGE_PREFIXES = ("r/", "rec/")
 
 
