@@ -1,5 +1,5 @@
 import type { SegmentImportPreview, SegmentSaveResult } from "../api";
-import type { ExportOutcome } from "../share/shareOrSave";
+import type { ExportOutcome } from "../utils/shareOrSave";
 
 export const IMPORT_LABEL = "Import";
 export const IMPORT_TITLE = "Import a segment";

@@ -1,5 +1,5 @@
 import { downloadSegmentFile } from "../api";
-import { type ExportOutcome, shareOrSave } from "../share/shareOrSave";
+import { type ExportOutcome, shareOrSave } from "../utils/shareOrSave";
 
 export type { ExportOutcome };
 
