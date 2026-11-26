@@ -1,11 +1,15 @@
 import { act, render, waitFor } from "@testing-library/react";
 import { StrictMode, useLayoutEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HostRoomProvider } from "../../record/hostRoomContext";
+import { useRecordHostStore } from "../../record/hostStore";
+import type { HostRoom } from "../../record/useHostRoom";
 import {
   LISTEN_CHOICES,
   SHARE_DEFAULTS,
 } from "../../stages/deliver/shareLogic";
 import { useDawStore } from "../../state/dawStore";
+import { recordParticipant, recordSnapshot } from "../../test/fixtures";
 import type { HostShareRow } from "../../types/shares";
 import { ApiError } from "../../utils/apiError";
 import { ShareFlowProvider } from "./shareFlow";
@@ -160,6 +164,10 @@ beforeEach(() => {
     stage: "deliver",
     statusAnnouncement: "",
     feedbackToast: null,
+  });
+  useRecordHostStore.setState({
+    endedSessionId: null,
+    snapshot: recordSnapshot({ session_id: "stage-room", state: "lobby" }),
   });
 });
 
@@ -1378,5 +1386,190 @@ describe("record rooms", () => {
     });
     expect(flow.copiedKey).toBeNull();
     expect(announcement()).not.toContain("replaced and copied");
+  });
+});
+
+describe("End room gate and the Record stage", () => {
+  const recheck = vi.fn();
+  const forgetRoom = vi.fn();
+  const restoreRoom = vi.fn();
+  const landed = [
+    {
+      take_index: 0,
+      participant_id: "p_host",
+      segment_index: 0,
+      acked_parts: [0],
+      file_ack: true,
+      landed: true,
+    },
+  ];
+
+  function mountWithRoom(hostSegments: unknown[] = landed) {
+    const value = {
+      recheck,
+      forgetRoom,
+      restoreRoom,
+      hostSegments,
+    } as unknown as HostRoom;
+    return render(
+      <HostRoomProvider value={value}>
+        <ShareFlowProvider>
+          <Probe />
+        </ShareFlowProvider>
+      </HostRoomProvider>,
+    );
+  }
+
+  const stageRoom = (fields: Parameters<typeof recordSnapshot>[0] = {}) =>
+    useRecordHostStore.setState({
+      snapshot: recordSnapshot({
+        session_id: "sess1",
+        state: "stopped",
+        take_index: 0,
+        ...fields,
+      }),
+    });
+
+  beforeEach(() => {
+    recheck.mockReset();
+    forgetRoom.mockReset();
+    restoreRoom.mockReset();
+  });
+
+  it.each([
+    ["no snapshot", () => useRecordHostStore.setState({ snapshot: null })],
+    ["a running take", () => stageRoom({ state: "recording" })],
+    ["a paused take", () => stageRoom({ state: "paused" })],
+    ["a take not on the timeline", () => stageRoom({ take_index: 0 })],
+  ])("refuses to end the room with %s", async (_name, arrange) => {
+    arrange();
+    mountWithRoom([]);
+    let started = true;
+    act(() => {
+      started = flow.endRoom("sess1");
+    });
+    expect(started).toBe(false);
+    expect(revokeHostRoom).not.toHaveBeenCalled();
+    await waitFor(() => expect(flow.error).not.toBeNull());
+    expect(recheck).toHaveBeenCalled();
+  });
+
+  it("reads the store at call time, not the snapshot it rendered with", async () => {
+    stageRoom({ state: "stopped" });
+    revokeHostRoom.mockResolvedValue(WINDOW);
+    mountWithRoom();
+    act(() => stageRoom({ state: "recording" }));
+    act(() => {
+      expect(flow.endRoom("sess1")).toBe(false);
+    });
+    expect(flow.error).toBe("Stop the take first.");
+    expect(revokeHostRoom).not.toHaveBeenCalled();
+  });
+
+  it("ends an idle room, forgets it, and rechecks the stage", async () => {
+    stageRoom({ state: "lobby", take_index: -1 });
+    revokeHostRoom.mockResolvedValue(WINDOW);
+    mountWithRoom();
+    act(() => {
+      flow.endRoom("sess1");
+    });
+    await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+    expect(forgetRoom).toHaveBeenCalledExactlyOnceWith("sess1");
+    expect(recheck).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a guest-confirmed end through when the gate is open", async () => {
+    stageRoom({
+      participants: [recordParticipant({ display_name: "Ava" })],
+    });
+    revokeHostRoom.mockResolvedValue(WINDOW);
+    mountWithRoom();
+    act(() => {
+      expect(flow.endRoom("sess1")).toBe(true);
+    });
+    await waitFor(() => expect(forgetRoom).toHaveBeenCalled());
+  });
+
+  it("lifts the tombstone and rechecks when Undo restores the room", async () => {
+    stageRoom({ state: "lobby", take_index: -1 });
+    revokeHostRoom.mockResolvedValue(WINDOW);
+    mountWithRoom();
+    act(() => {
+      flow.endRoom("sess1");
+    });
+    await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+    recheck.mockClear();
+    await expect(toast()?.reverse?.run()).resolves.toBe(true);
+    expect(restoreRoom).toHaveBeenCalledExactlyOnceWith("sess1");
+    expect(recheck).toHaveBeenCalledTimes(1);
+    expect(restoreRoom.mock.invocationCallOrder[0]).toBeLessThan(
+      recheck.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it("rechecks, without lifting, when Undo is refused", async () => {
+    stageRoom({ state: "lobby", take_index: -1 });
+    revokeHostRoom.mockResolvedValue(WINDOW);
+    restoreHostRoom.mockRejectedValue(refusal(404, "record_room_not_found"));
+    mountWithRoom();
+    act(() => {
+      flow.endRoom("sess1");
+    });
+    await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+    recheck.mockClear();
+    await toast()?.reverse?.run();
+    expect(restoreRoom).not.toHaveBeenCalled();
+    expect(recheck).toHaveBeenCalledTimes(1);
+  });
+
+  it("rechecks when Undo fails in any other way", async () => {
+    stageRoom({ state: "lobby", take_index: -1 });
+    revokeHostRoom.mockResolvedValue(WINDOW);
+    restoreHostRoom.mockRejectedValue(new Error("offline"));
+    mountWithRoom();
+    act(() => {
+      flow.endRoom("sess1");
+    });
+    await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+    recheck.mockClear();
+    await expect(toast()?.reverse?.run()).rejects.toThrow("offline");
+    expect(recheck).toHaveBeenCalledTimes(1);
+  });
+
+  it("rechecks on any error after the revoke was tried", async () => {
+    stageRoom({ state: "lobby", take_index: -1 });
+    revokeHostRoom.mockRejectedValue(new Error("No such room"));
+    mountWithRoom();
+    act(() => {
+      flow.endRoom("sess1");
+    });
+    await waitFor(() => expect(flow.error).toBe("No such room"));
+    expect(forgetRoom).not.toHaveBeenCalled();
+    expect(recheck).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks the store itself when no Record stage is mounted", async () => {
+    stageRoom({ state: "lobby", take_index: -1 });
+    revokeHostRoom.mockResolvedValue(WINDOW);
+    mount();
+    act(() => {
+      flow.endRoom("sess1");
+    });
+    await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+    expect(useRecordHostStore.getState().endedSessionId).toBe("sess1");
+    expect(useRecordHostStore.getState().snapshot).toBeNull();
+    await toast()?.reverse?.run();
+    expect(useRecordHostStore.getState().endedSessionId).toBeNull();
+  });
+
+  it("ends a link without touching the host room", async () => {
+    revokeHostShare.mockResolvedValue(WINDOW);
+    mountWithRoom();
+    act(() => {
+      flow.stop("fantastic-acoustic-whale");
+    });
+    await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+    expect(forgetRoom).not.toHaveBeenCalled();
+    expect(recheck).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StrictMode } from "react";
+import { type ReactNode, StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   addTrackCommand,
@@ -13,7 +13,10 @@ import { registerDawCommands } from "../../commands/register";
 import { answerQuestion, useAskStore } from "../../feedback/ask";
 import { useDawKeymapListener } from "../../keymap/listener";
 import { TAKE_REASON } from "../../record/deviceSheet";
-import { HostRoomProvider } from "../../record/hostRoomContext";
+import {
+  HostRoomProvider,
+  useHostRoomContext,
+} from "../../record/hostRoomContext";
 import { useRecordHostStore } from "../../record/hostStore";
 import {
   createOpfsSink,
@@ -29,7 +32,11 @@ import {
   ROOM_TONE_PROMPT_COPY,
   storageLowCopy,
 } from "../../record/types";
-import { type HostRoomCapture, useHostRoom } from "../../record/useHostRoom";
+import {
+  type HostRoom,
+  type HostRoomCapture,
+  useHostRoom,
+} from "../../record/useHostRoom";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import {
@@ -158,11 +165,18 @@ function KeymapProbe() {
   return null;
 }
 
-function Harness({ capture = {} }: { capture?: HostRoomCapture }) {
+function Harness({
+  capture = {},
+  children,
+}: {
+  capture?: HostRoomCapture;
+  children?: ReactNode;
+}) {
   const room = useHostRoom(capture, { hydrate: true });
   return (
     <HostRoomProvider value={room}>
       <KeymapProbe />
+      {children}
       <main>
         <FrameAlerts>
           <RecordStage />
@@ -540,6 +554,33 @@ describe("Record stage", () => {
       expect.anything(),
       expect.anything(),
     );
+  });
+
+  it("shows no room at once when the host ends it from Invite, and again after Undo", async () => {
+    let handle: HostRoom | null = null;
+    function Grab() {
+      handle = useHostRoomContext();
+      return null;
+    }
+    render(
+      <Harness>
+        <Grab />
+      </Harness>,
+    );
+    act(() => setRoom());
+    await screen.findByRole("button", { name: "Record" });
+    act(() => handle?.forgetRoom("room1"));
+    expect(screen.getByText("No record room yet")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Record" }),
+    ).not.toBeInTheDocument();
+    act(() => handle?.recheck());
+    await act(async () => undefined);
+    expect(screen.getByText("No record room yet")).toBeVisible();
+    act(() => handle?.restoreRoom("room1"));
+    act(() => handle?.recheck());
+    act(() => setRoom());
+    await screen.findByRole("button", { name: "Record" });
   });
 
   it("creates a record room in place when none exists", async () => {

@@ -39,10 +39,17 @@ import {
   FEATURE_TUNNEL_STATUS,
 } from "../../extensions/features";
 import { FeedbackToast } from "../../feedback/FeedbackToast";
+import { useRecordHostStore } from "../../record/hostStore";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { fakeExportServer } from "../../test/fakeExportServer";
-import { hostShareRow, minimalProject, sampleTrack } from "../../test/fixtures";
+import {
+  hostShareRow,
+  minimalProject,
+  recordParticipant,
+  recordSnapshot,
+  sampleTrack,
+} from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import { SheetHost } from "../frame/SheetHost";
 import { DeliverStage } from "./DeliverStage";
@@ -657,8 +664,20 @@ describe("the Invite sheet over any stage", () => {
 
   describe("End room and its Undo", () => {
     beforeEach(stubVisibleToast);
-    const room = () =>
-      (server.shares = [
+    afterEach(() =>
+      useRecordHostStore.setState({ endedSessionId: null, snapshot: null }),
+    );
+    const room = (fields: Parameters<typeof recordSnapshot>[0] = {}) => {
+      useRecordHostStore.setState({
+        endedSessionId: null,
+        snapshot: recordSnapshot({
+          session_id: "room-1",
+          state: "lobby",
+          take_index: -1,
+          ...fields,
+        }),
+      });
+      server.shares = [
         hostShareRow({
           token: "g1",
           kind: "record",
@@ -666,7 +685,55 @@ describe("the Invite sheet over any stage", () => {
           record_role: "guest",
           session_id: "room-1",
         }),
-      ]);
+      ];
+    };
+
+    it("waits for the Record stage to check the room before ending it", async () => {
+      room();
+      useRecordHostStore.setState({ snapshot: null });
+      render(<ToastedHost />);
+      openInvite("record");
+      expect(
+        await screen.findByRole("button", { name: "End room" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByText("Open Record to check this room before ending it."),
+      ).toBeVisible();
+    });
+
+    it("asks before sending a connected guest out, and Keep room ends nothing", async () => {
+      room({ participants: [recordParticipant({ display_name: "Ava" })] });
+      render(<ToastedHost />);
+      openInvite("record");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "End room" }),
+      );
+      expect(screen.getByText("End the room? Ava is sent out.")).toBeVisible();
+      await userEvent.keyboard("{Escape}");
+      expect(screen.queryByRole("button", { name: "Keep room" })).toBeNull();
+      expect(
+        screen.getByRole("heading", { name: "Record links" }),
+      ).toBeVisible();
+      expect(server.revokeRequests).toEqual([]);
+    });
+
+    it("clears the stage's room on end and brings it back on Undo", async () => {
+      room();
+      render(<ToastedHost />);
+      openInvite("record");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "End room" }),
+      );
+      await waitFor(() => expect(server.revokeRequests).toEqual(["room-1"]));
+      expect(useRecordHostStore.getState().snapshot).toBeNull();
+      expect(useRecordHostStore.getState().endedSessionId).toBe("room-1");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Undo" }),
+      );
+      await waitFor(() =>
+        expect(useRecordHostStore.getState().endedSessionId).toBeNull(),
+      );
+    });
 
     it("offers Create record links beside the room", async () => {
       room();
