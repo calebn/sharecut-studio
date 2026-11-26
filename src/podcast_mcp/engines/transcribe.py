@@ -697,7 +697,6 @@ class TranscriptionEngine:
         The transcript is None on a miss; Whisper never runs here. ``guard=False`` returns the
         cached words as stored, for callers that only test for a hit.
         """
-        self._require_supported_language(language)
         cache = self.cache_path(
             project,
             job.cache_id,
