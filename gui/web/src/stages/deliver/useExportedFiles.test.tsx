@@ -216,6 +216,49 @@ describe("useExportedFiles", () => {
     expect(listed.guest).toHaveBeenCalledTimes(5);
   });
 
+  it("carries whether the host allows share exports across a revision-only reply and resets it on a failed re-read", async () => {
+    listed.guest.mockResolvedValueOnce({
+      ...inventory([ENTRY]),
+      revision: "first",
+      exporting: false,
+      guestRender: false,
+    });
+    const { result } = renderHook(() =>
+      useExportedFiles(GUEST_PATH, {
+        access: "download",
+        watchGuestPublication: true,
+      }),
+    );
+    await waitFor(() => expect(result.current.guestRender).toBe(false));
+    listed.guest.mockResolvedValueOnce({
+      inventory: null,
+      revision: "first",
+      exporting: null,
+      guestRender: null,
+    });
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(result.current.currentLoad).toBe("ready"));
+    expect(result.current.guestRender).toBe(false);
+    listed.guest.mockResolvedValueOnce({
+      ...inventory([ENTRY]),
+      revision: "second",
+      exporting: false,
+      guestRender: true,
+    });
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(result.current.guestRender).toBe(true));
+    listed.guest.mockRejectedValue(new Error("down"));
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(result.current.currentLoad).toBe("error"));
+    expect(result.current.guestRender).toBeNull();
+  });
+
   it("stops reporting an export when a foreground re-read fails", async () => {
     listed.guest.mockResolvedValueOnce({
       ...inventory([ENTRY]),

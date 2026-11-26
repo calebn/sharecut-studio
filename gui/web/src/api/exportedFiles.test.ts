@@ -7,6 +7,7 @@ import {
   readGuestExportedFiles,
   revealExportedFile,
 } from "./exportedFiles";
+import { guestExportFailed, startGuestExport } from "./pipeline";
 
 const ENTRY = {
   id: "clips/a b.wav",
@@ -158,7 +159,72 @@ describe("readGuestExportedFiles", () => {
     guest({ revision: "r1" });
     expect(
       await readGuestExportedFiles(key, "r1", new AbortController().signal),
-    ).toEqual({ inventory: null, revision: "r1", exporting: null });
+    ).toEqual({
+      inventory: null,
+      revision: "r1",
+      exporting: null,
+      guestRender: null,
+    });
+  });
+
+  it("reads whether the host allows exports from share links, unknown when absent", async () => {
+    const signal = new AbortController().signal;
+    guest({ revision: "r1", files: [ENTRY], guest_render: false });
+    expect((await readGuestExportedFiles(key, "", signal)).guestRender).toBe(
+      false,
+    );
+    guest({ revision: "r2", files: [ENTRY], guest_render: true });
+    expect((await readGuestExportedFiles(key, "r1", signal)).guestRender).toBe(
+      true,
+    );
+    guest({ revision: "r3", files: [ENTRY] });
+    expect(
+      (await readGuestExportedFiles(key, "r2", signal)).guestRender,
+    ).toBeNull();
+  });
+});
+
+describe("startGuestExport", () => {
+  it("posts an empty JSON body to the share's export route so the host formats apply", async () => {
+    const fetchMock = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ job: { id: "j1" } }), {
+          status: 202,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await startGuestExport(shareProjectKey("tok123"));
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe("/api/review/tok123/daw/export");
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).get("Content-Type")).toBe(
+      "application/json",
+    );
+    expect(init?.body).toBe("{}");
+  });
+});
+
+describe("guestExportFailed", () => {
+  const status = (job: unknown) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ running: false, job, jobs: [] }), {
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+
+  it("is true only when the newest export job ended in error", async () => {
+    const key = shareProjectKey("tok123");
+    status({ id: "j1", status: "error", error: "Export failed" });
+    expect(await guestExportFailed(key)).toBe(true);
+    status({ id: "j1", status: "done", error: null });
+    expect(await guestExportFailed(key)).toBe(false);
+    status(null);
+    expect(await guestExportFailed(key)).toBe(false);
   });
 });
 

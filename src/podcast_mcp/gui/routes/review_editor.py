@@ -79,7 +79,7 @@ from podcast_mcp.services.jobs import (
     Job,
     guest_job_view,
 )
-from podcast_mcp.util.guest_render import require_guest_render
+from podcast_mcp.util.guest_render import guest_render_enabled, require_guest_render
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -359,16 +359,20 @@ def get_daw_export_files(
     ws: ExportFilesWorkspace,
     after: Annotated[str | None, Query(max_length=64)] = None,
 ) -> dict[str, Any]:
-    """List exports and whether one is running, or only a revision when neither changed."""
+    """List exports, whether one is running and whether this link may start one, or only a revision."""
     with guest_boundary(log, "review export files"):
         exporting = request.app.state.jobs.export_running(ws.path)
+        guest_render = guest_render_enabled()
+        flags = {"exporting": exporting, "guest_render": guest_render}
         if after is None:
-            return {**list_exported_files(ws), "exporting": exporting}
+            return {**list_exported_files(ws), **flags}
         stamp = ExportFilesService(ws).publication_stamp()
-        revision = hashlib.sha256(repr((token, ws.path, stamp, exporting)).encode()).hexdigest()
+        revision = hashlib.sha256(
+            repr((token, ws.path, stamp, exporting, guest_render)).encode()
+        ).hexdigest()
         if after == revision:
             return {"revision": revision}
-        return {"revision": revision, **list_exported_files(ws), "exporting": exporting}
+        return {"revision": revision, **list_exported_files(ws), **flags}
 
 
 @router.get("/api/review/{token}/daw/export/files/{file_id:path}")

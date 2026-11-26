@@ -280,6 +280,26 @@ export async function startRenderPreview(
   const data = (await res.json()) as { job: PipelineJobSnapshot };
   return { mode: "job", job: data.job };
 }
+
+/** A share link starts an export with the host's own formats: no body names any. */
+export async function startGuestExport(projectKey: string): Promise<void> {
+  await apiFetch(
+    projectKey,
+    { guest: "/daw/export" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+  );
+}
+
+/** Whether the newest export job of a share link ended in failure. */
+export async function guestExportFailed(projectKey: string): Promise<boolean> {
+  const res = await apiFetch(projectKey, { guest: "/daw/export/status" });
+  const body = (await res.json()) as { job?: { status?: string } | null };
+  return body.job?.status === "error";
+}
 /**
  * A followed job ended `cancelled`: someone asked it to stop. Not a failure.
  * `job` is the terminal snapshot; a cancel that came after the job wrote its
