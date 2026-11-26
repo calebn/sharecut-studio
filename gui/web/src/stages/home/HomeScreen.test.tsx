@@ -2224,6 +2224,37 @@ describe("HomeScreen", () => {
       expect(drop.defaultPrevented).toBe(true);
     });
 
+    it("still starts an episode from an audio-only drop, and leaves a bundle drop to the kit import", async () => {
+      list.mockResolvedValue([]);
+      create.mockResolvedValue({ project_path: EP, name: "Rosa" });
+      ingestInto.mockResolvedValue({ added: 1 });
+      loadCfg.mockResolvedValue(freshConfig());
+      vi.mocked(kitsApi.previewKitImport).mockResolvedValue(waitingKit());
+      vi.mocked(kitsApi.cancelKitImport).mockResolvedValue(undefined);
+      render(<HomeScreen />);
+      await screen.findByText("Your episodes will appear here.");
+      const dropOnPage = (files: File[]) => {
+        const drop = new Event("drop", { bubbles: true, cancelable: true });
+        Object.assign(drop, { dataTransfer: { files, types: ["Files"] } });
+        act(() => {
+          document.body.dispatchEvent(drop);
+        });
+        return drop;
+      };
+
+      dropOnPage([KIT_FILE()]);
+      await screen.findByRole("dialog", { name: "Import a kit" });
+      expect(create).not.toHaveBeenCalled();
+      expect(ingestInto).not.toHaveBeenCalled();
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+      const wav = new File(["x"], "Rosa.wav", { type: "audio/wav" });
+      dropOnPage([wav]);
+      await waitFor(() => expect(ingestInto).toHaveBeenCalledWith(EP, [wav]));
+      expect(vi.mocked(kitsApi.previewKitImport)).toHaveBeenCalledTimes(1);
+    });
+
     it("shows the section on a first-run Home that already has segments", async () => {
       list.mockResolvedValue([]);
       loadSegments.mockResolvedValue(listed);

@@ -265,5 +265,21 @@ describe("kit import routes", () => {
       ),
     ).toBeNull();
     expect(partialImport(new Error("x"))).toBeNull();
+    const malformed = [
+      { segments_added: [], segments_total: "3" },
+      { segments_added: null, segments_total: 3 },
+      { segments_added: { length: 2 }, segments_total: 3 },
+      { segments_added: [] },
+    ];
+    for (const body of malformed)
+      expect(
+        partialImport(new ApiError("x", "kit_busy", 409, null, body)),
+      ).toBeNull();
+    expect(
+      partialImport(new ApiError("x", "kit_busy", 409, null, "text")),
+    ).toBeNull();
+    expect(
+      partialImport(new ApiError("x", "kit_busy", 409, null, null)),
+    ).toBeNull();
   });
 });
