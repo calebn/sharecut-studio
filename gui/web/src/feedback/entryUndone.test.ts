@@ -5,7 +5,7 @@ import type {
   HistoryEntryView,
   ProjectView,
 } from "../types/project";
-import { entryUndone } from "./entryUndone";
+import { entryPlace, entryUndone } from "./entryUndone";
 
 const id = (v: string) => v as HistoryEntryId;
 
@@ -115,5 +115,27 @@ describe("entryUndone from groups alone (the document-sync shape)", () => {
     expect(entryUndone(withGroups("s0"), id("approve"))).toBe(true);
     expect(entryUndone(withGroups("approve"), id("approve"))).toBe(false);
     expect(entryUndone(withGroups("render"), id("gone"))).toBe(false);
+  });
+});
+
+describe("entryUndone with the head at the root", () => {
+  it("is true for an entry in the list: the root sits before every entry", () => {
+    expect(entryUndone(realHistory("root", ["s0", "e1"]), id("e1"))).toBe(true);
+  });
+
+  it("is false for an entry the list does not hold", () => {
+    expect(entryUndone(realHistory("root", ["s0", "e1"]), id("zz"))).toBe(
+      false,
+    );
+  });
+});
+
+describe("entryPlace", () => {
+  it("tells undone, present and unknown apart", () => {
+    const h = realHistory("s0", ["s0", "e1"]);
+    expect(entryPlace(h, id("e1"))).toBe("undone");
+    expect(entryPlace(h, id("s0"))).toBe("present");
+    expect(entryPlace(h, id("zz"))).toBe("unknown");
+    expect(entryPlace(null, id("e1"))).toBe("unknown");
   });
 });
