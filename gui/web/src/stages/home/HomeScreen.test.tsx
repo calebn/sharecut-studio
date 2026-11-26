@@ -15,6 +15,7 @@ import * as segments from "../../api/segments";
 import { CREATE_LABEL, REPORT_TITLE } from "../../home/HelpDialogView";
 import { PHONE_MQ, TABLET_MQ } from "../../hooks/useViewportClass";
 import * as ingest from "../../ingest/ingestFiles";
+import { KIT_FILE, waitingKit } from "../../kits/fixtures";
 import { ModelsProvider } from "../../models/ModelsProvider";
 import { ModelsContext, useModels } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
@@ -73,6 +74,8 @@ vi.mock("../../api", async (importOriginal) => ({
 vi.mock("../../api/kits", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api/kits")>()),
   loadKits: vi.fn(),
+  previewKitImport: vi.fn(),
+  cancelKitImport: vi.fn(),
 }));
 vi.mock("../../api/segments", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api/segments")>()),
@@ -2199,6 +2202,26 @@ describe("HomeScreen", () => {
       expect(
         screen.queryByRole("heading", { name: "Segment library" }),
       ).toBeNull();
+    });
+
+    it("still opens the kit preview for a file dropped while the library is hidden", async () => {
+      list.mockResolvedValue([]);
+      vi.mocked(kitsApi.previewKitImport).mockResolvedValue(waitingKit());
+      vi.mocked(kitsApi.cancelKitImport).mockResolvedValue(undefined);
+      render(<HomeScreen />);
+      await screen.findByText("Your episodes will appear here.");
+      expect(
+        screen.queryByRole("heading", { name: "Segment library" }),
+      ).toBeNull();
+      const drop = new Event("drop", { bubbles: true, cancelable: true });
+      Object.assign(drop, {
+        dataTransfer: { files: [KIT_FILE()], types: ["Files"] },
+      });
+      act(() => {
+        document.body.dispatchEvent(drop);
+      });
+      await screen.findByRole("dialog", { name: "Import a kit" });
+      expect(drop.defaultPrevented).toBe(true);
     });
 
     it("shows the section on a first-run Home that already has segments", async () => {

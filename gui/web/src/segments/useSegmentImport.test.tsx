@@ -253,3 +253,59 @@ describe("useSegmentImport", () => {
     expect(cancel).not.toHaveBeenCalled();
   });
 });
+
+describe("useSegmentImport guards", () => {
+  it("does not turn a cancelled upload into an error sheet", async () => {
+    const pending = deferred<api.SegmentImportPreview>();
+    preview.mockReturnValueOnce(pending.promise);
+    const { result } = setup();
+    act(() => result.current.choose(SEGMENT_FILE()));
+    act(() => result.current.cancel());
+    await act(async () =>
+      pending.reject(
+        new DOMException("The operation was aborted.", "AbortError"),
+      ),
+    );
+    expect(result.current.state.phase).toBe("idle");
+  });
+
+  it("sends one commit for a double Add", async () => {
+    const pending = deferred<api.SegmentSaveResult>();
+    commit.mockReturnValueOnce(pending.promise);
+    const { result } = await staged();
+    act(() => {
+      result.current.add();
+      result.current.add();
+    });
+    expect(commit).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      pending.resolve({ status: "added", id: "cold-open-1", version: 1 }),
+    );
+  });
+
+  it("takes another file from the error sheet", async () => {
+    preview.mockRejectedValueOnce(
+      new ApiError("Not a segment.", "segment_bundle_invalid", 422),
+    );
+    const { result } = setup();
+    act(() => result.current.choose(SEGMENT_FILE()));
+    await waitFor(() => expect(result.current.state.phase).toBe("error"));
+    act(() => result.current.choose(SEGMENT_FILE()));
+    await waitFor(() => expect(result.current.state.phase).toBe("preview"));
+  });
+
+  it("starts no upload for a file chosen after it unmounted", () => {
+    const { result, unmount } = setup();
+    unmount();
+    act(() => result.current.choose(SEGMENT_FILE()));
+    expect(preview).not.toHaveBeenCalled();
+  });
+
+  it("keeps the preview with a notice when the commit had no server code", async () => {
+    commit.mockRejectedValueOnce(new ApiError("Dropped.", "network_error"));
+    const { result } = await staged();
+    act(() => result.current.add());
+    await waitFor(() => expect(result.current.state.phase).toBe("preview"));
+    expect(cancel).not.toHaveBeenCalled();
+  });
+});

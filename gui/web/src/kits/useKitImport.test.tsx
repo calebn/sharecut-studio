@@ -301,3 +301,153 @@ describe("useKitImport", () => {
     );
   });
 });
+
+const abortError = () =>
+  new DOMException("The operation was aborted.", "AbortError");
+
+describe("useKitImport after the first try", () => {
+  it("says how many segments are already in the library when the file expired", async () => {
+    commit
+      .mockRejectedValueOnce(partial("kit_busy", 409, 2, 5))
+      .mockRejectedValueOnce(
+        new ApiError("Unknown.", "kit_import_unknown", 404),
+      );
+    const { result: hook } = await staged();
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("preview"));
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("error"));
+    expect(hook.current.state).toMatchObject({
+      message:
+        "That file expired. Choose it again. 2 of 5 segments are already in your library.",
+    });
+  });
+
+  it("counts the segments added across every try in the success message", async () => {
+    commit
+      .mockRejectedValueOnce(partial("kit_busy", 409, 2, 3))
+      .mockResolvedValueOnce(
+        result([
+          { status: "added", id: "late", version: 1 },
+          { status: "unchanged", id: "a", version: 1 },
+        ]),
+      );
+    const { result: hook } = await staged(waitingKit({ entry_count: 3 }));
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("preview"));
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("idle"));
+    expect(onDone).toHaveBeenCalledWith(
+      "Added Show Kit to your library, with 3 new segments",
+      "late",
+    );
+  });
+
+  it("says how many of the kit's segments are new when some were already there", async () => {
+    commit
+      .mockRejectedValueOnce(partial("kit_busy", 409, 1, 3))
+      .mockResolvedValueOnce(
+        result([{ status: "added", id: "late", version: 1 }]),
+      );
+    const { result: hook } = await staged(waitingKit({ entry_count: 3 }));
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("preview"));
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("idle"));
+    expect(onDone).toHaveBeenCalledWith(
+      "Added Show Kit to your library, with 2 of 3 segments new",
+      "late",
+    );
+  });
+
+  it("keeps the preview with a retryable notice when the commit had no server code", async () => {
+    commit.mockRejectedValueOnce(
+      new ApiError(
+        "Couldn't reach the server. Check your connection and try again.",
+        "network_error",
+      ),
+    );
+    const { result: hook } = await staged();
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("preview"));
+    expect(hook.current.state).toMatchObject({
+      notice: "Couldn't reach the server. Check your connection and try again.",
+    });
+    expect(cancel).not.toHaveBeenCalled();
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("idle"));
+    expect(commit).toHaveBeenCalledTimes(2);
+  });
+
+  it("cancels the staged file when it gives up on a refusal", async () => {
+    commit.mockRejectedValueOnce(partial("kit_invalid", 422, 0, 2));
+    const { result: hook } = await staged();
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("error"));
+    expect(cancel).toHaveBeenCalledWith(KIT_TOKEN);
+  });
+
+  it("does not turn a cancelled upload into an error sheet", async () => {
+    const pending = deferred<api.KitImportPreview>();
+    preview.mockReturnValueOnce(pending.promise);
+    const { result: hook } = renderHook(() =>
+      useKitImport({ onChanged, onDone }),
+    );
+    act(() => hook.current.choose(KIT_FILE()));
+    act(() => hook.current.cancel());
+    await act(async () => pending.reject(abortError()));
+    expect(hook.current.state.phase).toBe("idle");
+  });
+
+  it("sends one commit for a double Add and ignores Add outside a preview", async () => {
+    const pending = deferred<api.KitImportResult>();
+    commit.mockReturnValueOnce(pending.promise);
+    const { result: hook } = await staged();
+    act(() => {
+      hook.current.add();
+      hook.current.add();
+    });
+    expect(commit).toHaveBeenCalledTimes(1);
+    await act(async () => pending.resolve(result()));
+    expect(hook.current.state.phase).toBe("idle");
+    act(() => hook.current.add());
+    expect(commit).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes another file from the error sheet", async () => {
+    preview.mockRejectedValueOnce(
+      new ApiError("Not a kit.", "kit_bundle_invalid", 422),
+    );
+    const { result: hook } = renderHook(() =>
+      useKitImport({ onChanged, onDone }),
+    );
+    act(() => hook.current.choose(KIT_FILE()));
+    await waitFor(() => expect(hook.current.state.phase).toBe("error"));
+    act(() => hook.current.choose(KIT_FILE()));
+    await waitFor(() => expect(hook.current.state.phase).toBe("preview"));
+    expect(preview).toHaveBeenCalledTimes(2);
+  });
+
+  it("starts no upload for a file chosen after it unmounted", () => {
+    const { result: hook, unmount } = renderHook(() =>
+      useKitImport({ onChanged, onDone }),
+    );
+    unmount();
+    act(() => hook.current.choose(KIT_FILE()));
+    expect(preview).not.toHaveBeenCalled();
+  });
+
+  it("aborts an upload in flight at unmount and cancels the token that still arrives", async () => {
+    const pending = deferred<api.KitImportPreview>();
+    preview.mockReturnValueOnce(pending.promise);
+    const { result: hook, unmount } = renderHook(() =>
+      useKitImport({ onChanged, onDone }),
+    );
+    act(() => hook.current.choose(KIT_FILE()));
+    const signal = preview.mock.calls[0][1] as AbortSignal;
+    unmount();
+    expect(signal.aborted).toBe(true);
+    await act(async () => pending.resolve(waitingKit()));
+    expect(cancel).toHaveBeenCalledWith(KIT_TOKEN);
+  });
+});

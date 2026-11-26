@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as kitsApi from "../../api/kits";
 import * as segmentsApi from "../../api/segments";
+import { useWindowFileDrop } from "../../hooks/useWindowFileDrop";
 import { KIT_FILE, KIT_TOKEN, waitingKit } from "../../kits/fixtures";
 import { KitLibrary } from "../../kits/KitLibrary";
 import type { KitLibraryState } from "../../kits/useKitLibrary";
@@ -20,6 +21,7 @@ import { useDawStore } from "../../state/dawStore";
 import { deferred } from "../../test/deferred";
 import { stubViewportShell } from "../../test/viewportShell";
 import { zipFile } from "../../test/zipFile";
+import { ApiError } from "../../utils/apiError";
 import { BundleImportHost } from "./BundleImportHost";
 
 vi.mock("../../api/segments", async (importOriginal) => ({
@@ -265,7 +267,7 @@ describe("drop anywhere on the window", () => {
     expect(previewKit).not.toHaveBeenCalled();
   });
 
-  it("leaves a drag with no files, and a drop a nearer target took", () => {
+  it("leaves a drag with no files, and a drop a nearer target took", async () => {
     const state = libraries();
     render(<Mounted state={state} />);
     expect(dropOn(document.body, [], ["text/plain"]).defaultPrevented).toBe(
@@ -279,7 +281,22 @@ describe("drop anywhere on the window", () => {
     act(() => {
       document.body.dispatchEvent(taken);
     });
+    await new Promise((done) => setTimeout(done, 30));
     expect(previewKit).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("leaves a dragover a nearer target already accepted", () => {
+    const state = libraries();
+    render(<Mounted state={state} />);
+    const over = new Event("dragover", { bubbles: true, cancelable: true });
+    const transfer = { types: ["Files"], dropEffect: "none" };
+    Object.assign(over, { dataTransfer: transfer });
+    over.preventDefault();
+    act(() => {
+      document.body.dispatchEvent(over);
+    });
+    expect(transfer.dropEffect).toBe("none");
   });
 
   it("accepts the drag so the browser does not open the file", () => {
@@ -295,7 +312,9 @@ describe("drop anywhere on the window", () => {
     expect(over.defaultPrevented).toBe(true);
   });
 
-  it("refuses a second file while one import is open, whichever kind either is", async () => {
+  it("refuses a second file while one is uploading or being added, whichever kind either is", async () => {
+    const pending = deferred<kitsApi.KitImportPreview>();
+    previewKit.mockReturnValueOnce(pending.promise);
     const state = libraries();
     render(<Mounted state={state} />);
     dropOn(document.body, [KIT_FILE()]);
@@ -308,19 +327,81 @@ describe("drop anywhere on the window", () => {
     );
     expect(previewSegment).not.toHaveBeenCalled();
     expect(previewKit).toHaveBeenCalledTimes(1);
+    await act(async () => pending.resolve(waitingKit()));
   });
 
   it("refuses a second file while the first is still being checked", async () => {
-    const pending = deferred<kitsApi.KitImportPreview>();
-    previewKit.mockReturnValueOnce(pending.promise);
+    const state = libraries();
+    render(<Mounted state={state} />);
+    dropOn(document.body, [zipFile("a.zip", ["kit.json"])]);
+    dropOn(document.body, [zipFile("b.zip", ["kit.json"])]);
+    expect(announced()).toMatch(/Wait for the library/);
+    await screen.findByRole("dialog", { name: "Import a kit" });
+    expect(previewKit).toHaveBeenCalledTimes(1);
+  });
+
+  it("replaces a waiting preview with the next file", async () => {
     const state = libraries();
     render(<Mounted state={state} />);
     dropOn(document.body, [KIT_FILE()]);
     await screen.findByRole("dialog", { name: "Import a kit" });
-    dropOn(document.body, [KIT_FILE()]);
-    await waitFor(() => expect(announced()).toMatch(/Wait for the library/));
-    expect(previewKit).toHaveBeenCalledTimes(1);
-    await act(async () => pending.resolve(waitingKit()));
+    dropOn(document.body, [SEGMENT_FILE()]);
+    await screen.findByRole("dialog", { name: "Import a segment" });
+    expect(cancelKit).toHaveBeenCalledWith(KIT_TOKEN);
+  });
+
+  it.each([
+    ["kit", () => previewKit, () => KIT_FILE(), "Import a kit"],
+    ["segment", () => previewSegment, () => SEGMENT_FILE(), "Import a segment"],
+  ])(
+    "takes a second file from the %s error sheet",
+    async (_kind, preview, file, title) => {
+      const state = libraries();
+      const view = render(<Mounted state={state} />);
+      preview().mockRejectedValueOnce(
+        new ApiError("Damaged.", "x_invalid", 422),
+      );
+      await userEvent.upload(picker(view.container), file());
+      const sheet = await screen.findByRole("dialog", { name: title });
+      await within(sheet).findByRole("alert");
+      await userEvent.upload(picker(view.container), file());
+      await waitFor(() => expect(preview()).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      expect(announced()).not.toMatch(/Wait for the library/);
+      dropOn(document.body, [file()]);
+      await waitFor(() => expect(preview()).toHaveBeenCalledTimes(3));
+    },
+  );
+
+  it("imports the bundle in a mixed drop and says the audio was not added", async () => {
+    const onFiles = vi.fn();
+    function Both({ state }: { state: ReturnType<typeof libraries> }) {
+      useWindowFileDrop(true, onFiles);
+      return <Mounted state={state} />;
+    }
+    const state = libraries();
+    render(<Both state={state} />);
+    const wav = new File(["x"], "take.wav", { type: "audio/wav" });
+    dropOn(document.body, [wav, KIT_FILE()]);
+    await screen.findByRole("dialog", { name: "Import a kit" });
+    expect(announced()).toBe(
+      "Audio in the same drop wasn't added. Drop it on its own.",
+    );
+    expect(onFiles).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    dropOn(document.body, [wav]);
+    expect(onFiles).toHaveBeenCalledWith([wav]);
+  });
+
+  it("says nothing about audio when the bundle comes with other files only", async () => {
+    const state = libraries();
+    render(<Mounted state={state} />);
+    dropOn(document.body, [
+      new File(["x"], "notes.txt", { type: "text/plain" }),
+      KIT_FILE(),
+    ]);
+    await screen.findByRole("dialog", { name: "Import a kit" });
+    expect(announced()).toBe("");
   });
 
   it("does not listen while it is told not to", () => {
@@ -339,15 +420,78 @@ describe("drop anywhere on the window", () => {
   });
 });
 
+describe("after the add", () => {
+  it("reads the segment list again when a kit added no new segment, and reveals none", async () => {
+    commitKit.mockResolvedValueOnce({
+      kit: { status: "new_version", id: "show-kit-1a2b3c4d", version: 2 },
+      segments: [{ status: "unchanged", id: "intro", version: 1 }],
+    });
+    const state = libraries();
+    render(<Mounted state={state} />);
+    dropOn(document.body, [KIT_FILE()]);
+    const sheet = await screen.findByRole("dialog", { name: "Import a kit" });
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: "Add to library" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(state.segments.reload).toHaveBeenCalledTimes(1);
+    expect(state.kits.reload).toHaveBeenCalledTimes(1);
+    expect(state.segments.reveal).not.toHaveBeenCalled();
+  });
+
+  it("does not read the segment list a second time when a segment was revealed", async () => {
+    const state = libraries();
+    render(<Mounted state={state} />);
+    dropOn(document.body, [KIT_FILE()]);
+    const sheet = await screen.findByRole("dialog", { name: "Import a kit" });
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: "Add to library" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(state.segments.reload).not.toHaveBeenCalled();
+    expect(state.segments.reveal).toHaveBeenCalledWith("intro-new");
+  });
+});
+
+describe("unmounting", () => {
+  it("starts no upload for a file still being read when the host goes away", async () => {
+    const state = libraries();
+    const view = render(<Mounted state={state} />);
+    dropOn(document.body, [zipFile("a.zip", ["kit.json"])]);
+    view.unmount();
+    await new Promise((done) => setTimeout(done, 30));
+    expect(previewKit).not.toHaveBeenCalled();
+    expect(previewSegment).not.toHaveBeenCalled();
+  });
+
+  it("aborts an upload and cancels its token when the host goes away", async () => {
+    const pending = deferred<kitsApi.KitImportPreview>();
+    previewKit.mockReturnValueOnce(pending.promise);
+    const state = libraries();
+    const view = render(<Mounted state={state} />);
+    dropOn(document.body, [KIT_FILE()]);
+    await waitFor(() => expect(previewKit).toHaveBeenCalledTimes(1));
+    const signal = previewKit.mock.calls[0][1] as AbortSignal;
+    view.unmount();
+    expect(signal.aborted).toBe(true);
+    await act(async () => pending.resolve(waitingKit()));
+    expect(cancelKit).toHaveBeenCalledWith(KIT_TOKEN);
+  });
+});
+
 describe("a guest", () => {
   beforeEach(() => {
     useDawStore.setState({ guestMode: "review" });
   });
 
-  it("renders its children only, with no Import and no window listener", () => {
+  it("renders its children only, with no Import and no window listener", async () => {
+    const add = vi.spyOn(document, "addEventListener");
     const state = libraries();
     render(<Mounted state={state} />);
+    await screen.findByText(/No saved segments yet/);
     expect(screen.queryByRole("button", { name: "Import" })).toBeNull();
+    expect(add.mock.calls.map((call) => call[0])).not.toContain("drop");
+    expect(add.mock.calls.map((call) => call[0])).not.toContain("dragover");
     const event = dropOn(document.body, [KIT_FILE()]);
     expect(event.defaultPrevented).toBe(false);
     expect(previewKit).not.toHaveBeenCalled();
