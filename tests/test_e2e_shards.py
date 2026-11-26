@@ -45,10 +45,11 @@ def test_slowest_planned_shard_is_within_15_percent_of_the_ideal(plan: dict[str,
 def test_check_reports_missing_stale_and_duplicate_specs(plan: dict[str, Any]) -> None:
     specs = es.spec_paths()
     broken = copy.deepcopy(plan)
-    dropped = broken["shards"]["1"].pop()
-    broken["shards"]["2"].append("ghost.spec.ts")
-    duplicated = broken["shards"]["3"][0]
-    broken["shards"]["4"].append(duplicated)
+    first, second, *_ = sorted(broken["shards"], key=int)
+    dropped = broken["shards"][first].pop()
+    broken["shards"][second].append("ghost.spec.ts")
+    duplicated = broken["shards"][first][0]
+    broken["shards"][second].append(duplicated)
     problems = "\n".join(es.check_plan(broken, specs))
     assert dropped in problems
     assert "ghost.spec.ts" in problems
@@ -84,7 +85,7 @@ def test_check_rejects_an_empty_shard(plan: dict[str, Any]) -> None:
 
 def test_check_reports_bad_shard_keys_as_a_problem_not_a_traceback(plan: dict[str, Any]) -> None:
     broken = copy.deepcopy(plan)
-    broken["shards"]["7"] = broken["shards"].pop("6")
+    broken["shards"][str(cp.MAIN_SHARDS + 1)] = broken["shards"].pop(str(cp.MAIN_SHARDS))
     assert any("exactly 1..N" in p for p in es.check_plan(broken, es.spec_paths()))
     broken["shards"] = {
         "0": broken["shards"]["1"],
