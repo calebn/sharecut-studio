@@ -69,6 +69,17 @@ describe("App styles", () => {
     expect(ui).not.toMatch(/100dvh - var\(--player-height\)/);
   });
 
+  it("holds the touch floor on dialog footer actions at every pointer", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const palette = readFileSync(
+      join(here, "styles/partials/command-palette.css"),
+      "utf8",
+    );
+    expect(palette).toMatch(
+      /\.share-dialog-actions \.ui-control\s*\{[^}]*min-block-size:\s*var\(--touch-min\)/s,
+    );
+  });
+
   it("keeps badge content on one line", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "styles/partials/layout.css"), "utf8");

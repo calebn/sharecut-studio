@@ -10,3 +10,7 @@ export function localHostMcpUrl(
 export function mcpClientSnippet(url: string): string {
   return JSON.stringify({ mcpServers: { sharecut: { url } } }, null, 2);
 }
+
+/** One message for every copy failure; the recovery is the same and the browser text is not for people. */
+export const COPY_FAILED_MESSAGE =
+  "Couldn't copy. Select the text and copy it by hand.";
