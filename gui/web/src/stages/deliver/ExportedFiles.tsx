@@ -1,6 +1,7 @@
 import { formatBytes } from "../../models";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button } from "../../ui";
+import { useDisabledReasonNote } from "../../ui/disabledReason";
 import {
   type ExportedFile,
   type FileAccess,
@@ -29,11 +30,13 @@ function Row({
   file,
   access,
   running,
+  describedBy,
   staleLabel,
   onReveal,
   onStarted,
 }: Omit<Props, "files" | "grouped" | "largeFileNote"> & {
   file: ExportedFile;
+  describedBy: Record<string, string>;
 }) {
   const verb = access === "reveal" ? "Reveal" : "Download";
   const name = `${verb} ${file.name}, ${formatBytes(file.bytes)}`;
@@ -81,6 +84,7 @@ function Row({
           className="dv-file-action"
           aria-label={name}
           disabledReason={running ? RUNNING_REASON : undefined}
+          {...(running ? describedBy : {})}
           onClick={() => onReveal?.(file)}
         >
           {icon}
@@ -101,6 +105,10 @@ export function ExportedFiles({
   onReveal,
   onStarted,
 }: Props) {
+  const { note: runningNote, describedBy } = useDisabledReasonNote(
+    running ? RUNNING_REASON : null,
+    "dv-note",
+  );
   if (files.length === 0) return null;
   const rows = (list: readonly ExportedFile[]) => (
     <ul className="dv-files">
@@ -110,6 +118,7 @@ export function ExportedFiles({
           file={file}
           access={access}
           running={running}
+          describedBy={describedBy}
           staleLabel={staleLabel}
           onReveal={onReveal}
           onStarted={onStarted}
@@ -130,7 +139,7 @@ export function ExportedFiles({
       {access === "download" && hasLargeFile(files) ? (
         <p className="dv-note">{largeFileNote}</p>
       ) : null}
-      {running ? <p className="dv-note">{RUNNING_REASON}</p> : null}
+      {runningNote}
     </div>
   );
 }

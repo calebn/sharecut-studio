@@ -719,8 +719,10 @@ current file at once as one zip from `…/daw/export/archive`. The archive holds
 already download one by one and takes the same per-share audio stream slot, so it widens no access. A host's
 archive ticket covers the same files for 30 minutes, like the listing's per-file tickets together.
 The Editor’s Deliver Files section shows when the listing is loading and offers a retry if it fails.
-The listing also carries `exporting`, true while an export of the project runs in this server (the state
-that makes a download answer 409 `export_running`). The poll revision includes it, so a visible Files page
+The listing also carries `exporting`, true while an export of the project runs in this server process (the state
+that makes a download answer 409 `export_running`). An export started from the CLI or the stdio MCP in
+another process is not seen: `exporting` stays false, the rows stay enabled, and a download then answers
+whatever the server answers. The poll revision includes it, so a visible Files page
 sees the flip without a file change. While it is true the rows and Download all are disabled with
 “Exporting now. Download when it finishes.” and the page polls every 5 seconds instead of 30.
 Both are Editor twins in `GUEST_OWNER_ROUTES` on the `read` rate bucket and need no
