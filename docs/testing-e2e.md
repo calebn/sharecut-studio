@@ -245,7 +245,7 @@ Fixture registry: [fixture-catalog.md](fixture-catalog.md). Expansion plan: [e2e
 |--------|---------|
 | `e2e` | Tier A fixtures (`aligned_dialogue`, `synthetic_bleed_60s`, or `PODCAST_E2E_PROJECT`) |
 | `e2e_slow` | Live transcribe / heavier pipeline (`asr_gold` WER) |
-| `e2e_real` | Nightly (`ami_bleed_60s`, benchmark regression); `tests/test_hf_real_tiny.py` (real `tiny.en` download) also needs `PODCAST_TEST_NETWORK=1` and is run by hand, no CI job runs it yet |
+| `e2e_real` | Nightly (`ami_bleed_60s`, benchmark regression); `tests/test_hf_real_tiny.py` (real `tiny.en` download, child-process and plain HTTP paths) also needs `PODCAST_TEST_NETWORK=1` and is run by hand, no CI job runs it yet |
 
 E2e runs use `--no-cov` so they do not affect the coverage gate when run standalone.
 
