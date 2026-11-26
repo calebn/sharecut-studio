@@ -108,7 +108,7 @@ def signing_relay(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **env: str) -
 
 def visible_text(page: str) -> str:
     unstyled = re.sub(r"<style>.*?</style>", "", page, flags=re.S)
-    return re.sub(r"<[^>]*>", "", unstyled).lower()
+    return re.sub(r'\baction="[^"]*"', "", unstyled).lower()
 
 
 def client(app: FastAPI) -> AsyncClient:
@@ -666,7 +666,20 @@ async def test_an_enrolled_install_s_guests_never_see_the_notice(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "target",
-    ["https://evil.test/", "//evil.test/r/x", "/other", "/r//evil.test", "/r/x\\y", "/r/x\n", ""],
+    [
+        "https://evil.test/",
+        "//evil.test/r/x",
+        "/other",
+        "/r//evil.test",
+        "/r/x\\y",
+        "/r/x\n",
+        "",
+        "/r/../../healthz",
+        "/r/..%2F..%2Fhealthz",
+        "/r/./x",
+        "/rec/%2e%2e/api",
+        "/r/%2E/x",
+    ],
 )
 async def test_continue_only_returns_to_a_link_page(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, target: str
@@ -681,6 +694,20 @@ async def test_continue_only_returns_to_a_link_page(
 
     assert res.status_code == 404
     assert "set-cookie" not in res.headers
+
+
+@pytest.mark.asyncio
+async def test_continue_still_returns_to_a_normal_link_page(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    async with client(app) as http:
+        res = await http.post(
+            "/api/relay/notice/continue?next=%2Fr%2Ftok%2F%3Ft%3D12", headers=SAME_ORIGIN
+        )
+
+    assert res.status_code == 303
+    assert res.headers["location"] == "/r/tok/?t=12"
 
 
 @pytest.mark.asyncio

@@ -65,14 +65,6 @@ def _enroll(client: TestClient, **kwargs) -> dict:
     return res.json()
 
 
-def test_the_old_enrollment_and_notice_paths_answer_404(client: TestClient) -> None:
-    assert client.get("/enroll").status_code == 404
-    assert client.post("/enroll", json=enroll_body()).status_code == 404
-    assert client.post("/enroll/renew", json={"lease": "x", "build": "1"}).status_code == 404
-    assert client.post("/notice/continue?next=%2Fr%2Fx").status_code == 404
-    assert client.get("/api/relay/enroll").status_code == 200
-
-
 def _hello(client: TestClient, **fields) -> tuple[dict, int | None]:
     """Send a hello; return the reply frame and, for a refusal, the code the relay closed with."""
     with client.websocket_connect("/tunnel") as ws:
@@ -85,6 +77,25 @@ def _hello(client: TestClient, **fields) -> tuple[dict, int | None]:
         except WebSocketDisconnect as closed:
             return reply, closed.code
         raise AssertionError("relay kept the socket open after refusing the hello")
+
+
+OLD_PATHS = ("/enroll", "/enroll/renew", "/notice/continue")
+
+
+@pytest.mark.parametrize("path", OLD_PATHS)
+def test_the_old_enrollment_and_notice_paths_answer_404(client: TestClient, path: str) -> None:
+    assert client.get(path).status_code == 404
+    assert client.post(path, json=enroll_body()).status_code == 404
+
+
+def test_the_caddy_relay_matcher_names_none_of_the_old_paths() -> None:
+    root = Path(__file__).resolve().parents[1]
+    for name in ("Caddyfile.prod", "Caddyfile.local"):
+        lines = (root / "deploy/relay" / name).read_text(encoding="utf-8").splitlines()
+        matcher = next(line for line in lines if "@relay path" in line)
+        patterns = matcher.split("path", 1)[1].split()
+        for old in OLD_PATHS:
+            assert old not in patterns, f"{name} routes {old}"
 
 
 def test_enroll_returns_a_seven_day_lease_and_the_stable_claim_key(client) -> None:

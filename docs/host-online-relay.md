@@ -267,8 +267,12 @@ relay accepts both:
 | Host token | The operator hands it out (the self-host model, unchanged) | `hello.host_token` | Editing `PODCAST_RELAY_HOST_TOKENS` and restarting |
 | Lease | The install enrolls for it, with no sign-up and nothing to type | `hello.lease` | The deny file, `PODCAST_RELAY_MIN_BUILD`, `PODCAST_RELAY_EPOCH`, or a new signing key id |
 
-With no `PODCAST_RELAY_SIGNING_KEY` the relay has no `/api/relay/enroll` routes (they answer 404)
-and behaves exactly as it did before: host tokens only. A host with an
+The three enrollment paths, `/api/relay/enroll`, `/api/relay/enroll/renew` and
+`/api/relay/notice/continue`, now live under `/api/relay/`. With no `PODCAST_RELAY_SIGNING_KEY` the
+relay answers 404 on all three and behaves exactly as it did before: host tokens only. A relay
+built before this move also answers 404 there, because it serves them at `/enroll`,
+`/enroll/renew` and `/notice/continue`, which a current relay no longer serves. Upgrade the relay
+and its hosts together, relay first. A host with an
 explicit `host_token` never enrolls and uses the token unchanged. The shared shapes live in
 `util/relay_protocol` (`lease.py`, `enroll.py`); the relay side is `podcast_relay/policy.py`
 (`RelayPolicy`) and `routes/enroll.py`; the host side is
@@ -283,7 +287,8 @@ then reads "not set up" again, as it did before enrollment existed, until it res
 host token, instead of showing a failure.
 
 1. `GET /api/relay/enroll` returns `{"enroll": true, "pow_bits": N, "epoch": E, "now": T}`, with `now` the
-   relay's clock in seconds. A 404 here means the relay does not enroll hosts. The host never
+   relay's clock in seconds. A 404 here means the relay has no signing key or is an older build that serves enrollment at
+   the old paths. The host never
    solves more than 26 bits whatever `pow_bits` says.
 2. `POST /api/relay/enroll` with `seed`, `platform`, `build`, `proof` (`{"ts", "nonce"}`) and, when the host
    holds one, `previous` (a lease this relay signed earlier). The relay, not the host, assigns the
@@ -411,7 +416,7 @@ failure takes the same path as any other failed try, in plain words:
 
 | Situation | Kind | Message the host sees | Retried |
 |-----------|------|-----------------------|---------|
-| The address does not enroll hosts (404) | `config` | online sharing is not available at this address | no |
+| The address answers 404 (no signing key, or an older relay) | `config` | online sharing is not available at this address | no |
 | The install was denied | `unavailable` | online sharing is unavailable right now (the Invite sheet adds a contact link) | no |
 | The build is below `min_build` | `auth` | this version of ShareCut is too old for online sharing (update, then start again) | no |
 | Rate limited | `rate limited` | too many sign-ups from this network, trying again later | yes, after `Retry-After` |
