@@ -40,6 +40,7 @@ from podcast_mcp.util.wav import open_wav
 
 from .edit import EditService
 from .play import PlayService
+from .play_compose_results import AuditionContextReport
 from .timeline import TimelineService
 
 DEFAULT_LIMIT = 40
@@ -293,7 +294,7 @@ def _render_pair_wavs(
 
 def _pair_audition_context(
     play: PlayService, wavs: dict[str, Any]
-) -> tuple[dict[str, Any] | None, str | None]:
+) -> tuple[AuditionContextReport | None, str | None]:
     """Build owner-only diagnostics, recording failures without unblinding listeners."""
     try:
         return (

@@ -41,7 +41,6 @@ DICT_RETURNS: dict[str, int] = {
     "document/cross_process_sync.py": 2,
     "document/feed.py": 2,
     "document/golden_ear.py": 8,
-    "document/play_compose.py": 2,
     "document/play_session.py": 3,
     "document/segment_insert.py": 1,
     "document/service_base.py": 4,
