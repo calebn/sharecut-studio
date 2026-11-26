@@ -17,6 +17,7 @@ import { FeedbackToast } from "../../feedback/FeedbackToast";
 import { HelpHost } from "../../home/HelpHost";
 import { useWindowFileDrop } from "../../hooks/useWindowFileDrop";
 import { ingestIntoNewProject, pickAudioFiles } from "../../ingest/ingestFiles";
+import { KitLibrary, useKitLibrary } from "../../kits";
 import { ModelsSheet, useModels } from "../../models";
 import {
   SegmentLibrary,
@@ -229,6 +230,8 @@ export function HomeScreen() {
     setSegmentLibraryOpen,
   } = useDawStore.getState();
   const segments = useSegmentLibrary();
+  const hosted = useDawStore((s) => s.guestMode === null);
+  const kits = useKitLibrary(hosted);
   const openPalette = useDawStore.getState().setCommandPaletteOpen;
   const busy = useRef(false);
 
@@ -587,7 +590,12 @@ export function HomeScreen() {
         onRetryLoad={() => setReload((n) => n + 1)}
         library={
           showLibrary
-            ? (layout) => <SegmentLibrary library={segments} layout={layout} />
+            ? (layout) => (
+                <>
+                  <SegmentLibrary library={segments} layout={layout} />
+                  <KitLibrary library={kits} omitWhenEmpty />
+                </>
+              )
             : undefined
         }
         onOpenProject={(id, stage) => void open(id, stage)}
@@ -629,6 +637,7 @@ export function HomeScreen() {
       />
       <SegmentLibrarySheet
         library={segments}
+        kits={kits}
         open={libraryOpen}
         onClose={() => setSegmentLibraryOpen(false)}
       />

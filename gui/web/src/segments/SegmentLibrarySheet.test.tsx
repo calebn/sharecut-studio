@@ -1,7 +1,10 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as kitsApi from "../api/kits";
 import * as api from "../api/segments";
+import { KITS } from "../kits/fixtures";
+import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { deferred } from "../test/deferred";
 import { stubViewportShell } from "../test/viewportShell";
@@ -15,11 +18,18 @@ vi.mock("../api/segments", async (importOriginal) => ({
   removeSegment: vi.fn(),
 }));
 
+vi.mock("../api/kits", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api/kits")>()),
+  loadKits: vi.fn(),
+}));
+
+const loadKits = vi.mocked(kitsApi.loadKits);
 const load = vi.mocked(api.loadSegments);
 const removeSegment = vi.mocked(api.removeSegment);
 const pause = vi.fn();
 
 beforeEach(() => {
+  loadKits.mockReset().mockResolvedValue([]);
   load.mockReset().mockResolvedValue(LIBRARY);
   removeSegment.mockReset().mockResolvedValue(undefined);
   pause.mockClear();
@@ -37,6 +47,40 @@ afterEach(() => {
 });
 
 describe("SegmentLibrarySheet", () => {
+  it("lists the kits below the segments under their own heading", async () => {
+    stubViewportShell("desktop");
+    loadKits.mockResolvedValue(KITS);
+    const { baseElement } = render(
+      <SegmentLibrarySheet open onClose={vi.fn()} />,
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Segment library",
+    });
+    const kits = await within(dialog).findByRole("region", { name: "Kits" });
+    expect(within(kits).getAllByRole("listitem")).toHaveLength(4);
+    expect(
+      within(dialog).getAllByRole("heading", { name: "Kits" }),
+    ).toHaveLength(1);
+    await expectNoA11yViolations(baseElement);
+  });
+
+  it("says there are no kits in the sheet, and reads none for a guest", async () => {
+    stubViewportShell("desktop");
+    const { unmount } = render(<SegmentLibrarySheet open onClose={vi.fn()} />);
+    expect(await screen.findByText(/No kits yet/)).toBeVisible();
+    unmount();
+    loadKits.mockClear();
+    useDawStore.setState({ guestMode: "viewer" });
+    try {
+      render(<SegmentLibrarySheet open onClose={vi.fn()} />);
+      await screen.findByRole("list", { name: "Segment library" });
+      expect(screen.queryByRole("region", { name: "Kits" })).toBeNull();
+      expect(loadKits).not.toHaveBeenCalled();
+    } finally {
+      useDawStore.setState({ guestMode: null });
+    }
+  });
+
   it("reads nothing while closed", () => {
     stubViewportShell("desktop");
     render(<SegmentLibrarySheet open={false} onClose={vi.fn()} />);
