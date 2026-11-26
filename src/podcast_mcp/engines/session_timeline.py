@@ -285,6 +285,14 @@ def map_timeline_spans_over_clips(
     return [(SourceSec(s), SourceSec(e)) for s, e in _merge_intervals(out, merge_gap)]
 
 
+def _overlap_spans(
+    clip: Clip, tl_start: float, tl_end: float
+) -> list[tuple[SourceSec, SourceSec]] | None:
+    if tl_end <= tl_start + _EPS:
+        return None
+    return map_timeline_spans_over_clips([clip], [(tl_start, tl_end)]) or None
+
+
 def clip_timeline_overlap_to_source(
     clip: Clip, tl_start: float, tl_end: float
 ) -> tuple[float, float] | None:
@@ -292,25 +300,32 @@ def clip_timeline_overlap_to_source(
 
     Edit/render code that works on clip lists (without a full project) should
     call this instead of inlining ``source_start + (tl - timeline_start)``.
+    Raises ``timing_map_needs_source_point`` when the window crosses a timing
+    step and maps to several non-contiguous source stretches.
     """
-    if tl_end <= tl_start + _EPS:
+    spans = _overlap_spans(clip, tl_start, tl_end)
+    if spans is None:
         return None
-    spans = map_timeline_spans_over_clips([clip], [(tl_start, tl_end)])
-    if not spans:
-        return None
-    return float(spans[0][0]), float(spans[-1][1])
+    if len(spans) > 1:
+        raise CodedValueError(
+            f"clip {clip.id!r} maps timeline [{tl_start}, {tl_end}) to {len(spans)} "
+            "source stretches because the window crosses a timing step. "
+            "Map each piece separately.",
+            code="timing_map_needs_source_point",
+        )
+    return float(spans[0][0]), float(spans[0][1])
 
 
 def clip_timeline_point_to_source(clip: Clip, timeline_sec: float) -> float:
     """Map one timeline second inside a clip to source media time."""
-    mapped = clip_timeline_overlap_to_source(clip, timeline_sec, timeline_sec + 1e-6)
-    if mapped is None:
+    spans = _overlap_spans(clip, timeline_sec, timeline_sec + 1e-6)
+    if spans is None:
         raise CodedValueError(
             f"timeline {timeline_sec}s is outside clip {clip.id!r} "
             f"[{clip.timeline_start}, {clip.timeline_end}). Pick a time inside the clip.",
             code="no_clip_at_time",
         )
-    return mapped[0]
+    return float(spans[0][0])
 
 
 class SourcePlacement(Protocol):

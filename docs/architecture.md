@@ -178,6 +178,7 @@ A clip with a timing map (#1089) plays several pieces, each with its own source-
 relative drift, mute and gate spans, room-tone pool placement, ingest VAD windows) go piece by
 piece: a timeline second inside a hole maps to the nearer piece edge, a source span inside a skip
 plays nothing, and a span crossing a step is split per piece. Untimed clips keep their single shift.
+`clip_timeline_overlap_to_source` refuses (`timing_map_needs_source_point`) a window crossing a step, since one range would include skipped source.
 `align_tracks` produces the map: a lane whose bleed latency steps stays one clip, stepping at its quiet spans.
 
 **Native sample grid** (`engines/sample_grid.py`, #1258). Every reader that turns clips into

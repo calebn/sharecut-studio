@@ -30,6 +30,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.models.episode import SourceSpan
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 
 
@@ -323,6 +324,65 @@ def test_clip_timeline_helpers(compressed_project):
 
     with pytest.raises(ValueError, match="outside clip"):
         clip_timeline_point_to_source(clip, 0.0)
+
+
+def _timed_clip(steps: list[dict]) -> Clip:
+    return Clip.model_validate(
+        {
+            "id": "a",
+            "track_id": "host",
+            "source_start": 10,
+            "source_end": 40,
+            "timeline_start": 100,
+            "timing": {"steps": steps},
+        }
+    )
+
+
+def _skip_clip() -> Clip:
+    """Source 10-40 at timeline 100; a step at 20 skips source 20-23 (pieces 10-20, 23-40)."""
+    return _timed_clip([{"at": 20, "delta_sec": -3, "quiet": {"start_s": 19, "end_s": 27}}])
+
+
+@pytest.mark.parametrize("window", [(105.0, 115.0), (109.0, 111.0), (109.99, 110.01)])
+def test_overlap_across_a_skip_refuses_the_envelope(window):
+    clip = _skip_clip()
+    assert clip.virtual_pieces() == [(10.0, 20.0, 100.0), (23.0, 40.0, 110.0)]
+    with pytest.raises(CodedValueError) as err:
+        clip_timeline_overlap_to_source(clip, *window)
+    assert err.value.code == "timing_map_needs_source_point"
+
+
+def test_overlap_across_a_hole_with_contiguous_source_returns_one_envelope():
+    clip = _timed_clip([{"at": 20, "delta_sec": 2}])
+    assert clip.virtual_pieces() == [(10.0, 20.0, 100.0), (20.0, 40.0, 112.0)]
+    assert clip_timeline_overlap_to_source(clip, 108.0, 114.0) == pytest.approx((18.0, 22.0))
+
+
+def test_overlap_on_an_untimed_clip_is_unchanged():
+    clip = Clip(id="c", track_id="host", source_start=100.0, source_end=110.0, timeline_start=70.0)
+    assert clip_timeline_overlap_to_source(clip, 72.0, 75.0) == pytest.approx((102.0, 105.0))
+    assert clip_timeline_overlap_to_source(clip, 72.0, 72.0) is None
+    assert clip_timeline_overlap_to_source(clip, 75.0, 72.0) is None
+
+
+def test_overlap_inside_one_piece_of_a_timed_clip_returns_that_piece_bounds():
+    clip = _skip_clip()
+    assert clip_timeline_overlap_to_source(clip, 102.0, 108.0) == pytest.approx((12.0, 18.0))
+    assert clip_timeline_overlap_to_source(clip, 112.0, 120.0) == pytest.approx((25.0, 33.0))
+    # Ending or starting exactly on the step edge touches only one piece.
+    assert clip_timeline_overlap_to_source(clip, 105.0, 110.0) == pytest.approx((15.0, 20.0))
+    assert clip_timeline_overlap_to_source(clip, 110.0, 115.0) == pytest.approx((23.0, 28.0))
+
+
+def test_point_on_a_timed_clip_maps_inside_a_piece_and_at_the_step_edge():
+    clip = _skip_clip()
+    assert clip_timeline_point_to_source(clip, 105.0) == pytest.approx(15.0)
+    assert clip_timeline_point_to_source(clip, 115.0) == pytest.approx(28.0)
+    # The exact step edge starts the second piece; it must not raise.
+    assert clip_timeline_point_to_source(clip, 110.0) == pytest.approx(23.0)
+    # Just before the edge stays in the first piece.
+    assert clip_timeline_point_to_source(clip, 109.999) == pytest.approx(19.999)
 
 
 def test_clip_source_at_timeline_maps_the_placement_line_without_bounds() -> None:
