@@ -2166,6 +2166,19 @@ describe("HomeScreen", () => {
       expect(await screen.findByText("Show Kit")).toBeVisible();
     });
 
+    it("never reads the kits for a guest", async () => {
+      useDawStore.setState({ guestMode: "viewer" });
+      try {
+        loadSegments.mockResolvedValue(listed);
+        render(<HomeScreen />);
+        await screen.findByRole("heading", { name: "Segment library" });
+        expect(loadKits).not.toHaveBeenCalled();
+        expect(screen.queryByRole("heading", { name: "Kits" })).toBeNull();
+      } finally {
+        useDawStore.setState({ guestMode: null });
+      }
+    });
+
     it("leaves the Kits section out when there are no kits", async () => {
       loadSegments.mockResolvedValue(listed);
       render(<HomeScreen />);

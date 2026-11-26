@@ -41,7 +41,9 @@ type Story = StoryObj<typeof KitLibrary>;
 export const Populated: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("list", { name: "Kits" })).toBeVisible();
+    await expect(
+      canvas.getByRole("list", { name: "Saved kits" }),
+    ).toBeVisible();
     await expect(canvas.getByText("v3 · 3 versions")).toBeVisible();
     await expect(canvas.getByText("2 segments")).toBeVisible();
   },
@@ -56,8 +58,13 @@ export const Unusable: Story = {
     ).toBeVisible();
     await expect(canvas.getByText(UNUSABLE.problem as string)).toBeVisible();
     await expect(
-      canvas.getByRole("button", { name: "More actions for Launch week" }),
+      canvas.getByText(
+        "It can't be exported until its segments are back in the library.",
+      ),
     ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "More actions for Launch week" }),
+    ).toBeNull();
   },
 };
 
@@ -65,6 +72,7 @@ export const Damaged: Story = {
   args: { library: state({ rows: [HEALTHY, DAMAGED] }) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(canvas.getByText("Unreadable kit")).toBeVisible();
     await expect(canvas.getByText("Can't be read")).toBeVisible();
     await expect(canvas.getByText(DAMAGED.problem)).toBeVisible();
     await expect(
@@ -107,7 +115,7 @@ export const Phone: Story = {
   globals: { viewport: { value: "mobile390", isRotated: false } },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByRole("list", { name: "Kits" }),
+      within(canvasElement).getByRole("list", { name: "Saved kits" }),
     ).toBeVisible();
   },
 };
@@ -148,7 +156,7 @@ export const Sheet: Story = {
       dialogName: "Segment library",
     });
     await expect(
-      within(sheet).getByRole("list", { name: "Kits" }),
+      within(sheet).getByRole("list", { name: "Saved kits" }),
     ).toBeVisible();
   },
 };

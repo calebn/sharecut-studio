@@ -98,6 +98,8 @@
 }
 
 .kit-name--id {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-ui);
 }
