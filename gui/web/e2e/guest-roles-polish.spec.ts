@@ -676,9 +676,7 @@ test("a host's Undo toast stays clickable while the Share sheet is open", async 
       .getByRole("button", { name: "Undo" })
       .click();
     await expectFeedback(host!, "Link restored.");
-    const res = await host!.request.get(
-      `/api/review/${links.viewer}/daw/proxy/manifest`,
-    );
+    const res = await host!.request.get(`/api/review/${links.viewer}/project`);
     expect(res.status()).toBe(200);
   });
 });

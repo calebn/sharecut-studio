@@ -168,7 +168,7 @@ def dump_projection_in_place(
     projection: str,
     audience: str = "host",
     history: Any = None,
-) -> dict[str, Any]:
+) -> Mapping[str, Any]:
     """A ProjectView slice of the project as it is in memory: no lock taken, no reload.
 
     For a caller that already holds ``project_state_lock`` and staged other state from

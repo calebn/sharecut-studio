@@ -3,8 +3,9 @@
 ``ReviewService.publish`` freezes a guest-sanitized ProjectView beside ``mix.wav`` as
 ``timeline.json`` (``review_versions.version_timeline_snapshot`` reads it). This module
 decides who is served it, slices it by projection, and shapes the document-plane frames
-a frozen guest may still receive. Editors and the host stay live. A version without a
-readable snapshot is served live, so this never fails a guest.
+a frozen guest may still receive. Editors and the host stay live. A version with no
+``timeline.json`` (published before #3605) is served live; one whose file exists but cannot
+be read or validated is refused with the coded 409 ``frozen_review_view_unavailable``.
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ from typing import Any
 from podcast_mcp.services.collaboration.review_versions import (
     TIMELINE_SNAPSHOT_FORMAT,
     TIMELINE_SNAPSHOT_NAME,
+    TimelineSnapshot,
+    get_version,
     review_artifacts_dir,
     version_timeline_snapshot,
 )
@@ -26,9 +29,11 @@ from podcast_mcp.services.collaboration.share_capabilities import (
     review_role_for_capabilities,
 )
 from podcast_mcp.services.document_sync import ViewProjection
-from podcast_mcp.util.coded_error import CodedPermissionError
+from podcast_mcp.util.coded_error import CodedPermissionError, CodedValueError
+from podcast_mcp.util.fingerprint import file_stamp
 
 FROZEN_CODE = "frozen_review_view"
+UNAVAILABLE_CODE = "frozen_review_view_unavailable"
 
 _FROZEN_ROLES = frozenset({ReviewRole.VIEWER, ReviewRole.COMMENTER})
 
@@ -53,6 +58,7 @@ _NO_WORDS_HYDRATION = {"transcript_words": False, "history_groups": False}
 # Never ``project``, ``patch``, ``delta`` or the guest delta that rides beside them.
 _EVENT_SNAPSHOT_KEYS = (
     "server_seq",
+    "state_token",
     "comments",
     "active_version_id",
     "history",
@@ -62,42 +68,35 @@ _EVENT_SNAPSHOT_KEYS = (
 )
 
 _CACHE_SIZE = 8
-_cache: OrderedDict[tuple[str, str], tuple[tuple[int, int, int], dict[str, Any]]] = OrderedDict()
+_cache: OrderedDict[tuple[str, str], tuple[tuple[int, int, int, int], TimelineSnapshot]] = (
+    OrderedDict()
+)
 _cache_lock = threading.Lock()
 
 
-def build_timeline_snapshot(dumped: dict[str, Any]) -> dict[str, Any]:
+def build_timeline_snapshot(dumped: Mapping[str, Any]) -> TimelineSnapshot:
     """The sidecar body for a FULL guest-audience dump: sanitized, superset of words."""
     from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
     from podcast_mcp.services.collaboration.share_capabilities import GuestWords
 
-    view = sanitize_guest_project_view(dumped, words=GuestWords.SELECTABLE)
+    view = sanitize_guest_project_view(dict(dumped), words=GuestWords.SELECTABLE)
     for key in _LIVE_ONLY_KEYS:
         view.pop(key, None)
-    return {
-        "format": TIMELINE_SNAPSHOT_FORMAT,
-        "timeline_duration_sec": float(view.get("timeline_duration_sec") or 0.0),
-        "view": view,
-    }
+    return TimelineSnapshot(format=TIMELINE_SNAPSHOT_FORMAT, view=view)
 
 
 def is_frozen_role(caps: Sequence[str] | None) -> bool:
     return review_role_for_capabilities(list(caps or [])) in _FROZEN_ROLES
 
 
-def _stat_key(path: Any) -> tuple[int, int, int] | None:
-    try:
-        st = os.stat(path, follow_symlinks=False)
-    except OSError:
-        return None
-    return st.st_ino, st.st_mtime_ns, st.st_size
-
-
-def frozen_snapshot_for(row: Mapping[str, Any], ws: Any) -> dict[str, Any] | None:
+def frozen_snapshot_for(row: Mapping[str, Any], ws: Any) -> TimelineSnapshot | None:
     """The frozen timeline this share row is served, or None for live.
 
-    Only Viewer and Commenter links, and only for a version that holds a readable
-    snapshot. Never raises. The returned dict is shared: callers must not mutate it.
+    Only Viewer and Commenter links, and only for a version that holds a snapshot. A
+    version with no ``timeline.json`` at all (published before #3605) is served live. A
+    snapshot that exists but cannot be read or validated fails closed: it raises the
+    coded ``frozen_review_view_unavailable`` instead of showing the live timeline. The
+    returned dict is shared: callers must not mutate it.
     """
     if not is_frozen_role(row.get("capabilities")):
         return None
@@ -105,10 +104,18 @@ def frozen_snapshot_for(row: Mapping[str, Any], ws: Any) -> dict[str, Any] | Non
     if not version_id:
         return None
     project = ws.project
-    path = review_artifacts_dir(project) / version_id / TIMELINE_SNAPSHOT_NAME
-    key = _stat_key(path)
-    if key is None:
+    try:
+        get_version(project, version_id)
+    except KeyError:
         return None
+    path = review_artifacts_dir(project) / version_id / TIMELINE_SNAPSHOT_NAME
+    try:
+        st = os.stat(path, follow_symlinks=False)
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    except OSError:
+        raise _unavailable() from None
+    key = file_stamp(st).revision
     cache_key = (str(path), version_id)
     with _cache_lock:
         hit = _cache.get(cache_key)
@@ -117,13 +124,20 @@ def frozen_snapshot_for(row: Mapping[str, Any], ws: Any) -> dict[str, Any] | Non
             return hit[1]
     snapshot = version_timeline_snapshot(project, version_id)
     if snapshot is None:
-        return None
+        raise _unavailable()
     with _cache_lock:
         _cache[cache_key] = (key, snapshot)
         _cache.move_to_end(cache_key)
         while len(_cache) > _CACHE_SIZE:
             _cache.popitem(last=False)
     return snapshot
+
+
+def _unavailable() -> CodedValueError:
+    return CodedValueError(
+        "The published timeline of this version cannot be read.",
+        code=UNAVAILABLE_CODE,
+    )
 
 
 def refuse_if_frozen(row: Mapping[str, Any], ws: Any, what: str) -> None:
@@ -133,13 +147,6 @@ def refuse_if_frozen(row: Mapping[str, Any], ws: Any, what: str) -> None:
             f"{what} is not available on a published version; ask the host for the latest.",
             code=FROZEN_CODE,
         )
-
-
-def frozen_duration_sec(snapshot: Mapping[str, Any]) -> float | None:
-    value = snapshot.get("timeline_duration_sec")
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        return None
-    return float(value)
 
 
 def _without_words(transcript: Any) -> Any:
@@ -154,15 +161,22 @@ def _without_words(transcript: Any) -> Any:
     }
 
 
-def wants_live_history(projection: ViewProjection) -> bool:
-    return projection in (ViewProjection.FULL, ViewProjection.SHELL)
+# Projections that carry the live history head and the live comments.
+LIVE_HISTORY = frozenset({ViewProjection.FULL, ViewProjection.SHELL})
+LIVE_COMMENTS = LIVE_HISTORY | {ViewProjection.COMMENTS}
 
 
-def wants_live_comments(projection: ViewProjection) -> bool:
-    return projection in (ViewProjection.FULL, ViewProjection.SHELL, ViewProjection.COMMENTS)
+def refuse_frozen_command(
+    row: Mapping[str, Any], ws: Any, command_type: str, caps: Sequence[str] | None
+) -> None:
+    """Refuse a document command a frozen guest's role may run: it aims at the live timeline."""
+    from podcast_mcp.services.document_sync import document_command_types_for_caps
+
+    if command_type in document_command_types_for_caps(list(caps or [])):
+        refuse_if_frozen(row, ws, "Editing or suggesting")
 
 
-def frozen_projection(snapshot: Mapping[str, Any], projection: ViewProjection) -> dict[str, Any]:
+def frozen_projection(snapshot: Mapping[str, Any], projection: ViewProjection) -> Mapping[str, Any]:
     """The frozen slice for *projection*; ``comments`` and ``history`` are the caller's.
 
     Mirrors ``dump_project_projection`` for a guest: patches carry only their own keys.
@@ -191,7 +205,7 @@ def frozen_projection(snapshot: Mapping[str, Any], projection: ViewProjection) -
 
 def frozen_document_snapshot(
     snapshot: Mapping[str, Any], projection: str, comments_snapshot: Mapping[str, Any]
-) -> dict[str, Any]:
+) -> Mapping[str, Any]:
     """A ``document_snapshot`` whose project or patch is the frozen view.
 
     *comments_snapshot* is the live ``comments`` projection (sequence, comments, history
@@ -208,14 +222,14 @@ def frozen_document_snapshot(
         }
         return out
     shape = ViewProjection.FULL if projection == ViewProjection.FULL.value else ViewProjection.SHELL
-    project = frozen_projection(snapshot, shape)
+    project = dict(frozen_projection(snapshot, shape))
     project["history"] = history
     project["comments"] = out.get("comments", [])
     out["project"] = project
     return out
 
 
-def frozen_guest_event(event: Mapping[str, Any]) -> dict[str, Any]:
+def frozen_guest_event(event: Mapping[str, Any]) -> Mapping[str, Any]:
     """A live document event reduced for a frozen guest (WS pump).
 
     The live ``project``, ``patch`` and ``delta`` (and the guest delta beside them) are

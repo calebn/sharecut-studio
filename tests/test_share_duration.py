@@ -107,6 +107,7 @@ def test_review_share_duration_matches_the_current_project(
         "review_version": selected.model_dump(
             exclude={"object_store_key", "object_store_uploaded_at"}
         ),
+        "frozen_review_view": False,
         "link_follows_latest": follow_latest,
         "newer_version": None if follow_latest else {"id": "current", "label": "Current"},
         "comments": [],

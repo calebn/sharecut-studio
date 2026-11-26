@@ -50,8 +50,13 @@ async function withLinks(
   await withSharedProject(
     browser,
     [{ viewport: PHONE, hasTouch: PHONE.touch }],
-    ["commenter", "editor"].slice(0, count) as ("commenter" | "editor")[],
-    async ([host, guest], links, projectPath) => {
+    [],
+    async ([host, guest], _links, projectPath) => {
+      // Editor links play through the stem proxies; a Viewer or Commenter on a published
+      // version plays the review WAV instead (#3605), which these specs do not cover.
+      const tokens: string[] = [];
+      for (let i = 0; i < count; i += 1)
+        tokens.push(await createReviewShare(host!, projectPath, "editor"));
       if (guestOptions.init) await guest!.addInitScript(guestOptions.init);
       // The page's own clock is stepped to reach the cover without waiting
       // out the page's 30 second poll.
@@ -60,7 +65,7 @@ async function withLinks(
         host: host!,
         guest: guest!,
         projectPath,
-        tokens: Object.values(links),
+        tokens,
       });
     },
   );
@@ -345,7 +350,7 @@ test("guest playback survives a ten-second chunk outage mid-listen", async ({
   test.setTimeout(120_000);
   await withShareableProject(
     async (projectPath) => {
-      const token = await createReviewShare(host, projectPath, "viewer");
+      const token = await createReviewShare(host, projectPath, "editor");
       const guest = await browser.newPage({
         viewport: { width: 1_440, height: 900 },
       });

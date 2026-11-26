@@ -166,16 +166,75 @@ def test_missing_sidecar_serves_the_live_view(world):
     assert _project(world, "viewer", "full")["meta"]["name"]
 
 
-def test_corrupt_sidecar_serves_live_and_warns(world, caplog):
-    published = _clip_count(_project(world, "viewer"))
+UNAVAILABLE = "frozen_review_view_unavailable"
+
+
+@pytest.mark.parametrize("damage", ["garbage", "shape", "duration", "symlink", "directory"])
+def test_unreadable_sidecar_fails_closed_for_frozen_roles(world, caplog, damage):
     path = _sidecar(world)
-    path.write_text("{ not json")
-    _cut(world)
+    path.unlink()
+    if damage == "garbage":
+        path.write_text("{ not json")
+    elif damage == "shape":
+        path.write_text(json.dumps({"format": 1, "view": "nope"}))
+    elif damage == "duration":
+        snap = {"format": 1, "view": {"timeline_duration_sec": "soon"}}
+        path.write_text(json.dumps(snap))
+    elif damage == "symlink":
+        path.symlink_to(path.parent / "mix.wav")
+    else:
+        path.mkdir()
     with caplog.at_level(logging.WARNING):
-        assert _clip_count(_project(world, "viewer")) > published
-    assert any("timeline" in r.getMessage().lower() for r in caplog.records)
-    path.write_text(json.dumps({"format": 1, "view": "nope"}))
-    assert _clip_count(_project(world, "viewer")) > published
+        for link in ("viewer", "commenter"):
+            res = world.client.get(_api(world, link, "daw/project?phase=full"))
+            assert res.status_code == 409, (link, res.text)
+            assert _error_code(res) == UNAVAILABLE
+            audio = world.client.get(_api(world, link, "daw/audio?kind=premix"))
+            assert _error_code(audio) == UNAVAILABLE
+            cmd = _command(
+                world,
+                link,
+                "EditSelectedRange",
+                {"action": "cut", "targets": [world.target(UNCLE)]},
+            )
+            if link == "commenter":
+                assert _error_code(cmd) == UNAVAILABLE
+    # Editors never read the snapshot.
+    assert world.client.get(_api(world, "editor", "daw/project?phase=full")).status_code == 200
+    if damage in ("garbage", "shape", "duration"):
+        assert any("timeline" in r.getMessage().lower() for r in caplog.records)
+
+
+def test_bootstrap_says_whether_the_link_plays_a_published_version(world):
+    for link, frozen in (("viewer", True), ("commenter", True), ("editor", False)):
+        assert share_project_view(world.tokens[link])["frozen_review_view"] is frozen
+    _sidecar(world).unlink()
+    assert share_project_view(world.tokens["viewer"])["frozen_review_view"] is False
+
+
+def test_a_zero_published_duration_is_not_replaced_by_the_live_one(world):
+    path = _sidecar(world)
+    snap = json.loads(path.read_text())
+    snap["view"]["timeline_duration_sec"] = 0.0
+    path.write_text(json.dumps(snap))
+    assert share_project_view(world.tokens["viewer"])["timeline_duration_sec"] == 0.0
+
+
+def test_feed_serves_the_published_chapters(world):
+    from podcast_mcp.models.episode import ChapterMarker
+
+    def chapters(link: str) -> list[Any]:
+        res = world.client.get(_api(world, link, "feed"))
+        assert res.status_code == 200, (link, res.text)
+        return res.json()["view"]["sections"]["chapters"]["value"] or []
+
+    with write_grant(WriteGrantKind.DISPATCHER):
+        ws = ProjectWorkspace.open(world.path)
+        ws.project.chapters = [ChapterMarker(time=12.0, title="Added later")]
+        ws.save()
+    assert len(chapters("editor")) == 1
+    assert chapters("viewer") == []
+    assert chapters("commenter") == []
 
 
 # 5. The snapshot is private and sanitized.
@@ -280,6 +339,8 @@ def test_frozen_guest_socket_gets_comments_but_no_live_timeline(world):
             continue
         for snapshot in (frame.get("snapshot") or {}, frame.get("_guest_snapshot") or {}):
             assert "patch" not in snapshot and "delta" not in snapshot, snapshot.keys()
+            if "comments" in snapshot:
+                assert "state_token" in snapshot, snapshot.keys()
             if "project" in snapshot:
                 assert _clip_count(snapshot["project"]) == published
 

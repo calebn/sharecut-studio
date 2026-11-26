@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { useLayoutEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as http from "../api/http";
+import { rememberFrozenReview } from "../api/project";
 import { createHostPlaybackMeterMonitor } from "../audio/hostPlaybackMeterMonitor";
 import { playbackPositionSec } from "../audio/playbackClock";
 import { playbackMeterSource } from "../audio/playbackMeterSource";
@@ -9,6 +10,7 @@ import { clearRegisteredCommands } from "../commands/execute";
 import { skipListen } from "../commands/listenSeek";
 import { registerDawCommands } from "../commands/register";
 import { patchTrackMix } from "../document/projectPatch";
+import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleComment, sampleTrack } from "../test/fixtures";
 import type { ProjectView, TrackView } from "../types/project";
@@ -994,5 +996,46 @@ describe("useAudioTransport meter URL identity", () => {
       mediaSec: 0,
     });
     raw.unmount();
+  });
+});
+
+describe("useAudioTransport frozen review (#3605)", () => {
+  beforeEach(() => {
+    FakeAudio.instances = [];
+    vi.stubGlobal("Audio", FakeAudio);
+    rememberFrozenReview("frozen", true);
+    useDawStore
+      .getState()
+      .hydrate(
+        shareProjectKey("frozen"),
+        mixProject([sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })]),
+      );
+    useDawStore.getState().setAuditionMode("mix");
+  });
+
+  afterEach(() => {
+    act(() => useDawStore.getState().setIsPlaying(false));
+    rememberFrozenReview("frozen", false);
+    vi.unstubAllGlobals();
+  });
+
+  it("plays the published mix even with a listen-only mute or a raw audition", () => {
+    act(() => {
+      useDawStore.getState().setViewerMuteMap({ host: true });
+      useDawStore.getState().setAuditionMode("raw");
+    });
+    renderHook(() => useAudioTransport());
+    expect(Object.keys(volumes())).toEqual(["premix"]);
+    const live = FakeAudio.instances.filter((el) => el.src);
+    expect(new URL(live[0]!.src, "http://x").searchParams.get("kind")).toBe(
+      "premix",
+    );
+  });
+
+  it("seeks the published mix to the playhead", () => {
+    renderHook(() => useAudioTransport());
+    const player = FakeAudio.instances.find((el) => el.src)!;
+    act(() => useDawStore.getState().setPlayheadSec(42, "seek"));
+    expect(player.currentTime).toBe(42);
   });
 });

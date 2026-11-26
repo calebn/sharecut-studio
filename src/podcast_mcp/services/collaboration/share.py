@@ -27,13 +27,12 @@ from podcast_mcp.project.io import EPISODE_PROJECT_FILENAME, adopt_retired_entry
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import share_pending
 from podcast_mcp.services.collaboration.frozen_view import (
+    LIVE_COMMENTS,
+    LIVE_HISTORY,
     frozen_document_snapshot,
-    frozen_duration_sec,
     frozen_projection,
     frozen_snapshot_for,
     refuse_if_frozen,
-    wants_live_comments,
-    wants_live_history,
 )
 from podcast_mcp.services.collaboration.review_shares import (
     create_share,
@@ -1515,7 +1514,7 @@ def share_project_view(token: str) -> dict[str, Any]:
     duration = timeline_duration_sec(project)
     frozen = frozen_snapshot_for(row, ws)
     if frozen is not None:
-        duration = frozen_duration_sec(frozen) or duration
+        duration = float(frozen["view"]["timeline_duration_sec"])
     caps = list(row.get("capabilities") or [])
     return {
         "mode": "review",
@@ -1526,6 +1525,7 @@ def share_project_view(token: str) -> dict[str, Any]:
         "meta": {"name": project.meta.name},
         "timeline_duration_sec": float(duration),
         "review_version": ver_dump,
+        "frozen_review_view": frozen is not None,
         "link_follows_latest": not pinned,
         "newer_version": newer,
         "comments": comments_for_view(project),
@@ -1552,19 +1552,20 @@ def share_daw_project_view(token: str, *, phase: str | None = None) -> dict[str,
 
 
 def _frozen_project_view(
-    ws: ProjectWorkspace, frozen: dict[str, Any], projection: Any
+    ws: ProjectWorkspace, frozen: Mapping[str, Any], projection: Any
 ) -> tuple[dict[str, Any], StepOwners]:
     """The frozen slice for *projection*, plus the live comments and history head it keeps."""
     from podcast_mcp.services.document import HistoryService
     from podcast_mcp.services.document_sync import document_submit_lock
 
-    dumped = frozen_projection(frozen, projection)
+    dumped = dict(frozen_projection(frozen, projection))
     owners = StepOwners(None, None)
+    if projection not in LIVE_COMMENTS:
+        return dumped, owners
     with document_submit_lock(ws.project):
         ws.reload()
-        if wants_live_comments(projection):
-            dumped["comments"] = comments_for_view(ws.project)
-        if wants_live_history(projection):
+        dumped["comments"] = comments_for_view(ws.project)
+        if projection in LIVE_HISTORY:
             status = HistoryService(ws).status()
             dumped["history"] = {
                 "cursor": status.cursor,
@@ -1580,7 +1581,7 @@ def _frozen_project_view(
 
 def frozen_guest_document_state(
     row: dict[str, Any], ws: ProjectWorkspace, svc: Any, projection: str
-) -> dict[str, Any]:
+) -> Mapping[str, Any]:
     """``svc.guest_document_state`` with the frozen timeline in place of the live dump.
 
     A frozen guest reads only the live ``comments`` projection (sequence, comments and

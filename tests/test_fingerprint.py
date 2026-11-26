@@ -37,6 +37,7 @@ STAMPED = {
     "podcast_mcp/project/store.py",
     "podcast_mcp/services/app/recent_peaks.py",
     "podcast_mcp/services/app/recent_projects.py",
+    "podcast_mcp/services/collaboration/frozen_view.py",
     "podcast_mcp/services/collaboration/review_versions.py",
     "podcast_mcp/services/document/boundary.py",
     "podcast_mcp/services/document/export_files.py",

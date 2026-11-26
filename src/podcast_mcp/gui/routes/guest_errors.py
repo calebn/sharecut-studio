@@ -41,7 +41,10 @@ def guest_http_error(
         return coded_http_error(
             503, refusal.message, code=code, headers={"Retry-After": cause.retry_after}
         )
-    if isinstance(cause, (StaleWaveformKeyError, ModelMissing)) or refusal.code == "job_running":
+    if isinstance(cause, (StaleWaveformKeyError, ModelMissing)) or refusal.code in {
+        "job_running",
+        "frozen_review_view_unavailable",
+    }:
         status = 409
     elif isinstance(cause, HostSetupError) or refusal.code == "feed_write_failed":
         status = 500

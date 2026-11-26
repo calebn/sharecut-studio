@@ -51,6 +51,7 @@ if TYPE_CHECKING:
         SHOW_KEY,
         FeedService,
         FeedViewKind,
+        PublishedFeedService,
         describe_fields,
     )
     from podcast_mcp.services.document.feed_results import FeedFieldPinResult
@@ -242,6 +243,7 @@ __all__ = [
     "PlayService",
     "PopulatedHistoryDiffResult",
     "ProposeSplitResult",
+    "PublishedFeedService",
     "RemovedChapter",
     "RetainedBleedAlignmentApplied",
     "RetainedBleedAlignmentModeResult",
@@ -340,6 +342,7 @@ _MODULE_BY_NAME = {
     "FeedFieldPinResult": "feed_results",
     "FeedService": "feed",
     "FeedViewKind": "feed",
+    "PublishedFeedService": "feed",
     "SHOW_KEY": "feed",
     "describe_fields": "feed",
     "DEFAULT_LIMIT": "golden_ear",

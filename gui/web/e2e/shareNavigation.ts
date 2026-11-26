@@ -3,9 +3,15 @@ import { openProject } from "./stageNav";
 
 export const PROXY_MANIFEST_TIMEOUT_MS = 15_000;
 
-/** Open a guest share and observe proxy setup even when navigation fails. */
+/**
+ * Open a guest share and observe setup even when navigation fails. An Editor link
+ * plays through the stem proxies, so its manifest must answer 200; a Viewer or
+ * Commenter link on a published version plays the review WAV (the bootstrap says
+ * `frozen_review_view`), so it needs no manifest and the guest frame is the signal.
+ */
 export async function openGuestShare(page: Page, token: string): Promise<void> {
   const manifestPath = `/api/review/${token}/daw/proxy/manifest`;
+  const bootstrapPath = `/api/review/${token}/project`;
   const manifestResponse = page.waitForResponse(
     (response) => {
       const url = new URL(response.url());
@@ -15,14 +21,44 @@ export async function openGuestShare(page: Page, token: string): Promise<void> {
     },
     { timeout: PROXY_MANIFEST_TIMEOUT_MS },
   );
-  const [, response] = await Promise.all([
+  // Observed here, awaited below only for a link that needs the manifest.
+  manifestResponse.catch(() => undefined);
+  const statePath = `/api/review/${token}/daw/document/state`;
+  const stateResponse = page.waitForResponse(
+    (response) => {
+      const url = new URL(response.url());
+      return (
+        response.request().method() === "GET" && url.pathname === statePath
+      );
+    },
+    { timeout: PROXY_MANIFEST_TIMEOUT_MS },
+  );
+  stateResponse.catch(() => undefined);
+  const bootstrapResponse = page.waitForResponse(
+    (response) => {
+      const url = new URL(response.url());
+      return (
+        response.request().method() === "GET" && url.pathname === bootstrapPath
+      );
+    },
+    { timeout: PROXY_MANIFEST_TIMEOUT_MS },
+  );
+  const [, bootstrap] = await Promise.all([
     page.goto(`/r/${token}`),
-    manifestResponse,
+    bootstrapResponse,
   ]);
+  const frozen =
+    ((await bootstrap.json()) as { frozen_review_view?: boolean })
+      .frozen_review_view === true;
   await expect(page.locator(".stage-frame--guest")).toBeVisible({
     timeout: PROXY_MANIFEST_TIMEOUT_MS,
   });
-  expect(response.status()).toBe(200);
+  if (frozen) {
+    // No proxy manifest to settle on: the document shell is what the page is ready on.
+    expect((await stateResponse).status()).toBe(200);
+    return;
+  }
+  expect((await manifestResponse).status()).toBe(200);
 }
 
 export type ReviewShareRole = "viewer" | "commenter" | "editor";
