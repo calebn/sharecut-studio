@@ -3,7 +3,16 @@ from __future__ import annotations
 import unicodedata
 from typing import Annotated, Any, Literal
 
-from pydantic import AfterValidator, BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+    field_validator,
+    model_validator,
+)
 
 from podcast_mcp.export.daw_format import DawFormat
 from podcast_mcp.feed.model import FeedEdit
@@ -497,6 +506,26 @@ class SegmentImportCommit(BaseModel):
     """Add a checked, waiting ``.sharecutseg`` upload to the library."""
 
     token: str
+
+
+class KitSaveEntry(BaseModel):
+    """One segment of a kit being saved from Studio, as the sheet sends it."""
+
+    model_config = {"extra": "forbid"}
+
+    segment_id: str
+    at: StrictStr | StrictFloat
+    version: StrictInt | None = None
+    note: str | None = None
+
+
+class KitSaveRequest(BaseModel):
+    """Save a kit: a name and its entries in the order they apply. A kit touches no episode."""
+
+    model_config = {"extra": "forbid"}
+
+    name: str
+    entries: list[KitSaveEntry]
 
 
 class KitImportCommit(BaseModel):

@@ -301,6 +301,20 @@ export interface KitImportCommit {
   token: string;
 }
 
+/** One segment of a kit being saved from Studio, as the sheet sends it. */
+export interface KitSaveEntry {
+  segment_id: string;
+  at: string | number;
+  version?: number | null;
+  note?: string | null;
+}
+
+/** Save a kit: a name and its entries in the order they apply. A kit touches no episode. */
+export interface KitSaveRequest {
+  name: string;
+  entries: Array<KitSaveEntry>;
+}
+
 export interface PipelineAnalyzeRequest {
   path: string;
   apply?: boolean;

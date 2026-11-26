@@ -20,10 +20,11 @@ from podcast_mcp.gui.routes.deps import (
     resolve_project,
 )
 from podcast_mcp.gui.routes.project import pin_served_if_allowed
+from podcast_mcp.gui.schemas import KitSaveRequest
 from podcast_mcp.segments.kit import KitStore
 from podcast_mcp.segments.kit_bundle import export_kit
 from podcast_mcp.segments.kit_offer import KitOffer
-from podcast_mcp.segments.kit_summary import kit_rows
+from podcast_mcp.segments.kit_summary import kit_rows, make_entry, save_kit
 from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.services.document import report_kit_offer, submit_kit_apply
 from podcast_mcp.services.document_sync import DocumentConflictError
@@ -56,6 +57,12 @@ KIT_STATUS = {
     "kit_write_failed": 500,
 }
 
+# Saving adds the refusals only a save can raise; the rest are the library's own.
+_SAVE_STATUS = {
+    **KIT_STATUS,
+    "kit_name_invalid": 422,
+    "segment_version_invalid": 422,
+}
 
 _EXPORT_STATUS = {
     **KIT_STATUS,
@@ -84,6 +91,23 @@ def refuse_kit(exc: CodedValueError, statuses: Mapping[str, int] = KIT_STATUS) -
 @router.get("/api/kits", dependencies=_HOST_GATE)
 def list_kits_route() -> list[dict[str, Any]]:
     return kit_rows(KitStore(), SegmentStore())
+
+
+@router.post("/api/kits", dependencies=_HOST_GATE)
+def save_kit_route(body: KitSaveRequest) -> dict[str, str | int]:
+    """Save a kit from the sheet: ``added``, ``new_version`` or ``unchanged`` (all 200).
+
+    Entries go through ``make_entry``, so a bad one is refused with the same code as the CLI
+    and MCP. A plain ``def``: the store lock can wait, and FastAPI runs it off the event loop.
+    """
+    try:
+        entries = [
+            make_entry(entry.segment_id, entry.version, entry.at, entry.note)
+            for entry in body.entries
+        ]
+        return save_kit(KitStore(), SegmentStore(), body.name, entries).wire()
+    except CodedValueError as exc:
+        refuse_kit(exc, _SAVE_STATUS)
 
 
 @router.get("/api/kits/{kit_id}/export", dependencies=_HOST_GATE)
