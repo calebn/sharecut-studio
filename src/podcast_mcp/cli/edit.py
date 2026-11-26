@@ -1577,11 +1577,13 @@ def edit_overlap_duplicates_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            AnalysisService(ws).overlap_duplicates(
+            AnalysisService(ws)
+            .overlap_duplicates(
                 start_sec=start,
                 end_sec=end,
                 progress=get_progress(),
-            ),
+            )
+            .model_dump(),
             indent=2,
         )
     )

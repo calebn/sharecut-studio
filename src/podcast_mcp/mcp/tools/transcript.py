@@ -600,7 +600,9 @@ def overlap_duplicates_tool(
 ) -> str:
     """Find duplicate words across tracks in an overlap window."""
     ws = ProjectWorkspace.open(project_path)
-    return to_json(AnalysisService(ws).overlap_duplicates(start_sec=start_sec, end_sec=end_sec))
+    return to_json(
+        AnalysisService(ws).overlap_duplicates(start_sec=start_sec, end_sec=end_sec).model_dump()
+    )
 
 
 def apply_transcript_gate_tool(

@@ -1752,13 +1752,35 @@ def test_edit_suppress_bleed_dry_run(minimal_project, sample_wav) -> None:
 
 def test_edit_overlap_duplicates(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    report = {"pairs": []}
+    pair = {
+        "track_a": "host",
+        "source_a": None,
+        "word_index_a": 0,
+        "text_a": "hello",
+        "start_a": 0.0,
+        "end_a": 1.0,
+        "status_a": "audible",
+        "track_b": "guest",
+        "source_b": None,
+        "word_index_b": 0,
+        "text_b": "hello",
+        "start_b": 0.5,
+        "end_b": 1.5,
+        "session_start_a": 0.0,
+        "session_start_b": 0.5,
+        "status_b": "bleed",
+        "overlap_sec": 0.5,
+        "text_match": True,
+        "rms_a_db": -20.5,
+        "rms_b_db": None,
+    }
+    report = {"pair_count": 1, "text_match_count": 1, "pairs": [pair]}
     with patch(
         "podcast_mcp.services.document.analysis_reports.overlap_duplicate_report",
         return_value=report,
     ):
         out = AnalysisService(ws).overlap_duplicates(start_sec=0.0, end_sec=2.0)
-    assert out == report
+    assert out.model_dump() == report
 
 
 def test_edit_apply_bleed_mute_dry_run(minimal_project, sample_wav) -> None:
