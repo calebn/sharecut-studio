@@ -1,22 +1,18 @@
 import { rosterDisplayName } from "../../presence/colors";
 import {
-  type FollowUiCaps,
   isObservingClient,
   remotePlayheadSec,
 } from "../../presence/followSync";
 import { planGoTo } from "../../presence/goToPlan";
 import { clientStage, presenceStage } from "../../presence/presenceStage";
+import type { PresenceViewer } from "../../presence/usePresenceViewer";
 import { stageLabel } from "../../system/verbs";
 import type { SessionClient } from "../../types/session";
 import type { StageId } from "../../types/stage";
 import { capitalize } from "../../utils/format";
 import { formatTimeShort } from "../../utils/time";
 
-export type PresenceViewer = {
-  stage: StageId;
-  caps: FollowUiCaps;
-  durationSec: number;
-};
+export type { PresenceViewer };
 
 export type PersonCard = {
   id: string;

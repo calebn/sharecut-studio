@@ -170,15 +170,6 @@
   background: var(--sys-presence-color);
 }
 
-@media (forced-colors: active) {
-  .timeline-presence-dot {
-    --sys-presence-dot-edge: CanvasText;
-
-    background: none;
-    border: var(--space-1) solid var(--sys-presence-dot-edge);
-  }
-}
-
 .timeline-presence-menu .ui-menu-detail {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-caption);
