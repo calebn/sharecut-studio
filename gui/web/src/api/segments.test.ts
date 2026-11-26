@@ -366,6 +366,22 @@ describe("segment file routes", () => {
     expect(init?.signal).toBe(controller.signal);
   });
 
+  it("names the chosen file, not the staging file, in a refusal", async () => {
+    vi.mocked(apiFetch).mockRejectedValue(
+      new ApiError(
+        "0123456789abcdef0123456789abcdef.partial is not a segment bundle.",
+        "segment_invalid",
+        422,
+      ),
+    );
+    await expect(
+      previewSegmentImport(new File(["x"], "odd.sharecutseg")),
+    ).rejects.toMatchObject({
+      message: "odd.sharecutseg is not a segment bundle.",
+      code: "segment_invalid",
+    });
+  });
+
   it("commits and cancels by token", async () => {
     vi.mocked(apiFetch).mockResolvedValue(
       json({ status: "added", id: "a-1", version: 1 }),

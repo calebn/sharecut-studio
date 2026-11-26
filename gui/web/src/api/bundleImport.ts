@@ -20,6 +20,23 @@ async function readJson<T>(res: Response): Promise<T> {
 /** The two staged-import route families; each has `/preview`, a commit and a token delete. */
 export type BundleBase = "/api/segments/import" | "/api/kits/import";
 
+/** The service's temporary name for a file it is checking, as it appears in its refusals. */
+const STAGING_NAME = /\b[0-9a-f]{16,}\.partial\b/;
+
+/** A refusal that names the staging file names the file the person chose instead. */
+function namedAfter(failure: unknown, file: File): unknown {
+  if (!(failure instanceof ApiError) || !STAGING_NAME.test(failure.message))
+    return failure;
+  return new ApiError(
+    failure.message.replace(STAGING_NAME, file.name),
+    failure.code,
+    failure.status,
+    failure.model,
+    failure.body,
+    failure.retryAfterSec,
+  );
+}
+
 /**
  * Sends the file as the raw body, so the browser streams it (no FormData); nothing is
  * added to the library until the commit.
@@ -29,12 +46,16 @@ export async function stageBundle<T>(
   file: File,
   signal?: AbortSignal,
 ): Promise<T> {
-  const res = await apiFetch(
-    HOST_KEY,
-    { host: `${base}/preview` },
-    { method: "POST", headers: OCTET_STREAM, body: file, signal },
-  );
-  return readJson<T>(res);
+  try {
+    const res = await apiFetch(
+      HOST_KEY,
+      { host: `${base}/preview` },
+      { method: "POST", headers: OCTET_STREAM, body: file, signal },
+    );
+    return await readJson<T>(res);
+  } catch (failure) {
+    throw namedAfter(failure, file);
+  }
 }
 
 export async function commitStaged<T>(

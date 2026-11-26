@@ -194,6 +194,36 @@ describe("kit import routes", () => {
     });
   });
 
+  it("says payload_too_large is too large even without a 413 status", async () => {
+    vi.mocked(apiFetch).mockRejectedValue(
+      new ApiError("x", "payload_too_large", 502),
+    );
+    await expect(previewKitImport(file)).rejects.toMatchObject({
+      message: KIT_TOO_LARGE_MESSAGE,
+      code: "payload_too_large",
+    });
+  });
+
+  it("names the chosen file, not the staging file, in a refusal", async () => {
+    const refusal = new ApiError(
+      "a376bd21ce14b4264713e8abebb91f63.partial is not a kit bundle.",
+      "kit_bundle_invalid",
+      422,
+      null,
+      { detail: "x" },
+    );
+    vi.mocked(apiFetch).mockRejectedValue(refusal);
+    const failure = await previewKitImport(
+      new File(["x"], "not-a-kit.sharecutkit"),
+    ).catch((error) => error);
+    expect(failure.message).toBe("not-a-kit.sharecutkit is not a kit bundle.");
+    expect(failure).toMatchObject({
+      code: "kit_bundle_invalid",
+      status: 422,
+      body: { detail: "x" },
+    });
+  });
+
   it("says the connection dropped, not that the file is too large", async () => {
     const dropped = new ApiError(
       "Couldn't reach the server. Check your connection and try again.",
