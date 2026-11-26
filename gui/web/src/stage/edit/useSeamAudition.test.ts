@@ -167,6 +167,17 @@ describe("useSeamAudition", () => {
     expect(result.current.side).toBe("B");
   });
 
+  it("ends follow when an A/B Hear starts", async () => {
+    const seam = load(10.0123);
+    useDawStore.setState({ followingClientId: "other" });
+    const { result } = renderHook(() => useSeamAudition(seam, 10));
+    act(() => result.current.play("A"));
+    await waitFor(() =>
+      expect(useDawStore.getState().sourcePreview).not.toBeNull(),
+    );
+    expect(useDawStore.getState().followingClientId).toBeNull();
+  });
+
   it("asks for nothing while the seam is where it was", () => {
     const seam = load(10);
     const { result } = renderHook(() => useSeamAudition(seam, 10));
