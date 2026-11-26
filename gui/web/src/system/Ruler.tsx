@@ -3,7 +3,6 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   memo,
-  useCallback,
   useEffect,
   useRef,
   useState,

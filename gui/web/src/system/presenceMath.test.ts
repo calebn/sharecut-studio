@@ -276,6 +276,16 @@ describe("presenceFlags", () => {
     expect(alone[0]).toMatchObject({ side: "left", left: 995 - 1 - 16 });
   });
 
+  it("flips a group by its own wider width: a single fits at 980 px, a +2 at the same spot does not", () => {
+    const single = presenceFlags([person("a", 98)], at(24, { width: 1000 }));
+    expect(single[0]).toMatchObject({ x: 980, side: "right" });
+    const pair = presenceFlags(
+      [person("a", 98), person("b", 98)],
+      at(24, { width: 1000 }),
+    );
+    expect(pair[0]).toMatchObject({ x: 980, side: "left", text: "+2" });
+  });
+
   it("is deterministic: input order does not change keys, members or order", () => {
     const people = [
       person("c", 30),
