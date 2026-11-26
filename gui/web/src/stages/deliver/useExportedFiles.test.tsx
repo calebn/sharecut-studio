@@ -216,6 +216,27 @@ describe("useExportedFiles", () => {
     expect(listed.guest).toHaveBeenCalledTimes(5);
   });
 
+  it("stops reporting an export when a foreground re-read fails", async () => {
+    listed.guest.mockResolvedValueOnce({
+      ...inventory([ENTRY]),
+      revision: "first",
+      exporting: true,
+    });
+    const { result } = renderHook(() =>
+      useExportedFiles(GUEST_PATH, {
+        access: "download",
+        watchGuestPublication: true,
+      }),
+    );
+    await waitFor(() => expect(result.current.exporting).toBe(true));
+    listed.guest.mockRejectedValue(new Error("down"));
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(result.current.currentLoad).toBe("error"));
+    expect(result.current.exporting).toBe(false);
+  });
+
   it("a foreground refresh cancels quiet work and cannot be superseded by it", async () => {
     vi.useFakeTimers();
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");

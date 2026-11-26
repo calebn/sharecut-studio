@@ -104,7 +104,11 @@ export function useExportedFiles(
         if (mode === "foreground") setSettled({ read, load: "ready" });
       } catch (error) {
         if (signal.aborted || isAbortError(error)) return;
-        if (mode === "foreground") setSettled({ read, load: "error" });
+        if (mode === "foreground") {
+          running = false;
+          setExporting({ path, running: false });
+          setSettled({ read, load: "error" });
+        }
       }
       schedule();
     };
