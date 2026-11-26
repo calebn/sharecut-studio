@@ -14,8 +14,8 @@ import { createReviewShare, openGuestShare } from "./shareNavigation";
 import { goToStage, openProject, openProjectDialog } from "./stageNav";
 
 /*
- * Stop sharing and End room act at once and leave a toast whose Undo the
- * server honors for its window (10 s). Everything here goes through the built
+ * Stop sharing and End room (when nothing can be lost) act at once and leave a
+ * toast whose Undo the server honors for its window (10 s). Everything here goes through the built
  * app and the real host server: the guest URL is dead after the stop, live
  * again after Undo.
  */
@@ -346,7 +346,7 @@ test.describe("desktop 1280x900 beyond the happy path", () => {
     });
   });
 
-  test("End room ends the room at once, and Undo brings the room back", async ({
+  test("End room on an idle room ends it at once, and Undo brings the room back", async ({
     page,
   }) => {
     await withShareableProject(async (projectPath) => {
@@ -357,6 +357,9 @@ test.describe("desktop 1280x900 beyond the happy path", () => {
         (await usable(page, projectPath)).map((r) => r.session_id);
       expect(await live()).toContain(room.session_id);
 
+      await expect(
+        sheet.getByRole("button", { name: "End room" }),
+      ).toBeEnabled();
       await sheet.getByRole("button", { name: "End room" }).click();
       await expectFeedback(page, "Room ended.");
       await expect(sheet.getByRole("dialog")).toHaveCount(0);

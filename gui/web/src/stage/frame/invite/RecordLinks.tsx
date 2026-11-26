@@ -109,10 +109,7 @@ function RoomCard({
     refocus.current = false;
     endButton.current?.focus({ preventScroll: true });
   }, [asking]);
-  const stillAsks = check.kind === "ask";
-  useEffect(() => {
-    if (asking && !stillAsks) setAsking(false);
-  }, [asking, stillAsks]);
+  if (asking && check.kind !== "ask") setAsking(false);
   useEffect(() => {
     if (!asking || !busy) return;
     return registerInlineConfirm(closeAsk);
