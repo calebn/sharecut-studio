@@ -17,13 +17,12 @@ from podcast_mcp import settings
 from podcast_mcp.engines.asr_options import normalize_language
 from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
 from podcast_mcp.engines.models import whisper_cpp_models
-from podcast_mcp.engines.models.whisper import resolve_whisper_model
+from podcast_mcp.engines.models.whisper import english_only_refusal, resolve_whisper_model
 from podcast_mcp.engines.models.whisper_cpp_models import whisper_cpp_cache_dir
 from podcast_mcp.engines.transcribe import flag_anomalous_asr_durations
 from podcast_mcp.models import Transcript, TranscriptWord
 from podcast_mcp.util import host_platform, native_whisper
 from podcast_mcp.util.atomic_file import atomic_write
-from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.hardware import cpu_budget
 from podcast_mcp.util.process import IN_PROCESS_WHISPER, run
 from podcast_mcp.util.wav import PCM_SAMPLE_WIDTH_BYTES, WAV_HEADER_BYTES, pcm_wav_header
@@ -269,12 +268,7 @@ def write_wav_16k_mono(chunks: Iterable[np.ndarray], path: Path) -> int:
 def _check_language(language: str | None, model_path: Path) -> None:
     requested = normalize_language(language)
     if requested and requested != "en" and _ENGLISH_ONLY_MODEL.search(model_path.name):
-        raise CodedValueError(
-            f"The transcription model {model_path.name} reads English only, so it can't "
-            f"transcribe language {requested!r}. Set the language to English or use a "
-            "multilingual model.",
-            code="transcription_language_unsupported",
-        )
+        raise english_only_refusal(model_path.name, requested)
 
 
 def transcribe_file_whisper_cpp(

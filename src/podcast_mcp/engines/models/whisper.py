@@ -206,6 +206,24 @@ def normalize_whisper_model(model: str) -> str:
     return _ALIASES.get(key, key)
 
 
+_ENGLISH_ONLY_DISTIL = frozenset({"distil-large-v2", "distil-large-v3"})
+
+
+def english_only_whisper(name: str) -> bool:
+    """True for a Whisper model that reads English only: a ``.en`` size or an English distil."""
+    return name.endswith(".en") or name in _ENGLISH_ONLY_DISTIL
+
+
+def english_only_refusal(model_name: str, language: str) -> CodedValueError:
+    """The error for asking an English-only model to transcribe ``language``."""
+    return CodedValueError(
+        f"The transcription model {model_name} reads English only, so it can't "
+        f"transcribe language {language!r}. Set the language to English or use a "
+        "multilingual model.",
+        code="transcription_language_unsupported",
+    )
+
+
 def validate_whisper_model(model: str) -> str:
     """Return a canonical faster-whisper size or raise a coded ``ValueError``."""
     normalized = normalize_whisper_model(model)

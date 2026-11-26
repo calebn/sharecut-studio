@@ -36,6 +36,8 @@ from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.models.whisper import (
     DEFAULT_WHISPER_MODEL,
     WhisperWeightsMissingError,
+    english_only_refusal,
+    english_only_whisper,
     resolve_whisper_model_path,
     validate_whisper_model,
 )
@@ -671,6 +673,15 @@ class TranscriptionEngine:
         name = f"{cache_id_part(track_id)}_{audio_key}_{inputs_key}.json"
         return _cache_file(project, track_id, name)
 
+    def _require_supported_language(self, language: str | None) -> None:
+        """Refuse a non-English language with an English-only model (faster-whisper alone
+        warns and reads English). whisper.cpp checks the model file itself."""
+        if self.backend == "whisper_cpp":
+            return
+        requested = normalize_language(language)
+        if requested not in (None, "en") and english_only_whisper(self.model_size):
+            raise english_only_refusal(self.model_size, requested)
+
     def read_asr_cache(
         self,
         project: EpisodeProject,
@@ -686,6 +697,7 @@ class TranscriptionEngine:
         The transcript is None on a miss; Whisper never runs here. ``guard=False`` returns the
         cached words as stored, for callers that only test for a hit.
         """
+        self._require_supported_language(language)
         cache = self.cache_path(
             project,
             job.cache_id,
@@ -882,6 +894,7 @@ class TranscriptionEngine:
         could read as a word on one call and not on the next (#2632). Plain temperature 0
         can loop on a short filler ("Uh, uh, uh, ..."), hence the penalised retry.
         """
+        self._require_supported_language(language)
 
         if self.backend == "whisper_cpp":
             return self._transcribe_samples_whisper_cpp(
@@ -987,6 +1000,7 @@ class TranscriptionEngine:
         progress_label: str | None = None,
         progress_task_id: str = "transcribe_audio",
     ) -> Transcript:
+        self._require_supported_language(language)
         try:
             return self._with_cpu_fallback(
                 lambda: self._transcribe_file(
@@ -1088,6 +1102,7 @@ class TranscriptionEngine:
 
         use_cache=False skips the cache.
         """
+        self._require_supported_language(language)
         sha = audio_sha256 or sha256_file(job.audio)
         transcript: Transcript | None = None
         self._loop_drop = None
@@ -1224,6 +1239,7 @@ class TranscriptionEngine:
         audio_hashes: dict[TranscriptKey, str] | None = None,
         use_cache: bool = True,
     ) -> list[Transcript]:
+        self._require_supported_language(language)
         job_list = dialogue_transcribe_jobs(project) if jobs is None else jobs
         hashes = audio_hashes or {}
         total = max(len(job_list), 1)
