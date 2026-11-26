@@ -16,8 +16,10 @@ from podcast_mcp.services.document import report_kit_offer, submit_kit_apply
 def kit_list_tool() -> str:
     """List the show kits: the newest version of each, with how many of its segments are missing.
 
-    A kit whose newest version is damaged is listed as ``{"id", "version", "damaged": true,
-    "problem", "code"}``. Read-only; kits are per user, like the segment library.
+    Each row has ``usable`` (every segment is present and the right size; no audio is hashed)
+    and ``problem`` (why not, else null). A kit whose newest version is damaged is listed as
+    ``{"id", "version", "damaged": true, "usable": false, "problem", "code"}``. Read-only;
+    kits are per user, like the segment library.
     """
     return to_json(kit_rows(KitStore(), SegmentStore()))
 
