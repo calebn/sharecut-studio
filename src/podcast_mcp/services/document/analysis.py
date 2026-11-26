@@ -49,6 +49,13 @@ from podcast_mcp.services.document.fade_recommendation_results import (
     applied_fade_recommendations,
     applied_fade_updates,
 )
+from podcast_mcp.services.document.inaudible_snap_results import (
+    InaudibleCutDetails,
+    InaudibleCutPassthroughDetails,
+    InaudibleCutPreview,
+    SilenceIslandWire,
+    WaveformSnapWindow,
+)
 from podcast_mcp.services.document.loudness_results import LoudnessReport, build_loudness_report
 from podcast_mcp.services.document.off_speaker_results import (
     OffSpeakerApplied,
@@ -130,7 +137,7 @@ class AnalysisService(AnalysisReportService):
         start: float,
         end: float,
         timeline: bool = False,
-    ) -> dict:
+    ) -> InaudibleCutPreview:
         tid = self._resolve(track_id, speaker)
         if timeline:
             opt = optimize_timeline_cut_range(
@@ -149,7 +156,7 @@ class AnalysisService(AnalysisReportService):
             "shifted_start_ms": opt.shifted_start_ms,
             "shifted_end_ms": opt.shifted_end_ms,
             "confidence": opt.confidence,
-            "details": opt.details,
+            "details": cast(InaudibleCutDetails | InaudibleCutPassthroughDetails, opt.details),
         }
 
     def waveform_snap_window(
@@ -160,7 +167,7 @@ class AnalysisService(AnalysisReportService):
         end: float,
         timeline: bool = False,
         focus: float | None = None,
-    ) -> dict[str, Any]:
+    ) -> WaveformSnapWindow:
         """Windowed snap ticks for the DAW overlay (non-blocking, capped)."""
         lo = float(start)
         hi = float(end)
@@ -173,7 +180,7 @@ class AnalysisService(AnalysisReportService):
         if hi - lo < 0.05:
             hi = lo + 0.05
         tid = self._resolve(track_id, None)
-        preview: dict[str, Any] | None = None
+        preview: InaudibleCutPreview | None = None
         try:
             preview = self.preview_inaudible_cut(
                 track_id=tid,
@@ -192,7 +199,7 @@ class AnalysisService(AnalysisReportService):
                 found = silence_islands_from_hops(hops)
             except Exception as exc:
                 log.debug("waveform snap islands skipped: %s", exc)
-        islands = [i.to_dict() for i in found]
+        islands = [cast(SilenceIslandWire, i.to_dict()) for i in found]
         ticks: list[float] = []
         if preview is not None:
             ticks.extend([float(preview["start"]), float(preview["end"])])

@@ -69,6 +69,10 @@ if TYPE_CHECKING:
         HistoryMoveResult,
         PopulatedHistoryDiffResult,
     )
+    from podcast_mcp.services.document.inaudible_snap_results import (
+        InaudibleCutPreview,
+        WaveformSnapWindow,
+    )
     from podcast_mcp.services.document.join_fade_results import (
         CrossfadeJoinsResult,
         FadeJoinsResult,
@@ -215,6 +219,7 @@ __all__ = [
     "HistoryMoveRerenderedResult",
     "HistoryMoveResult",
     "HistoryService",
+    "InaudibleCutPreview",
     "InsertGapResult",
     "JoinDetectorRow",
     "JoinLabelResult",
@@ -274,6 +279,7 @@ __all__ = [
     "TrimHeldResult",
     "TrimUnchangedResult",
     "WarmPreviewResult",
+    "WaveformSnapWindow",
     "WordAutomaticResult",
     "WordSuppressedResult",
     "WordTimingChange",
@@ -348,6 +354,8 @@ _MODULE_BY_NAME = {
     "HistoryMoveRerenderedResult": "history_results",
     "HistoryMoveResult": "history_results",
     "PopulatedHistoryDiffResult": "history_results",
+    "InaudibleCutPreview": "inaudible_snap_results",
+    "WaveformSnapWindow": "inaudible_snap_results",
     "PENDING_PREVIEW_PAD_DEFAULT_SEC": "play_pending",
     "PENDING_PREVIEW_PAD_MAX_SEC": "play_pending",
     "PENDING_PREVIEW_PAD_MIN_SEC": "play_pending",
