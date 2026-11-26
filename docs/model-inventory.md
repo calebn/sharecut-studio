@@ -20,10 +20,10 @@ Every row has the same shape: `model_status` reports it as `installed`, `update_
 
 | Row | Status check at rest | Install progress | Cancel | Pin checked |
 | --- | --- | --- | --- | --- |
-| Whisper, catalog size | Pinned snapshot; a mismatch is `update_needed` | Bytes | Via the progress callback; `test_pinned_download_stops_when_the_sink_raises` shows the exception propagates out of a faked hub download | At status time and after download |
+| Whisper, catalog size | Pinned snapshot; a mismatch is `update_needed` | Bytes | Via the progress callback; `test_pinned_download_stops_when_the_sink_raises` shows the exception propagates out of a faked hub download, and `tests/test_hf_cancel.py` stops a real download against a local hub at the next byte update | At status time and after download |
 | Whisper, size outside the pinned catalog | Weights present on disk | One start tick, no byte count | Only before the download starts | No |
 | RNNoise | Default file is sha256-checked and a wrong or truncated one is `update_needed`; an override file via `PODCAST_MCP_RNNOISE_MODEL` is never hashed; set a custom model you want to keep there, because a different file at the default path shows `update_needed` and is refused until replaced | Bytes per 1 MiB | Per 1 MiB chunk | sha256 at status time and at download; a bare bootstrap re-downloads a default file that fails it |
-| Word aligner | Pinned snapshot; a mismatch is `update_needed` | Bytes | Via the progress callback; `test_pinned_download_stops_when_the_sink_raises` shows the exception propagates out of a faked hub download | At status time and after download; an override directory skips `verify_word_aligner_snapshot` |
+| Word aligner | Pinned snapshot; a mismatch is `update_needed` | Bytes | Via the progress callback; `test_pinned_download_stops_when_the_sink_raises` shows the exception propagates out of a faked hub download, and `tests/test_hf_cancel.py` stops a real download against a local hub at the next byte update | At status time and after download; an override directory skips `verify_word_aligner_snapshot` |
 | Speaker model | Default file is sha256-checked; an override file via `PODCAST_MCP_SPEAKER_ECAPA_MODEL` is not | Bytes per 1 MiB | Per 1 MiB chunk | sha256 at status time and at download; with an override set no download is attempted |
 
 Between rows, `run_bootstrap` checks `cancel_check` before each component.
@@ -36,7 +36,7 @@ Still open on #1998:
 
 - Running the speaker model download from inside a packaged app. A fresh freeze proves `onnxruntime` and the bundled Silero VAD run, and every freeze (fresh or reused) checks that the packaged FFmpeg has `arnndn`; the download itself is still a manual check.
 - A look at Split speakers (the Source card in Prepare) in a real browser and on a device.
-- Whether cancelling a snapshot download stops it promptly: the progress callback is driven by `huggingface_hub`, and the only test (`test_pinned_download_stops_when_the_sink_raises`) fakes the hub's listing and per-file download and shows only that the exception propagates, so a real transfer stopping promptly is untested.
+- Cancelling a snapshot download over the XET transport (`hf_xet`, a default dependency) and the overrun of a multi-file snapshot, which runs up to eight files at once: `tests/test_hf_cancel.py` covers one file over plain HTTP only.
 
 ## Findings
 
