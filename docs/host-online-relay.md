@@ -1359,14 +1359,23 @@ with private paths and path-free diagnostic secrets.
   no expiry; prefer `--expires-at` on the CLI. Record shares are link-access only
   in this PR.
 - **TLS**: Caddy handles HTTPS on the public edge.  The relay never sees plaintext from
-  the public internet in production. Access logs redact the share token in
-  the request path (`/r/{token}`, `/rec/{token}`, `/mcp/{token}`, `/api/review/{token}`,
-  `/api/rec/{token}`, `/api/mcp/{token}`, `/api/reports/{id}` and `/api/reports/bundles/{id}`),
-  in any query after it, in the legacy notice-continue query
-  (`/api/relay/notice/continue?next=...`), in the `Referer` request header and in the
-  `Location` response header. The path prefix stays, for example `/r/-REDACTED/page`.
-  Both local and production Caddy configurations carry the same three rules (see
-  `deploy/relay/Caddyfile*`; `tests/test_relay_caddy_logs.py` checks them).
+  the public internet in production. Access logs replace the share token with
+  `-REDACTED` in the request path (`/r/{token}`, `/rec/{token}`, `/mcp/{token}`,
+  `/api/review/{token}`, `/api/rec/{token}`, `/api/mcp/{token}`, `/api/reports/{id}` and
+  `/api/reports/bundles/{id}`) and drop any query after it, for example
+  `/r/-REDACTED/page`. They also drop the whole query of every `/auth` path (the
+  path stays), of the legacy notice-continue path (`/api/relay/notice/continue`)
+  and of any other path whose query contains a `/` or a `%`, which is where a
+  `next=` return path to a share lands. A request path that contains a percent
+  escape (`/r%2F{token}`, `/%72/{token}`) still reaches the relay, so it is logged
+  as `/-REDACTED` with the path and query dropped. The `Referer` request header
+  and the `Location` response header go through the same rules. What is not
+  covered: prefixes that differ in letter case, a doubled leading slash
+  (`//r/{token}`), a token in a query that has no `/` or `%`, and Caddy's own
+  error log. Both local and production Caddy configurations carry the same
+  three rules (see `deploy/relay/Caddyfile*`). `tests/test_relay_caddy_logs.py`
+  applies them to the cases above and, when a `caddy` binary is on PATH, reads a
+  real Caddy's log to check the URI, `Referer` and `Location` fields.
 - **No filesystem paths in URLs**: tokens map to workspaces internally; guests never
   see absolute paths.
 - **Diagnostics bundle**: host-only (`POST /api/diagnostics/bundle`). Guests cannot
