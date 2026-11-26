@@ -584,21 +584,17 @@ Firefox project fails the guard until this table is updated.
 
 ### E2E shard plan
 
-Playwright's `--shard=i/n` deals spec files out by test count, not duration, which left
-the slowest of four shards at about 2000 s of wall time against about 1550 s for the
-fastest (dispatch run 45707931542). `gui/web/e2e/shard-plan.json` instead lists each of the
-six main shards' specs (paths relative to `gui/web/e2e/`, alphabetical), dealt out
-longest-first by recorded seconds, and keeps the per-spec seconds it was balanced on.
-`scripts/ci_plan.py` turns each list into `npm run test:e2e -- e2e/<spec> ...`. The planned
-slowest shard is within 1% of the ideal total/6; the largest single spec,
-`record-guest-leave.spec.ts`, is about 580 s.
+Playwright's `--shard=i/n` deals spec files out by test count, not duration, so shards
+finish at very different times. `gui/web/e2e/shard-plan.json` instead lists each main
+shard's specs, balanced on recorded seconds, and `scripts/ci_plan.py` turns each list into
+`npm run test:e2e -- e2e/<spec> ...`.
 
-`python3 scripts/e2e_shards.py check` fails when the plan misses a spec, names one that no
-longer exists, or lists one twice. `tests/test_e2e_shards.py` runs it, asserts the planned
-slowest shard stays within 15% of the ideal, and, where `gui/web/node_modules` exists,
-checks that `playwright test --list` over the six shards unions to the whole suite. After
-adding or deleting a spec, or when a shard drifts, rebuild the plan from the JSON reports of
-one or more recent runs that ran the main shards and commit it:
+`python3 scripts/e2e_shards.py check` is the CI gate: every spec appears exactly once, no
+spec path is a substring of another (the filters are substring matches), and each shard is
+sorted. The real per-shard test counts are verified by the dispatch runs; the local
+`playwright test --list` union test in `tests/test_e2e_shards.py` skips in CI, where
+`gui/web/node_modules` is absent. After adding or deleting a spec, or when a shard drifts,
+rebuild the plan from the JSON reports of recent runs that ran the main shards and commit it:
 
 ```sh
 gh run download <run-id> --repo calebn/sharecut-studio \
@@ -606,13 +602,6 @@ gh run download <run-id> --repo calebn/sharecut-studio \
 python3 scripts/e2e_shards.py build /tmp/e2e-reports/<run-id> [/tmp/e2e-reports/<other-run-id> ...]
 python3 scripts/e2e_shards.py show   # planned seconds per shard against the ideal
 ```
-
-Seconds per spec are summed over a run's attempts, then averaged across the given runs; a
-spec no report contains gets the median. A spec absent from the plan still runs, in the
-lightest planned shard, so CI never skips a test, but that is a safety net: the check is
-the gate. Raise `MAIN_SHARDS` in `scripts/ci_plan.py` and rebuild with `--shards N` before
-any shard nears the job timeout. The `command` of an `e2e-matrix` entry from
-`python3 scripts/ci_plan.py plan --event workflow_dispatch` reproduces one CI shard.
 
 ### Browser compatibility matrix
 

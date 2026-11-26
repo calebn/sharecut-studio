@@ -1,26 +1,7 @@
 #!/usr/bin/env python3
 """Duration-balanced shards for the main Playwright suite.
 
-Usage:
-  python3 scripts/e2e_shards.py check            # the plan names every e2e spec exactly once
-  python3 scripts/e2e_shards.py show             # planned seconds per shard against the ideal
-  python3 scripts/e2e_shards.py build RUN...     # rewrite gui/web/e2e/shard-plan.json
-
-`gui/web/e2e/shard-plan.json` maps each shard to its spec paths (relative to `gui/web/e2e/`,
-alphabetical) and keeps the per-spec seconds the plan was balanced on, so checking it needs
-no network. `scripts/ci_plan.py` reads it through `planned_shards`.
-
-To regenerate after specs change or get slower, download the JSON reports of one or more
-recent successful `test.yml` runs that ran the main shards (a `workflow_dispatch` or
-promotion run) and rebuild from them:
-
-  gh run download <run-id> --repo calebn/sharecut-studio \\
-      --pattern 'playwright-reports-main-*' --dir /tmp/e2e-reports/<run-id>
-  python3 scripts/e2e_shards.py build /tmp/e2e-reports/<run-id> [/tmp/e2e-reports/<other-run-id> ...]
-
-Each RUN is a directory (searched recursively for `main-*.json`) or one report file. Seconds
-per spec are summed over a run's reports, retries included, then averaged over the runs that
-contain the spec. A spec in no report gets the median recorded duration. Stdlib only.
+The plan lives in `gui/web/e2e/shard-plan.json`; see docs/testing-ci.md, "E2E shard plan".
 """
 
 from __future__ import annotations
@@ -39,6 +20,7 @@ E2E_DIR = ROOT / "gui" / "web" / "e2e"
 PLAN_PATH = E2E_DIR / "shard-plan.json"
 SPEC_GLOB = "**/*.spec.ts"
 PLAN_SHARDS = 6
+REPORT_NAME = re.compile(r"main-\d+of\d+\.json")
 
 
 def spec_paths(e2e_dir: Path = E2E_DIR) -> list[str]:
@@ -78,6 +60,9 @@ def ideal_seconds(durations: Mapping[str, float], count: int) -> float:
 def check_plan(plan: Mapping[str, Any], specs: Iterable[str]) -> list[str]:
     """Problems that make *plan* disagree with the specs on disk; empty when it is sound."""
     problems: list[str] = []
+    keys = set(plan["shards"])
+    if keys != {str(i) for i in range(1, len(keys) + 1)}:
+        return [f"shard keys must be exactly 1..N, found: {', '.join(sorted(keys))}"]
     shards = plan_shards(plan)
     planned = [spec for shard in shards for spec in shard]
     duplicates = sorted({spec for spec in planned if planned.count(spec) > 1})
@@ -96,6 +81,17 @@ def check_plan(plan: Mapping[str, Any], specs: Iterable[str]) -> list[str]:
     for number, shard in enumerate(shards, start=1):
         if shard != sorted(shard):
             problems.append(f"shard {number} is not in alphabetical order")
+    contained = sorted(
+        f"e2e/{inner} in e2e/{outer}"
+        for inner in set(planned)
+        for outer in set(planned)
+        if inner != outer and f"e2e/{inner}" in f"e2e/{outer}"
+    )
+    if contained:
+        problems.append(
+            f"spec paths that are substrings of another (Playwright filters match substrings): "
+            f"{', '.join(contained)}"
+        )
     return problems
 
 
@@ -137,7 +133,11 @@ def _spec_importers(e2e_dir: Path, helper: str) -> list[str]:
 
 
 def _report_files(run: Path) -> list[Path]:
-    return [run] if run.is_file() else sorted(run.rglob("main-*.json"))
+    if run.is_file():
+        if not REPORT_NAME.fullmatch(run.name):
+            raise ValueError(f"{run.name} is not a main-<i>of<n>.json shard report")
+        return [run]
+    return sorted(path for path in run.rglob("main-*.json") if REPORT_NAME.fullmatch(path.name))
 
 
 def _file_seconds(report: Mapping[str, Any]) -> dict[str, float]:
@@ -161,7 +161,7 @@ def run_seconds(run: Path, e2e_dir: Path = E2E_DIR) -> dict[str, float]:
     """Seconds per spec in one run. Tests a helper module registers count for its importers."""
     files = _report_files(run)
     if not files:
-        raise ValueError(f"no main-*.json Playwright report under {run}")
+        raise ValueError(f"no main-<i>of<n>.json Playwright report under {run}")
     seconds: dict[str, float] = {}
     specs = set(spec_paths(e2e_dir))
     for path in files:
@@ -207,11 +207,9 @@ def render_loads(plan: Mapping[str, Any]) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawTextHelpFormatter
-    )
+    parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("check", help="fail on missing, stale or duplicate specs")
+    commands.add_parser("check", help="fail on a plan that does not run every spec exactly once")
     commands.add_parser("show", help="print planned seconds per shard")
     build = commands.add_parser("build", help="rebalance from Playwright JSON reports")
     build.add_argument("runs", nargs="+", type=Path, help="a directory or file of reports per run")
