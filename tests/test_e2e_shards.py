@@ -128,7 +128,7 @@ def test_planner_refuses_a_plan_for_another_shard_count(plan: dict[str, Any]) ->
         es.planned_shards(4, plan, es.spec_paths())
 
 
-def test_ci_plan_commands_list_every_spec_once_with_anchored_paths(plan: dict[str, Any]) -> None:
+def test_ci_plan_commands_list_every_spec_once_with_anchored_paths() -> None:
     prefix = "npm run test:e2e -- "
     commands = [job.command for job in cp.main_shards()]
     assert all(command.startswith(prefix) for command in commands)
