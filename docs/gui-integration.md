@@ -177,7 +177,7 @@ Completed variant audio is exposed through the existing export-file list, open, 
 ticket and reveal paths. The inventory admits only registered audio files from complete
 valid bundles. Saved files remain available when current mix evidence or pipeline defaults
 cannot be read. Variants and transcripts report not current when their currentness cannot
-be established; canonical audio retains its existing currentness behavior. Generation still requires
+be established; canonical audio is judged against the head recorded at its export (docs/gui-viewer.md). Generation still requires
 valid working configuration, checked again before publication. Listing selects one private
 working-config snapshot, including staged settings. Source and transcript comparisons are
 independent, so an invalid mix setting does not mark transcripts stale and an invalid caption

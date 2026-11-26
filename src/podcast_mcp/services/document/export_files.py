@@ -15,8 +15,10 @@ from podcast_mcp.export.audio import AUDIO_EXPORT_MEDIA
 from podcast_mcp.export.chapters import render_chapters_json
 from podcast_mcp.export.daw_format import DawFormat
 from podcast_mcp.export.names import BOUNCES_DIRNAME, sanitize_export_stem
+from podcast_mcp.export.render_record import read_export_render
 from podcast_mcp.export.transcript import TRANSCRIPT_FORMATS, TRANSCRIPT_MIME
 from podcast_mcp.feed.inputs import feed_path
+from podcast_mcp.models.history import HISTORY_ROOT_ID
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.feed import FeedService
 from podcast_mcp.services.document.transcript import TranscriptService
@@ -288,7 +290,10 @@ class ExportFilesService:
 
         Audio, chapters and the feed are judged against the project here. Transcripts reuse ``TranscriptService.exported`` for ``current``. Chapters are current
         when the file equals a fresh render. The feed is current when the listing's own check
-        says so. Canonical audio retains its existing currentness behavior; named variants
+        says so. Canonical audio is current while the project's edit head equals the head recorded in
+        ``artifacts/export_render.json`` when the file was exported; with a valid record, a file
+        the record does not name or whose size or mtime differ is not current, and with no
+        record, an unreadable one or an unknown version it is current. Named variants
         compare their admitted source digest with current source evidence. Saved clips are
         current when candidate metadata references their writer-relative path.
         """
@@ -318,6 +323,10 @@ class ExportFilesService:
         )
         chapters_text = render_chapters_json(project.chapters) if project.chapters else None
         feed_current: bool | None = None
+        record: dict | None = None
+        record_read = False
+        edit_head: str | None = None
+        first_entry: str | None = None
         out: ListedFiles = []
         for found_entry in found:
             name = found_entry.path.name
@@ -338,6 +347,18 @@ class ExportFilesService:
             elif found_entry.kind == "audio" and found_entry.id.startswith(f"{CLIPS_DIRNAME}/"):
                 filename = found_entry.id[len(CLIPS_DIRNAME) + 1 :]
                 current = str(clip_directory / filename) in clip_references
+            elif found_entry.kind == "audio":
+                if not record_read:
+                    record = read_export_render(project)
+                    record_read = True
+                if record is None:
+                    current = True
+                else:
+                    if edit_head is None:
+                        edit_head = project.history.edit_head_id()
+                        entries = project.history.entries
+                        first_entry = entries[0].id if entries else None
+                    current = _canonical_audio_current(record, found_entry, edit_head, first_entry)
             else:
                 current = True
             entry = ExportedFile(
@@ -374,3 +395,21 @@ class ExportFilesService:
                 return "Editable DAW session"
             case "bounce":
                 return "Unmastered export"
+
+
+def _canonical_audio_current(
+    record: dict, found: ServedFile, edit_head: str, first_entry: str | None
+) -> bool:
+    stamp = record["files"].get(found.id)
+    if stamp is None:
+        return False
+    try:
+        stat = found.path.stat()
+    except OSError:
+        return False
+    if [stat.st_size, stat.st_mtime_ns] != stamp:
+        return False
+    recorded = record["edit_head_id"]
+    if recorded == HISTORY_ROOT_ID:
+        return edit_head in (HISTORY_ROOT_ID, first_entry)
+    return recorded == edit_head
