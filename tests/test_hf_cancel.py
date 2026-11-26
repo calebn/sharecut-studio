@@ -147,7 +147,6 @@ def _env(endpoint: str, home: Path) -> dict[str, str]:
         "HF_ENDPOINT": endpoint,
         "NO_PROXY": "127.0.0.1,localhost",
         "no_proxy": "127.0.0.1,localhost",
-        "HF_HUB_DISABLE_XET": "1",
         "HF_HUB_DISABLE_TELEMETRY": "1",
         "HF_HOME": str(home),
         "HOME": str(home),

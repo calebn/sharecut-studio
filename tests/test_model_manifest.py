@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib.util
+import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -386,67 +388,157 @@ def _hub_constants():
     return constants
 
 
-def test_fine_hub_chunks_sets_one_mib_inside_and_restores_after(monkeypatch) -> None:
+_ORIGINAL_CHUNK = 7 * 1024 * 1024
+
+
+def _plain_http_baseline(monkeypatch) -> object:
+    """Pin both settings to known non-plain-HTTP values and return the hub constants."""
     constants = _hub_constants()
-    monkeypatch.setattr(constants, "DOWNLOAD_CHUNK_SIZE", 7 * 1024 * 1024)
-
-    with model_manifest._fine_hub_chunks():
-        assert constants.DOWNLOAD_CHUNK_SIZE == 1024 * 1024
-
-    assert constants.DOWNLOAD_CHUNK_SIZE == 7 * 1024 * 1024
+    monkeypatch.setattr(constants, "DOWNLOAD_CHUNK_SIZE", _ORIGINAL_CHUNK)
+    monkeypatch.setattr(constants, "HF_HUB_DISABLE_XET", False)
+    return constants
 
 
-def test_fine_hub_chunks_restores_after_an_exception(monkeypatch) -> None:
-    constants = _hub_constants()
-    monkeypatch.setattr(constants, "DOWNLOAD_CHUNK_SIZE", 7 * 1024 * 1024)
+def _assert_plain_http(constants) -> None:
+    assert constants.DOWNLOAD_CHUNK_SIZE == 1024 * 1024
+    assert constants.HF_HUB_DISABLE_XET is True
+
+
+def _assert_restored(constants) -> None:
+    assert constants.DOWNLOAD_CHUNK_SIZE == _ORIGINAL_CHUNK
+    assert constants.HF_HUB_DISABLE_XET is False
+
+
+def test_plain_http_hub_sets_both_settings_inside_and_restores_after(monkeypatch) -> None:
+    constants = _plain_http_baseline(monkeypatch)
+
+    with model_manifest._plain_http_hub():
+        _assert_plain_http(constants)
+
+    _assert_restored(constants)
+
+
+def test_plain_http_hub_restores_after_an_exception(monkeypatch) -> None:
+    constants = _plain_http_baseline(monkeypatch)
 
     with pytest.raises(RuntimeError, match="boom"):
-        with model_manifest._fine_hub_chunks():
+        with model_manifest._plain_http_hub():
             raise RuntimeError("boom")
 
-    assert constants.DOWNLOAD_CHUNK_SIZE == 7 * 1024 * 1024
+    _assert_restored(constants)
 
 
-def test_fine_hub_chunks_nested_restores_the_original_once(monkeypatch) -> None:
-    constants = _hub_constants()
-    monkeypatch.setattr(constants, "DOWNLOAD_CHUNK_SIZE", 7 * 1024 * 1024)
+def test_plain_http_hub_nested_restores_the_originals_once(monkeypatch) -> None:
+    constants = _plain_http_baseline(monkeypatch)
 
-    with model_manifest._fine_hub_chunks():
-        with model_manifest._fine_hub_chunks():
-            assert constants.DOWNLOAD_CHUNK_SIZE == 1024 * 1024
-        assert constants.DOWNLOAD_CHUNK_SIZE == 1024 * 1024
+    with model_manifest._plain_http_hub():
+        with model_manifest._plain_http_hub():
+            _assert_plain_http(constants)
+        _assert_plain_http(constants)
 
-    assert constants.DOWNLOAD_CHUNK_SIZE == 7 * 1024 * 1024
+    _assert_restored(constants)
 
 
-def test_fine_hub_chunks_overlapping_out_of_order_exit_restores_the_original(
+def test_plain_http_hub_overlapping_out_of_order_exit_restores_the_originals(
     monkeypatch,
 ) -> None:
-    constants = _hub_constants()
-    monkeypatch.setattr(constants, "DOWNLOAD_CHUNK_SIZE", 7 * 1024 * 1024)
-    first = model_manifest._fine_hub_chunks()
-    second = model_manifest._fine_hub_chunks()
+    constants = _plain_http_baseline(monkeypatch)
+    first = model_manifest._plain_http_hub()
+    second = model_manifest._plain_http_hub()
 
     first.__enter__()
     try:
         second.__enter__()
         try:
             first.__exit__(None, None, None)
-            assert constants.DOWNLOAD_CHUNK_SIZE == 1024 * 1024
+            _assert_plain_http(constants)
         finally:
             second.__exit__(None, None, None)
     finally:
-        if constants.DOWNLOAD_CHUNK_SIZE != 7 * 1024 * 1024:
+        if constants.DOWNLOAD_CHUNK_SIZE != _ORIGINAL_CHUNK:
             first.__exit__(None, None, None)
 
-    assert constants.DOWNLOAD_CHUNK_SIZE == 7 * 1024 * 1024
+    _assert_restored(constants)
 
 
-def test_fine_hub_chunks_tolerates_a_hub_without_the_constant(monkeypatch) -> None:
+@pytest.mark.parametrize("missing", ["DOWNLOAD_CHUNK_SIZE", "HF_HUB_DISABLE_XET"])
+def test_plain_http_hub_tolerates_a_missing_attribute_with_a_warning(
+    monkeypatch, caplog, missing: str
+) -> None:
+    constants = _plain_http_baseline(monkeypatch)
+    other = "HF_HUB_DISABLE_XET" if missing == "DOWNLOAD_CHUNK_SIZE" else "DOWNLOAD_CHUNK_SIZE"
+    monkeypatch.delattr(constants, missing)
+
+    with caplog.at_level(logging.WARNING):
+        with model_manifest._plain_http_hub():
+            assert not hasattr(constants, missing)
+            assert getattr(constants, other) == (
+                1024 * 1024 if other == "DOWNLOAD_CHUNK_SIZE" else True
+            )
+
+    assert not hasattr(constants, missing)
+    assert getattr(constants, other) == (
+        _ORIGINAL_CHUNK if other == "DOWNLOAD_CHUNK_SIZE" else False
+    )
+    warned = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warned) == 1
+    assert missing in warned[0].getMessage()
+
+
+def test_plain_http_hub_warns_once_per_missing_attribute(monkeypatch, caplog) -> None:
     constants = _hub_constants()
     monkeypatch.delattr(constants, "DOWNLOAD_CHUNK_SIZE")
+    monkeypatch.delattr(constants, "HF_HUB_DISABLE_XET")
 
-    with model_manifest._fine_hub_chunks():
-        assert not hasattr(constants, "DOWNLOAD_CHUNK_SIZE")
+    with caplog.at_level(logging.WARNING):
+        with model_manifest._plain_http_hub():
+            pass
 
-    assert not hasattr(constants, "DOWNLOAD_CHUNK_SIZE")
+    messages = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(messages) == 2
+    assert any("DOWNLOAD_CHUNK_SIZE" in m for m in messages)
+    assert any("HF_HUB_DISABLE_XET" in m for m in messages)
+
+
+@pytest.mark.skipif(importlib.util.find_spec("hf_xet") is None, reason="hf_xet is not installed")
+def test_plain_http_hub_makes_xet_unavailable_inside_and_restores_after(monkeypatch) -> None:
+    from huggingface_hub.utils import _runtime
+
+    _plain_http_baseline(monkeypatch)
+    assert _runtime.is_xet_available() is True
+
+    with model_manifest._plain_http_hub():
+        assert _runtime.is_xet_available() is False
+
+    assert _runtime.is_xet_available() is True
+
+
+def test_download_pinned_snapshot_downloads_inside_the_plain_http_window(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import hashlib
+
+    import huggingface_hub
+
+    constants = _plain_http_baseline(monkeypatch)
+    payload = b"model"
+    pin = PinnedSnapshot(
+        "acme/model", "a" * 40, (("model.bin", hashlib.sha256(payload).hexdigest()),)
+    )
+    seen: dict[str, object] = {}
+
+    def fake_snapshot_download(*_args: object, **_kwargs: object) -> str:
+        seen["chunk"] = constants.DOWNLOAD_CHUNK_SIZE
+        seen["xet_disabled"] = constants.HF_HUB_DISABLE_XET
+        root = tmp_path / "snapshot"
+        root.mkdir(exist_ok=True)
+        (root / "model.bin").write_bytes(payload)
+        return str(root)
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", fake_snapshot_download)
+
+    _, mismatch = download_pinned_snapshot(pin, tmp_path / "hub")
+
+    assert mismatch is None
+    assert seen == {"chunk": model_manifest.HUB_CHUNK_BYTES, "xet_disabled": True}
+    _assert_restored(constants)
