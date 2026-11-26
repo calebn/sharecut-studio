@@ -436,17 +436,31 @@ def _covered_text_without_ignored(
     intervals: HalfOpenIntervalIndex,
     source_start: float,
     source_end: float,
+    text: str,
 ) -> str:
-    """The row's covered kept words minus struck ones: for a row no run matches
-    (a combined transcript older than its words), so no struck word it covers is sent."""
-    covered = sorted(_covered_word_ordinals(words, intervals, source_start, source_end))
+    """Rebuild guest text for a stored row whose current run no longer matches."""
+    covered = {
+        index
+        for index in _covered_word_ordinals(words, intervals, source_start, source_end)
+        if not getattr(words[index], "suppressed", False)
+    }
+    # A terminal point can be part of the stored text despite lying outside the
+    # half-open span. Match the saved text before admitting any boundary words.
+    point_start, point_end = word_source_span(source_end, source_end)
+    boundary = {
+        index
+        for index in intervals.overlapping_ordinals(point_start, point_end)
+        if words[index].start == source_end
+        and words[index].end <= source_end
+        and not getattr(words[index], "suppressed", False)
+    } - covered
+    ordered = sorted(covered)
+    if boundary:
+        including_boundary = sorted(covered | boundary)
+        if utterance_text([words[index] for index in including_boundary]) == text:
+            ordered = including_boundary
     return utterance_text(
-        [
-            words[index]
-            for index in covered
-            if not getattr(words[index], "suppressed", False)
-            and not getattr(words[index], "ignored", False)
-        ]
+        [words[index] for index in ordered if not getattr(words[index], "ignored", False)]
     )
 
 
@@ -698,8 +712,9 @@ def guest_transcript(
     ``text`` leaves out the host's struck (ignored) words (``text_without_ignored``).
     Drops view-only ``suppressed_only`` rows (#758): their text is suppressed words,
     which guests never see. ``NONE`` drops per-word timings. ``READING`` keeps them
-    minus suppressed words, cut to ``READING_WORD_FIELDS``. ``SELECTABLE`` keeps the
-    whole word view minus suppressed words.
+    cut to ``READING_WORD_FIELDS``. ``SELECTABLE`` keeps the full word shape.
+    Both timed modes omit suppressed and struck words, preserving source indices
+    for the remaining words.
     """
     if transcript is None:
         return None
@@ -720,7 +735,11 @@ def guest_transcript(
             row["text"] = shown
         timed = utterance.get("words")
         if words is not GuestWords.NONE and isinstance(timed, list):
-            kept = [w for w in timed if not (isinstance(w, dict) and w.get("suppressed"))]
+            kept = [
+                w
+                for w in timed
+                if not (isinstance(w, dict) and (w.get("suppressed") or w.get("ignored")))
+            ]
             row["words"] = (
                 kept
                 if words is GuestWords.SELECTABLE
@@ -844,6 +863,7 @@ def map_transcript_utterances_to_timeline(
                 raw_intervals[recording.words_key],
                 source_start,
                 source_end,
+                text,
             )
         if shown is not None and shown != text:
             # Guests read this in place of ``text`` (``guest_transcript``).

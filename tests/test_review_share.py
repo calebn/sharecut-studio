@@ -535,6 +535,51 @@ def test_guest_rows_keep_locked_word_indices_in_every_mode(mode):
     assert row["ignored_word_indices"] == [0]
 
 
+@pytest.mark.parametrize("mode", ["READING", "SELECTABLE"])
+def test_guest_timed_words_keep_indices_when_hidden_words_are_omitted(mode):
+    from podcast_mcp.gui.mapper import guest_transcript
+    from podcast_mcp.services.collaboration.share_capabilities import GuestWords
+
+    timed = [
+        {"text": "the", "word_index": 0},
+        {"text": "omit", "word_index": 1, "ignored": True},
+        {"text": "suppressed", "word_index": 2, "suppressed": True},
+        {"text": "rest", "word_index": 3},
+    ]
+    transcript = {"utterances": [{"text": "the rest", "words": timed}]}
+    [row] = guest_transcript(transcript, words=GuestWords[mode])["utterances"]
+
+    assert [(word["text"], word["word_index"]) for word in row["words"]] == [
+        ("the", 0),
+        ("rest", 3),
+    ]
+    assert len(timed) == 4
+
+
+@pytest.mark.parametrize("mode", ["NONE", "READING", "SELECTABLE"])
+def test_guest_spoken_text_keeps_a_path_said_inside_it(mode):
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+    from podcast_mcp.services.collaboration.share_capabilities import GuestWords
+
+    spoken = "The sample is named /synthetic/example.wav in this recording."
+    view = {
+        "transcript": {
+            "utterances": [
+                {"text": spoken, "words": [{"text": "/synthetic/example.wav"}]},
+                {"text": "/synthetic/example.wav"},
+            ]
+        }
+    }
+    out = sanitize_guest_project_view(view, words=GuestWords[mode])
+    episode_row, path_row = out["transcript"]["utterances"]
+    assert episode_row["text"] == spoken
+    assert path_row["text"] is None
+    if mode == "NONE":
+        assert "words" not in episode_row
+    else:
+        assert episode_row["words"][0]["text"] is None
+
+
 def test_sanitize_guest_reading_words_still_null_an_absolute_path_text():
     from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
     from podcast_mcp.services.collaboration.share_capabilities import GuestWords
