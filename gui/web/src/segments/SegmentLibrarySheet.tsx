@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { KitLibrary, type KitLibraryState, useKitLibrary } from "../kits";
 import { useDawStore } from "../state/dawStore";
@@ -47,6 +48,12 @@ export function SegmentLibrarySheet({ open, onClose, library, kits }: Props) {
   const own = useSegmentLibrary(open && !library);
   const hosted = useDawStore((s) => s.guestMode === null);
   const ownKits = useKitLibrary(open && hosted && !kits);
+  // Kits handed in by Home were read when Home mounted; read them again on each open,
+  // as the segment list is.
+  const handed = kits?.reload;
+  useEffect(() => {
+    if (open && hosted) handed?.();
+  }, [open, hosted, handed]);
   return (
     <SegmentLibrarySheetView
       open={open}

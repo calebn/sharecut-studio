@@ -81,6 +81,46 @@ describe("SegmentLibrarySheet", () => {
     }
   });
 
+  it("reads the kits again each time the sheet opens, without a second fetch of its own", async () => {
+    stubViewportShell("desktop");
+    const reload = vi.fn();
+    const kits = { rows: KITS, error: null, reload };
+    const { rerender } = render(
+      <SegmentLibrarySheet open={false} onClose={vi.fn()} kits={kits} />,
+    );
+    expect(reload).not.toHaveBeenCalled();
+    rerender(<SegmentLibrarySheet open onClose={vi.fn()} kits={kits} />);
+    await screen.findByRole("region", { name: "Kits" });
+    expect(reload).toHaveBeenCalledTimes(1);
+    rerender(
+      <SegmentLibrarySheet open={false} onClose={vi.fn()} kits={kits} />,
+    );
+    rerender(<SegmentLibrarySheet open onClose={vi.fn()} kits={kits} />);
+    expect(reload).toHaveBeenCalledTimes(2);
+    expect(loadKits).not.toHaveBeenCalled();
+  });
+
+  it("does not reload handed kits for a guest", async () => {
+    stubViewportShell("desktop");
+    useDawStore.setState({ guestMode: "viewer" });
+    try {
+      const reload = vi.fn();
+      render(
+        <SegmentLibrarySheet
+          open
+          onClose={vi.fn()}
+          kits={{ rows: KITS, error: null, reload }}
+        />,
+      );
+      await screen.findByRole("list", { name: "Segment library" });
+      expect(screen.queryByRole("region", { name: "Kits" })).toBeNull();
+      expect(reload).not.toHaveBeenCalled();
+      expect(loadKits).not.toHaveBeenCalled();
+    } finally {
+      useDawStore.setState({ guestMode: null });
+    }
+  });
+
   it("reads nothing while closed", () => {
     stubViewportShell("desktop");
     render(<SegmentLibrarySheet open={false} onClose={vi.fn()} />);

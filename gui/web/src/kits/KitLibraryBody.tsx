@@ -4,12 +4,13 @@ import { exportedMessage } from "../segments/importMessages";
 import { useDawStore } from "../state/dawStore";
 import { Skeleton } from "../system/Skeleton";
 import { Button, InlineError } from "../ui";
-import { errorMessage } from "../utils/apiError";
+import { ApiError, errorMessage } from "../utils/apiError";
 import { exportKitFile } from "./exportKit";
 import { KitRowView } from "./KitRowView";
 import type { KitLibraryState } from "./useKitLibrary";
 
 export const KITS_LABEL = "Kits";
+export const KIT_LIST_LABEL = "Saved kits";
 export const KITS_EMPTY_TEXT =
   "No kits yet. A kit is a saved set of segments, such as your intro and outro.";
 export const KITS_LOAD_FAILED_TEXT = "Couldn't load the kits.";
@@ -31,9 +32,14 @@ export function KitLibraryBody({ library }: Props) {
       const outcome = await exportKitFile(row.id);
       announceStatus(exportedMessage(row.name, outcome));
     } catch (problem) {
-      const message = errorMessage(problem, `Couldn't export ${row.name}.`);
-      announceStatus(message, { tone: "error" });
-      setFailure(message);
+      // The alert below is the one announcement of a failure.
+      setFailure(errorMessage(problem, `Couldn't export ${row.name}.`));
+      // The kit is gone (404) or its segments are (409): the list is out of date.
+      if (
+        problem instanceof ApiError &&
+        (problem.status === 404 || problem.status === 409)
+      )
+        reload();
     } finally {
       exporting.current = false;
     }
@@ -45,16 +51,10 @@ export function KitLibraryBody({ library }: Props) {
     </Button>
   );
 
+  const loading = rows === null && error === null;
   let content;
-  if (rows === null && error === null) {
-    content = (
-      <>
-        <p className="sr-only" role="status">
-          Loading the kits
-        </p>
-        <Skeleton layout="list" rows={2} onRetry={reload} />
-      </>
-    );
+  if (loading) {
+    content = <Skeleton layout="list" rows={2} onRetry={reload} />;
   } else if (rows === null) {
     content = (
       <div className="kit-library-error" role="alert">
@@ -67,7 +67,7 @@ export function KitLibraryBody({ library }: Props) {
     content = <p className="kit-library-empty">{KITS_EMPTY_TEXT}</p>;
   } else {
     content = (
-      <ul className="kit-list" aria-label={KITS_LABEL}>
+      <ul className="kit-list" aria-label={KIT_LIST_LABEL}>
         {rows.map((row: KitListRow) => (
           <KitRowView
             key={row.id}
@@ -81,6 +81,9 @@ export function KitLibraryBody({ library }: Props) {
 
   return (
     <div className="kit-library-body">
+      <p className="sr-only" role="status">
+        {loading ? "Loading the kits" : ""}
+      </p>
       <InlineError message={failure} />
       {rows !== null && error !== null ? (
         <div className="kit-library-error" role="alert">

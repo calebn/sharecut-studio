@@ -6,6 +6,9 @@ import { entryCount, kitVersionTag } from "./kitFormat";
 
 export const DAMAGED_CHIP = "Can't be read";
 export const UNUSABLE_CHIP = "Can't be added to an episode yet";
+export const DAMAGED_NAME = "Unreadable kit";
+export const MISSING_NOTE =
+  "It can't be exported until its segments are back in the library.";
 
 type Props = {
   row: KitListRow;
@@ -59,13 +62,16 @@ export function KitRowView({ row, onExport }: Props) {
           <SystemIcon name="triangle-alert" size={16} />
         </span>
         <div className="kit-main">
-          <span className="kit-name kit-name--id">{row.id}</span>
+          <span className="kit-name">{DAMAGED_NAME}</span>
+          <span className="kit-tag kit-name--id">{row.id}</span>
           <Pill tone="warning">{DAMAGED_CHIP}</Pill>
           <span className="kit-problem">{row.problem}</span>
         </div>
       </li>
     );
   }
+  // The server refuses to export a kit with a segment missing (409 kit_segment_missing).
+  const exportable = row.missing === 0;
   return (
     <li
       className="kit-row"
@@ -82,8 +88,11 @@ export function KitRowView({ row, onExport }: Props) {
         {row.usable || !row.problem ? null : (
           <span className="kit-problem">{row.problem}</span>
         )}
+        {exportable ? null : (
+          <span className="kit-problem">{MISSING_NOTE}</span>
+        )}
       </div>
-      <RowMenu row={row} onExport={onExport} />
+      {exportable ? <RowMenu row={row} onExport={onExport} /> : null}
     </li>
   );
 }

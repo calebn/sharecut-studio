@@ -42,6 +42,38 @@ describe("useKitLibrary", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it("reads again when it is enabled again", async () => {
+    const { result, rerender } = renderHook(({ on }) => useKitLibrary(on), {
+      initialProps: { on: true },
+    });
+    await waitFor(() => expect(result.current.rows).toEqual(KITS));
+    rerender({ on: false });
+    load.mockResolvedValue(KITS.slice(0, 1));
+    rerender({ on: true });
+    await waitFor(() => expect(result.current.rows).toEqual(KITS.slice(0, 1)));
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a kit removed elsewhere as gone after reload", async () => {
+    const { result } = renderHook(() => useKitLibrary(true));
+    await waitFor(() => expect(result.current.rows).toEqual(KITS));
+    load.mockResolvedValue(KITS.slice(1));
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.rows).toEqual(KITS.slice(1)));
+  });
+
+  it("drops the stale rows when a reload fails, and recovers on the next", async () => {
+    const { result } = renderHook(() => useKitLibrary(true));
+    await waitFor(() => expect(result.current.rows).toEqual(KITS));
+    load.mockRejectedValueOnce(new Error("offline"));
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.error).toBe("offline"));
+    expect(result.current.rows).toBeNull();
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.rows).toEqual(KITS));
+    expect(result.current.error).toBeNull();
+  });
+
   it("aborts the read when it unmounts", () => {
     let signal: AbortSignal | undefined;
     load.mockImplementation((s) => {
