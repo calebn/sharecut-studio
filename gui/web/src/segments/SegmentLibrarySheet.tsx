@@ -1,4 +1,6 @@
 import { useViewportClass } from "../hooks/useViewportClass";
+import { KitLibrary, type KitLibraryState, useKitLibrary } from "../kits";
+import { useDawStore } from "../state/dawStore";
 import { Sheet } from "../system/Sheet";
 import { LIBRARY_LABEL, SegmentLibraryBody } from "./SegmentLibraryBody";
 import {
@@ -10,9 +12,15 @@ type ViewProps = {
   open: boolean;
   onClose: () => void;
   library: SegmentLibraryState;
+  kits?: KitLibraryState;
 };
 
-export function SegmentLibrarySheetView({ open, onClose, library }: ViewProps) {
+export function SegmentLibrarySheetView({
+  open,
+  onClose,
+  library,
+  kits,
+}: ViewProps) {
   const phone = useViewportClass() === "phone";
   return (
     <Sheet
@@ -22,22 +30,29 @@ export function SegmentLibrarySheetView({ open, onClose, library }: ViewProps) {
       title={LIBRARY_LABEL}
       detent="full"
     >
-      <SegmentLibraryBody library={library} layout="list" />
+      <div className="kit-sheet-stack">
+        <SegmentLibraryBody library={library} layout="list" />
+        {kits ? <KitLibrary library={kits} /> : null}
+      </div>
     </Sheet>
   );
 }
 
 type Props = Pick<ViewProps, "open" | "onClose"> & {
   library?: SegmentLibraryState;
+  kits?: KitLibraryState;
 };
 
-export function SegmentLibrarySheet({ open, onClose, library }: Props) {
+export function SegmentLibrarySheet({ open, onClose, library, kits }: Props) {
   const own = useSegmentLibrary(open && !library);
+  const hosted = useDawStore((s) => s.guestMode === null);
+  const ownKits = useKitLibrary(open && hosted && !kits);
   return (
     <SegmentLibrarySheetView
       open={open}
       onClose={onClose}
       library={library ?? own}
+      kits={kits ?? ownKits}
     />
   );
 }

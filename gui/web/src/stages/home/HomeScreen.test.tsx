@@ -10,6 +10,7 @@ import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BootstrapJobSnapshot, RecentProject } from "../../api";
 import * as api from "../../api";
+import * as kitsApi from "../../api/kits";
 import * as segments from "../../api/segments";
 import { CREATE_LABEL, REPORT_TITLE } from "../../home/HelpDialogView";
 import { PHONE_MQ, TABLET_MQ } from "../../hooks/useViewportClass";
@@ -69,6 +70,10 @@ vi.mock("../../api", async (importOriginal) => ({
     release_manifest_url: null,
   })),
 }));
+vi.mock("../../api/kits", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../api/kits")>()),
+  loadKits: vi.fn(),
+}));
 vi.mock("../../api/segments", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api/segments")>()),
   loadSegments: vi.fn(),
@@ -80,6 +85,7 @@ vi.mock("../../ingest/ingestFiles", async (importOriginal) => ({
   ingestIntoNewProject: vi.fn(),
 }));
 
+const loadKits = vi.mocked(kitsApi.loadKits);
 const loadSegments = vi.mocked(segments.loadSegments);
 const removeSegment = vi.mocked(segments.removeSegment);
 const list = vi.mocked(api.listRecentProjects);
@@ -171,6 +177,7 @@ describe("HomeScreen", () => {
     window.localStorage.clear();
     list.mockResolvedValue([recent()]);
     loadSegments.mockResolvedValue([]);
+    loadKits.mockResolvedValue([]);
     forget.mockResolvedValue(undefined);
     enqueueSetup.mockReset().mockResolvedValue(true);
     assign.mockReset();
@@ -2133,6 +2140,38 @@ describe("HomeScreen", () => {
       expect(
         await screen.findByRole("button", { name: "Play Cold open" }),
       ).toBeVisible();
+    });
+
+    it("shows the Kits section below the segment library when there are kits", async () => {
+      loadSegments.mockResolvedValue(listed);
+      loadKits.mockResolvedValue([
+        {
+          id: "show-kit-1a2b3c4d",
+          name: "Show Kit",
+          version: 1,
+          versions: [1],
+          entries: 2,
+          missing: 0,
+          usable: true,
+          problem: null,
+        },
+      ]);
+      render(<HomeScreen />);
+      const kits = await screen.findByRole("heading", { name: "Kits" });
+      expect(
+        screen
+          .getByRole("heading", { name: "Segment library" })
+          .compareDocumentPosition(kits) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(await screen.findByText("Show Kit")).toBeVisible();
+    });
+
+    it("leaves the Kits section out when there are no kits", async () => {
+      loadSegments.mockResolvedValue(listed);
+      render(<HomeScreen />);
+      await screen.findByRole("heading", { name: "Segment library" });
+      await waitFor(() => expect(loadKits).toHaveBeenCalled());
+      expect(screen.queryByRole("heading", { name: "Kits" })).toBeNull();
     });
 
     it("shows its empty state under Recent", async () => {
