@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { type PageInterrupt, pageInterrupts } from "../test/pageInterrupts";
 import { Envelope, type EnvelopeProps } from "./Envelope";
 
 const POINTS = [
@@ -1045,6 +1046,30 @@ describe("Envelope when the scale changes mid-drag", () => {
       expect(onMove).toHaveBeenCalledTimes(1);
       expect(onDragEnd).toHaveBeenCalledTimes(1);
       expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    },
+  );
+});
+
+describe("Envelope drag interrupted by the page", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(["pagehide", "hidden"] as PageInterrupt[])(
+    "ends uncommitted once on %s, commits nothing on the release, and takes a following drag",
+    (kind) => {
+      const { onDragEnd } = setup();
+      fireEvent.pointerDown(point(2), mouse(96, 20));
+      fireEvent.pointerMove(point(2), mouse(120, 20));
+      pageInterrupts[kind]();
+      expect(onDragEnd.mock.calls).toEqual([["b", false]]);
+      fireEvent.pointerUp(point(2), mouse(120, 20));
+      expect(onDragEnd.mock.calls).toEqual([["b", false]]);
+      fireEvent.pointerDown(point(3), mouse(172, 20, 2));
+      fireEvent.pointerMove(point(3), mouse(190, 20, 2));
+      fireEvent.pointerUp(point(3), mouse(190, 20, 2));
+      expect(onDragEnd.mock.calls).toEqual([
+        ["b", false],
+        ["c", true],
+      ]);
     },
   );
 });

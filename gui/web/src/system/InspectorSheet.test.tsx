@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { type PageInterrupt, pageInterrupts } from "../test/pageInterrupts";
 import {
   type InspectorCardProps,
   type InspectorPhoneProps,
@@ -567,6 +568,30 @@ describe("InspectorSheet phone", () => {
       unmount();
     }
   });
+
+  it.each(["pagehide", "hidden"] as PageInterrupt[])(
+    "puts the sheet back on %s, reports nothing on the release, and takes a following drag",
+    (kind) => {
+      const { onDetentChange, onDismiss, onClose, sheet } = phone();
+      fireEvent.pointerDown(grip(), at(700));
+      moveTo(692, 0);
+      moveTo(492, 100);
+      moveTo(356, 200);
+      expect(sheet).toHaveAttribute("data-dragging");
+      pageInterrupts[kind]();
+      expect(sheet).not.toHaveAttribute("data-dragging");
+      releaseAt(356, 200);
+      expect(
+        [onDetentChange, onDismiss, onClose].map((f) => f.mock.calls.length),
+      ).toEqual([0, 0, 0]);
+      fireEvent.pointerDown(grip(), at(700));
+      moveTo(692, 300);
+      moveTo(492, 400);
+      moveTo(356, 500);
+      releaseAt(356, 500);
+      expect(onDetentChange.mock.calls).toEqual([["half"]]);
+    },
+  );
 
   it("ignores a second pointer while one has hold", () => {
     const { onDetentChange, sheet } = phone();
