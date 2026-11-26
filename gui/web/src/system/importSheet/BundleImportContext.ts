@@ -6,7 +6,8 @@ export type BundleImportControls = {
   choose: (file: File) => void;
   /** True while either import is past idle, so a second file is not taken. */
   busy: boolean;
-  inputRef: RefObject<HTMLInputElement | null>;
+  /** Opens the file picker, the host's one hidden input, which works with or without a list on screen. */
+  pick: () => void;
   buttonRef: RefObject<HTMLButtonElement | null>;
   /** Takes focus after an import closes when the Import button has gone. */
   kitsHeadingRef: RefObject<HTMLElement | null>;

@@ -20,6 +20,7 @@ type Props = {
   onAdd: () => void;
   onCancel: () => void;
   onChooseAgain: () => void;
+  aside?: string | null;
 };
 
 const ACTIONS = (preview: Preview): PreviewActions =>

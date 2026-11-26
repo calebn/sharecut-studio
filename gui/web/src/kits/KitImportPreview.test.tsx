@@ -117,7 +117,7 @@ describe("KitImportPreview", () => {
     expect(within(sheet).queryByRole("button", { name: "Cancel" })).toBeNull();
     const footer = sheet.querySelector(".sys-segment-actions") as HTMLElement;
     expect(within(footer).getAllByRole("button")).toHaveLength(1);
-    const close = within(footer).getByRole("button", { name: "Close" });
+    const close = within(footer).getByRole("button", { name: "Close import" });
     await vi.waitFor(() => expect(close).toHaveFocus());
     await userEvent.click(close);
     expect(onCancel).toHaveBeenCalledTimes(1);

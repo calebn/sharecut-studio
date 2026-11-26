@@ -469,6 +469,52 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       expect(mock.commits).toEqual([]);
     });
 
+    test("the toast of the last add is gone, so the next preview's buttons can be reached", async ({
+      page,
+    }) => {
+      await home(page);
+      await chooseFile(
+        page,
+        "show-kit.sharecutkit",
+        kitFile("Show Kit", SEGMENTS),
+      );
+      await kitSheet(page)
+        .getByRole("button", { name: "Add to library" })
+        .click();
+      await expectFeedback(
+        page,
+        "Added Show Kit to your library, with 2 new segments",
+      );
+
+      await chooseFile(
+        page,
+        "other-kit.sharecutkit",
+        kitFile("Other Kit", SEGMENTS),
+      );
+      const sheet = kitSheet(page);
+      await expect(sheet).toContainText("Adds Other Kit");
+      const add = sheet.getByRole("button", { name: "Add to library" });
+      await expect(add).toBeVisible();
+      await expect(
+        page.locator(".ui-toast-region--app .ui-toast-message"),
+      ).toHaveCount(0);
+      await settled(sheet);
+      for (const name of ["Add to library", "Cancel"]) {
+        const button = sheet.getByRole("button", { name });
+        const box = await button.boundingBox();
+        expect(box).not.toBeNull();
+        const covered = await button.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            rect.left + rect.width / 2,
+            rect.top + rect.height / 2,
+          );
+          return hit === null || !element.contains(hit);
+        });
+        expect(covered, `${name} is not covered`).toBe(false);
+      }
+    });
+
     test("a kit file dropped anywhere on Home opens the kit preview, a segment file the segment one", async ({
       page,
     }) => {

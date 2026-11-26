@@ -26,6 +26,7 @@ type Props = {
   onAdd: () => void;
   onCancel: () => void;
   onChooseAgain: () => void;
+  aside?: string | null;
 };
 
 function waitingRow(preview: Preview) {
