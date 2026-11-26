@@ -10,7 +10,8 @@ completed ``model.bin`` blob and no ``.incomplete`` file of that fetch on disk. 
 network (about 78 MB).
 
 Exit codes: 0 passed, 1 failed, 2 inconclusive (on a very fast link ``model.bin`` finished
-before the trigger could fire, so Cancel was not exercised; retry on a slower link).
+before the trigger could fire, so Cancel was not exercised; retry on a slower link), 64
+usage error (a bad flag; argparse's own 2 would read as inconclusive).
 
     .venv/bin/python scripts/check_hf_child.py
     .venv/bin/python scripts/check_hf_child.py --python <runtime>/venv/bin/python
@@ -31,7 +32,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -44,6 +45,7 @@ MIB = 1024 * 1024
 KILL_WITHIN_SEC = 3.0
 POLL_SEC = 0.01
 INCONCLUSIVE = 2
+USAGE = 64
 RUN_TIMEOUT_SEC = 300.0
 
 
@@ -178,8 +180,15 @@ def check_kill(python: str, pin: PinnedSnapshot, work: Path, env: dict[str, str]
     )
 
 
+class _Parser(argparse.ArgumentParser):
+    def error(self, message: str) -> NoReturn:
+        """A usage error is not an inconclusive run: exit 64, not argparse's 2."""
+        self.print_usage(sys.stderr)
+        self.exit(USAGE, f"{self.prog}: error: {message}\n")
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = _Parser(description=__doc__.split("\n\n")[0])
     parser.add_argument(
         "--python",
         default=sys.executable,
