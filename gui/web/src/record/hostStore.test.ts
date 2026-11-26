@@ -120,3 +120,49 @@ describe("record host preview lifetime", () => {
     expect(timelineViewportRegistry.getLayoutProjection()).toBe(projection);
   });
 });
+
+describe("ended room tombstone", () => {
+  const store = () => useRecordHostStore.getState();
+
+  beforeEach(() => {
+    useRecordHostStore.setState({ endedSessionId: null, snapshot: null });
+    store().setSnapshot(recordSnapshot({ session_id: "s1", state: "lobby" }));
+  });
+
+  afterEach(() => {
+    useRecordHostStore.setState({ endedSessionId: null, snapshot: null });
+  });
+
+  it("clears the room and ignores a late snapshot for it", () => {
+    store().markEnded("s1");
+    expect(store().snapshot).toBeNull();
+    store().setSnapshot(recordSnapshot({ session_id: "s1", state: "lobby" }));
+    expect(store().snapshot).toBeNull();
+  });
+
+  it("applies snapshots again once Undo lifts it", () => {
+    store().markEnded("s1");
+    store().liftEnded("s1");
+    store().setSnapshot(recordSnapshot({ session_id: "s1", state: "lobby" }));
+    expect(store().snapshot?.session_id).toBe("s1");
+  });
+
+  it("does not let Undo of another room lift it", () => {
+    store().markEnded("s1");
+    store().liftEnded("s2");
+    expect(store().endedSessionId).toBe("s1");
+  });
+
+  it("clears when a different session arrives", () => {
+    store().markEnded("s1");
+    store().setSnapshot(recordSnapshot({ session_id: "s2", state: "lobby" }));
+    expect(store().snapshot?.session_id).toBe("s2");
+    expect(store().endedSessionId).toBeNull();
+  });
+
+  it("marks a room that is not on stage without touching the stage's", () => {
+    store().markEnded("s9");
+    expect(store().snapshot?.session_id).toBe("s1");
+    expect(store().endedSessionId).toBe("s9");
+  });
+});

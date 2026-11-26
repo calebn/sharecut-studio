@@ -64,6 +64,7 @@ describe("useHostRoom", () => {
     vi.mocked(executePointerCommand).mockResolvedValue({ status: "ok" });
     useRecordHostStore.setState({
       snapshot: null,
+      endedSessionId: null,
       connected: false,
       dropped: false,
       transportError: null,
@@ -132,6 +133,39 @@ describe("useHostRoom", () => {
     expect(result.current.host?.display_name).toBe("Hana");
     act(() => result.current.recheck());
     await waitFor(() => expect(loadHostRecordState).toHaveBeenCalledTimes(2));
+  });
+
+  it("forgets an ended room, ignores a late snapshot for it, and shows none", async () => {
+    const snap = recordSnapshot({ state: "lobby", participants: [host] });
+    vi.mocked(loadHostRecordState).mockResolvedValue(snap);
+    const { result } = renderHook(() => useHostRoom());
+    await waitFor(() => expect(result.current.roomLookup).toBe("found"));
+    act(() => result.current.forgetRoom(snap.session_id));
+    expect(result.current.snapshot).toBeNull();
+    expect(result.current.roomLookup).toBe("none");
+    act(() =>
+      useRecordHostStore.getState().setSnapshot({ ...snap, server_time_ns: 9 }),
+    );
+    expect(result.current.snapshot).toBeNull();
+    act(() => result.current.recheck());
+    await waitFor(() => expect(loadHostRecordState).toHaveBeenCalledTimes(2));
+    await act(async () => undefined);
+    expect(result.current.snapshot).toBeNull();
+    expect(result.current.roomLookup).toBe("none");
+    act(() => result.current.restoreRoom(snap.session_id));
+    act(() => result.current.recheck());
+    await waitFor(() => expect(result.current.roomLookup).toBe("found"));
+    expect(result.current.snapshot?.session_id).toBe(snap.session_id);
+  });
+
+  it("keeps the shown room when another room is forgotten", async () => {
+    const snap = recordSnapshot({ state: "lobby", participants: [host] });
+    vi.mocked(loadHostRecordState).mockResolvedValue(snap);
+    const { result } = renderHook(() => useHostRoom());
+    await waitFor(() => expect(result.current.roomLookup).toBe("found"));
+    act(() => result.current.forgetRoom("another"));
+    expect(result.current.snapshot?.session_id).toBe(snap.session_id);
+    expect(result.current.roomLookup).toBe("found");
   });
 
   it("reports a failed lookup", async () => {

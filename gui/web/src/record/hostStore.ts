@@ -31,7 +31,13 @@ type RecordHostState = {
   setTakeClipping: (clipping: TakeClipping | null) => void;
   setCaptureHealth: (health: CaptureHealth) => void;
   setKeeperStorage: (sink: ByteSink | null, error: string | null) => void;
+  /** The room the host ended: a snapshot for it is ignored until Undo lifts this or another room arrives. */
+  endedSessionId: string | null;
   setSnapshot: (snap: RecordSnapshot | null) => void;
+  /** Clears the room that ended and ignores later snapshots for it. */
+  markEnded: (sessionId: string) => void;
+  /** Undo brought the room back: snapshots for it apply again. */
+  liftEnded: (sessionId: string) => void;
   setConnected: (connected: boolean) => void;
   /** The socket was torn down on purpose (project switch, disable): not a drop. */
   resetConnection: () => void;
@@ -59,8 +65,27 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
   setCaptureHealth: (captureHealth) => set({ captureHealth }),
   setKeeperStorage: (keeperSink, keeperStorageError) =>
     set({ keeperSink, keeperStorageError }),
+  endedSessionId: null,
+  markEnded: (sessionId) =>
+    set((state) => {
+      if (state.snapshot?.session_id === sessionId) {
+        timelineViewportRegistry.setVisualPan(null);
+        timelineViewportRegistry.setLayoutProjection(null);
+        return { endedSessionId: sessionId, snapshot: null, receivedAtMs: null };
+      }
+      return { endedSessionId: sessionId };
+    }),
+  liftEnded: (sessionId) =>
+    set((state) =>
+      state.endedSessionId === sessionId ? { endedSessionId: null } : state,
+    ),
   setSnapshot: (snapshot) =>
     set((state) => {
+      if (snapshot && snapshot.session_id === state.endedSessionId) {
+        return state;
+      }
+      const lift = snapshot && state.endedSessionId !== null;
+      const ended = lift ? { endedSessionId: null } : {};
       if (
         snapshot &&
         state.snapshot?.session_id === snapshot.session_id &&
@@ -68,7 +93,7 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
           (snapshot.server_time_ns != null &&
             snapshot.server_time_ns === state.snapshot.server_time_ns))
       )
-        return state;
+        return lift ? ended : state;
       if (
         (state.snapshot?.state === "recording" ||
           state.snapshot?.state === "paused") &&
@@ -80,7 +105,11 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
         timelineViewportRegistry.setVisualPan(null);
         timelineViewportRegistry.setLayoutProjection(null);
       }
-      return { snapshot, receivedAtMs: snapshot ? performance.now() : null };
+      return {
+        ...ended,
+        snapshot,
+        receivedAtMs: snapshot ? performance.now() : null,
+      };
     }),
   setConnected: (connected) =>
     set((state) => ({
