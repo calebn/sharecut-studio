@@ -278,7 +278,9 @@ def _stock_speaker_download(monkeypatch: pytest.MonkeyPatch) -> _ModelOpener:
     sha = hashlib.sha256(payload).hexdigest()
     real = speaker_ecapa.asset_entry
     monkeypatch.setattr(
-        speaker_ecapa, "asset_entry", lambda asset_id: {**real(asset_id), "sha256": sha}
+        speaker_ecapa,
+        "asset_entry",
+        lambda asset_id: {**real(asset_id), "sha256": sha, "size_bytes": len(payload)},
     )
     monkeypatch.setattr(speaker_ecapa.EcapaOnnx, "_load", lambda self: None)
     opener = _ModelOpener(payload)
