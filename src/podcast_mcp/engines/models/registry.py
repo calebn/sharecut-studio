@@ -33,6 +33,7 @@ from podcast_mcp.engines.models.speaker_ecapa import (
 )
 from podcast_mcp.engines.models.whisper import (
     WHISPER_MODEL_CATALOG,
+    WHISPER_MODEL_IDS,
     WHISPER_PINS,
     WHISPER_SIZE_BYTES,
     WhisperPinMismatchError,
@@ -135,9 +136,11 @@ def _whisper_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
         return None
     if isinstance(found, WhisperPinMismatchError):
         return ModelProblem(str(found), whisper_bootstrap_command(model, upgrade=True), True)
+    where = (
+        "choose Get for Transcription in Models or run " if model in WHISPER_MODEL_IDS else "run "
+    )
     return ModelProblem(
-        f"Whisper model {model!r} is not downloaded — choose Get for Transcription in Models "
-        f"or run {whisper_bootstrap_command(model)}",
+        f"Whisper model {model!r} is not downloaded — {where}{whisper_bootstrap_command(model)}",
         whisper_bootstrap_command(model),
     )
 

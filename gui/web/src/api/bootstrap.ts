@@ -58,7 +58,7 @@ export type BootstrapStatus = {
 export type BootstrapDownload = {
   component: string;
   bytes: number;
-  /** Null when the source gives no size (an unpinned Whisper model). */
+  /** Null when the source gives no size (an unpinned Whisper model, which only the CLI downloads). */
   total: number | null;
 };
 

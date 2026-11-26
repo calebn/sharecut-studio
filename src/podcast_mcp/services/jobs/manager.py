@@ -383,7 +383,9 @@ class JobManager:
         of a component the live job already failed: the slot holds one job, so the retry
         waits for it to end rather than joining a failure.
         """
-        request = BootstrapRequest.of(components, whisper_model=whisper_model, force=force)
+        request = BootstrapRequest.of(
+            components, whisper_model=whisper_model, force=force, catalog_only=True
+        )
         with self._model_removal_lock, self._catalog._lock:
             current = self._catalog._bootstrap_job
             if current is not None and current.status in LIVE_JOB_STATUSES:

@@ -112,7 +112,7 @@ Home shows a Setup card ("Get ShareCut ready") when FFmpeg or Whisper is missing
 
 - `GET /api/bootstrap/status` (includes the `whisper_models` catalog, the ordered `models` records and `tools.ffmpeg`)
 - `DELETE /api/bootstrap/models/{id}` (`?whisper_model=` for one Whisper size) removes what Studio downloaded → `{ok, freed_bytes, model}`; 409 while a download or job runs.
-- `POST /api/bootstrap/run` with `whisper_model` → `{job, adopted}` and SSE `GET /api/bootstrap/events`; a repeat of a request the live job covers joins it, any other is a 409 `bootstrap_job_running`. Job snapshots carry `download` and `failure` ([setup.md](setup.md#bootstrap-cache-downloads-podcast-bootstrap))
+- `POST /api/bootstrap/run` with `whisper_model` → `{job, adopted}` and SSE `GET /api/bootstrap/events`; a repeat of a request the live job covers joins it, any other is a 409 `bootstrap_job_running`. A Whisper-only request for a size outside the six catalog sizes is a 400 `bootstrap_whisper_unsupported_size`; in a bundle (Get ready) Whisper is dropped from the job and the rest still download. Job snapshots carry `download` and `failure` ([setup.md](setup.md#bootstrap-cache-downloads-podcast-bootstrap))
 
 Default speech model is **large-v3-turbo**. Users can pick a smaller size in the Models sheet or via `./install.sh --whisper-model` / `podcast bootstrap --whisper-model`.
 
