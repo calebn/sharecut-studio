@@ -25,6 +25,8 @@ dependencies = [
     "rich>=13.7.0",
     "coolname>=5.0.0",
     "filelock>=3.16.0",
+    # TypedDict for pydantic on Python 3.11 (typing.TypedDict is rejected below 3.12).
+    "typing-extensions>=4.12",
 ]
 
 [project.optional-dependencies]
@@ -95,6 +97,8 @@ frontend-exporters = [
     "pydantic>=2.7.0",
     "pyyaml>=6.0",
     "filelock>=3.16.0",
+    # TypedDict for pydantic on Python 3.11 (typing.TypedDict is rejected below 3.12).
+    "typing-extensions>=4.12",
     "numpy>=1.26.0",
     "coolname>=5.0.0",
 ]

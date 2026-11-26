@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Literal, TypedDict
+from typing import Literal
+
+from typing_extensions import TypedDict
 
 from podcast_mcp.edits.tighten_reasons import (
     ACOUSTIC_FILLER_REASON,

@@ -4,9 +4,10 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any
 
 from filelock import Timeout
+from typing_extensions import TypedDict
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript

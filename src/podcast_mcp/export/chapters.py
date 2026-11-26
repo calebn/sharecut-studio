@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Sequence
-from typing import NotRequired, TypedDict
+from typing import NotRequired
+
+from typing_extensions import TypedDict
 
 from podcast_mcp.models import ChapterMarker
 

@@ -1,6 +1,6 @@
 """Typed wire shapes for the inaudible-cut preview and the waveform snap window."""
 
-from typing import TypedDict
+from typing_extensions import TypedDict
 
 from podcast_mcp.edits.inaudible_cuts import CutMode
 

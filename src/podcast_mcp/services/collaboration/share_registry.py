@@ -21,9 +21,10 @@ import threading
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Protocol, TypedDict, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from coolname import generate_slug
+from typing_extensions import TypedDict
 
 from podcast_mcp import settings
 from podcast_mcp.util import host_platform

@@ -1420,6 +1420,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
     { name = "typer" },
+    { name = "typing-extensions" },
 ]
 
 [package.optional-dependencies]
@@ -1489,6 +1490,7 @@ frontend-exporters = [
     { name = "numpy" },
     { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "typing-extensions" },
 ]
 
 [package.metadata]
@@ -1541,6 +1543,7 @@ requires-dist = [
     { name = "starlette", marker = "extra == 'gui'", specifier = ">=1.5.0" },
     { name = "starlette", marker = "extra == 'relay'", specifier = ">=0.47.0" },
     { name = "typer", specifier = ">=0.12.0" },
+    { name = "typing-extensions", specifier = ">=4.12" },
     { name = "uvicorn", marker = "extra == 'gui'", specifier = ">=0.32.0" },
     { name = "uvicorn", extras = ["standard"], marker = "sys_platform != 'ios' and extra == 'gui'", specifier = ">=0.32.0" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'all'", specifier = ">=0.32.0" },
@@ -1559,6 +1562,7 @@ frontend-exporters = [
     { name = "numpy", specifier = ">=1.26.0" },
     { name = "pydantic", specifier = ">=2.7.0" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "typing-extensions", specifier = ">=4.12" },
 ]
 
 [[package]]

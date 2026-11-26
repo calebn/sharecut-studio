@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
-from typing import Literal, TypedDict
+from typing import Literal
 
 from pydantic import BaseModel
+from typing_extensions import TypedDict
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.bleed_restore_targets import (

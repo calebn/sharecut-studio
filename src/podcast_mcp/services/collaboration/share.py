@@ -12,9 +12,10 @@ from contextlib import contextmanager, nullcontext
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any
 
 from filelock import Timeout
+from typing_extensions import TypedDict
 
 from podcast_mcp.config.runtime import ready_relay_config
 from podcast_mcp.edits.comments import comments_for_view

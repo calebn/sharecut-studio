@@ -13,7 +13,9 @@ from collections.abc import Callable
 from contextlib import ExitStack
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
+
+from typing_extensions import TypedDict
 
 from podcast_mcp.engines.models import load_probe
 from podcast_mcp.engines.models.registry import (
