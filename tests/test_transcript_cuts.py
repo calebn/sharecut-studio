@@ -1065,3 +1065,102 @@ def test_coalesce_never_absorbs_a_session_pause_into_a_cut_that_is_not_its_own(
         (1.0, 1.3, reason, True, scope),
         (1.3, 2.4, "pause:1.10s", True, "session"),
     ]
+
+
+def _spy_require_source_remove(monkeypatch, refuse_id=None):
+    from podcast_mcp.edits import transcript_cuts as tc
+    from podcast_mcp.edits.source_removals import CutScopeHold, ScopeChangedAtApproval
+
+    calls = []
+    refusal = ScopeChangedAtApproval(
+        [CutScopeHold(refuse_id or "", (), "source_geometry")], {}, {refuse_id or "": "label"}
+    )
+    real = tc.require_source_remove
+
+    def spy(project, edit, **kwargs):
+        calls.append(edit.id)
+        if edit.id == refuse_id:
+            raise refusal
+        real(project, edit, **kwargs)
+
+    monkeypatch.setattr(tc, "require_source_remove", spy)
+    return calls, refusal
+
+
+def test_coalesce_checks_a_single_row_cut_once(tmp_path, monkeypatch):
+    proj = _project_with_media(tmp_path)
+    proj.edit_decisions = [
+        EditDecision(
+            id="1",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=0,
+            end=1,
+            applied=False,
+        )
+    ]
+    calls, _ = _spy_require_source_remove(monkeypatch)
+
+    assert coalesce_edits(proj, defaults=load_defaults()) == 0
+
+    assert calls == ["1"]
+
+
+def test_coalesce_checks_each_merged_row_and_the_survivor(tmp_path, monkeypatch):
+    proj = _project_with_media(tmp_path)
+    proj.edit_decisions = [
+        EditDecision(
+            id="1",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=0,
+            end=1,
+            applied=False,
+        ),
+        EditDecision(
+            id="2",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=0.5,
+            end=1.5,
+            applied=False,
+        ),
+    ]
+    calls, _ = _spy_require_source_remove(monkeypatch)
+
+    assert coalesce_edits(proj, defaults=load_defaults()) == 1
+
+    assert calls == ["1", "2", "1"]
+
+
+def test_coalesce_refusal_in_a_later_group_checks_the_earlier_group_once(tmp_path, monkeypatch):
+    from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
+
+    proj = _project_with_media(tmp_path)
+    proj.edit_decisions = [
+        EditDecision(
+            id="1",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=0,
+            end=1,
+            applied=False,
+        ),
+        EditDecision(
+            id="2",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=5,
+            end=6,
+            applied=False,
+        ),
+    ]
+    calls, refusal = _spy_require_source_remove(monkeypatch, refuse_id="2")
+
+    with pytest.raises(ScopeChangedAtApproval) as raised:
+        coalesce_edits(proj, defaults=load_defaults())
+
+    assert raised.value is refusal
+    assert raised.value.ids == ("2",)
+    assert raised.value.cuts == {"2": "label"}
+    assert calls == ["1", "2"]

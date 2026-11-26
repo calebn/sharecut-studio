@@ -561,7 +561,8 @@ def coalesce_edits(
             and survivor.timebase == "source"
         ):
             if skip_counts is None:
-                require_source_remove(project, survivor)
+                if len(group) > 1:
+                    require_source_remove(project, survivor)
             else:
                 assessment = inspect_source_remove(project, survivor)
                 if isinstance(assessment, CutScopeHold):
