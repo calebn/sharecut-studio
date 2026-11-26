@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useAfter } from "../../hooks/useAfter";
-import { NOT_ON_THIS_DEVICE } from "../../models";
+import {
+  NOT_ON_THIS_DEVICE,
+  TOOLS_MISSING_DESKTOP_DETAIL,
+  TOOLS_MISSING_REINSTALL_DETAIL,
+} from "../../models";
 import { Card } from "../../system/Card";
 import { StatusRow } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
@@ -25,6 +29,7 @@ export type SetupCardProps = {
   /** The download size in words: "about 2 GB". */
   sizeLabel: string;
   onPhone?: boolean;
+  desktop?: boolean;
   onGetReady: () => void;
   onChoose: () => void;
   onCancel: () => void;
@@ -109,8 +114,10 @@ function NotNowMenu({ onNotNow }: Pick<SetupCardProps, "onNotNow">) {
 /**
  * The Setup card on Home: one download that makes transcription work. Needed
  * offers Get ready and Choose…; the other states are one StatusRow. Missing audio
- * tools offer no download: they say to reinstall and link the setup guide. Raw
- * error text never shows: the caller logs it for the Help diagnostics bundle.
+ * tools offer no download: the packaged desktop app says to download it again,
+ * an iPhone to reinstall, and a browser or source install links the setup
+ * guide. Raw error text never shows: the caller logs it for the Help
+ * diagnostics bundle.
  */
 function SetupBody({
   state,
@@ -118,6 +125,7 @@ function SetupBody({
   detail,
   sizeLabel,
   onPhone,
+  desktop,
   onGetReady,
   onChoose,
   onCancel,
@@ -178,24 +186,35 @@ function SetupBody({
     );
   }
   if (state === "tools-missing") {
+    const showGuide = !desktop && !onPhone;
     return (
       <Card title={TITLE}>
         <StatusRow
           state="needs-you"
-          title="Audio tools are missing."
-          detail="Reinstall ShareCut Studio to restore them."
+          title={
+            desktop
+              ? "ShareCut's audio tools are missing."
+              : "Audio tools are missing."
+          }
+          detail={
+            desktop
+              ? TOOLS_MISSING_DESKTOP_DETAIL
+              : TOOLS_MISSING_REINSTALL_DETAIL
+          }
           action={{ label: "Check again", onAction: onRetry }}
         />
-        <p className="sys-setup-line">
-          <a
-            className="sys-text-btn"
-            href={TOOLS_GUIDE}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Setup guide for the audio tools
-          </a>
-        </p>
+        {showGuide ? (
+          <p className="sys-setup-line">
+            <a
+              className="sys-text-btn"
+              href={TOOLS_GUIDE}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Setup guide for the audio tools
+            </a>
+          </p>
+        ) : null}
       </Card>
     );
   }

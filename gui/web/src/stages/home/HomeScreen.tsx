@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createEpisodeProject,
@@ -78,6 +79,8 @@ const NOT_STARTED = "The episode didn't start. Try again.";
 const BUSY = "Finish the current step first.";
 const NO_TOOLS =
   "Audio tools are missing, so an episode can't start yet. Set them up above, then try again.";
+const NO_TOOLS_DESKTOP =
+  "Audio tools are missing, so an episode can't start yet. Use Check again in Get ShareCut ready, then try again.";
 const NO_FILE_MANAGER = "This computer couldn't open its file manager.";
 const NOT_REVEALED = "Studio couldn't show that folder. Try again.";
 const NOT_DUPLICATED = "That episode didn't copy. Try again.";
@@ -375,8 +378,11 @@ export function HomeScreen() {
     [guarded],
   );
 
+  const desktop = isTauri() && !models.onPhone;
   const noToolsNotice = toolsMissing(models)
-    ? NO_TOOLS
+    ? desktop
+      ? NO_TOOLS_DESKTOP
+      : NO_TOOLS
     : toolsUnsupportedSentence(models);
 
   const startFromFiles = useCallback(
@@ -570,7 +576,13 @@ export function HomeScreen() {
       <HomeView
         phase={phase}
         projects={projects}
-        setup={hideSetup ? null : setup}
+        setup={
+          hideSetup
+            ? null
+            : setup?.state === "tools-missing"
+              ? { ...setup, desktop, onPhone: models.onPhone }
+              : setup
+        }
         showInstallHint={hintShown}
         dropActive={drop.active}
         dropCount={drop.count}

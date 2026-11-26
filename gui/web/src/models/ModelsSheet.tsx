@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { Sheet } from "../system/Sheet";
 import { StatusRow } from "../system/StatusRow";
@@ -6,7 +7,11 @@ import { modelActivity } from "./activity";
 import { inSheetOrder, WHISPER, whisperSizeOptions } from "./capability";
 import { progressText } from "./format";
 import { ModelNeedRow } from "./ModelNeedRow";
-import { unsupportedSentence } from "./unsupported";
+import {
+  TOOLS_MISSING_DESKTOP_DETAIL,
+  TOOLS_MISSING_REINSTALL_DETAIL,
+  unsupportedSentence,
+} from "./unsupported";
 import { useModels } from "./useModels";
 import { WhisperSize } from "./WhisperSize";
 
@@ -28,7 +33,9 @@ export function ModelsSheet({ open, onClose }: Props) {
     download,
     cancel,
     whisper,
+    onPhone,
   } = useModels();
+  const desktop = isTauri() && !onPhone;
   const sizes = whisperSizeOptions(whisper.variants, whisper.engine);
   const otherDownloads = downloads.filter(
     (row) =>
@@ -57,9 +64,26 @@ export function ModelsSheet({ open, onClose }: Props) {
             />
           ) : (
             <StatusRow
-              state="failed"
-              title="Audio tools are unavailable"
-              detail="Reinstall ShareCut Studio to restore them."
+              state={desktop ? "needs-you" : "failed"}
+              title={
+                desktop
+                  ? "ShareCut's audio tools are missing"
+                  : "Audio tools are unavailable"
+              }
+              detail={
+                desktop
+                  ? TOOLS_MISSING_DESKTOP_DETAIL
+                  : TOOLS_MISSING_REINSTALL_DETAIL
+              }
+              action={
+                desktop
+                  ? {
+                      label: "Check again",
+                      name: "Check again for the audio tools",
+                      onAction: () => void refresh(),
+                    }
+                  : undefined
+              }
             />
           )
         ) : null}
