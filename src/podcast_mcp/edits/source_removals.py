@@ -5,7 +5,7 @@ from typing import Literal
 
 from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.cut_quality import long_fade_reach_sec
-from podcast_mcp.edits.cut_safety import hold_is_overridable, inspect_source_remove
+from podcast_mcp.edits.cut_safety import hold_is_overridable
 from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.edits.tighten_reasons import is_pause_reason
 from podcast_mcp.edits.timeline_ops import LaneUnavailable
@@ -254,13 +254,3 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         )
         error.args = (str(error) + suffix,)
         return error
-
-
-def require_source_remove(
-    project: EpisodeProject, edit: EditDecision, *, heard_pause_sec: float | None = None
-) -> None:
-    if edit.type != EditDecisionType.REMOVE or edit.exact_range is not None or edit.applied:
-        return
-    assessment = inspect_source_remove(project, edit, heard_pause_sec=heard_pause_sec)
-    if isinstance(assessment, CutScopeHold):
-        raise ScopeChangedAtApproval([assessment], {}, {edit.id: cut_label(project, edit)})

@@ -36,8 +36,8 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 
 if TYPE_CHECKING:
     pass
+from podcast_mcp.edits.cut_application import inspect_source_remove
 from podcast_mcp.edits.cut_placement import CutScopeHold
-from podcast_mcp.edits.cut_safety import inspect_source_remove
 from podcast_mcp.edits.pause_floor import peer_speech_indexes
 from podcast_mcp.edits.tighten.acoustic_scan import _add_acoustic_candidates
 from podcast_mcp.edits.tighten.candidate import (

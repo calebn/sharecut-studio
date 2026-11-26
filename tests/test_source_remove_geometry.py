@@ -1109,8 +1109,8 @@ def test_pause_proposal_after_hole_drops_crossing_span_and_keeps_safe_control(tm
     proposal = propose_tighten_edits(ws.project, cfg, intensity="aggressive")
     assert proposal.decisions == []
     assert proposal.skip_counts.get("no_air") == 1
+    from podcast_mcp.edits.cut_application import inspect_source_remove
     from podcast_mcp.edits.cut_placement import CutScopeHold
-    from podcast_mcp.edits.cut_safety import inspect_source_remove
 
     crossing = _cut("crossing", reason="pause:4.80s")
     crossing.start, crossing.end = 0.2, 4.7

@@ -52,10 +52,11 @@ from podcast_mcp.edits.decisions import (
     unplayed_pending_ids,
 )
 from podcast_mcp.edits.edit_log import archive_decision
-from podcast_mcp.edits.filler_pacing import filler_pad_mode
+from podcast_mcp.edits.filler_pacing import filler_pad_mode, pause_trim_is_imperceptible
 from podcast_mcp.edits.join_modes import automatic_fade_ms, cap_fade_ms
 from podcast_mcp.edits.reinsert import PadEdges, edge_fade, pad_record
 from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent, TrimPlan, ripple_track_ids
+from podcast_mcp.edits.session_air import SessionAir
 from podcast_mcp.edits.source_removals import (
     STALE_REASON,
     ScopeChangedAtApproval,
@@ -2301,3 +2302,63 @@ def apply_edit_plan(
         approve_edits(candidate, sorted(requested), defaults=defaults)
     adopt_project_state(project, candidate)
     return [row.model_copy(update={"applied": row.id in requested}) for row in created]
+
+
+def inspect_source_remove(
+    project: EpisodeProject,
+    edit: EditDecision,
+    *,
+    heard_pause_sec: float | None = None,
+    audio_caches: Mapping[str, TrackAudioCache] | None = None,
+    placement: tuple[TimelineSec, TimelineSec] | None = None,
+) -> tuple[float, float] | CutScopeHold:
+    """Assess final ordinary SOURCE bounds without publishing or authorizing a later mutation."""
+    span: tuple[TimelineSec, TimelineSec] | CutScopeHold
+    span = (
+        placement
+        if placement is not None
+        else cut_placement.inspect_source_remove_placement(project, edit)
+    )
+    if isinstance(span, CutScopeHold):
+        return span
+    if is_pause_reason(edit.reason):
+        timeline = SessionTimeline(project)
+        loss = float(span[1] - span[0]) - (edit.replace_gap_sec or 0.0)
+        if loss <= 0:
+            return CutScopeHold(edit.id, (), "pause_not_shorter")
+        heard = heard_pause_sec
+        if heard is None:
+            heard = SessionAir(project, audio_caches=audio_caches or {}).silence_around(
+                float(span[0]), float(span[1])
+            )
+        if heard is None:
+            transcript = project.transcript_for_track(edit.track_id)
+            words = (
+                [w for w in transcript.words if not w.suppressed and not w.ignored]
+                if transcript
+                else []
+            )
+            before = max((w.end for w in words if w.end <= edit.start), default=None)
+            after = min((w.start for w in words if w.start >= edit.end), default=None)
+            if before is not None and after is not None:
+                heard = sum(
+                    float(e - s)
+                    for s, e in timeline.map_source_span(
+                        edit.track_id, SourceSec(before), SourceSec(after)
+                    )
+                )
+            else:
+                heard = float(span[1] - span[0])
+        if pause_trim_is_imperceptible(loss, heard):
+            return CutScopeHold(edit.id, (), "pause_imperceptible")
+    return float(span[0]), float(span[1])
+
+
+def require_source_remove(
+    project: EpisodeProject, edit: EditDecision, *, heard_pause_sec: float | None = None
+) -> None:
+    if edit.type != EditDecisionType.REMOVE or edit.exact_range is not None or edit.applied:
+        return
+    assessment = inspect_source_remove(project, edit, heard_pause_sec=heard_pause_sec)
+    if isinstance(assessment, CutScopeHold):
+        raise ScopeChangedAtApproval([assessment], {}, {edit.id: cut_label(project, edit)})

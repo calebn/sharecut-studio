@@ -19,7 +19,6 @@ from podcast_mcp.edits.inaudible_cuts import (
     CutWordIndex,
     optimize_source_cut_range,
 )
-from podcast_mcp.edits.source_removals import require_source_remove
 from podcast_mcp.engines.clips_ops import clips_abut, clips_for_track
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
@@ -205,7 +204,11 @@ def update_pending_edit(
     Under the owner's audio-check override the bounds stay exactly as given: no snapping,
     and the edit records them as chosen boundaries so approval does not re-hold them.
     """
-    from podcast_mcp.edits.cut_application import assess_source_offer, resize_source_remove
+    from podcast_mcp.edits.cut_application import (
+        assess_source_offer,
+        require_source_remove,
+        resize_source_remove,
+    )
 
     if active_override() is not None:
         snap = False
