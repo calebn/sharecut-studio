@@ -102,15 +102,16 @@ Idle time never does: a link nobody opened for years still opens, and
 `last_used_at` is kept only so the host can see when it was last opened. A host
 may choose an expiry date when minting a link (`expires_at`). It is opt-in, and
 no link gets one by default. Once it passes, the link stops working as if it
-were revoked. There is no per-link Extend. Product copy says links do not
-expire and calls revoking **Stop sharing**
-([communication philosophy](communication-philosophy.md#terminology)). The
-Invite sheet has no expiry control (owner decision in #1027): `expires_at` stays
-opt-in on the CLI and MCP, and the section shows a date only on a link that has
-one. Its copy says links don't expire, and Stop sharing or End room turns them
-off (End room waits until no take can be lost). The sheet asks for a restorable revoke (`restorable: true`): the link dies at
-once and a toast offers Undo for the server's window (`restore_ms`), which calls
-the restore route ([Restorable revoke](#restorable-revoke)).
+were revoked. There is no per-link Extend. Product copy says links do not expire
+and calls revoking **Stop sharing** ([communication
+philosophy](communication-philosophy.md#terminology)). The Invite sheet has no
+expiry control (owner decision in #1027): `expires_at` stays opt-in on the CLI
+and MCP, and the section shows a date only on a link that has one. Its copy says
+links don't expire, and Stop sharing or End room turns them off (End room waits
+until no take can be lost). The sheet asks for a restorable revoke (`restorable:
+true`): the link dies at once and a toast offers Undo for the server's window
+(`restore_ms`), which calls the restore route ([Restorable
+revoke](#restorable-revoke)).
 
 ## A link survives Undo and Redo
 

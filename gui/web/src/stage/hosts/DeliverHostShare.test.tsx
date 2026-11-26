@@ -701,22 +701,6 @@ describe("the Invite sheet over any stage", () => {
       ).toBeVisible();
     });
 
-    it("asks before sending a connected guest out, and Keep room ends nothing", async () => {
-      room({ participants: [recordParticipant({ display_name: "Ava" })] });
-      render(<ToastedHost />);
-      openInvite("record");
-      await userEvent.click(
-        await screen.findByRole("button", { name: "End room" }),
-      );
-      expect(screen.getByText("End the room? Ava is sent out.")).toBeVisible();
-      await userEvent.keyboard("{Escape}");
-      expect(screen.queryByRole("button", { name: "Keep room" })).toBeNull();
-      expect(
-        screen.getByRole("heading", { name: "Record links" }),
-      ).toBeVisible();
-      expect(server.revokeRequests).toEqual([]);
-    });
-
     it("clears the stage's room on end and brings it back on Undo", async () => {
       room();
       render(<ToastedHost />);
@@ -726,6 +710,46 @@ describe("the Invite sheet over any stage", () => {
       );
       await waitFor(() => expect(server.revokeRequests).toEqual(["room-1"]));
       expect(useRecordHostStore.getState().snapshot).toBeNull();
+      expect(useRecordHostStore.getState().endedSessionId).toBe("room-1");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Undo" }),
+      );
+      await waitFor(() =>
+        expect(useRecordHostStore.getState().endedSessionId).toBeNull(),
+      );
+    });
+
+    it("does not hide a new room after the idle one is ended", async () => {
+      room();
+      render(<ToastedHost />);
+      openInvite("record");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "End room" }),
+      );
+      await waitFor(() => expect(server.revokeRequests).toEqual(["room-1"]));
+      expect(useRecordHostStore.getState().snapshot).toBeNull();
+      act(() =>
+        useRecordHostStore
+          .getState()
+          .setSnapshot(
+            recordSnapshot({ session_id: "room-2", state: "lobby" }),
+          ),
+      );
+      expect(useRecordHostStore.getState().snapshot?.session_id).toBe("room-2");
+      expect(useRecordHostStore.getState().endedSessionId).toBeNull();
+    });
+
+    it("confirms ending a lobby with a guest, then Undo brings it back", async () => {
+      room({ participants: [recordParticipant({ display_name: "Ava" })] });
+      render(<ToastedHost />);
+      openInvite("record");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "End room" }),
+      );
+      expect(screen.getByText("End the room? Ava is sent out.")).toBeVisible();
+      expect(server.revokeRequests).toEqual([]);
+      await userEvent.click(screen.getByRole("button", { name: "End room" }));
+      await waitFor(() => expect(server.revokeRequests).toEqual(["room-1"]));
       expect(useRecordHostStore.getState().endedSessionId).toBe("room-1");
       await userEvent.click(
         await screen.findByRole("button", { name: "Undo" }),

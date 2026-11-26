@@ -152,7 +152,9 @@ describe("useHostRoom", () => {
     await act(async () => undefined);
     expect(result.current.snapshot).toBeNull();
     expect(result.current.roomLookup).toBe("none");
-    act(() => result.current.restoreRoom(snap.session_id));
+    expect(useRecordHostStore.getState().endedSessionId).toBe(snap.session_id);
+    act(() => useRecordHostStore.getState().liftEnded(snap.session_id));
+    expect(useRecordHostStore.getState().endedSessionId).toBeNull();
     act(() => result.current.recheck());
     await waitFor(() => expect(result.current.roomLookup).toBe("found"));
     expect(result.current.snapshot?.session_id).toBe(snap.session_id);

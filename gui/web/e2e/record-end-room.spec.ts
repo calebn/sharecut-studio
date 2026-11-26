@@ -19,12 +19,6 @@ import { withShareableProject } from "./shareableProject";
 import { goToStage, openProject, openProjectDialog } from "./stageNav";
 import { withBrowserPages } from "./twoBrowserPages";
 
-/*
- * Invite's End room follows the End session gate: it waits while a take could
- * be lost, asks when someone is in the room, and otherwise acts at once. After
- * an end the Record stage shows "No record room yet" without a reload.
- */
-
 test.use({
   launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] },
 });

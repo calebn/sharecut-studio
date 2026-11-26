@@ -236,6 +236,42 @@ describe("Invite End room gate", () => {
     expect(screen.queryByRole("button", { name: "Keep room" })).toBeNull();
   });
 
+  it("returns focus to End room when the gate blocks while the confirm is open", async () => {
+    const user = userEvent.setup();
+    stageRoom({ participants: [recordParticipant({ display_name: "Ava" })] });
+    mount();
+    await user.click(screen.getByRole("button", { name: "End room" }));
+    stageRoom({ state: "recording", take_index: 0 });
+    expect(screen.queryByRole("button", { name: "Keep room" })).toBeNull();
+    stageRoom({ state: "stopped", take_index: 0 });
+    stageRoom({ state: "lobby", take_index: -1 });
+    expect(screen.getByRole("button", { name: "End room" })).toHaveFocus();
+  });
+
+  it("returns focus to End room after a confirmed end while the card stays", async () => {
+    const user = userEvent.setup();
+    stageRoom({ participants: [recordParticipant({ display_name: "Ava" })] });
+    mount();
+    await user.click(screen.getByRole("button", { name: "End room" }));
+    await user.click(screen.getByRole("button", { name: "End room" }));
+    expect(screen.getByRole("button", { name: "End room" })).toHaveFocus();
+  });
+
+  it("describes the confirm's disabled buttons by the visible busy note", async () => {
+    const user = userEvent.setup();
+    stageRoom({ participants: [recordParticipant({ display_name: "Ava" })] });
+    const options = shareOptionsFixture({
+      rows: [roomRow()],
+      onEndRoom: vi.fn(),
+    });
+    const { rerender } = render(<InviteBody options={options} />);
+    await user.click(screen.getByRole("button", { name: "End room" }));
+    rerender(<InviteBody options={{ ...options, busy: true }} />);
+    expect(
+      screen.getByRole("button", { name: "Keep room" }),
+    ).toHaveAccessibleDescription("Wait for the current action to finish.");
+  });
+
   it("acts at once when nobody is connected", async () => {
     const user = userEvent.setup();
     const onEndRoom = mount();

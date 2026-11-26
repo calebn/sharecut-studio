@@ -263,14 +263,14 @@ There are three overlay primitives.
 2. **Undo rides with the result.** Every mutating command passes `undo` to
    `announceStatus`. The toast's Undo is the same History step the Undo button
    runs. A change History does not record (a comment resolve) passes `reverse`
-   instead, and the toast's Undo runs it; its `run` answers `true`, `false`, or a
-   string, the reason the change cannot be taken back, shown as the error.
-   Stop sharing and End room (when it acts) set a deadline half a second before the server's
-   restore window closes. When the toast's source heading belongs to the
-   innermost modal dialog, the share Undo appears above its scrim. The dialog
-   includes the toast buttons after its panel in the Tab cycle.
-   `commands/undoToast.test.ts` walks
-   every catalog command flagged `mutates` and fails on one with no proof.
+   instead, and the toast's Undo runs it; its `run` answers `true`, `false`, or
+   a string, the reason the change cannot be taken back, shown as the error.
+   Stop sharing and End room (when it acts) set a deadline half a second before
+   the server's restore window closes. When the toast's source heading belongs
+   to the innermost modal dialog, the share Undo appears above its scrim. The
+   dialog includes the toast buttons after its panel in the Tab cycle.
+   `commands/undoToast.test.ts` walks every catalog command flagged `mutates`
+   and fails on one with no proof.
 3. **Status and error are two styles of one component.** An error names the
    failure and the next step. A status names what changed. They never share one
    look. `announceStatus` takes `tone: "error"`; the toast replaces an

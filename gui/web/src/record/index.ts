@@ -9,8 +9,6 @@ export {
   useSheetMic,
 } from "./deviceSheet";
 export {
-  END_ROOM_UNCHECKED_REASON,
-  type EndRoomCheck,
   endRoomCheck,
   endRoomPrompt,
   landGate,

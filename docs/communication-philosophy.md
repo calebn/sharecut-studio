@@ -342,16 +342,16 @@ the empty state, not a separate discovery task.
 - **Confirm copy names the target and the consequence** in human
   terms: "Remove the reference track? [Keep track] [Remove track]". Never a
   raw token. (Surface 2.)
-- **A link or room that ends offers Undo for the server's window.** Stop
-  sharing says "Link stopped." and End room (once its gate is open) says "Room ended.", each with an
-  **Undo** action on the toast. Undo says "Link restored." or "Room restored."
-  The toast leaves half a second before the server's window closes, even
-  while hovered or focused. While that Undo is available, confirmations for
-  creating or copying links stay in the share status line. A second Stop
-  sharing or End room says "Undo is still available." A failed request leaves
-  the same Undo available for another try within the window. If the server
-  refuses a restore, the toast says why, such as "Too late to undo." or
-  "Another room is live, so this one stays ended." (Surfaces 2, 5.)
+- **A link or room that ends offers Undo for the server's window.** Stop sharing
+  says "Link stopped." and End room (once its gate is open) says "Room ended.",
+  each with an **Undo** action on the toast. Undo says "Link restored." or "Room
+  restored." The toast leaves half a second before the server's window closes,
+  even while hovered or focused. While that Undo is available, confirmations for
+  creating or copying links stay in the share status line. A second Stop sharing
+  or End room says "Undo is still available." A failed request leaves the same
+  Undo available for another try within the window. If the server refuses a
+  restore, the toast says why, such as "Too late to undo." or "Another room is
+  live, so this one stays ended." (Surfaces 2, 5.)
 - **Feedback must be visible, not screen-reader-only.** Every
   `announceStatus` shows the same string in the app toast
   (`feedback/FeedbackToast`, built on `ui/Toast`): one toast at a time,

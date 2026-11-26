@@ -94,8 +94,7 @@ export function landGate(snapshot: RecordSnapshot): LandGate {
 
 export type EndGate = { enabled: true } | { enabled: false; reason: string };
 
-/** What ends: the wording of the reason follows the surface that asks. */
-export type EndNoun = "room" | "session";
+type EndNoun = "room" | "session";
 
 /**
  * Ending revokes the guests' links for good, so unsaved recordings and takes
@@ -134,7 +133,6 @@ export function endGate(
 export const END_ROOM_UNCHECKED_REASON =
   "Open Record to check this room before ending it.";
 
-/** What Invite's End room does for one room: wait (with the reason), ask first (who is sent out), or act at once. */
 export type EndRoomCheck =
   | { kind: "blocked"; reason: string }
   | { kind: "ask"; names: string[] }
@@ -172,7 +170,6 @@ export function endRoomCheck(
   return names.length > 0 ? { kind: "ask", names } : { kind: "now" };
 }
 
-/** "End the room? Ava is sent out." for a lobby with people in it. */
 export function endRoomPrompt(names: readonly string[]): string {
   const named = names.filter((name) => name.trim() !== "");
   const shown = named.slice(0, 2);

@@ -15,9 +15,9 @@ import { goToStage, openProject, openProjectDialog } from "./stageNav";
 
 /*
  * Stop sharing and End room (when nothing can be lost) act at once and leave a
- * toast whose Undo the server honors for its window (10 s). Everything here goes through the built
- * app and the real host server: the guest URL is dead after the stop, live
- * again after Undo.
+ * toast whose Undo the server honors for its window (10 s). Everything here
+ * goes through the built app and the real host server: the guest URL is dead
+ * after the stop, live again after Undo.
  */
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
@@ -346,7 +346,7 @@ test.describe("desktop 1280x900 beyond the happy path", () => {
     });
   });
 
-  test("End room on an idle room ends it at once, and Undo brings the room back", async ({
+  test("End room ends the room at once, and Undo brings the room back", async ({
     page,
   }) => {
     await withShareableProject(async (projectPath) => {
