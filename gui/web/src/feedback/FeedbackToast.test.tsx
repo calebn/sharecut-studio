@@ -38,7 +38,11 @@ vi.mock("../api", async (importOriginal) => ({
 const entry = (id: string) => id as HistoryEntryId;
 
 /** History as the tab sees it: `cursor` alone cannot tell two entries apart at the cap. */
-function atHead(headId: string, cursor = 399) {
+function atHead(
+  headId: string,
+  cursor = 399,
+  groups?: { before: string; after: string }[],
+) {
   const project = useDawStore.getState().project ?? minimalProject();
   useDawStore.setState({
     project: {
@@ -48,6 +52,13 @@ function atHead(headId: string, cursor = 399) {
         cursor,
         head_id: entry(headId),
         can_undo: true,
+        ...(groups && {
+          groups: groups.map((g) => ({
+            kind: "mutation",
+            before_id: g.before,
+            after_id: g.after,
+          })),
+        }),
       },
     },
   });
@@ -1391,6 +1402,131 @@ describe("FeedbackToast", () => {
       act(() => dismiss.focus());
       await userEvent.setup().keyboard("{Enter}");
       expect(panel).not.toHaveFocus();
+    });
+  });
+
+  describe("after the head steps back", () => {
+    const one = [{ before: "e0", after: "e1" }];
+    const chain = [
+      { before: "e0", after: "e1" },
+      { before: "e1", after: "e2" },
+      { before: "e2", after: "e3" },
+    ];
+    const approve = (groups = one) => {
+      atHead("e1", 399, groups);
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Approved 1 pending edit", { undo: entry("e1") });
+      });
+    };
+
+    it("reads Undone when Ctrl+Z moved the head back from the toast's entry", () => {
+      render(<FeedbackToast />);
+      approve();
+      expect(screen.getByText("Approved 1 pending edit")).toBeVisible();
+      act(() => atHead("e0", 398, one));
+      expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Dismiss" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    });
+
+    it("returns to its own text when Redo brings the head back", () => {
+      render(<FeedbackToast />);
+      approve();
+      act(() => atHead("e0", 398, one));
+      expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
+      act(() => atHead("e1", 399, one));
+      expect(screen.getByText("Approved 1 pending edit")).toBeVisible();
+      expect(screen.queryByText(/^Undone:/)).toBeNull();
+    });
+
+    it("keeps its text when a new edit lands on top of the entry", () => {
+      render(<FeedbackToast />);
+      approve();
+      act(() => atHead("e2", 400, [...one, { before: "e1", after: "e2" }]));
+      expect(screen.getByText("Approved 1 pending edit")).toBeVisible();
+      expect(screen.queryByText(/^Undone:/)).toBeNull();
+    });
+
+    it("retires a merged toast only once its oldest entry is undone", () => {
+      render(<FeedbackToast />);
+      const say = (id: string) =>
+        act(() => {
+          useDawStore.getState().announceStatus("Cut to clipboard", {
+            undo: entry(id),
+            kind: "cut",
+          });
+        });
+      atHead("e1", 399, chain);
+      say("e1");
+      atHead("e2", 399, chain);
+      say("e2");
+      atHead("e3", 399, chain);
+      say("e3");
+      expect(screen.getByText("3 cuts")).toBeVisible();
+      act(() => atHead("e1", 399, chain));
+      expect(screen.getByText("3 cuts")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Undo all" })).toBeEnabled();
+      act(() => atHead("e0", 399, chain));
+      expect(screen.getByText("Undone: 3 cuts")).toBeVisible();
+    });
+
+    it("leaves a toast with no undo alone, error or not", () => {
+      render(<FeedbackToast />);
+      atHead("e1", 399, one);
+      act(() => useDawStore.getState().announceStatus("Saved"));
+      act(() => atHead("e0", 398, one));
+      expect(screen.getByText("Saved")).toBeVisible();
+      act(() =>
+        useDawStore
+          .getState()
+          .announceStatus("Refresh failed", { tone: "error" }),
+      );
+      const before = document.querySelector(".ui-toast")?.textContent;
+      act(() => atHead("e1", 399, one));
+      act(() => atHead("e0", 398, one));
+      expect(document.querySelector(".ui-toast")?.textContent).toBe(before);
+      expect(screen.queryByText(/^Undone:/)).toBeNull();
+    });
+
+    it("never guesses when no history group names the entry", () => {
+      render(<FeedbackToast />);
+      approve([]);
+      act(() => atHead("e0", 398, []));
+      expect(screen.getByText("Approved 1 pending edit")).toBeVisible();
+      expect(screen.queryByText(/^Undone:/)).toBeNull();
+    });
+
+    it("speaks Undone once, leaves focus alone and passes axe", async () => {
+      const elsewhere = document.createElement("button");
+      document.body.append(elsewhere);
+      const { rerender } = render(<FeedbackToast />);
+      approve();
+      act(() => elsewhere.focus());
+      const seq = useDawStore.getState().statusAnnouncementSeq;
+      act(() => atHead("e0", 398, one));
+      rerender(<FeedbackToast />);
+      act(() => atHead("e0", 397, one));
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Undone: Approved 1 pending edit",
+      );
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(seq + 1);
+      expect(elsewhere).toHaveFocus();
+      await expectNoA11yViolations(document.body);
+    });
+
+    it("still ends one Undone toast when the Undo button does the undoing", async () => {
+      vi.mocked(undoHistory).mockImplementation(async () => {
+        act(() => atHead("e0", 398, one));
+        return null;
+      });
+      const user = userEvent.setup();
+      render(<FeedbackToast />);
+      approve();
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+      expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
+      expect(screen.queryByText(/^Undone: Undone:/)).toBeNull();
     });
   });
 });
