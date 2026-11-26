@@ -58,6 +58,14 @@ describe("InspectorSeekFooter", () => {
     expect(s.isPlaying).toBe(true);
   });
 
+  it("ends follow on Play", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({ followingClientId: "other" });
+    render(<InspectorSeekFooter seekSec={10} playStart={10} playEnd={12} />);
+    await user.click(screen.getByRole("button", { name: "Play around" }));
+    expect(useDawStore.getState().followingClientId).toBeNull();
+  });
+
   it("forwards its padding to playSpan", async () => {
     const user = userEvent.setup();
     const spy = vi.spyOn(playSpanModule, "playSpan");

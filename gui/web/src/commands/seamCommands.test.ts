@@ -377,6 +377,28 @@ describe("replayIfInspected", () => {
   });
 });
 
+describe("follow while hearing a seam", () => {
+  it("is kept by an automatic replay and ended by hearAcross", () => {
+    const seam = load();
+    useDawStore.setState({
+      followingClientId: "other",
+      selection: { kind: "seam", id: "eb:L:R", trackId: TRACK },
+      inspectorKey: inspectKeyOf({
+        kind: "seam",
+        id: "eb:L:R",
+        trackId: TRACK,
+      }),
+      isPlaying: false,
+      sourcePreview: null,
+    });
+    replayIfInspected("eb:L:R");
+    expect(playRange).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().followingClientId).toBe("other");
+    hearAcross(seam);
+    expect(useDawStore.getState().followingClientId).toBeNull();
+  });
+});
+
 describe("restoreSeam", () => {
   it("restores every matched record in one call and clears the selection", async () => {
     const seam = load(R, [removal("r1", 4, 5), removal("r2", 5, 6.4)]);

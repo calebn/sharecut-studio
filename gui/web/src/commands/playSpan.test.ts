@@ -47,6 +47,43 @@ describe("playSpan", () => {
     expect(before).not.toHaveBeenCalled();
   });
 
+  it("ends follow once and says so before the hook and playback", () => {
+    useDawStore.setState({ followingClientId: "other" });
+    const announce = vi.fn();
+    useDawStore.setState({ announceStatus: announce });
+    const seen: (string | null)[] = [];
+    expect(
+      playSpan(10, 12, 0.5, () =>
+        seen.push(useDawStore.getState().followingClientId),
+      ),
+    ).toEqual({ status: "ok" });
+    expect(useDawStore.getState().followingClientId).toBeNull();
+    expect(seen).toEqual([null]);
+    expect(announce).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps follow when told to", () => {
+    useDawStore.setState({ followingClientId: "other" });
+    playSpan(10, 12, 0.5, undefined, { keepFollow: true });
+    expect(useDawStore.getState().followingClientId).toBe("other");
+  });
+
+  it("keeps follow when play is refused", () => {
+    useDawStore
+      .getState()
+      .hydrate("/tmp/play-span/empty.sharecut", minimalProject());
+    useDawStore.setState({ followingClientId: "other" });
+    expect(playSpan(10, 12, 0.5).status).toBe("disabled");
+    expect(useDawStore.getState().followingClientId).toBe("other");
+  });
+
+  it("stays silent when not following", () => {
+    const announce = vi.fn();
+    useDawStore.setState({ followingClientId: null, announceStatus: announce });
+    playSpan(10, 12, 0.5);
+    expect(announce).not.toHaveBeenCalled();
+  });
+
   it("pads by the default audition pad when none is given", () => {
     expect(playSpan(10, 12)).toEqual({ status: "ok" });
     const s = useDawStore.getState();

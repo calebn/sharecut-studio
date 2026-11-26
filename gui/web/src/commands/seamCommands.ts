@@ -47,11 +47,16 @@ export function rollFailure(error: unknown): string {
     : errorMessage(error);
 }
 
-export function hearAcross(seam: Seam): ExecuteResult {
+export function hearAcross(
+  seam: Seam,
+  opts?: { keepFollow?: boolean },
+): ExecuteResult {
   return playSpan(
     Math.max(0, seam.joinSec - HEAR_ACROSS_SEC),
     seam.joinSec + HEAR_ACROSS_SEC,
     0,
+    undefined,
+    opts,
   );
 }
 
@@ -64,7 +69,7 @@ export function replayIfInspected(seamId: string): void {
     s.selection.id === seamId &&
     inspectorOpenFor(s.selection, s.inspectorKey);
   const seam = s.project ? seamById(s.project, seamId) : null;
-  if (open && seam && !s.isPlaying) hearAcross(seam);
+  if (open && seam && !s.isPlaying) hearAcross(seam, { keepFollow: true });
 }
 
 export async function setSeamJoin(

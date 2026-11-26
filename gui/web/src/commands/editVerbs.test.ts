@@ -1001,6 +1001,13 @@ describe("verbs that call other commands", () => {
     expect(announced()).toBe("The selection changed. Try again.");
   });
 
+  it("ends follow when a clip Hear starts", async () => {
+    host(EDIT_SELECTIONS.clip);
+    useDawStore.setState({ followingClientId: "other" });
+    await runEditVerb("hear", factsOf()!);
+    expect(useDawStore.getState().followingClientId).toBeNull();
+  });
+
   it("hears a clip from its span and a range through the range play", async () => {
     host(EDIT_SELECTIONS.clip);
     await runEditVerb("hear", factsOf()!);
