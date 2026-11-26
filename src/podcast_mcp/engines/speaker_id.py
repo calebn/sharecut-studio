@@ -8,6 +8,7 @@ import threading
 import wave
 from contextlib import ExitStack
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
@@ -28,6 +29,7 @@ from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.models.words_revision import set_word
 from podcast_mcp.project.transcript_context import SpeakerIdConfig, TranscriptContext
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import (
     ProgressReporter,
@@ -51,6 +53,7 @@ class SpeakerProfile:
     source_start: float | None = None
     source_end: float | None = None
     audio_source: str | None = None
+    stem_content: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -66,6 +69,8 @@ class SpeakerProfile:
         }
         if self.audio_source is not None:
             out["audio_source"] = self.audio_source
+        if self.stem_content is not None:
+            out["stem_content"] = self.stem_content
         return out
 
     @classmethod
@@ -87,6 +92,9 @@ class SpeakerProfile:
             source_end=(float(data["source_end"]) if data.get("source_end") is not None else None),
             audio_source=(
                 str(data["audio_source"]) if data.get("audio_source") is not None else None
+            ),
+            stem_content=(
+                str(data["stem_content"]) if data.get("stem_content") is not None else None
             ),
         )
 
@@ -302,11 +310,36 @@ def _profile_media_key(path: Path) -> str:
     return f"{key}:a0" if has_several_audio_streams(path) else key
 
 
-def _profile_stem_valid(project: EpisodeProject, profile: SpeakerProfile) -> bool:
+@lru_cache(maxsize=64)
+def _content_digest(path: str, revision_key: str) -> str:
+    return sha256_file(Path(path))
+
+
+def _profile_content_key(path: Path) -> str:
+    """Location-independent identity of a stem: size, full-file digest and the ``:a0`` marker."""
+    digest = _content_digest(str(path), file_revision_key(path))
+    key = f"{path.stat().st_size}:{digest}"
+    return f"{key}:a0" if has_several_audio_streams(path) else key
+
+
+def _profile_stem_status(project: EpisodeProject, profile: SpeakerProfile) -> str:
     path, _ = _stem_path_and_source(project, profile.track_id)
     if path is None:
-        return False
-    return profile.stem_hash == _profile_media_key(path)
+        return "stem_missing"
+    if profile.stem_hash == _profile_media_key(path):
+        return "ok"
+    if profile.stem_content is None:
+        return "legacy_key"
+    # A copy changes device, inode and mtime but not size, so a size mismatch skips the hash.
+    if profile.stem_content.split(":", 1)[0] != str(path.stat().st_size):
+        return "stem_changed"
+    if profile.stem_content == _profile_content_key(path):
+        return "ok"
+    return "stem_changed"
+
+
+def _profile_stem_valid(project: EpisodeProject, profile: SpeakerProfile) -> bool:
+    return _profile_stem_status(project, profile) == "ok"
 
 
 def profile_home_track(profile: SpeakerProfile) -> str:
@@ -357,16 +390,28 @@ def _load_profile_files(project: EpisodeProject) -> dict[str, SpeakerProfile]:
     return out
 
 
+_warned_stale: set[tuple[str, tuple[str, ...]]] = set()
+
+
 def load_all_profiles(project: EpisodeProject) -> dict[str, SpeakerProfile]:
     out: dict[str, SpeakerProfile] = {}
+    stale: list[str] = []
     for sid, prof in _load_profile_files(project).items():
         if not _profile_stem_valid(project, prof):
-            log.debug(
-                "skipping stale speaker profile %s (stem hash mismatch)",
-                prof.speaker_id,
-            )
+            log.debug("skipping stale speaker profile %s", prof.speaker_id)
+            if _profile_stem_status(project, prof) != "stem_missing":
+                stale.append(sid)
             continue
         out[sid] = prof
+    if stale:
+        marker = (str(project.workspace_path()), tuple(sorted(stale)))
+        if marker not in _warned_stale:
+            _warned_stale.add(marker)
+            log.warning(
+                "%d speaker profile(s) are out of date (%s); re-enroll with `podcast speaker enroll`",
+                len(stale),
+                ", ".join(sorted(stale)),
+            )
     return out
 
 
@@ -398,6 +443,7 @@ def list_profiles(project: EpisodeProject) -> list[dict[str, Any]]:
     for f in sorted(d.glob("*.json")):
         data = json.loads(f.read_text(encoding="utf-8"))
         prof = SpeakerProfile.from_dict(data)
+        status = _profile_stem_status(project, prof)
         out.append(
             {
                 "speaker_id": prof.speaker_id,
@@ -405,6 +451,9 @@ def list_profiles(project: EpisodeProject) -> list[dict[str, Any]]:
                 "home_track_id": profile_home_track(prof),
                 "enrollment_sec": prof.enrollment_sec,
                 "stem_hash": prof.stem_hash,
+                "stem_content": prof.stem_content,
+                "valid": status == "ok",
+                "status": status,
                 "source_start": prof.source_start,
                 "source_end": prof.source_end,
                 "audio_source": prof.audio_source,
@@ -503,6 +552,7 @@ def enroll_track(
         confidence=min(1.0, total / cfg.min_enrollment_sec),
         home_track_id=track_id,
         audio_source=audio_source,
+        stem_content=_profile_content_key(path),
     )
     _save_profile(project, profile, stem)
     text = f"Enrolled {track_id} ({total:.1f}s)"
@@ -554,6 +604,7 @@ def enroll_segment(
         source_start=start_sec,
         source_end=end_sec,
         audio_source=audio_source,
+        stem_content=_profile_content_key(path),
     )
     _save_profile(project, profile, stem)
     text = f"Enrolled {speaker_id} from {track_id} [{start_sec:.2f}-{end_sec:.2f}]"
