@@ -304,6 +304,7 @@ A merged toast ("3 cuts", "Undo all") holds its entries newest first and sends o
 `UndoHistory` per entry, each guarded by that entry's `expected_head_id`. It stops
 at the first refusal and says how far it got ("Undid 1 of 3."). The edits stay
 separate History steps, so Redo takes one press per edit.
+A toast whose entry is undone from the keyboard or History is not dismissed: once `history.entries` (oldest first) places `head_id` before the toast's entry (the oldest entry of a merged toast) it reads "Undone: <message>" with Dismiss, no Undo, until dismissed or its normal timeout, and returns to its text on Redo (`feedback/entryUndone.ts`).
 Every mutating command in the catalog (`CommandDef.mutates`) binds its toast this way: delete, cut, paste, trim, fade, nudge saves, chapter add and envelope point add read the head from their API wrapper's return. `commands/undoToast.test.ts` fails on a flagged command with no proof. A change History does not record (a comment resolve) passes `reverse` and the toast's Undo runs it.
 Clip moves use this same reply-bound Undo, including a group moved from
 the Start Scrub field. `moveClips` returns `HistoryEntryId | null` through `replyHistoryHead`.
