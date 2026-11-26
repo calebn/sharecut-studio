@@ -139,7 +139,9 @@ export function GuestDeliver({ loadFailure }: Props) {
                       Retry
                     </Button>
                   ) : null}
-                  {files.currentLoad === "ready" && files.files.length === 0 ? (
+                  {files.currentLoad === "ready" &&
+                  files.files.length === 0 &&
+                  (exportOff || (!files.exporting && !guestExport.starting)) ? (
                     <p className="dv-note">
                       {exportOff ? NO_FILES_ASK : NO_FILES_EXPORT}
                     </p>

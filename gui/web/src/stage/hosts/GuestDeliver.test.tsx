@@ -267,9 +267,12 @@ describe("GuestDeliver export", () => {
 
   it("starts one export, shows Starting export. until the files read settles, then Exporting now.", async () => {
     let finishRead!: (value: unknown) => void;
+    const empty = { files: [], archive: null };
+    listed.list.mockResolvedValue({ inventory: empty, revision: "first" });
     asGuest("edit");
     render(<GuestDeliver />);
-    await screen.findByRole("link", { name: /^Download ep\.mp3/ });
+    const useExport = "No exported files yet. Use Export to make them.";
+    await screen.findByText(useExport);
 
     listed.list.mockImplementationOnce(
       () =>
@@ -282,9 +285,10 @@ describe("GuestDeliver export", () => {
     expect(listed.start).toHaveBeenCalledWith(shareProjectKey("tok123"));
     expect(exportButton()).toBeDisabled();
     expect(screen.getByText("Starting export.")).toBeInTheDocument();
+    expect(screen.queryByText(useExport)).toBeNull();
 
     finishRead({
-      inventory: { files: FILES, archive: ARCHIVE },
+      inventory: empty,
       revision: "second",
       exporting: true,
       guestRender: true,
@@ -294,6 +298,7 @@ describe("GuestDeliver export", () => {
         .length,
     ).toBeGreaterThan(0);
     expect(screen.queryByText("Starting export.")).toBeNull();
+    expect(screen.queryByText(useExport)).toBeNull();
   });
 
   it.each([
