@@ -15,14 +15,14 @@ export type KitLibraryState = {
  */
 export function useKitLibrary(enabled: boolean): KitLibraryState {
   const [rows, setRows] = useState<readonly KitListRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // Each reload() swaps in a new token, which re-runs the read below.
   const [readToken, setReadToken] = useState<object>({});
 
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
-    setError(null);
+    setLoadError(null);
     loadKits(controller.signal)
       .then((list) => {
         if (controller.signal.aborted) return;
@@ -31,12 +31,12 @@ export function useKitLibrary(enabled: boolean): KitLibraryState {
       .catch((failure: unknown) => {
         if (controller.signal.aborted) return;
         setRows(null);
-        setError(errorMessage(failure, "Couldn't read the kits."));
+        setLoadError(errorMessage(failure, "Couldn't read the kits."));
       });
     return () => controller.abort();
   }, [enabled, readToken]);
 
   const reload = useCallback(() => setReadToken({}), []);
 
-  return { rows, error, reload };
+  return { rows, error: loadError, reload };
 }
