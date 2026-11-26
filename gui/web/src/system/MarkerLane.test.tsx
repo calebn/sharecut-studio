@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { type PageInterrupt, pageInterrupts } from "../test/pageInterrupts";
 import {
   type LaneMarker,
   MarkerLane,
@@ -1103,4 +1104,28 @@ describe("MarkerLane gesture coordinate lifetime", () => {
       false,
     );
   });
+});
+
+describe("MarkerLane drag interrupted by the page", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(["pagehide", "hidden"] as PageInterrupt[])(
+    "ends as not committed once on %s, commits nothing on the release, and takes a following drag",
+    (kind) => {
+      const { onDragEnd } = setup();
+      press(chapter(), 150);
+      moveTo(chapter(), 190);
+      pageInterrupts[kind]();
+      expect(onDragEnd.mock.calls).toEqual([["ch-interview", "move", false]]);
+      fireEvent.pointerUp(track(), { pointerId: 1, clientX: 190 });
+      expect(onDragEnd.mock.calls).toEqual([["ch-interview", "move", false]]);
+      press(chapter(), 150);
+      moveTo(chapter(), 190);
+      fireEvent.pointerUp(track(), { pointerId: 1, clientX: 190 });
+      expect(onDragEnd.mock.calls).toEqual([
+        ["ch-interview", "move", false],
+        ["ch-interview", "move", true],
+      ]);
+    },
+  );
 });

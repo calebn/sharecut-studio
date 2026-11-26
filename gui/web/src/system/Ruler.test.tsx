@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { type PageInterrupt, pageInterrupts } from "../test/pageInterrupts";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { Ruler, type RulerProps } from "./Ruler";
 import { rulerStep, rulerTicks, tickKey } from "./rulerMath";
@@ -296,7 +297,10 @@ describe("Ruler seeking", () => {
 
 describe("Ruler scrubbing", () => {
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
 
   it("starts after 3 px, seeks to the latest move on each frame, and flushes on release", () => {
     const { onScrubStart, onScrub, onScrubEnd, onSeek } = setup();
@@ -459,6 +463,26 @@ describe("Ruler scrubbing", () => {
     expect(second.onScrubEnd.mock.calls).toEqual([[false]]);
     expect(second.onScrub).not.toHaveBeenCalled();
   });
+
+  it.each(["pagehide", "hidden"] as PageInterrupt[])(
+    "ends as not committed once on %s, seeks nothing more on the release, and takes a following scrub",
+    (kind) => {
+      const { onScrubEnd, onScrub } = setup();
+      fireEvent.pointerDown(body(), { pointerId: 1, clientX: 40 });
+      fireEvent.pointerMove(body(), { pointerId: 1, clientX: 80 });
+      pageInterrupts[kind]();
+      fireEvent.pointerUp(body(), { pointerId: 1, clientX: 80 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(onScrubEnd.mock.calls).toEqual([[false]]);
+      expect(onScrub).not.toHaveBeenCalled();
+      fireEvent.pointerDown(body(), { pointerId: 1, clientX: 40 });
+      fireEvent.pointerMove(body(), { pointerId: 1, clientX: 80 });
+      fireEvent.pointerUp(body(), { pointerId: 1, clientX: 80 });
+      expect(onScrubEnd.mock.calls).toEqual([[false], [true]]);
+    },
+  );
 
   it("reads a right-button press as nothing", () => {
     const { onScrubStart } = setup();

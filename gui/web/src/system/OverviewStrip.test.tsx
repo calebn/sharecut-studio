@@ -1,10 +1,12 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { type PageInterrupt, pageInterrupts } from "../test/pageInterrupts";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { OverviewStrip } from "./OverviewStrip";
 
 function setup(over: Partial<Parameters<typeof OverviewStrip>[0]> = {}) {
   const onSeek = vi.fn();
+  const onScrub = vi.fn();
   const view = render(
     <OverviewStrip
       height={64}
@@ -12,6 +14,7 @@ function setup(over: Partial<Parameters<typeof OverviewStrip>[0]> = {}) {
       playhead={0.25}
       duration={200}
       onSeek={onSeek}
+      onScrub={onScrub}
       {...over}
     />,
   );
@@ -27,7 +30,7 @@ function setup(over: Partial<Parameters<typeof OverviewStrip>[0]> = {}) {
     y: 0,
     toJSON: () => ({}),
   });
-  return { onSeek, strip, ...view };
+  return { onSeek, onScrub, strip, ...view };
 }
 
 describe("OverviewStrip seeking", () => {
@@ -233,4 +236,40 @@ describe("OverviewStrip bars", () => {
     );
     expect(bars(container)).toHaveLength(512);
   });
+});
+
+describe("OverviewStrip drag interrupted by the page", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it.each(["blur", "pagehide", "hidden"] as PageInterrupt[])(
+    "puts the playhead back on %s and seeks nothing on the release",
+    (kind) => {
+      vi.useFakeTimers();
+      const { strip, onSeek, onScrub } = setup();
+      fireEvent.pointerDown(strip, { pointerId: 1, clientX: 200 });
+      fireEvent.pointerMove(strip, { pointerId: 1, clientX: 400 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      fireEvent.pointerMove(strip, { pointerId: 1, clientX: 450 });
+      pageInterrupts[kind]();
+      fireEvent.pointerUp(strip, { pointerId: 1, clientX: 450 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(onSeek.mock.calls).toEqual([[0.75], [0.25]]);
+      expect(onScrub.mock.calls).toEqual([["start"], ["cancel"]]);
+      fireEvent.pointerDown(strip, { pointerId: 1, clientX: 200 });
+      fireEvent.pointerMove(strip, { pointerId: 1, clientX: 300 });
+      fireEvent.pointerUp(strip, { pointerId: 1, clientX: 300 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(onScrub.mock.calls).toEqual([["start"], ["cancel"], ["start"]]);
+      expect(onSeek.mock.calls.at(-1)).toEqual([0.5]);
+    },
+  );
 });
