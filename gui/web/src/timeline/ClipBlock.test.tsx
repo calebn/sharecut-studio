@@ -1453,8 +1453,12 @@ describe("ClipBlock waveform", () => {
           },
         ),
       );
-      expect(container.querySelector(".fade-readout")).toBeNull();
-      expect(container.querySelector(".clip-block.fade-dragging")).toBeNull();
+      await waitFor(() =>
+        expect(container.querySelector(".fade-readout")).toBeNull(),
+      );
+      await waitFor(() =>
+        expect(container.querySelector(".clip-block.fade-dragging")).toBeNull(),
+      );
     });
 
     it("keeps a long dialogue fade, up to the clip length", async () => {
@@ -1512,7 +1516,9 @@ describe("ClipBlock waveform", () => {
           },
         ),
       );
-      expect(container.querySelector(".fade-readout")).toBeNull();
+      await waitFor(() =>
+        expect(container.querySelector(".fade-readout")).toBeNull(),
+      );
     });
 
     it("keeps the two fades from overlapping", async () => {
