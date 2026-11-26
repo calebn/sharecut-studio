@@ -81,8 +81,9 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 In host visual audition output, a word in `visuals[].events` starts at timeline
 second `t` and plot position `x`. When the marker has a positive played extent,
 `t_end` and `x_end` mark its end. The end stops at the same clip or timing piece
-as the start, or at the plot's right edge if it comes first. Point-only markers
-omit the end fields.
+as the start, or at the plot's right edge if it comes first. A played extent
+that continues past the plot's left edge starts at that edge in the visual.
+Point-only markers omit the end fields.
 
 In the same host output, each `edits.pending[]` row in the window carries `audio_check`,
 the check `podcast edit held` runs, made on a scratch copy (nothing is saved) only when the window

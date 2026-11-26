@@ -521,6 +521,7 @@ def test_concurrent_visual_auditions_publish_only_one_footer(
         ([(1, 2, 10), (4, 5, 11), (1, 4, 15)], None, (1.5, 3), (10, 16), (10.5, 11)),
         ([(1, 4, 10), (1, 2, 10)], None, (1.5, 3.5), (10, 13), (10.5, 12.5)),
         ([(1, 4, 10)], None, (1.5, 3), (10, 11.5), (10.5, 11.5)),
+        ([(1, 4, 10)], None, (1.5, 3), (11, 11.5), (11, 11.5)),
         ([(1, 4, 10)], None, (1.5, 1.5), (10, 13), (10.5, None)),
         ([(1, 2, 10), (1.75, 4, 13)], None, (2, 3), (10, 15), (11, None)),
         (
@@ -535,7 +536,8 @@ def test_concurrent_visual_auditions_publish_only_one_footer(
         "ordinary",
         "cut-repeat",
         "tied-starts",
-        "plot-edge",
+        "plot-right-edge",
+        "plot-both-edges",
         "point",
         "cut-edge-point",
         "timing-gap",

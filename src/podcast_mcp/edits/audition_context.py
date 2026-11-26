@@ -275,8 +275,12 @@ def build_visual_events(
     word_events: list[dict[str, Any]] = []
     for i, word in enumerate(words):
         t = float(word.start)
-        if t < window_start or t > window_end:
+        if t > window_end:
             continue
+        if t < window_start:
+            if word.end is None or word.end <= window_start:
+                continue
+            t = window_start
         in_hyp = any(
             float(w.get("start", window_start)) <= t <= float(w.get("end", window_end))
             for w in hyp_windows
