@@ -1091,8 +1091,8 @@
     },
     {
       "id": "ux-pack",
-      "when": "UX onboarding pack (shareable site)",
-      "update": "`ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; enforced by the `ux-pack` docs-sync gate (triggers: GUI shells, keymap, command catalog, UX-facing docs, episode schema)",
+      "when": "UX onboarding pack (shareable site); guest consent, lobby and notice copy (record room, relay notice and paused pages)",
+      "update": "`ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; enforced by the `ux-pack` docs-sync gate (triggers: GUI shells, keymap, command catalog, UX-facing docs, episode schema, guest consent/notice copy in the record room and relay notice pages)",
       "docs": [
         "ux/",
         "ux/pages/",
@@ -1111,7 +1111,11 @@
           "gui/web/src/keymap/",
           "gui/web/src/commands/catalog.ts",
           "gui/web/src/stages/deliver/tunnelStatusCopy.ts",
+          "gui/web/src/record/bootCopy.ts",
+          "gui/web/src/record/micPermission.ts",
+          "gui/web/src/record/guestRoomModel.ts",
           "src/podcast_relay/notice.py",
+          "src/podcast_relay/routes/proxy.py",
           "src/podcast_relay/offline.py",
           "src/podcast_relay/static/offline.html",
           "docs/gui-mobile.md",

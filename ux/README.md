@@ -74,7 +74,7 @@ cd ux && python3 -m http.server 8766
 
 ## Keeping docs accurate (anti-drift)
 
-When ShareCut Studio shells, the UI or communication philosophy, mobile IA docs, share/session-sync/recording-session docs, or the episode schema change in a way that affects what UX partners see:
+When ShareCut Studio shells, the UI or communication philosophy, mobile IA docs, `docs/recording-session.md`, the episode schema, or guest consent or notice copy (record room, relay notice pages) change in a way that affects what UX partners see:
 
 1. Update the matching `ux/pages/*.md` (and demo fixture / screenshots if the UI changed).
 2. The `ux-pack` row of the docs-sync map ([contracts/docs-sync.json](../contracts/docs-sync.json)) is the source of truth, generated into [AGENTS.md](../AGENTS.md) § Docs in sync. `make docs-sync` runs the same PR-diff gate CI runs before you open a PR; the `docs-sync` pre-commit hook runs the equivalent check on staged files but only warns (CI is the gate). See [docs/contributing.md § Docs in sync](../docs/contributing.md#docs-in-sync).
