@@ -265,7 +265,7 @@ There are three overlay primitives.
    runs. A change History does not record (a comment resolve) passes `reverse`
    instead, and the toast's Undo runs it; its `run` answers `true`, `false`, or a
    string, the reason the change cannot be taken back, shown as the error.
-   Stop sharing and End room set a deadline half a second before the server's
+   Stop sharing and End room (when it acts) set a deadline half a second before the server's
    restore window closes. When the toast's source heading belongs to the
    innermost modal dialog, the share Undo appears above its scrim. The dialog
    includes the toast buttons after its panel in the Tab cycle.

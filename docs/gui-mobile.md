@@ -10,8 +10,8 @@ Reading-room actions and Invite sheet actions/checkbox labels use the shared
 `--touch-min` target floor. On phones the Invite sheet is a bottom sheet over
 any stage, and the Deliver page carries only the Listen link row, after the
 Episode file and above the sticky Export bar. Stop sharing and
-End room act at once and leave an Undo toast for the server's 10 s restore window
-(`feedback/FeedbackToast`), so there is no second sheet and no confirm row. Dialog and sheet close buttons use the same square
+End room (when its gate is open and nobody is connected) act at once and leave an Undo toast for the server's 10 s restore window
+(`feedback/FeedbackToast`), so there is no second sheet; End room with someone connected swaps its button for an inline confirm whose buttons are 44 px. Dialog and sheet close buttons use the same square
 target. Reading form labels, hints, and errors use `--font-size-body`, while
 actions use reading-body type. Compact timeline/inspector controls retain their
 editor density. See the [component recipes](../gui/web/docs/ui-library.md#composition-recipes)

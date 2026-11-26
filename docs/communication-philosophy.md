@@ -44,7 +44,8 @@ make them feel the software is fragile.
   - Don't: "Operation completed successfully."
 - Name the consequence, not the mechanism.
   - Do: "Room ended." with Undo for the window the server gives (see
-    Errors and confirmations)
+    Errors and confirmations); while a take could be lost, End room
+    waits and says why instead
   - Don't: "Stop sharing coolname-xyz?" — tokens and IDs are
     addresses for machines, never labels for people. (Surface 2)
 - Pair every problem statement with its fix.
@@ -144,7 +145,7 @@ to UX partners; for UI copy, this table wins.
 | Unavailable export format | A previously selected format no longer offered by the current catalog. Episode file keeps its toggle checked and removable, labels it "unavailable", and omits the size estimate. Export explains "Remove unavailable formats before exporting." | Silently removing the choice or exporting only the remaining files |
 | Named loudness export | A separate audio export using Podcast, Broadcast or Streaming loudness. The result carries the name of the choice used for that run | "Master" for a named result |
 | Stop sharing | Revoke a review link at once. Links don't expire, so this is how a review link ends (a date set on the CLI or MCP is the one exception). The toast says "Link stopped." with Undo for the server's 10 s window | "delete link" |
-| End room | Shut down a record room at once (kills guest + producer links). The toast says "Room ended." with Undo for the server's 10 s window | "close room" |
+| End room | Shut down a record room (kills guest + producer links). It waits, with its reason shown, while a take is running or not yet on the timeline and while the Record state is unknown; it asks first when someone is connected ("End the room? Ava is sent out."); otherwise it acts at once. The toast says "Room ended." with Undo for the server's 10 s window | "close room" |
 | Online sharing | Making this computer's review and record links reachable from the internet while it runs. Studio connects on its own while a link is live and relay settings exist. Share's status line says what guests can do now, with any fix behind "How to fix" and the online sharing guide; a link made before online sharing is set up says "Link created, but online sharing isn't set up on this computer, so guests can't open it yet" | "tunnel", "relay", "host token", "relay URL", a CLI command in UI copy |
 | Guests can open your links | Online sharing is connected | "Online", "Connected" as a bare label |
 | Reconnecting… | Online sharing lost its connection and is retrying; the line adds "Trying again in N s" (a still clock time under reduced motion). Guests may see a brief interruption | "Tunnel reconnecting", "Guests see Host offline" |
@@ -320,13 +321,29 @@ the empty state, not a separate discovery task.
   consequence, Keep first and focused, the danger action last. Escape
   keeps (cancels) the open confirm before it closes the dialog. A step
   the server can take back is not asked at all: the Invite sheet's Stop
-  sharing and End room act at once and the toast offers Undo for the
-  server's window (below). (Surfaces 2, 5, 6.)
+  sharing acts at once and the toast offers Undo for the server's window
+  (below). End room is the exception, because a revoke strands a take that is
+  not saved yet and Undo cannot bring that back: it is gated like End session
+  and asks only when someone is in the room (below). (Surfaces 2, 5, 6.)
+- **End room waits for the take, and asks only for people.** From Invite,
+  End room is disabled with its reason as a visible note ("Stop the take
+  first." / "Wait for every take to reach the timeline before ending the room."
+  / the live-comments line) while the Record stage's room has a running or
+  paused take or one not yet on the timeline. It is also disabled, with "Open
+  Record to check this room before ending it.", whenever the host's Record
+  state is unknown. With the gate open and anyone connected besides the host
+  (guest, producer or viewer) it asks in place with `ui/InlineConfirm`: "End
+  the room? Ava is sent out." (two names, then "and others"; none: "Everyone in
+  it is sent out."), **Keep room** first and focused, **End room** last. Escape
+  cancels the confirm and never closes the sheet. With nobody connected it acts
+  at once and the toast offers Undo. After an end or its Undo the Record stage
+  looks the room up again, so it says "No record room yet" or shows the
+  restored room without a reload. (Surfaces 2, 5, 6.)
 - **Confirm copy names the target and the consequence** in human
   terms: "Remove the reference track? [Keep track] [Remove track]". Never a
   raw token. (Surface 2.)
 - **A link or room that ends offers Undo for the server's window.** Stop
-  sharing says "Link stopped." and End room says "Room ended.", each with an
+  sharing says "Link stopped." and End room (once its gate is open) says "Room ended.", each with an
   **Undo** action on the toast. Undo says "Link restored." or "Room restored."
   The toast leaves half a second before the server's window closes, even
   while hovered or focused. While that Undo is available, confirmations for
@@ -877,6 +894,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-11-10 Prepare cleanup (D-hp-23): the ⋯ menu with "Run everything again" is gone; Run again from here on Transcribe re-transcribes. Apply sound actions moves from its own "Listen for sounds" group to the second step under Find suggestions, and a new-audio plan keeps five rows, with the sound cost on Find suggestions.
 - 2026-11-11 Stop sharing and End room undo (#3287): the Invite sheet and the Deliver Listen link no longer ask first. Stop sharing and End room act at once and the toast says "Link stopped." or "Room ended." with **Undo** for the server's 10 s restore window (the toast leaves 500 ms sooner); Undo says "Link restored." or "Room restored.", and a refused Undo says "Too late to undo.", "Another room is live, so this one stays ended.", "This link had already expired, so it stays stopped." or that the link or room is already gone. While an Undo toast is open a second Stop sharing or End room is ignored. The inline confirm and its Keep link / Keep room buttons are gone from these callers; `ui/InlineConfirm` stays for the others.
 - 2026-11-14 Prepare plan names the room tone bed (#3602): the room tone bed is an operation of the Clean and level row while it is on, named in that row's detail when only some of its operations run, and Skip on that row skips it. It stays a detail of that row; the plan keeps five rows.
+- 2026-11-26 End room is gated, not confirmed, when a take could be lost (#4660): this supersedes the #3287 clause above that End room "acts at once". Revoking a room parks its tokens, the host's own take then loses its upload path, and Undo does not bring a lost take back, so Invite's End room uses the End session gate: it is disabled with a visible reason while the stage's room has a running or paused take or one not yet on the timeline, and while the host's Record state is unknown ("Open Record to check this room before ending it."). With the gate open and a guest, producer or viewer connected it asks with the inline confirm ("End the room? Ava is sent out.", Keep room focused, Escape keeps); with nobody connected it still acts at once with Undo. After an end, and after its Undo, the Record stage looks the room up again and shows "No record room yet" at once. A room that is not the stage's room is not gated on the take. Stop sharing is unchanged.
 - 2026-11-12 Phone guest Listen (#3784): a phone Commenter link shows no text field until the guest taps **Comment** in the Listen dock (a Viewer link has no Comment button and no field); the tap pauses an episode that is playing, and **Post** or **Close** plays on again only if the tap paused it and nothing touched the transport since. The comments row, shown only while the link holds comments, suggestions or something needing attention, reads "15 comments" (with " · 2 suggestions" and " · Needs attention" after it when those exist), shows the comment being heard with its author, time and count, and says "Comment added at 1:26" for about 3 seconds after a post. The role chip is an icon only on a phone and on a phone Viewer or Commenter link the Script has no header row, only a one-line "Read only" caption for a Viewer.
 - 2026-11-13 Phone guest Listen (#3784): the comments row is named from what it shows, starting "Show 15 comments" ("Show 1 comment" for one) and followed by the comment being heard or the "Comment added" line, shows the count beside the comment icon, and opens the Comments list, at the comment being heard when one is; the post is announced once, by the status line. The dock has no Chapters button when the link has no chapters or the chapter list fills the middle, and its Comment label hides at and below a container width of 23.5 rem (376 px at the default text size).
 - 2026-11-16 Guest offline cover (#3891): a review link that fails to load on a device the browser reports offline reads "You're offline" with "This page opens the episode by itself when your connection is back." and **Try now**, instead of blaming the host with "The host's computer is asleep". The page tries again by itself when the browser reports the connection back, and every 30 seconds; a retry that fails with the browser online reads as that failure does anywhere else: asleep for no answer, a 502, a 504 or a 503 that is not busy, and its own cover for any other answer.
