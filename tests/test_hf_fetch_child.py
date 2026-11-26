@@ -699,3 +699,38 @@ def test_the_child_exits_when_its_parent_closes_stdin(hub: loopback._Hub, tmp_pa
     assert hub.sent < loopback.SIZE
     assert proc.stdout is not None
     proc.stdout.close()
+
+
+def test_the_child_argv_keeps_the_callers_cwd_off_sys_path_like_the_launcher(
+    tmp_path: Path,
+) -> None:
+    argv = model_manifest._child_argv(tmp_path / "spec.json")
+
+    assert argv[0] == sys.executable
+    assert argv.index("-P") < argv.index("-m")
+    assert argv[argv.index("-m") + 1] == CHILD_MODULE
+
+
+def test_a_decoy_huggingface_hub_in_the_cwd_is_not_imported_by_a_real_child(
+    hub: loopback._Hub, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    decoy_dir = tmp_path / "decoy"
+    decoy_dir.mkdir()
+    marker = tmp_path / "decoy-imported"
+    (decoy_dir / "huggingface_hub.py").write_text(
+        f"import pathlib\npathlib.Path({str(marker)!r}).write_text('x')\nraise SystemExit(7)\n"
+    )
+    spec_path = tmp_path / "spec.json"
+    spec_path.write_text(json.dumps(_spec(tmp_path, revision="no-such-revision")))
+    monkeypatch.chdir(decoy_dir)
+
+    proc = process.popen(
+        model_manifest._child_argv(spec_path),
+        stdin=process.PIPE,
+        stdout=process.PIPE,
+        stderr=(tmp_path / "child.log").open("wb"),
+    )
+    out = _finish(proc)
+
+    assert not marker.exists()
+    assert json.loads(out.decode().splitlines()[-1])["error"] == "LocalEntryNotFoundError"
