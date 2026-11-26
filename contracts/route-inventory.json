@@ -654,6 +654,12 @@
     },
     {
       "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:head_daw_export_archive",
+      "method": "HEAD",
+      "path": "/api/review/{token}/daw/export/archive"
+    },
+    {
+      "gate": "guest",
       "handler": "podcast_mcp.gui.routes.review_editor:get_daw_export_files",
       "method": "GET",
       "path": "/api/review/{token}/daw/export/files"
@@ -662,6 +668,12 @@
       "gate": "guest",
       "handler": "podcast_mcp.gui.routes.review_editor:get_daw_export_file",
       "method": "GET",
+      "path": "/api/review/{token}/daw/export/files/{file_id:path}"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:head_daw_export_file",
+      "method": "HEAD",
       "path": "/api/review/{token}/daw/export/files/{file_id:path}"
     },
     {

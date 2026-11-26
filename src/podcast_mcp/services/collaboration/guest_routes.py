@@ -25,7 +25,7 @@ class GuestRoute:
     """One twin: who may call it, how it is rate limited, and the host opt-ins it needs."""
 
     name: str
-    method: Literal["GET", "POST", "PUT"]
+    method: Literal["GET", "HEAD", "POST", "PUT"]
     path: str
     rate_kind: Literal["read", "mutate"]
     needs_guest_render: bool = False
@@ -79,6 +79,10 @@ _ROUTES = (
     GuestRoute("export_files", "GET", "/api/review/{token}/daw/export/files", "read"),
     GuestRoute("export_file", "GET", "/api/review/{token}/daw/export/files/{file_id:path}", "read"),
     GuestRoute("export_archive", "GET", "/api/review/{token}/daw/export/archive", "read"),
+    GuestRoute(
+        "export_file_head", "HEAD", "/api/review/{token}/daw/export/files/{file_id:path}", "read"
+    ),
+    GuestRoute("export_archive_head", "HEAD", "/api/review/{token}/daw/export/archive", "read"),
     GuestRoute("export_job_status", "GET", "/api/review/{token}/daw/export/jobs/{job_id}", "read"),
     GuestRoute(
         "export_job_events", "GET", "/api/review/{token}/daw/export/jobs/{job_id}/events", "read"

@@ -159,6 +159,14 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Editor",
         "Download every current exported file as one stored zip with an exact Content-Length; 404 when nothing current is listed, and 409 while an export runs",
     ),
+    ("HEAD", "/api/review/{token}/daw/export/files/{file_id}"): (
+        "Editor",
+        "Headers only (size, type, ETag) for the file download; takes no stream slot; same 404 and 409",
+    ),
+    ("HEAD", "/api/review/{token}/daw/export/archive"): (
+        "Editor",
+        "Headers only (exact Content-Length) for the archive download; takes no stream slot; same 404 and 409",
+    ),
     ("GET", "/api/review/{token}/daw/export/jobs/{job_id}"): (
         "Editor",
         "Read one export job of this project; any other job id is 404",
@@ -337,6 +345,12 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
         "http-only: a binary download, not a guest MCP tool"
     ),
     ("GET", "/api/review/{token}/daw/export/archive"): (
+        "http-only: a binary download, not a guest MCP tool"
+    ),
+    ("HEAD", "/api/review/{token}/daw/export/files/{file_id}"): (
+        "http-only: a binary download, not a guest MCP tool"
+    ),
+    ("HEAD", "/api/review/{token}/daw/export/archive"): (
         "http-only: a binary download, not a guest MCP tool"
     ),
     ("GET", "/api/review/{token}/daw/transcript/vocabulary"): "guest_transcript_vocabulary_get",
@@ -518,7 +532,7 @@ def _iter_app_routes() -> list[tuple[str, str]]:
         if not _is_guest_surface_path(path):
             continue
         for method in item:
-            if method in {"get", "post", "put", "patch", "delete"}:
+            if method in {"get", "head", "post", "put", "patch", "delete"}:
                 rows.append((method.upper(), path))
     # WebSockets are not in OpenAPI; walk FastAPI APIWebSocketRoute entries
     # (including routers nested as FastAPI ``_IncludedRouter``).
