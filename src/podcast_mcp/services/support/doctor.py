@@ -11,6 +11,12 @@ from typing import Any, Literal
 from podcast_mcp import settings
 from podcast_mcp.config.defaults import cache_dir
 from podcast_mcp.engines import FFmpegEngine
+from podcast_mcp.engines.models.registry import MODELS, model_record
+from podcast_mcp.engines.models.speaker_ecapa import (
+    SPEAKER_ECAPA_ASSET,
+    speaker_ecapa_override,
+    speaker_ecapa_path,
+)
 from podcast_mcp.engines.models.whisper import (
     WhisperPinMismatchError,
     resolve_whisper_model,
@@ -18,12 +24,9 @@ from podcast_mcp.engines.models.whisper import (
     whisper_bootstrap_command,
     whisper_model_problem,
 )
-from podcast_mcp.engines.models.word_aligner import (
-    WordAlignerPinMismatchError,
-    word_aligner_problem,
-)
 from podcast_mcp.engines.whisper_device import describe_placement
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.asset_sources import ordered_http_urls
 from podcast_mcp.util.binaries import (
     IN_PROCESS_FFMPEG,
     IN_PROCESS_FFPROBE,
@@ -35,7 +38,7 @@ from podcast_mcp.util.binaries import (
     resolve_ffmpeg_pair,
 )
 from podcast_mcp.util.hardware import accelerator_preference, hardware_profile
-from podcast_mcp.util.model_assets import rnnoise_model_path
+from podcast_mcp.util.model_assets import rnnoise_override
 
 DoctorStatus = Literal["ok", "fail", "warn"]
 
@@ -157,10 +160,6 @@ def run_doctor_checks(
             )
         )
 
-    aligner_problem = word_aligner_problem(memoize=True)
-    if isinstance(aligner_problem, WordAlignerPinMismatchError):
-        report.checks.append(DoctorCheck("fail", f"word-aligner: {aligner_problem}", err=True))
-
     from podcast_mcp.engines.vad_silero import is_available as silero_available
 
     if silero_available():
@@ -176,18 +175,7 @@ def run_doctor_checks(
             )
         )
 
-    rnn = rnnoise_model_path()
-    if rnn.is_file():
-        report.checks.append(DoctorCheck("ok", f"rnnoise model: {rnn}"))
-    else:
-        report.checks.append(
-            DoctorCheck(
-                "warn",
-                "rnnoise model: not bootstrapped "
-                "(run `podcast bootstrap --component rnnoise` to enable noise_reduction_rnnoise)",
-            )
-        )
-
+    report.checks.extend(_model_checks())
     report.checks.extend(_segment_library_checks(deep=deep))
     report.checks.extend(_kit_library_checks())
 
@@ -212,6 +200,60 @@ def run_doctor_checks(
             report.checks.append(DoctorCheck("warn", f"timebase: {issue}", err=True))
 
     return report
+
+
+def _own_advice_when_missing(model_id: str) -> bool:
+    """True when a missing row's registry hint says more than "run bootstrap".
+
+    That is an override env var pointing at a file that is not there (bootstrap does not fix
+    it) and a source build with no download source for the speaker model (bootstrap cannot
+    succeed); the registry hint carries the right advice for both.
+    """
+    if model_id == "rnnoise":
+        return rnnoise_override() is not None
+    if model_id == "speaker-ecapa":
+        return speaker_ecapa_override() is not None or not ordered_http_urls(
+            SPEAKER_ECAPA_ASSET, relative_path=speaker_ecapa_path().name
+        )
+    return False
+
+
+def _hint_without_label(label: str, hint: str) -> str:
+    """The hint minus a leading ``<label>:`` or ``<label>`` so the line does not repeat it."""
+    for prefix in (f"{label}:", label):
+        if hint.startswith(prefix):
+            return hint.removeprefix(prefix).lstrip()
+    return hint
+
+
+def _model_checks() -> list[DoctorCheck]:
+    """One line per registry row except whisper (which has its own); never loads a model.
+
+    ``installed`` prints no path: an override file is only checked for existence, and the
+    registry location is not always the file in use.
+    """
+    checks: list[DoctorCheck] = []
+    for spec in MODELS:
+        if spec.id == "whisper":
+            continue
+        record = model_record(spec.id, memoize=True)
+        state = record["state"]
+        if state == "installed":
+            checks.append(DoctorCheck("ok", f"{spec.label}: installed"))
+        elif state == "missing" and not _own_advice_when_missing(spec.id):
+            checks.append(
+                DoctorCheck(
+                    "warn",
+                    f"{spec.label}: not downloaded "
+                    f"(run `{spec.fix_command}`; needed for {spec.purpose})",
+                    err=True,
+                )
+            )
+        else:
+            status: DoctorStatus = "fail" if state == "update_needed" else "warn"
+            hint = _hint_without_label(spec.label, record["hint"])
+            checks.append(DoctorCheck(status, f"{spec.label}: {hint}", err=True))
+    return checks
 
 
 MAX_DAMAGED_SEGMENTS_LISTED = 5

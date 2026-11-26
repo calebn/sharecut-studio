@@ -412,9 +412,25 @@ def test_bootstrap_word_aligner_tampered_snapshot_fails_with_upgrade_hint(
     assert "[skip]" not in result.stdout
 
 
-def test_doctor_reports_rnnoise_and_silero_status() -> None:
-    result = runner.invoke(app, ["doctor"])
-    assert "rnnoise model" in result.stdout
+def test_doctor_reports_rnnoise_and_silero_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from unittest.mock import MagicMock
+
+    from podcast_mcp.engines.models.registry import model_spec
+
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    monkeypatch.delenv("PODCAST_MCP_RNNOISE_MODEL", raising=False)
+    engine = MagicMock()
+    engine.check_available.return_value = (True, "ffmpeg 9.0.2")
+    engine.source = "test"
+    with patch("podcast_mcp.services.support.doctor.FFmpegEngine", return_value=engine):
+        result = runner.invoke(app, ["doctor"])
+    spec = model_spec("rnnoise")
+    assert result.exit_code == 0
+    assert (
+        f"[warn] {spec.label}: not downloaded (run `{spec.fix_command}`; needed for {spec.purpose})"
+    ) in result.stderr
     assert "silero-vad" in result.stdout
 
 
