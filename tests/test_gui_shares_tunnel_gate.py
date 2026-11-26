@@ -185,3 +185,58 @@ def test_cli_review_share_prints_a_warning_without_a_message(
     assert res.exit_code == 0, res.output
     assert "Warning: online_sharing_not_set_up" in res.output
     assert "Share URL: http://x/r/t" in res.output
+
+
+def _warning_lines(output: str) -> list[str]:
+    return [line for line in output.splitlines() if line.startswith("Warning:")]
+
+
+def test_cli_record_share_prints_the_online_sharing_warning_once(
+    tmp_workspace: Path,
+) -> None:
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app as cli_app
+
+    project = make_project(tmp_workspace)
+
+    res = CliRunner().invoke(
+        cli_app, ["review", "share", "--kind", "record", "--project", str(project)]
+    )
+
+    assert res.exit_code == 0, res.output
+    assert _warning_lines(res.output) == ["Warning: " + online_sharing_warnings()[0]["message"]]
+    assert res.output.index("Warning:") < res.output.index("Guest URL:")
+
+
+def test_cli_record_share_prints_no_warning_when_online_sharing_is_set_up(
+    tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app as cli_app
+
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKEN", "tok")
+    project = make_project(tmp_workspace)
+
+    res = CliRunner().invoke(
+        cli_app, ["review", "share", "--kind", "record", "--project", str(project)]
+    )
+
+    assert res.exit_code == 0, res.output
+    assert _warning_lines(res.output) == []
+
+
+def test_create_record_room_tool_carries_the_warning_on_both_links(
+    tmp_workspace: Path,
+) -> None:
+    import json
+
+    from podcast_mcp.mcp.tools.review import create_record_room_tool
+
+    project = make_project(tmp_workspace)
+
+    room = json.loads(create_record_room_tool(str(project)))
+
+    assert _codes(room["guest"]["warnings"]) == ["online_sharing_not_set_up"]
+    assert _codes(room["producer"]["warnings"]) == ["online_sharing_not_set_up"]

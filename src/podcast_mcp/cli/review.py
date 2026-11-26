@@ -323,6 +323,14 @@ def _cli_create_record_share(
     if room.get("warning"):
         hint = " Add --land-first to save first." if room.get("land_first_possible") else ""
         typer.echo(f"\nWarning: {room['warning']}{hint}", err=True)
+    warned: set[str] = set()
+    for warning in [
+        *(room["guest"].get("warnings") or []),
+        *(room["producer"].get("warnings") or []),
+    ]:
+        if warning["code"] not in warned:
+            warned.add(warning["code"])
+            typer.echo(f"\nWarning: {warning.get('message') or warning['code']}", err=True)
     guest_url = room["guest"]["url"]
     producer_url = room["producer"]["url"]
     typer.echo(f"\nGuest URL: {guest_url}", err=True)
