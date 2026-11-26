@@ -4,22 +4,32 @@ import { useViewportClass } from "../../hooks/useViewportClass";
 import { ArchiveLink } from "../../stages/deliver/ArchiveLink";
 import { DeliverSection } from "../../stages/deliver/DeliverSection";
 import { ExportedFiles } from "../../stages/deliver/ExportedFiles";
+import { RUNNING_REASON } from "../../stages/deliver/exportedFileModel";
 import { FeedPanel } from "../../stages/deliver/FeedPanel";
 import { feedAccessOf } from "../../stages/deliver/feedLogic";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
+import { SystemIcon } from "../../system/SystemIcon";
 import { formatCutsSaved, hasCutsSaved } from "../../system/seconds";
+import { iconOf, verbOf } from "../../system/verbDisplay";
 import { Button, InlineError } from "../../ui";
+import { useDisabledReasonNote } from "../../ui/disabledReason";
 import { canEditStage } from "../../utils/can";
 import { useStageScroll } from "../useStageScroll";
 import { openFeedSource } from "./feedSource";
 import { HostBody } from "./HostBody";
 import { hostStateOf, type LoadFailure } from "./hostModels";
 import { useDeliverFiles } from "./useDeliverFiles";
+import { useGuestExport } from "./useGuestExport";
 
 type Props = { loadFailure?: LoadFailure | null };
 
-const NO_FILES = "No exported files yet. Ask the host to export.";
+const NO_FILES_ASK = "No exported files yet. Ask the host to export.";
+const NO_FILES_EXPORT = "No exported files yet. Use Export to make them.";
+const EXPORT_OFF = "The host has not turned on exports from share links.";
+const EXPORT_STARTING = "Starting export.";
+const EXPORT_REPLACES =
+  "Export replaces files with the same name, including the feed.";
 
 /**
  * What a share link sees of Deliver: the Podcast listing, and for an Editor link the files the
@@ -45,6 +55,17 @@ export function GuestDeliver({ loadFailure }: Props) {
     refreshKey: project?.history.head_id,
     watchGuestPublication: state === "ready" && canDownload,
   });
+  const guestExport = useGuestExport(canDownload ? projectPath : null, files);
+  const exportOff = files.guestRender === false;
+  const exportReason = exportOff
+    ? EXPORT_OFF
+    : files.exporting
+      ? RUNNING_REASON
+      : guestExport.starting
+        ? EXPORT_STARTING
+        : undefined;
+  const exportNote = useDisabledReasonNote(exportReason, "dv-note");
+  const exportVerb = verbOf("export");
   return (
     <HostBody
       stage="deliver"
@@ -64,17 +85,31 @@ export function GuestDeliver({ loadFailure }: Props) {
                 <DeliverSection
                   title="Files"
                   action={
-                    files.archive ? (
-                      <ArchiveLink
-                        archive={files.archive}
+                    <div className="dv-section-actions">
+                      {files.archive ? (
+                        <ArchiveLink
+                          archive={files.archive}
+                          className="dv-file-action"
+                          iconSize={16}
+                          running={files.exporting}
+                          onStarted={files.onStarted}
+                        />
+                      ) : null}
+                      <Button
                         className="dv-file-action"
-                        iconSize={16}
-                        running={files.exporting}
-                        onStarted={files.onStarted}
-                      />
-                    ) : undefined
+                        disabledReason={exportReason}
+                        {...exportNote.describedBy}
+                        onClick={guestExport.start}
+                      >
+                        <SystemIcon name={iconOf("export")} size={16} />
+                        {exportVerb.label}
+                      </Button>
+                    </div>
                   }
                 >
+                  {exportNote.note}
+                  <p className="dv-note">{EXPORT_REPLACES}</p>
+                  <InlineError origin="state" message={guestExport.error} />
                   {removedSeconds != null ? (
                     <p className="dv-note">
                       {hasCutsSaved(removedSeconds)
@@ -105,7 +140,9 @@ export function GuestDeliver({ loadFailure }: Props) {
                     </Button>
                   ) : null}
                   {files.currentLoad === "ready" && files.files.length === 0 ? (
-                    <p className="dv-note">{NO_FILES}</p>
+                    <p className="dv-note">
+                      {exportOff ? NO_FILES_ASK : NO_FILES_EXPORT}
+                    </p>
                   ) : null}
                   {files.files.length > 0 ? (
                     <ExportedFiles

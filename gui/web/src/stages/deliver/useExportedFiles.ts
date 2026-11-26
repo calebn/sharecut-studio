@@ -21,6 +21,8 @@ export type ExportedFilesData = {
   archive: ExportArchive | null;
   /** An export of the project is running; only a guest listing reports it. */
   exporting: boolean;
+  /** The host allows exports from this share link; null while unknown or for the host's own listing. */
+  guestRender: boolean | null;
   load: ExportedFilesLoad;
   currentLoad: ExportedFilesLoad;
   reload: () => void;
@@ -57,6 +59,10 @@ export function useExportedFiles(
     path: string;
     running: boolean;
   } | null>(null);
+  const [guestRender, setGuestRender] = useState<{
+    path: string;
+    allowed: boolean | null;
+  } | null>(null);
   const [settled, setSettled] = useState<{
     read: InventoryRead;
     load: "ready" | "error";
@@ -92,6 +98,7 @@ export function useExportedFiles(
               inventory: await listExportedFiles(path, signal),
               revision: null,
               exporting: false,
+              guestRender: null,
             };
         if (signal.aborted) return;
         if (result.inventory !== null)
@@ -101,12 +108,15 @@ export function useExportedFiles(
           running = result.exporting;
           setExporting({ path, running });
         }
+        if (result.guestRender !== null)
+          setGuestRender({ path, allowed: result.guestRender });
         if (mode === "foreground") setSettled({ read, load: "ready" });
       } catch (error) {
         if (signal.aborted || isAbortError(error)) return;
         if (mode === "foreground") {
           running = false;
           setExporting({ path, running: false });
+          setGuestRender({ path, allowed: null });
           setSettled({ read, load: "error" });
         }
       }
@@ -155,6 +165,7 @@ export function useExportedFiles(
     files,
     archive,
     exporting: exporting?.path === projectPath && exporting.running,
+    guestRender: guestRender?.path === projectPath ? guestRender.allowed : null,
     load: projectPath === null ? "loading" : (settled?.load ?? "loading"),
     currentLoad: settled?.read === read ? settled.load : "loading",
     reload,

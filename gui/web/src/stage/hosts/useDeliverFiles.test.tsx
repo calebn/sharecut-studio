@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   tauri: false,
   list: vi.fn(),
+  guest: vi.fn(),
   reveal: vi.fn(),
 }));
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => mocks.tauri }));
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   listExportedFiles: mocks.list,
+  readGuestExportedFiles: mocks.guest,
   revealExportedFile: mocks.reveal,
 }));
 
@@ -29,6 +31,7 @@ const ENTRY = {
 beforeEach(() => {
   mocks.tauri = false;
   mocks.list.mockReset().mockResolvedValue({ files: [ENTRY], archive: null });
+  mocks.guest.mockReset();
   mocks.reveal.mockReset().mockResolvedValue(undefined);
   useDawStore.setState({ statusMessage: null } as never);
 });
@@ -65,6 +68,22 @@ describe("useDeliverFiles", () => {
       "Download started. Check your downloads.",
       expect.anything(),
     );
+  });
+
+  it("passes on whether the host allows exports from the share link", async () => {
+    mocks.guest.mockResolvedValue({
+      inventory: { files: [ENTRY], archive: null },
+      revision: "first",
+      exporting: false,
+      guestRender: false,
+    });
+    const { result } = renderHook(() =>
+      useDeliverFiles("share:tok", {
+        access: "download",
+        watchGuestPublication: true,
+      }),
+    );
+    await waitFor(() => expect(result.current.guestRender).toBe(false));
   });
 
   it("reads nothing for a null path", () => {

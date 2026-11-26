@@ -15222,7 +15222,7 @@
     },
     "/api/review/{token}/daw/export/files": {
       "get": {
-        "description": "List exports and whether one is running, or only a revision when neither changed.",
+        "description": "List exports, whether one is running and whether this link may start one, or only a revision.",
         "parameters": [
           {
             "in": "path",

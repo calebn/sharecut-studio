@@ -149,7 +149,7 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
     ),
     ("GET", "/api/review/{token}/daw/export/files"): (
         "Editor",
-        "List the exported files by opaque id, name, kind, label, size, whether they are current and whether an export started in this server process is running (one started from the CLI or stdio MCP in another process is not seen; no host paths, works with PODCAST_GUEST_RENDER off)",
+        "List the exported files by opaque id, name, kind, label, size, whether they are current and whether an export started in this server process is running (one started from the CLI or stdio MCP in another process is not seen) and whether the host allows exports from share links (no host paths, works with PODCAST_GUEST_RENDER off)",
     ),
     ("GET", "/api/review/{token}/daw/export/files/{file_id}"): (
         "Editor",

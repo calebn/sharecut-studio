@@ -723,7 +723,11 @@ The listing also carries `exporting`, true while an export of the project runs i
 that makes a download answer 409 `export_running`). An export started from the CLI or the stdio MCP in
 another process is not seen: `exporting` stays false, the rows stay enabled, and a download then answers
 whatever the server answers. The poll revision includes it, so a visible Files page
-sees the flip without a file change. While it is true the rows and Download all are disabled with
+sees the flip without a file change. The listing also carries `guest_render`, whether the host has turned on
+`PODCAST_GUEST_RENDER` (the check behind the 403 on the start), read on every request and part of the poll revision.
+The Files section offers an Export button for an Editor, also with an empty list: it posts an empty body so the
+host's formats apply, is disabled with a reason while `guest_render` is false or an export runs, and reads the
+export status once when an export ends to say a failure in fixed copy. While it is true the rows and Download all are disabled with
 “Exporting now. Download when it finishes.” and the page polls every 5 seconds instead of 30.
 Both are Editor twins in `GUEST_OWNER_ROUTES` on the `read` rate bucket and need no
 `PODCAST_GUEST_RENDER`, since they only read files the host already made (the listing re-renders

@@ -82,6 +82,7 @@ export async function listExportedFiles(
 type GuestInventory = Parameters<typeof inventoryOf>[0] & {
   revision?: string;
   exporting?: boolean;
+  guest_render?: boolean;
 };
 
 export async function readGuestExportedFiles(
@@ -92,6 +93,7 @@ export async function readGuestExportedFiles(
   inventory: ExportedInventory | null;
   revision: string | null;
   exporting: boolean | null;
+  guestRender: boolean | null;
 }> {
   const res = await apiFetch(
     projectKey,
@@ -102,9 +104,15 @@ export async function readGuestExportedFiles(
   const revision = typeof body.revision === "string" ? body.revision : null;
   const inventory = inventoryOf(body);
   if (inventory !== null)
-    return { inventory, revision, exporting: body.exporting === true };
+    return {
+      inventory,
+      revision,
+      exporting: body.exporting === true,
+      guestRender:
+        typeof body.guest_render === "boolean" ? body.guest_render : null,
+    };
   if (after && revision === after)
-    return { inventory: null, revision, exporting: null };
+    return { inventory: null, revision, exporting: null, guestRender: null };
   throw new Error(UNREADABLE);
 }
 

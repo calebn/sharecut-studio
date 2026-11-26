@@ -54,6 +54,12 @@
   gap: var(--space-3);
 }
 
+.dv-section-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .dv-section-title {
   margin: 0;
   font-size: var(--font-size-heading);

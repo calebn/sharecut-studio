@@ -173,7 +173,7 @@ describe("StageHost gating", () => {
       await screen.findByRole("link", { name: /^Download ep\.mp3/ }),
     ).toHaveAttribute("href", "/api/review/abc/daw/export/files/ep.mp3");
     expect(screen.queryByText("Episode file")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/review/abc/feed",
       expect.anything(),

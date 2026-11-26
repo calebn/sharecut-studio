@@ -859,6 +859,29 @@ def test_an_editor_listing_says_whether_an_export_runs_and_the_poll_sees_it_flip
     assert finished["revision"] == rest_revision
 
 
+def test_an_editor_listing_says_whether_the_host_allows_exports_and_the_poll_sees_it_flip(
+    world, monkeypatch
+) -> None:
+    base = GUEST.format(token=world.tokens["editor"])
+    monkeypatch.delenv("PODCAST_GUEST_RENDER", raising=False)
+
+    off = world.client.get(base).json()
+    off_revision = world.client.get(base, params={"after": ""}).json()
+    assert off["guest_render"] is False and off_revision["guest_render"] is False
+    assert world.client.get(base, params={"after": off_revision["revision"]}).json() == {
+        "revision": off_revision["revision"]
+    }
+
+    monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
+    flipped = world.client.get(base, params={"after": off_revision["revision"]}).json()
+    assert flipped["guest_render"] is True
+    assert flipped["revision"] != off_revision["revision"]
+    assert world.client.get(base).json()["guest_render"] is True
+    assert world.client.get(base, params={"after": flipped["revision"]}).json() == {
+        "revision": flipped["revision"]
+    }
+
+
 @pytest.fixture
 def one_stream_per_link(monkeypatch):
     monkeypatch.setenv("PODCAST_RATE_LIMIT", "1")

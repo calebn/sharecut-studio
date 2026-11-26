@@ -2,10 +2,16 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const listed = vi.hoisted(() => ({ list: vi.fn() }));
+const listed = vi.hoisted(() => ({
+  list: vi.fn(),
+  start: vi.fn(),
+  failed: vi.fn(),
+}));
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   readGuestExportedFiles: listed.list,
+  startGuestExport: listed.start,
+  guestExportFailed: listed.failed,
 }));
 vi.mock("../../stages/deliver/FeedPanel", () => ({ FeedPanel: () => null }));
 
@@ -14,6 +20,7 @@ import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
+import { ApiError } from "../../utils/apiError";
 import { GuestDeliver } from "./GuestDeliver";
 
 const FILES = [
@@ -60,7 +67,11 @@ beforeEach(() => {
   listed.list.mockReset().mockResolvedValue({
     inventory: { files: FILES, archive: ARCHIVE },
     revision: "first",
+    exporting: false,
+    guestRender: true,
   });
+  listed.start.mockReset().mockResolvedValue(undefined);
+  listed.failed.mockReset().mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -107,6 +118,23 @@ describe("GuestDeliver files", () => {
     listed.list.mockResolvedValue({
       inventory: { files: [], archive: null },
       revision: "first",
+    });
+    asGuest("edit");
+    render(<GuestDeliver />);
+    expect(
+      await screen.findByText(
+        "No exported files yet. Use Export to make them.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Export" })).toBeEnabled();
+  });
+
+  it("sends the Editor to the host instead when exports from share links are off", async () => {
+    listed.list.mockResolvedValue({
+      inventory: { files: [], archive: null },
+      revision: "first",
+      exporting: false,
+      guestRender: false,
     });
     asGuest("edit");
     render(<GuestDeliver />);
@@ -178,6 +206,133 @@ describe("GuestDeliver files", () => {
       expect(listed.list).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("GuestDeliver export", () => {
+  const exportButton = () => screen.getByRole("button", { name: "Export" });
+
+  it("gives an Editor an Export button and says what it replaces", async () => {
+    asGuest("edit");
+    render(<GuestDeliver />);
+    await screen.findByRole("link", { name: /^Download ep\.mp3/ });
+    expect(exportButton()).toBeEnabled();
+    expect(
+      screen.getByText(
+        "Export replaces files with the same name, including the feed.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it.each(["comment", "view"] as const)("shows a %s link no Export", (mode) => {
+    asGuest(mode);
+    render(<GuestDeliver />);
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+    expect(screen.queryByText(/replaces files with the same name/)).toBeNull();
+  });
+
+  it("disables Export with the reason when the host has not turned exports on", async () => {
+    listed.list.mockResolvedValue({
+      inventory: { files: FILES, archive: ARCHIVE },
+      revision: "first",
+      exporting: false,
+      guestRender: false,
+    });
+    asGuest("edit");
+    render(<GuestDeliver />);
+    await screen.findByRole("link", { name: /^Download ep\.mp3/ });
+    expect(exportButton()).toBeDisabled();
+    expect(
+      screen.getByText("The host has not turned on exports from share links."),
+    ).toBeInTheDocument();
+    await userEvent.click(exportButton());
+    expect(listed.start).not.toHaveBeenCalled();
+  });
+
+  it("disables Export with the reason while an export runs", async () => {
+    listed.list.mockResolvedValue({
+      inventory: { files: FILES, archive: ARCHIVE },
+      revision: "first",
+      exporting: true,
+      guestRender: true,
+    });
+    asGuest("edit");
+    render(<GuestDeliver />);
+    await screen.findByRole("button", { name: /^Download ep\.mp3/ });
+    expect(exportButton()).toBeDisabled();
+    expect(exportButton()).toHaveAttribute(
+      "title",
+      "Exporting now. Download when it finishes.",
+    );
+  });
+
+  it("starts one export, shows Starting export. until the files read settles, then Exporting now.", async () => {
+    let finishRead!: (value: unknown) => void;
+    asGuest("edit");
+    render(<GuestDeliver />);
+    await screen.findByRole("link", { name: /^Download ep\.mp3/ });
+
+    listed.list.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishRead = resolve;
+        }),
+    );
+    await userEvent.dblClick(exportButton());
+    expect(listed.start).toHaveBeenCalledTimes(1);
+    expect(listed.start).toHaveBeenCalledWith(shareProjectKey("tok123"));
+    expect(exportButton()).toBeDisabled();
+    expect(screen.getByText("Starting export.")).toBeInTheDocument();
+
+    finishRead({
+      inventory: { files: FILES, archive: ARCHIVE },
+      revision: "second",
+      exporting: true,
+      guestRender: true,
+    });
+    expect(
+      (await screen.findAllByText("Exporting now. Download when it finishes."))
+        .length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText("Starting export.")).toBeNull();
+  });
+
+  it.each([
+    [409, "job_running", "Another job is running. Try again shortly."],
+    [
+      403,
+      "share_capability_required",
+      "Exports from this link are not allowed.",
+    ],
+    [429, null, "Too many requests. Try again soon."],
+  ])(
+    "shows fixed copy for a %s refusal and keeps Export usable",
+    async (status, code, copy) => {
+      listed.start.mockRejectedValueOnce(
+        new ApiError("host words that must not show", code, status),
+      );
+      asGuest("edit");
+      render(<GuestDeliver />);
+      await screen.findByRole("link", { name: /^Download ep\.mp3/ });
+      await userEvent.click(exportButton());
+      expect(await screen.findByText(copy)).toBeInTheDocument();
+      expect(screen.queryByText("host words that must not show")).toBeNull();
+      expect(exportButton()).toBeEnabled();
+    },
+  );
+
+  it("says a failed export did not finish, with fixed copy", async () => {
+    listed.failed.mockResolvedValue(true);
+    asGuest("edit");
+    render(<GuestDeliver />);
+    await screen.findByRole("link", { name: /^Download ep\.mp3/ });
+    await userEvent.click(exportButton());
+    expect(
+      await screen.findByText(
+        "The export did not finish. Try again, or ask the host.",
+      ),
+    ).toBeInTheDocument();
+    expect(listed.failed).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("GuestDeliver cut total", () => {
