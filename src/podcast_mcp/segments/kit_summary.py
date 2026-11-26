@@ -112,19 +112,27 @@ def show_kit(kits: KitStore, segments: SegmentStore, kit_id: str) -> dict[str, A
 
 
 def kit_rows(kits: KitStore, segments: SegmentStore) -> list[dict[str, Any]]:
-    """The newest version of each kit, then a ``damaged`` row for each unreadable one."""
+    """The newest version of each kit, then a ``damaged`` row for each unreadable one.
+
+    ``usable`` is the cheap read the episode offer uses (every entry resolves and reads, no
+    audio is hashed); ``problem`` is the first entry that fails, or ``None``.
+    """
     listing = kits.scan()
-    rows = [
-        {
-            "id": k.id,
-            "name": k.name,
-            "version": k.version,
-            "versions": list(kits.versions(k.id)),
-            "entries": len(k.entries),
-            "missing": len(find_missing(k, segments)),
-        }
-        for k in listing.kits
-    ]
+    rows: list[dict[str, Any]] = []
+    for k in listing.kits:
+        failing, _ = failing_entries(k, segments)
+        rows.append(
+            {
+                "id": k.id,
+                "name": k.name,
+                "version": k.version,
+                "versions": list(kits.versions(k.id)),
+                "entries": len(k.entries),
+                "missing": len(find_missing(k, segments)),
+                "usable": not failing,
+                "problem": failing[0].problem if failing else None,
+            }
+        )
     rows += [
         {"id": d.id, "damaged": True, "version": d.version, "problem": d.problem, "code": d.code}
         for d in listing.damaged

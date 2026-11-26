@@ -286,37 +286,44 @@ class KitStore:
         result is ``skipped`` (naming the newest stored version). ``unchanged`` means the
         newest stored version has these entries.
         """
+        with self._lock():
+            plan = self.plan(kit, keep_existing=keep_existing)
+            if plan.status in ("unchanged", "skipped"):
+                return plan
+            self._install(kit.model_copy(update={"version": plan.version}))
+            return plan
+
+    def plan(self, kit: KitFile, *, keep_existing: bool = False) -> KitAddResult:
+        """What :meth:`add` would do with ``kit``, without writing anything or taking the lock."""
         if kit.id != kit_id_for(kit.name):
             raise CodedValueError(
                 f"The kit id {kit.id!r} does not match its name {kit.name!r}.", code="kit_invalid"
             )
-        with self._lock():
-            versions = self.versions(kit.id)
-            newest: KitFile | None = None
-            readable = 0
-            for version in reversed(versions):
-                try:
-                    stored = self._read(self.directory / kit.id / f"v{version}")
-                except CodedValueError:
-                    continue
-                readable += 1
-                newest = newest or stored
-            # Only the newest version counts as "the same": it is the one `kit apply` uses, so
-            # saving an older list again is a new version, not a report of an old one.
-            if newest is not None:
-                if newest.name != kit.name:
-                    raise CodedValueError(
-                        f"The kit {kit.id} is called {newest.name!r}, not {kit.name!r}.",
-                        code="kit_invalid",
-                    )
-                if newest.version == versions[-1] and newest.content_sha256 == kit.content_sha256:
-                    return KitAddResult("unchanged", newest.id, newest.version)
-            if readable and keep_existing:
-                return KitAddResult("skipped", kit.id, versions[-1])
-            number = (versions[-1] if versions else 0) + 1
-            stored = kit.model_copy(update={"version": number})
-            self._install(stored)
-            return KitAddResult("new_version" if versions else "added", stored.id, number)
+        versions = self.versions(kit.id)
+        newest: KitFile | None = None
+        readable = 0
+        for version in reversed(versions):
+            try:
+                stored = self._read(self.directory / kit.id / f"v{version}")
+            except CodedValueError:
+                continue
+            readable += 1
+            newest = newest or stored
+        # Only the newest version counts as "the same": it is the one `kit apply` uses, so
+        # saving an older list again is a new version, not a report of an old one.
+        if newest is not None:
+            if newest.name != kit.name:
+                raise CodedValueError(
+                    f"The kit {kit.id} is called {newest.name!r}, not {kit.name!r}.",
+                    code="kit_invalid",
+                )
+            if newest.version == versions[-1] and newest.content_sha256 == kit.content_sha256:
+                return KitAddResult("unchanged", newest.id, newest.version)
+        if readable and keep_existing:
+            return KitAddResult("skipped", kit.id, versions[-1])
+        return KitAddResult(
+            "new_version" if versions else "added", kit.id, (versions[-1] if versions else 0) + 1
+        )
 
     def _install(self, kit: KitFile) -> None:
         folder = self.directory / kit.id

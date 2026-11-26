@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import secrets
 import zipfile
 import zlib
 from collections.abc import Sequence
@@ -17,8 +18,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any, Literal
 
+from podcast_mcp.segments import bundle
 from podcast_mcp.segments.bundle import (
     MANIFEST,
+    MAX_BUNDLE_BYTES,
     MAX_MANIFEST_BYTES,
     _checked_entries,
     _invalid,
@@ -30,6 +33,7 @@ from podcast_mcp.segments.kit import (
     KIT_JSON,
     MAX_KIT_ENTRIES,
     KitAddResult,
+    KitEntry,
     KitFile,
     KitStore,
     kit_id_for,
@@ -45,7 +49,7 @@ from podcast_mcp.segments.model import (
     segment_id_for,
 )
 from podcast_mcp.segments.store import AddResult, SegmentStore, sha256_file
-from podcast_mcp.util.atomic_file import atomic_write
+from podcast_mcp.util.atomic_file import atomic_write, publish_completed_file
 from podcast_mcp.util.coded_error import CodedValueError
 
 # 32 segments, each a segment.json and a few audio files (the manifest holds ~330 lines).
@@ -91,7 +95,12 @@ class KitImportResult:
 
 
 def export_kit(kits: KitStore, segments: SegmentStore, kit_id: str, out_path: Path) -> Path:
-    """Write the newest version of a kit and the segment versions it uses to ``out_path``."""
+    """Write the newest version of a kit and the segment versions it uses to ``out_path``.
+
+    The file is built beside ``out_path`` and checked as an import checks it (entry count,
+    sizes, ratio, total size); only then does it replace ``out_path``, so a refused export
+    leaves an existing file there alone and the app never writes a file its own import refuses.
+    """
     kit = kits.get(kit_id)
     missing = find_missing(kit, segments)
     if missing:
@@ -103,6 +112,13 @@ def export_kit(kits: KitStore, segments: SegmentStore, kit_id: str, out_path: Pa
         if (segment.id, segment.version) not in seen:
             seen.add((segment.id, segment.version))
             members.append((segment, segments.path(segment.id, segment.version)))
+    for segment, _ in members:
+        if len(segment.media) + 1 > MEMBER_MAX_FILES:
+            raise _bundle_error(
+                f"The segment {segment.name!r} has more audio files than a kit file can hold "
+                f"({MEMBER_MAX_FILES - 1}). Use fewer clips.",
+                "kit_bundle_too_large",
+            )
     files: list[tuple[str, Path | str]] = [(KIT_JSON, kit_json(kit))]
     for index, (segment, folder) in enumerate(members, start=1):
         for name in [SEGMENT_JSON, *sorted(segment.media)]:
@@ -121,8 +137,40 @@ def export_kit(kits: KitStore, segments: SegmentStore, kit_id: str, out_path: Pa
                     archive.writestr(name, source)
             archive.writestr(MANIFEST, manifest)
 
+    part = out_path.with_name(f".{out_path.name}.{secrets.token_hex(8)}.part")
     try:
-        return atomic_write(out_path, fill, creation_mode=0o644)
+        written = atomic_write(part, fill, creation_mode=0o644)
+        size = written.stat().st_size
+    except OSError as exc:
+        raise _bundle_error(
+            f"{out_path} could not be written: {exc.strerror or exc}.", "kit_write_failed"
+        ) from exc
+    try:
+        with zipfile.ZipFile(written) as made:
+            _checked_entries(
+                made,
+                max_entries=BUNDLE_MAX_FILES,
+                name_ok=_name_ok,
+                json_names=[KIT_JSON, *(n for n, _ in files if n.endswith(f"__{SEGMENT_JSON}"))],
+                prefix=_PREFIX,
+                ratio_floor=_KIT_RATIO_FLOOR,
+            )
+    except CodedValueError as exc:
+        written.unlink(missing_ok=True)
+        raise _bundle_error(
+            f"The kit {kit.name!r} cannot be exported as one file: {exc} "
+            "Use fewer or shorter clips.",
+            "kit_bundle_too_large",
+        ) from exc
+    if size > MAX_BUNDLE_BYTES:
+        written.unlink(missing_ok=True)
+        raise _bundle_error(
+            f"The kit {kit.name!r} is {size // 1024**2} MiB as a file, more than the "
+            f"{MAX_BUNDLE_BYTES // 1024**2} MiB a kit file can hold. Use fewer or shorter clips.",
+            "kit_bundle_too_large",
+        )
+    try:
+        return publish_completed_file(written, out_path)
     except OSError as exc:
         raise _bundle_error(
             f"{out_path} could not be written: {exc.strerror or exc}.", "kit_write_failed"
@@ -141,6 +189,7 @@ def _as_kit_error(exc: CodedValueError) -> CodedValueError:
         "segment_schema_unsupported": "kit_schema_unsupported",
         "segment_hash_mismatch": "kit_hash_mismatch",
         "segment_busy": "kit_busy",
+        "segment_no_room": "kit_no_room",
         "segment_write_failed": "kit_write_failed",
     }.get(exc.code)
     return CodedValueError(str(exc), code=mapped) if mapped else exc
@@ -163,30 +212,64 @@ def _check_small(name: str, data: bytes, hashes: dict[str, str]) -> None:
         raise _bundle_error(f"{name} does not match its hash in {MANIFEST}.", "kit_hash_mismatch")
 
 
-def import_kit_bundle(
-    kits: KitStore,
-    segments: SegmentStore,
-    path: Path,
-    *,
-    on_conflict: ConflictPolicy = "new-version",
-) -> KitImportResult:
-    """Check a ``.sharecutkit`` file, add its missing segments, then add the kit.
+class KitImportIncomplete(CodedValueError):
+    """A kit import that stopped after some of its segments were added.
+
+    ``code`` is the refusal that stopped it (``kit_busy``, ``kit_no_room``, ``kit_write_failed``,
+    ...). ``added`` holds the segments this import put in the library; the kit was not saved,
+    so importing the same file again finishes the job and adds nothing twice.
+    """
+
+    def __init__(self, message: str, *, code: str, added: Sequence[AddResult], total: int) -> None:
+        super().__init__(message, code=code)
+        self.added = list(added)
+        self.total = total
+
+
+@dataclass(frozen=True)
+class _Verified:
+    kit: KitFile
+    members: list[_Member]
+    mapped: list[tuple[str, int]]
+
+
+@dataclass(frozen=True)
+class PlannedSegment:
+    segment: SegmentFile
+    plan: AddResult
+
+
+@dataclass(frozen=True)
+class PlannedEntry:
+    position: int
+    entry: KitEntry
+    planned: PlannedSegment
+
+
+@dataclass(frozen=True)
+class KitPreview:
+    """A checked kit file: what each segment and the kit would become, nothing written."""
+
+    kit: KitFile
+    segments: Sequence[PlannedSegment]
+    entries: Sequence[PlannedEntry]
+    plan: KitAddResult
+
+
+def _verify_kit_bundle(path: Path, root: Path) -> _Verified:
+    """Check every entry, name and hash of ``path`` and unpack its segments under ``root``.
 
     Order: headers, then ``kit.json``, the manifest and every ``segment.json`` are read
     straight from the zip and checked against each other (every member must be named by a
     kit entry, every entry must find its member); only then is audio unpacked, with a budget
-    of the declared sizes, and hashed. The library is written only after all of that holds.
-    Segments land with the library's own dedupe (``unchanged`` / ``new_version``). The kit is
-    stored as the next version when its id exists with other entries (``new-version``) or
-    left alone (``skip``). Importing the same file again changes nothing. A pinned version
-    in the file is rewritten to the version the segment has in this library.
+    of the declared sizes, and hashed. Nothing outside ``root`` is written. The import and
+    the Studio preview both run this, so a file the preview accepts is a file the import accepts.
     """
-    conflict_policy(on_conflict)
     try:
         archive = zipfile.ZipFile(path)
     except (OSError, zipfile.BadZipFile) as exc:
         raise _bundle_error(f"{path.name} is not a kit bundle.") from exc
-    with archive, _staging_dir(_PREFIX) as staging:
+    with archive:
         json_names = [
             info.filename
             for info in archive.infolist()
@@ -214,8 +297,11 @@ def import_kit_bundle(
         stray = [m.index for m in members if (m.segment.id, m.segment.version) not in set(mapped)]
         if stray:
             raise _bundle_error(f"The bundle holds segment {stray[0]} that no kit entry names.")
-        root = Path(staging)
         budget = sum(info.file_size for info in entries.values())
+        if bundle.free_bytes(root) < budget:
+            raise _bundle_error(
+                "There is not enough free disk space to check this file.", "kit_no_room"
+            )
         try:
             for name, info in entries.items():
                 if (match := _MEMBER.fullmatch(name)) is None:
@@ -225,38 +311,134 @@ def import_kit_bundle(
                 budget -= _unpack(archive, info, dest, budget, _PREFIX)
         except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError) as exc:
             raise _bundle_error(f"{path.name} cannot be unpacked.") from exc
-        for name, expected in hashes.items():
-            if (match := _MEMBER.fullmatch(name)) is None:
-                continue
-            source = root / f"seg{match.group(1)}" / match.group(2)
-            if sha256_file(source) != expected:
-                raise _bundle_error(
-                    f"{name} does not match its hash in {MANIFEST}.", "kit_hash_mismatch"
+    for name, expected in hashes.items():
+        if (match := _MEMBER.fullmatch(name)) is None:
+            continue
+        source = root / f"seg{match.group(1)}" / match.group(2)
+        if sha256_file(source) != expected:
+            raise _bundle_error(
+                f"{name} does not match its hash in {MANIFEST}.", "kit_hash_mismatch"
+            )
+    return _Verified(kit, members, mapped)
+
+
+def _rewritten(verified: _Verified, results: dict[tuple[str, int], AddResult]) -> KitFile:
+    """The kit with each entry pointed at the segment version this library has (or will have)."""
+    return verified.kit.model_copy(
+        update={
+            "entries": [
+                entry.model_copy(
+                    update={
+                        "segment_id": results[verified.mapped[i]].id,
+                        "version": results[verified.mapped[i]].version if entry.version else None,
+                    }
                 )
-        # Everything is checked; from here on only the library is written.
+                for i, entry in enumerate(verified.kit.entries)
+            ]
+        }
+    )
+
+
+def _incomplete(exc: CodedValueError, results: Sequence[AddResult], total: int) -> CodedValueError:
+    landed = [r for r in results if r.status != "unchanged"]
+    if not landed:
+        return exc
+    return KitImportIncomplete(
+        f"{exc} {len(landed)} of {total} segments were added to your library before this "
+        "stopped, and the kit was not saved. Try again to finish.",
+        code=exc.code,
+        added=landed,
+        total=total,
+    )
+
+
+def import_kit_bundle(
+    kits: KitStore,
+    segments: SegmentStore,
+    path: Path,
+    *,
+    on_conflict: ConflictPolicy = "new-version",
+) -> KitImportResult:
+    """Check a ``.sharecutkit`` file, add its missing segments, then add the kit.
+
+    The library is written only after :func:`_verify_kit_bundle` holds. Segments land with
+    the library's own dedupe (``unchanged`` / ``new_version``). The kit is stored as the next
+    version when its id exists with other entries (``new-version``) or left alone (``skip``).
+    Importing the same file again changes nothing. A pinned version in the file is rewritten
+    to the version the segment has in this library. When a segment or the kit cannot be
+    written after earlier segments landed, :class:`KitImportIncomplete` names those segments
+    and the same file can be imported again to finish.
+    """
+    conflict_policy(on_conflict)
+    with _staging_dir(_PREFIX) as staging:
+        root = Path(staging)
+        verified = _verify_kit_bundle(path, root)
         added: dict[tuple[str, int], AddResult] = {}
         results: list[AddResult] = []
-        for member in members:
+        for member in verified.members:
             try:
                 result = segments.add(root / f"seg{member.index}")
             except CodedValueError as exc:
-                raise _as_kit_error(exc) from exc
+                raise _incomplete(_as_kit_error(exc), results, len(verified.members)) from exc
             added[(member.segment.id, member.segment.version)] = result
             results.append(result)
-        stored = kit.model_copy(
-            update={
-                "entries": [
-                    entry.model_copy(
-                        update={
-                            "segment_id": added[mapped[i]].id,
-                            "version": added[mapped[i]].version if entry.version else None,
-                        }
-                    )
-                    for i, entry in enumerate(kit.entries)
-                ]
-            }
-        )
-        return KitImportResult(kits.add(stored, keep_existing=on_conflict == "skip"), results)
+        try:
+            kit_result = kits.add(_rewritten(verified, added), keep_existing=on_conflict == "skip")
+        except CodedValueError as exc:
+            raise _incomplete(exc, results, len(verified.members)) from exc
+        return KitImportResult(kit_result, results)
+
+
+def _plan_segments(segments: SegmentStore, members: Sequence[_Member]) -> list[AddResult]:
+    """What adding each member in order would do, each seeing the ones planned before it."""
+    plans: list[AddResult] = []
+    by_content: dict[str, AddResult] = {}
+    newest: dict[str, int] = {}
+    for member in members:
+        try:
+            plan = segments.plan_add(member.segment)
+        except CodedValueError as exc:
+            raise _as_kit_error(exc) from exc
+        if plan.status != "unchanged":
+            earlier = by_content.get(member.segment.content_sha256)
+            if earlier is not None:
+                plan = AddResult("unchanged", earlier.id, earlier.version)
+            else:
+                version = max(plan.version, newest.get(plan.id, 0) + 1)
+                plan = AddResult("new_version" if version > 1 else "added", plan.id, version)
+                by_content[member.segment.content_sha256] = plan
+                newest[plan.id] = version
+        plans.append(plan)
+    return plans
+
+
+def preview_kit_bundle(
+    kits: KitStore,
+    segments: SegmentStore,
+    path: Path,
+    *,
+    on_conflict: ConflictPolicy = "new-version",
+) -> KitPreview:
+    """What :func:`import_kit_bundle` would do with ``path``: every check runs, nothing is written."""
+    conflict_policy(on_conflict)
+    with _staging_dir(_PREFIX) as staging:
+        verified = _verify_kit_bundle(path, Path(staging))
+    plans = _plan_segments(segments, verified.members)
+    planned = [PlannedSegment(m.segment, p) for m, p in zip(verified.members, plans, strict=True)]
+    by_key = {
+        (m.segment.id, m.segment.version): p for m, p in zip(verified.members, plans, strict=True)
+    }
+    stored = _rewritten(verified, by_key)
+    by_member = {
+        (m.segment.id, m.segment.version): item
+        for m, item in zip(verified.members, planned, strict=True)
+    }
+    entries = [
+        PlannedEntry(position, entry, by_member[verified.mapped[position - 1]])
+        for position, entry in enumerate(verified.kit.entries, start=1)
+    ]
+    plan = kits.plan(stored, keep_existing=on_conflict == "skip")
+    return KitPreview(verified.kit, planned, entries, plan)
 
 
 def _checked_kit(raw: bytes) -> KitFile:
