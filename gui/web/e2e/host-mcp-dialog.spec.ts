@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { COPY_FAILED_MESSAGE } from "../src/stage/dialogs/hostMcp";
 import { openDialogFromMenu, openHostProject } from "./overlayReachability";
 
@@ -13,6 +13,40 @@ const SHELLS = [
   { name: "desktop 1280x800", width: 1280, height: 800, touch: false },
   { name: "iPhone 390x844 touch", width: 390, height: 844, touch: true },
 ] as const;
+
+const WINDOW_MS = 2000;
+
+type Box = { x: number; y: number; width: number; height: number };
+
+/** The footer row and the snippet textarea: the two boxes a status change must not move. */
+async function layoutBoxes(dialog: Locator) {
+  const footer = await dialog.locator(".share-dialog-actions").boundingBox();
+  const textarea = await dialog.getByLabel("Cursor snippet").boundingBox();
+  return { footer: footer as Box, textarea: textarea as Box };
+}
+
+/** The dialog slides in; measure only once two reads in a row agree, so the open motion is not a "move". */
+async function settledLayoutBoxes(dialog: Locator) {
+  let last = JSON.stringify(await layoutBoxes(dialog));
+  await expect
+    .poll(async () => {
+      const now = JSON.stringify(await layoutBoxes(dialog));
+      const stable = now === last;
+      last = now;
+      return stable;
+    })
+    .toBe(true);
+  return layoutBoxes(dialog);
+}
+
+function expectSameBox(actual: Box, expected: Box, label: string) {
+  for (const key of ["x", "y", "width", "height"] as const) {
+    expect(
+      Math.abs(actual[key] - expected[key]),
+      `${label}.${key}`,
+    ).toBeLessThanOrEqual(1);
+  }
+}
 
 async function openConnectAgent(page: Page) {
   await openHostProject(page);
@@ -84,10 +118,16 @@ for (const shell of SHELLS) {
       page,
     }) => {
       const dialog = await openConnectAgent(page);
+      const before = await settledLayoutBoxes(dialog);
       await dialog
         .getByRole("button", { name: "Copy URL", exact: true })
         .click();
       await expect(dialog.getByText("Copied MCP URL")).toBeVisible();
+      await expect(dialog.getByRole("status")).toHaveText("Copied MCP URL");
+      await expect(dialog.getByRole("alert")).toHaveCount(0);
+      const during = await layoutBoxes(dialog);
+      expectSameBox(during.footer, before.footer, "footer");
+      expectSameBox(during.textarea, before.textarea, "textarea");
       await expect(
         dialog.getByRole("button", { name: "Copied", exact: true }),
       ).toBeVisible();
@@ -101,6 +141,10 @@ for (const shell of SHELLS) {
       await expect(
         dialog.getByRole("button", { name: "Copy URL", exact: true }),
       ).toBeVisible();
+      await expect(dialog.getByRole("status")).toHaveText("");
+      const after = await layoutBoxes(dialog);
+      expectSameBox(after.footer, before.footer, "footer after clear");
+      expectSameBox(after.textarea, before.textarea, "textarea after clear");
     });
 
     test("a refused copy says one plain thing that fits the screen", async ({
@@ -108,11 +152,37 @@ for (const shell of SHELLS) {
     }) => {
       await denyClipboard(page);
       const dialog = await openConnectAgent(page);
-      await dialog
-        .getByRole("button", { name: "Copy snippet", exact: true })
-        .click();
+      const before = await settledLayoutBoxes(dialog);
+      const pressed = dialog.getByRole("button", {
+        name: "Copy snippet",
+        exact: true,
+      });
+      await pressed.click();
+      const startedAt = Date.now();
       const message = dialog.getByText(COPY_FAILED_MESSAGE);
       await expect(message).toBeVisible();
+      await expect(pressed).toBeFocused();
+      await expect(dialog.getByRole("alert")).toHaveCount(1);
+      await expect(dialog.getByRole("alert")).toHaveText(COPY_FAILED_MESSAGE);
+      await expect(dialog.getByRole("status")).toHaveText("");
+      expect(
+        await dialog
+          .getByRole("alert")
+          .evaluate((el) => !el.closest("[aria-live], [role=status]")),
+      ).toBe(true);
+      const during = await layoutBoxes(dialog);
+      expectSameBox(during.footer, before.footer, "footer");
+      expectSameBox(during.textarea, before.textarea, "textarea");
+      // The failure is not on the 2 s timer: still there once the window has passed.
+      await expect
+        .poll(
+          async () =>
+            Date.now() - startedAt > WINDOW_MS + 500 &&
+            (await dialog.getByRole("alert").isVisible()),
+          { timeout: WINDOW_MS + 3000 },
+        )
+        .toBe(true);
+      await expect(dialog.getByRole("alert")).toHaveCount(1);
       await expect(dialog.getByText(/denied|NotAllowed/i)).toHaveCount(0);
       const box = (await message.boundingBox())!;
       const panel = (await dialog.boundingBox())!;
