@@ -15,6 +15,7 @@ from podcast_mcp.segments.kit_summary import resolve_kit
 from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.segment_insert import preview_segment_insert_on
+from podcast_mcp.services.document.segment_insert_results import SegmentInsertApplied
 from podcast_mcp.services.document_sync import submit_segment_insert
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
 
@@ -134,7 +135,7 @@ def submit_kit_apply(
                 "retrying can insert entries again."
             ) from exc
         applied.append({"position": position, "note": item.entry.note, **result.model_dump()})
-        head = result.history_head_id
+        head = result.history_head_id if isinstance(result, SegmentInsertApplied) else None
     final = ProjectWorkspace.open(project_path, adopt=False)
     return KitApplyReport(
         kit_id=kit.id,
