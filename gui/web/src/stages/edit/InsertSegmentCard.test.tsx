@@ -905,8 +905,6 @@ describe("InsertSegmentCard bottom", () => {
     render(<InsertSegmentCard {...data()} {...handlers} form="bottom" open />);
     await pick(/Cold open/);
     await screen.findByText(/Preview, from the saved episode/);
-    // The footer can be rebuilt once while the sheet settles, which drops
-    // focus; focus the button again and press Enter until the insert goes out.
     await waitFor(
       async () => {
         insertButton().focus();
