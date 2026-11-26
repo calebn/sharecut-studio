@@ -1277,7 +1277,7 @@ deploy/relay/
   docker-compose.yml      # caddy + relay (local dev / Compose smoke)
   docker-compose.prod.yml # optional production-shaped Compose example
   Caddyfile.local         # HTTP :8080 development reverse proxy
-  Caddyfile.prod          # HTTPS reverse-proxy example; logs redact share paths
+  Caddyfile.prod          # HTTPS reverse-proxy example; logs redact share tokens
 .github/workflows/
   deploy-config.yml       # caddy validate + docker compose config over deploy/ (scripts/check_deploy_config.sh)
   desktop.yml             # FOSS Tauri scaffold + web dist
@@ -1359,9 +1359,14 @@ with private paths and path-free diagnostic secrets.
   no expiry; prefer `--expires-at` on the CLI. Record shares are link-access only
   in this PR.
 - **TLS**: Caddy handles HTTPS on the public edge.  The relay never sees plaintext from
-  the public internet in production. Access logs redact `/r/{token}`, `/rec/{token}`, `/mcp/{token}`,
-  `/api/reports/{id}`, and `/api/reports/bundles/{id}`
-  path segments in both local and production Caddy configurations (see `deploy/relay/Caddyfile*`).
+  the public internet in production. Access logs redact the share token in
+  the request path (`/r/{token}`, `/rec/{token}`, `/mcp/{token}`, `/api/review/{token}`,
+  `/api/rec/{token}`, `/api/mcp/{token}`, `/api/reports/{id}` and `/api/reports/bundles/{id}`),
+  in any query after it, in the legacy notice-continue query
+  (`/api/relay/notice/continue?next=...`), in the `Referer` request header and in the
+  `Location` response header. The path prefix stays, for example `/r/-REDACTED/page`.
+  Both local and production Caddy configurations carry the same three rules (see
+  `deploy/relay/Caddyfile*`; `tests/test_relay_caddy_logs.py` checks them).
 - **No filesystem paths in URLs**: tokens map to workspaces internally; guests never
   see absolute paths.
 - **Diagnostics bundle**: host-only (`POST /api/diagnostics/bundle`). Guests cannot

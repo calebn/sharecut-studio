@@ -12,7 +12,9 @@
 		format filter {
 			wrap console
 			fields {
-				request>uri regexp ^(/r/|/rec/|/mcp/|/api/review/|/api/rec/|/api/mcp/|/api/reports/bundles/|/api/reports/)[^/]+ /$1REDACTED
+				request>uri regexp ^(https?://[^/?]+)?(?:(/r/|/rec/|/mcp/|/api/review/|/api/rec/|/api/mcp/|/api/reports/bundles/|/api/reports/)[^/?]*((?:/[^?]*)?)(?:\?.*)?|((?:/api/relay/notice/continue/?|/r|/rec|/mcp|/api/review|/api/rec|/api/mcp|/api/reports/bundles|/api/reports)\?).*) $1$2$4-REDACTED$3
+				request>headers>Referer regexp ^(https?://[^/?#]+)?(?:(/r/|/rec/|/mcp/|/api/review/|/api/rec/|/api/mcp/|/api/reports/bundles/|/api/reports/)[^/?#]*((?:/[^?#]*)?)(?:[?#].*)?|((?:/api/relay/notice/continue/?|/r|/rec|/mcp|/api/review|/api/rec|/api/mcp|/api/reports/bundles|/api/reports)\?).*) $1$2$4-REDACTED$3
+				resp_headers>Location regexp ^(https?://[^/?#]+)?(?:(/r/|/rec/|/mcp/|/api/review/|/api/rec/|/api/mcp/|/api/reports/bundles/|/api/reports/)[^/?#]*((?:/[^?#]*)?)(?:[?#].*)?|((?:/api/relay/notice/continue/?|/r|/rec|/mcp|/api/review|/api/rec|/api/mcp|/api/reports/bundles|/api/reports)\?).*) $1$2$4-REDACTED$3
 			}
 		}
 	}
