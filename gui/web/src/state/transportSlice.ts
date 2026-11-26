@@ -101,10 +101,12 @@ export const createTransportSlice: StateCreator<
   [],
   [],
   TransportSlice
-> = (set) => ({
+> = (set, get) => ({
   ...transportProjectInitial(),
   sourcePreviewGeneration: 0,
-  beginSourcePreview: (request) =>
+  beginSourcePreview: (request) => {
+    // Starting a source-preview Hear is strong local navigation: it ends follow.
+    get().stopFollow("local");
     set((s) => ({
       sourcePreview: {
         ...request,
@@ -115,7 +117,8 @@ export const createTransportSlice: StateCreator<
       sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       sourcePreviewPositionSec: request.startSec,
       sourcePreviewError: null,
-    })),
+    }));
+  },
   updateSourcePreview: (
     ownerId,
     generation,
