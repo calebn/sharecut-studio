@@ -87,6 +87,18 @@ describe("audition", () => {
     expect(play).toHaveBeenCalledTimes(1);
   });
 
+  it("plays the address a caller names, for every clip, instead of a library clip", () => {
+    const urlFor = (clip: number) =>
+      `/api/segments/import/tok/audio?clip=${clip}`;
+    toggleAudition(row("tok", 2), "a", urlFor);
+    const element = audioElement();
+    expect(element.src).toBe("/api/segments/import/tok/audio?clip=0");
+    act(() => {
+      element.dispatchEvent(new Event("ended"));
+    });
+    expect(element.src).toBe("/api/segments/import/tok/audio?clip=1");
+  });
+
   it("uses one shared element for every row", () => {
     toggleAudition(row("a"), "a");
     toggleAudition(row("b"), "a");

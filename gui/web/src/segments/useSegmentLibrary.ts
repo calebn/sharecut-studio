@@ -5,10 +5,16 @@ import { ApiError, errorMessage } from "../utils/apiError";
 export const SEGMENT_BUSY_MESSAGE =
   "Another action is using this segment. Try again.";
 
+export const HIGHLIGHT_MS = 4000;
+
 export type SegmentLibraryState = {
   rows: readonly SegmentListRow[] | null;
   error: string | null;
+  /** The row an import just added or matched; it clears itself. */
+  highlightId: string | null;
   reload: () => void;
+  /** Reloads the list and marks one row, which may not be in the list yet. */
+  reveal: (id: string) => void;
   remove: (id: string) => Promise<string | null>;
 };
 
@@ -16,7 +22,9 @@ export function useSegmentLibrary(enabled = true): SegmentLibraryState {
   const [rows, setRows] = useState<readonly SegmentListRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [round, setRound] = useState(0);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const gone = useRef(false);
+  const pending = useRef<string | null>(null);
 
   useEffect(() => {
     gone.current = false;
@@ -35,6 +43,10 @@ export function useSegmentLibrary(enabled = true): SegmentLibraryState {
         if (controller.signal.aborted) return;
         setRows(list);
         setLoadError(null);
+        if (pending.current !== null) {
+          setHighlightId(pending.current);
+          pending.current = null;
+        }
       })
       .catch((failure: unknown) => {
         if (controller.signal.aborted) return;
@@ -43,7 +55,18 @@ export function useSegmentLibrary(enabled = true): SegmentLibraryState {
     return () => controller.abort();
   }, [enabled, round]);
 
+  useEffect(() => {
+    if (highlightId === null) return;
+    const timer = window.setTimeout(() => setHighlightId(null), HIGHLIGHT_MS);
+    return () => window.clearTimeout(timer);
+  }, [highlightId]);
+
   const reload = useCallback(() => {
+    setRound((n) => n + 1);
+  }, []);
+
+  const reveal = useCallback((id: string) => {
+    pending.current = id;
     setRound((n) => n + 1);
   }, []);
 
@@ -67,5 +90,5 @@ export function useSegmentLibrary(enabled = true): SegmentLibraryState {
     return null;
   }, []);
 
-  return { rows, error: loadError, reload, remove };
+  return { rows, error: loadError, highlightId, reload, reveal, remove };
 }

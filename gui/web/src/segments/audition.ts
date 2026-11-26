@@ -13,6 +13,7 @@ type Playing = {
   version: number;
   clips: number;
   clip: number;
+  urlFor?: (clip: number) => string;
 };
 
 const IDLE: AuditionState = { playingId: null, failedId: null, owner: null };
@@ -52,7 +53,9 @@ function fail(id: string, owner: string): void {
 }
 
 function start(element: HTMLAudioElement, target: Playing): void {
-  element.src = segmentAudioUrl(target.id, target.clip, target.version);
+  element.src =
+    target.urlFor?.(target.clip) ??
+    segmentAudioUrl(target.id, target.clip, target.version);
   Promise.resolve(element.play()).catch(() => {
     if (playing === target) fail(target.id, target.owner);
   });
@@ -94,7 +97,12 @@ export function stopAudition(owner?: string): void {
   publish(IDLE);
 }
 
-export function toggleAudition(row: SegmentRow, owner: string): void {
+/** `urlFor` names the audio of a row that is not in the library yet (a waiting import). */
+export function toggleAudition(
+  row: SegmentRow,
+  owner: string,
+  urlFor?: (clip: number) => string,
+): void {
   if (playing?.id === row.id) {
     stopAudition();
     return;
@@ -109,6 +117,7 @@ export function toggleAudition(row: SegmentRow, owner: string): void {
     version: row.version,
     clips: row.clips.length,
     clip: 0,
+    urlFor,
   };
   playing = target;
   publish({ playingId: row.id, failedId: null, owner });

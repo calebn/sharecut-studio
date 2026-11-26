@@ -15,7 +15,9 @@ function state(over: Partial<SegmentLibraryState> = {}): SegmentLibraryState {
   return {
     rows: LIBRARY,
     error: null,
+    highlightId: null,
     reload: fn(),
+    reveal: fn(),
     remove: fn(async () => null),
     ...over,
   };
@@ -34,7 +36,7 @@ const meta: Meta<typeof SegmentLibrary> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The Segment library on Home, after Recent: a real table on a wide Home and a list on a narrow one. Play auditions one segment at a time and Stop ends it; More offers Remove, which asks first, says that every version goes and that it can't be undone, and keeps focus on Keep. A segment that cannot be read is listed with its id and problem, with Remove only. Controls are 44 px.",
+          "The Segment library on Home, after Recent: a real table on a wide Home and a list on a narrow one. Play auditions one segment at a time and Stop ends it; Import opens the file picker (or take a dropped .sharecutseg file) and shows what it would add before anything is added; More offers Export as file and Remove, which asks first, says that every version goes and that it can't be undone, and keeps focus on Keep. A segment that cannot be read is listed with its id and problem, with Remove only. Controls are 44 px.",
       },
     },
   },

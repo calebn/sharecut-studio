@@ -23,7 +23,9 @@ export type RowHandlers = {
   failedId: string | null;
   confirmId: string | null;
   removingId: string | null;
+  highlightId: string | null;
   onToggle: (row: SegmentRow) => void;
+  onExport?: (row: SegmentRow) => void;
   onAskRemove: (row: SegmentListRow) => void;
   onKeep: (id: string) => void;
   onConfirm: (row: SegmentListRow) => void;
@@ -50,7 +52,7 @@ function removePrompt(row: SegmentListRow): string {
   return `Remove “${row.name}” from the library? This removes ${versions} and can't be undone. Episodes that already use it keep their copy.`;
 }
 
-function PlayButton({
+export function PlayButton({
   row,
   playing,
   onToggle,
@@ -76,10 +78,12 @@ function PlayButton({
 function RowMenu({
   row,
   onAskRemove,
+  onExport,
   focusMark,
 }: {
   row: SegmentListRow;
   onAskRemove: (row: SegmentListRow) => void;
+  onExport?: (row: SegmentRow) => void;
   focusMark: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -103,6 +107,17 @@ function RowMenu({
         </button>
       )}
     >
+      {isDamagedSegment(row) || !onExport ? null : (
+        <MenuItem
+          onSelect={() => {
+            setOpen(false);
+            onExport(row);
+          }}
+        >
+          <SystemIcon name="download" size={16} />
+          Export as file
+        </MenuItem>
+      )}
       <MenuItem
         onSelect={() => {
           setOpen(false);
@@ -176,6 +191,7 @@ function Healthy({ row, failed }: { row: SegmentRow; failed: boolean }) {
 
 export function SegmentRowView(props: RowProps) {
   const { row, layout, playingId, failedId, confirmId, removingId } = props;
+  const fresh = props.highlightId === row.id || undefined;
   const damaged = isDamagedSegment(row);
   const confirming = confirmId === row.id;
   const removing = removingId === row.id;
@@ -217,7 +233,12 @@ export function SegmentRowView(props: RowProps) {
     />
   );
   const menu = (
-    <RowMenu row={row} onAskRemove={props.onAskRemove} focusMark={damaged} />
+    <RowMenu
+      row={row}
+      onAskRemove={props.onAskRemove}
+      onExport={props.onExport}
+      focusMark={damaged}
+    />
   );
   if (layout === "table") {
     return (
@@ -225,6 +246,7 @@ export function SegmentRowView(props: RowProps) {
         className="segment-row"
         data-segment-row={row.id}
         data-damaged={damaged || undefined}
+        data-new={fresh}
       >
         <td className="segment-cell-lead">{lead}</td>
         {damaged ? (
@@ -253,6 +275,7 @@ export function SegmentRowView(props: RowProps) {
       className="segment-row"
       data-segment-row={row.id}
       data-damaged={damaged || undefined}
+      data-new={fresh}
     >
       {lead}
       <div className="segment-main">

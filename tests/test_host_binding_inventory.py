@@ -92,6 +92,21 @@ def test_no_guest_route_is_host_bound(row: dict[str, Any]) -> None:
     assert not path_requires_host_binding(row["path"]), f"{_id(row)} is a guest route"
 
 
+SEGMENT_FILE_ROUTES = [
+    ("GET", "/api/segments/{segment_id}/export"),
+    ("POST", "/api/segments/import/preview"),
+    ("GET", "/api/segments/import/{staged_id}/audio"),
+    ("POST", "/api/segments/import"),
+    ("DELETE", "/api/segments/import/{staged_id}"),
+]
+
+
+@pytest.mark.parametrize("route", SEGMENT_FILE_ROUTES, ids=lambda r: " ".join(r))
+def test_segment_file_routes_are_host_rows_and_host_bound(route: tuple[str, str]) -> None:
+    assert route in {(r["method"], r["path"]) for r in HOST_ROWS}
+    assert path_requires_host_binding(route[1])
+
+
 @pytest.mark.parametrize("prefix", NEW_PREFIXES)
 def test_every_new_prefix_has_a_host_row(prefix: str) -> None:
     assert any(r["path"] == prefix or r["path"].startswith(prefix + "/") for r in NEW_ROWS)

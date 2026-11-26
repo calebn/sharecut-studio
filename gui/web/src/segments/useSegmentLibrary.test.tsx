@@ -4,7 +4,11 @@ import * as api from "../api/segments";
 import { deferred } from "../test/deferred";
 import { ApiError } from "../utils/apiError";
 import { HEALTHY, LIBRARY } from "./fixtures";
-import { SEGMENT_BUSY_MESSAGE, useSegmentLibrary } from "./useSegmentLibrary";
+import {
+  HIGHLIGHT_MS,
+  SEGMENT_BUSY_MESSAGE,
+  useSegmentLibrary,
+} from "./useSegmentLibrary";
 
 vi.mock("../api/segments", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api/segments")>()),
@@ -132,5 +136,27 @@ describe("useSegmentLibrary", () => {
       reason = await result.current.remove(LIBRARY[0].id);
     });
     expect(reason).toBe("Disk is read-only.");
+  });
+
+  it("marks the revealed row only once the reload has answered, then clears it", async () => {
+    const { result } = renderHook(() => useSegmentLibrary());
+    await waitFor(() => expect(result.current.rows).toEqual(LIBRARY));
+    const pending = deferred<typeof LIBRARY>();
+    load.mockReturnValueOnce(pending.promise);
+
+    act(() => result.current.reveal("new-1"));
+    expect(result.current.highlightId).toBeNull();
+
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await act(async () => pending.resolve(LIBRARY));
+      expect(result.current.highlightId).toBe("new-1");
+      act(() => {
+        vi.advanceTimersByTime(HIGHLIGHT_MS);
+      });
+      expect(result.current.highlightId).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -8,12 +8,14 @@ sizes and hashes are checked, and nothing is read outside a private staging fold
 from __future__ import annotations
 
 import re
+import shutil
 import stat
 import tempfile
 import zipfile
 import zlib
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import IO
 
@@ -32,6 +34,8 @@ from podcast_mcp.util.coded_error import CodedValueError
 MANIFEST = MANIFEST_NAME
 MAX_ENTRIES = 64
 MAX_TOTAL_BYTES = 2 * 1024**3
+# The zip itself. Studio refuses a larger upload, so export never writes one.
+MAX_BUNDLE_BYTES = 1024**3
 MAX_ENTRY_BYTES = 1024**3
 MAX_MANIFEST_BYTES = 64 * 1024
 # FLAC barely compresses. A big entry that deflates far beyond this is a zip bomb.
@@ -40,6 +44,16 @@ _RATIO_FLOOR = 1024 * 1024
 _ENTRY_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _MANIFEST_LINE = re.compile(r"^([0-9a-f]{64})  (\S+)$")
 _CHUNK = 1 << 20
+
+
+def free_bytes(path: Path) -> int:
+    return shutil.disk_usage(path).free
+
+
+def _no_room(what: str) -> CodedValueError:
+    return CodedValueError(
+        f"There is not enough free disk space to {what}.", code="segment_no_room"
+    )
 
 
 def _invalid(message: str, code: str = "segment_bundle_invalid") -> CodedValueError:
@@ -70,11 +84,30 @@ def export_segments(store: SegmentStore, ids: Sequence[str], out_path: Path) -> 
             archive.writestr(MANIFEST, manifest)
 
     try:
-        return atomic_write(out_path, fill, creation_mode=0o644)
+        written = atomic_write(out_path, fill, creation_mode=0o644)
+        size = written.stat().st_size
     except OSError as exc:
         raise _invalid(
             f"{out_path} could not be written: {exc.strerror or exc}.", "segment_write_failed"
         ) from exc
+    try:
+        with zipfile.ZipFile(written) as made:
+            _checked_entries(made)
+    except CodedValueError as exc:
+        written.unlink(missing_ok=True)
+        raise _invalid(
+            f"The segment {segment.name!r} cannot be exported as one file: {exc} "
+            "Use fewer or shorter clips.",
+            "segment_bundle_too_large",
+        ) from exc
+    if size > MAX_BUNDLE_BYTES:
+        written.unlink(missing_ok=True)
+        raise _invalid(
+            f"The segment {segment.name!r} is {size // 1024**2} MiB as a file, more than the "
+            f"{MAX_BUNDLE_BYTES // 1024**2} MiB a segment file can hold. Use fewer or shorter clips.",
+            "segment_bundle_too_large",
+        )
+    return written
 
 
 def _checked_entries(
@@ -170,6 +203,14 @@ def _unpack(
     return written
 
 
+@dataclass(frozen=True)
+class BundlePreview:
+    """A checked bundle: its segment and the outcome of adding it."""
+
+    segment: SegmentFile
+    plan: AddResult
+
+
 @contextmanager
 def _staging_dir(prefix: str = "segment") -> Iterator[str]:
     try:
@@ -183,38 +224,73 @@ def _staging_dir(prefix: str = "segment") -> Iterator[str]:
         yield name
 
 
-def import_bundle(store: SegmentStore, path: Path) -> AddResult:
-    """Check a ``.sharecutseg`` file and add its segment to the library."""
+def _verify_bundle(path: Path, root: Path) -> SegmentFile:
+    """Unpack ``path`` into ``root`` and check every entry, name and hash; return its segment.
+
+    Both the import and the Studio preview run this, so a file the preview accepts is a file
+    the import accepts.
+    """
     try:
         archive = zipfile.ZipFile(path)
     except (OSError, zipfile.BadZipFile) as exc:
-        raise _invalid(f"{path.name} is not a segment bundle.") from exc
-    with archive, _staging_dir() as staging:
+        raise _invalid("This file is not a segment bundle.") from exc
+    with archive:
         entries = _checked_entries(archive)
         if SEGMENT_JSON not in entries or MANIFEST not in entries:
             raise _invalid(f"The bundle needs {SEGMENT_JSON} and {MANIFEST}.")
-        root = Path(staging)
         budget = MAX_TOTAL_BYTES
+        if free_bytes(root) < sum(info.file_size for info in entries.values()):
+            raise _no_room("check this file")
         try:
             for name, info in entries.items():
                 budget -= _unpack(archive, info, root / name, budget)
         except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError) as exc:
-            raise _invalid(f"{path.name} cannot be unpacked.") from exc
-        manifest = read_capped(
-            root / MANIFEST, MAX_MANIFEST_BYTES, what=MANIFEST, code="segment_bundle_invalid"
-        )
-        hashes = _manifest_hashes(manifest.decode("utf-8", errors="replace"))
-        if set(hashes) != set(entries) - {MANIFEST}:
-            raise _invalid(f"The files in the bundle do not match {MANIFEST}.")
-        segment = _parse(root / SEGMENT_JSON)
-        if set(segment.media) != set(entries) - {MANIFEST, SEGMENT_JSON}:
-            raise _invalid("The bundle's files do not match the audio its segment names.")
-        for name, expected in hashes.items():
-            if sha256_file(root / name) != expected:
-                raise _invalid(
-                    f"{name} does not match its hash in {MANIFEST}.", "segment_hash_mismatch"
-                )
-        return store.add(root)
+            raise _invalid("This segment bundle cannot be unpacked.") from exc
+    manifest = read_capped(
+        root / MANIFEST, MAX_MANIFEST_BYTES, what=MANIFEST, code="segment_bundle_invalid"
+    )
+    hashes = _manifest_hashes(manifest.decode("utf-8", errors="replace"))
+    if set(hashes) != set(entries) - {MANIFEST}:
+        raise _invalid(f"The files in the bundle do not match {MANIFEST}.")
+    segment = _parse(root / SEGMENT_JSON)
+    if set(segment.media) != set(entries) - {MANIFEST, SEGMENT_JSON}:
+        raise _invalid("The bundle's files do not match the audio its segment names.")
+    for name, expected in hashes.items():
+        if sha256_file(root / name) != expected:
+            raise _invalid(
+                f"{name} does not match its hash in {MANIFEST}.", "segment_hash_mismatch"
+            )
+    return segment
+
+
+def import_bundle(store: SegmentStore, path: Path) -> AddResult:
+    """Check a ``.sharecutseg`` file and add its segment to the library."""
+    with _staging_dir() as staging:
+        _verify_bundle(path, Path(staging))
+        return store.add(Path(staging))
+
+
+def preview_segment_bundle(store: SegmentStore, path: Path) -> BundlePreview:
+    """What :func:`import_bundle` would do with ``path``: every check runs, the library is not written."""
+    with _staging_dir() as staging:
+        segment = _verify_bundle(path, Path(staging))
+    return BundlePreview(segment, store.plan_add(segment))
+
+
+def staged_clip(path: Path, index: int, dest: Path) -> Path:
+    """Copy clip ``index`` of an already checked bundle to ``dest``. Raises ``segment_unknown`` past the last clip."""
+    try:
+        with zipfile.ZipFile(path) as archive:
+            info = archive.getinfo(SEGMENT_JSON)
+            if info.file_size > MAX_SEGMENT_JSON_BYTES:
+                raise _invalid(f"The bundle entry {SEGMENT_JSON} is too large.")
+            segment = parse_segment(archive.read(info))
+            if not 0 <= index < len(segment.clips):
+                raise CodedValueError(f"The segment has no clip {index}.", code="segment_unknown")
+            _unpack(archive, archive.getinfo(segment.clips[index].audio), dest, MAX_TOTAL_BYTES)
+    except (OSError, KeyError, zipfile.BadZipFile, zlib.error, EOFError) as exc:
+        raise _invalid(f"{path.name} cannot be read.") from exc
+    return dest
 
 
 def _parse(path: Path) -> SegmentFile:

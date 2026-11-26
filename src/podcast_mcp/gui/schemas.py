@@ -493,6 +493,12 @@ class SegmentSaveRequest(BaseModel):
     role: TrackRole | None = None
 
 
+class SegmentImportCommit(BaseModel):
+    """Add a checked, waiting ``.sharecutseg`` upload to the library."""
+
+    token: str
+
+
 class TranscriptExportRequest(BaseModel):
     path: str
     formats: list[str] = list(DEFAULT_TRANSCRIPT_EXPORT_FORMATS)
