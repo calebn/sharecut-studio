@@ -15,6 +15,7 @@ from podcast_mcp.util.asset_sources import (
     OwnerCdnUnsetError,
 )
 from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.model_manifest import HubChildError
 
 FailureKind = Literal["http", "pin_mismatch", "network", "disk", "configuration"]
 
@@ -67,6 +68,19 @@ def _is_pin_text(message: str) -> bool:
     return "size mismatch" in text or "sha256 mismatch" in text or "sha mismatch" in text
 
 
+def _child_reason(exc: HubChildError) -> tuple[FailureKind, int | None, str] | None:
+    """A failure of the download child, mapped like the same error raised in this process."""
+    from huggingface_hub import constants
+
+    if exc.kind == "http" and exc.status is not None:
+        return "http", exc.status, _http_key(exc.status)
+    if exc.kind == "disk" and exc.errno in _DISK_FULL | _DISK_DENIED:
+        return "disk", None, "disk_full" if exc.errno in _DISK_FULL else "disk_denied"
+    if exc.kind == "network":
+        return "network", None, "offline" if constants.HF_HUB_OFFLINE else "network"
+    return None
+
+
 def _reason(exc: BaseException) -> tuple[FailureKind, int | None, str] | None:
     from huggingface_hub import constants
     from huggingface_hub.errors import (
@@ -89,6 +103,8 @@ def _reason(exc: BaseException) -> tuple[FailureKind, int | None, str] | None:
         return "pin_mismatch", None, "pin_mismatch"
     if isinstance(exc, AssetSourceError) and _is_pin_text(str(exc)):
         return "pin_mismatch", None, "pin_mismatch"
+    if isinstance(exc, HubChildError):
+        return _child_reason(exc)
     if isinstance(exc, HfHubHTTPError):
         return "http", exc.response.status_code, _http_key(exc.response.status_code)
     if isinstance(exc, urllib.error.HTTPError):

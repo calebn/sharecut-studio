@@ -145,6 +145,8 @@ def _env(endpoint: str, home: Path) -> dict[str, str]:
     return {
         **inherited,
         "HF_ENDPOINT": endpoint,
+        # The in-process plain-HTTP path; the Xet child is covered by test_hf_fetch_child.py.
+        "PODCAST_HF_IN_PROCESS": "1",
         "NO_PROXY": "127.0.0.1,localhost",
         "no_proxy": "127.0.0.1,localhost",
         "HF_HUB_DISABLE_TELEMETRY": "1",
