@@ -249,3 +249,46 @@ def test_the_guard_runs_on_the_breath_extended_span_and_the_scope_on_the_paced_o
     assert not isinstance(result, CutRejected)
     assert guard.call_args.args[1:4] == ("host", 0.9, 1.3)
     assert scope.call_args.args[1:4] == ("host", 0.95, 1.25)
+
+
+def _late_checks_with(monkeypatch, *, cut_kind, scope):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(prepare, "_cut_span_is_bleed_not_owner", lambda *_a, **_k: False)
+    monkeypatch.setattr(prepare, "_cut_scope", scope)
+    return prepare._late_peer_checks(
+        None,
+        SimpleNamespace(track_id="host", cut_kind=cut_kind),
+        guard_span=(1.0, 2.0),
+        scope_span=(1.0, 2.0),
+        mute_mode=False,
+        defaults={},
+        timeline_caches=None,
+        speaker_context=None,
+        word_index=None,
+    )
+
+
+def test_a_first_scope_skip_rejects_a_non_pause_cut_but_not_a_pause(monkeypatch):
+    from types import SimpleNamespace
+
+    from podcast_mcp.edits.cut_safety import ResolvedCutScope
+
+    resolved = ResolvedCutScope("peer_speech", guard=SimpleNamespace(action="skip"))
+
+    rejected = _late_checks_with(monkeypatch, cut_kind="filler", scope=lambda *_a, **_k: resolved)
+    assert isinstance(rejected, CutRejected)
+    assert rejected.skip == "scope"
+
+    kept = _late_checks_with(monkeypatch, cut_kind="pause", scope=lambda *_a, **_k: resolved)
+    assert kept is resolved
+
+
+def test_a_first_scope_value_error_in_the_late_checks_is_reported_as_scope(monkeypatch):
+    def broken(*_args, **_kwargs):
+        raise ValueError("unreadable span")
+
+    rejected = _late_checks_with(monkeypatch, cut_kind="filler", scope=broken)
+
+    assert isinstance(rejected, CutRejected)
+    assert rejected.skip == "scope"
