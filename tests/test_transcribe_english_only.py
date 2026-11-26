@@ -7,7 +7,6 @@ from unittest.mock import Mock
 
 import numpy as np
 import pytest
-from tests.polling import wait_for
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import transcribe as transcribe_module
@@ -28,6 +27,8 @@ MESSAGE = (
         ("base.en", True),
         ("small.en", True),
         ("medium.en", True),
+        ("distil-medium.en", True),
+        ("distil-small.en", True),
         ("distil-large-v2", True),
         ("distil-large-v3", True),
         ("tiny", False),
@@ -90,16 +91,26 @@ def test_transcribe_job_refuses_before_any_cache_read(monkeypatch, tmp_path) -> 
     touched.assert_not_called()
 
 
-def test_read_asr_cache_refuses_before_any_cache_read(monkeypatch, tmp_path) -> None:
+def test_read_asr_cache_only_reads_so_it_does_not_refuse(monkeypatch, tmp_path) -> None:
     engine = _engine(monkeypatch)
-    touched = _no_cache_touch(monkeypatch)
-    err = _refused(
-        lambda: engine.read_asr_cache(
-            Mock(), _job(tmp_path), language="de", initial_prompt=None, audio_sha256="x"
-        )
+    cached = object()
+    monkeypatch.setattr(transcribe_module, "_read_cache", lambda path: cached)
+    monkeypatch.setattr(engine, "cache_path", lambda *a, **k: tmp_path / "c.json")
+    monkeypatch.setattr(transcribe_module, "guard_transcript", lambda t: None)
+    cache, transcript = engine.read_asr_cache(
+        Mock(), _job(tmp_path), language="de", initial_prompt=None, audio_sha256="x"
     )
+    assert cache == tmp_path / "c.json"
+    assert transcript is cached
+
+
+def test_transcribe_job_refuses_before_hashing_the_audio(monkeypatch, tmp_path) -> None:
+    engine = _engine(monkeypatch)
+    hashed = Mock(side_effect=AssertionError("the audio was hashed"))
+    monkeypatch.setattr(transcribe_module, "sha256_file", hashed)
+    err = _refused(lambda: engine.transcribe_job(Mock(), _job(tmp_path), language="de"))
     assert err.code == "transcription_language_unsupported"
-    touched.assert_not_called()
+    hashed.assert_not_called()
 
 
 def test_transcribe_all_dialogue_refuses_before_the_pool_starts(monkeypatch, tmp_path) -> None:
@@ -145,4 +156,4 @@ def test_an_english_probe_on_an_english_only_model_reaches_the_model(monkeypatch
     monkeypatch.setattr(engine, "_get_model", reached)
     with pytest.raises(RuntimeError, match="reached the model"):
         engine.transcribe_samples(np.zeros(1600), language="en-US")
-    assert wait_for(lambda: reached.called, timeout=1.0)
+    reached.assert_called()
