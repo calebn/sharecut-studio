@@ -105,7 +105,68 @@ def test_same_entries_as_the_cli_path_save_the_same_bytes(
         "Show Kit",
         [make_entry(ids[0], None, "start"), make_entry(ids[1], None, "end")],
     )
-    assert client.post("/api/kits", json=_body(ids)).json()["status"] == "unchanged"
+    res = client.post("/api/kits", json=_body(ids))
+    assert (res.status_code, res.json()) == (
+        200,
+        {"status": "unchanged", "id": kit_id_for("Show Kit"), "version": 1},
+    )
+    assert [kit.version for kit in KitStore().list()] == [1]
+
+
+def test_two_start_entries_are_saved_in_the_order_sent(
+    client: TestClient, ids: list[str]
+) -> None:
+    # Each start entry goes to the very start when it applies, so the second lands ahead of the
+    # first; the kit file itself keeps the order the sheet sent and warns about it.
+    entries = [{"segment_id": ids[0], "at": "start"}, {"segment_id": ids[1], "at": "start"}]
+    assert client.post("/api/kits", json=_body(ids, entries=entries)).status_code == 200
+    saved = KitStore().get(kit_id_for("Show Kit"))
+    assert [(e.segment_id, e.at) for e in saved.entries] == [
+        (ids[0], "start"),
+        (ids[1], "start"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("name", "status", "code"),
+    [
+        ("!!! ???", 422, "kit_name_invalid"),
+        ("日本", 422, "kit_name_invalid"),
+        ("", 422, "kit_name_invalid"),
+        ("   ", 422, "kit_name_invalid"),
+        ("7", 200, None),
+        ("Café", 200, None),
+        ("ｓｈｏｗ", 200, None),
+        ("日本 show", 200, None),
+        ("Show", 200, None),
+        ("  Show Kit  ", 200, None),
+        ("x" * 200 + "  ", 200, None),
+        ("x" * 201, 422, "kit_invalid"),
+    ],
+)
+def test_names_answer_as_the_sheets_kit_name_rule_expects(
+    client: TestClient, ids: list[str], name: str, status: int, code: str | None
+) -> None:
+    # gui/web/src/kits/kitName.test.ts holds the same table; change both together.
+    res = client.post("/api/kits", json=_body(ids, name=name))
+    assert res.status_code == status, res.text
+    if code is None:
+        assert res.json()["id"] == kit_id_for(name)
+    else:
+        assert res.headers[CODE] == code
+
+
+def test_a_damaged_segment_is_not_checked_so_the_kit_saves(
+    client: TestClient, ids: list[str]
+) -> None:
+    # save_kit asks only that each segment and version exist; the sheet's picker is what keeps a
+    # damaged one out. The kit then shows as not usable until the segment is back.
+    damaged = SegmentStore().directory / ids[0] / "v1" / "segment.json"
+    damaged.write_text("not json")
+    res = client.post("/api/kits", json=_body(ids))
+    assert (res.status_code, res.json()["status"]) == (200, "added")
+    rows = {row["id"]: row for row in client.get("/api/kits").json()}
+    assert rows[kit_id_for("Show Kit")]["usable"] is False
 
 
 @pytest.mark.parametrize(
