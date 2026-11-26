@@ -939,7 +939,9 @@ describe("ClipBlock waveform", () => {
           "Clip edit failed: write failed",
         ),
       );
-      expect(container.querySelector(".fade-readout")).toBeNull();
+      await waitFor(() =>
+        expect(container.querySelector(".fade-readout")).toBeNull(),
+      );
     });
   });
 
