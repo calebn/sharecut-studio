@@ -29,7 +29,7 @@ Codex UI edits have project-local [Impeccable design hooks](docs/setup.md#impecc
 
 ## Maximal install (all extras)
 
-Every pip extra, plus the models `podcast bootstrap` fetches: about 360 MB for the word aligner and about 80 MB for the speaker model. No extra pulls torch. Prefer the Quick start above for everyday CLI/MCP/GUI work.
+Every pip extra, plus the models `podcast bootstrap` fetches: about 360 MB for the word aligner and about 83 MB for the speaker model. No extra pulls torch. Prefer the Quick start above for everyday CLI/MCP/GUI work.
 
 ```bash
 git clone <repo-url> && cd sharecut-studio

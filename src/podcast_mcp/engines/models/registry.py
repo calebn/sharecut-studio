@@ -22,13 +22,13 @@ from podcast_mcp.engines.models.speaker_ecapa import (
     SPEAKER_ECAPA_ENV,
     SPEAKER_ECAPA_LABEL,
     SPEAKER_ECAPA_SIZE,
-    SPEAKER_ECAPA_SIZE_BYTES,
     EcapaOnnx,
     SpeakerEcapaOverrideError,
     bootstrap_speaker_ecapa,
     speaker_ecapa_override,
     speaker_ecapa_override_restriction,
     speaker_ecapa_path,
+    speaker_ecapa_pinned_size,
     speaker_ecapa_problem,
 )
 from podcast_mcp.engines.models.whisper import (
@@ -330,7 +330,7 @@ def _word_aligner_sizes(variant: str | None) -> tuple[str | None, int | None]:
 
 
 def _speaker_ecapa_sizes(variant: str | None) -> tuple[str | None, int | None]:
-    return None, SPEAKER_ECAPA_SIZE_BYTES
+    return None, speaker_ecapa_pinned_size()
 
 
 MODELS: tuple[ModelSpec, ...] = (

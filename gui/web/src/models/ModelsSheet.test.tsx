@@ -377,7 +377,7 @@ describe("ModelsSheet", () => {
     expect(metas).toEqual([
       "Not installed · 1.6 GB",
       "Not installed · 360 MB",
-      "Not installed · 80 MB",
+      "Not installed · 83 MB",
       "Not installed · 0.3 MB",
     ]);
   });

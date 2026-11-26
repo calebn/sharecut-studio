@@ -66,14 +66,31 @@ def test_size_is_pinned_approximate_or_unknown() -> None:
     assert model_spec("rnnoise").size_label(None) == "~0.3 MB"
     assert model_spec("word-aligner").size_bytes(None) == 360_000_000
     assert model_spec("word-aligner").size_label(None) == "~360 MB"
-    assert model_spec("speaker-ecapa").size_bytes(None) == 80_000_000
+    assert model_spec("speaker-ecapa").size_bytes(None) == 83_424_609
+
+
+def test_speaker_ecapa_size_follows_the_manifest() -> None:
+    pinned = asset_entry("speaker-ecapa")["size_bytes"]
+    assert type(pinned) is int
+    assert pinned == 83_424_609
+    spec = model_spec("speaker-ecapa")
+    assert spec.size_bytes(None) == pinned
+    # Python keeps the tilde ("~0.3 MB", "~360 MB"); the GUI's formatBytes drops it.
+    assert spec.size_label(None) == f"~{round(pinned / 1_000_000)} MB" == "~83 MB"
+
+
+def test_the_speaker_status_row_carries_the_manifest_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda **_kwargs: None)
+    row = next(r for r in boot.component_status()["models"] if r["id"] == "speaker-ecapa")
+    assert row["size_bytes"] == 83_424_609
+    assert row["size"] == "~83 MB"
 
 
 @pytest.mark.parametrize("model_id", ["word-aligner", "speaker-ecapa"])
 def test_the_size_text_and_the_byte_count_agree(model_id: str) -> None:
     spec = model_spec(model_id)
     megabytes = int(spec.size_label(None).strip("~ MB"))
-    assert spec.size_bytes(None) == megabytes * 1_000_000
+    assert round((spec.size_bytes(None) or 0) / 1_000_000) == megabytes
 
 
 def test_the_default_bundle_totals_about_two_gigabytes() -> None:
@@ -97,8 +114,8 @@ def test_component_status_lists_every_registry_model(monkeypatch: pytest.MonkeyP
     speaker = status["models"][-1]
     assert speaker["state"] == "missing"
     assert speaker["model"] == "speaker-ecapa"
-    assert speaker["size"] == "~80 MB"
-    assert speaker["size_bytes"] == 80_000_000
+    assert speaker["size"] == "~83 MB"
+    assert speaker["size_bytes"] == 83_424_609
     assert speaker["bootstrap"] == "podcast bootstrap --component speaker-ecapa"
     assert status["models"][0]["tier"] == "required"
 

@@ -940,7 +940,7 @@ def test_precorrect_speaker_model_missing_names_the_model_not_the_extra(tmp_path
         model="speaker-ecapa",
         label="Speaker recognition",
         purpose="speaker recognition and split",
-        size="~80 MB",
+        size="~83 MB",
         size_bytes=None,
         command="podcast bootstrap --component speaker-ecapa",
         state="missing",

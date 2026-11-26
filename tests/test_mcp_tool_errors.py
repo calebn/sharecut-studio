@@ -153,7 +153,7 @@ async def test_missing_model_reaches_the_agent_with_its_fields(project, monkeypa
 
     text, error_code = _refusal(result)
     assert error_code == "model_needed"
-    assert text.startswith("needs Speaker recognition (ECAPA, ONNX) (~80 MB); run `podcast")
+    assert text.startswith("needs Speaker recognition (ECAPA, ONNX) (~83 MB); run `podcast")
     model = result.structured_content["model"]
     assert model["id"] == "speaker-ecapa"
     assert model["state"] == "missing"

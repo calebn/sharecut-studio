@@ -37,7 +37,8 @@
       "filename": "ecapa-voxceleb-embedding.onnx",
       "owner_path": "models/speaker-ecapa/ecapa-voxceleb-embedding.onnx",
       "sha256": "1a310d0e6fe231c623a6bf2a3e115c6ac70df08cf19a91380663d60c01820a82",
-      "notes": "ONNX export of the embedding_model at speechbrain/spkrec-ecapa-voxceleb 0f99f2d0, made by scripts/export_ecapa_onnx.py. Served only from the owner CDN at owner_path (the base is a build-time default, see docs/setup.md#speaker-model); the object at that path is immutable, so a re-export ships under a new filename plus a new pin."
+      "size_bytes": 83424609,
+      "notes": "ONNX export of the embedding_model at speechbrain/spkrec-ecapa-voxceleb 0f99f2d0, made by scripts/export_ecapa_onnx.py. Served only from the owner CDN at owner_path (the base is a build-time default, see docs/setup.md#speaker-model); the object at that path is immutable, so a re-export ships under a new filename plus a new pin; change filename, sha256, size_bytes and the SPEAKER_ECAPA_SIZE label (src/podcast_mcp/engines/models/speaker_ecapa.py) together."
     },
     "whisper-cpp-small-en-q5_1": {
       "kind": "http",

@@ -38,7 +38,7 @@ def test_setup_prints_each_models_readiness_and_fix(tmp_path, monkeypatch):
         "Fix: podcast bootstrap --component word-aligner"
     ) in result.stdout
     assert (
-        "  speaker-ecapa: missing (speaker recognition and split, ~80 MB). "
+        "  speaker-ecapa: missing (speaker recognition and split, ~83 MB). "
         "Fix: podcast bootstrap --component speaker-ecapa"
     ) in result.stdout
 

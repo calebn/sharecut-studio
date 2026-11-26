@@ -48,8 +48,8 @@
       "label": "Speaker recognition (ECAPA, ONNX)",
       "model": "speaker-ecapa",
       "purpose": "speaker recognition and split",
-      "size": "~80 MB",
-      "size_bytes": 80000000,
+      "size": "~83 MB",
+      "size_bytes": 83424609,
       "state": "unsupported",
       "tier": "recommended"
     }
