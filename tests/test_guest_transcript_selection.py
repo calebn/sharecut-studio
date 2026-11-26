@@ -638,10 +638,28 @@ def test_stale_guest_row_keeps_only_its_own_zero_length_tail(guest, row_owns_tai
     stale = ws.project.combined_transcript.model_dump()
     if not row_owns_tail:
         transcript.words.append(_w("now", 1.2, 1.2))
-    # The current run extends beyond the stored row, forcing the stale-row fallback.
-    transcript.words.append(_w("later", 1.25, 1.4))
+    # The current run extends beyond the stored row, with another point on its boundary.
+    transcript.words.extend([_w("extra", 1.2, 1.2), _w("later", 1.25, 1.4)])
     mapped = map_transcript_utterances_to_timeline(ws.project, stale)
     [host] = mapped["utterances"]
     [shown] = guest_transcript(mapped, words=GuestWords.READING)["utterances"]
     assert host["text"] == ("one omit now" if row_owns_tail else "one omit")
     assert shown["text"] == ("one now" if row_owns_tail else "one")
+
+
+@pytest.mark.parametrize("changed_prefix", [False, True])
+def test_stale_guest_row_omits_its_only_struck_zero_length_tail(guest, changed_prefix):
+    _client, _open_share, path = guest
+    ws = ProjectWorkspace.open(path)
+    transcript = ws.project.transcripts[0]
+    transcript.words = [_w("one", 0.2, 0.6), _w("omit", 0.6, 0.6, ignored=True)]
+    rebuild_combined(ws.project, defaults=ws.effective_config())
+    stale = ws.project.combined_transcript.model_dump()
+    if changed_prefix:
+        transcript.words[0].text = "updated"
+    transcript.words.append(_w("later", 0.65, 0.8))
+    mapped = map_transcript_utterances_to_timeline(ws.project, stale)
+    [host] = mapped["utterances"]
+    [shown] = guest_transcript(mapped, words=GuestWords.READING)["utterances"]
+    assert host["text"] == "one omit"
+    assert shown["text"] == ("updated" if changed_prefix else "one")

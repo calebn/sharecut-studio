@@ -437,28 +437,41 @@ def _covered_text_without_ignored(
     source_start: float,
     source_end: float,
     text: str,
-) -> str:
+    *,
+    has_ignored_word: bool,
+) -> str | None:
     """Rebuild guest text for a stored row whose current run no longer matches."""
+    point_start, point_end = word_source_span(source_end, source_end)
+    boundary = [
+        index
+        for index in sorted(intervals.overlapping_ordinals(point_start, point_end))
+        if words[index].start == source_end
+        and words[index].end <= source_end
+        and not getattr(words[index], "suppressed", False)
+    ]
+    if not has_ignored_word and not any(
+        getattr(words[index], "ignored", False) for index in boundary
+    ):
+        return None
+
     covered = {
         index
         for index in _covered_word_ordinals(words, intervals, source_start, source_end)
         if not getattr(words[index], "suppressed", False)
     }
-    # A terminal point can be part of the stored text despite lying outside the
-    # half-open span. Match the saved text before admitting any boundary words.
-    point_start, point_end = word_source_span(source_end, source_end)
-    boundary = {
-        index
-        for index in intervals.overlapping_ordinals(point_start, point_end)
-        if words[index].start == source_end
-        and words[index].end <= source_end
-        and not getattr(words[index], "suppressed", False)
-    } - covered
     ordered = sorted(covered)
-    if boundary:
-        including_boundary = sorted(covered | boundary)
-        if utterance_text([words[index] for index in including_boundary]) == text:
-            ordered = including_boundary
+    # The saved row can end at the same instant that another point word starts.
+    # Only admit a prefix of those words that reproduces the saved sentence.
+    including_boundary = set(covered)
+    for index in boundary:
+        if index in covered:
+            continue
+        including_boundary.add(index)
+        candidate = sorted(including_boundary)
+        if utterance_text([words[i] for i in candidate]) == text:
+            ordered = candidate
+            break
+
     return utterance_text(
         [words[index] for index in ordered if not getattr(words[index], "ignored", False)]
     )
@@ -856,14 +869,16 @@ def map_transcript_utterances_to_timeline(
         if recording.words_key not in struck_texts:
             struck_texts[recording.words_key] = _struck_run_texts(raw_words[recording.words_key])
         text = str(row.get("text") or "")
-        shown = struck_texts[recording.words_key].get((source_start, source_end, text))
-        if shown is None and ignored_word_indices:
+        row_texts = struck_texts[recording.words_key]
+        shown = row_texts.get((source_start, source_end, text))
+        if shown is None and (ignored_word_indices or row_texts):
             shown = _covered_text_without_ignored(
                 raw_words[recording.words_key],
                 raw_intervals[recording.words_key],
                 source_start,
                 source_end,
                 text,
+                has_ignored_word=bool(ignored_word_indices),
             )
         if shown is not None and shown != text:
             # Guests read this in place of ``text`` (``guest_transcript``).
