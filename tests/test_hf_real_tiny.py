@@ -37,10 +37,8 @@ CANCEL_AT_BYTES = 5 * MIB
 ON_DISK_LIMIT_BYTES = 10 * MIB
 TINY_MODEL_BYTES = 78_090_594
 CHILD_KILL_WITHIN_SEC = 3.0
-CHILD_CANCEL_AT_BYTES = 8 * MIB  # past the ~2.5 MB of small files: model.bin has started
-CHILD_ON_DISK_LIMIT_BYTES = TINY_MODEL_BYTES
-"""Cancel must beat the finish: model.bin arrives in one ~70 ms burst after ~3 s of fetching."""
-CHILD_POLL_SEC = 0.02
+CHILD_POLL_SEC = 0.01
+"""Cancel fires as soon as model.bin's ``.incomplete`` blob exists, whatever its size."""
 
 
 def _bytes_on_disk(root: Path) -> int:
@@ -84,6 +82,8 @@ def test_child_cancel_kills_the_transfer_within_seconds(
 ) -> None:
     monkeypatch.setattr(model_manifest, "_POLL_SEC", CHILD_POLL_SEC)
     pin = WHISPER_PINS["tiny.en"]
+    sha = dict(pin.file_sha256)["model.bin"]
+    blobs = model_manifest._blobs_dir(pin, tmp_path)
     children: list[process.Child] = []
     real_popen = process.popen
 
@@ -94,21 +94,32 @@ def test_child_cancel_kills_the_transfer_within_seconds(
 
     monkeypatch.setattr(process, "popen", recording)
     cancelled_at: list[float] = []
+    finished_first: list[bool] = []
+
+    def partials() -> list[str]:
+        return sorted(p.name for p in blobs.glob("*.incomplete")) if blobs.is_dir() else []
 
     def sink(progress: DownloadProgress) -> None:
-        if progress.bytes >= CHILD_CANCEL_AT_BYTES:
+        if any(n.startswith(f"{sha}.") for n in partials()):
             cancelled_at.append(time.monotonic())
             raise CancelledProgress("cancel")
+        if (blobs / sha).exists():
+            finished_first.append(True)
+            raise CancelledProgress("finished first")
 
     with pytest.raises(CancelledProgress):
         download_pinned_snapshot(pin, tmp_path, on_progress=sink)
 
+    if not cancelled_at:
+        pytest.skip("model.bin finished before its .incomplete blob was seen (very fast link)")
     assert time.monotonic() - cancelled_at[0] < CHILD_KILL_WITHIN_SEC
     (child,) = children
     assert child.pid is not None
     assert wait_for(lambda: not process.pid_is_alive(child.pid or 0), timeout=CHILD_KILL_WITHIN_SEC)
+    assert not (blobs / sha).exists(), "model.bin was already complete at the kill"
+    assert partials() == [], "an .incomplete file of this fetch is left on disk"
     at_return = _bytes_on_disk(tmp_path)
-    assert at_return < CHILD_ON_DISK_LIMIT_BYTES
+    assert at_return < TINY_MODEL_BYTES
     stable = wait_for(lambda: _bytes_on_disk(tmp_path) != at_return, timeout=1.0)
     assert not stable, "files kept growing after Cancel"
 

@@ -4,8 +4,13 @@
 Spawns ``<python> -P -m podcast_mcp.util.hf_fetch_child <spec.json>`` against the pinned
 ``Systran/faster-whisper-tiny.en`` snapshot (``WHISPER_PINS``) in a temporary cache, and
 fails unless (1) the child prints one ``{"path": ...}`` line with every pinned file present
-and (2) a second child, killed once model.bin has started (the cache holds more than the small files), is gone within a few seconds
-before ``model.bin`` is complete. Needs the network (about 78 MB).
+and (2) a second child, cancelled the moment a ``model.bin`` ``.incomplete`` blob exists in the
+repo's blobs dir (any size, polled every 10 ms), is gone within a few seconds, leaves no
+completed ``model.bin`` blob and no ``.incomplete`` file of that fetch on disk. Needs the
+network (about 78 MB).
+
+Exit codes: 0 passed, 1 failed, 2 inconclusive (on a very fast link ``model.bin`` finished
+before the trigger could fire, so Cancel was not exercised; retry on a slower link).
 
     .venv/bin/python scripts/check_hf_child.py
     .venv/bin/python scripts/check_hf_child.py --python <runtime>/venv/bin/python
@@ -18,6 +23,7 @@ launcher execs (``<runtime>/venv/bin/python``, not the ``<runtime>/python`` dire
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -25,23 +31,27 @@ import tempfile
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from podcast_mcp.engines.models.whisper import WHISPER_PINS
 from podcast_mcp.util import process
+from podcast_mcp.util.asset_sources import DownloadProgress
 from podcast_mcp.util.model_manifest import PinnedSnapshot
 
 MIB = 1024 * 1024
-MODEL_BYTES = 78_090_594
 KILL_WITHIN_SEC = 3.0
-KILL_AT_BYTES = 8 * MIB
-"""Past the ~2.5 MB of small files, so the kill lands while model.bin is transferring."""
+POLL_SEC = 0.01
+INCONCLUSIVE = 2
 RUN_TIMEOUT_SEC = 300.0
-STEP_SEC = 0.01
 
 
 class CheckError(RuntimeError):
+    pass
+
+
+class InconclusiveError(RuntimeError):
     pass
 
 
@@ -83,16 +93,6 @@ def _blob_bytes(cache_dir: Path) -> int:
     return total
 
 
-def _wait(check, timeout: float) -> bool:  # type: ignore[no-untyped-def]
-    gate = threading.Event()
-    deadline = time.monotonic() + timeout
-    while not check():
-        if time.monotonic() >= deadline:
-            return False
-        gate.wait(STEP_SEC)
-    return True
-
-
 def check_download(python: str, pin: PinnedSnapshot, work: Path, env: dict[str, str]) -> None:
     cache = work / "full"
     proc = _start(python, _spec(pin, cache, work), work / "full.log", env)
@@ -116,23 +116,66 @@ def check_download(python: str, pin: PinnedSnapshot, work: Path, env: dict[str, 
     print(f"ok: child printed the snapshot path ({_blob_bytes(cache) / MIB:.0f} MiB cached)")
 
 
+def _partials(blobs: Path) -> list[str]:
+    with contextlib.suppress(OSError):
+        return sorted(e.name for e in os.scandir(blobs) if e.name.endswith(".incomplete"))
+    return []
+
+
 def check_kill(python: str, pin: PinnedSnapshot, work: Path, env: dict[str, str]) -> None:
+    """Cancel through the real fetch path as soon as model.bin's ``.incomplete`` blob exists."""
+    from podcast_mcp.util import model_manifest
+    from podcast_mcp.util.progress import CancelledProgress
+
     cache = work / "killed"
-    proc = _start(python, _spec(pin, cache, work), work / "killed.log", env)
-    if not _wait(lambda: _blob_bytes(cache) >= KILL_AT_BYTES or proc.poll() is not None, 120.0):
-        process.kill_child(proc)
-        raise CheckError("the cache never started to grow")
-    if proc.poll() is not None:
-        raise CheckError("the child finished before it could be killed; use a slower link")
-    started = time.monotonic()
-    process.kill_child(proc)
-    if not _wait(lambda: proc.poll() is not None, KILL_WITHIN_SEC):
-        raise CheckError(f"the child was still running {KILL_WITHIN_SEC:.0f} s after the kill")
-    elapsed = time.monotonic() - started
-    left = _blob_bytes(cache)
-    if left >= MODEL_BYTES:
-        raise CheckError(f"model.bin was already complete ({left / MIB:.0f} MiB) at the kill")
-    print(f"ok: killed mid-download in {elapsed:.2f} s with {left / MIB:.1f} MiB on disk")
+    sha = dict(pin.file_sha256)["model.bin"]
+    blobs = cache / f"models--{pin.hf_repo.replace('/', '--')}" / "blobs"
+    children: list[process.Child] = []
+    real_popen = process.popen
+    seen = {"partial": False, "cancelled_at": 0.0}
+
+    def recording(*args: Any, **kwargs: Any) -> process.Child:
+        child = real_popen(*args, **kwargs)
+        children.append(child)
+        return child
+
+    def sink(_progress: DownloadProgress) -> None:
+        if any(n.startswith(f"{sha}.") for n in _partials(blobs)):
+            seen["partial"] = True
+            seen["cancelled_at"] = time.monotonic()
+            raise CancelledProgress("cancel")
+        if (blobs / sha).exists():
+            raise CancelledProgress("model.bin finished before any .incomplete was seen")
+
+    # A cold Xet chunk cache of its own: the first download warmed the other one.
+    os.environ.update({**env, "HF_HOME": str(work / "hf-home-kill")})  # the child inherits it
+    patched = (model_manifest._POLL_SEC, model_manifest._child_argv, process.popen)
+    model_manifest._POLL_SEC = POLL_SEC
+    model_manifest._child_argv = lambda spec: [python, *patched[1](spec)[1:]]
+    process.popen = recording  # type: ignore[assignment]
+    try:
+        model_manifest.download_pinned_snapshot(pin, cache, on_progress=sink)
+        raise InconclusiveError("the download finished before Cancel could land")
+    except CancelledProgress:
+        pass
+    finally:
+        model_manifest._POLL_SEC, model_manifest._child_argv, process.popen = patched
+    if not seen["partial"]:
+        raise InconclusiveError(
+            "model.bin finished before its .incomplete blob could be seen (a very fast link); "
+            "Cancel was not exercised"
+        )
+    elapsed = time.monotonic() - seen["cancelled_at"]
+    if elapsed > KILL_WITHIN_SEC or not children or children[0].poll() is None:
+        raise CheckError(f"the child was still running {elapsed:.1f} s after Cancel")
+    if (blobs / sha).exists():
+        raise CheckError("model.bin was already complete at the kill")
+    left = _partials(blobs)
+    if left:
+        raise CheckError(f".incomplete files left on disk after Cancel: {left}")
+    print(
+        f"ok: cancelled at the first model.bin .incomplete, child gone in {elapsed:.2f} s, none left"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -156,6 +199,9 @@ def main(argv: list[str] | None = None) -> int:
         try:
             check_download(args.python, pin, work, env)
             check_kill(args.python, pin, work, env)
+        except InconclusiveError as exc:
+            print(f"INCONCLUSIVE: {exc}", file=sys.stderr)
+            return INCONCLUSIVE
         except (CheckError, OSError) as exc:
             print(f"FAIL: {exc}", file=sys.stderr)
             return 1
