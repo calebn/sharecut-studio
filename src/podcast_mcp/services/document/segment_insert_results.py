@@ -67,6 +67,8 @@ class SegmentInsertApplied(_SegmentInsertReport):
     clip_count: int
     timeline_duration_sec: float | None
     tracks: dict[str, str]
+    history_head_id: str | None = Field(default=None, exclude=True)
+    """The entry this insert left at the head, read under the document lock; not on any wire."""
 
     def journal(self) -> Mapping[str, Any]:
         """The ``InsertSegment`` result as the journal stores it: the change, then the segment."""

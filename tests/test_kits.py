@@ -1100,3 +1100,212 @@ def test_import_keeps_cross_id_content_dedupe(tmp_path: Path) -> None:
     assert [entry.segment_id for entry in kits.get(kit.id).entries] == [segment.id, segment.id]
     assert [entry.version for entry in kits.get(kit.id).entries] == [1, 1]
     assert [stored.id for stored in segments.list()] == [segment.id]
+
+
+# ---- apply over HTTP --------------------------------------------------------------------
+
+
+def _apply_client():
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    return TestClient(create_app(), client=("127.0.0.1", 50000))
+
+
+def _apply_body(project: str, kit: KitFile, **over: object) -> dict[str, object]:
+    return {
+        "path": project,
+        "kit_id": kit.id,
+        "kit_version": kit.version,
+        "client_id": "studio",
+        **over,
+    }
+
+
+def test_the_apply_route_applies_a_two_entry_kit_and_reports_the_head(
+    project: str, library: tuple[str, str]
+) -> None:
+    intro, outro = library
+    kit = _show_kit(library)
+
+    res = _apply_client().post("/api/kits/apply", json=_apply_body(project, kit))
+
+    assert res.status_code == 200, res.text
+    report = res.json()
+    assert report["undo_steps"] == 2 and report["kit_id"] == kit.id
+    assert [e["at"] for e in report["entries"]] == [0.0, 10.0]
+    spans = {s[0]: s for s in _spans(project)}
+    assert (spans[intro][1], spans[outro][1]) == (0.0, 10.0)
+    assert report["history_head_id"] == load_project(Path(project)).history.head_id()
+    rows = DocumentSyncService.open(project).store.commands_after(0)
+    assert {r["client_id"] for r in rows} == {"studio"}
+
+
+def test_a_dry_run_report_has_no_history_head(project: str, library: tuple[str, str]) -> None:
+    kit = _show_kit(library)
+    assert "history_head_id" not in submit_kit_apply(project, kit.id, dry_run=True).wire()
+    assert "history_head_id" in submit_kit_apply(project, kit.id).wire()
+
+
+def test_the_apply_route_refuses_a_stale_kit_version(
+    project: str, library: tuple[str, str]
+) -> None:
+    kit = _show_kit(library)
+    before = _spans(project)
+    res = _apply_client().post(
+        "/api/kits/apply", json=_apply_body(project, kit, kit_version=kit.version + 1)
+    )
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "kit_changed"
+    assert _spans(project) == before
+
+
+def test_the_apply_route_refuses_an_episode_that_already_has_segments(
+    project: str, library: tuple[str, str]
+) -> None:
+    kit = _show_kit(library)
+    client = _apply_client()
+    assert client.post("/api/kits/apply", json=_apply_body(project, kit)).status_code == 200
+    again = client.post("/api/kits/apply", json=_apply_body(project, kit))
+    assert again.status_code == 409
+    assert again.headers["X-Sharecut-Error-Code"] == "kit_not_offered"
+    assert len(DocumentSyncService.open(project).store.commands_after(0)) == 2
+
+
+def test_the_apply_route_refuses_a_kit_that_is_not_offered(
+    project: str, library: tuple[str, str]
+) -> None:
+    kit = _show_kit(library)
+    res = _apply_client().post(
+        "/api/kits/apply", json=_apply_body(project, kit, kit_id="other-00000000")
+    )
+    assert (res.status_code, res.headers["X-Sharecut-Error-Code"]) == (409, "kit_not_offered")
+
+
+def test_the_apply_route_refuses_an_unknown_kit_when_nothing_is_offered(project: str) -> None:
+    res = _apply_client().post(
+        "/api/kits/apply",
+        json={"path": project, "kit_id": "gone-00000000", "kit_version": 1, "client_id": "s"},
+    )
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "kit_not_offered"
+
+
+def test_the_apply_route_maps_a_kit_that_vanished_to_not_found(
+    project: str, library: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.gui.routes import kits as routes
+
+    kit = _show_kit(library)
+
+    def gone(*_a: object, **_k: object) -> None:
+        raise CodedValueError("There is no kit called x.", code="kit_unknown")
+
+    monkeypatch.setattr(routes, "submit_kit_apply", gone)
+    res = _apply_client().post("/api/kits/apply", json=_apply_body(project, kit))
+    assert (res.status_code, res.headers["X-Sharecut-Error-Code"]) == (404, "kit_unknown")
+
+
+def test_the_apply_route_refuses_guests_and_foreign_origins(
+    project: str, library: tuple[str, str]
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.util.proxy_paths import RELAYED_REQUEST_HEADER
+
+    kit = _show_kit(library)
+    before = _spans(project)
+    body = _apply_body(project, kit)
+    relayed = TestClient(
+        create_app(), client=("127.0.0.1", 50000), headers={RELAYED_REQUEST_HEADER: "1"}
+    )
+    assert relayed.post("/api/kits/apply", json=body).status_code == 403
+    evil = _apply_client().post(
+        "/api/kits/apply", json=body, headers={"Origin": "https://evil.example"}
+    )
+    assert evil.status_code == 403
+    assert _spans(project) == before
+
+
+def test_the_apply_route_reports_a_partial_failure_with_its_service_code(
+    project: str, library: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.services.document import kit_apply
+    from podcast_mcp.util.write_failure import ProjectWriteFailedError
+
+    kit = _show_kit(library)
+    real = kit_apply.submit_segment_insert
+    calls: list[int] = []
+
+    def flaky(*args: object, **kwargs: object) -> object:
+        calls.append(1)
+        if len(calls) == 2:
+            raise ProjectWriteFailedError("The disk is full.", status=500)
+        return real(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(kit_apply, "submit_segment_insert", flaky)
+    res = _apply_client().post("/api/kits/apply", json=_apply_body(project, kit))
+    assert (res.status_code, res.headers["X-Sharecut-Error-Code"]) == (500, "project_write_failed")
+    assert "1 earlier entry was already applied" in res.text
+    assert len(_spans(project)) == 3
+
+
+def test_the_apply_route_sends_other_service_codes_as_400(
+    project: str, library: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.gui.routes import kits as routes
+
+    kit = _show_kit(library)
+
+    def refuse(*_a: object, **_k: object) -> None:
+        raise CodedValueError("Moved.", code="segment_hash_mismatch")
+
+    monkeypatch.setattr(routes, "submit_kit_apply", refuse)
+    res = _apply_client().post("/api/kits/apply", json=_apply_body(project, kit))
+    assert (res.status_code, res.headers["X-Sharecut-Error-Code"]) == (400, "segment_hash_mismatch")
+
+
+def test_the_apply_route_applies_once_when_two_posts_race(
+    project: str, library: tuple[str, str]
+) -> None:
+    import threading
+
+    kit = _show_kit(library)
+    client = _apply_client()
+    body = _apply_body(project, kit)
+    codes: list[tuple[int, str | None]] = []
+
+    def post() -> None:
+        res = client.post("/api/kits/apply", json=body)
+        codes.append((res.status_code, res.headers.get("X-Sharecut-Error-Code")))
+
+    threads = [threading.Thread(target=post) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert sorted(codes, key=lambda c: c[0]) == [(200, None), (409, "kit_not_offered")]
+    assert len(DocumentSyncService.open(project).store.commands_after(0)) == 2
+    assert sum(1 for s in _spans(project) if s[0] in library) == 2
+
+
+def test_the_reported_head_is_the_last_entrys_own_head(
+    project: str, library: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.services.document import kit_apply
+
+    kit = _show_kit(library)
+    real = kit_apply.submit_segment_insert
+    heads: list[str | None] = []
+
+    def spy(*args: object, **kwargs: object):
+        result = real(*args, **kwargs)  # type: ignore[arg-type]
+        heads.append(result.history_head_id)
+        return result.model_copy(update={"history_head_id": f"lock-{len(heads)}"})
+
+    monkeypatch.setattr(kit_apply, "submit_segment_insert", spy)
+    report = submit_kit_apply(project, kit.id).wire()
+    assert all(heads) and report["history_head_id"] == "lock-2"
+    assert "history_head_id" not in report["entries"][0]

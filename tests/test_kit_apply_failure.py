@@ -178,7 +178,7 @@ def test_kit_apply_preserves_existing_coded_failure_contract(
     tail = (
         " Nothing was changed."
         if position == 1
-        else " 1 earlier entry was already applied; each is its own undo step in History."
+        else " 1 earlier entry was already applied; open History to undo it, each entry is its own step."
     )
     assert str(err.value) == (
         f"Kit entry {position} of 2 ({kit.entries[position - 1].label()}) failed: "
