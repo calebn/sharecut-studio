@@ -369,6 +369,7 @@ class RenderMixin:
                             if at.start_sec > 0:
                                 delay_name = f"delay_{node_index}_{child_index}"
                                 inputs, observed = label, observer(delay_name)
+                                # Probe the negotiated rate with a placeholder, then pin the actual delay.
                                 label = emit(
                                     inputs,
                                     f"adelay@pin_{len(delays)}=1S:all=1,asetpts=N/SR/TB{observed}",

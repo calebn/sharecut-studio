@@ -949,6 +949,11 @@ spectral-subtraction approach handles less gracefully. The effect resamples its 
 float and are not moved to integer) and then pads it to whole 480-sample frames with
 silence, so repeated renders are identical; the model's response to that padded block is a silent or near-silent tail
 (about -66 dBFS on some builds), never a burst.
+
+A full timeline stem can keep the padded tail. The stem freshness check tolerates
+that extra time, and a timeline window is cropped to its requested length on the
+render grid. The guest source-proxy manifest measures the rendered duration
+before setting the chunk count and the final chunk's extent.
 Needs a one-time model fetch:
 
 ```bash

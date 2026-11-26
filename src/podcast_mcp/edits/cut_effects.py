@@ -114,6 +114,7 @@ def completed_audio_effects(
                         project,
                         track,
                         clips,
+                        # Both placement graphs use the same grid rule without a track effect chain.
                         grid=track_grid(project, track, clips),
                         micro_fade_ms=shell_micro_fade_ms(clips, defaults),
                     ).audio,
