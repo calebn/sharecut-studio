@@ -217,17 +217,15 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     entryUndone(history, retireEntry);
   const toastId = toast?.id;
   const toastMessage = toast?.message;
-  const spoken = useRef<{ id: number | undefined; retired: boolean }>({
-    id: undefined,
-    retired: false,
-  });
+  const spokenFor = useRef<number | undefined>(undefined);
   useEffect(() => {
-    const before = spoken.current;
-    spoken.current = { id: toastId, retired };
-    if (retired && toastMessage && !(before.id === toastId && before.retired))
+    if (!retired) spokenFor.current = undefined;
+    else if (toastMessage && spokenFor.current !== toastId) {
+      spokenFor.current = toastId;
       useDawStore
         .getState()
         .announceStatus(`Undone: ${toastMessage}`, { toast: false });
+    }
   }, [toastId, retired, toastMessage]);
 
   useLayoutEffect(() => {
