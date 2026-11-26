@@ -515,6 +515,7 @@ def test_the_listing_names_the_files_and_whether_they_are_current(world) -> None
     assert _leaks(world, guest.text) == []
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_an_empty_transcript_is_refused_on_a_write_and_previews_on_a_dry_run(world) -> None:
     project = load_project(world.ws.path)
     project.transcripts = []

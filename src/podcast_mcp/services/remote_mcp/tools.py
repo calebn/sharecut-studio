@@ -36,6 +36,8 @@ from podcast_mcp.services.collaboration import (
     guest_word_timing_context,
     has_capability,
     lookup_guest_job,
+    open_share_workspace,
+    refuse_if_frozen,
     share_add_comment,
     share_add_reply,
     share_audition_context_info,
@@ -49,6 +51,7 @@ from podcast_mcp.services.document_sync import (
     COMMENT_BODY_MAX,
     DocumentSyncService,
     document_command_json_schema,
+    document_command_types_for_caps,
     parse_document_command,
 )
 from podcast_mcp.services.remote_mcp.allowlist import tool_allowed
@@ -375,6 +378,10 @@ def guest_submit_document_command(**kwargs: Any) -> dict[str, Any]:
     except ValidationError as exc:
         raise InvalidToolArgumentsError(_argument_problems(exc)) from exc
     cmd.role = "guest"
+    if cmd.type in document_command_types_for_caps(list(ctx.capabilities)):
+        # Every command a guest may run aims at the live timeline.
+        row, ws = open_share_workspace(ctx.token)
+        refuse_if_frozen(row, ws, "Editing or suggesting")
     svc = DocumentSyncService(ctx.workspace)
     result = svc.submit(
         cmd,

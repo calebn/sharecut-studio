@@ -285,6 +285,7 @@ def test_exact_pending_all_muted_mix_is_duration_correct_silence(minimal_project
     "caps,stale,expected",
     [(["view"], False, 200), (["play", "comment"], False, 403), (["view"], True, 400)],
 )
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_range_http_requires_view_and_returns_full_mix(
     minimal_project, monkeypatch, caps, stale, expected
 ):

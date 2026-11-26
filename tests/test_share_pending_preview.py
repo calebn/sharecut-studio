@@ -114,6 +114,7 @@ def test_guest_pending_preview_requires_play_and_view() -> None:
 
 
 @pytest.mark.parametrize("mode", ["suggested", "ab"])
+@pytest.mark.usefixtures("live_review_view")
 def test_share_pending_preview_http_caps_and_skip(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, mode
 ):
@@ -157,6 +158,7 @@ def test_share_pending_preview_http_caps_and_skip(
         assert str(refusal.value) == "A split does not change the mix until you delete a side."
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_pending_preview_suggested_shorter_and_mcp_urls(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -203,6 +205,7 @@ def test_share_pending_preview_suggested_shorter_and_mcp_urls(
     assert "player" not in payload
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_pending_preview_visual_pngs(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_pending_cut(minimal_project, sample_wav, tmp_workspace)
     share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
@@ -255,6 +258,7 @@ def test_guest_pending_preview_denied_without_tool(
     assert denied["error"]["code"] == -32003
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_pending_preview_errors_and_cache(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -341,6 +345,7 @@ def test_share_pending_preview_errors_and_cache(
         share_pending_preview_wav(token, edit_id="cut1")
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_pending_preview_pads_and_reports_each_side(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -383,6 +388,7 @@ def test_share_pending_preview_pads_and_reports_each_side(
     assert payload["timeline_start"] == 0.8 and payload["timeline_end"] == 1.2
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_a_cross_origin_review_page_may_read_the_placement_headers(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

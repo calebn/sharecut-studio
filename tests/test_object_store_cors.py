@@ -112,6 +112,7 @@ def _share(minimal_project, sample_wav):
     return ShareService(ws).create(review_version_id=ver["id"], capabilities=["play", "view"])
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_manifest_serves_chunks_through_the_share_when_the_bucket_blocks_guests(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ) -> None:
@@ -125,6 +126,7 @@ def test_manifest_serves_chunks_through_the_share_when_the_bucket_blocks_guests(
     assert len(urls) == body["tracks"]["host"]["chunk_count"]
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_manifest_keeps_bucket_urls_when_cors_is_in_place(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ) -> None:

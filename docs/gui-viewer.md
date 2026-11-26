@@ -519,6 +519,14 @@ a timed word whose full value is a path. A stale transcript row keeps a
 zero-length last word when matching the stored sentence confirms it belongs to
 that row.
 
+## Frozen review view for guests (#3605)
+
+A Viewer or Commenter link is served the version it was published as: the review WAV for `daw/audio?kind=premix` (the same bytes as `kind=review`; stem and processed audio are refused) and the timeline stored with that version (`artifacts/review/<id>/timeline.json`, see [persistence.md](persistence.md)). It reaches the guest through `daw/project`, `daw/document/state`, the WebSocket hello and `timeline_duration_sec`, and the guest MCP read tools, because they all read `share_daw_project_view`. Comments stay live (phase `comments`, the `comments` key of every document frame and snapshot), and the history head stays the live one so command sequencing is not broken. The frozen render status is fresh by construction, so a frozen guest sees no "Mix out of date" pill.
+
+An Editor link and the host stay live. A version without a readable snapshot is served live as before.
+
+For a frozen guest the server refuses, with 403 and the code `frozen_review_view`: every document command (a Commenter's suggestions too: they aim at live clip ids), `daw/range-audio`, `daw/waveform-snap`, `daw/pending-preview` and its image, `daw/audition-context` and its image, `daw/proxy/manifest` and the proxy chunks, and the guest MCP `guest_submit_document_command`, `guest_pending_preview` and `guest_audition_context`. The WebSocket pump drops the live `project`, `patch`, `delta` and guest delta of every document event and forwards only sequence, comments, history head and file revision. Changing which version a link serves (a follow-latest link after a new publish) takes effect on the next read; the client refetches the project when `useReviewVersion` reports `changed`.
+
 ## Guest Undo and Redo
 
 An Editor link's Undo and Redo move only the Editor's own step ([history.md § Whose step a guest can move](history.md#whose-step-a-guest-can-move)). The server sends each guest `history.can_undo` and `history.can_redo` computed for that guest (the hello, `GET /api/review/{token}/daw/document/state`, the HTTP command reply and every socket frame, the guest MCP command reply and `guest_get_project`), and the web client's one selector, `commands/historyAvailability.ts`, turns them into the header buttons, palette rows, keys, two-finger tap, Inspector sheet and History tab. A delta frame keeps the overlaid flags (`applyDocumentUpdate` passes `snapshot.history` through). A refused move comes back as `nothing_of_yours_to_undo` or `nothing_of_yours_to_redo` (HTTP 400), is announced once and is never filed in Needs attention. The host page announces "Undid a guest's change." or "Redid a guest's change." when its own Undo or Redo moved a guest's step. The host's Undo stays enabled while an edit saves, and a host key Undo with nothing to undo is announced.

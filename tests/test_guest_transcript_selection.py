@@ -224,6 +224,7 @@ def test_edit_guest_cut_applies(guest):
 
 
 @pytest.mark.parametrize("role", ["viewer", "commenter", "editor"])
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_cutaway_keeps_visible_words_and_geometry_after_editor_cut(guest, role):
     client, open_share, path = guest
     observer = open_share(capabilities_for_role(role, with_mcp=True))
@@ -315,6 +316,7 @@ def test_guest_cutaway_projection_is_an_allowlist_and_can_be_applied_twice():
     assert len(boundary["cutaway_word_ids"]) == 5
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_suggest_guest_cut_is_a_pending_suggestion_and_direct_edits_are_refused(guest):
     client, open_share, path = guest
     token = open_share(SUGGEST)
@@ -403,6 +405,7 @@ def test_viewer_interior_suppressed_word_never_reaches_words_or_utterance_text(g
         assert "bleed" not in json.dumps(body.json()), phase
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_viewer_ws_hello_pump_and_command_reply_carry_no_words(guest):
     client, open_share, path = guest
     viewer = open_share(VIEW)

@@ -189,6 +189,7 @@ def test_document_route_conflict_json(minimal_project):
     assert r.json()["detail"]["conflict"] is True
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_audio_permission_and_redirect_errors(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

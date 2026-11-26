@@ -162,6 +162,27 @@ def dump_projection_locked(
         return dumped, owners
 
 
+def dump_projection_in_place(
+    ws: ProjectWorkspace,
+    *,
+    projection: str,
+    audience: str = "host",
+    history: Any = None,
+) -> dict[str, Any]:
+    """A ProjectView slice of the project as it is in memory: no lock taken, no reload.
+
+    For a caller that already holds ``project_state_lock`` and staged other state from
+    this same ``ws.project`` (review publication): ``ws.project`` stays the same object
+    and nothing is written. Pass *history* to skip reading the history index.
+    """
+    from podcast_mcp.gui.assembler import dump_project_projection
+
+    guest_or_host: Literal["host", "guest"] = "guest" if audience == "guest" else "host"
+    return dump_project_projection(
+        ws, projection=projection, audience=guest_or_host, history=history
+    )
+
+
 def _file_wire(revision: FileRevision | None) -> dict[str, int] | None:
     """{mtime_ns, size} of the project JSON; must equal ``gui.poll_meta.project_meta``'s
     fields (pinned by ``test_document_snapshot_file_matches_project_meta``, #657)."""

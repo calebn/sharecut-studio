@@ -241,6 +241,7 @@ def edit_at(minimal_project, start: float) -> EditDecision:
 
 
 @pytest.mark.parametrize("surface", ["browser", "mcp"])
+@pytest.mark.usefixtures("live_review_view")
 def test_commenters_retime_only_their_own_suggestions(
     minimal_project, sample_wav, monkeypatch, surface
 ):
@@ -316,6 +317,7 @@ def test_commenters_retime_only_their_own_suggestions(
 
 
 @pytest.mark.parametrize("surface", ["browser", "mcp"])
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_edit_author_is_the_share_registry_id_not_the_token(
     minimal_project, sample_wav, monkeypatch, surface
 ):
@@ -352,6 +354,7 @@ def test_share_id_of_names_a_share_by_its_id_and_refuses_one_without():
         share_id_of({"token": "velvet-quokka-umbra"})
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_a_recycled_share_slug_does_not_inherit_the_old_author(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -417,6 +420,7 @@ def _mcp_call(token: str, name: str, arguments: dict) -> dict:
 
 
 @pytest.mark.parametrize("role", ["commenter", "editor"])
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_mcp_needs_view_like_the_browser(minimal_project, sample_wav, monkeypatch, role):
     pending_project(minimal_project)
     suggest = {
@@ -727,6 +731,7 @@ def test_undo_and_redo_never_end_a_link(minimal_project, sample_wav, actor):
     ],
     ids=["commenter", "editor"],
 )
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_mcp_range_cut_follows_the_share(
     minimal_project, sample_wav, monkeypatch, caps, outcome
 ):
@@ -812,6 +817,7 @@ def guest_snap_status(minimal_project, sample_wav, published_share):
         "editor-without-view",
     ],
 )
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_snap_read_follows_the_gate(guest_snap_status, caps, status):
     assert guest_snap_status(caps) == status
 

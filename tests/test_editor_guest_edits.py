@@ -46,6 +46,7 @@ def test_editor_cut_and_mute_apply_like_the_host(world, action):
     assert len(load_project(world.path).editorial.edit_log) == 2
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_editor_approves_a_commenter_suggestion(world):
     ids = _suggest_cut(world, UNCLE)
     approved = world.guest("editor", "ApproveEdits", {"ids": ids})
@@ -55,6 +56,7 @@ def test_editor_approves_a_commenter_suggestion(world):
     assert len(project.editorial.edit_log) == 1
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_commenter_cut_still_proposes(world):
     ids = _suggest_cut(world, UNCLE)
     project = load_project(world.path)
@@ -116,6 +118,7 @@ def test_editor_trim_clip_edge_matches_host(world):
     assert len(load_project(world.path).editorial.edit_log) == 1
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_editor_delete_clip_applies_commenter_proposes(world):
     clip = _clip_of(world.path, "guest")
     payload = {"clip_id": clip.id, "mode": "ripple"}
@@ -257,6 +260,7 @@ def test_host_approve_rows_name_the_hold_code(world):
     ]
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_editor_reject_reply_carries_the_count_the_page_parses(world):
     ids = _suggest_cut(world, UNCLE)
     rejected = world.guest("editor", "RejectEdits", {"ids": ids})
@@ -266,6 +270,7 @@ def test_editor_reject_reply_carries_the_count_the_page_parses(world):
     assert body["command"] == {"type": "RejectEdits"}
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_editor_approve_reply_carries_count_and_no_held_rows(world):
     ids = _suggest_cut(world, UNCLE)
     approved = world.guest("editor", "ApproveEdits", {"ids": ids})
@@ -292,6 +297,7 @@ def test_editor_approve_reply_names_a_held_cut_in_words_without_its_code(world):
     }
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_editor_approve_reply_lists_the_ids_it_approved(world):
     ids = _suggest_cut(world, UNCLE)
     approved = world.guest("editor", "ApproveEdits", {"ids": ids, "hold_blocked": True})
@@ -316,6 +322,7 @@ def test_host_reply_has_the_same_review_result(world):
     }
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_a_retried_reject_carries_the_same_review_result(world):
     ids = _suggest_cut(world, UNCLE)
     first = world.guest("editor", "RejectEdits", {"ids": ids}, command_id="cmd_reject_once")

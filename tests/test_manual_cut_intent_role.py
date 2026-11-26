@@ -77,6 +77,7 @@ def test_guest_editor_stamps_human_intent(pending_project, published_share):
     assert _stored_intent(pending_project) is CutIntent.HUMAN_BOUNDARIES
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_commenter_stays_programmatic(pending_project, published_share):
     _, _, share = published_share(capabilities=capabilities_for_role("commenter"))
     client = TestClient(create_app())
