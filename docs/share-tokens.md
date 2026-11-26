@@ -478,7 +478,13 @@ enforced-by:
 A Viewer can view and play. A Commenter can also comment and suggest. An
 Editor can also edit directly and approve or reject suggestions. There is no
 suggest-only level: a share that holds `suggest` without the rest of the
-Commenter set is a Viewer and runs no document command. On a frozen Viewer or Commenter link this is refused with `frozen_review_view` (see [gui-viewer.md § Frozen review view](gui-viewer.md#frozen-review-view-for-guests-3605)); Editors, the host, play-only links and versions with no snapshot behave as before.
+Commenter set is a Viewer and runs no document command.
+
+Viewer and Commenter links served a frozen review snapshot play the published
+version. Commenters can still comment, but document commands such as suggesting
+a cut or mute are refused with `frozen_review_view`. Editor links, the host,
+play-only links and versions without a snapshot stay live. See
+[Frozen review view](gui-viewer.md#frozen-review-view-for-guests-3605).
 
 ### Decision: Guest powers follow the share's capabilities
 
@@ -536,6 +542,9 @@ upload) need every Editor command (`edit_commands_allowed`). The browser render
 preview, render job, boundary context and media upload routes call the same
 `edit_commands_allowed` (through `require_share_edit`), so both surfaces refuse
 everyone but an Editor.
+
+The table describes live timelines. On a frozen Viewer or Commenter link,
+comments remain available according to the role and document commands are refused.
 
 | Role | Reads the transcript (timed words) | Transcript **Select** | Range Cut / Mute (DAW, transcript, guest MCP) | Retime a pending edit | Approve / Reject pending edits |
 |--------------|-----|-----|-----|-----|-----|
