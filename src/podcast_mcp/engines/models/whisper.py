@@ -216,6 +216,10 @@ def english_only_whisper(name: str) -> bool:
 
 ENGLISH_ONLY_REFUSAL_CODE = "transcription_language_unsupported"
 ENGLISH_ONLY_READS = "reads English only"
+ENGLISH_ONLY_PROBE_SKIP = (
+    f"the model {ENGLISH_ONLY_READS}, so it can't listen to another language "
+    "(use a multilingual model)"
+)
 
 
 def english_only_refusal(model_name: str, language: str) -> CodedValueError:

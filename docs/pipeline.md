@@ -363,7 +363,7 @@ Ordinary SOURCE REMOVE proposals and their coalesced final rows require complete
 
 Generated REMOVE/MUTE rows start pending. Coalescing touches only the generator's owned IDs, preserves excluded rows exactly, and counts invalid owned singleton or merged groups once. Focus supplies an effective hold sink for direct and pipeline callers; its summary includes held counts. Every selected origin placement must belong to the actual removal's canonical ripple lanes, or the row stays pending with `operation_scope`. Auto-apply discards held trials and restarts from the stable post-MUTE project after each new hold. Only the first complete hold-free survivor copy is adopted.
 
-Propose summaries include `N discourse kept` (`discourse:{token}` skip counts) and, when relevant, `N acoustic (review)` / `N acoustic skipped` (`acoustic:*` skip counts) / `N word probe unavailable` / `N word probe failed` / `word probe skipped on N track(s): the model reads English only` (`word_probe:*` skip counts). Full table and symptom → knob guide: [filler-cut-quality.md](filler-cut-quality.md).
+Propose summaries include `N discourse kept` (`discourse:{token}` skip counts) and, when relevant, `N acoustic (review)` / `N acoustic skipped` (`acoustic:*` skip counts) / `N word probe unavailable` / `N word probe failed` / `word probe skipped on N track(s): the model reads English only, so it can't listen to another language (use a multilingual model)` (`word_probe:*` skip counts). Full table and symptom → knob guide: [filler-cut-quality.md](filler-cut-quality.md).
 
 ## Export formats
 
