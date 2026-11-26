@@ -1932,6 +1932,29 @@ def _pause_candidate(**kwargs):
     return _CutCandidate(**fields)
 
 
+def test_a_no_air_pause_never_runs_the_owner_guard_or_first_scope(tmp_path: Path):
+    from podcast_mcp.edits.filler_pacing import FillerPacingResult
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
+
+    empty = _project_with_transcript([])
+    empty.transcripts = []
+    _pause_audio(empty, tmp_path / "empty")
+    defaults = {"tighten": {"min_retained_pause_sec": 0.55, "min_retained_solo_pause_sec": 0.55}}
+    with (
+        patch(
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
+            return_value=FillerPacingResult(start=0.4, end=2.0),
+        ),
+        patch("podcast_mcp.edits.tighten.prepare._cut_span_is_bleed_not_owner") as guard,
+        patch("podcast_mcp.edits.tighten.prepare._cut_scope") as first_scope,
+    ):
+        result = _analyze_candidate(empty, _pause_candidate(), defaults)
+
+    assert result == CutRejected("no_air")
+    guard.assert_not_called()
+    first_scope.assert_not_called()
+
+
 def test_pause_analyze_requires_complete_live_word_context(tmp_path: Path):
     from podcast_mcp.edits.filler_pacing import FillerPacingResult
     from podcast_mcp.edits.tighten.prepare import _analyze_candidate
