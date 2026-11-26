@@ -302,7 +302,9 @@ function PlacementGroup({
   dialogue,
   disabled,
   onPick,
+  groupRef,
 }: {
+  groupRef?: RefObject<HTMLFieldSetElement | null>;
   name: string;
   placement: SegmentPlacement;
   dialogue: boolean;
@@ -311,7 +313,7 @@ function PlacementGroup({
 }) {
   const hintId = useId();
   return (
-    <fieldset className="sys-segment-placement">
+    <fieldset ref={groupRef} className="sys-segment-placement">
       <legend className="ui-field-label">What happens to the episode</legend>
       {PLACEMENT_OPTIONS.map((option) => {
         const blocked = dialogue && option.value === "own_lane";
@@ -394,6 +396,16 @@ function InsertSegmentForm({
   const placementGroup = useId();
   const firstUsable = rows?.findIndex(usable) ?? -1;
   const listed = rows !== null && rows.length > 0;
+  const placementRef = useRef<HTMLFieldSetElement>(null);
+  const pickedId = selected?.id ?? null;
+  const shownFor = useRef<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    const previous = shownFor.current;
+    shownFor.current = pickedId;
+    if (!bottom || previous === undefined || previous === pickedId) return;
+    placementRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [bottom, pickedId]);
 
   useEffect(() => {
     if (!listed) return;
@@ -461,6 +473,7 @@ function InsertSegmentForm({
               dialogue={isDialogueSegment(selected)}
               disabled={inserting}
               onPick={state.pickPlacement}
+              groupRef={placementRef}
             />
           ) : null}
           <Field label="Position">

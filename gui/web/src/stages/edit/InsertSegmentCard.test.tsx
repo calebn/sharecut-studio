@@ -772,6 +772,32 @@ describe("InsertSegmentCard bottom", () => {
     expect(insertButton()).toHaveAccessibleDescription("Pick a segment first.");
   });
 
+  it("brings the placement choice into view when a segment is picked", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    render(
+      <InsertSegmentCard
+        {...data(PLACEMENT_LIBRARY)}
+        {...handlersOf()}
+        form="bottom"
+        open
+      />,
+    );
+    await screen.findByRole("dialog", { name: "Insert segment" });
+    await userEvent.click(
+      await screen.findByRole("radio", { name: /Host read/ }),
+    );
+    await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
+    expect(scroll.mock.contexts[0]).toBe(
+      screen.getByRole("group", { name: "What happens to the episode" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("radio", { name: /Warm bed/ }),
+    );
+    await waitFor(() => expect(scroll).toHaveBeenCalledTimes(2));
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  });
+
   it("keeps the actions in the form on a cramped screen", async () => {
     crampedScreen();
     render(
