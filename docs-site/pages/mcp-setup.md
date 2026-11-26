@@ -74,15 +74,40 @@ Restart or reload the MCP client after updating its configuration.
 
 ## Co-edit with the desktop GUI
 
-When ShareCut Studio is open, **Menu > Connect agent...** provides the local
-Streamable HTTP endpoint:
+When ShareCut Studio is open, **Menu > Connect agent...** shows a connection
+address for the episode you have open. Studio has to keep running while an AI
+app uses it.
+
+1. In Studio, choose **Copy address**.
+2. In your AI app, open its MCP or connector settings (the name differs from app
+   to app) and add a new server with that address.
+3. Ask the app to do something in ShareCut. The line in the dialog updates when
+   Studio gets the request.
+
+The address looks like this and only works on the same computer:
 
 ```text
 http://127.0.0.1:8765/mcp
 ```
 
-Use that URL in a Streamable HTTP MCP configuration to work on the episode open
-in the GUI. The endpoint is loopback-only.
+If your app wants a config file instead, the dialog's **Config file format**
+shows this block (the address may use a different port):
+
+```json
+{
+  "mcpServers": {
+    "sharecut": { "url": "http://127.0.0.1:8765/mcp" }
+  }
+}
+```
+
+The dialog says when an app last *used* the address: "An app used this address
+2 minutes ago", then "Last used 25 minutes ago". It cannot tell whether an app
+is still connected, because Studio keeps no sessions for it, and it remembers
+only the time of the latest successful request until Studio restarts. Any local
+program that sends a valid request counts, not only an AI app. If this Studio
+cannot accept connections from other apps, the dialog says so and shows no
+address.
 
 ## Troubleshooting
 
@@ -92,3 +117,9 @@ in the GUI. The endpoint is loopback-only.
   MCP servers.
 - For the repository's detailed client-specific instructions, see
   [MCP setup on GitHub](https://github.com/calebn/sharecut-studio/blob/main/docs/mcp-setup.md).
+- If the dialog still says "No app has used this address since Studio started",
+  check that the address in the app matches the dialog exactly, that the app has
+  been told to use ShareCut, and that Studio is still running. The line resets
+  whenever Studio restarts.
+- If the app uses a different local port than the dialog shows, copy the address
+  again; the port can change between runs.
