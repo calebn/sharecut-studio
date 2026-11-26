@@ -84,12 +84,15 @@ class ImportStaging:
 
     def _waiting(self) -> list[Path]:
         """Staged files and uploads in progress, oldest first."""
-        entries = [
-            entry
-            for entry in self.directory.iterdir()
-            if entry.name.endswith((SUFFIX, PARTIAL_SUFFIX))
-        ]
-        return sorted(entries, key=lambda entry: entry.stat().st_mtime)
+        aged: list[tuple[float, Path]] = []
+        for entry in self.directory.iterdir():
+            if not entry.name.endswith((SUFFIX, PARTIAL_SUFFIX)):
+                continue
+            try:
+                aged.append((entry.stat().st_mtime, entry))
+            except FileNotFoundError:
+                continue
+        return [entry for _, entry in sorted(aged, key=lambda pair: pair[0])]
 
     def begin(self, declared_bytes: int | None) -> Upload:
         """Make room for one upload and create its partial file, under one lock.
