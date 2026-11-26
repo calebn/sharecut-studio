@@ -153,8 +153,9 @@ def test_a_damaged_kit_is_listed_not_hidden(library: tuple[str, str]) -> None:
     listing = kits.scan()
     assert not listing.kits and listing.damaged[0].code == "kit_invalid"
     rows = json.loads(runner.invoke(app, ["kit", "list", "--json"]).output)
-    assert rows[0]["damaged"] is True
-    assert "DAMAGED" in runner.invoke(app, ["kit", "list"]).output
+    assert (rows[0]["damaged"], rows[0]["usable"]) == (True, False)
+    text = runner.invoke(app, ["kit", "list"]).output
+    assert "DAMAGED" in text and "UNUSABLE" in text and rows[0]["problem"] in text
 
 
 def test_save_names_every_missing_segment_and_writes_nothing(library: tuple[str, str]) -> None:
@@ -585,6 +586,8 @@ def test_cli_save_list_show_remove(library: tuple[str, str]) -> None:
     assert kit_id in listed.output and "2 segments" in listed.output
     rows = json.loads(runner.invoke(app, ["kit", "list", "--json"]).output)
     assert rows[0]["missing"] == 0 and rows[0]["entries"] == 2
+    assert (rows[0]["usable"], rows[0]["problem"]) == (True, None)
+    assert "UNUSABLE" not in listed.output
 
     shown = runner.invoke(app, ["kit", "show", kit_id])
     assert f"1. {intro} at start" in shown.output and f"2. {outro} v1 at end" in shown.output
@@ -593,7 +596,9 @@ def test_cli_save_list_show_remove(library: tuple[str, str]) -> None:
 
     SegmentStore().remove(outro)
     assert "MISSING" in runner.invoke(app, ["kit", "show", kit_id]).output
-    assert "1 segment missing" in runner.invoke(app, ["kit", "list"]).output
+    unusable = runner.invoke(app, ["kit", "list"]).output
+    assert "1 segment missing" in unusable and "UNUSABLE: " in unusable
+    assert json.loads(runner.invoke(app, ["kit", "list", "--json"]).output)[0]["usable"] is False
 
     assert runner.invoke(app, ["kit", "remove", kit_id]).exit_code == 0
     assert _code(runner.invoke(app, ["kit", "show", kit_id])) == "kit_unknown"
@@ -699,6 +704,11 @@ def test_host_tools_match_the_cli_and_are_absent_for_guests(
     )
     assert saved["status"] == "added"
     assert json.loads(kit_tools.kit_list_tool())[0]["entries"] == 2
+    assert json.loads(kit_tools.kit_list_tool())[0]["usable"] is True
+    description = next(
+        t.description for t in asyncio.run(mcp_server.mcp.list_tools()) if t.name == "kit_list_tool"
+    )
+    assert "usable" in description and "problem" in description
     assert json.loads(kit_tools.kit_show_tool(saved["id"]))["entries"][1]["note"] == "bye"
 
     dry = json.loads(kit_tools.kit_apply_tool(project, saved["id"], dry_run=True))

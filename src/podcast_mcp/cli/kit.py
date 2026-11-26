@@ -67,14 +67,17 @@ def kit_list_cmd(as_json: bool = typer.Option(False, "--json")) -> None:
         typer.echo("No kits yet. Save one with `podcast kit save`.")
     for row in rows:
         if row.get("damaged"):
-            typer.echo(f"{row['id']}  DAMAGED  v{row['version']}  {row['problem']}")
+            typer.echo(f"{row['id']}  DAMAGED  UNUSABLE  v{row['version']}  {row['problem']}")
             continue
         gap = (
             f"  {row['missing']} {'segment' if row['missing'] == 1 else 'segments'} missing"
             if row["missing"]
             else ""
         )
-        typer.echo(f"{row['id']}  v{row['version']}  {row['entries']} segments  {row['name']}{gap}")
+        flaw = f"  UNUSABLE: {row['problem']}" if not row["usable"] else ""
+        typer.echo(
+            f"{row['id']}  v{row['version']}  {row['entries']} segments  {row['name']}{gap}{flaw}"
+        )
 
 
 @kit_app.command("show")

@@ -115,7 +115,8 @@ def kit_rows(kits: KitStore, segments: SegmentStore) -> list[dict[str, Any]]:
     """The newest version of each kit, then a ``damaged`` row for each unreadable one.
 
     ``usable`` is the cheap read the episode offer uses (every entry resolves and reads, no
-    audio is hashed); ``problem`` is the first entry that fails, or ``None``.
+    audio is hashed); ``problem`` is the first entry that fails, or ``None``. A damaged row
+    is never usable.
     """
     listing = kits.scan()
     rows: list[dict[str, Any]] = []
@@ -134,7 +135,14 @@ def kit_rows(kits: KitStore, segments: SegmentStore) -> list[dict[str, Any]]:
             }
         )
     rows += [
-        {"id": d.id, "damaged": True, "version": d.version, "problem": d.problem, "code": d.code}
+        {
+            "id": d.id,
+            "damaged": True,
+            "version": d.version,
+            "usable": False,
+            "problem": d.problem,
+            "code": d.code,
+        }
         for d in listing.damaged
     ]
     return rows
