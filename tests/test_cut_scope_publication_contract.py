@@ -69,7 +69,9 @@ def test_moved_filler_edge_needs_available_assessment_before_publication(
     )
     proposal = propose_tighten_edits(result, cfg, replace_existing=False)
 
-    assert assessed == [pytest.approx((1, 1.5)), pytest.approx((0.78, 1.5))]
+    # The gate rejects on the moved span before the first scope runs, so that scope is never
+    # asked about the unmoved (1, 1.5) span of a candidate that was never going to publish.
+    assert assessed == [pytest.approx((0.78, 1.5))]
     assert proposal.skip_counts == {"scope_unavailable": 1}
     assert proposal.decisions == []
     assert result.model_dump(mode="json") == before
