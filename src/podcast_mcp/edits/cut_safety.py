@@ -1068,27 +1068,6 @@ class SourceCutObservations:
     removal: RippleRemoval | None
 
 
-def source_cut_placement(
-    project: EpisodeProject, edit: EditDecision
-) -> tuple[CutScopeHold | None, tuple[TimelineSec, TimelineSec]]:
-    """The placement hold (if any) and the timeline span of a source remove; cheap."""
-    placement = inspect_source_remove_placement(project, edit)
-    if not isinstance(placement, CutScopeHold):
-        return None, placement
-    witness = edit.source_timeline_span
-    spans = SessionTimeline(project).map_source_span(
-        edit.track_id, SourceSec(edit.start), SourceSec(edit.end)
-    )
-    span = (
-        (TimelineSec(witness.start), TimelineSec(witness.end))
-        if witness
-        else spans[0]
-        if spans
-        else (TimelineSec(edit.start), TimelineSec(edit.end))
-    )
-    return placement, span
-
-
 def observe_source_cut(
     project: EpisodeProject,
     edit: EditDecision,
@@ -1098,10 +1077,10 @@ def observe_source_cut(
     batch: Sequence[SourceExtent],
     audio_caches: dict[str, TrackAudioCache],
     timeline_caches: TrackRmsCacheSet,
-    placed: tuple[CutScopeHold | None, tuple[TimelineSec, TimelineSec]] | None = None,
+    placed: tuple[CutScopeHold | None, tuple[TimelineSec, TimelineSec]],
 ) -> SourceCutObservations:
 
-    placement, span = placed or source_cut_placement(project, edit)
+    placement, span = placed
     pause = (
         assess_held_pause(
             project, edit, span, defaults=defaults, audio_caches=audio_caches, manual=manual

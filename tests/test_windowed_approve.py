@@ -1021,7 +1021,7 @@ def test_a_window_miss_in_observe_is_made_again_on_whole_caches_with_the_same_ve
     project = _project(tmp_path)
     edit = project.edit_decisions[0]
     defaults = load_defaults()
-    placed = cut_safety.source_cut_placement(project, edit)
+    placed = cut_application.source_cut_placement(project, edit)
     caches = cut_application.shared_source_audio_caches(project)
     wholes: list[int] = []
 
@@ -1072,7 +1072,7 @@ def test_an_error_from_the_timeline_caches_other_than_a_window_miss_is_not_made_
             batch=(),
             audio_caches=cut_application.shared_source_audio_caches(project),
             timeline=Broken(),  # type: ignore[arg-type]
-            placed=cut_safety.source_cut_placement(project, edit),
+            placed=cut_application.source_cut_placement(project, edit),
         )
 
 

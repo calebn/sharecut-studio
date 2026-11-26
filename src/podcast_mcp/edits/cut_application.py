@@ -99,6 +99,7 @@ from podcast_mcp.engines.mute_regions import add_source_mute, spans_touch
 from podcast_mcp.engines.off_speaker_regions import MuteOwnership, add_off_speaker_mute
 from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 from podcast_mcp.engines.session_timeline import (
+    SessionTimeline,
     clip_timeline_overlap_to_source,
 )
 from podcast_mcp.engines.timeline_render import timeline_duration_sec
@@ -137,7 +138,7 @@ from podcast_mcp.util.batch_scope import batch_scope, frozen_state, unscoped
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import subtract_intervals
 from podcast_mcp.util.process import SubprocessError
-from podcast_mcp.util.timebase import TimelineSec
+from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 _PAD_EDGE_MATCH_SEC = 0.05
@@ -406,6 +407,27 @@ def pad_start_for(
     return _nearest_ripple_join_time(project, tl_start)
 
 
+def source_cut_placement(
+    project: EpisodeProject, edit: EditDecision
+) -> tuple[CutScopeHold | None, tuple[TimelineSec, TimelineSec]]:
+    """The placement hold (if any) and the timeline span of a source remove; cheap."""
+    placement = cut_placement.inspect_source_remove_placement(project, edit)
+    if not isinstance(placement, CutScopeHold):
+        return None, placement
+    witness = edit.source_timeline_span
+    spans = SessionTimeline(project).map_source_span(
+        edit.track_id, SourceSec(edit.start), SourceSec(edit.end)
+    )
+    span = (
+        (TimelineSec(witness.start), TimelineSec(witness.end))
+        if witness
+        else spans[0]
+        if spans
+        else (TimelineSec(edit.start), TimelineSec(edit.end))
+    )
+    return placement, span
+
+
 def lay_pad_for_binding(
     working: EpisodeProject,
     edit: EditDecision,
@@ -414,7 +436,7 @@ def lay_pad_for_binding(
     defaults: EffectiveConfig,
 ) -> dict[str, BoundPadLane]:
     """Ripple ``edit`` out of ``working`` and open its pad; the lanes of the pick made."""
-    placement, span = cut_safety.source_cut_placement(working, edit)
+    placement, span = source_cut_placement(working, edit)
     gap = edit.replace_gap_sec
     if placement is not None or gap is None:
         return {}
@@ -673,7 +695,7 @@ def _apply_source_remove(
 
     manual = is_human_intent(application_intent) or is_human_intent(edit.boundary_intent)
     key = entry = None
-    placed = cut_safety.source_cut_placement(project, edit)
+    placed = source_cut_placement(project, edit)
     stamp = _base_profile_stamp(project, timeline, defaults) if verdict_cache.enabled() else None
     if stamp is not None:
         key = verdict_cache.verdict_key(
