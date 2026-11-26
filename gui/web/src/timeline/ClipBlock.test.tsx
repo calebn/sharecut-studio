@@ -1286,12 +1286,18 @@ describe("ClipBlock waveform", () => {
       fireEvent.pointerUp(handle, { clientX: 150, pointerId: 5 });
       await waitFor(() => expect(trimClipEdge).toHaveBeenCalled());
       await act(async () => {});
-      expect(trimClipEdge).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(trimClipEdge).mock.calls[0][3]).toBeCloseTo(3, 5);
+      expect(trimClipEdge).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/clip-handle.project.json",
+        "c1",
+        "out",
+        expect.closeTo(3, 5),
+        "ripple",
+        "boundary-token",
+      );
       expect(container.querySelector(".clip-trim-ghost")).toBeNull();
     });
 
-    it("second pointerdown while the first save is pending is ignored: one trim call, no ghost (#1034)", async () => {
+    it("a second pointerdown while the first save is pending stays ignored (#1034)", async () => {
       const { container } = renderWithKeymap(clip);
       const handle = container.querySelector(".trim-handle.out") as HTMLElement;
       vi.mocked(trimClipEdge).mockClear();
@@ -1395,6 +1401,28 @@ describe("ClipBlock waveform", () => {
 
     beforeEach(() => {
       vi.mocked(setClipFade).mockClear();
+    });
+
+    it("ignores a second pointer on a fade handle during a live drag and saves once at the first pointer's offset (#1034)", async () => {
+      const { container, handle } = dragIn(5);
+      fireEvent.pointerDown(handle, { clientX: 200, pointerId: 4 });
+      fireEvent.pointerMove(handle, { clientX: 130, pointerId: 4 });
+      fireEvent.pointerUp(handle, { clientX: 130, pointerId: 4 });
+      fireEvent.pointerCancel(handle, { pointerId: 4 });
+      await act(async () => {});
+      expect(setClipFade).not.toHaveBeenCalled();
+      expect(container.querySelector(".fade-readout.in")?.textContent).toBe(
+        "100 ms",
+      );
+      fireEvent.pointerUp(handle, { clientX: 105, pointerId: 3 });
+      await waitFor(() => expect(setClipFade).toHaveBeenCalledOnce());
+      await act(async () => {});
+      expect(setClipFade).toHaveBeenCalledExactlyOnceWith("", "c1", 100, 0, {
+        fade_in_ms: 0,
+        fade_out_ms: 0,
+        fade_in_curve: "linear",
+        fade_out_curve: "linear",
+      });
     });
 
     it("clamps to what the clip leaves, shows it live and commits it", async () => {
