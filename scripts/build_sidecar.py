@@ -429,8 +429,6 @@ def managed_cpython_executable(uv: str, *, env: dict[str, str]) -> str:
 
 def assert_frozen_interpreter(venv_py: Path) -> None:
     """Fail the freeze if the venv cannot import stdlib + uvicorn, lacks the packaged defaults, or cannot run the models."""
-    # abspath, not resolve(): keep the venv's own symlinked python (resolving it would
-    # run the base interpreter and skip the venv), but survive the cwd change below.
     venv_py = Path(os.path.abspath(venv_py))
     for smoke, timeout in (
         (FREEZE_SMOKE, 120),

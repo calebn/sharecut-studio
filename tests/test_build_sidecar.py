@@ -1051,8 +1051,8 @@ def test_assert_frozen_interpreter_runs_three_checks_with_timeout_and_venv_cwd(
         mod.DEFAULTS_SMOKE,
         mod.MODEL_RUNTIME_SMOKE,
     ]
+    assert [kw.get("timeout") for _, kw in calls] == [120, 120, 300]
     for _args, kw in calls:
-        assert kw.get("timeout")
         assert Path(kw["cwd"]) == py.parent
 
 
@@ -1068,6 +1068,28 @@ def test_assert_frozen_interpreter_accepts_a_relative_venv_python(
     monkeypatch.chdir(tmp_path)
     mod.assert_frozen_interpreter(Path("venv/bin/python"))
     assert log.read_text().split() == ["-c"] * 3
+
+
+@pytest.mark.parametrize("relative", [False, True])
+def test_assert_frozen_interpreter_runs_the_venv_symlink_not_its_target(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, relative: bool
+) -> None:
+    """The venv python is a symlink to the base interpreter; resolving it would skip the venv."""
+    mod = _load_build_sidecar()
+    target = tmp_path / "base" / "real_python.sh"
+    target.parent.mkdir()
+    log = tmp_path / "argv0.log"
+    target.write_text(f'#!/bin/sh\necho "$0" >> "{log}"\nexit 0\n', encoding="utf-8")
+    target.chmod(0o755)
+    py = tmp_path / "venv" / "bin" / "python"
+    py.parent.mkdir(parents=True)
+    py.symlink_to(target)
+    monkeypatch.chdir(tmp_path)
+    mod.assert_frozen_interpreter(Path("venv/bin/python") if relative else py)
+    ran = log.read_text().split()
+    assert len(ran) == 3
+    assert {Path(p).name for p in ran} == {"python"}
+    assert {Path(p).parent.parent.name for p in ran} == {"venv"}
 
 
 def test_assert_frozen_interpreter_rejects_a_python_failing_the_model_smoke(
