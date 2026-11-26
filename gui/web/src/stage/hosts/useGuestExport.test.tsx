@@ -51,6 +51,9 @@ describe("useGuestExport", () => {
     expect(result.current.error).toBeNull();
     rerender({ f: files({ currentLoad: "ready", exporting: false }) });
     expect(api.failed).toHaveBeenCalledTimes(1);
+
+    await act(async () => result.current.start());
+    expect(api.start).toHaveBeenCalledTimes(2);
   });
 
   it("sends one request for two presses in the same frame", async () => {
