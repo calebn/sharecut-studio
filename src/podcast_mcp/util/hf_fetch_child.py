@@ -11,7 +11,7 @@ when its stdin reaches EOF, so a parent that dies never leaves the transfer runn
 stdout carries exactly one final JSON line, ``{"path": ...}`` (exit 0) or
 ``{"error": <class name>, "status": <http status or null>, "message": ..., "kind": ...,
 "errno": ..., "xet": <bool>}`` (exit 1). ``kind`` is ``http``, ``network``, ``disk`` or
-``other``; ``xet`` is true when the failing exception is Xet-class, the only failure the parent
+``other``; ``xet`` is true when the failing exception is an hf_xet failure, the only failure the parent
 retries over plain HTTP. Everything else the hub prints goes to stderr, which the parent points
 at a log file.
 """
@@ -74,25 +74,28 @@ def _is_network(exc: BaseException) -> bool:
     return isinstance(exc, tuple(kinds))
 
 
-def _raised_in_hf_xet(exc: BaseException) -> bool:
-    tb = exc.__traceback__
-    while tb is not None:
-        if str(tb.tb_frame.f_globals.get("__name__", "")).split(".")[0] == "hf_xet":
-            return True
-        tb = tb.tb_next
-    return False
+_XET_MESSAGE_PREFIXES = (
+    "Task error",
+    "File reconstruction error",
+    "CAS Client Error",
+    "Data processing error",
+)
+"""How hf_xet's Rust core words a failure. It surfaces as a plain ``RuntimeError`` raised from
+native code with no ``hf_xet`` frame, e.g. ``Task error: File reconstruction error: CAS Client
+Error: Request error: HTTP status client error (401 Unauthorized), domain: https://cas-server...``
+(seen with huggingface_hub 2.4.0 and hf_xet when the Xet token is refused)."""
 
 
 def _is_xet(exc: BaseException) -> bool:
     """An hf_xet failure (a blocked Xet host, a refused token): a transport problem, not a bug.
 
-    A class named ``Xet*``, a class defined in ``hf_xet``, or a ``RuntimeError`` raised from
-    ``hf_xet`` frames.
+    A class defined in ``hf_xet`` (``XetAuthenticationError`` and kin), or the plain
+    ``RuntimeError`` its native core raises, recognised by its message prefix. A ``Xet*``-named
+    class defined elsewhere is not enough: it may wrap an unrelated error.
     """
-    cls = type(exc)
-    if cls.__name__.startswith("Xet") or cls.__module__.split(".")[0] == "hf_xet":
+    if type(exc).__module__.split(".")[0] == "hf_xet":
         return True
-    return isinstance(exc, RuntimeError) and _raised_in_hf_xet(exc)
+    return isinstance(exc, RuntimeError) and str(exc).startswith(_XET_MESSAGE_PREFIXES)
 
 
 def describe(exc: BaseException) -> dict[str, Any]:

@@ -129,7 +129,7 @@ class HubChildError(RuntimeError):
     ``kind`` is ``http`` (``status`` is the HTTP status), ``network``, ``disk`` (``errno`` is
     the OS error) or ``other`` (a bug, left unclassified). The bootstrap failure classifier maps
     it like the in-process hub exceptions. ``xet`` is true when the failing exception was
-    Xet-class; only those are retried over plain HTTP.
+    an hf_xet failure; only those are retried over plain HTTP.
     """
 
     def __init__(
@@ -286,14 +286,15 @@ def _run_child(
     force_download: bool,
     total: int | None,
     on_progress: OnProgress | None,
-) -> Path | None:
+) -> tuple[Path | None, bool]:
     """Download in a child process, report its growth on disk, and kill it if ``on_progress`` raises.
 
-    Returns None when the child could not start, left no result, or failed with a Xet-class
-    error (a blocked Xet host, a refused token), so the caller downloads in-process over plain HTTP; blobs the
-    child finished stay in the cache and the plain path reuses them. Raises ``HubChildError``
-    for every other reported failure (http, disk, a plain network error) and whatever
-    ``on_progress`` raises.
+    Returns ``(path, False)`` on success. Returns ``(None, xet_failed)`` when the child could
+    not start, left no result (``xet_failed`` False), or failed with an hf_xet error (a blocked
+    Xet host, a refused token; ``xet_failed`` True), so the caller downloads in-process over
+    plain HTTP; blobs the child finished stay in the cache and a non-force plain path reuses
+    them (a force one fetches everything again). Raises ``HubChildError`` for every other
+    reported failure (http, disk, a plain network error) and whatever ``on_progress`` raises.
     """
     cache_dir.mkdir(parents=True, exist_ok=True)
     _sweep_stale_scratch(cache_dir)
@@ -331,7 +332,7 @@ def _run_child(
                     "download child could not start (%s); downloading in-process over plain HTTP",
                     exc,
                 )
-                return None
+                return None, False
         path: Path | None = None
         try:
             path = _watch_child(proc, pin, cache_dir, baseline, total, on_progress)
@@ -343,7 +344,7 @@ def _run_child(
                 "download child failed with a Xet error (%s); downloading in-process over plain HTTP",
                 exc,
             )
-            return None
+            return None, True
         finally:
             if path is None:  # Cancel, failure or no result: the child is reaped by now
                 _remove_new_partials(blobs, partials_before)
@@ -353,7 +354,7 @@ def _run_child(
                 "download child left no result (exit code %s); downloading in-process over plain HTTP",
                 proc.returncode,
             )
-        return path
+        return path, False
     finally:
         for scratch in (spec_path, log_path):
             with contextlib.suppress(OSError):
@@ -626,8 +627,11 @@ def _run_with_heartbeat(call: Callable[[], Path], report: _MonotonicProgress, st
     """Run the in-process download on a thread and tick ``report`` while it runs.
 
     The hub only updates its bar when bytes arrive, so a paused hub never lets Cancel through.
-    The tick raises on the calling thread at once; the download thread stops at its next
-    progress update.
+    The tick raises on the calling thread at once, and so does any other ``BaseException``
+    (a ``KeyboardInterrupt`` in ``join``); the download thread stops at its next progress
+    update. That bound is the hub's next byte update: a hub that sends nothing keeps the
+    thread (with the process-wide plain-HTTP settings and the hub's blob lock) until a byte
+    arrives or its socket times out, but the caller has long returned.
     """
     box: dict[str, Any] = {}
 
@@ -639,13 +643,13 @@ def _run_with_heartbeat(call: Callable[[], Path], report: _MonotonicProgress, st
 
     thread = threading.Thread(target=work, name="plain-http-fallback", daemon=True)
     thread.start()
-    while thread.is_alive():
-        thread.join(_POLL_SEC)
-        try:
+    try:
+        while thread.is_alive():
+            thread.join(_POLL_SEC)
             report.repeat()
-        except BaseException as exc:
-            stop.error = exc
-            raise
+    except BaseException as exc:  # Cancel, KeyboardInterrupt or anything else out of join/tick
+        stop.error = exc
+        raise
     if "error" in box:
         raise box["error"]
     return box["path"]
@@ -686,13 +690,12 @@ def download_pinned_snapshot(
             report = _MonotonicProgress(on_progress, total)
             report(DownloadProgress(0, total))
             extra["tqdm_class"] = _byte_bar(stop.guard(report), total)
-        fell_back = False
         if _child_allowed() and not child_failed_on_xet:
-            fetched = _run_child(pin, cache_dir, force_download, total, report)
+            fetched, xet_failed = _run_child(pin, cache_dir, force_download, total, report)
             if fetched is not None:
                 return fetched
-            fell_back = True
-            child_failed_on_xet = True  # a force refetch must not spawn the child again
+            if xet_failed:
+                child_failed_on_xet = True  # a force refetch must not spawn the child again
 
         def plain() -> Path:
             with _plain_http_hub():
@@ -707,7 +710,7 @@ def download_pinned_snapshot(
                     )
                 )
 
-        if fell_back and report is not None:
+        if report is not None:  # every plain-HTTP path honours Cancel, even on a paused hub
             return _run_with_heartbeat(plain, report, stop)
         return plain()
 

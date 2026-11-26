@@ -1,4 +1,4 @@
-"""A child that fails with a Xet-class error falls back to plain HTTP; nothing else does (#1998)."""
+"""A child that fails with a hf_xet error falls back to plain HTTP; nothing else does (#1998)."""
 
 from __future__ import annotations
 
@@ -36,8 +36,24 @@ def _child_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
 
 
+REAL_XET_MESSAGE = (
+    "Task error: File reconstruction error: CAS Client Error: Request error: HTTP status "
+    "client error (401 Unauthorized), domain: "
+    "https://cas-server.xethub.hf.co/v2/reconstructions/dc8d6759b5ee4be73e674a434ac73432b4cbc5027e8c2d86a24acda5e332001f"
+)
+"""Verbatim from huggingface_hub 2.4.0 + hf_xet when the Xet token is refused: a plain
+``RuntimeError`` raised by ``session.new_file_download_group`` (no hf_xet frame, no hf_xet class)."""
+
+
 class XetAuthenticationError(Exception):
     """Looks like the hf_xet error a blocked Xet host raises."""
+
+
+XetAuthenticationError.__module__ = "hf_xet"
+
+
+class XetFoo(ValueError):
+    """Named like a Xet class but defined here and wrapping an unrelated error type."""
 
 
 class _FromHfXet(RuntimeError):
@@ -50,23 +66,19 @@ _FromHfXet.__module__ = "hf_xet.errors"
 # ---- describe() -------------------------------------------------------------------------
 
 
-def _raised_from_hf_xet() -> BaseException:
-    """A plain RuntimeError raised by code that lives in a module named ``hf_xet``."""
-    scope: dict[str, Any] = {"__name__": "hf_xet.session"}
-    exec("def boom():\n    raise RuntimeError('data processing error')", scope)
-    try:
-        scope["boom"]()
-    except RuntimeError as exc:
-        return exc
-    raise AssertionError
-
-
 @pytest.mark.parametrize(
     ("make", "kind", "xet"),
     [
         (lambda: XetAuthenticationError("blocked"), "network", True),
         (lambda: _FromHfXet("data processing error"), "network", True),
-        (_raised_from_hf_xet, "network", True),
+        (lambda: RuntimeError(REAL_XET_MESSAGE), "network", True),
+        (lambda: RuntimeError("Task error: worker panicked"), "network", True),
+        (lambda: RuntimeError("File reconstruction error: x"), "network", True),
+        (lambda: RuntimeError("CAS Client Error: x"), "network", True),
+        (lambda: RuntimeError("Data processing error: x"), "network", True),
+        (lambda: XetFoo("wraps a bug"), "other", False),
+        (lambda: RuntimeError("the Task error: is mid-message"), "other", False),
+        (lambda: ValueError(REAL_XET_MESSAGE), "other", False),
         (lambda: RuntimeError("a bug"), "other", False),
         (lambda: ValueError("a bug"), "other", False),
         (lambda: ConnectionResetError("reset"), "network", False),
@@ -74,7 +86,14 @@ def _raised_from_hf_xet() -> BaseException:
     ids=[
         "xet-class-name",
         "hf_xet-module",
-        "runtime-error-from-hf_xet",
+        "real-message",
+        "task-error",
+        "reconstruction-error",
+        "cas-error",
+        "data-processing-error",
+        "xet-named-value-error",
+        "prefix-mid-message",
+        "value-error-with-real-message",
         "runtime-error",
         "value-error",
         "plain-network",
@@ -109,14 +128,13 @@ def test_describe_keeps_disk_and_http_ahead_of_the_xet_rule() -> None:
     assert (line["kind"], line["xet"]) == ("disk", False)
 
 
-# ---- fallback on a Xet-class child failure ----------------------------------------------
+# ---- fallback on an hf_xet child failure ----------------------------------------------
 
 
 XET_CHILD = (
     "import json, sys\n"
     "from podcast_mcp.util import hf_fetch_child\n"
-    "class XetAuthenticationError(Exception): pass\n"
-    "line = hf_fetch_child.describe(XetAuthenticationError('blocked host'))\n"
+    f"line = hf_fetch_child.describe(RuntimeError({REAL_XET_MESSAGE!r}))\n"
     "sys.stderr.write('xet-stderr-marker\\n')\n"
     "print(json.dumps(line)); sys.exit(1)\n"
 )
@@ -200,7 +218,6 @@ def _blob_child(then: str, *, size: int = 4) -> str:
     return (
         "import json, pathlib, sys\n"
         "from podcast_mcp.util import hf_fetch_child\n"
-        "class XetAuthenticationError(Exception): pass\n"
         "cache = json.load(open(sys.argv[1]))['cache_dir']\n"
         "blobs = pathlib.Path(cache) / 'models--acme--model' / 'blobs'\n"
         "blobs.mkdir(parents=True, exist_ok=True)\n"
@@ -209,7 +226,7 @@ def _blob_child(then: str, *, size: int = 4) -> str:
 
 
 XET_AFTER_BLOB = (
-    "print(json.dumps(hf_fetch_child.describe(XetAuthenticationError('blocked'))))\nsys.exit(1)\n"
+    f"print(json.dumps(hf_fetch_child.describe(RuntimeError({REAL_XET_MESSAGE!r}))))\nsys.exit(1)\n"
 )
 NETWORK_AFTER_BLOB = (
     "print(json.dumps(hf_fetch_child.describe(ConnectionResetError('reset'))))\nsys.exit(1)\n"
@@ -365,6 +382,113 @@ def test_cancel_during_the_fallback_is_honoured_while_the_hub_is_paused(
     assert outcome == ["stopped"]
     assert not (snap / "model.bin").exists()
     assert wait_for(lambda: model_manifest._plain_http_depth == 0, timeout=5.0)
+
+
+def test_a_force_refetch_after_the_fallback_still_honours_cancel_on_a_paused_hub(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The mismatch refetch (``fetch(True)``) runs plain HTTP with no child: it needs the heartbeat too."""
+    import threading
+
+    import huggingface_hub
+
+    release = threading.Event()
+    calls: list[bool] = []
+    snap = tmp_path / "snap"
+    pin = PinnedSnapshot("acme/model", "a" * 40, (("model.bin", "0" * 64),))  # never matches
+
+    def hub(*_a: object, **kwargs: Any) -> str:
+        calls.append(bool(kwargs["force_download"]))
+        snap.mkdir(exist_ok=True)
+        (snap / "model.bin").write_bytes(b"model")
+        if kwargs["force_download"]:
+            release.wait(10)  # the paused hub: no byte, so no bar update
+        return str(snap)
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", hub)
+    _stub(monkeypatch, XET_CHILD)
+
+    def sink(_progress: DownloadProgress) -> None:
+        if calls == [False, True]:
+            raise CancelledProgress("cancel")
+
+    try:
+        t0 = time.monotonic()
+        with pytest.raises(CancelledProgress):
+            download_pinned_snapshot(pin, tmp_path / "hub", on_progress=sink)
+        assert time.monotonic() - t0 < 5.0
+        assert not release.is_set()
+    finally:
+        release.set()
+    assert wait_for(lambda: model_manifest._plain_http_depth == 0, timeout=5.0)
+
+
+def test_a_keyboard_interrupt_in_join_stops_the_worker_at_its_next_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+
+    started, release, outcome = threading.Event(), threading.Event(), []
+    stop = model_manifest._Stop()
+    report = model_manifest._MonotonicProgress(lambda _p: None, 100)
+    guarded = stop.guard(report)
+
+    def download() -> Path:
+        started.set()
+        release.wait(10)
+        try:
+            guarded(DownloadProgress(5, 100))  # the next byte after the pause
+            outcome.append("completed")
+        except KeyboardInterrupt:
+            outcome.append("stopped")
+        return Path()
+
+    real_join = threading.Thread.join
+
+    def interrupted(self: threading.Thread, timeout: float | None = None) -> None:
+        if self.name == "plain-http-fallback" and started.wait(5.0):
+            raise KeyboardInterrupt
+        real_join(self, timeout)
+
+    monkeypatch.setattr(threading.Thread, "join", interrupted)
+    worker_done = threading.Event()
+
+    def call() -> Path:
+        try:
+            return download()
+        finally:
+            worker_done.set()
+
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            model_manifest._run_with_heartbeat(call, report, stop)
+        assert isinstance(stop.error, KeyboardInterrupt)
+    finally:
+        release.set()
+    assert worker_done.wait(5.0)
+    assert outcome == ["stopped"]
+
+
+def test_a_child_that_left_no_result_falls_back_but_a_force_refetch_may_spawn_again(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Only a real Xet failure turns the child off for the rest of the download."""
+    calls = _hub(monkeypatch, tmp_path / "snap")
+    pin = PinnedSnapshot("acme/model", "a" * 40, (("model.bin", "0" * 64),))  # never matches
+    _stub(monkeypatch, "import sys; sys.exit(3)")
+    spawned: list[Any] = []
+    real = process.popen
+
+    def recording(*args: Any, **kwargs: Any) -> Any:
+        spawned.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(process, "popen", recording)
+
+    download_pinned_snapshot(pin, tmp_path / "hub")
+
+    assert [c["force_download"] for c in calls] == [False, True]
+    assert len(spawned) == 2
 
 
 def test_the_fallback_progress_never_goes_backwards_after_the_child_showed_bytes(
