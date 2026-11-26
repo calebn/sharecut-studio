@@ -193,6 +193,15 @@ def _isolate_relay_limiters() -> None:
 
 
 @pytest.fixture(autouse=True)
+def _hub_downloads_in_process(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep pinned snapshot downloads in this process, where tests patch the hub library.
+
+    ``tests/test_hf_fetch_child.py`` opts out to exercise the Xet child process (#1998).
+    """
+    monkeypatch.setenv("PODCAST_HF_IN_PROCESS", "1")
+
+
+@pytest.fixture(autouse=True)
 def _serial_transcription(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep a host's core and RAM count from deciding whether a test's tracks run side by side."""
     monkeypatch.setattr("podcast_mcp.engines.transcribe.transcribe_worker_count", lambda *_: 1)

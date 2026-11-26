@@ -16,7 +16,13 @@ that call's ``blob_id`` / ``size``.
 
 from __future__ import annotations
 
+import contextlib
+import importlib.util
+import json
 import logging
+import os
+import sys
+import tempfile
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -25,6 +31,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.util import process
 from podcast_mcp.util.asset_sources import DownloadProgress, OnProgress
 from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.hashing import sha256_file
@@ -39,6 +46,11 @@ _MISSING = object()
 _plain_http_lock = threading.Lock()
 _plain_http_depth = 0
 _plain_http_originals: dict[str, object] = {}
+
+_POLL_SEC = 0.25
+"""How often the parent measures a child download's growth on disk."""
+
+_CHILD_KINDS = frozenset({"http", "network", "disk", "other"})
 
 FileManifest = tuple[tuple[str, str], ...]
 """(path relative to the snapshot root, sha256 hex) for every pinned file."""
@@ -102,6 +114,167 @@ def _plain_http_hub() -> Iterator[None]:
                 for name, original in _plain_http_originals.items():
                     setattr(constants, name, original)
                 _plain_http_originals.clear()
+
+
+class HubChildError(RuntimeError):
+    """The download child failed; ``kind`` and ``status`` say what the hub library raised there.
+
+    ``kind`` is ``http`` (``status`` is the HTTP status), ``network``, ``disk`` (``errno`` is
+    the OS error) or ``other`` (a bug, left unclassified). The bootstrap failure classifier maps
+    it like the in-process hub exceptions.
+    """
+
+    def __init__(
+        self,
+        kind: str,
+        message: str,
+        *,
+        status: int | None = None,
+        errno: int | None = None,
+        error: str = "",
+    ) -> None:
+        super().__init__(message)
+        self.kind = kind if kind in _CHILD_KINDS else "other"
+        self.status = status
+        self.errno = errno
+        self.error = error
+
+
+def _child_argv(spec: Path) -> list[str]:
+    return [sys.executable, "-m", "podcast_mcp.util.hf_fetch_child", str(spec)]
+
+
+def _xet_importable() -> bool:
+    return importlib.util.find_spec("hf_xet") is not None
+
+
+def _child_allowed() -> bool:
+    """Whether the Xet child can run: not turned off, and hf_xet is there to be fast."""
+    return os.environ.get("PODCAST_HF_IN_PROCESS") != "1" and _xet_importable()
+
+
+def _cache_bytes(pin: PinnedSnapshot, cache_dir: Path) -> int:
+    """Bytes in this repo's blobs, finished and ``.incomplete`` alike."""
+    blobs = cache_dir / f"models--{pin.hf_repo.replace('/', '--')}" / "blobs"
+    total = 0
+    with contextlib.suppress(OSError):
+        for entry in os.scandir(blobs):
+            with contextlib.suppress(OSError):
+                total += entry.stat().st_size
+    return total
+
+
+def _child_result(proc: process.Child | process.Popen[Any]) -> dict[str, Any] | None:
+    """The child's one JSON line, or None when it left none."""
+    try:
+        raw = proc.stdout.read() if proc.stdout is not None else b""
+    except (OSError, ValueError):
+        return None
+    lines = [line for line in raw.decode("utf-8", "replace").splitlines() if line.strip()]
+    try:
+        result = json.loads(lines[-1]) if lines else None
+    except ValueError:
+        return None
+    return result if isinstance(result, dict) else None
+
+
+def _run_child(
+    pin: PinnedSnapshot,
+    cache_dir: Path,
+    force_download: bool,
+    total: int | None,
+    on_progress: OnProgress | None,
+) -> Path:
+    """Download in a child process, report its growth on disk, and kill it if ``on_progress`` raises.
+
+    Raises ``SpawnUnavailableError`` or ``OSError`` when the child cannot start (the caller
+    falls back) and ``HubChildError`` when it ran and failed.
+    """
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    spec = {
+        "repo": pin.hf_repo,
+        "revision": pin.revision,
+        "allow_patterns": pin.allow_patterns,
+        "cache_dir": str(cache_dir),
+        "force_download": force_download,
+    }
+    fd, spec_name = tempfile.mkstemp(prefix=".fetch-child-", suffix=".json", dir=cache_dir)
+    spec_path = Path(spec_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(spec, handle)
+        with (cache_dir / ".fetch-child.log").open("wb") as log:
+            baseline = _cache_bytes(pin, cache_dir)
+            with process.detached_children():
+                proc = process.popen(
+                    _child_argv(spec_path),
+                    stdin=process.PIPE,
+                    stdout=process.PIPE,
+                    stderr=log,
+                    start_new_session=True,
+                )
+        return _watch_child(proc, pin, cache_dir, baseline, total, on_progress)
+    finally:
+        with contextlib.suppress(OSError):
+            spec_path.unlink()
+
+
+def _watch_child(
+    proc: process.Child | process.Popen[Any],
+    pin: PinnedSnapshot,
+    cache_dir: Path,
+    baseline: int,
+    total: int | None,
+    on_progress: OnProgress | None,
+) -> Path:
+    shown = 0
+    try:
+        while True:
+            try:
+                proc.wait(timeout=_POLL_SEC)
+                break
+            except process.TimeoutExpired:
+                pass
+            if on_progress is None:
+                continue
+            grown = max(0, _cache_bytes(pin, cache_dir) - baseline)
+            grown = min(grown, total) if total is not None else grown
+            if grown > shown:
+                shown = grown
+                on_progress(DownloadProgress(shown, total))
+    except BaseException:
+        process.kill_child(proc)
+        with contextlib.suppress(OSError, process.SubprocessError):
+            proc.wait(timeout=10)
+        raise
+    finally:
+        for stream in (proc.stdin,):
+            if stream is not None:
+                with contextlib.suppress(OSError, ValueError):
+                    stream.close()
+    result = _child_result(proc)
+    if proc.stdout is not None:
+        with contextlib.suppress(OSError):
+            proc.stdout.close()
+    if result is None:
+        raise HubChildError(
+            "network", f"the download child exited with code {proc.returncode} and no result"
+        )
+    if "path" in result:
+        if on_progress is not None:
+            on_progress(
+                DownloadProgress(total, total)
+                if total is not None
+                else DownloadProgress(shown, None)
+            )
+        return Path(str(result["path"]))
+    raise HubChildError(
+        str(result.get("kind", "other")),
+        f"{result.get('error', 'error')}: {result.get('message', '')}",
+        status=result.get("status"),
+        errno=result.get("errno"),
+        error=str(result.get("error", "")),
+    )
 
 
 def manifest_files(manifest: FileManifest) -> list[str]:
@@ -285,12 +458,23 @@ def download_pinned_snapshot(
     """
     from huggingface_hub import snapshot_download
 
+    cache_dir = Path(cache_dir)
+
     def fetch(force_download: bool) -> Path:
         extra: dict[str, Any] = {}
+        total: int | None = None
         if on_progress is not None:
             total = _dry_run_total(pin, cache_dir, force_download)
             on_progress(DownloadProgress(0, total))
             extra["tqdm_class"] = _byte_bar(on_progress, total)
+        if _child_allowed():
+            try:
+                return _run_child(pin, cache_dir, force_download, total, on_progress)
+            except OSError as exc:
+                logger.warning(
+                    "download child could not start (%s); downloading in-process over plain HTTP",
+                    exc,
+                )
         with _plain_http_hub():
             return Path(
                 snapshot_download(
