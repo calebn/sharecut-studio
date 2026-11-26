@@ -113,9 +113,7 @@ def test_same_entries_as_the_cli_path_save_the_same_bytes(
     assert [kit.version for kit in KitStore().list()] == [1]
 
 
-def test_two_start_entries_are_saved_in_the_order_sent(
-    client: TestClient, ids: list[str]
-) -> None:
+def test_two_start_entries_are_saved_in_the_order_sent(client: TestClient, ids: list[str]) -> None:
     # Each start entry goes to the very start when it applies, so the second lands ahead of the
     # first; the kit file itself keeps the order the sheet sent and warns about it.
     entries = [{"segment_id": ids[0], "at": "start"}, {"segment_id": ids[1], "at": "start"}]
@@ -136,7 +134,7 @@ def test_two_start_entries_are_saved_in_the_order_sent(
         ("   ", 422, "kit_name_invalid"),
         ("7", 200, None),
         ("Café", 200, None),
-        ("ｓｈｏｗ", 200, None),
+        ("\uff53\uff48\uff4f\uff57", 200, None),
         ("日本 show", 200, None),
         ("Show", 200, None),
         ("  Show Kit  ", 200, None),
