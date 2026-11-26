@@ -582,6 +582,11 @@ jsdom visibility checks.
 
 ## Changelog
 
+- 2026-11-26 — #4660: the phone Record room's Comments sheet rests on the Room
+  dock instead of covering it (`stage/frame/useRoomSheetFloor.ts`, two layout
+  tokens scoped to the open sheet; no colour or spacing tokens), and the host's
+  feedback toast rests above that dock.
+
 - 2026-10-31 — #2294 S7b W2: the legacy `PresenceOverlay` and
   `PresenceOverlayView` (and `Templates/PresenceOverlay`) are replaced by the
   store-bound `timeline/TimelinePresence.tsx` host over `System/Presence`.

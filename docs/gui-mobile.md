@@ -493,8 +493,9 @@ comment composer beside the card does not lift it (`feedback/toastDock.ts`,
 #2221).
 
 On phones the dock measures bottom chrome (the tab bar, or the Player, which is
-the Listen dock on a phone Viewer or Commenter link), the latest pressed control
-and the comment composer. When a clear position fits, the card moves above the
+the Listen dock on a phone Viewer or Commenter link), the host Record room's dock
+(the toast rests above it, with the Comments sheet closed or open at any detent),
+the latest pressed control and the comment composer. When a clear position fits, the card moves above the
 pressed control (Play, say), or below when there is no room above, on a short phone such as 320x460 where the
 dock spot would land on Play (#1960). Its full-sheet fallback can cover scrolling
 content in those other workflows. Desktop and ordinary tablet feedback rests
@@ -733,6 +734,7 @@ test any more.
 - **Touch targets.** The corner packs its controls into the 48px chrome; buttons are 28px there, below the 44px floor. This is a known limit; the Player bar and tab bar keep `var(--touch-min)`.
 - **The phone sheet never covers the header row** (R-short-8). At every detent its slot starts at the header's bottom edge (`bottom-sheet.css`, `--app-header-height-phone` plus the top safe area), so the Stage menu and Tools button stay reachable while a selection is open, including at 200% text. The clearance tokens then count only the rows under the header (`--sheet-header-clearance` is 0 on the phone).
 - **Split** cuts at once on touch with no confirm; the toast carries Undo. Sheets rest above the tab bar and Player (`--frame-bottom-chrome`).
+- **The Record room's Comments sheet rests on the Room dock** (#4660), not on `--frame-bottom-chrome`: `useRoomSheetFloor` publishes `--room-sheet-bottom` (a dock row) or `--room-sheet-end` (the landscape guest's dock column) on `<html>` while the sheet is open, and `bottom-sheet.css` insets only that sheet's own root, so the peek, half and full detents keep their sizes and resolve against the shorter slot. The Devices sheet and others keep their rest. The host and the guest page both use it. With the keyboard up the keyboard rule wins.
 - **Undo and Redo** live in the app header on every shell. The phone Inspector sheet does not repeat them.
 - The `--mobile-nav-height`, `--tabs-height` and `--status-height` tokens are replaced by `--frame-bottom-chrome` for sheets, jog and toast offsets.
 - The host recording chip is a Record-stage badge on the Stage bar. **Solo on · Clear solo** is the Player bar's Solo chip, 44px.

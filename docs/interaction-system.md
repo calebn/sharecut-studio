@@ -238,7 +238,8 @@ There are three overlay primitives.
    announcement speak through it too. Floating placement uses the card's horizontal
    footprint. Visible comment and guest-name fields that intersect it take
    protection priority when a clear position fits (`feedback/toastDock.ts`,
-   #2199, #2221). If no clear position fits, the existing fallback can cover a
+   #2199, #2221). On a phone the host Record room's dock is one of the floors, so
+   the toast never rests on its buttons (#4660). If no clear position fits, the existing fallback can cover a
    control. See [Feedback toast](gui-mobile.md#feedback-toast) for the measured
    320x300 limit and the Dismiss or resize workaround. The toast region is
    appended to the page body after the app, outside the tree a dialog makes
