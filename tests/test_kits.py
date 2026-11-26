@@ -1137,15 +1137,22 @@ def test_the_apply_route_applies_a_two_entry_kit_and_reports_the_head(
     assert [e["at"] for e in report["entries"]] == [0.0, 10.0]
     spans = {s[0]: s for s in _spans(project)}
     assert (spans[intro][1], spans[outro][1]) == (0.0, 10.0)
-    assert report["history_head_id"] == load_project(Path(project)).history.head_id()
+    heads = [e["history_head_id"] for e in report["entries"]]
+    assert len(set(heads)) == 2 and all(heads)
+    assert heads[-1] == load_project(Path(project)).history.head_id()
+    history = load_project(Path(project)).history
+    ids = [entry.id for entry in history.entries]
+    assert ids.index(heads[0]) < ids.index(heads[1])
     rows = DocumentSyncService.open(project).store.commands_after(0)
     assert {r["client_id"] for r in rows} == {"studio"}
 
 
-def test_a_dry_run_report_has_no_history_head(project: str, library: tuple[str, str]) -> None:
+def test_a_dry_run_report_has_no_entry_heads(project: str, library: tuple[str, str]) -> None:
     kit = _show_kit(library)
-    assert "history_head_id" not in submit_kit_apply(project, kit.id, dry_run=True).wire()
-    assert "history_head_id" in submit_kit_apply(project, kit.id).wire()
+    dry = submit_kit_apply(project, kit.id, dry_run=True).wire()
+    assert all("history_head_id" not in entry for entry in dry["entries"])
+    done = submit_kit_apply(project, kit.id).wire()
+    assert all(entry["history_head_id"] for entry in done["entries"])
 
 
 def test_the_apply_route_refuses_a_stale_kit_version(
@@ -1291,7 +1298,7 @@ def test_the_apply_route_applies_once_when_two_posts_race(
     assert sum(1 for s in _spans(project) if s[0] in library) == 2
 
 
-def test_the_reported_head_is_the_last_entrys_own_head(
+def test_each_entry_reports_its_own_lock_time_head(
     project: str, library: tuple[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from podcast_mcp.services.document import kit_apply
@@ -1307,5 +1314,13 @@ def test_the_reported_head_is_the_last_entrys_own_head(
 
     monkeypatch.setattr(kit_apply, "submit_segment_insert", spy)
     report = submit_kit_apply(project, kit.id).wire()
-    assert all(heads) and report["history_head_id"] == "lock-2"
-    assert "history_head_id" not in report["entries"][0]
+    assert all(heads)
+    assert [e["history_head_id"] for e in report["entries"]] == ["lock-1", "lock-2"]
+
+
+def test_the_apply_route_keeps_its_own_host_gate() -> None:
+    from podcast_mcp.gui.routes.deps import host_gate
+    from podcast_mcp.gui.routes.kits import router
+
+    route = next(r for r in router.routes if getattr(r, "path", "") == "/api/kits/apply")
+    assert any(dep.call is host_gate for dep in route.dependant.dependencies)  # type: ignore[attr-defined]

@@ -48,21 +48,26 @@ const isCurrent = (path: string, epoch: number) => {
 
 async function undoKit(
   path: string,
-  steps: number,
-  firstHead: string | null,
+  entryHeads: readonly (string | null)[],
 ): Promise<boolean | string> {
   const scope = documentScope();
-  let head = parseHistoryEntryId(firstHead);
+  const heads = entryHeads.map(parseHistoryEntryId);
+  const steps = heads.length;
   let undone = 0;
-  while (undone < steps && head !== null && isCurrentDocumentScope(scope)) {
+  for (let index = steps - 1; index >= 0; index -= 1) {
+    const expectedHeadId = heads[index];
+    if (!expectedHeadId || !isCurrentDocumentScope(scope)) break;
+    let landed: string | null;
     try {
-      head = await undoHistory(path, { expectedHeadId: head, scope });
+      landed = await undoHistory(path, { expectedHeadId, scope });
     } catch (error) {
       if (!(error instanceof ApiError) && undone === 0) throw error;
       break;
     }
-    if (head === null) break;
+    if (landed === null) break;
     undone += 1;
+    const before = index > 0 ? heads[index - 1] : undefined;
+    if (before !== undefined && landed !== before) break;
   }
   if (undone === steps) return true;
   return undone === 0 ? false : partialUndoLine(undone, steps);
@@ -144,8 +149,7 @@ export function KitOfferNotice({ guestShare }: { guestShare: boolean }) {
             if (!isCurrent(path, epoch)) return false;
             const result = await undoKit(
               path,
-              report.undo_steps,
-              report.history_head_id,
+              report.entries.map((entry) => entry.history_head_id),
             );
             reload();
             return result;

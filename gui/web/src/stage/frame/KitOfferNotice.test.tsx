@@ -48,9 +48,11 @@ const report = {
   timeline_duration_before_sec: 8,
   timeline_duration_after_sec: 12,
   dry_run: false,
-  entries: [],
+  entries: [
+    { position: 1, history_head_id: "h1" },
+    { position: 2, history_head_id: "h2" },
+  ],
   undo_steps: 2,
-  history_head_id: "h2",
 };
 
 const toast = () => useDawStore.getState().feedbackToast;
@@ -88,7 +90,10 @@ beforeEach(() => {
   vi.mocked(applyKit).mockResolvedValue(report);
   vi.mocked(undoHistory).mockReset();
 });
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+});
 
 describe("KitOfferNotice", () => {
   it("offers the kit with its entries named from the library", async () => {
@@ -297,13 +302,50 @@ describe("KitOfferNotice", () => {
     await expect(again.run()).rejects.toThrow("network");
   });
 
+  it("stops when a foreign edit sits between the entries and never says Took back", async () => {
+    vi.mocked(undoHistory).mockResolvedValueOnce("foreign-edit" as never);
+    const reverse = await applied();
+    expect(await reverse.run()).toBe(
+      "Undid 1 of 2; the rest can't be undone because the project changed.",
+    );
+    expect(undoHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops after two steps when the second lands on a foreign head", async () => {
+    vi.mocked(applyKit).mockResolvedValue({
+      ...report,
+      undo_steps: 3,
+      entries: [
+        { position: 1, history_head_id: "h1" },
+        { position: 2, history_head_id: "h2" },
+        { position: 3, history_head_id: "h3" },
+      ],
+    });
+    vi.mocked(undoHistory)
+      .mockResolvedValueOnce("h2" as never)
+      .mockResolvedValueOnce("foreign-edit" as never);
+    const reverse = await applied();
+    expect(await reverse.run()).toBe(
+      "Undid 2 of 3; the rest can't be undone because the project changed.",
+    );
+    expect(
+      vi.mocked(undoHistory).mock.calls.map((c) => c[1].expectedHeadId),
+    ).toEqual(["h3", "h2"]);
+  });
+
   it("keeps the Undo toast up for 20 s", async () => {
     await applied();
     expect(toast()?.dwellMs).toBe(20000);
   });
 
   it("does not undo without the head the apply reported", async () => {
-    vi.mocked(applyKit).mockResolvedValue({ ...report, history_head_id: null });
+    vi.mocked(applyKit).mockResolvedValue({
+      ...report,
+      entries: [
+        { position: 1, history_head_id: "h1" },
+        { position: 2, history_head_id: null },
+      ],
+    });
     const reverse = await applied();
     expect(await reverse.run()).toBe(false);
     expect(undoHistory).not.toHaveBeenCalled();
@@ -325,14 +367,8 @@ describe("KitOfferNotice", () => {
   });
 
   it("still hides for this visit when storage is unavailable, and offers again next time", async () => {
-    const setItem = vi
-      .spyOn(Storage.prototype, "setItem")
-      .mockImplementation(() => {
-        throw new DOMException("blocked", "SecurityError");
-      });
-    const getItem = vi
-      .spyOn(Storage.prototype, "getItem")
-      .mockImplementation(() => {
+    for (const method of ["setItem", "getItem"] as const)
+      vi.spyOn(Storage.prototype, method).mockImplementation(() => {
         throw new DOMException("blocked", "SecurityError");
       });
     const view = mount();
@@ -345,8 +381,6 @@ describe("KitOfferNotice", () => {
     expect(
       await screen.findByText("Add your show's intro and outro?"),
     ).toBeTruthy();
-    setItem.mockRestore();
-    getItem.mockRestore();
   });
 
   it("offers a different episode again", async () => {
@@ -414,10 +448,13 @@ describe("KitOfferNotice", () => {
         projectEpoch: 2,
       });
     });
-    expect(await add()).toBeTruthy();
+    const next = await add();
     expect(screen.queryByText("Adding your intro and outro…")).toBeNull();
+    vi.mocked(applyKit).mockResolvedValue(report);
+    await userEvent.click(next);
+    expect(applyKit).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(applyKit).mock.calls[1]?.[0]).toBe("/tmp/other.sharecut");
     await act(async () => finish(report));
-    expect(toast()).toBeNull();
     expect(await add()).toBeTruthy();
   });
 
