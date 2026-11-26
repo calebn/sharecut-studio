@@ -36,6 +36,15 @@ or Retry when those actions are available.
 When the bar hides the Hear options chevron but still shows A and B, Tab to
 Hear options to reveal it and press Enter to open the menu.
 
+Widening the bar can briefly hide a control at the compact spacing breakpoint.
+At 23.5 rem or narrower, the Player bar uses tighter gaps and a smaller clock.
+Just above that width, regular spacing and clock size take more room, so the
+fitter may pick a tighter level. In the Following example with cuts shown,
+Chromium and WebKit both move from fit level 5 to 6 at 376 to 377 CSS px with
+16 px root text, and at 564 to 565 CSS px with 24 px root text. These are the
+Player container widths. The measured controls stay inside the bar and clear
+of one another.
+
 Fixed layout rules also apply. At 22 rem or narrower, the A and B buttons give
 way to the Hear menu button. The same swap happens in a short frame, such as a
 phone in landscape. The short-frame bar hides skips, Stop following and the
