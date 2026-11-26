@@ -1229,6 +1229,57 @@ describe("Review host comments", () => {
       expect(field()).toBeVisible();
     });
 
+    it("keeps a newer Post pending when an earlier Review mount's Post finishes", async () => {
+      const oldPath = PATH;
+      let releaseOld!: () => void;
+      let releaseNew!: () => void;
+      const oldReply = new Promise<void>((resolve) => {
+        releaseOld = resolve;
+      });
+      const newReply = new Promise<void>((resolve) => {
+        releaseNew = resolve;
+      });
+      wire.post.mockImplementation(async (path: string, body) => {
+        if (body.type === "AddComment") {
+          await (path === oldPath ? oldReply : newReply);
+        }
+        return answer(body);
+      });
+
+      const first = mount([]);
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "Same words{Enter}");
+      await waitFor(() => expect(sent("AddComment")).toHaveLength(1));
+
+      first.unmount();
+      // The fixture has one queue array. The second project starts with its own empty queue.
+      wire.rows = [];
+      PATH = `${oldPath}.next.sharecut`;
+      mount([]);
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "Same words{Enter}");
+      await waitFor(() => expect(sent("AddComment")).toHaveLength(2));
+      expect(screen.getByRole("button", { name: "Posting…" })).toBeVisible();
+
+      try {
+        await landed(releaseOld);
+        await waitFor(() => expect(toast()).toMatch(/Comment posted at/));
+        expect(field()).toHaveValue("Same words");
+        expect(
+          screen.getByRole("button", { name: "Posting…" }),
+        ).toHaveAttribute("aria-disabled", "true");
+      } finally {
+        await landed(releaseNew);
+      }
+      await waitFor(() =>
+        expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull(),
+      );
+    });
+
     it("shows the reopened field as sending while the old post is in flight", async () => {
       let release!: () => void;
       const held = new Promise<void>((resolve) => {

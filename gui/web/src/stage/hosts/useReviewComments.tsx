@@ -67,6 +67,9 @@ import { ComposeAnchor } from "./ComposeAnchor";
 import { commentCardOf } from "./commentCardData";
 import { TrackScope } from "./TrackScope";
 
+// Post continuations can outlive their Review host and still reach the shared composer.
+let lastComposerPostId = 0;
+
 type ComposerOptions = {
   draftPresent: boolean;
   scope: string[];
@@ -415,7 +418,6 @@ export function useReviewComments(guest: boolean) {
   /** Listen layout: the typed text and its time wait for the next Comment. */
   const collapse = () => leave("close");
 
-  const postIds = useRef(0);
   // A guest who blanks a saved name posts under it, so show it. The generic
   // "Guest" label stays out of the field: a first post never needs a name.
   const showGuestActor = (who: string) => {
@@ -426,7 +428,7 @@ export function useReviewComments(guest: boolean) {
     const { composer: session } = useDawStore.getState();
     if (session.post || !session.draft) return;
     const stage = stageOf();
-    const id = ++postIds.current;
+    const id = ++lastComposerPostId;
     const left = leaves.current;
     dispatchComposer({ type: "postStart", id });
     const result = await postComment.post({
