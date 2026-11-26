@@ -264,6 +264,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       const rest = sheet.getByRole("radio", { name: /Move the rest later/ });
       const over = sheet.getByRole("radio", { name: /Play over the episode/ });
       await expect(over).toBeChecked();
+      await expect(over).toBeInViewport();
       await expect(rest).not.toBeChecked();
       await expect(
         sheet.getByText("Adds 0:22 at 0:00 on a new track."),
