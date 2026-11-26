@@ -219,7 +219,7 @@ def propose_tighten_edits(
         # Decode each track's raw audio once up front (see edits/audio_cache.py) instead
         # of spawning an ffmpeg subprocess per tiny window read inside every candidate's
         # analysis -- this is the dominant cost at scale, well beyond what thread-pool
-        # threading alone can buy back. Read-only; safe to share with worker threads when N >= 2 is set.
+        # threading alone can buy back. Read-only; safe to share with the analysis worker threads (on by default with enrolled profiles, or N >= 2).
         # Every dialogue track is decoded, a transcript or not: a session ripple removes the
         # same window from all of them, and a pause trim reads each (``SessionAir``).
         audio_caches = build_track_audio_caches(

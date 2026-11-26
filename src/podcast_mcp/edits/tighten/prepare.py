@@ -586,7 +586,7 @@ def analyze_candidates(
     timeline_caches: TrackRmsCacheSet | None = None,
     max_workers: int | None = None,
 ) -> list[_AnalyzedCut | CutRejected]:
-    """Analyze ``candidates``, results in candidate order (threads only when N >= 2).
+    """Analyze ``candidates``, results in candidate order (threaded when ``max_workers`` is N >= 2, or by default with enrolled speaker profiles; 1 is serial).
 
     ``timeline_caches`` is the stems set the workers read; a caller that goes on to apply the
     cuts passes the same set on, and it must be built on the caller's thread (#1471).
