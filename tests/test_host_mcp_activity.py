@@ -187,6 +187,51 @@ def test_age_is_monotonic_and_ignores_wall_clock_jumps(monkeypatch: pytest.Monke
         assert third["last_request_at"] == first["last_request_at"]
 
 
+def test_route_is_bound_to_the_loopback_host_and_origin() -> None:
+    with TestClient(create_app()) as client:
+        bad_origin = client.get(
+            ROUTE, headers={"Host": "127.0.0.1:8765", "Origin": "https://evil.example"}
+        )
+        assert bad_origin.status_code == 403
+        bad_host = client.get(ROUTE, headers={"Host": "evil.example"})
+        assert bad_host.status_code == 400
+        assert client.get(ROUTE, headers={"Host": "127.0.0.1:8765"}).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("status", "counts"),
+    [
+        (101, False),
+        (200, True),
+        (202, True),
+        (204, True),
+        (299, True),
+        (300, False),
+        (301, False),
+        (304, False),
+        (399, False),
+        (400, False),
+        (500, False),
+    ],
+)
+def test_wrapper_counts_exactly_the_2xx_statuses(status: int, counts: bool) -> None:
+    import asyncio
+
+    app = create_app()
+    touches: list[str] = []
+    app.state.host_mcp_activity.touch = lambda: touches.append("t")  # type: ignore[method-assign]
+
+    async def inner(scope, receive, send):
+        await send({"type": "http.response.start", "status": status, "headers": []})
+
+    async def send(message):
+        return None
+
+    asyncio.run(host_mcp._BindRequestApp(app, inner)({"type": "http"}, None, send))
+    assert (len(touches) == 2) is counts
+    assert len(touches) in ((2,) if counts else (0,))
+
+
 def test_each_app_keeps_its_own_activity() -> None:
     app_a, app_b = create_app(), create_app()
     assert app_a.state.host_mcp_activity is not app_b.state.host_mcp_activity

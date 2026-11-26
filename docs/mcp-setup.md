@@ -230,6 +230,9 @@ count; a tool call that returns an error result still does, because the request
 reached Studio. Nothing about the request is stored, only the time. The host-only
 route `GET /api/host-mcp/activity` returns `mounted`, `last_request_at` and
 `age_seconds` (`mounted` is `false` when this Studio is not serving `/mcp`).
+The route is loopback-only, and any local program that passes the host checks can read
+it. `last_request_at` is the wall clock at the request while `age_seconds` is measured
+on a monotonic clock, so after a clock change they can differ; trust `age_seconds`.
 "Used a minute ago" does not mean the app is still connected, and "never used" only
 means nothing has called since Studio started. Any local program that sends a valid
 request counts, not only an agent.

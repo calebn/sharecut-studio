@@ -34,6 +34,7 @@ _PROTECTED_PREFIXES = (
     "/api/handoff",
     "/api/bootstrap",
     "/api/diagnostics",
+    "/api/host-mcp",
     "/api/media",
     "/api/audio",
     "/api/waveform",
