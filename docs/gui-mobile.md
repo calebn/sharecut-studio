@@ -318,7 +318,7 @@ The shared bottom `Sheet` (`system/Sheet.tsx`) resizes on every drawer detent, w
 
 A timeline selection on the phone shell opens the **Inspector sheet** (design
 system 9a; `InspectorSheet form="phone"` in `stage/edit/InspectorHost.tsx`), a
-bottom sheet with three detents: the **dock** (4 rem: the Action bar alone), **half**
+bottom sheet with three detents: the **dock** (at least 4 rem: the Action bar and any disabled reason, with room for the reason to wrap above the controls when text is large relative to the available width), **half**
 (50%) and **full** (92%). It opens at half, or at full where half does not
 fit the lanes (a phone held sideways, a small portrait phone at large text);
 there the dock is dropped at full so the fields get the room. Where even the full sheet would be under 8.75 rem tall (large text on a phone held sideways), the Inspector takes the whole screen as a dialog with one header row (name, **Undo**, **Redo**, **Done**) instead of a sliver. The dock is the

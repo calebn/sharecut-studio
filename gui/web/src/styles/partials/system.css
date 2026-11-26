@@ -8144,12 +8144,31 @@ html[data-shell="phone"] .fade-shape > .ui-segmented > .ui-control {
 }
 
 .sys-inspector-surface {
+  container: sys-inspector / inline-size;
   box-sizing: border-box;
   block-size: 100%;
   border-end-start-radius: 0;
   border-end-end-radius: 0;
   border-block-end: 0;
   overflow: hidden;
+}
+
+.sys-inspector--phone[data-detent="dock"]:not([data-dragging]):has(
+  .sys-inspector-dock > .sys-actions-reason
+) {
+  block-size: auto;
+  min-block-size: 4rem;
+}
+
+.sys-inspector--phone[data-detent="dock"]:not([data-dragging])
+  .sys-inspector-surface:has(.sys-inspector-dock > .sys-actions-reason) {
+  block-size: auto;
+}
+
+.sys-inspector--phone[data-detent="dock"]:not([data-dragging])
+  .sys-inspector-surface:has(.sys-inspector-dock > .sys-actions-reason)
+  > .sys-inspector-content {
+  display: none;
 }
 
 .sys-inspector-dock {
@@ -8169,6 +8188,20 @@ html[data-shell="phone"] .fade-shape > .ui-segmented > .ui-control {
 .sys-inspector-dock > .sys-actions-reason {
   flex: 0 0 26%;
   overflow-wrap: anywhere;
+}
+
+@container sys-inspector (inline-size <= 13rem) {
+  .sys-inspector--phone[data-detent="dock"]:not([data-dragging])
+    .sys-inspector-dock:has(> .sys-actions-reason) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sys-inspector--phone[data-detent="dock"]:not([data-dragging])
+    .sys-inspector-dock
+    > .sys-actions-reason {
+    flex: none;
+  }
 }
 
 .sys-inspector-grip {
