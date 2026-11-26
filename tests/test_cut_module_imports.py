@@ -8,8 +8,8 @@ from pathlib import Path
 _SRC = Path(__file__).resolve().parents[1] / "src"
 _EDITS = _SRC / "podcast_mcp" / "edits"
 
-# Modules whose function-level imports are all gone. decisions keeps a few (update_pending_edit
-# calls up into cut_application, which imports decisions at the top); cut_application keeps one.
+# Modules whose function-level imports are all gone. decisions keeps its lazy imports in
+# update_pending_edit (cut_application imports decisions at the top); cut_application keeps one.
 _NO_INLINE_IMPORTS = (
     "cut_effects",
     "cut_placement",
@@ -130,7 +130,6 @@ def _modules_calling(name: str) -> set[str]:
 _PLACEMENT_GUARD_USERS = {
     "inspect_source_remove_placement": {
         "edits/cut_application",
-        "edits/cut_safety",
         "edits/timeline_span",
         "edits/transcript_cuts",
     },

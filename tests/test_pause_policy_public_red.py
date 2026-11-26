@@ -17,8 +17,8 @@ from pause_policy_public_helpers import (
     write_wav,
 )
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits.cut_application import inspect_source_remove
 from podcast_mcp.edits.cut_placement import CutScopeHold
-from podcast_mcp.edits.cut_safety import inspect_source_remove
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.timeline_ops import LaneSample, LaneUnavailable, room_tone_pad

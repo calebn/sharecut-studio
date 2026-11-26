@@ -6,7 +6,12 @@ from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits import filler_pacing
-from podcast_mcp.edits.cut_application import assess_source_offer, record_suggested_cut_speech
+from podcast_mcp.edits.cut_application import (
+    assess_source_offer,
+    inspect_source_remove,
+    record_suggested_cut_speech,
+    require_source_remove,
+)
 from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
 from podcast_mcp.edits.cut_policy import decision_policy
 from podcast_mcp.edits.cut_safety import CutScopeUnavailable, resolve_cut_scope
@@ -20,11 +25,7 @@ from podcast_mcp.edits.edit_reasons import (
 )
 from podcast_mcp.edits.filler_pacing import paced_pad_for_span
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex, optimize_source_cut_range
-from podcast_mcp.edits.source_removals import (
-    ScopeChangedAtApproval,
-    inspect_source_remove,
-    require_source_remove,
-)
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.speech_energy_guard import PeerSpeechBlocked
 from podcast_mcp.edits.tighten_reasons import is_pause_reason
 from podcast_mcp.edits.transcript_search import ensure_combined_transcript, search_transcript
