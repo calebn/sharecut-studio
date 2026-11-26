@@ -171,18 +171,7 @@ function moveHistory(
       queued?.fire();
       if (waitingToast !== null)
         useDawStore.getState().dismissFeedbackToast(waitingToast);
-      if (landed !== null) {
-        retireOwnCommandHead(observation);
-        const toast = useDawStore.getState().feedbackToast;
-        if (
-          action === "undo" &&
-          toast &&
-          (toast.undo === expectedHeadId ||
-            toast.merged?.entries.includes(expectedHeadId) ||
-            toast.lapsed?.entries.includes(expectedHeadId))
-        )
-          useDawStore.getState().dismissFeedbackToast(toast.id);
-      }
+      if (landed !== null) retireOwnCommandHead(observation);
       return { status: "ok" };
     } finally {
       queued?.drop(FAILED_COPY[action]);
