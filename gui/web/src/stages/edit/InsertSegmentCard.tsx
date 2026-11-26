@@ -402,6 +402,23 @@ function InsertSegmentForm({
   const shownFor = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const touched = () => {
+      pointerPick.current = true;
+    };
+    const typed = () => {
+      pointerPick.current = false;
+    };
+    list.addEventListener("pointerdown", touched);
+    list.addEventListener("keydown", typed);
+    return () => {
+      list.removeEventListener("pointerdown", touched);
+      list.removeEventListener("keydown", typed);
+    };
+  }, [listed, listRef]);
+
+  useEffect(() => {
     const previous = shownFor.current;
     shownFor.current = pickedId;
     const first = previous === null && pickedId !== null;
@@ -457,16 +474,7 @@ function InsertSegmentForm({
         <p className="sys-segment-summary">{INSERT_EMPTY_LIBRARY}</p>
       ) : (
         <>
-          <fieldset
-            ref={listRef}
-            className="sys-segment-list"
-            onPointerDown={() => {
-              pointerPick.current = true;
-            }}
-            onKeyDown={() => {
-              pointerPick.current = false;
-            }}
-          >
+          <fieldset ref={listRef} className="sys-segment-list">
             <legend className="ui-field-label">Segment</legend>
             {rows.map((row, index) => (
               <SegmentOption
