@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from podcast_mcp.edits.envelopes import envelope_matches_baseline
@@ -120,7 +121,7 @@ def apply_ducking(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return {**plans.result(with_points=False), "dry_run": False, "applied": applied}
 
 
-def suggest_pending_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+def suggest_pending_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> Mapping[str, Any]:
     return EditService(ws).suggest_pending_edit(
         str(p["track_id"]),
         float(p["start"]),

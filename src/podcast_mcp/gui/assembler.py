@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
 
@@ -65,7 +66,7 @@ def _render_status(ws: ProjectWorkspace, edit: EditService) -> dict[str, Any]:
     render hash between the two.
     """
     with frozen_state():
-        status = edit.render_status()
+        status: dict[str, Any] = dict(edit.render_status())
         status["proxy_hashes"] = project_basis(ws.project, ws.effective_config()).render_hashes
     return status
 
@@ -116,7 +117,7 @@ def build_track_views(
 
     project = ws.project
     svc = edit if edit is not None else EditService(ws)
-    status = render_status if render_status is not None else svc.render_status()
+    status: Mapping[str, Any] = render_status if render_status is not None else svc.render_status()
     fx_map = effects_by_track if effects_by_track is not None else _effects_by_track(ws)
     track_views: list[TrackView] = []
     for track in project.tracks:
@@ -182,11 +183,9 @@ def build_project_view(
     clips = TimelineService(ws).list_clips(include_timing_steps=audience != "guest").model_dump()
     render_status = _render_status(ws, edit)
     pending = edit.list_decisions(applied=False)
-    applied = edit.list_applied_edits()
+    applied: dict[str, Any] = dict(edit.list_applied_edits())
     chapters = TimelineService(ws).list_chapters()
-    impact = edit.impact_report()
-    if not isinstance(impact, dict):
-        impact = {}
+    impact: dict[str, Any] = dict(edit.impact_report())
 
     effects_by_track = _effects_by_track(ws)
     track_views = build_track_views(

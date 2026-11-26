@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from dataclasses import asdict, replace
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar, cast, overload
 
 from podcast_mcp.config.defaults import unsure_word_confidence
 from podcast_mcp.edits import (
@@ -73,6 +73,13 @@ from podcast_mcp.project.history.manager import (
 from podcast_mcp.project.history.rollback import RollbackOutcome
 from podcast_mcp.services.document import cut_range_results as crr
 from podcast_mcp.services.document.edit_results import SuggestedActionsApplied
+from podcast_mcp.services.document.edit_wire_results import (
+    AppliedEditsWithRestore,
+    EditImpactReport,
+    RenderStatusReport,
+    RevertResult,
+    SuggestedEdit,
+)
 from podcast_mcp.services.document.service_base import CutMutatingService
 from podcast_mcp.services.document.suggested_actions import revise_suggested_actions
 from podcast_mcp.util.batch_scope import batch_scope
@@ -616,11 +623,20 @@ class EditService(CutMutatingService):
                 },
             )
 
-    def revert_applied(self, ids: list[str], dry_run: bool = False) -> dict:
-        return revert_applied(self.ws, ids, dry_run).model_dump()
+    def revert_applied(self, ids: list[str], dry_run: bool = False) -> RevertResult:
+        return cast(RevertResult, revert_applied(self.ws, ids, dry_run).model_dump())
 
-    def impact_report(self, *, markdown: bool = False) -> str | dict:
-        report = edit_impact_report(self.ws.project)
+    @overload
+    def impact_report(self, *, markdown: Literal[True]) -> str: ...
+
+    @overload
+    def impact_report(self, *, markdown: Literal[False] = False) -> EditImpactReport: ...
+
+    @overload
+    def impact_report(self, *, markdown: bool) -> str | EditImpactReport: ...
+
+    def impact_report(self, *, markdown: bool = False) -> str | EditImpactReport:
+        report = cast(EditImpactReport, edit_impact_report(self.ws.project))
         if markdown:
             return format_edit_impact_markdown(report)
         return report
@@ -797,18 +813,19 @@ class EditService(CutMutatingService):
         track_id: str | None = None,
         timeline_start: float | None = None,
         timeline_end: float | None = None,
-    ) -> dict:
-        return dict(
-            applied_edits_with_restore(
-                self.ws,
-                track_id=track_id,
-                timeline_start=timeline_start,
-                timeline_end=timeline_end,
-            )
+    ) -> AppliedEditsWithRestore:
+        return applied_edits_with_restore(
+            self.ws,
+            track_id=track_id,
+            timeline_start=timeline_start,
+            timeline_end=timeline_end,
         )
 
-    def render_status(self) -> dict:
-        return render_status_report(self.ws.project, defaults=self.ws.effective_config())
+    def render_status(self) -> RenderStatusReport:
+        return cast(
+            RenderStatusReport,
+            render_status_report(self.ws.project, defaults=self.ws.effective_config()),
+        )
 
     def suggest_pending_edit(
         self,
@@ -819,7 +836,7 @@ class EditService(CutMutatingService):
         reason: str | None = None,
         edit_type: str | None = None,
         author: str | None = None,
-    ) -> dict:
+    ) -> SuggestedEdit:
         """Guest/host suggest: pending remove or mute decision (review_required)."""
         from podcast_mcp.models import EditDecisionType
 
@@ -828,7 +845,7 @@ class EditService(CutMutatingService):
             raise CodedValueError("edit_type must be remove or mute", code="edit_type_invalid")
         decision_type = EditDecisionType.MUTE if raw == "mute" else EditDecisionType.REMOVE
 
-        def mutate(p) -> dict:
+        def mutate(p) -> SuggestedEdit:
             decision = append_remove_decision(
                 p,
                 track_id,
@@ -840,7 +857,7 @@ class EditService(CutMutatingService):
                 author=author,
                 defaults=self.ws.effective_config(),
             )
-            return decision.model_dump(exclude={"bound_pad"})
+            return cast(SuggestedEdit, decision.model_dump(exclude={"bound_pad"}))
 
         return self.ws.mutate(
             "before suggest pending edit",

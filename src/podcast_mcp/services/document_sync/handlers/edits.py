@@ -120,7 +120,7 @@ def update_pending_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, An
     return {"edit": edit.model_dump(exclude={"bound_pad"})}
 
 
-def restore_applied_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+def restore_applied_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> Mapping[str, Any]:
     return EditService(ws).revert_applied(p["ids"], dry_run=bool(p.get("dry_run", False)))
 
 
