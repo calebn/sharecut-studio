@@ -160,6 +160,7 @@ function mergedEdits(
   const lapsed =
     !standing.undo &&
     standing.lapsed &&
+    !standing.lapsed.undone &&
     baseHead === options.undo &&
     Date.now() - standing.lapsed.at < LAPSE_MERGE_MS
       ? standing.lapsed.entries
@@ -503,24 +504,32 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     },
     dismissFeedbackToast: (id) =>
       set((s) => (s.feedbackToast?.id === id ? { feedbackToast: null } : {})),
-    dropFeedbackUndo: (id) =>
-      set((s) =>
-        s.feedbackToast?.id === id && s.feedbackToast.undo
-          ? {
-              feedbackToast: {
-                ...s.feedbackToast,
-                undo: null,
-                action: null,
-                lapsed: {
-                  entries: s.feedbackToast.merged?.entries ?? [
-                    s.feedbackToast.undo,
-                  ],
-                  at: Date.now(),
-                },
+    dropFeedbackUndo: (id, undone = false) =>
+      set((s) => {
+        const toast = s.feedbackToast;
+        if (toast?.id !== id) return {};
+        if (toast.undo)
+          return {
+            feedbackToast: {
+              ...toast,
+              undo: null,
+              action: null,
+              lapsed: {
+                entries: toast.merged?.entries ?? [toast.undo],
+                at: Date.now(),
+                undone,
               },
-            }
-          : {},
-      ),
+            },
+          };
+        if (undone && toast.lapsed && !toast.lapsed.undone)
+          return {
+            feedbackToast: {
+              ...toast,
+              lapsed: { ...toast.lapsed, undone: true },
+            },
+          };
+        return {};
+      }),
     expectJobResult: (jobId) =>
       set((s) => ({
         jobFeedback: new Map(s.jobFeedback).set(jobId, { kind: "known" }),

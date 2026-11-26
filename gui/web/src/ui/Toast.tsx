@@ -63,6 +63,8 @@ type Props = {
   /** Says why a pressable Undo will not act at once ("Undo ready after save"). Shown under the message; pauses auto-dismiss like a disabled reason. */
   undoNote?: string;
   timeoutMs?: number;
+  /** A change of this value gives the toast a fresh `timeoutMs`, as a new text deserves a full read. */
+  restartKey?: string | number | boolean;
   /** A server-backed action's wall-clock deadline. */
   expiresAtMs?: number;
   /** ID of the heading that owns this action in the active modal. */
@@ -137,6 +139,7 @@ function ToastCard({
   undoDisabledReason,
   undoNote,
   timeoutMs = onUndo ? TOAST_UNDO_MS : TOAST_MS,
+  restartKey,
   expiresAtMs,
   visibility = "visible",
   returnFocusRef,
@@ -167,7 +170,12 @@ function ToastCard({
     (visibility === "clipped" && clippedSpentFor !== toast.id);
   const toastId = toast.id;
   const dismiss = useEffectEvent(onDismiss);
-  const lifetime = useRef({ id: toastId, timeoutMs, remaining: timeoutMs });
+  const lifetime = useRef({
+    id: toastId,
+    timeoutMs,
+    restartKey,
+    remaining: timeoutMs,
+  });
   const returnFocus = useEffectEvent(() => {
     const target = returnFocusRef?.current ?? null;
     if (isValidFocusTarget(target)) target.focus({ preventScroll: true });
@@ -175,9 +183,15 @@ function ToastCard({
   useEffect(() => {
     if (
       lifetime.current.id !== toastId ||
-      lifetime.current.timeoutMs !== timeoutMs
+      lifetime.current.timeoutMs !== timeoutMs ||
+      lifetime.current.restartKey !== restartKey
     )
-      lifetime.current = { id: toastId, timeoutMs, remaining: timeoutMs };
+      lifetime.current = {
+        id: toastId,
+        timeoutMs,
+        restartKey,
+        remaining: timeoutMs,
+      };
     if (expiresAtMs !== undefined) {
       const timer = window.setTimeout(
         () => dismiss(),
@@ -198,7 +212,7 @@ function ToastCard({
         lifetime.current.remaining - (Date.now() - started),
       );
     };
-  }, [toastId, paused, timeoutMs, expiresAtMs]);
+  }, [toastId, paused, timeoutMs, restartKey, expiresAtMs]);
   const clippedWaiting =
     visibility === "clipped" && clippedSpentFor !== toastId;
   useEffect(() => {
