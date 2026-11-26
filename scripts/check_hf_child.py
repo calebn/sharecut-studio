@@ -64,7 +64,7 @@ def _spec(pin: PinnedSnapshot, cache_dir: Path, spec_dir: Path) -> Path:
 def _start(python: str, spec: Path, log: Path, env: dict[str, str]) -> process.Popen[bytes]:
     with log.open("wb") as err:
         return process.popen(
-            [python, "-m", "podcast_mcp.util.hf_fetch_child", str(spec)],
+            [python, "-P", "-m", "podcast_mcp.util.hf_fetch_child", str(spec)],
             stdin=process.PIPE,
             stdout=process.PIPE,
             stderr=err,

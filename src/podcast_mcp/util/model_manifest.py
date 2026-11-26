@@ -143,7 +143,8 @@ class HubChildError(RuntimeError):
 
 
 def _child_argv(spec: Path) -> list[str]:
-    return [sys.executable, "-m", "podcast_mcp.util.hf_fetch_child", str(spec)]
+    """``-P`` like ``sidecar_launcher.rs``: the caller's cwd never shadows the hub library."""
+    return [sys.executable, "-P", "-m", "podcast_mcp.util.hf_fetch_child", str(spec)]
 
 
 def _xet_importable() -> bool:
