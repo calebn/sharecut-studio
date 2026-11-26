@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -398,6 +399,14 @@ DEFAULTS_SMOKE = (
     "assert bundled_defaults().get('tighten'), 'packaged pipeline.yaml is missing or empty'"
 )
 
+MODEL_RUNTIME_SMOKE = (
+    "import numpy as np, onnxruntime, faster_whisper; "
+    "from podcast_mcp.engines.vad_silero import SileroVAD; "
+    "p = SileroVAD().speech_probs(np.zeros(1024, dtype=np.float32)); "
+    "assert p.shape == (2,), p.shape; "
+    "assert ((p >= 0) & (p <= 1)).all(), p"
+)
+
 
 def managed_cpython_executable(uv: str, *, env: dict[str, str]) -> str:
     """Return uv-managed 3.12, not a repo ``.venv`` / PATH interpreter."""
@@ -419,9 +428,16 @@ def managed_cpython_executable(uv: str, *, env: dict[str, str]) -> str:
 
 
 def assert_frozen_interpreter(venv_py: Path) -> None:
-    """Fail the freeze if the venv cannot import stdlib + uvicorn or lacks the packaged defaults."""
-    subprocess.check_call([str(venv_py), "-c", FREEZE_SMOKE])
-    subprocess.check_call([str(venv_py), "-c", DEFAULTS_SMOKE])
+    """Fail the freeze if the venv cannot import stdlib + uvicorn, lacks the packaged defaults, or cannot run the models."""
+    # abspath, not resolve(): keep the venv's own symlinked python (resolving it would
+    # run the base interpreter and skip the venv), but survive the cwd change below.
+    venv_py = Path(os.path.abspath(venv_py))
+    for smoke, timeout in (
+        (FREEZE_SMOKE, 120),
+        (DEFAULTS_SMOKE, 120),
+        (MODEL_RUNTIME_SMOKE, 300),
+    ):
+        subprocess.check_call([str(venv_py), "-c", smoke], cwd=venv_py.parent, timeout=timeout)
 
 
 def extension_wheels(directory: Path) -> list[Path]:
@@ -791,6 +807,25 @@ def ensure_ffmpeg_payload(runtime: Path, triple: str) -> None:
     subprocess.run(command, check=True, timeout=600)
 
 
+def assert_ffmpeg_arnndn(runtime: Path, windows: bool) -> None:
+    """Fail the freeze if the packaged FFmpeg is missing or lacks the arnndn filter."""
+    ffmpeg = runtime / "ffmpeg" / "bin" / ("ffmpeg.exe" if windows else "ffmpeg")
+    if not ffmpeg.is_file():
+        raise SystemExit(f"packaged ffmpeg missing: {ffmpeg}")
+    result = subprocess.run(
+        [str(ffmpeg), "-hide_banner", "-filters"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if result.returncode != 0:
+        raise SystemExit(
+            f"packaged ffmpeg failed to list filters (exit {result.returncode}): {ffmpeg}"
+        )
+    if not re.search(r"^[ \t]*\S+[ \t]+arnndn[ \t]", result.stdout + result.stderr, re.MULTILINE):
+        raise SystemExit(f"packaged ffmpeg lacks the arnndn filter: {ffmpeg}")
+
+
 def stage_owner_cdn() -> None:
     """Record the owner CDN base in the source tree so the wheel built next carries it."""
     command = [sys.executable, str(ROOT / "scripts/owner_cdn.py")]
@@ -865,6 +900,7 @@ def main(argv: list[str] | None = None) -> int:
         clear_freeze_complete(runtime)
         assert_production_web_dist(runtime / "web-dist")
         ensure_ffmpeg_payload(runtime, triple)
+        assert_ffmpeg_arnndn(runtime, windows)
         # Always rebuild the launcher: a cached one may predate `--cli` or be a
         # --dry-run shell script. Cheap next to the freeze, which is reused.
         compile_launchers(binaries, triple)
@@ -884,6 +920,7 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         unstage_owner_cdn()
     ensure_ffmpeg_payload(runtime, triple)
+    assert_ffmpeg_arnndn(runtime, windows)
     compile_launchers(binaries, triple)
     print(f"runtime: {runtime}")
     if sys.platform == "darwin" and identity:
