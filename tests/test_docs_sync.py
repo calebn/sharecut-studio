@@ -696,3 +696,6 @@ def test_ux_pack_gate_on_the_real_contract() -> None:
     assert ux_pack("gui/web/src/record/micPermission.ts") == [("ux-pack", "violated")]
     assert ux_pack("gui/web/src/record/guestRoomModel.ts") == [("ux-pack", "violated")]
     assert ux_pack("src/podcast_relay/routes/proxy.py") == [("ux-pack", "violated")]
+    assert ux_pack("gui/web/src/record/guestTabTitle.ts") == [("ux-pack", "violated")]
+    assert ux_pack("gui/web/src/system/joinSheetModel.ts") == [("ux-pack", "violated")]
+    assert ux_pack("gui/web/src/system/roomViewModel.ts") == [("ux-pack", "violated")]
