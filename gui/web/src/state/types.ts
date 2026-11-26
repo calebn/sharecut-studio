@@ -202,7 +202,12 @@ export interface FeedbackToast {
    * the next edit of the same kind landing). The next edit of that kind folds into
    * them within a moment; otherwise they are history.
    */
-  lapsed: { entries: readonly HistoryEntryId[]; at: number } | null;
+  lapsed: {
+    entries: readonly HistoryEntryId[];
+    at: number;
+    /** Ctrl+Z took these entries back, so a new edit must not count them. */
+    undone?: boolean;
+  } | null;
 }
 
 export type ToastKind = "cut" | "delete" | "split";
@@ -604,7 +609,7 @@ export interface DawState {
   /** Close the toast if it is still `id`. */
   dismissFeedbackToast: (id: number) => void;
   /** Remove the toast's Undo once history has moved past its change. */
-  dropFeedbackUndo: (id: number) => void;
+  dropFeedbackUndo: (id: number, undone?: boolean) => void;
   /** Mark a job whose caller will post its own result copy (holds back its generic "ok" headline). */
   expectJobResult: (jobId: string) => void;
   beginJobResultStart: (kind: AnnouncedJobKind) => JobStartToken;

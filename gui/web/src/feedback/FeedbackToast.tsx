@@ -37,6 +37,7 @@ import {
   isValidFeedbackAction,
 } from "./feedbackActionFocus";
 import { useToastDock } from "./toastDock";
+import { undoneText } from "./undoneText";
 
 /** Safari reports a fully shown card a hair under 1 at fractional zoom or toolbar heights. */
 const VISIBLE_RATIO = 0.95;
@@ -231,7 +232,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       spokenFor.current = toastId;
       useDawStore
         .getState()
-        .announceStatus(`Undone: ${toastMessage}`, { toast: false });
+        .announceStatus(undoneText(toastMessage), { toast: false });
     }
   }, [toastId, retired, toastMessage]);
 
@@ -270,8 +271,11 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   }, [toast, modal, modalPanel]);
 
   useEffect(() => {
-    if (toast?.undo && (undoEntry == null || retired)) {
-      useDawStore.getState().dropFeedbackUndo(toast.id);
+    if (
+      (toast?.undo && (undoEntry == null || retired)) ||
+      (retired && toast?.lapsed && !toast.lapsed.undone)
+    ) {
+      useDawStore.getState().dropFeedbackUndo(toast.id, retired);
     }
   }, [toast, undoEntry, retired]);
 
@@ -304,7 +308,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
         undone += 1;
       }
       if (undone === entries.length) {
-        useDawStore.getState().announceStatus(`Undone: ${message}`);
+        useDawStore.getState().announceStatus(undoneText(message));
         onUndone?.();
       } else if (undone > 0) {
         useDawStore
@@ -437,7 +441,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       returnFocusRef={returnFocusRef}
       toast={
         toast && retired
-          ? { ...toast, message: `Undone: ${toast.message}` }
+          ? { ...toast, message: undoneText(toast.message) }
           : toast
       }
       onDismiss={() => {
@@ -451,6 +455,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       }}
       onUndo={onUndo}
       timeoutMs={toast?.dwellMs ?? undefined}
+      restartKey={retired}
       expiresAtMs={reversingId === toast?.id ? undefined : share?.deadline}
       modalActionOrigin={modalActionOrigin || undefined}
       undoLabel={toast?.merged ? "Undo all" : undefined}
