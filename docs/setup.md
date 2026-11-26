@@ -1024,6 +1024,8 @@ read pipeline settings.
 | `PODCAST_RELAY_ENROLL_GLOBAL_BURST` | `60` | Burst allowance for relay enrollments across all clients. |
 | `PODCAST_RELAY_RENEW_RPM` | `6` | Requests per minute allowed for relay lease renewals per install. |
 | `PODCAST_RELAY_RENEW_BURST` | `6` | Burst allowance for relay lease renewals per install. |
+| `PODCAST_RELAY_NOTICE_CONTINUE_RPM` | `30` | Requests per minute allowed for the first-visit notice Continue button per client address. |
+| `PODCAST_RELAY_NOTICE_CONTINUE_BURST` | `10` | Burst allowance for the first-visit notice Continue button per client address. |
 <!-- settings:end -->
 
 ## Read-only GUI viewer

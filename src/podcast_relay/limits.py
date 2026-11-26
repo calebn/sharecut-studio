@@ -39,6 +39,14 @@ class RelayLimiters(LimiterSet):
         ),
         RateSpec("enroll_global", "relay_enroll_global", "PODCAST_RELAY_ENROLL_GLOBAL", 10.0, 60.0),
         RateSpec("renew", "relay_renew", "PODCAST_RELAY_RENEW", 6.0, 6.0),
+        # Per client IP. A generous burst because guests behind one NAT share a bucket.
+        RateSpec(
+            "notice_continue",
+            "relay_notice_continue",
+            "PODCAST_RELAY_NOTICE_CONTINUE",
+            30.0,
+            10.0,
+        ),
     )
 
     token_http: KeyedLimiter
@@ -53,6 +61,7 @@ class RelayLimiters(LimiterSet):
     enroll_subnet: KeyedLimiter
     enroll_global: KeyedLimiter
     renew: KeyedLimiter
+    notice_continue: KeyedLimiter
 
 
 _LIMITERS: RelayLimiters | None = None
@@ -125,6 +134,13 @@ def check_renew(install_id: str) -> RateLimitDecision:
     return get_relay_limiters().renew.allow(install_id)
 
 
+def check_notice_continue(client_ip: str | None) -> RateLimitDecision:
+    if not relay_rate_limit_enabled():
+        return RateLimitDecision(allowed=True, bucket="relay_notice_continue")
+    ip_key = (client_ip or "").strip() or "unknown"
+    return get_relay_limiters().notice_continue.allow(ip_key)
+
+
 def check_proxy_rpm(
     *,
     token: str,
@@ -146,6 +162,7 @@ def check_proxy_rpm(
 
 __all__ = [
     "check_enroll",
+    "check_notice_continue",
     "check_proxy_rpm",
     "check_register",
     "check_renew",

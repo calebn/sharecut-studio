@@ -37,7 +37,7 @@ _OFFLINE_HTML = offline_page(
     title="Host offline",
     heading="Host offline",
     body_html=(
-        "<p>This review link is valid, but the project host is not connected right now.\n"
+        "<p>This link isn't available right now because the project host is not connected.\n"
         "Ask them to run <code>podcast tunnel</code> and try again.</p>"
     ),
 )
@@ -157,7 +157,7 @@ async def proxy_to_host(
                 {
                     "detail": "host offline",
                     "message": (
-                        "This review link is valid, but the project host is "
+                        "This link isn't available right now because the project host is "
                         "not connected. Ask them to run podcast tunnel."
                     ),
                 },
@@ -314,7 +314,7 @@ def build_proxy_router(state: RelayState) -> APIRouter:
 
         @router.post(CONTINUE_PATH)
         async def notice_continue(request: Request) -> Response:
-            return continue_response(request)
+            return await continue_response(request)
 
     @router.api_route(
         "/r/{token}",

@@ -596,7 +596,7 @@ async def test_a_guest_of_a_legacy_host_sees_the_notice_once_per_browser_session
         assert PAGE.decode() not in first.text
 
         passed = await http.post(
-            "/api/relay/notice/continue?next=%2Fr%2Ftok%2F%3Ft%3D12", headers=SAME_ORIGIN
+            "/api/relay/notice/continue", data={"next": "/r/tok/?t=12"}, headers=SAME_ORIGIN
         )
         assert passed.status_code == 303
         assert passed.headers["location"] == "/r/tok/?t=12"
@@ -684,12 +684,10 @@ async def test_an_enrolled_install_s_guests_never_see_the_notice(
 async def test_continue_only_returns_to_a_link_page(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, target: str
 ) -> None:
-    from urllib.parse import quote
-
     app = signing_relay(monkeypatch, tmp_path)
     async with client(app) as http:
         res = await http.post(
-            f"/api/relay/notice/continue?next={quote(target, safe='')}", headers=SAME_ORIGIN
+            "/api/relay/notice/continue", data={"next": target}, headers=SAME_ORIGIN
         )
 
     assert res.status_code == 404
@@ -703,11 +701,336 @@ async def test_continue_still_returns_to_a_normal_link_page(
     app = signing_relay(monkeypatch, tmp_path)
     async with client(app) as http:
         res = await http.post(
-            "/api/relay/notice/continue?next=%2Fr%2Ftok%2F%3Ft%3D12", headers=SAME_ORIGIN
+            "/api/relay/notice/continue", data={"next": "/r/tok/?t=12"}, headers=SAME_ORIGIN
         )
 
     assert res.status_code == 303
     assert res.headers["location"] == "/r/tok/?t=12"
+
+
+@pytest.mark.asyncio
+async def test_continue_still_reads_next_from_the_query_for_pages_already_served(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    async with client(app) as http:
+        # A browser posting an old page's empty form still sends the form content type.
+        res = await http.post(
+            "/api/relay/notice/continue?next=%2Fr%2Ftok%2F%3Ft%3D12",
+            content=b"",
+            headers={**SAME_ORIGIN, "content-type": "application/x-www-form-urlencoded"},
+        )
+        body_wins = await http.post(
+            "/api/relay/notice/continue?next=%2Fr%2Fold%2F",
+            data={"next": "/r/new/"},
+            headers=SAME_ORIGIN,
+        )
+        bad_query_is_still_checked = await http.post(
+            "/api/relay/notice/continue?next=https%3A%2F%2Fevil.test%2F",
+            content=b"",
+            headers={**SAME_ORIGIN, "content-type": "application/x-www-form-urlencoded"},
+        )
+
+    assert (res.status_code, res.headers["location"]) == (303, "/r/tok/?t=12")
+    assert body_wins.headers["location"] == "/r/new/"
+    assert bad_query_is_still_checked.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_continue_with_no_next_anywhere_is_not_found(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    async with client(app) as http:
+        res = await http.post("/api/relay/notice/continue", data={"x": "1"}, headers=SAME_ORIGIN)
+
+    assert res.status_code == 404
+    assert "set-cookie" not in res.headers
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "content_type", ["application/json", "text/plain", "multipart/form-data; boundary=x"]
+)
+async def test_continue_refuses_a_body_that_is_not_a_url_encoded_form(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, content_type: str
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    async with client(app) as http:
+        res = await http.post(
+            "/api/relay/notice/continue",
+            content=b"next=%2Fr%2Ftok%2F",
+            headers={**SAME_ORIGIN, "content-type": content_type},
+        )
+
+    assert res.status_code == 415
+    assert "set-cookie" not in res.headers
+
+
+@pytest.mark.asyncio
+async def test_continue_refuses_an_oversize_body(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    async with client(app) as http:
+        res = await http.post(
+            "/api/relay/notice/continue",
+            data={"next": "/r/tok/", "pad": "x" * 5000},
+            headers=SAME_ORIGIN,
+        )
+
+    assert res.status_code == 413
+    assert "set-cookie" not in res.headers
+
+
+def _continue_request(
+    *, body: bytes = b"", headers: dict[str, str] | None = None, client: tuple[str, int] | None
+) -> Any:
+    from fastapi import Request
+
+    sent = False
+
+    async def receive() -> dict[str, Any]:
+        nonlocal sent
+        if sent:
+            return {"type": "http.disconnect"}
+        sent = True
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    merged = {"sec-fetch-site": "same-origin", **(headers or {})}
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/relay/notice/continue",
+            "query_string": b"",
+            "headers": [(k.encode(), v.encode()) for k, v in merged.items()],
+            "scheme": "https",
+            "server": ("relay.test", 443),
+            "client": client,
+        },
+        receive,
+    )
+
+
+@pytest.mark.asyncio
+async def test_continue_caps_a_streamed_body_that_declares_no_length(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+
+    async def chunks() -> Any:
+        for _ in range(6):
+            yield b"pad=" + b"x" * 1000 + b"&"
+
+    async with client(app) as http:
+        res = await http.post(
+            "/api/relay/notice/continue",
+            content=chunks(),
+            headers={**SAME_ORIGIN, "content-type": "application/x-www-form-urlencoded"},
+        )
+
+    assert "content-length" not in res.request.headers
+    assert res.status_code == 413
+    assert res.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.asyncio
+async def test_continue_answers_a_client_that_hangs_up_mid_body_with_400() -> None:
+    from podcast_relay.notice import continue_response
+
+    request = _continue_request(
+        body=b"",
+        headers={"content-type": "application/x-www-form-urlencoded", "content-length": "100"},
+        client=("203.0.113.9", 1),
+    )
+    # The first receive() yields an empty body chunk flagged as more to come, then a disconnect.
+    calls = iter(
+        [
+            {"type": "http.request", "body": b"nex", "more_body": True},
+            {"type": "http.disconnect"},
+        ]
+    )
+
+    async def receive() -> dict[str, Any]:
+        return next(calls)
+
+    request = type(request)(request.scope, receive)
+    res = await continue_response(request)
+
+    assert res.status_code == 400
+    assert res.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.asyncio
+async def test_continue_without_a_client_address_shares_one_unknown_bucket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from podcast_relay.notice import continue_response
+
+    monkeypatch.setenv("PODCAST_RELAY_RATE_LIMIT", "1")
+    monkeypatch.setenv("PODCAST_RELAY_NOTICE_CONTINUE_BURST", "1")
+    headers = {"content-type": "application/x-www-form-urlencoded"}
+    first = await continue_response(
+        _continue_request(body=b"next=%2Fr%2Ftok%2F", headers=headers, client=None)
+    )
+    second = await continue_response(
+        _continue_request(body=b"next=%2Fr%2Ftok%2F", headers=headers, client=None)
+    )
+
+    assert (first.status_code, second.status_code) == (303, 429)
+
+
+@pytest.mark.asyncio
+async def test_an_old_page_post_with_no_content_type_is_refused_with_415(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    async with client(app) as http:
+        res = await http.post("/api/relay/notice/continue?next=%2Fr%2Ftok%2F", headers=SAME_ORIGIN)
+
+    assert res.status_code == 415
+    assert res.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.asyncio
+async def test_every_continue_refusal_is_not_cacheable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    form = {"content-type": "application/x-www-form-urlencoded"}
+    async with client(app) as http:
+        forbidden = await http.post("/api/relay/notice/continue", data={"next": "/r/x/"})
+        missing = await http.post(
+            "/api/relay/notice/continue", data={"next": "/other"}, headers=SAME_ORIGIN
+        )
+        blank = await http.post(
+            "/api/relay/notice/continue?next=%2Fr%2Ftok%2F",
+            content=b"next=",
+            headers={**SAME_ORIGIN, **form},
+        )
+
+    assert (forbidden.status_code, missing.status_code, blank.status_code) == (403, 404, 404)
+    for res in (forbidden, missing, blank):
+        assert res.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.asyncio
+async def test_continue_takes_the_first_next_value_of_the_body(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(monkeypatch, tmp_path)
+    async with client(app) as http:
+        res = await http.post(
+            "/api/relay/notice/continue",
+            content=b"next=%2Fr%2Ffirst%2F&next=https%3A%2F%2Fevil.test%2F",
+            headers={**SAME_ORIGIN, "content-type": "application/x-www-form-urlencoded"},
+        )
+
+    assert res.headers["location"] == "/r/first/"
+
+
+@pytest.mark.asyncio
+async def test_continue_is_rate_limited_per_client_ip_after_the_same_origin_check(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(
+        monkeypatch,
+        tmp_path,
+        PODCAST_RELAY_NOTICE_CONTINUE_BURST="2",
+        PODCAST_RELAY_NOTICE_CONTINUE_RPM="0.01",
+        PODCAST_RELAY_RATE_LIMIT="1",
+    )
+    form = {"next": "/r/tok/"}
+
+    def from_ip(ip: str) -> AsyncClient:
+        return AsyncClient(
+            transport=ASGITransport(app=app, client=(ip, 1234)), base_url="https://relay.test"
+        )
+
+    async with from_ip("203.0.113.7") as http:
+        for _ in range(2):
+            assert (
+                await http.post("/api/relay/notice/continue", data=form, headers=SAME_ORIGIN)
+            ).status_code == 303
+        # A cross-site POST is refused before the limiter, so it spends no token.
+        cross = await http.post(
+            "/api/relay/notice/continue", data=form, headers={"sec-fetch-site": "cross-site"}
+        )
+        refused = await http.post("/api/relay/notice/continue", data=form, headers=SAME_ORIGIN)
+        bad_form_is_refused_before_parsing = await http.post(
+            "/api/relay/notice/continue",
+            content=b"{}",
+            headers={**SAME_ORIGIN, "content-type": "application/json"},
+        )
+    async with from_ip("203.0.113.8") as other:
+        elsewhere = await other.post("/api/relay/notice/continue", data=form, headers=SAME_ORIGIN)
+
+    assert cross.status_code == 403
+    assert refused.status_code == 429
+    assert int(refused.headers["retry-after"]) >= 1
+    assert refused.headers["cache-control"] == "no-store"
+    assert "text/html" in refused.headers["content-type"]
+    assert "Too many attempts" in refused.text
+    assert "few seconds" in refused.text and "minute" not in refused.text
+    assert "set-cookie" not in refused.headers
+    assert bad_form_is_refused_before_parsing.status_code == 429
+    assert elsewhere.status_code == 303
+
+
+@pytest.mark.asyncio
+async def test_the_continue_limit_follows_the_relay_rate_limit_switch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = signing_relay(
+        monkeypatch,
+        tmp_path,
+        PODCAST_RELAY_NOTICE_CONTINUE_BURST="1",
+        PODCAST_RELAY_RATE_LIMIT="0",
+    )
+    async with client(app) as http:
+        statuses = [
+            (
+                await http.post(
+                    "/api/relay/notice/continue", data={"next": "/r/tok/"}, headers=SAME_ORIGIN
+                )
+            ).status_code
+            for _ in range(3)
+        ]
+
+    assert statuses == [303, 303, 303]
+
+
+def test_the_notice_form_posts_next_in_a_hidden_field_not_the_query() -> None:
+    from fastapi import Request
+
+    from podcast_relay.notice import notice_response
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/r/tok/",
+            "query_string": b"t=12&a=%22x",
+            "headers": [],
+            "scheme": "https",
+            "server": ("relay.test", 443),
+        }
+    )
+    text = bytes(notice_response(request).body).decode()
+
+    assert 'action="/api/relay/notice/continue"' in text
+    assert '<input type="hidden" name="next" value="/r/tok/?t=12&amp;a=%22x">' in text
+
+
+def test_the_relay_form_path_needs_no_multipart_package() -> None:
+    import podcast_relay.notice as notice
+    import podcast_relay.routes.proxy as proxy
+
+    for module in (notice, proxy):
+        source = Path(module.__file__ or "").read_text(encoding="utf-8")
+        assert "multipart" not in source
+        assert "request.form" not in source
 
 
 @pytest.mark.asyncio
@@ -717,7 +1040,9 @@ async def test_a_relay_with_no_signing_key_has_no_continue_route(
     monkeypatch.delenv("PODCAST_RELAY_SIGNING_KEY", raising=False)
     monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", LEGACY_SECRET)
     async with client(create_relay_app()) as http:
-        res = await http.post("/api/relay/notice/continue?next=%2Fr%2Fx", headers=SAME_ORIGIN)
+        res = await http.post(
+            "/api/relay/notice/continue", data={"next": "/r/x"}, headers=SAME_ORIGIN
+        )
 
     assert res.status_code == 404
 
@@ -739,7 +1064,9 @@ async def test_another_site_cannot_post_the_continue_cookie_onto_a_visitor(
 ) -> None:
     app = signing_relay(monkeypatch, tmp_path)
     async with client(app) as http:
-        res = await http.post("/api/relay/notice/continue?next=%2Fr%2Ftok%2F", headers=headers)
+        res = await http.post(
+            "/api/relay/notice/continue", data={"next": "/r/tok/"}, headers=headers
+        )
 
     assert res.status_code == 403
     assert "set-cookie" not in res.headers
@@ -752,7 +1079,8 @@ async def test_a_browser_that_sends_only_origin_may_continue_from_the_same_origi
     app = signing_relay(monkeypatch, tmp_path)
     async with client(app) as http:
         res = await http.post(
-            "/api/relay/notice/continue?next=%2Fr%2Ftok%2F",
+            "/api/relay/notice/continue",
+            data={"next": "/r/tok/"},
             headers={"origin": "https://relay.test"},
         )
 

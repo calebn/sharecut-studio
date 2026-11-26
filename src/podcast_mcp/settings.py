@@ -74,6 +74,12 @@ _RELAY_RATE_FAMILIES: tuple[tuple[str, str, str, str], ...] = (
     ),
     ("PODCAST_RELAY_ENROLL_GLOBAL", "relay enrollments across all clients", "10", "60"),
     ("PODCAST_RELAY_RENEW", "relay lease renewals per install", "6", "6"),
+    (
+        "PODCAST_RELAY_NOTICE_CONTINUE",
+        "the first-visit notice Continue button per client address",
+        "30",
+        "10",
+    ),
 )
 
 _RATE_ROWS: tuple[Variable, ...] = tuple(
