@@ -123,6 +123,8 @@ function Stack({
     jumpable,
     names,
     host: column,
+    start: windowStart,
+    pxPerSecond,
     onGoTo: noop,
   });
   return (

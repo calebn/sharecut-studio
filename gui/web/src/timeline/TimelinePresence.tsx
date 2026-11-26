@@ -280,6 +280,8 @@ export const TimelinePresence = memo(function TimelinePresence({
     jumpable,
     names,
     host,
+    start,
+    pxPerSecond: zoomPxPerSec,
     onGoTo: goTo,
   });
   const rows = useMemo(

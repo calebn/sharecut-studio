@@ -43,7 +43,7 @@ export type PresenceProps = {
   /** A press on a single flag. Keep it stable. */
   onGoTo?: (id: string) => void;
   /** A press on a group flag, with the pill's box. Keep it stable. */
-  onGroup?: (key: string, anchor: DOMRect) => void;
+  onGroup?: (key: string, anchor: DOMRect, press: DOMRect) => void;
 };
 
 const px = (value: number) => `${value}px`;
@@ -185,7 +185,12 @@ export const Presence = memo(function Presence({
             {...props}
             onClick={(event) => {
               if (single) onGoTo?.(first.id);
-              else onGroup?.(flag.key, pillBox(event.currentTarget));
+              else
+                onGroup?.(
+                  flag.key,
+                  pillBox(event.currentTarget),
+                  event.currentTarget.getBoundingClientRect(),
+                );
             }}
           >
             {pill}

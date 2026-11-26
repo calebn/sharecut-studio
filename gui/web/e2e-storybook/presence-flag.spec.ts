@@ -274,6 +274,13 @@ function suite(name: string, width: number, touch: boolean) {
       await pill.click();
       const menu = page.getByRole("menu", { name: "3 people near 0:06" });
       await expect(menu).toBeVisible();
+      await page.evaluate(() => {
+        const root = document.querySelector<HTMLElement>(
+          ".timeline-presence-menu",
+        );
+        if (root?.parentElement)
+          root.parentElement.style.pointerEvents = "none";
+      });
       expect(
         await menu.evaluate(
           (el) => el.closest("[aria-hidden='true']") === null,
@@ -317,12 +324,100 @@ function suite(name: string, width: number, touch: boolean) {
       await expect(menu).toBeHidden();
       await pill.click();
       await expect(menu).toBeVisible();
-      await pill.click();
+      const found = await box(pill);
+      const centre = [
+        found.x + found.width / 2,
+        found.y + found.height / 2,
+      ] as const;
+      await page.mouse.click(...centre);
       await expect(menu).toBeHidden();
       await pill.click();
       await expect(menu).toBeVisible();
       await page.mouse.click(2, page.viewportSize()!.height - 2);
       await expect(menu).toBeHidden();
+    });
+
+    test("while the +N menu is open its unseen trigger sits exactly over the pill and reaches the whole press area, hidden from a virtual cursor", async ({
+      page,
+    }) => {
+      await open(page, TIMELINE("cluster"));
+      await pills(page).click();
+      await expect(page.getByRole("menu")).toBeVisible();
+      const hit = await box(pills(page));
+      const flag = await box(page.locator(".sys-presence-flag--group"));
+      const anchor = page.locator(".timeline-presence-anchor");
+      await expect(anchor).toHaveAttribute("aria-hidden", "true");
+      const over = await box(anchor);
+      expect(over.x).toBeCloseTo(flag.x, 0);
+      expect(over.y).toBeCloseTo(flag.y, 0);
+      expect(over.width).toBeCloseTo(flag.width, 0);
+      expect(over.height).toBeCloseTo(flag.height, 0);
+      for (const [x, y] of [
+        [hit.x + 2, hit.y + 2],
+        [hit.x + hit.width - 2, hit.y + 2],
+        [flag.x + flag.width / 2, flag.y + flag.height / 2],
+      ] as const) {
+        expect(
+          await page.evaluate(
+            ([px, py]) => {
+              const found = document.elementFromPoint(px, py);
+              return found?.classList.contains("timeline-presence-anchor")
+                ? "anchor"
+                : `${found?.tagName}.${found?.className}`;
+            },
+            [x, y] as const,
+          ),
+        ).toBe("anchor");
+      }
+    });
+
+    test("a press in the box beside the pill closes the open menu and does not reopen it", async ({
+      page,
+    }) => {
+      await open(page, TIMELINE("cluster"));
+      const hit = await box(pills(page));
+      await pills(page).click();
+      const menu = page.getByRole("menu");
+      await expect(menu).toBeVisible();
+      await page.mouse.click(hit.x + 2, hit.y + hit.height - 2);
+      await expect(menu).toBeHidden();
+      await page.waitForTimeout(300);
+      await expect(menu).toBeHidden();
+    });
+
+    test("the press area stops above the first lane at twice the text size", async ({
+      page,
+    }) => {
+      await open(page, TIMELINE("cluster"));
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "32px";
+        window.dispatchEvent(new Event("resize"));
+      });
+      await page.waitForTimeout(200);
+      const found = await box(pills(page));
+      const ruler = await box(page.locator(".sys-ruler"));
+      const lane = await box(page.locator(".sys-lane").first());
+      expect(found.y + found.height).toBeLessThanOrEqual(lane.y + 0.5);
+      expect(found.height).toBeLessThanOrEqual(48.5);
+      expect(found.y).toBeCloseTo(ruler.y, 0);
+    });
+
+    test("the group pill draws its normal-colour border from the strong border token", async ({
+      page,
+    }) => {
+      await open(page, TIMELINE("cluster"));
+      const group = page.locator(".sys-presence-flag--group");
+      await expect(group).toHaveCSS("border-top-width", "1px");
+      await expect(group).toHaveCSS("border-top-style", "solid");
+      const token = await page.evaluate(() => {
+        const probe = document.createElement("i");
+        probe.style.border = "1px solid var(--color-border-strong)";
+        document.body.append(probe);
+        const color = getComputedStyle(probe).borderTopColor;
+        probe.remove();
+        return color;
+      });
+      await expect(group).toHaveCSS("border-top-color", token);
     });
 
     test("a link that cannot open where they are draws the +N flag as a plain mark with no menu", async ({
@@ -370,6 +465,18 @@ function suite(name: string, width: number, touch: boolean) {
       );
       const lane = await box(page.locator(".sys-lane").first());
       expect(found.y + found.height).toBeLessThanOrEqual(lane.y);
+    });
+
+    test("under forced colours a single flag has a border too", async ({
+      page,
+    }) => {
+      await open(page, PRESENCE("two-remote"), { forced: true });
+      const single = page.locator(
+        ".sys-presence-flag:not(.sys-presence-flag--group)",
+      );
+      await expect(single.first()).toBeVisible();
+      await expect(single.first()).toHaveCSS("border-top-width", "1px");
+      await expect(single.first()).toHaveCSS("border-top-style", "solid");
     });
 
     test("under forced colours the flag has a border, the hover ring is an outline and the menu's dot is a border", async ({
