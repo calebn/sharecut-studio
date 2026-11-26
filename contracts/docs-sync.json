@@ -1091,8 +1091,8 @@
     },
     {
       "id": "ux-pack",
-      "when": "UX onboarding pack (shareable site); relay notice, offline and paused pages and tunnel-status copy; guest consent, lobby and join-sheet copy in the record room and system views",
-      "update": "`ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; enforced by the `ux-pack` docs-sync gate (triggers: GUI shells, keymap, command catalog, the UX-facing docs named in the contract, episode schema, relay notice, offline and paused page copy, tunnel-status copy, guest consent, lobby and join-sheet copy in the record room and system views)",
+      "when": "UX onboarding pack (shareable site); relay notice, offline and paused pages and tunnel-status copy; the listed guest-facing copy modules (guest consent, join-sheet, tab-title, recording-status alert and room-view warning copy)",
+      "update": "`ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; enforced by the `ux-pack` docs-sync gate (triggers: GUI shells, keymap, command catalog, the docs listed in the rule, episode schema, relay notice, offline and paused page copy, tunnel-status copy, and the listed guest-facing copy modules for guest consent, join-sheet, tab-title, recording-status alert and room-view warning copy; not every file in record/ or system/)",
       "docs": [
         "ux/",
         "ux/pages/",
@@ -1117,6 +1117,7 @@
           "gui/web/src/record/guestTabTitle.ts",
           "gui/web/src/system/joinSheetModel.ts",
           "gui/web/src/system/roomViewModel.ts",
+          "gui/web/src/system/roomAlertModel.ts",
           "src/podcast_relay/notice.py",
           "src/podcast_relay/routes/proxy.py",
           "src/podcast_relay/offline.py",
