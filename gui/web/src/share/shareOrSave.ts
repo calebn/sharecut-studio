@@ -3,7 +3,7 @@ export type ExportOutcome =
   | { kind: "downloaded"; filename: string; afterShare: boolean }
   | { kind: "cancelled" };
 
-export const FILE_TYPE = "application/zip";
+const FILE_TYPE = "application/zip";
 const REVOKE_AFTER_MS = 60_000;
 
 function touchDevice(): boolean {
@@ -31,12 +31,9 @@ function save(blob: Blob, filename: string): void {
 export async function shareOrSave(file: {
   blob: Blob;
   filename: string;
-  type?: string;
 }): Promise<ExportOutcome> {
   const { blob, filename } = file;
-  const shareable = new File([blob], filename, {
-    type: file.type ?? FILE_TYPE,
-  });
+  const shareable = new File([blob], filename, { type: FILE_TYPE });
   let afterShare = false;
   if (touchDevice() && navigator.canShare?.({ files: [shareable] })) {
     try {

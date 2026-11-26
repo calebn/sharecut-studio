@@ -45,6 +45,10 @@ describe("shareOrSave", () => {
     device({ coarse: true, canShare: true, share });
     expect(await shareOrSave(FILE)).toEqual({ kind: "shared" });
     expect(share).toHaveBeenCalledOnce();
+    const [data] = share.mock.calls[0] as unknown as [{ files: File[] }];
+    expect(data.files).toHaveLength(1);
+    expect(data.files[0].name).toBe("a.sharecutkit");
+    expect(data.files[0].type).toBe("application/zip");
     expect(clicked).toEqual([]);
   });
 
@@ -97,7 +101,9 @@ describe("shareOrSave", () => {
     device({ coarse: false });
     await shareOrSave(FILE);
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(60_000);
+    vi.advanceTimersByTime(59_999);
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:x");
   });
 });
