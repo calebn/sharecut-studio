@@ -12,8 +12,8 @@ Usage: ./install.sh [--whisper-model NAME] [--bootstrap-whisper]
   --whisper-model NAME   Persist the machine Whisper model (default: large-v3-turbo).
                          Options: tiny.en, base.en, small.en, medium.en,
                          large-v3-turbo, large-v3 (alias: turbo).
-  --bootstrap-whisper    Also download that model now (otherwise first transcribe
-                         fetches it lazily).
+  --bootstrap-whisper    Also download that model now (otherwise run
+                         `podcast bootstrap`; transcribe never downloads).
 EOF
 }
 

@@ -141,9 +141,9 @@ MOCK_BACKEND_ENV = "PODCAST_SPEAKER_BACKEND"
 
 
 SPEAKER_UNAVAILABLE_MESSAGE = (
-    "Speaker recognition isn't available on this computer. "
-    "In the Split speakers dialog, choose Download speaker model "
-    "(or run podcast bootstrap --component speaker-ecapa)."
+    "Speaker recognition is switched off on this computer: the development mock is selected "
+    f"with {MOCK_BACKEND_ENV}. Unset it to use the real speaker model "
+    "(missing models are fetched with Get in Studio or podcast bootstrap)."
 )
 
 

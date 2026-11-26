@@ -259,11 +259,10 @@ def bootstrap(
 ) -> None:
     """Download model assets on demand.
 
-    Nothing here is required to install the package -- everything is fetched
-    lazily into the cache dir (`podcast doctor` shows the path) the first time
-    you actually need it. A bare run installs every model (Whisper, RNNoise,
-    the word aligner and the speaker model); name one
-    (`--component whisper`) to top up just that piece. Safe to re-run;
+    Nothing downloads on its own: models are fetched only when you run this, or press Get in
+    Studio (Get ready on Home, or a model's Get row). `podcast doctor` shows the cache path.
+    A bare run installs every model (Whisper, RNNoise, the word aligner and the speaker
+    model); name one (`--component whisper`) to top up just that piece. Safe to re-run;
     already-cached assets are skipped unless `--upgrade`.
     """
     if component is not None and component not in _COMPONENT_IDS:
