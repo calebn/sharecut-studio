@@ -808,7 +808,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["mcp", "ai", "assistant", "automation"],
     home: true,
     when: "canManageProjects",
-    notes: "Copy local Streamable HTTP MCP URL for Cursor/Claude",
+    notes: "Copy the local connection address for an AI app",
   },
   "help.diagnosticsBundle": {
     id: "help.diagnosticsBundle",

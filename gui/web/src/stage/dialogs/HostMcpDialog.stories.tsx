@@ -205,11 +205,13 @@ export const NeverUsed: Story = {
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement);
-    await expect(
-      within(dialog).getByText(
-        "No app has used this address since Studio started.",
-      ),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText(
+          "No app has used this address since Studio started.",
+        ),
+      ).toBeVisible(),
+    );
   },
 };
 
@@ -218,9 +220,11 @@ export const UsedJustNow: Story = {
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement);
-    await expect(
-      within(dialog).getByText("An app used this address just now."),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText("An app used this address just now."),
+      ).toBeVisible(),
+    );
   },
 };
 
@@ -229,9 +233,11 @@ export const UsedMinutesAgo: Story = {
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement);
-    await expect(
-      within(dialog).getByText("An app used this address 3 minutes ago."),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText("An app used this address 3 minutes ago."),
+      ).toBeVisible(),
+    );
   },
 };
 
@@ -240,9 +246,9 @@ export const LastUsedHoursAgo: Story = {
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement);
-    await expect(
-      within(dialog).getByText("Last used 3 hours ago."),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(within(dialog).getByText("Last used 3 hours ago.")).toBeVisible(),
+    );
   },
 };
 
@@ -257,7 +263,9 @@ export const Unavailable: Story = {
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement);
-    await expect(within(dialog).getByText(UNAVAILABLE_MESSAGE)).toBeVisible();
+    await waitFor(() =>
+      expect(within(dialog).getByText(UNAVAILABLE_MESSAGE)).toBeVisible(),
+    );
     await expect(
       within(dialog).queryByRole("button", { name: "Copy address" }),
     ).toBeNull();
