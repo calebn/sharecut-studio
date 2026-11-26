@@ -24,7 +24,6 @@ from typing import BinaryIO
 from podcast_mcp.segments import bundle
 from podcast_mcp.segments.bundle import MAX_BUNDLE_BYTES, staged_clip
 from podcast_mcp.segments.kit import KitStore
-from podcast_mcp.segments.kit_bundle import KitImportIncomplete
 from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -203,7 +202,7 @@ class ImportStaging:
         """Take the staged file for one commit. A second commit finds it gone.
 
         The file is removed when the block ends. When the library is busy, the disk cannot
-        take it or a kit was only partly added, it is put back so the person can try again without uploading twice; any other
+        take it or a write failed in a way a retry can fix, it is put back so the person can try again without uploading twice; any other
         failure (a file that does not verify) removes it, so a bad file does not keep its slot.
         """
         source = self.path(token)
@@ -216,7 +215,7 @@ class ImportStaging:
         try:
             yield claimed
         except CodedValueError as exc:
-            if exc.code in self.kind.keeps_file or isinstance(exc, KitImportIncomplete):
+            if exc.code in self.kind.keeps_file:
                 os.replace(claimed, source)
             else:
                 claimed.unlink(missing_ok=True)

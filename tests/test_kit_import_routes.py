@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import os
 import stat
@@ -133,7 +134,9 @@ def test_list_describes_usable_unusable_and_damaged_kits_without_hashing_audio(
     broken = rows[kit_id_for("Broken Kit")]
     assert (broken["usable"], broken["missing"]) == (False, 1)
     assert broken["problem"]
-    assert rows[kit_id_for("Odd Kit")]["damaged"] is True
+    odd = rows[kit_id_for("Odd Kit")]
+    assert (odd["damaged"], odd["usable"]) == (True, False)
+    assert odd["problem"]
 
 
 def test_list_is_empty_for_a_new_library(client: TestClient) -> None:
@@ -169,6 +172,33 @@ def test_export_of_a_kit_with_a_missing_segment_is_a_409(
     SegmentStore().remove(SegmentStore().list()[0].id)
     res = client.get(f"/api/kits/{kit_id}/export")
     assert (res.status_code, res.headers[CODE]) == (409, "kit_segment_missing")
+
+
+def _damage_audio(how: str) -> Path:
+    segment = SegmentStore().list()[0]
+    audio = SegmentStore().path(segment.id) / sorted(segment.media)[0]
+    if how == "missing":
+        audio.unlink()
+    else:
+        audio.write_bytes(b"x" * audio.stat().st_size)
+    return audio
+
+
+@pytest.mark.parametrize("how", ["corrupt", "missing"])
+def test_export_of_a_kit_with_damaged_audio_is_a_409_and_leaves_no_part_file(
+    client: TestClient, tmp_path: Path, how: str
+) -> None:
+    kit_id = _library_kit(tmp_path)
+    _damage_audio(how)
+    res = client.get(f"/api/kits/{kit_id}/export")
+    assert (res.status_code, res.headers[CODE]) == (409, "kit_segment_missing")
+    assert "Sign Off" in res.json()["detail"]
+    out = tmp_path / "out"
+    out.mkdir()
+    with pytest.raises(CodedValueError) as raised:
+        export_kit(KitStore(), SegmentStore(), kit_id, out / "kit.sharecutkit")
+    assert raised.value.code == "kit_segment_missing"
+    assert list(out.iterdir()) == []
 
 
 def test_export_over_the_cap_is_refused_and_leaves_no_scratch_folder(
@@ -357,6 +387,82 @@ def test_a_segment_that_cannot_be_written_first_keeps_the_file_and_names_the_kit
 
     monkeypatch.setattr(SegmentStore, "add", real)
     assert client.post("/api/kits/import", json={"token": token}).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("errno_", "code", "status"),
+    [(errno.ENOSPC, "kit_no_room", 507), (errno.EIO, "kit_write_failed", 500)],
+)
+def test_a_disk_error_while_the_commit_unpacks_keeps_the_file_for_a_retry(
+    client: TestClient,
+    tmp_path: Path,
+    staging_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    errno_: int,
+    code: str,
+    status: int,
+) -> None:
+    token = _preview(client, _file(tmp_path))["token"]
+    real = Path.mkdir
+
+    def failing(self: Path, *args: Any, **kwargs: Any) -> None:
+        if self.name.startswith("seg0"):
+            raise OSError(errno_, os.strerror(errno_))
+        real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", failing)
+    res = client.post("/api/kits/import", json={"token": token})
+    assert (res.status_code, res.headers[CODE]) == (status, code)
+    assert _staged(staging_dir) == [f"{token}.sharecutkit"]
+    assert KitStore().list() == [] and SegmentStore().list() == []
+
+    monkeypatch.setattr(Path, "mkdir", real)
+    assert client.post("/api/kits/import", json={"token": token}).status_code == 200
+    assert _staged(staging_dir) == []
+
+
+def test_a_disk_error_after_a_segment_landed_names_it_and_keeps_the_file(
+    client: TestClient, tmp_path: Path, staging_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _preview(client, _file(tmp_path))["token"]
+    real = SegmentStore.add
+    calls: list[int] = []
+
+    def failing(self: SegmentStore, folder: Path) -> AddResult:
+        calls.append(1)
+        if len(calls) == 2:
+            raise OSError(errno.ENOSPC, "No space left on device")
+        return real(self, folder)
+
+    monkeypatch.setattr(SegmentStore, "add", failing)
+    res = client.post("/api/kits/import", json={"token": token})
+    assert (res.status_code, res.headers[CODE]) == (507, "kit_no_room")
+    body = res.json()
+    assert [s["status"] for s in body["segments_added"]] == ["added"]
+    assert body["segments_total"] == 2
+    assert _staged(staging_dir) == [f"{token}.sharecutkit"]
+
+    monkeypatch.setattr(SegmentStore, "add", real)
+    assert client.post("/api/kits/import", json={"token": token}).status_code == 200
+
+
+def test_a_deterministic_failure_after_a_segment_landed_names_it_and_removes_the_file(
+    client: TestClient, tmp_path: Path, staging_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _preview(client, _file(tmp_path))["token"]
+    real = KitStore.add
+
+    def failing(self: KitStore, kit: object, *, keep_existing: bool = False) -> object:
+        raise CodedValueError("The kit is not valid.", code="kit_invalid")
+
+    monkeypatch.setattr(KitStore, "add", failing)
+    res = client.post("/api/kits/import", json={"token": token})
+    assert (res.status_code, res.headers[CODE]) == (422, "kit_invalid")
+    assert len(res.json()["segments_added"]) == 2
+    assert _staged(staging_dir) == []
+    assert client.post("/api/kits/import", json={"token": token}).status_code == 404
+
+    monkeypatch.setattr(KitStore, "add", real)
 
 
 def test_a_partial_failure_names_the_segments_that_landed_and_a_retry_finishes(
@@ -645,15 +751,24 @@ def test_a_kit_preview_never_evicts_a_segment_preview(
 def test_parallel_previews_never_hold_more_slots_than_the_cap(staging_dir: Path) -> None:
     staging = ImportStaging(KitStore(), KIT_KIND)
 
-    def start(_: int) -> None:
-        upload = staging.begin(None)
+    def start(_: int) -> str | None:
+        try:
+            upload = staging.begin(None)
+        except CodedValueError as exc:
+            assert exc.code == "kit_staging_full"
+            return None
         staging.open_partial(upload).close()
         staging.finish(upload)
+        return upload.token
 
     with ThreadPoolExecutor(8) as pool:
-        list(pool.map(start, range(12)))
+        tokens = [t for t in pool.map(start, range(12)) if t is not None]
 
-    assert len(_staged(staging_dir)) <= MAX_STAGED
+    staged = _staged(staging_dir)
+    assert len(tokens) >= MAX_STAGED
+    assert len(staged) == MAX_STAGED
+    assert all(name.removesuffix(".sharecutkit") in tokens for name in staged)
+    assert all(name.endswith(".sharecutkit") for name in staged)
 
 
 def test_a_full_staging_folder_of_uploads_in_progress_answers_429(staging_dir: Path) -> None:
@@ -777,7 +892,8 @@ def test_every_kit_file_route_refuses_a_foreign_origin_and_a_relayed_request(
             ).status_code
             == 403
         )
-        assert relayed.request(method, path, **kwargs).status_code in (401, 403)
+        refused = relayed.request(method, path, **kwargs)
+        assert (refused.status_code, refused.headers[CODE]) == (403, "authz_denied")
     assert _staged(staging_dir) == []
 
 

@@ -57,6 +57,14 @@ KIT_STATUS = {
 }
 
 
+_EXPORT_STATUS = {
+    **KIT_STATUS,
+    "segment_hash_mismatch": 409,
+    "segment_unreadable": 409,
+    "segment_invalid": 409,
+}
+
+
 class KitApplyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     path: str
@@ -87,7 +95,7 @@ def export_kit_route(kit_id: str) -> FileResponse:
             lambda out: export_kit(KitStore(), SegmentStore(), kit_id, out),
         )
     except CodedValueError as exc:
-        refuse_kit(exc)
+        refuse_kit(exc, _EXPORT_STATUS)
 
 
 @router.get("/api/kits/offer")
