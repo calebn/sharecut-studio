@@ -114,7 +114,15 @@ def test_bootstrap_rnnoise_skips_cdn_without_sha(
     assert all("cdn.example.test" not in url for url in captured["urls"])
 
 
-def test_bootstrap_rnnoise_model_skips_when_already_present() -> None:
+def _pin(monkeypatch: pytest.MonkeyPatch, payload: bytes) -> None:
+    entry = {**asset_entry("rnnoise"), "sha256": hashlib.sha256(payload).hexdigest()}
+    monkeypatch.setattr(model_assets, "asset_entry", lambda name: entry)
+
+
+def test_bootstrap_rnnoise_model_skips_when_already_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin(monkeypatch, b"already here")
     path = model_assets.rnnoise_model_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"already here")
@@ -125,6 +133,60 @@ def test_bootstrap_rnnoise_model_skips_when_already_present() -> None:
     mock_dl.assert_not_called()
     assert result == path
     assert result.read_bytes() == b"already here"
+
+
+def test_bootstrap_rnnoise_default_wrong_bytes_is_redownloaded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin(monkeypatch, b"pinned")
+    path = model_assets.rnnoise_model_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"truncated")
+
+    def fake_download(urls, dest: Path, **kwargs: object) -> str:
+        dest.write_bytes(b"pinned")
+        return "upstream"
+
+    with (
+        patch.object(model_assets, "download_first_ok", side_effect=fake_download) as mock_dl,
+        patch.object(model_assets, "verify_pinned_size"),
+    ):
+        result = model_assets.bootstrap_rnnoise_model()
+
+    mock_dl.assert_called_once()
+    assert result.read_bytes() == b"pinned"
+
+
+def test_bootstrap_rnnoise_override_file_is_not_replaced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pin(monkeypatch, b"pinned")
+    model = tmp_path / "mine.rnnn"
+    model.write_bytes(b"arbitrary user model")
+    monkeypatch.setenv("PODCAST_MCP_RNNOISE_MODEL", str(model))
+
+    with patch.object(model_assets, "download_first_ok") as mock_dl:
+        result = model_assets.bootstrap_rnnoise_model()
+
+    mock_dl.assert_not_called()
+    assert result == model
+    assert model.read_bytes() == b"arbitrary user model"
+
+
+def test_bootstrap_rnnoise_without_sha256_pin_keeps_existing_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    unpinned = {k: v for k, v in asset_entry("rnnoise").items() if k != "sha256"}
+    monkeypatch.setattr(model_assets, "asset_entry", lambda name: unpinned)
+    path = model_assets.rnnoise_model_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"anything")
+
+    with patch.object(model_assets, "download_first_ok") as mock_dl:
+        result = model_assets.bootstrap_rnnoise_model()
+
+    mock_dl.assert_not_called()
+    assert result.read_bytes() == b"anything"
 
 
 def test_bootstrap_rnnoise_model_force_redownloads() -> None:
@@ -140,6 +202,43 @@ def test_bootstrap_rnnoise_model_force_redownloads() -> None:
         result = model_assets.bootstrap_rnnoise_model(force=True)
 
     assert result.read_bytes() == b"f" * _pinned_size()
+
+
+def test_bootstrap_rnnoise_force_downloads_even_when_file_matches_pin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin(monkeypatch, b"pinned")
+    path = model_assets.rnnoise_model_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"pinned")
+    assert model_assets.rnnoise_pin_mismatch(path, memoize=False) is None
+
+    def fake_download(urls, dest: Path, **kwargs: object) -> str:
+        dest.write_bytes(b"pinned")
+        return "upstream"
+
+    with (
+        patch.object(model_assets, "download_first_ok", side_effect=fake_download) as mock_dl,
+        patch.object(model_assets, "verify_pinned_size"),
+    ):
+        model_assets.bootstrap_rnnoise_model(force=True)
+
+    mock_dl.assert_called_once()
+
+
+def test_bootstrap_rnnoise_check_is_not_memoized(monkeypatch: pytest.MonkeyPatch) -> None:
+    _pin(monkeypatch, b"pinned")
+    path = model_assets.rnnoise_model_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"pinned")
+
+    with patch.object(
+        model_assets, "rnnoise_pin_mismatch", wraps=model_assets.rnnoise_pin_mismatch
+    ) as spy:
+        model_assets.bootstrap_rnnoise_model()
+
+    spy.assert_called_once()
+    assert spy.call_args.kwargs["memoize"] is False
 
 
 CDN_BASE = "https://cdn.example.test/bootstrap"
