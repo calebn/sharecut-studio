@@ -172,11 +172,16 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
             />
           )}
         </Field>
-        <div className="share-dialog-live" aria-live="polite">
-          {error ? <InlineError message={error} /> : null}
-          {status && !error ? (
-            <p className="share-dialog-status">{status}</p>
-          ) : null}
+        <div className="share-dialog-live">
+          <p
+            className="share-dialog-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {status}
+          </p>
+          <InlineError message={error} />
         </div>
       </div>
     </Dialog>

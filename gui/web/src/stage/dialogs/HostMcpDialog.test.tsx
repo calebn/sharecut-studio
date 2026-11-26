@@ -318,6 +318,149 @@ describe("HostMcpDialog", () => {
     },
   );
 
+  describe("announcement structure (roles and DOM only; no screen reader)", () => {
+    function statusNode(): HTMLElement {
+      const node = document.querySelector<HTMLElement>(".share-dialog-status");
+      if (!node) throw new Error("status element is not mounted");
+      return node;
+    }
+
+    function useClipboard(writeText: () => Promise<void>) {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: vi.fn(writeText) },
+      });
+    }
+
+    it("mounts one empty polite status before any click", () => {
+      render(<HostMcpDialog open onClose={() => undefined} hasProject />);
+      const node = statusNode();
+      expect(node.getAttribute("role")).toBe("status");
+      expect(node.getAttribute("aria-live")).toBe("polite");
+      expect(node.getAttribute("aria-atomic")).toBe("true");
+      expect(node.textContent).toBe("");
+      expect(screen.queryAllByRole("alert")).toHaveLength(0);
+    });
+
+    it("puts the success text in that same node and no alert", async () => {
+      render(<HostMcpDialog open onClose={() => undefined} hasProject />);
+      const before = statusNode();
+      fireEvent.click(screen.getByRole("button", { name: "Copy URL" }));
+      await screen.findByText("Copied MCP URL");
+      expect(statusNode()).toBe(before);
+      expect(before.textContent).toBe("Copied MCP URL");
+      expect(screen.queryAllByRole("alert")).toHaveLength(0);
+    });
+
+    it("keeps the same status node after the 2 s window", async () => {
+      vi.useFakeTimers();
+      try {
+        render(<HostMcpDialog open onClose={() => undefined} hasProject />);
+        const before = statusNode();
+        await act(async () => {
+          fireEvent.click(screen.getByRole("button", { name: "Copy URL" }));
+        });
+        expect(before.textContent).toBe("Copied MCP URL");
+        act(() => {
+          vi.advanceTimersByTime(2000);
+        });
+        expect(statusNode()).toBe(before);
+        expect(before.textContent).toBe("");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("announces a failure as exactly one alert outside any live ancestor", async () => {
+      useClipboard(() => Promise.reject(new Error("denied")));
+      const { baseElement } = render(
+        <HostMcpDialog open onClose={() => undefined} hasProject />,
+      );
+      const copyUrl = screen.getByRole("button", { name: "Copy URL" });
+      copyUrl.focus();
+      fireEvent.click(copyUrl);
+      const alert = await screen.findByRole("alert");
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      expect(alert.textContent).toBe(COPY_FAILED_MESSAGE);
+      expect(alert.closest("[aria-live]")).toBeNull();
+      expect(alert.closest('[role="status"]')).toBeNull();
+      expect(statusNode().textContent).toBe("");
+      const live = baseElement.querySelectorAll("[role=alert],[aria-live]");
+      expect(live).toHaveLength(2);
+      expect(live[0]!.contains(live[1]!)).toBe(false);
+      expect(live[1]!.contains(live[0]!)).toBe(false);
+      expect(document.activeElement).toBe(copyUrl);
+      await expectNoA11yViolations(baseElement);
+    });
+
+    it("keeps focus on the pressed button after a success", async () => {
+      render(<HostMcpDialog open onClose={() => undefined} hasProject />);
+      const snippet = screen.getByRole("button", { name: "Copy snippet" });
+      snippet.focus();
+      fireEvent.click(snippet);
+      await screen.findByText("Copied client snippet");
+      expect(document.activeElement).toBe(snippet);
+    });
+
+    describe("failure lifecycle", () => {
+      beforeEach(() => vi.useFakeTimers());
+      afterEach(() => vi.useRealTimers());
+
+      async function click(name: string) {
+        await act(async () => {
+          fireEvent.click(screen.getByRole("button", { name }));
+        });
+      }
+
+      it("keeps the alert past 2 s, removes it on a later success, and re-inserts it on a repeat failure", async () => {
+        const writeText = vi
+          .fn()
+          .mockRejectedValueOnce(new Error("a"))
+          .mockRejectedValueOnce(new Error("b"))
+          .mockResolvedValueOnce(undefined);
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: { writeText },
+        });
+        render(<HostMcpDialog open onClose={() => undefined} hasProject />);
+        await click("Copy URL");
+        const first = screen.getByRole("alert");
+        act(() => {
+          vi.advanceTimersByTime(5000);
+        });
+        expect(screen.getByRole("alert")).toBe(first);
+        await click("Copy URL");
+        const second = screen.getByRole("alert");
+        expect(second).not.toBe(first);
+        expect(second.isConnected).toBe(true);
+        expect(first.isConnected).toBe(false);
+        expect(second.textContent).toBe(COPY_FAILED_MESSAGE);
+        expect(screen.getAllByRole("alert")).toHaveLength(1);
+        await click("Copy URL");
+        expect(screen.queryAllByRole("alert")).toHaveLength(0);
+        expect(statusNode().textContent).toBe("Copied MCP URL");
+      });
+
+      it("clears the alert and the status when the dialog closes and reopens", async () => {
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: { writeText: vi.fn().mockRejectedValue(new Error("x")) },
+        });
+        const { rerender } = render(
+          <HostMcpDialog open onClose={() => undefined} hasProject />,
+        );
+        await click("Copy URL");
+        expect(screen.getAllByRole("alert")).toHaveLength(1);
+        rerender(
+          <HostMcpDialog open={false} onClose={() => undefined} hasProject />,
+        );
+        rerender(<HostMcpDialog open onClose={() => undefined} hasProject />);
+        expect(screen.queryAllByRole("alert")).toHaveLength(0);
+        expect(statusNode().textContent).toBe("");
+      });
+    });
+  });
+
   it("warns when no episode is open", async () => {
     const { baseElement: container } = render(
       <HostMcpDialog open onClose={() => undefined} hasProject={false} />,
