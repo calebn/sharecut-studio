@@ -159,6 +159,26 @@ describe("merged edit toasts", () => {
     }
   });
 
+  it("does not count an entry that Ctrl+Z already undid", () => {
+    headAt("h0");
+    say("Cut", { undo: "h1", kind: "cut" });
+    useDawStore.getState().dropFeedbackUndo(toast()!.id, true);
+    headAt("h2");
+    say("Cut", { undo: "h2", kind: "cut" });
+    expect(toast()?.merged).toBeNull();
+    expect(toast()?.message).toBe("Cut");
+  });
+
+  it("does not count an undone entry whose toast had lapsed first", () => {
+    headAt("h0");
+    say("Cut", { undo: "h1", kind: "cut" });
+    useDawStore.getState().dropFeedbackUndo(toast()!.id);
+    useDawStore.getState().dropFeedbackUndo(toast()!.id, true);
+    headAt("h2");
+    say("Cut", { undo: "h2", kind: "cut" });
+    expect(toast()?.merged).toBeNull();
+  });
+
   it("does not merge into a lapsed toast of another kind", () => {
     headAt("h0");
     say("Cut", { undo: "h1", kind: "cut" });
