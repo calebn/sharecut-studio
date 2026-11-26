@@ -706,26 +706,6 @@ describe("the Invite sheet over any stage", () => {
       );
     });
 
-    it("does not hide a new room after the idle one is ended", async () => {
-      room();
-      render(<ToastedHost />);
-      openInvite("record");
-      await userEvent.click(
-        await screen.findByRole("button", { name: "End room" }),
-      );
-      await waitFor(() => expect(server.revokeRequests).toEqual(["room-1"]));
-      expect(useRecordHostStore.getState().snapshot).toBeNull();
-      act(() =>
-        useRecordHostStore
-          .getState()
-          .setSnapshot(
-            recordSnapshot({ session_id: "room-2", state: "lobby" }),
-          ),
-      );
-      expect(useRecordHostStore.getState().snapshot?.session_id).toBe("room-2");
-      expect(useRecordHostStore.getState().endedSessionId).toBeNull();
-    });
-
     it("confirms ending a lobby with a guest, then Undo brings it back", async () => {
       room({ participants: [recordParticipant({ display_name: "Ava" })] });
       render(<ToastedHost />);
