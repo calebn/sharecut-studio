@@ -1,7 +1,6 @@
-import { createHash } from "node:crypto";
-import { crc32 } from "node:zlib";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectSurfaceAxeClean } from "./axe";
+import { segmentFile, segmentJsonOf, silence } from "./bundleFiles";
 import { expectFeedback } from "./feedback";
 import { openHome } from "./home";
 import {
@@ -30,102 +29,6 @@ const COLD_OPEN: Row = {
   versions: [1],
   clips: [{ audio: "intro.flac", offset_sec: 0, duration_sec: 12.4 }],
 };
-
-const AUDIO = Buffer.from("fLaC-test-audio");
-
-function storedZip(entries: Record<string, Buffer>): Buffer {
-  const parts: Buffer[] = [];
-  const central: Buffer[] = [];
-  let offset = 0;
-  for (const [name, data] of Object.entries(entries)) {
-    const label = Buffer.from(name);
-    const crc = crc32(data);
-    const local = Buffer.alloc(30);
-    local.writeUInt32LE(0x04034b50, 0);
-    local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(0x21, 12);
-    local.writeUInt32LE(crc, 14);
-    local.writeUInt32LE(data.length, 18);
-    local.writeUInt32LE(data.length, 22);
-    local.writeUInt16LE(label.length, 26);
-    parts.push(local, label, data);
-    const entry = Buffer.alloc(46);
-    entry.writeUInt32LE(0x02014b50, 0);
-    entry.writeUInt16LE(20, 4);
-    entry.writeUInt16LE(20, 6);
-    entry.writeUInt16LE(0x21, 14);
-    entry.writeUInt32LE(crc, 16);
-    entry.writeUInt32LE(data.length, 20);
-    entry.writeUInt32LE(data.length, 24);
-    entry.writeUInt16LE(label.length, 28);
-    entry.writeUInt32LE(offset, 42);
-    central.push(entry, label);
-    offset += 30 + label.length + data.length;
-  }
-  const directory = Buffer.concat(central);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(central.length / 2, 8);
-  end.writeUInt16LE(central.length / 2, 10);
-  end.writeUInt32LE(directory.length, 12);
-  end.writeUInt32LE(offset, 16);
-  return Buffer.concat([...parts, directory, end]);
-}
-
-const sha = (data: Buffer | string) =>
-  createHash("sha256").update(data).digest("hex");
-
-/** A real `.sharecutseg`: segment.json, one clip and the manifest that hashes them. */
-function segmentFile(name: string, kind = "intro", seconds = 22): Buffer {
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const json = Buffer.from(
-    JSON.stringify({
-      schema_version: 1,
-      id: `${slug}-${sha(name).slice(0, 8)}`,
-      name,
-      kind,
-      version: 1,
-      role: "intro",
-      fader_db: 0,
-      clips: [{ audio: "clip-01.flac", offset_sec: 0, duration_sec: seconds }],
-      media: { "clip-01.flac": { sha256: sha(AUDIO), bytes: AUDIO.length } },
-    }),
-  );
-  const manifest = Buffer.from(
-    `${sha(json)}  segment.json\n${sha(AUDIO)}  clip-01.flac\n`,
-  );
-  return storedZip({
-    "segment.json": json,
-    "clip-01.flac": AUDIO,
-    "MANIFEST.sha256": manifest,
-  });
-}
-
-function segmentJsonOf(file: Buffer): Record<string, unknown> | null {
-  const at = file.indexOf("segment.json");
-  if (file.subarray(0, 2).toString() !== "PK" || at < 0) return null;
-  const size = file.readUInt32LE(at - 30 + 18);
-  return JSON.parse(file.subarray(at + 12, at + 12 + size).toString());
-}
-
-function silence(): Buffer {
-  const rate = 8000;
-  const samples = Math.round(rate * 0.3);
-  const header = Buffer.alloc(44);
-  header.write("RIFF", 0);
-  header.writeUInt32LE(36 + samples, 4);
-  header.write("WAVEfmt ", 8);
-  header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20);
-  header.writeUInt16LE(1, 22);
-  header.writeUInt32LE(rate, 24);
-  header.writeUInt32LE(rate, 28);
-  header.writeUInt16LE(1, 32);
-  header.writeUInt16LE(8, 34);
-  header.write("data", 36);
-  header.writeUInt32LE(samples, 40);
-  return Buffer.concat([header, Buffer.alloc(samples, 128)]);
-}
 
 const TOKEN = "f".repeat(32);
 
