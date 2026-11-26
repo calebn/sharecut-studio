@@ -84,14 +84,15 @@ app uses it.
 3. Ask the app to do something in ShareCut. The line in the dialog updates when
    Studio gets the request.
 
-The address looks like this and only works on the same computer:
+The address only works on the same computer. The dialog shows the real one;
+the port can differ, and 8765 is the default for a command-line start:
 
 ```text
 http://127.0.0.1:8765/mcp
 ```
 
 If your app wants a config file instead, the dialog's **Config file format**
-shows this block (the address may use a different port):
+shows this block (with the dialog's address, which may use a different port):
 
 ```json
 {
