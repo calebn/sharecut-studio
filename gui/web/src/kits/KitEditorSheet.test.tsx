@@ -32,12 +32,18 @@ const SEGMENTS: SegmentListRow[] = [HEALTHY, MULTI_VERSION, OUTRO, DAMAGED];
 
 let reloadSegments = vi.fn();
 
-function Section({ rows = SEGMENTS }: { rows?: SegmentListRow[] | null }) {
+function Section({
+  rows = SEGMENTS,
+  error = null,
+}: {
+  rows?: SegmentListRow[] | null;
+  error?: string | null;
+}) {
   const library = useKitLibrary(true);
   return (
     <KitLibrary
       library={library}
-      segments={{ rows, reload: reloadSegments }}
+      segments={{ rows, error, reload: reloadSegments }}
       omitWhenEmpty
     />
   );
@@ -45,9 +51,12 @@ function Section({ rows = SEGMENTS }: { rows?: SegmentListRow[] | null }) {
 
 const announced = () => useDawStore.getState().statusAnnouncement;
 
-async function openSheet(rows?: SegmentListRow[] | null) {
+async function openSheet(
+  rows?: SegmentListRow[] | null,
+  error: string | null = null,
+) {
   const user = userEvent.setup();
-  const view = render(<Section rows={rows} />);
+  const view = render(<Section rows={rows} error={error} />);
   await user.click(await screen.findByRole("button", { name: "New kit" }));
   const dialog = await screen.findByRole("dialog", { name: "New kit" });
   return { user, dialog, view };
@@ -153,6 +162,23 @@ describe("KitEditorSheet", () => {
     expect(within(dialog).getByText("Loading your segments…")).toBeVisible();
   });
 
+  it("says the segments could not be read, with Try again, instead of loading forever", async () => {
+    const { user, dialog } = await openSheet(null, "Studio is offline.");
+    expect(within(dialog).queryByText("Loading your segments…")).toBeNull();
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Couldn't load your segments.",
+    );
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Studio is offline.",
+    );
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Try again to load your segments",
+      }),
+    );
+    expect(reloadSegments).toHaveBeenCalledTimes(1);
+  });
+
   it("adds in order with Start for an intro and End for the rest, builds entries from the library", async () => {
     const { user, dialog } = await openSheet();
     await add(user, "Cold open");
@@ -161,7 +187,7 @@ describe("KitEditorSheet", () => {
     const rows = entries(dialog);
     expect(rows).toHaveLength(3);
     const pressed = (row: HTMLElement) =>
-      within(row).getByRole("radio", { checked: true }).textContent;
+      within(row).getByRole("button", { pressed: true }).textContent;
     expect(rows.map(pressed)).toEqual(["Start", "End", "End"]);
     expect(within(rows[0]).getByText("Cold open")).toBeVisible();
     expect(within(rows[0]).getByText("Intro")).toBeVisible();
@@ -189,11 +215,11 @@ describe("KitEditorSheet", () => {
     const down = within(entries(dialog)[0]).getByRole("button", {
       name: "Move Cold open down",
     });
-    expect(
-      within(entries(dialog)[0]).getByRole("button", {
-        name: "Move Cold open up",
-      }),
-    ).toHaveAttribute("title", "Already first");
+    const first = within(entries(dialog)[0]);
+    const up = first.getByRole("button", { name: "Move Cold open up" });
+    // The reason is on the page for a touch or keyboard user, and the button points at it.
+    expect(up).toHaveAccessibleDescription("Already first.");
+    expect(first.getByText("Already first.")).toBeVisible();
     await user.click(down);
     expect(
       within(dialog).getByText("Moved Cold open to position 2 of 3."),
@@ -223,7 +249,8 @@ describe("KitEditorSheet", () => {
       within(entries(dialog)[2]).getByRole("button", {
         name: "Move Cold open down",
       }),
-    ).toHaveAttribute("title", "Already last");
+    ).toHaveAccessibleDescription("Already last.");
+    expect(within(entries(dialog)[2]).getByText("Already last.")).toBeVisible();
   });
 
   it("removes an entry and puts focus on the next one's Remove", async () => {
@@ -262,7 +289,7 @@ describe("KitEditorSheet", () => {
       ),
     ).toBeVisible();
     expect(within(entries(dialog)[0]).queryByRole("note")).toBeNull();
-    await user.click(within(second).getByRole("radio", { name: "End" }));
+    await user.click(within(second).getByRole("button", { name: "End" }));
     expect(within(second).queryByRole("note")).toBeNull();
   });
 
@@ -310,7 +337,7 @@ describe("KitEditorSheet", () => {
     await user.type(within(dialog).getByLabelText("Name"), "Show Kit");
     expect(
       within(dialog).getByText(
-        "Saves version 2 of Show Kit. The earlier version is kept.",
+        "Saves to the existing kit Show Kit if anything changed. The earlier version is kept.",
       ),
     ).toBeVisible();
     saveKit.mockResolvedValue({
@@ -390,7 +417,7 @@ describe("KitEditorSheet", () => {
     await user.type(within(dialog).getByLabelText("Name"), "Weekly");
     await user.click(screen.getByRole("button", { name: "Save kit" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      "A segment in this kit was removed from the library. Remove it from the list, then save again.",
+      "1 segment of this kit is not in the library",
     );
     expect(reloadSegments).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("dialog", { name: "New kit" })).toBeVisible();
@@ -418,7 +445,9 @@ describe("KitEditorSheet", () => {
     await user.type(within(dialog).getByLabelText("Name"), "Weekly");
     view.rerender(<Section rows={[HEALTHY, MULTI_VERSION]} />);
     const rows = entries(dialog);
-    expect(within(rows[1]).getByText("outro-4d2e")).toBeVisible();
+    expect(within(rows[1]).getByText("A removed segment")).toBeVisible();
+    expect(screen.queryByText(/outro-4d2e/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /outro-4d2e/ })).toBeNull();
     expect(within(rows[1]).getByText(/no longer in the library/)).toBeVisible();
     const save = screen.getByRole("button", { name: "Save kit" });
     expect(save).toBeDisabled();
@@ -427,7 +456,9 @@ describe("KitEditorSheet", () => {
       "Remove the segments that are no longer in the library.",
     );
     await user.click(
-      screen.getByRole("button", { name: "Remove outro-4d2e from the kit" }),
+      screen.getByRole("button", {
+        name: "Remove A removed segment from the kit",
+      }),
     );
     expect(save).toBeEnabled();
   });
@@ -464,6 +495,12 @@ describe("KitEditorSheet", () => {
     const button = screen.getByRole("button", { name: "Add Cold open" });
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("title", "A kit holds up to 32 segments.");
+    expect(button).toHaveAccessibleDescription(
+      "A kit holds up to 32 segments.",
+    );
+    expect(
+      within(dialog).getByText("A kit holds up to 32 segments."),
+    ).toBeVisible();
   });
 
   it("closes on Escape and returns focus to New kit, with a fresh draft next time", async () => {
@@ -482,6 +519,64 @@ describe("KitEditorSheet", () => {
     expect(
       within(again).queryByRole("list", { name: "Kit segments" }),
     ).toBeNull();
+  });
+
+  it("clears an earlier failure when the sheet is cancelled and opened again", async () => {
+    saveKit.mockRejectedValue(new ApiError("x", "kit_busy", 409));
+    const { user, dialog } = await openSheet();
+    await add(user, "Cold open");
+    await user.type(within(dialog).getByLabelText("Name"), "Weekly");
+    await user.click(screen.getByRole("button", { name: "Save kit" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Another action is using the kit library.",
+    );
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "New kit" })).toBeNull(),
+    );
+    await user.click(screen.getByRole("button", { name: "New kit" }));
+    const again = await screen.findByRole("dialog", { name: "New kit" });
+    expect(within(again).queryByRole("alert")).toBeNull();
+    expect(within(again).queryByText(/Another action/)).toBeNull();
+  });
+
+  it("does not pull focus to the saved kit on a later Try again after the re-read failed", async () => {
+    loadKits.mockReset().mockResolvedValueOnce([kitRow()]);
+    const { user, dialog } = await openSheet();
+    await add(user, "Cold open");
+    await user.type(within(dialog).getByLabelText("Name"), "Weekly");
+    loadKits.mockRejectedValueOnce(new Error("offline"));
+    await user.click(screen.getByRole("button", { name: "Save kit" }));
+    const retry = await screen.findByRole("button", {
+      name: "Try again to load the kits",
+    });
+    loadKits.mockResolvedValue([
+      kitRow(),
+      kitRow({ id: "new-kit-1", name: "Weekly", entries: 1 }),
+    ]);
+    retry.focus();
+    await user.click(retry);
+    const row = (await screen.findByText("Weekly")).closest("li");
+    expect(row).not.toHaveFocus();
+  });
+
+  it("keeps the section and the open sheet when the last segment goes away", async () => {
+    loadKits.mockResolvedValue([]);
+    saveKit.mockRejectedValue(
+      new ApiError("1 segment is gone.", "kit_segment_missing", 409),
+    );
+    const { user, dialog, view } = await openSheet();
+    await add(user, "Cold open");
+    await user.type(within(dialog).getByLabelText("Name"), "Weekly");
+    await user.click(screen.getByRole("button", { name: "Save kit" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "1 segment is gone.",
+    );
+    view.rerender(<Section rows={[DAMAGED]} />);
+    expect(screen.getByRole("dialog", { name: "New kit" })).toBeVisible();
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "1 segment is gone.",
+    );
   });
 
   it("has no axe violations open with entries", async () => {

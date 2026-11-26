@@ -21,6 +21,8 @@ export const KITS_LOAD_FAILED_TEXT = "Couldn't load the kits.";
 /** What New kit needs of the segment library: its rows, and a way to read them again. */
 export type KitSegments = {
   rows: readonly SegmentListRow[] | null;
+  /** Why the rows could not be read, when they could not. */
+  error?: string | null;
   reload: () => void;
 };
 
@@ -31,6 +33,8 @@ type Props = {
   /** What an export last failed with; held by the section so it outlives an emptied list. */
   failure: string | null;
   onFailure: (message: string | null) => void;
+  /** Told when the New kit sheet opens or closes, so the section stays while it is open. */
+  onEditingChange?: (editing: boolean) => void;
   /** Takes focus when a refused export leaves the list out of date. */
   focusTarget?: RefObject<HTMLElement | null>;
 };
@@ -41,6 +45,7 @@ export function KitLibraryBody({
   failure,
   onFailure,
   focusTarget,
+  onEditingChange,
 }: Props) {
   const { rows, error, reload, reveal, highlightId } = library;
   const exporting = useRef(false);
@@ -55,6 +60,11 @@ export function KitLibraryBody({
     return () => controller.abort();
   }, []);
 
+  // A failed re-read must not leave the focus claim for a later, unrelated Try again.
+  useEffect(() => {
+    if (error !== null) revealed.current = null;
+  }, [error]);
+
   useEffect(() => {
     if (highlightId === null || revealed.current !== highlightId) return;
     revealed.current = null;
@@ -63,6 +73,11 @@ export function KitLibraryBody({
     ).find((item) => item.dataset.kitRow === highlightId);
     row?.focus();
   }, [highlightId, rows]);
+
+  const edit = (next: boolean) => {
+    setEditing(next);
+    onEditingChange?.(next);
+  };
 
   const saved = (result: KitSaveResult, name: string, count: number) => {
     revealed.current = result.id;
@@ -146,14 +161,15 @@ export function KitLibraryBody({
       </p>
       {segments ? (
         <div className="kit-library-actions">
-          <Button className="kit-new-button" onClick={() => setEditing(true)}>
+          <Button className="kit-new-button" onClick={() => edit(true)}>
             <SystemIcon name="plus" size={16} />
             {NEW_KIT_LABEL}
           </Button>
           <KitEditorSheet
             open={editing}
-            onClose={() => setEditing(false)}
+            onClose={() => edit(false)}
             segments={segments.rows}
+            segmentsError={segments.error}
             kits={rows}
             onSaved={saved}
             onSegmentsChanged={segments.reload}

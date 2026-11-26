@@ -25,7 +25,7 @@ import {
   startsAfterStart,
   usesOf,
 } from "./kitDraft";
-import { healthySegments } from "./kitEditorCopy";
+import { GONE_NAME, healthySegments } from "./kitEditorCopy";
 import { kitNameProblem, matchKitName, nameHint } from "./kitName";
 import { type KitSender, useKitSave } from "./useKitSave";
 
@@ -46,11 +46,13 @@ type Props = {
   onClose: () => void;
   /** The segment library; null while it loads. */
   segments: readonly SegmentListRow[] | null;
+  /** Why the segment library could not be read, when it could not. */
+  segmentsError?: string | null;
   /** The kit library, to say whether the name makes a new kit or the next version. */
   kits: readonly KitListRow[] | null;
   /** Called with the reply after the kit is saved; the sheet closes itself. */
   onSaved: (result: KitSaveResult, name: string, count: number) => void;
-  /** The studio said a segment is gone: read the segment library again. */
+  /** Read the segment library again: the studio said a segment is gone, or Try again. */
   onSegmentsChanged?: () => void;
   /** Replaces the request to the studio; stories use it to stand in a reply. */
   send?: KitSender;
@@ -68,6 +70,7 @@ export function KitEditorSheet({
   open,
   onClose,
   segments,
+  segmentsError = null,
   kits,
   onSaved,
   onSegmentsChanged,
@@ -85,6 +88,7 @@ export function KitEditorSheet({
   const [wasOpen, setWasOpen] = useState(open);
   // Spoken here, not as a toast: a toast would sit over Save in the bottom sheet.
   const [spoken, setSpoken] = useState("");
+
   const { saving, failure, refusal, save, clearFailure } = useKitSave(send);
 
   // Each open starts from an empty kit.
@@ -95,6 +99,7 @@ export function KitEditorSheet({
       setName("");
       setTouched(false);
       setSpoken("");
+      clearFailure();
     }
   }
 
@@ -104,7 +109,7 @@ export function KitEditorSheet({
   const lateStarts = startsAfterStart(entries);
   const entryName = (uid: number): string => {
     const found = entries.find((entry) => entry.uid === uid);
-    return found ? (byId.get(found.segmentId)?.name ?? found.segmentId) : "";
+    return found ? (byId.get(found.segmentId)?.name ?? GONE_NAME) : "";
   };
   const gone =
     segments !== null && entries.some((entry) => !byId.has(entry.segmentId));
@@ -117,6 +122,8 @@ export function KitEditorSheet({
   if (saving) saveReason = SAVING_TEXT;
   else if (entries.length === 0) saveReason = NO_ENTRIES_REASON;
   else if (gone) saveReason = GONE_REASON;
+
+  const savingId = `${formId}-saving`;
 
   // After a move or a remove the control that had focus may be disabled or gone.
   useLayoutEffect(() => {
@@ -284,6 +291,7 @@ export function KitEditorSheet({
                     segment={byId.get(entry.segmentId) ?? null}
                     aheadOf={earlier === undefined ? null : entryName(earlier)}
                     disabled={saving}
+                    busyId={savingId}
                     onAt={(at) => {
                       dispatch({ type: "setAt", uid: entry.uid, at });
                       clearFailure();
@@ -300,6 +308,9 @@ export function KitEditorSheet({
           <h3 className="kit-editor-heading">Add a segment</h3>
           <KitSegmentPicker
             rows={segments}
+            error={segmentsError}
+            onReload={onSegmentsChanged}
+            busyId={savingId}
             used={(id) => usesOf(entries, id)}
             full={full}
             disabled={saving}
@@ -310,7 +321,7 @@ export function KitEditorSheet({
           {spoken}
         </p>
         {saving ? (
-          <p className="kit-problem" role="status">
+          <p id={savingId} className="kit-problem" role="status">
             {SAVING_TEXT}
           </p>
         ) : null}

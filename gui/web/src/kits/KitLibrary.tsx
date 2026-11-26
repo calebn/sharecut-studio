@@ -24,6 +24,8 @@ export function KitLibrary({
   const headingId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  // The New kit sheet lives in the body: the section stays while it is open.
+  const [editing, setEditing] = useState(false);
   const hosted = useDawStore((s) => s.guestMode === null);
   const imports = useBundleImport();
   if (!hosted) return null;
@@ -35,6 +37,7 @@ export function KitLibrary({
     empty &&
     library.error === null &&
     failure === null &&
+    !editing &&
     !canBuild
   )
     return null;
@@ -56,6 +59,7 @@ export function KitLibrary({
         segments={segments}
         failure={failure}
         onFailure={setFailure}
+        onEditingChange={setEditing}
         focusTarget={heading}
       />
     </section>

@@ -3,6 +3,9 @@ import { isDamagedSegment, type SegmentListRow, type SegmentRow } from "../api";
 export const GONE_NOTE =
   "This segment is no longer in the library, or can't be read. Remove it to save the kit.";
 
+/** What a row whose segment has left the library is called; the internal id is never shown. */
+export const GONE_NAME = "A removed segment";
+
 export function startOrderNote(name: string, other: string): string {
   return `Start entries apply one after another, so ${name} will land ahead of ${other}. Set one of them to End, or leave it if that order is what you want.`;
 }
