@@ -30,11 +30,11 @@ Before enroll/compare on a new episode, ask how many distinct speakers (and name
 | Normal episode pipeline | Let `precorrect_transcript` gate speaker pass |
 | Same-room bleed cleanup | `enroll` → `gate-track --apply` → [podcast-mute-bleed](podcast-mute-bleed/SKILL.md) |
 | Compare all tracks at one moment | `podcast speaker compare --start X --end Y` |
-| Several people on one recording, want a lane each | `split --track T --speakers N --dry-run`, then `--apply` (below). The host can do it in Studio: track inspector → **Split speakers…** (count and names, no enrollment); the result lists overlapping and unsure stretches and offers one Undo |
+| Several people on one recording, want a lane each | `split --track T --speakers N --dry-run`, then `--apply` (below). The host can do it in Studio: track inspector → **Split speakers…** (a speaker count only: no names, no enrollment, owner crosstalk only; type each name on the new track's Source card; names and `--enroll` are MCP/CLI); Studio does not report overlap (the MCP/CLI result carries `crosstalk_sec`) and offers one Undo |
 | Two people on one mic, keep one lane | `enroll --speaker A --track T --start … --end …` (repeat per person) |
 | Debug one window | `podcast speaker score` or `speaker_score_tool` |
 | Re-build profiles after stem change | `podcast speaker enroll` then `gate-track --dry-run` |
-| Speaker model not downloaded | Skip; precorrect continues with glossary + cross-track. Download it with `podcast bootstrap --component speaker-ecapa` or **Download speaker model** in Split speakers |
+| Speaker model not downloaded | Skip; precorrect continues with glossary + cross-track. Download it with `podcast bootstrap --component speaker-ecapa` or **Get** on the Models sheet (or the Source card's model row) in Studio |
 
 ## Commands
 

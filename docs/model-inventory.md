@@ -35,29 +35,19 @@ See [setup.md](setup.md) for the user-facing description of the same path.
 Still open on #1998:
 
 - Running the speaker model download from inside a packaged app.
-- A look at the Split speakers dialog in a real browser and on a device.
+- A look at Split speakers (the Source card in Prepare) in a real browser and on a device.
 - Whether cancelling a snapshot download stops it promptly: the progress callback is driven by `huggingface_hub`, and the only test (`test_pinned_download_stops_when_the_sink_raises`) fakes the hub's listing and per-file download and shows only that the exception propagates, so a real transfer stopping promptly is untested.
 
 ## Findings
 
 1. **Join quality has no model.** The WavLM and NISQA-named layer was removed (it never ran in a default install; the bake-off had no real labelled fails to rank it against the numpy detector fusion). Continuity is the numpy detector fusion only, so there is nothing to download or set up for it.
-2. **Speaker backends were the real gap.** The torch backends could not run in the packaged app; the ONNX ECAPA component (#1998, option A below) fixed that and is now the only speaker model. Whatever the fix is, it needs a runtime decision first (see below), then catalog entries, readiness checks and tests.
-3. **(Fixed by #1999.) `resolve_speaker_backend()` with no argument fell back to `MockSpeakerBackend`** when neither real backend imports, so a packaged app silently scored speakers with the development mock. The default now raises `speaker_backend_unavailable` (or `model_needed` when the ECAPA ONNX file is the missing piece and no override is set) unless `PODCAST_SPEAKER_BACKEND=mock` is set, so the embedding commands report the missing backend instead of scoring. Setup must not present that as a working backend, and the status payload should say the speaker feature is unavailable rather than ready.
+2. **Speaker backends were the real gap.** The torch backends could not run in the packaged app; the ONNX ECAPA component (#1998) fixed that and is now the only speaker model.
+3. **(Fixed by #1999.) `resolve_speaker_backend()` with no argument fell back to `MockSpeakerBackend`** when neither real backend imports, so a packaged app silently scored speakers with the development mock. The default raises `speaker_backend_unavailable` (or `model_needed` when the ECAPA ONNX file is the missing piece and no override is set) unless `PODCAST_SPEAKER_BACKEND=mock` is set, so the embedding commands report the missing backend instead of scoring. Setup does not present that as a working backend, and the status payload reports the speaker model as a registry row, so until it is downloaded the feature reads as missing, with a Get row (unavailable only for the mock and override cases).
 4. **Resolved: the speaker model is a pinned row.** `speaker-ecapa` is a sha256-pinned registry row, so the lazy first-use download is gone.
 5. **Resolved: the RNNoise download is pinned.** The URL is commit-pinned and the sha256 and size are verified. The CDN object upload remains operator work (issue item 1). The read-only [public mirror check](setup.md#check-a-public-bootstrap-mirror) covers item 3 and reports availability without verifying integrity. It resolves the manifest's exact Hugging Face repositories anonymously before any CDN HEAD; the declared turbo metadata endpoint returned HTTP 401 on 2026-11-04, so the current complete inventory fails closed. Runtime pins and fallbacks remain unchanged.
 
-## Decision needed before building the speaker slice
+## Decisions (closed)
 
-The packaged runtime has no torch. Options, with the cost of each:
+- The ONNX ECAPA embedding on `onnxruntime` was chosen and shipped (#1998); torch is not in the packaged runtime.
+- The silent mock fallback was replaced by an explicit unavailable state (#1999).
 
-- **Ship an ONNX export of the ECAPA embedding** and run it on `onnxruntime` (already core, like the word aligner). Small, no torch, fits the existing pinned-snapshot component pattern. Needs an export that matches current embeddings closely enough that enrolled profiles keep scoring the same, which needs a Mac lab comparison.
-- **Add torch to the frozen runtime** behind an opt-in download of a second runtime pack. Largest download (hundreds of MB per platform), new freeze and signing paths, and per-platform wheel handling.
-- **Leave speaker features source-install only** and mark them unavailable in the app with an honest explanation.
-
-Recommendation: the ONNX route, with the unavailable state (third option) as the interim behaviour so the app never claims a mock backend is working.
-
-## Planned slices
-
-1. This inventory, plus the speaker features as unavailable in packaged installs (status only, no new downloads).
-2. (Done by #1999.) Replace the silent mock fallback in the app path with an explicit unavailable state.
-3. Speaker backend component once the runtime decision is made.
