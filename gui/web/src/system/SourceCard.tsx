@@ -132,6 +132,7 @@ export function SourceCard({
   const dragDepth = useRef(0);
   const [dropOver, setDropOver] = useState(false);
   const reasonId = useId();
+  const limitId = useId();
   const named = name.trim();
   const who = !named
     ? `voice ${index}`
@@ -301,6 +302,12 @@ export function SourceCard({
             <div className="sys-source-wave" aria-hidden="true">
               <OverviewStrip height={16} peaks={peaks} label="Waveform" />
             </div>
+            {state === "splitting" || !splittable ? null : (
+              <p id={limitId} className="sys-source-limit">
+                Voices talking at once are not pulled apart: that stretch plays
+                once, on one track.
+              </p>
+            )}
             {state === "splitting" ? null : (
               <div className="sys-source-controls">
                 <Button
@@ -350,7 +357,11 @@ export function SourceCard({
                         {reason}
                       </span>
                     ) : null}
-                    <Button onClick={onSplit} aria-label={`Split ${who}`}>
+                    <Button
+                      onClick={onSplit}
+                      aria-label={`Split ${who}`}
+                      aria-describedby={limitId}
+                    >
                       <SystemIcon name="split" size={14} />
                       Split
                     </Button>
