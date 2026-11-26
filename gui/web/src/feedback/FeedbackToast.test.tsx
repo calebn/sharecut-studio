@@ -1455,6 +1455,70 @@ describe("FeedbackToast", () => {
       expect(screen.getByText("Approved 1 pending edit")).toBeVisible();
     });
 
+    it("shows and speaks a bare Undone for a message that carries its own instruction", () => {
+      render(<FeedbackToast />);
+      real("approve");
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Range cut applied. Use Undo to restore it.", {
+            undo: entry("approve"),
+          });
+      });
+      act(() => real("render"));
+      expect(screen.getByText("Undone.")).toBeVisible();
+      expect(useDawStore.getState().statusAnnouncement).toBe("Undone.");
+    });
+
+    it("keeps a retired toast readable for a normal dwell after its Undo had lapsed", () => {
+      vi.useFakeTimers();
+      const longer = ["s0", "render", "approve", "later"];
+      const at = (head: string, ids: string[]) => {
+        const project = useDawStore.getState().project ?? minimalProject();
+        useDawStore.setState({
+          project: {
+            ...project,
+            history: {
+              ...project.history,
+              head_id: entry(head),
+              entries: ids.map((id, index) => ({
+                index,
+                id: entry(id),
+                label: id,
+                current: id === head,
+              })),
+              groups: [],
+            },
+          },
+        });
+      };
+      render(<FeedbackToast />);
+      real("render");
+      act(() => {
+        useDawStore.getState().announceStatus("Approved 1 pending edit", {
+          undo: entry("approve"),
+        });
+      });
+      act(() => real("approve"));
+      act(() => at("later", longer));
+      expect(useDawStore.getState().feedbackToast?.undo).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(TOAST_MS - 1000);
+      });
+      act(() => at("s0", longer));
+      expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
+      act(() => {
+        vi.advanceTimersByTime(TOAST_MS - 1000);
+      });
+      expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(
+        screen.queryByText("Undone: Approved 1 pending edit"),
+      ).not.toBeInTheDocument();
+    });
+
     it("keeps its text when the entry is missing from entries", () => {
       render(<FeedbackToast />);
       real("approve");
