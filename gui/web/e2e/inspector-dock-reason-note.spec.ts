@@ -33,16 +33,32 @@ const uncovered = (target: Locator) =>
     return hit === el || el.contains(hit);
   });
 
-for (const { width, height } of [
-  { width: 390, height: 844 },
-  { width: 320, height: 568 },
+for (const { width, height, fontSize } of [
+  { width: 390, height: 844, fontSize: 16 },
+  { width: 320, height: 568, fontSize: 16 },
+  { width: 390, height: 844, fontSize: 32 },
+  { width: 320, height: 844, fontSize: 32 },
 ]) {
-  test.describe(`${width}x${height} phone`, () => {
+  test.describe(`${width}x${height} phone at ${fontSize}px root text`, () => {
     test.use({ hasTouch: true });
 
-    test("a gated verb's reason sits beside the Inspector dock's bar and the page keeps rendering", async ({
+    test("a gated verb's whole reason fits while Inspector dock controls stay reachable", async ({
       page,
     }) => {
+      if (fontSize !== 16) {
+        await page.addInitScript((font) => {
+          const apply = () => {
+            if (!document.documentElement) return false;
+            document.documentElement.style.fontSize = font;
+            return true;
+          };
+          if (apply()) return;
+          const observer = new MutationObserver(() => {
+            if (apply()) observer.disconnect();
+          });
+          observer.observe(document, { childList: true });
+        }, `${fontSize}px`);
+      }
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
       const before = new Set(await pendingIds(page));
@@ -63,6 +79,13 @@ for (const { width, height } of [
           reason: "filler:um",
           inspect: false,
         });
+        await expect
+          .poll(() =>
+            page.evaluate(() =>
+              parseFloat(getComputedStyle(document.documentElement).fontSize),
+            ),
+          )
+          .toBe(fontSize);
         await page.setViewportSize({ width, height });
         await openPhoneTimeline(page);
         const sheet = page.getByRole("dialog", {
@@ -95,35 +118,73 @@ for (const { width, height } of [
         expect(barBox.y + barBox.height).toBeLessThanOrEqual(
           sheetBox.y + sheetBox.height + 1,
         );
-        const noteBox = (await note.boundingBox())!;
-        expect(noteBox.y).toBeGreaterThanOrEqual(sheetBox.y - 1);
-        expect(noteBox.y + noteBox.height).toBeLessThanOrEqual(
-          sheetBox.y + sheetBox.height + 1,
-        );
-        expect(noteBox.x + noteBox.width).toBeLessThanOrEqual(barBox.x + 1);
-        expect(
-          await verbs.evaluate((el) => el.scrollWidth - el.clientWidth),
-        ).toBeLessThanOrEqual(1);
-        const slot = (await verbs
-          .locator(".sys-dock-slot--start")
-          .boundingBox())!;
-        const controls = verbs.locator(".sys-dock-slot--start button");
-        expect(await controls.count()).toBeGreaterThan(0);
-        expect(noteBox.width).toBeGreaterThanOrEqual(70);
-        for (let i = 0; i < (await controls.count()); i += 1) {
-          const box = (await controls.nth(i).boundingBox())!;
-          expect(box.width).toBeGreaterThanOrEqual(40);
-          expect(box.x + box.width).toBeLessThanOrEqual(
-            slot.x + slot.width + 1,
+        if (fontSize === 16) {
+          const noteBox = (await note.boundingBox())!;
+          expect(noteBox.y).toBeGreaterThanOrEqual(sheetBox.y - 1);
+          expect(noteBox.y + noteBox.height).toBeLessThanOrEqual(
+            sheetBox.y + sheetBox.height + 1,
           );
+          expect(noteBox.x + noteBox.width).toBeLessThanOrEqual(barBox.x + 1);
+          expect(
+            await verbs.evaluate((el) => el.scrollWidth - el.clientWidth),
+          ).toBeLessThanOrEqual(1);
+          const slot = (await verbs
+            .locator(".sys-dock-slot--start")
+            .boundingBox())!;
+          const controls = verbs.locator(".sys-dock-slot--start button");
+          expect(await controls.count()).toBeGreaterThan(0);
+          expect(noteBox.width).toBeGreaterThanOrEqual(70);
+          for (let i = 0; i < (await controls.count()); i += 1) {
+            const box = (await controls.nth(i).boundingBox())!;
+            expect(box.width).toBeGreaterThanOrEqual(40);
+            expect(box.x + box.width).toBeLessThanOrEqual(
+              slot.x + slot.width + 1,
+            );
+          }
         }
         await expect
           .poll(async () => {
             await frames(page);
-            return errors.length;
+            return errors;
           })
-          .toBe(0);
+          .toEqual([]);
         await expect(verbs).toBeVisible();
+        const longReason =
+          "Only the host or an Editor can review exact range proposals.";
+        await note.evaluate((el, reason) => {
+          const text = el.firstChild;
+          if (!text || text.nodeType !== Node.TEXT_NODE)
+            throw new Error("Missing reason text");
+          text.nodeValue = reason;
+        }, longReason);
+        await expect(note).toHaveText(longReason);
+        await expect
+          .poll(() =>
+            note.evaluate((el) => {
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              const sheet = el
+                .closest(".sys-inspector")!
+                .getBoundingClientRect();
+              const lines = Array.from(range.getClientRects());
+              return (
+                lines.length > 1 &&
+                lines.every(
+                  (line) =>
+                    line.top >= sheet.top - 1 &&
+                    line.bottom <= sheet.bottom + 1,
+                )
+              );
+            }),
+          )
+          .toBe(true);
+        await expect(verbs).toBeVisible();
+        expect(
+          await uncovered(
+            verbs.getByRole("button", { name: "Close", exact: true }),
+          ),
+        ).toBe(true);
+        expect(errors).toEqual([]);
       } finally {
         release();
         await page.unroute("**/api/document/command**");
