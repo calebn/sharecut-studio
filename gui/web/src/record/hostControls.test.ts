@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { TAKE_REASON } from "./deviceSheet";
 import {
+  END_ROOM_UNCHECKED_REASON,
   endGate,
+  endRoomCheck,
+  endRoomPrompt,
   landGate,
   moreRoomToneReason,
   roomToneRoundLeftMs,
@@ -178,6 +181,119 @@ describe("endGate", () => {
     expect(
       endGate(stopped, [segment({ file_ack: true, landed: true })]),
     ).toEqual({ enabled: true });
+  });
+});
+
+describe("endGate noun", () => {
+  const stopped = recordSnapshot({ state: "stopped", take_index: 0 });
+
+  it("says session by default and room when asked", () => {
+    expect(endGate(stopped, null)).toEqual({
+      enabled: false,
+      reason:
+        "Wait for every take to reach the timeline before ending the session.",
+    });
+    expect(endGate(stopped, null, "room")).toEqual({
+      enabled: false,
+      reason:
+        "Wait for every take to reach the timeline before ending the room.",
+    });
+    const withNote = recordSnapshot({
+      state: "stopped",
+      take_index: 0,
+      comments: [{ id: "c1" } as never],
+    });
+    expect(
+      endGate(withNote, [segment({ file_ack: true, landed: true })], "room"),
+    ).toEqual({
+      enabled: false,
+      reason:
+        "Wait for the live comments to reach the timeline before ending the room.",
+    });
+  });
+});
+
+describe("endRoomCheck", () => {
+  const landed = [segment({ file_ack: true, landed: true })];
+  const guest = recordParticipant({ display_name: "Ava" });
+
+  it("fails closed for every room without a known snapshot", () => {
+    const blocked = { kind: "blocked", reason: END_ROOM_UNCHECKED_REASON };
+    expect(endRoomCheck(null, [], "sess-1")).toEqual(blocked);
+    expect(endRoomCheck(null, [], "other")).toEqual(blocked);
+    const odd = recordSnapshot({ state: "weird" as never });
+    expect(endRoomCheck(odd, [], "sess-1")).toEqual(blocked);
+  });
+
+  it("blocks the stage's room with the room wording while a take is unsaved", () => {
+    expect(
+      endRoomCheck(recordSnapshot({ state: "recording" }), [], "sess-1"),
+    ).toEqual({ kind: "blocked", reason: "Stop the take first." });
+    expect(
+      endRoomCheck(
+        recordSnapshot({ state: "stopped", take_index: 0 }),
+        [],
+        "sess-1",
+      ),
+    ).toEqual({
+      kind: "blocked",
+      reason:
+        "Wait for every take to reach the timeline before ending the room.",
+    });
+  });
+
+  it("acts at once for a room that is not the stage's and for an idle empty room", () => {
+    const live = recordSnapshot({ state: "recording", participants: [guest] });
+    expect(endRoomCheck(live, [], "other")).toEqual({ kind: "now" });
+    expect(
+      endRoomCheck(
+        recordSnapshot({ state: "lobby", take_index: -1 }),
+        [],
+        "sess-1",
+      ),
+    ).toEqual({ kind: "now" });
+  });
+
+  it("asks when any connected non-host participant is in an open room", () => {
+    const lobby = (people: ReturnType<typeof recordParticipant>[]) =>
+      recordSnapshot({
+        state: "stopped",
+        take_index: 0,
+        participants: [
+          recordParticipant({ participant_id: "p_host", role: "host" as never }),
+          ...people,
+        ],
+      });
+    expect(endRoomCheck(lobby([guest]), landed, "sess-1")).toEqual({
+      kind: "ask",
+      names: ["Ava"],
+    });
+    const producer = recordParticipant({
+      participant_id: "p_prod",
+      role: "producer",
+      display_name: "Pat",
+    });
+    expect(endRoomCheck(lobby([producer]), landed, "sess-1").kind).toBe("ask");
+    const gone = recordParticipant({ connected: false });
+    const removed = recordParticipant({ participant_id: "g2", removed: true });
+    expect(endRoomCheck(lobby([gone, removed]), landed, "sess-1")).toEqual({
+      kind: "now",
+    });
+  });
+});
+
+describe("endRoomPrompt", () => {
+  it("names up to two people, then others", () => {
+    expect(endRoomPrompt(["Ava"])).toBe("End the room? Ava is sent out.");
+    expect(endRoomPrompt(["Ava", "Bo"])).toBe(
+      "End the room? Ava and Bo are sent out.",
+    );
+    expect(endRoomPrompt(["Ava", "Bo", "Cy"])).toBe(
+      "End the room? Ava, Bo and others are sent out.",
+    );
+    expect(endRoomPrompt([" "])).toBe(
+      "End the room? Everyone in it is sent out.",
+    );
   });
 });
 

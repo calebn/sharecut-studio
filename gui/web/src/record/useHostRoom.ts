@@ -323,8 +323,13 @@ export function useHostRoom(
       activeLookup.current !== request ||
       useDawStore.getState().projectPath !== projectPath;
     void loadHostRecordState(projectPath)
-      .then((snap) => {
+      .then((found) => {
         if (superseded()) return;
+        const snap =
+          found &&
+          found.session_id === useRecordHostStore.getState().endedSessionId
+            ? null
+            : found;
         setLookup((current) =>
           current.request === request
             ? { ...current, status: snap ? "found" : "none" }
@@ -354,6 +359,18 @@ export function useHostRoom(
   }, [request]);
 
   const recheck = useCallback(() => setLookupNonce((value) => value + 1), []);
+  const forgetRoom = useCallback((sessionId: string) => {
+    const shown =
+      useRecordHostStore.getState().snapshot?.session_id === sessionId;
+    useRecordHostStore.getState().markEnded(sessionId);
+    if (shown) {
+      setLookup((current) => ({ ...current, status: "none" }));
+    }
+  }, []);
+  const restoreRoom = useCallback(
+    (sessionId: string) => useRecordHostStore.getState().liftEnded(sessionId),
+    [],
+  );
   const announceStatus = useDawStore((s) => s.announceStatus);
   const end = snapshot
     ? endGate(snapshot, hostSegments)
@@ -446,6 +463,8 @@ export function useHostRoom(
     hydrateError,
     roomLookup,
     recheck,
+    forgetRoom,
+    restoreRoom,
     endSession: { ...endSession, gate: end },
     doneNotice,
     transportBusy,
