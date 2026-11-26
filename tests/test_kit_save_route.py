@@ -242,3 +242,26 @@ def test_a_forged_origin_cannot_save_a_kit(client: TestClient, ids: list[str]) -
     res = client.post("/api/kits", json=_body(ids), headers={"Origin": "https://evil.example"})
     assert res.status_code == 403
     assert KitStore().list() == []
+
+
+def test_a_relayed_request_cannot_save_a_kit(ids: list[str]) -> None:
+    from podcast_mcp.util.proxy_paths import RELAYED_REQUEST_HEADER
+
+    relayed = TestClient(
+        create_app(), client=("127.0.0.1", 50000), headers={RELAYED_REQUEST_HEADER: "1"}
+    )
+    res = relayed.post("/api/kits", json=_body(ids))
+    assert res.status_code == 403
+    assert KitStore().list() == []
+
+
+def test_the_save_route_keeps_its_own_host_gate() -> None:
+    from podcast_mcp.gui.routes.deps import host_gate
+    from podcast_mcp.gui.routes.kits import router
+
+    route = next(
+        r
+        for r in router.routes
+        if getattr(r, "path", "") == "/api/kits" and "POST" in getattr(r, "methods", set())
+    )
+    assert any(dep.call is host_gate for dep in route.dependant.dependencies)  # type: ignore[attr-defined]
