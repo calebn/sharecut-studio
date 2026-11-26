@@ -133,6 +133,8 @@ export {
   startExportJob,
 } from "./api/exportJobs";
 export { loadFeed, sendFeedEdit, sendFeedWrite } from "./api/feed";
+export type { HostMcpActivity } from "./api/hostMcp";
+export { fetchHostMcpActivity } from "./api/hostMcp";
 export {
   apiSend,
   HOST_KEY,
