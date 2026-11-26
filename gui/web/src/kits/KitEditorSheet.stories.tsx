@@ -151,9 +151,11 @@ export const ServerError: Story = {
     await addSegments("Cold open");
     await userEvent.type(await sheet().findByLabelText("Name"), "Weekly");
     await userEvent.click(sheet().getByRole("button", { name: "Save kit" }));
-    await expect(await sheet().findByRole("alert")).toHaveTextContent(
-      "Another action is using the kit library. Try again.",
-    );
+    await expect(
+      await sheet().findByText(
+        "Another action is using the kit library. Try again.",
+      ),
+    ).toBeVisible();
     await waitFor(() =>
       expect(sheet().getByRole("button", { name: "Save kit" })).toBeEnabled(),
     );
