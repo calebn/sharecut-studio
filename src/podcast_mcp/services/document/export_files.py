@@ -18,7 +18,8 @@ from podcast_mcp.export.names import BOUNCES_DIRNAME, sanitize_export_stem
 from podcast_mcp.export.render_record import read_export_render
 from podcast_mcp.export.transcript import TRANSCRIPT_FORMATS, TRANSCRIPT_MIME
 from podcast_mcp.feed.inputs import feed_path
-from podcast_mcp.models.history import HISTORY_ROOT_ID
+from podcast_mcp.models.history import HISTORY_ROOT_ID, HistoryEntry
+from podcast_mcp.project.store import HISTORY_ENTRY_LIMIT
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.feed import FeedService
 from podcast_mcp.services.document.transcript import TranscriptService
@@ -357,7 +358,7 @@ class ExportFilesService:
                     if edit_head is None:
                         edit_head = project.history.edit_head_id()
                         entries = project.history.entries
-                        first_entry = entries[0].id if entries else None
+                        first_entry = _baseline_entry_id(entries)
                     current = _canonical_audio_current(record, found_entry, edit_head, first_entry)
             else:
                 current = True
@@ -395,6 +396,20 @@ class ExportFilesService:
                 return "Editable DAW session"
             case "bounce":
                 return "Unmastered export"
+
+
+def _baseline_entry_id(entries: list[HistoryEntry]) -> str | None:
+    """The id of the entry that still holds the project's pre-edit state, or None.
+
+    That is the ``initial`` entry a workspace records when it is created, or, in a history
+    that was never pruned, its first entry (the state before the first recorded edit).
+    Once pruning has run, ``entries[0]`` can be an edited state, so it is no baseline.
+    """
+    if not entries:
+        return None
+    if entries[0].label == "initial" or len(entries) < HISTORY_ENTRY_LIMIT:
+        return entries[0].id
+    return None
 
 
 def _canonical_audio_current(

@@ -21,9 +21,12 @@ def read_export_render(project: EpisodeProject) -> dict[str, Any] | None:
     """The valid record, or None when it is missing, unreadable, malformed or of another version."""
     try:
         record = load_json_object(export_render_path(project))
-    except ValueError:
+    except (ValueError, RecursionError):
         return None
-    if record is None or record.get("version") != RECORD_VERSION:
+    if record is None:
+        return None
+    version = record.get("version")
+    if isinstance(version, bool) or version != RECORD_VERSION:
         return None
     if not isinstance(record.get("edit_head_id"), str):
         return None
