@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.reinsert import SeamConflict, apply_reinsert, locate_seam
@@ -14,19 +14,30 @@ from podcast_mcp.engines.clips_ops import (
     clips_for_track,
     update_timeline_duration,
 )
-from podcast_mcp.engines.mute_regions import mute_regions_overlapping, subtract_source_mute
-from podcast_mcp.engines.session_timeline import seam_source_clocks_over_clips
+from podcast_mcp.engines.mute_regions import (
+    mute_regions_overlapping,
+    same_region_span,
+    spans_touch,
+    subtract_source_mute,
+)
+from podcast_mcp.engines.off_speaker_regions import remove_off_speaker_mute
+from podcast_mcp.engines.session_timeline import (
+    clip_timeline_overlap_to_source,
+    seam_source_clocks_over_clips,
+)
 from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
     AppliedEditInverse,
     AppliedEditRecord,
     Clip,
+    ClipOffSpeakerMuteRegion,
     EditDecision,
     EpisodeProject,
     ReinsertClips,
     UnmuteSource,
     UnmuteSpan,
 )
+from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import subtract_intervals
@@ -37,6 +48,15 @@ LOCAL_RESTORE_MESSAGE = (
     "Use History Undo to restore the whole action. "
     "History Undo also undoes the other edits in that action. "
     "You may need to undo later actions first."
+)
+RANGE_MUTE_OPERATION = "edit_selected_range"
+OVERLAPPED_BY_UNRESTORABLE_MUTE = "overlapped_by_unrestorable_mute"
+UNRESTORABLE_MUTE_MESSAGE = (
+    "A later mute that can't be undone on its own covers some of this audio. "
+    "Use History Undo to take that mute back first."
+)
+GUEST_UNRESTORABLE_MUTE_MESSAGE = (
+    "A later mute covers some of this audio and can't be put back on its own. Ask the host."
 )
 GUEST_LOCAL_RESTORE_MESSAGE = (
     "This cut can't be put back on its own. "
@@ -200,16 +220,133 @@ class _Restorer:
     track_ids: Callable[[AppliedEditRecord, Any], tuple[str, ...]]
 
 
-def _unmute_spans(record: AppliedEditRecord) -> list[UnmuteSpan]:
-    return record.inverse.spans if isinstance(record.inverse, UnmuteSource) else []
+def _off_speaker(record: AppliedEditRecord) -> bool:
+    # Off-speaker records written before this key existed read as ordinary mutes.
+    return record.params.get("mute_ownership") == "off_speaker"
 
 
-def _span_is_muted(project: EpisodeProject, span: UnmuteSpan) -> bool:
+def _unmute_spans(record: AppliedEditRecord) -> list[tuple[UnmuteSpan, bool]]:
+    """``record``'s spans with whether they live in ``off_speaker_mute_regions``."""
+    if not isinstance(record.inverse, UnmuteSource):
+        return []
+    off = _off_speaker(record)
+    return [(span, off) for span in record.inverse.spans]
+
+
+def _span_clips(project: EpisodeProject, record: AppliedEditRecord, span: UnmuteSpan) -> list[Clip]:
+    """The clips ``span`` was written to.
+
+    A range mute writes only clips of the span's own source (``None`` included), which its
+    exactness check relies on. Older records name one source for every equivalent clip of
+    the recording, so they take the whole track.
+    """
+    clips = clips_for_track(project, span.track_id)
+    if record.operation != RANGE_MUTE_OPERATION:
+        return clips
+    return [clip for clip in clips if clip.source_id == span.source_id]
+
+
+def _is_exact_span(region: ClipOffSpeakerMuteRegion, span: UnmuteSpan) -> bool:
+    return same_region_span(region.start_s, region.end_s, span.start, span.end)
+
+
+def _shares_source(
+    record: AppliedEditRecord, span: UnmuteSpan, other: AppliedEditRecord, other_span: UnmuteSpan
+) -> bool:
+    """False when two range-mute spans sit on different recordings (``None`` matches only ``None``).
+
+    Older records name one source for the whole track, so any pair that includes one is shared.
+    """
+    if not (record.operation == other.operation == RANGE_MUTE_OPERATION):
+        return True
+    return span.source_id == other_span.source_id
+
+
+def _span_is_muted(
+    project: EpisodeProject, record: AppliedEditRecord, span: UnmuteSpan, off_speaker: bool
+) -> bool:
     return any(
         clip.source_start < span.end
         and clip.source_end > span.start
-        and mute_regions_overlapping(clip.mute_regions, span.start, span.end)
-        for clip in clips_for_track(project, span.track_id)
+        and (
+            any(_is_exact_span(r, span) for r in clip.off_speaker_mute_regions)
+            if off_speaker
+            else mute_regions_overlapping(clip.mute_regions, span.start, span.end)
+        )
+        for clip in _span_clips(project, record, span)
+    )
+
+
+def _later_source_spans(
+    record: AppliedEditRecord, track_id: str
+) -> list[tuple[float, float, str | None]] | None:
+    """Source seconds a later mute record covered on ``track_id``; None when it cannot be told."""
+    exact = record.params.get("exact_range")
+    if exact is not None:
+        try:
+            target = ExactRangeTarget.model_validate(exact)
+        except ValidationError:
+            return None
+        spans: list[tuple[float, float, str | None]] = []
+        for clip in target.clips:
+            if clip.track_id != track_id:
+                continue
+            for interval in target.intervals:
+                a, b = (
+                    max(interval.start, clip.timeline_start),
+                    min(interval.end, clip.timeline_end),
+                )
+                mapped = clip_timeline_overlap_to_source(clip, a, b) if b > a else None
+                if mapped is not None:
+                    spans.append((mapped[0], mapped[1], clip.source_id))
+        return spans
+    per_track = record.params.get("per_track_source")
+    if isinstance(per_track, dict) and isinstance(per_track.get(track_id), list | tuple):
+        lo, hi = per_track[track_id]
+        return [(float(lo), float(hi), record.params.get("source_id"))]
+    return None
+
+
+def _later_mute_may_cover(record: AppliedEditRecord, span: UnmuteSpan, off_speaker: bool) -> bool:
+    """True when a later mute with no inverse of its own may cover ``span``'s audio.
+
+    Restoring ``span`` would unmute what that mute also silenced, and it cannot be taken
+    back on its own, so anything not provably disjoint in source seconds counts.
+    """
+    params = record.params
+    # "action" is written by range edits, "mute" by the approved-mute path (_apply_mute_edit).
+    if record.inverse is not None or not (params.get("action") == "mute" or params.get("mute")):
+        return False
+    if _off_speaker(record) != off_speaker:
+        return False
+    exact = params.get("exact_range")
+    tracks = set(record.track_ids)
+    if isinstance(exact, dict):
+        tracks.update(exact.get("track_ids") or [])
+    if span.track_id not in tracks:
+        return False
+    spans = _later_source_spans(record, span.track_id)
+    if spans is None:
+        return True
+    return any(
+        (span.source_id is None or sid is None or sid == span.source_id)
+        and spans_touch(lo, hi, span.start, span.end)
+        for lo, hi, sid in spans
+    )
+
+
+def _later_cut_overlaps(record: AppliedEditRecord, spans: Sequence[UnmuteSpan]) -> bool:
+    """True when a restorable later cut took out material that overlaps ``spans`` in source seconds."""
+    if not isinstance(record.inverse, ReinsertClips):
+        return False
+    return any(
+        removed.track_id == span.track_id
+        and (span.source_id is None or removed.source_id == span.source_id)
+        and removed.source_start < span.end
+        and removed.source_end > span.start
+        for seam in record.inverse.tracks
+        for removed in seam.removed
+        for span in spans
     )
 
 
@@ -231,10 +368,18 @@ def _plan_unmute(
         for r in later
         if r.id not in batch
         and any(
-            m.track_id == s.track_id and m.start < s.end and m.end > s.start
-            for m in _unmute_spans(r)
+            (m.track_id, off) == (s.track_id, _off_speaker(record))
+            and _shares_source(r, m, record, s)
+            and m.start < s.end
+            and m.end > s.start
+            for m, off in _unmute_spans(r)
             for s in inverse.spans
         )
+    ]
+    # A later cut keeps the mute in the clips it took out, so restoring the cut first matters;
+    # a cut in the batch still blocks so that it restores first.
+    blocked_by += [
+        r.id for r in later if r.id not in blocked_by and _later_cut_overlaps(r, inverse.spans)
     ]
     if blocked_by:
         return RestoreConflict(
@@ -243,11 +388,23 @@ def _plan_unmute(
             track_id=inverse.spans[0].track_id,
             blocked_by=blocked_by,
             message=(
-                "A later edit mutes some of the same audio. "
+                "A later edit mutes or cuts some of the same audio. "
                 f"Restore {', '.join(blocked_by)} first, or restore them together."
             ),
         )
-    if not any(_span_is_muted(project, s) for s in inverse.spans):
+    off_speaker = _off_speaker(record)
+    if any(
+        r.id not in batch and _later_mute_may_cover(r, s, off_speaker)
+        for r in later
+        for s in inverse.spans
+    ):
+        return RestoreConflict(
+            code=OVERLAPPED_BY_UNRESTORABLE_MUTE,
+            record_id=record.id,
+            track_id=inverse.spans[0].track_id,
+            message=UNRESTORABLE_MUTE_MESSAGE,
+        )
+    if not any(_span_is_muted(project, record, s, off_speaker) for s in inverse.spans):
         return RestoreConflict(
             code="span_not_present",
             record_id=record.id,
@@ -259,18 +416,32 @@ def _plan_unmute(
 
 def _apply_unmute(
     project: EpisodeProject,
-    _record: AppliedEditRecord,
+    record: AppliedEditRecord,
     inverse: UnmuteSource,
     _defaults: EffectiveConfig,
     kept: Sequence[AppliedEditRecord],
 ) -> None:
-    """Subtract the spans the record wrote, except what a record that stays still claims."""
+    """Take back the spans the record wrote, except what a record that stays still claims.
+
+    An off-speaker span is one exact region, so it is removed whole rather than carved.
+    """
+    off_speaker = _off_speaker(record)
     for span in inverse.spans:
         claimed = [
-            (m.start, m.end) for r in kept for m in _unmute_spans(r) if m.track_id == span.track_id
+            (m.start, m.end)
+            for r in kept
+            for m, off in _unmute_spans(r)
+            if (m.track_id, off) == (span.track_id, off_speaker)
+            and _shares_source(r, m, record, span)
         ]
+        if off_speaker:
+            if any(same_region_span(a, b, span.start, span.end) for a, b in claimed):
+                continue
+            for clip in _span_clips(project, record, span):
+                remove_off_speaker_mute(clip, span.start, span.end)
+            continue
         for lo, hi in subtract_intervals([(span.start, span.end)], claimed):
-            for clip in clips_for_track(project, span.track_id):
+            for clip in _span_clips(project, record, span):
                 subtract_source_mute(clip, lo, hi)
 
 

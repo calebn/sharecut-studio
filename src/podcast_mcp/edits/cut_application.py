@@ -95,7 +95,7 @@ from podcast_mcp.engines.clips_ops import (
     shell_copy_clip,
 )
 from podcast_mcp.engines.ffmpeg import LateMpegAudioError
-from podcast_mcp.engines.mute_regions import add_source_mute
+from podcast_mcp.engines.mute_regions import add_source_mute, spans_touch
 from podcast_mcp.engines.off_speaker_regions import MuteOwnership, add_off_speaker_mute
 from podcast_mcp.engines.pcm_cache import TrackRmsCacheSet
 from podcast_mcp.engines.session_timeline import (
@@ -1727,6 +1727,31 @@ def apply_auto_edits(project: EpisodeProject, defaults: EffectiveConfig) -> int:
     )
 
 
+def _touches_region(
+    regions: Sequence[ClipMuteRegion | ClipOffSpeakerMuteRegion], start: float, end: float
+) -> bool:
+    """True when a region overlaps or abuts ``[start, end)``, so a restore could not be exact."""
+    return any(spans_touch(r.start_s, r.end_s, start, end) for r in regions)
+
+
+def _same_source_neighbour_holds(
+    project: EpisodeProject, clip: Clip, start: float, end: float, off_speaker: bool
+) -> bool:
+    """True when another clip of this recording on the track already mutes near the span.
+
+    Restore takes the span back from every clip of the recording, so such a region would go too.
+    """
+    return any(
+        _touches_region(
+            other.off_speaker_mute_regions if off_speaker else other.mute_regions, start, end
+        )
+        for other in project.clips
+        if other.id != clip.id
+        and other.track_id == clip.track_id
+        and other.source_id == clip.source_id
+    )
+
+
 def _range_candidate(
     project: EpisodeProject,
     edits: list[EditDecision],
@@ -1749,7 +1774,12 @@ def _range_candidate(
             timeline_duration_sec(project),
             max(c.timeline_end for _edit, target in plans for c in target.clips),
         )
-    operations: dict[str, list[tuple[EditDecisionType, RangeInterval]]] = {}
+    operations: dict[str, list[tuple[str, EditDecisionType, RangeInterval]]] = {}
+    # An edit whose write Restore could not take back exactly stays a history-only record.
+    written: dict[str, dict[tuple[str, str | None, int, int], UnmuteSpan]] = {}
+    inexact: set[str] = set()
+    # Mutes this batch already wrote, as (edit id, clip id, track, source, off_speaker, start, end).
+    batch_writes: list[tuple[str, str, str, str | None, bool, float, float]] = []
     track_ids: set[str] = set()
     for edit, target in plans:
         track_ids.update(c.track_id for c in target.clips)
@@ -1757,7 +1787,7 @@ def _range_candidate(
             if not any(c.id == clip.id for c in project.clips):
                 project.clips.append(clip.model_copy(deep=True))
             operations.setdefault(clip.id, []).extend(
-                (edit.type, interval) for interval in target.intervals
+                (edit.id, edit.type, interval) for interval in target.intervals
             )
     for tid in sorted(track_ids):
         replacements: list[Clip] = []
@@ -1770,7 +1800,10 @@ def _range_candidate(
                 continue
             clip = original.model_copy(deep=True)
             cuts: list[tuple[float, float]] = []
-            for action, interval in actions:
+            regions_before_edit: dict[
+                str, tuple[list[ClipMuteRegion], list[ClipOffSpeakerMuteRegion]]
+            ] = {}
+            for edit_id, action, interval in actions:
                 a = max(interval.start, clip.timeline_start)
                 b = min(interval.end, clip.timeline_end)
                 if b <= a:
@@ -1779,12 +1812,58 @@ def _range_candidate(
                     source_span = clip_timeline_overlap_to_source(clip, a, b)
                     if source_span is not None and source_span[1] > source_span[0]:
                         start_s, end_s = source_span
-                        if mute_ownership is MuteOwnership.OFF_SPEAKER:
-                            add_off_speaker_mute(
+                        ordinary_before, off_speaker_before = regions_before_edit.setdefault(
+                            edit_id,
+                            (list(clip.mute_regions), list(clip.off_speaker_mute_regions)),
+                        )
+                        off_speaker = mute_ownership is MuteOwnership.OFF_SPEAKER
+                        if off_speaker:
+                            wrote = add_off_speaker_mute(
                                 clip, ClipOffSpeakerMuteRegion(start_s=start_s, end_s=end_s)
                             )
+                            same_list_before: Sequence[
+                                ClipMuteRegion | ClipOffSpeakerMuteRegion
+                            ] = off_speaker_before
                         else:
-                            add_source_mute(clip, ClipMuteRegion(start_s=start_s, end_s=end_s))
+                            wrote = add_source_mute(
+                                clip, ClipMuteRegion(start_s=start_s, end_s=end_s)
+                            )
+                            same_list_before = ordinary_before
+                        exact = (
+                            wrote
+                            and not _touches_region(same_list_before, start_s, end_s)
+                            and not _same_source_neighbour_holds(
+                                published, clip, start_s, end_s, off_speaker
+                            )
+                        )
+                        if wrote:
+                            batch_writes.append(
+                                (
+                                    edit_id,
+                                    clip.id,
+                                    clip.track_id,
+                                    clip.source_id,
+                                    off_speaker,
+                                    start_s,
+                                    end_s,
+                                )
+                            )
+                        if exact:
+                            written.setdefault(edit_id, {})[
+                                (
+                                    clip.track_id,
+                                    clip.source_id,
+                                    round(start_s * 1e6),
+                                    round(end_s * 1e6),
+                                )
+                            ] = UnmuteSpan(
+                                track_id=clip.track_id,
+                                source_id=clip.source_id,
+                                start=start_s,
+                                end=end_s,
+                            )
+                        else:
+                            inexact.add(edit_id)
                 else:
                     cuts.append((a, b))
             if not cuts:
@@ -1801,11 +1880,27 @@ def _range_candidate(
             track = project.track_by_id(tid)
             if track is not None:
                 track.timeline_empty = True
+    # Restore takes a span from every clip of its recording, so two edits of one batch that
+    # touch each other, on any clip, would carve each other: neither can be undone alone.
+    for i, (edit_a, _c, write_track, source, off, lo, hi) in enumerate(batch_writes):
+        for edit_b, _d, other_track, other_source, off_b, lo_b, hi_b in batch_writes[i + 1 :]:
+            if (
+                edit_a != edit_b
+                and (write_track, source, off) == (other_track, other_source, off_b)
+                and spans_touch(lo, hi, lo_b, hi_b)
+            ):
+                inexact.update((edit_a, edit_b))
     rebuild_combined(project, defaults=defaults)
     for edit, target in plans:
+        spans = written.get(edit.id)
         archive_decision(
             project,
             edit,
+            inverse=(
+                UnmuteSource(spans=list(spans.values()))
+                if spans and edit.id not in inexact and edit.type == EditDecisionType.MUTE
+                else None
+            ),
             operation="edit_selected_range",
             timeline_start=target.intervals[0].start,
             timeline_end=target.intervals[-1].end,
@@ -1814,6 +1909,12 @@ def _range_candidate(
                 "exact_range": target.model_dump(mode="json"),
                 "action_id": edit.id,
                 "action": "mute" if edit.type == EditDecisionType.MUTE else "cut",
+                **(
+                    {"mute_ownership": MuteOwnership.OFF_SPEAKER.value}
+                    if edit.type == EditDecisionType.MUTE
+                    and mute_ownership is MuteOwnership.OFF_SPEAKER
+                    else {}
+                ),
             },
         )
 

@@ -5,7 +5,7 @@ reduces the copies it can verify; this command is the plainer rule a person appl
 a stretch where another speaker's track has words, this track has none, and this track holds
 no sound louder than a copy of that speaker would be, is not this speaker, so it is muted.
 The muted stretches are exact-range mute edits, so Studio shows each as a region and History
-or Restore brings it back.
+or Restore brings it back, each on its own when no earlier mute touched the stretch.
 
 Evidence per stretch, all relative to the recordings' own levels (``level_profile``):
 
@@ -608,7 +608,8 @@ def apply_off_speaker_mutes(
     """Mute ``plan``'s regions as exact-range edits; a region the safety checks hold stays open.
 
     One batch, so History undoes the command whole; each region is its own archived edit,
-    so Studio shows it as a muted region and Restore brings it back alone.
+    so Studio shows it as a muted region and Restore brings it back alone unless an earlier
+    mute overlapped or touched it, which leaves that record to History.
     """
     from uuid import uuid4
 

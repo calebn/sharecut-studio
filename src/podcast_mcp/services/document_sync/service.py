@@ -23,7 +23,9 @@ from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.decisions import PendingEditChangedError
 from podcast_mcp.edits.edit_log import (
     GUEST_LOCAL_RESTORE_MESSAGE,
+    GUEST_UNRESTORABLE_MUTE_MESSAGE,
     LOCAL_RESTORE_REQUIRES_HISTORY,
+    OVERLAPPED_BY_UNRESTORABLE_MUTE,
     RestoreResult,
 )
 from podcast_mcp.edits.range_target import RangeChangedError
@@ -272,10 +274,12 @@ def _restore_conflicts(
         return {}
     conflicts = result["conflicts"]
     if audience == "guest":
+        guest_words = {
+            LOCAL_RESTORE_REQUIRES_HISTORY: GUEST_LOCAL_RESTORE_MESSAGE,
+            OVERLAPPED_BY_UNRESTORABLE_MUTE: GUEST_UNRESTORABLE_MUTE_MESSAGE,
+        }
         conflicts = [
-            {**row, "message": GUEST_LOCAL_RESTORE_MESSAGE}
-            if row.get("code") == LOCAL_RESTORE_REQUIRES_HISTORY
-            else row
+            {**row, "message": guest_words[row["code"]]} if row.get("code") in guest_words else row
             for row in conflicts
         ]
     return {"restore_conflicts": conflicts}
