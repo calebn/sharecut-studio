@@ -19,13 +19,12 @@ ROOT = Path(__file__).resolve().parents[1]
 E2E_DIR = ROOT / "gui" / "web" / "e2e"
 PLAN_PATH = E2E_DIR / "shard-plan.json"
 SPEC_GLOB = "**/*.spec.ts"
-PLAN_SHARDS = 6
 REPORT_NAME = re.compile(r"main-\d+of\d+\.json")
 
 
-def spec_paths(e2e_dir: Path = E2E_DIR) -> list[str]:
-    """Every spec under *e2e_dir*, as posix paths relative to it, sorted."""
-    return sorted(path.relative_to(e2e_dir).as_posix() for path in e2e_dir.glob(SPEC_GLOB))
+def spec_paths() -> list[str]:
+    """Every spec under the e2e directory, as posix paths relative to it, sorted."""
+    return sorted(path.relative_to(E2E_DIR).as_posix() for path in E2E_DIR.glob(SPEC_GLOB))
 
 
 def load_plan(path: Path = PLAN_PATH) -> dict[str, Any]:
@@ -128,13 +127,13 @@ def planned_shards(
     return [sorted(shard) for shard in shards]
 
 
-def _spec_importers(e2e_dir: Path, helper: str) -> list[str]:
+def _spec_importers(helper: str) -> list[str]:
     stem = re.escape(Path(helper).with_suffix("").as_posix())
     pattern = re.compile(rf"""from\s+["']\./{stem}["']""")
     return [
         spec
-        for spec in spec_paths(e2e_dir)
-        if pattern.search((e2e_dir / spec).read_text(encoding="utf-8"))
+        for spec in spec_paths()
+        if pattern.search((E2E_DIR / spec).read_text(encoding="utf-8"))
     ]
 
 
@@ -163,23 +162,23 @@ def _file_seconds(report: Mapping[str, Any]) -> dict[str, float]:
     return seconds
 
 
-def run_seconds(run: Path, e2e_dir: Path = E2E_DIR) -> dict[str, float]:
+def run_seconds(run: Path) -> dict[str, float]:
     """Seconds per spec in one run. Tests a helper module registers count for its importers."""
     files = _report_files(run)
     if not files:
         raise ValueError(f"no main-<i>of<n>.json Playwright report under {run}")
     seconds: dict[str, float] = {}
-    specs = set(spec_paths(e2e_dir))
+    specs = set(spec_paths())
     for path in files:
         for file, value in _file_seconds(json.loads(path.read_text(encoding="utf-8"))).items():
-            owners = [file] if file in specs else _spec_importers(e2e_dir, file)
+            owners = [file] if file in specs else _spec_importers(file)
             for owner in owners:
                 seconds[owner] = seconds.get(owner, 0.0) + value / len(owners)
     return seconds
 
 
 def build_plan(
-    runs: Sequence[Mapping[str, float]], specs: Sequence[str], count: int = PLAN_SHARDS
+    runs: Sequence[Mapping[str, float]], specs: Sequence[str], count: int
 ) -> dict[str, Any]:
     on_disk = set(specs)
     recorded: dict[str, float] = {}
@@ -192,7 +191,6 @@ def build_plan(
     shards = balance(durations, count)
     return {
         "median_seconds": round(median, 3),
-        "estimated": sorted(on_disk - set(recorded)),
         "shards": {str(i): shard for i, shard in enumerate(shards, start=1)},
         "durations": durations,
     }
@@ -219,7 +217,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands.add_parser("show", help="print planned seconds per shard")
     build = commands.add_parser("build", help="rebalance from Playwright JSON reports")
     build.add_argument("runs", nargs="+", type=Path, help="a directory or file of reports per run")
-    build.add_argument("--shards", type=int, default=PLAN_SHARDS)
+    build.add_argument("--shards", type=int, required=True)
     args = parser.parse_args(argv)
 
     if args.command == "build":
@@ -237,7 +235,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     for problem in problems:
         print(problem, file=sys.stderr)
     if problems:
-        print("Rebuild with `python3 scripts/e2e_shards.py build RUN...`.", file=sys.stderr)
+        print(
+            "Rebuild with `python3 scripts/e2e_shards.py build --shards N RUN...`.", file=sys.stderr
+        )
         return 1
     print(render_loads(plan))
     return 0

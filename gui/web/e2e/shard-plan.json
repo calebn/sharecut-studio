@@ -1,12 +1,5 @@
 {
   "median_seconds": 10.134,
-  "estimated": [
-    "guest-storage.spec.ts",
-    "kit-offer-phone.spec.ts",
-    "models-whisper-note.spec.ts",
-    "record-host-mic-prompt.spec.ts",
-    "segment-import-export-phone.spec.ts"
-  ],
   "shards": {
     "1": [
       "comment-undo.spec.ts",

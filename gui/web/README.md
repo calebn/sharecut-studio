@@ -344,7 +344,7 @@ for placement rules and the CI `playwright-reports-<name>` timing artifacts
 only `main-smoke`; release-please PRs run the main and WebKit shards). Each suite's live project is shared, so Playwright requires one
 worker. CI splits the main suite into duration-balanced shards from
 [`e2e/shard-plan.json`](e2e/shard-plan.json)
-(`tests/test_e2e_shards.py` runs `python3 scripts/e2e_shards.py check`'s check) and, on the nightly schedule, runs the full
+(`tests/test_e2e_shards.py` checks the plan) and, on the nightly schedule, runs the full
 compatibility suite once per engine on separate runners. Both suites retry a
 failed test once in CI. The required `frontend-e2e` check requires every
 planned suite to succeed, and PRs that change nothing GUI-facing skip the

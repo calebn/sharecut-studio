@@ -32,10 +32,6 @@ def test_plan_names_every_e2e_spec_exactly_once(plan: dict[str, Any]) -> None:
     assert es.check_plan(plan, es.spec_paths()) == []
 
 
-def test_plan_has_one_shard_per_main_job(plan: dict[str, Any]) -> None:
-    assert len(es.plan_shards(plan)) == cp.MAIN_SHARDS
-
-
 def test_plan_is_what_the_recorded_durations_balance_to(plan: dict[str, Any]) -> None:
     assert es.plan_shards(plan) == es.balance(plan["durations"], cp.MAIN_SHARDS)
 
@@ -146,8 +142,8 @@ def test_main_shards_refuses_an_empty_shard(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_planner_refuses_a_plan_for_another_shard_count(plan: dict[str, Any]) -> None:
-    with pytest.raises(ValueError, match="expected 4"):
-        es.planned_shards(4, plan, es.spec_paths())
+    with pytest.raises(ValueError, match=f"expected {cp.MAIN_SHARDS + 1}"):
+        es.planned_shards(cp.MAIN_SHARDS + 1, plan, es.spec_paths())
 
 
 def test_ci_plan_commands_list_every_spec_once_with_anchored_paths() -> None:
@@ -170,7 +166,6 @@ def test_build_averages_runs_and_gives_unrecorded_specs_the_median() -> None:
         "c.spec.ts": 20.0,
         "d.spec.ts": 20.0,
     }
-    assert built["estimated"] == ["c.spec.ts", "d.spec.ts"]
     assert es.check_plan(built, specs) == []
 
 

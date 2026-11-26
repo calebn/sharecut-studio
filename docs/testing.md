@@ -785,7 +785,7 @@ CI, so one flake does not force a job rerun.
 
 On a pull request CI runs only the `main-smoke` job (the critical-path specs named in
 `SMOKE_SPECS`). On promotion dispatch and `workflow_dispatch` it runs the main suite as `main-<i>of<n>` shards
-(`main-1ofN` ... `main-NofN`, each `npm run test:e2e -- e2e/<spec> e2e/<spec> ...` with its
+(each `npm run test:e2e -- e2e/<spec> e2e/<spec> ...` with its
 specs from `gui/web/e2e/shard-plan.json`) and the
 compatibility suite as two complete engine jobs (`compat-chromium`,
 `compat-webkit`, each `npm run test:e2e:compat -- --project=<engine>`). On a
