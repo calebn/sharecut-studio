@@ -18,7 +18,7 @@ from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
 from threading import Lock
-from typing import Any
+from typing import Any, TypedDict, cast
 
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.fingerprint import file_stamp
@@ -305,6 +305,13 @@ def get_version(project: EpisodeProject, version_id: str) -> ReviewMixVersion:
 def review_artifacts_dir(project: EpisodeProject) -> Path:
     """Root that every frozen review mix must resolve inside (same dir writers use)."""
     return project.workspace_path() / REVIEW_ARTIFACTS_RELDIR
+
+
+class TimelineSnapshot(TypedDict):
+    """``timeline.json``: the guest-sanitized ProjectView a version was published with."""
+
+    format: int
+    view: dict[str, Any]
 
 
 TIMELINE_SNAPSHOT_NAME = "timeline.json"
@@ -730,7 +737,7 @@ def stage_version(
     on_media_created: Callable[[Path, DirectoryIdentity], None],
     on_media_ready: Callable[[MediaIdentity], None] | None = None,
     defaults: EffectiveConfig,
-    timeline_snapshot: Callable[[], dict[str, Any]] | None = None,
+    timeline_snapshot: Callable[[], TimelineSnapshot] | None = None,
 ) -> ReviewMixVersion:
     """Copy current premix/mastered into private staging (+ mix.mp3).
 
@@ -850,7 +857,7 @@ def stage_version(
     return ver
 
 
-def _write_timeline_snapshot(stage_fd: int, snapshot: dict[str, Any]) -> None:
+def _write_timeline_snapshot(stage_fd: int, snapshot: TimelineSnapshot) -> None:
     """Write ``timeline.json`` through the pinned stage descriptor, private and exclusive."""
     payload = json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()
     fd = os.open(
@@ -859,8 +866,14 @@ def _write_timeline_snapshot(stage_fd: int, snapshot: dict[str, Any]) -> None:
         0o600,
         dir_fd=stage_fd,
     )
-    with os.fdopen(fd, "wb") as out:
-        out.write(payload)
+    try:
+        # os.write, not a file object: durable writes elsewhere are ratcheted (test_raw_durable_writes).
+        view = memoryview(payload)
+        while view:
+            view = view[os.write(fd, view) :]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def _read_pinned_timeline(directory: Path) -> bytes:
@@ -878,11 +891,11 @@ def _read_pinned_timeline(directory: Path) -> bytes:
     return data
 
 
-def version_timeline_snapshot(project: EpisodeProject, version_id: str) -> dict[str, Any] | None:
-    """The frozen timeline of *version_id*, or None when it has none or it is unreadable.
+def version_timeline_snapshot(project: EpisodeProject, version_id: str) -> TimelineSnapshot | None:
+    """The frozen timeline of *version_id*, or None when there is no usable file.
 
-    Never raises: a version published before snapshots, a missing, damaged or oversized
-    file all mean "serve the live view", and the damaged cases are logged.
+    Never raises. None covers both an absent file (a version published before snapshots) and
+    a damaged one (logged); the caller tells them apart by whether the file exists.
     """
     try:
         get_version(project, version_id)
@@ -901,14 +914,18 @@ def version_timeline_snapshot(project: EpisodeProject, version_id: str) -> dict[
     except ValueError:
         log.warning("Review timeline snapshot of version %s is not valid JSON", version_id)
         return None
+    view = snapshot.get("view") if isinstance(snapshot, dict) else None
+    duration = view.get("timeline_duration_sec") if isinstance(view, dict) else None
     if (
         not isinstance(snapshot, dict)
         or snapshot.get("format") != TIMELINE_SNAPSHOT_FORMAT
-        or not isinstance(snapshot.get("view"), dict)
+        or not isinstance(view, dict)
+        or isinstance(duration, bool)
+        or not isinstance(duration, int | float)
     ):
         log.warning("Review timeline snapshot of version %s has an unknown shape", version_id)
         return None
-    return snapshot
+    return cast(TimelineSnapshot, snapshot)
 
 
 def attach_version(

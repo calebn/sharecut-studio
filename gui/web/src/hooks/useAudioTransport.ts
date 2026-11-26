@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { audioUrl } from "../api";
+import { isFrozenReviewKey } from "../api/project";
 import {
   createHostPlaybackMeterMonitor,
   type HostMeterContextBarrier,
@@ -208,7 +209,7 @@ export function useAudioTransport(enabled = true): void {
     sourcePreview: preview,
     updateSourcePreview,
     setIsPlaying,
-    auditionMode,
+    auditionMode: chosenAuditionMode,
     viewerMute,
     soloTracks,
     playUntilSec,
@@ -218,6 +219,11 @@ export function useAudioTransport(enabled = true): void {
     playbackRate,
   } = useDaw(selectAudioTransportFields);
 
+  // A frozen review plays only the published mix (#3605): the stems and sources are
+  // the live edit, which the server refuses, so listen-only mute/solo and the raw and
+  // stem auditions have nothing to play.
+  const frozenReview = isFrozenReviewKey(projectPath);
+  const auditionMode = frozenReview ? "mix" : chosenAuditionMode;
   const isPlaying = preview ? preview.playing : timelineIsPlaying;
   const previewUrl = preview
     ? preview.media.kind === "rendered"
@@ -252,10 +258,11 @@ export function useAudioTransport(enabled = true): void {
   // stems at their current output gain play the new one before a refresh.
   const premixStaleVsMix = project?.render_status.premix.stale_vs_mix === true;
   const needsMultitrack =
-    auditionMode !== "mix" ||
-    premixStaleVsMix ||
-    anySolo(soloTracks) ||
-    Object.values(viewerMute).some(Boolean);
+    !frozenReview &&
+    (auditionMode !== "mix" ||
+      premixStaleVsMix ||
+      anySolo(soloTracks) ||
+      Object.values(viewerMute).some(Boolean));
 
   const fxKey = project ? effectsFingerprint(project) : "";
   const playerSource =

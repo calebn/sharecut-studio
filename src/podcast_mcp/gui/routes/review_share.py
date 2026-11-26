@@ -73,7 +73,7 @@ from podcast_mcp.services.collaboration import (
     has_capability,
     lookup_share,
     open_resolved_share_workspace,
-    refuse_if_frozen,
+    refuse_frozen_command,
     require_share_cap,
     require_share_edit,
     resolve_share_audio_redirect,
@@ -114,6 +114,7 @@ from podcast_mcp.services.document import (
     SHOW_KEY,
     EditService,
     FeedService,
+    PublishedFeedService,
     cross_process_lease,
 )
 from podcast_mcp.services.document_sync import (
@@ -123,7 +124,6 @@ from podcast_mcp.services.document_sync import (
     ViewProjection,
     command_context_for_share,
     document_command_from_body,
-    document_command_types_for_caps,
     document_hub_key,
 )
 from podcast_mcp.services.media import media_type_for_path
@@ -601,8 +601,14 @@ def get_review_feed(token: str) -> dict[str, Any]:
     _check_token(token)
     _rate_limit(token, "read")
     with guest_boundary(log, "review request"):
-        _row, ws = require_share_cap(token, CAP_VIEW)
-        return served_feed(FeedService(ws), guest=True)
+        row, ws = require_share_cap(token, CAP_VIEW)
+        frozen = frozen_snapshot_for(row, ws)
+        service = (
+            FeedService(ws)
+            if frozen is None
+            else PublishedFeedService(ws, frozen["view"].get("chapters") or [])
+        )
+        return served_feed(service, guest=True)
 
 
 @router.post("/api/review/{token}/feed/write")
@@ -681,9 +687,7 @@ def post_daw_document_command(token: str, body: DocumentCommandRequest) -> dict[
         cmd = document_command_from_body(body)
         # Guests always use role=guest regardless of client-supplied role.
         cmd.role = "guest"
-        if cmd.type in document_command_types_for_caps(row.get("capabilities")):
-            # Every command a guest may run aims at the live timeline.
-            refuse_if_frozen(row, ws, "Editing or suggesting")
+        refuse_frozen_command(row, ws, cmd.type, row.get("capabilities"))
         return sanitize_guest_document_event(
             svc.submit(
                 cmd,
@@ -1064,9 +1068,8 @@ async def daw_ws(
                 try:
                     while True:
                         event = await q_doc.get()
-                        if frozen:
-                            event = frozen_guest_event(event)
-                        await guard.send_json(sanitize_guest_document_event(event, viewer=viewer))
+                        shown = frozen_guest_event(event) if frozen else event
+                        await guard.send_json(sanitize_guest_document_event(shown, viewer=viewer))
                 except asyncio.CancelledError:
                     raise
                 except Exception:

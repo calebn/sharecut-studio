@@ -30,7 +30,7 @@ async function proof(page: Page, name: string): Promise<void> {
 
 /** What a guest holding `token` gets: 200 while the link is live, 404 once it is stopped. */
 async function guestStatus(page: Page, token: string): Promise<number> {
-  const res = await page.request.get(`/api/review/${token}/daw/proxy/manifest`);
+  const res = await page.request.get(`/api/review/${token}/project`);
   return res.status();
 }
 

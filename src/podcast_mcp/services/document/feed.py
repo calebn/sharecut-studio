@@ -27,6 +27,7 @@ from podcast_mcp.feed.resolve import checked_value, cleared_pins, clears, edited
 from podcast_mcp.feed.show_store import ShowFile, ShowStore, default_directory, show_id_for
 from podcast_mcp.feed.writer import FeedWrite, write_feed
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models.episode import ChapterMarker
 from podcast_mcp.models.feed import FieldValue, Pin, PinAuthor
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.feed_results import FeedFieldPinResult
@@ -34,7 +35,7 @@ from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressTask, resolve_progress_task
 from podcast_mcp.util.project_state import render_lock
 
-__all__ = ["FeedService", "FeedViewKind", "describe_fields", "export_files"]
+__all__ = ["FeedService", "FeedViewKind", "PublishedFeedService", "describe_fields", "export_files"]
 
 SHOW_KEY = "show"
 ROSTER_ATTRS = ("role", "group", "img", "href")
@@ -104,6 +105,7 @@ class FeedService:
     def __init__(self, ws: ProjectWorkspace) -> None:
         self.ws = ws
         self.shows: ShowSource = default_show_source()
+        self._chapters: list[dict[str, Any]] | None = None
 
     def _inputs(self, project: EpisodeProject) -> FeedInputs:
         return gather_inputs(project, self.shows)
@@ -114,7 +116,12 @@ class FeedService:
 
     def _read(self) -> FeedView:
         project = self.ws.project
-        return resolve(self._inputs(project), project.feed.pins)
+        shown = project
+        if self._chapters is not None:
+            shown = project.model_copy(deep=True)
+            shown.chapters = [ChapterMarker.model_validate(c) for c in self._chapters]
+            shown.social_clip_candidates = []
+        return resolve(self._inputs(shown), project.feed.pins)
 
     def present(self, kind: FeedViewKind = "facts") -> dict[str, Any] | str:
         """One read in the shape a surface asked for: the wire view, the XML or the notes."""
@@ -306,3 +313,15 @@ def _edit_roster(show: ShowFile, name: str, attr: str | None, value: Any) -> Non
         attr or "role": ROSTER_DEFAULTS[attr or "role"] if value is None else value
     }
     show.roster[found] = replace(show.roster[found], **changes)
+
+
+class PublishedFeedService(FeedService):
+    """The listing as a published version's guest reads it (#3605).
+
+    Chapter times are timeline seconds and the soundbites are live clip times, which that
+    guest must not see move: it reads the version's own *chapters* and no soundbites.
+    """
+
+    def __init__(self, ws: ProjectWorkspace, chapters: list[dict[str, Any]]) -> None:
+        super().__init__(ws)
+        self._chapters = chapters

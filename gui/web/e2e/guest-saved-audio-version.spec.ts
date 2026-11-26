@@ -61,9 +61,10 @@ async function removeSavedOccurrenceMuteFlags(page: Page, token: string) {
 
 for (const [role, phone] of [
   ["editor", SIZES[0]],
-  ["viewer", NARROW_PHONE],
+  // An Editor link plays through proxies; a Viewer's published version does not (#3605).
+  ["editor", NARROW_PHONE],
 ] as const) {
-  test(`a legacy ${role} guest occurrence needs a fresh manifest before it plays`, async ({
+  test(`a legacy ${role} guest occurrence needs a fresh manifest before it plays${phone === NARROW_PHONE ? " on a narrow phone" : ""}`, async ({
     browser,
   }) => {
     await withShareableProject(
@@ -178,7 +179,7 @@ for (const [role, phone] of [
             };
             await expectRecoveryFits();
             const zoom =
-              role === "viewer"
+              phone === NARROW_PHONE
                 ? await page.addStyleTag({
                     content: "html { font-size: 200%; }",
                   })

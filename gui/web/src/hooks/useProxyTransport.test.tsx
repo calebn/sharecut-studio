@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadProxyManifest, NETWORK_ERROR_CODE } from "../api";
-import { loadDocumentState } from "../api/project";
+import { loadDocumentState, rememberFrozenReview } from "../api/project";
 import { cachedFetchArrayBuffer, pruneLinkAudio } from "../audio/chunkCache";
 import { playbackPositionSec } from "../audio/playbackClock";
 import { playbackMeterSource } from "../audio/playbackMeterSource";
@@ -129,6 +129,19 @@ describe("useProxyTransport", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("a frozen review owns no timeline: no engine and no manifest request", async () => {
+    rememberFrozenReview("tok", true);
+    try {
+      const { result } = renderHook(() => useProxyTransport());
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(result.current).toBe(false);
+      expect(ProxyEngine).not.toHaveBeenCalled();
+      expect(loadProxyManifest).not.toHaveBeenCalled();
+    } finally {
+      rememberFrozenReview("tok", false);
+    }
   });
 
   it("Stop rewinds the store and seeks the paused engine to the play start", async () => {

@@ -927,6 +927,7 @@ def test_cli_text_consent_cannot_authorize_a_cut(episode):
     assert _geometry(episode) == before
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_mcp_commenter_suggests_a_ripple_and_the_editor_confirms_it(
     episode, sample_wav, monkeypatch
 ):

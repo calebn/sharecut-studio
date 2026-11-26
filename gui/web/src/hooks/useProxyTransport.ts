@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { loadProxyManifest, NETWORK_ERROR_CODE } from "../api";
+import { isFrozenReviewKey } from "../api/project";
 import { cachedFetchArrayBuffer, pruneLinkAudio } from "../audio/chunkCache";
 import { bindPlaybackClock } from "../audio/playbackClock";
 import { bindPlaybackMeterSource } from "../audio/playbackMeterSource";
@@ -108,8 +109,14 @@ export function useProxyTransport(): boolean {
   useEffect(() => {
     playheadSecRef.current = playheadSec;
   }, [playheadSec]);
+  // A frozen review plays the published WAV through the audio element (#3605): the live
+  // stem proxies would play the live edit, and the server refuses their manifest.
+  const frozenReview = isFrozenReviewKey(projectPath);
   const ownsTimeline =
-    !!projectPath && isShareProjectKey(projectPath) && sourcePreview === null;
+    !!projectPath &&
+    isShareProjectKey(projectPath) &&
+    !frozenReview &&
+    sourcePreview === null;
   const active =
     accepted !== null &&
     accepted.path === projectPath &&
@@ -229,7 +236,7 @@ export function useProxyTransport(): boolean {
   }, [accepted, projectPath, projectEpoch, basisKey]);
 
   useEffect(() => {
-    if (!projectPath || !isShareProjectKey(projectPath)) return;
+    if (!projectPath || !isShareProjectKey(projectPath) || frozenReview) return;
     let disposed = false;
     acceptedKeyRef.current = null;
     ownedErrorRef.current = null;
@@ -266,11 +273,17 @@ export function useProxyTransport(): boolean {
       engineRef.current = null;
       pendingManifest.current = null;
     };
-  }, [projectPath, projectEpoch]);
+  }, [projectPath, projectEpoch, frozenReview]);
 
   useEffect(() => {
     const project = useDawStore.getState().project;
-    if (!projectPath || !isShareProjectKey(projectPath) || !project) return;
+    if (
+      !projectPath ||
+      !isShareProjectKey(projectPath) ||
+      frozenReview ||
+      !project
+    )
+      return;
     const basis = projectProxyBasis(project);
     const generation = ++requestGeneration.current;
     const current = () => {
@@ -390,7 +403,7 @@ export function useProxyTransport(): boolean {
     return () => {
       requestGeneration.current += 1;
     };
-  }, [projectPath, projectEpoch, basisKey, refresh]);
+  }, [projectPath, projectEpoch, basisKey, refresh, frozenReview]);
 
   useEffect(() => {
     if (!active || !project || !accepted) return;

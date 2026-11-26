@@ -6,6 +6,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.collaboration.frozen_view import (
         frozen_guest_event,
         frozen_snapshot_for,
+        refuse_frozen_command,
         refuse_if_frozen,
     )
     from podcast_mcp.services.collaboration.guest_insight_ops import (
@@ -241,6 +242,7 @@ __all__ = [
     "open_share_workspace",
     "read_tunnel_status",
     "record_bootstrap",
+    "refuse_frozen_command",
     "refuse_if_frozen",
     "render_record_spa_html",
     "render_share_spa_html",
@@ -337,6 +339,7 @@ _MODULE_BY_NAME = {
     "lookup_share": "share",
     "open_resolved_share_workspace": "share",
     "open_share_workspace": "share",
+    "refuse_frozen_command": "frozen_view",
     "refuse_if_frozen": "frozen_view",
     "record_bootstrap": "record_share",
     "render_record_spa_html": "share_page",

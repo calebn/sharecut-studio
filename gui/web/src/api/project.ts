@@ -1,11 +1,33 @@
 import type { DocumentSnapshot } from "../document/projectPatch";
-import { isShareProjectKey, shareProjectKey } from "../shareMode";
+import {
+  isShareProjectKey,
+  shareProjectKey,
+  shareTokenFromKey,
+} from "../shareMode";
 import type { ProjectMeta } from "../types/pipeline";
 import type { HistoryDiff } from "../types/project";
 import { withAbortTimeout } from "../utils/abortTimeout";
 import { apiFetch, HOST_KEY } from "./http";
 
 const bootstrapVersionIds = new Map<string, string>();
+const frozenReviewTokens = new Set<string>();
+
+export function rememberFrozenReview(token: string, frozen: unknown): void {
+  if (frozen === true) frozenReviewTokens.add(token);
+  else frozenReviewTokens.delete(token);
+}
+
+/**
+ * Whether this review link plays a published version (the server's
+ * `frozen_review_view`, #3605): a Viewer or Commenter whose version holds its
+ * frozen timeline. Such a guest plays the review WAV through the audio
+ * element, not the live stem proxies; false until the bootstrap says so.
+ */
+export function isFrozenReviewKey(projectPath: string | null): boolean {
+  if (!projectPath || !isShareProjectKey(projectPath)) return false;
+  const token = shareTokenFromKey(projectPath);
+  return token !== null && frozenReviewTokens.has(token);
+}
 
 /** The version id the review page loaded on, for telling a later change apart; null when the bootstrap read never succeeded. */
 export function reviewVersionAtBootstrap(token: string): string | null {
@@ -17,6 +39,7 @@ type ReviewBootstrap = {
   capabilities: string[];
   guest_mode?: string;
   reads_transcript_words: boolean;
+  frozen_review_view?: boolean;
   meta: { name?: string };
   review_version?: { id?: string } | null;
 };
@@ -33,6 +56,7 @@ export async function loadReviewBootstrap(
   const body = (await res.json()) as ReviewBootstrap;
   const versionId = body.review_version?.id;
   if (versionId) bootstrapVersionIds.set(token, versionId);
+  rememberFrozenReview(token, body.frozen_review_view);
   return body;
 }
 
@@ -56,6 +80,7 @@ export async function loadReviewVersionStatus(
   const body = (await res.json()) as {
     review_version?: { id?: string; label?: string | null } | null;
     link_follows_latest?: boolean;
+    frozen_review_view?: boolean;
     newer_version?: { id?: string; label?: string | null } | null;
   };
   const newer = body.newer_version;
