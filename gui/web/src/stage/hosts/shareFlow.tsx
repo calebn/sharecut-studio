@@ -675,12 +675,12 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
           try {
             await restore();
           } catch (err) {
-            onSettled?.();
             const code = restoreRefusal(err);
             if (code === null) throw err;
             return refusalCopy(code, what);
+          } finally {
+            onSettled?.();
           }
-          onSettled?.();
           relist(scope);
           return true;
         },

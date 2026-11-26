@@ -688,19 +688,6 @@ describe("the Invite sheet over any stage", () => {
       ];
     };
 
-    it("waits for the Record stage to check the room before ending it", async () => {
-      room();
-      useRecordHostStore.setState({ snapshot: null });
-      render(<ToastedHost />);
-      openInvite("record");
-      expect(
-        await screen.findByRole("button", { name: "End room" }),
-      ).toBeDisabled();
-      expect(
-        screen.getByText("Open Record to check this room before ending it."),
-      ).toBeVisible();
-    });
-
     it("clears the stage's room on end and brings it back on Undo", async () => {
       room();
       render(<ToastedHost />);

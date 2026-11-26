@@ -14,7 +14,6 @@ type Props = {
   onConfirm: () => void;
   /** Why Keep and the danger action are unavailable; undefined leaves them enabled. */
   disabledReason?: string;
-  /** Points both buttons at a visible note that gives the reason. */
   describedBy?: { "aria-describedby"?: string };
 };
 
