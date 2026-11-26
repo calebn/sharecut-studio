@@ -191,12 +191,12 @@ def kill_child(proc: Child | subprocess.Popen[Any]) -> None:
 def _taskkill_tree(pid: int) -> bool:
     """End ``pid`` and its descendants (Windows has no process groups to signal).
 
-    False when ``taskkill`` could not run, so the caller kills the root alone.
+    False when ``taskkill`` could not run or failed, so the caller kills the root alone.
     """
     root = settings.environ().get("SYSTEMROOT", r"C:\Windows")
     taskkill = str(Path(root) / "System32" / "taskkill.exe")
     try:
-        subprocess.run(  # nosec B603
+        done = subprocess.run(  # nosec B603
             [taskkill, "/PID", str(pid), "/T", "/F"],
             stdin=DEVNULL,
             stdout=DEVNULL,
@@ -206,7 +206,7 @@ def _taskkill_tree(pid: int) -> bool:
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
-    return True
+    return done.returncode == 0
 
 
 def _kill_unless_reaped(proc: subprocess.Popen[Any]) -> None:
