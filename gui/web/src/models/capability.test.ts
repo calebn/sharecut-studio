@@ -37,4 +37,25 @@ describe("whisperSizeOptions", () => {
   it("lists nothing on whisper.cpp until the server lists variants", () => {
     expect(whisperSizeOptions([], "whisper_cpp")).toEqual([]);
   });
+
+  it("describes each desktop size: Fast and Balanced are English only, Best covers other languages", () => {
+    const [fast, balanced, best] = whisperSizeOptions([], "faster_whisper");
+    expect(fast.description).toMatch(/English only/);
+    expect(balanced.description).toMatch(/English only/);
+    expect(best.description).toMatch(/language/i);
+    expect(best.description).not.toMatch(/English only/);
+    const withServer = whisperSizeOptions(WHISPER_CATALOG, "faster_whisper");
+    expect(withServer.map((o) => o.description)).toEqual([
+      fast.description,
+      balanced.description,
+      best.description,
+    ]);
+  });
+
+  it("leaves a whisper.cpp host with the server variants' own descriptions", () => {
+    const options = whisperSizeOptions(IOS_WHISPER_CATALOG, "whisper_cpp");
+    expect(options.map((o) => o.description)).toEqual(
+      IOS_WHISPER_CATALOG.map((v) => v.description),
+    );
+  });
 });

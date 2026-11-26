@@ -119,6 +119,7 @@
   margin: var(--space-3) 0 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-ui);
+  min-block-size: 2lh;
 }
 
 .models-sheet-body {
