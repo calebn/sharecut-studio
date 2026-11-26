@@ -174,6 +174,48 @@ describe("useExportedFiles", () => {
     expect(result.current.currentLoad).toBe("ready");
   });
 
+  it("polls every 5 s while an export runs and keeps that across a revision-only reply", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    listed.guest.mockResolvedValue({
+      ...inventory([ENTRY]),
+      revision: "first",
+      exporting: true,
+    });
+    const { result } = renderHook(() =>
+      useExportedFiles(GUEST_PATH, {
+        access: "download",
+        watchGuestPublication: true,
+      }),
+    );
+    await advance(0);
+    expect(result.current.exporting).toBe(true);
+    expect(listed.guest).toHaveBeenCalledTimes(1);
+
+    listed.guest.mockResolvedValue({
+      inventory: null,
+      revision: "first",
+      exporting: null,
+    });
+    await advance(5_000);
+    expect(listed.guest).toHaveBeenCalledTimes(2);
+    expect(result.current.exporting).toBe(true);
+    await advance(5_000);
+    expect(listed.guest).toHaveBeenCalledTimes(3);
+
+    listed.guest.mockResolvedValue({
+      ...inventory([ENTRY]),
+      revision: "second",
+      exporting: false,
+    });
+    await advance(5_000);
+    expect(result.current.exporting).toBe(false);
+    await advance(29_000);
+    expect(listed.guest).toHaveBeenCalledTimes(4);
+    await advance(1_000);
+    expect(listed.guest).toHaveBeenCalledTimes(5);
+  });
+
   it("a foreground refresh cancels quiet work and cannot be superseded by it", async () => {
     vi.useFakeTimers();
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");

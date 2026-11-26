@@ -4,6 +4,7 @@ import {
   exportedArchiveHref,
   exportedFileHref,
   listExportedFiles,
+  readGuestExportedFiles,
   revealExportedFile,
 } from "./exportedFiles";
 
@@ -124,6 +125,40 @@ describe("listExportedFiles", () => {
     expect(urlOf(fetchMock)).toMatch(
       /\/api\/review\/tok123\/daw\/export\/files$/,
     );
+  });
+});
+
+describe("readGuestExportedFiles", () => {
+  const guest = (body: unknown) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify(body), {
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+  const key = shareProjectKey("tok123");
+
+  it("reads whether an export is running next to the listing", async () => {
+    const signal = new AbortController().signal;
+    guest({ revision: "r1", files: [ENTRY], exporting: true });
+    expect(await readGuestExportedFiles(key, "", signal)).toMatchObject({
+      revision: "r1",
+      exporting: true,
+    });
+    guest({ revision: "r2", files: [ENTRY] });
+    expect((await readGuestExportedFiles(key, "r1", signal)).exporting).toBe(
+      false,
+    );
+  });
+
+  it("leaves the flag unknown when only the matching revision came back", async () => {
+    guest({ revision: "r1" });
+    expect(
+      await readGuestExportedFiles(key, "r1", new AbortController().signal),
+    ).toEqual({ inventory: null, revision: "r1", exporting: null });
   });
 });
 

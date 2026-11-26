@@ -79,13 +79,20 @@ export async function listExportedFiles(
   return inventory;
 }
 
-type GuestInventory = Parameters<typeof inventoryOf>[0] & { revision?: string };
+type GuestInventory = Parameters<typeof inventoryOf>[0] & {
+  revision?: string;
+  exporting?: boolean;
+};
 
 export async function readGuestExportedFiles(
   projectKey: string,
   after: string,
   signal: AbortSignal,
-): Promise<{ inventory: ExportedInventory | null; revision: string | null }> {
+): Promise<{
+  inventory: ExportedInventory | null;
+  revision: string | null;
+  exporting: boolean | null;
+}> {
   const res = await apiFetch(
     projectKey,
     { guest: `/daw/export/files?after=${encodeURIComponent(after)}` },
@@ -94,8 +101,10 @@ export async function readGuestExportedFiles(
   const body = (await res.json()) as GuestInventory;
   const revision = typeof body.revision === "string" ? body.revision : null;
   const inventory = inventoryOf(body);
-  if (inventory !== null) return { inventory, revision };
-  if (after && revision === after) return { inventory: null, revision };
+  if (inventory !== null)
+    return { inventory, revision, exporting: body.exporting === true };
+  if (after && revision === after)
+    return { inventory: null, revision, exporting: null };
   throw new Error(UNREADABLE);
 }
 

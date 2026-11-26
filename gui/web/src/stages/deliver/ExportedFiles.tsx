@@ -6,6 +6,7 @@ import {
   type FileAccess,
   groupByKind,
   hasLargeFile,
+  RUNNING_REASON,
 } from "./exportedFileModel";
 
 type Props = {
@@ -18,8 +19,6 @@ type Props = {
   onReveal?: (file: ExportedFile) => void;
   onStarted?: (file: ExportedFile) => void;
 };
-
-const RUNNING_REASON = "Exporting now. Download when it finishes.";
 
 function extOf(name: string): string {
   const dot = name.lastIndexOf(".");

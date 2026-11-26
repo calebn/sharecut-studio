@@ -12,6 +12,8 @@ export type DeliverFiles = {
   files: readonly ExportedFile[];
   /** One download of every current file; null in the app, or when none is current. */
   archive: ExportArchive | null;
+  /** An export is running, so the files cannot be downloaded yet. */
+  exporting?: boolean;
   access: FileAccess;
   onReveal?: (file: ExportedFile) => void;
   onStarted?: () => void;

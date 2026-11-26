@@ -69,6 +69,7 @@ export function GuestDeliver({ loadFailure }: Props) {
                         archive={files.archive}
                         className="dv-file-action"
                         iconSize={16}
+                        running={files.exporting}
                         onStarted={files.onStarted}
                       />
                     ) : undefined
@@ -111,6 +112,7 @@ export function GuestDeliver({ loadFailure }: Props) {
                       files={files.files}
                       access="download"
                       grouped
+                      running={files.exporting}
                       onStarted={files.onStarted}
                     />
                   ) : null}

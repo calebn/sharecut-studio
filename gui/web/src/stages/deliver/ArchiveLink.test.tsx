@@ -32,3 +32,19 @@ it("links the archive by its name and announces its count and size", async () =>
   expect(link).toHaveTextContent("Download all");
   expect(onStarted).toHaveBeenCalledTimes(1);
 });
+
+it("is a disabled button with the reason while an export runs", () => {
+  render(
+    <ArchiveLink archive={ARCHIVE} className="x-class" iconSize={16} running />,
+  );
+
+  expect(screen.queryByRole("link")).toBeNull();
+  const button = screen.getByRole("button", {
+    name: "Download all 5 files, 2 KB",
+  });
+  expect(button).toBeDisabled();
+  expect(button).toHaveAttribute(
+    "title",
+    "Exporting now. Download when it finishes.",
+  );
+});
