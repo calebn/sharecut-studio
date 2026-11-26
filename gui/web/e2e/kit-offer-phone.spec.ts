@@ -54,9 +54,11 @@ const REPORT = {
   timeline_duration_before_sec: 60,
   timeline_duration_after_sec: 94,
   dry_run: false,
-  entries: [],
+  entries: [
+    { position: 1, history_head_id: "hist_e2e_kit_1" },
+    { position: 2, history_head_id: "hist_e2e_kit_2" },
+  ],
   undo_steps: 2,
-  history_head_id: "hist_e2e_kit_2",
 };
 
 type Mocked = {

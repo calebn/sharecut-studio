@@ -50,18 +50,24 @@ export async function loadKitOffer(
   return (await res.json()) as KitOffer;
 }
 
-/** The report of a real apply: `applyKit` never asks for a dry run, which would omit the last two fields. */
+/** One applied entry. */
+export interface KitApplyEntry {
+  position: number;
+  /** The history head this entry left, read under the document lock. */
+  history_head_id: string | null;
+  [key: string]: unknown;
+}
+
+/** The report of a real apply: `applyKit` never asks for a dry run, which omits `undo_steps` and the entry heads. */
 export interface KitApplyReport {
   kit_id: string;
   kit_version: number;
   timeline_duration_before_sec: number;
   timeline_duration_after_sec: number;
   dry_run: boolean;
-  entries: Record<string, unknown>[];
+  entries: KitApplyEntry[];
   /** One History step per entry. */
   undo_steps: number;
-  /** The history head the last entry left; the first guard of an undo chain. */
-  history_head_id: string | null;
 }
 
 /**

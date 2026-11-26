@@ -40,13 +40,11 @@ class KitApplyReport(BaseModel):
     dry_run: bool
     entries: list[dict[str, Any]]
     undo_steps: int | None = None
-    history_head_id: str | None = None
 
     def wire(self) -> Mapping[str, Any]:
         data = self.model_dump()
         if self.undo_steps is None:
             data.pop("undo_steps")
-            data.pop("history_head_id")
         return data
 
 
@@ -106,7 +104,6 @@ def submit_kit_apply(
             entries=previews,
         )
     applied: list[dict[str, Any]] = []
-    head: str | None = None
     for position, item in enumerate(resolved, start=1):
         try:
             result = submit_segment_insert(
@@ -134,8 +131,16 @@ def submit_kit_apply(
                 "Check the episode and History before retrying the kit; "
                 "retrying can insert entries again."
             ) from exc
-        applied.append({"position": position, "note": item.entry.note, **result.model_dump()})
-        head = result.history_head_id if isinstance(result, SegmentInsertApplied) else None
+        applied.append(
+            {
+                "position": position,
+                "note": item.entry.note,
+                **result.model_dump(),
+                "history_head_id": (
+                    result.history_head_id if isinstance(result, SegmentInsertApplied) else None
+                ),
+            }
+        )
     final = ProjectWorkspace.open(project_path, adopt=False)
     return KitApplyReport(
         kit_id=kit.id,
@@ -145,7 +150,6 @@ def submit_kit_apply(
         dry_run=False,
         entries=applied,
         undo_steps=len(applied),
-        history_head_id=head,
     )
 
 
