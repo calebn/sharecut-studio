@@ -1023,6 +1023,29 @@ def test_the_notice_form_posts_next_in_a_hidden_field_not_the_query() -> None:
     assert '<input type="hidden" name="next" value="/r/tok/?t=12&amp;a=%22x">' in text
 
 
+def test_the_notice_form_escapes_a_quote_in_the_path_so_it_cannot_leave_the_attribute() -> None:
+    from fastapi import Request
+
+    from podcast_relay.notice import notice_response
+
+    # ASGI hands the app the percent-decoded path, so a quote arrives raw.
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": '/r/a"onfocus=alert(1) autofocus x="/',
+            "query_string": b"",
+            "headers": [],
+            "scheme": "https",
+            "server": ("relay.test", 443),
+        }
+    )
+    text = bytes(notice_response(request).body).decode()
+
+    assert 'value="/r/a&quot;onfocus=alert(1) autofocus x=&quot;/"' in text
+    assert 'a"onfocus' not in text
+
+
 def test_the_relay_form_path_needs_no_multipart_package() -> None:
     import podcast_relay.notice as notice
     import podcast_relay.routes.proxy as proxy
