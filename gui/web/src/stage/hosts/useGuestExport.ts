@@ -20,7 +20,7 @@ function startFailure(error: unknown): string {
 }
 
 type Files = {
-  exporting: boolean;
+  exporting?: boolean;
   currentLoad: ExportedFilesLoad;
   reload: () => void;
 };

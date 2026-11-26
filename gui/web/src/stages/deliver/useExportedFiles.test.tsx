@@ -216,7 +216,7 @@ describe("useExportedFiles", () => {
     expect(listed.guest).toHaveBeenCalledTimes(5);
   });
 
-  it("carries whether the host allows share exports across a revision-only reply and resets it on a failed re-read", async () => {
+  it("carries whether the host allows share exports across a revision-only reply and keeps the last known value on a failed re-read", async () => {
     listed.guest.mockResolvedValueOnce({
       ...inventory([ENTRY]),
       revision: "first",
@@ -256,7 +256,7 @@ describe("useExportedFiles", () => {
       window.dispatchEvent(new Event("focus"));
     });
     await waitFor(() => expect(result.current.currentLoad).toBe("error"));
-    expect(result.current.guestRender).toBeNull();
+    expect(result.current.guestRender).toBe(true);
   });
 
   it("stops reporting an export when a foreground re-read fails", async () => {

@@ -61,7 +61,7 @@ export function useExportedFiles(
   } | null>(null);
   const [guestRender, setGuestRender] = useState<{
     path: string;
-    allowed: boolean | null;
+    allowed: boolean;
   } | null>(null);
   const [settled, setSettled] = useState<{
     read: InventoryRead;
@@ -116,7 +116,6 @@ export function useExportedFiles(
         if (mode === "foreground") {
           running = false;
           setExporting({ path, running: false });
-          setGuestRender({ path, allowed: null });
           setSettled({ read, load: "error" });
         }
       }
