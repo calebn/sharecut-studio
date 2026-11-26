@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { expectFeedback } from "./feedback";
 import { expectNoHorizontalScroll, expectTouchTargets } from "./modelsMock";
@@ -21,6 +21,7 @@ const CELLS = [
     resize: true,
     detent: "half",
     cramped: false,
+    fits: true,
   },
   {
     name: "320x740",
@@ -30,6 +31,7 @@ const CELLS = [
     resize: true,
     detent: "half",
     cramped: false,
+    fits: false,
   },
   {
     name: "320x568-200pct",
@@ -39,6 +41,7 @@ const CELLS = [
     resize: false,
     detent: "full",
     cramped: true,
+    fits: false,
   },
 ] as const;
 
@@ -101,9 +104,21 @@ const APPLIED = {
   tracks: {},
 };
 
+const FILLER = Array.from({ length: 10 }, (_, index) => ({
+  id: `fill-${index}`,
+  name: `Filler ${index + 1}`,
+  kind: "intro",
+  version: 1,
+  versions: [1],
+  clips: [{ audio: "intro.flac", offset_sec: 0, duration_sec: 22 }],
+}));
+
 type Mocked = { previews: string[]; commands: Record<string, unknown>[] };
 
-async function mockInsert(page: Page): Promise<Mocked> {
+async function mockInsert(
+  page: Page,
+  library: readonly object[] = LIBRARY,
+): Promise<Mocked> {
   const mocked: Mocked = { previews: [], commands: [] };
   await page.route(
     (url) => url.pathname === "/api/segments",
@@ -112,7 +127,7 @@ async function mockInsert(page: Page): Promise<Mocked> {
         await route.fallback();
         return;
       }
-      await route.fulfill({ json: LIBRARY });
+      await route.fulfill({ json: library });
     },
   );
   await page.route(
@@ -155,6 +170,35 @@ async function mockInsert(page: Page): Promise<Mocked> {
   );
   return mocked;
 }
+
+async function expectInsideBody(sheet: Locator, radios: Locator[]) {
+  const body = await sheet.locator(".sys-sheet-scroll").boundingBox();
+  if (!body) throw new Error("no sheet body box");
+  for (const radio of radios) {
+    const rect = await radio.locator("xpath=ancestor::label[1]").boundingBox();
+    if (!rect) throw new Error("no radio box");
+    expect(rect.y).toBeGreaterThanOrEqual(body.y - 1);
+    expect(rect.y + rect.height).toBeLessThanOrEqual(body.y + body.height + 1);
+  }
+}
+
+async function expectPlacementShown(sheet: Locator, fits: boolean) {
+  const group = sheet.getByRole("group", {
+    name: "What happens to the episode",
+  });
+  if (fits) {
+    await expectInsideBody(sheet, await group.getByRole("radio").all());
+    return;
+  }
+  const body = await sheet.locator(".sys-sheet-scroll").boundingBox();
+  const rect = await group.boundingBox();
+  if (!body || !rect) throw new Error("no box");
+  expect(rect.y).toBeGreaterThanOrEqual(body.y - 1);
+  expect(rect.y).toBeLessThan(body.y + body.height);
+}
+
+const bodyTop = (sheet: Locator) =>
+  sheet.locator(".sys-sheet-scroll").evaluate((el) => el.scrollTop);
 
 async function openCard(
   page: Page,
@@ -264,7 +308,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       const rest = sheet.getByRole("radio", { name: /Move the rest later/ });
       const over = sheet.getByRole("radio", { name: /Play over the episode/ });
       await expect(over).toBeChecked();
-      await expect(over).toBeInViewport();
+      await expectPlacementShown(sheet, cell.fits);
       await expect(rest).not.toBeChecked();
       await expect(
         sheet.getByText("Adds 0:22 at 0:00 on a new track."),
@@ -292,6 +336,51 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
           placement: "own_lane",
         },
       });
+    });
+
+    test("the first tap in a long list shows the placement choice, later taps and arrow keys keep the scroll", async ({
+      page,
+    }) => {
+      await mockInsert(page, [...FILLER, ...LIBRARY]);
+      const size = cell.resize
+        ? { width: cell.width, height: cell.height }
+        : null;
+      const sheet = await openCard(page, theme, size);
+      if (cell.fontPx) await setRootFontSize(page, cell.fontPx);
+      const rows = sheet.getByRole("radio", { name: /Filler/ });
+      await rows.first().locator("xpath=ancestor::label[1]").tap();
+      await expect(rows.first()).toBeChecked();
+      const placement = sheet.getByRole("group", {
+        name: "What happens to the episode",
+      });
+      await expect(placement).toBeVisible();
+      await expect.poll(() => bodyTop(sheet)).toBeGreaterThan(0);
+      await expectPlacementShown(sheet, cell.fits);
+      if (cell.cramped) return;
+      const last = rows.nth(FILLER.length - 1);
+      const before = rows.nth(FILLER.length - 2);
+      await before
+        .locator("xpath=ancestor::label[1]")
+        .evaluate((el) => el.scrollIntoView({ block: "start" }));
+      const settled = await bodyTop(sheet);
+      const target = await last
+        .locator("xpath=ancestor::label[1]")
+        .boundingBox();
+      if (!target) throw new Error("no row box");
+      await page.touchscreen.tap(
+        target.x + target.width / 2,
+        target.y + target.height / 2,
+      );
+      await expect(last).toBeChecked();
+      expect(await bodyTop(sheet)).toBe(settled);
+      await last.focus();
+      expect(await bodyTop(sheet)).toBe(settled);
+      await page.keyboard.press("ArrowUp");
+      await expect(before).toBeChecked();
+      expect(await bodyTop(sheet)).toBe(settled);
+      await page.keyboard.press("ArrowDown");
+      await expect(last).toBeChecked();
+      expect(await bodyTop(sheet)).toBe(settled);
     });
 
     test("keeps Cancel and Insert pinned, and Expand and Collapse resize the sheet", async ({
