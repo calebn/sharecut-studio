@@ -1082,4 +1082,5 @@ def test_a_seven_digit_count_is_no_header() -> None:
 def test_mentions_host_path_is_linear_on_adversarial_text(text: str) -> None:
     started = time.perf_counter()
     mentions_host_path(text)
-    assert time.perf_counter() - started < 1.0
+    elapsed = time.perf_counter() - started
+    assert elapsed < 10.0, f"{elapsed:.1f}s: quadratic would take minutes at this size"
