@@ -38,6 +38,7 @@ if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import branches
+import e2e_shards
 from ci_native import NativeSelection, select_native
 from path_vocab import Glob
 from version_policy import problems
@@ -62,7 +63,7 @@ SCRIPT_REF_RES = (
     re.compile(r"""["']scripts["']\s*/\s*["'](\w+)\.py["']"""),
     re.compile(r"""^\s*(?:from|import)\s+(\w+)""", re.MULTILINE),
 )
-MAIN_SHARDS = 4
+MAIN_SHARDS = 6
 PR_WEBKIT_SHARDS = 3
 # Browser specs a pull request runs: the critical paths. The promotion run keeps the rest.
 SMOKE_SPECS = (
@@ -183,6 +184,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         # frontend job runs.
         ("scripts/ci_plan.py", Scope.GUI),
         ("scripts/docs_sync.py", Scope.GUI),
+        ("scripts/e2e_shards.py", Scope.GUI),
         ("scripts/path_vocab.py", Scope.GUI),
         ("scripts/export_capabilities_copy.py", Scope.GUI),
         ("scripts/export_timeline_zoom.py", Scope.GUI),
@@ -347,13 +349,14 @@ class E2eJob:
 
 
 def main_shards() -> list[E2eJob]:
+    """The main suite as duration-balanced shards from `gui/web/e2e/shard-plan.json`."""
     return [
         E2eJob(
             f"main-{i}of{MAIN_SHARDS}",
-            f"npm run test:e2e -- --shard={i}/{MAIN_SHARDS}",
+            "npm run test:e2e -- " + " ".join(f"e2e/{spec}" for spec in specs),
             "chromium",
         )
-        for i in range(1, MAIN_SHARDS + 1)
+        for i, specs in enumerate(e2e_shards.planned_shards(MAIN_SHARDS), start=1)
     ]
 
 

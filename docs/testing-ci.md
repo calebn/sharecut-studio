@@ -84,7 +84,7 @@ and `frontend-suite` (the planner's `quick` scope). On pull requests the
 | `pytest` | The required check. Needs `changes`, `pytest-quality` and `pytest-shard`, and fails unless the plan, quality and every planned shard succeeded (a `quick` plan, a push, accepts skipped shards). On full runs it combines the shard coverage and enforces the 95% floor. |
 | `pytest-python-floor` | Advisory (not a required repository merge check): Python 3.11, the `requires-python` floor, runs `tests/test_wav_util.py` and `tests/test_bleed_gate_channels.py`, which pin the EXTENSIBLE-WAV reads that 3.11's stdlib `wave` rejects (#1183). The `pytest-shard` jobs use 3.14; a local 3.11 venv reproduces the gap. |
 | `frontend-suite` → `frontend` | The workload runs in `gui/web`: `npm ci`, `npm audit --omit=dev --audit-level=high` (advisory, `continue-on-error`, failures noted in the job summary; see [§ Dependency updates and audit](testing.md#dependency-updates-and-audit)), `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; all `.stories.ts` and `.stories.tsx` modules are discovered, rendered with Storybook preview annotations, played, and axe-checked including body portals by `gui/web/src/test/allStories.test.tsx`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in `gui/web/src/test/storyGovernance.test.ts`; browser storage only through the helpers, in `gui/web/src/utils/storageGuard.test.ts`), `npm run build` (Vite module-ID guard rejects story/Storybook inputs in every app build) |
-| `frontend-e2e-suites` → `frontend-e2e` | On dispatch, which promotion uses (the planner's `e2e` output; skipped on push to `develop`), six matrix jobs build ShareCut Studio inside the Playwright container image (see [§ Browser installation](#browser-installation)) and run only their declared browser engine: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. The main Chromium suite also runs `e2e/record-timeline-layering.spec.ts`, which checks recording and paused bands above an existing chapter marker at 1280px desktop and 360px and 390px phone widths in light and dark themes. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest Following pill (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs one `main-smoke` job (the `SMOKE_SPECS` in `scripts/ci_plan.py`); a release-please pull request runs the four main shards and `compat-webkit-1of3` through `compat-webkit-3of3`. Each job uploads its raw Playwright JSON as `playwright-reports-<name>` and its traces, screenshots and error contexts of failed attempts as `playwright-test-results-<name>`, with seven-day retention (see [Browser result publication](#browser-result-publication)). The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home call `openHome` from `e2e/home.ts` (it loads `/?home=1` and, unless a spec is about the Setup card, dismisses that card first). |
+| `frontend-e2e-suites` → `frontend-e2e` | On dispatch, which promotion uses (the planner's `e2e` output; skipped on push to `develop`), six matrix jobs build ShareCut Studio inside the Playwright container image (see [§ Browser installation](#browser-installation)) and run only their declared browser engine: the six main-suite shards (`main-1of6` through `main-6of6`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- e2e/<spec> ...` with the specs `gui/web/e2e/shard-plan.json` assigns each shard, balanced by recorded duration (see [Browser test scope and runtime](testing.md#browser-test-scope-and-runtime)); each deletes its live copy after Playwright terminates the web server. The main Chromium suite also runs `e2e/record-timeline-layering.spec.ts`, which checks recording and paused bands above an existing chapter marker at 1280px desktop and 360px and 390px phone widths in light and dark themes. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest Following pill (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs one `main-smoke` job (the `SMOKE_SPECS` in `scripts/ci_plan.py`); a release-please pull request runs the six main shards and `compat-webkit-1of3` through `compat-webkit-3of3`. Each job uploads its raw Playwright JSON as `playwright-reports-<name>` and its traces, screenshots and error contexts of failed attempts as `playwright-test-results-<name>`, with seven-day retention (see [Browser result publication](#browser-result-publication)). The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home call `openHome` from `e2e/home.ts` (it loads `/?home=1` and, unless a spec is about the Setup card, dismisses that card first). |
 
 The [release refresh and final validation policy](#release-refreshes-and-final-validation) describes the advisory selector jobs and the mandatory full release receipt.
 
@@ -570,7 +570,7 @@ Behavioral Vitest checks preserve main/reading scan execution and fail on
 injected violations. Live WebKit checks still qualify the actual scan states. The guard also fails if a compat spec uses
 `test.skip`, `fixme`, `fail` or `only`, or if the compat config's `retries` is
 not `process.env.CI ? 1 : 0`. It also fails if the dispatch plan stops
-running the complete main shard set or either complete compat engine, or stops
+running the complete main shard set (every e2e spec in exactly one shard) or either complete compat engine, or stops
 installing an engine with a Pass cell. It fails if the release PR plan's WebKit shards
 stop covering the whole WebKit project, if the `frontend-e2e` aggregate can pass
 without the plan succeeding or with a suite the plan ordered skipped, failed or
@@ -581,6 +581,38 @@ regexes, so it fails loudly on shapes it cannot read: a spec that mixes
 `test.step` with a second `test()`, or a `testIgnore` entry that is not a
 `"**/<file>.spec.ts"` string literal. A new spec or step, a `testIgnore` or a
 Firefox project fails the guard until this table is updated.
+
+### E2E shard plan
+
+Playwright's `--shard=i/n` deals spec files out by test count, not duration, which left
+the slowest of four shards at about 2000 s of wall time against about 1550 s for the
+fastest (dispatch run 45707931542). `gui/web/e2e/shard-plan.json` instead lists each of the
+six main shards' specs (paths relative to `gui/web/e2e/`, alphabetical), dealt out
+longest-first by recorded seconds, and keeps the per-spec seconds it was balanced on.
+`scripts/ci_plan.py` turns each list into `npm run test:e2e -- e2e/<spec> ...`. The planned
+slowest shard is within 1% of the ideal total/6; the largest single spec,
+`record-guest-leave.spec.ts`, is about 580 s.
+
+`python3 scripts/e2e_shards.py check` fails when the plan misses a spec, names one that no
+longer exists, or lists one twice. `tests/test_e2e_shards.py` runs it, asserts the planned
+slowest shard stays within 15% of the ideal, and, where `gui/web/node_modules` exists,
+checks that `playwright test --list` over the six shards unions to the whole suite. After
+adding or deleting a spec, or when a shard drifts, rebuild the plan from the JSON reports of
+one or more recent runs that ran the main shards and commit it:
+
+```sh
+gh run download <run-id> --repo calebn/sharecut-studio \
+  --pattern 'playwright-reports-main-*' --dir /tmp/e2e-reports/<run-id>
+python3 scripts/e2e_shards.py build /tmp/e2e-reports/<run-id> [/tmp/e2e-reports/<other-run-id> ...]
+python3 scripts/e2e_shards.py show   # planned seconds per shard against the ideal
+```
+
+Seconds per spec are summed over a run's attempts, then averaged across the given runs; a
+spec no report contains gets the median. A spec absent from the plan still runs, in the
+lightest planned shard, so CI never skips a test, but that is a safety net: the check is
+the gate. Raise `MAIN_SHARDS` in `scripts/ci_plan.py` and rebuild with `--shards N` before
+any shard nears the job timeout. The `command` of an `e2e-matrix` entry from
+`python3 scripts/ci_plan.py plan --event workflow_dispatch` reproduces one CI shard.
 
 ### Browser compatibility matrix
 
