@@ -1,0 +1,26 @@
+name: retarget-dependabot
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+concurrency:
+  group: retarget-dependabot-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  retarget:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Point the PR at develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr edit "$PR" --base develop

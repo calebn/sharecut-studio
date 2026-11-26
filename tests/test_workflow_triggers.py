@@ -133,6 +133,19 @@ def test_dependabot_targets_the_base_branch() -> None:
     assert {update["target-branch"] for update in updates} == {BASE}
 
 
+def test_dependabot_pull_requests_opened_against_the_release_branch_move_to_the_base() -> None:
+    data = workflow("retarget-dependabot")
+    assert data["on"] == {
+        "pull_request_target": {"types": ["opened", "reopened"], "branches": [RELEASE]}
+    }
+    assert data["permissions"] == {"pull-requests": "write"}
+    job = data["jobs"]["retarget"]
+    assert job["if"] == "github.event.pull_request.user.login == 'dependabot[bot]'"
+    steps = job["steps"]
+    assert all("uses" not in step for step in steps)
+    assert [step["run"] for step in steps] == [f'gh pr edit "$PR" --base {BASE}']
+
+
 def test_required_jobs_exist_in_the_workflows_promote_dispatches() -> None:
     names = {
         job.get("name", job_id)
