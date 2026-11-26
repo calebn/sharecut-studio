@@ -125,7 +125,7 @@ def submit_segment_insert(
             store=store,
             placement=placement,
         )
-    result = submit_host_command_result(
+    reply = submit_host_document_command(
         project_path,
         "InsertSegment",
         {
@@ -136,4 +136,6 @@ def submit_segment_insert(
         },
         client_id=client_id,
     )
-    return SegmentInsertApplied.model_validate(result)
+    return SegmentInsertApplied.model_validate(
+        {**host_command_result(reply), "history_head_id": reply.get("history_head_id")}
+    )

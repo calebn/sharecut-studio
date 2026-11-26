@@ -5,6 +5,7 @@ import type { AlertSlotItem } from "../../system/AlertSlot";
 export const FRAME_ALERT_PRIORITY = {
   failed: 10,
   needsYou: 20,
+  offer: 30,
 } as const;
 
 export type FrameAlert = Omit<AlertSlotItem, "id">;

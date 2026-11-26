@@ -179,6 +179,10 @@ A full list is in the app: **Commands and shortcuts → Gestures** (tap the sear
 
 Home has a **Segment library** section under Recent: your saved intros, outros, sponsor reads and stings. On a phone each segment is a row with a Play button, its name and a small line with its version (and "3 versions" when there are more), its type and its length, and a More button. Tap Play to hear it; tap it again to stop, or tap Play on another row. More offers **Remove from library**, which asks first: it says it removes the segment ("all 3 versions" when it has more than one), that this can't be undone and that episodes already using the segment keep their copy. **Keep** is selected, and a status line says what was removed. A segment ShareCut can't read is listed with a warning, its id and the problem, and only Remove. The same list opens from **Settings, Segment library** as a full-height sheet, in an episode too. Every button is 44 px, and long names wrap at large text. Saving a segment from an episode is in the Action bar's More menu (see Selecting things); inserting one comes in a later slice.
 
+## Show kit offer
+
+When you open an episode that has audio and no inserted segments, and your library has a show kit, the row under the header asks **Add your show's intro and outro?** and names what it would add. **Add them** and **Not now** are 44 px buttons beside or under the text, wrapping under large text; nothing is added until you tap. After adding, a toast says what went in with **Undo**, which takes back the kit one entry at a time. **Not now** hides the row for that episode on this phone.
+
 ## Following someone
 
 If you're collaborating, you can follow another person's view. On mobile, the

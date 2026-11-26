@@ -140,6 +140,13 @@ export {
   NETWORK_ERROR_CODE,
 } from "./api/http";
 export { openJobStream } from "./api/jobStream";
+export type {
+  KitApplyReport,
+  KitOffer,
+  KitOfferEntry,
+  KitOfferKit,
+} from "./api/kits";
+export { applyKit, loadKitOffer } from "./api/kits";
 export {
   isDeadLinkAnswer,
   isLinkEnded,

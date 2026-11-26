@@ -39,11 +39,13 @@ class KitApplyReport(BaseModel):
     dry_run: bool
     entries: list[dict[str, Any]]
     undo_steps: int | None = None
+    history_head_id: str | None = None
 
     def wire(self) -> Mapping[str, Any]:
         data = self.model_dump()
         if self.undo_steps is None:
             data.pop("undo_steps")
+            data.pop("history_head_id")
         return data
 
 
@@ -103,6 +105,7 @@ def submit_kit_apply(
             entries=previews,
         )
     applied: list[dict[str, Any]] = []
+    head: str | None = None
     for position, item in enumerate(resolved, start=1):
         try:
             result = submit_segment_insert(
@@ -131,6 +134,7 @@ def submit_kit_apply(
                 "retrying can insert entries again."
             ) from exc
         applied.append({"position": position, "note": item.entry.note, **result.model_dump()})
+        head = result.history_head_id
     final = ProjectWorkspace.open(project_path, adopt=False)
     return KitApplyReport(
         kit_id=kit.id,
@@ -140,6 +144,7 @@ def submit_kit_apply(
         dry_run=False,
         entries=applied,
         undo_steps=len(applied),
+        history_head_id=head,
     )
 
 
@@ -149,7 +154,8 @@ def _entry_error(
     """The same code, with the entry named and how many entries already went in."""
     tail = (
         f" {applied} earlier entr{'y was' if applied == 1 else 'ies were'} already applied;"
-        " each is its own undo step in History."
+        " open History to undo "
+        f"{'it' if applied == 1 else 'them'}, each entry is its own step."
         if applied
         else " Nothing was changed."
     )
