@@ -1,5 +1,6 @@
 import type {
   DamagedSegmentRow,
+  SegmentImportPreview,
   SegmentInsertPreview,
   SegmentListRow,
   SegmentRow,
@@ -95,3 +96,22 @@ export function insertPreview(
     ...over,
   };
 }
+
+export function waiting(
+  over: Partial<SegmentImportPreview> = {},
+): SegmentImportPreview {
+  return {
+    token: "a".repeat(32),
+    name: "Cold open",
+    kind: "intro",
+    duration_sec: 12.4,
+    clip_count: 1,
+    outcome: "added",
+    version: 1,
+    existing_id: null,
+    ...over,
+  };
+}
+
+export const SEGMENT_FILE = () =>
+  new File(["zip"], "cold-open.sharecutseg", { type: "application/zip" });

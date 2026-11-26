@@ -3,12 +3,16 @@ import { ApiError } from "../utils/apiError";
 import { submitDocumentCommand } from "./documentEdits";
 import { apiFetch, HOST_KEY } from "./http";
 import {
+  cancelSegmentImport,
+  commitSegmentImport,
   type DamagedSegmentRow,
+  downloadSegmentFile,
   insertSegment,
   isDamagedSegment,
   loadSegment,
   loadSegmentDrift,
   loadSegments,
+  previewSegmentImport,
   previewSegmentInsert,
   removeSegment,
   SEGMENT_INSERT_APPLIED_KEYS,
@@ -20,6 +24,7 @@ import {
   segmentAudioUrl,
   segmentInsertRefusal,
   segmentSaveRefusal,
+  stagedClipUrl,
 } from "./segments";
 
 vi.mock("./http", async (importOriginal) => ({
@@ -337,5 +342,75 @@ describe("segment insert", () => {
     expect(vi.mocked(apiFetch).mock.calls.at(-1)?.[1]).toEqual({
       host: "/api/segments/a-1/insert-preview?path=%2Fp&at=2&placement=own_lane",
     });
+  });
+});
+
+describe("segment file routes", () => {
+  it("sends the chosen file as the raw body, not a form", async () => {
+    const waiting = { token: "a".repeat(32), name: "Cold open" };
+    vi.mocked(apiFetch).mockResolvedValue(json(waiting));
+    const file = new File(["zip"], "cold.sharecutseg");
+    const controller = new AbortController();
+
+    const preview = await previewSegmentImport(file, controller.signal);
+
+    expect(preview).toEqual(waiting);
+    const [key, route, init] = vi.mocked(apiFetch).mock.calls[0];
+    expect(key).toBe(HOST_KEY);
+    expect(route).toEqual({ host: "/api/segments/import/preview" });
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(file);
+    expect(init?.headers).toEqual({
+      "Content-Type": "application/octet-stream",
+    });
+    expect(init?.signal).toBe(controller.signal);
+  });
+
+  it("commits and cancels by token", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(
+      json({ status: "added", id: "a-1", version: 1 }),
+    );
+    await expect(commitSegmentImport("tok")).resolves.toEqual({
+      status: "added",
+      id: "a-1",
+      version: 1,
+    });
+    expect(vi.mocked(apiFetch).mock.calls[0][1]).toEqual({
+      host: "/api/segments/import",
+    });
+    expect(vi.mocked(apiFetch).mock.calls[0][2]?.body).toBe('{"token":"tok"}');
+
+    await cancelSegmentImport("tok");
+    expect(vi.mocked(apiFetch).mock.calls[1][1]).toEqual({
+      host: "/api/segments/import/tok",
+    });
+    expect(vi.mocked(apiFetch).mock.calls[1][2]?.method).toBe("DELETE");
+  });
+
+  it("addresses a staged clip like a library clip", () => {
+    expect(stagedClipUrl("tok", 2)).toBe(
+      "/api/segments/import/tok/audio?clip=2",
+    );
+  });
+
+  it("downloads the file whole and names it from the server's file name", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response("zip", {
+        headers: {
+          "content-disposition": 'attachment; filename="cold-open.sharecutseg"',
+        },
+      }),
+    );
+    const { blob, filename } = await downloadSegmentFile("cold-open-1a2b3c4d");
+    expect(filename).toBe("cold-open.sharecutseg");
+    expect(await blob.text()).toBe("zip");
+    expect(vi.mocked(apiFetch).mock.calls[0][1]).toEqual({
+      host: "/api/segments/cold-open-1a2b3c4d/export",
+    });
+  });
+
+  it("falls back to the id when the server names no file", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(new Response("zip"));
+    expect((await downloadSegmentFile("a-1")).filename).toBe("a-1.sharecutseg");
   });
 });

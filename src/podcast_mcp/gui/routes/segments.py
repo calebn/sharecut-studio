@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import re
+import shutil
+import tempfile
+from collections.abc import Mapping
+from pathlib import Path
 from typing import Any, NoReturn
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 
 from podcast_mcp.gui.routes.deps import NO_STORE, coded_exception_error, resolve_project
 from podcast_mcp.gui.routes.project import pin_served_if_allowed
 from podcast_mcp.gui.schemas import SegmentSaveRequest
+from podcast_mcp.segments.bundle import export_segments
 from podcast_mcp.segments.model import segment_kind
 from podcast_mcp.segments.position import parse_placement
 from podcast_mcp.segments.store import SegmentStore
@@ -25,11 +32,27 @@ from podcast_mcp.util.coded_error import CodedValueError
 
 router = APIRouter()
 
-_STATUS = {"segment_unknown": 404, "segment_busy": 409, "segment_write_failed": 500}
+STATUS = {
+    "segment_unknown": 404,
+    "segment_import_unknown": 404,
+    "segment_busy": 409,
+    "segment_upload_too_large": 413,
+    "segment_bundle_too_large": 422,
+    "segment_staging_full": 429,
+    "segment_import_committing": 409,
+    "segment_no_room": 507,
+    "segment_write_failed": 500,
+}
 
 
-def _refuse(exc: CodedValueError) -> NoReturn:
-    raise coded_exception_error(_STATUS.get(exc.code, 400), exc, code="segment_invalid") from exc
+def refuse(exc: CodedValueError, statuses: Mapping[str, int] = STATUS) -> NoReturn:
+    raise coded_exception_error(statuses.get(exc.code, 400), exc, code="segment_invalid") from exc
+
+
+def _export_stem(segment_id: str) -> str:
+    """The id without its trailing hash, limited to file-name-safe characters."""
+    stem = re.sub(r"-[0-9a-f]{8}$", "", segment_id)
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("-.") or "segment"
 
 
 @router.get("/api/segments")
@@ -44,7 +67,7 @@ def segment_drift_route(path: str, request: Request) -> list[dict[str, Any]]:
     try:
         return report_segment_drift(project_path, SegmentStore())
     except CodedValueError as exc:
-        _refuse(exc)
+        refuse(exc)
 
 
 @router.get("/api/segments/{segment_id}")
@@ -52,7 +75,7 @@ def get_segment(segment_id: str) -> dict[str, Any]:
     try:
         return show_segment(SegmentStore(), segment_id)
     except CodedValueError as exc:
-        _refuse(exc)
+        refuse(exc)
 
 
 @router.get("/api/segments/{segment_id}/audio")
@@ -71,8 +94,28 @@ def get_segment_audio(
             )
         path = store.path(segment_id, segment.version) / segment.clips[clip].audio
     except CodedValueError as exc:
-        _refuse(exc)
+        refuse(exc)
     return FileResponse(path, media_type="audio/flac", headers=NO_STORE)
+
+
+@router.get("/api/segments/{segment_id}/export")
+def export_segment(segment_id: str) -> FileResponse:
+    """The newest version as one ``<name>.sharecutseg`` file, built in a private folder removed afterwards."""
+    folder = Path(tempfile.mkdtemp(prefix="sharecut-export-"))
+    try:
+        path = export_segments(
+            SegmentStore(), [segment_id], folder / f"{_export_stem(segment_id)}.sharecutseg"
+        )
+    except CodedValueError as exc:
+        shutil.rmtree(folder, ignore_errors=True)
+        refuse(exc)
+    return FileResponse(
+        path,
+        media_type="application/zip",
+        filename=path.name,
+        headers=NO_STORE,
+        background=BackgroundTask(shutil.rmtree, folder, ignore_errors=True),
+    )
 
 
 @router.get("/api/segments/{segment_id}/insert-preview")
@@ -105,7 +148,7 @@ def insert_preview(
             placement=parse_placement(placement),
         )
     except CodedValueError as exc:
-        _refuse(exc)
+        refuse(exc)
     return report.model_dump()
 
 
@@ -124,7 +167,7 @@ def save_segment_route(body: SegmentSaveRequest, request: Request) -> dict[str, 
             role=body.role,
         )
     except CodedValueError as exc:
-        _refuse(exc)
+        refuse(exc)
     return result.wire()
 
 
@@ -133,5 +176,5 @@ def remove_segment(segment_id: str) -> dict[str, str]:
     try:
         SegmentStore().remove(segment_id)
     except CodedValueError as exc:
-        _refuse(exc)
+        refuse(exc)
     return {"removed": segment_id}

@@ -1,9 +1,17 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { isDamagedSegment, type SegmentListRow } from "../api";
+import { isDamagedSegment, type SegmentListRow, type SegmentRow } from "../api";
+import { useDawStore } from "../state/dawStore";
 import { Skeleton } from "../system/Skeleton";
 import { Button, InlineError } from "../ui";
+import { errorMessage } from "../utils/apiError";
 import { stopAudition, toggleAudition, useAudition } from "./audition";
+import { exportSegmentFile } from "./exportSegment";
+import { DROP_HINT, DROP_LABEL, exportedMessage } from "./importMessages";
+import { SegmentImportButton } from "./SegmentImportButton";
+import { SegmentImportPreview } from "./SegmentImportPreview";
 import { type RowLayout, SegmentRowView } from "./SegmentRowView";
+import { useSegmentDrop } from "./useSegmentDrop";
+import { useSegmentImport } from "./useSegmentImport";
 import type { SegmentLibraryState } from "./useSegmentLibrary";
 
 export const EMPTY_TEXT =
@@ -38,7 +46,8 @@ function useSpokenAudition(
 }
 
 export function SegmentLibraryBody({ library, layout }: Props) {
-  const { rows, error, reload, remove } = library;
+  const { rows, error, reload, remove, reveal, highlightId } = library;
+  const hosted = useDawStore((s) => s.guestMode === null);
   const { playingId, failedId } = useAudition();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -46,10 +55,42 @@ export function SegmentLibraryBody({ library, layout }: Props) {
   const [failure, setFailure] = useState<string | null>(null);
   const focusRequest = useRef<FocusRequest | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  const emptyRef = useRef<HTMLParagraphElement>(null);
+  const emptyRef = useRef<HTMLDivElement>(null);
   const owner = useId();
   const mounted = useRef(true);
   const spoken = useSpokenAudition(rows ?? [], owner);
+  const picker = useRef<HTMLInputElement>(null);
+  const importButton = useRef<HTMLButtonElement>(null);
+  const wasImporting = useRef(false);
+  const exporting = useRef(false);
+
+  const imported = useSegmentImport({
+    onDone: (id, message) => {
+      reveal(id);
+      useDawStore.getState().announceStatus(message);
+    },
+  });
+  const drop = useSegmentDrop({
+    enabled: hosted && rows !== null && imported.state.phase === "idle",
+    onFile: imported.choose,
+    onRefuse: (message) => {
+      if (hosted) setFailure(message);
+    },
+  });
+  const importing = imported.state.phase !== "idle";
+  useEffect(() => {
+    if (wasImporting.current && !importing) importButton.current?.focus();
+    wasImporting.current = importing;
+  }, [importing]);
+
+  useEffect(() => {
+    if (highlightId === null) return;
+    const row = [
+      ...(root.current?.querySelectorAll<HTMLElement>("[data-segment-row]") ??
+        []),
+    ].find((el) => el.dataset.segmentRow === highlightId);
+    row?.scrollIntoView?.({ block: "nearest" });
+  }, [highlightId, rows]);
 
   useEffect(() => {
     mounted.current = true;
@@ -81,6 +122,25 @@ export function SegmentLibraryBody({ library, layout }: Props) {
       emptyRef.current
     )?.focus();
   }, [rows, confirmId, removingId]);
+
+  const exportRow = async (row: SegmentRow) => {
+    if (exporting.current) return;
+    exporting.current = true;
+    setDone(null);
+    setFailure(null);
+    const { announceStatus } = useDawStore.getState();
+    announceStatus(`Preparing ${row.name} to export…`);
+    try {
+      const outcome = await exportSegmentFile(row.id);
+      announceStatus(exportedMessage(row.name, outcome));
+    } catch (failure) {
+      const message = errorMessage(failure, `Couldn't export ${row.name}.`);
+      announceStatus(message, { tone: "error" });
+      setFailure(message);
+    } finally {
+      exporting.current = false;
+    }
+  };
 
   const askRemove = (row: SegmentListRow) => {
     if (removingId !== null) return;
@@ -135,9 +195,10 @@ export function SegmentLibraryBody({ library, layout }: Props) {
     );
   } else if (rows.length === 0) {
     content = (
-      <p ref={emptyRef} tabIndex={-1} className="segment-library-empty">
-        {EMPTY_TEXT}
-      </p>
+      <div ref={emptyRef} tabIndex={-1} className="segment-library-empty">
+        <p>{EMPTY_TEXT}</p>
+        {hosted ? <p>{DROP_HINT}</p> : null}
+      </div>
     );
   } else {
     const items = rows.map((row) => (
@@ -147,9 +208,11 @@ export function SegmentLibraryBody({ library, layout }: Props) {
         layout={layout}
         playingId={playingId}
         failedId={failedId}
+        highlightId={highlightId}
         confirmId={confirmId}
         removingId={removingId}
         onToggle={(target) => toggleAudition(target, owner)}
+        onExport={hosted ? (target) => void exportRow(target) : undefined}
         onAskRemove={askRemove}
         onKeep={keep}
         onConfirm={(target) => void confirm(target)}
@@ -182,7 +245,27 @@ export function SegmentLibraryBody({ library, layout }: Props) {
   }
 
   return (
-    <div ref={root} className="segment-library-body" data-layout={layout}>
+    <div
+      ref={root}
+      className="segment-library-body"
+      data-layout={layout}
+      data-drop={drop.over || undefined}
+      {...drop.handlers}
+    >
+      {hosted && rows !== null ? (
+        <div className="segment-library-toolbar">
+          <SegmentImportButton
+            onChoose={imported.choose}
+            inputRef={picker}
+            buttonRef={importButton}
+          />
+        </div>
+      ) : null}
+      {drop.over ? (
+        <p className="segment-drop-label" aria-hidden="true">
+          {DROP_LABEL}
+        </p>
+      ) : null}
       <p className="segment-library-note" role="status">
         {done}
       </p>
@@ -204,6 +287,14 @@ export function SegmentLibraryBody({ library, layout }: Props) {
       <p className="sr-only" role="status">
         {spoken}
       </p>
+      {hosted ? (
+        <SegmentImportPreview
+          state={imported.state}
+          onAdd={imported.add}
+          onCancel={imported.cancel}
+          onChooseAgain={() => picker.current?.click()}
+        />
+      ) : null}
     </div>
   );
 }

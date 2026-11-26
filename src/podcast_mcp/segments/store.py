@@ -267,22 +267,33 @@ class SegmentStore:
             code="segment_invalid",
         )
         incoming = parse_segment(raw)
-        expected_id = segment_id_for(incoming.name)
-        if incoming.id != expected_id:
+        verify_media(incoming, segment_dir)
+        with self._lock():
+            plan = self.plan_add(incoming)
+            if plan.status == "unchanged":
+                return plan
+            self._install(incoming.model_copy(update={"version": plan.version}), segment_dir)
+            return plan
+
+    def plan_add(self, incoming: SegmentFile) -> AddResult:
+        """What :meth:`add` would do with ``incoming``, without writing anything.
+
+        Raises ``segment_invalid`` when the id does not match the name.
+        """
+        if incoming.id != segment_id_for(incoming.name):
             raise CodedValueError(
                 f"The segment id {incoming.id!r} does not match its name {incoming.name!r}.",
                 code="segment_invalid",
             )
-        verify_media(incoming, segment_dir)
-        with self._lock():
-            existing = self._existing_with_content(incoming.content_sha256)
-            if existing is not None:
-                return AddResult("unchanged", existing.id, existing.version)
-            versions = self._versions(incoming.id)
-            version = (versions[-1] if versions else 0) + 1
-            stored = incoming.model_copy(update={"version": version})
-            self._install(stored, segment_dir)
-            return AddResult("new_version" if versions else "added", stored.id, version)
+        existing = self._existing_with_content(incoming.content_sha256)
+        if existing is not None:
+            return AddResult("unchanged", existing.id, existing.version)
+        versions = self._versions(incoming.id)
+        return AddResult(
+            "new_version" if versions else "added",
+            incoming.id,
+            (versions[-1] if versions else 0) + 1,
+        )
 
     def _existing_with_content(self, content_sha256: str) -> SegmentFile | None:
         for segment_id in self._ids():

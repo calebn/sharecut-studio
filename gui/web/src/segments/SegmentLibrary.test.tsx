@@ -102,7 +102,10 @@ describe("states", () => {
     const empty = await screen.findByText(/No saved segments yet/);
     expect(empty).toBeVisible();
     expect(empty.textContent).not.toMatch(/save from|selection/i);
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(
+      screen.getAllByRole("button").map((button) => button.textContent),
+    ).toEqual(["Import"]);
+    expect(screen.getByText(/Have a segment file/)).toBeVisible();
     await expectNoA11yViolations(container);
   });
 
@@ -331,7 +334,8 @@ describe("removing a segment", () => {
     );
     load.mockResolvedValue([]);
     await user.click(screen.getByRole("button", { name: "Remove" }));
-    const empty = await screen.findByText(/No saved segments yet/);
+    const empty = (await screen.findByText(/No saved segments yet/))
+      .parentElement;
     await waitFor(() => expect(empty).toHaveFocus());
   });
 

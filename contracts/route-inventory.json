@@ -966,6 +966,30 @@
     },
     {
       "gate": "host",
+      "handler": "podcast_mcp.gui.routes.segment_import:commit_import",
+      "method": "POST",
+      "path": "/api/segments/import"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.segment_import:preview_import",
+      "method": "POST",
+      "path": "/api/segments/import/preview"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.segment_import:cancel_import",
+      "method": "DELETE",
+      "path": "/api/segments/import/{staged_id}"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.segment_import:staged_audio",
+      "method": "GET",
+      "path": "/api/segments/import/{staged_id}/audio"
+    },
+    {
+      "gate": "host",
       "handler": "podcast_mcp.gui.routes.segments:remove_segment",
       "method": "DELETE",
       "path": "/api/segments/{segment_id}"
@@ -981,6 +1005,12 @@
       "handler": "podcast_mcp.gui.routes.segments:get_segment_audio",
       "method": "GET",
       "path": "/api/segments/{segment_id}/audio"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.segments:export_segment",
+      "method": "GET",
+      "path": "/api/segments/{segment_id}/export"
     },
     {
       "gate": "host",

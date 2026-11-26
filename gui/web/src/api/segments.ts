@@ -52,6 +52,25 @@ export interface SegmentSaveResult {
   version: number;
 }
 
+export type SegmentImportOutcome = "added" | "unchanged" | "new_version";
+
+/** A checked upload that waits for Add: what it is and what adding it would do. */
+export interface SegmentImportPreview {
+  token: string;
+  name: string;
+  kind: SegmentKind;
+  duration_sec: number;
+  clip_count: number;
+  outcome: SegmentImportOutcome;
+  version: number;
+  existing_id: string | null;
+}
+
+export interface SegmentFileDownload {
+  blob: Blob;
+  filename: string;
+}
+
 export type SegmentDriftState =
   | "current"
   | "newer"
@@ -366,4 +385,72 @@ export function segmentAudioUrl(
   return withSessionTokenQuery(
     `/api/segments/${encodeURIComponent(id)}/audio?${params.toString()}`,
   );
+}
+
+const OCTET_STREAM = { "Content-Type": "application/octet-stream" };
+
+/** Sends the file as the raw body, so the browser streams it; nothing is added to the library. */
+export async function previewSegmentImport(
+  file: File,
+  signal?: AbortSignal,
+): Promise<SegmentImportPreview> {
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/segments/import/preview" },
+    { method: "POST", headers: OCTET_STREAM, body: file, signal },
+  );
+  return (await res.json()) as SegmentImportPreview;
+}
+
+export async function commitSegmentImport(
+  token: string,
+  signal?: AbortSignal,
+): Promise<SegmentSaveResult> {
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/segments/import" },
+    {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ token }),
+      signal,
+    },
+  );
+  return (await res.json()) as SegmentSaveResult;
+}
+
+export async function cancelSegmentImport(token: string): Promise<void> {
+  await apiFetch(
+    HOST_KEY,
+    { host: `/api/segments/import/${encodeURIComponent(token)}` },
+    { method: "DELETE", keepalive: true },
+  );
+}
+
+/** One clip of a waiting upload, for the preview's play button. */
+export function stagedClipUrl(token: string, clip = 0): string {
+  return withSessionTokenQuery(
+    `/api/segments/import/${encodeURIComponent(token)}/audio?clip=${clip}`,
+  );
+}
+
+const DISPOSITION_NAME = /filename="([A-Za-z0-9._-]+)"/;
+
+/** The newest version as a `.sharecutseg` file, fetched whole so a phone can share it. */
+export async function downloadSegmentFile(
+  id: string,
+  signal?: AbortSignal,
+): Promise<SegmentFileDownload> {
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: `/api/segments/${encodeURIComponent(id)}/export` },
+    { signal },
+  );
+  const named = DISPOSITION_NAME.exec(
+    res.headers.get("content-disposition") ?? "",
+  );
+  return {
+    blob: await res.blob(),
+    filename: named?.[1] ?? `${id}.sharecutseg`,
+  };
 }

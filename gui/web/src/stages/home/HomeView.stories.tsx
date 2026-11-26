@@ -182,7 +182,9 @@ export const LoadFailed: Story = {
 const libraryState = {
   rows: LIBRARY,
   error: null,
+  highlightId: null,
   reload: fn(),
+  reveal: fn(),
   remove: fn(async () => null),
 };
 const withLibrary: Story["args"] = {

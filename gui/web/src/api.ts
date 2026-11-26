@@ -221,6 +221,9 @@ export {
 export type {
   DamagedSegmentRow,
   SegmentClipRow,
+  SegmentFileDownload,
+  SegmentImportOutcome,
+  SegmentImportPreview,
   SegmentInsertApplied,
   SegmentInsertAt,
   SegmentInsertOutcome,
@@ -236,15 +239,20 @@ export type {
   SegmentSaveResult,
 } from "./api/segments";
 export {
+  cancelSegmentImport,
+  commitSegmentImport,
+  downloadSegmentFile,
   insertSegment,
   isDamagedSegment,
   loadSegments,
+  previewSegmentImport,
   previewSegmentInsert,
   removeSegment,
   saveSegment,
   segmentAudioUrl,
   segmentInsertRefusal,
   segmentSaveRefusal,
+  stagedClipUrl,
 } from "./api/segments";
 export {
   loadSessionTakes,

@@ -2124,7 +2124,8 @@ describe("HomeScreen", () => {
       expect(
         await screen.findByText("Removed Cold open from the library."),
       ).toBeVisible();
-      const empty = await screen.findByText(/No saved segments yet/);
+      const empty = (await screen.findByText(/No saved segments yet/))
+        .parentElement;
       await waitFor(() => expect(empty).toHaveFocus());
     });
 

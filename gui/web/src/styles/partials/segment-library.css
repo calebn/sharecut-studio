@@ -30,6 +30,14 @@
   text-align: center;
 }
 
+.segment-library-empty > p {
+  margin: 0;
+}
+
+.segment-library-empty > p + p {
+  margin-block-start: var(--space-2);
+}
+
 .segment-library-error {
   display: flex;
   flex-direction: column;
@@ -224,4 +232,67 @@
 
 .segment-cell-name > .pill {
   margin-inline-start: var(--space-3);
+}
+
+.segment-library-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.segment-import-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--touch-min);
+}
+
+.segment-library-body[data-drop] {
+  outline: var(--focus-ring-width) dashed var(--color-accent);
+  outline-offset: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-subtle);
+}
+
+.segment-drop-label {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  text-align: center;
+}
+
+.segment-row[data-new],
+.segment-row[data-new] > :is(td, th) {
+  background: var(--color-accent-subtle);
+}
+
+.segment-import {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+  padding: var(--space-4) var(--space-5);
+}
+
+.segment-import-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.segment-import-outcome,
+.segment-import-status,
+.segment-import-file {
+  margin: 0;
+  font-size: var(--font-size-body);
+  overflow-wrap: anywhere;
+}
+
+.segment-import-outcome {
+  font-weight: 500;
+}
+
+.segment-import-file {
+  color: var(--color-text-secondary);
 }
