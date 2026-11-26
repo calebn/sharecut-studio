@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from podcast_mcp.edits.audio_quality import (
     audio_diagnostics_report,
     bleed_words,
@@ -22,6 +24,12 @@ from podcast_mcp.edits.transcript_reconcile import (
     overlap_duplicate_report,
     reconciliation_status_report,
 )
+from podcast_mcp.services.document.analysis_report_results import (
+    AudioDiagnosticsReport,
+    CleanupAnalysisReport,
+    GateOverreach,
+    ReconciliationStatus,
+)
 from podcast_mcp.services.document.effects import EffectsService
 from podcast_mcp.services.document.overlap_results import (
     OverlapDuplicateReport,
@@ -37,12 +45,18 @@ class AnalysisReportService(EffectsService):
         track_id: str | None = None,
         speaker: str | None = None,
         progress: ProgressReporter | None = None,
-    ) -> dict:
+    ) -> CleanupAnalysisReport:
         tid: str | None = None
         if track_id or speaker:
             tid = self._resolve(track_id, speaker)
-        return cleanup_analysis_report(
-            self.ws.project, track_id=tid, progress=progress, defaults=self.ws.effective_config()
+        return cast(
+            CleanupAnalysisReport,
+            cleanup_analysis_report(
+                self.ws.project,
+                track_id=tid,
+                progress=progress,
+                defaults=self.ws.effective_config(),
+            ),
         )
 
     def audio_diagnostics(
@@ -52,14 +66,17 @@ class AnalysisReportService(EffectsService):
         speaker: str | None = None,
         start_sec: float | None = None,
         end_sec: float | None = None,
-    ) -> dict:
+    ) -> AudioDiagnosticsReport:
         tid = self._resolve(track_id, speaker)
-        return audio_diagnostics_report(
-            self.ws.project,
-            tid,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            defaults=self.ws.effective_config(),
+        return cast(
+            AudioDiagnosticsReport,
+            audio_diagnostics_report(
+                self.ws.project,
+                tid,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                defaults=self.ws.effective_config(),
+            ),
         )
 
     def recommend_fades(
@@ -133,10 +150,13 @@ class AnalysisReportService(EffectsService):
         track_id: str | None = None,
         speaker: str | None = None,
         progress: ProgressReporter | None = None,
-    ) -> dict:
+    ) -> GateOverreach:
         tid = self._resolve(track_id, speaker)
-        return gate_overreach_report(
-            self.ws.project, tid, progress=progress, defaults=self.ws.effective_config()
+        return cast(
+            GateOverreach,
+            gate_overreach_report(
+                self.ws.project, tid, progress=progress, defaults=self.ws.effective_config()
+            ),
         )
 
     def audibility_map(
@@ -167,5 +187,8 @@ class AnalysisReportService(EffectsService):
             self.ws.project, track_id=tid, progress=progress, defaults=self.ws.effective_config()
         )
 
-    def reconciliation_status(self) -> dict:
-        return reconciliation_status_report(self.ws.project, defaults=self.ws.effective_config())
+    def reconciliation_status(self) -> ReconciliationStatus:
+        return cast(
+            ReconciliationStatus,
+            reconciliation_status_report(self.ws.project, defaults=self.ws.effective_config()),
+        )

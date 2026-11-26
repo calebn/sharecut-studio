@@ -327,7 +327,7 @@ workflow keeps its deliberately unlocked environments to detect upstream changes
 Only `frontend-suite` selects `environment: frontend-exporters`, with no extras.
 It exports `dependency-groups.frontend-exporters` using `uv export --locked
 --only-group frontend-exporters --no-hashes`. The group declares `pydantic`,
-`pyyaml`, `filelock`, `numpy`, and `coolname` with the existing project constraints;
+`pyyaml`, `filelock`, `typing-extensions`, `numpy`, and `coolname` with the existing project constraints;
 uv selects their locked transitive dependencies. Installation uses the same
 captured interpreter and bytecode compilation, then runs `uv pip check --python
 "$PYTHON_EXE"` and omits editable project installation. The four generated-file

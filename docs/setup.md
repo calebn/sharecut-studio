@@ -102,7 +102,7 @@ podcast doctor
 ## Frontend exporter dependencies
 
 CI's `frontend-suite` uses the `frontend-exporters` dependency group in
-`pyproject.toml`. Its five roots share the project's constraints, and `uv.lock`
+`pyproject.toml`. Its six roots share the project's constraints, and `uv.lock`
 pins their transitive dependencies. The shared installer selects this group with
 `environment: frontend-exporters`, installs the locked export, validates its
 closure, and skips editable project installation. The four generated-file checks

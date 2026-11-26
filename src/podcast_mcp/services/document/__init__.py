@@ -5,6 +5,12 @@ from podcast_mcp.util.lazy_exports import resolve_export
 if TYPE_CHECKING:
     from podcast_mcp.services.document.align_accept import AlignAcceptService
     from podcast_mcp.services.document.analysis import AnalysisService
+    from podcast_mcp.services.document.analysis_report_results import (
+        AudioDiagnosticsReport,
+        CleanupAnalysisReport,
+        GateOverreach,
+        ReconciliationStatus,
+    )
     from podcast_mcp.services.document.approval_warm import (
         queue_room_tone_pools,
         warm_in_background,
@@ -199,8 +205,10 @@ __all__ = [
     "AppliedFadeRecommendations",
     "AppliedFadeUpdates",
     "ArchivePlan",
+    "AudioDiagnosticsReport",
     "BoundaryEdit",
     "BoundaryTarget",
+    "CleanupAnalysisReport",
     "ClipGeometry",
     "ClipService",
     "ClipboardExtract",
@@ -220,6 +228,7 @@ __all__ = [
     "FeedFieldPinResult",
     "FeedService",
     "FeedViewKind",
+    "GateOverreach",
     "HistoryDiffResult",
     "HistoryListResult",
     "HistoryMoveRerenderedResult",
@@ -249,6 +258,7 @@ __all__ = [
     "PopulatedHistoryDiffResult",
     "ProposeSplitResult",
     "PublishedFeedService",
+    "ReconciliationStatus",
     "RemovedChapter",
     "RetainedBleedAlignmentApplied",
     "RetainedBleedAlignmentModeResult",
@@ -320,6 +330,10 @@ __all__ = [
 _MODULE_BY_NAME = {
     "AlignAcceptService": "align_accept",
     "AnalysisService": "analysis",
+    "AudioDiagnosticsReport": "analysis_report_results",
+    "CleanupAnalysisReport": "analysis_report_results",
+    "GateOverreach": "analysis_report_results",
+    "ReconciliationStatus": "analysis_report_results",
     "AppliedFadeUpdates": "fade_recommendation_results",
     "AppliedFadeRecommendations": "fade_recommendation_results",
     "BoundaryEdit": "boundary",
