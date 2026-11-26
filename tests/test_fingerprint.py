@@ -33,6 +33,7 @@ STAMPED = {
     "podcast_mcp/engines/ungated_audio.py",
     "podcast_mcp/engines/waveform_media.py",
     "podcast_mcp/engines/word_align.py",
+    "podcast_mcp/export/render_record.py",
     "podcast_mcp/project/store.py",
     "podcast_mcp/services/app/recent_peaks.py",
     "podcast_mcp/services/app/recent_projects.py",

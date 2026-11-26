@@ -419,10 +419,10 @@ def _canonical_audio_current(
     if stamp is None:
         return False
     try:
-        stat = found.path.stat()
+        current_stamp = file_stamp(found.path).content
     except OSError:
         return False
-    if [stat.st_size, stat.st_mtime_ns] != stamp:
+    if list(current_stamp) != stamp:
         return False
     recorded = record["edit_head_id"]
     if recorded == HISTORY_ROOT_ID:
