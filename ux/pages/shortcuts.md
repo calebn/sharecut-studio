@@ -164,7 +164,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Resume recording | `record.resume` | Host project management |  |
 | Stop recording | `record.stop` | Host project management |  |
 | Land recording on timeline | `record.land` | Host project management |  |
-| Connect agent… | `mcp.connect` | Host project management | Copy local Streamable HTTP MCP URL for Cursor/Claude |
+| Connect agent… | `mcp.connect` | Host project management | Copy the local connection address for an AI app |
 | Report a problem… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
 | Guides | `help.guides` | Always (when not typing in a field or on a focused Scrub field) | Opens the documentation site in a new tab |
 | Manage models… | `models.open` | Host project management | Host-only sheet listing every model by what it does, with its state, size and a Get |

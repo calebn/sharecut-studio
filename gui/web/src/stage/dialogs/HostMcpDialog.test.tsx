@@ -755,7 +755,7 @@ describe("HostMcpDialog last-used line", () => {
     });
   });
 
-  it("announces a move to unavailable after a known answer", async () => {
+  it("does not speak a move to unavailable; focus lands on its paragraph", async () => {
     activityMock.mockResolvedValueOnce(NEVER);
     activityMock.mockResolvedValue({
       mounted: false,
@@ -764,7 +764,8 @@ describe("HostMcpDialog last-used line", () => {
     });
     await openDialog();
     await advance(3000);
-    expect(live().textContent).toBe(UNAVAILABLE_MESSAGE);
+    expect(live().textContent).toBe("");
+    expect(screen.getByText(UNAVAILABLE_MESSAGE)).toBeInTheDocument();
   });
 
   it("asks nothing while closed, and starts blank when reopened", async () => {
