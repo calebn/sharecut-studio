@@ -27,7 +27,7 @@ PINNED_SIGNATURES: dict[str, str] = {
     "mute_off_speaker": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, apply: 'bool' = True, progress: 'ProgressReporter | None' = None, lock_timeout: 'float' = 3600.0) -> 'OffSpeakerPreview | OffSpeakerSummary | OffSpeakerApplied'",
     "overlap_duplicates": "(self, *, start_sec: 'float | None' = None, end_sec: 'float | None' = None, progress: 'ProgressReporter | None' = None) -> 'OverlapDuplicateReport'",
     "preview_bleed_mute": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, start_sec: 'float | None' = None, end_sec: 'float | None' = None, align_retained_bleed: 'bool' = True, override_placement_lock: 'bool' = False, progress: 'ProgressReporter | None' = None) -> 'dict'",
-    "preview_inaudible_cut": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, start: 'float', end: 'float', timeline: 'bool' = False) -> 'dict'",
+    "preview_inaudible_cut": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, start: 'float', end: 'float', timeline: 'bool' = False) -> 'InaudibleCutPreview'",
     "preview_off_speaker_mute": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, progress: 'ProgressReporter | None' = None) -> 'OffSpeakerPreview'",
     "preview_reconcile_transcript": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, start_sec: 'float | None' = None, end_sec: 'float | None' = None, progress: 'ProgressReporter | None' = None) -> 'dict'",
     "preview_retained_bleed_alignment": "(self, *, track_id: 'str | None' = None, start_sec: 'float | None' = None, end_sec: 'float | None' = None, override_placement_lock: 'bool' = False) -> 'RetainedBleedAlignmentPreview'",
@@ -42,7 +42,7 @@ PINNED_SIGNATURES: dict[str, str] = {
     "suggest_handoff_cut": "(self, *, keep_left_end: 'float', keep_right_start: 'float', track_id: 'str | None' = None, speaker: 'str | None' = None, min_island_sec: 'float' = 0.12, hop_ms: 'int' = 20, retain_sec: 'float' = 1.0) -> 'dict'",
     "suppress_bleed": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, word_keys: 'list[dict] | None' = None, exclude_word_keys: 'list[dict] | None' = None, start_sec: 'float | None' = None, end_sec: 'float | None' = None, apply: 'bool' = True, progress: 'ProgressReporter | None' = None) -> 'dict'",
     "suppress_low_audibility": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, word_keys: 'list[dict] | None' = None) -> 'dict'",
-    "waveform_snap_window": "(self, *, track_id: 'str', start: 'float', end: 'float', timeline: 'bool' = False, focus: 'float | None' = None) -> 'dict[str, Any]'",
+    "waveform_snap_window": "(self, *, track_id: 'str', start: 'float', end: 'float', timeline: 'bool' = False, focus: 'float | None' = None) -> 'WaveformSnapWindow'",
 }
 
 ALLOWED_OWNERS = ("AnalysisService", "AnalysisReportService", "EffectsService")

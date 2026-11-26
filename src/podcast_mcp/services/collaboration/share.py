@@ -69,6 +69,7 @@ from podcast_mcp.services.collaboration.share_registry import (
 from podcast_mcp.services.document import (
     CommentReplyResult,
     CommentService,
+    WaveformSnapWindow,
     run_comment_mutation_with_file_revisions,
 )
 from podcast_mcp.services.document_sync import (
@@ -1624,7 +1625,7 @@ def share_daw_waveform_snap(
     end: float,
     timeline: bool = False,
     focus: float | None = None,
-) -> dict[str, Any]:
+) -> WaveformSnapWindow:
     from podcast_mcp.services.document import AnalysisService
 
     _row, ws = require_share_command(token, "EditSelectedRange")
