@@ -1,10 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  FakeResizeObserver,
-  stubResizeObserver,
-} from "../../test/resizeObserver";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { useRoomSheetFloor } from "./useRoomSheetFloor";
 
 const BOTTOM = "--room-sheet-bottom";

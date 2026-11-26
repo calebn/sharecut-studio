@@ -5,6 +5,7 @@ import {
   runPointerCommand,
 } from "../../commands/pointer";
 import { askConfirm } from "../../feedback/ask";
+import { useToastDock } from "../../feedback/toastDock";
 import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { slugText, uniqueTrackId } from "../../ingest/ingestFiles";
@@ -126,6 +127,8 @@ function RecordStageBody({
   const lookingInAnnouncement = useLookingInAnnouncer(snapshot);
   const lookup = lookupOf(room);
   const autoRoomChecked = useRef(false);
+  const endToastRef = useRef<HTMLDivElement>(null);
+  useToastDock(endToastRef, endPending);
   useEffect(() => {
     if (autoRoomChecked.current || !projectPath || lookup === "checking") {
       return;
@@ -738,6 +741,7 @@ function RecordStageBody({
       toast={
         <Toast
           className="sys-toast-dock"
+          regionRef={endToastRef}
           toast={
             room.endSession.ending
               ? { id: 1, message: END_SESSION_PENDING_COPY }

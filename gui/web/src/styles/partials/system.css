@@ -2254,6 +2254,14 @@ html:not([data-shell="phone"])
   margin-inline: auto;
 }
 
+/* On a phone the End session toast clears the Room dock, as the app toast does. */
+html[data-shell="phone"] .sys-toast-dock {
+  inset-block-end: var(
+    --toast-dock-bottom,
+    max(var(--space-4), env(safe-area-inset-bottom))
+  );
+}
+
 /* Cover */
 
 .sys-cover {

@@ -1,11 +1,9 @@
 import {
   type CSSProperties,
   type ReactNode,
-  type Ref,
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -39,6 +37,7 @@ import {
 import { Sheet } from "./Sheet";
 import { SkeletonBlock } from "./Skeleton";
 import { SystemIcon } from "./SystemIcon";
+import { useRoomSheetFloor } from "./useRoomSheetFloor";
 
 const LOADING_TILE_KEYS = ["a", "b", "c", "d"] as const;
 
@@ -113,10 +112,6 @@ export type RoomViewProps = {
   loading?: boolean;
   /** Focus the title when this turns true. The title stays focusable by script either way. */
   focusTitle?: boolean;
-  /** The room's root element, for a caller that measures the dock. */
-  rootRef?: Ref<HTMLDivElement>;
-  /** Whether the phone Comments sheet is showing; false again on unmount. */
-  onCommentsSheetChange?: (open: boolean) => void;
 };
 
 type RailTab = "comments" | "takes";
@@ -206,8 +201,6 @@ export function RoomView({
   statusKnown = true,
   loading = false,
   focusTitle = false,
-  rootRef,
-  onCommentsSheetChange,
 }: RoomViewProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -255,11 +248,9 @@ export function RoomView({
   const draftTime = timeCleared === phaseKey(phase) ? null : pinned;
   const paused = phase.kind === "paused";
 
+  const rootRef = useRef<HTMLDivElement>(null);
   const commentsSheetOpen = model.sheetOpen && !declined && !loading;
-  useLayoutEffect(() => {
-    onCommentsSheetChange?.(commentsSheetOpen);
-    return () => onCommentsSheetChange?.(false);
-  }, [commentsSheetOpen, onCommentsSheetChange]);
+  useRoomSheetFloor(rootRef, commentsSheetOpen);
 
   const closeSheet = useCallback(() => setNotesChoice(false), []);
   const showEveryone = noteVisibility ?? seat === "host";
