@@ -12,7 +12,7 @@ import type {
 } from "../types/project";
 import { isRemovalRecord } from "../utils/appliedRecords";
 import { formatRulerTime } from "../utils/time";
-import { rollJoinInterval } from "./rollLimits";
+import { clipsAbut } from "./joinRender";
 
 export type SeamId = `eb:${string}:${string}`;
 
@@ -160,7 +160,7 @@ function build(
         left,
         right,
         joinSec: left.timeline_end,
-        abuts: rollJoinInterval(lane, left.id, right.id) !== null,
+        abuts: clipsAbut(left, right),
       },
     });
   }

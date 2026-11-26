@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { commitSeamRoll, seamRollLimits } from "../commands/seamRoll";
+import { clipsTouch } from "../edit/joinRender";
 import { type Seam, seamsOnTrack, seamTitle } from "../edit/seam";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -134,7 +135,7 @@ export function SeamLayer({
                 : 0
             }
             selected={selectedId === seam.id}
-            rollable={canEdit && seam.abuts}
+            rollable={canEdit && clipsTouch(seam.left, seam.right)}
             onSelect={onSelectSeam}
             onRollPreview={onRollPreview}
           />

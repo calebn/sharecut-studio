@@ -47,6 +47,14 @@ export function clipsAbut(
   return right.timeline_start - left.timeline_end <= JOIN_GAP_TOLERANCE_SEC;
 }
 
+/** `clips_ops.clips_touch`: rolls and blends cannot span a timeline gap. */
+export function clipsTouch(
+  left: Pick<ClipRow, "timeline_end">,
+  right: Pick<ClipRow, "timeline_start">,
+): boolean {
+  return right.timeline_start - left.timeline_end <= TIME_EPS_SEC;
+}
+
 /** True when the timeline draws the join `left` → `right`: abutting neighbours whose join names `left` (older servers omit the id). */
 export function isJoin(
   left: JoinClip | null | undefined,
