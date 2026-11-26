@@ -1368,11 +1368,10 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   the audio in place (Leave, or Lower on overlap), so a real word is still not cut. A Whisper
   model that is not installed leaves the proposals
   unlabelled and counts `word_probe:unavailable`. A span whose Whisper decode fails counts
-  `word_probe:failed` and Propose still returns the rest; the human summary names both
+  `word_probe:failed` and Propose still returns the rest; the human summary names each
   (`N word probe unavailable`, `N word probe failed`). A track whose language an English-only
   model refuses (`transcription_language_unsupported`) counts `word_probe:language_unsupported`
-  once, its later spans are not heard, and the summary says `word probe skipped on N track(s):
-  the model reads English only`. Listening reports a named
+  once, its later spans are not heard, and the summary says `word probe skipped on N track(s): the model reads English only, so it can't listen to another language (use a multilingual model)`. Listening reports a named
   `word-probe` progress child once per heard span. The decode is deterministic (#2632):
   temperature 0 with no fallback ladder, a penalised retry for a looping decode, and the
   probe's CPU model pinned to 4 threads, so a span reads the same on every call and in

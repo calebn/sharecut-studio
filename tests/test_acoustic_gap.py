@@ -48,6 +48,7 @@ from podcast_mcp.edits.tighten.propose import _flag_possible_words
 from podcast_mcp.edits.tighten_reasons import is_likely_laugh_reason, is_possible_word_reason
 from podcast_mcp.edits.transcript_cuts import coalesce_edits
 from podcast_mcp.engines.models.whisper import (
+    ENGLISH_ONLY_PROBE_SKIP,
     ENGLISH_ONLY_READS,
     WhisperWeightsMissingError,
     english_only_refusal,
@@ -1036,14 +1037,16 @@ def test_summary_names_the_english_only_refusal_with_the_engines_reason() -> Non
     summary = format_tighten_propose_summary([], {"word_probe:language_unsupported": 2})
     assert summary == (
         "0 proposed (0 filler, 0 pause, word probe skipped on 2 track(s): "
-        f"the model {ENGLISH_ONLY_READS})"
+        f"{ENGLISH_ONLY_PROBE_SKIP})"
+    )
+    assert summary.endswith(
+        "the model reads English only, so it can't listen to another language "
+        "(use a multilingual model))"
     )
     assert ENGLISH_ONLY_READS in str(english_only_refusal("tiny.en", "de"))
     assert format_tighten_propose_summary(
         [], {"word_probe:failed": 1, "word_probe:language_unsupported": 1}
-    ).endswith(
-        f"1 word probe failed, word probe skipped on 1 track(s): the model {ENGLISH_ONLY_READS})"
-    )
+    ).endswith(f"1 word probe failed, word probe skipped on 1 track(s): {ENGLISH_ONLY_PROBE_SKIP})")
 
 
 # --- audition hypothesis ------------------------------------------------------------
@@ -1881,3 +1884,25 @@ def test_another_coded_error_still_counts_as_a_failed_probe() -> None:
     decisions = [_track_decision(f"d{i}", "host", 1.0 + i) for i in range(2)]
 
     assert _probe(decisions, transcribe) == {"word_probe:failed": 2}
+
+
+def test_the_real_engine_refusal_reaches_propose_as_its_own_skip_and_summary(
+    tmp_path: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del sample_wav
+    # The suite stubs the span transcriber; put the real factory back. The engine's
+    # language guard refuses before any model loads, so no weights are needed.
+    monkeypatch.setattr(
+        "podcast_mcp.edits.tighten.propose.whisper_span_transcriber", whisper_span_transcriber
+    )
+    project = _acoustic_project(tmp_path)
+    for transcript in project.transcripts:
+        transcript.language = "de"
+
+    proposal = propose_tighten_edits(
+        project, {**_e2e_defaults(), "transcribe": {"model": "tiny.en"}}
+    )
+
+    assert proposal.skip_counts["word_probe:language_unsupported"] == 1
+    assert "word_probe:failed" not in proposal.skip_counts
+    assert f"word probe skipped on 1 track(s): {ENGLISH_ONLY_PROBE_SKIP}" in proposal.summary()
