@@ -20,6 +20,11 @@ function Harness({ onLongPress }: { onLongPress: () => void }) {
 }
 
 describe("useLongPress", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   it("uses the latest callback for a released press without restarting its fallback", () => {
     vi.useFakeTimers();
     const first = vi.fn();
@@ -42,10 +47,6 @@ describe("useLongPress", () => {
     expect(first).not.toHaveBeenCalled();
     fireEvent.click(target);
     expect(next).toHaveBeenCalledTimes(1);
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
   });
 
   it("fires only for a stationary primary touch", () => {
@@ -447,7 +448,7 @@ describe("useLongPress", () => {
       expect(signals[1].aborted).toBe(true);
     });
 
-    it("removes both phases' interrupt listeners on unmount", () => {
+    it("removes the armed interrupt listeners on unmount", () => {
       const signals = watchSignals();
       const { view, target } = setup();
       press(target);
