@@ -311,7 +311,8 @@ describe("HostMcpDialog", () => {
         else pending[0]!.reject(new Error("Old copy failed"));
       });
       expect(screen.queryByText("Copied MCP URL")).toBeNull();
-      expect(screen.queryByText("Old copy failed")).toBeNull();
+      expect(screen.queryByText(COPY_FAILED_MESSAGE)).toBeNull();
+      expect(screen.queryAllByRole("alert")).toHaveLength(0);
       fireEvent.click(screen.getByRole("button", { name: "Copy URL" }));
       expect(await screen.findByText("Copied MCP URL")).toBeVisible();
       expect(writeText).toHaveBeenCalledTimes(2);
@@ -426,6 +427,45 @@ describe("HostMcpDialog", () => {
       observer.disconnect();
       expect(seen).toEqual(["Copied MCP URL", "", "Copied MCP URL"]);
       expect(statusNode()).toBe(node);
+    });
+
+    it("drops a stale Copied status when an earlier overlapping copy fails", async () => {
+      vi.useFakeTimers();
+      try {
+        let rejectFirst: (error: Error) => void = () => undefined;
+        const writeText = vi
+          .fn()
+          .mockImplementationOnce(
+            () =>
+              new Promise<void>((_resolve, reject) => {
+                rejectFirst = reject;
+              }),
+          )
+          .mockResolvedValueOnce(undefined);
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: { writeText },
+        });
+        render(<HostMcpDialog open onClose={() => undefined} hasProject />);
+        await act(async () => {
+          fireEvent.click(screen.getByRole("button", { name: "Copy URL" }));
+        });
+        await act(async () => {
+          fireEvent.click(screen.getByRole("button", { name: "Copy snippet" }));
+        });
+        expect(statusNode().textContent).toBe("Copied client snippet");
+        await act(async () => {
+          rejectFirst(new Error("denied"));
+        });
+        act(() => {
+          vi.advanceTimersByTime(10_000);
+        });
+        expect(screen.getAllByRole("alert")).toHaveLength(1);
+        expect(statusNode().textContent).toBe("");
+        expect(screen.queryByRole("button", { name: "Copied" })).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     describe("failure lifecycle", () => {

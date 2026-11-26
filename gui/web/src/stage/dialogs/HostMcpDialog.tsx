@@ -75,6 +75,7 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
   const markCopied = useCallback(
     (key: CopiedKey, message: string) => {
       clearCopiedTimer();
+      setError(null);
       setCopied(key);
       setStatus(message);
       copiedTimer.current = setTimeout(() => {
@@ -106,6 +107,7 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
         }
         clearCopiedTimer();
         setCopied(null);
+        setStatus(null);
         setError(COPY_FAILED_MESSAGE);
       }
     },
