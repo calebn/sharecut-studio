@@ -1,29 +1,39 @@
 import type { SegmentImportPreview, SegmentSaveResult } from "../api";
+import {
+  ADD_LABEL,
+  ADDING_LABEL,
+  CANCEL_LABEL,
+  CHOOSE_AGAIN_LABEL,
+  CLOSE_LABEL,
+  checkingMessage,
+  IMPORT_FAILED,
+  WAIT_TO_DROP,
+  ZIP_TYPE,
+} from "../system/importSheet/importCopy";
 import type { ExportOutcome } from "../utils/shareOrSave";
+
+export {
+  ADD_LABEL,
+  ADDING_LABEL,
+  CANCEL_LABEL,
+  CHOOSE_AGAIN_LABEL,
+  CLOSE_LABEL,
+  checkingMessage,
+  IMPORT_FAILED,
+  WAIT_TO_DROP,
+  ZIP_TYPE,
+};
 
 export const IMPORT_LABEL = "Import";
 export const IMPORT_TITLE = "Import a segment";
 export const IMPORT_ACCEPT = ".sharecutseg,application/zip";
 export const SEGMENT_EXTENSION = ".sharecutseg";
-export const ZIP_TYPE = "application/zip";
-export const WAIT_TO_DROP =
-  "Wait for the library to finish, then drop the file again.";
 export const DROP_LABEL = "Drop a segment file to import it";
 export const DROP_HINT = "Have a segment file? Choose Import, or drop it here.";
 export const NOT_A_SEGMENT_FILE = "That isn't a segment file (.sharecutseg).";
 export const ONE_FILE_ONLY = "Import one segment file at a time.";
-export const ADD_LABEL = "Add to library";
 export const SHOW_LABEL = "Show in library";
-export const CANCEL_LABEL = "Cancel";
-export const CLOSE_LABEL = "Close";
-export const CHOOSE_AGAIN_LABEL = "Choose another file";
-export const ADDING_LABEL = "Adding…";
 export const PLAY_FAILED = "Couldn't play this file";
-export const IMPORT_FAILED = "Couldn't import that file. Try again.";
-
-export function checkingMessage(fileName: string): string {
-  return `Checking ${fileName}…`;
-}
 
 export function outcomeLine(preview: SegmentImportPreview): string {
   if (preview.outcome === "unchanged") return "Already in your library";
