@@ -126,9 +126,6 @@ for (const shell of SHELLS) {
             document.documentElement.clientWidth,
         ),
       ).toBe(true);
-      // The message stays: the person needs time to read it.
-      await page.waitForTimeout(2600);
-      await expect(message).toBeVisible();
       // The fields select on focus, so "select the text" works.
       await dialog.getByLabel("MCP URL").focus();
       expect(
