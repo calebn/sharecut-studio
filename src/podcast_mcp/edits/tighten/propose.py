@@ -51,6 +51,7 @@ from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
 from podcast_mcp.engines.mute_regions import muted_source_spans
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
 from podcast_mcp.util.batch_scope import batch_scope
+from podcast_mcp.util.hardware import cpu_budget
 from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -272,10 +273,11 @@ def propose_tighten_edits(
                 skip_counts[key] = skip_counts.get(key, 0) + n
 
         speaker_context = _speaker_cut_context(project) if candidates else None
-        analysis_workers = (
-            configured_workers
-            if configured_workers
-            else (0 if speaker_context is not None and speaker_context.profiles else 1)
+        # The automatic count is cpu_budget, not the pool default of cpu_budget + 2: the
+        # extra threads only oversubscribe the ONNX session's own intra-op threads, and on a
+        # 1-2 core machine they buy nothing.
+        analysis_workers = configured_workers or (
+            min(8, cpu_budget()) if speaker_context is not None and speaker_context.profiles else 1
         )
         word_indexes = _word_indexes(project, candidates)
         # Built here on the caller's thread (a pool worker would wait on the project lock
