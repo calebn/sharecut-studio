@@ -10,6 +10,7 @@ import {
 } from "react";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { DOUBLE_TAP_MS, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
+import { listenForInterrupt } from "../hooks/useInterruptCancel";
 import {
   clamp,
   factorScale,
@@ -85,7 +86,7 @@ type Drag = {
   raw: number;
   current: number;
   active: boolean;
-  escape?: AbortController;
+  stop?: AbortController;
 };
 
 type LevelResetSequence = {
@@ -236,7 +237,7 @@ export function ScrubField({
   useEffect(
     () => () => {
       flushDraft.current();
-      drag.current?.escape?.abort();
+      drag.current?.stop?.abort();
       if (drag.current?.active) latestCancel.current?.();
       drag.current = null;
     },
@@ -269,9 +270,9 @@ export function ScrubField({
 
   const cancelDrag = () => {
     if (!drag.current) return;
-    const { active, escape } = drag.current;
+    const { active, stop } = drag.current;
     drag.current = null;
-    escape?.abort();
+    stop?.abort();
     clearLevelReset();
     if (active) latestCancel.current?.();
   };
@@ -298,12 +299,13 @@ export function ScrubField({
       if (!isHandleDrag(gesture.originX, event.clientX)) return;
       gesture.active = true;
       clearLevelReset();
+      gesture.stop = new AbortController();
+      listenForInterrupt(cancelDrag, gesture.stop.signal);
       if (event.pointerType === "touch") {
-        gesture.escape = new AbortController();
         listenForDragEscape(
           () => drag.current === gesture,
           cancelDrag,
-          gesture.escape.signal,
+          gesture.stop.signal,
         );
       }
       gesture.lastX = event.clientX;
@@ -333,7 +335,7 @@ export function ScrubField({
     const gesture = drag.current;
     if (!gesture || event.pointerId !== gesture.pointerId) return;
     drag.current = null;
-    gesture.escape?.abort();
+    gesture.stop?.abort();
     if (!gesture.active) {
       if (readOnly) {
         clearLevelReset();

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, type Mock, vi } from "vitest";
+import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
 import { ScrubField, type ScrubFieldProps } from "./ScrubField";
 
 type Calls = {
@@ -1384,5 +1384,107 @@ describe("ScrubField commitOnUnmount", () => {
     await userEvent.keyboard("12");
     off.view.unmount();
     expect(off.onCommit).not.toHaveBeenCalled();
+  });
+});
+
+describe("ScrubField drag interrupted by the page", () => {
+  const interrupts = {
+    blur: () => fireEvent.blur(window),
+    pagehide: () => fireEvent(window, new Event("pagehide")),
+    hidden: () => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        value: "hidden",
+      });
+      fireEvent(document, new Event("visibilitychange"));
+    },
+  };
+
+  afterEach(() => {
+    Reflect.deleteProperty(document, "visibilityState");
+    vi.restoreAllMocks();
+  });
+
+  const dragAs = (
+    field: HTMLElement,
+    pointerType: "mouse" | "touch",
+    pixels: number,
+  ) => {
+    const contact = { pointerId: 1, pointerType, isPrimary: true };
+    fireEvent.pointerDown(field, { ...contact, clientX: 100, button: 0 });
+    fireEvent.pointerMove(field, { ...contact, clientX: 110 });
+    fireEvent.pointerMove(field, { ...contact, clientX: 110 + pixels });
+  };
+
+  const watchSignals = () => {
+    const signals: AbortSignal[] = [];
+    for (const target of [window, document]) {
+      const add = target.addEventListener.bind(target);
+      vi.spyOn(target, "addEventListener").mockImplementation(
+        (type: string, listener: unknown, options?: unknown) => {
+          const signal = (options as AddEventListenerOptions | undefined)
+            ?.signal;
+          if (signal && !signals.includes(signal)) signals.push(signal);
+          add(
+            type,
+            listener as EventListener,
+            options as AddEventListenerOptions,
+          );
+        },
+      );
+    }
+    return signals;
+  };
+
+  describe.each(["mouse", "touch"] as const)("%s", (pointerType) => {
+    it.each(Object.keys(interrupts) as (keyof typeof interrupts)[])(
+      "drops the preview and commits nothing on %s",
+      (kind) => {
+        const { calls, field } = setup();
+        dragAs(field(), pointerType, 25);
+        expect(field()).toHaveAttribute("aria-valuenow", "125");
+        interrupts[kind]();
+        expect(calls.onCancel).toHaveBeenCalledOnce();
+        expect(field()).toHaveAttribute("aria-valuenow", "100");
+        fireEvent.pointerUp(field(), { pointerId: 1, pointerType });
+        expect(calls.onCommit).not.toHaveBeenCalled();
+        expect(calls.onCancel).toHaveBeenCalledOnce();
+        Reflect.deleteProperty(document, "visibilityState");
+        dragAs(field(), pointerType, 40);
+        fireEvent.pointerUp(field(), { pointerId: 1, pointerType });
+        expect(field()).toHaveAttribute("aria-valuenow", "140");
+        expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(140);
+      },
+    );
+
+    it("keeps the drag when the page becomes visible again", () => {
+      const { calls, field } = setup();
+      dragAs(field(), pointerType, 25);
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        value: "visible",
+      });
+      fireEvent(document, new Event("visibilitychange"));
+      expect(calls.onCancel).not.toHaveBeenCalled();
+      fireEvent.pointerUp(field(), { pointerId: 1, pointerType });
+      expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(125);
+    });
+
+    it.each(["release", "interrupt"])(
+      "removes the interrupt listeners after %s",
+      (how) => {
+        const signals = watchSignals();
+        const { field } = setup();
+        dragAs(field(), pointerType, 25);
+        const live = signals.filter((signal) => !signal.aborted);
+        expect(live.length).toBeGreaterThan(0);
+        if (how === "release") {
+          fireEvent.pointerUp(field(), { pointerId: 1, pointerType });
+        } else {
+          interrupts.blur();
+        }
+        expect(signals.every((signal) => signal.aborted)).toBe(true);
+      },
+    );
   });
 });
