@@ -5,6 +5,13 @@ from podcast_mcp.util.lazy_exports import resolve_export
 if TYPE_CHECKING:
     from podcast_mcp.services.document.align_accept import AlignAcceptService
     from podcast_mcp.services.document.analysis import AnalysisService
+    from podcast_mcp.services.document.analysis_edit_results import (
+        BleedMuteApplied,
+        BleedMuteDryRun,
+        ReconcileTranscriptPreview,
+        ReconcileTranscriptResult,
+        SuggestHandoffCut,
+    )
     from podcast_mcp.services.document.analysis_report_results import (
         AudioDiagnosticsReport,
         CleanupAnalysisReport,
@@ -206,6 +213,8 @@ __all__ = [
     "AppliedFadeUpdates",
     "ArchivePlan",
     "AudioDiagnosticsReport",
+    "BleedMuteApplied",
+    "BleedMuteDryRun",
     "BoundaryEdit",
     "BoundaryTarget",
     "CleanupAnalysisReport",
@@ -258,6 +267,8 @@ __all__ = [
     "PopulatedHistoryDiffResult",
     "ProposeSplitResult",
     "PublishedFeedService",
+    "ReconcileTranscriptPreview",
+    "ReconcileTranscriptResult",
     "ReconciliationStatus",
     "RemovedChapter",
     "RetainedBleedAlignmentApplied",
@@ -284,6 +295,7 @@ __all__ = [
     "SplitAtTimeResult",
     "SplitClipResult",
     "StripSilenceResult",
+    "SuggestHandoffCut",
     "SuppressBleedApplied",
     "SuppressBleedPreview",
     "SuppressLowAudibilityResult",
@@ -333,6 +345,11 @@ _MODULE_BY_NAME = {
     "AudioDiagnosticsReport": "analysis_report_results",
     "CleanupAnalysisReport": "analysis_report_results",
     "GateOverreach": "analysis_report_results",
+    "BleedMuteApplied": "analysis_edit_results",
+    "BleedMuteDryRun": "analysis_edit_results",
+    "ReconcileTranscriptPreview": "analysis_edit_results",
+    "ReconcileTranscriptResult": "analysis_edit_results",
+    "SuggestHandoffCut": "analysis_edit_results",
     "ReconciliationStatus": "analysis_report_results",
     "AppliedFadeUpdates": "fade_recommendation_results",
     "AppliedFadeRecommendations": "fade_recommendation_results",

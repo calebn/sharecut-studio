@@ -1405,7 +1405,7 @@ def edit_reconcile_transcript_cmd(
     else:
         dry_run_param = None
 
-    def reconcile() -> dict:
+    def reconcile() -> Mapping[str, Any]:
         return AnalysisService(ws).reconcile_transcript(
             track_id=track,
             speaker=speaker,
@@ -1530,6 +1530,7 @@ def edit_apply_bleed_mute_cmd(
         "align_retained_bleed": align_retained_bleed,
         "override_placement_lock": override_placement_lock,
     }
+    result: Mapping[str, Any]
     if dry_run:
         result = AnalysisService(ws).preview_bleed_mute(**params, progress=get_progress())
     else:

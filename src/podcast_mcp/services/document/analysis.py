@@ -42,6 +42,13 @@ from podcast_mcp.edits.transcript_reconcile import (
     run_reconciliation,
 )
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.services.document.analysis_edit_results import (
+    BleedMuteApplied,
+    BleedMuteDryRun,
+    ReconcileTranscriptPreview,
+    ReconcileTranscriptResult,
+    SuggestHandoffCut,
+)
 from podcast_mcp.services.document.analysis_reports import AnalysisReportService
 from podcast_mcp.services.document.fade_recommendation_results import (
     AppliedFadeRecommendations,
@@ -232,21 +239,24 @@ class AnalysisService(AnalysisReportService):
         min_island_sec: float = 0.12,
         hop_ms: int = 20,
         retain_sec: float = 1.0,
-    ) -> dict:
+    ) -> SuggestHandoffCut:
         tids = (
             [self._resolve(track_id, speaker)]
             if track_id is not None or speaker is not None
             else dialogue_track_ids(self.ws.project)
         )
-        return suggest_handoff_cut_bounds(
-            self.ws.project,
-            tids,
-            keep_left_end,
-            keep_right_start,
-            min_island_sec=min_island_sec,
-            hop_ms=hop_ms,
-            retain_sec=retain_sec,
-            defaults=self.ws.effective_config(),
+        return cast(
+            SuggestHandoffCut,
+            suggest_handoff_cut_bounds(
+                self.ws.project,
+                tids,
+                keep_left_end,
+                keep_right_start,
+                min_island_sec=min_island_sec,
+                hop_ms=hop_ms,
+                retain_sec=retain_sec,
+                defaults=self.ws.effective_config(),
+            ),
         )
 
     def check_loudness(self, audio_path: str | None = None) -> LoudnessReport:
@@ -571,10 +581,10 @@ class AnalysisService(AnalysisReportService):
         progress: ProgressReporter | None = None,
         lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
         cancel_check: Callable[[], bool] | None = None,
-    ) -> dict:
+    ) -> BleedMuteDryRun | BleedMuteApplied:
         tid = self._resolve(track_id, speaker) if track_id or speaker else None
 
-        def run(p: EpisodeProject, *, dry_run: bool) -> dict:
+        def run(p: EpisodeProject, *, dry_run: bool) -> BleedMuteDryRun | BleedMuteApplied:
             alignment = None
             if align_retained_bleed:
                 plan = plan_retained_bleed_alignment(
@@ -611,7 +621,7 @@ class AnalysisService(AnalysisReportService):
             )
             if alignment is not None:
                 result["alignment"] = alignment
-            return result
+            return cast(BleedMuteDryRun | BleedMuteApplied, result)
 
         if not apply:
             return run(self.ws.project, dry_run=True)
@@ -633,16 +643,19 @@ class AnalysisService(AnalysisReportService):
         align_retained_bleed: bool = True,
         override_placement_lock: bool = False,
         progress: ProgressReporter | None = None,
-    ) -> dict:
-        return self.apply_bleed_mute(
-            track_id=track_id,
-            speaker=speaker,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            apply=False,
-            align_retained_bleed=align_retained_bleed,
-            override_placement_lock=override_placement_lock,
-            progress=progress,
+    ) -> BleedMuteDryRun:
+        return cast(
+            BleedMuteDryRun,
+            self.apply_bleed_mute(
+                track_id=track_id,
+                speaker=speaker,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                apply=False,
+                align_retained_bleed=align_retained_bleed,
+                override_placement_lock=override_placement_lock,
+                progress=progress,
+            ),
         )
 
     def _off_speaker_preview(
@@ -715,19 +728,22 @@ class AnalysisService(AnalysisReportService):
         start_sec: float | None = None,
         end_sec: float | None = None,
         progress: ProgressReporter | None = None,
-    ) -> dict:
+    ) -> ReconcileTranscriptPreview:
         """What ``reconcile_transcript`` would change, without changing the project."""
         tid: str | None = None
         if track_id or speaker:
             tid = self._resolve(track_id, speaker)
-        return run_reconciliation(
-            self.ws.project,
-            dry_run=True,
-            track_id=tid,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            progress=progress,
-            defaults=self.ws.effective_config(),
+        return cast(
+            ReconcileTranscriptPreview,
+            run_reconciliation(
+                self.ws.project,
+                dry_run=True,
+                track_id=tid,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                progress=progress,
+                defaults=self.ws.effective_config(),
+            ),
         )
 
     def reconcile_transcript(
@@ -739,7 +755,7 @@ class AnalysisService(AnalysisReportService):
         start_sec: float | None = None,
         end_sec: float | None = None,
         progress: ProgressReporter | None = None,
-    ) -> dict:
+    ) -> ReconcileTranscriptPreview | ReconcileTranscriptResult:
         if dry_run is True:
             return self.preview_reconcile_transcript(
                 track_id=track_id,
@@ -752,15 +768,18 @@ class AnalysisService(AnalysisReportService):
         if track_id or speaker:
             tid = self._resolve(track_id, speaker)
 
-        def mutate(p) -> dict:
-            return run_reconciliation(
-                p,
-                dry_run=dry_run,
-                track_id=tid,
-                start_sec=start_sec,
-                end_sec=end_sec,
-                progress=progress,
-                defaults=self.ws.effective_config(),
+        def mutate(p) -> ReconcileTranscriptResult:
+            return cast(
+                ReconcileTranscriptResult,
+                run_reconciliation(
+                    p,
+                    dry_run=dry_run,
+                    track_id=tid,
+                    start_sec=start_sec,
+                    end_sec=end_sec,
+                    progress=progress,
+                    defaults=self.ws.effective_config(),
+                ),
             )
 
         return self.ws.mutate(
