@@ -717,6 +717,20 @@ describe("InsertSegmentCard placement", () => {
       expect(ripple()).toBeChecked();
     }
   });
+
+  it("falls back to Move the rest later for a music segment the server refuses on its own lane", async () => {
+    const onInsert = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError("raw", "segment_placement_unsupported", 400),
+      );
+    render(<Anchored handlers={handlersOf({ onInsert })} rows={rows} />);
+    await pick(/Warm bed/);
+    await screen.findByText(/on a new track/);
+    await userEvent.click(insertButton());
+    await screen.findByRole("alert");
+    expect(ripple()).toBeChecked();
+  });
 });
 
 describe("InsertSegmentCard bottom", () => {
