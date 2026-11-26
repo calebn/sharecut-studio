@@ -414,6 +414,7 @@ export function useAudioTransport(enabled = true): void {
     projectPath,
     projectEpoch,
     modeKey,
+    frozenVersionId,
     needsMultitrack,
     auditionMode,
     setAudioError,
