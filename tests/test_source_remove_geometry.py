@@ -1414,6 +1414,28 @@ def test_saved_pause_rechecks_original_floor_instead_of_stored_pad(
     assert [e.id for e in load_project(ws.path).edit_decisions] == ["held"]
 
 
+def test_saved_padded_filler_impact_total_is_timeline_shortening(tmp_path: Path, monkeypatch):
+    from podcast_mcp.edits import cut_application as decisions
+    from podcast_mcp.edits.decisions import edit_impact_report
+
+    configure(monkeypatch, defaults())
+    monkeypatch.setattr(decisions, "filler_pad_mode", lambda *args, **kw: "silence")
+    ws = _workspace(tmp_path)
+    cut = _cut()
+    cut.replace_gap_sec = 0.25
+    ws.mutate("before filler", "after filler", lambda p: p.edit_decisions.append(cut))
+    before = ws.project.timeline.duration_sec
+
+    assert EditService(ws).approve(["cut"]) == 1
+
+    saved = load_project(ws.path)
+    shortened = before - saved.timeline.duration_sec
+    assert shortened == pytest.approx(0.75)
+    report = edit_impact_report(saved)
+    assert report["total_removed_sec"] == pytest.approx(shortened)
+    assert report["by_track_sec"]["host"] == pytest.approx(shortened)
+
+
 def test_saved_auto_holds_replay_and_applies_unique_survivor_once(tmp_path: Path):
     ws = _workspace(tmp_path)
 
