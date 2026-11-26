@@ -867,9 +867,6 @@ def _restricted_cut_access(code: str, *, caller: str = "") -> set[str]:
         "podcast_mcp.edits.cut_placement.inspect_source_remove_placement",
         "podcast_mcp.edits.cut_placement._witnessed_source_span_has_unsafe_overlap",
         "podcast_mcp.edits.cut_placement.original_pause_support",
-        "podcast_mcp.edits.sound_actions.sound_label_and_action",
-        "podcast_mcp.edits.suggested_actions.suggested_action_for",
-        "podcast_mcp.edits.cut_speech.clear_ripple",
     }
     if caller not in {"edits/cut_application.py", "edits/timeline_ops.py"}:
         restricted.update(
@@ -941,7 +938,7 @@ def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
     for caller, names in consumers.items():
         for name in names:
             by_name.setdefault(name.removeprefix("podcast_mcp.edits."), set()).add(caller)
-    # Explicit allowlist: the set may only shrink deliberately. timeline_span.py is
+    # Explicit allowlist: any added or removed consumer fails this equality. timeline_span.py is
     # the recorded read-only preview projection exception to the placement guard.
     expected = {
         "cut_placement.inspect_source_remove_placement": {
@@ -976,7 +973,6 @@ def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
         "from podcast_mcp.edits import cut_placement as cuts; cuts.inspect_source_remove_placement()",
         "from podcast_mcp.edits.cut_placement import _witnessed_source_span_has_unsafe_overlap",
         "from podcast_mcp.edits.cut_placement import original_pause_support",
-        "from podcast_mcp.edits import sound_actions as sounds; sounds.sound_label_and_action()",
     ):
         assert _restricted_cut_access(code), code
     definitions = []
