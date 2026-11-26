@@ -54,6 +54,10 @@ _POLL_SEC = 0.25
 
 _CHILD_KINDS = frozenset({"http", "network", "disk", "other"})
 
+_NO_FALLBACK_KINDS = frozenset({"http", "disk", "pin_mismatch"})
+"""Child failures that plain HTTP would only repeat: the hub said no, the disk is full, or the
+files are not the pin. Any other failure before the first byte (a blocked Xet host) falls back."""
+
 FileManifest = tuple[tuple[str, str], ...]
 """(path relative to the snapshot root, sha256 hex) for every pinned file."""
 
@@ -123,7 +127,8 @@ class HubChildError(RuntimeError):
 
     ``kind`` is ``http`` (``status`` is the HTTP status), ``network``, ``disk`` (``errno`` is
     the OS error) or ``other`` (a bug, left unclassified). The bootstrap failure classifier maps
-    it like the in-process hub exceptions.
+    it like the in-process hub exceptions. ``bytes_seen`` is how much the repo's blobs grew
+    before the child failed; zero means the transfer never started.
     """
 
     def __init__(
@@ -134,12 +139,14 @@ class HubChildError(RuntimeError):
         status: int | None = None,
         errno: int | None = None,
         error: str = "",
+        bytes_seen: int = 0,
     ) -> None:
         super().__init__(message)
         self.kind = kind if kind in _CHILD_KINDS else "other"
         self.status = status
         self.errno = errno
         self.error = error
+        self.bytes_seen = bytes_seen
 
 
 def _child_argv(spec: Path) -> list[str]:
@@ -281,9 +288,10 @@ def _run_child(
 ) -> Path | None:
     """Download in a child process, report its growth on disk, and kill it if ``on_progress`` raises.
 
-    Returns None when the child could not run (it could not start, or it left no result
-    before any bytes arrived), so the caller downloads in-process. Raises ``HubChildError``
-    when it ran and failed, and whatever ``on_progress`` raises.
+    Returns None when the child could not run (it could not start, or it left no result or
+    failed with a non-http, non-disk error before any bytes arrived: a blocked Xet host), so
+    the caller downloads in-process. Raises ``HubChildError`` when it failed with an http or
+    disk error, or after bytes arrived, and whatever ``on_progress`` raises.
     """
     cache_dir.mkdir(parents=True, exist_ok=True)
     _sweep_stale_scratch(cache_dir)
@@ -325,9 +333,16 @@ def _run_child(
         path: Path | None = None
         try:
             path = _watch_child(proc, pin, cache_dir, baseline, total, on_progress)
-        except HubChildError:
+        except HubChildError as exc:
             _log_child_stderr(log_path)
-            raise
+            if exc.bytes_seen or exc.kind in _NO_FALLBACK_KINDS:
+                raise
+            logger.warning(
+                "download child failed before any bytes arrived (%s); "
+                "downloading in-process over plain HTTP",
+                exc,
+            )
+            return None
         finally:
             if path is None:  # Cancel, failure or no result: the child is reaped by now
                 _remove_new_partials(blobs, partials_before)
@@ -394,7 +409,9 @@ def _watch_child(
         if shown == 0:
             return None
         raise HubChildError(
-            "network", f"the download child exited with code {proc.returncode} and no result"
+            "network",
+            f"the download child exited with code {proc.returncode} and no result",
+            bytes_seen=shown,
         )
     if "path" in result:
         if on_progress is not None:
@@ -411,6 +428,7 @@ def _watch_child(
         status=_int_or_none(result.get("status")),
         errno=_int_or_none(result.get("errno")),
         error=str(result.get("error", "")),
+        bytes_seen=shown,
     )
 
 

@@ -62,6 +62,12 @@ def _is_network(exc: BaseException) -> bool:
     return isinstance(exc, tuple(kinds))
 
 
+def _is_xet(exc: BaseException) -> bool:
+    """An hf_xet failure (a blocked Xet host, a refused token): a transport problem, not a bug."""
+    cls = type(exc)
+    return cls.__name__.startswith("Xet") or cls.__module__.split(".")[0] == "hf_xet"
+
+
 def describe(exc: BaseException) -> dict[str, Any]:
     """The error line for ``exc``: its class name, http status, kind and OS error number."""
     status = _status(exc)
@@ -70,7 +76,7 @@ def describe(exc: BaseException) -> dict[str, Any]:
         kind = "http"
     elif code in _DISK_ERRNOS:
         kind = "disk"
-    elif _is_network(exc):
+    elif _is_network(exc) or _is_xet(exc):
         kind = "network"
     else:
         kind = "other"
