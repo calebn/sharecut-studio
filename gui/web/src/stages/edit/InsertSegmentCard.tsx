@@ -405,7 +405,13 @@ function InsertSegmentForm({
     const list = listRef.current;
     if (!list) return;
     const tapped = (event: MouseEvent) => {
-      if (event.detail > 0) pointerPick.current = true;
+      if (event.detail === 0 || !(event.target instanceof Element)) return;
+      const radio = event.target.matches('input[type="radio"]')
+        ? event.target
+        : event.target.closest("label")?.querySelector('input[type="radio"]');
+      if (radio instanceof HTMLInputElement && !radio.disabled) {
+        pointerPick.current = true;
+      }
     };
     list.addEventListener("click", tapped);
     return () => list.removeEventListener("click", tapped);
@@ -418,7 +424,14 @@ function InsertSegmentForm({
     const pointer = pointerPick.current;
     pointerPick.current = false;
     if (!bottom || !first || !pointer) return;
-    placementRef.current?.scrollIntoView?.({ block: "end" });
+    const group = placementRef.current;
+    const body = group?.closest(".sys-sheet-scroll");
+    const taller =
+      !!group &&
+      !!body &&
+      body.clientHeight > 0 &&
+      group.getBoundingClientRect().height > body.clientHeight;
+    group?.scrollIntoView?.({ block: taller ? "start" : "end" });
   }, [bottom, pickedId]);
 
   useEffect(() => {
