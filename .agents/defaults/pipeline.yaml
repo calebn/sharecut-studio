@@ -8,7 +8,7 @@ performance:
   # rendering (assemble_timeline/render_dialogue_stems) and per-format export encoding
   # (export_deliverables). Tighten proposals (analyze_fillers_pauses, propose_edits)
   # use threads (automatic count, capped at cpu_budget) when speaker profiles are enrolled and
-  # max_workers is 0; 1 forces serial. Without profiles they stay serial unless N >= 2 is set.
+  # max_workers is 0 or unset; 1 forces serial. Without profiles they stay serial unless N >= 2 is set.
   # See docs/pipeline.md#performance.
   max_workers: 0
   # auto or cpu. Speech-to-text uses a usable NVIDIA GPU under auto; no other step uses a GPU yet.
