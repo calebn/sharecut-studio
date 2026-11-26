@@ -15222,7 +15222,7 @@
     },
     "/api/review/{token}/daw/export/files": {
       "get": {
-        "description": "List exports, or return only a revision when the publication stamp still matches.",
+        "description": "List exports and whether one is running, or only a revision when neither changed.",
         "parameters": [
           {
             "in": "path",

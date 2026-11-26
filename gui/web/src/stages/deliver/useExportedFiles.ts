@@ -19,6 +19,8 @@ export type ExportedFilesData = {
   files: readonly ExportedFile[];
   /** The download for every current file; null when there is none or access is not `download`. */
   archive: ExportArchive | null;
+  /** An export of the project is running; only a guest listing reports it. */
+  exporting: boolean;
   load: ExportedFilesLoad;
   currentLoad: ExportedFilesLoad;
   reload: () => void;
@@ -27,6 +29,7 @@ export type ExportedFilesData = {
 type InventoryRead = { path: string | null; again: string };
 
 const VISIBLE_REFRESH_MS = 30_000;
+const EXPORTING_REFRESH_MS = 5_000;
 
 export type ExportedFilesOptions = {
   /** `download` gives each row a link; `reveal` leaves it to the app. */
@@ -50,6 +53,10 @@ export function useExportedFiles(
     path: string;
     inventory: ExportedInventory;
   } | null>(null);
+  const [exporting, setExporting] = useState<{
+    path: string;
+    running: boolean;
+  } | null>(null);
   const [settled, setSettled] = useState<{
     read: InventoryRead;
     load: "ready" | "error";
@@ -68,12 +75,14 @@ export function useExportedFiles(
     const { signal } = controller;
     let timer: number | undefined;
     let revision: string | null = null;
+    let running = false;
     const schedule = () => {
       if (signal.aborted || !revision) return;
+      const delay = running ? EXPORTING_REFRESH_MS : VISIBLE_REFRESH_MS;
       timer = window.setTimeout(() => {
         if (document.visibilityState === "visible") void loadFiles("quiet");
         else schedule();
-      }, VISIBLE_REFRESH_MS);
+      }, delay);
     };
     const loadFiles = async (mode: "foreground" | "quiet") => {
       try {
@@ -82,11 +91,16 @@ export function useExportedFiles(
           : {
               inventory: await listExportedFiles(path, signal),
               revision: null,
+              exporting: false,
             };
         if (signal.aborted) return;
         if (result.inventory !== null)
           setListed({ path, inventory: result.inventory });
         revision = result.revision;
+        if (result.exporting !== null) {
+          running = result.exporting;
+          setExporting({ path, running });
+        }
         if (mode === "foreground") setSettled({ read, load: "ready" });
       } catch (error) {
         if (signal.aborted || isAbortError(error)) return;
@@ -136,6 +150,7 @@ export function useExportedFiles(
   return {
     files,
     archive,
+    exporting: exporting?.path === projectPath && exporting.running,
     load: projectPath === null ? "loading" : (settled?.load ?? "loading"),
     currentLoad: settled?.read === read ? settled.load : "loading",
     reload,

@@ -28,6 +28,8 @@ export function archiveLabel({ count, bytes }: ExportArchive): string {
   return `Download all ${count} ${count === 1 ? "file" : "files"}, ${formatBytes(bytes)}`;
 }
 
+export const RUNNING_REASON = "Exporting now. Download when it finishes.";
+
 export type FileAccess = "download" | "reveal";
 
 const KIND_TITLES: Record<ExportedFileKind, string> = {

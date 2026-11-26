@@ -832,6 +832,33 @@ def test_an_editor_download_is_a_409_while_an_export_runs(world) -> None:
     assert world.client.get(base).status_code == 200
 
 
+def test_an_editor_listing_says_whether_an_export_runs_and_the_poll_sees_it_flip(world) -> None:
+    base = GUEST.format(token=world.tokens["editor"])
+
+    at_rest = world.client.get(base).json()
+    assert at_rest["exporting"] is False
+    rest_revision = world.client.get(base, params={"after": ""}).json()["revision"]
+    assert world.client.get(base, params={"after": rest_revision}).json() == {
+        "revision": rest_revision
+    }
+
+    _run_export(world.app, world.ws)
+    running = world.client.get(base).json()
+    flipped = world.client.get(base, params={"after": rest_revision}).json()
+    assert running["exporting"] is True
+    assert flipped["exporting"] is True
+    assert flipped["revision"] != rest_revision
+    assert flipped["files"] == running["files"]
+    assert world.client.get(base, params={"after": flipped["revision"]}).json() == {
+        "revision": flipped["revision"]
+    }
+
+    _run_export(world.app, world.ws, status="done")
+    finished = world.client.get(base, params={"after": flipped["revision"]}).json()
+    assert finished["exporting"] is False
+    assert finished["revision"] == rest_revision
+
+
 @pytest.fixture
 def one_stream_per_link(monkeypatch):
     monkeypatch.setenv("PODCAST_RATE_LIMIT", "1")

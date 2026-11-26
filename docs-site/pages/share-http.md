@@ -47,7 +47,7 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `POST` | `…/daw/export` | `Editor` | Start the mastered-deliverables export into the project's export folder from a closed set of format names (opt-in PODCAST_GUEST_RENDER) |
 | `GET` | `…/daw/export/archive` | `Editor` | Download every current exported file as one stored zip with an exact Content-Length; 404 when nothing current is listed, and 409 while an export runs |
 | `HEAD` | `…/daw/export/archive` | `Editor` | Headers only (exact Content-Length) for the archive download; takes no stream slot; same 404 and 409 |
-| `GET` | `…/daw/export/files` | `Editor` | List the exported files by opaque id, name, kind, label, size and whether they are current (no host paths, works with PODCAST_GUEST_RENDER off) |
+| `GET` | `…/daw/export/files` | `Editor` | List the exported files by opaque id, name, kind, label, size, whether they are current and whether an export is running (no host paths, works with PODCAST_GUEST_RENDER off) |
 | `GET` | `…/daw/export/files/{file_id}` | `Editor` | Download one listed exported file as an attachment with Range and ETag; an id that is not listed is 404, and 409 while an export runs |
 | `HEAD` | `…/daw/export/files/{file_id}` | `Editor` | Headers only (size, type, ETag) for the file download; takes no stream slot; same 404 and 409 |
 | `GET` | `…/daw/export/jobs/{job_id}` | `Editor` | Read one export job of this project; any other job id is 404 |

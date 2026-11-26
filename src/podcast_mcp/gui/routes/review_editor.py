@@ -354,17 +354,21 @@ def get_daw_export_status(request: Request, ws: ExportStatusWorkspace) -> dict[s
 
 @router.get("/api/review/{token}/daw/export/files")
 def get_daw_export_files(
-    token: str, ws: ExportFilesWorkspace, after: Annotated[str | None, Query(max_length=64)] = None
+    request: Request,
+    token: str,
+    ws: ExportFilesWorkspace,
+    after: Annotated[str | None, Query(max_length=64)] = None,
 ) -> dict[str, Any]:
-    """List exports, or return only a revision when the publication stamp still matches."""
+    """List exports and whether one is running, or only a revision when neither changed."""
     with guest_boundary(log, "review export files"):
+        exporting = request.app.state.jobs.export_running(ws.path)
         if after is None:
-            return list_exported_files(ws)
+            return {**list_exported_files(ws), "exporting": exporting}
         stamp = ExportFilesService(ws).publication_stamp()
-        revision = hashlib.sha256(repr((token, ws.path, stamp)).encode()).hexdigest()
+        revision = hashlib.sha256(repr((token, ws.path, stamp, exporting)).encode()).hexdigest()
         if after == revision:
             return {"revision": revision}
-        return {"revision": revision, **list_exported_files(ws)}
+        return {"revision": revision, **list_exported_files(ws), "exporting": exporting}
 
 
 @router.get("/api/review/{token}/daw/export/files/{file_id:path}")

@@ -146,6 +146,28 @@ describe("GuestDeliver files", () => {
     expect(listed.list).toHaveBeenCalledTimes(2);
   });
 
+  it("disables the rows and Download all with the note while an export runs", async () => {
+    listed.list.mockResolvedValue({
+      inventory: { files: FILES, archive: ARCHIVE },
+      revision: "first",
+      exporting: true,
+    });
+    asGuest("edit");
+    render(<GuestDeliver />);
+
+    const mp3 = await screen.findByRole("button", {
+      name: /^Download ep\.mp3/,
+    });
+    expect(mp3).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /^Download all 3 files/ }),
+    ).toBeDisabled();
+    expect(screen.queryByRole("link", { name: /^Download/ })).toBeNull();
+    expect(
+      screen.getAllByText("Exporting now. Download when it finishes.").length,
+    ).toBeGreaterThan(0);
+  });
+
   it.each(["comment", "view"] as const)(
     "shows a %s link no files and asks the server for none",
     (mode) => {
