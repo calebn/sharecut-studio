@@ -1528,9 +1528,6 @@ describe("FeedbackToast", () => {
       atHead("e3", 399, chain);
       say("e3");
       expect(screen.getByText("3 cuts")).toBeVisible();
-      act(() => atHead("e1", 399, chain));
-      expect(screen.getByText("3 cuts")).toBeVisible();
-      expect(screen.getByRole("button", { name: "Undo all" })).toBeEnabled();
       act(() => atHead("e0", 399, chain));
       expect(screen.getByText("Undone: 3 cuts")).toBeVisible();
     });
@@ -1591,6 +1588,163 @@ describe("FeedbackToast", () => {
       await user.click(screen.getByRole("button", { name: "Undo" }));
       expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
       expect(screen.queryByText(/^Undone: Undone:/)).toBeNull();
+    });
+  });
+
+  describe("on the real history shape, beyond the first Ctrl+Z", () => {
+    const real = (head: string, ids: string[]) => {
+      const project = useDawStore.getState().project ?? minimalProject();
+      const entries = ids.map((id, index) => ({
+        index,
+        id: entry(id),
+        label: id,
+        current: id === head,
+      }));
+      useDawStore.setState({
+        project: {
+          ...project,
+          history: {
+            ...project.history,
+            head_id: entry(head),
+            can_undo: true,
+            entries,
+            groups: entries.map((e) => ({
+              kind: "snapshot",
+              index: e.index,
+              id: e.id,
+              label: e.label,
+            })),
+          },
+        },
+      });
+    };
+    const base = ["s0", "e1"];
+
+    it("offers no Undo after Ctrl+Z when the toast was announced before the head showed its edit", () => {
+      render(<FeedbackToast />);
+      real("s0", ["s0"]);
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Approved 1 pending edit", { undo: entry("e1") });
+      });
+      act(() => real("e1", base));
+      expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+      act(() => real("s0", base));
+      expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Dismiss" })).toBeVisible();
+    });
+
+    it("offers no action after Ctrl+Z on a retired toast", () => {
+      render(<FeedbackToast />);
+      real("s0", ["s0"]);
+      act(() => {
+        useDawStore.getState().announceStatus("Cut all", {
+          undo: entry("e1"),
+          action: { label: "Cut all", run: vi.fn() },
+        });
+      });
+      act(() => real("e1", base));
+      act(() => real("s0", base));
+      expect(screen.getByText("Undone: Cut all")).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Cut all" })).toBeNull();
+    });
+
+    it("stays Undone when a new edit discards the redo branch", () => {
+      render(<FeedbackToast />);
+      real("e1", base);
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Approved 1 pending edit", { undo: entry("e1") });
+      });
+      act(() => real("s0", base));
+      expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
+      act(() => real("e2", ["s0", "e2"]));
+      expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
+    });
+
+    it("stays Undone, and speaks once, while the history is empty", () => {
+      render(<FeedbackToast />);
+      real("e1", base);
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Approved 1 pending edit", { undo: entry("e1") });
+      });
+      act(() => real("s0", base));
+      const seq = useDawStore.getState().statusAnnouncementSeq;
+      act(() => real("s0", []));
+      expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
+      act(() => real("s0", base));
+      expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(seq);
+    });
+
+    it("returns to its own text on Redo after a discarded branch was latched", () => {
+      render(<FeedbackToast />);
+      real("e1", base);
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Approved 1 pending edit", { undo: entry("e1") });
+      });
+      act(() => real("s0", base));
+      act(() => real("e1", base));
+      expect(screen.getByText("Approved 1 pending edit")).toBeVisible();
+    });
+
+    it("reads Undone when the head is the root, before every entry", () => {
+      render(<FeedbackToast />);
+      real("e1", base);
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Approved 1 pending edit", { undo: entry("e1") });
+      });
+      act(() => real("root", base));
+      expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
+    });
+
+    it("drops a merged toast after a partial walk-back instead of offering an Undo all that fails", () => {
+      render(<FeedbackToast />);
+      const ids = ["s0", "e1", "e2", "e3"];
+      real("e1", ids);
+      for (const id of ["e1", "e2", "e3"]) {
+        real(id, ids);
+        act(() => {
+          useDawStore
+            .getState()
+            .announceStatus("Cut to clipboard", {
+              undo: entry(id),
+              kind: "cut",
+            });
+        });
+      }
+      expect(screen.getByText("3 cuts")).toBeVisible();
+      act(() => real("e2", ids));
+      expect(screen.queryByText("3 cuts")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Undo all" })).toBeNull();
+    });
+
+    it("still reads Undone: 3 cuts when the head jumps to before the oldest", () => {
+      render(<FeedbackToast />);
+      const ids = ["s0", "e1", "e2", "e3"];
+      for (const id of ["e1", "e2", "e3"]) {
+        real(id, ids);
+        act(() => {
+          useDawStore
+            .getState()
+            .announceStatus("Cut to clipboard", {
+              undo: entry(id),
+              kind: "cut",
+            });
+        });
+      }
+      act(() => real("s0", ids));
+      expect(screen.getByText("Undone: 3 cuts")).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Undo all" })).toBeNull();
     });
   });
 });
