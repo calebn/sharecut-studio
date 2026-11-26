@@ -700,5 +700,4 @@ def test_ux_pack_gate_on_the_real_contract() -> None:
     assert ux_pack("gui/web/src/system/roomViewModel.ts") == [("ux-pack", "violated")]
     assert ux_pack("gui/web/src/system/roomAlertModel.ts") == [("ux-pack", "violated")]
     assert ux_pack("src/podcast_relay/routes/proxy.py") == [("ux-pack", "violated")]
-    # Known leftover: mixed-logic record files are not gated.
     assert ux_pack("gui/web/src/record/GuestRoomApp.tsx") == []
