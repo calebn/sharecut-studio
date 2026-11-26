@@ -204,15 +204,22 @@ export async function openTimeline(
 export async function setZoom(page: Page, steps: number): Promise<number> {
   const ruler = page.locator(".sys-ruler-body").first();
   // A timeline scrolled sideways slides the ruler's start under the pinned
-  // track headers, so click just past them when they cover its corner.
-  const covered = await ruler.evaluate((el) => {
-    const headers = document.querySelector(".track-headers");
-    if (!headers) return 0;
-    const overlap =
-      headers.getBoundingClientRect().right - el.getBoundingClientRect().left;
-    return Math.max(0, overlap);
+  // track headers, and a presence flag sits over its start, so click just past
+  // both and seek back to the start.
+  const clear = await ruler.evaluate((el) => {
+    const left = el.getBoundingClientRect().left;
+    const covers = [
+      document.querySelector(".track-headers"),
+      ...document.querySelectorAll(".sys-presence-hit"),
+    ];
+    const edge = Math.max(
+      left,
+      ...covers.map((cover) => cover?.getBoundingClientRect().right ?? left),
+    );
+    return edge - left;
   });
-  await ruler.click({ position: { x: Math.max(4, covered + 4), y: 4 } });
+  await ruler.click({ position: { x: Math.max(4, clear + 4), y: 4 } });
+  await page.keyboard.press("Home");
   await page.keyboard.press("\\");
   for (let i = 0; i < steps; i += 1) await page.keyboard.press("=");
   await page.keyboard.press("Escape");
