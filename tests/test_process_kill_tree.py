@@ -132,3 +132,28 @@ def test_kill_child_on_windows_kills_the_root_alone_when_taskkill_cannot_run(
     kill_child(child)  # type: ignore[arg-type]
 
     assert child.killed
+
+
+def test_kill_child_on_windows_kills_the_root_alone_when_taskkill_fails(
+    monkeypatch: pytest.MonkeyPatch, host
+) -> None:
+    host(WINDOWS)
+
+    def denied(cmd: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(cmd, 1)
+
+    class Child:
+        returncode: int | None = None
+        pid = 4321
+        killed = False
+
+        def kill(self) -> None:
+            self.killed = True
+
+    child = Child()
+    monkeypatch.delattr("os.killpg", raising=False)
+    monkeypatch.setattr(process_module.subprocess, "run", denied)
+
+    kill_child(child)  # type: ignore[arg-type]
+
+    assert child.killed
