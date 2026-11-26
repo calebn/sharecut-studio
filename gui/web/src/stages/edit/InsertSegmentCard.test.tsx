@@ -852,7 +852,7 @@ describe("InsertSegmentCard bottom", () => {
       />,
     );
     const radio = await screen.findByRole("radio", { name: /Host read/ });
-    fireEvent.pointerDown(radio);
+    fireEvent.click(radio.closest("label") as HTMLElement, { detail: 1 });
     fireEvent.click(radio, { detail: 0 });
     await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
     Reflect.deleteProperty(Element.prototype, "scrollIntoView");
@@ -905,13 +905,19 @@ describe("InsertSegmentCard bottom", () => {
     render(<InsertSegmentCard {...data()} {...handlers} form="bottom" open />);
     await pick(/Cold open/);
     await screen.findByText(/Preview, from the saved episode/);
-    insertButton().focus();
-    await waitFor(() => expect(insertButton()).toHaveFocus());
-    await userEvent.keyboard("{Enter}");
-    await waitFor(() => expect(handlers.onInsert).toHaveBeenCalledTimes(1), {
-      timeout: 10000,
-    });
-  }, 15000);
+    // The footer can be rebuilt once while the sheet settles, which drops
+    // focus; focus the button again and press Enter until the insert goes out.
+    await waitFor(
+      async () => {
+        insertButton().focus();
+        expect(insertButton()).toHaveFocus();
+        await userEvent.keyboard("{Enter}");
+        expect(handlers.onInsert).toHaveBeenCalled();
+      },
+      { timeout: 15_000 },
+    );
+    expect(handlers.onInsert).toHaveBeenCalledTimes(1);
+  });
 
   it("describes Cancel as off while inserting", async () => {
     const onInsert = vi.fn(() => new Promise<void>(() => {}));

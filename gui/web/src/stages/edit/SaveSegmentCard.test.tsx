@@ -290,9 +290,11 @@ describe("SaveSegmentCard bottom", () => {
       "Sponsor read",
     );
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(
-      screen.getByRole("button", { name: "Cancel" }),
-    ).toHaveAccessibleDescription("Saving to your library.");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Cancel" }),
+      ).toHaveAccessibleDescription("Saving to your library."),
+    );
   });
 });
 

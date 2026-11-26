@@ -404,18 +404,11 @@ function InsertSegmentForm({
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
-    const touched = () => {
-      pointerPick.current = true;
+    const tapped = (event: MouseEvent) => {
+      if (event.detail > 0) pointerPick.current = true;
     };
-    const typed = () => {
-      pointerPick.current = false;
-    };
-    list.addEventListener("pointerdown", touched);
-    list.addEventListener("keydown", typed);
-    return () => {
-      list.removeEventListener("pointerdown", touched);
-      list.removeEventListener("keydown", typed);
-    };
+    list.addEventListener("click", tapped);
+    return () => list.removeEventListener("click", tapped);
   }, [listed, listRef]);
 
   useEffect(() => {
