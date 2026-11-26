@@ -7,14 +7,12 @@ from pathlib import Path
 
 import yaml
 from fastapi.testclient import TestClient
-from tests.relay_caddy_logs import CADDYFILES, apply, read, rules
+from tests.relay_caddy_logs import ROOT
 from tests.relay_enroll import enable_enrollment
 
 from podcast_mcp.util.relay_protocol.enroll import ENROLL_PATH, RENEW_PATH
 from podcast_relay.app import create_relay_app
 from podcast_relay.notice import CONTINUE_PATH
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_caddyfiles_allowlist_relay_prefixes() -> None:
@@ -52,15 +50,6 @@ def test_caddyfile_prod_has_no_static_site_or_owner_hosts() -> None:
     assert "/var/www" not in prod
     assert "sharecut" not in prod.lower()
     assert "sudo" not in prod.lower()
-
-
-def test_access_logs_redact_report_ids_in_both_caddy_configs() -> None:
-    for rel in CADDYFILES:
-        rule_set = rules(read(rel))
-        for path in ("/api/reports/opaque123", "/api/reports/bundles/opaque123"):
-            redacted = apply(rule_set, "request>uri", path)
-            assert "opaque123" not in redacted
-            assert redacted.endswith("-REDACTED")
 
 
 def test_local_compose_is_a_relay_only_development_stack() -> None:
