@@ -1112,6 +1112,8 @@
           "gui/web/src/commands/catalog.ts",
           "gui/web/src/stages/deliver/tunnelStatusCopy.ts",
           "src/podcast_relay/notice.py",
+          "src/podcast_relay/offline.py",
+          "src/podcast_relay/static/offline.html",
           "docs/gui-mobile.md",
           "docs/ui-philosophy.md",
           "docs/communication-philosophy.md",
