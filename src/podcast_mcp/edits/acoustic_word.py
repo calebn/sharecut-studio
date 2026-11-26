@@ -25,8 +25,12 @@ from podcast_mcp.edits.tighten_reasons import (
     is_acoustic_filler_reason,
     is_possible_word_reason,
 )
-from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
+from podcast_mcp.engines.models.whisper import (
+    ENGLISH_ONLY_REFUSAL_CODE,
+    WhisperWeightsMissingError,
+)
 from podcast_mcp.models import EditDecision
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import (
     CancelledProgress,
@@ -81,7 +85,9 @@ def flag_possible_words(
     ``window(track_id, start, end)`` returns the track's 16 kHz samples, or ``None`` when
     there are none to read; ``languages`` maps each track to its transcript's language.
     A non-missing decode error on one span increments ``word_probe:failed`` on
-    ``skip_counts`` and leaves the rest of the loop to finish. Returns how many
+    ``skip_counts`` and leaves the rest of the loop to finish. An English-only
+    model refusing a track's language increments ``word_probe:language_unsupported``
+    once for that track and the track's later spans are not heard. Returns how many
     decisions were flagged.
     """
     counts = skip_counts if skip_counts is not None else {}
@@ -99,6 +105,7 @@ def flag_possible_words(
         return 0
 
     flagged = 0
+    refused: set[str] = set()
     with resolve_progress_task(
         "word-probe",
         "Listening for missed words",
@@ -107,12 +114,22 @@ def flag_possible_words(
         task.set_phase("span", "Hearing acoustic runs…")
         for decision, samples in to_hear:
             raise_if_cancel_requested(current_cancel_check())
+            if decision.track_id in refused:
+                task.advance(1)
+                continue
             try:
                 heard = span_heard_a_word(samples, transcribe, languages.get(decision.track_id))
             except (WhisperWeightsMissingError, ModelMissing):
                 raise
             except CancelledProgress:
                 raise
+            except CodedValueError as exc:
+                if exc.code == ENGLISH_ONLY_REFUSAL_CODE:
+                    refused.add(decision.track_id)
+                    key = "word_probe:language_unsupported"
+                else:
+                    key = "word_probe:failed"
+                counts[key] = counts.get(key, 0) + 1
             except Exception:
                 counts["word_probe:failed"] = counts.get("word_probe:failed", 0) + 1
             else:

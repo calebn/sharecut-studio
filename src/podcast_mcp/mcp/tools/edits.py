@@ -552,7 +552,8 @@ def propose_edits(
     ``skip_counts`` maps ``discourse:{token}`` to kept uses
     and ``backchannel:{phrase}`` to kept acknowledgments (``uh huh``).
     ``word_probe:unavailable`` is a missing Whisper model; ``word_probe:failed``
-    is a span whose decode raised. The ``summary`` names both.
+    is a span whose decode raised; ``word_probe:language_unsupported`` is a track
+    an English-only model refused, counted once per track. The ``summary`` names all three.
     ``edit_mode`` is ``ripple`` (default, from ``tighten.edit_mode``) or ``mute``.
     Mute proposes ``EditDecisionType.MUTE`` filler hits and skips pause
     candidates (muting a pause is a no-op). A ``pause:`` trim is shrunk to the air inside

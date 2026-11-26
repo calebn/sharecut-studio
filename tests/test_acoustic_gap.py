@@ -47,7 +47,11 @@ from podcast_mcp.edits.tighten.collect import _collect_candidates
 from podcast_mcp.edits.tighten.propose import _flag_possible_words
 from podcast_mcp.edits.tighten_reasons import is_likely_laugh_reason, is_possible_word_reason
 from podcast_mcp.edits.transcript_cuts import coalesce_edits
-from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
+from podcast_mcp.engines.models.whisper import (
+    ENGLISH_ONLY_READS,
+    WhisperWeightsMissingError,
+    english_only_refusal,
+)
 from podcast_mcp.engines.pcm_cache import TrackRmsCache
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.engines.whisper_device import WhisperPlacement
@@ -63,6 +67,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.pipeline.meta import PARAM_FIELDS
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import (
     CancelledProgress,
@@ -1027,6 +1032,20 @@ def test_summary_reports_acoustic_proposals_and_skips_separately() -> None:
     ) == ("0 proposed (0 filler, 0 pause, 2 word probe unavailable, 1 word probe failed)")
 
 
+def test_summary_names_the_english_only_refusal_with_the_engines_reason() -> None:
+    summary = format_tighten_propose_summary([], {"word_probe:language_unsupported": 2})
+    assert summary == (
+        "0 proposed (0 filler, 0 pause, word probe skipped on 2 track(s): "
+        f"the model {ENGLISH_ONLY_READS})"
+    )
+    assert ENGLISH_ONLY_READS in str(english_only_refusal("tiny.en", "de"))
+    assert format_tighten_propose_summary(
+        [], {"word_probe:failed": 1, "word_probe:language_unsupported": 1}
+    ).endswith(
+        f"1 word probe failed, word probe skipped on 1 track(s): the model {ENGLISH_ONLY_READS})"
+    )
+
+
 # --- audition hypothesis ------------------------------------------------------------
 
 
@@ -1775,3 +1794,90 @@ def test_burst_count_is_one_for_a_hum_and_counts_each_pulse_at_any_level() -> No
         assert burst_count(hum + offset) == 1
         assert burst_count(two_syllables + offset) == 2
     assert burst_count(np.zeros(0)) == 0
+
+
+def _track_decision(ident: str, track: str, start: float) -> EditDecision:
+    decision = _decision(ident, start, start + 0.3, "filler:acoustic", review=True)
+    decision.track_id = track
+    return decision
+
+
+def _probe(decisions: list[EditDecision], transcribe, languages=None) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    flag_possible_words(
+        decisions,
+        lambda track, start, end: np.ones(round((end - start) * RATE)),
+        transcribe,
+        languages or {},
+        counts,
+    )
+    return counts
+
+
+def test_one_refused_track_counts_once_and_stops_being_heard() -> None:
+    heard: list[str | None] = []
+
+    def transcribe(samples: np.ndarray, language: str | None) -> str:
+        heard.append(language)
+        raise english_only_refusal("tiny.en", "de")
+
+    decisions = [_track_decision(f"d{i}", "host", 1.0 + i) for i in range(4)]
+    rec = RecordingProgress()
+    with bind_progress(rec):
+        counts = _probe(decisions, transcribe, {"host": "de"})
+
+    assert counts == {"word_probe:language_unsupported": 1}
+    assert heard == ["de"]
+    child = [e for e in rec.events if e.task_id == "word-probe"]
+    assert any(e.kind == "update" and e.current == 4 for e in child)
+
+
+def test_several_refused_tracks_each_count_once() -> None:
+    heard: list[str | None] = []
+
+    def transcribe(samples: np.ndarray, language: str | None) -> str:
+        heard.append(language)
+        raise english_only_refusal("tiny.en", language or "")
+
+    decisions = [
+        _track_decision("a", "host", 1.0),
+        _track_decision("b", "guest", 2.0),
+        _track_decision("c", "host", 3.0),
+        _track_decision("d", "guest", 4.0),
+    ]
+    counts = _probe(decisions, transcribe, {"host": "de", "guest": "fr"})
+
+    assert counts == {"word_probe:language_unsupported": 2}
+    assert heard == ["de", "fr"]
+
+
+def test_a_mixed_language_project_refuses_only_the_non_english_track() -> None:
+    def transcribe(samples: np.ndarray, language: str | None) -> str:
+        if language == "de":
+            raise english_only_refusal("tiny.en", "de")
+        return "Then..."
+
+    decisions = [
+        _track_decision("a", "host", 1.0),
+        _track_decision("b", "guest", 2.0),
+        _track_decision("c", "host", 3.0),
+        _track_decision("d", "guest", 4.0),
+    ]
+    counts = _probe(decisions, transcribe, {"host": "de", "guest": "en"})
+
+    assert counts == {"word_probe:language_unsupported": 1}
+    assert [d.reason for d in decisions] == [
+        "filler:acoustic",
+        "filler:acoustic:possible_word",
+        "filler:acoustic",
+        "filler:acoustic:possible_word",
+    ]
+
+
+def test_another_coded_error_still_counts_as_a_failed_probe() -> None:
+    def transcribe(samples: np.ndarray, language: str | None) -> str:
+        raise CodedValueError("bad", code="invalid_request")
+
+    decisions = [_track_decision(f"d{i}", "host", 1.0 + i) for i in range(2)]
+
+    assert _probe(decisions, transcribe) == {"word_probe:failed": 2}
