@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { presenceColorVar } from "../presence/colors";
+import { useDawStore } from "../state/dawStore";
 import type { PresenceFlag } from "../system/presenceMath";
 import { Menu, MenuItem } from "../ui/Menu";
 import { formatTimeShort } from "../utils/time";
@@ -38,7 +39,7 @@ const flagSelector = (key: string) => `[data-flag="${CSS.escape(key)}"]`;
  * pointer, so the menu is rendered by the host beside it, not inside it. Its
  * open state is kept here against the members' ids: the flag can change key or
  * vanish as people move, and the menu stays as it was until the window moves
- * (a scroll or a zoom) or fewer than two of the members are still in one flag.
+ * (any scroll or a zoom) or fewer than two of the members are still in one flag.
  * Its trigger is an unseen box over the pill, so a press on the pill is a press
  * on the trigger and toggles the menu shut.
  */
@@ -111,6 +112,14 @@ export function usePresenceGroup({
   useEffect(() => {
     setGroup(null);
   }, [start, pxPerSecond]);
+  const isOpen = group !== null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const at = useDawStore.getState().scrollLeft;
+    return useDawStore.subscribe((state) => {
+      if (state.scrollLeft !== at) setGroup(null);
+    });
+  }, [isOpen]);
   const opened = useRef<string | null>(null);
   useEffect(() => {
     if (group !== null && !shown) {

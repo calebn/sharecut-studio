@@ -436,6 +436,15 @@ describe("TimelinePresence", () => {
       expect(screen.queryByRole("menu")).toBeNull();
     });
 
+    it("closes on a scroll smaller than a ruler chunk", async () => {
+      crowd();
+      const { container } = render(<Host canvasWidthPx={1200} />);
+      await userEvent.click(pill(container)!);
+      await screen.findByRole("menu");
+      act(() => useDawStore.setState({ scrollLeft: 4 }));
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+
     it("leaves focus where the press put it after a press on empty space", async () => {
       crowd();
       const { container } = render(

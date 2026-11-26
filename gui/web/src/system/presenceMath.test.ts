@@ -126,15 +126,15 @@ describe("presenceHitPx", () => {
 });
 
 describe("presenceFlags", () => {
-  it("draws a single flag 16 px wide and flips it left of a line within 16 px of the right edge", () => {
+  it("draws a single flag 16 px wide and flips it left of a line when its box (starting 1 px right of the line) would pass the right edge", () => {
     expect(FLAG_PX).toBe(16);
     const flip = (x: number) =>
       presenceFlags(
         [person("a", x / 24, "Ada")],
         at(24, { width: 360, pxPerSecond: 24 }),
       )[0]?.side;
-    expect(flip(344)).toBe("right");
-    expect(flip(345)).toBe("left");
+    expect(flip(343)).toBe("right");
+    expect(flip(344)).toBe("left");
   });
 
   it("makes one flag for one person, right of its line", () => {
