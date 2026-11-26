@@ -162,14 +162,6 @@
   block-size: var(--anchor-press-height);
 }
 
-.timeline-presence-dot {
-  flex: none;
-  inline-size: 0.5rem;
-  block-size: 0.5rem;
-  border-radius: 50%;
-  background: var(--sys-presence-color);
-}
-
 .timeline-presence-menu .ui-menu-detail {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-caption);
