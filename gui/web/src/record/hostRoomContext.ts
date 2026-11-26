@@ -85,3 +85,9 @@ export function useHostRoomSelector<T>(
     pick(select(store?.room ?? null), equal),
   );
 }
+
+/** Reads the room as it is when called, without re-rendering the caller as the room changes. */
+export function useHostRoomReader(): () => HostRoom | null {
+  const store = useContext(HostRoomContext);
+  return useCallback(() => store?.room ?? null, [store]);
+}

@@ -71,7 +71,11 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
       if (state.snapshot?.session_id === sessionId) {
         timelineViewportRegistry.setVisualPan(null);
         timelineViewportRegistry.setLayoutProjection(null);
-        return { endedSessionId: sessionId, snapshot: null, receivedAtMs: null };
+        return {
+          endedSessionId: sessionId,
+          snapshot: null,
+          receivedAtMs: null,
+        };
       }
       return { endedSessionId: sessionId };
     }),

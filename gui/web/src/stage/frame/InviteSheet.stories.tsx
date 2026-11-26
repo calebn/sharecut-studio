@@ -1,11 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { useRecordHostStore } from "../../record/hostStore";
 import { shareOptionsFixture } from "../../stages/deliver/shareFixture";
 import { LISTEN_CHOICES } from "../../stages/deliver/shareLogic";
 import { isolatedStoryParameters } from "../../storybook/storyLayout";
 import { DialogLauncher } from "../../test/DialogLauncher";
-import { hostShareRow } from "../../test/fixtures";
+import {
+  hostShareRow,
+  recordParticipant,
+  recordSnapshot,
+} from "../../test/fixtures";
 import { openDialogByLauncher } from "../../test/storyDialog";
 import type { TunnelStatus } from "../../types/tunnel";
 import { InviteSheetView } from "./InviteSheet";
@@ -71,6 +76,21 @@ const PRODUCER = hostShareRow({
   record_role: "producer",
   session_id: "room-1",
 });
+
+/** What the host's Record stage knows about room-1 while Invite is open. */
+function stageRoom(fields: Parameters<typeof recordSnapshot>[0]) {
+  return () => {
+    useRecordHostStore.setState({
+      endedSessionId: null,
+      snapshot: recordSnapshot({ session_id: "room-1", ...fields }),
+    });
+    return () => {
+      useRecordHostStore.setState({ endedSessionId: null, snapshot: null });
+    };
+  };
+}
+
+const IDLE_ROOM = stageRoom({ state: "lobby", take_index: -1 });
 
 const tunnel = (state: TunnelStatus["state"]): TunnelStatus => ({
   state,
@@ -212,11 +232,75 @@ export const EndRoom: Story = {
       onEndRoom: fn(),
     }),
   },
+  beforeEach: IDLE_ROOM,
   ...launched(openInvite, async (dialog, args) => {
     const view = within(dialog);
     await userEvent.click(view.getByRole("button", { name: "End room" }));
     await expect(args?.options?.onEndRoom).toHaveBeenCalledOnce();
     await expect(view.queryByRole("button", { name: "Keep room" })).toBeNull();
+  }),
+};
+
+export const EndRoomAsksForALobbyGuest: Story = {
+  args: {
+    options: shareOptionsFixture({
+      rows: [GUEST, PRODUCER],
+      onEndRoom: fn(),
+    }),
+  },
+  beforeEach: stageRoom({
+    state: "lobby",
+    take_index: -1,
+    participants: [recordParticipant({ display_name: "Ava" })],
+  }),
+  ...launched(openInvite, async (dialog, args) => {
+    const view = within(dialog);
+    await userEvent.click(view.getByRole("button", { name: "End room" }));
+    await expect(args?.options?.onEndRoom).not.toHaveBeenCalled();
+    await expect(
+      view.getByText("End the room? Ava is sent out."),
+    ).toBeVisible();
+    await waitFor(() =>
+      expect(view.getByRole("button", { name: "Keep room" })).toHaveFocus(),
+    );
+    await userEvent.click(view.getByRole("button", { name: "End room" }));
+    await expect(args?.options?.onEndRoom).toHaveBeenCalledOnce();
+  }),
+};
+
+export const EndRoomWaitsForALiveTake: Story = {
+  args: {
+    options: shareOptionsFixture({
+      rows: [GUEST, PRODUCER],
+      onEndRoom: fn(),
+    }),
+  },
+  beforeEach: stageRoom({
+    state: "recording",
+    participants: [recordParticipant({ display_name: "Ava" })],
+  }),
+  ...launched(openInvite, async (dialog, args) => {
+    const view = within(dialog);
+    const end = view.getByRole("button", { name: "End room" });
+    await expect(end).toBeDisabled();
+    await expect(end).toHaveAccessibleDescription(
+      expect.stringContaining("Stop the take first."),
+    );
+    await expect(view.getByText("Stop the take first.")).toBeVisible();
+    await expect(args?.options?.onEndRoom).not.toHaveBeenCalled();
+  }),
+};
+
+export const EndRoomNeedsTheRecordStage: Story = {
+  args: {
+    options: shareOptionsFixture({ rows: [GUEST, PRODUCER] }),
+  },
+  ...launched(openInvite, async (dialog) => {
+    const view = within(dialog);
+    await expect(view.getByRole("button", { name: "End room" })).toBeDisabled();
+    await expect(
+      view.getByText("Open Record to check this room before ending it."),
+    ).toBeVisible();
   }),
 };
 

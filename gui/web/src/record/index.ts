@@ -9,12 +9,20 @@ export {
   useSheetMic,
 } from "./deviceSheet";
 export {
+  END_ROOM_UNCHECKED_REASON,
+  type EndRoomCheck,
+  endRoomCheck,
+  endRoomPrompt,
   landGate,
   moreRoomToneReason,
   roomToneRoundLeftMs,
   type StartBlockerItem,
 } from "./hostControls";
-export { useHostRoomContext, useHostRoomSelector } from "./hostRoomContext";
+export {
+  useHostRoomContext,
+  useHostRoomReader,
+  useHostRoomSelector,
+} from "./hostRoomContext";
 export { hostRoomPhase } from "./hostRoomPhase";
 export { useRecordHostStore } from "./hostStore";
 export { submitHostRecordTransport } from "./hostTransport";

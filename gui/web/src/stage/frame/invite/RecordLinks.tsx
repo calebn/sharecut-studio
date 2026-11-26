@@ -1,4 +1,11 @@
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import {
+  endRoomCheck,
+  endRoomPrompt,
+  useHostRoomReader,
+  useHostRoomSelector,
+  useRecordHostStore,
+} from "../../../record";
 import {
   formatWhen,
   type RecordRoomGroup,
@@ -8,14 +15,19 @@ import {
   shareRowsOf,
 } from "../../../stages/deliver/shareLogic";
 import type { HostShareRow } from "../../../types/shares";
-import { Button, EmptyState } from "../../../ui";
-import { BUSY_REASON } from "../../../ui/disabledReason";
+import {
+  Button,
+  EmptyState,
+  InlineConfirm,
+  registerInlineConfirm,
+} from "../../../ui";
+import { BUSY_REASON, useDisabledReasonNote } from "../../../ui/disabledReason";
 import { copyReasonOf } from "./inviteLogic";
 
 type EndProps = {
   options: ShareOptions;
-  /** Ends one room at once; the toast the flow raises carries the Undo. */
-  onEndRoom: (sessionId: string) => void;
+  /** Ends one room; the toast the flow raises carries the Undo. False when the press was ignored. */
+  onEndRoom: (sessionId: string) => boolean | void;
 };
 
 /** The record rooms of the project, each with its guest and producer links and End room, and Create record links. */
@@ -69,7 +81,59 @@ function RoomCard({
 }: EndProps & { room: RecordRoomGroup }) {
   const { busy } = options;
   const labelId = useId();
+  const endButton = useRef<HTMLButtonElement>(null);
+  const [asking, setAsking] = useState(false);
+  const snapshot = useRecordHostStore((s) => s.snapshot);
+  const segments = useHostRoomSelector(
+    (r) => r?.hostSegments ?? null,
+    Object.is,
+  );
+  const readHostRoom = useHostRoomReader();
+  const check = endRoomCheck(snapshot, segments, room.sessionId);
   const busyReason = busy ? BUSY_REASON : undefined;
+  const endReason = check.kind === "blocked" ? check.reason : busyReason;
+  const endNote = useDisabledReasonNote(endReason, "inv-note");
+  const checkNow = () =>
+    endRoomCheck(
+      useRecordHostStore.getState().snapshot,
+      readHostRoom()?.hostSegments ?? null,
+      room.sessionId,
+    );
+  const refocus = useRef(false);
+  const closeAsk = () => {
+    refocus.current = true;
+    setAsking(false);
+  };
+  useEffect(() => {
+    if (asking || !refocus.current) return;
+    refocus.current = false;
+    endButton.current?.focus({ preventScroll: true });
+  }, [asking]);
+  const stillAsks = check.kind === "ask";
+  useEffect(() => {
+    if (asking && !stillAsks) setAsking(false);
+  }, [asking, stillAsks]);
+  useEffect(() => {
+    if (!asking || !busy) return;
+    return registerInlineConfirm(closeAsk);
+  }, [asking, busy]);
+  const ask = asking && check.kind === "ask";
+  const end = () => {
+    if (checkNow().kind === "blocked") {
+      setAsking(false);
+      return;
+    }
+    onEndRoom(room.sessionId);
+    setAsking(false);
+  };
+  const onEndClick = () => {
+    const now = checkNow();
+    if (now.kind === "ask") {
+      setAsking(true);
+      return;
+    }
+    if (now.kind === "now") onEndRoom(room.sessionId);
+  };
   const created = room.guests[0]?.created_at ?? room.producers[0]?.created_at;
   return (
     <li className="inv-item inv-room">
@@ -101,17 +165,38 @@ function RoomCard({
           />
         ),
       )}
-      <div className="inv-actions">
-        <Button
-          variant="danger"
-          className="inv-danger"
+      {ask ? (
+        <InlineConfirm
+          prompt={endRoomPrompt(check.names)}
+          keepLabel="Keep room"
+          actionLabel="End room"
           disabledReason={busyReason}
-          aria-describedby={labelId}
-          onClick={() => onEndRoom(room.sessionId)}
-        >
-          End room
-        </Button>
-      </div>
+          onKeep={closeAsk}
+          onConfirm={end}
+        />
+      ) : (
+        <div className="inv-actions">
+          <Button
+            ref={endButton}
+            variant="danger"
+            className="inv-danger"
+            disabledReason={endReason}
+            {...(endNote.describedBy["aria-describedby"]
+              ? endNote.describedBy
+              : { "aria-describedby": labelId })}
+            onClick={onEndClick}
+          >
+            End room
+          </Button>
+        </div>
+      )}
+      {ask ? (
+        busyReason ? (
+          <p className="inv-note">{busyReason}</p>
+        ) : null
+      ) : (
+        endNote.note
+      )}
     </li>
   );
 }

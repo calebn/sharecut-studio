@@ -26,7 +26,13 @@ import {
   FEATURE_SHARE_UI_MENU,
   FEATURE_TUNNEL_STATUS,
 } from "../../extensions/features";
-import { copyText, STALE_ROOM_LINKS_WARNING } from "../../record";
+import {
+  copyText,
+  endRoomCheck,
+  STALE_ROOM_LINKS_WARNING,
+  useHostRoomReader,
+  useRecordHostStore,
+} from "../../record";
 import {
   createRecoveryOf,
   SHARE_DEFAULTS,
@@ -142,6 +148,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   } | null>(null);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentRows = useStableCallback(() => rows);
+  const readHostRoom = useHostRoomReader();
   const seen = useRef({ projectPath, projectEpoch, onDeliver });
 
   const clearCopiedTimer = useCallback(() => {
@@ -650,6 +657,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       restore: () => Promise<void>,
       scope: Scope,
       focus?: () => HTMLElement | null,
+      onSettled?: () => void,
     ) => {
       const dwellMs = undoDwellMs(ended.restoreMs);
       if (dwellMs === null) {
@@ -667,10 +675,12 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
           try {
             await restore();
           } catch (err) {
+            onSettled?.();
             const code = restoreRefusal(err);
             if (code === null) throw err;
             return refusalCopy(code, what);
           }
+          onSettled?.();
           relist(scope);
           return true;
         },
@@ -698,6 +708,20 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         return false;
       }
       const scope = scopeNow();
+      const room = target.kind === "room" ? target.sessionId : null;
+      const recheck = () => readHostRoom()?.recheck();
+      if (room !== null) {
+        const check = endRoomCheck(
+          useRecordHostStore.getState().snapshot,
+          readHostRoom()?.hostSegments ?? null,
+          room,
+        );
+        if (check.kind === "blocked") {
+          if (isCurrent(scope)) setError(check.reason);
+          recheck();
+          return false;
+        }
+      }
       const owner = begin(scope, "end");
       if (!owner) return false;
       const heading = focus?.() ?? null;
@@ -709,6 +733,12 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
             ? revokeHostShare(path, target.token, { restorable: true })
             : revokeHostRoom(path, target.sessionId, { restorable: true }));
           if (!isSameProject(scope)) return;
+          if (room !== null) {
+            const hostRoom = readHostRoom();
+            if (hostRoom) hostRoom.forgetRoom(room);
+            else useRecordHostStore.getState().markEnded(room);
+            recheck();
+          }
           if (heading && isCurrent(scope)) {
             // Deliver may put focus on its root when the menu closes.
             const fallback =
@@ -720,19 +750,27 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
             target.kind === "link" ? LINK_UNDO : ROOM_UNDO,
             target.kind,
             ended,
-            () =>
-              target.kind === "link"
-                ? restoreHostShare(path, target.token)
-                : restoreHostRoom(path, target.sessionId),
+            async () => {
+              if (target.kind === "link") {
+                await restoreHostShare(path, target.token);
+                return;
+              }
+              await restoreHostRoom(path, target.sessionId);
+              const hostRoom = readHostRoom();
+              if (hostRoom) hostRoom.restoreRoom(target.sessionId);
+              else useRecordHostStore.getState().liftEnded(target.sessionId);
+            },
             scope,
             () => {
               if (!isSameProject(scope)) return null;
               const origin = focus?.() ?? heading;
               return isValidFocusTarget(origin) ? origin : null;
             },
+            room !== null ? recheck : undefined,
           );
           await load(scopeNow());
         } catch (err) {
+          if (room !== null) recheck();
           if (isCurrent(scope)) setError(errorMessage(err));
         } finally {
           finish(owner);
@@ -748,6 +786,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       isCurrent,
       isSameProject,
       load,
+      readHostRoom,
       scopeNow,
     ],
   );

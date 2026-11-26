@@ -75,9 +75,8 @@ export function InviteBody({ options, at = null }: Props) {
   const stopLink = (group: "review" | "listen") => (token: string) => {
     options.onStop(token, returnTo(group));
   };
-  const endRoom = (sessionId: string) => {
+  const endRoom = (sessionId: string) =>
     options.onEndRoom(sessionId, returnTo("record"));
-  };
   return (
     <div className="inv-body">
       {tunnel ? <TunnelStatusLine status={tunnel} /> : null}
@@ -139,8 +138,8 @@ export function InviteBody({ options, at = null }: Props) {
         <p className="inv-note">
           A guest link records the person who joins. A producer link lets your
           producer listen and comment without being recorded. Record links don't
-          expire. End room turns them off, and Undo brings them back for a few
-          seconds.
+          expire. End room waits until the take is saved, then turns them off.
+          Undo brings them back for a few seconds.
         </p>
         <RecordLinks
           labelledBy={recordId}

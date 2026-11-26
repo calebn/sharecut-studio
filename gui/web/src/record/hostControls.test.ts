@@ -260,7 +260,10 @@ describe("endRoomCheck", () => {
         state: "stopped",
         take_index: 0,
         participants: [
-          recordParticipant({ participant_id: "p_host", role: "host" as never }),
+          recordParticipant({
+            participant_id: "p_host",
+            role: "host" as never,
+          }),
           ...people,
         ],
       });
