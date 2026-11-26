@@ -158,13 +158,52 @@ def _child_allowed() -> bool:
 
 def _cache_bytes(pin: PinnedSnapshot, cache_dir: Path) -> int:
     """Bytes in this repo's blobs, finished and ``.incomplete`` alike."""
-    blobs = cache_dir / f"models--{pin.hf_repo.replace('/', '--')}" / "blobs"
     total = 0
     with contextlib.suppress(OSError):
-        for entry in os.scandir(blobs):
+        for entry in os.scandir(_blobs_dir(pin, cache_dir)):
             with contextlib.suppress(OSError):
                 total += entry.stat().st_size
     return total
+
+
+_INCOMPLETE = ".incomplete"
+_STALE_PARTIAL_SEC = 3600.0
+
+
+def _blobs_dir(pin: PinnedSnapshot, cache_dir: Path) -> Path:
+    return cache_dir / f"models--{pin.hf_repo.replace('/', '--')}" / "blobs"
+
+
+def _incomplete_names(blobs: Path) -> set[str]:
+    """Names of the ``*.incomplete`` partials in ``blobs`` (empty when there are none)."""
+    with contextlib.suppress(OSError):
+        return {e.name for e in os.scandir(blobs) if e.name.endswith(_INCOMPLETE)}
+    return set()
+
+
+def _sweep_stale_partials(blobs: Path) -> None:
+    """Remove Xet-style ``<sha>.<random>.incomplete`` partials idle for over an hour.
+
+    hf_xet names each partial with a fresh random suffix, so a later download never reuses
+    one a SIGKILLed parent left behind. The plain-HTTP resumable ``<sha>.incomplete`` (no
+    second dot) is reused by the next download and recent files may belong to a live one:
+    neither is touched. Best effort.
+    """
+    cutoff = time.time() - _STALE_PARTIAL_SEC
+    for name in _incomplete_names(blobs):
+        if "." not in name[: -len(_INCOMPLETE)]:
+            continue
+        with contextlib.suppress(OSError):
+            path = blobs / name
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+
+
+def _remove_new_partials(blobs: Path, before: set[str]) -> None:
+    """Delete the ``.incomplete`` files this fetch created (best effort, child already reaped)."""
+    for name in _incomplete_names(blobs) - before:
+        with contextlib.suppress(OSError):
+            (blobs / name).unlink()
 
 
 _STDOUT_KEEP = 64 * 1024
@@ -248,6 +287,9 @@ def _run_child(
     """
     cache_dir.mkdir(parents=True, exist_ok=True)
     _sweep_stale_scratch(cache_dir)
+    blobs = _blobs_dir(pin, cache_dir)
+    _sweep_stale_partials(blobs)
+    partials_before = _incomplete_names(blobs)
     spec = {
         "repo": pin.hf_repo,
         "revision": pin.revision,
@@ -280,11 +322,15 @@ def _run_child(
                     exc,
                 )
                 return None
+        path: Path | None = None
         try:
             path = _watch_child(proc, pin, cache_dir, baseline, total, on_progress)
         except HubChildError:
             _log_child_stderr(log_path)
             raise
+        finally:
+            if path is None:  # Cancel, failure or no result: the child is reaped by now
+                _remove_new_partials(blobs, partials_before)
         if path is None:
             _log_child_stderr(log_path)
             logger.warning(
