@@ -477,7 +477,7 @@ enforced-by:
 A Viewer can view and play. A Commenter can also comment and suggest. An
 Editor can also edit directly and approve or reject suggestions. There is no
 suggest-only level: a share that holds `suggest` without the rest of the
-Commenter set is a Viewer and runs no document command.
+Commenter set is a Viewer and runs no document command. On a frozen Viewer or Commenter link this is refused with `frozen_review_view` (see [gui-viewer.md § Frozen review view](gui-viewer.md#frozen-review-view-for-guests-3605)); Editors, the host, play-only links and versions with no snapshot behave as before.
 
 ### Decision: Guest powers follow the share's capabilities
 

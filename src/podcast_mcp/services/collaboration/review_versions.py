@@ -858,8 +858,19 @@ def stage_version(
 
 
 def _write_timeline_snapshot(stage_fd: int, snapshot: TimelineSnapshot) -> None:
-    """Write ``timeline.json`` through the pinned stage descriptor, private and exclusive."""
+    """Write ``timeline.json`` through the pinned stage descriptor, private and exclusive.
+
+    A snapshot over the read cap is not written: the reader would refuse it for every
+    guest for good, so the version publishes without one and plays live, as before.
+    """
     payload = json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()
+    if len(payload) > _TIMELINE_SNAPSHOT_MAX_BYTES:
+        log.warning(
+            "Review timeline snapshot is %d bytes, over the %d byte cap; publishing without it",
+            len(payload),
+            _TIMELINE_SNAPSHOT_MAX_BYTES,
+        )
+        return
     fd = os.open(
         TIMELINE_SNAPSHOT_NAME,
         os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,

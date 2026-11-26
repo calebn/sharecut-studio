@@ -518,6 +518,28 @@ def test_stage_snapshot_writes_a_private_file(world):
     assert stat.S_IMODE(os.stat(path.parent).st_mode) == 0o700
 
 
+def test_oversized_snapshot_is_skipped_and_the_version_plays_live(world, monkeypatch, caplog):
+    published = _clip_count(_project(world, "viewer"))
+    with write_grant(WriteGrantKind.DISPATCHER):
+        ws = ProjectWorkspace.open(world.path)
+        follow = ShareService(ws).create(
+            review_version_id=_version_id(world),
+            capabilities=capabilities_for_role("viewer"),
+            follow_latest=True,
+        )["token"]
+    _cut(world)
+    with monkeypatch.context() as patch, caplog.at_level(logging.WARNING):
+        patch.setattr(
+            "podcast_mcp.services.collaboration.review_versions._TIMELINE_SNAPSHOT_MAX_BYTES", 16
+        )
+        version_id = _publish(world, "huge")["id"]
+    assert not _sidecar(world, version_id).exists()
+    assert "over the" in caplog.text
+    res = world.client.get(f"/api/review/{follow}/daw/project?phase=clips")
+    assert res.status_code == 200, res.text
+    assert _clip_count(res.json()) > published
+
+
 # 10. The frozen render status is fresh even when the live premix is stale.
 
 

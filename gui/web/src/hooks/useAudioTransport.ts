@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { audioUrl, isFrozenReviewKey } from "../api";
+import { audioUrl, isFrozenReviewKey, reviewVersionAtBootstrap } from "../api";
 import {
   createHostPlaybackMeterMonitor,
   type HostMeterContextBarrier,
@@ -7,7 +7,7 @@ import {
 } from "../audio/hostPlaybackMeterMonitor";
 import { bindPlaybackClock } from "../audio/playbackClock";
 import { bindPlaybackMeterSource } from "../audio/playbackMeterSource";
-import { isShareProjectKey } from "../shareMode";
+import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { pickDaw, useDaw } from "../state/useDaw";
 import type { ProjectView, TrackView } from "../types/project";
@@ -30,6 +30,7 @@ import {
   timelinePointToSource,
 } from "../utils/timebase";
 import { useStableCallback } from "../utils/useStableCallback";
+import { useReviewVersion } from "./useReviewVersion";
 
 const selectAudioTransportFields = pickDaw(
   "project",
@@ -223,6 +224,15 @@ export function useAudioTransport(enabled = true): void {
   // stem auditions have nothing to play.
   const frozenReview = isFrozenReviewKey(projectPath);
   const auditionMode = frozenReview ? "mix" : chosenAuditionMode;
+  // A following link serves whatever version is current at the same URL, so the version
+  // keys both the URL and the element: a seek must never pull a newer mix into an older one.
+  const reviewVersion = useReviewVersion();
+  const token = shareTokenFromKey(projectPath);
+  const frozenVersionId = frozenReview
+    ? (reviewVersion?.versionId ??
+      (token ? reviewVersionAtBootstrap(token) : null) ??
+      "")
+    : "";
   const isPlaying = preview ? preview.playing : timelineIsPlaying;
   const previewUrl = preview
     ? preview.media.kind === "rendered"
@@ -273,7 +283,7 @@ export function useAudioTransport(enabled = true): void {
   const sourcesKey = project ? playerSourcesKey(project, playerSource) : "";
   const modeKey = previewUrl
     ? `source-preview:${previewUrl}`
-    : `${auditionMode}:${needsMultitrack ? "mt" : "premix"}:${fxKey}:${sourcesKey}`;
+    : `${auditionMode}:${needsMultitrack ? "mt" : "premix"}:${fxKey}:${sourcesKey}:${frozenVersionId}`;
 
   useEffect(() => {
     if (!enabled) {
@@ -355,7 +365,15 @@ export function useAudioTransport(enabled = true): void {
         }
         return;
       }
-      make("premix", audioUrl(projectPath, "premix"));
+      make(
+        "premix",
+        audioUrl(
+          projectPath,
+          "premix",
+          undefined,
+          frozenVersionId ? { cacheKey: frozenVersionId } : undefined,
+        ),
+      );
     } else {
       const kind: "stem" | "raw" = auditionMode === "raw" ? "raw" : "stem";
       for (const track of project.tracks) {

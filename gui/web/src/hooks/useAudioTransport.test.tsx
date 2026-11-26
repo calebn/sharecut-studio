@@ -22,6 +22,12 @@ const meterClock = vi.hoisted(() =>
 );
 const meterTracks = vi.hoisted(() => vi.fn<() => unknown[]>(() => []));
 
+const reviewVersionMock = vi.hoisted(() => ({
+  current: null as { versionId: string } | null,
+}));
+vi.mock("./useReviewVersion", () => ({
+  useReviewVersion: () => reviewVersionMock.current,
+}));
 vi.mock("../audio/hostPlaybackMeterMonitor", () => ({
   createHostPlaybackMeterMonitor: vi.fn(
     (options: {
@@ -1037,5 +1043,20 @@ describe("useAudioTransport frozen review (#3605)", () => {
     const player = FakeAudio.instances.find((el) => el.src)!;
     act(() => useDawStore.getState().setPlayheadSec(42, "seek"));
     expect(player.currentTime).toBe(42);
+  });
+
+  it("keys the published mix by version and rebuilds it when a following link changes version", () => {
+    reviewVersionMock.current = { versionId: "v1" };
+    const { rerender } = renderHook(() => useAudioTransport());
+    const first = FakeAudio.instances.find((el) => el.src)!;
+    expect(new URL(first.src, "http://x").searchParams.get("v")).toBe("v1");
+    reviewVersionMock.current = { versionId: "v2" };
+    rerender();
+    const rebuilt = FakeAudio.instances.filter((el) => el.src && el !== first);
+    expect(rebuilt).toHaveLength(1);
+    expect(new URL(rebuilt[0]!.src, "http://x").searchParams.get("v")).toBe(
+      "v2",
+    );
+    reviewVersionMock.current = null;
   });
 });
