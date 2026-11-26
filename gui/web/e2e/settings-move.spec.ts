@@ -50,18 +50,36 @@ test("Settings asks the host to check the destination after a move response is l
       await page.route("**/api/project/pick-folder", (route) =>
         route.fulfill({ json: { folder: destination } }),
       );
+      let releaseResponse!: () => void;
+      const holdResponse = new Promise<void>((resolve) => {
+        releaseResponse = resolve;
+      });
       await page.route("**/api/project/move", async (route) => {
         const response = await route.fetch({ maxRetries: 0 });
         expect(response.ok(), await response.text()).toBe(true);
+        await holdResponse;
         await route.abort("connectionreset");
       });
       const sheet = await openMoveSettings(page, projectPath);
-      await sheet.getByRole("button", { name: "Move…" }).click();
+      const move = sheet.getByRole("button", { name: /mov(e|ing)…/i });
+      const reveal = sheet.getByRole("button", { name: "Reveal in folder" });
+      try {
+        await move.click();
+        await expect(move).toHaveAccessibleName("Moving…");
+        await expect(move).toHaveAttribute("aria-busy", "true");
+        await expect(reveal).toBeDisabled();
+        await expect(reveal).not.toHaveAttribute("aria-busy");
+      } finally {
+        releaseResponse();
+      }
       await expect(
         sheet.getByText(
           "Couldn't confirm where this episode is. Check the folder you chose and the original folder before trying again.",
         ),
       ).toBeVisible();
+      await expect(move).toBeEnabled();
+      await expect(reveal).toBeEnabled();
+      await expect(move).not.toHaveAttribute("aria-busy");
       expect(fs.existsSync(projectPath)).toBe(false);
       const moved = path.join(
         destination,
