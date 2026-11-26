@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """Check that the Hugging Face download child runs under a given Python (#1998).
 
-Spawns ``<python> -m podcast_mcp.util.hf_fetch_child <spec.json>`` against the pinned
+Spawns ``<python> -P -m podcast_mcp.util.hf_fetch_child <spec.json>`` against the pinned
 ``Systran/faster-whisper-tiny.en`` snapshot (``WHISPER_PINS``) in a temporary cache, and
 fails unless (1) the child prints one ``{"path": ...}`` line with every pinned file present
-and (2) a second child, killed once the cache starts to grow, is gone within a few seconds
+and (2) a second child, killed once model.bin has started (the cache holds more than the small files), is gone within a few seconds
 with most of ``model.bin`` unwritten. Needs the network (about 78 MB).
 
     .venv/bin/python scripts/check_hf_child.py
-    .venv/bin/python scripts/check_hf_child.py --python <runtime>/python
+    .venv/bin/python scripts/check_hf_child.py --python <runtime>/venv/bin/python
 
-The second form is the frozen-sidecar check: ``--python`` is the bundled interpreter the
-launcher uses (see docs/desktop-packaging.md, "Download child"); pass the launcher's
+The second form is the frozen-sidecar check: ``--python`` is the venv interpreter the
+launcher execs (``<runtime>/venv/bin/python``, not the ``<runtime>/python`` directory) (see docs/desktop-packaging.md, "Download child"); pass the launcher's
 ``PYTHONHOME`` as ``--python-home`` when the interpreter needs it. It exits non-zero on any failure.
 """
 
@@ -35,7 +35,8 @@ from podcast_mcp.util.model_manifest import PinnedSnapshot
 MIB = 1024 * 1024
 MODEL_BYTES = 78_090_594
 KILL_WITHIN_SEC = 3.0
-KILL_AT_BYTES = 256 * 1024
+KILL_AT_BYTES = 8 * MIB
+"""Past the ~2.5 MB of small files, so the kill lands while model.bin is transferring."""
 UNWRITTEN_AT_KILL = 0.25
 RUN_TIMEOUT_SEC = 300.0
 STEP_SEC = 0.05
@@ -137,7 +138,11 @@ def check_kill(python: str, pin: PinnedSnapshot, work: Path, env: dict[str, str]
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--python", default=sys.executable, help="interpreter to run the child")
+    parser.add_argument(
+        "--python",
+        default=sys.executable,
+        help="interpreter to run the child (<runtime>/venv/bin/python for a frozen runtime)",
+    )
     parser.add_argument("--python-home", help="PYTHONHOME to give the child (a frozen runtime)")
     args = parser.parse_args(argv)
     env = dict(os.environ)
