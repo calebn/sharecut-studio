@@ -36,7 +36,8 @@ Implementation: `edits/tighten/` (`lexicon`, `repeats`, `acoustic_scan`, `collec
 
 `edits/cut_safety.py` owns breath protection, peer-speech disposition and proposed-join
 assessment; `edits/cut_placement.py` owns source-placement checks and original-recording
-pad eligibility. The
+pad eligibility. `edits/cut_application.py` is the only placement-guard caller, with the
+read-only `edits/timeline_span.py` projection as the recorded exception. The
 measurement modules retain PCM, level, word, and join measurements. The owner checks
 physical recording identity, once-only source occurrences, registered beds, and pad
 receipts. `source_removals` and `fillers` consume those results without forwarding
