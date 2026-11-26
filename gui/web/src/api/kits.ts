@@ -94,3 +94,64 @@ export async function applyKit(
   );
   return (await res.json()) as KitApplyReport;
 }
+
+/** A kit in the library: its newest version, and whether every entry still resolves. */
+export interface KitRow {
+  id: string;
+  name: string;
+  version: number;
+  versions: number[];
+  entries: number;
+  missing: number;
+  usable: boolean;
+  /** The first entry that fails, in the server's words; null when the kit is usable. */
+  problem: string | null;
+}
+
+/** A kit the library cannot read: no name or entries, only what went wrong. */
+export interface DamagedKitRow {
+  id: string;
+  damaged: true;
+  version: number;
+  usable: false;
+  problem: string;
+  code: string;
+}
+
+export type KitListRow = KitRow | DamagedKitRow;
+
+export function isDamagedKit(row: KitListRow): row is DamagedKitRow {
+  return "damaged" in row && row.damaged === true;
+}
+
+/** Every kit in the library, healthy rows first and unreadable ones last. */
+export async function loadKits(signal?: AbortSignal): Promise<KitListRow[]> {
+  const res = await apiFetch(HOST_KEY, { host: "/api/kits" }, { signal });
+  return (await res.json()) as KitListRow[];
+}
+
+export interface KitFileDownload {
+  blob: Blob;
+  filename: string;
+}
+
+const DISPOSITION_NAME = /filename="([A-Za-z0-9._-]+)"/;
+
+/** The newest version as a `.sharecutkit` file, fetched whole so a phone can share it. */
+export async function downloadKitFile(
+  id: string,
+  signal?: AbortSignal,
+): Promise<KitFileDownload> {
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: `/api/kits/${encodeURIComponent(id)}/export` },
+    { signal },
+  );
+  const named = DISPOSITION_NAME.exec(
+    res.headers.get("content-disposition") ?? "",
+  );
+  return {
+    blob: await res.blob(),
+    filename: named?.[1] ?? `${id}.sharecutkit`,
+  };
+}

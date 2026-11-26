@@ -141,12 +141,22 @@ export {
 } from "./api/http";
 export { openJobStream } from "./api/jobStream";
 export type {
+  DamagedKitRow,
   KitApplyReport,
+  KitFileDownload,
+  KitListRow,
   KitOffer,
   KitOfferEntry,
   KitOfferKit,
+  KitRow,
 } from "./api/kits";
-export { applyKit, loadKitOffer } from "./api/kits";
+export {
+  applyKit,
+  downloadKitFile,
+  isDamagedKit,
+  loadKitOffer,
+  loadKits,
+} from "./api/kits";
 export {
   isDeadLinkAnswer,
   isLinkEnded,
