@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import pairwise
 from typing import Annotated, Any, Literal
 
@@ -353,12 +353,18 @@ def edit_impact_report(project: EpisodeProject) -> dict:
                 review_required=e.review_required,
             )
         )
+    padded_edits: set[tuple[str, ...]] = set()
     for record in project.editorial.edit_log:
         impact = record_impact(record)
         if impact is None:
             continue
         applied += 1
+        edit_key = tuple(record.decision_ids)
+        if edit_key and edit_key in padded_edits:
+            impact = replace(impact, pad_sec=0.0)
         if impact.kind is ImpactKind.CUT:
+            if impact.pad_sec:
+                padded_edits.add(edit_key)
             total_removed += impact.net_sec
             for tid in impact.spans_by_track:
                 by_track[tid] = by_track.get(tid, 0.0) + impact.net_track_sec(tid)

@@ -1240,3 +1240,14 @@ def test_apply_prefix_edits_leaves_an_unplayed_proposal_alone(tmp_path):
     assert apply_prefix_edits(proj, "filler:", config_key="tighten", defaults=load_defaults()) == 0
     assert proj.editorial.edit_log == []
     assert proj.clips[0].mute_regions == []
+
+
+def test_impact_counts_one_pad_for_an_edit_archived_as_several_spans(tmp_path):
+    proj = _project_with_clip(tmp_path)
+    first = _padded_record("a", 1.0, 3.0, 0.4)
+    second = _padded_record("b", 5.0, 6.0, 0.4)
+    first.decision_ids = second.decision_ids = ["cut"]
+    proj.editorial.edit_log = [first, second]
+    report = edit_impact_report(proj)
+    assert report["total_removed_sec"] == pytest.approx(2.6)
+    assert report["by_track_sec"]["host"] == pytest.approx(2.6)
