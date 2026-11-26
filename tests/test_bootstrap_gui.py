@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import time
 import urllib.error
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.polling import wait_for
 
 from podcast_mcp.engines.models.registry import MODELS
 
@@ -1491,13 +1491,12 @@ def test_gui_bootstrap_catalog_whisper_sizes_still_start(monkeypatch, size: str)
     )
     assert resp.status_code == 200
     job_id = resp.json()["job"]["id"]
-    deadline = time.monotonic() + 5
-    job = None
-    while time.monotonic() < deadline:
+
+    def finished() -> dict | None:
         job = client.get(f"/api/bootstrap/status-job?job_id={job_id}").json()["job"]
-        if job and job["status"] in ("ok", "error", "cancelled"):
-            break
-        time.sleep(0.02)
+        return job if job and job["status"] in ("ok", "error", "cancelled") else None
+
+    job = wait_for(finished, timeout=5)
     assert job and job["status"] == "ok"
     assert runs and runs[0]["whisper_model"] == size
 
@@ -1514,9 +1513,7 @@ def test_gui_bootstrap_bundle_skips_non_catalog_whisper_and_downloads_the_rest(
     assert resp.status_code == 200
     job = resp.json()["job"]
     assert job["components"] == ["rnnoise"]
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline and not runs:
-        time.sleep(0.02)
+    wait_for(lambda: runs, timeout=5)
     assert runs and runs[0]["components"] == ["rnnoise"]
 
 
