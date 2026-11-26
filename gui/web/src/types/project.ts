@@ -342,6 +342,16 @@ export function parseHistoryEntryId(value: unknown): HistoryEntryId | null {
     : null;
 }
 
+/** One saved step of the history, oldest first (`HistoryEntryResult`). */
+export interface HistoryEntryView {
+  index: number;
+  id: HistoryEntryId;
+  label: string;
+  created_at?: string;
+  operation?: string | null;
+  current: boolean;
+}
+
 export interface HistoryGroup {
   kind: string;
   label?: string;
@@ -559,6 +569,8 @@ export interface ProjectView
     can_undo: boolean;
     can_redo: boolean;
     groups: HistoryGroup[];
+    /** Every saved step, oldest first; the toast reads Undo from the head's place in it. */
+    entries?: HistoryEntryView[];
   };
   transcript: { utterances: CombinedUtterance[] } | null;
 }

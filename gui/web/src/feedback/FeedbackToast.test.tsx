@@ -1405,6 +1405,71 @@ describe("FeedbackToast", () => {
     });
   });
 
+  describe("after the head steps back on the real history shape", () => {
+    const ids = ["s0", "render", "approve"];
+    const real = (head: string) => {
+      const project = useDawStore.getState().project ?? minimalProject();
+      const entries = ids.map((id, index) => ({
+        index,
+        id: entry(id),
+        label: id,
+        current: id === head,
+      }));
+      useDawStore.setState({
+        project: {
+          ...project,
+          history: {
+            ...project.history,
+            head_id: entry(head),
+            can_undo: true,
+            entries,
+            groups: entries.map((e) => ({
+              kind: "snapshot",
+              index: e.index,
+              id: e.id,
+              label: e.label,
+            })),
+          },
+        },
+      });
+    };
+
+    it("reads Undone on Ctrl+Z, speaks once, and returns on Redo", () => {
+      render(<FeedbackToast />);
+      real("approve");
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Approved 1 pending edit", {
+            undo: entry("approve"),
+          });
+      });
+      act(() => real("render"));
+      expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Dismiss" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+      expect(
+        useDawStore
+          .getState()
+          .statusAnnouncement.match(/Undone: Approved 1 pending edit/g),
+      ).toHaveLength(1);
+      act(() => real("approve"));
+      expect(screen.getByText("Approved 1 pending edit")).toBeVisible();
+    });
+
+    it("keeps its text when the entry is missing from entries", () => {
+      render(<FeedbackToast />);
+      real("approve");
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Approved 1 pending edit", { undo: entry("gone") });
+      });
+      act(() => real("render"));
+      expect(screen.queryByText(/^Undone:/)).toBeNull();
+    });
+  });
+
   describe("after the head steps back", () => {
     const one = [{ before: "e0", after: "e1" }];
     const chain = [

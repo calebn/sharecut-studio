@@ -168,33 +168,35 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       }
     }
 
-    it("goes away when Undo undoes its entry", async () => {
+    it("stays (to read Undone) when Undo undoes its entry", async () => {
       standingToast("seen-by-tab");
       vi.mocked(undoHistory).mockResolvedValueOnce("before" as HistoryEntryId);
       expect(await execute("history.undo")).toEqual({ status: "ok" });
-      expect(useDawStore.getState().feedbackToast).toBeNull();
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        message: "Approved 1 pending edit",
+      });
     });
 
-    it("goes away when Undo undoes one of its merged entries", async () => {
+    it("stays when Undo undoes one of its merged entries", async () => {
       standingToast("seen-by-tab", {
         entries: ["seen-by-tab" as HistoryEntryId, "other" as HistoryEntryId],
       });
       vi.mocked(undoHistory).mockResolvedValueOnce("before" as HistoryEntryId);
       expect(await execute("history.undo")).toEqual({ status: "ok" });
-      expect(useDawStore.getState().feedbackToast).toBeNull();
+      expect(useDawStore.getState().feedbackToast).not.toBeNull();
     });
 
-    it("goes away when its Undo already lapsed and Undo undoes its entry", async () => {
+    it("stays when its Undo already lapsed and Undo undoes its entry", async () => {
       standingToast("seen-by-tab");
       const toast = useDawStore.getState().feedbackToast;
       useDawStore.getState().dropFeedbackUndo(toast!.id);
       expect(useDawStore.getState().feedbackToast?.undo).toBeNull();
       vi.mocked(undoHistory).mockResolvedValueOnce("before" as HistoryEntryId);
       expect(await execute("history.undo")).toEqual({ status: "ok" });
-      expect(useDawStore.getState().feedbackToast).toBeNull();
+      expect(useDawStore.getState().feedbackToast).not.toBeNull();
     });
 
-    it("stays for an Undo of a later edit, then goes with the Undo of its own entry", async () => {
+    it("stays for an Undo of a later edit, and for the Undo of its own entry", async () => {
       standingToast("seen-by-tab");
       showHead("later-edit");
       const toast = useDawStore.getState().feedbackToast;
@@ -209,7 +211,7 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       showHead("seen-by-tab");
       vi.mocked(undoHistory).mockResolvedValueOnce("before" as HistoryEntryId);
       expect(await execute("history.undo")).toEqual({ status: "ok" });
-      expect(useDawStore.getState().feedbackToast).toBeNull();
+      expect(useDawStore.getState().feedbackToast).not.toBeNull();
     });
 
     it("stays when it is about another entry", async () => {
