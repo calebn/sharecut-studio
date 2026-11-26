@@ -5,6 +5,7 @@ from __future__ import annotations
 import errno
 import hashlib
 import json
+import os
 import sys
 import threading
 import time
@@ -213,11 +214,13 @@ def test_a_child_error_is_classified_like_the_in_process_hub_error(
     assert raised.value.status == status
 
 
-def test_a_child_that_dies_without_a_result_is_a_network_failure(
+def test_a_child_that_dies_after_bytes_arrived_is_a_network_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _stub(monkeypatch, "import os; os._exit(9)")
     monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
+    sizes = iter([0])
+    monkeypatch.setattr(model_manifest, "_cache_bytes", lambda *_a: next(sizes, 7))
 
     with pytest.raises(HubChildError) as raised:
         download_pinned_snapshot(PIN, tmp_path / "hub", on_progress=lambda _p: None)
@@ -226,6 +229,223 @@ def test_a_child_that_dies_without_a_result_is_a_network_failure(
     assert failure is not None
     assert failure.kind == "network"
     assert "9" in str(raised.value)
+
+
+NO_RESULT_CHILDREN = {
+    "exit-without-output": "import os; os._exit(9)",
+    "exit-0-with-garbage": "print('not json at all')",
+    "exit-0-with-a-list": "print('[1, 2]')",
+    "exit-0-with-null-path": "print('{\"path\": null}')",
+    "exit-0-silent": "pass",
+}
+
+
+@pytest.mark.parametrize("code", NO_RESULT_CHILDREN.values(), ids=NO_RESULT_CHILDREN)
+def test_a_child_that_cannot_run_falls_back_in_process_and_logs_its_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    code: str,
+) -> None:
+    calls = _fake_in_process_hub(monkeypatch, tmp_path / "snap")
+    _stub(monkeypatch, "import sys; sys.stderr.write('child-trace-marker\\n'); " + code)
+    monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
+
+    with caplog.at_level("WARNING", logger=model_manifest.logger.name):
+        _, mismatch = download_pinned_snapshot(
+            _payload_pin(), tmp_path / "hub", on_progress=lambda _p: None
+        )
+
+    assert mismatch is None
+    assert calls == ["snapshot_download"]
+    assert "child-trace-marker" in caplog.text
+    assert not list((tmp_path / "hub").glob(".fetch-child-*"))
+
+
+def test_a_child_with_a_missing_module_falls_back_in_process(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _fake_in_process_hub(monkeypatch, tmp_path / "snap")
+    monkeypatch.setattr(
+        model_manifest,
+        "_child_argv",
+        lambda spec: [sys.executable, "-m", "podcast_mcp.util.no_such_child", str(spec)],
+    )
+
+    download_pinned_snapshot(_payload_pin(), tmp_path / "hub")
+
+    assert calls == ["snapshot_download"]
+
+
+def test_a_child_error_logs_the_stderr_tail_before_the_log_is_removed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    payload = {"error": "ValueError", "status": None, "message": "boom", "kind": "other"}
+    _stub(
+        monkeypatch,
+        "import json,sys; sys.stderr.write('x' * 5000 + 'tail-marker'); "
+        f"print(json.dumps({payload!r})); sys.exit(1)",
+    )
+
+    with (
+        caplog.at_level("WARNING", logger=model_manifest.logger.name),
+        pytest.raises(HubChildError),
+    ):
+        download_pinned_snapshot(PIN, tmp_path / "hub")
+
+    assert "tail-marker" in caplog.text
+    assert "x" * 3000 not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"kind": "http", "status": "404", "message": "m", "error": "E"},
+        {"kind": "disk", "status": None, "errno": "28", "message": "m", "error": "E"},
+        {"kind": 5, "status": [], "errno": {}, "message": None, "error": None},
+        {"kind": "http", "status": True, "message": "m", "error": "E"},
+    ],
+)
+def test_a_malformed_child_error_never_breaks_the_classifier(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, payload: dict[str, Any]
+) -> None:
+    _stub(monkeypatch, f"import json,sys; print(json.dumps({payload!r})); sys.exit(1)")
+
+    with pytest.raises(HubChildError) as raised:
+        download_pinned_snapshot(PIN, tmp_path / "hub")
+
+    assert classify(raised.value, label="x", fix="y") is None
+
+
+def test_progress_is_reported_on_every_poll_even_when_no_bytes_arrive(
+    monkeypatch: pytest.MonkeyPatch, spawned: list[Any], tmp_path: Path
+) -> None:
+    _stub(monkeypatch, "import threading; threading.Event().wait(60)")
+    monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
+    monkeypatch.setattr(model_manifest, "_cache_bytes", lambda *_a: 0)
+    seen: list[int] = []
+
+    def sink(progress: DownloadProgress) -> None:
+        seen.append(progress.bytes)
+        if len(seen) == 5:
+            raise CancelledProgress("cancelled")
+
+    with pytest.raises(CancelledProgress):
+        download_pinned_snapshot(PIN, tmp_path / "hub", on_progress=sink)
+
+    assert seen == [0] * 5
+    assert spawned[0].poll() is not None
+
+
+def test_cancel_during_a_paused_hub_kills_the_child_within_a_second(
+    hub: loopback._Hub, spawned: list[Any], tmp_path: Path
+) -> None:
+    cancel = threading.Event()
+    stalled = 0
+    cancelled_at: list[float] = []
+    raised_at: list[float] = []
+
+    def sink(progress: DownloadProgress) -> None:
+        nonlocal stalled
+        if cancel.is_set():
+            raised_at.append(time.monotonic())
+            raise CancelledProgress("cancelled")
+        if progress.bytes >= FIRST_WRITE:
+            stalled += 1
+            if stalled == 4:  # the hub is paused, so these ticks carry no new bytes
+                cancelled_at.append(time.monotonic())
+                cancel.set()
+
+    with pytest.raises(CancelledProgress):
+        download_pinned_snapshot(PIN, tmp_path / "hub", on_progress=sink)
+
+    assert raised_at[0] - cancelled_at[0] < 1.0
+    (child,) = spawned
+    assert wait_for(lambda: not process.pid_is_alive(child.pid), timeout=5.0)
+    assert hub.sent < loopback.SIZE
+
+
+def test_a_chatty_child_cannot_fill_the_stdout_pipe(
+    monkeypatch: pytest.MonkeyPatch, spawned: list[Any], tmp_path: Path
+) -> None:
+    snapshot = tmp_path / "snap"
+    snapshot.mkdir()
+    (snapshot / "model.bin").write_bytes(b"model")
+    _stub(
+        monkeypatch,
+        "import json, sys\n"
+        "chunk = b'x' * 65536 + b'\\n'\n"
+        "for _ in range(128):\n"
+        "    sys.stdout.buffer.write(chunk)\n"
+        "sys.stdout.buffer.flush()\n"
+        f"print(json.dumps({{'path': {str(snapshot)!r}}}))\n",
+    )
+    outcome: list[Any] = []
+
+    def run() -> None:
+        try:
+            outcome.append(download_pinned_snapshot(_payload_pin(), tmp_path / "hub"))
+        except BaseException as exc:
+            outcome.append(exc)
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    try:
+        assert wait_for(lambda: outcome, timeout=30.0), "the parent hung on the child's stdout"
+    finally:
+        for child in spawned:
+            process.kill_child(child)
+        worker.join(timeout=5.0)
+    assert outcome[0][1] is None
+
+
+def test_an_oserror_from_the_progress_sink_propagates_and_never_restarts_in_process(
+    monkeypatch: pytest.MonkeyPatch, spawned: list[Any], tmp_path: Path
+) -> None:
+    calls = _fake_in_process_hub(monkeypatch, tmp_path / "snap")
+    _stub(monkeypatch, "import threading; threading.Event().wait(60)")
+    monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
+    sizes = iter([0])
+    monkeypatch.setattr(model_manifest, "_cache_bytes", lambda *_a: next(sizes, 7))
+    seen = 0
+
+    def sink(_progress: DownloadProgress) -> None:
+        nonlocal seen
+        seen += 1
+        if seen == 3:
+            raise BrokenPipeError("sink closed")
+
+    with pytest.raises(BrokenPipeError):
+        download_pinned_snapshot(_payload_pin(), tmp_path / "hub", on_progress=sink)
+
+    assert calls == []
+    assert spawned[0].poll() is not None
+
+
+def test_a_child_fetch_removes_stale_scratch_files_but_not_fresh_ones(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cache = tmp_path / "hub"
+    cache.mkdir()
+    old = [cache / ".fetch-child-old1.json", cache / ".fetch-child-old2.log"]
+    fresh = cache / ".fetch-child-fresh.log"
+    other = cache / "keep.json"
+    long_ago = time.time() - 2 * 3600
+    for path in (*old, fresh, other):
+        path.write_text("x")
+    for path in old:
+        os.utime(path, (long_ago, long_ago))
+    os.utime(other, (long_ago, long_ago))
+    snapshot = tmp_path / "snap"
+    snapshot.mkdir()
+    (snapshot / "model.bin").write_bytes(b"model")
+    _stub(monkeypatch, f"import json; print(json.dumps({{'path': {str(snapshot)!r}}}))")
+
+    download_pinned_snapshot(_payload_pin(), cache)
+
+    assert not any(path.exists() for path in old)
+    assert fresh.exists()
+    assert other.exists()
 
 
 def test_a_child_error_the_classifier_does_not_know_is_not_a_known_failure(
@@ -399,7 +619,8 @@ def test_a_forced_refetch_reports_bytes_from_zero(
     )
 
     assert mismatch is None
-    assert events == [0, 100, 300, 1000]
+    assert events == sorted(events)
+    assert list(dict.fromkeys(events)) == [0, 100, 300, 1000]
 
 
 def _run_child(spec: dict[str, Any], tmp_path: Path) -> Any:
