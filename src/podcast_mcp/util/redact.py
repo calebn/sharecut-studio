@@ -56,14 +56,17 @@ _HOST_PATH = re.compile(
     r"|/"
     r"|(?i:%(?:25)?2f|%(?:25)?5c)"
     # separators NFKC leaves alone: division slash, fraction slash, big solidus, its reverse and
-    # the white-circle variant (U+29F5), set minus
-    "|[\u2215\u2044\u29f8\u29f9\u29f5\u2216]"
-    # drive-relative file (``C:raw.wav``): one letter, a colon, a stem with a letter, a known
-    # media or document extension
-    r"|(?<![A-Za-z0-9])[A-Za-z]:[^\s/\\:]*[A-Za-z][^\s/\\:]*"
+    # the white-circle variant (U+29F5), set minus, box-drawing diagonals
+    "|[\u2215\u2044\u29f8\u29f9\u29f5\u2216\u2571\u2572]"
+)
+# drive-relative candidate (``C:raw.wav``): one letter, a colon, a token. The token is checked in
+# ``_drive_relative_file`` (a letter in the stem, a known extension) so no pattern backtracks.
+_DRIVE_TOKEN = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:([^\s/\\:]+)")
+_FILE_EXT = re.compile(
     r"\.(?i:wav|mp3|m4a|aac|flac|aiff?|ogg|opus|mp4|mov|json|txt|md|log|zip|csv|srt|vtt|xml|ya?ml"
     r"|pdf|png|jpe?g)(?![A-Za-z0-9])"
 )
+_DECODE_ROUNDS = 4
 # pydantic prints the offending value of a failed field as ``input_value=<repr>, input_type=<type>``
 # on one line; the repr is the document's own data and may hold ``, input_type=`` itself, so it
 # runs to the last one on the line (or to the end of the line when there is none).
@@ -330,6 +333,17 @@ def compile_secret_redactor(
     return redact
 
 
+def _drive_relative_file(text: str) -> bool:
+    for candidate in _DRIVE_TOKEN.finditer(text):
+        token = candidate.group(1)
+        first_letter = next((i for i, ch in enumerate(token) if ch.isalpha()), None)
+        if first_letter is None:
+            continue
+        if any(ext.start() > first_letter for ext in _FILE_EXT.finditer(token)):
+            return True
+    return False
+
+
 def mentions_host_path(text: str) -> bool:
     """Whether ``text`` contains a possible host path prefix.
 
@@ -339,17 +353,19 @@ def mentions_host_path(text: str) -> bool:
     whole (``CodedError.guest_message``, ``scrub_guest_progress_text``).
     Detection conservatively matches slash- or backslash-separated prose and URLs, the lookalike
     separators (fullwidth, division and fraction slashes and the like), their percent-encodings
-    (up to two layers), and a drive-relative file such as ``C:raw.wav`` (one letter, a colon, a
-    stem with a letter, a known file extension). The text is normalized (NFKC, unquote) for the
-    match only; the caller still replaces the whole text. Bare filenames without a path prefix
-    remain allowed.
+    (up to four layers), and a drive-relative file such as ``C:raw.wav`` (one letter, a colon, a
+    stem with a letter, a known file extension; a one-letter label such as ``Take A:mix.wav`` is
+    withheld too). The text is normalized (NFKC, unquote) for the match only; the caller still
+    replaces the whole text. Bare filenames without a path prefix remain allowed.
 
     Residual (also in ``docs/contributing.md``): drive-relative names with an unknown extension,
     a digit-only stem, no extension or a space (``D:Podcasts``, ``C:1.wav``, ``D:01 raw.wav``),
-    a path spelled through more than two encoding layers, and a separator-less folder name are
+    a path spelled through more than four encoding layers, and a separator-less folder name are
     not detected.
     """
-    if _HOST_PATH.search(text) is not None:
-        return True
-    folded = normalize("NFKC", unquote(unquote(text)))
-    return folded != text and _HOST_PATH.search(folded) is not None
+    forms = [text]
+    folded = text
+    for _ in range(_DECODE_ROUNDS):
+        folded = normalize("NFKC", unquote(normalize("NFKC", folded)))
+        forms.append(folded)
+    return any(_HOST_PATH.search(f) is not None or _drive_relative_file(f) for f in forms)

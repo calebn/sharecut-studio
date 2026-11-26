@@ -264,6 +264,11 @@ HOST_PATH_TEXTS = [
     "missing: C:raw.wav",
     "missing: C:1raw.wav",
     "(C:raw.wav)",
+    "missing: C:\u00f1.wav",
+    "Take A:mix.wav",
+    "home\uff05EF\uff05BC\uff058Fx",
+    "missing: a\u2571b",
+    "missing: a\u2572b",
     "missing: d:Secret.MP3",
 ]
 CONSERVATIVE_PATH_TEXTS = [
@@ -1059,3 +1064,22 @@ def test_a_seven_digit_count_is_no_header() -> None:
     speaker = "Dani" + "ela Secret" + "name"
     text = f"1234567 validation errors for X\ntags.{speaker}.align_method\n  m [type=x]\n"
     assert sanitize(text, field_names=_REAL_NAMES) == text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "C:" + "a" * 200000,
+        "C:" + "a." * 100000,
+        "%" * 200000,
+        "%2" * 100000,
+        "a:" * 100000,
+        "C:" + "1." * 100000,
+        "C:a" + ".wav" * 50000,
+    ],
+    ids=["letters", "dots", "percents", "percent-two", "colons", "digit-dots", "ext-run"],
+)
+def test_mentions_host_path_is_linear_on_adversarial_text(text: str) -> None:
+    started = time.perf_counter()
+    mentions_host_path(text)
+    assert time.perf_counter() - started < 1.0
