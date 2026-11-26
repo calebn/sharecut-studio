@@ -11,6 +11,7 @@ import {
   TOUCH_SLOP_PX,
   withinGhostClick,
 } from "./gestureConstants";
+import { listenForInterrupt } from "./useInterruptCancel";
 
 export type LongPressHandlers = {
   onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
@@ -28,7 +29,8 @@ const CAPTURE = { capture: true } as const;
  * or fires after {@link GHOST_CLICK_MS} for browsers that omit that click.
  * A released-but-unfired press is flushed (not dropped) by the next
  * pointerdown anywhere, and a click arriving just after the fallback fired
- * is swallowed so the gesture never double-fires.
+ * is swallowed so the gesture never double-fires. Window blur, pagehide, or
+ * a hidden tab drops an armed press and flushes a released one.
  */
 export function useLongPress(
   onLongPress: (target: EventTarget | null) => void,
@@ -99,8 +101,12 @@ export function useLongPress(
       // Any other press (even on another recognizer) flushes this one first
       // so the newer interaction wins instead of being overridden later.
       window.addEventListener("pointerdown", firePending, CAPTURE);
-      removePendingListenerRef.current = () =>
+      const stop = new AbortController();
+      listenForInterrupt(firePending, stop.signal);
+      removePendingListenerRef.current = () => {
         window.removeEventListener("pointerdown", firePending, CAPTURE);
+        stop.abort();
+      };
     }
     return fire;
   };
@@ -136,7 +142,10 @@ export function useLongPress(
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", disarm);
+      const stop = new AbortController();
+      listenForInterrupt(disarm, stop.signal);
       removeListenersRef.current = () => {
+        stop.abort();
         window.removeEventListener("pointerdown", onDown, CAPTURE);
         window.removeEventListener("contextmenu", onContextMenu, CAPTURE);
         window.removeEventListener("pointermove", move);
