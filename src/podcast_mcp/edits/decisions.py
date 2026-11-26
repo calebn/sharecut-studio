@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from itertools import pairwise
 from typing import Annotated, Any, Literal
@@ -397,7 +398,7 @@ def edit_impact_report(project: EpisodeProject) -> dict:
     }
 
 
-def format_edit_impact_markdown(report: dict) -> str:
+def format_edit_impact_markdown(report: Mapping[str, Any]) -> str:
     lines = [
         "# Edit impact",
         f"- Total removed (applied): **{report['total_removed_sec']:.1f}s**",

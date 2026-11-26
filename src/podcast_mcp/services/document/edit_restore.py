@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
-
-from typing_extensions import TypedDict
+from typing import cast
 
 from podcast_mcp.edits.edit_log import (
     RestoreResult,
@@ -13,11 +11,10 @@ from podcast_mcp.edits.edit_log import (
     restore_state,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-
-
-class AppliedEditsWithRestore(TypedDict):
-    count: int
-    records: list[dict[str, Any]]
+from podcast_mcp.services.document.edit_wire_results import (
+    AppliedEditsWithRestore,
+    AppliedEditWire,
+)
 
 
 def revert_applied(ws: ProjectWorkspace, ids: list[str], dry_run: bool = False) -> RestoreResult:
@@ -54,10 +51,13 @@ def applied_edits_with_restore(
     return {
         "count": len(records),
         "records": [
-            {
-                **r.model_dump(exclude={"inverse"}),
-                "restore": restore_state(ws.project, r).model_dump(),
-            }
+            cast(
+                AppliedEditWire,
+                {
+                    **r.model_dump(exclude={"inverse"}),
+                    "restore": restore_state(ws.project, r).model_dump(),
+                },
+            )
             for r in records
         ],
     }
