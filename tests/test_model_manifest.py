@@ -542,3 +542,96 @@ def test_download_pinned_snapshot_downloads_inside_the_plain_http_window(
     assert mismatch is None
     assert seen == {"chunk": model_manifest.HUB_CHUNK_BYTES, "xet_disabled": True}
     _assert_restored(constants)
+
+
+class _GuardedConstants:
+    """Stands in for ``huggingface_hub.constants``; records every access made without the lock."""
+
+    values: dict[str, object]
+    fail_on: str | None
+    unlocked: list[str]
+
+    def __init__(self, fail_on: str | None = None) -> None:
+        object.__setattr__(self, "values", {"DOWNLOAD_CHUNK_SIZE": _ORIGINAL_CHUNK})
+        self.values["HF_HUB_DISABLE_XET"] = False
+        object.__setattr__(self, "fail_on", fail_on)
+        object.__setattr__(self, "unlocked", [])
+
+    def __getattr__(self, name: str) -> object:
+        values = object.__getattribute__(self, "values")
+        if name not in values:
+            raise AttributeError(name)
+        if not model_manifest._plain_http_lock.locked():
+            self.unlocked.append(f"get {name}")
+        return values[name]
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if not model_manifest._plain_http_lock.locked():
+            self.unlocked.append(f"set {name}")
+        if name == self.fail_on and value is True:
+            raise RuntimeError(f"cannot set {name}")
+        self.values[name] = value
+
+
+def _use_guarded_constants(monkeypatch, fail_on: str | None = None) -> _GuardedConstants:
+    import huggingface_hub
+
+    _hub_constants()
+    fake = _GuardedConstants(fail_on)
+    monkeypatch.setattr(huggingface_hub, "constants", fake)
+    return fake
+
+
+def test_plain_http_hub_rolls_back_a_partial_patch_when_the_second_setting_fails(
+    monkeypatch,
+) -> None:
+    fake = _use_guarded_constants(monkeypatch, fail_on="HF_HUB_DISABLE_XET")
+
+    with pytest.raises(RuntimeError, match="cannot set HF_HUB_DISABLE_XET"):
+        with model_manifest._plain_http_hub():
+            pytest.fail("the window must not open when a setting cannot be applied")
+
+    assert fake.values["DOWNLOAD_CHUNK_SIZE"] == _ORIGINAL_CHUNK
+    assert fake.values["HF_HUB_DISABLE_XET"] is False
+    assert model_manifest._plain_http_depth == 0
+    assert model_manifest._plain_http_originals == {}
+
+
+def test_plain_http_hub_changes_the_settings_only_while_holding_its_lock(monkeypatch) -> None:
+    fake = _use_guarded_constants(monkeypatch)
+
+    with model_manifest._plain_http_hub():
+        assert fake.values["DOWNLOAD_CHUNK_SIZE"] == 1024 * 1024
+
+    assert fake.values["DOWNLOAD_CHUNK_SIZE"] == _ORIGINAL_CHUNK
+    assert fake.unlocked == []
+
+
+def test_plain_http_hub_many_threads_keep_every_access_under_the_lock(
+    monkeypatch,
+) -> None:
+    fake = _use_guarded_constants(monkeypatch)
+    workers = 8
+    rounds = 50
+    inside = threading.Barrier(workers)
+    seen_inside: list[int] = []
+
+    def worker() -> None:
+        inside.wait(timeout=10)
+        for _ in range(rounds):
+            with model_manifest._plain_http_hub():
+                seen_inside.append(fake.values["DOWNLOAD_CHUNK_SIZE"])
+
+    threads = [threading.Thread(target=worker) for _ in range(workers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(30)
+    assert not any(thread.is_alive() for thread in threads)
+
+    assert set(seen_inside) == {1024 * 1024}
+    assert len(seen_inside) == workers * rounds
+    assert fake.values["DOWNLOAD_CHUNK_SIZE"] == _ORIGINAL_CHUNK
+    assert fake.values["HF_HUB_DISABLE_XET"] is False
+    assert model_manifest._plain_http_depth == 0
+    assert fake.unlocked == []
