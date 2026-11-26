@@ -87,7 +87,14 @@ def test_a_child_that_dies_without_a_result_leaves_none_of_its_partials(
         _writes_partial(tmp_path / "go", f"{SHA}.new1.incomplete", "import os; os._exit(9)\n"),
     )
 
-    with pytest.raises(HubChildError):
+    import huggingface_hub
+
+    def in_process(*_a: object, **_k: object) -> str:  # a child with no result falls back
+        raise RuntimeError("in-process hub reached")
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", in_process)
+
+    with pytest.raises(RuntimeError, match="in-process hub reached"):
         download_pinned_snapshot(PIN, cache, on_progress=lambda _p: None)
 
     assert _names(blobs) == {f"{SHA}.old1.incomplete"}

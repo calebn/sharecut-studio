@@ -80,12 +80,6 @@ def spawned(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
     return procs
 
 
-def _bytes_arrive(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The repo's blobs read 0 at the baseline and 7 afterwards: the child got bytes first."""
-    sizes = iter([0])
-    monkeypatch.setattr(model_manifest, "_cache_bytes", lambda *_a: next(sizes, 7))
-
-
 def _stub(monkeypatch: pytest.MonkeyPatch, code: str) -> None:
     """Run ``code`` instead of the real child; it gets the spec path as ``sys.argv[1]``."""
     monkeypatch.setattr(
@@ -210,7 +204,6 @@ def test_a_child_error_is_classified_like_the_in_process_hub_error(
     _stub(monkeypatch, f"import json,sys; print(json.dumps({payload!r})); sys.exit(1)")
     monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
 
-    _bytes_arrive(monkeypatch)
     with pytest.raises(HubChildError) as raised:
         download_pinned_snapshot(PIN, tmp_path / "hub", on_progress=lambda _p: None)
 
@@ -219,23 +212,6 @@ def test_a_child_error_is_classified_like_the_in_process_hub_error(
     assert (failure.kind, failure.status) == (kind, status)
     assert plain in failure.plain
     assert raised.value.status == status
-
-
-def test_a_child_that_dies_after_bytes_arrived_is_a_network_failure(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _stub(monkeypatch, "import os; os._exit(9)")
-    monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
-    sizes = iter([0])
-    monkeypatch.setattr(model_manifest, "_cache_bytes", lambda *_a: next(sizes, 7))
-
-    with pytest.raises(HubChildError) as raised:
-        download_pinned_snapshot(PIN, tmp_path / "hub", on_progress=lambda _p: None)
-
-    failure = classify(raised.value, label="Whisper tiny.en", fix="x")
-    assert failure is not None
-    assert failure.kind == "network"
-    assert "9" in str(raised.value)
 
 
 NO_RESULT_CHILDREN = {
@@ -294,7 +270,6 @@ def test_a_child_error_logs_the_stderr_tail_before_the_log_is_removed(
         f"print(json.dumps({payload!r})); sys.exit(1)",
     )
 
-    _bytes_arrive(monkeypatch)
     with (
         caplog.at_level("WARNING", logger=model_manifest.logger.name),
         pytest.raises(HubChildError),
@@ -319,7 +294,6 @@ def test_a_malformed_child_error_never_breaks_the_classifier(
 ) -> None:
     _stub(monkeypatch, f"import json,sys; print(json.dumps({payload!r})); sys.exit(1)")
 
-    _bytes_arrive(monkeypatch)
     with pytest.raises(HubChildError) as raised:
         download_pinned_snapshot(PIN, tmp_path / "hub")
 
@@ -463,7 +437,6 @@ def test_a_child_error_the_classifier_does_not_know_is_not_a_known_failure(
     payload = {"error": "ValueError", "status": None, "message": "boom", "kind": "other"}
     _stub(monkeypatch, f"import json,sys; print(json.dumps({payload!r})); sys.exit(1)")
 
-    _bytes_arrive(monkeypatch)
     with pytest.raises(HubChildError) as raised:
         download_pinned_snapshot(PIN, tmp_path / "hub")
 
@@ -471,21 +444,24 @@ def test_a_child_error_the_classifier_does_not_know_is_not_a_known_failure(
     assert "boom" in str(raised.value)
 
 
-def test_a_missing_revision_the_child_cannot_read_is_retried_in_process_and_reported_by_the_hub(
-    hub: loopback._Hub, tmp_path: Path
+def test_a_missing_revision_is_an_http_child_error_and_never_retried_in_process(
+    hub: loopback._Hub, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    import huggingface_hub
+
+    calls: list[object] = []
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", lambda *a, **k: calls.append(a))
     pin = PinnedSnapshot(loopback.REPO, "no-such-revision", PIN.file_sha256)
 
-    # The child fails with no bytes (kind network), so the fetch retries in-process over
-    # plain HTTP, where the hub raises its own error (a network or an http 404 failure
-    # depending on what the library cached earlier in the process); never a child error.
-    with pytest.raises(OSError) as raised:
+    with pytest.raises(HubChildError) as raised:
         download_pinned_snapshot(pin, tmp_path / "hub", on_progress=lambda _p: None)
 
     failure = classify(raised.value, label="x", fix="y")
-    assert not isinstance(raised.value, HubChildError)
     assert failure is not None
-    assert failure.kind in {"network", "http"}
+    assert failure.kind == "http"
+    assert raised.value.status in {403, 404}
+    assert raised.value.xet is False
+    assert calls == []
 
 
 @pytest.mark.parametrize(
@@ -690,9 +666,9 @@ def test_the_child_prints_one_json_error_line_and_exits_1(
     assert proc.returncode == 1
     assert len(lines) == 1
     result = json.loads(lines[0])
-    assert result["error"] == "LocalEntryNotFoundError"
-    assert result["kind"] == "network"
-    assert result["status"] is None
+    assert result["kind"] == "http"
+    assert result["status"] in {403, 404}
+    assert result["xet"] is False
     assert "message" in result
 
 
@@ -756,6 +732,13 @@ def _hang_until(go: Path) -> str:
     )
 
 
+_NETWORK_FAILURE = (
+    "import json, sys\n"
+    "print(json.dumps({'error': 'E', 'message': 'm', 'kind': 'network', 'xet': False}))\n"
+    "sys.exit(1)\n"
+)
+
+
 def _gauge(monkeypatch: pytest.MonkeyPatch, values: list[int], go: Path, after: int) -> None:
     """Cache bytes: ``values`` in order, then let the child finish and report ``after``."""
     queue = iter(values)
@@ -774,7 +757,7 @@ def test_progress_never_exceeds_the_total_when_the_cache_holds_more(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     go = tmp_path / "go"
-    _stub(monkeypatch, _hang_until(go) + "import sys; sys.exit(1)")
+    _stub(monkeypatch, _hang_until(go) + _NETWORK_FAILURE)
     monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
     _gauge(monkeypatch, [0, 5000, 5000], go, after=5000)
     events: list[int] = []
@@ -791,7 +774,7 @@ def test_progress_never_goes_backwards_when_the_cache_shrinks(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     go = tmp_path / "go"
-    _stub(monkeypatch, _hang_until(go) + "import sys; sys.exit(1)")
+    _stub(monkeypatch, _hang_until(go) + _NETWORK_FAILURE)
     monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: None)
     # Baseline 0, a tick at 50, then the cache shrinks (an .incomplete file replaced) to 30.
     _gauge(monkeypatch, [0, 50, 50], go, after=30)
@@ -818,7 +801,6 @@ def test_force_download_reaches_the_child_spec(
     )
     monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
 
-    _bytes_arrive(monkeypatch)
     with pytest.raises(HubChildError):
         download_pinned_snapshot(PIN, tmp_path / "hub", force=force)
 
@@ -837,7 +819,6 @@ def test_the_child_is_its_own_process_group_leader(
     )
     monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
 
-    _bytes_arrive(monkeypatch)
     with pytest.raises(HubChildError):
         download_pinned_snapshot(PIN, tmp_path / "hub")
 
@@ -852,7 +833,6 @@ def test_the_parent_closes_the_childs_stdin_when_the_child_finishes(
     _stub(monkeypatch, 'import sys; print(\'{"error": "E", "kind": "other"}\'); sys.exit(1)')
     monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
 
-    _bytes_arrive(monkeypatch)
     with pytest.raises(HubChildError):
         download_pinned_snapshot(PIN, tmp_path / "hub")
 
@@ -900,7 +880,6 @@ def test_a_child_result_with_a_non_string_kind_is_an_other_failure(
     _stub(monkeypatch, f"import json,sys; print(json.dumps({payload!r})); sys.exit(1)")
     monkeypatch.setattr(model_manifest, "_dry_run_total", lambda *_a: 100)
 
-    _bytes_arrive(monkeypatch)
     with pytest.raises(HubChildError) as raised:
         download_pinned_snapshot(PIN, tmp_path / "hub")
 
