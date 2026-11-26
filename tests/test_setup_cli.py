@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
@@ -325,45 +325,72 @@ def test_doctor_faster_whisper_missing(tmp_path, monkeypatch):
     assert "[warn] faster-whisper" in result.stderr
 
 
-def test_doctor_fails_on_word_aligner_pin_mismatch(tmp_path, monkeypatch):
-    from podcast_mcp.engines.models.word_aligner import WordAlignerPinMismatchError
+def _aligner_record(**fields):
+    from podcast_mcp.engines.models.registry import model_spec
 
+    spec = model_spec("word-aligner")
+
+    def fake(model_id, variant=None, *, memoize=True, check_load=True):
+        if model_id != "word-aligner":
+            return {"id": model_id, "state": "installed"}
+        return {"id": model_id, "label": spec.label, **fields}
+
+    return fake
+
+
+def _stub_doctor_ffmpeg():
+    engine = MagicMock()
+    engine.check_available.return_value = (True, "ffmpeg 9.0.2")
+    engine.source = "test"
+    return patch("podcast_mcp.services.support.doctor.FFmpegEngine", return_value=engine)
+
+
+def _patch_model_record(fake):
+    return patch.multiple("podcast_mcp.engines.models.registry", model_record=fake), patch(
+        "podcast_mcp.services.support.doctor.model_record", fake, create=True
+    )
+
+
+def test_doctor_fails_on_word_aligner_pin_mismatch(tmp_path, monkeypatch):
+    from podcast_mcp.engines.models.registry import model_spec
+
+    label = model_spec("word-aligner").label
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    fake = _aligner_record(
+        state="update_needed",
+        hint="vocab.json sha256 abc does not match the pin. Run: podcast bootstrap "
+        "--component word-aligner --upgrade",
+        bootstrap="podcast bootstrap --component word-aligner --upgrade",
+    )
+    first, second = _patch_model_record(fake)
     with (
-        patch(
-            "podcast_mcp.services.support.doctor.FFmpegEngine.check_available",
-            return_value=(True, "ffmpeg 7.0"),
-        ),
-        patch(
-            "podcast_mcp.services.support.doctor.word_aligner_problem",
-            return_value=WordAlignerPinMismatchError(
-                "onnx-base", "vocab.json sha256 abc does not match the pin"
-            ),
-        ),
+        _stub_doctor_ffmpeg(),
+        first,
+        second,
     ):
         result = runner.invoke(setup_app, ["doctor"])
     assert result.exit_code == 1
-    assert "[fail] word-aligner" in result.stderr
+    assert f"[fail] {label}: " in result.stderr
     assert "--upgrade" in result.stderr
 
 
-def test_doctor_word_aligner_not_downloaded_prints_no_line(tmp_path, monkeypatch):
-    from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
+def test_doctor_word_aligner_not_downloaded_warns_with_the_fix(tmp_path, monkeypatch):
+    from podcast_mcp.engines.models.registry import model_spec
 
+    spec = model_spec("word-aligner")
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    fake = _aligner_record(state="missing", hint="long copy", bootstrap=spec.fix_command)
+    first, second = _patch_model_record(fake)
     with (
-        patch(
-            "podcast_mcp.services.support.doctor.FFmpegEngine.check_available",
-            return_value=(True, "ffmpeg 7.0"),
-        ),
-        patch(
-            "podcast_mcp.services.support.doctor.word_aligner_problem",
-            return_value=WordAlignerMissingError("onnx-base"),
-        ),
+        _stub_doctor_ffmpeg(),
+        first,
+        second,
     ):
         result = runner.invoke(setup_app, ["doctor"])
-    assert "word-aligner" not in result.stderr
-    assert "word-aligner" not in result.stdout
+    assert result.exit_code == 0
+    assert (
+        f"[warn] {spec.label}: not downloaded (run `{spec.fix_command}`; needed for {spec.purpose})"
+    ) in result.stderr
 
 
 def test_doctor_fails_on_whisper_pin_mismatch(tmp_path, monkeypatch):
