@@ -2,7 +2,6 @@ import type { HistoryEntryId, ProjectView } from "../types/project";
 
 type History = ProjectView["history"];
 
-/** Where each entry sits in the history, oldest first: from `entries`, else from the groups' indexes. */
 function positions(history: History): Map<string, number> {
   const at = new Map<string, number>();
   if (history.entries && history.entries.length > 0) {
