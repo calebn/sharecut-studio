@@ -25,7 +25,7 @@ PINNED_SIGNATURES: dict[str, str] = {
     "list_effects": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None) -> 'EffectTrackListResult | EffectPresetListResult'",
     "low_audibility_words": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, progress: 'ProgressReporter | None' = None) -> 'list[dict]'",
     "mute_off_speaker": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, apply: 'bool' = True, progress: 'ProgressReporter | None' = None, lock_timeout: 'float' = 3600.0) -> 'dict'",
-    "overlap_duplicates": "(self, *, start_sec: 'float | None' = None, end_sec: 'float | None' = None, progress: 'ProgressReporter | None' = None) -> 'dict'",
+    "overlap_duplicates": "(self, *, start_sec: 'float | None' = None, end_sec: 'float | None' = None, progress: 'ProgressReporter | None' = None) -> 'OverlapDuplicateReport'",
     "preview_bleed_mute": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, start_sec: 'float | None' = None, end_sec: 'float | None' = None, align_retained_bleed: 'bool' = True, override_placement_lock: 'bool' = False, progress: 'ProgressReporter | None' = None) -> 'dict'",
     "preview_inaudible_cut": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, start: 'float', end: 'float', timeline: 'bool' = False) -> 'dict'",
     "preview_off_speaker_mute": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, progress: 'ProgressReporter | None' = None) -> 'dict'",

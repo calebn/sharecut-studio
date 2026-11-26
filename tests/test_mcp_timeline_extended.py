@@ -22,6 +22,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.services.document import OverlapDuplicateReport
 from podcast_mcp.services.document.loudness_results import LoudnessReport
 
 
@@ -382,7 +383,9 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
         svc.preview_reconcile_transcript.return_value = {"changed": 0, "dry_run": True}
         svc.list_bleed_words.return_value = [{"text": "bleed"}]
         svc.preview_suppress_bleed.return_value = {"would_suppress": 1}
-        svc.overlap_duplicates.return_value = {"pairs": []}
+        svc.overlap_duplicates.return_value = OverlapDuplicateReport(
+            pair_count=0, text_match_count=0, pairs=[]
+        )
         svc.preview_bleed_mute.return_value = {"dry_run": True, "candidate_count": 0}
         svc.low_audibility_words.return_value = []
         svc.gate_overreach.return_value = {"clips": []}
@@ -419,7 +422,7 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
     assert reconcile["dry_run"] is True
     assert bleed[0]["text"] == "bleed"
     assert suppressed["would_suppress"] == 1
-    assert overlap["pairs"] == []
+    assert overlap == {"pair_count": 0, "text_match_count": 0, "pairs": []}
     assert gate_preview["dry_run"] is True
     assert low_aud == []
     assert suppressed_low["suppressed_count"] == 0

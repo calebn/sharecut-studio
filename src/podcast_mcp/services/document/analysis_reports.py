@@ -23,6 +23,10 @@ from podcast_mcp.edits.transcript_reconcile import (
     reconciliation_status_report,
 )
 from podcast_mcp.services.document.effects import EffectsService
+from podcast_mcp.services.document.overlap_results import (
+    OverlapDuplicateReport,
+    overlap_duplicate_report_result,
+)
 from podcast_mcp.util.progress import ProgressReporter
 
 
@@ -112,13 +116,15 @@ class AnalysisReportService(EffectsService):
         start_sec: float | None = None,
         end_sec: float | None = None,
         progress: ProgressReporter | None = None,
-    ) -> dict:
-        return overlap_duplicate_report(
-            self.ws.project,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            progress=progress,
-            defaults=self.ws.effective_config(),
+    ) -> OverlapDuplicateReport:
+        return overlap_duplicate_report_result(
+            overlap_duplicate_report(
+                self.ws.project,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                progress=progress,
+                defaults=self.ws.effective_config(),
+            )
         )
 
     def gate_overreach(

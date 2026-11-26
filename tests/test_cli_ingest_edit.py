@@ -27,7 +27,12 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.services.document import AnalysisService, MoveSegmentResult, StripSilenceResult
+from podcast_mcp.services.document import (
+    AnalysisService,
+    MoveSegmentResult,
+    OverlapDuplicateReport,
+    StripSilenceResult,
+)
 from podcast_mcp.services.document.cut_range_results import (
     CutRangeRippleApplied,
     RippleDeleteTextApplied,
@@ -1086,12 +1091,6 @@ def test_edit_ripple_delete_and_move_bad_params(minimal_project):
             {"suppressed_count": 0},
         ),
         (
-            "overlap-duplicates",
-            [],
-            "overlap_duplicates",
-            {"pairs": []},
-        ),
-        (
             "apply-bleed-mute",
             ["--dry-run"],
             "apply_bleed_mute",
@@ -1137,6 +1136,16 @@ def test_edit_strip_silence_dumps_the_typed_result(minimal_project):
     assert result.exit_code == 0
     assert json.loads(result.stdout) == result_model.model_dump()
     assert result.stdout.strip() == json.dumps(result_model.model_dump(), indent=2)
+
+
+def test_edit_overlap_duplicates_dumps_the_typed_result(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    report = OverlapDuplicateReport(pair_count=0, text_match_count=0, pairs=[])
+    with patch.object(AnalysisService, "overlap_duplicates", return_value=report):
+        result = runner.invoke(app, ["edit", "overlap-duplicates", "--project", str(project)])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == report.model_dump()
+    assert result.stdout.strip() == json.dumps(report.model_dump(), indent=2)
 
 
 def test_edit_ripple_delete_by_query(minimal_project):

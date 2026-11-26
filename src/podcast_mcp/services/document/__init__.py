@@ -90,6 +90,7 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.kit_apply import KitApplyReport, submit_kit_apply
     from podcast_mcp.services.document.kit_offer import report_kit_offer
+    from podcast_mcp.services.document.overlap_results import OverlapDuplicateReport
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
     from podcast_mcp.services.document.play_pending import (
         PENDING_PREVIEW_PAD_DEFAULT_SEC,
@@ -216,6 +217,7 @@ __all__ = [
     "ListedFiles",
     "MoveClipsResult",
     "MoveSegmentResult",
+    "OverlapDuplicateReport",
     "PasteSegmentResult",
     "PendingPreviewSpan",
     "PlayRequest",
@@ -365,6 +367,7 @@ _MODULE_BY_NAME = {
     "DuplicateSegmentResult": "timeline_segment_results",
     "ClipboardExtract": "clipboard_results",
     "ClipboardResult": "clipboard_results",
+    "OverlapDuplicateReport": "overlap_results",
     "PasteSegmentResult": "timeline_segment_results",
     "SetClipJoinResult": "join_mode_results",
     "SetClipFadeResult": "clip_fade_results",
