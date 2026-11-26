@@ -263,7 +263,7 @@ function SegmentOption({
   row: SegmentListRow;
   name: string;
   checked: boolean;
-  onPick: (pointer: boolean) => void;
+  onPick: () => void;
   first: RefObject<HTMLInputElement | null> | null;
 }) {
   const damaged = isDamagedSegment(row);
@@ -288,12 +288,7 @@ function SegmentOption({
         value={row.id}
         checked={checked}
         disabled={damaged}
-        onChange={(event) =>
-          onPick(
-            event.nativeEvent instanceof MouseEvent &&
-              event.nativeEvent.detail > 0,
-          )
-        }
+        onChange={onPick}
       />
       {damaged ? row.id : row.name}
       <span className="sys-segment-option-meta">{meta}</span>
@@ -462,7 +457,16 @@ function InsertSegmentForm({
         <p className="sys-segment-summary">{INSERT_EMPTY_LIBRARY}</p>
       ) : (
         <>
-          <fieldset ref={listRef} className="sys-segment-list">
+          <fieldset
+            ref={listRef}
+            className="sys-segment-list"
+            onPointerDown={() => {
+              pointerPick.current = true;
+            }}
+            onKeyDown={() => {
+              pointerPick.current = false;
+            }}
+          >
             <legend className="ui-field-label">Segment</legend>
             {rows.map((row, index) => (
               <SegmentOption
@@ -470,10 +474,7 @@ function InsertSegmentForm({
                 row={row}
                 name={group}
                 checked={selected?.id === row.id}
-                onPick={(pointer) => {
-                  pointerPick.current = pointer;
-                  state.pick(row.id);
-                }}
+                onPick={() => state.pick(row.id)}
                 first={index === firstUsable ? firstRadio : null}
               />
             ))}

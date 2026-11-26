@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 
-const SHORT_REM = 44;
+const SHORT_REM = 40;
 const CRAMPED_REM = 22;
 
 /** The viewport height in root em, so large text counts: a rem media query ignores a root font size set by the page. */

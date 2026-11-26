@@ -1,4 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -831,6 +837,24 @@ describe("InsertSegmentCard bottom", () => {
       />,
     );
     expect(scroll).toHaveBeenCalledTimes(1);
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  });
+
+  it("scrolls on a tap whose click has no detail, as WebKit forwards a label tap to its radio", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    render(
+      <InsertSegmentCard
+        {...data(PLACEMENT_LIBRARY)}
+        {...handlersOf()}
+        form="bottom"
+        open
+      />,
+    );
+    const radio = await screen.findByRole("radio", { name: /Host read/ });
+    fireEvent.pointerDown(radio);
+    fireEvent.click(radio, { detail: 0 });
+    await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
     Reflect.deleteProperty(Element.prototype, "scrollIntoView");
   });
 
