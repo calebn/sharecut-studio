@@ -835,6 +835,7 @@ read pipeline settings.
 | `PODCAST_MCP_FFPROBE` |  | Explicit ffprobe executable. |
 | `PODCAST_MCP_FFMPEG_BUNDLE` |  | Directory holding the desktop app's bundled FFmpeg pair. |
 | `PODCAST_BOOTSTRAP_CDN_BASE` |  | Public HTTPS mirror base for bootstrap assets. |
+| `PODCAST_HF_IN_PROCESS` |  | 1 downloads pinned Hugging Face models inside the app over plain HTTP instead of in a killable Xet child process. |
 | `PODCAST_OWNER_CDN_BASE` |  | HTTPS origin that serves the pinned speaker model and FFmpeg archives; official builds embed it, a source build has none. |
 | `WHISPER_CPP_BIN` |  | whisper-cli executable. |
 | `WHISPER_CPP_MODEL` |  | whisper.cpp model file. |

@@ -108,7 +108,7 @@ def test_child_progress_moves_up_and_ends_at_the_total(
     assert len(set(sizes)) >= 3, sizes
     assert len(spawned) == 1
     assert spawned[0].poll() == 0
-    assert (tmp_path / "hub" / ".fetch-child.log").is_file()
+    assert not list((tmp_path / "hub").glob(".fetch-child-*"))
 
 
 def test_cancel_kills_the_child_and_reraises(
