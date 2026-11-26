@@ -40,10 +40,7 @@ from podcast_mcp.edits.decisions import (
     require_pending_edit_baseline,
     update_pending_edit,
 )
-from podcast_mcp.edits.edit_reasons import (
-    GUEST_SUGGEST_REASON,
-    NL_RANGE_REASON,
-)
+from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.edits.envelopes import volume_envelope_baseline
 from podcast_mcp.edits.join_continuity import (
     assess_existing_join,
@@ -55,7 +52,6 @@ from podcast_mcp.edits.timeline_ops import (
     plan_ripple_delete,
     plan_ripple_delete_text,
 )
-from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.edits.transcript_search import TranscriptMatch
 from podcast_mcp.edits.unsure_words import (
@@ -73,6 +69,7 @@ from podcast_mcp.project.history.manager import (
 from podcast_mcp.project.history.rollback import RollbackOutcome
 from podcast_mcp.services.document import cut_range_results as crr
 from podcast_mcp.services.document.edit_results import SuggestedActionsApplied
+from podcast_mcp.services.document.edit_suggest import suggest_mutation
 from podcast_mcp.services.document.edit_wire_results import (
     AppliedEditsWithRestore,
     EditImpactReport,
@@ -628,10 +625,8 @@ class EditService(CutMutatingService):
 
     @overload
     def impact_report(self, *, markdown: Literal[True]) -> str: ...
-
     @overload
     def impact_report(self, *, markdown: Literal[False] = False) -> EditImpactReport: ...
-
     @overload
     def impact_report(self, *, markdown: bool) -> str | EditImpactReport: ...
 
@@ -838,27 +833,15 @@ class EditService(CutMutatingService):
         author: str | None = None,
     ) -> SuggestedEdit:
         """Guest/host suggest: pending remove or mute decision (review_required)."""
-        from podcast_mcp.models import EditDecisionType
-
-        raw = str(edit_type or "remove").strip().lower()
-        if raw not in ("remove", "mute"):
-            raise CodedValueError("edit_type must be remove or mute", code="edit_type_invalid")
-        decision_type = EditDecisionType.MUTE if raw == "mute" else EditDecisionType.REMOVE
-
-        def mutate(p) -> SuggestedEdit:
-            decision = append_remove_decision(
-                p,
-                track_id,
-                float(start),
-                float(end),
-                reason=reason or GUEST_SUGGEST_REASON,
-                review_required=True,
-                decision_type=decision_type,
-                author=author,
-                defaults=self.ws.effective_config(),
-            )
-            return cast(SuggestedEdit, decision.model_dump(exclude={"bound_pad"}))
-
+        mutate = suggest_mutation(
+            self.ws.effective_config,
+            track_id,
+            start,
+            end,
+            reason=reason,
+            edit_type=edit_type,
+            author=author,
+        )
         return self.ws.mutate(
             "before suggest pending edit",
             "after suggest pending edit",
