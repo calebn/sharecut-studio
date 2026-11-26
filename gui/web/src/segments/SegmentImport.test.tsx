@@ -37,6 +37,8 @@ const commit = vi.mocked(api.commitSegmentImport);
 const cancel = vi.mocked(api.cancelSegmentImport);
 const download = vi.mocked(api.downloadSegmentFile);
 const play = vi.fn(async function (this: HTMLMediaElement) {});
+let createObjectURL = vi.fn();
+let revokeObjectURL = vi.fn();
 const TOKEN = "a".repeat(32);
 
 function Section() {
@@ -447,8 +449,10 @@ describe("Export", () => {
       addEventListener: () => {},
       removeEventListener: () => {},
     }));
-    URL.createObjectURL = vi.fn(() => "blob:segment");
-    URL.revokeObjectURL = vi.fn();
+    createObjectURL = vi.fn(() => "blob:segment");
+    revokeObjectURL = vi.fn();
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
   });
 
   it("is in the More menu of a readable row and not of a damaged one", async () => {
@@ -478,7 +482,7 @@ describe("Export", () => {
     );
     expect(download).toHaveBeenCalledWith(HEALTHY.id);
     expect(click).toHaveBeenCalledTimes(1);
-    expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(createObjectURL).toHaveBeenCalled();
   });
 
   it("shares the file with the share sheet on a touch device that can share files", async () => {
@@ -624,8 +628,10 @@ describe("Export, host only and honest", () => {
     }));
 
   beforeEach(() => {
-    URL.createObjectURL = vi.fn(() => "blob:segment");
-    URL.revokeObjectURL = vi.fn();
+    createObjectURL = vi.fn(() => "blob:segment");
+    revokeObjectURL = vi.fn();
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   });
 
@@ -674,7 +680,7 @@ describe("Export, host only and honest", () => {
       expect(announced()).toBe("Saved cold-open.sharecutseg"),
     );
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
   });
 
   it("replaces the preparing line when the share sheet is closed", async () => {
