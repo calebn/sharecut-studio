@@ -19,6 +19,7 @@ import numpy as np
 
 from podcast_mcp import settings
 from podcast_mcp.config.defaults import models_dir
+from podcast_mcp.engines.models import load_probe
 from podcast_mcp.engines.models.ecapa_features import ecapa_features
 from podcast_mcp.engines.onnx_session import (
     OnnxModel,
@@ -162,7 +163,13 @@ class EcapaOnnx:
                     if (problem := speaker_ecapa_problem()) is not None:
                         raise SpeakerEcapaMissingError(f"{SPEAKER_ECAPA_LABEL} {problem}")
                     path = speaker_ecapa_path()
-                self._session = OnnxModel(path, accelerate=ACCELERATE_ECAPA, quiet=True)
+                try:
+                    self._session = OnnxModel(path, accelerate=ACCELERATE_ECAPA, quiet=True)
+                except Exception as exc:
+                    if not isinstance(exc, MemoryError):
+                        load_probe.record(path, load_probe.error_text(exc, path))
+                    raise
+                load_probe.record(path, None)
             return self._session
 
     def embed(self, samples: np.ndarray) -> np.ndarray:

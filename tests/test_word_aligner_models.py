@@ -12,6 +12,7 @@ from model_pin_helpers import pin_word_aligner_to_fake_snapshot, write_fake_file
 from podcast_mcp.engines.models.word_aligner import (
     DEFAULT_WORD_ALIGNER,
     WORD_ALIGNER_CATALOG,
+    WordAlignerLoadError,
     WordAlignerMissingError,
     WordAlignerPinMismatchError,
     bootstrap_word_aligner,
@@ -370,3 +371,177 @@ def test_bootstrap_skip_check_rehashes_a_file_a_status_poll_remembered(
     os.utime(target, ns=(st.st_atime_ns, st.st_mtime_ns))
     assert word_aligner_is_cached(memoize=True) is True  # stale poll memo
     assert isinstance(word_aligner_problem(), WordAlignerPinMismatchError)
+
+
+def _override_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    model_dir = tmp_path / "override"
+    (model_dir / "onnx").mkdir(parents=True)
+    (model_dir / "vocab.json").write_text(json.dumps({"<pad>": 0, "|": 1, "A": 2}))
+    (model_dir / "onnx" / "model.onnx").write_bytes(b"stub")
+    monkeypatch.setenv("PODCAST_MCP_WORD_ALIGNER_MODEL", str(model_dir))
+    return model_dir / "onnx" / "model.onnx"
+
+
+def test_a_pin_matching_aligner_that_failed_to_load_is_unsupported(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record
+
+    snap = tmp_path / "snap"
+    pin_word_aligner_to_fake_snapshot(snap, monkeypatch)
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+    )
+    onnx_file = snap / word_aligner_model().onnx_file
+    assert model_record("word-aligner", memoize=False)["state"] == "installed"
+    load_probe.record(onnx_file, "RuntimeError: unsupported opset 99")
+
+    row = model_record("word-aligner", memoize=False)
+
+    assert row["state"] == "unsupported"
+    assert "unsupported opset 99" in row["hint"]
+    assert "downloaded but cannot be loaded on this machine" in row["hint"]
+    assert "podcast bootstrap --component word-aligner" in row["hint"]
+
+
+def test_a_cached_aligner_failure_does_not_refuse_a_run(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record, require_model
+
+    snap = tmp_path / "snap"
+    pin_word_aligner_to_fake_snapshot(snap, monkeypatch)
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+    )
+    load_probe.record(snap / word_aligner_model().onnx_file, "RuntimeError: boom")
+
+    require_model("word-aligner", memoize=False)
+
+    assert model_record("word-aligner", memoize=False)["state"] == "unsupported"
+    assert model_record("word-aligner", memoize=False, check_load=False)["state"] == "installed"
+
+
+def test_a_bad_vocab_is_not_recorded_as_a_model_file_failure(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines import word_align
+    from podcast_mcp.engines.models import load_probe
+
+    onnx_file = _override_dir(tmp_path, monkeypatch)
+    (onnx_file.parent.parent / "vocab.json").write_text("{not json")
+    monkeypatch.setattr(word_align, "OnnxModel", lambda *_a, **_k: pytest.fail("built a session"))
+
+    with pytest.raises(WordAlignerLoadError):
+        word_align.WordAligner.load()
+
+    assert load_probe.failure(onnx_file) is None
+
+
+def test_a_new_aligner_file_stamp_clears_the_cached_failure(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record
+
+    snap = tmp_path / "snap"
+    pin_word_aligner_to_fake_snapshot(snap, monkeypatch)
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+    )
+    onnx_file = snap / word_aligner_model().onnx_file
+    load_probe.record(onnx_file, "RuntimeError: boom")
+    stat = onnx_file.stat()
+    os.utime(onnx_file, ns=(stat.st_atime_ns, stat.st_mtime_ns + 5_000_000_000))
+    assert model_record("word-aligner", memoize=False)["state"] == "installed"
+
+
+def test_aligner_status_polls_never_build_a_session(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines import word_align
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record
+
+    def boom(*_a, **_k):
+        raise AssertionError("a status poll built a session")
+
+    snap = tmp_path / "snap"
+    pin_word_aligner_to_fake_snapshot(snap, monkeypatch)
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+    )
+    monkeypatch.setattr(word_align, "OnnxModel", boom)
+    monkeypatch.setattr(word_align.WordAligner, "load", boom)
+    assert model_record("word-aligner")["state"] == "installed"
+    load_probe.record(snap / word_aligner_model().onnx_file, "RuntimeError: boom")
+    assert model_record("word-aligner")["state"] == "unsupported"
+
+
+def test_a_failed_aligner_session_build_records_the_error(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines import word_align
+    from podcast_mcp.engines.models import load_probe
+
+    onnx_file = _override_dir(tmp_path, monkeypatch)
+
+    def broken(*_a, **_k):
+        raise RuntimeError("unsupported opset 99")
+
+    monkeypatch.setattr(word_align, "OnnxModel", broken)
+    with pytest.raises(WordAlignerLoadError):
+        word_align.WordAligner.load()
+    recorded = load_probe.failure(onnx_file)
+    assert recorded is not None
+    assert "unsupported opset 99" in recorded
+
+
+def test_a_failed_aligner_load_shows_unsupported_in_status(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines import word_align
+    from podcast_mcp.engines.models.registry import model_record
+
+    _override_dir(tmp_path, monkeypatch)
+
+    def broken(*_a, **_k):
+        raise RuntimeError("unsupported opset 99")
+
+    monkeypatch.setattr(word_align, "OnnxModel", broken)
+    with pytest.raises(WordAlignerLoadError):
+        word_align.WordAligner.load()
+    row = model_record("word-aligner")
+    assert row["state"] == "unsupported"
+    assert "unsupported opset 99" in row["hint"]
+
+
+def test_a_successful_aligner_load_clears_the_cached_failure(tmp_path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from podcast_mcp.engines import word_align
+    from podcast_mcp.engines.models import load_probe
+
+    onnx_file = _override_dir(tmp_path, monkeypatch)
+    load_probe.record(onnx_file, "RuntimeError: stale")
+    stub = SimpleNamespace(get_inputs=lambda: [SimpleNamespace(name="input_values")])
+    monkeypatch.setattr(word_align, "OnnxModel", lambda *_a, **_k: stub)
+    word_align.WordAligner.load()
+    assert load_probe.failure(onnx_file) is None
+
+
+def test_a_memory_error_building_the_aligner_session_is_not_cached(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines import word_align
+    from podcast_mcp.engines.models import load_probe
+
+    onnx_file = _override_dir(tmp_path, monkeypatch)
+
+    def broken(*_a, **_k):
+        raise MemoryError("out of memory")
+
+    monkeypatch.setattr(word_align, "OnnxModel", broken)
+    with pytest.raises(WordAlignerLoadError):
+        word_align.WordAligner.load()
+    assert load_probe.failure(onnx_file) is None
+
+
+def test_an_aligner_override_load_failure_says_to_fix_or_unset_it(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines.models import load_probe
+    from podcast_mcp.engines.models.registry import model_record
+
+    onnx_file = _override_dir(tmp_path, monkeypatch)
+    load_probe.record(onnx_file, "RuntimeError: unsupported opset 99")
+
+    row = model_record("word-aligner", memoize=False)
+
+    assert row["state"] == "unsupported"
+    assert "--upgrade" not in row["hint"]
+    assert "unset PODCAST_MCP_WORD_ALIGNER_MODEL" in row["hint"]

@@ -299,6 +299,41 @@ def test_gui_bootstrap_run_accepts_word_aligner(monkeypatch) -> None:
     assert started.json()["job"]["components"] == ["word-aligner"]
 
 
+def test_gui_bootstrap_job_says_when_a_downloaded_model_cannot_load(monkeypatch) -> None:
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.jobs import shared_job_manager
+
+    def fake_run(components=None, *, whisper_model=None, force=False, progress=None, **_extra):
+        return {
+            "ok": True,
+            "results": {
+                "speaker-ecapa": {"ok": True, "loads": False, "load_error": "RuntimeError: boom"}
+            },
+            "ready": False,
+            "whisper_model": whisper_model,
+            "models": [],
+            "tools": {},
+        }
+
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", fake_run)
+    shared_job_manager(reset=True)
+    client = TestClient(create_app())
+
+    job_id = client.post("/api/bootstrap/run", json={"components": ["speaker-ecapa"]}).json()[
+        "job"
+    ]["id"]
+    job = None
+    for _ in range(50):
+        job = client.get(f"/api/bootstrap/status-job?job_id={job_id}").json()["job"]
+        if job and job["status"] in ("ok", "error", "cancelled"):
+            break
+    assert job is not None
+    assert job["status"] == "ok"
+    assert job["message"] == (
+        "Download finished, but Speaker recognition (ECAPA, ONNX) cannot be loaded on this machine"
+    )
+
+
 def test_run_bootstrap_rejects_torch_extras() -> None:
     from podcast_mcp.services.pipeline.bootstrap import run_bootstrap
 

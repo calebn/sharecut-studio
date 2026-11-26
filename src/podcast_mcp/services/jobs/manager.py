@@ -44,6 +44,7 @@ from podcast_mcp.services.pipeline import (
     PipelineRunIntent,
     PipelineService,
     VariantJobResult,
+    model_spec,
     run_bootstrap,
 )
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
@@ -485,6 +486,15 @@ class JobManager:
                 else:
                     job.status = "ok"
                     job.message = "Bootstrap complete"
+                    if unloadable := [
+                        model_spec(name).label
+                        for name, info in (result.get("results") or {}).items()
+                        if isinstance(info, dict) and info.get("loads") is False
+                    ]:
+                        job.message = (
+                            f"Download finished, but {', '.join(unloadable)} "
+                            "cannot be loaded on this machine"
+                        )
                 job.result = result
                 job.finished_at = time.monotonic()
         except Exception as exc:

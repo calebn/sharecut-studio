@@ -16,12 +16,14 @@ from pathlib import Path
 from typing import Any, Literal
 
 from podcast_mcp.config.defaults import cache_dir, whisper_cache_dir, word_aligner_cache_dir
-from podcast_mcp.engines.models import whisper_cpp_models
+from podcast_mcp.engines.models import load_probe, whisper_cpp_models
 from podcast_mcp.engines.models.speaker_ecapa import (
     SPEAKER_ECAPA_BOOTSTRAP,
+    SPEAKER_ECAPA_ENV,
     SPEAKER_ECAPA_LABEL,
     SPEAKER_ECAPA_SIZE,
     SPEAKER_ECAPA_SIZE_BYTES,
+    EcapaOnnx,
     SpeakerEcapaOverrideError,
     bootstrap_speaker_ecapa,
     speaker_ecapa_override,
@@ -44,9 +46,12 @@ from podcast_mcp.engines.models.whisper import (
 from podcast_mcp.engines.models.word_aligner import (
     DEFAULT_WORD_ALIGNER,
     WORD_ALIGNER_BOOTSTRAP,
+    WORD_ALIGNER_ENV,
+    WordAlignerMissingError,
     WordAlignerOverrideError,
     WordAlignerPinMismatchError,
     bootstrap_word_aligner,
+    resolve_word_aligner_dir,
     word_aligner_model,
     word_aligner_override_dir,
     word_aligner_problem,
@@ -92,6 +97,10 @@ class ModelSpec:
     #: What Studio downloaded for the model, as paths to delete; raises ``ModelNotRemovable``
     #: when the model is a file the person supplied.
     downloaded: Callable[[str | None], list[Path]]
+    #: Loads the model the way its consumer does; with ``probe_file`` (the ONNX file it opens),
+    #: set only for the rows whose file can pass its pin and still not load (#1998).
+    probe: Callable[[str | None], object] | None = None
+    probe_file: Callable[[str | None], Path | None] | None = None
     install_without_preference: (
         Callable[[str | None, bool, OnProgress | None], dict[str, Any]] | None
     ) = None
@@ -282,6 +291,28 @@ def _word_aligner_downloaded(variant: str | None) -> list[Path]:
     return [root / f"models--{model.hf_repo.replace('/', '--')}"]
 
 
+def _word_aligner_probe(variant: str | None) -> object:
+    from podcast_mcp.engines.word_align import WordAligner
+
+    return WordAligner.load(variant or DEFAULT_WORD_ALIGNER)
+
+
+def _word_aligner_probe_file(variant: str | None) -> Path | None:
+    model = word_aligner_model(variant or DEFAULT_WORD_ALIGNER)
+    try:
+        return resolve_word_aligner_dir(model.id) / model.onnx_file
+    except WordAlignerMissingError:
+        return None
+
+
+def _speaker_ecapa_probe(variant: str | None) -> object:
+    return EcapaOnnx(speaker_ecapa_path())._load()
+
+
+def _speaker_ecapa_probe_file(variant: str | None) -> Path | None:
+    return speaker_ecapa_path()
+
+
 def _speaker_ecapa_downloaded(variant: str | None) -> list[Path]:
     if speaker_ecapa_override() is not None:
         raise ModelNotRemovable(
@@ -338,6 +369,8 @@ MODELS: tuple[ModelSpec, ...] = (
         install=_word_aligner_install,
         location=word_aligner_cache_dir,
         downloaded=_word_aligner_downloaded,
+        probe=_word_aligner_probe,
+        probe_file=_word_aligner_probe_file,
         default_variant=DEFAULT_WORD_ALIGNER,
         variant_sizes=_word_aligner_sizes,
     ),
@@ -352,6 +385,8 @@ MODELS: tuple[ModelSpec, ...] = (
         location=speaker_ecapa_path,
         variant_sizes=_speaker_ecapa_sizes,
         downloaded=_speaker_ecapa_downloaded,
+        probe=_speaker_ecapa_probe,
+        probe_file=_speaker_ecapa_probe_file,
     ),
 )
 
@@ -381,18 +416,39 @@ def model_base(model_id: str, variant: str | None = None) -> dict[str, Any]:
 
 
 def model_record(
-    model_id: str, variant: str | None = None, *, memoize: bool = True
+    model_id: str, variant: str | None = None, *, memoize: bool = True, check_load: bool = True
 ) -> dict[str, Any]:
     """One model's readiness (no download), from the registry row alone.
 
     ``state`` is ``installed`` when the row reports no problem. A pin mismatch is
     ``update_needed`` with an ``--upgrade`` fix as ``bootstrap``; any other problem is
     ``missing`` with ``hint`` and ``bootstrap``. A configured Intel ONNX
-    override reports ``unsupported`` with a recovery hint.
+    override reports ``unsupported`` with a recovery hint, as does a pin-matching file that a
+    loader or ``install_model`` found cannot load here (read from ``load_probe``, never loaded;
+    ``check_load=False`` skips that check).
     """
     base = model_base(model_id, variant)
-    problem = model_spec(model_id).problem(variant, memoize)
+    spec = model_spec(model_id)
+    problem = spec.problem(variant, memoize)
     if problem is None:
+        probed = spec.probe_file(variant) if check_load and spec.probe_file is not None else None
+        if probed is not None and (error := load_probe.failure(probed)):
+            if model_id == "speaker-ecapa" and speaker_ecapa_override() is not None:
+                override_env = SPEAKER_ECAPA_ENV
+            elif model_id == "word-aligner" and word_aligner_override_dir() is not None:
+                override_env = WORD_ALIGNER_ENV
+            else:
+                override_env = None
+            fix = (
+                f"fix the file or unset {override_env}"
+                if override_env
+                else f"Reinstall onnxruntime, or run {spec.fix_command} --upgrade to download it again"
+            )
+            hint = (
+                f"{spec.label} is downloaded but cannot be loaded on this machine: "
+                f"{error.removesuffix('.')}. {fix}"
+            )
+            return {**base, "state": "unsupported", "hint": hint}
         return {**base, "state": "installed"}
     if isinstance(problem, OnnxOverrideUnsupportedError):
         return {**base, "state": "unsupported", "hint": str(problem)}
@@ -406,7 +462,7 @@ def model_record(
 
 def require_model(model_id: str, variant: str | None = None, *, memoize: bool = True) -> None:
     """Require a usable model without downloading it."""
-    rec = model_record(model_id, variant, memoize=memoize)
+    rec = model_record(model_id, variant, memoize=memoize, check_load=False)
     if rec["state"] == "unsupported":
         raise OnnxOverrideUnsupportedError(rec["hint"])
     if rec["state"] != "installed":

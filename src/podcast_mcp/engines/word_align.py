@@ -35,6 +35,7 @@ from podcast_mcp.engines.ctc_forced_align import (
     place_spans_stream,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.models import load_probe
 from podcast_mcp.engines.models.word_aligner import (
     DEFAULT_WORD_ALIGNER,
     WordAlignerLoadError,
@@ -130,16 +131,24 @@ class WordAligner:
             vocab = CtcVocab.from_token_map(
                 json.loads((model_dir / "vocab.json").read_text(encoding="utf-8"))
             )
+        except Exception as exc:
+            raise WordAlignerLoadError(model.id, model_dir, exc) from exc
+        try:
             backend = OnnxCtcBackend(
                 onnx_path,
                 threads=threads or min(DEFAULT_ALIGNER_THREADS, cpu_budget()),
             )
-        except (WordAlignerMissingError, OnnxRuntimeMissingError):
+        except WordAlignerMissingError:
             raise
         except Exception as exc:
+            if not isinstance(exc, MemoryError):
+                load_probe.record(onnx_path, load_probe.error_text(exc, onnx_path))
+            if isinstance(exc, OnnxRuntimeMissingError):
+                raise
             # A present snapshot whose files do not parse (an override dir with a stray
             # ONNX, a torn write): name the dir and the fix instead of a raw runtime error.
             raise WordAlignerLoadError(model.id, model_dir, exc) from exc
+        load_probe.record(onnx_path, None)
         return cls(model, backend, vocab, local_source=local_source)
 
     def supports_language(self, language: str | None) -> bool:

@@ -1631,7 +1631,10 @@ def aligner_installed(monkeypatch, tmp_path):
 def _first_pass(proj):
     from podcast_mcp.engines import TranscriptionEngine as Engine
 
-    with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
+    with (
+        patch.object(Engine, "transcribe_file", return_value=_asr_result()),
+        patch("podcast_mcp.engines.word_align.WordAligner.load", side_effect=RuntimeError("stub")),
+    ):
         steps.transcribe_tracks(proj, load_defaults())
 
 
@@ -1834,11 +1837,8 @@ def test_transcribe_tracks_flag_on_reports_reused_tracks_not_retimed(
 ):
     import copy
 
-    from podcast_mcp.engines import TranscriptionEngine as Engine
-
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
-    with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
-        steps.transcribe_tracks(proj, load_defaults())
+    _first_pass(proj)
     defaults = copy.deepcopy(load_defaults())
     defaults["transcribe"]["forced_alignment"]["enabled"] = True
     with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
@@ -1866,7 +1866,10 @@ def test_transcribe_tracks_flag_on_skips_reused_tracks_the_aligner_cannot_place(
 
     fields = {"words": [TranscriptWord(text="teh", start=0.0, end=0.5)], **asr}
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
-    with patch.object(Engine, "transcribe_file", return_value=Transcript(track_id="", **fields)):
+    with (
+        patch.object(Engine, "transcribe_file", return_value=Transcript(track_id="", **fields)),
+        patch("podcast_mcp.engines.word_align.WordAligner.load", side_effect=RuntimeError("stub")),
+    ):
         steps.transcribe_tracks(proj, load_defaults())
     defaults = copy.deepcopy(load_defaults())
     defaults["transcribe"]["forced_alignment"]["enabled"] = True
