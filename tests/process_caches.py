@@ -63,6 +63,11 @@ ISOLATED: dict[str, str] = {
     "podcast_mcp.engines.render_clock:_NATIVE_FORMATS": (
         "Tests count the probe spawns of a render and expect the first one to probe."
     ),
+    "podcast_mcp.engines.speaker_id:_content_digest": (
+        "Keyed by path and a stat revision (inode, size, mtime); a test that rewrites a stem at the "
+        "same path inside one clock tick would read the earlier digest, so each test starts empty "
+        "(#4578)."
+    ),
 }
 
 SHARED: dict[str, str] = {
