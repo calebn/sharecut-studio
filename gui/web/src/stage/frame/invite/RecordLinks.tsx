@@ -26,8 +26,8 @@ import { copyReasonOf } from "./inviteLogic";
 
 type EndProps = {
   options: ShareOptions;
-  /** Ends one room; the toast the flow raises carries the Undo. False when the press was ignored. */
-  onEndRoom: (sessionId: string) => boolean | void;
+  /** Ends one room at once; the toast the flow raises carries the Undo. */
+  onEndRoom: (sessionId: string) => void;
 };
 
 /** The record rooms of the project, each with its guest and producer links and End room, and Create record links. */
@@ -106,22 +106,25 @@ function RoomCard({
   };
   useEffect(() => {
     if (asking || !refocus.current) return;
+    const button = endButton.current;
+    if (!button || button.disabled) return;
     refocus.current = false;
-    endButton.current?.focus({ preventScroll: true });
-  }, [asking]);
-  if (asking && check.kind !== "ask") setAsking(false);
+    if (document.activeElement && document.activeElement !== document.body) {
+      return;
+    }
+    button.focus({ preventScroll: true });
+  }, [asking, endReason]);
+  useEffect(() => {
+    if (asking && check.kind !== "ask") closeAsk();
+  }, [asking, check.kind]);
   useEffect(() => {
     if (!asking || !busy) return;
     return registerInlineConfirm(closeAsk);
   }, [asking, busy]);
   const ask = asking && check.kind === "ask";
   const end = () => {
-    if (checkNow().kind === "blocked") {
-      setAsking(false);
-      return;
-    }
-    onEndRoom(room.sessionId);
-    setAsking(false);
+    if (checkNow().kind !== "blocked") onEndRoom(room.sessionId);
+    closeAsk();
   };
   const onEndClick = () => {
     const now = checkNow();
@@ -168,6 +171,7 @@ function RoomCard({
           keepLabel="Keep room"
           actionLabel="End room"
           disabledReason={busyReason}
+          describedBy={endNote.describedBy}
           onKeep={closeAsk}
           onConfirm={end}
         />
@@ -178,22 +182,16 @@ function RoomCard({
             variant="danger"
             className="inv-danger"
             disabledReason={endReason}
-            {...(endNote.describedBy["aria-describedby"]
-              ? endNote.describedBy
-              : { "aria-describedby": labelId })}
+            aria-describedby={
+              endNote.describedBy["aria-describedby"] ?? labelId
+            }
             onClick={onEndClick}
           >
             End room
           </Button>
         </div>
       )}
-      {ask ? (
-        busyReason ? (
-          <p className="inv-note">{busyReason}</p>
-        ) : null
-      ) : (
-        endNote.note
-      )}
+      {endNote.note}
     </li>
   );
 }

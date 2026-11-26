@@ -367,10 +367,6 @@ export function useHostRoom(
       setLookup((current) => ({ ...current, status: "none" }));
     }
   }, []);
-  const restoreRoom = useCallback(
-    (sessionId: string) => useRecordHostStore.getState().liftEnded(sessionId),
-    [],
-  );
   const announceStatus = useDawStore((s) => s.announceStatus);
   const end = snapshot
     ? endGate(snapshot, hostSegments)
@@ -464,7 +460,6 @@ export function useHostRoom(
     roomLookup,
     recheck,
     forgetRoom,
-    restoreRoom,
     endSession: { ...endSession, gate: end },
     doneNotice,
     transportBusy,

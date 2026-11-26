@@ -756,9 +756,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
                 return;
               }
               await restoreHostRoom(path, target.sessionId);
-              const hostRoom = readHostRoom();
-              if (hostRoom) hostRoom.restoreRoom(target.sessionId);
-              else useRecordHostStore.getState().liftEnded(target.sessionId);
+              useRecordHostStore.getState().liftEnded(target.sessionId);
             },
             scope,
             () => {

@@ -77,7 +77,6 @@ const PRODUCER = hostShareRow({
   session_id: "room-1",
 });
 
-/** What the host's Record stage knows about room-1 while Invite is open. */
 function stageRoom(fields: Parameters<typeof recordSnapshot>[0]) {
   return () => {
     useRecordHostStore.setState({

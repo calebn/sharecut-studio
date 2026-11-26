@@ -1392,7 +1392,6 @@ describe("record rooms", () => {
 describe("End room gate and the Record stage", () => {
   const recheck = vi.fn();
   const forgetRoom = vi.fn();
-  const restoreRoom = vi.fn();
   const landed = [
     {
       take_index: 0,
@@ -1408,7 +1407,6 @@ describe("End room gate and the Record stage", () => {
     const value = {
       recheck,
       forgetRoom,
-      restoreRoom,
       hostSegments,
     } as unknown as HostRoom;
     return render(
@@ -1433,7 +1431,6 @@ describe("End room gate and the Record stage", () => {
   beforeEach(() => {
     recheck.mockReset();
     forgetRoom.mockReset();
-    restoreRoom.mockReset();
   });
 
   it.each([
@@ -1498,13 +1495,11 @@ describe("End room gate and the Record stage", () => {
       flow.endRoom("sess1");
     });
     await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+    useRecordHostStore.setState({ endedSessionId: "sess1" });
     recheck.mockClear();
     await expect(toast()?.reverse?.run()).resolves.toBe(true);
-    expect(restoreRoom).toHaveBeenCalledExactlyOnceWith("sess1");
+    expect(useRecordHostStore.getState().endedSessionId).toBeNull();
     expect(recheck).toHaveBeenCalledTimes(1);
-    expect(restoreRoom.mock.invocationCallOrder[0]).toBeLessThan(
-      recheck.mock.invocationCallOrder[0] ?? 0,
-    );
   });
 
   it("rechecks, without lifting, when Undo is refused", async () => {
@@ -1516,9 +1511,10 @@ describe("End room gate and the Record stage", () => {
       flow.endRoom("sess1");
     });
     await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+    useRecordHostStore.setState({ endedSessionId: "sess1" });
     recheck.mockClear();
     await toast()?.reverse?.run();
-    expect(restoreRoom).not.toHaveBeenCalled();
+    expect(useRecordHostStore.getState().endedSessionId).toBe("sess1");
     expect(recheck).toHaveBeenCalledTimes(1);
   });
 
