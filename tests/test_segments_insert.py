@@ -1367,7 +1367,7 @@ def test_a_ripple_insert_of_a_non_dialogue_segment_keeps_reconciliation_fresh(
     _stamp_fresh(project)
     assert _recon(project)["stale"] is False
 
-    assert _insert(project, segment.id, 4.0).exit_code == 0
+    assert _insert(project, segment.id, 0.0).exit_code == 0
 
     status = _recon(project)
     assert status["stale"] is False
@@ -1382,11 +1382,42 @@ def test_a_kept_insert_still_marks_the_stems_stale(tmp_path: Path, project: str)
     _stamp_fresh(project)
     before = len(load_project(Path(project)).render.invalidations)
 
-    assert _insert(project, segment.id, 4.0).exit_code == 0
+    assert _insert(project, segment.id, 0.0).exit_code == 0
 
     proj = load_project(Path(project))
     assert len(proj.render.invalidations) > before
     assert proj.render.invalidations[-1].track_ids == ["host"]
+
+
+def test_a_ripple_insert_after_every_dialogue_clip_keeps_reconciliation_fresh(
+    tmp_path: Path, project: str
+) -> None:
+    segment = _save(tmp_path, "Tail Outro", role="outro")
+    _stamp_fresh(project)
+
+    end = max(c.timeline_end for c in load_project(Path(project)).clips)
+
+    assert _insert(project, segment.id, end).exit_code == 0
+
+    assert _recon(project)["stale"] is False
+
+
+def test_an_insert_between_dialogue_clips_on_two_tracks_marks_reconciliation_stale(
+    tmp_path: Path, project: str
+) -> None:
+    segment = _save(tmp_path, "Gap Intro")
+    _two_speakers(project)
+    proj = load_project(Path(project))
+    for clip in proj.clips:
+        if clip.id == "g1":
+            clip.timeline_start = 5.01
+            clip.source_end = clip.source_start + 3.0
+    save_project(proj, Path(project))
+    _stamp_fresh(project)
+
+    assert _insert(project, segment.id, 5.0).exit_code == 0
+
+    assert _recon(project)["stale"] is True
 
 
 def test_an_insert_inside_a_dialogue_clip_marks_reconciliation_stale(
@@ -1461,7 +1492,7 @@ def test_undo_and_redo_of_a_kept_insert_mark_reconciliation_stale(
 ) -> None:
     segment = _save(tmp_path, "History Intro")
     _stamp_fresh(project)
-    assert _insert(project, segment.id, 4.0).exit_code == 0
+    assert _insert(project, segment.id, 0.0).exit_code == 0
     assert _recon(project)["stale"] is False
 
     assert runner.invoke(app, ["undo", "--project", project]).exit_code == 0
@@ -1510,7 +1541,7 @@ def test_export_qc_has_no_stale_reconciliation_issue_after_a_kept_insert(
 ) -> None:
     segment = _save(tmp_path, "Qc Intro")
     _stamp_fresh(project)
-    assert _insert(project, segment.id, 4.0).exit_code == 0
+    assert _insert(project, segment.id, 0.0).exit_code == 0
 
     qc = write_export_qc(load_project(Path(project)), defaults=load_defaults())
 
