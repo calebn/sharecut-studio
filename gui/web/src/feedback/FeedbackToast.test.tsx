@@ -1500,6 +1500,7 @@ describe("FeedbackToast", () => {
 
     it("speaks Undone once, leaves focus alone and passes axe", async () => {
       const elsewhere = document.createElement("button");
+      elsewhere.textContent = "Elsewhere";
       document.body.append(elsewhere);
       const { rerender } = render(<FeedbackToast />);
       approve();
