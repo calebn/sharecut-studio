@@ -2354,6 +2354,12 @@ def inspect_source_remove(
     return float(span[0]), float(span[1])
 
 
+def require_requested_source_span(project: EpisodeProject, edit: EditDecision) -> None:
+    placement = cut_placement.inspect_source_remove_placement(project, edit)
+    if isinstance(placement, CutScopeHold):
+        raise ScopeChangedAtApproval([placement], {})
+
+
 def require_source_remove(
     project: EpisodeProject, edit: EditDecision, *, heard_pause_sec: float | None = None
 ) -> None:

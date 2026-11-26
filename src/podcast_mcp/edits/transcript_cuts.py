@@ -10,9 +10,10 @@ from podcast_mcp.edits.cut_application import (
     assess_source_offer,
     inspect_source_remove,
     record_suggested_cut_speech,
+    require_requested_source_span,
     require_source_remove,
 )
-from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
+from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.cut_policy import decision_policy
 from podcast_mcp.edits.cut_safety import CutScopeUnavailable, resolve_cut_scope
 from podcast_mcp.edits.edit_reasons import (
@@ -218,7 +219,7 @@ def add_remove_decision(
         if source_aware
         else None
     )
-    placement = inspect_source_remove_placement(
+    require_requested_source_span(
         project,
         EditDecision(
             id="source-request",
@@ -232,8 +233,6 @@ def add_remove_decision(
             source_timeline_span=placement_witness,
         ),
     )
-    if isinstance(placement, CutScopeHold):
-        raise ScopeChangedAtApproval([placement], {})
     # Pace from the requested span first so waveform snap cannot pull a boundary
     # onto the next word and then room-tone-expand across real dialogue.
     pacing_kwargs: dict[str, Any] = {"defaults": defaults, "cut_kind": "nl"}
