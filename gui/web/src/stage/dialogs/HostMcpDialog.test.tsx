@@ -402,6 +402,32 @@ describe("HostMcpDialog", () => {
       expect(document.activeElement).toBe(snippet);
     });
 
+    it("empties the status before a repeat identical success speaks again", async () => {
+      render(<HostMcpDialog open onClose={() => undefined} hasProject />);
+      const node = statusNode();
+      const seen: string[] = [];
+      const observer = new MutationObserver(() => {
+        seen.push(node.textContent ?? "");
+      });
+      observer.observe(node, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+      const copyUrl = screen.getByRole("button", { name: "Copy URL" });
+      fireEvent.click(copyUrl);
+      await waitFor(() => expect(node.textContent).toBe("Copied MCP URL"));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      fireEvent.click(copyUrl);
+      await waitFor(() => expect(seen).toContain(""));
+      await waitFor(() => expect(seen.at(-1)).toBe("Copied MCP URL"));
+      observer.disconnect();
+      expect(seen).toEqual(["Copied MCP URL", "", "Copied MCP URL"]);
+      expect(statusNode()).toBe(node);
+    });
+
     describe("failure lifecycle", () => {
       beforeEach(() => vi.useFakeTimers());
       afterEach(() => vi.useRealTimers());
