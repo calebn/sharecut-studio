@@ -787,6 +787,27 @@
   overflow: clip;
 }
 
+/* The ruler's tick labels, drawn in a layer of their own above the remote
+   presence window (one step above the sticky ruler), so a remote flag paints
+   under the label text but over the ruler row (#2919). It is the ruler's own
+   row, pinned the same way, and takes no pointer. */
+.timeline-ruler-labels {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-ruler-labels);
+  block-size: 0;
+  pointer-events: none;
+}
+
+.timeline-ruler-labels-window {
+  position: absolute;
+  inset-block-start: 0;
+  block-size: var(--ruler-height);
+  inline-size: var(--sys-ruler-width);
+  color: var(--color-timeline-text);
+  overflow: clip;
+}
+
 .timeline-ruler-window {
   position: absolute;
   inset-block-start: 0;
@@ -861,7 +882,7 @@
 
 /* A larger root font makes a label taller than the px row: it gives up its
    line height and top pad instead of being cut off. */
-.timeline-ruler .sys-ruler-tick {
+.timeline-ruler-labels .sys-ruler-tick {
   line-height: min(1rem, var(--ruler-height));
   padding-block-start: min(var(--space-0), calc(var(--ruler-height) - 1rem));
 }

@@ -1,4 +1,11 @@
-import { memo, useCallback, useMemo, useRef } from "react";
+import {
+  type CSSProperties,
+  memo,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
 import { Ruler } from "../system/Ruler";
@@ -68,6 +75,7 @@ export const TimelineRuler = memo(function TimelineRuler({
     },
     [onSeek],
   );
+  const [labelHost, setLabelHost] = useState<HTMLElement | null>(null);
   const bands = useSessionBands();
   const tints = useMemo(
     () =>
@@ -80,33 +88,51 @@ export const TimelineRuler = memo(function TimelineRuler({
     [bands],
   );
   return (
-    <div className="timeline-ruler">
-      <div className="timeline-ruler-window" style={{ insetInlineStart: left }}>
-        <Ruler
-          start={left / zoomPxPerSec}
-          pxPerSecond={zoomPxPerSec}
-          width={width}
-          duration={sessionSec}
-          playhead={playhead}
-          hidePlayhead
-          sessions={tints}
-          anchorProps={ANCHOR}
-          onSeek={onSeek}
-          onFit={onFit}
-          onScrubStart={scrubStart}
-          onScrub={scrub}
-          onScrubEnd={scrubEnd}
+    <>
+      <div className="timeline-ruler-labels" aria-hidden="true">
+        <div
+          ref={setLabelHost}
+          className="timeline-ruler-labels-window"
+          style={
+            {
+              insetInlineStart: left,
+              "--sys-ruler-width": `${width}px`,
+            } as CSSProperties
+          }
         />
-        {bands.length > 0 ? (
-          <SessionBandLayer
-            bands={bands}
-            start={left / zoomPxPerSec}
-            width={width}
-            pxPerSecond={zoomPxPerSec}
-          />
-        ) : null}
       </div>
-      {fixedPlayhead ? null : <Playhead height="100%" />}
-    </div>
+      <div className="timeline-ruler">
+        <div
+          className="timeline-ruler-window"
+          style={{ insetInlineStart: left }}
+        >
+          <Ruler
+            start={left / zoomPxPerSec}
+            pxPerSecond={zoomPxPerSec}
+            width={width}
+            duration={sessionSec}
+            playhead={playhead}
+            hidePlayhead
+            sessions={tints}
+            labelHost={labelHost}
+            anchorProps={ANCHOR}
+            onSeek={onSeek}
+            onFit={onFit}
+            onScrubStart={scrubStart}
+            onScrub={scrub}
+            onScrubEnd={scrubEnd}
+          />
+          {bands.length > 0 ? (
+            <SessionBandLayer
+              bands={bands}
+              start={left / zoomPxPerSec}
+              width={width}
+              pxPerSecond={zoomPxPerSec}
+            />
+          ) : null}
+        </div>
+        {fixedPlayhead ? null : <Playhead height="100%" />}
+      </div>
+    </>
   );
 });

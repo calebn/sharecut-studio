@@ -98,6 +98,9 @@
   --z-timeline-interaction: 8;
   --z-timeline-chrome: 9;
   --z-playhead: 10;
+  /* The ruler's tick labels, over the remote presence window (one above the
+     sticky ruler) and under the track headers. */
+  --z-ruler-labels: 11;
   --z-track-header: 12;
   /* Timeline action popovers sit above sticky headers and below sheets. */
   --z-timeline-popover: 20;

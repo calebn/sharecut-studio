@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { TrackColumn } from "../stage/edit/TrackColumn";
 import { viewportStoryParameters } from "../storybook/storyLayout";
-import { selections } from "../test/episodeFixture";
+import { EPISODE_DURATION_SEC, selections } from "../test/episodeFixture";
+import { sessionRoster } from "../test/fixtures";
 import {
   RECORDED_SESSIONS_RESPONSE,
   recordedSessionsProject,
@@ -143,5 +144,37 @@ export const GuestNoSessions: Story = {
       await canvas.findByRole("button", { name: "Mira" }),
     ).toBeVisible();
     await expect(canvas.queryByText("S1")).toBeNull();
+  },
+};
+
+const seenNow = () => Date.now() * 1e6;
+const remote = (id: string, playhead_sec: number) => ({
+  client_id: id,
+  role: "viewer",
+  playhead_sec,
+  last_seen_ns: seenNow(),
+  meta: { display_name: id.toUpperCase() },
+});
+
+/** Remote flags at several times, over the ruler's first and last labels: the label text stays on top (#2919). */
+export const RemoteFlagsOverRulerLabels: Story = {
+  parameters: {
+    episode: {
+      state: {
+        localClientId: "me",
+        sessionRosterVersion: 5,
+        sessionClients: sessionRoster([
+          { ...remote("me", 1), meta: {} },
+          ...[0, 1, 60, 61, 120, EPISODE_DURATION_SEC - 0.5].map((at, i) =>
+            remote(`r${i}`, at),
+          ),
+        ]),
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByRole("button", { name: "Mira" }),
+    ).toBeVisible();
   },
 };

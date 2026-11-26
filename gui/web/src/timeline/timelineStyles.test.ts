@@ -80,6 +80,7 @@ describe("timeline styles", () => {
       ["--z-timeline-interaction", 8],
       ["--z-timeline-chrome", 9],
       ["--z-playhead", 10],
+      ["--z-ruler-labels", 11],
       ["--z-track-header", 12],
       ["--z-timeline-popover", 20],
       ["--z-menu", 60],

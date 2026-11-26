@@ -10,6 +10,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { createPortal } from "react-dom";
 import { HANDLE_DRAG_MIN_PX, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
 import { makeRemProbe, rootFontPx } from "../ui/rootFont";
 import { useResizeObserver } from "../ui/useResizeObserver";
@@ -61,6 +62,8 @@ export type RulerProps = {
   selection?: TimeRange;
   /** Drawn as alternating bands behind the ticks. */
   sessions?: readonly RulerSession[];
+  /** Where the tick labels are drawn, when a host paints them in a layer of its own (above an overlay that sits over the ruler). The host sizes it like the ruler: `--sys-ruler-width` and the same x origin. Unset, the labels stay in the ruler. */
+  labelHost?: HTMLElement | null;
   /** A guest seeks and scrubs but sees no selection handles. */
   readOnly?: boolean;
   /** 44 px selection handles; a coarse pointer does this by itself. */
@@ -116,6 +119,7 @@ export const Ruler = memo(function Ruler({
   hidePlayhead = false,
   selection,
   sessions,
+  labelHost,
   readOnly = false,
   touch = false,
   label = "Timeline position",
@@ -358,6 +362,17 @@ export const Ruler = memo(function Ruler({
     );
   };
 
+  const tickLabels = ticks.map((tick) => (
+    <span
+      key={tick.time}
+      className="sys-ruler-tick"
+      data-align={tick.align === "end" ? "end" : undefined}
+      style={{ "--sys-ruler-x": px(tick.x) } as CSSProperties}
+    >
+      {tick.label}
+    </span>
+  ));
+
   const playheadX = xAtTime(playhead, start, pxPerSecond);
   const selectionX = selection
     ? clamp(xAtTime(selection.start, start, pxPerSecond), 0, width)
@@ -419,16 +434,7 @@ export const Ruler = memo(function Ruler({
             </span>
           );
         })}
-        {ticks.map((tick) => (
-          <span
-            key={tick.time}
-            className="sys-ruler-tick"
-            data-align={tick.align === "end" ? "end" : undefined}
-            style={{ "--sys-ruler-x": px(tick.x) } as CSSProperties}
-          >
-            {tick.label}
-          </span>
-        ))}
+        {labelHost ? null : tickLabels}
         {selection && selectionEnd > selectionX ? (
           <span
             className="sys-ruler-selection"
@@ -449,6 +455,7 @@ export const Ruler = memo(function Ruler({
           />
         ) : null}
       </div>
+      {labelHost ? createPortal(tickLabels, labelHost) : null}
       <div
         className="sys-ruler-body"
         role="slider"

@@ -105,6 +105,7 @@ an integer.
 | `8` | `--z-timeline-interaction` | Active trim/fade drags and blade guides. |
 | `9` | `--z-timeline-chrome` | Pinned ruler, marker row, and track-header chrome. |
 | `10` | `--z-playhead` | Playhead above the pinned timeline rows. |
+| `11` | `--z-ruler-labels` | The ruler's tick labels, over the remote presence window and under the track headers. |
 | `12` | `--z-track-header` | Sticky track headers. |
 | `20` | `--z-timeline-popover` | Timeline action panels above headers and below sheets. |
 | `30` | `--z-shell-status` | The phone status row (REC, Solo on), sticky over the mode body and under sheets. |
