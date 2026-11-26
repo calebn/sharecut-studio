@@ -38,6 +38,7 @@ from podcast_mcp.gui.routes import (
     feed_routes,
     handoff,
     host,
+    host_mcp_activity,
     host_session,
     kit_import,
     kits,
@@ -374,6 +375,7 @@ def create_app(
     app.include_router(pipeline.router)
     app.include_router(bootstrap.router, dependencies=[Depends(host_gate)])
     app.include_router(diagnostics.router, dependencies=[Depends(host_gate)])
+    app.include_router(host_mcp_activity.router, dependencies=[Depends(host_gate)])
     app.include_router(export_routes.router)
     app.include_router(feed_routes.router, dependencies=[Depends(host_gate)])
     app.include_router(speaker.router, dependencies=[Depends(host_gate)])
@@ -547,4 +549,5 @@ def create_app(
         mount_host_mcp(app, enabled=is_bind_loopback(bind_host))
     else:
         app.state.host_mcp_session_manager = None
+        app.state.host_mcp_activity = None
     return app
