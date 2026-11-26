@@ -23,6 +23,7 @@ class RecordImpact:
 
     kind: ImpactKind
     spans_by_track: Spans
+    pad_sec: float = 0.0
 
     @property
     def span_sec(self) -> float:
@@ -31,6 +32,16 @@ class RecordImpact:
 
     def track_sec(self, track_id: str) -> float:
         return _spans_sec(self.spans_by_track[track_id])
+
+    @property
+    def net_sec(self) -> float:
+        """Time the timeline actually shortened: the span minus the pad left behind, never negative."""
+        if self.kind is not ImpactKind.CUT:
+            return 0.0
+        return max(0.0, self.span_sec - self.pad_sec)
+
+    def net_track_sec(self, track_id: str) -> float:
+        return max(0.0, self.track_sec(track_id) - self.pad_sec)
 
 
 def _spans_sec(spans: list[tuple[float, float]]) -> float:
@@ -84,9 +95,21 @@ def _record_spans(record: AppliedEditRecord) -> Spans:
     return {}
 
 
+def _kept_pad_sec(record: AppliedEditRecord) -> float:
+    params = record.params
+    if params.get("scope") == "track" or "exact_range" in params:
+        return 0.0
+    return max(0.0, float(params.get("replace_gap_sec") or 0.0))
+
+
 def record_impact(record: AppliedEditRecord) -> RecordImpact | None:
     """Impact of an archived edit, or ``None`` for structural operations."""
     kind_of = _IMPACT_KIND.get(record.operation)
     if kind_of is None:
         return None
-    return RecordImpact(kind=kind_of(record), spans_by_track=_record_spans(record))
+    kind = kind_of(record)
+    return RecordImpact(
+        kind=kind,
+        spans_by_track=_record_spans(record),
+        pad_sec=_kept_pad_sec(record) if kind is ImpactKind.CUT else 0.0,
+    )

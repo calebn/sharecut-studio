@@ -359,9 +359,9 @@ def edit_impact_report(project: EpisodeProject) -> dict:
             continue
         applied += 1
         if impact.kind is ImpactKind.CUT:
-            total_removed += impact.span_sec
+            total_removed += impact.net_sec
             for tid in impact.spans_by_track:
-                by_track[tid] = by_track.get(tid, 0.0) + impact.track_sec(tid)
+                by_track[tid] = by_track.get(tid, 0.0) + impact.net_track_sec(tid)
         spans = [s for spans in impact.spans_by_track.values() for s in spans]
         if spans:
             segments.append(
@@ -370,7 +370,7 @@ def edit_impact_report(project: EpisodeProject) -> dict:
                     ", ".join(impact.spans_by_track),
                     min(start for start, _ in spans),
                     max(end for _, end in spans),
-                    impact.span_sec,
+                    impact.net_sec if impact.kind is ImpactKind.CUT else impact.span_sec,
                     record.reason,
                     applied=True,
                     review_required=False,

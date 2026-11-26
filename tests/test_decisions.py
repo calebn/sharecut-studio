@@ -790,6 +790,62 @@ def test_edit_impact_report_tracks_gaps_and_pending(tmp_path):
     assert "[pending]" in md
 
 
+def _padded_record(record_id: str, start: float, end: float, pad: float) -> AppliedEditRecord:
+    return AppliedEditRecord(
+        id=record_id,
+        applied_at="2026-01-01T00:00:00Z",
+        operation="approve_edits",
+        track_ids=["host"],
+        timeline_start=start,
+        timeline_end=end,
+        reason="filler:um",
+        params={"replace_gap_sec": pad},
+    )
+
+
+def test_impact_reports_net_shortening_for_padded_cuts(tmp_path):
+    proj = _project_with_clip(tmp_path)
+    proj.editorial.edit_log = [
+        _padded_record("a", 1.0, 3.0, 0.4),
+        _padded_record("b", 5.0, 6.0, 0.3),
+    ]
+    report = edit_impact_report(proj)
+    assert report["total_removed_sec"] == pytest.approx(2.3)
+    assert report["by_track_sec"]["host"] == pytest.approx(2.3)
+    assert [s["duration_sec"] for s in report["segments"]] == pytest.approx([1.6, 0.7])
+    assert report["applied_count"] == 2
+
+
+@pytest.mark.parametrize("pad", [0.3, None])
+def test_impact_total_equals_timeline_shortening_end_to_end(tmp_path, pad):
+    proj = _project_with_clip(tmp_path)
+    proj.edit_decisions = [
+        EditDecision(
+            id="p1",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=2.5,
+            reason="filler:long",
+            review_required=False,
+            applied=False,
+            replace_gap_sec=pad,
+        )
+    ]
+    before = max(c.timeline_end for c in proj.clips)
+    with (
+        patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value="silence"),
+        patch("podcast_mcp.edits.cut_application.recommend_post_pad_fade_in_ms", return_value=0),
+    ):
+        cfg = {"tighten": {"inaudible_opt": False}}
+        assert apply_prefix_edits(proj, "filler:", config_key="tighten", defaults=cfg) == 1
+    shortened = before - max(c.timeline_end for c in proj.clips)
+    assert shortened == pytest.approx(0.2 if pad else 0.5)
+    report = edit_impact_report(proj)
+    assert report["total_removed_sec"] == pytest.approx(shortened)
+    assert report["by_track_sec"]["host"] == pytest.approx(shortened)
+
+
 def test_apply_prefix_edits_ignores_non_matching_reason(tmp_path):
     proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
