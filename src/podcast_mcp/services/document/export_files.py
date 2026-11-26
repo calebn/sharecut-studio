@@ -289,12 +289,14 @@ class ExportFilesService:
     def listed(self) -> ListedFiles:
         """Every listed file with the file it was judged from, read in one pass.
 
-        Audio, chapters and the feed are judged against the project here. Transcripts reuse ``TranscriptService.exported`` for ``current``. Chapters are current
-        when the file equals a fresh render. The feed is current when the listing's own check
-        says so. Canonical audio is current while the project's edit head equals the head recorded in
-        ``artifacts/export_render.json`` when the file was exported; with a valid record, a file
-        the record does not name or whose size or mtime differ is not current, and with no
-        record, an unreadable one or an unknown version it is current. Named variants
+        Audio, chapters and the feed are judged against the project here. Transcripts reuse
+        ``TranscriptService.exported`` for ``current``. Chapters are current when the file equals
+        a fresh render. The feed is current when the listing's own check says so. Canonical audio
+        is current while the project's edit head equals the head recorded in
+        ``artifacts/export_render.json`` when the file was exported, so an edit makes it stale
+        and Undo makes it current again; with a valid record, a file the record does not name,
+        or whose size or mtime differ, is not current. With no record, an unreadable one or an
+        unknown version it is current. Named variants
         compare their admitted source digest with current source evidence. Saved clips are
         current when candidate metadata references their writer-relative path.
         """
