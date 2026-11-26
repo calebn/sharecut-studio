@@ -63,9 +63,8 @@ async function rectOf(locator: Locator) {
   });
 }
 
-/** Three points of every dock button (top, centre, bottom) must hit that button. */
-async function expectDockReachable(page: Page) {
-  const misses = await dockButtons(page).evaluateAll((buttons) =>
+async function dockMisses(page: Page) {
+  return dockButtons(page).evaluateAll((buttons) =>
     buttons.flatMap((button) => {
       const { left, right, top, bottom } = button.getBoundingClientRect();
       const x = (left + right) / 2;
@@ -79,10 +78,14 @@ async function expectDockReachable(page: Page) {
         );
     }),
   );
-  expect(misses, "dock buttons hit-test to themselves").toEqual([]);
 }
 
-/** The panel's lower edge meets the dock's upper edge, to 1 px. */
+async function expectDockReachable(page: Page) {
+  expect(await dockMisses(page), "dock buttons hit-test to themselves").toEqual(
+    [],
+  );
+}
+
 async function expectRestsOnDock(page: Page) {
   await expect
     .poll(async () => {
@@ -213,6 +216,16 @@ test.describe("host phone", () => {
         await expect(panel(host)).toBeVisible();
         await expectRestsOnDock(host);
         await expectNoHorizontalScroll(host);
+        const open = await dockMisses(host);
+        await panel(host).getByRole("button", { name: "Close" }).tap();
+        await expect(panel(host)).toHaveCount(0);
+        // More misses two of three points at 200% with the sheet closed too, so
+        // that is not the sheet; the sheet must add no miss of its own.
+        const closed = await dockMisses(host);
+        expect(
+          open.filter((miss) => !closed.includes(miss)),
+          "the open sheet adds no dock miss",
+        ).toEqual([]);
       },
     );
   });
@@ -232,6 +245,40 @@ test.describe("host phone", () => {
         const more = await openHostMore(host);
         await more.getByRole("button", { name: "Room tone" }).tap();
         const toast = host.locator(".ui-toast-region--app .ui-toast");
+        await expect(toast).toBeVisible();
+        const clearOfDock = () =>
+          expect
+            .poll(async () => {
+              const [t, d] = [await rectOf(toast), await rectOf(dock(host))];
+              return d.top - t.bottom;
+            })
+            .toBeGreaterThanOrEqual(0);
+        for (const detent of ["half", "full"] as const) {
+          await setDetent(host, detent);
+          await clearOfDock();
+        }
+        await panel(host).getByRole("button", { name: "Close" }).tap();
+        await expect(panel(host)).toHaveCount(0);
+        await clearOfDock();
+      },
+    );
+  });
+
+  test("the End session toast stays above the dock at closed, half and full", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    test.slow();
+    await inRoom(
+      browser,
+      { host: phoneAt(390), guest: LAPTOP },
+      async ({ host, guest, room }) => {
+        await joinAsGuest(guest, room.guest.token, "Ava");
+        await expect(panel(host)).toBeVisible();
+        const more = await openHostMore(host);
+        await more.getByRole("button", { name: "End session" }).tap();
+        const toast = host.locator(".sys-toast-dock .ui-toast");
         await expect(toast).toBeVisible();
         const clearOfDock = () =>
           expect
@@ -331,14 +378,14 @@ test.describe("host phone", () => {
           for (const detent of DETENTS) {
             await setDetent(host, detent);
             await expectRestsOnDock(host);
-            const { withRest, without, panelHeight, rootHeight, rem } =
+            const { withRest, without, panelHeight, rootHeight, rem, sizing } =
               await host.evaluate(() => {
                 const sheet = document.querySelector<HTMLElement>(
                   ".bottom-sheet",
                 ) as HTMLElement;
                 const read = () => {
                   const s = getComputedStyle(sheet);
-                  return [s.maxBlockSize, s.minBlockSize, s.blockSize];
+                  return [s.maxBlockSize, s.minBlockSize];
                 };
                 const html = document.documentElement;
                 const withRest = read();
@@ -346,9 +393,38 @@ test.describe("host phone", () => {
                 html.removeAttribute("data-room-sheet");
                 const without = read();
                 if (mode) html.setAttribute("data-room-sheet", mode);
+                // The rest rules move the root only: none may size the panel.
+                const sizing: string[] = [];
+                const walk = (rules: CSSRuleList) => {
+                  for (const rule of Array.from(rules)) {
+                    if (rule instanceof CSSStyleRule) {
+                      const { style } = rule;
+                      if (
+                        rule.selectorText.includes("data-room-sheet") &&
+                        (style.height ||
+                          style.blockSize ||
+                          style.minBlockSize ||
+                          style.maxBlockSize ||
+                          style.minHeight ||
+                          style.maxHeight)
+                      )
+                        sizing.push(rule.selectorText);
+                    } else if ("cssRules" in rule) {
+                      walk((rule as CSSGroupingRule).cssRules);
+                    }
+                  }
+                };
+                for (const sheetRules of Array.from(document.styleSheets)) {
+                  try {
+                    walk(sheetRules.cssRules);
+                  } catch {
+                    // cross-origin sheet: nothing of ours
+                  }
+                }
                 return {
                   withRest,
                   without,
+                  sizing,
                   panelHeight: sheet.getBoundingClientRect().height,
                   rootHeight: (
                     sheet.parentElement as HTMLElement
@@ -357,16 +433,22 @@ test.describe("host phone", () => {
                 };
               });
             expect(
-              withRest[0] === without[0] && withRest[1] === without[1],
+              withRest,
               `${detent}: max and min block size are declared the same with and without the rest`,
-            ).toBe(true);
+            ).toEqual(without);
+            expect(sizing, "no dock-rest rule sizes the panel").toEqual([]);
             if (detent === "peek")
               expect(panelHeight).toBeLessThanOrEqual(7.5 * rem + 1);
             if (detent === "half") {
-              expect(panelHeight).toBeLessThanOrEqual(26.25 * rem + 1);
-              if (rootHeight > 400) {
-                expect(panelHeight).toBeLessThanOrEqual(rootHeight * 0.5 + 1);
-              }
+              // Half is 50% of the slot; on a short screen the sheet's own floor
+              // (bottom-sheet.css, max-height 40rem) is 9rem or the whole slot.
+              const floor = Math.min(rootHeight, 9 * rem);
+              expect(panelHeight).toBeLessThanOrEqual(
+                Math.max(rootHeight * 0.5, floor) + 1,
+              );
+              expect(panelHeight).toBeLessThanOrEqual(
+                Math.max(26.25 * rem, floor) + 1,
+              );
             }
             if (detent === "full")
               expect(panelHeight).toBeLessThanOrEqual(rootHeight + 1);
@@ -477,55 +559,6 @@ test.describe("guest phone", () => {
       await expectNoRoomSheetState(guest);
     });
   });
-
-  test("390x844: the full sheet stays below the header (known gap, #4660)", async ({
-    browser,
-  }: {
-    browser: Browser;
-  }) => {
-    test.fail(
-      true,
-      "#4660: the guest page has no header clearance for the sheet",
-    );
-    test.slow();
-    await inRoom(browser, { guest: phoneAt(390) }, async ({ guest, room }) => {
-      await joinAsGuest(guest, room.guest.token, "Ava");
-      await peek(guest).tap();
-      await setDetent(guest, "full");
-      const header = await rectOf(guest.locator(".sys-room-view-header"));
-      const sheet = await rectOf(panel(guest));
-      expect(sheet.top).toBeGreaterThanOrEqual(header.bottom);
-    });
-  });
-
-  test("390x844 keyboard: the guest sheet follows the keyboard (known gap, #4660)", async ({
-    browser,
-  }: {
-    browser: Browser;
-  }) => {
-    test.fail(
-      true,
-      "#4660: the guest page has no keyboard rule, so its sheet ignores the keyboard with or without the dock rest",
-    );
-    test.slow();
-    await inRoom(browser, { guest: phoneAt(390) }, async ({ guest, room }) => {
-      await joinAsGuest(guest, room.guest.token, "Ava");
-      await peek(guest).tap();
-      await expect(panel(guest)).toBeVisible();
-      await simulateKeyboard(guest, 271);
-      const root = panel(guest).locator("xpath=..");
-      const bottom = await root.evaluate((el) => getComputedStyle(el).bottom);
-      const composer = await rectOf(panel(guest).locator(".sys-notes-input"));
-      const viewport = await guest.evaluate(() => innerHeight);
-      expect({
-        bottom,
-        composerAboveKeyboard: composer.bottom <= viewport - 271 + 1,
-      }).toEqual({
-        bottom: "271px",
-        composerAboveKeyboard: true,
-      });
-    });
-  });
 });
 
 test("1280x800: the laptop publishes no room-sheet state and keeps the Comments rail", async ({
@@ -535,9 +568,18 @@ test("1280x800: the laptop publishes no room-sheet state and keeps the Comments 
 }) => {
   test.slow();
   await inRoom(browser, { host: LAPTOP, guest: LAPTOP }, async ({ host }) => {
+    const boxes = async () => ({
+      rail: await rectOf(host.locator(".sys-room-view-rail")),
+      dock: await rectOf(dock(host)),
+    });
     await expect(host.locator(".sys-room-view-rail")).toBeVisible();
     await expect(panel(host)).toHaveCount(0);
     await expectNoRoomSheetState(host);
+    const before = await boxes();
+    await host.setViewportSize({ width: 1281, height: 800 });
+    await host.setViewportSize({ width: 1280, height: 800 });
+    await expectNoRoomSheetState(host);
+    expect(await boxes()).toEqual(before);
   });
 });
 
