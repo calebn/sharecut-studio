@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -1482,6 +1483,7 @@ def edit_suppress_bleed_cmd(
         "start_sec": start,
         "end_sec": end,
     }
+    result: Mapping[str, Any]
     if dry_run:
         checked = validate_payload("SuppressBleed", payload)
         ws = ProjectWorkspace.open(project)
