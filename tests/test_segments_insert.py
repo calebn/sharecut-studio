@@ -1430,7 +1430,7 @@ def test_a_dialogue_segment_insert_marks_reconciliation_stale(tmp_path: Path, pr
     assert _recon(project)["stale"] is True
 
 
-def test_an_insert_before_a_non_dialogue_clip_marks_reconciliation_stale(
+def test_an_insert_that_moves_dialogue_with_a_music_bed_marks_reconciliation_stale(
     tmp_path: Path, project: str
 ) -> None:
     segment = _save(tmp_path, "Before Bed")
