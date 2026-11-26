@@ -9,10 +9,16 @@ import { copyText } from "../../record";
 import { Button, Dialog, Field, InlineError } from "../../ui";
 import { useStableCallback } from "../../utils/useStableCallback";
 import {
+  type ActivityClass,
+  activityClass,
+  activityText,
   COPY_FAILED_MESSAGE,
   localHostMcpUrl,
+  MCP_SETUP_GUIDE_URL,
   mcpClientSnippet,
+  UNAVAILABLE_MESSAGE,
 } from "./hostMcp";
+import { type HostMcpActivity, useHostMcpActivity } from "./useHostMcpActivity";
 
 const COPIED_MS = 2000;
 
@@ -30,14 +36,26 @@ type Props = {
   hasProject: boolean;
   /** Fixed URL for previews; the live dialog derives the local host URL. */
   mcpUrl?: string;
+  /** Fixed activity answer for previews: shown as is, with no polling. */
+  activityPreview?: HostMcpActivity;
 };
 
-export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
+export function HostMcpDialog({
+  open,
+  onClose,
+  hasProject,
+  mcpUrl,
+  activityPreview,
+}: Props) {
   const [session, setSession] = useState({ open, epoch: 0 });
   const [copied, setCopied] = useState<CopiedKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [liveText, setLiveText] = useState("");
   const copyUrlRef = useRef<HTMLButtonElement>(null);
+  const unavailableRef = useRef<HTMLParagraphElement>(null);
+  const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousClass = useRef<ActivityClass>("unknown");
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generation = useRef(0);
   if (session.open !== open) {
@@ -46,6 +64,7 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
       setCopied(null);
       setError(null);
       setStatus(null);
+      setLiveText("");
     }
   }
   const acceptsSession = useStableCallback(
@@ -54,6 +73,46 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
 
   const url = mcpUrl ?? localHostMcpUrl();
   const snippet = mcpClientSnippet(url);
+
+  const { activity: shown, now } = useHostMcpActivity({
+    open,
+    poll: open && mcpUrl === undefined && activityPreview === undefined,
+    preview: activityPreview,
+  });
+  const cls = activityClass(shown, now);
+  const unavailable = cls === "unavailable";
+  const text = activityText(shown, now);
+  const announce = useStableCallback((message: string | null) => {
+    if (liveTimer.current) clearTimeout(liveTimer.current);
+    setLiveText(message ?? "");
+    const epoch = session.epoch;
+    liveTimer.current = setTimeout(() => {
+      if (acceptsSession(epoch)) setLiveText("");
+    }, COPIED_MS);
+  });
+
+  // Speak only when the answer changes between two known kinds; never the first one after opening.
+  useEffect(() => {
+    const before = previousClass.current;
+    previousClass.current = cls;
+    if (before !== "unknown" && cls !== "unknown" && before !== cls) {
+      announce(text);
+    }
+  }, [cls, announce, text]);
+
+  useEffect(
+    () => () => {
+      if (liveTimer.current) clearTimeout(liveTimer.current);
+    },
+    [],
+  );
+
+  // The copy buttons leave when the answer is "unavailable"; keep focus inside the dialog.
+  useEffect(() => {
+    if (!unavailable) return;
+    const active = document.activeElement;
+    if (!active || active === document.body) unavailableRef.current?.focus();
+  }, [unavailable]);
 
   const clearCopiedTimer = useCallback(() => {
     if (copiedTimer.current) {
@@ -97,10 +156,7 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
         if (!acceptsSession(session.epoch) || gen !== generation.current) {
           return;
         }
-        markCopied(
-          key,
-          key === "url" ? "Copied MCP URL" : "Copied client snippet",
-        );
+        markCopied(key, key === "url" ? "Copied address" : "Copied config");
       } catch {
         if (!acceptsSession(session.epoch) || gen !== generation.current) {
           return;
@@ -122,58 +178,107 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
       initialFocusRef={copyUrlRef}
       panelClassName="share-dialog-panel"
       footer={
-        <div className="share-dialog-actions">
-          <Button type="button" onClick={() => void copy("snippet", snippet)}>
-            {copied === "snippet" ? "Copied" : "Copy snippet"}
-          </Button>
-          <Button
-            ref={copyUrlRef}
-            variant="primary"
-            type="button"
-            onClick={() => void copy("url", url)}
-          >
-            {copied === "url" ? "Copied" : "Copy URL"}
-          </Button>
-        </div>
+        unavailable ? undefined : (
+          <div className="share-dialog-actions">
+            <Button type="button" onClick={() => void copy("snippet", snippet)}>
+              {copied === "snippet" ? "Copied" : "Copy config"}
+            </Button>
+            <Button
+              ref={copyUrlRef}
+              variant="primary"
+              type="button"
+              onClick={() => void copy("url", url)}
+            >
+              {copied === "url" ? "Copied" : "Copy address"}
+            </Button>
+          </div>
+        )
       }
     >
       <div className="share-dialog-body">
-        <p className="host-mcp-lead">
-          Keep ShareCut Studio running. Paste this URL into Cursor or Claude.
-          The connection works like Figma desktop MCP. Tools apply to the open
-          episode.
-        </p>
-        {hasProject ? null : (
-          <p className="share-dialog-note" role="status">
-            Open an episode first; tools error until a project is open.
+        {unavailable ? (
+          <p
+            ref={unavailableRef}
+            className="host-mcp-lead host-mcp-unavailable"
+            tabIndex={-1}
+          >
+            {UNAVAILABLE_MESSAGE}
           </p>
+        ) : (
+          <>
+            <p className="host-mcp-lead">
+              Keep ShareCut Studio running while your AI app uses it. The app
+              works on the episode you have open.
+            </p>
+            <ol className="host-mcp-steps">
+              <li>Copy the connection address below.</li>
+              <li>Paste it into your AI app's MCP or connector settings.</li>
+              <li>
+                Ask your app to do something in ShareCut. The line below updates
+                when it does.
+              </li>
+            </ol>
+            {hasProject ? null : (
+              <p className="share-dialog-note" role="status">
+                Open an episode first; tools error until a project is open.
+              </p>
+            )}
+            <Field
+              label="Connection address"
+              hint="The MCP server address for this computer."
+            >
+              {(control) => (
+                <input
+                  {...control}
+                  className="share-dialog-select"
+                  readOnly
+                  onFocus={selectAll}
+                  onClick={selectAll}
+                  value={url}
+                />
+              )}
+            </Field>
+          </>
         )}
-        <Field label="MCP URL">
-          {(control) => (
-            <input
-              {...control}
-              className="share-dialog-select"
-              readOnly
-              onFocus={selectAll}
-              onClick={selectAll}
-              value={url}
-            />
-          )}
-        </Field>
-        <Field label="Cursor snippet">
-          {(control) => (
-            <textarea
-              {...control}
-              className="host-mcp-snippet"
-              readOnly
-              onFocus={selectAll}
-              onClick={selectAll}
-              rows={8}
-              value={snippet}
-              spellCheck={false}
-            />
-          )}
-        </Field>
+        <p className="host-mcp-activity">{unavailable ? null : text}</p>
+        <p
+          className="sr-only host-mcp-activity-live"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {liveText}
+        </p>
+        {unavailable ? null : (
+          <details className="host-mcp-config" key={session.epoch}>
+            <summary>Config file format</summary>
+            <p>If your app takes a config file instead, use this.</p>
+            <Field label="Configuration (JSON)">
+              {(control) => (
+                <textarea
+                  {...control}
+                  className="host-mcp-snippet"
+                  readOnly
+                  onFocus={selectAll}
+                  onClick={selectAll}
+                  rows={6}
+                  value={snippet}
+                  spellCheck={false}
+                />
+              )}
+            </Field>
+          </details>
+        )}
+        <p className="host-mcp-guide">
+          {unavailable ? null : <span>Not sure where the settings are?</span>}
+          <a
+            href={MCP_SETUP_GUIDE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Setup guide (opens in a new tab)
+          </a>
+        </p>
         <div className="share-dialog-live">
           <p
             className="share-dialog-status"

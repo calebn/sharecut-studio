@@ -6,9 +6,20 @@ import { openDialogViaLauncher } from "../../storybook/openDialog";
 import { isolatedStoryParameters } from "../../storybook/storyLayout";
 import { Button } from "../../ui/Button";
 import { HostMcpDialog } from "./HostMcpDialog";
-import { COPY_FAILED_MESSAGE, mcpClientSnippet } from "./hostMcp";
+import {
+  COPY_FAILED_MESSAGE,
+  mcpClientSnippet,
+  UNAVAILABLE_MESSAGE,
+} from "./hostMcp";
 
 const previewUrl = "http://127.0.0.1:8765/mcp";
+
+/** An answer from the host, `seconds` after the last request. */
+const usedAgo = (seconds: number) => ({
+  mounted: true,
+  last_request_at: "2026-01-01T00:00:00Z",
+  age_seconds: seconds,
+});
 
 function HostMcpPreview({
   initiallyOpen,
@@ -42,6 +53,11 @@ const meta: Meta<typeof HostMcpDialog> = {
     onClose: fn(),
     hasProject: true,
     mcpUrl: previewUrl,
+    activityPreview: {
+      mounted: true,
+      last_request_at: null,
+      age_seconds: null,
+    },
   },
   argTypes: { open: { control: false } },
   render: (args, context) => (
@@ -60,12 +76,12 @@ export const Ready: Story = {
       "Open agent connection",
       "Connect agent",
     );
-    await expect(within(dialog).getByLabelText("MCP URL")).toHaveValue(
-      previewUrl,
-    );
-    await expect(within(dialog).getByLabelText("Cursor snippet")).toHaveValue(
-      mcpClientSnippet(previewUrl),
-    );
+    await expect(
+      within(dialog).getByLabelText("Connection address"),
+    ).toHaveValue(previewUrl);
+    await expect(
+      within(dialog).getByLabelText("Configuration (JSON)"),
+    ).toHaveValue(mcpClientSnippet(previewUrl));
     await expect(args.onClose).not.toHaveBeenCalled();
   },
 };
@@ -94,7 +110,9 @@ export const Copied: Story = {
         "Connect agent",
       );
       await waitFor(() => expect(dialog).toBeVisible());
-      const copyUrl = within(dialog).getByRole("button", { name: "Copy URL" });
+      const copyUrl = within(dialog).getByRole("button", {
+        name: "Copy address",
+      });
       await waitFor(() => expect(copyUrl).toHaveFocus());
       await fireEvent.click(copyUrl);
       await waitFor(() =>
@@ -102,12 +120,12 @@ export const Copied: Story = {
           within(dialog).getByRole("button", { name: "Copied" }),
         ).toBeVisible(),
       );
-      await expect(within(dialog).getByText("Copied MCP URL")).toBeVisible();
+      await expect(within(dialog).getByText("Copied address")).toBeVisible();
       await waitFor(
         async () => {
-          await expect(within(dialog).queryByText("Copied MCP URL")).toBeNull();
+          await expect(within(dialog).queryByText("Copied address")).toBeNull();
           await expect(
-            within(dialog).getByRole("button", { name: "Copy URL" }),
+            within(dialog).getByRole("button", { name: "Copy address" }),
           ).toBeVisible();
         },
         { timeout: 3000 },
@@ -132,7 +150,7 @@ export const CopyFailed: Story = {
       );
       await waitFor(() => expect(dialog).toBeVisible());
       await fireEvent.click(
-        within(dialog).getByRole("button", { name: "Copy snippet" }),
+        within(dialog).getByRole("button", { name: "Copy config" }),
       );
       await waitFor(() =>
         expect(within(dialog).getByText(COPY_FAILED_MESSAGE)).toBeVisible(),
@@ -170,5 +188,113 @@ export const Phone: Story = {
       "Connect agent",
     );
     await waitFor(() => expect(dialog).toBeVisible());
+  },
+};
+
+async function openDialog(canvasElement: HTMLElement) {
+  const dialog = await openDialogViaLauncher(
+    canvasElement,
+    "Open agent connection",
+    "Connect agent",
+  );
+  await waitFor(() => expect(dialog).toBeVisible());
+  return dialog;
+}
+
+export const NeverUsed: Story = {
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await expect(
+      within(dialog).getByText(
+        "No app has used this address since Studio started.",
+      ),
+    ).toBeVisible();
+  },
+};
+
+export const UsedJustNow: Story = {
+  args: { activityPreview: usedAgo(4) },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await expect(
+      within(dialog).getByText("An app used this address just now."),
+    ).toBeVisible();
+  },
+};
+
+export const UsedMinutesAgo: Story = {
+  args: { activityPreview: usedAgo(185) },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await expect(
+      within(dialog).getByText("An app used this address 3 minutes ago."),
+    ).toBeVisible();
+  },
+};
+
+export const LastUsedHoursAgo: Story = {
+  args: { activityPreview: usedAgo(3 * 3600 + 40) },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await expect(
+      within(dialog).getByText("Last used 3 hours ago."),
+    ).toBeVisible();
+  },
+};
+
+export const Unavailable: Story = {
+  args: {
+    activityPreview: {
+      mounted: false,
+      last_request_at: null,
+      age_seconds: null,
+    },
+  },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await expect(within(dialog).getByText(UNAVAILABLE_MESSAGE)).toBeVisible();
+    await expect(
+      within(dialog).queryByRole("button", { name: "Copy address" }),
+    ).toBeNull();
+    await expect(
+      within(dialog).getByRole("link", { name: /Setup guide/ }),
+    ).toBeVisible();
+  },
+};
+
+export const ConfigOpen: Story = {
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    const summary = within(dialog).getByText("Config file format");
+    await expect(
+      within(dialog).getByLabelText("Configuration (JSON)"),
+    ).not.toBeVisible();
+    await fireEvent.click(summary);
+    await waitFor(() =>
+      expect(
+        within(dialog).getByLabelText("Configuration (JSON)"),
+      ).toBeVisible(),
+    );
+  },
+};
+
+export const PhoneConfigOpen: Story = {
+  parameters: recordMobileViewport.parameters,
+  globals: recordMobileViewport.globals,
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await fireEvent.click(within(dialog).getByText("Config file format"));
+    await waitFor(() =>
+      expect(
+        within(dialog).getByLabelText("Configuration (JSON)"),
+      ).toBeVisible(),
+    );
   },
 };

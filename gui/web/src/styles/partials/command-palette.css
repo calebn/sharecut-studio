@@ -489,6 +489,70 @@ html[data-shell="phone"]
   color: var(--color-text-secondary);
 }
 
+.host-mcp-steps {
+  margin: 0 0 var(--space-3);
+  padding-inline-start: var(--space-6);
+  color: var(--color-text-secondary);
+}
+
+.host-mcp-unavailable:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* One reserved line so the answer arriving never moves the controls. */
+.host-mcp-activity {
+  margin: var(--space-3) 0 0;
+  min-block-size: 1.5rem;
+  color: var(--color-text-secondary);
+}
+
+.host-mcp-config {
+  margin-block-start: var(--space-1);
+  color: var(--color-text-secondary);
+}
+
+.host-mcp-config > summary {
+  box-sizing: border-box;
+  min-block-size: var(--touch-min);
+  inline-size: fit-content;
+  padding-block: var(--space-4);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.host-mcp-config > summary:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.host-mcp-config > p {
+  margin: 0 0 var(--space-3);
+}
+
+.host-mcp-guide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-3);
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.host-mcp-guide > a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch-min);
+  color: var(--color-accent-text);
+  text-underline-offset: 0.2em;
+}
+
+.host-mcp-guide > a:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .host-mcp-snippet {
   width: 100%;
   min-height: 8rem;
