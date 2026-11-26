@@ -125,6 +125,7 @@ describe("SegmentLibrarySheet", () => {
     stubViewportShell("desktop");
     render(<SegmentLibrarySheet open={false} onClose={vi.fn()} />);
     expect(load).not.toHaveBeenCalled();
+    expect(loadKits).not.toHaveBeenCalled();
   });
 
   it.each(["desktop", "phone"] as const)(
