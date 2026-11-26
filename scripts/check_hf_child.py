@@ -5,7 +5,7 @@ Spawns ``<python> -P -m podcast_mcp.util.hf_fetch_child <spec.json>`` against th
 ``Systran/faster-whisper-tiny.en`` snapshot (``WHISPER_PINS``) in a temporary cache, and
 fails unless (1) the child prints one ``{"path": ...}`` line with every pinned file present
 and (2) a second child, killed once model.bin has started (the cache holds more than the small files), is gone within a few seconds
-with most of ``model.bin`` unwritten. Needs the network (about 78 MB).
+before ``model.bin`` is complete. Needs the network (about 78 MB).
 
     .venv/bin/python scripts/check_hf_child.py
     .venv/bin/python scripts/check_hf_child.py --python <runtime>/venv/bin/python
@@ -37,9 +37,8 @@ MODEL_BYTES = 78_090_594
 KILL_WITHIN_SEC = 3.0
 KILL_AT_BYTES = 8 * MIB
 """Past the ~2.5 MB of small files, so the kill lands while model.bin is transferring."""
-UNWRITTEN_AT_KILL = 0.25
 RUN_TIMEOUT_SEC = 300.0
-STEP_SEC = 0.05
+STEP_SEC = 0.01
 
 
 class CheckError(RuntimeError):
@@ -131,8 +130,8 @@ def check_kill(python: str, pin: PinnedSnapshot, work: Path, env: dict[str, str]
         raise CheckError(f"the child was still running {KILL_WITHIN_SEC:.0f} s after the kill")
     elapsed = time.monotonic() - started
     left = _blob_bytes(cache)
-    if left > MODEL_BYTES * (1 - UNWRITTEN_AT_KILL):
-        raise CheckError(f"{left / MIB:.0f} MiB were already on disk at the kill")
+    if left >= MODEL_BYTES:
+        raise CheckError(f"model.bin was already complete ({left / MIB:.0f} MiB) at the kill")
     print(f"ok: killed mid-download in {elapsed:.2f} s with {left / MIB:.1f} MiB on disk")
 
 
@@ -151,6 +150,9 @@ def main(argv: list[str] | None = None) -> int:
     pin = WHISPER_PINS["tiny.en"]
     with tempfile.TemporaryDirectory(prefix="hf-child-check-") as tmp:
         work = Path(tmp)
+        # A fresh Xet chunk cache (under HF_HOME): a warm one makes the download finish
+        # before the kill lands.
+        env["HF_HOME"] = str(work / "hf-home")
         try:
             check_download(args.python, pin, work, env)
             check_kill(args.python, pin, work, env)

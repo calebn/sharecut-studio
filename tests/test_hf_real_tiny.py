@@ -18,7 +18,7 @@ import pytest
 from tests.polling import wait_for
 
 from podcast_mcp.engines.models.whisper import WHISPER_PINS
-from podcast_mcp.util import process
+from podcast_mcp.util import model_manifest, process
 from podcast_mcp.util.asset_sources import DownloadProgress
 from podcast_mcp.util.model_manifest import download_pinned_snapshot
 from podcast_mcp.util.progress import CancelledProgress
@@ -38,7 +38,9 @@ ON_DISK_LIMIT_BYTES = 10 * MIB
 TINY_MODEL_BYTES = 78_090_594
 CHILD_KILL_WITHIN_SEC = 3.0
 CHILD_CANCEL_AT_BYTES = 8 * MIB  # past the ~2.5 MB of small files: model.bin has started
-CHILD_ON_DISK_LIMIT_BYTES = 60 * MIB
+CHILD_ON_DISK_LIMIT_BYTES = TINY_MODEL_BYTES
+"""Cancel must beat the finish: model.bin arrives in one ~70 ms burst after ~3 s of fetching."""
+CHILD_POLL_SEC = 0.02
 
 
 def _bytes_on_disk(root: Path) -> int:
@@ -51,8 +53,11 @@ def in_process(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def xet_child(monkeypatch: pytest.MonkeyPatch) -> None:
+def xet_child(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("PODCAST_HF_IN_PROCESS", raising=False)
+    # A fresh Xet chunk cache (it lives under HF_HOME): a warm one finishes 78 MB inside one
+    # poll, so Cancel would land after the download is over.
+    monkeypatch.setenv("HF_HOME", str(tmp_path / "hf-home"))
 
 
 @pytest.mark.usefixtures("xet_child")
@@ -77,6 +82,7 @@ def test_child_progress_reaches_the_total_in_several_steps(tmp_path: Path) -> No
 def test_child_cancel_kills_the_transfer_within_seconds(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(model_manifest, "_POLL_SEC", CHILD_POLL_SEC)
     pin = WHISPER_PINS["tiny.en"]
     children: list[process.Child] = []
     real_popen = process.popen
