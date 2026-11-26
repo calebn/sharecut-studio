@@ -14,7 +14,6 @@ from podcast_mcp.edits.segment_insert import (
     check_placement,
     check_position,
     insert_segment,
-    keeps_reconciliation,
     timeline_end,
 )
 from podcast_mcp.engines.track_media import media_asset_from_path
@@ -111,9 +110,6 @@ def insert_saved_segment(
     dialogue segment with ``segment_placement_unsupported``; an unknown value is
     ``segment_placement_invalid``). The new lane plays at full level until ducked.
 
-    A ripple insert of a non-dialogue segment that splits no dialogue clip and moves nothing
-    off the dialogue tracks keeps a fresh reconciliation fresh; the stems are still stale.
-
     ``end`` is read inside the document lock, so an edit saved meanwhile is not split. The audio is copied into the project and its hash checked. The edit is one undo step.
     Errors: ``segment_unknown``, ``segment_hash_mismatch``, ``segment_media_invalid``,
     ``segment_write_failed``, ``segment_position_out_of_range``.
@@ -141,9 +137,6 @@ def insert_saved_segment(
             )
         ),
         operation="insert_segment",
-        keeps_reconciliation=lambda p: keeps_reconciliation(
-            p, segment, resolve_insert_position(p, at), placement
-        ),
         params={
             "segment_id": segment.id,
             "version": segment.version,
