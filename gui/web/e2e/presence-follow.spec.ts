@@ -286,7 +286,7 @@ test.describe("presence follow desktop", () => {
 
   test("a remote playhead draws a flag on the ruler and a line down into the lanes", async ({
     browser,
-  }) => {
+  }, testInfo) => {
     await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
       await expect(peopleButton(pageB)).toBeVisible({ timeout: 15_000 });
       await seekLeaderPlayhead(pageA);
@@ -323,6 +323,42 @@ test.describe("presence follow desktop", () => {
       expect(lineBox!.y).toBeLessThanOrEqual(ruler!.y + 1);
       expect(lineBox!.y + lineBox!.height).toBeGreaterThan(lane!.y + 8);
       await expectPageAxeClean(pageB);
+
+      const local = pageB.locator(".timeline-ruler .playhead");
+      for (const page of [pageA, pageB]) {
+        const position = page.getByRole("slider", {
+          name: "Timeline position",
+        });
+        await position.press("Home");
+        for (let tick = 0; tick < 3; tick += 1) {
+          await position.press("ArrowRight");
+        }
+      }
+      await expect
+        .poll(() => playerTimecode(pageB))
+        .toBe(await playerTimecode(pageA));
+      await expect
+        .poll(async () => {
+          const [needle, remote] = await Promise.all([
+            local.boundingBox(),
+            line.boundingBox(),
+          ]);
+          if (!needle || !remote) return Infinity;
+          return Math.abs(
+            needle.x + needle.width / 2 - remote.x - remote.width / 2,
+          );
+        })
+        .toBeLessThanOrEqual(1.5);
+      await expect(flag).toBeVisible();
+      const coincident = await local.boundingBox();
+      expect(coincident!.x).toBeGreaterThan(ruler!.x + ruler!.width / 10);
+      expect(coincident!.x).toBeLessThan(ruler!.x + ruler!.width * 0.9);
+      const screenshot = testInfo.outputPath("coincident-playheads.png");
+      await pageB.locator(".timeline-area").screenshot({ path: screenshot });
+      await testInfo.attach("Coincident local and remote playheads", {
+        path: screenshot,
+        contentType: "image/png",
+      });
     });
   });
 
