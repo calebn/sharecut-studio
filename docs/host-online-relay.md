@@ -506,8 +506,8 @@ because the relay cannot vouch for what such a host serves.
 
 **Continue** posts to `/api/relay/notice/continue` with the return path in a hidden `next` field
 of the form body, so the path no longer appears as a `?next=` query on that POST. That is the only
-change to what is logged: the guest's own `GET /r/<token>/` still appears in access logs until
-token redaction lands. The route parses the body by hand (`application/x-www-form-urlencoded`
+change to what is logged: the guest's own `GET /r/<token>/` still appears in access logs
+(the TLS bullet under Security lists what Caddy redacts and what it does not). The route parses the body by hand (`application/x-www-form-urlencoded`
 only, at most 4 KiB, first `next` value), without `python-multipart`, which the relay image does
 not install.
 
@@ -1371,7 +1371,11 @@ with private paths and path-free diagnostic secrets.
   as `/-REDACTED` with the path and query dropped. The `Referer` request header
   and the `Location` response header go through the same rules. What is not
   covered: prefixes that differ in letter case, a doubled leading slash
-  (`//r/{token}`), a token in a query that has no `/` or `%`, and Caddy's own
+  (`//r/{token}`), a token in a query that has no `/` or `%`, an
+  absolute-form request target with an uppercase scheme (`HTTP://host/r/{token}`),
+  empty-token and dot-segment paths (`/r//{token}`, `/r/./{token}`), requests whose
+  `Host` does not match the site (a trailing-dot `Host` included), which Caddy's default
+  logger writes unfiltered but which never reach the relay, and Caddy's own
   error log. Both local and production Caddy configurations carry the same
   three rules (see `deploy/relay/Caddyfile*`). `tests/test_relay_caddy_logs.py`
   applies them to the cases above and, when a `caddy` binary is on PATH, reads a
