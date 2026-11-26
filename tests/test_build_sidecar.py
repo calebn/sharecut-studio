@@ -369,6 +369,7 @@ def test_ensure_recompiles_stale_script_launcher(
     monkeypatch.setattr(mod, "copy_web_dist", _fail)
     monkeypatch.setattr(mod, "freeze_python", _fail)
     monkeypatch.setattr(mod, "ensure_ffmpeg_payload", lambda *_a: None)
+    monkeypatch.setattr(mod, "assert_ffmpeg_arnndn", lambda *_a: None)
 
     assert mod.main(["--ensure", "--out", str(tmp_path), "--triple", "aarch64-apple-darwin"]) == 0
     assert compiled == [launcher]
@@ -658,6 +659,7 @@ def test_payload_is_ensured_before_runtime_completion(monkeypatch, tmp_path, reu
     monkeypatch.setattr(mod, "freeze_python", lambda *_a, **_k: order.append("python"))
     monkeypatch.setattr(mod, "compile_launchers", lambda *_a: order.append("launchers"))
     monkeypatch.setattr(mod, "ensure_ffmpeg_payload", lambda *_a: order.append("pair"))
+    monkeypatch.setattr(mod, "assert_ffmpeg_arnndn", lambda *_a: None)
     monkeypatch.setattr(mod, "write_freeze_complete", lambda *_a: order.append("complete"))
     assert mod.main(["--ensure", "--out", str(tmp_path)]) == 0
     assert order == (
@@ -698,6 +700,7 @@ def test_sidecar_lifecycle_acquires_the_same_prebuilt_pair(monkeypatch, tmp_path
     monkeypatch.setattr(mod, "freeze_python", lambda *_a, **_k: None)
     monkeypatch.setattr(mod, "compile_launchers", lambda *_a: None)
     monkeypatch.setattr(mod, "stage_owner_cdn", lambda: None)
+    monkeypatch.setattr(mod, "assert_ffmpeg_arnndn", lambda *_a: None)
     monkeypatch.setattr(mod, "unstage_owner_cdn", lambda: None)
     monkeypatch.setattr(mod.subprocess, "run", lambda argv, **kwargs: calls.append(argv))
     args = ["--out", str(tmp_path), "--triple", "x86_64-pc-windows-msvc"]
@@ -971,6 +974,7 @@ def test_sidecar_main_always_clears_the_recorded_owner_base(monkeypatch, tmp_pat
     monkeypatch.setattr(mod, "assert_production_web_dist", lambda *_a: None)
     monkeypatch.setattr(mod, "copy_web_dist", lambda *_a, **_k: None)
     monkeypatch.setattr(mod, "ensure_ffmpeg_payload", lambda *_a, **_k: None)
+    monkeypatch.setattr(mod, "assert_ffmpeg_arnndn", lambda *_a: None)
     monkeypatch.setattr(mod, "compile_launchers", lambda *_a: None)
 
     def stage():
@@ -998,3 +1002,239 @@ def test_sidecar_main_always_clears_the_recorded_owner_base(monkeypatch, tmp_pat
         "freeze": ["stage", "freeze", "unstage"],
     }[failure]
     assert events == expected
+
+
+# --- #1998 slice 6 (G5): model runtime smoke + packaged FFmpeg arnndn -------------------------
+
+
+def test_model_runtime_smoke_names_the_model_runtime() -> None:
+    mod = _load_build_sidecar()
+    smoke = mod.MODEL_RUNTIME_SMOKE
+    for name in ("onnxruntime", "SileroVAD", "speech_probs"):
+        assert name in smoke
+    # Passed as one argv item on Windows too: no double quotes, percent signs or newlines.
+    assert '"' not in smoke
+    assert "%" not in smoke
+    assert "\n" not in smoke
+
+
+def test_model_runtime_smoke_runs_in_the_repo_venv(tmp_path: Path) -> None:
+    src = str(Path(__file__).resolve().parents[1] / "src")
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join([src, os.environ.get("PYTHONPATH", "")])}
+    pytest.importorskip("onnxruntime")
+    pytest.importorskip("faster_whisper")
+    mod = _load_build_sidecar()
+    result = subprocess.run(
+        [sys.executable, "-c", mod.MODEL_RUNTIME_SMOKE],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_assert_frozen_interpreter_runs_three_checks_with_timeout_and_venv_cwd(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mod = _load_build_sidecar()
+    py = tmp_path / "venv" / "bin" / "python"
+    calls: list[tuple[list[str], dict]] = []
+    monkeypatch.setattr(
+        mod.subprocess, "check_call", lambda args, **kw: calls.append((list(args), kw))
+    )
+    mod.assert_frozen_interpreter(py)
+    assert [args[:2] for args, _ in calls] == [[str(py), "-c"]] * 3
+    assert [args[2] for args, _ in calls] == [
+        mod.FREEZE_SMOKE,
+        mod.DEFAULTS_SMOKE,
+        mod.MODEL_RUNTIME_SMOKE,
+    ]
+    for _args, kw in calls:
+        assert kw.get("timeout")
+        assert Path(kw["cwd"]) == py.parent
+
+
+def test_assert_frozen_interpreter_accepts_a_relative_venv_python(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mod = _load_build_sidecar()
+    py = tmp_path / "venv" / "bin" / "python"
+    py.parent.mkdir(parents=True)
+    log = tmp_path / "argv.log"
+    py.write_text(f'#!/bin/sh\necho "$1" >> "{log}"\nexit 0\n', encoding="utf-8")
+    py.chmod(0o755)
+    monkeypatch.chdir(tmp_path)
+    mod.assert_frozen_interpreter(Path("venv/bin/python"))
+    assert log.read_text().split() == ["-c"] * 3
+
+
+def test_assert_frozen_interpreter_rejects_a_python_failing_the_model_smoke(
+    tmp_path: Path,
+) -> None:
+    mod = _load_build_sidecar()
+    py = tmp_path / "python"
+    py.write_text('#!/bin/sh\ncase "$2" in *SileroVAD*) exit 3;; esac\nexit 0\n', encoding="utf-8")
+    py.chmod(0o755)
+    with pytest.raises(subprocess.CalledProcessError) as exc:
+        mod.assert_frozen_interpreter(py)
+    assert exc.value.returncode == 3
+
+
+def _fake_ffmpeg(runtime: Path, *, windows: bool, filters: str, code: int = 0) -> Path:
+    exe = runtime / "ffmpeg" / "bin" / ("ffmpeg.exe" if windows else "ffmpeg")
+    exe.parent.mkdir(parents=True)
+    exe.write_text(f"#!/bin/sh\ncat <<'EOF_FILTERS'\n{filters}\nEOF_FILTERS\nexit {code}\n")
+    exe.chmod(0o755)
+    return exe
+
+
+_FILTERS_WITH_ARNNDN = (
+    "Filters:\n"
+    "  T.. = Timeline support\n"
+    " ... anull             A->A       Pass the source unchanged to the output.\n"
+    " ... arnndn            A->A       Reduce noise from speech using Recurrent Neural Networks.\n"
+)
+_FILTERS_WITHOUT_ARNNDN = (
+    "Filters:\n"
+    " ... anull             A->A       Pass the source unchanged to the output.\n"
+    " ... loudnorm          A->A       EBU R128 loudness normalization\n"
+)
+
+
+@pytest.mark.parametrize("windows", [False, True])
+def test_assert_ffmpeg_arnndn_accepts_a_payload_listing_arnndn(tmp_path: Path, windows: bool):
+    mod = _load_build_sidecar()
+    _fake_ffmpeg(tmp_path, windows=windows, filters=_FILTERS_WITH_ARNNDN)
+    mod.assert_ffmpeg_arnndn(tmp_path, windows)
+
+
+@pytest.mark.parametrize("windows", [False, True])
+def test_assert_ffmpeg_arnndn_rejects_a_payload_without_arnndn(tmp_path: Path, windows: bool):
+    mod = _load_build_sidecar()
+    _fake_ffmpeg(tmp_path, windows=windows, filters=_FILTERS_WITHOUT_ARNNDN)
+    with pytest.raises(SystemExit, match="arnndn"):
+        mod.assert_ffmpeg_arnndn(tmp_path, windows)
+
+
+def test_assert_ffmpeg_arnndn_ignores_arnndn_in_a_description(tmp_path: Path):
+    mod = _load_build_sidecar()
+    _fake_ffmpeg(
+        tmp_path,
+        windows=False,
+        filters=(
+            " ... anull            A->A       not the arnndn filter, just mentioning it\n"
+            " ... loudnorm         A->A       arnndn arnndn arnndn is only described here\n"
+        ),
+    )
+    with pytest.raises(SystemExit, match="arnndn"):
+        mod.assert_ffmpeg_arnndn(tmp_path, False)
+
+
+def test_assert_ffmpeg_arnndn_does_not_cross_lines(tmp_path: Path):
+    mod = _load_build_sidecar()
+    _fake_ffmpeg(tmp_path, windows=False, filters="onetoken\narnndn A->A noise\n")
+    with pytest.raises(SystemExit, match="arnndn"):
+        mod.assert_ffmpeg_arnndn(tmp_path, False)
+
+
+def test_assert_ffmpeg_arnndn_fails_clearly_when_ffmpeg_exits_nonzero(tmp_path: Path):
+    mod = _load_build_sidecar()
+    _fake_ffmpeg(tmp_path, windows=False, filters=_FILTERS_WITH_ARNNDN, code=1)
+    with pytest.raises(SystemExit, match="failed"):
+        mod.assert_ffmpeg_arnndn(tmp_path, False)
+
+
+@pytest.mark.parametrize("windows", [False, True])
+def test_assert_ffmpeg_arnndn_names_a_missing_binary(tmp_path: Path, windows: bool):
+    mod = _load_build_sidecar()
+    name = "ffmpeg.exe" if windows else "ffmpeg"
+    with pytest.raises(SystemExit) as exc:
+        mod.assert_ffmpeg_arnndn(tmp_path, windows)
+    message = str(exc.value)
+    assert name in message
+    assert "ffmpeg" in message and "missing" in message.lower()
+
+
+def test_assert_ffmpeg_arnndn_against_the_real_ffmpeg(tmp_path: Path):
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        pytest.skip("ffmpeg is not on PATH")
+    listing = subprocess.run(
+        [ffmpeg, "-hide_banner", "-filters"], capture_output=True, text=True, timeout=60
+    ).stdout
+    if " arnndn " not in listing:
+        pytest.skip("this ffmpeg does not list arnndn")
+    mod = _load_build_sidecar()
+    exe = tmp_path / "ffmpeg" / "bin" / "ffmpeg"
+    exe.parent.mkdir(parents=True)
+    exe.symlink_to(ffmpeg)
+    mod.assert_ffmpeg_arnndn(tmp_path, False)
+
+
+def _wire_main(monkeypatch: pytest.MonkeyPatch, mod, *, reuse: bool) -> list[str]:
+    order: list[str] = []
+    monkeypatch.delenv("APPLE_SIGNING_IDENTITY", raising=False)
+    monkeypatch.setattr(mod, "require_rustc", lambda: None)
+    monkeypatch.setattr(mod, "runtime_is_complete", lambda *_a, **_k: reuse)
+    monkeypatch.setattr(mod, "assert_production_web_dist", lambda *_a: None)
+    monkeypatch.setattr(mod, "copy_web_dist", lambda *_a, **_k: order.append("web"))
+    monkeypatch.setattr(mod, "stage_owner_cdn", lambda: None)
+    monkeypatch.setattr(mod, "unstage_owner_cdn", lambda: None)
+    monkeypatch.setattr(mod, "freeze_python", lambda *_a, **_k: order.append("python"))
+    monkeypatch.setattr(mod, "compile_launchers", lambda *_a: order.append("launchers"))
+    monkeypatch.setattr(mod, "ensure_ffmpeg_payload", lambda *_a: order.append("pair"))
+    monkeypatch.setattr(
+        mod, "assert_ffmpeg_arnndn", lambda *_a, **_k: order.append("arnndn"), raising=False
+    )
+    monkeypatch.setattr(mod, "write_freeze_complete", lambda *_a: order.append("complete"))
+    return order
+
+
+@pytest.mark.parametrize("reuse", [False, True])
+def test_main_checks_arnndn_right_after_the_payload_is_ensured(monkeypatch, tmp_path, reuse):
+    mod = _load_build_sidecar()
+    order = _wire_main(monkeypatch, mod, reuse=reuse)
+    assert mod.main(["--ensure", "--out", str(tmp_path)]) == 0
+    assert order == (
+        ["pair", "arnndn", "launchers", "complete"]
+        if reuse
+        else ["web", "python", "pair", "arnndn", "launchers", "complete"]
+    )
+
+
+def test_main_passes_the_runtime_and_windows_flag_to_the_arnndn_check(monkeypatch, tmp_path):
+    mod = _load_build_sidecar()
+    _wire_main(monkeypatch, mod, reuse=True)
+    seen: list[tuple] = []
+    monkeypatch.setattr(mod, "assert_ffmpeg_arnndn", lambda *a, **_k: seen.append(a), raising=False)
+    triple = "x86_64-pc-windows-msvc"
+    assert mod.main(["--ensure", "--out", str(tmp_path), "--triple", triple]) == 0
+    assert seen == [(tmp_path / "sharecut-runtime", True)]
+
+
+def test_main_arnndn_failure_stops_before_the_runtime_is_marked_complete(monkeypatch, tmp_path):
+    mod = _load_build_sidecar()
+    order = _wire_main(monkeypatch, mod, reuse=True)
+
+    def reject(*_a, **_k):
+        raise SystemExit("ffmpeg payload lacks the arnndn filter")
+
+    monkeypatch.setattr(mod, "assert_ffmpeg_arnndn", reject, raising=False)
+    with pytest.raises(SystemExit, match="arnndn"):
+        mod.main(["--ensure", "--out", str(tmp_path)])
+    assert "complete" not in order
+
+
+@pytest.mark.parametrize("mode", ["--dry-run", "--slim-only", "--codesign-only"])
+def test_main_skips_the_arnndn_check_outside_the_freeze_paths(monkeypatch, tmp_path, mode):
+    mod = _load_build_sidecar()
+    order = _wire_main(monkeypatch, mod, reuse=False)
+    monkeypatch.setattr(mod, "slim_python_runtime", lambda *_a: order.append("slim"))
+    monkeypatch.setattr(mod, "codesign_runtime", lambda *_a: order.append("signed"))
+    monkeypatch.setattr(mod, "sign_ffmpeg_payload", lambda *_a: order.append("pair-signed"))
+    monkeypatch.setenv("APPLE_SIGNING_IDENTITY", "Developer ID fixture")
+    (tmp_path / "sharecut-runtime").mkdir()
+    assert mod.main([mode, "--out", str(tmp_path), "--triple", "aarch64-apple-darwin"]) == 0
+    assert "arnndn" not in order

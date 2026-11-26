@@ -34,7 +34,7 @@ See [setup.md](setup.md) for the user-facing description of the same path.
 
 Still open on #1998:
 
-- Running the speaker model download from inside a packaged app.
+- Running the speaker model download from inside a packaged app. A fresh freeze proves `onnxruntime` and the bundled Silero VAD run, and every freeze (fresh or reused) checks that the packaged FFmpeg has `arnndn`; the download itself is still a manual check.
 - A look at Split speakers (the Source card in Prepare) in a real browser and on a device.
 - Whether cancelling a snapshot download stops it promptly: the progress callback is driven by `huggingface_hub`, and the only test (`test_pinned_download_stops_when_the_sink_raises`) fakes the hub's listing and per-file download and shows only that the exception propagates, so a real transfer stopping promptly is untested.
 
