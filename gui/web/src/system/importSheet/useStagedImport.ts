@@ -117,7 +117,7 @@ export function useStagedImport<P extends Staged, R>(
           });
         });
     },
-    [release, show],
+    [mounted, release, show],
   );
 
   const cancel = useCallback(() => {
