@@ -199,6 +199,10 @@ ExportStatusWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_
 ExportFilesWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_files"))]
 ExportFileWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_file"))]
 ExportArchiveWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_archive"))]
+ExportFileHeadWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_file_head"))]
+ExportArchiveHeadWorkspace = Annotated[
+    ProjectWorkspace, Depends(guest_route("export_archive_head"))
+]
 ExportJobScope = Annotated[
     GuestJobScope, Depends(guest_job_route("export_job_status", GUEST_EXPORT_KINDS))
 ]
@@ -375,6 +379,23 @@ def get_daw_export_file(
 @router.get("/api/review/{token}/daw/export/archive")
 def get_daw_export_archive(request: Request, token: str, ws: ExportArchiveWorkspace) -> Response:
     with guest_boundary(log, "review export archive"):
+        return download_export_archive(request, ws, acquire_slot=lambda: audio_slot(token))
+
+
+@router.head("/api/review/{token}/daw/export/files/{file_id:path}")
+def head_daw_export_file(
+    request: Request, token: str, file_id: str, ws: ExportFileHeadWorkspace
+) -> Response:
+    """Headers only for one listed file; the helper takes no stream slot for a HEAD."""
+    with guest_boundary(log, "review export file head"):
+        return download_exported_file(request, ws, file_id, acquire_slot=lambda: audio_slot(token))
+
+
+@router.head("/api/review/{token}/daw/export/archive")
+def head_daw_export_archive(
+    request: Request, token: str, ws: ExportArchiveHeadWorkspace
+) -> Response:
+    with guest_boundary(log, "review export archive head"):
         return download_export_archive(request, ws, acquire_slot=lambda: audio_slot(token))
 
 

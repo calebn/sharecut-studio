@@ -27,7 +27,7 @@ from podcast_mcp.export.chapters import render_chapters_json
 from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.gui.host_reveal import reveal_in_file_manager
 from podcast_mcp.gui.routes import export_files as export_files_routes
-from podcast_mcp.gui.routes import export_ticket
+from podcast_mcp.gui.routes import export_ticket, review_editor
 from podcast_mcp.gui.routes.share_common import audio_slot
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
@@ -1340,14 +1340,136 @@ def test_a_lesser_role_is_refused_the_archive_and_a_revoked_link_is_gone(world, 
     assert (revoked.status_code, revoked.headers[CODE]) == (404, "share_not_found")
 
 
-def test_an_editor_archive_waits_for_a_running_export_and_has_no_head(world) -> None:
+def test_an_editor_archive_waits_for_a_running_export(world) -> None:
     url = ARCHIVE_GUEST.format(token=world.tokens["editor"])
     _run_export(world.app, world.ws)
 
     running = world.client.get(url)
 
     assert (running.status_code, running.headers[CODE]) == (409, "export_running")
-    assert world.client.head(url).status_code == 405
+
+
+def _guest_urls(world, role: str = "editor") -> dict[str, str]:
+    token = world.tokens[role]
+    stem = sanitize_export_stem(world.ws.project.name)
+    return {
+        "file": f"{GUEST.format(token=token)}/{stem}.mp3",
+        "archive": ARCHIVE_GUEST.format(token=token),
+    }
+
+
+@pytest.fixture
+def slots(monkeypatch) -> SimpleNamespace:
+    counter = SimpleNamespace(taken=0, given_back=0)
+
+    def count_slot(token):
+        counter.taken += 1
+
+        def release() -> None:
+            counter.given_back += 1
+
+        return release
+
+    monkeypatch.setattr(review_editor, "audio_slot", count_slot)
+    return counter
+
+
+def test_guest_head_file_matches_get_headers_with_no_body(world) -> None:
+    url = _guest_urls(world)["file"]
+
+    got = world.client.get(url)
+    head = world.client.head(url)
+
+    assert (got.status_code, head.status_code) == (200, 200)
+    assert head.content == b""
+    assert head.headers["content-length"] == got.headers["content-length"] == str(len(MP3))
+    for name in ("content-type", "content-disposition", "etag", "accept-ranges"):
+        assert head.headers[name] == got.headers[name]
+
+
+def test_guest_head_archive_matches_get_length_with_no_body(world, monkeypatch) -> None:
+    url = _guest_urls(world)["archive"]
+    got = world.client.get(url)
+    streamed = 0
+    real = export_files_routes.stored_zip_chunks
+
+    def counting(members):
+        nonlocal streamed
+        streamed += 1
+        return real(members)
+
+    monkeypatch.setattr(export_files_routes, "stored_zip_chunks", counting)
+    head = world.client.head(url)
+
+    assert (got.status_code, head.status_code) == (200, 200)
+    assert head.content == b""
+    assert head.headers["content-length"] == got.headers["content-length"]
+    assert head.headers["content-type"] == got.headers["content-type"] == "application/zip"
+    assert streamed == 0
+
+
+def test_guest_head_takes_no_audio_slot_and_get_still_does(world, slots) -> None:
+    urls = _guest_urls(world)
+
+    heads = [world.client.head(url) for url in urls.values()]
+    assert [h.status_code for h in heads] == [200, 200]
+    assert slots.taken == 0
+
+    assert world.client.get(urls["file"]).status_code == 200
+    assert (slots.taken, slots.given_back) == (1, 1)
+
+
+def test_guest_head_is_409_while_an_export_runs_and_takes_no_slot(world, slots) -> None:
+    urls = _guest_urls(world)
+    _run_export(world.app, world.ws)
+
+    for url in urls.values():
+        head = world.client.head(url)
+        assert (head.status_code, head.headers[CODE]) == (409, "export_running")
+        assert head.content == b""
+    assert slots.taken == 0
+
+
+def test_guest_head_is_404_for_an_unlisted_file_and_an_empty_archive(world, slots) -> None:
+    base = GUEST.format(token=world.tokens["editor"])
+    missing = f"{base}/not-listed.mp3"
+
+    head = world.client.head(missing)
+    got = world.client.get(missing)
+
+    assert (head.status_code, head.headers[CODE]) == (404, "export_file_gone")
+    assert (got.status_code, got.headers[CODE]) == (404, "export_file_gone")
+    assert slots.taken == 0
+
+    for path in world.ws.project.export_dir().iterdir():
+        path.unlink() if path.is_file() else None
+    archive = _guest_urls(world)["archive"]
+    assert world.client.head(archive).status_code == world.client.get(archive).status_code == 404
+
+
+@pytest.mark.parametrize("role", ["viewer", "commenter"])
+@pytest.mark.parametrize("kind", ["file", "archive"])
+def test_guest_head_is_refused_for_a_lesser_role_exactly_like_get(world, slots, role, kind) -> None:
+    url = _guest_urls(world, role)[kind]
+
+    got = world.client.get(url)
+    head = world.client.head(url)
+
+    assert (got.status_code, got.headers[CODE]) == (403, "share_capability_required")
+    assert (head.status_code, head.headers[CODE]) == (403, "share_capability_required")
+    assert slots.taken == 0
+
+
+@pytest.mark.parametrize("kind", ["file", "archive"])
+def test_guest_head_on_a_revoked_link_is_gone_like_get(world, kind) -> None:
+    url = _guest_urls(world)[kind]
+    world.share.revoke(world.tokens["editor"])
+
+    got = world.client.get(url)
+    head = world.client.head(url)
+
+    assert (got.status_code, got.headers[CODE]) == (404, "share_not_found")
+    assert (head.status_code, head.headers[CODE]) == (404, "share_not_found")
 
 
 def test_download_all_holds_one_audio_slot_and_gives_it_back(world, one_stream_per_link) -> None:

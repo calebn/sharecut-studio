@@ -88,14 +88,18 @@ def download_exported_file(
     The id is looked up in the listing and never joined to a path. It is refused with 409
     while an export of this project is writing, and with 404 when it is not listed. A *ticket_version*
     must match the file as it is now. For an audio file *acquire_slot* takes the caller's stream slot (it
-    raises when none is free) and the slot is released when the download ends.
+    raises when none is free; a HEAD takes none) and the slot is released when the download ends.
     """
     if request.app.state.jobs.export_running(ws.path):
         raise coded_http_error(409, EXPORT_RUNNING, code="export_running")
     found = _open_listed(ws, file_id, host_files=host_files)
     if ticket_version is not None:
         export_ticket.require_unchanged(ticket_version, found.version)
-    slot = acquire_slot() if acquire_slot is not None and found.kind == "audio" else None
+    slot = (
+        acquire_slot()
+        if acquire_slot is not None and found.kind == "audio" and request.method != "HEAD"
+        else None
+    )
     try:
         return pinned_audio_response(
             found.path,
