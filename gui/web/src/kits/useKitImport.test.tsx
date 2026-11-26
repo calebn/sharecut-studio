@@ -3,7 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api/kits";
 import { deferred } from "../test/deferred";
 import { ApiError } from "../utils/apiError";
-import { KIT_FILE, KIT_TOKEN, UNCHANGED_KIT, waitingKit } from "./fixtures";
+import {
+  importEntry,
+  KIT_FILE,
+  KIT_TOKEN,
+  UNCHANGED_KIT,
+  waitingKit,
+} from "./fixtures";
+import { markLanded } from "./importMessages";
 import { useKitImport } from "./useKitImport";
 
 vi.mock("../api/kits", async (importOriginal) => ({
@@ -449,5 +456,140 @@ describe("useKitImport after the first try", () => {
     expect(signal.aborted).toBe(true);
     await act(async () => pending.resolve(waitingKit()));
     expect(cancel).toHaveBeenCalledWith(KIT_TOKEN);
+  });
+});
+
+describe("useKitImport after a partial add", () => {
+  const threeNew = () =>
+    waitingKit({
+      entry_count: 3,
+      counts: { added: 2, new_version: 1, unchanged: 0 },
+      entries: [
+        importEntry({ position: 1, name: "Intro" }),
+        importEntry({
+          position: 2,
+          name: "Sponsor",
+          outcome: "new_version",
+          version: 2,
+        }),
+        importEntry({ position: 3, name: "Outro", at: "end" }),
+      ],
+    });
+
+  it("marks the segments that landed first as already there and keeps the rest new", async () => {
+    commit
+      .mockRejectedValueOnce(partial("kit_busy", 409, 1, 3))
+      .mockRejectedValueOnce(partial("kit_no_room", 507, 1, 3));
+    const { result: hook } = await staged(threeNew());
+    const shown = () =>
+      hook.current.state.phase === "preview"
+        ? hook.current.state.preview
+        : null;
+
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("preview"));
+    await waitFor(() => expect(shown()?.entries[0].outcome).toBe("unchanged"));
+    expect(shown()?.entries.map((entry) => entry.outcome)).toEqual([
+      "unchanged",
+      "new_version",
+      "added",
+    ]);
+    expect(shown()?.counts).toEqual({
+      added: 1,
+      new_version: 1,
+      unchanged: 1,
+    });
+    expect(shown()?.token).toBe(KIT_TOKEN);
+
+    act(() => hook.current.add());
+    await waitFor(() =>
+      expect(shown()?.entries.map((entry) => entry.outcome)).toEqual([
+        "unchanged",
+        "unchanged",
+        "added",
+      ]),
+    );
+    expect(shown()?.counts).toEqual({
+      added: 1,
+      new_version: 0,
+      unchanged: 2,
+    });
+  });
+
+  it("leaves the preview as it was when nothing landed or the drop carried no count", async () => {
+    commit
+      .mockRejectedValueOnce(partial("kit_busy", 409, 0, 3))
+      .mockRejectedValueOnce(new ApiError("Gone.", "network_error"));
+    const waitingThree = threeNew();
+    const { result: hook } = await staged(waitingThree);
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("preview"));
+    act(() => hook.current.add());
+    await waitFor(() => expect(commit).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(hook.current.state.phase).toBe("preview"));
+    expect(hook.current.state).toMatchObject({ preview: waitingThree });
+  });
+
+  it("treats entries naming one segment as one", () => {
+    const twice = waitingKit({
+      entry_count: 3,
+      counts: { added: 3, new_version: 0, unchanged: 0 },
+      entries: [
+        importEntry({ position: 1, name: "Bed" }),
+        importEntry({ position: 2, name: "Talk" }),
+        importEntry({ position: 3, name: "Bed" }),
+      ],
+    });
+    expect(markLanded(twice, 1).entries.map((entry) => entry.outcome)).toEqual([
+      "unchanged",
+      "added",
+      "unchanged",
+    ]);
+  });
+});
+
+describe("useKitImport commit failure wording", () => {
+  it("says Added N of M after a partial add when the next try loses the connection", async () => {
+    commit
+      .mockRejectedValueOnce(partial("kit_busy", 409, 1, 3))
+      .mockRejectedValueOnce(
+        new ApiError("Couldn't reach the server.", "network_error"),
+      );
+    const { result: hook } = await staged(waitingKit({ entry_count: 3 }));
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("preview"));
+    act(() => hook.current.add());
+    await waitFor(() =>
+      expect(hook.current.state).toMatchObject({
+        notice:
+          "Couldn't reach the server. Added 1 of 3 segments. Choose Add to library to finish.",
+      }),
+    );
+  });
+
+  it.each([
+    ["a refusal with no code", new ApiError("Odd.", null, 502)],
+    ["a network error", new ApiError("Down.", "network_error")],
+    ["something that is not an ApiError", new Error("Down.")],
+  ])("keeps the preview for %s", async (_shape, failure) => {
+    commit.mockRejectedValueOnce(failure);
+    const { result: hook } = await staged();
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("preview"));
+    expect(hook.current.state).toMatchObject({
+      notice: expect.stringMatching(/Odd\.|Down\./),
+    });
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("says 1 segment was added first, in the singular", async () => {
+    commit.mockRejectedValueOnce(partial("kit_invalid", 422, 1, 3));
+    const { result: hook } = await staged();
+    act(() => hook.current.add());
+    await waitFor(() => expect(hook.current.state.phase).toBe("error"));
+    expect(hook.current.state).toMatchObject({
+      message:
+        "Detail for kit_invalid. 1 segment was added to your library first.",
+    });
   });
 });
