@@ -19,7 +19,10 @@ from tests.polling import wait_for
 MIB = 1024 * 1024
 CHUNK = 64 * 1024
 SIZE = 40 * MIB
-PAUSE_AT = 12 * MIB
+PAUSE_AT = 4 * MIB
+FIRST_EVENT_MAX = 2 * MIB
+SLACK = 4 * MIB
+MIN_EVENTS = 8
 FAIL_SAFE_SEC = 10.0
 START_SEC = 60.0
 REPO = "x/y"
@@ -63,7 +66,6 @@ else:
 class _Hub:
     sent: int = 0
     write_error: OSError | None = None
-    gate_reached: threading.Event = field(default_factory=threading.Event)
     release: threading.Event = field(default_factory=threading.Event)
     ended: threading.Event = field(default_factory=threading.Event)
 
@@ -111,7 +113,6 @@ def _handler(hub: _Hub) -> type[BaseHTTPRequestHandler]:
             try:
                 for chunk in _body():
                     if hub.sent == PAUSE_AT:
-                        hub.gate_reached.set()
                         hub.release.wait(timeout=FAIL_SAFE_SEC)
                     self.wfile.write(chunk)
                     hub.sent += len(chunk)
@@ -128,6 +129,7 @@ def _handler(hub: _Hub) -> type[BaseHTTPRequestHandler]:
 class _Run:
     hub: _Hub
     lines: list[str]
+    events: list[int]
     first_bytes: int
     returncode: int
     snapshot_files: list[Path]
@@ -206,6 +208,7 @@ def _run(tmp_path: Path, *, cancel: bool) -> _Run:
             reader.join(timeout=5.0)
     events = [int(line.split()[1]) for line in lines if line.startswith("EVENT")]
     return _Run(
+        events=events,
         hub=hub,
         lines=lines,
         first_bytes=events[0] if events else 0,
@@ -220,11 +223,12 @@ def test_cancel_from_sink_stops_the_real_transfer(tmp_path: Path) -> None:
     hub = run.hub
 
     assert run.outcome == "RAISED CancelledProgress", run.stderr
-    assert 0 < run.first_bytes <= PAUSE_AT
-    assert hub.gate_reached.is_set()
+    assert 0 < run.first_bytes <= FIRST_EVENT_MAX, run.lines
     assert hub.ended.is_set()
     assert hub.write_error is not None
-    assert hub.sent <= PAUSE_AT + 4 * CHUNK, f"server wrote {hub.sent} bytes after cancel"
+    assert hub.sent <= run.first_bytes + SLACK, (
+        f"server wrote {hub.sent} bytes, first event at {run.first_bytes}"
+    )
     assert run.snapshot_files == []
 
 
@@ -233,7 +237,9 @@ def test_without_cancel_the_whole_file_arrives(tmp_path: Path) -> None:
     hub = run.hub
 
     assert run.outcome == "DONE None", run.stderr
-    assert 0 < run.first_bytes <= PAUSE_AT
+    assert 0 < run.first_bytes <= FIRST_EVENT_MAX, run.lines
+    assert len(run.events) >= MIN_EVENTS, run.events
+    assert run.events[-1] == SIZE
     assert hub.ended.is_set()
     assert hub.write_error is None
     assert hub.sent == SIZE
