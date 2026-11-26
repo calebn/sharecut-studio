@@ -40,6 +40,8 @@ import { takeAutoRun, takeOpenStage } from "../../utils/openIntent";
 import { writeSoundScanStart } from "../prepare/soundScan";
 import { HomeScreen, SETUP_DISMISSED_KEY } from "./HomeScreen";
 
+const tauri = vi.hoisted(() => ({ on: false }));
+vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => tauri.on }));
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   fetchBootstrapStatus: vi.fn(),
@@ -158,6 +160,7 @@ describe("HomeScreen", () => {
   const assign = vi.fn();
 
   beforeEach(() => {
+    tauri.on = false;
     vi.clearAllMocks();
     useDawStore.getState().setCommandPaletteOpen(false);
     useDawStore.getState().setHelpDialogOpen(false);
@@ -1268,6 +1271,24 @@ describe("HomeScreen", () => {
       },
     );
 
+    it("keeps the needed card unchanged in the desktop app", async () => {
+      tauri.on = true;
+      const models = modelsApi({
+        status: modelStatus(registryRows(), { ready: false }),
+      });
+      rtlRender(
+        <ModelsContext.Provider value={models}>
+          <HomeScreen />
+        </ModelsContext.Provider>,
+      );
+      expect(
+        await screen.findByRole("button", { name: "Get ready" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Get ShareCut ready")).toBeInTheDocument();
+      expect(screen.queryByText(/audio tools are missing/i)).toBeNull();
+      expect(screen.queryByText(/Download ShareCut Studio again/)).toBeNull();
+    });
+
     it("offers the bundle, starts the download and remembers Not now", async () => {
       const user = userEvent.setup();
       const models = modelsApi({
@@ -1380,7 +1401,10 @@ describe("HomeScreen", () => {
         ).not.toBeInTheDocument();
         expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
         expect(
-          screen.queryByText("Audio tools are missing."),
+          screen.queryByText(/audio tools are missing/i),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(/download it again/i),
         ).not.toBeInTheDocument();
         expect(models.download).not.toHaveBeenCalled();
       });
@@ -1440,11 +1464,61 @@ describe("HomeScreen", () => {
           screen.queryByRole("button", { name: "Get ready" }),
         ).not.toBeInTheDocument();
         expect(document.body).not.toHaveTextContent("PODCAST_MCP_FFMPEG");
+        expect(
+          screen.getByRole("link", { name: "Setup guide for the audio tools" }),
+        ).toBeInTheDocument();
         await userEvent.click(
           screen.getByRole("button", { name: "Check again" }),
         );
         expect(models.refresh).toHaveBeenCalled();
         expect(models.download).not.toHaveBeenCalled();
+      });
+
+      it("says plainly to download the app again, with no link, in the desktop app", async () => {
+        tauri.on = true;
+        window.sessionStorage.setItem(SETUP_DISMISSED_KEY, "1");
+        const models = noTools();
+        rtlRender(
+          <ModelsContext.Provider value={models}>
+            <HomeScreen />
+          </ModelsContext.Provider>,
+        );
+        expect(
+          await screen.findByText("ShareCut's audio tools are missing."),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText(
+            /Download ShareCut Studio again from where you got it/,
+          ),
+        ).toBeVisible();
+        expect(screen.queryByText("Audio tools are missing.")).toBeNull();
+        expect(screen.queryByRole("link")).toBeNull();
+        expect(document.body).not.toHaveTextContent("PODCAST_MCP_FFMPEG");
+        await userEvent.click(
+          screen.getByRole("button", { name: "Check again" }),
+        );
+        expect(models.refresh).toHaveBeenCalled();
+      });
+
+      it("keeps the reinstall line and no link on an iPhone shell", async () => {
+        tauri.on = true;
+        const models = { ...noTools(), onPhone: true };
+        rtlRender(
+          <ModelsContext.Provider value={models}>
+            <HomeScreen />
+          </ModelsContext.Provider>,
+        );
+        expect(
+          await screen.findByText("Audio tools are missing."),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText("Reinstall ShareCut Studio to restore them."),
+        ).toBeVisible();
+        expect(
+          screen.queryByRole("link", {
+            name: "Setup guide for the audio tools",
+          }),
+        ).toBeNull();
       });
 
       it("Import and Record say why instead of starting an empty episode", async () => {
@@ -1465,6 +1539,25 @@ describe("HomeScreen", () => {
         expect(pickFiles).not.toHaveBeenCalled();
         expect(create).not.toHaveBeenCalled();
         expect(assign).not.toHaveBeenCalled();
+      });
+
+      it("points Import to Check again in the desktop app", async () => {
+        tauri.on = true;
+        const user = userEvent.setup();
+        rtlRender(
+          <ModelsContext.Provider value={noTools()}>
+            <HomeScreen />
+          </ModelsContext.Provider>,
+        );
+        await user.click(
+          await screen.findByRole("button", { name: /^Import audio/ }),
+        );
+        expect(
+          await screen.findByText(
+            "Audio tools are missing, so an episode can't start yet. Use Check again in Get ShareCut ready, then try again.",
+          ),
+        ).toBeInTheDocument();
+        expect(create).not.toHaveBeenCalled();
       });
     });
 

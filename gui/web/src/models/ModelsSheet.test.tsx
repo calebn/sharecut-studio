@@ -20,6 +20,8 @@ import { stubViewportShell } from "../test/viewportShell";
 import { ModelsProvider } from "./ModelsProvider";
 import { ModelsSheet } from "./ModelsSheet";
 
+const tauri = vi.hoisted(() => ({ on: false }));
+vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => tauri.on }));
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
   return {
@@ -32,7 +34,10 @@ vi.mock("../api", async (importOriginal) => {
 
 const fetchStatus = vi.mocked(api.fetchBootstrapStatus);
 
-afterEach(() => fetchStatus.mockReset());
+afterEach(() => {
+  fetchStatus.mockReset();
+  tauri.on = false;
+});
 
 function mount(
   rows = registryRows(),
@@ -55,6 +60,7 @@ const names = () =>
 
 describe("ModelsSheet on a device without audio tools", () => {
   it("says the tools are not there yet and offers no Get, size or retry on any row", async () => {
+    tauri.on = true;
     stubViewportShell("desktop");
     const { baseElement } = render(<ModelsSheet open onClose={vi.fn()} />, {
       wrapper: modelsWrapper(modelsApi({ status: UNSUPPORTED_STATUS })),
@@ -72,6 +78,7 @@ describe("ModelsSheet on a device without audio tools", () => {
     expect(
       screen.queryByText("Reinstall ShareCut Studio to restore them."),
     ).toBeNull();
+    expect(screen.queryByText(/Download ShareCut Studio again/)).toBeNull();
     expect(screen.queryByRole("group", { name: "Size" })).toBeNull();
     expect(
       screen.queryByRole("button", { name: /^(Get|Try again)/ }),
@@ -295,6 +302,7 @@ describe("ModelsSheet", () => {
           resolveStatus = resolve;
         }),
     );
+    tauri.on = true;
     stubViewportShell("desktop");
     render(
       <ModelsProvider>
@@ -308,6 +316,9 @@ describe("ModelsSheet", () => {
       );
       expect(screen.queryByText("Audio tools are unavailable")).toBeNull();
       expect(screen.queryByText(/Reinstall ShareCut Studio/)).toBeNull();
+      expect(
+        screen.queryByText(/ShareCut's audio tools are missing/),
+      ).toBeNull();
     } finally {
       await act(async () => {
         resolveStatus(
@@ -321,13 +332,19 @@ describe("ModelsSheet", () => {
     }
 
     await waitFor(() =>
-      expect(screen.getByText("Audio tools are unavailable")).toBeTruthy(),
+      expect(
+        screen.getByText("ShareCut's audio tools are missing"),
+      ).toBeTruthy(),
     );
+    expect(
+      screen.getByText(/Download ShareCut Studio again from where you got it/),
+    ).toBeTruthy();
     expect(screen.queryByText("Checking what is installed")).toBeNull();
     expect(names()).toHaveLength(4);
   });
 
   it("keeps an initial status failure truthful and recovers when status is retried", async () => {
+    tauri.on = true;
     fetchStatus
       .mockRejectedValueOnce(new Error("Status request failed"))
       .mockResolvedValueOnce(modelStatus(registryRows()));
@@ -341,6 +358,7 @@ describe("ModelsSheet", () => {
     expect(screen.queryByText("Checking what is installed")).toBeNull();
     expect(screen.queryByText("Audio tools are unavailable")).toBeNull();
     expect(screen.queryByText(/Reinstall ShareCut Studio/)).toBeNull();
+    expect(screen.getByText("Couldn't check what is installed")).toBeVisible();
     await userEvent.click(
       screen.getByRole("button", { name: "Try again to check model status" }),
     );
@@ -351,6 +369,7 @@ describe("ModelsSheet", () => {
   });
 
   it("does not warn when the loaded status confirms installed audio tools", () => {
+    tauri.on = true;
     mount();
     expect(screen.queryByText("Audio tools are unavailable")).toBeNull();
   });
@@ -539,6 +558,62 @@ describe("ModelsSheet", () => {
       wrapper: modelsWrapper(api),
     });
     expect(screen.getByText("Audio tools are unavailable")).toBeTruthy();
+    expect(
+      screen.getByText("Reinstall ShareCut Studio to restore them."),
+    ).toBeTruthy();
+  });
+
+  it("says plainly to download the app again in the desktop app", () => {
+    tauri.on = true;
+    const status = modelStatus(registryRows());
+    status.tools = {
+      ffmpeg: { state: "missing", source: "unavailable", hint: null },
+    };
+    render(<ModelsSheet open onClose={vi.fn()} />, {
+      wrapper: modelsWrapper(modelsApi({ status })),
+    });
+    expect(screen.getByText("ShareCut's audio tools are missing")).toBeTruthy();
+    expect(
+      screen.getByText(/Download ShareCut Studio again from where you got it/),
+    ).toBeTruthy();
+    expect(screen.queryByText("Audio tools are unavailable")).toBeNull();
+    expect(screen.queryByText(/Reinstall ShareCut Studio/)).toBeNull();
+  });
+
+  it("offers Check again on the desktop row and refreshes the status", async () => {
+    tauri.on = true;
+    const status = modelStatus(registryRows());
+    status.tools = {
+      ffmpeg: { state: "missing", source: "unavailable", hint: null },
+    };
+    const models = modelsApi({ status });
+    render(<ModelsSheet open onClose={vi.fn()} />, {
+      wrapper: modelsWrapper(models),
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Check again for the audio tools" }),
+    );
+    expect(models.refresh).toHaveBeenCalled();
+  });
+
+  it("keeps the reinstall line in an iPhone shell", () => {
+    tauri.on = true;
+    const status = modelStatus(registryRows(), {
+      host: IOS_HOST,
+      whisper_model: "small.en-q5_1",
+      whisper_models: IOS_WHISPER_CATALOG,
+      tools: {
+        ffmpeg: { state: "missing", source: "unavailable", hint: null },
+      },
+    });
+    render(<ModelsSheet open onClose={vi.fn()} />, {
+      wrapper: modelsWrapper(modelsApi({ status })),
+    });
+    expect(screen.getByText("Audio tools are unavailable")).toBeTruthy();
+    expect(
+      screen.getByText("Reinstall ShareCut Studio to restore them."),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Download ShareCut Studio again/)).toBeNull();
   });
 
   it("is the full-height bottom sheet on a phone", () => {

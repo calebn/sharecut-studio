@@ -58,6 +58,57 @@ describe("SetupCard needed on an iPhone", () => {
   });
 });
 
+describe("SetupCard with the audio tools missing", () => {
+  const card = (over: { desktop?: boolean; onPhone?: boolean }) => (
+    <SetupCard
+      state="tools-missing"
+      sizeLabel=""
+      {...over}
+      onGetReady={noop}
+      onChoose={noop}
+      onCancel={noop}
+      onRetry={noop}
+      onNotNow={noop}
+    />
+  );
+  const GUIDE = { name: "Setup guide for the audio tools" };
+  const REINSTALL = "Reinstall ShareCut Studio to restore them.";
+
+  it("keeps the setup guide link in a browser or source install", () => {
+    render(card({}));
+    expect(screen.getByText("Audio tools are missing.")).toBeVisible();
+    expect(screen.getByText(REINSTALL)).toBeVisible();
+    expect(screen.getByRole("link", GUIDE)).toHaveAttribute(
+      "href",
+      expect.stringContaining("setup.md"),
+    );
+    expect(screen.getByRole("button", { name: "Check again" })).toBeVisible();
+  });
+
+  it("says to download the app again in plain words and links nothing on a desktop", () => {
+    render(card({ desktop: true }));
+    expect(
+      screen.getByText("ShareCut's audio tools are missing."),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Download ShareCut Studio again from where you got it, replace this copy, then reopen it. Your episodes are not affected.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByText(REINSTALL)).toBeNull();
+    expect(screen.getByRole("button", { name: "Check again" })).toBeVisible();
+  });
+
+  it("says reinstall with no link on an iPhone, app or browser", () => {
+    render(card({ onPhone: true }));
+    expect(screen.getByText("Audio tools are missing.")).toBeVisible();
+    expect(screen.getByText(REINSTALL)).toBeVisible();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByRole("button", { name: "Check again" })).toBeVisible();
+  });
+});
+
 describe("SetupCard on a device without audio tools", () => {
   it("shows the server's sentence and offers nothing to do", async () => {
     const { container } = render(

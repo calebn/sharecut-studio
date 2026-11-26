@@ -33,7 +33,7 @@ const meta: Meta<typeof SetupCard> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Setup card on Home, shown only while models are missing. Needed: "Get ready" starts the one download, "Choose…" opens Models, and "Not now" in the more menu hides it until the next launch. Downloading is one progress row with the bytes, the time left and an x icon to cancel (40 px); while the first status is on its way the card draws nothing for 300 ms and then static grey blocks, never a "Checking" box; the person can import or record meanwhile. A failed download says why in one plain sentence with "Try again" and "Choose…"; the check error says what happened with "Try again". Neither shows raw error text. The size comes from the caller as words ("about 2 GB"). On an iPhone the needed line says "Transcription runs on this iPhone" instead of naming a computer. Missing audio tools show one row with "Check again" and the setup guide link, and offer no download.\n\n**Motion.** The card changes state in place with `--motion-hover` on the bar fill; dismissing leaves with `--motion-panel`.',
+          'The Setup card on Home, shown only while models are missing. Needed: "Get ready" starts the one download, "Choose…" opens Models, and "Not now" in the more menu hides it until the next launch. Downloading is one progress row with the bytes, the time left and an x icon to cancel (40 px); while the first status is on its way the card draws nothing for 300 ms and then static grey blocks, never a "Checking" box; the person can import or record meanwhile. A failed download says why in one plain sentence with "Try again" and "Choose…"; the check error says what happened with "Try again". Neither shows raw error text. The size comes from the caller as words ("about 2 GB"). On an iPhone the needed line says "Transcription runs on this iPhone" instead of naming a computer. Missing audio tools show one row with "Check again" and offer no download. A browser or source install also links the setup guide; the packaged desktop app says to download ShareCut Studio again and links nothing; an iPhone says to reinstall and links nothing.\n\n**Motion.** The card changes state in place with `--motion-hover` on the bar fill; dismissing leaves with `--motion-panel`.',
       },
     },
   },
@@ -130,4 +130,32 @@ export const ToolsMissing: Story = {
     await expect(args.onRetry).toHaveBeenCalledOnce();
   },
 };
+
+export const ToolsMissingDesktop: Story = {
+  args: { state: "tools-missing", sizeLabel: "", desktop: true },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("ShareCut's audio tools are missing."),
+    ).toBeVisible();
+    await expect(
+      canvas.getByText(/Download ShareCut Studio again from where you got it/),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("link")).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "Check again" }));
+    await expect(args.onRetry).toHaveBeenCalledOnce();
+  },
+};
+
+export const ToolsMissingPhone: Story = {
+  args: { state: "tools-missing", sizeLabel: "", onPhone: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("Reinstall ShareCut Studio to restore them."),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("link")).toBeNull();
+  },
+};
+
 export const Phone: Story = {};
