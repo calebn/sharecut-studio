@@ -584,11 +584,14 @@ it.
 
 The notice is a courtesy, not a security boundary. For `/r/` and `/rec/` it is decided before the
 host is asked, so the host cannot avoid it. For `/api/review/`, `/api/rec/` and `/mcp/` it is
-decided from the response's media type, and only `text/html` matches: a deliberate host can
-answer with another active type such as `application/xhtml+xml` or `image/svg+xml`, or with a
+decided from the response's media type, and only `text/html` matches: a deliberate host can answer
+with another active type such as `application/xhtml+xml` or `image/svg+xml`, or with a
 `Content-Type` that is not exactly `text/html` once its parameters are removed (two values joined
-into one string, for example), and the guest then gets that response with no notice. The guest
-CSP follows the same HTML check.
+into one string, for example), and the guest then gets that response with no notice. A host can also
+answer a first-visit navigation on those three prefixes with a `3xx` redirect: the relay forwards
+the response and its `Location` header as is, so the guest follows the redirect without seeing the
+notice. The notice is a courtesy, not a security boundary. The guest CSP follows the same HTML
+check.
 
 ---
 
