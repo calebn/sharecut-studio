@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-import re
-import shutil
-import tempfile
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any, NoReturn
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse
-from starlette.background import BackgroundTask
 
+from podcast_mcp.gui.routes.bundle_files import export_response, export_stem
 from podcast_mcp.gui.routes.deps import NO_STORE, coded_exception_error, resolve_project
 from podcast_mcp.gui.routes.project import pin_served_if_allowed
 from podcast_mcp.gui.schemas import SegmentSaveRequest
@@ -47,12 +43,6 @@ STATUS = {
 
 def refuse(exc: CodedValueError, statuses: Mapping[str, int] = STATUS) -> NoReturn:
     raise coded_exception_error(statuses.get(exc.code, 400), exc, code="segment_invalid") from exc
-
-
-def _export_stem(segment_id: str) -> str:
-    """The id without its trailing hash, limited to file-name-safe characters."""
-    stem = re.sub(r"-[0-9a-f]{8}$", "", segment_id)
-    return re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("-.") or "segment"
 
 
 @router.get("/api/segments")
@@ -101,21 +91,13 @@ def get_segment_audio(
 @router.get("/api/segments/{segment_id}/export")
 def export_segment(segment_id: str) -> FileResponse:
     """The newest version as one ``<name>.sharecutseg`` file, built in a private folder removed afterwards."""
-    folder = Path(tempfile.mkdtemp(prefix="sharecut-export-"))
     try:
-        path = export_segments(
-            SegmentStore(), [segment_id], folder / f"{_export_stem(segment_id)}.sharecutseg"
+        return export_response(
+            f"{export_stem(segment_id, 'segment')}.sharecutseg",
+            lambda out: export_segments(SegmentStore(), [segment_id], out),
         )
     except CodedValueError as exc:
-        shutil.rmtree(folder, ignore_errors=True)
         refuse(exc)
-    return FileResponse(
-        path,
-        media_type="application/zip",
-        filename=path.name,
-        headers=NO_STORE,
-        background=BackgroundTask(shutil.rmtree, folder, ignore_errors=True),
-    )
 
 
 @router.get("/api/segments/{segment_id}/insert-preview")
