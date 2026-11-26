@@ -17,7 +17,7 @@ from typing import Any, Literal
 
 from typing_extensions import TypedDict
 
-from podcast_mcp.engines.models import load_probe
+from podcast_mcp.engines.models import load_probe, whisper_cpp_models
 from podcast_mcp.engines.models.registry import (
     MODELS,
     ModelSpec,
@@ -28,6 +28,7 @@ from podcast_mcp.engines.models.registry import (
     remove_model,
 )
 from podcast_mcp.engines.models.whisper import (
+    WHISPER_MODEL_IDS,
     catalog_payload,
     resolve_whisper_model,
     whisper_bootstrap_command,
@@ -317,8 +318,13 @@ class BootstrapRequest:
         *,
         whisper_model: str | None = None,
         force: bool = False,
+        catalog_only: bool = False,
     ) -> BootstrapRequest:
-        """Empty ``components`` means the first-run set; unknown ids are refused."""
+        """Empty ``components`` means the first-run set; unknown ids are refused.
+
+        ``catalog_only`` refuses a Whisper-only request for a size Studio does not
+        download; in a bundle it drops ``whisper`` so the other components still run.
+        """
         wanted = tuple(dict.fromkeys(components or DEFAULT_FIRST_RUN_COMPONENTS))
         unknown = [c for c in wanted if c not in ALL_GUI_COMPONENTS]
         if unknown:
@@ -327,7 +333,27 @@ class BootstrapRequest:
                 f"GUI allows {list(ALL_GUI_COMPONENTS)}",
                 code="bootstrap_components_unsupported",
             )
-        return cls(wanted, resolve_whisper_model(requested=whisper_model), force)
+        resolved = resolve_whisper_model(requested=whisper_model)
+        if (
+            catalog_only
+            and "whisper" in wanted
+            and resolved not in WHISPER_MODEL_IDS
+            and not (
+                whisper_cpp_models.on_whisper_cpp_host()
+                and resolved in whisper_cpp_models.VARIANT_IDS
+            )
+        ):
+            if wanted == ("whisper",):
+                raise CodedValueError(
+                    f"{resolved} is not one of the sizes Studio downloads "
+                    f"({', '.join(WHISPER_MODEL_IDS)}). Choose one of those in Models, or "
+                    f"download it from a terminal with: "
+                    f"podcast bootstrap --component whisper --whisper-model {resolved}",
+                    code="bootstrap_whisper_unsupported_size",
+                )
+            # A bundle (Get ready) still fetches the other models; Whisper stays missing.
+            wanted = tuple(c for c in wanted if c != "whisper")
+        return cls(wanted, resolved, force)
 
     def covered_by(self, live: BootstrapRequest) -> bool:
         """Whether a run of ``live`` already does everything this request asks."""

@@ -246,3 +246,22 @@ async def test_every_registered_tool_maps_refusals_and_hides_crashes(monkeypatch
         assert _refusal(refused[name]) == (f"{name} refused", "table_refusal"), name
         assert crashed[name].is_error, name
         assert crashed[name].content[0].text == f"Error executing tool {name}", name
+
+
+@pytest.mark.parametrize(
+    ("size", "passes_size"), [("large-v3-turbo", True), ("distil-large-v3", False)]
+)
+def test_download_hint_passes_whisper_size_only_for_catalog_sizes(
+    size: str, passes_size: bool
+) -> None:
+    from podcast_mcp.mcp.tool_errors import with_download_hint
+    from podcast_mcp.util.tool_refusal import ToolRefusal
+
+    refusal = ToolRefusal(
+        "needs Whisper",
+        "model_needed",
+        {"model": {"id": "whisper", "model": size}},
+    )
+    hint = with_download_hint(refusal).message
+    assert ('whisper_model="' in hint) is passes_size
+    assert (size in hint) is passes_size

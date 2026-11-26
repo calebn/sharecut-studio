@@ -298,7 +298,11 @@ When an action needs a model that is not installed, its tool refuses with
 (`id`, `label`, `size`, `command`, `state`), and the text ends with the next step.
 Ask the user before downloading: models are large (Whisper up to about 3 GB), and the
 download is never started for you. For Whisper the refusal also carries `whisper_model`, the size that
-was picked; pass it to `model_download` so that size is the one downloaded.
+was picked; for a catalog size the hint tells you to pass it to `model_download` so that size is the
+one downloaded. Studio (its own MCP endpoint) refuses a size outside the six catalog sizes with
+`bootstrap_whisper_unsupported_size`, so for such a size the hint omits `whisper_model` and the
+user picks a catalog size in Models or runs `podcast bootstrap --component whisper --whisper-model <size>`
+in a terminal. The CLI and the stdio server still download any size.
 
 - `model_download(component, whisper_model=None, upgrade=False)` downloads one model, only
   after the user agrees. Inside the ShareCut Studio process (your client connected to Studio's

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import urllib.error
 from pathlib import Path
 
@@ -1418,3 +1419,181 @@ def test_remove_model_refuses_directory_reparse_metadata(tmp_path, monkeypatch):
     assert response.status_code == 409
     assert response.headers["X-Sharecut-Error-Code"] == "model_not_removable"
     assert managed.read_bytes() == b"synthetic redirected weights"
+
+
+# --- #1998 slice 8 (G6): Studio download jobs refuse non-catalog faster-whisper sizes ---
+
+_UNSUPPORTED_SIZE_CODE = "bootstrap_whisper_unsupported_size"
+
+
+def _stub_job_runner(monkeypatch) -> list[dict[str, object]]:
+    """Replace the job runner and status probe; return the list of runs that started."""
+    runs: list[dict[str, object]] = []
+
+    def fake_status(whisper_model: str | None = None):
+        return {"ready": False, "whisper_model": whisper_model, "tools": {}, "models": []}
+
+    def fake_run(components=None, *, whisper_model=None, force=False, progress=None, **_extra):
+        runs.append({"components": list(components or []), "whisper_model": whisper_model})
+        return {
+            "ok": True,
+            "results": {},
+            "ready": True,
+            "whisper_model": whisper_model,
+            "models": [],
+            "tools": {},
+        }
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.bootstrap.component_status", fake_status)
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", fake_run)
+    return runs
+
+
+def _studio_client():
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.jobs import shared_job_manager
+
+    shared_job_manager(reset=True)
+    return TestClient(create_app())
+
+
+@pytest.mark.parametrize("size", ["distil-large-v3", "tiny", "base", "large-v2"])
+def test_gui_bootstrap_refuses_non_catalog_whisper_size(monkeypatch, size: str) -> None:
+    from podcast_mcp.engines.models.whisper import WHISPER_MODEL_IDS
+    from podcast_mcp.services.jobs import shared_job_manager
+
+    runs = _stub_job_runner(monkeypatch)
+    client = _studio_client()
+    resp = client.post(
+        "/api/bootstrap/run", json={"components": ["whisper"], "whisper_model": size}
+    )
+    assert resp.status_code == 400
+    assert resp.headers["X-Sharecut-Error-Code"] == _UNSUPPORTED_SIZE_CODE
+    detail = resp.json()["detail"]
+    for catalog_id in WHISPER_MODEL_IDS:
+        assert catalog_id in detail
+    assert "Choose one of those in Models" in detail
+    assert f"podcast bootstrap --component whisper --whisper-model {size}" in detail
+    assert "http" not in detail
+    assert "/" not in detail.replace("podcast bootstrap", "")
+    assert not runs
+    assert shared_job_manager().get_bootstrap_job() is None
+
+
+@pytest.mark.parametrize(
+    "size", ["tiny.en", "base.en", "small.en", "medium.en", "large-v3-turbo", "large-v3"]
+)
+def test_gui_bootstrap_catalog_whisper_sizes_still_start(monkeypatch, size: str) -> None:
+    runs = _stub_job_runner(monkeypatch)
+    client = _studio_client()
+    resp = client.post(
+        "/api/bootstrap/run", json={"components": ["whisper"], "whisper_model": size}
+    )
+    assert resp.status_code == 200
+    job_id = resp.json()["job"]["id"]
+    deadline = time.monotonic() + 5
+    job = None
+    while time.monotonic() < deadline:
+        job = client.get(f"/api/bootstrap/status-job?job_id={job_id}").json()["job"]
+        if job and job["status"] in ("ok", "error", "cancelled"):
+            break
+        time.sleep(0.02)
+    assert job and job["status"] == "ok"
+    assert runs and runs[0]["whisper_model"] == size
+
+
+def test_gui_bootstrap_bundle_skips_non_catalog_whisper_and_downloads_the_rest(
+    monkeypatch,
+) -> None:
+    runs = _stub_job_runner(monkeypatch)
+    client = _studio_client()
+    resp = client.post(
+        "/api/bootstrap/run",
+        json={"components": ["whisper", "rnnoise"], "whisper_model": "distil-large-v3"},
+    )
+    assert resp.status_code == 200
+    job = resp.json()["job"]
+    assert job["components"] == ["rnnoise"]
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and not runs:
+        time.sleep(0.02)
+    assert runs and runs[0]["components"] == ["rnnoise"]
+
+
+def test_gui_bootstrap_bundle_with_catalog_size_keeps_whisper(monkeypatch) -> None:
+    _stub_job_runner(monkeypatch)
+    client = _studio_client()
+    resp = client.post(
+        "/api/bootstrap/run",
+        json={"components": ["whisper", "rnnoise"], "whisper_model": "tiny.en"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["job"]["components"] == ["whisper", "rnnoise"]
+
+
+def test_gui_bootstrap_rnnoise_only_ignores_non_catalog_env_whisper_size(monkeypatch) -> None:
+    monkeypatch.setenv("PODCAST_WHISPER_MODEL", "distil-large-v3")
+    runs = _stub_job_runner(monkeypatch)
+    client = _studio_client()
+    resp = client.post("/api/bootstrap/run", json={"components": ["rnnoise"]})
+    assert resp.status_code == 200
+    assert "X-Sharecut-Error-Code" not in resp.headers
+    del runs
+
+
+def test_gui_bootstrap_whisper_cpp_variant_is_still_accepted(monkeypatch) -> None:
+    from podcast_mcp.engines.models import whisper_cpp_models
+    from podcast_mcp.util import host_platform
+
+    runs = _stub_job_runner(monkeypatch)
+    client = _studio_client()
+    variant = whisper_cpp_models.VARIANT_IDS[0]
+    from dataclasses import replace
+
+    with host_platform.using(replace(host_platform.LINUX, transcription="whisper_cpp")):
+        resp = client.post(
+            "/api/bootstrap/run", json={"components": ["whisper"], "whisper_model": variant}
+        )
+    assert resp.status_code == 200
+    assert "X-Sharecut-Error-Code" not in resp.headers
+    del runs
+
+
+def test_bootstrap_request_of_default_still_accepts_non_catalog_size() -> None:
+    from podcast_mcp.services.pipeline.bootstrap import BootstrapRequest
+
+    req = BootstrapRequest.of(["whisper"], whisper_model="distil-large-v3")
+    assert req.whisper_model == "distil-large-v3"
+
+
+def test_bootstrap_request_of_catalog_only_refuses_non_catalog_size() -> None:
+    from podcast_mcp.services.pipeline.bootstrap import BootstrapRequest
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    with pytest.raises(CodedValueError) as err:
+        BootstrapRequest.of(["whisper"], whisper_model="distil-large-v3", catalog_only=True)
+    assert err.value.code == _UNSUPPORTED_SIZE_CODE
+
+
+def test_bootstrap_request_of_catalog_only_accepts_catalog_size() -> None:
+    from podcast_mcp.services.pipeline.bootstrap import BootstrapRequest
+
+    req = BootstrapRequest.of(["whisper"], whisper_model="tiny.en", catalog_only=True)
+    assert req.whisper_model == "tiny.en"
+
+
+def test_run_bootstrap_cli_path_still_runs_non_catalog_size(monkeypatch) -> None:
+    from podcast_mcp.engines.models import registry
+    from podcast_mcp.services.pipeline import bootstrap as boot
+
+    seen: dict[str, object] = {}
+
+    def fake_bootstrap(model_size: str, force: bool = False, **_kw):
+        seen["model"] = model_size
+        return {"ok": True, "model": model_size, "cache": "/tmp", "persist_error": None}
+
+    monkeypatch.setattr(registry, "bootstrap_whisper_model", fake_bootstrap)
+    monkeypatch.setattr(registry, "whisper_model_problem", lambda *a, **k: None)
+    out = boot.run_bootstrap(["whisper"], whisper_model="distil-large-v3")
+    assert out["ok"] is True
+    assert seen["model"] == "distil-large-v3"

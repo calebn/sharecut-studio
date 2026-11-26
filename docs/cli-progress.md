@@ -87,7 +87,7 @@ For `pipeline run`, each step emits `Running {step}` / `Completed {step}: {summa
 | `audibility` / `low-audibility` / `gate-overreach` | Word-scale audit | child (not the wrap’s unit scale) |
 | `master_loudnorm` | Loudness measure + normalize or limit | child; media seconds over measure + first render, total = 2 × duration (a limiter re-drive or trim holds it full) |
 | `master_qc_measure` | Post-master loudness re-measure | child; media seconds |
-| `bootstrap.bytes` | One model download inside `podcast bootstrap` or a Studio bootstrap job (label is the component id) | child; bytes, `total` from the server's `Content-Length` or the hub's dry run, `null` when the source gives none (an unpinned Whisper size) |
+| `bootstrap.bytes` | One model download inside `podcast bootstrap` or a Studio bootstrap job (label is the component id) | child; bytes, `total` from the server's `Content-Length` or the hub's dry run, `null` when the source gives none (an unpinned Whisper size, CLI only; Studio downloads catalog sizes) |
 
 Common ids in the table are **child** ids when nested. They collapse onto the wrap id only for wrap/leaf entrypoints that pass `prefer_parent=True`.
 

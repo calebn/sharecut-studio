@@ -25,6 +25,7 @@ from typing import Any
 
 from mcp.server.mcpserver.exceptions import UnexpectedToolError
 
+from podcast_mcp.services.pipeline import WHISPER_MODEL_IDS
 from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
 from podcast_mcp.util.tool_refusal import ToolRefusal, refusal_tool_result, tool_refusal
 
@@ -40,8 +41,10 @@ def with_download_hint(refusal: ToolRefusal) -> ToolRefusal:
     args = f'component="{model["id"]}"'
     added = {"download_tool": "model_download"}
     if model["id"] == "whisper":
-        args += f', whisper_model="{model["model"]}"'
         added["whisper_model"] = model["model"]
+        # Studio downloads only catalog sizes; do not send an agent to a refusal.
+        if model["model"] in WHISPER_MODEL_IDS:
+            args += f', whisper_model="{model["model"]}"'
     hint = f"Ask the user first; then call model_download({args})"
     return ToolRefusal(f"{refusal.message}\n{hint}", refusal.code, {**extra, **added})
 
