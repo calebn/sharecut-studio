@@ -519,7 +519,9 @@ always has.
 
 ### First-visit notice
 
-A guest who opens a `/r/` or `/rec/` page of a legacy-tier host sees a short relay page first:
+A guest who opens a `/r/` or `/rec/` page of a legacy-tier host, or navigates a browser straight
+to one of its `/api/review/`, `/api/rec/` or `/mcp/` links and gets HTML back, sees a short relay
+page first:
 "This link is shared through ShareCut" and **Continue** (`podcast_relay/notice.py`). It exists
 because the relay cannot vouch for what such a host serves.
 
@@ -558,14 +560,27 @@ The route then sets a session cookie, `sc_notice=1` (HttpOnly, SameSite=Lax, Sec
 no expiry), and answers `303` back to the same path and query. The notice says the browser must
 allow cookies, because with cookies blocked the visitor lands on it again. The cookie is the
 relay's own; nothing is stored on the host, and the relay still drops every cookie a host sets.
-`next` must start with `/r/` or `/rec/` and cannot contain `//` or a backslash, so the route
-cannot redirect elsewhere.
+`next` must start with `/r/`, `/rec/`, `/api/review/`, `/api/rec/` or `/mcp/` and cannot contain
+`//` in its path (before any `?`) or a backslash, so the route cannot redirect elsewhere.
 
 The notice appears once per browser session, only for legacy-tier hosts, and only for a top-level
 page navigation: a `GET` that sends `Sec-Fetch-Mode: navigate` and `Sec-Fetch-Dest: document`,
-or, from a browser that sends neither, `Accept: text/html`. Assets, `/api/review`, `/api/rec`,
-`/mcp`, sockets and audio never see it. Enrolled installs and relays with no signing key never
-show it.
+or, from a browser that sends neither, `Accept: text/html`. For `/r/` and `/rec/` the relay
+shows the notice before asking the host. `/api/review/`, `/api/rec/` and `/mcp/` (the prefix
+match includes the trailing slash, so `/mcpx/` is not one) also serve downloads and JSON, so the
+relay forwards the request and decides from the host's response head. The host therefore
+receives the `GET` before the notice replaces its answer, and the notice replaces any `text/html`
+response, a host's HTML error page included. Only `text/html` counts (matched without regard to
+case, parameters or the header key's case); `application/xhtml+xml` and `image/svg+xml` are not
+treated as pages, because the shared HTML check also decides the guest CSP and this slice leaves
+that alone. Any other media type (audio, a zip, JSON, a binary download) streams through
+untouched, with no cookie needed. For these three prefixes the notice runs after the rate and
+concurrency checks, so a rate-limited cookieless guest sees the `429` first. Browsers that send
+`Sec-Fetch-*` headers are not shown the notice for the page's own `fetch`/XHR calls, iframes,
+assets or media; a browser that sends neither falls back to `Accept: text/html`. Sockets, `HEAD`
+and any non-`GET` request never see it. The return path is the raw, still-encoded request path,
+so an encoded file name round trips. Enrolled installs and relays with no signing key never show
+it.
 
 ---
 
