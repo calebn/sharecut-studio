@@ -107,7 +107,7 @@ export const NewVersion: Story = {
     await userEvent.type(await sheet().findByLabelText("Name"), "Show Kit");
     await expect(
       sheet().getByText(
-        "Saves version 2 of Show Kit. The earlier version is kept.",
+        "Saves to the existing kit Show Kit if anything changed. The earlier version is kept.",
       ),
     ).toBeVisible();
   },

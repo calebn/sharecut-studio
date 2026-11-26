@@ -200,7 +200,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
         .getByRole("list", { name: "Kit segments" })
         .getByRole("listitem")
         .nth(1)
-        .getByRole("radio", { name: "End" })
+        .getByRole("button", { name: "End", exact: true })
         .tap();
       await expect(note).toHaveCount(0);
     });

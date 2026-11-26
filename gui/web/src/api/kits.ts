@@ -159,7 +159,6 @@ export const KIT_SAVE_REFUSALS = [
   "kit_segment_missing",
   "kit_busy",
   "kit_write_failed",
-  "kit_no_room",
 ] as const;
 
 export type KitSaveRefusal = (typeof KIT_SAVE_REFUSALS)[number];

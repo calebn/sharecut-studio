@@ -12,10 +12,8 @@ const refused = (code: string | null, message = "The studio says no.") =>
 describe("kitSaveMessage", () => {
   it.each([
     ["kit_name_invalid", /letter or digit/],
-    ["kit_segment_missing", /Remove it from the list, then save again/],
     ["kit_busy", /Another action is using the kit library/],
     ["kit_write_failed", /room on the disk/],
-    ["kit_no_room", /no room left/],
   ])("%s", (code, text) => {
     expect(kitSaveMessage(refused(code))).toMatch(text);
   });
@@ -25,6 +23,22 @@ describe("kitSaveMessage", () => {
       kitSaveMessage(refused("kit_invalid", "A kit holds up to 32.")),
     ).toBe("A kit holds up to 32.");
     expect(kitSaveMessage(refused("other_code", "Odd."))).toBe("Odd.");
+  });
+
+  it("shows the studio's text for a missing segment, which names each entry", () => {
+    expect(
+      kitSaveMessage(
+        refused(
+          "kit_segment_missing",
+          "1 segment of this kit is not in the library: entry 2 (Sign Off): gone.",
+        ),
+      ),
+    ).toBe(
+      "1 segment of this kit is not in the library: entry 2 (Sign Off): gone.",
+    );
+    expect(kitSaveMessage(refused("kit_segment_missing", " "))).toMatch(
+      /Remove it from the list, then save again/,
+    );
   });
 
   it("falls back for something that is not an Error", () => {
@@ -38,7 +52,6 @@ describe("kitSaveMessage", () => {
       "kit_segment_missing",
       "kit_busy",
       "kit_write_failed",
-      "kit_no_room",
     ]) {
       expect(kitSaveMessage(refused(code))).not.toMatch(/not found/i);
     }

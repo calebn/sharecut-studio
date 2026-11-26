@@ -49,7 +49,6 @@ describe("matchKitName", () => {
     expect(matchKitName("  Summer series ", rows)).toEqual({
       kind: "version",
       name: "Summer series",
-      next: 4,
     });
   });
 
@@ -63,8 +62,8 @@ describe("matchKitName", () => {
 
   it("says what each match does", () => {
     expect(nameHint({ kind: "new" })).toBe("Saves a new kit.");
-    expect(nameHint({ kind: "version", name: "Show Kit", next: 2 })).toBe(
-      "Saves version 2 of Show Kit. The earlier version is kept.",
+    expect(nameHint({ kind: "version", name: "Show Kit" })).toBe(
+      "Saves to the existing kit Show Kit if anything changed. The earlier version is kept.",
     );
   });
 });

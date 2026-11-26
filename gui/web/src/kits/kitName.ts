@@ -24,12 +24,12 @@ export function kitNameProblem(name: string): string | null {
 
 export type NameMatch =
   | { kind: "new" }
-  | { kind: "version"; name: string; next: number }
+  | { kind: "version"; name: string }
   | { kind: "lookalike"; name: string };
 
 /**
  * What saving under `name` does to the library: the same trimmed text is the next version
- * of that kit; a name that differs only in case is a second kit, which is usually a slip.
+ * of that kit, unless nothing differs from its newest version (the studio says so); a name that differs only in case is a second kit, which is usually a slip.
  */
 export function matchKitName(
   name: string,
@@ -40,7 +40,7 @@ export function matchKitName(
   for (const row of rows ?? []) {
     if (isDamagedKit(row)) continue;
     if (row.name === trimmed) {
-      return { kind: "version", name: row.name, next: row.version + 1 };
+      return { kind: "version", name: row.name };
     }
     if (row.name.toLowerCase() === trimmed.toLowerCase()) lookalike = row.name;
   }
@@ -51,7 +51,7 @@ export function matchKitName(
 
 export function nameHint(match: NameMatch): string {
   if (match.kind === "version") {
-    return `Saves version ${match.next} of ${match.name}. The earlier version is kept.`;
+    return `Saves to the existing kit ${match.name} if anything changed. The earlier version is kept.`;
   }
   if (match.kind === "lookalike") {
     return `A kit called ${match.name} exists. This saves a separate kit.`;

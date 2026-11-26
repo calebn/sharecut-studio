@@ -11,8 +11,6 @@ const REFUSALS = {
   kit_busy: "Another action is using the kit library. Try again.",
   kit_write_failed:
     "The kit library couldn't be written to. Check that there is room on the disk, then try again.",
-  kit_no_room:
-    "There is no room left for the kit. Free some disk space, then try again.",
 } as const;
 
 /** The failure line for a refused or failed save; the studio's own words for `kit_invalid`. */
@@ -20,6 +18,12 @@ export function kitSaveMessage(error: unknown): string {
   const refusal = kitSaveRefusal(error);
   if (refusal === null || refusal === "kit_invalid") {
     return errorMessage(error, KIT_SAVE_FAILED);
+  }
+  // The studio names each entry that is gone; the fixed line is the fallback.
+  if (refusal === "kit_segment_missing") {
+    return error instanceof Error && error.message.trim() !== ""
+      ? error.message
+      : REFUSALS.kit_segment_missing;
   }
   return REFUSALS[refusal];
 }
