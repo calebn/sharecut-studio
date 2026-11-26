@@ -1180,7 +1180,7 @@ def test_split_refuses_the_ci_mock_backend(tmp_path: Path, monkeypatch: pytest.M
     ws = _room_workspace(tmp_path, audio, [])
     with pytest.raises(
         CodedValueError,
-        match="Speaker recognition isn't available on this computer",
+        match="Speaker recognition is switched off on this computer",
     ) as caught:
         SpeakerService(ws).split_speakers("room", speaker_count=2, dry_run=True)
     assert caught.value.code == "speaker_backend_unavailable"
