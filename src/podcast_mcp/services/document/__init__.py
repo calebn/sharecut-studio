@@ -147,6 +147,11 @@ if TYPE_CHECKING:
         SplitClipResult,
     )
     from podcast_mcp.services.document.strip_silence_results import StripSilenceResult
+    from podcast_mcp.services.document.suppress_results import (
+        SuppressBleedApplied,
+        SuppressBleedPreview,
+        SuppressLowAudibilityResult,
+    )
     from podcast_mcp.services.document.timeline import TimelineService
     from podcast_mcp.services.document.timeline_move_results import (
         InsertGapResult,
@@ -269,6 +274,9 @@ __all__ = [
     "SplitAtTimeResult",
     "SplitClipResult",
     "StripSilenceResult",
+    "SuppressBleedApplied",
+    "SuppressBleedPreview",
+    "SuppressLowAudibilityResult",
     "TimelineService",
     "TranscriptEmptyError",
     "TranscriptReplacementMatch",
@@ -409,6 +417,9 @@ _MODULE_BY_NAME = {
     "SplitClipResult": "split_results",
     "SplitAtTimeResult": "split_results",
     "StripSilenceResult": "strip_silence_results",
+    "SuppressBleedApplied": "suppress_results",
+    "SuppressBleedPreview": "suppress_results",
+    "SuppressLowAudibilityResult": "suppress_results",
     "OffSpeakerApplied": "off_speaker_results",
     "OffSpeakerPreview": "off_speaker_results",
     "OffSpeakerSummary": "off_speaker_results",

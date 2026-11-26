@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, cast, overload
 
 from podcast_mcp.edits.audio_quality import (
     apply_fade_recommendations,
@@ -73,6 +73,11 @@ from podcast_mcp.services.document.retained_bleed_results import (
 from podcast_mcp.services.document.strip_silence_results import (
     StripSilenceResult,
     strip_silence_result,
+)
+from podcast_mcp.services.document.suppress_results import (
+    SuppressBleedApplied,
+    SuppressBleedPreview,
+    SuppressLowAudibilityResult,
 )
 from podcast_mcp.services.pipeline import rerender_preview
 from podcast_mcp.util.progress import ProgressReporter
@@ -335,14 +340,17 @@ class AnalysisService(AnalysisReportService):
         track_id: str | None = None,
         speaker: str | None = None,
         word_keys: list[dict] | None = None,
-    ) -> dict:
+    ) -> SuppressLowAudibilityResult:
         tid: str | None = None
         if track_id or speaker:
             tid = self._resolve(track_id, speaker)
 
-        def mutate(p) -> dict:
-            return suppress_low_audibility_words(
-                p, track_id=tid, word_keys=word_keys, defaults=self.ws.effective_config()
+        def mutate(p) -> SuppressLowAudibilityResult:
+            return cast(
+                SuppressLowAudibilityResult,
+                suppress_low_audibility_words(
+                    p, track_id=tid, word_keys=word_keys, defaults=self.ws.effective_config()
+                ),
             )
 
         return self.ws.mutate(
@@ -350,6 +358,34 @@ class AnalysisService(AnalysisReportService):
             "after suppress low audibility",
             mutate,
         )
+
+    @overload
+    def suppress_bleed(
+        self,
+        *,
+        track_id: str | None = None,
+        speaker: str | None = None,
+        word_keys: list[dict] | None = None,
+        exclude_word_keys: list[dict] | None = None,
+        start_sec: float | None = None,
+        end_sec: float | None = None,
+        apply: Literal[False],
+        progress: ProgressReporter | None = None,
+    ) -> SuppressBleedPreview: ...
+
+    @overload
+    def suppress_bleed(
+        self,
+        *,
+        track_id: str | None = None,
+        speaker: str | None = None,
+        word_keys: list[dict] | None = None,
+        exclude_word_keys: list[dict] | None = None,
+        start_sec: float | None = None,
+        end_sec: float | None = None,
+        apply: Literal[True] = True,
+        progress: ProgressReporter | None = None,
+    ) -> SuppressBleedApplied: ...
 
     def suppress_bleed(
         self,
@@ -362,35 +398,41 @@ class AnalysisService(AnalysisReportService):
         end_sec: float | None = None,
         apply: bool = True,
         progress: ProgressReporter | None = None,
-    ) -> dict:
+    ) -> SuppressBleedPreview | SuppressBleedApplied:
         tid: str | None = None
         if track_id or speaker:
             tid = self._resolve(track_id, speaker)
 
         if not apply:
-            return suppress_bleed_words(
-                self.ws.project,
-                track_id=tid,
-                word_keys=word_keys,
-                exclude_word_keys=exclude_word_keys,
-                start_sec=start_sec,
-                end_sec=end_sec,
-                dry_run=True,
-                progress=progress,
-                defaults=self.ws.effective_config(),
+            return cast(
+                SuppressBleedPreview,
+                suppress_bleed_words(
+                    self.ws.project,
+                    track_id=tid,
+                    word_keys=word_keys,
+                    exclude_word_keys=exclude_word_keys,
+                    start_sec=start_sec,
+                    end_sec=end_sec,
+                    dry_run=True,
+                    progress=progress,
+                    defaults=self.ws.effective_config(),
+                ),
             )
 
-        def mutate(p) -> dict:
-            return suppress_bleed_words(
-                p,
-                track_id=tid,
-                word_keys=word_keys,
-                exclude_word_keys=exclude_word_keys,
-                start_sec=start_sec,
-                end_sec=end_sec,
-                dry_run=False,
-                progress=progress,
-                defaults=self.ws.effective_config(),
+        def mutate(p) -> SuppressBleedApplied:
+            return cast(
+                SuppressBleedApplied,
+                suppress_bleed_words(
+                    p,
+                    track_id=tid,
+                    word_keys=word_keys,
+                    exclude_word_keys=exclude_word_keys,
+                    start_sec=start_sec,
+                    end_sec=end_sec,
+                    dry_run=False,
+                    progress=progress,
+                    defaults=self.ws.effective_config(),
+                ),
             )
 
         return self.ws.mutate(
@@ -409,7 +451,7 @@ class AnalysisService(AnalysisReportService):
         start_sec: float | None = None,
         end_sec: float | None = None,
         progress: ProgressReporter | None = None,
-    ) -> dict:
+    ) -> SuppressBleedPreview:
         """What ``suppress_bleed`` would suppress, without changing the project."""
         return self.suppress_bleed(
             track_id=track_id,

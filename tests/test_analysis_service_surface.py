@@ -31,7 +31,7 @@ PINNED_SIGNATURES: dict[str, str] = {
     "preview_off_speaker_mute": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, progress: 'ProgressReporter | None' = None) -> 'OffSpeakerPreview'",
     "preview_reconcile_transcript": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, start_sec: 'float | None' = None, end_sec: 'float | None' = None, progress: 'ProgressReporter | None' = None) -> 'dict'",
     "preview_retained_bleed_alignment": "(self, *, track_id: 'str | None' = None, start_sec: 'float | None' = None, end_sec: 'float | None' = None, override_placement_lock: 'bool' = False) -> 'RetainedBleedAlignmentPreview'",
-    "preview_suppress_bleed": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, word_keys: 'list[dict] | None' = None, exclude_word_keys: 'list[dict] | None' = None, start_sec: 'float | None' = None, end_sec: 'float | None' = None, progress: 'ProgressReporter | None' = None) -> 'dict'",
+    "preview_suppress_bleed": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, word_keys: 'list[dict] | None' = None, exclude_word_keys: 'list[dict] | None' = None, start_sec: 'float | None' = None, end_sec: 'float | None' = None, progress: 'ProgressReporter | None' = None) -> 'SuppressBleedPreview'",
     "recommend_fades": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None) -> 'list[dict]'",
     "reconcile_transcript": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, dry_run: 'bool | None' = None, start_sec: 'float | None' = None, end_sec: 'float | None' = None, progress: 'ProgressReporter | None' = None) -> 'dict'",
     "reconciliation_status": "(self) -> 'dict'",
@@ -40,8 +40,8 @@ PINNED_SIGNATURES: dict[str, str] = {
     "set_effect_bypass": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, effect_index: 'int', bypass: 'bool') -> 'EffectBypassResult'",
     "strip_silence": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, over_voice_floor_db: 'float' = 0.0, min_duration_sec: 'float' = 0.5, use_inaudible_opt: 'bool | None' = None) -> 'StripSilenceResult'",
     "suggest_handoff_cut": "(self, *, keep_left_end: 'float', keep_right_start: 'float', track_id: 'str | None' = None, speaker: 'str | None' = None, min_island_sec: 'float' = 0.12, hop_ms: 'int' = 20, retain_sec: 'float' = 1.0) -> 'dict'",
-    "suppress_bleed": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, word_keys: 'list[dict] | None' = None, exclude_word_keys: 'list[dict] | None' = None, start_sec: 'float | None' = None, end_sec: 'float | None' = None, apply: 'bool' = True, progress: 'ProgressReporter | None' = None) -> 'dict'",
-    "suppress_low_audibility": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, word_keys: 'list[dict] | None' = None) -> 'dict'",
+    "suppress_bleed": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, word_keys: 'list[dict] | None' = None, exclude_word_keys: 'list[dict] | None' = None, start_sec: 'float | None' = None, end_sec: 'float | None' = None, apply: 'bool' = True, progress: 'ProgressReporter | None' = None) -> 'SuppressBleedPreview | SuppressBleedApplied'",
+    "suppress_low_audibility": "(self, *, track_id: 'str | None' = None, speaker: 'str | None' = None, word_keys: 'list[dict] | None' = None) -> 'SuppressLowAudibilityResult'",
     "waveform_snap_window": "(self, *, track_id: 'str', start: 'float', end: 'float', timeline: 'bool' = False, focus: 'float | None' = None) -> 'WaveformSnapWindow'",
 }
 

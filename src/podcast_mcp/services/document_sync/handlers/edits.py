@@ -21,6 +21,8 @@ from podcast_mcp.services.document import (
     EditService,
     RoomToneBedReply,
     RoomToneBedService,
+    SuppressBleedApplied,
+    SuppressLowAudibilityResult,
     TimelineService,
     insert_saved_segment,
 )
@@ -315,7 +317,7 @@ def reconcile_transcript(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, A
     )
 
 
-def suppress_bleed(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+def suppress_bleed(ws: ProjectWorkspace, p: dict[str, Any]) -> SuppressBleedApplied:
     return AnalysisService(ws).suppress_bleed(
         track_id=p.get("track_id"),
         speaker=p.get("speaker"),
@@ -327,7 +329,7 @@ def suppress_bleed(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def suppress_low_audibility(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+def suppress_low_audibility(ws: ProjectWorkspace, p: dict[str, Any]) -> SuppressLowAudibilityResult:
     return AnalysisService(ws).suppress_low_audibility(
         track_id=p.get("track_id"), speaker=p.get("speaker"), word_keys=p.get("words")
     )
