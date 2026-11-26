@@ -803,6 +803,7 @@ def test_share_expired_token(minimal_project, sample_wav, tmp_workspace, monkeyp
     assert client.get(f"/api/review/{share['token']}/daw/project").status_code == 404
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_tells_its_own_suggestions_from_the_author_ref(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -855,6 +856,7 @@ def test_guest_tells_its_own_suggestions_from_the_author_ref(
         assert by_start == {0.2: authors[0], 2.0: authors[1]}
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_daw_document_command_caps(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     from podcast_mcp.models import (
         Clip,
@@ -1363,6 +1365,7 @@ def test_sanitize_guest_document_event_reduces_file_signature_to_numbers():
     assert "file_before" not in out["snapshot"]
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_daw_ws_snapshots_and_fanout(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="GuestWS")
@@ -1682,6 +1685,7 @@ def _seed_track_for_proxy(ws):
         ws.save()
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_proxy_manifest_local_fallback(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     monkeypatch.setattr(
         "podcast_mcp.services.media.proxy_media.load_object_store_config",
@@ -1711,6 +1715,7 @@ def test_proxy_manifest_local_fallback(minimal_project, sample_wav, tmp_workspac
     assert chunk.headers["cache-control"] == "private, no-store"
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_proxy_manifest_binds_second_recording_for_review_link(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -1787,6 +1792,7 @@ def test_proxy_manifest_requires_view(minimal_project, sample_wav, tmp_workspace
     assert r.status_code == 403
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_proxy_manifest_presigned(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     from podcast_mcp.util.object_store import ObjectStoreConfig
 
@@ -1839,6 +1845,7 @@ def test_proxy_manifest_presigned(minimal_project, sample_wav, tmp_workspace, mo
     assert urls[0].startswith("https://object-store.example.test/proxy/host/")
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_proxy_chunk_unknown_404(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     monkeypatch.setattr(
         "podcast_mcp.services.media.proxy_media.load_object_store_config",
@@ -1856,6 +1863,7 @@ def test_proxy_chunk_unknown_404(minimal_project, sample_wav, tmp_workspace, mon
     assert r.status_code == 404
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_proxy_manifest_lazy_ensure_failure(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -3320,6 +3328,7 @@ def test_the_tile_route_refuses_a_follow_latest_link_whose_project_has_no_versio
 
 
 @pytest.mark.parametrize("missing", ["proxy", "hash", "index", "file"])
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_proxy_missing_guards_are_coded_404(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, missing
 ):

@@ -88,7 +88,7 @@ to UX partners; for UI copy, this table wins.
 | Guest link | Record-room link for the person being recorded | "guest role" |
 | Producer link | Record-room link for silent watch/listen (not recorded) | "producer role" — producer is a **link type**, not a review role |
 | Looking in | A person who has the producer link open and has not joined; the page opens that look as soon as it loads and ends it on Not now. A roster shows the line only while the server reports a count (the page that is looking in leaves itself out of it), as "Someone with the producer link is looking in" or "3 people with the producer link are looking in", and names nobody | "spectator", "lurker" |
-| Viewer / Commenter / Editor | Review-link roles, as in Google Docs. Viewer views and plays; Commenter also comments and suggests edits; Editor also edits directly and approves or rejects suggestions | "producer" in the role dropdown; "suggester" |
+| Viewer / Commenter / Editor | Review-link roles, as in Google Docs. Viewer and Commenter hear and see the published version (its audio and the timeline as it was published); Commenter also comments and suggests edits, and suggestions open on the latest version; Editor stays on the live episode, edits directly and approves or rejects suggestions | "producer" in the role dropdown; "suggester" |
 | MCP URL | The separate MCP server URL minted with a review link, for an AI assistant | "Agent URL", "agent link", "bot URL" |
 | Allow AI assistants (MCP) | The opt-in control that mints an MCP URL. Helper text: "Paste into an MCP client such as Claude or ChatGPT. The assistant gets this link's permissions." | "Allow agent" |
 | Take | One continuous recording pass | "clip" for a recording pass |

@@ -3,6 +3,11 @@ from typing import TYPE_CHECKING
 from podcast_mcp.util.lazy_exports import resolve_export
 
 if TYPE_CHECKING:
+    from podcast_mcp.services.collaboration.frozen_view import (
+        frozen_guest_event,
+        frozen_snapshot_for,
+        refuse_if_frozen,
+    )
     from podcast_mcp.services.collaboration.guest_insight_ops import (
         guest_edit_impact_view,
         guest_social_clip_view,
@@ -65,6 +70,7 @@ if TYPE_CHECKING:
         RecordStaleLinksError,
         ShareService,
         drop_absolute_path_strings,
+        frozen_guest_document_state,
         guest_words,
         lookup_share,
         open_resolved_share_workspace,
@@ -197,6 +203,9 @@ __all__ = [
     "effective_review_version_id",
     "encode_version_mp3",
     "episode_peaks",
+    "frozen_guest_document_state",
+    "frozen_guest_event",
+    "frozen_snapshot_for",
     "get_share_registry",
     "get_version",
     "guest_cancel_job",
@@ -232,6 +241,7 @@ __all__ = [
     "open_share_workspace",
     "read_tunnel_status",
     "record_bootstrap",
+    "refuse_if_frozen",
     "render_record_spa_html",
     "render_share_spa_html",
     "require_share_cap",
@@ -296,6 +306,9 @@ _MODULE_BY_NAME = {
     "guest_edit_impact_view": "guest_insight_ops",
     "guest_social_clip_view": "guest_insight_ops",
     "GuestRefusal": "guest_project_ops",
+    "frozen_guest_document_state": "share",
+    "frozen_guest_event": "frozen_view",
+    "frozen_snapshot_for": "frozen_view",
     "guest_cancel_job": "guest_project_ops",
     "guest_job_status_view": "guest_project_ops",
     "guest_move_lane_span": "guest_project_ops",
@@ -324,6 +337,7 @@ _MODULE_BY_NAME = {
     "lookup_share": "share",
     "open_resolved_share_workspace": "share",
     "open_share_workspace": "share",
+    "refuse_if_frozen": "frozen_view",
     "record_bootstrap": "record_share",
     "render_record_spa_html": "share_page",
     "render_share_spa_html": "share_page",

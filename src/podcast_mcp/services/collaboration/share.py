@@ -26,6 +26,15 @@ from podcast_mcp.models.history import HISTORY_ROOT_ID, StepOwners
 from podcast_mcp.project.io import EPISODE_PROJECT_FILENAME, adopt_retired_entry_file, open_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import share_pending
+from podcast_mcp.services.collaboration.frozen_view import (
+    frozen_document_snapshot,
+    frozen_duration_sec,
+    frozen_projection,
+    frozen_snapshot_for,
+    refuse_if_frozen,
+    wants_live_comments,
+    wants_live_history,
+)
 from podcast_mcp.services.collaboration.review_shares import (
     create_share,
     drop_share,
@@ -73,6 +82,7 @@ from podcast_mcp.services.document import (
     run_comment_mutation_with_file_revisions,
 )
 from podcast_mcp.services.document_sync import (
+    ViewProjection,
     document_command_types_for_caps,
     document_poll_meta,
     edit_commands_allowed,
@@ -1503,6 +1513,9 @@ def share_project_view(token: str) -> dict[str, Any]:
     ver_dump.pop("object_store_key", None)
     ver_dump.pop("object_store_uploaded_at", None)
     duration = timeline_duration_sec(project)
+    frozen = frozen_snapshot_for(row, ws)
+    if frozen is not None:
+        duration = frozen_duration_sec(frozen) or duration
     caps = list(row.get("capabilities") or [])
     return {
         "mode": "review",
@@ -1527,11 +1540,58 @@ def share_daw_project_view(token: str, *, phase: str | None = None) -> dict[str,
 
     row, ws = require_share_cap(token, CAP_VIEW)
     projection = parse_view_projection(phase)
-    dumped, owners = dump_projection_locked(ws, projection=projection.value, audience="guest")
+    frozen = frozen_snapshot_for(row, ws)
+    if frozen is not None:
+        dumped, owners = _frozen_project_view(ws, frozen, projection)
+    else:
+        dumped, owners = dump_projection_locked(ws, projection=projection.value, audience="guest")
     view = sanitize_guest_project_view(dumped)
     if "history" in view:
         view["history"] = _with_viewer_flags(view["history"], owners, share_author(row))
     return view
+
+
+def _frozen_project_view(
+    ws: ProjectWorkspace, frozen: dict[str, Any], projection: Any
+) -> tuple[dict[str, Any], StepOwners]:
+    """The frozen slice for *projection*, plus the live comments and history head it keeps."""
+    from podcast_mcp.services.document import HistoryService
+    from podcast_mcp.services.document_sync import document_submit_lock
+
+    dumped = frozen_projection(frozen, projection)
+    owners = StepOwners(None, None)
+    with document_submit_lock(ws.project):
+        ws.reload()
+        if wants_live_comments(projection):
+            dumped["comments"] = comments_for_view(ws.project)
+        if wants_live_history(projection):
+            status = HistoryService(ws).status()
+            dumped["history"] = {
+                "cursor": status.cursor,
+                "head_id": status.head_id,
+                "can_undo": status.can_undo,
+                "can_redo": status.can_redo,
+                "entries": [],
+                "groups": [],
+            }
+            owners = ws.history().step_owners(ws.project)
+    return dumped, owners
+
+
+def frozen_guest_document_state(
+    row: dict[str, Any], ws: ProjectWorkspace, svc: Any, projection: str
+) -> dict[str, Any]:
+    """``svc.guest_document_state`` with the frozen timeline in place of the live dump.
+
+    A frozen guest reads only the live ``comments`` projection (sequence, comments and
+    history head, so command sequencing and new comments work); the project or patch is
+    the published one.
+    """
+    frozen = frozen_snapshot_for(row, ws)
+    if frozen is None:
+        return svc.guest_document_state(projection=projection)
+    state = svc.guest_document_state(projection=ViewProjection.COMMENTS.value)
+    return {**state, "snapshot": frozen_document_snapshot(frozen, projection, state["snapshot"])}
 
 
 def share_daw_meta(token: str) -> dict[str, Any]:
@@ -1628,7 +1688,8 @@ def share_daw_waveform_snap(
 ) -> WaveformSnapWindow:
     from podcast_mcp.services.document import AnalysisService
 
-    _row, ws = require_share_command(token, "EditSelectedRange")
+    row, ws = require_share_command(token, "EditSelectedRange")
+    refuse_if_frozen(row, ws, "Snapping to the live waveform")
     return AnalysisService(ws).waveform_snap_window(
         track_id=track_id,
         start=start,
@@ -1653,6 +1714,7 @@ def share_proxy_manifest(token: str, *, loopback_page: bool = False) -> dict[str
     row, ws = require_share_cap(token, CAP_VIEW)
     if not has_capability(row.get("capabilities"), CAP_PLAY):
         raise CodedPermissionError("share does not allow play", code="share_capability_required")
+    refuse_if_frozen(row, ws, "Live stem proxies")
     generation = ensure_proxy_manifest(ws)
     urls = {}
     with ws.transaction() as project:
@@ -1710,6 +1772,7 @@ def share_proxy_chunk_path(
     row, ws = require_share_cap(token, CAP_VIEW)
     if not has_capability(row.get("capabilities"), CAP_PLAY):
         raise CodedPermissionError("share does not allow play", code="share_capability_required")
+    refuse_if_frozen(row, ws, "Live stem proxies")
     return accepted_proxy_chunk_path(ws, track_id, chunk_idx, expected_hash=proxy_hash)
 
 
@@ -1717,7 +1780,8 @@ def share_selected_range_audio(token: str, target: ExactRangeTarget) -> Path:
     from podcast_mcp.engines.play_audit import mix_gains, premix_is_stale, stem_is_fresh
     from podcast_mcp.services.document import PlayService
 
-    _row, ws = require_share_cap(token, CAP_VIEW)
+    row, ws = require_share_cap(token, CAP_VIEW)
+    refuse_if_frozen(row, ws, "Playing a selected range")
     mix = share_daw_audio_path(token, kind="premix")
     defaults = ws.effective_config()
     with ws.transaction() as project:
@@ -1748,6 +1812,11 @@ def share_daw_audio_path(
     row, ws = require_share_cap(token, CAP_PLAY)
     if kind_norm == "review":
         return version_audio_path(ws.project, row["review_version_id"])
+    if frozen_snapshot_for(row, ws) is not None:
+        # The published mix plays the published timeline; live stems and processed audio do not.
+        if kind_norm != "premix":
+            refuse_if_frozen(row, ws, "Live stem audio")
+        return version_audio_path(ws.project, row["review_version_id"])
     if kind_norm in ("stem", "processed") and track_id:
         known = {t.id for t in ws.project.tracks}
         if track_id not in known:
@@ -1764,6 +1833,7 @@ def _require_pending_preview_caps(token: str) -> tuple[dict[str, Any], ProjectWo
     row, ws = require_share_cap(token, CAP_PLAY)
     if not has_capability(row.get("capabilities"), CAP_VIEW):
         raise CodedPermissionError("share does not allow view", code="share_capability_required")
+    refuse_if_frozen(row, ws, "Previewing live audio")
     return row, ws
 
 

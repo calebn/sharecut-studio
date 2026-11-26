@@ -65,11 +65,15 @@ from podcast_mcp.services.collaboration import (
     CAP_VIEW,
     SHARE_KIND_REVIEW,
     episode_peaks,
+    frozen_guest_document_state,
+    frozen_guest_event,
+    frozen_snapshot_for,
     guest_progress_hub,
     guest_words,
     has_capability,
     lookup_share,
     open_resolved_share_workspace,
+    refuse_if_frozen,
     require_share_cap,
     require_share_edit,
     resolve_share_audio_redirect,
@@ -119,6 +123,7 @@ from podcast_mcp.services.document_sync import (
     ViewProjection,
     command_context_for_share,
     document_command_from_body,
+    document_command_types_for_caps,
     document_hub_key,
 )
 from podcast_mcp.services.media import media_type_for_path
@@ -584,7 +589,7 @@ def get_daw_document_state(
     with guest_boundary(log, "review request"):
         row, ws = require_share_cap(token, CAP_VIEW)
         return sanitize_guest_document_event(
-            DocumentSyncService(ws).guest_document_state(projection=phase),
+            frozen_guest_document_state(row, ws, DocumentSyncService(ws), phase),
             words=guest_words(row.get("capabilities")),
             viewer=share_author(row),
         )["snapshot"]
@@ -676,6 +681,9 @@ def post_daw_document_command(token: str, body: DocumentCommandRequest) -> dict[
         cmd = document_command_from_body(body)
         # Guests always use role=guest regardless of client-supplied role.
         cmd.role = "guest"
+        if cmd.type in document_command_types_for_caps(row.get("capabilities")):
+            # Every command a guest may run aims at the live timeline.
+            refuse_if_frozen(row, ws, "Editing or suggesting")
         return sanitize_guest_document_event(
             svc.submit(
                 cmd,
@@ -988,6 +996,7 @@ async def daw_ws(
         q_progress = progress_hub.subscribe(token, loop)
         # After subscribe, before the hello snapshots (#695): a foreign write in between
         # is in the snapshots or published by the watcher.
+        frozen = await run_in_threadpool(frozen_snapshot_for, row, ws_proj) is not None
         async with cross_process_lease(ws_proj):
             session_svc = await run_in_threadpool(SessionSyncService, ws_proj.project)
             doc_svc = await run_in_threadpool(DocumentSyncService, ws_proj)
@@ -1024,7 +1033,9 @@ async def daw_ws(
                     {
                         "type": "Snapshot",
                         "plane": "document",
-                        **await run_in_threadpool(doc_svc.guest_document_state, projection="shell"),
+                        **await run_in_threadpool(
+                            frozen_guest_document_state, row, ws_proj, doc_svc, "shell"
+                        ),
                     },
                     viewer=viewer,
                 )
@@ -1053,6 +1064,8 @@ async def daw_ws(
                 try:
                     while True:
                         event = await q_doc.get()
+                        if frozen:
+                            event = frozen_guest_event(event)
                         await guard.send_json(sanitize_guest_document_event(event, viewer=viewer))
                 except asyncio.CancelledError:
                     raise

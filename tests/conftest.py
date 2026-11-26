@@ -163,6 +163,19 @@ def _strict_project_write_guard(
     yield
 
 
+@pytest.fixture
+def live_review_view(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Serve Viewer and Commenter guests the live timeline, as links did before #3605.
+
+    For tests that exercise a guest route which a frozen guest is refused (live
+    suggestions, previews, proxies); ``test_share_frozen_timeline.py`` covers the
+    frozen behavior.
+    """
+    from podcast_mcp.services.collaboration import frozen_view
+
+    monkeypatch.setattr(frozen_view, "is_frozen_role", lambda _caps: False)
+
+
 @pytest.fixture(autouse=True)
 def _isolate_host_limiters() -> None:
     """Prevent singleton rate-limit settings and leases from leaking between tests."""

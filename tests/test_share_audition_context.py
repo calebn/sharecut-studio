@@ -105,6 +105,7 @@ def test_guest_audition_context_requires_play_and_view() -> None:
     assert "guest_resolve_comment" not in ALL_GUEST_TOOLS
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_audition_context_http_caps(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_dialogue(minimal_project, sample_wav, tmp_workspace)
     play_only = _share(ws, monkeypatch, tmp_workspace, ["play", "comment"])
@@ -136,6 +137,7 @@ def test_share_audition_context_http_caps(minimal_project, sample_wav, tmp_works
     assert "hum" not in body["visuals"][0]
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_audition_context_mcp_urls_and_image(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -194,6 +196,7 @@ def test_share_audition_context_mcp_urls_and_image(
     assert calls["n"] == first_renders
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_audition_context_warnings_include_hum(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -217,6 +220,7 @@ def test_share_audition_context_warnings_include_hum(
     assert any("hum_in_window" in w for w in info["warnings"])
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_audition_context_names_acoustic_candidate_without_owner_tools(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -253,6 +257,7 @@ def test_guest_audition_context_denied_without_tool(
     assert denied["error"]["code"] == -32003
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_audition_context_prosody_missing_has_no_host_hint(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -270,6 +275,7 @@ def test_guest_audition_context_prosody_missing_has_no_host_hint(
     assert "podcast pipeline run" not in json.dumps(info)
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_audition_context_prosody_error_is_generic(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -285,6 +291,7 @@ def test_guest_audition_context_prosody_error_is_generic(
     assert str(tmp_workspace) not in json.dumps(info)
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_audition_context_includes_fresh_prosody(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -303,6 +310,7 @@ def test_guest_audition_context_includes_fresh_prosody(
     assert info["prosody_notes"] == ["host: F0 180Hz"]
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_audition_context_prosody_allowlist_drops_unknown_fields(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -333,6 +341,7 @@ def test_guest_audition_context_prosody_allowlist_drops_unknown_fields(
     assert "/abs" not in json.dumps(info)
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_audition_context_prosody_stale_from_staged_params_has_no_hint(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -353,6 +362,7 @@ def test_guest_audition_context_prosody_stale_from_staged_params_has_no_hint(
         store._by_path.pop(store._key(ws.path), None)
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_audition_context_errors(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_dialogue(minimal_project, sample_wav, tmp_workspace)
     share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
@@ -379,6 +389,7 @@ def test_share_audition_context_errors(minimal_project, sample_wav, tmp_workspac
     assert bad_kind.status_code == 400
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_audition_context_visual_false_and_errors(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -408,6 +419,7 @@ def test_share_audition_context_visual_false_and_errors(
     assert "/Users/" not in dumped
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_audition_png_keys_use_milliseconds(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -436,6 +448,7 @@ def test_share_audition_context_image_rejects_outside_workspace(
         share_audition_context_image(token, start=0.0, end=1.0, track_id="host", kind="wave")
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_share_audition_context_image_missing_file(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

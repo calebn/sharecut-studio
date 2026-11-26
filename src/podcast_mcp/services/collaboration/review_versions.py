@@ -18,6 +18,7 @@ from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
 from threading import Lock
+from typing import Any
 
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.fingerprint import file_stamp
@@ -305,6 +306,10 @@ def review_artifacts_dir(project: EpisodeProject) -> Path:
     """Root that every frozen review mix must resolve inside (same dir writers use)."""
     return project.workspace_path() / REVIEW_ARTIFACTS_RELDIR
 
+
+TIMELINE_SNAPSHOT_NAME = "timeline.json"
+TIMELINE_SNAPSHOT_FORMAT = 1
+_TIMELINE_SNAPSHOT_MAX_BYTES = 64 * 1024 * 1024
 
 _MISSING_ERRNOS = frozenset({errno.ENOENT, errno.ENOTDIR, errno.ELOOP, errno.ENAMETOOLONG})
 
@@ -725,8 +730,12 @@ def stage_version(
     on_media_created: Callable[[Path, DirectoryIdentity], None],
     on_media_ready: Callable[[MediaIdentity], None] | None = None,
     defaults: EffectiveConfig,
+    timeline_snapshot: Callable[[], dict[str, Any]] | None = None,
 ) -> ReviewMixVersion:
     """Copy current premix/mastered into private staging (+ mix.mp3).
+
+    ``timeline_snapshot`` builds the guest-sanitized timeline frozen beside the mix as
+    ``timeline.json`` (#3605); a failure discards the stage like any other media step.
 
     Creates media only; ``project.review`` is untouched until ``attach_version``.
 
@@ -819,6 +828,8 @@ def stage_version(
         mp3_stat = os.stat("mix.mp3", dir_fd=stage_fd, follow_symlinks=False)
         if not stat.S_ISREG(mp3_stat.st_mode):
             raise RuntimeError("review MP3 changed during staging")
+        if timeline_snapshot is not None:
+            _write_timeline_snapshot(stage_fd, timeline_snapshot())
         wav_hash, media_identity = _hash_stage_wav(version_dir, created_identity)
         ver = ReviewMixVersion(
             id=vid,
@@ -837,6 +848,67 @@ def stage_version(
         discard_created_version(version_dir, created_identity)
         raise
     return ver
+
+
+def _write_timeline_snapshot(stage_fd: int, snapshot: dict[str, Any]) -> None:
+    """Write ``timeline.json`` through the pinned stage descriptor, private and exclusive."""
+    payload = json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()
+    fd = os.open(
+        TIMELINE_SNAPSHOT_NAME,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+        0o600,
+        dir_fd=stage_fd,
+    )
+    with os.fdopen(fd, "wb") as out:
+        out.write(payload)
+
+
+def _read_pinned_timeline(directory: Path) -> bytes:
+    dir_fd = open_nofollow_dir(directory)
+    try:
+        fd = os.open(TIMELINE_SNAPSHOT_NAME, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+    finally:
+        os.close(dir_fd)
+    with os.fdopen(fd, "rb") as handle:
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            raise OSError(errno.EINVAL, "review timeline is not a regular file")
+        data = handle.read(_TIMELINE_SNAPSHOT_MAX_BYTES + 1)
+    if len(data) > _TIMELINE_SNAPSHOT_MAX_BYTES:
+        raise OSError(errno.EFBIG, "review timeline snapshot is too large")
+    return data
+
+
+def version_timeline_snapshot(project: EpisodeProject, version_id: str) -> dict[str, Any] | None:
+    """The frozen timeline of *version_id*, or None when it has none or it is unreadable.
+
+    Never raises: a version published before snapshots, a missing, damaged or oversized
+    file all mean "serve the live view", and the damaged cases are logged.
+    """
+    try:
+        get_version(project, version_id)
+        directory = review_artifacts_dir(project) / version_id
+        data = _read_pinned_timeline(directory)
+    except FileNotFoundError:
+        return None
+    except (KeyError, OSError) as exc:
+        if isinstance(exc, OSError) and exc.errno in _MISSING_ERRNOS:
+            return None
+        if not isinstance(exc, KeyError):
+            log.warning("Cannot read review timeline of version %s: %s", version_id, exc)
+        return None
+    try:
+        snapshot = json.loads(data)
+    except ValueError:
+        log.warning("Review timeline snapshot of version %s is not valid JSON", version_id)
+        return None
+    if (
+        not isinstance(snapshot, dict)
+        or snapshot.get("format") != TIMELINE_SNAPSHOT_FORMAT
+        or not isinstance(snapshot.get("view"), dict)
+    ):
+        log.warning("Review timeline snapshot of version %s has an unknown shape", version_id)
+        return None
+    return snapshot
 
 
 def attach_version(

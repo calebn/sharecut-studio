@@ -80,6 +80,7 @@ class ReviewService:
                 on_media_created=remember_media,
                 on_media_ready=remember_ready,
                 defaults=self.ws.effective_config(),
+                timeline_snapshot=self._timeline_snapshot,
             )
             recorded = created
 
@@ -134,6 +135,36 @@ class ReviewService:
                             "Keeping review version media without rollback outcome: %s", public
                         )
                 raise
+
+    def _timeline_snapshot(self) -> dict[str, Any]:
+        """The guest-sanitized timeline frozen with this version (#3605).
+
+        Runs inside ``publish``'s project state lock, from the in-memory project the premix
+        was staged from. ``dump_projection_in_place`` does not reload the workspace, so
+        ``ws.project`` stays the same object and nothing is written. The superset of
+        transcript words is kept (``SELECTABLE``); the serve path trims to the role again.
+        Comments and history groups stay out: comments are live, history is the live head.
+        """
+        from podcast_mcp.services.collaboration.frozen_view import build_timeline_snapshot
+        from podcast_mcp.services.document import HistoryListResult
+        from podcast_mcp.services.document_sync import dump_projection_in_place
+
+        # The snapshot keeps no history, so none is read: publishing must work with an
+        # unreadable history index (the checkpoint fallback covers the mutation itself).
+        no_history = HistoryListResult(
+            cursor=0, head_id="", can_undo=False, can_redo=False, entries=[], groups=[]
+        )
+        project = self.ws.project
+        # Building the view caches the merged transcript on the project; publish stages
+        # media only, so leave the in-memory project as it was.
+        cached_transcript = project.combined_transcript
+        try:
+            dumped = dump_projection_in_place(
+                self.ws, projection="full", audience="guest", history=no_history
+            )
+        finally:
+            project.combined_transcript = cached_transcript
+        return build_timeline_snapshot(dumped)
 
     def _clean_uncommitted_media(
         self,

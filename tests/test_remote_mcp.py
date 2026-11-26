@@ -981,6 +981,7 @@ def test_guest_job_lookups_and_upload_arguments_are_refusals(
     assert bad["error"]["data"] == {"error_code": "invalid_arguments"}
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_pending_preview_unknown_edit_is_a_refusal(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -1239,6 +1240,7 @@ def test_guest_submit_without_client_seq_applies_each_command(
     assert [r["client_seq"] for r in rows] == [-1, -2]
 
 
+@pytest.mark.usefixtures("live_review_view")
 def test_guest_http_listing_retry_recovers_registry_before_authorization(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -1265,6 +1267,11 @@ def test_guest_http_listing_retry_recovers_registry_before_authorization(
     registry = get_share_registry()
     metadata = registry.get_active(share["token"])
     registry_path = registry.db_path
+    # Publishing builds the frozen timeline, which already seals each recording; the test
+    # starts from a registry that has not minted its key secret yet.
+    with closing(sqlite3.connect(registry_path)) as reset:
+        reset.execute("DELETE FROM recording_key_secret")
+        reset.commit()
     registry_secret_count = sqlite3.connect(registry_path)
     try:
         assert (
