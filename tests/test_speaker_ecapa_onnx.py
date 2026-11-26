@@ -56,11 +56,14 @@ def model_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def _pin_to(monkeypatch: pytest.MonkeyPatch, payload: bytes) -> str:
+def _pin_to(monkeypatch: pytest.MonkeyPatch, payload: bytes, *, size: int | None = None) -> str:
     sha = hashlib.sha256(payload).hexdigest()
+    pinned = len(payload) if size is None else size
     real = speaker_ecapa.asset_entry
     monkeypatch.setattr(
-        speaker_ecapa, "asset_entry", lambda asset_id: {**real(asset_id), "sha256": sha}
+        speaker_ecapa,
+        "asset_entry",
+        lambda asset_id: {**real(asset_id), "sha256": sha, "size_bytes": pinned},
     )
     return sha
 
@@ -129,6 +132,83 @@ def test_bootstrap_downloads_verifies_and_skips_when_cached(
     assert again["skipped"] is True and len(seen) == 1
     speaker_ecapa.bootstrap_speaker_ecapa(force=True)
     assert len(seen) == 2
+
+
+def test_the_manifest_pins_the_speaker_model_size() -> None:
+    size = speaker_ecapa.asset_entry("speaker-ecapa")["size_bytes"]
+    assert type(size) is int
+    assert size == 83_424_609
+
+
+def test_the_size_text_is_the_rounded_manifest_bytes() -> None:
+    size = speaker_ecapa.asset_entry("speaker-ecapa")["size_bytes"]
+    assert speaker_ecapa.SPEAKER_ECAPA_SIZE == f"~{round(size / 1_000_000)} MB" == "~83 MB"
+
+
+def test_a_wrong_size_download_is_rejected_and_removed(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pin_to(monkeypatch, b"model-bytes", size=len(b"model-bytes") + 1)
+
+    def fake_download(urls, dest, *, expected_sha256=None, **_):
+        dest.write_bytes(b"model-bytes")  # the sha matches; only the recorded size is off
+        return "cdn"
+
+    monkeypatch.setattr(speaker_ecapa, "download_first_ok", fake_download)
+    monkeypatch.setenv("PODCAST_BOOTSTRAP_CDN_BASE", "https://cdn.example.test/b")
+    with pytest.raises(AssetSourceError, match="size mismatch"):
+        speaker_ecapa.bootstrap_speaker_ecapa()
+    assert not speaker_ecapa.speaker_ecapa_path().exists()
+
+
+def test_a_wrong_size_speaker_download_classifies_as_a_pin_mismatch(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.services.pipeline.install_failure import classify
+
+    _pin_to(monkeypatch, b"model-bytes", size=len(b"model-bytes") + 1)
+
+    def fake_download(urls, dest, *, expected_sha256=None, **_):
+        dest.write_bytes(b"model-bytes")
+        return "https://cdn.example.test/b/models/speaker-ecapa/x.onnx"
+
+    monkeypatch.setattr(speaker_ecapa, "download_first_ok", fake_download)
+    monkeypatch.setenv("PODCAST_BOOTSTRAP_CDN_BASE", "https://cdn.example.test/b")
+    with pytest.raises(AssetSourceError) as raised:
+        speaker_ecapa.bootstrap_speaker_ecapa()
+    failure = classify(
+        raised.value,
+        label="Speaker model",
+        fix="podcast bootstrap --component speaker-ecapa --upgrade",
+    )
+    assert failure is not None
+    assert failure.kind == "pin_mismatch"
+    assert failure.plain.endswith("Run: podcast bootstrap --component speaker-ecapa --upgrade")
+    for leak in (str(model_dir), "cdn.example.test", "http", ".onnx", "bytes"):
+        assert leak not in failure.plain
+
+
+def test_a_cached_file_is_never_size_checked(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pin_to(monkeypatch, b"model-bytes", size=999)
+    speaker_ecapa.speaker_ecapa_path().write_bytes(b"model-bytes")
+    assert speaker_ecapa.speaker_ecapa_problem() is None
+    assert speaker_ecapa.bootstrap_speaker_ecapa()["skipped"] is True
+    assert speaker_ecapa.speaker_ecapa_path().is_file()
+
+
+def test_the_override_is_never_size_checked(
+    model_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pin_to(monkeypatch, b"pinned", size=999)
+    custom = tmp_path / "mine.onnx"
+    custom.write_bytes(b"anything")
+    monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(custom))
+    assert speaker_ecapa.speaker_ecapa_problem() is None
+    with pytest.raises(speaker_ecapa.SpeakerEcapaMissingError):
+        speaker_ecapa.bootstrap_speaker_ecapa()
+    assert custom.read_bytes() == b"anything"
 
 
 DIRECT_URL = "https://cdn.sharecut.studio/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx"

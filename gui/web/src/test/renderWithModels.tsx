@@ -217,8 +217,8 @@ export function registryRows(): Row[] {
       label: "Speaker model",
       purpose: "speaker recognition and split",
       tier: "recommended",
-      size: "~80 MB",
-      size_bytes: 80_000_000,
+      size: "~83 MB",
+      size_bytes: 83_424_609,
     }),
   ];
 }

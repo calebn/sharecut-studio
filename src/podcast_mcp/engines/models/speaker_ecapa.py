@@ -34,6 +34,7 @@ from podcast_mcp.util.asset_sources import (
     ordered_http_urls,
 )
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.model_assets import verify_pinned_size
 from podcast_mcp.util.model_manifest import manifest_mismatch
 
 logger = logging.getLogger(__name__)
@@ -43,9 +44,7 @@ SPEAKER_ECAPA_ENV = "PODCAST_MCP_SPEAKER_ECAPA_MODEL"
 SPEAKER_ECAPA_BOOTSTRAP = "podcast bootstrap --component speaker-ecapa"
 SPEAKER_ECAPA_DOCS = "docs/setup.md#speaker-model"
 SPEAKER_ECAPA_LABEL = "Speaker recognition (ECAPA, ONNX)"
-SPEAKER_ECAPA_SIZE = "~80 MB"
-# The byte count behind the size text, approximate: the pin records the digest only.
-SPEAKER_ECAPA_SIZE_BYTES = 80_000_000
+SPEAKER_ECAPA_SIZE = "~83 MB"
 # 0.05 s at 16 kHz; the network's reflect-padded convolutions fail below about 700 samples.
 MIN_SAMPLES = 800
 # Off until the Mac lab shows the accelerator is faster, within tolerance and affordable (#2249).
@@ -77,6 +76,14 @@ def _pin() -> tuple[str, str]:
     if not sha:
         raise SpeakerEcapaMissingError("speaker-ecapa has no sha256 pin in bootstrap-assets.json")
     return str(meta["filename"]), sha
+
+
+def speaker_ecapa_pinned_size() -> int | None:
+    try:
+        size = asset_entry(SPEAKER_ECAPA_ASSET).get("size_bytes")
+    except Exception:  # a bad manifest must not break a status read
+        return None
+    return size if isinstance(size, int) and not isinstance(size, bool) else None
 
 
 def speaker_ecapa_override() -> Path | None:
@@ -142,6 +149,7 @@ def bootstrap_speaker_ecapa(
     if not urls:
         raise OwnerCdnUnsetError(_no_source_message())
     source = download_first_ok(urls, path, expected_sha256=expected, on_progress=on_progress)
+    verify_pinned_size(path, speaker_ecapa_pinned_size())
     return {"ok": True, "path": str(path), "source": source}
 
 

@@ -51,8 +51,8 @@ export const ROWS: ModelRow[] = [
     purpose: "speaker recognition and split",
     tier: "recommended",
     model: "speaker-ecapa",
-    size: "~80 MB",
-    size_bytes: 80_000_000,
+    size: "~83 MB",
+    size_bytes: 83_424_609,
     state: "missing",
   },
 ];

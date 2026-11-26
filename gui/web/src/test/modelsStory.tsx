@@ -61,8 +61,8 @@ export function registryModels(
       label: "Speaker model",
       purpose: "speaker recognition and split",
       tier: "recommended",
-      size: "~80 MB",
-      sizeBytes: 80_000_000,
+      size: "~83 MB",
+      sizeBytes: 83_424_609,
       variant: null,
     }),
   ];

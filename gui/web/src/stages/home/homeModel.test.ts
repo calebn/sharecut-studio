@@ -190,7 +190,7 @@ describe("setupOf", () => {
         models: [
           model(),
           model({ id: "aligner", tier: "recommended", sizeBytes: 360_000_000 }),
-          model({ id: "ecapa", tier: "recommended", sizeBytes: 80_000_000 }),
+          model({ id: "ecapa", tier: "recommended", sizeBytes: 83_424_609 }),
         ],
       }),
     );

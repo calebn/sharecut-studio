@@ -65,13 +65,13 @@ def test_model_missing_carries_the_record_fields() -> None:
         "model": "speaker-ecapa",
         "label": "Speaker recognition (ECAPA, ONNX)",
         "purpose": "speaker recognition and split",
-        "size": "~80 MB",
-        "size_bytes": 80_000_000,
+        "size": "~83 MB",
+        "size_bytes": 83_424_609,
         "command": "podcast bootstrap --component speaker-ecapa",
         "state": "missing",
     }
     assert str(exc) == (
-        "needs Speaker recognition (ECAPA, ONNX) (~80 MB); "
+        "needs Speaker recognition (ECAPA, ONNX) (~83 MB); "
         "run `podcast bootstrap --component speaker-ecapa`"
     )
 
@@ -273,6 +273,6 @@ def test_cli_prints_the_model_line(minimal_project: Path, monkeypatch: pytest.Mo
     result = CliRunner().invoke(app, ["undo", "--project", str(minimal_project)])
     assert result.exit_code == 1
     assert result.stderr.startswith(
-        "Error: needs Speaker recognition (ECAPA, ONNX) (~80 MB); "
+        "Error: needs Speaker recognition (ECAPA, ONNX) (~83 MB); "
         "run `podcast bootstrap --component speaker-ecapa` (code model_needed)"
     )
