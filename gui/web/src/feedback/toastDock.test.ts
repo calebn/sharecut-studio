@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { rememberPressedControl } from "../ui/pressedControl";
-import { toastDockBottomPx, useToastDock } from "./toastDock";
+import { restTopWithDock, toastDockBottomPx, useToastDock } from "./toastDock";
 
 /** 390×844 phone: transport 0–52, mode nav 792–844, toast 62 tall, 12px gap. */
 const phone = {
@@ -180,6 +180,19 @@ describe("toastDockBottomPx keeps the comment field and its name field clear (#2
   });
 });
 
+describe("restTopWithDock", () => {
+  it("rests on the dock top when the dock is higher than the chrome row", () => {
+    expect(restTopWithDock(792, [686])).toBe(686);
+    expect(restTopWithDock(792, [686, 700])).toBe(686);
+  });
+
+  it("keeps the chrome row without a dock, and when that row is folded away", () => {
+    expect(restTopWithDock(792, [])).toBe(792);
+    expect(restTopWithDock(844, [])).toBe(844);
+    expect(restTopWithDock(844, [686])).toBe(686);
+  });
+});
+
 describe("useToastDock", () => {
   const boxes: Element[] = [];
   afterEach(() => {
@@ -264,6 +277,25 @@ describe("useToastDock", () => {
     );
     unmount();
     expect(bottom * 16).toBe(window.innerHeight - 690 + 8);
+  });
+
+  it("rests above the Room dock when a full sheet leaves no free band", () => {
+    document.documentElement.dataset.shell = "phone";
+    const { readBottom } = mountRegion();
+    box("stage-frame-tabs", 792, 844);
+    box("sys-room-view-dock", 686, 792);
+    box("stage-frame-header", 0, 52);
+    box("bottom-sheet bottom-sheet--full", 52, 686);
+    expect(readBottom()).toBe(window.innerHeight - 686 + 8);
+  });
+
+  it("docks above the Room dock when the sheet is closed", () => {
+    document.documentElement.dataset.shell = "phone";
+    const { readBottom } = mountRegion();
+    box("stage-frame-tabs", 792, 844);
+    box("sys-room-view-dock", 686, 792);
+    box("stage-frame-header", 0, 52);
+    expect(readBottom()).toBe(window.innerHeight - 686 + 8);
   });
 
   function mountRegion() {

@@ -255,4 +255,29 @@ describe("App styles", () => {
     expect(rule("\\.sys-listen-dock-transport")).toMatch(/flex-wrap:\s*wrap/);
     expect(rule("\\.sys-listen-dock-cluster")).toMatch(/flex-wrap:\s*nowrap/);
   });
+
+  it("rests the Comments sheet on the dock with rules keyed on its panel and the keyboard, and keeps the notch padding in row mode", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(
+      join(here, "styles/partials/bottom-sheet.css"),
+      "utf8",
+    );
+    const rule = (mode: string) =>
+      css.match(
+        new RegExp(
+          `html\\[data-room-sheet="${mode}"\\]:not\\(\\[data-keyboard="open"\\]\\)\\s+\\.bottom-sheet-root:has\\(> \\.bottom-sheet\\.sys-room-comments\\)\\s*\\{([^}]*)}`,
+        ),
+      )?.[1];
+    const row = rule("bottom");
+    const column = rule("end");
+    expect(row).toBeTruthy();
+    expect(column).toBeTruthy();
+    expect(row).toMatch(/bottom:\s*var\(--room-sheet-bottom\)/);
+    expect(row).not.toMatch(/padding/);
+    expect(row).not.toMatch(/height|margin/);
+    expect(column).toMatch(/inset-inline-end:\s*var\(--room-sheet-end\)/);
+    expect(column).toMatch(/padding-inline-end:\s*0/);
+    expect(column).not.toMatch(/height|margin/);
+    expect(css.match(/padding-inline-end/g)).toHaveLength(1);
+  });
 });

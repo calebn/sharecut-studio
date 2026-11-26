@@ -1109,6 +1109,68 @@ describe("RoomView comments naming", () => {
     }
   });
 
+  describe("the Comments sheet's dock floor", () => {
+    const calls = (fn: ReturnType<typeof vi.fn>) =>
+      fn.mock.calls.map(([open]) => open);
+
+    it("tells the caller the sheet is open, with its own class on the panel", () => {
+      const onCommentsSheetChange = vi.fn();
+      renderRoom({
+        viewerWidth: "phone",
+        defaultNotesOpen: true,
+        onCommentsSheetChange,
+      });
+      expect(calls(onCommentsSheetChange).at(-1)).toBe(true);
+      expect(screen.getByRole("dialog", { name: "Comments" })).toHaveClass(
+        "sys-room-comments",
+      );
+    });
+
+    it("follows the peek bar and Close, and says closed on unmount", async () => {
+      const onCommentsSheetChange = vi.fn();
+      const { unmount } = renderRoom({
+        viewerWidth: "phone",
+        onCommentsSheetChange,
+      });
+      expect(calls(onCommentsSheetChange).at(-1)).toBe(false);
+      await userEvent.click(
+        document.querySelector(".sys-room-view-peek") as HTMLElement,
+      );
+      expect(calls(onCommentsSheetChange).at(-1)).toBe(true);
+      await userEvent.click(screen.getByRole("button", { name: "Close" }));
+      expect(calls(onCommentsSheetChange).at(-1)).toBe(false);
+      await userEvent.click(
+        document.querySelector(".sys-room-view-peek") as HTMLElement,
+      );
+      expect(calls(onCommentsSheetChange).at(-1)).toBe(true);
+      unmount();
+      expect(calls(onCommentsSheetChange).at(-1)).toBe(false);
+    });
+
+    it("never says open on the desktop, while loading, or under Declined", () => {
+      for (const rest of [
+        { viewerWidth: "desktop" as const },
+        { viewerWidth: "phone" as const, loading: true },
+        { viewerWidth: "phone" as const, declined: { onJoin: () => {} } },
+      ]) {
+        const onCommentsSheetChange = vi.fn();
+        const { unmount } = renderRoom({
+          ...rest,
+          defaultNotesOpen: true,
+          onCommentsSheetChange,
+        });
+        expect(calls(onCommentsSheetChange)).not.toContain(true);
+        unmount();
+      }
+    });
+
+    it("hands the caller the room's root element", () => {
+      const rootRef = { current: null as HTMLDivElement | null };
+      renderRoom({ rootRef });
+      expect(rootRef.current).toBe(document.querySelector(".sys-room-view"));
+    });
+  });
+
   it("says no comments yet on the closed phone peek", () => {
     renderRoom({ viewerWidth: "phone", notes: [] });
     const peek = document.querySelector(".sys-room-view-peek") as HTMLElement;

@@ -1,10 +1,11 @@
-import type { ReactNode, Ref } from "react";
+import { type ReactNode, type Ref, useRef, useState } from "react";
 import type { RecordSessionSummary } from "../../record";
 import type { ShellBreakpoint } from "../../state/types";
 import { RoomView, type RoomViewProps } from "../../system/RoomView";
 import { roomAlertItems } from "../../system/roomAlertItems";
 import { Button } from "../../ui";
 import { useFrameAlertList } from "../frame/useFrameAlert";
+import { useRoomSheetFloor } from "../frame/useRoomSheetFloor";
 import {
   EndedSessionCard,
   type EndedSessionCardProps,
@@ -208,6 +209,9 @@ export function RecordStageView({
   onCheckAgain,
 }: RecordStageViewProps) {
   useFrameAlertList(roomAlertItems(room?.alerts ?? []));
+  const roomRef = useRef<HTMLDivElement>(null);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  useRoomSheetFloor(roomRef, commentsOpen);
   return (
     <HostBody
       stage="record"
@@ -234,7 +238,13 @@ export function RecordStageView({
             ))}
             {storage}
           </div>
-          <RoomView {...room} embedded alertsInFrame />
+          <RoomView
+            {...room}
+            embedded
+            alertsInFrame
+            rootRef={roomRef}
+            onCommentsSheetChange={setCommentsOpen}
+          />
           {more}
           {toast}
         </>
