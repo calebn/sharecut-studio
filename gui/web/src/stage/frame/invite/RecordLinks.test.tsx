@@ -150,6 +150,37 @@ describe("Record room local-only note", () => {
     );
   });
 
+  it("[FAILS-OLD] says nothing while the status is still being read", () => {
+    renderRooms({ tunnel: null, tunnelPending: true }, { rows: rows(LOCAL) });
+    expect(noteOf()).toBeNull();
+    expect(screen.queryByText(/isn't set up/)).toBeNull();
+    expectDescribedIdsExist();
+  });
+
+  it("[FAILS-OLD] describes only the Copy of a row that is itself local-only", () => {
+    const [guest, producer] = rows(LOCAL);
+    renderRooms(
+      { tunnel: null },
+      {
+        rows: [
+          guest as NonNullable<typeof guest>,
+          {
+            ...(producer as NonNullable<typeof producer>),
+            url: `${PUBLIC}/room-1-p`,
+          },
+        ],
+      },
+    );
+    const note = noteOf()?.closest("p");
+    const guestCopy = screen.getByRole("button", { name: "Copy guest link" });
+    const producerCopy = screen.getByRole("button", {
+      name: "Copy producer link",
+    });
+    expect(describedIds(guestCopy)).toContain(note?.id);
+    expect(describedIds(producerCopy)).not.toContain(note?.id);
+    expectDescribedIdsExist();
+  });
+
   it("[GUARD] leaves the Review and Listen groups as they were", () => {
     const review = hostShareRow({ token: "rv-1" });
     const listen = hostShareRow({
@@ -157,20 +188,22 @@ describe("Record room local-only note", () => {
       docs_role: "viewer",
       follow_latest: false,
     });
-    const options = {
-      tunnel: tunnel("not_set_up"),
-      rows: [review, listen, ...rows(LOCAL)],
-    };
-    renderRooms(options, { rows: options.rows });
-    const listenGroup = screen
-      .getByRole("heading", { name: "Listen link" })
-      .closest("section");
-    expect(listenGroup).toBeTruthy();
-    expect(
-      within(listenGroup as HTMLElement).queryByText(
-        /so only people on this network can open these links/,
-      ),
-    ).toBeNull();
+    renderRooms(
+      { tunnel: tunnel("not_set_up") },
+      { rows: [review, listen, ...rows(LOCAL)] },
+    );
+    for (const name of ["Review links", "Listen link"]) {
+      const group = screen.getByRole("heading", { name }).closest("section");
+      expect(group).toBeTruthy();
+      expect(
+        within(group as HTMLElement).queryByText(
+          /so only people on this network can open these links/,
+        ),
+      ).toBeNull();
+    }
+    expect(screen.getAllByText(/so only people on this network/)).toHaveLength(
+      1,
+    );
   });
 
   it("[GUARD] Copy still copies the row address", async () => {

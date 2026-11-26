@@ -72,7 +72,7 @@ function reach(label: string, options: BrowserContextOptions, touch: boolean) {
   }) => {
     await withInvite(browser, async (host, sheet, projectPath) => {
       const [guest] = (await hostList(host, projectPath)).filter(
-        (row) => row.url?.includes("/rec/") && row.docs_role === null,
+        (row) => row.record_role === "guest",
       );
       expect(guest?.url).toMatch(/^http:\/\/127\.0\.0\.1:8080\/rec\//);
 

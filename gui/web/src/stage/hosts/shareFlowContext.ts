@@ -28,6 +28,8 @@ export type ShareFlow = {
   blockedKey: ShareCopiedKey | null;
   /** Online sharing state, polled while Deliver or the Invite sheet shows; null without the `tunnel.status` feature or when unreachable. */
   tunnel: TunnelStatus | null;
+  /** The status is being polled and has not answered (yet, or the last poll failed): its absence says nothing about the host. */
+  tunnelPending: boolean;
   /** Lists the project's links again. The flow calls it as Deliver or the Invite sheet shows. */
   reload: () => void;
   /** Makes the link the choices say (or `override`, for the listen link) and copies it. Call it from the click so the copy keeps its user gesture. */

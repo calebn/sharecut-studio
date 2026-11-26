@@ -20,6 +20,7 @@ function flow(over: Partial<ShareFlow> = {}): ShareFlow {
     copiedKey: null,
     blockedKey: null,
     tunnel: null,
+    tunnelPending: false,
     reload: vi.fn(),
     create: vi.fn(),
     refreshMix: vi.fn(),
@@ -84,6 +85,12 @@ describe("shareOptionsOf", () => {
     expect(o.tunnel).toBe(tunnel);
     expect(o.blockedReason).toBe("Open a project first.");
     expect(o.onOpenRecord).toBe(h.onOpenRecord);
+  });
+
+  it("passes on that the tunnel status is still pending", () => {
+    expect(
+      shareOptionsOf(flow({ tunnelPending: true }), host()).tunnelPending,
+    ).toBe(true);
   });
 
   it("has no tunnel without the feature", () => {
