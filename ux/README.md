@@ -74,7 +74,7 @@ cd ux && python3 -m http.server 8766
 
 ## Keeping docs accurate (anti-drift)
 
-When any path the `ux-pack` gate lists changes (the `stage/` shell paths, keymap, command catalog, guest consent, lobby and join-sheet copy in the record room and system views, relay notice, offline and paused page copy, tunnel-status copy, `docs/gui-mobile.md`, `docs/ui-philosophy.md`, `docs/communication-philosophy.md`, `docs/recording-session.md`, and the episode schema) in a way that affects what UX partners see:
+When any path the `ux-pack` gate lists changes (the `stage/` shell paths, keymap, command catalog, relay notice, offline and paused page copy, tunnel-status copy, and the listed guest-facing copy modules (guest consent, join-sheet, tab-title, recording-status alert and room-view warning copy; not every file in `record/` or `system/`), `docs/gui-mobile.md`, `docs/ui-philosophy.md`, `docs/communication-philosophy.md`, `docs/recording-session.md`, and the episode schema) in a way that affects what UX partners see:
 
 1. Update the matching `ux/pages/*.md` (and demo fixture / screenshots if the UI changed).
 2. The `ux-pack` row of the docs-sync map ([contracts/docs-sync.json](../contracts/docs-sync.json)) is the source of truth, generated into [AGENTS.md](../AGENTS.md) § Docs in sync. `make docs-sync` runs the same PR-diff gate CI runs before you open a PR; the `docs-sync` pre-commit hook runs the equivalent check on staged files but only warns (CI is the gate). See [docs/contributing.md § Docs in sync](../docs/contributing.md#docs-in-sync).
