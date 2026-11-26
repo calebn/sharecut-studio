@@ -351,6 +351,7 @@ type UiSlice = Pick<
   | "timelineFocused"
   | "shellBreakpoint"
   | "pointerKind"
+  | "rulerCovered"
   | "selectionHit"
   | "inspectorSelection"
   | "timelineDragging"
@@ -380,6 +381,7 @@ type UiSlice = Pick<
   | "setListenLoadFailed"
   | "setShellBreakpoint"
   | "setPointerKind"
+  | "setRulerCovered"
   | "setSelectionHit"
   | "setTimelineDragging"
   | "setSnapEnabled"
@@ -752,6 +754,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     // The capability baseline, so the first render has nothing to correct;
     // usePointerType() keeps it live from pointer events.
     pointerKind: initialPointerKind(),
+    rulerCovered: new Set<string>() as ReadonlySet<string>,
     snapEnabled: readSnapPref(),
     laneHeightMode: lanePref.mode,
     laneHeightPx: lanePref.px,
@@ -917,6 +920,13 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     },
     setPointerKind: (pointerKind) =>
       set((s) => (s.pointerKind === pointerKind ? s : { pointerKind })),
+    setRulerCovered: (rulerCovered) =>
+      set((s) =>
+        rulerCovered.size === s.rulerCovered.size &&
+        [...rulerCovered].every((key) => s.rulerCovered.has(key))
+          ? s
+          : { rulerCovered },
+      ),
     setSelectionHit: (selectionHit) => set({ selectionHit }),
     setTimelineDragging: (timelineDragging) => {
       if (get().timelineDragging !== timelineDragging)

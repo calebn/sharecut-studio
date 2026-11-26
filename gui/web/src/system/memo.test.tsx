@@ -168,6 +168,8 @@ function Markers() {
   );
 }
 
+const covered: ReadonlySet<string> = new Set(["5"]);
+
 function Timeline() {
   const [playhead, setPlayhead] = useState(5);
   const [, setTick] = useState(0);
@@ -185,6 +187,7 @@ function Timeline() {
         width={360}
         duration={100}
         playhead={playhead}
+        covered={covered}
         onSeek={setPlayhead}
       />
     </>

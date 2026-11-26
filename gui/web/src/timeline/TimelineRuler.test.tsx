@@ -40,6 +40,7 @@ const ticks = (container: HTMLElement) => [
 afterEach(() => {
   vi.useRealTimers();
   useDawStore.setState({
+    rulerCovered: new Set(),
     scrollLeft: 0,
     playheadSec: 0,
     isPlaying: false,
@@ -258,6 +259,30 @@ describe("TimelineRuler", () => {
   it("has no a11y violations", async () => {
     const { container } = render(<Ruler />);
     await expectNoA11yViolations(container);
+  });
+
+  it("draws again only when the covered labels change, not for a set with the same members", () => {
+    let commits = 0;
+    const { container } = render(
+      <Profiler id="ruler" onRender={() => commits++}>
+        <Ruler />
+      </Profiler>,
+    );
+    const first = commits;
+    const marked = () =>
+      [...container.querySelectorAll("[data-covered]")].map(
+        (el) => el.textContent,
+      );
+    expect(marked()).toEqual([]);
+    act(() => useDawStore.getState().setRulerCovered(new Set(["0"])));
+    expect(commits).toBe(first + 1);
+    expect(marked()).toHaveLength(1);
+    act(() => useDawStore.getState().setRulerCovered(new Set(["0"])));
+    act(() => useDawStore.getState().setRulerCovered(new Set(["0"])));
+    expect(commits).toBe(first + 1);
+    act(() => useDawStore.getState().setRulerCovered(new Set()));
+    expect(commits).toBe(first + 2);
+    expect(marked()).toEqual([]);
   });
 });
 

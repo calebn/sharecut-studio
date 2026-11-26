@@ -16,7 +16,7 @@ export const PLAYHEAD_BLEED_PX = 6;
 /** Stops a tiny step over a wide window from mounting thousands of labels. */
 const MAX_TICKS = 600;
 
-type RulerTick = {
+export type RulerTick = {
   time: number;
   x: number;
   /** Empty when the label would sit on its neighbour's or has no room. */
@@ -37,12 +37,30 @@ export function xAtTime(
   return (time - start) * pxPerSecond;
 }
 
+function labelTextPx(chars: number, rem: number): number {
+  return chars * LABEL_CHAR_REM * rem;
+}
+
 /** A label's room in px, its padding included, at a root font of `rem` px. */
 function labelWidthPx(sec: number, step: number, rem: number): number {
   return (
-    formatRulerTime(sec, step).length * LABEL_CHAR_REM * rem +
-    LABEL_PAD_REM * rem
+    labelTextPx(formatRulerTime(sec, step).length, rem) + LABEL_PAD_REM * rem
   );
+}
+
+export type PxSpan = { left: number; right: number };
+
+/** What a tick's label key is in a covered set. */
+export const tickKey = (tick: Pick<RulerTick, "time">): string =>
+  String(tick.time);
+
+/** The room the label's text ink takes, from the tick's x rounded to whole px: the line and its padding are left out. */
+export function labelInkSpan(tick: RulerTick, rem: number): PxSpan {
+  const x = Math.round(tick.x);
+  const text = labelTextPx(tick.label.length, rem);
+  return tick.align === "end"
+    ? { left: x - text - LABEL_PAD_REM * rem, right: x - LABEL_PAD_REM * rem }
+    : { left: x + LABEL_PAD_REM * rem, right: x + LABEL_PAD_REM * rem + text };
 }
 
 /** The smallest nice step whose ticks are at least 4 rem apart and wider than the widest label in the window, with a gap. */
