@@ -774,3 +774,27 @@ def test_a_record_that_cannot_be_written_never_fails_the_export(tmp_path: Path):
 
     assert [p.name for p in paths] == ["ep.wav", "ep.mp3"]
     assert _export_listing(project) == {"ep.mp3": b"MP3", "ep.wav": b"RIFF"}
+
+
+def test_an_export_at_the_same_head_keeps_the_untouched_files_of_the_earlier_one(tmp_path: Path):
+    from podcast_mcp.export.render_record import read_export_render, write_export_render
+
+    project = EpisodeProject.create("ep", str(tmp_path))
+    export = project.export_dir()
+    export.mkdir(parents=True, exist_ok=True)
+    wav, mp3 = export / "ep.wav", export / "ep.mp3"
+    wav.write_bytes(b"WAV")
+    mp3.write_bytes(b"MP3")
+    write_export_render(project, "head-1", [wav, mp3])
+
+    m4a = export / "ep.m4a"
+    m4a.write_bytes(b"M4A")
+    write_export_render(project, "head-1", [m4a])
+    assert set(read_export_render(project)["files"]) == {"ep.wav", "ep.mp3", "ep.m4a"}
+
+    mp3.write_bytes(b"MP3 rewritten later")
+    write_export_render(project, "head-1", [wav])
+    assert set(read_export_render(project)["files"]) == {"ep.wav", "ep.m4a"}
+
+    write_export_render(project, "head-2", [wav])
+    assert set(read_export_render(project)["files"]) == {"ep.wav"}

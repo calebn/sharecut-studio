@@ -8,6 +8,7 @@ from typing import Any
 
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
+from podcast_mcp.util.fingerprint import file_stamp
 
 RECORD_NAME = "export_render.json"
 RECORD_VERSION = 1
@@ -44,11 +45,24 @@ def read_export_render(project: EpisodeProject) -> dict[str, Any] | None:
 
 
 def write_export_render(project: EpisodeProject, head: str, audio_paths: Iterable[Path]) -> None:
-    """Replace the record with *head* and the size and mtime of each of *audio_paths*."""
+    """Record *head* and the size and mtime of each of *audio_paths*.
+
+    Files an earlier export at the same head wrote, and that are still as it left them, stay.
+    """
     files: dict[str, list[int]] = {}
     for path in audio_paths:
-        stat = path.stat()
-        files[path.name] = [stat.st_size, stat.st_mtime_ns]
+        files[path.name] = list(file_stamp(path).content)
+    previous = read_export_render(project)
+    if previous is not None and previous["edit_head_id"] == head:
+        for name, stamp in previous["files"].items():
+            if name in files:
+                continue
+            try:
+                kept = list(file_stamp(project.export_dir() / name).content)
+            except OSError:
+                continue
+            if kept == stamp:
+                files[name] = stamp
     target = export_render_path(project)
     target.parent.mkdir(parents=True, exist_ok=True)
     write_json_atomic(
