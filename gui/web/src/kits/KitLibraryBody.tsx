@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 import type { KitListRow, KitRow } from "../api";
 import { exportedMessage } from "../segments/importMessages";
 import { useDawStore } from "../state/dawStore";
@@ -15,31 +15,59 @@ export const KITS_EMPTY_TEXT =
   "No kits yet. A kit is a saved set of segments, such as your intro and outro.";
 export const KITS_LOAD_FAILED_TEXT = "Couldn't load the kits.";
 
-type Props = { library: KitLibraryState };
+type Props = {
+  library: KitLibraryState;
+  /** What an export last failed with; held by the section so it outlives an emptied list. */
+  failure: string | null;
+  onFailure: (message: string | null) => void;
+  /** Takes focus when a refused export leaves the list out of date. */
+  focusTarget?: RefObject<HTMLElement | null>;
+};
 
-export function KitLibraryBody({ library }: Props) {
+export function KitLibraryBody({
+  library,
+  failure,
+  onFailure,
+  focusTarget,
+}: Props) {
   const { rows, error, reload } = library;
-  const [failure, setFailure] = useState<string | null>(null);
   const exporting = useRef(false);
+  const lifetime = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    lifetime.current = controller;
+    return () => controller.abort();
+  }, []);
 
   const exportRow = async (row: KitRow) => {
     if (exporting.current) return;
     exporting.current = true;
-    setFailure(null);
+    onFailure(null);
+    const signal = lifetime.current?.signal;
     const { announceStatus } = useDawStore.getState();
     announceStatus(`Preparing ${row.name} to export…`);
     try {
-      const outcome = await exportKitFile(row.id);
+      const outcome = await exportKitFile(row.id, signal);
       announceStatus(exportedMessage(row.name, outcome));
     } catch (problem) {
+      if (signal?.aborted) return;
       // The alert below is the one announcement of a failure.
-      setFailure(errorMessage(problem, `Couldn't export ${row.name}.`));
-      // The kit is gone (404) or its segments are (409): the list is out of date.
+      onFailure(errorMessage(problem, `Couldn't export ${row.name}.`));
+      // The kit is gone (404) or its segments are (409): the list is out of date, and
+      // the row that held focus is about to change or go.
       if (
         problem instanceof ApiError &&
         (problem.status === 404 || problem.status === 409)
-      )
+      ) {
+        const target = focusTarget?.current;
+        const active = document.activeElement;
+        if (
+          target &&
+          (active === document.body || target.parentElement?.contains(active))
+        )
+          target.focus();
         reload();
+      }
     } finally {
       exporting.current = false;
     }
@@ -85,14 +113,6 @@ export function KitLibraryBody({ library }: Props) {
         {loading ? "Loading the kits" : ""}
       </p>
       <InlineError message={failure} />
-      {rows !== null && error !== null ? (
-        <div className="kit-library-error" role="alert">
-          <p className="kit-library-detail">
-            {KITS_LOAD_FAILED_TEXT} {error}
-          </p>
-          {retry}
-        </div>
-      ) : null}
       {content}
     </div>
   );
