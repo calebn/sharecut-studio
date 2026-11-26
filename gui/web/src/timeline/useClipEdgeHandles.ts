@@ -725,6 +725,12 @@ export function useClipEdgeHandles(context: Context) {
     ) => {
       event.stopPropagation();
       event.preventDefault();
+      const live = draftRef.current;
+      if (
+        live?.input.kind === "pointer" &&
+        live.input.pointerId !== event.pointerId
+      )
+        return;
       cancel();
       const d = begin(handle, {
         kind: "pointer",

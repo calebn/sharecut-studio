@@ -1269,6 +1269,54 @@ describe("ClipBlock waveform", () => {
         );
       },
     );
+
+    it("second pointer on the same trim handle is ignored: one save, at the first pointer's offset, second pointer's events do nothing (#1034)", async () => {
+      const { container } = renderWithKeymap(clip);
+      const handle = container.querySelector(".trim-handle.out") as HTMLElement;
+      vi.mocked(trimClipEdge).mockClear();
+      fireEvent.pointerDown(handle, { clientX: 100, pointerId: 5 });
+      fireEvent.pointerMove(handle, { clientX: 150, pointerId: 5 });
+      fireEvent.pointerDown(handle, { clientX: 200, pointerId: 6 });
+      fireEvent.pointerMove(handle, { clientX: 400, pointerId: 6 });
+      fireEvent.pointerUp(handle, { clientX: 400, pointerId: 6 });
+      fireEvent.pointerCancel(handle, { pointerId: 6 });
+      await act(async () => {});
+      expect(trimClipEdge).not.toHaveBeenCalled();
+      expect(container.querySelector(".clip-trim-ghost")).not.toBeNull();
+      fireEvent.pointerUp(handle, { clientX: 150, pointerId: 5 });
+      await waitFor(() => expect(trimClipEdge).toHaveBeenCalled());
+      await act(async () => {});
+      expect(trimClipEdge).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(trimClipEdge).mock.calls[0][3]).toBeCloseTo(3, 5);
+      expect(container.querySelector(".clip-trim-ghost")).toBeNull();
+    });
+
+    it("second pointerdown while the first save is pending is ignored: one trim call, no ghost (#1034)", async () => {
+      const { container } = renderWithKeymap(clip);
+      const handle = container.querySelector(".trim-handle.out") as HTMLElement;
+      vi.mocked(trimClipEdge).mockClear();
+      let resolveSave: (v: { queued: boolean; undo: null }) => void = () => {};
+      vi.mocked(trimClipEdge).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSave = resolve;
+          }),
+      );
+      fireEvent.pointerDown(handle, { clientX: 100, pointerId: 5 });
+      fireEvent.pointerMove(handle, { clientX: 150, pointerId: 5 });
+      fireEvent.pointerUp(handle, { clientX: 150, pointerId: 5 });
+      await waitFor(() => expect(trimClipEdge).toHaveBeenCalledTimes(1));
+      fireEvent.pointerDown(handle, { clientX: 200, pointerId: 6 });
+      fireEvent.pointerMove(handle, { clientX: 400, pointerId: 6 });
+      fireEvent.pointerUp(handle, { clientX: 400, pointerId: 6 });
+      await act(async () => {});
+      expect(trimClipEdge).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        resolveSave({ queued: false, undo: null });
+      });
+      expect(trimClipEdge).toHaveBeenCalledTimes(1);
+      expect(container.querySelector(".clip-trim-ghost")).toBeNull();
+    });
   });
 
   describe("trim snapping", () => {
