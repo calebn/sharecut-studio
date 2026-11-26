@@ -582,6 +582,14 @@ and any non-`GET` request never see it. The return path is the raw, still-encode
 so an encoded file name round trips. Enrolled installs and relays with no signing key never show
 it.
 
+The notice is a courtesy, not a security boundary. For `/r/` and `/rec/` it is decided before the
+host is asked, so the host cannot avoid it. For `/api/review/`, `/api/rec/` and `/mcp/` it is
+decided from the response's media type, and only `text/html` matches: a deliberate host can
+answer with another active type such as `application/xhtml+xml` or `image/svg+xml`, or with a
+`Content-Type` that is not exactly `text/html` once its parameters are removed (two values joined
+into one string, for example), and the guest then gets that response with no notice. The guest
+CSP follows the same HTML check.
+
 ---
 
 ## Quick start (local Compose)
