@@ -49,7 +49,7 @@ const meta: Meta<typeof InsertSegmentCard> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Insert segment card, opened from the Action bar at the playhead or from More with a clip or range selected. A list shows every segment in the library; one whose newest version cannot be read is listed with its problem and cannot be picked. Position starts on the guess from the kind (an intro goes to the start, an outro to the end, anything else to the playhead). Every pick or position change asks the server for a preview, and Insert stays off until that preview is back. Above Position, "What happens to the episode" offers Move the rest later (the default for every segment; later clips, chapters and comments shift) or Play over the episode (nothing moves and the segment is added on new tracks of its own, never offered for a dialogue segment). The choice resets when another segment is picked, and the preview says what each choice changes, including that an own-track segment plays at full level until it is ducked. The toast that follows has Undo.\n\nOn desktop it is an anchored Dialog beside the Action bar: focus goes to the list on open, Esc and a press outside close it, and focus returns to the anchor. On a phone the same card is the bottom sheet.\n\n**Motion.** None on the desktop card; the phone sheet slides with `--motion-panel`.',
+          'The Insert segment card, opened from the Action bar at the playhead or from More with a clip or range selected. A list shows every segment in the library; one whose newest version cannot be read is listed with its problem and cannot be picked. Position starts on the guess from the kind (an intro goes to the start, an outro to the end, anything else to the playhead). Every pick or position change asks the server for a preview, and Insert stays off until that preview is back. Above Position, "What happens to the episode" offers Move the rest later (later clips, chapters and comments shift; the default for every segment except music) or Play over the episode (nothing moves and the segment is added on new tracks of its own; the default for a music segment, and shown but disabled for a dialogue segment, with the reason). A pick wins over the default. The choice resets to the default when another segment is picked. The preview says what each choice changes, including that an own-track segment plays at full level until it is ducked. The toast that follows has Undo.\n\nOn desktop it is an anchored Dialog beside the Action bar: focus goes to the list on open, Esc and a press outside close it, and focus returns to the anchor. On a phone the same card is the bottom sheet.\n\n**Motion.** None on the desktop card; the phone sheet slides with `--motion-panel`.',
       },
     },
   },
@@ -136,11 +136,8 @@ export const OwnLane: Story = {
     const card = within(document.body);
     await userEvent.click(await card.findByRole("radio", { name: /Warm bed/ }));
     await expect(
-      card.getByRole("radio", { name: /Move the rest later/ }),
-    ).toBeChecked();
-    await userEvent.click(
       card.getByRole("radio", { name: /Play over the episode/ }),
-    );
+    ).toBeChecked();
     await expect(
       await card.findByText("Adds 0:22 at 0:42 on a new track."),
     ).toBeVisible();
@@ -190,9 +187,6 @@ export const PlacementUnsupported: Story = {
   play: async ({ args }) => {
     const card = within(document.body);
     await userEvent.click(await card.findByRole("radio", { name: /Warm bed/ }));
-    await userEvent.click(
-      card.getByRole("radio", { name: /Play over the episode/ }),
-    );
     await card.findByText(/on a new track/);
     await userEvent.click(card.getByRole("button", { name: "Insert" }));
     await expect(await card.findByRole("alert")).toHaveTextContent(
