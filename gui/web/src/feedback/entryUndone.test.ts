@@ -92,3 +92,28 @@ describe("entryUndone on the real history shape", () => {
     );
   });
 });
+
+describe("entryUndone from groups alone (the document-sync shape)", () => {
+  const withGroups = (head: string): ProjectView["history"] => ({
+    ...minimalProject().history,
+    head_id: id(head),
+    groups: [
+      {
+        kind: "mutation",
+        before_index: 0,
+        after_index: 1,
+        before_id: "s0",
+        after_id: "s1",
+      },
+      { kind: "snapshot", index: 2, id: "render" },
+      { kind: "snapshot", index: 3, id: "approve" },
+    ],
+  });
+
+  it("is true once the head is before the entry, false at or past it", () => {
+    expect(entryUndone(withGroups("render"), id("approve"))).toBe(true);
+    expect(entryUndone(withGroups("s0"), id("approve"))).toBe(true);
+    expect(entryUndone(withGroups("approve"), id("approve"))).toBe(false);
+    expect(entryUndone(withGroups("render"), id("gone"))).toBe(false);
+  });
+});

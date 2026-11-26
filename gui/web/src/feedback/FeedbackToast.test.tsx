@@ -1438,11 +1438,9 @@ describe("FeedbackToast", () => {
       render(<FeedbackToast />);
       real("approve");
       act(() => {
-        useDawStore
-          .getState()
-          .announceStatus("Approved 1 pending edit", {
-            undo: entry("approve"),
-          });
+        useDawStore.getState().announceStatus("Approved 1 pending edit", {
+          undo: entry("approve"),
+        });
       });
       act(() => real("render"));
       expect(screen.getByText("Undone: Approved 1 pending edit")).toBeVisible();
