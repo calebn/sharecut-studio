@@ -27,7 +27,8 @@ GATE_PLAN_OUTPUT = {
 }
 CI_MATRIX = "${{ fromJSON(needs.changes.outputs.e2e-matrix) }}"
 MAIN_COMMAND = "npm run test:e2e"
-MAIN_SHARD_RE = re.compile(r"^npm run test:e2e -- --shard=(\d+)/(\d+)$")
+MAIN_SHARD_RE = re.compile(r"^npm run test:e2e -- (e2e/\S+\.spec\.ts(?: e2e/\S+\.spec\.ts)*)$")
+MAIN_E2E_DIR = REPO_ROOT / "gui" / "web" / "e2e"
 COMPAT_COMMAND = "npm run test:e2e:compat"
 COMPAT_ENGINES = ("chromium", "webkit")
 CHROMIUM_MAIN_OWNERS = {
@@ -319,17 +320,20 @@ def test_ci_runs_both_browser_suites_on_dispatch_on_every_passing_engine() -> No
     include = planned_include("workflow_dispatch")
     assert planned_include("push") == [], "a push to develop must not start browser suites"
     engines = compat_ci_engines(include)
-    shards = [
-        MAIN_SHARD_RE.match(entry["command"])
-        for entry in include
-        if not entry["name"].startswith("compat")
+    main_entries = [entry for entry in include if not entry["name"].startswith("compat")]
+    shards = [MAIN_SHARD_RE.match(entry["command"]) for entry in main_entries]
+    assert all(shards), f"main shards must run `{MAIN_COMMAND} -- e2e/<spec> ...`: {include}"
+    count = len(shards)
+    listed = [spec for shard in shards if shard for spec in shard[1].split()]
+    on_disk = [
+        f"e2e/{path.relative_to(MAIN_E2E_DIR).as_posix()}"
+        for path in MAIN_E2E_DIR.rglob("*.spec.ts")
     ]
-    assert all(shards), f"main shards must run `{MAIN_COMMAND} -- --shard=i/n`: {include}"
-    totals = {shard[2] for shard in shards if shard}
-    assert len(totals) == 1, f"main shards disagree on the shard count: {totals}"
-    count = int(totals.pop())
-    assert [int(shard[1]) for shard in shards if shard] == list(range(1, count + 1)), (
-        "main shards must cover --shard=1/n through n/n exactly once"
+    assert sorted(listed) == sorted(on_disk), (
+        "main shards must run every e2e spec exactly once: "
+        f"missing {sorted(set(on_disk) - set(listed))}, "
+        f"duplicated {sorted(spec for spec in set(listed) if listed.count(spec) > 1)}, "
+        f"unknown {sorted(set(listed) - set(on_disk))}"
     )
     assert [entry["name"] for entry in include] == [
         *(f"main-{i}of{count}" for i in range(1, count + 1)),

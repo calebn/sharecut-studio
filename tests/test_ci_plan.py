@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "test.yml"
 cp = load_script("ci_plan", register=True)
 
-MAIN = ["main-1of4", "main-2of4", "main-3of4", "main-4of4"]
+MAIN = [f"main-{i}of{cp.MAIN_SHARDS}" for i in range(1, cp.MAIN_SHARDS + 1)]
 PR_E2E = ["main-smoke"]
 RELEASE_E2E = [*MAIN, "compat-webkit-1of3", "compat-webkit-2of3", "compat-webkit-3of3"]
 FULL_E2E = [*MAIN, "compat-chromium", "compat-webkit"]
@@ -50,6 +50,7 @@ GUI_PATTERNS = [
     "tests/fixtures/bootstrap_status/**",
     "scripts/ci_plan.py",
     "scripts/docs_sync.py",
+    "scripts/e2e_shards.py",
     "scripts/path_vocab.py",
     "scripts/export_capabilities_copy.py",
     "scripts/export_timeline_zoom.py",

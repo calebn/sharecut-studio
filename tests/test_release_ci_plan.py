@@ -289,7 +289,7 @@ def test_nightly_and_dispatch_are_full_even_with_release_proof(
         True,
         "full",
         False,
-        6,
+        cp.MAIN_SHARDS + 2,
     )
 
 
