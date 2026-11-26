@@ -8425,3 +8425,20 @@ html
   overflow: visible;
   overscroll-behavior: auto;
 }
+
+.timeline-presence-dot {
+  flex: none;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--sys-presence-color);
+}
+
+@media (forced-colors: active) {
+  .timeline-presence-dot {
+    --sys-presence-dot-edge: CanvasText;
+
+    background: none;
+    border: var(--space-1) solid var(--sys-presence-dot-edge);
+  }
+}
