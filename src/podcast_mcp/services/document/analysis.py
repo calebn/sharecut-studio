@@ -50,6 +50,14 @@ from podcast_mcp.services.document.fade_recommendation_results import (
     applied_fade_updates,
 )
 from podcast_mcp.services.document.loudness_results import LoudnessReport, build_loudness_report
+from podcast_mcp.services.document.retained_bleed_results import (
+    RetainedBleedAlignmentApplied,
+    RetainedBleedAlignmentModeResult,
+    RetainedBleedAlignmentPreview,
+    retained_bleed_applied,
+    retained_bleed_mode,
+    retained_bleed_preview,
+)
 from podcast_mcp.services.document.strip_silence_results import (
     StripSilenceResult,
     strip_silence_result,
@@ -402,6 +410,23 @@ class AnalysisService(AnalysisReportService):
             progress=progress,
         )
 
+    def _retained_bleed_plan(
+        self,
+        p: EpisodeProject,
+        track_id: str | None,
+        start_sec: float | None,
+        end_sec: float | None,
+        override_placement_lock: bool,
+    ) -> AlignmentPlan:
+        return plan_retained_bleed_alignment(
+            p,
+            track_id=track_id,
+            start_sec=start_sec,
+            end_sec=end_sec,
+            override_placement_lock=override_placement_lock,
+            defaults=self.ws.effective_config(),
+        )
+
     def align_retained_bleed(
         self,
         *,
@@ -411,30 +436,29 @@ class AnalysisService(AnalysisReportService):
         apply: bool = True,
         override_placement_lock: bool = False,
         lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
-    ) -> dict[str, Any]:
-        def plan(p: EpisodeProject) -> AlignmentPlan:
-            return plan_retained_bleed_alignment(
-                p,
+    ) -> RetainedBleedAlignmentPreview | RetainedBleedAlignmentApplied:
+        if not apply:
+            return self.preview_retained_bleed_alignment(
                 track_id=track_id,
                 start_sec=start_sec,
                 end_sec=end_sec,
                 override_placement_lock=override_placement_lock,
-                defaults=self.ws.effective_config(),
             )
 
-        if not apply:
-            return _alignment_preview(plan(self.ws.project))
-
         def mutate(p: EpisodeProject) -> dict[str, Any]:
-            result = apply_retained_bleed_alignment(p, plan(p), defaults=self.ws.effective_config())
+            plan = self._retained_bleed_plan(
+                p, track_id, start_sec, end_sec, override_placement_lock
+            )
+            result = apply_retained_bleed_alignment(p, plan, defaults=self.ws.effective_config())
             if result["applied_count"]:
                 rerender_preview(p, reconcile=False, defaults=self.ws.effective_config())
             return result
 
         with render_lock(self.ws.project, timeout=lock_timeout):
-            return self.ws.mutate(
+            out = self.ws.mutate(
                 "before retained bleed alignment", "after retained bleed alignment", mutate
             )
+        return retained_bleed_applied(out)
 
     def preview_retained_bleed_alignment(
         self,
@@ -443,14 +467,11 @@ class AnalysisService(AnalysisReportService):
         start_sec: float | None = None,
         end_sec: float | None = None,
         override_placement_lock: bool = False,
-    ) -> dict[str, Any]:
-        return self.align_retained_bleed(
-            track_id=track_id,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            apply=False,
-            override_placement_lock=override_placement_lock,
+    ) -> RetainedBleedAlignmentPreview:
+        plan = self._retained_bleed_plan(
+            self.ws.project, track_id, start_sec, end_sec, override_placement_lock
         )
+        return retained_bleed_preview(_alignment_preview(plan))
 
     def set_bleed_alignment_mode(
         self,
@@ -461,7 +482,7 @@ class AnalysisService(AnalysisReportService):
         start_sec: float | None = None,
         end_sec: float | None = None,
         override_placement_lock: bool = False,
-    ) -> dict[str, Any]:
+    ) -> RetainedBleedAlignmentModeResult:
         def mutate(p: EpisodeProject) -> dict[str, Any]:
             proposal = None
             if not any(d.id == decision_id for d in p.editorial.retained_bleed_alignments):
@@ -478,9 +499,10 @@ class AnalysisService(AnalysisReportService):
                 )
             return set_retained_bleed_alignment_mode(p, decision_id, mode, proposal=proposal)
 
-        return self.ws.mutate(
+        out = self.ws.mutate(
             "before bleed alignment choice", "after bleed alignment choice", mutate
         )
+        return retained_bleed_mode(out)
 
     def apply_bleed_mute(
         self,

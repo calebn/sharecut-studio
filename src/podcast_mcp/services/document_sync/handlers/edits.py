@@ -334,13 +334,17 @@ def suppress_low_audibility(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str
 
 
 def set_bleed_alignment_mode(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return AnalysisService(ws).set_bleed_alignment_mode(
-        str(p["decision_id"]),
-        p["mode"],
-        track_id=p.get("track_id"),
-        start_sec=p.get("start_sec"),
-        end_sec=p.get("end_sec"),
-        override_placement_lock=p.get("override_placement_lock") is True,
+    return (
+        AnalysisService(ws)
+        .set_bleed_alignment_mode(
+            str(p["decision_id"]),
+            p["mode"],
+            track_id=p.get("track_id"),
+            start_sec=p.get("start_sec"),
+            end_sec=p.get("end_sec"),
+            override_placement_lock=p.get("override_placement_lock") is True,
+        )
+        .model_dump()
     )
 
 
