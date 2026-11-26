@@ -37,7 +37,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Audition Full mix / Edited stems / Original | session | `transport.audition` | — (not industry-standard; Full mix/Edited stems/Original toggle) | — | `transport.audition` | — | — | `podcast-play-audition` | — | anchor · hear |
 | Hear the original while held | session | `transport.hearOriginal` | `A` | — | — | — | — | — | — | none · none |
 | Follow | session | `presence.follow` | — (not industry-standard; avatar click) | — | `presence.avatarStack` | `get_session_presence_tool` | — | — | — | none · none |
-| Go to where they are | session | `presence.goTo` | — (not industry-standard; avatar menu) | — | `presence.goTo` | — | — (viewer navigation: an agent has no viewport to move) | — | — | none · none |
+| Go to where they are | session | `presence.goTo` | — (not industry-standard; avatar menu) | — | `presence.goTo`, `presence.flag` | — | — (viewer navigation: an agent has no viewport to move) | — | — | none · none |
 | Stop following | session | `presence.unfollow` | `Escape` | — | `presence.followPill` | — | — | — | — | none · none |
 | Clear selection | session | `edit.clearSelection` | `Escape` | — | `scriptHeader`, `actionBar.clearSelection` | — | — | — | — | none · none |
 | Dismiss message | session | `feedback.dismiss` | `Escape` | — | — | — | — | — | — | — |

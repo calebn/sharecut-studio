@@ -2,15 +2,19 @@ import {
   memo,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { execute } from "../commands/execute";
+import { disambiguatedNames } from "../presence/colors";
 import {
   isObservingClient,
   remotePlayheadSec,
   serverNowMs,
 } from "../presence/followSync";
+import { planGoTo } from "../presence/goToPlan";
 import {
   type PresencePerson,
   presencePeople,
@@ -20,6 +24,7 @@ import {
   presenceIdsKey,
   useLivePresenceClients,
 } from "../presence/useLivePresenceClients";
+import { usePresenceViewer } from "../presence/usePresenceViewer";
 import { useStableList } from "../presence/useStableList";
 import { useDawStore } from "../state/dawStore";
 import { laneRows } from "../system/laneMath";
@@ -36,7 +41,9 @@ import { useRem } from "../system/useRem";
 import type { SessionClient } from "../types/session";
 import { RULER_HEIGHT } from "../utils/layout";
 import { roleBubbleUp } from "../utils/roleBubble";
+import { useStableCallback } from "../utils/useStableCallback";
 import { presenceSelections } from "./presenceSelections";
+import { usePresenceGroup } from "./usePresenceGroup";
 import { useRulerWindow } from "./useRulerWindow";
 
 type Props = {
@@ -244,11 +251,37 @@ export const TimelinePresence = memo(function TimelinePresence({
       ),
     [start, zoomPxPerSec, width, project?.timeline_duration_sec, rem],
   );
-  useEffect(() => {
+  useLayoutEffect(() => {
     const { rulerCovered, setRulerCovered } = useDawStore.getState();
     setRulerCovered(coveredTicks(ticks, flags, rem, rulerCovered));
   }, [ticks, flags, rem]);
-  useEffect(() => () => useDawStore.getState().setRulerCovered(new Set()), []);
+  useLayoutEffect(
+    () => () => useDawStore.getState().setRulerCovered(new Set()),
+    [],
+  );
+  const viewer = usePresenceViewer();
+  const names = useMemo(() => disambiguatedNames(clients), [clients]);
+  const jumpKey = others
+    .filter(
+      (client) =>
+        planGoTo(client, viewer.caps, viewer.durationSec, viewer.stage)?.moves,
+    )
+    .map((client) => client.client_id)
+    .join("\n");
+  const jumpable = useMemo(
+    () => new Set(jumpKey === "" ? [] : jumpKey.split("\n")),
+    [jumpKey],
+  );
+  const goTo = useStableCallback((id: string) => {
+    void execute("presence.goTo", { clientId: id });
+  });
+  const { onGroup, menu } = usePresenceGroup({
+    flags,
+    jumpable,
+    names,
+    host,
+    onGoTo: goTo,
+  });
   const rows = useMemo(
     () =>
       laneRows(
@@ -265,14 +298,19 @@ export const TimelinePresence = memo(function TimelinePresence({
       style={{ insetInlineStart: left, inlineSize: width }}
     >
       <Presence
-        people={people}
+        flags={flags}
         selections={selections}
         rows={rows}
         followed={followingClientId}
         start={start}
         pxPerSecond={zoomPxPerSec}
         width={width}
+        hit={hit}
+        jumpable={jumpable}
+        onGoTo={goTo}
+        onGroup={onGroup}
       />
+      {menu}
     </div>
   );
 });

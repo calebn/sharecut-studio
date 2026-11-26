@@ -1,6 +1,8 @@
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { memo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { execute } from "../commands/execute";
 import {
   resetServerClock,
   setServerClockOffsetForTests,
@@ -19,6 +21,10 @@ import { TimelinePresence } from "./TimelinePresence";
 import { TimelineRuler } from "./TimelineRuler";
 
 const leafRenders = vi.hoisted(() => vi.fn());
+
+vi.mock("../commands/execute", () => ({
+  execute: vi.fn(async () => ({ status: "ok" })),
+}));
 
 vi.mock("../system/Presence", async () => {
   const actual =
@@ -97,7 +103,10 @@ const persons = (c: HTMLElement) => [
 ];
 const xOf = (el: HTMLElement) => el.style.getPropertyValue("--sys-presence-x");
 
-beforeEach(() => leafRenders.mockClear());
+beforeEach(() => {
+  leafRenders.mockClear();
+  vi.mocked(execute).mockClear();
+});
 
 afterEach(() => {
   setRoleBubbleUp(false);
@@ -105,6 +114,8 @@ afterEach(() => {
   cleanup();
   useDawStore.setState({
     rulerCovered: new Set(),
+    pointerKind: "fine",
+    guestMode: null,
     localClientId: null,
     sessionClients: sessionRoster([]),
     statusAnnouncement: "",
@@ -122,7 +133,9 @@ describe("TimelinePresence", () => {
     const lines = persons(container);
     expect(lines).toHaveLength(1);
     expect(xOf(lines[0]!)).toBe("20px");
-    expect(lines[0]!.textContent).toBe("B");
+    expect(container.querySelector(".sys-presence-flag")?.textContent).toBe(
+      "B",
+    );
     act(() => useDawStore.setState({ sessionClients: sessionRoster([]) }));
     expect(persons(container)).toHaveLength(0);
     expect(container.querySelector(".sys-presence")).not.toBeNull();
@@ -211,6 +224,200 @@ describe("TimelinePresence", () => {
       );
       unmount();
     }
+  });
+
+  describe("flags you can press", () => {
+    const pill = (c: HTMLElement) =>
+      c.querySelector<HTMLElement>("button.sys-presence-hit");
+    const crowd = () =>
+      seed([
+        remote("bea", { playhead_sec: 2 }),
+        remote("cy", { playhead_sec: 2.1 }),
+        remote("di", { playhead_sec: 2.2 }),
+      ]);
+
+    it("jumps to a single person on click", async () => {
+      seed([remote("bea")]);
+      const { container } = render(<Host />);
+      await userEvent.click(pill(container)!);
+      expect(execute).toHaveBeenCalledExactlyOnceWith("presence.goTo", {
+        clientId: "bea",
+      });
+    });
+
+    it("is a plain mark, with no button, where the link cannot open where they are", () => {
+      seed([
+        remote("bea", {
+          meta: { display_name: "BEA", ui: { tab: "history" } },
+        }),
+      ]);
+      useDawStore.setState({ guestMode: "view" });
+      const { container } = render(<Host />);
+      expect(container.querySelector(".sys-presence-flag")).not.toBeNull();
+      expect(container.querySelector("button")).toBeNull();
+    });
+
+    it("is a button for a guest whose link can open where they are", () => {
+      useDawStore.setState({ guestMode: "view" });
+      seed([remote("bea")]);
+      const { container } = render(<Host />);
+      expect(pill(container)).not.toBeNull();
+    });
+
+    it("sizes the press area from the pointer in use: 24 px for a mouse, 44 px for a finger", () => {
+      seed([remote("bea")]);
+      const { container, rerender } = render(<Host />);
+      const side = () =>
+        pill(container)!.style.getPropertyValue("--sys-presence-hit-w");
+      expect(side()).toBe("24px");
+      act(() => useDawStore.setState({ pointerKind: "coarse" }));
+      rerender(<Host />);
+      expect(side()).toBe("44px");
+    });
+
+    it("merges people whose press areas overlap into one +N flag", () => {
+      crowd();
+      const { container } = render(<Host />);
+      expect(container.querySelectorAll(".sys-presence-line")).toHaveLength(3);
+      expect(pill(container)).toHaveTextContent("+3");
+    });
+
+    it("opens a menu of the people beside the overlay, not inside it, and jumps from a row", async () => {
+      crowd();
+      const { container } = render(<Host />);
+      await userEvent.click(pill(container)!);
+      const menu = await screen.findByRole("menu", {
+        name: "3 people near 0:02",
+      });
+      expect(menu.closest("[aria-hidden='true']")).toBeNull();
+      expect(menu.closest(".sys-presence")).toBeNull();
+      const rows = within(menu).getAllByRole("menuitem");
+      expect(rows.map((row) => row.textContent)).toEqual([
+        "BEA0:02",
+        "CY0:02",
+        "DI0:02",
+      ]);
+      await userEvent.click(rows[1]!);
+      expect(execute).toHaveBeenCalledExactlyOnceWith("presence.goTo", {
+        clientId: "cy",
+      });
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+
+    it("keeps the rows it opened with while the flag moves on, and closes when fewer than two remain", async () => {
+      crowd();
+      const { container } = render(
+        <>
+          <TimelineRuler
+            canvasWidthPx={600}
+            viewportPx={300}
+            sessionSec={60}
+            zoomPxPerSec={10}
+            fixedPlayhead={false}
+            onSeek={vi.fn()}
+            onFit={vi.fn()}
+          />
+          <Host />
+        </>,
+      );
+      await userEvent.click(pill(container)!);
+      await screen.findByRole("menu");
+      act(() =>
+        useDawStore.setState({
+          sessionClients: sessionRoster([
+            { client_id: "me", role: "viewer", playhead_sec: 1 },
+            remote("bea", { playhead_sec: 2 }),
+            remote("cy", { playhead_sec: 2.1 }),
+            remote("di", { playhead_sec: 40 }),
+          ]),
+        }),
+      );
+      expect(
+        within(screen.getByRole("menu")).getAllByRole("menuitem"),
+      ).toHaveLength(3);
+      act(() =>
+        useDawStore.setState({
+          sessionClients: sessionRoster([
+            { client_id: "me", role: "viewer", playhead_sec: 1 },
+            remote("bea", { playhead_sec: 2 }),
+            remote("cy", { playhead_sec: 40 }),
+            remote("di", { playhead_sec: 90 }),
+          ]),
+        }),
+      );
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(document.activeElement).toBe(
+        container.querySelector(".sys-ruler-body"),
+      );
+    });
+
+    it("closes on Escape and returns focus to the flag", async () => {
+      crowd();
+      const { container } = render(<Host />);
+      await userEvent.click(pill(container)!);
+      await screen.findByRole("menu");
+      await userEvent.keyboard("{Escape}");
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(document.activeElement).toBe(pill(container));
+    });
+
+    it("closes on a press outside, and a press on its own flag closes it rather than reopening", async () => {
+      crowd();
+      const { container } = render(
+        <>
+          <button type="button">elsewhere</button>
+          <Host />
+        </>,
+      );
+      await userEvent.click(pill(container)!);
+      await screen.findByRole("menu");
+      await userEvent.click(screen.getByRole("button", { name: "elsewhere" }));
+      expect(screen.queryByRole("menu")).toBeNull();
+      await userEvent.click(pill(container)!);
+      await screen.findByRole("menu");
+      await userEvent.click(pill(container)!);
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+
+    it("lists only the people the link can open where they are", async () => {
+      seed([
+        remote("bea", { playhead_sec: 2 }),
+        remote("cy", {
+          playhead_sec: 2.1,
+          meta: { display_name: "CY", ui: { tab: "history" } },
+        }),
+      ]);
+      useDawStore.setState({ guestMode: "view" });
+      const { container } = render(<Host />);
+      await userEvent.click(pill(container)!);
+      const menu = await screen.findByRole("menu");
+      expect(within(menu).getAllByRole("menuitem")).toHaveLength(1);
+    });
+
+    it("fades the ruler label under a flag, and publishes the set only when it changes", () => {
+      seed([remote("bea", { playhead_sec: 10 })]);
+      render(<Host canvasWidthPx={9600} />);
+      expect(useDawStore.getState().rulerCovered.size).toBeGreaterThan(0);
+      const first = useDawStore.getState().rulerCovered;
+      act(() =>
+        useDawStore.setState({
+          sessionClients: sessionRoster([
+            { client_id: "me", role: "viewer", playhead_sec: 1 },
+            remote("bea", { playhead_sec: 10.1 }),
+          ]),
+        }),
+      );
+      expect(useDawStore.getState().rulerCovered).toBe(first);
+      act(() =>
+        useDawStore.setState({
+          sessionClients: sessionRoster([
+            { client_id: "me", role: "viewer", playhead_sec: 1 },
+            remote("bea", { playhead_sec: 14 }),
+          ]),
+        }),
+      );
+      expect(useDawStore.getState().rulerCovered.size).toBe(0);
+    });
   });
 
   describe("announcer", () => {
@@ -338,13 +545,18 @@ describe("TimelinePresence", () => {
       });
       expect(leafRenders).not.toHaveBeenCalled();
       expect(leafRenders.mock.calls).toHaveLength(0);
-      expect(before.people).toHaveLength(2);
+      expect(
+        before.flags.flatMap((f: { people: unknown[] }) => f.people),
+      ).toHaveLength(2);
     });
 
-    it("a change of one client's name renders the leaf once and leaves the others' people as they were", () => {
-      seed([remote("a"), remote("b")]);
+    it("a change of one client's name renders the leaf once and leaves the other's flag as it was by value", () => {
+      seed([
+        remote("a", { playhead_sec: 1 }),
+        remote("b", { playhead_sec: 30 }),
+      ]);
       render(<Host />);
-      const before = leafRenders.mock.lastCall![0].people;
+      const before = leafRenders.mock.lastCall![0].flags;
       leafRenders.mockClear();
       act(() => {
         useDawStore
@@ -352,11 +564,13 @@ describe("TimelinePresence", () => {
           .applyPresenceDelta("a", { meta: { display_name: "A2" } }, 5);
       });
       expect(leafRenders).toHaveBeenCalledTimes(1);
-      const after = leafRenders.mock.lastCall![0].people;
-      expect(after.find((p: { id: string }) => p.id === "b")).toBe(
-        before.find((p: { id: string }) => p.id === "b"),
+      const after = leafRenders.mock.lastCall![0].flags;
+      expect(after.find((f: { key: string }) => f.key === "b")).toEqual(
+        before.find((f: { key: string }) => f.key === "b"),
       );
-      expect(after.find((p: { id: string }) => p.id === "a").name).toBe("A2");
+      expect(
+        after.find((f: { key: string }) => f.key === "a").people[0].name,
+      ).toBe("A2");
     });
 
     it("a project edit that no selection reads re-renders nothing", () => {

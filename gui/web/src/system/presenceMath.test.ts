@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   coveredTicks,
   FLAG_PX,
-  flagSide,
   type PresenceFlag,
   playheadVisible,
   presenceFlags,
@@ -33,16 +32,6 @@ describe("playheadVisible", () => {
     expect(playheadVisible(-6.5, 360)).toBe(false);
     expect(playheadVisible(366, 360)).toBe(true);
     expect(playheadVisible(366.5, 360)).toBe(false);
-  });
-});
-
-describe("flagSide", () => {
-  it("flips left when the flag would pass the right edge", () => {
-    expect(FLAG_PX).toBe(16);
-    expect(flagSide(350, 360)).toBe("left");
-    expect(flagSide(100, 360)).toBe("right");
-    expect(flagSide(344, 360)).toBe("right");
-    expect(flagSide(345, 360)).toBe("left");
   });
 });
 
@@ -127,15 +116,18 @@ describe("presenceHitPx", () => {
   });
 });
 
-describe("flagSide with a width", () => {
-  it("flips a wider flag sooner", () => {
-    expect(flagSide(340, 360, 22)).toBe("left");
-    expect(flagSide(338, 360, 22)).toBe("right");
-    expect(flagSide(344, 360)).toBe("right");
-  });
-});
-
 describe("presenceFlags", () => {
+  it("draws a single flag 16 px wide and flips it left of a line within 16 px of the right edge", () => {
+    expect(FLAG_PX).toBe(16);
+    const flip = (x: number) =>
+      presenceFlags(
+        [person("a", x / 24, "Ada")],
+        at(24, { width: 360, pxPerSecond: 24 }),
+      )[0]?.side;
+    expect(flip(344)).toBe("right");
+    expect(flip(345)).toBe("left");
+  });
+
   it("makes one flag for one person, right of its line", () => {
     const [flag, ...rest] = presenceFlags(
       [person("a", 10, "Ada Lovelace")],

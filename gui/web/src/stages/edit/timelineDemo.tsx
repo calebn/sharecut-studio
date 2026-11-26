@@ -1,4 +1,4 @@
-import { type CSSProperties, useRef, useState } from "react";
+import { type CSSProperties, useMemo, useRef, useState } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../../presence/anchors";
 import { Clip } from "../../system/Clip";
 import { Envelope, type EnvelopePointData } from "../../system/Envelope";
@@ -13,8 +13,10 @@ import {
   type PresenceSelection,
 } from "../../system/Presence";
 import { VOICE_PEAKS } from "../../system/prepareFixtures";
+import { usePresenceDemo } from "../../system/presenceStoryHost";
 import { Ruler } from "../../system/Ruler";
 import { TrackHeader, type TrackHeaderForm } from "../../system/TrackHeader";
+import { usePresenceGroup } from "../../timeline/usePresenceGroup";
 import { MARKER_ROW_HEIGHT, RULER_HEIGHT } from "../../utils/layout";
 import { DEMO_TRACKS } from "./tracksFixtures";
 
@@ -57,6 +59,8 @@ export type TimelineProps = {
   /** Maya's volume envelope, drawn over her lane; none draws no envelope. */
   envelope?: readonly EnvelopePointData[];
   envelopeSelected?: string | null;
+  /** Whether this viewer's link can open where someone is: false is a guest's, whose flags are plain marks. */
+  canGoTo?: boolean;
 };
 
 /**
@@ -65,7 +69,15 @@ export type TimelineProps = {
  * all, the presence overlay. Every part takes the same `start`,
  * `pxPerSecond` and `width`, so a time lands at the same x in all of them.
  */
-export function Timeline({
+export function Timeline(props: TimelineProps) {
+  return (
+    <div style={stage}>
+      <Measured>{(whole) => <Stack {...props} whole={whole} />}</Measured>
+    </div>
+  );
+}
+
+function Stack({
   form = "default",
   pxPerSecond = 24,
   start = 0,
@@ -77,159 +89,180 @@ export function Timeline({
   selectedClip,
   envelope,
   envelopeSelected = null,
-}: TimelineProps) {
+  canGoTo = true,
+  whole,
+}: TimelineProps & { whole: number }) {
   const [clip, setClip] = useState(selectedClip);
   const [points, setPoints] = useState(envelope);
   const [picked, setPicked] = useState(envelopeSelected);
   const before = useRef<readonly EnvelopePointData[] | null>(null);
   const headerPx = HEADER_PX[form];
+  const width = Math.max(whole - headerPx, 1);
+  const windowStart = fixedPlayhead
+    ? windowStartFor(playhead, pxPerSecond, width)
+    : start;
+  const { flags, hit, covered } = usePresenceDemo({
+    people,
+    followed,
+    start: windowStart,
+    pxPerSecond,
+    width,
+    duration: EPISODE_SECONDS,
+  });
+  const column = useRef<HTMLDivElement>(null);
+  const jumpable = useMemo(
+    () => new Set(canGoTo ? people.map((person) => person.id) : []),
+    [canGoTo, people],
+  );
+  const names = useMemo(
+    () => new Map(people.map((person) => [person.id, person.name])),
+    [people],
+  );
+  const { onGroup, menu } = usePresenceGroup({
+    flags,
+    jumpable,
+    names,
+    host: column,
+    onGoTo: noop,
+  });
   return (
-    <div style={stage}>
-      <Measured>
-        {(whole) => {
-          const width = Math.max(whole - headerPx, 1);
-          const windowStart = fixedPlayhead
-            ? windowStartFor(playhead, pxPerSecond, width)
-            : start;
-          return (
-            <div style={frame}>
-              <div style={{ flex: "none", inlineSize: headerPx }}>
-                <div style={{ blockSize: RULER_HEIGHT + MARKER_ROW_HEIGHT }} />
-                {LANES.map((track) => (
-                  <div
-                    key={track.id}
-                    style={{ display: "flex", blockSize: track.height }}
-                  >
-                    <TrackHeader
-                      id={track.id}
-                      name={track.name}
-                      colorIndex={track.colorIndex}
-                      form={form}
-                      level={track.level ?? 0}
-                      onSelect={noop}
-                      onMute={noop}
-                      onSolo={noop}
-                      onLevel={noop}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div
-                data-testid="time-column"
-                style={{
-                  position: "relative",
-                  flex: "none",
-                  inlineSize: width,
-                }}
-              >
-                <Ruler
-                  start={windowStart}
-                  pxPerSecond={pxPerSecond}
-                  width={width}
-                  duration={EPISODE_SECONDS}
-                  playhead={playhead}
-                  anchorProps={presenceAnchorProps(presenceAnchor("ruler"))}
-                  onSeek={noop}
-                />
-                <MarkerLane
-                  markers={ALL_KINDS}
-                  authoritativeMarkers={ALL_KINDS}
-                  start={windowStart}
-                  pxPerSecond={pxPerSecond}
-                  width={width}
-                  duration={EPISODE_SECONDS}
-                  anchorProps={presenceAnchorProps(presenceAnchor("markers"))}
-                  onSelect={noop}
-                />
-                {LANES.map((track) => (
-                  <Lane
-                    key={track.id}
-                    name={track.name}
-                    colorIndex={track.colorIndex}
-                    height={track.height}
-                    start={windowStart}
-                    pxPerSecond={pxPerSecond}
-                    width={width}
-                    anchorProps={presenceAnchorProps(
-                      presenceAnchor("track", track.id),
-                    )}
-                  >
-                    {track.clips.map((item) => (
-                      <LaneItem
-                        key={item.name}
-                        at={item.start}
-                        duration={item.duration}
-                      >
-                        <Clip
-                          {...item}
-                          id={item.name}
-                          colorIndex={track.colorIndex}
-                          pxPerSecond={pxPerSecond}
-                          peaks={VOICE_PEAKS}
-                          room={{ before: 1, after: 1 }}
-                          selected={clip === item.name}
-                          onSelect={setClip}
-                        />
-                      </LaneItem>
-                    ))}
-                    {points && track.id === ENVELOPE_TRACK ? (
-                      <Envelope
-                        points={points}
-                        trackName={track.name}
-                        colorIndex={track.colorIndex}
-                        start={windowStart}
-                        pxPerSecond={pxPerSecond}
-                        width={width}
-                        height={track.height}
-                        duration={EPISODE_SECONDS}
-                        selected={picked}
-                        onSelect={setPicked}
-                        onRemove={(id) => {
-                          setPoints((now) =>
-                            now?.filter((point) => point.id !== id),
-                          );
-                          setPicked(null);
-                        }}
-                        onDragStart={() => {
-                          before.current = points ?? null;
-                          return true;
-                        }}
-                        onDragEnd={(_id, committed) => {
-                          const held = before.current;
-                          before.current = null;
-                          if (!committed && held) setPoints(held);
-                        }}
-                        onMove={(id, change) =>
-                          setPoints((now) =>
-                            now?.map((point) =>
-                              point.id === id
-                                ? {
-                                    ...point,
-                                    time: change.timeSeconds ?? point.time,
-                                    db: change.db ?? point.db,
-                                  }
-                                : point,
-                            ),
-                          )
-                        }
-                      />
-                    ) : null}
-                  </Lane>
-                ))}
-                <Presence
-                  people={people}
-                  selections={selections}
-                  rows={ROWS}
-                  followed={followed}
-                  start={windowStart}
-                  pxPerSecond={pxPerSecond}
-                  width={width}
-                />
-              </div>
-            </div>
-          );
+    <div style={frame}>
+      <div style={{ flex: "none", inlineSize: headerPx }}>
+        <div style={{ blockSize: RULER_HEIGHT + MARKER_ROW_HEIGHT }} />
+        {LANES.map((track) => (
+          <div
+            key={track.id}
+            style={{ display: "flex", blockSize: track.height }}
+          >
+            <TrackHeader
+              id={track.id}
+              name={track.name}
+              colorIndex={track.colorIndex}
+              form={form}
+              level={track.level ?? 0}
+              onSelect={noop}
+              onMute={noop}
+              onSolo={noop}
+              onLevel={noop}
+            />
+          </div>
+        ))}
+      </div>
+      <div
+        ref={column}
+        data-testid="time-column"
+        style={{
+          position: "relative",
+          flex: "none",
+          inlineSize: width,
         }}
-      </Measured>
+      >
+        <Ruler
+          start={windowStart}
+          pxPerSecond={pxPerSecond}
+          width={width}
+          duration={EPISODE_SECONDS}
+          playhead={playhead}
+          covered={covered}
+          anchorProps={presenceAnchorProps(presenceAnchor("ruler"))}
+          onSeek={noop}
+        />
+        <MarkerLane
+          markers={ALL_KINDS}
+          authoritativeMarkers={ALL_KINDS}
+          start={windowStart}
+          pxPerSecond={pxPerSecond}
+          width={width}
+          duration={EPISODE_SECONDS}
+          anchorProps={presenceAnchorProps(presenceAnchor("markers"))}
+          onSelect={noop}
+        />
+        {LANES.map((track) => (
+          <Lane
+            key={track.id}
+            name={track.name}
+            colorIndex={track.colorIndex}
+            height={track.height}
+            start={windowStart}
+            pxPerSecond={pxPerSecond}
+            width={width}
+            anchorProps={presenceAnchorProps(presenceAnchor("track", track.id))}
+          >
+            {track.clips.map((item) => (
+              <LaneItem
+                key={item.name}
+                at={item.start}
+                duration={item.duration}
+              >
+                <Clip
+                  {...item}
+                  id={item.name}
+                  colorIndex={track.colorIndex}
+                  pxPerSecond={pxPerSecond}
+                  peaks={VOICE_PEAKS}
+                  room={{ before: 1, after: 1 }}
+                  selected={clip === item.name}
+                  onSelect={setClip}
+                />
+              </LaneItem>
+            ))}
+            {points && track.id === ENVELOPE_TRACK ? (
+              <Envelope
+                points={points}
+                trackName={track.name}
+                colorIndex={track.colorIndex}
+                start={windowStart}
+                pxPerSecond={pxPerSecond}
+                width={width}
+                height={track.height}
+                duration={EPISODE_SECONDS}
+                selected={picked}
+                onSelect={setPicked}
+                onRemove={(id) => {
+                  setPoints((now) => now?.filter((point) => point.id !== id));
+                  setPicked(null);
+                }}
+                onDragStart={() => {
+                  before.current = points ?? null;
+                  return true;
+                }}
+                onDragEnd={(_id, committed) => {
+                  const held = before.current;
+                  before.current = null;
+                  if (!committed && held) setPoints(held);
+                }}
+                onMove={(id, change) =>
+                  setPoints((now) =>
+                    now?.map((point) =>
+                      point.id === id
+                        ? {
+                            ...point,
+                            time: change.timeSeconds ?? point.time,
+                            db: change.db ?? point.db,
+                          }
+                        : point,
+                    ),
+                  )
+                }
+              />
+            ) : null}
+          </Lane>
+        ))}
+        <Presence
+          flags={flags}
+          selections={selections}
+          rows={ROWS}
+          followed={followed}
+          start={windowStart}
+          pxPerSecond={pxPerSecond}
+          width={width}
+          hit={hit}
+          jumpable={jumpable}
+          onGoTo={noop}
+          onGroup={onGroup}
+        />
+        {menu}
+      </div>
     </div>
   );
 }
