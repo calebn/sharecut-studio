@@ -83,6 +83,14 @@ const STORYBOOK_ONLY_IDS = [
   "stages-edit-speakerpopover--open",
   "stages-edit-savesegmentcard--open",
   "stages-edit-insertsegmentcard--open",
+  "stages-home-segmentimportpreview--adding",
+  "stages-home-segmentimportpreview--adds",
+  "stages-home-segmentimportpreview--adds-as-new-version",
+  "stages-home-segmentimportpreview--already-in-library",
+  "stages-home-segmentimportpreview--busy-library",
+  "stages-home-segmentimportpreview--checking",
+  "stages-home-segmentimportpreview--phone",
+  "stages-home-segmentimportpreview--refused",
 ];
 
 const storybookOnly = stories.filter(isStorybookOnly);
