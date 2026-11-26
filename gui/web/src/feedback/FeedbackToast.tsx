@@ -30,12 +30,12 @@ import {
 import { claimTopLayerFloor } from "../ui/topLayerFloor";
 import { errorMessage, isPermanentRejection } from "../utils/apiError";
 import { plainError } from "../utils/plainError";
+import { entryUndone } from "./entryUndone";
 import {
   FEEDBACK_FOCUS_ATTRIBUTE,
   hasValidFocusedFeedbackAction,
   isValidFeedbackAction,
 } from "./feedbackActionFocus";
-import { entryUndone } from "./entryUndone";
 import { useToastDock } from "./toastDock";
 
 /** Safari reports a fully shown card a hair under 1 at fractional zoom or toolbar heights. */
