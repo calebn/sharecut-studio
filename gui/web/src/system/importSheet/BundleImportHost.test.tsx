@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as kitsApi from "../../api/kits";
 import * as segmentsApi from "../../api/segments";
@@ -22,6 +23,7 @@ import { deferred } from "../../test/deferred";
 import { stubViewportShell } from "../../test/viewportShell";
 import { zipFile } from "../../test/zipFile";
 import { ApiError } from "../../utils/apiError";
+import { useBundleImport } from "./BundleImportContext";
 import { BundleImportHost } from "./BundleImportHost";
 
 vi.mock("../../api/segments", async (importOriginal) => ({
@@ -373,7 +375,7 @@ describe("drop anywhere on the window", () => {
     },
   );
 
-  it("imports the bundle in a mixed drop and says the audio was not added", async () => {
+  it("imports the bundle in a mixed drop and says inside the sheet that the audio was not added", async () => {
     const onFiles = vi.fn();
     function Both({ state }: { state: ReturnType<typeof libraries> }) {
       useWindowFileDrop(true, onFiles);
@@ -383,14 +385,42 @@ describe("drop anywhere on the window", () => {
     render(<Both state={state} />);
     const wav = new File(["x"], "take.wav", { type: "audio/wav" });
     dropOn(document.body, [wav, KIT_FILE()]);
-    await screen.findByRole("dialog", { name: "Import a kit" });
-    expect(announced()).toBe(
+    const sheet = await screen.findByRole("dialog", { name: "Import a kit" });
+    expect(within(sheet).getByRole("alert")).toHaveTextContent(
       "Audio in the same drop wasn't added. Drop it on its own.",
     );
+    expect(useDawStore.getState().feedbackToast).toBeNull();
     expect(onFiles).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     dropOn(document.body, [wav]);
     expect(onFiles).toHaveBeenCalledWith([wav]);
+    dropOn(document.body, [KIT_FILE()]);
+    const again = await screen.findByRole("dialog", { name: "Import a kit" });
+    expect(within(again).queryByRole("alert")).toBeNull();
+  });
+
+  it("does not say the audio was left out when the bundle was refused", async () => {
+    const pending = deferred<kitsApi.KitImportPreview>();
+    previewKit.mockReturnValueOnce(pending.promise);
+    const state = libraries();
+    render(<Mounted state={state} />);
+    dropOn(document.body, [KIT_FILE()]);
+    await screen.findByRole("dialog", { name: "Import a kit" });
+    const wav = new File(["x"], "take.wav", { type: "audio/wav" });
+    dropOn(document.body, [wav, SEGMENT_FILE()]);
+    await waitFor(() =>
+      expect(announced()).toMatch(/Wait for the library to finish/),
+    );
+    await act(async () => pending.resolve(waitingKit()));
+    const sheet = await screen.findByRole("dialog", { name: "Import a kit" });
+    expect(within(sheet).queryByText(/Audio in the same drop/)).toBeNull();
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: "Cancel" }),
+    );
+    dropOn(document.body, [wav, zipFile("notes.zip", ["notes.txt"])]);
+    await waitFor(() => expect(announced()).toMatch(/isn't a segment or kit/));
+    expect(screen.queryByText(/Audio in the same drop/)).toBeNull();
   });
 
   it("says nothing about audio when the bundle comes with other files only", async () => {
@@ -498,6 +528,24 @@ describe("a guest", () => {
     expect(previewSegment).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("mounts no picker, no controls and no sheet", () => {
+    let seen: unknown = "unset";
+    function Probe() {
+      seen = useBundleImport();
+      return <p>Probe</p>;
+    }
+    const state = libraries();
+    const view = render(
+      <BundleImportHost segments={state.segments} kits={state.kits}>
+        <Probe />
+      </BundleImportHost>,
+    );
+    expect(seen).toBeNull();
+    expect(view.container.innerHTML).toBe("<p>Probe</p>");
+    expect(document.querySelector("input[type=file]")).toBeNull();
+    expect(document.body.querySelectorAll("[role=dialog]")).toHaveLength(0);
+  });
 });
 
 describe("the list's own drop", () => {
@@ -512,5 +560,237 @@ describe("the list's own drop", () => {
     });
     await screen.findByRole("dialog", { name: "Import a kit" });
     expect(previewKit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("choosing another file", () => {
+  it("works when no list rendered an Import button", async () => {
+    const state = libraries();
+    previewKit.mockRejectedValueOnce(
+      new ApiError("Not a kit.", "kit_bundle_invalid", 422),
+    );
+    const view = render(
+      <BundleImportHost segments={state.segments} kits={state.kits}>
+        <p>Nothing here yet</p>
+      </BundleImportHost>,
+    );
+    expect(screen.queryByRole("button", { name: "Import" })).toBeNull();
+    dropOn(document.body, [KIT_FILE()]);
+    const sheet = await screen.findByRole("dialog", { name: "Import a kit" });
+    await within(sheet).findByRole("alert");
+    const click = vi.spyOn(HTMLInputElement.prototype, "click");
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: "Choose another file" }),
+    );
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(picker(view.container)).toBe(click.mock.contexts[0]);
+    expect(picker(view.container).accept).toBe(
+      ".sharecutseg,.sharecutkit,application/zip",
+    );
+    await userEvent.upload(picker(view.container), KIT_FILE());
+    await waitFor(() => expect(previewKit).toHaveBeenCalledTimes(2));
+    const next = await screen.findByRole("dialog", { name: "Import a kit" });
+    await within(next).findByRole("button", { name: "Add to library" });
+  });
+
+  it("names the footer Close apart from the header Close on the error sheet", async () => {
+    previewKit.mockRejectedValueOnce(new ApiError("Nope.", "x_invalid", 422));
+    const state = libraries();
+    render(<Mounted state={state} />);
+    dropOn(document.body, [KIT_FILE()]);
+    const sheet = await screen.findByRole("dialog", { name: "Import a kit" });
+    await within(sheet).findByRole("alert");
+    expect(
+      within(sheet).getAllByRole("button", { name: "Close" }),
+    ).toHaveLength(1);
+    expect(
+      within(sheet).getByRole("button", { name: "Close import" }),
+    ).toHaveTextContent("Close");
+  });
+});
+
+describe("a status toast from the last import", () => {
+  const toast = () => useDawStore.getState().feedbackToast;
+
+  it.each([
+    ["preview", () => undefined],
+    [
+      "error",
+      () =>
+        previewKit.mockRejectedValueOnce(
+          new ApiError("Nope.", "x_invalid", 422),
+        ),
+    ],
+  ])("is cleared when the %s sheet opens", async (phase, arrange) => {
+    arrange();
+    const state = libraries();
+    render(<Mounted state={state} />);
+    act(() => {
+      useDawStore.getState().announceStatus("Added Intro to your library");
+    });
+    expect(toast()?.message).toBe("Added Intro to your library");
+    dropOn(document.body, [KIT_FILE()]);
+    await screen.findByRole("dialog", { name: "Import a kit" });
+    if (phase === "error") await screen.findByRole("alert");
+    await waitFor(() => expect(toast()).toBeNull());
+  });
+
+  it("is left alone while the file is only being checked", async () => {
+    const pending = deferred<kitsApi.KitImportPreview>();
+    previewKit.mockReturnValueOnce(pending.promise);
+    const state = libraries();
+    render(<Mounted state={state} />);
+    act(() => {
+      useDawStore.getState().announceStatus("Added Intro to your library");
+    });
+    dropOn(document.body, [KIT_FILE()]);
+    await screen.findByRole("dialog", { name: "Import a kit" });
+    expect(toast()).not.toBeNull();
+    await act(async () => pending.resolve(waitingKit()));
+    await waitFor(() => expect(toast()).toBeNull());
+  });
+});
+
+describe("focus after the sheet closes", () => {
+  it("goes back to the element that had it before the sheet opened", async () => {
+    const state = libraries();
+    render(
+      <BundleImportHost segments={state.segments} kits={state.kits}>
+        <button type="button">Elsewhere</button>
+      </BundleImportHost>,
+    );
+    const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+    elsewhere.focus();
+    dropOn(document.body, [KIT_FILE()]);
+    const sheet = await screen.findByRole("dialog", { name: "Import a kit" });
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: "Cancel" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(elsewhere).toHaveFocus());
+  });
+
+  it("goes to the main region, not the page, after the first import when no list was shown", async () => {
+    const state = libraries();
+    render(
+      <BundleImportHost segments={state.segments} kits={state.kits}>
+        <main>
+          <p>Your episodes will appear here.</p>
+        </main>
+      </BundleImportHost>,
+    );
+    dropOn(document.body, [KIT_FILE()]);
+    const sheet = await screen.findByRole("dialog", { name: "Import a kit" });
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: "Add to library" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(screen.getByRole("main")).toHaveFocus());
+    expect(document.body).not.toHaveFocus();
+  });
+
+  it("goes to the Import button when the opener is gone", async () => {
+    const state = libraries();
+    let hide: () => void = () => undefined;
+    function Opener() {
+      const [shown, setShown] = useState(true);
+      hide = () => setShown(false);
+      return shown ? <button type="button">Soon gone</button> : null;
+    }
+    render(
+      <BundleImportHost segments={state.segments} kits={state.kits}>
+        <Opener />
+        <SegmentLibrary library={state.segments} layout="list" />
+      </BundleImportHost>,
+    );
+    screen.getByRole("button", { name: "Soon gone" }).focus();
+    dropOn(document.body, [KIT_FILE()]);
+    const sheet = await screen.findByRole("dialog", { name: "Import a kit" });
+    act(() => hide());
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: "Cancel" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Import" })).toHaveFocus(),
+    );
+  });
+});
+
+describe("one sheet at a time, from either side", () => {
+  it("drops a waiting kit before showing a segment", async () => {
+    const state = libraries();
+    render(<Mounted state={state} />);
+    dropOn(document.body, [KIT_FILE()]);
+    await screen.findByRole("dialog", { name: "Import a kit" });
+    dropOn(document.body, [SEGMENT_FILE()]);
+    await screen.findByRole("dialog", { name: "Import a segment" });
+    expect(cancelKit).toHaveBeenCalledWith(KIT_TOKEN);
+    expect(screen.queryByRole("dialog", { name: "Import a kit" })).toBeNull();
+  });
+
+  it("drops a waiting segment before showing a kit", async () => {
+    const state = libraries();
+    render(<Mounted state={state} />);
+    dropOn(document.body, [SEGMENT_FILE()]);
+    await screen.findByRole("dialog", { name: "Import a segment" });
+    dropOn(document.body, [KIT_FILE()]);
+    await screen.findByRole("dialog", { name: "Import a kit" });
+    expect(cancelSegment).toHaveBeenCalledWith(waiting().token);
+    expect(
+      screen.queryByRole("dialog", { name: "Import a segment" }),
+    ).toBeNull();
+  });
+
+  it("refuses a kit while a segment is uploading", async () => {
+    const pending = deferred<segmentsApi.SegmentImportPreview>();
+    previewSegment.mockReturnValueOnce(pending.promise);
+    const state = libraries();
+    render(<Mounted state={state} />);
+    dropOn(document.body, [SEGMENT_FILE()]);
+    await screen.findByRole("dialog", { name: "Import a segment" });
+    dropOn(document.body, [KIT_FILE()]);
+    await waitFor(() =>
+      expect(announced()).toMatch(/Wait for the library to finish/),
+    );
+    expect(previewKit).not.toHaveBeenCalled();
+    await act(async () => pending.resolve(waiting()));
+  });
+});
+
+describe("what the host listens to", () => {
+  const dragEvent = (type: string, types: string[], files: File[] = []) => {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    const transfer = { files, types, dropEffect: "none" };
+    Object.assign(event, { dataTransfer: transfer });
+    act(() => {
+      document.body.dispatchEvent(event);
+    });
+    return { event, transfer };
+  };
+
+  it("does not take a text or link drag over the page", () => {
+    const state = libraries();
+    render(<Mounted state={state} />);
+    const over = dragEvent("dragover", ["text/plain", "text/uri-list"]);
+    expect(over.event.defaultPrevented).toBe(false);
+    expect(over.transfer.dropEffect).toBe("none");
+    const dropped = dragEvent("drop", ["text/plain"], [KIT_FILE()]);
+    expect(dropped.event.defaultPrevented).toBe(false);
+    expect(previewKit).not.toHaveBeenCalled();
+  });
+
+  it("takes the dragover of a file drag and offers a copy", () => {
+    const state = libraries();
+    render(<Mounted state={state} />);
+    const over = dragEvent("dragover", ["Files"]);
+    expect(over.event.defaultPrevented).toBe(true);
+    expect(over.transfer.dropEffect).toBe("copy");
+  });
+
+  it("stops listening to dragover when it unmounts", () => {
+    const state = libraries();
+    const view = render(<Mounted state={state} />);
+    view.unmount();
+    expect(dragEvent("dragover", ["Files"]).event.defaultPrevented).toBe(false);
   });
 });

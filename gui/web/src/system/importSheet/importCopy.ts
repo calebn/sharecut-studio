@@ -3,6 +3,7 @@ export const WAIT_TO_DROP =
 export const ADD_LABEL = "Add to library";
 export const CANCEL_LABEL = "Cancel";
 export const CLOSE_LABEL = "Close";
+export const CLOSE_IMPORT_LABEL = "Close import";
 export const CHOOSE_AGAIN_LABEL = "Choose another file";
 export const ADDING_LABEL = "Adding…";
 export const IMPORT_FAILED = "Couldn't import that file. Try again.";

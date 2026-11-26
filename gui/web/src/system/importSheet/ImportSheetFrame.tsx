@@ -7,10 +7,16 @@ import {
   ADDING_LABEL,
   CANCEL_LABEL,
   CHOOSE_AGAIN_LABEL,
+  CLOSE_IMPORT_LABEL,
   CLOSE_LABEL,
   checkingMessage,
 } from "./importCopy";
 import type { Staged, StagedImportState } from "./useStagedImport";
+
+/** The footer action that closes the sheet is named apart from the header's Close. */
+function closeName(label: string): string | undefined {
+  return label === CLOSE_LABEL ? CLOSE_IMPORT_LABEL : undefined;
+}
 
 /** The two buttons a waiting file offers; `primary` is null when there is nothing to add. */
 export type PreviewActions = { cancel: string; primary: string | null };
@@ -21,6 +27,8 @@ type Props<P extends Staged> = {
   onAdd: () => void;
   onCancel: () => void;
   onChooseAgain: () => void;
+  /** Something to tell the person while the sheet is open, such as audio left out of a drop. */
+  aside?: string | null;
   /** The body for a waiting file, while it waits and while it is being added. */
   renderPreview: (preview: P, notice: string | null) => ReactNode;
   actions: (preview: P) => PreviewActions;
@@ -28,7 +36,7 @@ type Props<P extends Staged> = {
 
 type FooterProps<P extends Staged> = Omit<
   Props<P>,
-  "title" | "renderPreview"
+  "title" | "renderPreview" | "aside"
 > & {
   primaryRef: RefObject<HTMLButtonElement | null>;
 };
@@ -44,7 +52,9 @@ function Footer<P extends Staged>({
   if (state.phase === "error") {
     return (
       <div className="sys-segment-actions">
-        <Button onClick={onCancel}>{CLOSE_LABEL}</Button>
+        <Button onClick={onCancel} aria-label={CLOSE_IMPORT_LABEL}>
+          {CLOSE_LABEL}
+        </Button>
         <Button variant="primary" ref={primaryRef} onClick={onChooseAgain}>
           {CHOOSE_AGAIN_LABEL}
         </Button>
@@ -63,7 +73,12 @@ function Footer<P extends Staged>({
   if (primary === null) {
     return (
       <div className="sys-segment-actions">
-        <Button variant="primary" ref={primaryRef} onClick={onCancel}>
+        <Button
+          variant="primary"
+          ref={primaryRef}
+          onClick={onCancel}
+          aria-label={closeName(cancel)}
+        >
           {cancel}
         </Button>
       </div>
@@ -73,6 +88,7 @@ function Footer<P extends Staged>({
     <div className="sys-segment-actions">
       <Button
         onClick={onCancel}
+        aria-label={closeName(cancel)}
         disabledReason={committing ? "Adding to your library." : undefined}
       >
         {cancel}
@@ -95,7 +111,7 @@ function Footer<P extends Staged>({
  * both. The kind of file only decides what the waiting body and its buttons say.
  */
 export function ImportSheetFrame<P extends Staged>(props: Props<P>) {
-  const { state, title, onCancel, renderPreview } = props;
+  const { state, title, onCancel, renderPreview, aside } = props;
   const primaryRef = useRef<HTMLButtonElement>(null);
   const phone = useViewportClass() === "phone";
   const cramped = useCrampedSheet();
@@ -144,6 +160,7 @@ export function ImportSheetFrame<P extends Staged>(props: Props<P>) {
       onClose={onCancel}
     >
       <div className="segment-import">
+        <InlineError message={aside ?? null} />
         {body}
         {pinned ? null : footer}
       </div>

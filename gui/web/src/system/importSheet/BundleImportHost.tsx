@@ -1,4 +1,12 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  type ChangeEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { audioFilesFromDrop } from "../../ingest/dropLabels";
 import { KitImportPreview } from "../../kits/KitImportPreview";
 import { useKitImport } from "../../kits/useKitImport";
@@ -12,6 +20,7 @@ import {
   type BundleImportControls,
 } from "./BundleImportContext";
 import {
+  IMPORT_ACCEPT,
   looksLikeBundle,
   NOT_A_BUNDLE_FILE,
   ONE_FILE_ONLY,
@@ -39,6 +48,13 @@ function refuse(message: string): void {
   useDawStore.getState().announceStatus(message, { tone: "error" });
 }
 
+/** The main region takes focus when nothing nearer is left to return it to. */
+function mainRegion(): HTMLElement | null {
+  const main = document.querySelector<HTMLElement>("main");
+  if (main && !main.hasAttribute("tabindex")) main.tabIndex = -1;
+  return main;
+}
+
 /**
  * Owns the segment and the kit import for the Library lists below it: one Import button
  * and drop take either kind of file, routed by what is inside, and the one sheet that
@@ -56,6 +72,8 @@ export function BundleImportHost({
   const kitsHeadingRef = useRef<HTMLElement>(null);
   const classifying = useRef(false);
   const wasImporting = useRef(false);
+  const opener = useRef<HTMLElement | null>(null);
+  const [aside, setAside] = useState<string | null>(null);
 
   const { reveal } = segments;
   const reloadKits = kits?.reload;
@@ -92,25 +110,52 @@ export function BundleImportHost({
   });
 
   useEffect(() => {
-    if (wasImporting.current && !importing)
-      (buttonRef.current ?? kitsHeadingRef.current)?.focus();
+    if (wasImporting.current && !importing) {
+      const before = opener.current;
+      opener.current = null;
+      setAside(null);
+      const target = before?.isConnected
+        ? before
+        : (buttonRef.current ?? kitsHeadingRef.current ?? mainRegion());
+      target?.focus();
+    }
     wasImporting.current = importing;
   }, [importing]);
+
+  // A status toast from the last import would sit over the buttons of the next sheet.
+  const segmentPhase = segmentImport.state.phase;
+  const kitPhase = kitImport.state.phase;
+  useEffect(() => {
+    const opens = [segmentPhase, kitPhase].some(
+      (phase) => phase === "preview" || phase === "error",
+    );
+    if (!opens) return;
+    const { feedbackToast, dismissFeedbackToast } = useDawStore.getState();
+    if (feedbackToast) dismissFeedbackToast(feedbackToast.id);
+  }, [segmentPhase, kitPhase]);
 
   const chooseSegment = segmentImport.choose;
   const chooseKit = kitImport.choose;
   const cancelSegment = segmentImport.cancel;
   const cancelKit = kitImport.cancel;
   const choose = useCallback(
-    (file: File) => {
+    (file: File, note?: string) => {
       if (busyRef.current || classifying.current) {
         refuse(WAIT_TO_DROP);
         return;
+      }
+      if (!wasImporting.current) {
+        const active = document.activeElement;
+        opener.current =
+          active instanceof HTMLElement && active !== document.body
+            ? active
+            : null;
       }
       classifying.current = true;
       void classifyBundle(file)
         .then((kind) => {
           // One sheet at a time: a waiting file of the other kind is dropped first.
+          if (kind !== "unknown") setAside(note ?? null);
           if (kind === "kit") {
             cancelSegment();
             chooseKit(file);
@@ -152,9 +197,10 @@ export function BundleImportHost({
       event.preventDefault();
       if (files.length > 1) refuse(ONE_FILE_ONLY);
       else {
-        latest.current(files[0] as File);
-        if (audioFilesFromDrop(dropped).length > 0)
-          useDawStore.getState().announceStatus(AUDIO_NOT_ADDED);
+        latest.current(
+          files[0] as File,
+          audioFilesFromDrop(dropped).length > 0 ? AUDIO_NOT_ADDED : undefined,
+        );
       }
     };
     document.addEventListener("dragover", over);
@@ -165,26 +211,44 @@ export function BundleImportHost({
     };
   }, [hosted, listening]);
 
+  const pick = useCallback(() => inputRef.current?.click(), []);
+  const onPicked = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) choose(file);
+  };
+
   const controls = useMemo<BundleImportControls>(
-    () => ({ choose, busy, inputRef, buttonRef, kitsHeadingRef }),
-    [choose, busy],
+    () => ({ choose, pick, busy, buttonRef, kitsHeadingRef }),
+    [choose, pick, busy],
   );
 
   if (!hosted) return <>{children}</>;
   return (
     <BundleImportContext.Provider value={controls}>
       {children}
+      <input
+        ref={inputRef}
+        type="file"
+        accept={IMPORT_ACCEPT}
+        hidden
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={onPicked}
+      />
       <SegmentImportPreview
         state={segmentImport.state}
         onAdd={segmentImport.add}
         onCancel={segmentImport.cancel}
-        onChooseAgain={() => inputRef.current?.click()}
+        onChooseAgain={pick}
+        aside={aside}
       />
       <KitImportPreview
         state={kitImport.state}
         onAdd={kitImport.add}
         onCancel={kitImport.cancel}
-        onChooseAgain={() => inputRef.current?.click()}
+        onChooseAgain={pick}
+        aside={aside}
       />
     </BundleImportContext.Provider>
   );
