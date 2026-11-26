@@ -1,14 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../utils/apiError";
 import { documentClientId } from "../utils/documentClient";
 import { apiFetch, HOST_KEY } from "./http";
 import {
   applyKit,
+  cancelKitImport,
+  commitKitImport,
   downloadKitFile,
   isDamagedKit,
+  KIT_TOO_LARGE_MESSAGE,
   type KitListRow,
   type KitOffer,
   loadKitOffer,
   loadKits,
+  partialImport,
+  previewKitImport,
 } from "./kits";
 
 vi.mock("./http", async (importOriginal) => ({
@@ -125,5 +131,88 @@ describe("kit library routes", () => {
       }),
     );
     expect((await downloadKitFile("a-1")).filename).toBe("a-1.sharecutkit");
+  });
+});
+
+describe("kit import routes", () => {
+  const file = new File(["zip"], "show.sharecutkit");
+
+  it("sends the file as the raw body, not a form", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(json({ token: "t" }));
+    const controller = new AbortController();
+    await previewKitImport(file, controller.signal);
+    const [key, route, init] = vi.mocked(apiFetch).mock.calls[0];
+    expect(key).toBe(HOST_KEY);
+    expect(route).toEqual({ host: "/api/kits/import/preview" });
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(file);
+    expect(init?.headers).toEqual({
+      "Content-Type": "application/octet-stream",
+    });
+    expect(init?.signal).toBe(controller.signal);
+  });
+
+  it("commits with the token and nothing else", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(
+      json({ kit: { status: "added", id: "k", version: 1 }, segments: [] }),
+    );
+    await commitKitImport("tok");
+    const [, route, init] = vi.mocked(apiFetch).mock.calls[0];
+    expect(route).toEqual({ host: "/api/kits/import" });
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init?.body as string)).toEqual({ token: "tok" });
+  });
+
+  it("cancels with a keepalive DELETE on the escaped token", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(json({ cancelled: "a/b" }));
+    await cancelKitImport("a/b");
+    const [, route, init] = vi.mocked(apiFetch).mock.calls[0];
+    expect(route).toEqual({ host: "/api/kits/import/a%2Fb" });
+    expect(init).toEqual({ method: "DELETE", keepalive: true });
+  });
+
+  it.each([
+    ["a proxy's coded refusal", new ApiError("x", "payload_too_large", 413)],
+    ["a proxy's bare 413", new ApiError("x", null, 413)],
+    ["a dropped connection", new ApiError("x", "network_error")],
+  ])("says the file is too large for %s", async (_name, failure) => {
+    vi.mocked(apiFetch).mockRejectedValue(failure);
+    await expect(previewKitImport(file)).rejects.toMatchObject({
+      message: KIT_TOO_LARGE_MESSAGE,
+    });
+  });
+
+  it("keeps the server's own words for its size limit and other refusals", async () => {
+    const limit = new ApiError(
+      "Kit files are limited to 1 GiB.",
+      "kit_upload_too_large",
+      413,
+    );
+    vi.mocked(apiFetch).mockRejectedValueOnce(limit);
+    await expect(previewKitImport(file)).rejects.toBe(limit);
+    const invalid = new ApiError("Not a kit.", "kit_bundle_invalid", 422);
+    vi.mocked(apiFetch).mockRejectedValueOnce(invalid);
+    await expect(previewKitImport(file)).rejects.toBe(invalid);
+  });
+
+  it("reads how many segments landed from a refused commit's body", () => {
+    const body = {
+      detail: "Busy.",
+      segments_added: [{ status: "added", id: "a", version: 1 }],
+      segments_total: 3,
+    };
+    expect(
+      partialImport(new ApiError("Busy.", "kit_busy", 409, null, body)),
+    ).toEqual({
+      added: 1,
+      total: 3,
+    });
+    expect(partialImport(new ApiError("Busy.", "kit_busy", 409))).toBeNull();
+    expect(
+      partialImport(
+        new ApiError("x", "kit_busy", 409, null, { segments_added: "no" }),
+      ),
+    ).toBeNull();
+    expect(partialImport(new Error("x"))).toBeNull();
   });
 });
