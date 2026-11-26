@@ -81,7 +81,11 @@ async function walkChain(page: Page, settled: boolean) {
   await expect(toast).toContainText(/Cut .* · \d+ more/);
   const remaining = Number(/(\d+) more/.exec(await toast.innerText())![1]);
   expect(remaining).toBeGreaterThan(1);
-  if (settled) await expect.poll(() => focusInScript(page)).toBe(true);
+  if (settled) {
+    await expect.poll(() => focusInScript(page)).toBe(true);
+    await body.focus();
+    await expect(body).toBeFocused();
+  }
 
   const picked = page.locator(SCRIPT_SELECTED);
   for (let left = remaining; left > 0; left -= 1) {
