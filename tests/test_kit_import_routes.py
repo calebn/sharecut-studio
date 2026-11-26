@@ -909,3 +909,143 @@ def test_the_kept_file_codes_follow_the_kind(kind: import_staging.StagedKind) ->
 def test_a_staged_kit_has_no_clips(staging_dir: Path) -> None:
     with pytest.raises(AssertionError):
         ImportStaging(KitStore(), KIT_KIND).clip("a" * 32, 0)
+
+
+def _expire(staging_dir: Path, token: str) -> None:
+    past = time.time() - STAGED_TTL_SEC - 60
+    os.utime(staging_dir / f"{token}.sharecutkit", (past, past))
+
+
+def test_a_commit_sweeps_an_expired_staged_file_and_answers_unknown(
+    client: TestClient, tmp_path: Path, staging_dir: Path
+) -> None:
+    token = _preview(client, _file(tmp_path))["token"]
+    _expire(staging_dir, token)
+
+    res = client.post("/api/kits/import", json={"token": token})
+
+    assert (res.status_code, res.headers[CODE]) == (404, "kit_import_unknown")
+    assert _staged(staging_dir) == []
+    assert KitStore().list() == [] and SegmentStore().list() == []
+
+
+def test_a_cancel_sweeps_an_expired_staged_file_and_keeps_a_fresh_one(
+    client: TestClient, tmp_path: Path, staging_dir: Path
+) -> None:
+    expired = _preview(client, _file(tmp_path))["token"]
+    other = _preview(client, _file(tmp_path, members=(("Warm Intro", b"fLaC-two", 1),)))["token"]
+    _expire(staging_dir, expired)
+
+    res = client.delete(f"/api/kits/import/{'b' * 32}")
+
+    assert res.status_code == 200
+    assert _staged(staging_dir) == [f"{other}.sharecutkit"]
+    assert client.post("/api/kits/import", json={"token": expired}).status_code == 404
+
+
+def test_a_retry_after_only_unchanged_segments_answers_the_plain_refusal(
+    client: TestClient, tmp_path: Path, staging_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _preview(client, _file(tmp_path))["token"]
+    real = SegmentStore.add
+    state = {"calls": 0, "fail_from": 2}
+
+    def flaky(self: SegmentStore, folder: Path) -> AddResult:
+        state["calls"] += 1
+        if state["calls"] >= state["fail_from"]:
+            raise CodedValueError("The library is busy.", code="segment_busy")
+        return real(self, folder)
+
+    monkeypatch.setattr(SegmentStore, "add", flaky)
+    first = client.post("/api/kits/import", json={"token": token})
+    assert [s["status"] for s in first.json()["segments_added"]] == ["added"]
+
+    state.update(calls=0, fail_from=2)  # the first segment is now unchanged, the second fails
+    res = client.post("/api/kits/import", json={"token": token})
+
+    assert (res.status_code, res.headers[CODE]) == (409, "kit_busy")
+    assert "segments_added" not in res.json() and "segments_total" not in res.json()
+    assert _staged(staging_dir) == [f"{token}.sharecutkit"]
+    assert KitStore().list() == []
+
+    monkeypatch.setattr(SegmentStore, "add", real)
+    assert client.post("/api/kits/import", json={"token": token}).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("errno_", "code", "status"),
+    [(errno.ENOSPC, "kit_no_room", 507), (errno.EIO, "kit_write_failed", 500)],
+)
+def test_a_kit_write_that_raises_oserror_after_segments_landed_is_incomplete_and_kept(
+    client: TestClient,
+    tmp_path: Path,
+    staging_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    errno_: int,
+    code: str,
+    status: int,
+) -> None:
+    token = _preview(client, _file(tmp_path))["token"]
+    real = KitStore.add
+
+    def failing(self: KitStore, kit: object, *, keep_existing: bool = False) -> object:
+        raise OSError(errno_, os.strerror(errno_))
+
+    monkeypatch.setattr(KitStore, "add", failing)
+    res = client.post("/api/kits/import", json={"token": token})
+
+    assert (res.status_code, res.headers[CODE]) == (status, code)
+    body = res.json()
+    assert [s["status"] for s in body["segments_added"]] == ["added", "added"]
+    assert body["segments_total"] == 2
+    assert _staged(staging_dir) == [f"{token}.sharecutkit"]
+    assert KitStore().list() == []
+
+    monkeypatch.setattr(KitStore, "add", real)
+    assert client.post("/api/kits/import", json={"token": token}).status_code == 200
+    assert _staged(staging_dir) == []
+
+
+def test_preview_entries_carry_the_note_and_the_duration(
+    client: TestClient, tmp_path: Path
+) -> None:
+    segments = SegmentStore()
+    ids = [
+        segments.add(make_segment_dir(tmp_path / "lib-in", name=n, audio=a)).id
+        for n, a in (("Warm Intro", b"fLaC-one"), ("Sign Off", b"fLaC-two"))
+    ]
+    kit_id = save_kit(
+        KitStore(),
+        segments,
+        "Show Kit",
+        [
+            KitEntry(segment_id=ids[0], at="start", note="open cold"),
+            KitEntry(segment_id=ids[1], at="end"),
+        ],
+    ).id
+    exported = client.get(f"/api/kits/{kit_id}/export").content
+
+    entries = _preview(client, exported)["entries"]
+
+    assert [(e["name"], e["note"], e["duration_sec"]) for e in entries] == [
+        ("Warm Intro", "open cold", 2.0),
+        ("Sign Off", None, 2.0),
+    ]
+
+
+def test_every_kit_file_route_refuses_a_foreign_host(tmp_path: Path, staging_dir: Path) -> None:
+    kit_id = _library_kit(tmp_path)
+    token = "a" * 32
+    calls: list[tuple[str, str, dict[str, Any]]] = [
+        ("GET", "/api/kits", {}),
+        ("GET", f"/api/kits/{kit_id}/export", {}),
+        ("POST", PREVIEW, {"content": _file(tmp_path)}),
+        ("POST", "/api/kits/import", {"json": {"token": token}}),
+        ("DELETE", f"/api/kits/import/{token}", {}),
+    ]
+    foreign = TestClient(create_app(), client=("127.0.0.1", 50000))
+    for method, path, kwargs in calls:
+        res = foreign.request(method, path, headers={"Host": "evil.example"}, **kwargs)
+        assert res.status_code == 400, (method, path, res.status_code)
+    assert _staged(staging_dir) == []
+    assert len(KitStore().list()) == 1
