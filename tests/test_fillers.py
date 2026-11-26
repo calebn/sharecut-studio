@@ -1955,6 +1955,74 @@ def test_a_no_air_pause_never_runs_the_owner_guard_or_first_scope(tmp_path: Path
     first_scope.assert_not_called()
 
 
+def _valid_pause_project(tmp_path: Path):
+    return _pause_audio(
+        _project_with_transcript(
+            [
+                TranscriptWord(text="one", start=0, end=0.4),
+                TranscriptWord(text="two", start=3, end=3.4),
+            ]
+        ),
+        tmp_path,
+    )
+
+
+_PAUSE_DEFAULTS = {"tighten": {"min_retained_pause_sec": 0.55, "min_retained_solo_pause_sec": 0.55}}
+
+
+def _analyze_valid_pause(tmp_path: Path, scope_for):
+    from podcast_mcp.edits.filler_pacing import FillerPacingResult
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
+
+    project = _valid_pause_project(tmp_path)
+
+    def scope(*_args, **kwargs):
+        # The measured pause scope is the only call that carries the admissible spans.
+        return scope_for(measured="_admissible_spans" in kwargs)
+
+    with (
+        patch(
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
+            return_value=FillerPacingResult(start=0.4, end=2.0),
+        ),
+        patch("podcast_mcp.edits.tighten.prepare._cut_span_is_bleed_not_owner", return_value=False),
+        patch("podcast_mcp.edits.tighten.prepare._cut_scope", side_effect=scope),
+    ):
+        return _analyze_candidate(project, _pause_candidate(), _PAUSE_DEFAULTS)
+
+
+def test_a_measured_pause_scope_not_the_first_scope_decides_review(tmp_path: Path):
+    from podcast_mcp.edits.cut_safety import ResolvedCutScope
+
+    clear = ResolvedCutScope("session_clear")
+    track = ResolvedCutScope("intentional_track")
+
+    measured_track = _analyze_valid_pause(
+        tmp_path / "a", lambda measured: track if measured else clear
+    )
+    assert not isinstance(measured_track, CutRejected)
+    assert measured_track.review_required is True
+
+    # The first scope alone would flag review; the measured one that supersedes it does not.
+    measured_clear = _analyze_valid_pause(
+        tmp_path / "b", lambda measured: clear if measured else track
+    )
+    assert not isinstance(measured_clear, CutRejected)
+    assert measured_clear.review_required is False
+
+
+def test_a_pause_is_exempt_from_the_skip_rejection_a_filler_gets(tmp_path: Path):
+    from podcast_mcp.edits.cut_safety import ResolvedCutScope
+    from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
+
+    skip = ResolvedCutScope(
+        "peer_speech", SpeechEnergyGuardResult(("guest",), "skip", cut_rms_db=-30.0)
+    )
+    result = _analyze_valid_pause(tmp_path, lambda measured: skip)
+    assert not isinstance(result, CutRejected)
+    assert result.peers_speaking is True
+
+
 def test_pause_analyze_requires_complete_live_word_context(tmp_path: Path):
     from podcast_mcp.edits.filler_pacing import FillerPacingResult
     from podcast_mcp.edits.tighten.prepare import _analyze_candidate
