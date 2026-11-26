@@ -55,6 +55,7 @@ export const TimelineRuler = memo(function TimelineRuler({
   onFit,
 }: TimelineRulerProps) {
   const playhead = useDawStore(selectRulerValueSec);
+  const covered = useDawStore((s) => s.rulerCovered);
   const { left, width } = useRulerWindow(canvasWidthPx, viewportPx);
   const scrubFrom = useRef(0);
   const scrubStart = useCallback(() => {
@@ -90,6 +91,7 @@ export const TimelineRuler = memo(function TimelineRuler({
           playhead={playhead}
           hidePlayhead
           sessions={tints}
+          covered={covered}
           anchorProps={ANCHOR}
           onSeek={onSeek}
           onFit={onFit}

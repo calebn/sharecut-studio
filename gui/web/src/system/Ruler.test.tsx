@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { Ruler, type RulerProps } from "./Ruler";
+import { rulerStep, rulerTicks, tickKey } from "./rulerMath";
 
 const base: RulerProps = {
   start: 604,
@@ -875,5 +876,50 @@ describe("Ruler keys during a drag", () => {
     expect(onSeek).toHaveBeenCalledTimes(1);
     fireEvent.click(body(), { detail: 0, clientX: 140 });
     expect(onSeek).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("Ruler covered labels", () => {
+  const shown = rulerTicks(
+    base.start,
+    base.pxPerSecond,
+    base.width,
+    rulerStep(base.pxPerSecond, base.start + base.width / base.pxPerSecond),
+    base.duration,
+  ).filter((tick) => tick.label !== "");
+  const marked = (container: HTMLElement) =>
+    [...container.querySelectorAll("[data-covered]")].map(
+      (el) => el.textContent,
+    );
+
+  it("marks only the labels of covered ticks, and keeps every label's text", () => {
+    const [, second, third] = shown;
+    const plain = setup();
+    const before = labels(plain.container);
+    plain.unmount();
+    const { container } = setup({ covered: new Set([tickKey(second!)]) });
+    expect(marked(container)).toEqual([second?.label]);
+    expect(container.querySelector("[data-covered]")?.className).toBe(
+      "sys-ruler-tick-label",
+    );
+    expect(labels(container)).toEqual(before);
+    expect(third?.label).not.toBe(second?.label);
+  });
+
+  it("marks nothing without a set or with an empty one", () => {
+    const { container, rerender } = setup();
+    expect(marked(container)).toEqual([]);
+    rerender(<Ruler {...base} covered={new Set()} />);
+    expect(marked(container)).toEqual([]);
+  });
+
+  it("moves the mark when the set changes", () => {
+    const [first, second] = shown;
+    const { container, rerender } = setup({
+      covered: new Set([tickKey(first!)]),
+    });
+    expect(marked(container)).toEqual([first?.label]);
+    rerender(<Ruler {...base} covered={new Set([tickKey(second!)])} />);
+    expect(marked(container)).toEqual([second?.label]);
   });
 });

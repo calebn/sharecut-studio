@@ -5,14 +5,10 @@ import {
   memo,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import { HANDLE_DRAG_MIN_PX, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
-import { makeRemProbe, rootFontPx } from "../ui/rootFont";
-import { useResizeObserver } from "../ui/useResizeObserver";
 import { clamp } from "../utils/math";
 import { formatRulerTime, formatTime } from "../utils/time";
 import { useStableCallback } from "../utils/useStableCallback";
@@ -20,11 +16,11 @@ import { edgeBounds, within } from "./dragBounds";
 import type { MarkerAttrs } from "./Marker";
 import { playheadSliderTarget } from "./playheadSliderTarget";
 import {
-  DEFAULT_REM_PX,
   PLAYHEAD_BLEED_PX,
   round3,
   rulerStep,
   rulerTicks,
+  tickKey,
   timeAtX,
   xAtTime,
 } from "./rulerMath";
@@ -35,6 +31,7 @@ import {
   swallowsDuringDrag,
   useGrab,
 } from "./useGrab";
+import { useRem } from "./useRem";
 
 export type RulerEdge = "start" | "end";
 type RulerGrip = "scrub" | RulerEdge;
@@ -61,6 +58,8 @@ export type RulerProps = {
   selection?: TimeRange;
   /** Drawn as alternating bands behind the ticks. */
   sessions?: readonly RulerSession[];
+  /** The `tickKey`s of the labels a flag sits over; they carry `data-covered`. The ruler is memoized on the set's identity: a host keeps one set while its members are equal. */
+  covered?: ReadonlySet<string>;
   /** A guest seeks and scrubs but sees no selection handles. */
   readOnly?: boolean;
   /** 44 px selection handles; a coarse pointer does this by itself. */
@@ -116,6 +115,7 @@ export const Ruler = memo(function Ruler({
   hidePlayhead = false,
   selection,
   sessions,
+  covered,
   readOnly = false,
   touch = false,
   label = "Timeline position",
@@ -137,35 +137,7 @@ export const Ruler = memo(function Ruler({
   const nudging = useRef<RulerEdge | null>(null);
   const [grabbed, setGrabbed] = useState<RulerGrip | null>(null);
 
-  const remProbe = useRef<HTMLElement | null>(null);
-  const remChanged = useRef<(() => void) | null>(null);
-  const remRead = useRef<number | null>(null);
-  // A window resize (page zoom) or a text-size change after mount re-reads the root font size.
-  const subscribeRem = useCallback((notify: () => void) => {
-    const changed = () => {
-      remRead.current = null;
-      notify();
-    };
-    remRead.current = null;
-    remChanged.current = changed;
-    window.addEventListener("resize", changed);
-    return () => {
-      remChanged.current = null;
-      window.removeEventListener("resize", changed);
-    };
-  }, []);
-  const readRem = useCallback(() => (remRead.current ??= rootFontPx()), []);
-  const rem = useSyncExternalStore(subscribeRem, readRem, () => DEFAULT_REM_PX);
-  useLayoutEffect(() => {
-    const el = makeRemProbe();
-    remProbe.current = el;
-    root.current?.appendChild(el);
-    return () => {
-      el.remove();
-      remProbe.current = null;
-    };
-  }, []);
-  useResizeObserver(remProbe, () => remChanged.current?.());
+  const rem = useRem(root);
   const windowEnd = start + width / pxPerSecond;
   const step = rulerStep(pxPerSecond, windowEnd, rem);
   const ticks = rulerTicks(start, pxPerSecond, width, step, duration, rem);
@@ -426,7 +398,14 @@ export const Ruler = memo(function Ruler({
             data-align={tick.align === "end" ? "end" : undefined}
             style={{ "--sys-ruler-x": px(tick.x) } as CSSProperties}
           >
-            {tick.label}
+            {tick.label === "" ? null : (
+              <span
+                className="sys-ruler-tick-label"
+                data-covered={covered?.has(tickKey(tick)) ? "" : undefined}
+              >
+                {tick.label}
+              </span>
+            )}
           </span>
         ))}
         {selection && selectionEnd > selectionX ? (

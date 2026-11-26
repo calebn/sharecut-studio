@@ -379,6 +379,8 @@ export interface DawState {
   remoteSelectionRevision: number;
   shellBreakpoint: ShellBreakpoint;
   pointerKind: PointerKind;
+  /** The `tickKey`s of the ruler labels a presence flag sits over. */
+  rulerCovered: ReadonlySet<string>;
   /** The timeline target the last press went to (touch input grammar). */
   selectionHit: RoutedTarget | null;
   inspectorSelection: Selection;
@@ -571,6 +573,8 @@ export interface DawState {
   /** Also re-stores `timelineViewportWidth` from the live timeline or the new shell's estimate. */
   setShellBreakpoint: (bp: ShellBreakpoint) => void;
   setPointerKind: (kind: PointerKind) => void;
+  /** Keeps the current set when `covered` has the same members, so a subscriber does not render for it. */
+  setRulerCovered: (covered: ReadonlySet<string>) => void;
   setSelectionHit: (hit: RoutedTarget | null) => void;
   setTimelineDragging: (on: boolean) => void;
   setSnapEnabled: (enabled: boolean) => void;

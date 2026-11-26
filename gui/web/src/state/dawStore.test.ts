@@ -1220,3 +1220,22 @@ describe("dawStore timeline follow flag", () => {
     expect(useDawStore.getState().timelineFollowPlayhead).toBe(true);
   });
 });
+
+describe("ruler covered labels", () => {
+  it("keeps the held set, and notifies nobody, when the new one has the same members", () => {
+    const store = useDawStore.getState();
+    store.setRulerCovered(new Set(["1", "2"]));
+    const held = useDawStore.getState().rulerCovered;
+    let notified = 0;
+    const off = useDawStore.subscribe(() => notified++);
+    useDawStore.getState().setRulerCovered(new Set(["2", "1"]));
+    expect(useDawStore.getState().rulerCovered).toBe(held);
+    expect(notified).toBe(0);
+    useDawStore.getState().setRulerCovered(new Set(["1", "3"]));
+    expect([...useDawStore.getState().rulerCovered]).toEqual(["1", "3"]);
+    useDawStore.getState().setRulerCovered(new Set(["1"]));
+    expect(notified).toBe(2);
+    off();
+    useDawStore.getState().setRulerCovered(new Set());
+  });
+});

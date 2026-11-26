@@ -24,7 +24,15 @@ import { useStableList } from "../presence/useStableList";
 import { useDawStore } from "../state/dawStore";
 import { laneRows } from "../system/laneMath";
 import { Presence, type PresenceSelection } from "../system/Presence";
-import { presenceX } from "../system/presenceMath";
+import {
+  coveredTicks,
+  presenceFlags,
+  presenceHitPx,
+  presenceX,
+  visiblePeople,
+} from "../system/presenceMath";
+import { rulerStep, rulerTicks } from "../system/rulerMath";
+import { useRem } from "../system/useRem";
 import type { SessionClient } from "../types/session";
 import { RULER_HEIGHT } from "../utils/layout";
 import { roleBubbleUp } from "../utils/roleBubble";
@@ -209,6 +217,38 @@ export const TimelinePresence = memo(function TimelinePresence({
   );
   const selections = useStableList(nextSelections, selectionKey, sameSelection);
   const tracks = project?.tracks ?? NO_TRACKS;
+  const host = useRef<HTMLDivElement>(null);
+  const rem = useRem(host);
+  const pointerKind = useDawStore((s) => s.pointerKind);
+  const hit = presenceHitPx(pointerKind, rem);
+  const flags = useMemo(
+    () =>
+      presenceFlags(visiblePeople(people, followingClientId), {
+        start,
+        pxPerSecond: zoomPxPerSec,
+        width,
+        hit,
+        rem,
+      }),
+    [people, followingClientId, start, zoomPxPerSec, width, hit, rem],
+  );
+  const ticks = useMemo(
+    () =>
+      rulerTicks(
+        start,
+        zoomPxPerSec,
+        width,
+        rulerStep(zoomPxPerSec, start + width / zoomPxPerSec, rem),
+        project?.timeline_duration_sec ?? 0,
+        rem,
+      ),
+    [start, zoomPxPerSec, width, project?.timeline_duration_sec, rem],
+  );
+  useEffect(() => {
+    const { rulerCovered, setRulerCovered } = useDawStore.getState();
+    setRulerCovered(coveredTicks(ticks, flags, rem, rulerCovered));
+  }, [ticks, flags, rem]);
+  useEffect(() => () => useDawStore.getState().setRulerCovered(new Set()), []);
   const rows = useMemo(
     () =>
       laneRows(
@@ -220,6 +260,7 @@ export const TimelinePresence = memo(function TimelinePresence({
 
   return (
     <div
+      ref={host}
       className="timeline-presence-window"
       style={{ insetInlineStart: left, inlineSize: width }}
     >

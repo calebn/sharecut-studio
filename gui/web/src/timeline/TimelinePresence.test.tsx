@@ -104,6 +104,7 @@ afterEach(() => {
   // Unmount first: a mounted host would announce the roster reset below.
   cleanup();
   useDawStore.setState({
+    rulerCovered: new Set(),
     localClientId: null,
     sessionClients: sessionRoster([]),
     statusAnnouncement: "",
@@ -518,6 +519,70 @@ describe("TimelinePresence", () => {
       unmount();
       expect(frames.size).toBe(0);
       expect(cancel).toHaveBeenCalled();
+    });
+  });
+
+  describe("covered ruler labels", () => {
+    const covered = () => [...useDawStore.getState().rulerCovered];
+
+    it("publishes the ticks a flag sits over, and clears them when the person goes", () => {
+      // 10 px/s: bea's line at 2 s is 20 px, her flag 21..37 over the 0:00 label.
+      seed([remote("bea")]);
+      render(<Host />);
+      expect(covered()).toEqual(["0"]);
+      act(() => useDawStore.setState({ sessionClients: sessionRoster([]) }));
+      expect(covered()).toEqual([]);
+    });
+
+    it("publishes nothing for a flag between labels", () => {
+      seed([remote("bea", { playhead_sec: 5 })]);
+      render(<Host />);
+      expect(covered()).toEqual([]);
+    });
+
+    it("publishes nothing for the person you follow", () => {
+      seed([remote("bea")]);
+      const { rerender } = render(<Host />);
+      expect(covered()).toEqual(["0"]);
+      rerender(<Host followingClientId="bea" />);
+      expect(covered()).toEqual([]);
+    });
+
+    it("keeps the published set while a playhead moves and the covered ticks do not change", () => {
+      seed([remote("bea", { playhead_sec: 2 })]);
+      render(<Host />);
+      const held = useDawStore.getState().rulerCovered;
+      let notified = 0;
+      const off = useDawStore.subscribe((s, prev) => {
+        if (s.rulerCovered !== prev.rulerCovered) notified++;
+      });
+      for (const playhead_sec of [2.1, 2.2, 2.3]) {
+        act(() =>
+          useDawStore.setState({
+            sessionClients: sessionRoster([
+              { client_id: "me", role: "viewer", playhead_sec: 1 },
+              remote("bea", { playhead_sec }),
+            ]),
+          }),
+        );
+      }
+      off();
+      expect(notified).toBe(0);
+      expect(useDawStore.getState().rulerCovered).toBe(held);
+    });
+
+    it("publishes the flag's merged box: two people on one spot cover as one", () => {
+      seed([remote("bea"), remote("cy")]);
+      render(<Host />);
+      expect(covered()).toEqual(["0"]);
+    });
+
+    it("clears on unmount", () => {
+      seed([remote("bea")]);
+      const { unmount } = render(<Host />);
+      expect(covered()).toEqual(["0"]);
+      unmount();
+      expect(covered()).toEqual([]);
     });
   });
 

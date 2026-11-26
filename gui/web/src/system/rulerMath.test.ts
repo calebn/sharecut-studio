@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { rulerStep, rulerTicks, timeAtX, xAtTime } from "./rulerMath";
+import {
+  labelInkSpan,
+  rulerStep,
+  rulerTicks,
+  tickKey,
+  timeAtX,
+  xAtTime,
+} from "./rulerMath";
 
 describe("rulerMath", () => {
   it("converts between pixels and seconds of a window", () => {
@@ -181,5 +188,32 @@ describe("rulerMath", () => {
       "1:00",
     ]);
     expect(ticks.at(-1)?.align).toBe("end");
+  });
+});
+
+describe("labelInkSpan", () => {
+  const char = 0.6 * 0.6875 * 16;
+  const tick = { time: 5, x: 100.4, label: "0:05", align: "start" as const };
+
+  it("starts 5 px past a start-aligned tick's whole-px x and runs the text's width", () => {
+    const span = labelInkSpan(tick, 16);
+    expect(span.left).toBe(105);
+    expect(span.right).toBeCloseTo(105 + 4 * char);
+  });
+
+  it("ends 5 px before an end-aligned tick's x", () => {
+    const span = labelInkSpan({ ...tick, x: 99.6, align: "end" }, 16);
+    expect(span.right).toBe(95);
+    expect(span.left).toBeCloseTo(95 - 4 * char);
+  });
+
+  it("grows with the root font", () => {
+    const wide = labelInkSpan(tick, 20);
+    expect(wide.left).toBe(100 + 6.25);
+    expect(wide.right - wide.left).toBeCloseTo(4 * 0.6 * 0.6875 * 20);
+  });
+
+  it("keys a tick by its time", () => {
+    expect(tickKey({ time: 0.5 })).toBe("0.5");
   });
 });
