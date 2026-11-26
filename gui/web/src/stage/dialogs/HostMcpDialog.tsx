@@ -1,13 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type FocusEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { copyText } from "../../record";
 import { Button, Dialog, Field, InlineError } from "../../ui";
-import { errorMessage } from "../../utils/apiError";
 import { useStableCallback } from "../../utils/useStableCallback";
-import { localHostMcpUrl, mcpClientSnippet } from "./hostMcp";
+import {
+  COPY_FAILED_MESSAGE,
+  localHostMcpUrl,
+  mcpClientSnippet,
+} from "./hostMcp";
 
 const COPIED_MS = 2000;
 
 type CopiedKey = "url" | "snippet";
+
+function selectAll(event: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
+  event.currentTarget.select();
+}
 
 type Props = {
   open: boolean;
@@ -22,6 +35,7 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
   const [copied, setCopied] = useState<CopiedKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const copyUrlRef = useRef<HTMLButtonElement>(null);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generation = useRef(0);
   if (session.open !== open) {
@@ -57,11 +71,14 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
   }, [open, clearCopiedTimer]);
 
   const markCopied = useCallback(
-    (key: CopiedKey) => {
+    (key: CopiedKey, message: string) => {
       clearCopiedTimer();
       setCopied(key);
+      setStatus(message);
       copiedTimer.current = setTimeout(() => {
-        if (acceptsSession(session.epoch)) setCopied(null);
+        if (!acceptsSession(session.epoch)) return;
+        setCopied(null);
+        setStatus(null);
       }, COPIED_MS);
     },
     [clearCopiedTimer, session.epoch, acceptsSession],
@@ -77,13 +94,15 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
         if (!acceptsSession(session.epoch) || gen !== generation.current) {
           return;
         }
-        markCopied(key);
-        setStatus(key === "url" ? "Copied MCP URL" : "Copied client snippet");
-      } catch (err) {
+        markCopied(
+          key,
+          key === "url" ? "Copied MCP URL" : "Copied client snippet",
+        );
+      } catch {
         if (!acceptsSession(session.epoch) || gen !== generation.current) {
           return;
         }
-        setError(errorMessage(err));
+        setError(COPY_FAILED_MESSAGE);
       }
     },
     [markCopied, session.epoch, acceptsSession],
@@ -94,6 +113,7 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
       open={open}
       onClose={onClose}
       title="Connect agent"
+      initialFocusRef={copyUrlRef}
       panelClassName="share-dialog-panel"
       footer={
         <div className="share-dialog-actions">
@@ -101,6 +121,7 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
             {copied === "snippet" ? "Copied" : "Copy snippet"}
           </Button>
           <Button
+            ref={copyUrlRef}
             variant="primary"
             type="button"
             onClick={() => void copy("url", url)}
@@ -127,6 +148,7 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
               {...control}
               className="share-dialog-select"
               readOnly
+              onFocus={selectAll}
               value={url}
             />
           )}
@@ -137,6 +159,7 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
               {...control}
               className="host-mcp-snippet"
               readOnly
+              onFocus={selectAll}
               rows={8}
               value={snippet}
               spellCheck={false}

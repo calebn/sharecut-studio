@@ -379,6 +379,10 @@ html[data-shell="phone"]
   margin: var(--space-3) 0 var(--space-5);
 }
 
+.share-dialog-actions .ui-control {
+  min-block-size: var(--touch-min);
+}
+
 .share-dialog-note {
   margin: 0;
   color: var(--color-text-secondary);
