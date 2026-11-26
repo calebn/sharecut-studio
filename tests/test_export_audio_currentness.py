@@ -114,3 +114,94 @@ def test_the_pipeline_export_step_records_the_head_it_exported(ws, master) -> No
 
     _fader(ws, -6.0)
     assert _audio(ws) == _both(ws, False)
+
+
+def _record_head(ws: ProjectWorkspace, head: str) -> None:
+    """Stamp the exported audio as rendered from *head*."""
+    from podcast_mcp.export.render_record import write_export_render
+
+    stem = sanitize_export_stem(ws.project.name)
+    paths = [ws.project.export_dir() / f"{stem}.wav", ws.project.export_dir() / f"{stem}.mp3"]
+    write_export_render(ws.project, head, [p for p in paths if p.exists()])
+
+
+def test_a_root_record_is_stale_after_undo_to_a_pruned_non_initial_first_entry(
+    ws, master, monkeypatch
+) -> None:
+    from podcast_mcp.models.history import HISTORY_ROOT_ID
+    from podcast_mcp.services.document import export_files
+
+    PipelineService(ws).export_audio([{"ext": "mp3"}])
+    _fader(ws, -6.0)
+    _fader(ws, -9.0)
+    history = ws.project.history
+    history.entries = history.entries[1:]  # pruning drops the initial baseline
+    history.cursor = 0
+    assert history.entries[0].label != "initial"
+    monkeypatch.setattr(export_files, "HISTORY_ENTRY_LIMIT", len(history.entries))
+    _record_head(ws, HISTORY_ROOT_ID)
+
+    assert _audio(ws) == _both(ws, False)
+
+
+def test_an_initial_baseline_root_record_is_current_after_edit_and_undo(ws, master) -> None:
+    from podcast_mcp.models.history import HISTORY_ROOT_ID
+
+    ws.record_snapshot("initial", force=True)
+    PipelineService(ws).export_audio([{"ext": "mp3"}])
+    assert ws.project.history.entries[0].label == "initial"
+    _record_head(ws, HISTORY_ROOT_ID)
+    assert _audio(ws) == _both(ws, True)
+
+    _fader(ws, -6.0)
+    assert _audio(ws) == _both(ws, False)
+
+    ws.undo()
+    assert _audio(ws) == _both(ws, True)
+
+
+def test_export_at_a_non_root_head_goes_stale_on_edit_and_current_on_undo(ws, master) -> None:
+    _fader(ws, -3.0)
+    PipelineService(ws).export_audio([{"ext": "mp3"}])
+    assert ws.project.history.edit_head_id() != ws.project.history.entries[0].id
+    assert _audio(ws) == _both(ws, True)
+
+    _fader(ws, -6.0)
+    assert _audio(ws) == _both(ws, False)
+
+    ws.undo()
+    assert _audio(ws) == _both(ws, True)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '{"version": 1, "edit_head_id": "h", "files": []}',
+        '{"version": 1, "edit_head_id": "h", "files": {"a.mp3": [1]}}',
+        '{"version": 1, "edit_head_id": "h", "files": {"a.mp3": [true, 2]}}',
+        '{"version": 1, "edit_head_id": "h", "files": {"a.mp3": [1, "x"]}}',
+        '{"version": true, "edit_head_id": "h", "files": {}}',
+        '{"version": 1, "edit_head_id": 5, "files": {}}',
+        '{"version": 1, "edit_head_id": "h", "files": ' + "[" * 100000 + "]" * 100000 + "}",
+    ],
+    ids=[
+        "files-list",
+        "stamp-len-1",
+        "bool-stamp",
+        "str-stamp",
+        "bool-version",
+        "int-head",
+        "deep",
+    ],
+)
+def test_a_malformed_record_reads_as_none_and_the_audio_lists_as_current(
+    ws, master, payload
+) -> None:
+    from podcast_mcp.export.render_record import export_render_path, read_export_render
+
+    PipelineService(ws).export_audio([{"ext": "mp3"}])
+    export_render_path(ws.project).write_text(payload, encoding="utf-8")
+    _fader(ws, -6.0)
+
+    assert read_export_render(ws.project) is None
+    assert _audio(ws) == _both(ws, True)

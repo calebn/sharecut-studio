@@ -716,7 +716,8 @@ def test_a_plan_with_no_audio_writes_no_audio_stamps(tmp_path: Path):
     _export_ep(project, {"wav": False, "formats": []})
 
     record = read_export_render(project)
-    assert record is None or record["files"] == {}
+    assert record is not None
+    assert record["files"] == {}
 
 
 def test_the_helper_names_the_record_path_under_artifacts(tmp_path: Path):
