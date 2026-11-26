@@ -1,10 +1,11 @@
-"""A child that fails before any bytes falls back to plain HTTP; surviving-mutant guards (#1998)."""
+"""A child that fails with a Xet-class error falls back to plain HTTP; nothing else does (#1998)."""
 
 from __future__ import annotations
 
 import errno
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +16,11 @@ from tests.test_hf_fetch_child import PIN, _payload_pin, _stub
 from podcast_mcp.services.pipeline.install_failure import classify
 from podcast_mcp.util import hf_fetch_child, model_manifest, process
 from podcast_mcp.util.asset_sources import DownloadProgress
-from podcast_mcp.util.model_manifest import HubChildError, download_pinned_snapshot
+from podcast_mcp.util.model_manifest import (
+    HubChildError,
+    PinnedSnapshot,
+    download_pinned_snapshot,
+)
 from podcast_mcp.util.progress import CancelledProgress
 
 SHA = "c" * 64
@@ -45,18 +50,54 @@ _FromHfXet.__module__ = "hf_xet.errors"
 # ---- describe() -------------------------------------------------------------------------
 
 
+def _raised_from_hf_xet() -> BaseException:
+    """A plain RuntimeError raised by code that lives in a module named ``hf_xet``."""
+    scope: dict[str, Any] = {"__name__": "hf_xet.session"}
+    exec("def boom():\n    raise RuntimeError('data processing error')", scope)
+    try:
+        scope["boom"]()
+    except RuntimeError as exc:
+        return exc
+    raise AssertionError
+
+
 @pytest.mark.parametrize(
-    ("exc", "kind"),
+    ("make", "kind", "xet"),
     [
-        (XetAuthenticationError("blocked"), "network"),
-        (_FromHfXet("data processing error"), "network"),
-        (RuntimeError("a bug"), "other"),
-        (ValueError("a bug"), "other"),
+        (lambda: XetAuthenticationError("blocked"), "network", True),
+        (lambda: _FromHfXet("data processing error"), "network", True),
+        (_raised_from_hf_xet, "network", True),
+        (lambda: RuntimeError("a bug"), "other", False),
+        (lambda: ValueError("a bug"), "other", False),
+        (lambda: ConnectionResetError("reset"), "network", False),
     ],
-    ids=["xet-class-name", "hf_xet-module", "plain-runtime-error", "value-error"],
+    ids=[
+        "xet-class-name",
+        "hf_xet-module",
+        "runtime-error-from-hf_xet",
+        "runtime-error",
+        "value-error",
+        "plain-network",
+    ],
 )
-def test_describe_classifies_xet_errors_as_network(exc: BaseException, kind: str) -> None:
-    assert hf_fetch_child.describe(exc)["kind"] == kind
+def test_describe_marks_only_xet_class_failures(
+    make: Callable[[], BaseException], kind: str, xet: bool
+) -> None:
+    line = hf_fetch_child.describe(make())
+
+    assert (line["kind"], line["xet"]) == (kind, xet)
+
+
+def test_describe_finds_a_status_wrapped_in_local_entry_not_found_via_cause() -> None:
+    from huggingface_hub.errors import LocalEntryNotFoundError
+    from tests.test_hf_fetch_child import _http_error
+
+    try:
+        raise LocalEntryNotFoundError("listing failed") from _http_error(404)
+    except LocalEntryNotFoundError as exc:
+        line = hf_fetch_child.describe(exc)
+
+    assert (line["kind"], line["status"], line["xet"]) == ("http", 404, False)
 
 
 def test_describe_keeps_disk_and_http_ahead_of_the_xet_rule() -> None:
@@ -65,10 +106,10 @@ def test_describe_keeps_disk_and_http_ahead_of_the_xet_rule() -> None:
 
     line = hf_fetch_child.describe(XetDisk(errno.ENOSPC, "full"))
 
-    assert line["kind"] == "disk"
+    assert (line["kind"], line["xet"]) == ("disk", False)
 
 
-# ---- fallback on a zero-byte child failure ----------------------------------------------
+# ---- fallback on a Xet-class child failure ----------------------------------------------
 
 
 XET_CHILD = (
@@ -105,7 +146,6 @@ def test_a_xet_error_before_any_bytes_falls_back_and_succeeds(
 ) -> None:
     calls = _hub(monkeypatch, tmp_path / "snap")
     _stub(monkeypatch, XET_CHILD)
-    monkeypatch.setattr(model_manifest, "_cache_bytes", lambda *_a: 0)
 
     with caplog.at_level("WARNING", logger=model_manifest.logger.name):
         path, mismatch = download_pinned_snapshot(
@@ -155,65 +195,101 @@ def test_the_fallback_runs_with_xet_turned_off(
     assert model_manifest._plain_http_depth == 0
 
 
-def test_a_xet_error_after_bytes_is_the_network_failure_and_never_falls_back(
+def _blob_child(then: str, *, size: int = 4) -> str:
+    """Child code: complete a small blob in ``blobs/`` (a config over plain HTTP), then ``then``."""
+    return (
+        "import json, pathlib, sys\n"
+        "from podcast_mcp.util import hf_fetch_child\n"
+        "class XetAuthenticationError(Exception): pass\n"
+        "cache = json.load(open(sys.argv[1]))['cache_dir']\n"
+        "blobs = pathlib.Path(cache) / 'models--acme--model' / 'blobs'\n"
+        "blobs.mkdir(parents=True, exist_ok=True)\n"
+        f"(blobs / {SHA!r}).write_bytes(b'x' * {size})\n" + then
+    )
+
+
+XET_AFTER_BLOB = (
+    "print(json.dumps(hf_fetch_child.describe(XetAuthenticationError('blocked'))))\nsys.exit(1)\n"
+)
+NETWORK_AFTER_BLOB = (
+    "print(json.dumps(hf_fetch_child.describe(ConnectionResetError('reset'))))\nsys.exit(1)\n"
+)
+
+
+def test_a_xet_failure_after_small_blobs_still_falls_back_and_succeeds(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pin = _payload_pin()
+    cache = tmp_path / "hub"
+    calls = _hub(monkeypatch, tmp_path / "snap")
+    _stub(monkeypatch, _blob_child(XET_AFTER_BLOB))
+
+    path, mismatch = download_pinned_snapshot(pin, cache, on_progress=lambda _p: None)
+
+    assert (path, mismatch) == (tmp_path / "snap", None)
+    assert len(calls) == 1
+    assert (model_manifest._blobs_dir(pin, cache) / SHA).read_bytes() == b"x" * 4
+
+
+def test_a_plain_network_failure_after_small_blobs_never_falls_back(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     calls = _hub(monkeypatch, tmp_path / "snap")
-    _stub(monkeypatch, XET_CHILD)
-    sizes = iter([0])
-    monkeypatch.setattr(model_manifest, "_cache_bytes", lambda *_a: next(sizes, 7))
+    _stub(monkeypatch, _blob_child(NETWORK_AFTER_BLOB))
 
     with pytest.raises(HubChildError) as raised:
         download_pinned_snapshot(_payload_pin(), tmp_path / "hub", on_progress=lambda _p: None)
+
+    assert (raised.value.kind, raised.value.xet) == ("network", False)
+    assert calls == []
+
+
+def test_a_plain_network_failure_with_no_bytes_never_falls_back(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _hub(monkeypatch, tmp_path / "snap")
+    _stub(monkeypatch, _blob_child(NETWORK_AFTER_BLOB, size=0))
+
+    with pytest.raises(HubChildError):
+        download_pinned_snapshot(_payload_pin(), tmp_path / "hub")
+
+    assert calls == []
+
+
+def test_a_xet_error_that_surfaces_anyway_has_the_network_text(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import huggingface_hub
+
+    def fail(*_a: object, **_k: object) -> str:
+        raise HubChildError("network", "XetAuthenticationError: blocked", xet=True)
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", fail)
+    _stub(monkeypatch, XET_CHILD)
+
+    with pytest.raises(HubChildError) as raised:
+        download_pinned_snapshot(_payload_pin(), tmp_path / "hub")
 
     failure = classify(raised.value, label="Whisper tiny.en", fix="podcast bootstrap")
     assert failure is not None
     assert failure.kind == "network"
     assert "Couldn't reach" in failure.plain
-    assert raised.value.bytes_seen == 7
-    assert calls == []
-
-
-def test_a_child_error_before_bytes_carries_zero_bytes_seen(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    payload = {"error": "E", "message": "m", "kind": "http", "status": 403}
-    _stub(monkeypatch, f"import json,sys; print(json.dumps({payload!r})); sys.exit(1)")
-    monkeypatch.setattr(model_manifest, "_cache_bytes", lambda *_a: 0)
-
-    with pytest.raises(HubChildError) as raised:
-        download_pinned_snapshot(PIN, tmp_path / "hub", on_progress=lambda _p: None)
-
-    assert raised.value.bytes_seen == 0
-
-
-def test_a_child_that_dies_after_bytes_carries_the_bytes_seen(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _stub(monkeypatch, "import os; os._exit(9)")
-    sizes = iter([0])
-    monkeypatch.setattr(model_manifest, "_cache_bytes", lambda *_a: next(sizes, 9))
-
-    with pytest.raises(HubChildError) as raised:
-        download_pinned_snapshot(PIN, tmp_path / "hub", on_progress=lambda _p: None)
-
-    assert raised.value.bytes_seen == 9
 
 
 @pytest.mark.parametrize(
     "payload",
     [
-        {"error": "GatedRepoError", "status": 403, "message": "m", "kind": "http"},
+        {"error": "GatedRepoError", "status": 403, "message": "m", "kind": "http", "xet": False},
         {"error": "OSError", "status": None, "message": "m", "kind": "disk", "errno": 28},
+        {"error": "E", "status": 404, "message": "m", "kind": "http", "xet": True},
     ],
-    ids=["http-403", "disk-enospc"],
+    ids=["http-403", "disk-enospc", "http-even-if-marked-xet"],
 )
-def test_http_and_disk_errors_before_bytes_do_not_fall_back(
+def test_http_and_disk_errors_do_not_fall_back(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, payload: dict[str, Any]
 ) -> None:
     calls = _hub(monkeypatch, tmp_path / "snap")
     _stub(monkeypatch, f"import json,sys; print(json.dumps({payload!r})); sys.exit(1)")
-    monkeypatch.setattr(model_manifest, "_cache_bytes", lambda *_a: 0)
 
     with pytest.raises(HubChildError) as raised:
         download_pinned_snapshot(PIN, tmp_path / "hub", on_progress=lambda _p: None)
@@ -222,50 +298,80 @@ def test_http_and_disk_errors_before_bytes_do_not_fall_back(
     assert calls == []
 
 
-def test_a_pin_mismatch_error_does_not_fall_back(
+def test_a_force_mismatch_fetch_spawns_the_child_once_before_falling_back(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     calls = _hub(monkeypatch, tmp_path / "snap")
-    _stub(monkeypatch, "pass")
+    pin = PinnedSnapshot("acme/model", "a" * 40, (("model.bin", "0" * 64),))  # never matches
+    _stub(monkeypatch, XET_CHILD)
+    spawned: list[Any] = []
+    real = process.popen
 
-    def watch(*_a: object) -> Path:
-        exc = HubChildError("other", "the pin does not match")
-        exc.kind = "pin_mismatch"
-        raise exc
+    def recording(*args: Any, **kwargs: Any) -> Any:
+        spawned.append(1)
+        return real(*args, **kwargs)
 
-    monkeypatch.setattr(model_manifest, "_watch_child", watch)
+    monkeypatch.setattr(process, "popen", recording)
 
-    with pytest.raises(HubChildError):
-        download_pinned_snapshot(PIN, tmp_path / "hub", on_progress=lambda _p: None)
+    _path, mismatch = download_pinned_snapshot(pin, tmp_path / "hub")
 
-    assert calls == []
+    assert mismatch is not None
+    assert [c["force_download"] for c in calls] == [False, True]
+    assert len(spawned) == 1
 
 
-def test_cancel_during_the_fallback_propagates_and_restores_the_hub(
+def test_cancel_during_the_fallback_is_honoured_while_the_hub_is_paused(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    calls = _hub(monkeypatch, tmp_path / "snap", report=10)
-    _stub(monkeypatch, XET_CHILD)
-    monkeypatch.setattr(model_manifest, "_cache_bytes", lambda *_a: 0)
+    import threading
 
-    def sink(progress: DownloadProgress) -> None:
-        if progress.bytes > 0:
+    import huggingface_hub
+
+    started, release, finished = threading.Event(), threading.Event(), threading.Event()
+    outcome: list[str] = []
+    snap = tmp_path / "snap"
+
+    def paused_hub(*_a: object, **kwargs: Any) -> str:
+        bar = kwargs["tqdm_class"](total=100, unit="B", desc="Reconstructing", initial=0)
+        started.set()
+        release.wait(10)
+        try:
+            bar.update(5)  # the next byte after the pause: stops here once Cancel was raised
+            snap.mkdir(exist_ok=True)
+            (snap / "model.bin").write_bytes(b"model")
+            outcome.append("completed")
+        except CancelledProgress:
+            outcome.append("stopped")
+        finally:
+            finished.set()
+        return str(snap)
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", paused_hub)
+    _stub(monkeypatch, XET_CHILD)
+
+    def sink(_progress: DownloadProgress) -> None:
+        if started.is_set():
             raise CancelledProgress("cancel")
 
-    with pytest.raises(CancelledProgress):
-        download_pinned_snapshot(_payload_pin(), tmp_path / "hub", on_progress=sink)
+    try:
+        t0 = time.monotonic()
+        with pytest.raises(CancelledProgress):
+            download_pinned_snapshot(_payload_pin(), tmp_path / "hub", on_progress=sink)
+        assert time.monotonic() - t0 < 5.0
+        assert not release.is_set()
+    finally:
+        release.set()
+    assert finished.wait(5.0)
+    assert outcome == ["stopped"]
+    assert not (snap / "model.bin").exists()
+    assert wait_for(lambda: model_manifest._plain_http_depth == 0, timeout=5.0)
 
-    assert len(calls) == 1
-    assert model_manifest._plain_http_depth == 0
-    assert not (tmp_path / "snap" / "model.bin").exists()
 
-
-def test_the_fallback_progress_starts_at_zero_and_never_goes_backwards(
+def test_the_fallback_progress_never_goes_backwards_after_the_child_showed_bytes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    _hub(monkeypatch, tmp_path / "snap", report=40)
-    _stub(monkeypatch, XET_CHILD)
-    monkeypatch.setattr(model_manifest, "_cache_bytes", lambda *_a: 0)
+    _hub(monkeypatch, tmp_path / "snap", report=20)
+    _stub(monkeypatch, _blob_child(XET_AFTER_BLOB, size=50))
     events: list[int] = []
 
     download_pinned_snapshot(
@@ -273,8 +379,9 @@ def test_the_fallback_progress_starts_at_zero_and_never_goes_backwards(
     )
 
     assert events[0] == 0
+    assert 50 in events
     assert events == sorted(events)
-    assert events[-1] == 40
+    assert events[-1] >= 50
 
 
 # ---- the progress bar's first event -----------------------------------------------------

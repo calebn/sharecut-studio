@@ -25,7 +25,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
@@ -54,9 +54,10 @@ _POLL_SEC = 0.25
 
 _CHILD_KINDS = frozenset({"http", "network", "disk", "other"})
 
-_NO_FALLBACK_KINDS = frozenset({"http", "disk", "pin_mismatch"})
-"""Child failures that plain HTTP would only repeat: the hub said no, the disk is full, or the
-files are not the pin. Any other failure before the first byte (a blocked Xet host) falls back."""
+_NO_FALLBACK_KINDS = frozenset({"http", "disk"})
+"""Child failures plain HTTP would only repeat (the hub said no, the disk is full). Only a
+failure the child marks ``xet`` falls back; a plain network error never does, so an unreachable
+hub is not waited on twice."""
 
 FileManifest = tuple[tuple[str, str], ...]
 """(path relative to the snapshot root, sha256 hex) for every pinned file."""
@@ -127,8 +128,8 @@ class HubChildError(RuntimeError):
 
     ``kind`` is ``http`` (``status`` is the HTTP status), ``network``, ``disk`` (``errno`` is
     the OS error) or ``other`` (a bug, left unclassified). The bootstrap failure classifier maps
-    it like the in-process hub exceptions. ``bytes_seen`` is how much the repo's blobs grew
-    before the child failed; zero means the transfer never started.
+    it like the in-process hub exceptions. ``xet`` is true when the failing exception was
+    Xet-class; only those are retried over plain HTTP.
     """
 
     def __init__(
@@ -139,14 +140,14 @@ class HubChildError(RuntimeError):
         status: int | None = None,
         errno: int | None = None,
         error: str = "",
-        bytes_seen: int = 0,
+        xet: bool = False,
     ) -> None:
         super().__init__(message)
         self.kind = kind if kind in _CHILD_KINDS else "other"
         self.status = status
         self.errno = errno
         self.error = error
-        self.bytes_seen = bytes_seen
+        self.xet = xet
 
 
 def _child_argv(spec: Path) -> list[str]:
@@ -288,10 +289,11 @@ def _run_child(
 ) -> Path | None:
     """Download in a child process, report its growth on disk, and kill it if ``on_progress`` raises.
 
-    Returns None when the child could not run (it could not start, or it left no result or
-    failed with a non-http, non-disk error before any bytes arrived: a blocked Xet host), so
-    the caller downloads in-process. Raises ``HubChildError`` when it failed with an http or
-    disk error, or after bytes arrived, and whatever ``on_progress`` raises.
+    Returns None when the child could not start, left no result, or failed with a Xet-class
+    error (a blocked Xet host, a refused token), so the caller downloads in-process over plain HTTP; blobs the
+    child finished stay in the cache and the plain path reuses them. Raises ``HubChildError``
+    for every other reported failure (http, disk, a plain network error) and whatever
+    ``on_progress`` raises.
     """
     cache_dir.mkdir(parents=True, exist_ok=True)
     _sweep_stale_scratch(cache_dir)
@@ -335,11 +337,10 @@ def _run_child(
             path = _watch_child(proc, pin, cache_dir, baseline, total, on_progress)
         except HubChildError as exc:
             _log_child_stderr(log_path)
-            if exc.bytes_seen or exc.kind in _NO_FALLBACK_KINDS:
+            if not exc.xet or exc.kind in _NO_FALLBACK_KINDS:
                 raise
             logger.warning(
-                "download child failed before any bytes arrived (%s); "
-                "downloading in-process over plain HTTP",
+                "download child failed with a Xet error (%s); downloading in-process over plain HTTP",
                 exc,
             )
             return None
@@ -349,8 +350,7 @@ def _run_child(
         if path is None:
             _log_child_stderr(log_path)
             logger.warning(
-                "download child left no result (exit code %s) before any bytes arrived; "
-                "downloading in-process over plain HTTP",
+                "download child left no result (exit code %s); downloading in-process over plain HTTP",
                 proc.returncode,
             )
         return path
@@ -368,6 +368,7 @@ def _watch_child(
     total: int | None,
     on_progress: OnProgress | None,
 ) -> Path | None:
+    """The snapshot path, or None when the child left no usable result (it could not run)."""
     stdout = _StdoutTail(proc.stdout)
 
     def grown() -> int:
@@ -406,13 +407,7 @@ def _watch_child(
     elif result is not None and not ("kind" in result or "error" in result):
         result = None
     if result is None:
-        if shown == 0:
-            return None
-        raise HubChildError(
-            "network",
-            f"the download child exited with code {proc.returncode} and no result",
-            bytes_seen=shown,
-        )
+        return None
     if "path" in result:
         if on_progress is not None:
             on_progress(
@@ -428,7 +423,7 @@ def _watch_child(
         status=_int_or_none(result.get("status")),
         errno=_int_or_none(result.get("errno")),
         error=str(result.get("error", "")),
-        bytes_seen=shown,
+        xet=result.get("xet") is True,
     )
 
 
@@ -592,6 +587,70 @@ def _byte_bar(on_progress: OnProgress, total: int | None) -> type:
     return ByteBar
 
 
+class _MonotonicProgress:
+    """Wraps ``on_progress`` so the bytes it reports never go backwards (the plain-HTTP
+    fallback starts its own count at zero after the child already showed some)."""
+
+    def __init__(self, sink: OnProgress, total: int | None) -> None:
+        self._sink = sink
+        self._total = total
+        self._last = 0
+        self._lock = threading.Lock()
+
+    def __call__(self, progress: DownloadProgress) -> None:
+        with self._lock:
+            self._last = max(self._last, progress.bytes)
+            self._sink(DownloadProgress(self._last, progress.total))
+
+    def repeat(self) -> None:
+        """Report the last value again: a tick with no new bytes, so Cancel is still seen."""
+        self(DownloadProgress(0, self._total))
+
+
+class _Stop:
+    """Carries a Cancel raised by the heartbeat into the download thread's next progress update."""
+
+    def __init__(self) -> None:
+        self.error: BaseException | None = None
+
+    def guard(self, report: OnProgress) -> OnProgress:
+        def guarded(progress: DownloadProgress) -> None:
+            if self.error is not None:
+                raise self.error
+            report(progress)
+
+        return guarded
+
+
+def _run_with_heartbeat(call: Callable[[], Path], report: _MonotonicProgress, stop: _Stop) -> Path:
+    """Run the in-process download on a thread and tick ``report`` while it runs.
+
+    The hub only updates its bar when bytes arrive, so a paused hub never lets Cancel through.
+    The tick raises on the calling thread at once; the download thread stops at its next
+    progress update.
+    """
+    box: dict[str, Any] = {}
+
+    def work() -> None:
+        try:
+            box["path"] = call()
+        except BaseException as exc:  # handed back to the caller below
+            box["error"] = exc
+
+    thread = threading.Thread(target=work, name="plain-http-fallback", daemon=True)
+    thread.start()
+    while thread.is_alive():
+        thread.join(_POLL_SEC)
+        try:
+            report.repeat()
+        except BaseException as exc:
+            stop.error = exc
+            raise
+    if "error" in box:
+        raise box["error"]
+    return box["path"]
+
+
 def download_pinned_snapshot(
     pin: PinnedSnapshot,
     cache_dir: Path,
@@ -614,29 +673,43 @@ def download_pinned_snapshot(
     from huggingface_hub import snapshot_download
 
     cache_dir = Path(cache_dir)
+    child_failed_on_xet = False
 
     def fetch(force_download: bool) -> Path:
+        nonlocal child_failed_on_xet
         extra: dict[str, Any] = {}
         total: int | None = None
+        report: _MonotonicProgress | None = None
+        stop = _Stop()
         if on_progress is not None:
             total = _dry_run_total(pin, cache_dir, force_download)
-            on_progress(DownloadProgress(0, total))
-            extra["tqdm_class"] = _byte_bar(on_progress, total)
-        if _child_allowed():
-            fetched = _run_child(pin, cache_dir, force_download, total, on_progress)
+            report = _MonotonicProgress(on_progress, total)
+            report(DownloadProgress(0, total))
+            extra["tqdm_class"] = _byte_bar(stop.guard(report), total)
+        fell_back = False
+        if _child_allowed() and not child_failed_on_xet:
+            fetched = _run_child(pin, cache_dir, force_download, total, report)
             if fetched is not None:
                 return fetched
-        with _plain_http_hub():
-            return Path(
-                snapshot_download(
-                    pin.hf_repo,
-                    revision=pin.revision,
-                    allow_patterns=pin.allow_patterns,
-                    cache_dir=str(cache_dir),
-                    force_download=force_download,
-                    **extra,
+            fell_back = True
+            child_failed_on_xet = True  # a force refetch must not spawn the child again
+
+        def plain() -> Path:
+            with _plain_http_hub():
+                return Path(
+                    snapshot_download(
+                        pin.hf_repo,
+                        revision=pin.revision,
+                        allow_patterns=pin.allow_patterns,
+                        cache_dir=str(cache_dir),
+                        force_download=force_download,
+                        **extra,
+                    )
                 )
-            )
+
+        if fell_back and report is not None:
+            return _run_with_heartbeat(plain, report, stop)
+        return plain()
 
     path = fetch(force)
     mismatch = manifest_mismatch(path, pin.file_sha256)

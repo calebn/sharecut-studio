@@ -10,8 +10,10 @@ when its stdin reaches EOF, so a parent that dies never leaves the transfer runn
 
 stdout carries exactly one final JSON line, ``{"path": ...}`` (exit 0) or
 ``{"error": <class name>, "status": <http status or null>, "message": ..., "kind": ...,
-"errno": ...}`` (exit 1). ``kind`` is ``http``, ``network``, ``disk`` or ``other``. Everything
-else the hub prints goes to stderr, which the parent points at a log file.
+"errno": ..., "xet": <bool>}`` (exit 1). ``kind`` is ``http``, ``network``, ``disk`` or
+``other``; ``xet`` is true when the failing exception is Xet-class, the only failure the parent
+retries over plain HTTP. Everything else the hub prints goes to stderr, which the parent points
+at a log file.
 """
 
 from __future__ import annotations
@@ -30,8 +32,18 @@ _MAX_MESSAGE = 500
 
 
 def _status(exc: BaseException) -> int | None:
-    status = getattr(getattr(exc, "response", None), "status_code", None)
-    return status if isinstance(status, int) else None
+    """The http status of ``exc`` or of what it wraps (the hub re-raises a failed listing as a
+    ``LocalEntryNotFoundError`` whose ``__cause__`` is the 404/403). Only ``__cause__`` is
+    followed: an implicit ``__context__`` says nothing about why ``exc`` was raised."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        status = getattr(getattr(current, "response", None), "status_code", None)
+        if isinstance(status, int):
+            return status
+        current = current.__cause__
+    return None
 
 
 def _is_network(exc: BaseException) -> bool:
@@ -62,10 +74,25 @@ def _is_network(exc: BaseException) -> bool:
     return isinstance(exc, tuple(kinds))
 
 
+def _raised_in_hf_xet(exc: BaseException) -> bool:
+    tb = exc.__traceback__
+    while tb is not None:
+        if str(tb.tb_frame.f_globals.get("__name__", "")).split(".")[0] == "hf_xet":
+            return True
+        tb = tb.tb_next
+    return False
+
+
 def _is_xet(exc: BaseException) -> bool:
-    """An hf_xet failure (a blocked Xet host, a refused token): a transport problem, not a bug."""
+    """An hf_xet failure (a blocked Xet host, a refused token): a transport problem, not a bug.
+
+    A class named ``Xet*``, a class defined in ``hf_xet``, or a ``RuntimeError`` raised from
+    ``hf_xet`` frames.
+    """
     cls = type(exc)
-    return cls.__name__.startswith("Xet") or cls.__module__.split(".")[0] == "hf_xet"
+    if cls.__name__.startswith("Xet") or cls.__module__.split(".")[0] == "hf_xet":
+        return True
+    return isinstance(exc, RuntimeError) and _raised_in_hf_xet(exc)
 
 
 def describe(exc: BaseException) -> dict[str, Any]:
@@ -80,12 +107,14 @@ def describe(exc: BaseException) -> dict[str, Any]:
         kind = "network"
     else:
         kind = "other"
+    xet = kind == "network" and _is_xet(exc)
     return {
         "error": type(exc).__name__,
         "status": status,
         "message": str(exc)[:_MAX_MESSAGE],
         "kind": kind,
         "errno": code,
+        "xet": xet,
     }
 
 
