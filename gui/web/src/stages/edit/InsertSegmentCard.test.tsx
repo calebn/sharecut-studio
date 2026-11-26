@@ -741,6 +741,10 @@ describe("InsertSegmentCard placement", () => {
 });
 
 describe("InsertSegmentCard bottom", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  });
+
   it("is one sheet with the same list and a labelled dialog", async () => {
     const { baseElement } = render(
       <InsertSegmentCard
@@ -795,6 +799,7 @@ describe("InsertSegmentCard bottom", () => {
       await screen.findByRole("radio", { name: /Host read/ }),
     );
     await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
+    expect(scroll).toHaveBeenCalledWith({ block: "end" });
     expect(scroll.mock.contexts[0]).toBe(
       screen.getByRole("group", { name: "What happens to the episode" }),
     );
@@ -803,7 +808,6 @@ describe("InsertSegmentCard bottom", () => {
     );
     await userEvent.keyboard("{ArrowUp}");
     expect(scroll).toHaveBeenCalledTimes(1);
-    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
   });
 
   it("does not scroll again when the picked row is damaged and then usable again", async () => {
@@ -837,7 +841,6 @@ describe("InsertSegmentCard bottom", () => {
       />,
     );
     expect(scroll).toHaveBeenCalledTimes(1);
-    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
   });
 
   it("scrolls on a tap whose click has no detail, as WebKit forwards a label tap to its radio", async () => {
@@ -855,7 +858,6 @@ describe("InsertSegmentCard bottom", () => {
     fireEvent.click(radio.closest("label") as HTMLElement, { detail: 1 });
     fireEvent.click(radio, { detail: 0 });
     await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
-    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
   });
 
   it("does not scroll when the first pick is from the keyboard", async () => {
@@ -873,7 +875,47 @@ describe("InsertSegmentCard bottom", () => {
     await waitFor(() => expect(screen.getAllByRole("radio")[0]).toHaveFocus());
     await userEvent.keyboard("{ArrowDown}");
     expect(scroll).not.toHaveBeenCalled();
-    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  });
+
+  it("does not scroll when an earlier tap picked nothing and the first pick is from the keyboard", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    render(
+      <InsertSegmentCard
+        {...data([DAMAGED, ...PLACEMENT_LIBRARY])}
+        {...handlersOf()}
+        form="bottom"
+        open
+      />,
+    );
+    await screen.findByRole("dialog", { name: "Insert segment" });
+    await userEvent.click(screen.getAllByText(/outro-77de/)[0]);
+    await waitFor(() => expect(screen.getAllByRole("radio")[1]).toHaveFocus());
+    await userEvent.keyboard("{ArrowDown}");
+    expect(scroll).not.toHaveBeenCalled();
+  });
+
+  it("aligns the top of a placement choice that is taller than the sheet body", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    render(
+      <InsertSegmentCard
+        {...data(PLACEMENT_LIBRARY)}
+        {...handlersOf()}
+        form="bottom"
+        open
+      />,
+    );
+    vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(100);
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
+      height: 160,
+    } as DOMRect);
+    await userEvent.click(
+      await screen.findByRole("radio", { name: /Host read/ }),
+    );
+    await waitFor(() =>
+      expect(scroll).toHaveBeenCalledWith({ block: "start" }),
+    );
   });
 
   it("keeps the actions in the form on a cramped screen", async () => {
