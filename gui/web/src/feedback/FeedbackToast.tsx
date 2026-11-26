@@ -35,6 +35,7 @@ import {
   hasValidFocusedFeedbackAction,
   isValidFeedbackAction,
 } from "./feedbackActionFocus";
+import { entryUndone } from "./entryUndone";
 import { useToastDock } from "./toastDock";
 
 /** Safari reports a fully shown card a hair under 1 at fractional zoom or toolbar heights. */
@@ -61,9 +62,10 @@ function restoreOrigin(target: HTMLElement | null): HTMLElement | null {
 }
 
 export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
-  const { toast, headId, projectPath } = useDaw((s) => ({
+  const { toast, headId, history, projectPath } = useDaw((s) => ({
     toast: s.feedbackToast,
     headId: s.project?.history?.head_id ?? null,
+    history: s.project?.history ?? null,
     projectPath: s.projectPath,
   }));
   // An edit still on its way may make this toast's entry stale once it lands.
@@ -200,6 +202,33 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       toast.merged?.entries.includes(headId))
       ? toast.undo
       : null;
+
+  // A merged toast retires once its oldest entry is undone; the newest otherwise.
+  const retireEntry =
+    toast?.merged?.entries.at(-1) ??
+    toast?.undo ??
+    toast?.lapsed?.entries.at(-1) ??
+    null;
+  const retired =
+    toast != null &&
+    toast.tone !== "error" &&
+    !undoing &&
+    retireEntry != null &&
+    entryUndone(history, retireEntry);
+  const toastId = toast?.id;
+  const toastMessage = toast?.message;
+  const spoken = useRef<{ id: number | undefined; retired: boolean }>({
+    id: undefined,
+    retired: false,
+  });
+  useEffect(() => {
+    const before = spoken.current;
+    spoken.current = { id: toastId, retired };
+    if (retired && toastMessage && !(before.id === toastId && before.retired))
+      useDawStore
+        .getState()
+        .announceStatus(`Undone: ${toastMessage}`, { toast: false });
+  }, [toastId, retired, toastMessage]);
 
   useLayoutEffect(() => {
     const focused =
@@ -388,7 +417,11 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       }
       regionRef={regionRef}
       returnFocusRef={returnFocusRef}
-      toast={toast}
+      toast={
+        toast && retired
+          ? { ...toast, message: `Undone: ${toast.message}` }
+          : toast
+      }
       onDismiss={() => {
         if (!toast) return;
         const held = portal.contains(document.activeElement);
