@@ -599,7 +599,7 @@ rebuild the plan from the JSON reports of recent runs that ran the main shards a
 ```sh
 gh run download <run-id> --repo calebn/sharecut-studio \
   --pattern 'playwright-reports-main-*' --dir /tmp/e2e-reports/<run-id>
-python3 scripts/e2e_shards.py build /tmp/e2e-reports/<run-id> [/tmp/e2e-reports/<other-run-id> ...]
+python3 scripts/e2e_shards.py build --shards <n> /tmp/e2e-reports/<run-id> [/tmp/e2e-reports/<other-run-id> ...]
 python3 scripts/e2e_shards.py show   # planned seconds per shard against the ideal
 ```
 
