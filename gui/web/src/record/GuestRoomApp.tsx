@@ -16,7 +16,6 @@ import {
   useMediaQueryStore,
 } from "../hooks/useMediaQueryStore";
 import { useViewportClass } from "../hooks/useViewportClass";
-import { useRoomSheetFloor } from "../stage/frame/useRoomSheetFloor";
 import { DeviceSheet } from "../system/DeviceSheet";
 import { JoinSheet } from "../system/JoinSheet";
 import type { JoinMicAction } from "../system/joinSheetModel";
@@ -203,9 +202,6 @@ function GuestRoomSession({
     notLandscape,
   );
   const viewerWidth = guestViewerWidth(shell, landscape);
-  const roomRef = useRef<HTMLDivElement>(null);
-  const [commentsOpen, setCommentsOpen] = useState(false);
-  useRoomSheetFloor(roomRef, commentsOpen);
   const slow = useAfter(bootstrap ? null : SKELETON_RETRY_MS);
   const state = snapshot?.state;
   const onAir = state === "recording" || state === "paused";
@@ -553,8 +549,6 @@ function GuestRoomSession({
     <>
       <RoomView
         page
-        rootRef={roomRef}
-        onCommentsSheetChange={setCommentsOpen}
         seat={producer ? "producer" : "guest"}
         title={episodeName || "Recording"}
         people={people}

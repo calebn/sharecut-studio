@@ -21,11 +21,9 @@ html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
   bottom: var(--frame-bottom-chrome);
 }
 
-/* The Room's Comments sheet rests on the dock, not on the frame chrome or the
-   screen edge. Only its own root moves, so no detent size changes and a Devices
-   sheet open beside it keeps its rest. The column rule zeroes the end padding
-   because the panel edge must meet the dock's; the row rule leaves it, which is
-   the notch clearance. The keyboard rule below wins while the keyboard is up. */
+/* The Comments sheet rests on the Room dock. The column rule zeroes the end
+   padding so the panel meets the dock edge; the row rule keeps it for the notch
+   clearance. The keyboard rule below wins while the keyboard is up. */
 html[data-room-sheet="bottom"]:not([data-keyboard="open"])
   .bottom-sheet-root:has(> .bottom-sheet.sys-room-comments) {
   bottom: var(--room-sheet-bottom);

@@ -1,19 +1,19 @@
 import { type RefObject, useLayoutEffect } from "react";
 import { lastPressedRect } from "../ui/pressedControl";
 
-/**
- * Phone chrome docked to the bottom edge. The toast sits above the highest of
- * these that is shown: the tab bar, the Player, the Room dock,
- * the precision jog pad, or an open sheet (its grip, whose hit area rises above the sheet edge).
- */
 const ROOM_DOCK = ".sys-room-view-dock";
 
+/**
+ * Phone chrome docked to the bottom edge. The toast sits above the highest of
+ * these that is shown: the tab bar, the Player, the precision jog pad, or an
+ * open sheet (its grip, whose hit area rises above the sheet edge). The Room
+ * dock joins them through `restTopWithDock`.
+ */
 const FLOOR_SELECTORS = [
   ".stage-frame-tabs",
   ".stage-frame-player",
   ".precision-jog",
   ".bottom-sheet:not(.bottom-sheet--column)",
-  ROOM_DOCK,
   ".sys-inspector--phone .sys-inspector-grip",
 ] as const;
 

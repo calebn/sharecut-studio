@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { notesNaming, readableText } from "../test/readableText";
 import { SRC_ROOT } from "../test/sourceFiles";
@@ -1110,64 +1110,72 @@ describe("RoomView comments naming", () => {
   });
 
   describe("the Comments sheet's dock floor", () => {
-    const calls = (fn: ReturnType<typeof vi.fn>) =>
-      fn.mock.calls.map(([open]) => open);
+    const root = document.documentElement;
+    afterEach(() => {
+      vi.restoreAllMocks();
+      root.removeAttribute("data-room-sheet");
+    });
 
-    it("tells the caller the sheet is open, with its own class on the panel", () => {
-      const onCommentsSheetChange = vi.fn();
-      renderRoom({
-        viewerWidth: "phone",
-        defaultNotesOpen: true,
-        onCommentsSheetChange,
+    function restDockAt(top: number) {
+      vi.spyOn(root, "clientWidth", "get").mockReturnValue(390);
+      vi.spyOn(root, "clientHeight", "get").mockReturnValue(844);
+      vi.spyOn(
+        HTMLElement.prototype,
+        "getBoundingClientRect",
+      ).mockImplementation(function (this: HTMLElement) {
+        const dock = this.classList.contains("sys-room-view-dock");
+        return {
+          top: dock ? top : 0,
+          bottom: dock ? top + 106 : 0,
+          left: 0,
+          right: dock ? 390 : 0,
+          width: dock ? 390 : 0,
+          height: dock ? 106 : 0,
+          x: 0,
+          y: dock ? top : 0,
+          toJSON: () => ({}),
+        } as DOMRect;
       });
-      expect(calls(onCommentsSheetChange).at(-1)).toBe(true);
+    }
+
+    it("publishes the dock floor while the sheet is open, with its own class on the panel", () => {
+      restDockAt(686);
+      renderRoom({ viewerWidth: "phone", defaultNotesOpen: true });
+      expect(root.getAttribute("data-room-sheet")).toBe("bottom");
+      expect(root.style.getPropertyValue("--room-sheet-bottom")).toBe("158px");
       expect(screen.getByRole("dialog", { name: "Comments" })).toHaveClass(
         "sys-room-comments",
       );
     });
 
-    it("follows the peek bar and Close, and says closed on unmount", async () => {
-      const onCommentsSheetChange = vi.fn();
+    it("follows Close and clears on unmount", async () => {
+      restDockAt(686);
       const { unmount } = renderRoom({
         viewerWidth: "phone",
-        onCommentsSheetChange,
+        defaultNotesOpen: true,
       });
-      expect(calls(onCommentsSheetChange).at(-1)).toBe(false);
-      await userEvent.click(
-        document.querySelector(".sys-room-view-peek") as HTMLElement,
-      );
-      expect(calls(onCommentsSheetChange).at(-1)).toBe(true);
+      expect(root.getAttribute("data-room-sheet")).toBe("bottom");
       await userEvent.click(screen.getByRole("button", { name: "Close" }));
-      expect(calls(onCommentsSheetChange).at(-1)).toBe(false);
+      expect(root.hasAttribute("data-room-sheet")).toBe(false);
       await userEvent.click(
         document.querySelector(".sys-room-view-peek") as HTMLElement,
       );
-      expect(calls(onCommentsSheetChange).at(-1)).toBe(true);
+      expect(root.getAttribute("data-room-sheet")).toBe("bottom");
       unmount();
-      expect(calls(onCommentsSheetChange).at(-1)).toBe(false);
+      expect(root.hasAttribute("data-room-sheet")).toBe(false);
     });
 
-    it("never says open on the desktop, while loading, or under Declined", () => {
+    it("publishes nothing on the desktop, while loading, or under Declined", () => {
+      restDockAt(686);
       for (const rest of [
         { viewerWidth: "desktop" as const },
         { viewerWidth: "phone" as const, loading: true },
         { viewerWidth: "phone" as const, declined: { onJoin: () => {} } },
       ]) {
-        const onCommentsSheetChange = vi.fn();
-        const { unmount } = renderRoom({
-          ...rest,
-          defaultNotesOpen: true,
-          onCommentsSheetChange,
-        });
-        expect(calls(onCommentsSheetChange)).not.toContain(true);
+        const { unmount } = renderRoom({ ...rest, defaultNotesOpen: true });
+        expect(root.hasAttribute("data-room-sheet")).toBe(false);
         unmount();
       }
-    });
-
-    it("hands the caller the room's root element", () => {
-      const rootRef = { current: null as HTMLDivElement | null };
-      renderRoom({ rootRef });
-      expect(rootRef.current).toBe(document.querySelector(".sys-room-view"));
     });
   });
 

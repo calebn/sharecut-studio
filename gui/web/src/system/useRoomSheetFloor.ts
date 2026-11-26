@@ -4,18 +4,15 @@ import {
   useEffectEvent,
   useLayoutEffect,
 } from "react";
-import { useResizeObserver } from "../../ui/useResizeObserver";
+import { useResizeObserver } from "../ui/useResizeObserver";
 
-const BOTTOM = "--room-sheet-bottom";
-const END = "--room-sheet-end";
 const MODE = "data-room-sheet";
 
 /**
- * While the Room's Comments sheet is open, publishes how far its slot is inset
- * so the panel ends at the dock instead of covering it: from the viewport
- * bottom for a dock row, from the inline-end edge for the landscape guest's
- * dock column. Measured against the layout viewport, which is what the fixed
- * sheet root is positioned in, so it holds on a page with no stage frame.
+ * Insets are measured against the layout viewport, which is what the fixed
+ * sheet root is positioned in, so they hold on a page with no stage frame.
+ * The bottom inset is for a dock row, the end inset for the landscape guest's
+ * dock column.
  */
 export function useRoomSheetFloor(
   roomRef: RefObject<HTMLElement | null>,
@@ -25,8 +22,8 @@ export function useRoomSheetFloor(
     roomRef.current?.querySelector<HTMLElement>(".sys-room-view-dock") ?? null;
 
   const clear = (root: HTMLElement) => {
-    root.style.removeProperty(BOTTOM);
-    root.style.removeProperty(END);
+    root.style.removeProperty("--room-sheet-bottom");
+    root.style.removeProperty("--room-sheet-end");
     root.removeAttribute(MODE);
   };
 
@@ -41,19 +38,19 @@ export function useRoomSheetFloor(
     const { clientWidth, clientHeight } = root;
     if (rect.width > clientWidth / 2) {
       root.style.setProperty(
-        BOTTOM,
+        "--room-sheet-bottom",
         `${Math.max(0, clientHeight - rect.top)}px`,
       );
-      root.style.removeProperty(END);
+      root.style.removeProperty("--room-sheet-end");
       root.setAttribute(MODE, "bottom");
       return;
     }
     const rtl = getComputedStyle(root).direction === "rtl";
     root.style.setProperty(
-      END,
+      "--room-sheet-end",
       `${Math.max(0, rtl ? rect.right : clientWidth - rect.left)}px`,
     );
-    root.style.removeProperty(BOTTOM);
+    root.style.removeProperty("--room-sheet-bottom");
     root.setAttribute(MODE, "end");
   };
 

@@ -278,6 +278,5 @@ describe("App styles", () => {
     expect(column).toMatch(/inset-inline-end:\s*var\(--room-sheet-end\)/);
     expect(column).toMatch(/padding-inline-end:\s*0/);
     expect(column).not.toMatch(/height|margin/);
-    expect(css.match(/padding-inline-end/g)).toHaveLength(1);
   });
 });

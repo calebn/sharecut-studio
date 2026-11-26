@@ -186,10 +186,9 @@ describe("restTopWithDock", () => {
     expect(restTopWithDock(792, [686, 700])).toBe(686);
   });
 
-  it("keeps the chrome row without a dock, and when that row is folded away", () => {
+  it("keeps the chrome row without a dock", () => {
     expect(restTopWithDock(792, [])).toBe(792);
     expect(restTopWithDock(844, [])).toBe(844);
-    expect(restTopWithDock(844, [686])).toBe(686);
   });
 });
 

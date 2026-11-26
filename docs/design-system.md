@@ -583,7 +583,7 @@ jsdom visibility checks.
 ## Changelog
 
 - 2026-11-26 — #4660: the phone Record room's Comments sheet rests on the Room
-  dock instead of covering it (`stage/frame/useRoomSheetFloor.ts`, two layout
+  dock instead of covering it (`system/useRoomSheetFloor.ts`, two layout
   tokens scoped to the open sheet; no colour or spacing tokens), and the host's
   feedback toast rests above that dock.
 
