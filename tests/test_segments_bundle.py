@@ -370,6 +370,18 @@ def test_export_refuses_a_file_larger_than_import_takes(
     assert not out.exists()
 
 
+def test_a_refused_export_leaves_a_file_already_at_the_target(
+    source_store: SegmentStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(bundle, "MAX_BUNDLE_BYTES", 10)
+    out = tmp_path / "keep.sharecutseg"
+    out.write_bytes(b"earlier export")
+    with pytest.raises(CodedValueError):
+        export_segments(source_store, [source_store.list()[0].id], out)
+    assert out.read_bytes() == b"earlier export"
+    assert [path.name for path in tmp_path.iterdir() if path.name.startswith(".keep")] == []
+
+
 def test_a_staged_clip_is_copied_out_by_index(bundle_path: Path, tmp_path: Path) -> None:
     out = staged_clip(bundle_path, 0, tmp_path / "clip.flac")
     assert out.read_bytes() == b"fLaC-one"

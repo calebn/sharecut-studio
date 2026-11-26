@@ -42,7 +42,7 @@ def _too_large() -> CodedValueError:
 
 def _declared_length(request: Request) -> int | None:
     raw = request.headers.get("content-length")
-    return int(raw) if raw is not None and raw.isdigit() else None
+    return int(raw) if raw is not None and raw.isascii() and raw.isdigit() else None
 
 
 async def _receive(request: Request, staging: ImportStaging, upload: Upload) -> None:
@@ -136,13 +136,8 @@ def commit_import(body: SegmentImportCommit) -> dict[str, str | int]:
 def cancel_import(staged_id: str) -> dict[str, str]:
     staging = ImportStaging(SegmentStore())
     staging.sweep()
-    if staging.committing(staged_id):
-        refuse(
-            CodedValueError(
-                "This file is being added to the library right now.",
-                code="segment_import_committing",
-            ),
-            _REFUSED,
-        )
-    staging.discard(staged_id)
+    try:
+        staging.cancel(staged_id)
+    except CodedValueError as exc:
+        refuse(exc, _REFUSED)
     return {"cancelled": staged_id}

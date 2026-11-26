@@ -33,6 +33,8 @@ STAGED_TTL_SEC = 3600.0
 _ROOM_FACTOR = 3
 _TOKEN = re.compile(r"[0-9a-f]{32}")
 _CLAIM_PREFIX = ".claim-"
+_DROP_PREFIX = ".drop-"
+_KEEPS_THE_FILE = frozenset({"segment_busy", "segment_no_room", "segment_write_failed"})
 
 
 _BEGIN = threading.Lock()
@@ -173,9 +175,9 @@ class ImportStaging:
     def claim(self, token: str) -> Iterator[Path]:
         """Take the staged file for one commit. A second commit finds it gone.
 
-        The file is removed when the block ends. When the library is busy it is put back so
-        the person can try again without uploading twice; any other failure (a file that does
-        not verify) removes it, so a bad file does not keep its slot.
+        The file is removed when the block ends. When the library is busy or the disk cannot
+        take it it is put back so the person can try again without uploading twice; any other
+        failure (a file that does not verify) removes it, so a bad file does not keep its slot.
         """
         source = self.path(token)
         claimed = self.directory / f"{_CLAIM_PREFIX}{token}"
@@ -187,7 +189,7 @@ class ImportStaging:
         try:
             yield claimed
         except CodedValueError as exc:
-            if exc.code == "segment_busy":
+            if exc.code in _KEEPS_THE_FILE:
                 os.replace(claimed, source)
             else:
                 claimed.unlink(missing_ok=True)
@@ -198,6 +200,27 @@ class ImportStaging:
             self.discard(token)
             raise
         claimed.unlink(missing_ok=True)
+        self.discard(token)
+
+    def cancel(self, token: str) -> None:
+        """Remove a waiting file. Raises ``segment_import_committing`` while a commit holds it.
+
+        The file is taken by one rename, the same step a commit takes, so a cancel and a
+        commit that arrive together cannot both succeed.
+        """
+        if not _TOKEN.fullmatch(token):
+            return
+        try:
+            os.rename(self._path(token), self.directory / f"{_DROP_PREFIX}{token}")
+        except FileNotFoundError:
+            if self.committing(token):
+                raise CodedValueError(
+                    "This file is being added to the library right now.",
+                    code="segment_import_committing",
+                ) from None
+        except OSError:
+            pass
+        (self.directory / f"{_DROP_PREFIX}{token}").unlink(missing_ok=True)
         self.discard(token)
 
     def discard(self, token: str) -> None:

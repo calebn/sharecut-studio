@@ -8,6 +8,7 @@ sizes and hashes are checked, and nothing is read outside a private staging fold
 from __future__ import annotations
 
 import re
+import secrets
 import shutil
 import stat
 import tempfile
@@ -28,7 +29,7 @@ from podcast_mcp.segments.model import (
     read_capped,
 )
 from podcast_mcp.segments.store import AddResult, SegmentStore, sha256_file
-from podcast_mcp.util.atomic_file import atomic_write
+from podcast_mcp.util.atomic_file import atomic_write, publish_completed_file
 from podcast_mcp.util.coded_error import CodedValueError
 
 MANIFEST = MANIFEST_NAME
@@ -83,8 +84,9 @@ def export_segments(store: SegmentStore, ids: Sequence[str], out_path: Path) -> 
                 archive.write(folder / name, name)
             archive.writestr(MANIFEST, manifest)
 
+    part = out_path.with_name(f".{out_path.name}.{secrets.token_hex(8)}.part")
     try:
-        written = atomic_write(out_path, fill, creation_mode=0o644)
+        written = atomic_write(part, fill, creation_mode=0o644)
         size = written.stat().st_size
     except OSError as exc:
         raise _invalid(
@@ -107,7 +109,12 @@ def export_segments(store: SegmentStore, ids: Sequence[str], out_path: Path) -> 
             f"{MAX_BUNDLE_BYTES // 1024**2} MiB a segment file can hold. Use fewer or shorter clips.",
             "segment_bundle_too_large",
         )
-    return written
+    try:
+        return publish_completed_file(written, out_path)
+    except OSError as exc:
+        raise _invalid(
+            f"{out_path} could not be written: {exc.strerror or exc}.", "segment_write_failed"
+        ) from exc
 
 
 def _checked_entries(
