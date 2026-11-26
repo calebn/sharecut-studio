@@ -6,6 +6,20 @@ lease. The host renews the lease at half its life by presenting the old one. The
 lease and per-install claim key are stored in one private file under the state root. Every failure is
 raised as a ``TunnelError`` carrying a classified ``TunnelFailure`` with plain-words copy, so the
 tunnel's reconnect loop treats it like any other failed try.
+
+A 404 from the sign-in routes means the service is older than this build or the path moved. With no
+previous lease (first enrollment) the 404 on the enrollment probe is final: the relay is noted as
+non-enrolling until restart. With a stored lease a renew 404 is not trusted on its own: the lease
+keeps working while it is valid and renewal backs off and retries. Only ``NOT_FOUND_LIMIT``
+consecutive 404s spanning ``NOT_FOUND_MIN_SPAN_SEC``, a renew 404 for a lease the relay already
+refused, or a 404 on the probe of any enrollment that runs with a previous lease (expired,
+refused, or within a minute of expiry), stop with the older-service failure (``reason_code``
+``relay_older``). The span is timed on a monotonic clock. Once a streak qualifies, every later
+``credentials()`` call is fatal while the 404s continue, so the next reconnect parks the host until
+its settings change, even if the stored lease would still be valid. Any other outcome of a renew or enroll
+attempt (a good reply, a 5xx, a network error, a 401) ends the streak. A connected tunnel only
+logs that failure from ``keep_fresh``; the host sees it when the connection next drops and asks
+for credentials again.
 """
 
 from __future__ import annotations
@@ -28,6 +42,7 @@ from podcast_mcp.config.runtime import (
     note_relay_does_not_enroll,
 )
 from podcast_mcp.services.collaboration.tunnel_failure import (
+    RELAY_OLDER,
     UPDATE_FIX,
     FailureKind,
     TunnelError,
@@ -56,6 +71,11 @@ MAX_RENEW_WAIT_SEC = 3600.0
 MAX_BACKOFF_SEC = 60.0
 # A lease this close to expiry is renewed now rather than trusted for one more connect.
 EXPIRY_MARGIN_SEC = 60.0
+# A host with a stored lease stops trying only after this many consecutive 404s from renew or
+# enroll that also span the minimum time, so a short blip (a deploy, a misrouted proxy) cannot
+# park a host whose lease still works.
+NOT_FOUND_LIMIT = 3
+NOT_FOUND_MIN_SPAN_SEC = 300.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +156,23 @@ def _failure(
     return TunnelError(TunnelFailure(kind, detail, retry_after_sec=retry_after_sec, fix=fix))
 
 
+def _older_service(*, fatal: bool) -> TunnelError:
+    """A 404 from a host that has signed in before: the service is older or the address moved.
+
+    Non-fatal while the stored lease may still work (the caller keeps it and retries); fatal
+    as a config failure once the 404s persist or the lease has expired.
+    """
+    return TunnelError(
+        TunnelFailure(
+            FailureKind.CONFIG if fatal else FailureKind.RELAY_CLOSED,
+            "the online sharing service looks older than this version of ShareCut",
+            fix="Ask whoever runs the sharing service to update it, or check the sharing "
+            "address in your settings.",
+            reason_code=RELAY_OLDER,
+        )
+    )
+
+
 def _refusal(status: int, body: Mapping[str, Any], retry_after: str | None) -> TunnelError:
     """The classified failure for a non-200 reply from ``/api/relay/enroll``."""
     code = str(body.get("detail") or "")
@@ -201,6 +238,7 @@ class Enrollment:
         *,
         store: LeaseStore | None = None,
         clock: Callable[[], float] = time.time,
+        monotonic: Callable[[], float] = time.monotonic,
         build: str = __version__,
         platform_name: str | None = None,
     ) -> None:
@@ -208,11 +246,15 @@ class Enrollment:
         self._origin = http_origin(cfg.relay_url)
         self._store = store or LeaseStore()
         self._clock = clock
+        # The 404 streak is timed on a clock a sleeping laptop or a clock step cannot distort.
+        self._monotonic = monotonic
         self._build = build
         self._platform = platform_name or host_platform.current().name
         self._lock = asyncio.Lock()
         self._stale = False
         self._offset: float | None = None
+        self._not_found = 0
+        self._first_not_found: float | None = None
 
     def mark_stale(self) -> None:
         """The relay refused the stored lease: renew or re-enroll next, never reuse it as is."""
@@ -230,10 +272,12 @@ class Enrollment:
             now = self._relay_now()
             fresh = now < stored.renew_at and self._build_matches(stored) if stored else False
             if stored is not None and fresh and not self._stale:
+                # Another process may have renewed the shared lease file since the last 404.
+                self._clear_not_found()
                 return stored
             if stored is not None and now < stored.exp - EXPIRY_MARGIN_SEC:
                 try:
-                    return self._remember(await self._renew(stored))
+                    return self._remember(await self._tracked(self._renew(stored)))
                 except TunnelError as exc:
                     if exc.failure.fatal and not exc.failure.stale_lease:
                         raise
@@ -241,7 +285,38 @@ class Enrollment:
                         if strict:
                             raise
                         return stored
-            return self._remember(await self._enroll(stored))
+            return self._remember(await self._tracked(self._enroll(stored)))
+
+    async def _tracked(self, attempt: Awaitable[EnrollGrant]) -> EnrollGrant:
+        """Run one renew or enroll attempt; any outcome but a 404 ends the 404 streak."""
+        try:
+            return await attempt
+        except TunnelError as exc:
+            if exc.failure.reason_code != RELAY_OLDER:
+                self._clear_not_found()
+            raise
+        except Exception:
+            self._clear_not_found()
+            raise
+
+    def _clear_not_found(self) -> None:
+        self._not_found = 0
+        self._first_not_found = None
+
+    def _record_not_found(self) -> int:
+        now = self._monotonic()
+        if self._first_not_found is None:
+            self._first_not_found = now
+        self._not_found += 1
+        return self._not_found
+
+    def _not_found_is_final(self) -> bool:
+        """A refused (stale) lease cannot be kept, so a 404 is final at once; else the streak decides."""
+        if self._stale:
+            return True
+        first = self._first_not_found
+        span = self._monotonic() - first if first is not None else 0.0
+        return self._not_found >= NOT_FOUND_LIMIT and span >= NOT_FOUND_MIN_SPAN_SEC
 
     def _relay_now(self) -> float:
         """This computer's clock moved onto the relay's, as last seen; the relay judges expiry."""
@@ -279,6 +354,7 @@ class Enrollment:
 
     def _remember(self, grant: EnrollGrant) -> Credentials:
         self._stale = False
+        self._clear_not_found()
         self._offset = grant.server_time - self._clock()
         credentials = Credentials(
             grant.install_id,
@@ -316,6 +392,9 @@ class Enrollment:
             if body.get("detail") == f"lease_refused:{LeaseRefusal.DENIED.value}":
                 raise TunnelError(unavailable())
             raise TunnelError(TunnelFailure(FailureKind.AUTH, "sign-in refused", stale_lease=True))
+        if response.status_code == 404:
+            self._record_not_found()
+            raise _older_service(fatal=self._not_found_is_final())
         if response.status_code != 200:
             raise _refusal(response.status_code, body, response.headers.get("retry-after"))
         return _grant(body)
@@ -327,6 +406,11 @@ class Enrollment:
         try:
             async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SEC) as client:
                 response = await client.get(self._origin + ENROLL_PATH)
+                if response.status_code == 404 and previous is not None:
+                    # Not noted: the supervisor parks the fatal failure, and the host must keep
+                    # seeing why rather than "not set up".
+                    self._record_not_found()
+                    raise _older_service(fatal=True)
                 if response.status_code == 404:
                     note_relay_does_not_enroll(self._relay_url)
                 if response.status_code != 200:

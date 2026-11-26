@@ -523,6 +523,28 @@ def test_read_status_keeps_a_failed_snapshot_until_it_is_abandoned(tmp_path: Pat
     assert (report["state"], report["reason_kind"]) == ("offline", "auth")
 
 
+def test_reason_code_reaches_the_status_json_and_is_absent_for_older_files(tmp_path: Path):
+    path = tmp_path / "a.json"
+    tracker = TunnelStatusTracker(
+        relay_host="relay.example.test",
+        public_base_url=PUBLIC,
+        listeners=[StatusFileListener(path)],
+        clock=lambda: 1000.0,
+    )
+    tracker.failed(TunnelFailure(FailureKind.CONFIG, "older", reason_code="relay_older"))
+
+    shown = read_tunnel_status(relay_configured=True, directory=tmp_path, now=1010.0)
+    assert (shown["reason_kind"], shown["reason_code"]) == ("config", "relay_older")
+
+    tracker.failed(TunnelFailure(FailureKind.CONFIG, "wrong address"))
+    again = read_tunnel_status(relay_configured=True, directory=tmp_path, now=1010.0)
+    assert again["reason_code"] is None
+
+    older = _write(tmp_path / "old" / "b.json", phase="failed", state="offline")
+    older_view = read_tunnel_status(relay_configured=True, directory=older.parent, now=1010.0)
+    assert older_view.get("reason_code") is None
+
+
 def test_a_local_only_host_reads_not_set_up_and_a_configured_one_reads_off(tmp_path: Path):
     assert read_tunnel_status(relay_configured=False, directory=tmp_path)["state"] == ("not_set_up")
     assert read_tunnel_status(relay_configured=True, directory=tmp_path)["state"] == "off"

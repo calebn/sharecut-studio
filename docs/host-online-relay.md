@@ -206,9 +206,26 @@ never maps `/api/tunnel`). It reads every file and reports one `state`:
 | `limited` | Connected, and the relay holds links back (`limit` is `shares` or `bandwidth`; see Caps). Ranks just below `online` when several tunnels report | Online sharing is limited: some links may not open for guests, with a "How to fix" disclosure |
 | `connecting` | Starting up | Connecting… guests can open your links once you're online |
 | `reconnecting` | Dropped and retrying | Reconnecting… guests may see a brief interruption, then "Trying again in N s" (a still "Next try at" clock time under reduced motion) |
-| `offline` | Failed (auth, config, gave up; `reason_kind` `unavailable` reads "Online sharing is unavailable right now." with a contact link instead of the fix disclosure), or a live snapshot not refreshed for 45 s to 10 minutes whose process is not known to be gone (a frozen process, a sleeping laptop) | Not reachable online: guests can't open links until you're back online, with a "How to fix" disclosure and a link to this section |
+| `offline` | Failed (auth, config, gave up; `reason_kind` `unavailable` reads "Online sharing is unavailable right now." with a contact link instead of the fix disclosure), or a live snapshot not refreshed for 45 s to 10 minutes whose process is not known to be gone (a frozen process, a sleeping laptop) | Not reachable online: guests can't open links until you're back online, with a "How to fix" disclosure and a link to this section. A failed `config` status whose `reason_code` is `relay_older` shows the older-service line instead of the wrong-address one: "Your sharing service looks older than this version of ShareCut. Ask whoever runs it to update it, or check the address in your settings." |
 | `off` | Stopped (Ctrl-C, SIGTERM, or any exit but a failure), a live snapshot whose process is gone (killed, crashed), a file nothing has written for 10 minutes, or no snapshot yet while relay settings exist (`relay.yaml` at the default path, `PODCAST_RELAY_URL` or `PODCAST_RELAY_HOST_TOKEN`) | Online sharing is off, with "How to turn it on" |
 | `not_set_up` | No snapshot and no relay settings: a local-only host | No line |
+
+**An older sharing service.** When a host that has signed in before gets a 404 while renewing its
+sign-in (`POST /api/relay/enroll/renew`), ShareCut keeps the current sign-in while it is valid, backs
+off (1 s doubling to 60 s) and retries, so a brief misroute does not take a working host offline and
+the host is never reset to "not set up". It stops with a `config` failure whose `reason_code` is
+`relay_older` in three cases: three consecutive 404s spanning at least five minutes (timed on a
+monotonic clock, so sleep or a clock change does not count); a 404 on a renewal of a sign-in the
+service already refused; or a 404 on the check (`GET /api/relay/enroll`) of any sign-up that runs with
+a previous sign-in (expired, refused by the service, or within a minute of expiry). Any other outcome
+of a renew or sign-up attempt (a good reply, a 5xx, a network error, a 401), or finding the stored
+sign-in already renewed, ends the streak. Once a streak qualifies, the next reconnect is fatal and
+parks the host until its settings change, even if the stored sign-in would still be valid. The
+renewal loop only logs that failure, so a host that is still connected keeps its green line and sees
+the older-service line when the connection next drops. A first sign-up that gets a 404 is unchanged:
+the service is treated as one that does not sign hosts in until ShareCut restarts, and a 404 on the
+sign-up `POST` keeps the "address" copy. `reason_code` is additive and optional: older status files and
+every other failure leave it `null` or absent, and `reason_kind` keeps its values.
 
 **One table derives the state of each file.** A file outlives its tunnel, so the phase
 it holds is only a claim. `read_tunnel_status` checks the phase kind (live, failed or
@@ -282,13 +299,14 @@ explicit `host_token` never enrolls and uses the token unchanged. The shared sha
 
 The host asks the relay for a lease the first time it needs one, when a relay URL is named in
 `relay.yaml` or `PODCAST_RELAY_URL` and no host token is set. It never enrolls against the
-loopback default. A named relay that answers `404` to `GET /api/relay/enroll` has no signing key; the host
+loopback default. A named relay that answers `404` to `GET /api/relay/enroll` on a first sign-up has no signing key; the host
 then reads "not set up" again, as it did before enrollment existed, until it restarts or gains a
 host token, instead of showing a failure.
 
 1. `GET /api/relay/enroll` returns `{"enroll": true, "pow_bits": N, "epoch": E, "now": T}`, with `now` the
    relay's clock in seconds. A 404 here means the relay has no signing key or is an older build that serves enrollment at
-   the old paths. The host never
+   the old paths. For a host that already holds a lease, a 404 on `POST /api/relay/enroll/renew` is retried
+   (see An older sharing service) and a 404 here is final with the older-service line. The host never
    solves more than 26 bits whatever `pow_bits` says.
 2. `POST /api/relay/enroll` with `seed`, `platform`, `build`, `proof` (`{"ts", "nonce"}`) and, when the host
    holds one, `previous` (a lease this relay signed earlier). The relay, not the host, assigns the
@@ -417,7 +435,8 @@ failure takes the same path as any other failed try, in plain words:
 
 | Situation | Kind | Message the host sees | Retried |
 |-----------|------|-----------------------|---------|
-| The address answers 404 (no signing key, or an older relay) | `config` | online sharing is not available at this address | no |
+| The address answers 404 to a first sign-up (no signing key, or an older relay) | `config` | online sharing is not available at this address | no |
+| A signed-in host's renewal gets 404 | `relay closed` while retrying; `config` (`reason_code` `relay_older`) after three consecutive over five minutes, when the service had already refused the sign-in, or when signing in again with a previous sign-in (expired, refused, or about to expire) | the online sharing service looks older than this version of ShareCut | yes, until it turns final |
 | The install was denied | `unavailable` | online sharing is unavailable right now (the Invite sheet adds a contact link) | no |
 | The build is below `min_build` | `auth` | this version of ShareCut is too old for online sharing (update, then start again) | no |
 | Rate limited | `rate limited` | too many sign-ups from this network, trying again later | yes, after `Retry-After` |

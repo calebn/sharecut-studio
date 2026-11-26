@@ -14,10 +14,15 @@ type TunnelStatusCopy = {
   fix?: { summary: string; body: string };
 };
 
-const OFFLINE_FIX: Record<"auth" | "config" | "other", string> = {
+const OFFLINE_FIX: Record<
+  "auth" | "config" | "older_service" | "other",
+  string
+> = {
   auth: "Your sharing service refused this computer's access key. Get a new key from whoever runs the service, then start online sharing again.",
   config:
     "The sharing service address in your settings looks wrong. Correct it, then start online sharing again.",
+  older_service:
+    "Your sharing service looks older than this version of ShareCut. Ask whoever runs it to update it, or check the address in your settings.",
   other:
     "Check that this computer is awake and connected to the internet. If online sharing stopped, start it again.",
 };
@@ -65,9 +70,11 @@ export function tunnelStatusCopy(
         };
       }
       const kind =
-        status.reason_kind === "auth" || status.reason_kind === "config"
-          ? status.reason_kind
-          : "other";
+        status.reason_kind === "config" && status.reason_code === "relay_older"
+          ? "older_service"
+          : status.reason_kind === "auth" || status.reason_kind === "config"
+            ? status.reason_kind
+            : "other";
       return {
         tone: "problem",
         headline:

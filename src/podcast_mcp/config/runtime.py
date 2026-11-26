@@ -436,7 +436,11 @@ _NON_ENROLLING_RELAYS: set[str] = set()
 
 
 def note_relay_does_not_enroll(relay_url: str) -> None:
-    """Remember, until restart, a named relay that answered 404 to enrollment (it has no signing key)."""
+    """Remember, until restart, a named relay that answered 404 to a first enrollment (it has no signing key).
+
+    First enrollment only: a host that already holds a lease never calls this, so a renew 404 cannot
+    turn a signed-in host into "not set up".
+    """
     _NON_ENROLLING_RELAYS.add(relay_url)
 
 
