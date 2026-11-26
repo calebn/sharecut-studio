@@ -23,8 +23,10 @@ The exported-files listing marks saved clip audio current when a candidate's
 export writer. Changing a clip's start, end or title clears that reference, so an
 edited clip's earlier file lists as out of date until the clip is exported again;
 approving, unapproving and saves that change nothing keep it. Projects edited
-before this change keep their old reference, and an undo after a re-export
-restores the old reference. An older or unreferenced clip remains listed and
+before this change keep their old reference. Undo restores the saved reference,
+and a re-export of the same clip writes the same file name, so after a retime,
+a re-export and an undo the file can list as current while holding the newer
+audio; export again to refresh it. An older or unreferenced clip remains listed and
 downloadable.
 
 Titles/captions truncate at word boundaries. Platform presets: `.agents/defaults/pipeline.yaml` → `social_clips.platforms`. The merged config type (`EffectiveConfig`) lives in `podcast_mcp.config.defaults`.

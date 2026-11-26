@@ -416,7 +416,7 @@ def update_social_clip_details(
     for i, clip in enumerate(project.social_clip_candidates):
         if clip.id != clip_id:
             continue
-        if title is not None and changes["title_suggestion"] != clip.title_suggestion:
+        if title is not None and changes["title_suggestion"] != (clip.title_suggestion or None):
             changes["exported_path"] = None
         updated = clip.model_copy(update=changes)
         project.social_clip_candidates[i] = updated

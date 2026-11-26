@@ -195,6 +195,19 @@ def test_a_blank_title_clears_the_reference_only_when_the_clip_had_a_title(clip)
     assert _row(ws, cid).exported_path == EXPORTED
 
 
+def test_a_no_op_save_of_a_legacy_empty_title_keeps_the_export_reference(clip):
+    ws, cid = clip
+
+    def legacy(project):
+        row = next(c for c in project.social_clip_candidates if c.id == cid)
+        row.title_suggestion = ""
+        row.exported_path = EXPORTED
+
+    ws.mutate("Before", "After", legacy)
+    apply_command(ws, CMD, {"id": cid, "title": " "})
+    assert _row(ws, cid).exported_path == EXPORTED
+
+
 def test_an_unknown_clip_is_refused_and_changes_nothing(clip):
     ws, cid = clip
     with pytest.raises(CodedValueError) as err:
