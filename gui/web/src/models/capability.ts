@@ -58,9 +58,26 @@ export type WhisperSizeOption = {
 
 /** The three sizes the person picks from; `size` is the catalog's, used until the server lists it. */
 export const WHISPER_SIZES: readonly WhisperSizeOption[] = [
-  { id: "tiny.en", name: "Fast", size: "75 MB" },
-  { id: "small.en", name: "Balanced", size: "500 MB" },
-  { id: "large-v3-turbo", name: "Best", size: "1.6 GB" },
+  {
+    id: "tiny.en",
+    name: "Fast",
+    size: "75 MB",
+    description:
+      "English only, lowest accuracy. For other languages, choose Best.",
+  },
+  {
+    id: "small.en",
+    name: "Balanced",
+    size: "500 MB",
+    description:
+      "English only, a good balance. For other languages, choose Best.",
+  },
+  {
+    id: "large-v3-turbo",
+    name: "Best",
+    size: "1.6 GB",
+    description: "Works in other languages too. Largest and slowest.",
+  },
 ];
 
 /** A size as the sheet writes it: "1.6 GB", without the registry's tilde. */

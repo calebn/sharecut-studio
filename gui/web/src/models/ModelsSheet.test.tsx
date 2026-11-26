@@ -423,6 +423,39 @@ describe("ModelsSheet", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
+  it.each([
+    ["tiny.en", "Fast", /English only/],
+    ["small.en", "Balanced", /English only/],
+    ["large-v3-turbo", "Best", /other languages/i],
+  ] as const)(
+    "on desktop, %s (%s) shows a note under the Size control that describes it",
+    async (model, name, text) => {
+      stubViewportShell("desktop");
+      const rows = registryRows().map((r) =>
+        r.id === "whisper" ? modelRow({ ...r, model }) : r,
+      );
+      render(<ModelsSheet open onClose={vi.fn()} />, {
+        wrapper: modelsWrapper(
+          modelsApi({
+            status: modelStatus(rows, { whisper_model: model }),
+          }),
+        ),
+      });
+      await userEvent.click(
+        screen.getByRole("button", { name: new RegExp(`^${name}`) }),
+      );
+      const note = document.querySelector(".sys-size-note");
+      expect(note).not.toBeNull();
+      expect(note).toBeVisible();
+      expect(note?.textContent).toMatch(text);
+      const group = screen.getByRole("group", { name: "Size" });
+      const id = group.getAttribute("aria-describedby");
+      expect(id).toBeTruthy();
+      expect(document.getElementById(id as string)).toBe(note);
+      expect(group).toHaveAccessibleDescription(note?.textContent ?? "");
+    },
+  );
+
   it("shows every state: installed has no control, a running download has a ring that cancels, a failure retries", async () => {
     const rows = registryRows().map((r) => {
       if (r.id === "whisper") return { ...r, state: "installed" as const };
