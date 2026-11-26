@@ -31,7 +31,7 @@ export const UNUSABLE: KitRow = kit({
   missing: 1,
   usable: false,
   problem:
-    "1 segment of this kit is not in the library: entry 2 (Sponsor read at end): segment not found. Import the missing segments, or save the kit again with segments you have.",
+    "1 segment of this kit is not in the library: entry 2 (Sponsor read at end): that segment can't be found. Import the missing segments, or save the kit again with segments you have.",
 });
 
 export const DAMAGED: DamagedKitRow = {

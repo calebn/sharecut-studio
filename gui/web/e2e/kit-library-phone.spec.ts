@@ -48,7 +48,7 @@ const KITS: Row[] = [
     missing: 1,
     usable: false,
     problem:
-      "1 segment of this kit is not in the library: entry 2 (Sponsor read at end): segment not found.",
+      "1 segment of this kit is not in the library: entry 2 (Sponsor read at end): that segment can't be found.",
   },
   {
     id: "old-kit-77de0000",
@@ -135,7 +135,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       await expect(section).toContainText("v2 · 2 versions");
       await expect(section).toContainText("Can't be added to an episode yet");
       await expect(section).toContainText(
-        "Sponsor read at end): segment not found.",
+        "Sponsor read at end): that segment can't be found.",
       );
       await expect(section).toContainText(
         "It can't be exported until its segments are back",
