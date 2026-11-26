@@ -35,7 +35,7 @@
 }
 
 .segment-library-empty > p + p {
-  margin-block-start: var(--space-2);
+  margin-block-start: var(--space-1);
 }
 
 .segment-library-error {
@@ -242,13 +242,13 @@
 .segment-import-button {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   min-block-size: var(--touch-min);
 }
 
 .segment-library-body[data-drop] {
   outline: var(--focus-ring-width) dashed var(--color-accent);
-  outline-offset: var(--space-2);
+  outline-offset: var(--focus-ring-offset);
   border-radius: var(--radius-md);
   background: var(--color-accent-subtle);
 }
