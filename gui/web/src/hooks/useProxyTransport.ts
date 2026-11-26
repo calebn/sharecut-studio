@@ -6,8 +6,11 @@ import {
   useRef,
   useState,
 } from "react";
-import { loadProxyManifest, NETWORK_ERROR_CODE } from "../api";
-import { isFrozenReviewKey } from "../api/project";
+import {
+  isFrozenReviewKey,
+  loadProxyManifest,
+  NETWORK_ERROR_CODE,
+} from "../api";
 import { cachedFetchArrayBuffer, pruneLinkAudio } from "../audio/chunkCache";
 import { bindPlaybackClock } from "../audio/playbackClock";
 import { bindPlaybackMeterSource } from "../audio/playbackMeterSource";

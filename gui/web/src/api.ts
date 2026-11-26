@@ -197,6 +197,7 @@ export {
   createEpisodeProject,
   duplicateRecentProject,
   forgetRecentProject,
+  isFrozenReviewKey,
   listRecentProjects,
   loadDocumentState,
   loadHistoryDiff,

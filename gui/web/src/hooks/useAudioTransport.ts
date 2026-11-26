@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
-import { audioUrl } from "../api";
-import { isFrozenReviewKey } from "../api/project";
+import { audioUrl, isFrozenReviewKey } from "../api";
 import {
   createHostPlaybackMeterMonitor,
   type HostMeterContextBarrier,
