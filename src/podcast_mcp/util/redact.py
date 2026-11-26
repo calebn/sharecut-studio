@@ -55,13 +55,15 @@ _HOST_PATH = re.compile(
     r"|~[\w.-]*[\\/]"
     r"|/"
     r"|(?i:%(?:25)?2f|%(?:25)?5c)"
-    # separators NFKC leaves alone: division slash, fraction slash, big solidus (and its reverse),
-    # set minus, small reverse solidus
-    "|[\u2215\u2044\u29f8\u29f9\u2216\ufe68]"
-    # drive-relative file (``C:raw.wav``): one letter, a colon, a token with an extension
-    r"|(?<![A-Za-z0-9])[A-Za-z]:[^\s/\\:]*\.\w"
+    # separators NFKC leaves alone: division slash, fraction slash, big solidus, its reverse and
+    # the white-circle variant (U+29F5), set minus
+    "|[\u2215\u2044\u29f8\u29f9\u29f5\u2216]"
+    # drive-relative file (``C:raw.wav``): one letter, a colon, a stem with a letter, a known
+    # media or document extension
+    r"|(?<![A-Za-z0-9])[A-Za-z]:[^\s/\\:]*[A-Za-z][^\s/\\:]*"
+    r"\.(?i:wav|mp3|m4a|aac|flac|aiff?|ogg|opus|mp4|mov|json|txt|md|log|zip|csv|srt|vtt|xml|ya?ml"
+    r"|pdf|png|jpe?g)(?![A-Za-z0-9])"
 )
-_UNQUOTE_ROUNDS = 2
 # pydantic prints the offending value of a failed field as ``input_value=<repr>, input_type=<type>``
 # on one line; the repr is the document's own data and may hold ``, input_type=`` itself, so it
 # runs to the last one on the line (or to the end of the line when there is none).
@@ -337,23 +339,17 @@ def mentions_host_path(text: str) -> bool:
     whole (``CodedError.guest_message``, ``scrub_guest_progress_text``).
     Detection conservatively matches slash- or backslash-separated prose and URLs, the lookalike
     separators (fullwidth, division and fraction slashes and the like), their percent-encodings
-    (up to two layers), and a drive-relative file such as ``C:raw.wav`` (one letter, a colon,
-    then a token with a file extension). The text is normalized (NFKC, bounded unquote) for the
+    (up to two layers), and a drive-relative file such as ``C:raw.wav`` (one letter, a colon, a
+    stem with a letter, a known file extension). The text is normalized (NFKC, unquote) for the
     match only; the caller still replaces the whole text. Bare filenames without a path prefix
     remain allowed.
 
-    Residual: a drive-relative name with no extension or with a space before it
-    (``D:Podcasts``, ``D:01 raw.wav``), a path spelled through more than two encoding layers,
-    and a separator-less folder name are not detected. Prose such as ``Q:Why`` or
-    ``Option A:Yes`` stays allowed, as does anything colon-joined without an extension.
+    Residual (also in ``docs/contributing.md``): drive-relative names with an unknown extension,
+    a digit-only stem, no extension or a space (``D:Podcasts``, ``C:1.wav``, ``D:01 raw.wav``),
+    a path spelled through more than two encoding layers, and a separator-less folder name are
+    not detected.
     """
     if _HOST_PATH.search(text) is not None:
         return True
-    decoded = text
-    for _ in range(_UNQUOTE_ROUNDS):
-        step = unquote(decoded)
-        if step == decoded:
-            break
-        decoded = step
-    folded = normalize("NFKC", decoded)
+    folded = normalize("NFKC", unquote(unquote(text)))
     return folded != text and _HOST_PATH.search(folded) is not None

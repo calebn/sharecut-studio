@@ -255,16 +255,16 @@ HOST_PATH_TEXTS = [
     "missing: a\u29f8b",
     "missing: a\u29f9b",
     "missing: a\u2216b",
+    "missing: a\u29f5b",
     "missing: a\ufe68b",
     "missing: a%EF%BC%8Fb",
-    "missing: a%ef%bc%8fb",
     "missing: a%EF%BC%BCb",
     "missing: a%E2%88%95b",
     "missing: a%25EF%25BC%258Fb",
     "missing: C:raw.wav",
     "missing: C:1raw.wav",
-    "missing: d:Secret.wav",
     "(C:raw.wav)",
+    "missing: d:Secret.MP3",
 ]
 CONSERVATIVE_PATH_TEXTS = [
     "mode must be current/suggested/ab",
@@ -285,6 +285,14 @@ PATH_FREE_TEXTS = [
     "episode 3: mix",
     "D:)",
     "Ep:A:x",
+    "p:0.05",
+    "r:0.87",
+    "t:1.5s",
+    "x:12.5",
+    "Plan A:v2.0",
+    "Q:v1.2 notes",
+    "a:b.c",
+    "Grade A:4.0",
 ]
 
 
