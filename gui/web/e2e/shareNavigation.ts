@@ -55,10 +55,12 @@ export async function openGuestShare(page: Page, token: string): Promise<void> {
   });
   if (frozen) {
     // No proxy manifest to settle on: the document shell is what the page is ready on.
-    expect((await stateResponse).status()).toBe(200);
+    const response = await stateResponse;
+    expect(response.status()).toBe(200);
     return;
   }
-  expect((await manifestResponse).status()).toBe(200);
+  const response = await manifestResponse;
+  expect(response.status()).toBe(200);
 }
 
 export type ReviewShareRole = "viewer" | "commenter" | "editor";
