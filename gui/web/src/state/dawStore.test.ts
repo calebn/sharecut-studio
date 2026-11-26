@@ -372,13 +372,13 @@ describe("dawStore listen-first transport", () => {
   });
 
   it("beginAudition leaves a followed editor alone and clears a source preview", () => {
-    useDawStore.setState({ followingClientId: "remote-editor" });
     useDawStore.getState().beginSourcePreview({
       ownerId: "word",
       startSec: 1,
       endSec: 3,
       media: { kind: "rendered", url: "u" },
     });
+    useDawStore.setState({ followingClientId: "remote-editor" });
     const gen = useDawStore.getState().sourcePreviewGeneration;
     useDawStore.getState().beginAudition({ playheadSec: 1, untilSec: 3 });
     const s = useDawStore.getState();
