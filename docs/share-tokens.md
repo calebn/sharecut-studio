@@ -108,7 +108,7 @@ expire and calls revoking **Stop sharing**
 Invite sheet has no expiry control (owner decision in #1027): `expires_at` stays
 opt-in on the CLI and MCP, and the section shows a date only on a link that has
 one. Its copy says links don't expire, and Stop sharing or End room turns them
-off. The sheet asks for a restorable revoke (`restorable: true`): the link dies at
+off (End room waits until no take can be lost). The sheet asks for a restorable revoke (`restorable: true`): the link dies at
 once and a toast offers Undo for the server's window (`restore_ms`), which calls
 the restore route ([Restorable revoke](#restorable-revoke)).
 
