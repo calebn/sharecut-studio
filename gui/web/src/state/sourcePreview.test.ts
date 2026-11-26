@@ -34,12 +34,19 @@ describe("local source preview ownership", () => {
   });
   it("ends follow once when a source preview starts, and is silent when not following", () => {
     const announce = vi.fn();
-    useDawStore.setState({ followingClientId: "other", playbackRate: 1.5, announceStatus: announce });
+    useDawStore.setState({
+      followingClientId: "other",
+      playbackRate: 1.5,
+      announceStatus: announce,
+    });
     useDawStore.getState().beginSourcePreview(request);
     expect(useDawStore.getState().followingClientId).toBeNull();
     expect(useDawStore.getState().playbackRate).toBe(1);
     expect(announce).toHaveBeenCalledTimes(1);
-    useDawStore.getState().beginSourcePreview({ ...request, startSec: 3, endSec: 4 });
+    expect(announce.mock.calls[0]?.[0]).toBe("Stopped following");
+    useDawStore
+      .getState()
+      .beginSourcePreview({ ...request, startSec: 3, endSec: 4 });
     expect(announce).toHaveBeenCalledTimes(1);
   });
   it("an explicit Stop cancels preview even when the timeline is already stopped", () => {
