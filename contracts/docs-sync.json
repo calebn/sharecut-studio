@@ -1091,8 +1091,8 @@
     },
     {
       "id": "ux-pack",
-      "when": "UX onboarding pack (shareable site); relay notice, offline and paused pages and tunnel-status copy; the listed guest-facing copy modules (guest consent, join-sheet, tab-title, recording-status alert and room-view warning copy)",
-      "update": "`ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; enforced by the `ux-pack` docs-sync gate (triggers: GUI shells, keymap, command catalog, the docs listed in the rule, episode schema, relay notice, offline and paused page copy, tunnel-status copy, and the listed guest-facing copy modules for guest consent, join-sheet, tab-title, recording-status alert and room-view warning copy; not every file in record/ or system/)",
+      "when": "UX onboarding pack (shareable site); guest-facing copy modules and relay notice, offline, paused and tunnel-status copy files listed in the rule's gate",
+      "update": "`ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; enforced by the `ux-pack` docs-sync gate (triggers: the guest-facing copy modules and the relay notice, offline, paused and tunnel-status copy files listed in the rule's gate, the stage/ shell, responsive and bottom-sheet paths, keymap, command catalog, the UX-facing docs and episode schema gated there; not every file in record/ or system/)",
       "docs": [
         "ux/",
         "ux/pages/",
