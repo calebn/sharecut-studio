@@ -34,6 +34,17 @@ export const UNUSABLE: KitRow = kit({
     "1 segment of this kit is not in the library: entry 2 (Sponsor read at end): that segment can't be found. Import the missing segments, or save the kit again with segments you have.",
 });
 
+/** A segment is in the library but cannot be read: usable is false while missing is 0. */
+export const UNREADABLE: KitRow = kit({
+  id: "bumper-9e4f0000",
+  name: "Bumper set",
+  entries: 2,
+  missing: 0,
+  usable: false,
+  problem:
+    "Entry 1 (Cold open): that segment's file can't be read. Import it again, or save the kit again with segments you have.",
+});
+
 export const DAMAGED: DamagedKitRow = {
   id: "old-kit-77de0000",
   damaged: true,

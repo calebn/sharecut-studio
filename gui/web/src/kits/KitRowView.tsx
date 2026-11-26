@@ -9,6 +9,7 @@ export const UNUSABLE_CHIP = "Can't be added to an episode yet";
 export const DAMAGED_NAME = "Unreadable kit";
 export const MISSING_NOTE =
   "It can't be exported until its segments are back in the library.";
+export const UNREADABLE_NOTE = "It can't be exported until that is fixed.";
 
 type Props = {
   row: KitListRow;
@@ -70,8 +71,9 @@ export function KitRowView({ row, onExport }: Props) {
       </li>
     );
   }
-  // The server refuses to export a kit with a segment missing (409 kit_segment_missing).
-  const exportable = row.missing === 0;
+  // Export is offered exactly when the server says the kit is usable; it refuses the
+  // rest (409 kit_segment_missing), whether a segment is absent or only unreadable.
+  const exportable = row.usable;
   return (
     <li
       className="kit-row"
@@ -89,7 +91,9 @@ export function KitRowView({ row, onExport }: Props) {
           <span className="kit-problem">{row.problem}</span>
         )}
         {exportable ? null : (
-          <span className="kit-problem">{MISSING_NOTE}</span>
+          <span className="kit-problem">
+            {row.missing > 0 ? MISSING_NOTE : UNREADABLE_NOTE}
+          </span>
         )}
       </div>
       {exportable ? <RowMenu row={row} onExport={onExport} /> : null}

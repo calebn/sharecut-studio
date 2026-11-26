@@ -6,7 +6,14 @@ import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { deferred } from "../test/deferred";
 import { ApiError } from "../utils/apiError";
-import { DAMAGED, HEALTHY, KITS, MULTI_VERSION, UNUSABLE } from "./fixtures";
+import {
+  DAMAGED,
+  HEALTHY,
+  KITS,
+  MULTI_VERSION,
+  UNREADABLE,
+  UNUSABLE,
+} from "./fixtures";
 import { KitLibrary } from "./KitLibrary";
 import { useKitLibrary } from "./useKitLibrary";
 
@@ -18,6 +25,12 @@ vi.mock("../api/kits", async (importOriginal) => ({
 
 const load = vi.mocked(api.loadKits);
 const download = vi.mocked(api.downloadKitFile);
+
+function GuestAwareSection() {
+  const hosted = useDawStore((state) => state.guestMode === null);
+  const library = useKitLibrary(hosted);
+  return <KitLibrary library={library} />;
+}
 
 function Section({ omitWhenEmpty = false }: { omitWhenEmpty?: boolean }) {
   const library = useKitLibrary(true);
@@ -115,7 +128,7 @@ describe("KitLibrary", () => {
       ),
     );
     expect(download).toHaveBeenCalledTimes(1);
-    expect(download).toHaveBeenCalledWith(HEALTHY.id);
+    expect(download).toHaveBeenCalledWith(HEALTHY.id, expect.any(AbortSignal));
   });
 
   it("ignores a second export while one is running", async () => {
@@ -182,6 +195,140 @@ describe("KitLibrary", () => {
     },
   );
 
+  it("shows neither the note nor the warning chip on a healthy, usable row", async () => {
+    await ready();
+    const row = screen.getByText(HEALTHY.name).closest("li") as HTMLElement;
+    expect(within(row).queryByText(/can't be exported/i)).toBeNull();
+    expect(
+      within(row).queryByText("Can't be added to an episode yet"),
+    ).toBeNull();
+    expect(row).not.toHaveAttribute("data-unusable");
+    expect(
+      within(row).getByRole("button", { name: "More actions for Show Kit" }),
+    ).toBeVisible();
+  });
+
+  it("offers no export for a kit that is not usable even when no segment is missing", async () => {
+    load.mockResolvedValue([HEALTHY, UNREADABLE]);
+    render(<Section />);
+    const row = (await screen.findByText(UNREADABLE.name)).closest(
+      "li",
+    ) as HTMLElement;
+    expect(
+      within(row).getByText("Can't be added to an episode yet"),
+    ).toBeVisible();
+    expect(within(row).getByText(UNREADABLE.problem as string)).toBeVisible();
+    expect(
+      within(row).getByText("It can't be exported until that is fixed."),
+    ).toBeVisible();
+    expect(within(row).queryByText(/until its segments are back/)).toBeNull();
+    expect(within(row).queryByRole("button")).toBeNull();
+  });
+
+  it("says Preparing while the file is fetched", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<typeof FILE>();
+    download.mockReturnValueOnce(pending.promise);
+    await ready();
+    await exportShowKit(user);
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Preparing Show Kit to export…",
+    );
+    pending.resolve(FILE);
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Saved show-kit.sharecutkit",
+      ),
+    );
+  });
+
+  it("runs a second export after the first, and clears the first failure", async () => {
+    const user = userEvent.setup();
+    download
+      .mockRejectedValueOnce(new Error("The disk is full."))
+      .mockResolvedValueOnce(FILE);
+    await ready();
+    await exportShowKit(user);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The disk is full.",
+    );
+    await exportShowKit(user);
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(download).toHaveBeenCalledTimes(2);
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Saved show-kit.sharecutkit",
+    );
+  });
+
+  it("uses a plain message when the failure carries none", async () => {
+    const user = userEvent.setup();
+    download.mockRejectedValue("nope");
+    await ready();
+    await exportShowKit(user);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't export Show Kit.",
+    );
+  });
+
+  it("does not read the list again after a server error that says nothing is out of date", async () => {
+    const user = userEvent.setup();
+    download.mockRejectedValue(
+      new ApiError("Out of room.", "kit_no_room", 500),
+    );
+    await ready();
+    await exportShowKit(user);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Out of room.");
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).not.toBe(
+      screen.getByRole("heading", { name: "Kits" }),
+    );
+  });
+
+  it("moves focus to the section heading when a refused export drops the row", async () => {
+    const user = userEvent.setup();
+    download.mockRejectedValue(
+      new ApiError("That kit is not in the library.", "kit_unknown", 404),
+    );
+    await ready();
+    load.mockResolvedValue([MULTI_VERSION]);
+    await exportShowKit(user);
+    await screen.findByRole("alert");
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText("Show Kit")).toBeNull());
+    expect(screen.getByRole("heading", { name: "Kits" })).toHaveFocus();
+  });
+
+  it("keeps the section and its alert on Home when the refused export leaves no kits", async () => {
+    const user = userEvent.setup();
+    load.mockResolvedValue([HEALTHY]);
+    download.mockRejectedValue(
+      new ApiError("That kit is not in the library.", "kit_unknown", 404),
+    );
+    render(<Section omitWhenEmpty />);
+    await screen.findByText("Show Kit");
+    load.mockResolvedValue([]);
+    await exportShowKit(user);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "That kit is not in the library.",
+    );
+    expect(screen.getByRole("region", { name: "Kits" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Kits" })).toHaveFocus();
+  });
+
+  it("stops an export when the section goes away", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<typeof FILE>();
+    download.mockReturnValueOnce(pending.promise);
+    const { unmount } = await ready();
+    await exportShowKit(user);
+    const signal = download.mock.calls[0][1] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    unmount();
+    expect(signal.aborted).toBe(true);
+    pending.reject(new DOMException("aborted", "AbortError"));
+  });
+
   it("announces the loading state through a status region that is already mounted", async () => {
     const pending = deferred<typeof KITS>();
     load.mockReturnValue(pending.promise);
@@ -224,6 +371,13 @@ describe("KitLibrary", () => {
     useDawStore.setState({ guestMode: "viewer" });
     const { container } = render(<Section />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("never reads the kits for a guest", async () => {
+    useDawStore.setState({ guestMode: "viewer" });
+    const { container } = render(<GuestAwareSection />);
+    expect(container).toBeEmptyDOMElement();
+    expect(load).not.toHaveBeenCalled();
   });
 
   it("is axe-clean", async () => {
