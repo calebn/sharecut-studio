@@ -354,8 +354,7 @@ peer tracks' voiced runs from the shared audio caches instead.
 
 `edits/cut_policy.py` owns the pure action table (join kinds, edge checks, which sound labels cut, shorten, lower or leave). `edits/cut_safety.py` owns proposed-join assessment, breath protection, and peer-speech
 disposition. `edits/cut_placement.py` owns current source-placement validation and
-original-recording pad eligibility; `edits/cut_application.py` is its only placement-guard
-caller, with the read-only `edits/timeline_span.py` preview projection as the recorded exception.
+original-recording pad eligibility; `edits/cut_application.py` is the only direct caller of `inspect_source_remove_placement`, with the read-only `edits/timeline_span.py` preview projection as the recorded exception; `inspect_source_remove` and `require_source_remove` live in `cut_application.py` and are still called from `decisions`, `transcript_cuts` and `tighten/apply` (#1813).
 The detector modules supply measurements. Held application measures fixed edges without
 another optimizer. The current checked-geometry implementation is transitional. It does
 not yet assess complete final effects across every cut path. Automatic join fades now run
