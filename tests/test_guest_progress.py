@@ -186,6 +186,14 @@ def test_scrub_guest_progress_text_drops_a_path_with_leading_spaces() -> None:
     assert scrub_guest_progress_text("A wav not found: A.wav") == "A wav not found: A.wav"
 
 
+def test_scrub_guest_progress_text_drops_lookalike_and_drive_relative_paths() -> None:
+    assert scrub_guest_progress_text("missing: Users\uff0fhost\uff0fraw.wav") is None
+    assert scrub_guest_progress_text("missing: a\u2215b") is None
+    assert scrub_guest_progress_text("missing: a%EF%BC%8Fb") is None
+    assert scrub_guest_progress_text("missing: C:raw.wav") is None
+    assert scrub_guest_progress_text("step 3: mix") == "step 3: mix"
+
+
 def test_guest_progress_payload_has_no_host_paths():
     payload = guest_progress_payload(
         ProgressEvent(

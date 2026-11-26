@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from unicodedata import normalize
 from urllib.parse import unquote
 
 from podcast_mcp.util.host_session_wire import EXCHANGE_PARAM, EXCHANGE_PATH, SESSION_COOKIE
@@ -54,7 +55,13 @@ _HOST_PATH = re.compile(
     r"|~[\w.-]*[\\/]"
     r"|/"
     r"|(?i:%(?:25)?2f|%(?:25)?5c)"
+    # separators NFKC leaves alone: division slash, fraction slash, big solidus (and its reverse),
+    # set minus, small reverse solidus
+    "|[\u2215\u2044\u29f8\u29f9\u2216\ufe68]"
+    # drive-relative file (``C:raw.wav``): one letter, a colon, a token with an extension
+    r"|(?<![A-Za-z0-9])[A-Za-z]:[^\s/\\:]*\.\w"
 )
+_UNQUOTE_ROUNDS = 2
 # pydantic prints the offending value of a failed field as ``input_value=<repr>, input_type=<type>``
 # on one line; the repr is the document's own data and may hold ``, input_type=`` itself, so it
 # runs to the last one on the line (or to the end of the line when there is none).
@@ -328,7 +335,25 @@ def mentions_host_path(text: str) -> bool:
     in prose (``Talkin' Shop`` ends at an apostrophe), so replacing the part that matched leaves
     folder-name fragments behind. Text bound for a share guest either has no path or is replaced
     whole (``CodedError.guest_message``, ``scrub_guest_progress_text``).
-    Detection conservatively matches slash- or backslash-separated prose and URLs. Bare
-    filenames without a path prefix remain allowed.
+    Detection conservatively matches slash- or backslash-separated prose and URLs, the lookalike
+    separators (fullwidth, division and fraction slashes and the like), their percent-encodings
+    (up to two layers), and a drive-relative file such as ``C:raw.wav`` (one letter, a colon,
+    then a token with a file extension). The text is normalized (NFKC, bounded unquote) for the
+    match only; the caller still replaces the whole text. Bare filenames without a path prefix
+    remain allowed.
+
+    Residual: a drive-relative name with no extension or with a space before it
+    (``D:Podcasts``, ``D:01 raw.wav``), a path spelled through more than two encoding layers,
+    and a separator-less folder name are not detected. Prose such as ``Q:Why`` or
+    ``Option A:Yes`` stays allowed, as does anything colon-joined without an extension.
     """
-    return _HOST_PATH.search(text) is not None
+    if _HOST_PATH.search(text) is not None:
+        return True
+    decoded = text
+    for _ in range(_UNQUOTE_ROUNDS):
+        step = unquote(decoded)
+        if step == decoded:
+            break
+        decoded = step
+    folded = normalize("NFKC", decoded)
+    return folded != text and _HOST_PATH.search(folded) is not None
