@@ -19,6 +19,7 @@ from podcast_mcp.clips.social import (
     list_social_clips,
     propose_social_clips,
     reject_social_clips,
+    update_social_clip_times,
 )
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.models import (
@@ -31,6 +32,7 @@ from podcast_mcp.models import (
     SocialClipCandidate,
     Track,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def test_propose_social_clips_scores_utterance():
@@ -465,6 +467,38 @@ def test_episode_duration_from_tracks_and_combined(tmp_path):
         ]
     )
     assert _episode_duration(proj) == 45.0
+
+
+def _exported_clip() -> tuple[EpisodeProject, str]:
+    proj = EpisodeProject.create("t", "/tmp/ws")
+    clip = SocialClipCandidate(
+        id="c1", track_id="host", start=1.0, end=4.0, exported_path="export/clips/c1.wav"
+    )
+    proj.social_clip_candidates = [clip]
+    return proj, clip.id
+
+
+@pytest.mark.parametrize(("start", "end"), [(2.0, 4.0), (1.0, 5.0), (0.5, 3.5)])
+def test_update_social_clip_times_clears_the_export_reference_on_a_change(start, end):
+    proj, cid = _exported_clip()
+    updated = update_social_clip_times(proj, cid, start=start, end=end)
+    assert (updated.start, updated.end, updated.exported_path) == (start, end, None)
+    assert proj.social_clip_candidates[0] is updated
+
+
+def test_update_social_clip_times_keeps_the_export_reference_when_nothing_changes():
+    proj, cid = _exported_clip()
+    update_social_clip_times(proj, cid, start=1, end=4)
+    assert proj.social_clip_candidates[0].exported_path == "export/clips/c1.wav"
+
+
+def test_update_social_clip_times_refused_edits_keep_the_export_reference():
+    proj, cid = _exported_clip()
+    with pytest.raises(ValueError, match="end must be greater"):
+        update_social_clip_times(proj, cid, start=3.0, end=3.0)
+    with pytest.raises(CodedValueError):
+        update_social_clip_times(proj, "nope", start=2.0, end=3.0)
+    assert proj.social_clip_candidates[0].exported_path == "export/clips/c1.wav"
 
 
 def test_reject_social_clips():

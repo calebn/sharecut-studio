@@ -137,6 +137,64 @@ def test_a_title_and_an_approval_land_together_as_one_undo_step(clip):
     assert _row(ws, cid).title_suggestion == "Final"
 
 
+EXPORTED = "export/clips/hook_x.wav"
+
+
+def _exported(ws, cid):
+    def mark(project):
+        next(c for c in project.social_clip_candidates if c.id == cid).exported_path = EXPORTED
+
+    ws.mutate("Before export", "After export", mark)
+    return _row(ws, cid)
+
+
+def test_a_real_retitle_clears_the_export_reference_and_undo_restores_it(clip):
+    ws, cid = clip
+    assert _exported(ws, cid).exported_path == EXPORTED
+    apply_command(ws, CMD, {"id": cid, "title": "Better"})
+    assert _row(ws, cid).exported_path is None
+    HistoryService(ws).undo()
+    assert _row(ws, cid).exported_path == EXPORTED
+
+
+@pytest.mark.parametrize("payload", [{"title": "Hook"}, {"title": "  Hook \n"}, {"approved": True}])
+def test_a_same_title_or_an_approval_alone_keeps_the_export_reference(clip, payload):
+    ws, cid = clip
+    _exported(ws, cid)
+    apply_command(ws, CMD, {"id": cid, **payload})
+    assert _row(ws, cid).exported_path == EXPORTED
+
+
+def test_an_unapproval_alone_keeps_the_export_reference(clip):
+    ws, cid = clip
+    apply_command(ws, CMD, {"id": cid, "approved": True})
+    _exported(ws, cid)
+    apply_command(ws, CMD, {"id": cid, "approved": False})
+    assert _row(ws, cid).exported_path == EXPORTED
+
+
+def test_a_title_and_an_approval_together_clear_the_reference_only_for_a_new_title(clip):
+    ws, cid = clip
+    _exported(ws, cid)
+    apply_command(ws, CMD, {"id": cid, "title": "Hook", "approved": True})
+    row = _row(ws, cid)
+    assert (row.approved, row.exported_path) == (True, EXPORTED)
+    apply_command(ws, CMD, {"id": cid, "title": "Final", "approved": False})
+    row = _row(ws, cid)
+    assert (row.title_suggestion, row.approved, row.exported_path) == ("Final", False, None)
+
+
+def test_a_blank_title_clears_the_reference_only_when_the_clip_had_a_title(clip):
+    ws, cid = clip
+    _exported(ws, cid)
+    apply_command(ws, CMD, {"id": cid, "title": " "})
+    row = _row(ws, cid)
+    assert (row.title_suggestion, row.exported_path) == (None, None)
+    _exported(ws, cid)
+    apply_command(ws, CMD, {"id": cid, "title": ""})
+    assert _row(ws, cid).exported_path == EXPORTED
+
+
 def test_an_unknown_clip_is_refused_and_changes_nothing(clip):
     ws, cid = clip
     with pytest.raises(CodedValueError) as err:

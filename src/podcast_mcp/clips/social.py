@@ -352,13 +352,20 @@ def update_social_clip_times(
     start: float,
     end: float,
 ) -> SocialClipCandidate:
-    """Update start/end on one social clip candidate (timeline clocks)."""
+    """Update start/end on one social clip candidate (timeline clocks).
+
+    A changed start or end clears ``exported_path``, so the earlier export shows as
+    out of date until the clip is exported again; unchanged times keep it.
+    """
     if end <= start:
         raise ValueError("end must be greater than start")
     for i, clip in enumerate(project.social_clip_candidates):
         if clip.id != clip_id:
             continue
-        updated = clip.model_copy(update={"start": float(start), "end": float(end)})
+        changes: dict[str, Any] = {"start": float(start), "end": float(end)}
+        if changes["start"] != clip.start or changes["end"] != clip.end:
+            changes["exported_path"] = None
+        updated = clip.model_copy(update=changes)
         project.social_clip_candidates[i] = updated
         return updated
     raise CodedValueError(f"social clip not found: {clip_id!r}", code="social_clip_not_found")
@@ -394,7 +401,9 @@ def update_social_clip_details(
 
     An empty title clears it. Approving also clears ``review_required``, as
     ``approve_social_clips`` does; unapproving sets it, putting the clip back in
-    review so the default export leaves it out.
+    review so the default export leaves it out. A title that really changes clears
+    ``exported_path``, so the earlier export shows as out of date until the clip is
+    exported again; an approval alone or an unchanged title keeps it.
     """
     if title is None and approved is None:
         raise CodedValueError("set a title or an approval to change", code="invalid_clip_details")
@@ -407,6 +416,8 @@ def update_social_clip_details(
     for i, clip in enumerate(project.social_clip_candidates):
         if clip.id != clip_id:
             continue
+        if title is not None and changes["title_suggestion"] != clip.title_suggestion:
+            changes["exported_path"] = None
         updated = clip.model_copy(update=changes)
         project.social_clip_candidates[i] = updated
         return updated

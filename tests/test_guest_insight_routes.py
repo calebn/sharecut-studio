@@ -27,6 +27,7 @@ from podcast_mcp.services.collaboration.guest_routes import GUEST_OWNER_ROUTES
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
+from podcast_mcp.services.document import ClipService
 from podcast_mcp.services.remote_mcp.allowlist import EDITOR_INSIGHT_TOOLS
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 from podcast_mcp.services.remote_mcp.tools import list_tool_defs
@@ -312,6 +313,14 @@ def test_a_path_in_any_clip_text_or_id_is_withheld_and_an_empty_export_is_not_ex
     assert (sc2["title_suggestion"], sc2["caption_suggestion"], sc2["speaker"]) == (None,) * 3
     assert sc2["exported"] is False
     assert (rows[70.0]["id"], rows[70.0]["track_id"]) == (None, None)
+
+
+def test_a_retimed_clip_is_not_exported_until_it_is_exported_again(world) -> None:
+    ClipService(world.ws).update_times("sc1", start=1.0, end=30.0)
+
+    clips = {c["id"]: c for c in _get(world, CLIPS).json()["clips"] if c["id"]}
+
+    assert clips["sc1"]["exported"] is False
 
 
 def test_the_clip_list_is_capped_and_total_says_how_many(world) -> None:
