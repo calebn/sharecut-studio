@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from podcast_mcp.edits import cut_placement, cut_policy, cut_safety
@@ -21,6 +22,7 @@ from podcast_mcp.edits.cut_quality import (
     optimize_and_assess,
     recommend_cut_fade_ms,
 )
+from podcast_mcp.edits.cut_safety import ResolvedCutScope
 from podcast_mcp.edits.filler_pacing import (
     apply_filler_pacing,
     pause_trim_is_imperceptible,
@@ -79,6 +81,52 @@ class _PreparedCut:
     heard_pause: float | None = None
     peer_observation_span: tuple[float, float] | None = None
     peers_speaking: bool = False
+
+
+def _late_peer_checks(
+    project: EpisodeProject,
+    candidate: _CutCandidate,
+    *,
+    guard_span: tuple[float, float],
+    scope_span: tuple[float, float],
+    mute_mode: bool,
+    defaults: dict[str, Any],
+    timeline_caches: TrackRmsCacheSet | None,
+    speaker_context: _SpeakerCutContext | None,
+    word_index: CutWordIndex | None,
+) -> ResolvedCutScope | CutRejected:
+    """Bleed-owner guard, then the first cut scope, on the spans captured early in prepare.
+
+    Both embed peer speech, so an accepted candidate pays for them once, after every
+    cheaper rejection. The spans differ (breath-extended versus paced) and must not be
+    re-derived from the later, gated plan.
+    """
+    track_id = candidate.track_id
+    if _cut_span_is_bleed_not_owner(
+        project,
+        track_id,
+        *guard_span,
+        speaker_context=speaker_context,
+        word_index=word_index,
+    ):
+        return CutRejected("not_owner")
+    try:
+        resolved = _cut_scope(
+            project,
+            track_id,
+            *scope_span,
+            peer_scoped=not mute_mode,
+            defaults=defaults,
+            caches=timeline_caches,
+            speaker_context=speaker_context,
+        )
+    except ValueError:
+        return CutRejected("scope")
+    if isinstance(resolved, CutRejected):
+        return resolved
+    if candidate.cut_kind != "pause" and resolved.guard and resolved.guard.action == "skip":
+        return CutRejected("scope")
+    return resolved
 
 
 def _prepare_candidate(
@@ -146,16 +194,7 @@ def _prepare_candidate(
     if extended is None:
         return CutRejected("bounds")
     cut_start, cut_end = extended
-
-    if _cut_span_is_bleed_not_owner(
-        project,
-        track_id,
-        cut_start,
-        cut_end,
-        speaker_context=speaker_context,
-        word_index=word_index,
-    ):
-        return CutRejected("not_owner")
+    guard_span = (cut_start, cut_end)
 
     mute_mode = _edit_mode(tighten) == "mute"
     paced = apply_filler_pacing(
@@ -176,26 +215,23 @@ def _prepare_candidate(
     if paced_span is None:
         return CutRejected("bounds")
     cut_start, cut_end = paced_span
-    try:
-        resolved = _cut_scope(
-            project,
-            track_id,
-            cut_start,
-            cut_end,
-            peer_scoped=not mute_mode,
-            defaults=defaults,
-            caches=timeline_caches,
-            speaker_context=speaker_context,
-        )
-    except ValueError:
-        return CutRejected("scope")
-    if isinstance(resolved, CutRejected):
-        return resolved
     # A ripple is a session cut whoever speaks over it: peer speech is a review flag the
     # person confirms at approval, never a narrower scope. Only a mute stays on its track.
     scope = "track" if mute_mode else "session"
-    if candidate.cut_kind != "pause" and resolved.guard and resolved.guard.action == "skip":
-        return CutRejected("scope")
+    # The checks below depend on the spans as they stand here, but both cost speaker
+    # embeddings, so they run only once the cheaper rejections have passed.
+    late_peer_checks = partial(
+        _late_peer_checks,
+        project,
+        candidate,
+        guard_span=guard_span,
+        scope_span=(cut_start, cut_end),
+        mute_mode=mute_mode,
+        defaults=defaults,
+        timeline_caches=timeline_caches,
+        speaker_context=speaker_context,
+        word_index=word_index,
+    )
     plan = _CutPlan.for_cut(
         cut_start, cut_end, mute=mute_mode, pad=paced.pad, reason=candidate.reason
     )
@@ -215,6 +251,7 @@ def _prepare_candidate(
         return gated
     plan, guard, flags = gated.plan, gated.guard, gated.flags
     peer_observation_span = None
+    measured: ResolvedCutScope | None = None
     if _clamp_to_candidate(candidate, plan.start, plan.end) != (plan.start, plan.end):
         return CutRejected("bounds")
     if candidate.cut_kind == "pause" and not mute_mode:
@@ -351,6 +388,11 @@ def _prepare_candidate(
                     continue
                 finished = _finish_candidate(project, retry, defaults, audio_cache=audio_cache)
                 if not isinstance(finished, CutRejected):
+                    # The retry only vouches for its narrower span; the parent still owes
+                    # the checks it would have failed before the retry existed.
+                    late = late_peer_checks()
+                    if isinstance(late, CutRejected):
+                        return late
                     return replace(retry, candidate=candidate)
             return CutRejected("no_air")
         removal = RippleRemoval.of([TrackExtent(track_id, float(span[0]), float(span[1]))])
@@ -391,7 +433,7 @@ def _prepare_candidate(
                 )
             )
             try:
-                resolved = _cut_scope(
+                outcome = _cut_scope(
                     project,
                     track_id,
                     plan.start,
@@ -404,9 +446,10 @@ def _prepare_candidate(
                 )
             except ValueError:
                 return CutRejected("scope")
-            if isinstance(resolved, CutRejected):
-                return resolved
-            guard = resolved.guard
+            if isinstance(outcome, CutRejected):
+                return outcome
+            measured = outcome
+            guard = measured.guard
             gated = replace(gated, guard=guard)
             peer_observation_span = observation_span
     checks = plan.checks
@@ -438,7 +481,7 @@ def _prepare_candidate(
     policy = cut_policy.sound_policy(candidate.reason, "mute" if mute_mode else "ripple")
     assert policy is not None
     review_required = candidate.review_only or policy.proposal_review
-    if (gated.guard and gated.guard.blocked) or (not mute_mode and resolved.scope == "track"):
+    if gated.guard and gated.guard.blocked:
         review_required = True
     for flag in flags:
         review_required = review_required or flag != _AIR_EDGES_FLAG
@@ -453,6 +496,14 @@ def _prepare_candidate(
             return CutRejected("risky")
         review_required = True
         reason = f"{reason}:risky"
+
+    first_scope = late_peer_checks()
+    if isinstance(first_scope, CutRejected):
+        return first_scope
+    # A measured pause is judged by its own, later scope; every other cut by the first.
+    resolved = first_scope if measured is None else measured
+    if not mute_mode and resolved.scope == "track":
+        review_required = True
 
     return _PreparedCut(
         candidate=candidate,

@@ -1093,6 +1093,7 @@ def test_cut_span_uses_speaker_role_when_profiles_exist() -> None:
 def test_analyze_candidate_rejects_a_bleed_span_as_not_owner() -> None:
     from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.gate import _GatedCut
     from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     words = [
@@ -1120,6 +1121,12 @@ def test_analyze_candidate_rejects_a_bleed_span_as_not_owner() -> None:
     with (
         patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", return_value=(opt, risk)),
         patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
+        # The owner guard runs after the gate, which would otherwise reject this bleed word
+        # first with its own label; admit the cut so the guard's verdict is what is asserted.
+        patch(
+            "podcast_mcp.edits.tighten.prepare._gate_cut_edges",
+            side_effect=lambda _project, _candidate, plan, **_kw: _GatedCut(plan, None, ()),
+        ),
     ):
         assert _analyze_candidate(project, candidate, defaults) == CutRejected("not_owner")
 
