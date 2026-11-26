@@ -20,7 +20,14 @@ import { KitLibrary } from "./KitLibrary";
 import type { KitLibraryState } from "./useKitLibrary";
 
 function state(over: Partial<KitLibraryState> = {}): KitLibraryState {
-  return { rows: KITS, error: null, reload: fn(), ...over };
+  return {
+    rows: KITS,
+    error: null,
+    highlightId: null,
+    reload: fn(),
+    reveal: fn(),
+    ...over,
+  };
 }
 
 const meta: Meta<typeof KitLibrary> = {

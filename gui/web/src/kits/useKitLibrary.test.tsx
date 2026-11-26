@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api/kits";
+import { HIGHLIGHT_MS } from "../segments/useSegmentLibrary";
 import { deferred } from "../test/deferred";
 import { KITS } from "./fixtures";
 import { useKitLibrary } from "./useKitLibrary";
@@ -108,5 +109,47 @@ describe("useKitLibrary", () => {
     await act(async () => first.reject(new Error("late")));
     expect(result.current.error).toBeNull();
     expect(result.current.rows).toEqual(KITS);
+  });
+
+  describe("reveal", () => {
+    afterEach(() => vi.useRealTimers());
+
+    it("reads again and marks the kit only once the list has been read", async () => {
+      const second = deferred<typeof KITS>();
+      const { result } = renderHook(() => useKitLibrary(true));
+      await waitFor(() => expect(result.current.rows).toEqual(KITS));
+      load.mockReturnValueOnce(second.promise);
+      act(() => result.current.reveal("new-kit-1"));
+      expect(load).toHaveBeenCalledTimes(2);
+      expect(result.current.highlightId).toBeNull();
+      await act(async () => second.resolve(KITS));
+      expect(result.current.highlightId).toBe("new-kit-1");
+    });
+
+    it("clears the mark by itself", async () => {
+      const { result } = renderHook(() => useKitLibrary(true));
+      await waitFor(() => expect(result.current.rows).toEqual(KITS));
+      vi.useFakeTimers();
+      await act(async () => {
+        result.current.reveal("new-kit-1");
+        await Promise.resolve();
+      });
+      expect(result.current.highlightId).toBe("new-kit-1");
+      act(() => {
+        vi.advanceTimersByTime(HIGHLIGHT_MS);
+      });
+      expect(result.current.highlightId).toBeNull();
+    });
+
+    it("keeps the mark waiting through a failed read until a read succeeds", async () => {
+      const { result } = renderHook(() => useKitLibrary(true));
+      await waitFor(() => expect(result.current.rows).toEqual(KITS));
+      load.mockRejectedValueOnce(new Error("down"));
+      act(() => result.current.reveal("new-kit-1"));
+      await waitFor(() => expect(result.current.error).toBe("down"));
+      expect(result.current.highlightId).toBeNull();
+      act(() => result.current.reload());
+      await waitFor(() => expect(result.current.highlightId).toBe("new-kit-1"));
+    });
   });
 });

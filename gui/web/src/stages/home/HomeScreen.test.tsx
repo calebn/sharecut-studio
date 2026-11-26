@@ -2182,8 +2182,33 @@ describe("HomeScreen", () => {
       }
     });
 
-    it("leaves the Kits section out when there are no kits", async () => {
+    it("shows the Kits section with New kit when there are segments but no kits", async () => {
       loadSegments.mockResolvedValue(listed);
+      render(<HomeScreen />);
+      await screen.findByRole("heading", { name: "Kits" });
+      expect(screen.getByRole("button", { name: "New kit" })).toBeVisible();
+      expect(screen.getByText(/No kits yet/)).toBeVisible();
+    });
+
+    it("leaves the Kits section out when there are neither kits nor segments", async () => {
+      loadSegments.mockResolvedValue([]);
+      render(<HomeScreen />);
+      await screen.findByRole("heading", { name: "Segment library" });
+      await waitFor(() => expect(loadKits).toHaveBeenCalled());
+      expect(screen.queryByRole("heading", { name: "Kits" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "New kit" })).toBeNull();
+    });
+
+    it("leaves the Kits section out when every segment is damaged and there are no kits", async () => {
+      loadSegments.mockResolvedValue([
+        {
+          id: "old-1",
+          version: 1,
+          damaged: true,
+          problem: "Version 1 has no readable audio.",
+          code: "segment_media_invalid",
+        },
+      ]);
       render(<HomeScreen />);
       await screen.findByRole("heading", { name: "Segment library" });
       await waitFor(() => expect(loadKits).toHaveBeenCalled());

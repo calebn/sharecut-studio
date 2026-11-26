@@ -154,6 +154,10 @@ export type {
   KitOfferEntry,
   KitOfferKit,
   KitRow,
+  KitSaveEntry,
+  KitSaveRefusal,
+  KitSaveRequest,
+  KitSaveResult,
 } from "./api/kits";
 export {
   applyKit,
@@ -163,10 +167,12 @@ export {
   isDamagedKit,
   KIT_IMPORT_RETRY_CODES,
   KIT_TOO_LARGE_MESSAGE,
+  kitSaveRefusal,
   loadKitOffer,
   loadKits,
   partialImport,
   previewKitImport,
+  saveKit,
 } from "./api/kits";
 export {
   isDeadLinkAnswer,

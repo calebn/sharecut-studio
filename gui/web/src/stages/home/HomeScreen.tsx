@@ -606,7 +606,11 @@ export function HomeScreen() {
             ? (layout) => (
                 <>
                   <SegmentLibrary library={segments} layout={layout} />
-                  <KitLibrary library={kits} omitWhenEmpty />
+                  <KitLibrary
+                    library={kits}
+                    segments={segments}
+                    omitWhenEmpty
+                  />
                 </>
               )
             : undefined

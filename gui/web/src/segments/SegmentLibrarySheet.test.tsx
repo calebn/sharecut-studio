@@ -64,6 +64,21 @@ describe("SegmentLibrarySheet", () => {
     await expectNoA11yViolations(baseElement);
   });
 
+  it("offers New kit under Kits, built from the segments the sheet lists", async () => {
+    stubViewportShell("desktop");
+    const user = userEvent.setup();
+    render(<SegmentLibrarySheet open onClose={vi.fn()} />);
+    const kits = await screen.findByRole("region", { name: "Kits" });
+    await user.click(within(kits).getByRole("button", { name: "New kit" }));
+    const editor = await screen.findByRole("dialog", { name: "New kit" });
+    const picker = within(editor).getByRole("list", {
+      name: "Segments you can add",
+    });
+    // The library holds two readable segments and one damaged one.
+    expect(within(picker).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(picker).getByText("Acme sponsor read")).toBeVisible();
+  });
+
   it("says there are no kits in the sheet, and reads none for a guest", async () => {
     stubViewportShell("desktop");
     const { unmount } = render(<SegmentLibrarySheet open onClose={vi.fn()} />);
@@ -84,7 +99,13 @@ describe("SegmentLibrarySheet", () => {
   it("reads the kits again each time the sheet opens, without a second fetch of its own", async () => {
     stubViewportShell("desktop");
     const reload = vi.fn();
-    const kits = { rows: KITS, error: null, reload };
+    const kits = {
+      rows: KITS,
+      error: null,
+      highlightId: null,
+      reload,
+      reveal: vi.fn(),
+    };
     const { rerender } = render(
       <SegmentLibrarySheet open={false} onClose={vi.fn()} kits={kits} />,
     );
@@ -109,7 +130,13 @@ describe("SegmentLibrarySheet", () => {
         <SegmentLibrarySheet
           open
           onClose={vi.fn()}
-          kits={{ rows: KITS, error: null, reload }}
+          kits={{
+            rows: KITS,
+            error: null,
+            highlightId: null,
+            reload,
+            reveal: vi.fn(),
+          }}
         />,
       );
       await screen.findByRole("list", { name: "Segment library" });
