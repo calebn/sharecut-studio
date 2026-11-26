@@ -250,16 +250,18 @@
   font-weight: 600;
 }
 
+/* One row at every text size: stacked, the pinned footer would take the height a 320 x 568 phone has to spare. */
 .kit-editor-actions {
   display: flex;
-  flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-3);
 }
 
 .kit-editor-actions > button {
-  flex: 1 1 6rem;
+  flex: 1 1 0;
   min-block-size: var(--touch-min);
+  min-inline-size: 0;
+  padding-inline: var(--space-3);
 }
 
 .kit-entries {
@@ -272,8 +274,8 @@
 }
 
 .kit-entry {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-3);
   min-block-size: var(--touch-min);
@@ -284,10 +286,10 @@
 
 .kit-entry-main {
   display: flex;
+  flex: 1 1 100%;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-3);
-  grid-column: 1 / -1;
   min-inline-size: 0;
 }
 
@@ -297,10 +299,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The switch and the three actions share a row when they fit and stack when text zoom leaves no room. */
 .kit-entry-at {
   display: flex;
+  flex: 1 0 auto;
   block-size: auto;
-  min-inline-size: 0;
+  max-inline-size: 100%;
 }
 
 .kit-entry-at > .ui-control,
@@ -312,14 +316,14 @@
 
 .kit-entry-actions {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  flex: 0 0 auto;
+  margin-inline-start: auto;
   gap: var(--space-1);
 }
 
 .kit-entry-warning,
 .kit-entry > .kit-problem {
-  grid-column: 1 / -1;
+  flex: 1 1 100%;
 }
 
 .kit-pick-add {
