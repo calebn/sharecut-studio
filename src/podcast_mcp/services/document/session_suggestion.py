@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import math
 from contextlib import nullcontext
-from typing import Any
+from typing import cast
 
 from podcast_mcp.edits.audio_check_override import mcp_host_override
 from podcast_mcp.edits.cut_speech import APPLY_ANYWAY
@@ -27,6 +27,13 @@ from podcast_mcp.project.store import WriteGrantKind, active_write_grant, write_
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.service_base import mutate_unless_cut_speech_held
 from podcast_mcp.services.document.session_hear_results import SessionHearResult
+from podcast_mcp.services.document.session_suggestion_results import (
+    AcceptHeldWire,
+    AcceptResult,
+    SelectTakeWire,
+    SessionSuggestionWire,
+    SessionTakesWire,
+)
 from podcast_mcp.services.document.warm_preview_results import (
     WarmPreviewResult,
     warm_preview_result,
@@ -35,6 +42,11 @@ from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC
 
 log = logging.getLogger(__name__)
+
+
+def _wire(row: SessionSuggestion) -> SessionSuggestionWire:
+    return cast(SessionSuggestionWire, row.model_dump(mode="json"))
+
 
 REPLACE_REFINE_HINT = (
     "The transcript clean-up needs to finish first, so the words this replace removes are "
@@ -63,26 +75,23 @@ class SessionSuggestionService:
     def __init__(self, ws: ProjectWorkspace) -> None:
         self.ws = ws
 
-    def list(self, *, status: str | None = None) -> list[dict[str, Any]]:
+    def list(self, *, status: str | None = None) -> list[SessionSuggestionWire]:
         """Staged sessions, optionally only those with ``status``."""
-        return [
-            row.model_dump(mode="json")
-            for row in list_session_suggestions(self.ws.project, status=status)
-        ]
+        return [_wire(row) for row in list_session_suggestions(self.ws.project, status=status)]
 
-    def skip(self, suggestion_id: str) -> dict[str, Any]:
+    def skip(self, suggestion_id: str) -> SessionSuggestionWire:
         """Mark a pending staged session skipped (one undo step); its sources stay registered."""
         number = find_session_suggestion(self.ws.project, suggestion_id).session_number
         title = f"Skipped Session {number}"
         return self.ws.mutate(
             f"before {title}",
             f"after {title}",
-            lambda p: skip_session_suggestion(p, suggestion_id).model_dump(mode="json"),
+            lambda p: _wire(skip_session_suggestion(p, suggestion_id)),
             operation="skip_session_suggestion",
             params={"suggestion_id": suggestion_id, "session_number": number},
         )
 
-    def takes(self, suggestion_id: str) -> dict[str, Any]:
+    def takes(self, suggestion_id: str) -> SessionTakesWire:
         """The takes of a staged session for a take switcher; reads only.
 
         Per take: length (overall and per track), word count and a snippet of what is said
@@ -90,9 +99,9 @@ class SessionSuggestionService:
         (``chosen``), whether it is the one Accept places when none is named (``default``),
         and the refusal Accept would give it, if any.
         """
-        return session_takes(self.ws.project, suggestion_id)
+        return cast(SessionTakesWire, session_takes(self.ws.project, suggestion_id))
 
-    def select_take(self, suggestion_id: str, take_index: int) -> dict[str, Any]:
+    def select_take(self, suggestion_id: str, take_index: int) -> SelectTakeWire:
         """Pick the take Accept places for a pending replace (one undo step "Chose take N").
 
         Refuses what Accept refuses for that take, in the same words and codes: a session that
@@ -105,11 +114,13 @@ class SessionSuggestionService:
         title = f"Chose take {take_index} for Session {number}"
         if row.status == "pending" and row.selected_take == take_index:
             # The same refusals as a real pick, then nothing to write.
-            return select_session_take(self.ws.project, suggestion_id, take_index)
+            return cast(
+                SelectTakeWire, select_session_take(self.ws.project, suggestion_id, take_index)
+            )
         return self.ws.mutate(
             f"before {title}",
             f"after {title}",
-            lambda p: select_session_take(p, suggestion_id, take_index),
+            lambda p: cast(SelectTakeWire, select_session_take(p, suggestion_id, take_index)),
             operation="select_session_take",
             params={
                 "suggestion_id": suggestion_id,
@@ -123,7 +134,7 @@ class SessionSuggestionService:
         suggestion_id: str,
         take_index: int | None = None,
         override_audio_checks: bool = False,
-    ) -> dict[str, Any]:
+    ) -> AcceptResult:
         """Place a pending staged session on the timeline (one undo step titled "Added Session N").
 
         An insert opens the session's span at its insert point on every dialogue track and
@@ -145,22 +156,25 @@ class SessionSuggestionService:
             else write_grant(WriteGrantKind.LEGACY_SESSION_ACCEPT)
         )
         with grant:
-            return mutate_unless_cut_speech_held(
-                self.ws,
-                title,
-                "accept_session_suggestion",
-                lambda p: accept_session_suggestion(
-                    p,
-                    suggestion_id,
-                    take_index=take_index,
-                    override_audio_checks=override_audio_checks,
-                    defaults=self.ws.effective_config(),
+            return cast(
+                AcceptResult,
+                mutate_unless_cut_speech_held(
+                    self.ws,
+                    title,
+                    "accept_session_suggestion",
+                    lambda p: accept_session_suggestion(
+                        p,
+                        suggestion_id,
+                        take_index=take_index,
+                        override_audio_checks=override_audio_checks,
+                        defaults=self.ws.effective_config(),
+                    ),
+                    {
+                        "suggestion_id": suggestion_id,
+                        "session_id": row.session_id,
+                        "session_number": row.session_number,
+                    },
                 ),
-                {
-                    "suggestion_id": suggestion_id,
-                    "session_id": row.session_id,
-                    "session_number": row.session_number,
-                },
             )
 
     def _require_refine_clear(self, row: SessionSuggestion) -> None:
@@ -296,7 +310,7 @@ class SessionSuggestionService:
         *,
         take_index: int | None = None,
         override_audio_checks: bool = False,
-    ) -> dict[str, Any]:
+    ) -> AcceptResult:
         """``accept`` for a caller that has no flag help of its own (an agent tool), under the MCP host's override surface.
 
         A held replace's message also names how to apply it, so the person is not left
@@ -306,7 +320,7 @@ class SessionSuggestionService:
             result = self.accept(
                 suggestion_id, take_index=take_index, override_audio_checks=override_audio_checks
             )
-        held = result.get("needs_confirmation")
-        if isinstance(held, dict) and isinstance(held.get("message"), str):
+        if "needs_confirmation" in result:
+            held = cast(AcceptHeldWire, result)["needs_confirmation"]
             held["message"] = f"{held['message']} {APPLY_ANYWAY}"
         return result

@@ -5,10 +5,15 @@ from __future__ import annotations
 from typing import Any
 
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import SessionSuggestionService
+from podcast_mcp.services.document import (
+    AcceptResult,
+    SelectTakeWire,
+    SessionSuggestionService,
+    SessionSuggestionWire,
+)
 
 
-def accept_session_suggestion(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+def accept_session_suggestion(ws: ProjectWorkspace, p: dict[str, Any]) -> AcceptResult:
     """Place the session; a replace that would cut other speech returns ``needs_confirmation``."""
     take = p.get("take_index")
     return SessionSuggestionService(ws).accept(
@@ -18,9 +23,9 @@ def accept_session_suggestion(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[s
     )
 
 
-def skip_session_suggestion(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+def skip_session_suggestion(ws: ProjectWorkspace, p: dict[str, Any]) -> SessionSuggestionWire:
     return SessionSuggestionService(ws).skip(str(p["suggestion_id"]))
 
 
-def select_session_take(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+def select_session_take(ws: ProjectWorkspace, p: dict[str, Any]) -> SelectTakeWire:
     return SessionSuggestionService(ws).select_take(str(p["suggestion_id"]), int(p["take_index"]))
