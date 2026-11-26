@@ -349,13 +349,17 @@ class E2eJob:
 
 
 def main_shards() -> list[E2eJob]:
+    shards = e2e_shards.planned_shards(MAIN_SHARDS)
+    empty = [str(i) for i, specs in enumerate(shards, start=1) if not specs]
+    if empty:
+        raise ValueError(f"main shard(s) {', '.join(empty)} have no specs; fix shard-plan.json")
     return [
         E2eJob(
             f"main-{i}of{MAIN_SHARDS}",
             "npm run test:e2e -- " + " ".join(f"e2e/{spec}" for spec in specs),
             "chromium",
         )
-        for i, specs in enumerate(e2e_shards.planned_shards(MAIN_SHARDS), start=1)
+        for i, specs in enumerate(shards, start=1)
     ]
 
 

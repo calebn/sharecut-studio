@@ -328,9 +328,8 @@ def test_ci_runs_both_browser_suites_on_dispatch_on_every_passing_engine() -> No
         *(f"compat-{engine}" for engine in engines),
     ]
     assert len({entry["name"] for entry in include}) == len(include)
-    main_shards = [entry for entry in include if not entry["name"].startswith("compat")]
-    assert all(entry.get("browser") == "chromium" for entry in main_shards), (
-        f"every main shard must install Chromium: {main_shards}"
+    assert all(entry.get("browser") == "chromium" for entry in main_entries), (
+        f"every main shard must install Chromium: {main_entries}"
     )
     declared_browsers = {entry.get("browser") for entry in include}
     assert declared_browsers <= set(COMPAT_ENGINES), (

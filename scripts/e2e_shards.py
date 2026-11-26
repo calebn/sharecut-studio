@@ -79,6 +79,8 @@ def check_plan(plan: Mapping[str, Any], specs: Iterable[str]) -> list[str]:
     if unmeasured:
         problems.append(f"planned specs without a duration: {', '.join(unmeasured)}")
     for number, shard in enumerate(shards, start=1):
+        if not shard:
+            problems.append(f"shard {number} has no specs")
         if shard != sorted(shard):
             problems.append(f"shard {number} is not in alphabetical order")
     contained = sorted(
@@ -108,14 +110,18 @@ def planned_shards(
     """
     plan = load_plan() if plan is None else plan
     on_disk = set(spec_paths() if specs is None else specs)
-    shards = [[spec for spec in shard if spec in on_disk] for shard in plan_shards(plan)]
+    seen: set[str] = set()
+    shards: list[list[str]] = []
+    for shard in plan_shards(plan):
+        kept = [spec for spec in dict.fromkeys(shard) if spec in on_disk and spec not in seen]
+        seen.update(kept)
+        shards.append(kept)
     if len(shards) != count:
         raise ValueError(f"shard-plan.json has {len(shards)} shards, expected {count}")
     durations: Mapping[str, float] = plan["durations"]
     fallback = float(plan["median_seconds"])
     loads = [sum(durations.get(spec, fallback) for spec in shard) for shard in shards]
-    planned = {spec for shard in shards for spec in shard}
-    for spec in sorted(on_disk - planned):
+    for spec in sorted(on_disk - seen):
         lightest = loads.index(min(loads))
         shards[lightest].append(spec)
         loads[lightest] += fallback

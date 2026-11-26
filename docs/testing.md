@@ -306,7 +306,7 @@ GitHub Actions runs the required checks on every pull request and the full suite
 | PR whose changed files are all under `gui/web/` or the docs paths above (a UI change that updates its docs) | the union of the two subsets above (`python3 scripts/ci_plan.py subset-tests web-docs`), `--no-cov` | runs | as above |
 | Proven version-only release-please PR | planner and version-policy tests, without coverage; existing compatibility, lint, types, locked install, docs and commit gates still run | skipped | skipped |
 | Push to the base branch | lint, types, compat checks (`pytest-quality`) only; no shards, no coverage floor | runs (Vitest and build) | skipped |
-| Promotion dispatch (nightly 07:23 UTC), `workflow_dispatch` | full suite, 95% floor | runs | the six main shards, then complete `compat-chromium` and `compat-webkit`; a red promotion opens or updates a `nightly-failure` issue, and a green one closes it |
+| Promotion dispatch (nightly 07:23 UTC), `workflow_dispatch` | full suite, 95% floor | runs | the main shards, then complete `compat-chromium` and `compat-webkit`; a red promotion opens or updates a `nightly-failure` issue, and a green one closes it |
 
 A GUI-facing path is one the browser suites or the frontend job read or talk to. `PATH_RULES` in `scripts/ci_plan.py` lists them in order, and the first match wins. The table covers `gui/web/` and the Python behind the browser: `gui/`, `services/`, `models/`, `mcp/`, `extensions/`, `history/`, `cli/` and the top-level `src/podcast_mcp/*.py`. It also covers every `contracts/` file except `contracts/test-wait-allowlist.json`, plus `schemas/`, `deploy/brand/`, `.agents/defaults/` and `config/distribution.dev.json` (the runtime loads them), the e2e and document-delta fixture projects, the scripts that `gui/web` and the frontend job run, the two cheatsheet docs, `pyproject.toml`, `uv.lock`, `.nvmrc`, `test.yml` and `.github/actions/`. A change to the wait allowlist runs the pytest files that name it, but it does not schedule frontend or browser jobs because only the test-wait checker reads it. The audio and edit algorithms (`engines`, `edits`, `pipeline`, `effects`, `ingest`, `clips`, `export`, `util`) run under pytest on PRs, and under the browser suites on promotion dispatch and `workflow_dispatch`. A path that no rule matches counts as GUI-facing, so a new directory runs every browser suite. `tests/test_ci_plan.py` pins the GUI pattern list, requires a rule for every tracked file and every `src/podcast_mcp` package, checks that no rule is shadowed, and requires every repo path that code under `gui/web` names (`tests/fixtures/`, `scripts/`, `contracts/`, `schemas/`, `.agents/`, `config/`) to be classified GUI-facing. When you add a directory, classify it there. Both test subsets are computed by scanning `tests/test_*.py` for the scope's paths (and for the `scripts/` files whose source names them), never listed by hand. Promotion (the nightly) and dispatch run the whole suite either way; a push to the base branch runs only `pytest-quality` and `frontend-suite`.
 
@@ -784,8 +784,8 @@ recovery, not a runtime optimization. Both suites retry a failed test once in
 CI, so one flake does not force a job rerun.
 
 On a pull request CI runs only the `main-smoke` job (the critical-path specs named in
-`SMOKE_SPECS`). On promotion dispatch and `workflow_dispatch` it runs the main suite as six shards
-(`main-1of6` ... `main-6of6`, each `npm run test:e2e -- e2e/<spec> e2e/<spec> ...` with its
+`SMOKE_SPECS`). On promotion dispatch and `workflow_dispatch` it runs the main suite as `main-<i>of<n>` shards
+(`main-1ofN` ... `main-NofN`, each `npm run test:e2e -- e2e/<spec> e2e/<spec> ...` with its
 specs from `gui/web/e2e/shard-plan.json`) and the
 compatibility suite as two complete engine jobs (`compat-chromium`,
 `compat-webkit`, each `npm run test:e2e:compat -- --project=<engine>`). On a
@@ -796,7 +796,7 @@ concurrently in separate `frontend-e2e-suites` matrix jobs, and
 `scripts/ci_plan.py` builds the list (see
 [§ Which jobs a run needs](#which-jobs-a-run-needs)). Each runner owns its checkout,
 server, project and artifacts, so the serial-within-one-server assumption above
-holds inside every shard. The six main shards are not `--shard=i/n` (which deals spec
+holds inside every shard. The main shards are not `--shard=i/n` (which deals spec
 files out by test count, not duration) but the spec lists in the checked-in
 `gui/web/e2e/shard-plan.json`, balanced by recorded seconds; see
 [E2E shard plan](testing-ci.md#e2e-shard-plan). Specs must not depend on state left by

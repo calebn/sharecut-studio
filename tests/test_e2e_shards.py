@@ -79,6 +79,13 @@ def test_check_rejects_an_unsorted_shard(plan: dict[str, Any]) -> None:
     )
 
 
+def test_check_rejects_an_empty_shard(plan: dict[str, Any]) -> None:
+    broken = copy.deepcopy(plan)
+    broken["shards"]["2"] = sorted(broken["shards"]["2"] + broken["shards"]["1"])
+    broken["shards"]["1"] = []
+    assert any("shard 1 has no specs" in p for p in es.check_plan(broken, es.spec_paths()))
+
+
 def test_check_reports_bad_shard_keys_as_a_problem_not_a_traceback(plan: dict[str, Any]) -> None:
     broken = copy.deepcopy(plan)
     broken["shards"]["7"] = broken["shards"].pop("6")
@@ -92,9 +99,9 @@ def test_check_reports_bad_shard_keys_as_a_problem_not_a_traceback(plan: dict[st
 
 def test_build_ignores_and_rejects_reports_that_are_not_main_shards(tmp_path: Path) -> None:
     report = json.dumps({"suites": []})
-    (tmp_path / "main-1of6.json").write_text(report)
+    (tmp_path / "main-1of2.json").write_text(report)
     (tmp_path / "main-smoke.json").write_text(report)
-    assert [p.name for p in es._report_files(tmp_path)] == ["main-1of6.json"]
+    assert [p.name for p in es._report_files(tmp_path)] == ["main-1of2.json"]
     with pytest.raises(ValueError, match=r"not a main-<i>of<n>\.json"):
         es._report_files(tmp_path / "main-smoke.json")
 
@@ -121,6 +128,21 @@ def test_planner_drops_a_planned_spec_that_no_longer_exists(plan: dict[str, Any]
     specs = es.spec_paths()[1:]
     shards = es.planned_shards(cp.MAIN_SHARDS, plan, specs)
     assert Counter(spec for shard in shards for spec in shard) == Counter(specs)
+
+
+def test_planner_keeps_the_first_of_a_duplicated_spec() -> None:
+    plan = {
+        "median_seconds": 5.0,
+        "durations": {"a.spec.ts": 30.0, "b.spec.ts": 10.0},
+        "shards": {"1": ["a.spec.ts", "a.spec.ts"], "2": ["a.spec.ts", "b.spec.ts"]},
+    }
+    assert es.planned_shards(2, plan, ["a.spec.ts", "b.spec.ts"]) == [["a.spec.ts"], ["b.spec.ts"]]
+
+
+def test_main_shards_refuses_an_empty_shard(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(es, "planned_shards", lambda count: [["a.spec.ts"], []])
+    with pytest.raises(ValueError, match="main shard"):
+        cp.main_shards()
 
 
 def test_planner_refuses_a_plan_for_another_shard_count(plan: dict[str, Any]) -> None:
