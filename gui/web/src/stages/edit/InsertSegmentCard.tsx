@@ -410,8 +410,10 @@ function InsertSegmentForm({
     const previous = shownFor.current;
     shownFor.current = pickedId;
     const first = previous === null && pickedId !== null;
-    if (!bottom || !first || !pointerPick.current) return;
-    placementRef.current?.scrollIntoView?.({ block: "nearest" });
+    const pointer = pointerPick.current;
+    pointerPick.current = false;
+    if (!bottom || !first || !pointer) return;
+    placementRef.current?.scrollIntoView?.({ block: "end" });
   }, [bottom, pickedId]);
 
   useEffect(() => {

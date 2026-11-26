@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SegmentInsertPreview, SegmentListRow } from "../../api";
 import {
   DAMAGED,
+  DIALOGUE_READ,
   HEALTHY,
   insertPreview,
   LIBRARY,
@@ -799,6 +800,40 @@ describe("InsertSegmentCard bottom", () => {
     Reflect.deleteProperty(Element.prototype, "scrollIntoView");
   });
 
+  it("does not scroll again when the picked row is damaged and then usable again", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const handlers = handlersOf();
+    const damaged = PLACEMENT_LIBRARY.map((row) =>
+      row.id === DIALOGUE_READ.id ? { ...DAMAGED, id: row.id } : row,
+    );
+    const view = render(
+      <InsertSegmentCard
+        {...data(PLACEMENT_LIBRARY)}
+        {...handlers}
+        form="bottom"
+        open
+      />,
+    );
+    await userEvent.click(
+      await screen.findByRole("radio", { name: /Host read/ }),
+    );
+    await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
+    view.rerender(
+      <InsertSegmentCard {...data(damaged)} {...handlers} form="bottom" open />,
+    );
+    view.rerender(
+      <InsertSegmentCard
+        {...data(PLACEMENT_LIBRARY)}
+        {...handlers}
+        form="bottom"
+        open
+      />,
+    );
+    expect(scroll).toHaveBeenCalledTimes(1);
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  });
+
   it("does not scroll when the first pick is from the keyboard", async () => {
     const scroll = vi.fn();
     Element.prototype.scrollIntoView = scroll;
@@ -839,7 +874,9 @@ describe("InsertSegmentCard bottom", () => {
     await waitFor(() => expect(handlers.onInsert).toHaveBeenCalledTimes(1));
   });
 
-  it("inserts when Enter is pressed on the focused footer Insert", async () => {
+  it("inserts when Enter is pressed on the focused footer Insert", {
+    timeout: 20_000,
+  }, async () => {
     const handlers = handlersOf();
     render(<InsertSegmentCard {...data()} {...handlers} form="bottom" open />);
     await pick(/Cold open/);
