@@ -39,6 +39,6 @@ def run_audio_edit(
     elif op == "align_retained_bleed":
         result = service.align_retained_bleed(**kwargs).model_dump()
     else:
-        result = service.mute_off_speaker(**kwargs)
+        result = dict(service.mute_off_speaker(**kwargs))
     after_agent_mutation(ws)
     return result

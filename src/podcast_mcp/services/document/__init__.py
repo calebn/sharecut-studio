@@ -90,6 +90,11 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.kit_apply import KitApplyReport, submit_kit_apply
     from podcast_mcp.services.document.kit_offer import report_kit_offer
+    from podcast_mcp.services.document.off_speaker_results import (
+        OffSpeakerApplied,
+        OffSpeakerPreview,
+        OffSpeakerSummary,
+    )
     from podcast_mcp.services.document.overlap_results import OverlapDuplicateReport
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
     from podcast_mcp.services.document.play_pending import (
@@ -222,6 +227,9 @@ __all__ = [
     "ListedFiles",
     "MoveClipsResult",
     "MoveSegmentResult",
+    "OffSpeakerApplied",
+    "OffSpeakerPreview",
+    "OffSpeakerSummary",
     "OverlapDuplicateReport",
     "PasteSegmentResult",
     "PendingPreviewSpan",
@@ -390,6 +398,9 @@ _MODULE_BY_NAME = {
     "SplitClipResult": "split_results",
     "SplitAtTimeResult": "split_results",
     "StripSilenceResult": "strip_silence_results",
+    "OffSpeakerApplied": "off_speaker_results",
+    "OffSpeakerPreview": "off_speaker_results",
+    "OffSpeakerSummary": "off_speaker_results",
     "RetainedBleedAlignmentApplied": "retained_bleed_results",
     "RetainedBleedAlignmentModeResult": "retained_bleed_results",
     "RetainedBleedAlignmentPreview": "retained_bleed_results",
