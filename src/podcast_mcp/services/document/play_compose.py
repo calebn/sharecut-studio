@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import secrets
 from pathlib import Path
+from typing import cast
 
 from podcast_mcp.config.defaults import mix_peak_ceiling_db
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
@@ -17,6 +18,7 @@ from podcast_mcp.util.project_state import (
     snapshot_project,
 )
 
+from .play_compose_results import AuditionContextReport, ProsodyOverlayReport
 from .play_stems import _PlayStems
 from .play_support import PlayRequest, PlayResult, _compose_gain_db, _mix_cache_extra
 
@@ -30,7 +32,7 @@ class _PlayCompose(_PlayStems):
         skew_warn_sec: float | None = None,
         detail: str = "summary",
         include_dsp: bool = True,
-    ) -> dict:
+    ) -> AuditionContextReport:
         """Caption + skew + freshness report for a timeline window."""
         from podcast_mcp.edits.audition_context import (
             DEFAULT_SKEW_WARN_SEC,
@@ -38,20 +40,23 @@ class _PlayCompose(_PlayStems):
         )
         from podcast_mcp.services.pipeline import prosody_params_for
 
-        ctx = build_audition_context(
-            self.project,
-            timeline_start,
-            timeline_end,
-            skew_warn_sec=(DEFAULT_SKEW_WARN_SEC if skew_warn_sec is None else skew_warn_sec),
-            detail=detail,  # type: ignore[arg-type]
-            include_dsp=include_dsp,
-            prosody_params=prosody_params_for(self.ws.path),
-            defaults=self._defaults,
+        ctx = cast(
+            AuditionContextReport,
+            build_audition_context(
+                self.project,
+                timeline_start,
+                timeline_end,
+                skew_warn_sec=(DEFAULT_SKEW_WARN_SEC if skew_warn_sec is None else skew_warn_sec),
+                detail=detail,  # type: ignore[arg-type]
+                include_dsp=include_dsp,
+                prosody_params=prosody_params_for(self.ws.path),
+                defaults=self._defaults,
+            ),
         )
         self._add_hold_reasons(ctx)
         return ctx
 
-    def _add_hold_reasons(self, ctx: dict) -> None:
+    def _add_hold_reasons(self, ctx: AuditionContextReport) -> None:
         """Give each pending edit in the window the audio check `edit held` runs (#3843).
 
         The check runs on a scratch copy, so nothing is saved, and only when the window has a
@@ -83,12 +88,15 @@ class _PlayCompose(_PlayStems):
                 else {"status": "clean"}
             )
 
-    def prosody_overlay(self) -> dict:
+    def prosody_overlay(self) -> ProsodyOverlayReport:
         """Timeline-mapped prosody profile per dialogue track for the DAW overlay (#719)."""
         from podcast_mcp.edits.prosody_profile import prosody_overlay
         from podcast_mcp.services.pipeline import prosody_params_for
 
-        return prosody_overlay(self.project, params=prosody_params_for(self.ws.path))
+        return cast(
+            ProsodyOverlayReport,
+            prosody_overlay(self.project, params=prosody_params_for(self.ws.path)),
+        )
 
     def play_compose(
         self,

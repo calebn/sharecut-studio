@@ -124,6 +124,10 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.overlap_results import OverlapDuplicateReport
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
+    from podcast_mcp.services.document.play_compose_results import (
+        AuditionContextReport,
+        ProsodyOverlayReport,
+    )
     from podcast_mcp.services.document.play_pending import (
         PENDING_PREVIEW_PAD_DEFAULT_SEC,
         PENDING_PREVIEW_PAD_MAX_SEC,
@@ -236,6 +240,7 @@ __all__ = [
     "AppliedFadeUpdates",
     "ArchivePlan",
     "AudioDiagnosticsReport",
+    "AuditionContextReport",
     "BleedMuteApplied",
     "BleedMuteDryRun",
     "BoundaryEdit",
@@ -290,6 +295,7 @@ __all__ = [
     "PlayService",
     "PopulatedHistoryDiffResult",
     "ProposeSplitResult",
+    "ProsodyOverlayReport",
     "PublishedFeedService",
     "ReconcileTranscriptPreview",
     "ReconcileTranscriptResult",
@@ -375,6 +381,7 @@ _MODULE_BY_NAME = {
     "AlignAcceptService": "align_accept",
     "AnalysisService": "analysis",
     "AudioDiagnosticsReport": "analysis_report_results",
+    "AuditionContextReport": "play_compose_results",
     "CleanupAnalysisReport": "analysis_report_results",
     "GateOverreach": "analysis_report_results",
     "BleedMuteApplied": "analysis_edit_results",
@@ -497,6 +504,7 @@ _MODULE_BY_NAME = {
     "RetainedBleedAlignmentModeResult": "retained_bleed_results",
     "RetainedBleedAlignmentPreview": "retained_bleed_results",
     "ProposeSplitResult": "split_results",
+    "ProsodyOverlayReport": "play_compose_results",
     "SESSION_HEAR_PUBLIC_EXCLUDE": "session_hear_results",
     "AcceptHeldWire": "session_suggestion_results",
     "AcceptInsertedWire": "session_suggestion_results",
