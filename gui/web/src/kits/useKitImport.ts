@@ -5,6 +5,7 @@ import {
   KIT_IMPORT_RETRY_CODES,
   type KitImportPreview,
   type KitImportResult,
+  NETWORK_ERROR_CODE,
   partialImport,
   previewKitImport,
 } from "../api";
@@ -17,6 +18,7 @@ import {
 } from "../system/importSheet/useStagedImport";
 import { ApiError, errorMessage } from "../utils/apiError";
 import {
+  alreadyThere,
   importedMessage,
   isUnchangedKit,
   KIT_EXPIRED,
@@ -50,12 +52,19 @@ export function useKitImport({ onChanged, onDone }: Options): KitImport {
       landed.current = { added: 0, total: 0 };
     },
     onCommitted: (preview, result) => {
+      const earlier = landed.current.added;
       landed.current = { added: 0, total: 0 };
       const fresh = result.segments.find(
         (segment) =>
           segment.status === "added" || segment.status === "new_version",
       );
-      onDone(importedMessage(preview.name, result), fresh?.id ?? null);
+      onDone(
+        importedMessage(preview.name, result, {
+          earlier,
+          total: preview.entry_count,
+        }),
+        fresh?.id ?? null,
+      );
     },
     onCommitFailed: (failure): CommitFailure => {
       const partial = partialImport(failure);
@@ -75,8 +84,19 @@ export function useKitImport({ onChanged, onDone }: Options): KitImport {
         KIT_IMPORT_RETRY_CODES.has(failure.code)
       )
         return { phase: "preview", notice: `${detail}${said}` };
-      if (failure instanceof ApiError && failure.code === "kit_import_unknown")
-        return { phase: "error", message: KIT_EXPIRED };
+      const dropped =
+        !(failure instanceof ApiError) ||
+        failure.code === null ||
+        failure.code === NETWORK_ERROR_CODE;
+      if (dropped) return { phase: "preview", notice: `${detail}${said}` };
+      if (failure.code === "kit_import_unknown")
+        return {
+          phase: "error",
+          message:
+            sofar > 0
+              ? `${KIT_EXPIRED} ${alreadyThere(sofar, total)}`
+              : KIT_EXPIRED,
+        };
       const added =
         sofar > 0
           ? ` ${sofar} ${sofar === 1 ? "segment was" : "segments were"} added to your library first.`

@@ -91,7 +91,7 @@ export function useStagedImport<P extends Staged, R>(
 
   const choose = useCallback(
     (file: File) => {
-      if (latest.current.phase === "committing") return;
+      if (!mounted.current || latest.current.phase === "committing") return;
       release();
       setup.current.onChosen?.();
       const controller = new AbortController();
@@ -149,6 +149,8 @@ export function useStagedImport<P extends Staged, R>(
           setup.current.onCommitFailed?.(failure, preview) ??
           defaultFailure(failure);
         if (next.phase === "error") {
+          // Giving up: the file is no use to the service any more (or already gone).
+          void setup.current.cancel(preview.token).catch(() => {});
           show({
             phase: "error",
             fileName: preview.name,

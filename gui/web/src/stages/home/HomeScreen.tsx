@@ -576,11 +576,7 @@ export function HomeScreen() {
   };
 
   return (
-    <BundleImportHost
-      segments={segments}
-      kits={kits}
-      listening={showLibrary && !libraryOpen}
-    >
+    <BundleImportHost segments={segments} kits={kits} listening={!libraryOpen}>
       <HomeView
         phase={phase}
         projects={projects}
