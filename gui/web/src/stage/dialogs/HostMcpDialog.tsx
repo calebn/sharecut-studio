@@ -250,7 +250,7 @@ export function HostMcpDialog({
           {liveText}
         </p>
         {unavailable ? null : (
-          <details className="host-mcp-config" key={session.epoch}>
+          <details className="host-mcp-config">
             <summary>Config file format</summary>
             <p>If your app takes a config file instead, use this.</p>
             <Field label="Configuration (JSON)">
