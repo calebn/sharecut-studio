@@ -31,6 +31,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp import settings
 from podcast_mcp.util import process
 from podcast_mcp.util.asset_sources import DownloadProgress, OnProgress
 from podcast_mcp.util.fingerprint import file_stamp
@@ -150,7 +151,7 @@ def _xet_importable() -> bool:
 
 def _child_allowed() -> bool:
     """Whether the Xet child can run: not turned off, and hf_xet is there to be fast."""
-    return os.environ.get("PODCAST_HF_IN_PROCESS") != "1" and _xet_importable()
+    return not settings.flag("PODCAST_HF_IN_PROCESS") and _xet_importable()
 
 
 def _cache_bytes(pin: PinnedSnapshot, cache_dir: Path) -> int:
@@ -200,10 +201,13 @@ def _run_child(
     }
     fd, spec_name = tempfile.mkstemp(prefix=".fetch-child-", suffix=".json", dir=cache_dir)
     spec_path = Path(spec_name)
+    log_path = spec_path
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(spec, handle)
-        with (cache_dir / ".fetch-child.log").open("wb") as log:
+        log_fd, log_name = tempfile.mkstemp(prefix=".fetch-child-", suffix=".log", dir=cache_dir)
+        log_path = Path(log_name)
+        with os.fdopen(log_fd, "wb") as log:
             baseline = _cache_bytes(pin, cache_dir)
             with process.detached_children():
                 proc = process.popen(
@@ -215,8 +219,9 @@ def _run_child(
                 )
         return _watch_child(proc, pin, cache_dir, baseline, total, on_progress)
     finally:
-        with contextlib.suppress(OSError):
-            spec_path.unlink()
+        for scratch in (spec_path, log_path):
+            with contextlib.suppress(OSError):
+                scratch.unlink()
 
 
 def _watch_child(

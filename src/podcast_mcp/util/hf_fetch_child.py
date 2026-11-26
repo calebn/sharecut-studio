@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import contextlib
 import errno
+import io
 import json
 import os
 import sys
@@ -95,7 +96,7 @@ def _exit_when_stdin_closes() -> None:
 
 def _claim_stdout() -> TextIO:
     """A private handle on the real stdout; fd 1 then points at stderr so nothing else lands there."""
-    result = os.fdopen(os.dup(1), "w", encoding="utf-8")
+    result = io.TextIOWrapper(io.FileIO(os.dup(1), "w"), encoding="utf-8")
     os.dup2(2, 1)
     sys.stdout = sys.stderr
     return result

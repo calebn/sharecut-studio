@@ -44,6 +44,7 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, BinaryIO, NamedTuple, Protocol, cast, runtime_checkable
 
+from podcast_mcp import settings
 from podcast_mcp.util import host_platform
 
 DEVNULL = subprocess.DEVNULL
@@ -192,7 +193,7 @@ def _taskkill_tree(pid: int) -> bool:
 
     False when ``taskkill`` could not run, so the caller kills the root alone.
     """
-    root = os.environ.get("SYSTEMROOT", r"C:\Windows")
+    root = settings.environ().get("SYSTEMROOT", r"C:\Windows")
     taskkill = str(Path(root) / "System32" / "taskkill.exe")
     try:
         subprocess.run(  # nosec B603
