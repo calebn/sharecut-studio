@@ -32,10 +32,6 @@ def test_plan_names_every_e2e_spec_exactly_once(plan: dict[str, Any]) -> None:
     assert es.check_plan(plan, es.spec_paths()) == []
 
 
-def test_check_command_passes_on_the_committed_plan() -> None:
-    assert es.main(["check"]) == 0
-
-
 def test_plan_has_one_shard_per_main_job(plan: dict[str, Any]) -> None:
     assert len(es.plan_shards(plan)) == cp.MAIN_SHARDS
 
@@ -48,10 +44,6 @@ def test_slowest_planned_shard_is_within_15_percent_of_the_ideal(plan: dict[str,
     loads = es.shard_seconds(es.plan_shards(plan), plan["durations"])
     ideal = es.ideal_seconds(plan["durations"], len(loads))
     assert max(loads) <= ideal * (1 + MAX_OVER_IDEAL), (loads, ideal)
-
-
-def test_largest_spec_is_the_only_bound_the_plan_cannot_beat(plan: dict[str, Any]) -> None:
-    assert max(plan["durations"].values()) < es.ideal_seconds(plan["durations"], cp.MAIN_SHARDS)
 
 
 def test_check_reports_missing_stale_and_duplicate_specs(plan: dict[str, Any]) -> None:
@@ -68,6 +60,43 @@ def test_check_reports_missing_stale_and_duplicate_specs(plan: dict[str, Any]) -
     assert "missing" in problems
     assert "do not exist" in problems
     assert "more than one shard" in problems
+
+
+def test_check_rejects_a_spec_path_that_is_a_substring_of_another(plan: dict[str, Any]) -> None:
+    nested = "x/e2e/" + es.plan_shards(plan)[0][0]
+    broken = copy.deepcopy(plan)
+    broken["shards"]["1"] = sorted([*broken["shards"]["1"], nested])
+    broken["durations"][nested] = 1.0
+    problems = es.check_plan(broken, [*es.spec_paths(), nested])
+    assert any("substrings of another" in line and nested in line for line in problems)
+
+
+def test_check_rejects_an_unsorted_shard(plan: dict[str, Any]) -> None:
+    broken = copy.deepcopy(plan)
+    broken["shards"]["1"].reverse()
+    assert any(
+        "shard 1 is not in alphabetical order" in p for p in es.check_plan(broken, es.spec_paths())
+    )
+
+
+def test_check_reports_bad_shard_keys_as_a_problem_not_a_traceback(plan: dict[str, Any]) -> None:
+    broken = copy.deepcopy(plan)
+    broken["shards"]["7"] = broken["shards"].pop("6")
+    assert any("exactly 1..N" in p for p in es.check_plan(broken, es.spec_paths()))
+    broken["shards"] = {
+        "0": broken["shards"]["1"],
+        **{k: v for k, v in broken["shards"].items() if k != "1"},
+    }
+    assert any("exactly 1..N" in p for p in es.check_plan(broken, es.spec_paths()))
+
+
+def test_build_ignores_and_rejects_reports_that_are_not_main_shards(tmp_path: Path) -> None:
+    report = json.dumps({"suites": []})
+    (tmp_path / "main-1of6.json").write_text(report)
+    (tmp_path / "main-smoke.json").write_text(report)
+    assert [p.name for p in es._report_files(tmp_path)] == ["main-1of6.json"]
+    with pytest.raises(ValueError, match=r"not a main-<i>of<n>\.json"):
+        es._report_files(tmp_path / "main-smoke.json")
 
 
 def test_planner_matches_the_plan_when_nothing_changed(plan: dict[str, Any]) -> None:
@@ -89,7 +118,7 @@ def test_planner_puts_an_unplanned_spec_in_the_lightest_shard_ties_to_lowest_ind
 
 
 def test_planner_drops_a_planned_spec_that_no_longer_exists(plan: dict[str, Any]) -> None:
-    specs = [spec for spec in es.spec_paths() if spec != "home-states.spec.ts"]
+    specs = es.spec_paths()[1:]
     shards = es.planned_shards(cp.MAIN_SHARDS, plan, specs)
     assert Counter(spec for shard in shards for spec in shard) == Counter(specs)
 

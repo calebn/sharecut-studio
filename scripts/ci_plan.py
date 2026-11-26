@@ -349,7 +349,6 @@ class E2eJob:
 
 
 def main_shards() -> list[E2eJob]:
-    """The main suite as duration-balanced shards from `gui/web/e2e/shard-plan.json`."""
     return [
         E2eJob(
             f"main-{i}of{MAIN_SHARDS}",

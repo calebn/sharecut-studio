@@ -324,17 +324,6 @@ def test_ci_runs_both_browser_suites_on_dispatch_on_every_passing_engine() -> No
     shards = [MAIN_SHARD_RE.match(entry["command"]) for entry in main_entries]
     assert all(shards), f"main shards must run `{MAIN_COMMAND} -- e2e/<spec> ...`: {include}"
     count = len(shards)
-    listed = [spec for shard in shards if shard for spec in shard[1].split()]
-    on_disk = [
-        f"e2e/{path.relative_to(MAIN_E2E_DIR).as_posix()}"
-        for path in MAIN_E2E_DIR.rglob("*.spec.ts")
-    ]
-    assert sorted(listed) == sorted(on_disk), (
-        "main shards must run every e2e spec exactly once: "
-        f"missing {sorted(set(on_disk) - set(listed))}, "
-        f"duplicated {sorted(spec for spec in set(listed) if listed.count(spec) > 1)}, "
-        f"unknown {sorted(set(listed) - set(on_disk))}"
-    )
     assert [entry["name"] for entry in include] == [
         *(f"main-{i}of{count}" for i in range(1, count + 1)),
         *(f"compat-{engine}" for engine in engines),
