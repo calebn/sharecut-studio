@@ -231,7 +231,8 @@
       "surfaces": {
         "command": "presence.goTo",
         "gui": [
-          "presence.goTo"
+          "presence.goTo",
+          "presence.flag"
         ]
       },
       "omit": {

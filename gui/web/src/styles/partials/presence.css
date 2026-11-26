@@ -132,3 +132,43 @@
   transform: translate(-50%, -110%);
   pointer-events: none;
 }
+
+/* The group flag's menu is a sibling of the aria-hidden overlay, inside a window that takes no pointer, so its root takes it back. Its trigger is a fixed, unseen box where the flag was when the menu opened. */
+.timeline-presence-menu {
+  display: contents;
+  pointer-events: auto;
+}
+
+.timeline-presence-anchor {
+  position: fixed;
+  inset-block-start: var(--anchor-top);
+  inset-inline-start: var(--anchor-left);
+  inline-size: var(--anchor-width);
+  block-size: var(--anchor-height);
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.timeline-presence-dot {
+  flex: none;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--sys-presence-color);
+}
+
+@media (forced-colors: active) {
+  .timeline-presence-dot {
+    --sys-presence-dot-edge: CanvasText;
+
+    background: none;
+    border: var(--space-1) solid var(--sys-presence-dot-edge);
+  }
+}
+
+.timeline-presence-menu .ui-menu-detail {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-caption);
+}

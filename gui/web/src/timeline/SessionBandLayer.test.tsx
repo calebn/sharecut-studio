@@ -220,7 +220,7 @@ describe("session bands on the Edit ruler", () => {
         Number.parseFloat((await pill(/^S2,/)).style.insetInlineStart);
       expect(await second()).toBeCloseTo(pillWidthPx("S1", 16) + 2);
       const probe = document.body.querySelector<HTMLElement>(
-        ':scope > [aria-hidden="true"][style*="1rem"]',
+        '.timeline-ruler-sessions > [aria-hidden="true"][style*="1rem"]',
       );
       expect(probe).not.toBeNull();
       root.style.fontSize = "32px";

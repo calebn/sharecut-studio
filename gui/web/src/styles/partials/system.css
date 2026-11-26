@@ -7282,6 +7282,16 @@ input.sys-edit-fix {
   text-align: end;
 }
 
+.sys-ruler-tick-label[data-covered] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sys-ruler-tick-label {
+    transition: opacity var(--motion-hover) var(--motion-ease-out);
+  }
+}
+
 .sys-ruler-session {
   position: absolute;
   inset-block: 0;
@@ -7706,32 +7716,66 @@ input.sys-edit-fix {
     var(--sys-presence-color);
 }
 
-.sys-presence-flag {
+.sys-presence-hit {
   position: absolute;
-  inset-block-start: 0.25rem;
-  inset-inline-start: calc(
-    var(--sys-presence-x) +
-    var(--selection-remote-width)
-  );
+  inset-block-start: 0;
+  inset-inline-start: var(--sys-presence-hit-left);
+  z-index: 1;
+  box-sizing: border-box;
   display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  inline-size: var(--sys-presence-hit-w);
+  block-size: var(--sys-presence-hit);
+  margin: 0;
+  padding: var(--space-1) 0 0;
+  border: 0;
+  background: none;
+  font: inherit;
+}
+
+button.sys-presence-hit {
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.sys-presence-flag {
+  display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  inline-size: var(--sys-presence-flag);
+  box-sizing: border-box;
+  inline-size: var(--sys-presence-w);
   block-size: var(--sys-presence-flag);
   border-radius: 50%;
-  background: var(--sys-presence-color);
-  color: var(--color-bg-canvas);
+  background: var(--sys-presence-fill, var(--sys-presence-color));
+  color: var(--sys-presence-ink, var(--color-bg-canvas));
   font-size: var(--font-size-micro);
+  font-variant-numeric: tabular-nums;
   font-weight: 600;
   line-height: 1;
 }
 
-.sys-presence-flag--left {
-  inset-inline-start: calc(
-    var(--sys-presence-x) -
-    var(--sys-presence-flag) -
-    var(--selection-remote-width)
-  );
+.sys-presence-flag--group {
+  --sys-presence-fill: var(--color-bg-elevated);
+  --sys-presence-ink: var(--color-text-primary);
+
+  border: 1px solid var(--sys-presence-edge, var(--color-border-strong));
+  border-radius: var(--sys-presence-flag);
+}
+
+button.sys-presence-hit:active > .sys-presence-flag,
+button.sys-presence-hit:focus-visible > .sys-presence-flag {
+  outline: 1px solid var(--color-text-primary);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) {
+  button.sys-presence-hit:hover > .sys-presence-flag {
+    outline: 1px solid var(--color-text-primary);
+    outline-offset: 1px;
+  }
 }
 
 .sys-presence-sel {
@@ -7759,7 +7803,11 @@ input.sys-edit-fix {
   }
 
   .sys-presence-flag {
-    border: var(--selection-remote-width) solid var(--color-border-strong);
+    --sys-presence-edge: CanvasText;
+    --sys-presence-fill: Canvas;
+    --sys-presence-ink: CanvasText;
+
+    border: var(--selection-remote-width) solid var(--sys-presence-edge);
   }
 }
 

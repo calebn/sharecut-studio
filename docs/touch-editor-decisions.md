@@ -1326,3 +1326,48 @@ tip says what the next drag does. On a phone the docked Range sheet opens over
 the corner when it arms, so no tip is raised there. Disarming never raises it, and a second mounted corner
 shows no duplicate because only the instance that raised a tip renders it.
 The tip follows the rules in [Coach tips](interaction-system.md#proposed-decision-coach-tips).
+
+### Proposed decision: The presence flag is a button as big as a finger
+
+<!-- decision
+id: D-presence-flag-press-area
+status: proposed
+date: 2026-11-26
+decided-by: issue #2919 implementation; the pill, the +N menu and the fade were approved by calebn, the phone press area is the open point
+evidence:
+- #2919 design proof (trails 2919c) and architect review (trails 2919d): the 44 px box reaches into the marker row, not the first lane
+- Chromium at 900 and 390 px, Pixel 5 touch emulation, e2e-storybook/presence-flag.spec.ts and e2e/touch-floor.spec.ts
+enforced-by:
+- gui/web/e2e-storybook/presence-flag.spec.ts::the flag is a real button whose own box is the press area, and no two press areas overlap
+- gui/web/e2e-storybook/presence-flag.spec.ts::a marker away from every flag keeps its press, and the press area ends above the first lane
+- gui/web/e2e-storybook/presence-flag.spec.ts::a clip tap beside a person's line, below the ruler and the marker row, still selects the clip
+- gui/web/e2e-storybook/presence-flag.spec.ts::a pan that starts on a flag does not jump
+- gui/web/src/timeline/TimelinePresence.test.tsx::sizes the press area from the pointer in use: 24 px for a mouse, 44 px for a finger
+-->
+
+A remote playhead's flag on the Edit ruler is a real button whose own box is
+the press area: 24 px square for a mouse, 44 px square for a finger, from the
+last pointer used (`usePointerType`, passed to `presenceFlags` as `hit`, so the
+merge distance and the box are one number). A 16 px pill is drawn inside it. People
+whose boxes would overlap share one `+N` flag, so no two press areas ever
+overlap. The button has `touch-action: manipulation`, so a swipe that starts on
+it pans the timeline and does not jump, and it is out of the tab order: the
+people list in the header is the keyboard and screen-reader way to go to someone.
+
+On a phone the box is 44 px tall from the top of the 24 px ruler, so it covers
+the ruler and the top 20 px of the marker row, and never reaches the first
+lane (the lane starts 48 px down). Inside that box a press goes to the flag.
+That takes a marker's tap in its top 20 px wherever a person stands within a
+44 px span of it, and it takes the ruler's tap to seek there. It exists only
+where someone is, and a tap on the marker's lower part, on any clip and
+anywhere outside the box is unchanged. The cost was weighed against a 24 px
+tall target, which would break the 44 px floor that `e2e/touch-floor.spec.ts`
+measures on every button.
+
+With a mouse the same holds over the ruler: a press inside the flag's 24 px box
+over the ruler body goes to the flag and does not scrub, seek or fit. Outside
+the box the ruler scrubs and seeks as before.
+
+A flag nobody can jump to (a guest link whose stage cannot open where that
+person is) is a plain mark: no button, no press area, and the pointer passes
+through it to the ruler.

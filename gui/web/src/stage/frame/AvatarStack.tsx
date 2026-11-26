@@ -1,11 +1,10 @@
 import { type ComponentProps, useMemo } from "react";
-import { useShallow } from "zustand/react/shallow";
 import { execute } from "../../commands/execute";
 import { disambiguatedNames } from "../../presence/colors";
 import { isLocalPresenceClient } from "../../presence/followSync";
-import { followCapsOf } from "../../presence/goToPlan";
 import { sessionClientList } from "../../presence/roster";
 import { useLivePresenceClients } from "../../presence/useLivePresenceClients";
+import { usePresenceViewer } from "../../presence/usePresenceViewer";
 import { useDawStore } from "../../state/dawStore";
 import type { SessionClient } from "../../types/session";
 import { AvatarStackView } from "./AvatarStackView";
@@ -37,29 +36,13 @@ export function AvatarStack({ variant = "header" }: Props) {
   );
   const localClientId = useDawStore((s) => s.localClientId);
   const followingClientId = useDawStore((s) => s.followingClientId);
-  const { stage, guestMode, breakpoint, durationSec } = useDawStore(
-    useShallow((s) => ({
-      stage: s.stage,
-      guestMode: s.guestMode,
-      breakpoint: s.shellBreakpoint,
-      durationSec: s.project?.timeline_duration_sec ?? Number.NaN,
-    })),
-  );
-
   const { others } = useLivePresenceClients(sessionClients, localClientId);
   const self = localClient(sessionClients, localClientId);
   const names = useMemo(
     () => disambiguatedNames(sessionClients),
     [sessionClients],
   );
-  const viewer = useMemo(
-    () => ({
-      stage,
-      durationSec,
-      caps: followCapsOf(guestMode, breakpoint),
-    }),
-    [stage, durationSec, guestMode, breakpoint],
-  );
+  const viewer = usePresenceViewer();
 
   return (
     <AvatarStackView

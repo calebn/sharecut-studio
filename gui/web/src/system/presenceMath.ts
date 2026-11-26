@@ -9,7 +9,7 @@ import {
   xAtTime,
 } from "./rulerMath";
 
-/** The flag is a 16 px circle on the ruler (spec-edit OVL-PRESENCE). Presence sets it as `--sys-presence-flag`, so the CSS and `flagSide` read this one number. */
+/** The flag is a 16 px circle on the ruler (spec-edit OVL-PRESENCE). Presence sets it as `--sys-presence-flag`, so the CSS and `presenceFlags` read this one number. */
 export const FLAG_PX = 16;
 
 export type PresenceBox = {
@@ -30,15 +30,6 @@ export function presenceX(
 
 export function playheadVisible(x: number, width: number): boolean {
   return x >= -PLAYHEAD_BLEED_PX && x <= width + PLAYHEAD_BLEED_PX;
-}
-
-/** The flag sits right of its line, and left of it when it would pass the window's right edge. */
-export function flagSide(
-  x: number,
-  width: number,
-  flagWidth: number = FLAG_PX,
-): "right" | "left" {
-  return x + flagWidth > width ? "left" : "right";
 }
 
 const EMPTY_KEYS: ReadonlySet<string> = new Set();
@@ -70,6 +61,7 @@ export type PresenceFlagPerson = {
   /** Whole px in the window, as `presenceX` gives. */
   x: number;
   colorIndex: number;
+  name: string;
   initial: string;
 };
 
@@ -112,7 +104,7 @@ function flagOf(
   const width = grouped
     ? GROUP_BORDER_PX + rem * (2 * GROUP_PAD_REM + GROUP_CHAR_REM * text.length)
     : FLAG_PX;
-  const side = flagSide(first.x, geometry.width, width);
+  const side = first.x + width > geometry.width ? "left" : "right";
   return {
     key: people
       .map((person) => person.id)
@@ -127,7 +119,8 @@ function flagOf(
   };
 }
 
-const pressSpan = (flag: PresenceFlag, hit: number) => {
+/** A flag's press area in the window: as wide as the pill or `hit`, centred on the pill. */
+export const pressSpan = (flag: PresenceFlag, hit: number) => {
   const half = Math.max(flag.width, hit) / 2;
   const centre = flag.left + flag.width / 2;
   return { left: centre - half, right: centre + half };
@@ -153,6 +146,7 @@ export function presenceFlags(
       time: person.playhead,
       x,
       colorIndex: person.colorIndex,
+      name: person.name,
       initial: Array.from(initials(person.name))[0] ?? "",
     });
   }

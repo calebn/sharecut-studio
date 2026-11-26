@@ -672,6 +672,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.audition": "daw.transport.audition",
   "presence.avatarStack": "daw.presence.follow",
   "presence.goTo": "daw.presence.goTo",
+  "presence.flag": "daw.presence.goTo",
   "presence.followPill": "daw.presence.unfollow",
   scriptHeader: "daw.edit.clearSelection",
   "actionBar.clearSelection": "daw.edit.clearSelection",

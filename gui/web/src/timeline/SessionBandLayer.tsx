@@ -1,11 +1,11 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useRef } from "react";
 import { seekTransport } from "../commands/seek";
 import { useDawStore } from "../state/dawStore";
 import { selectedClipIdsOf } from "../state/selection";
 import { xAtTime } from "../system/rulerMath";
+import { useRem } from "../system/useRem";
 import { bandSelected, type SessionBand } from "./sessionBands";
 import { layoutPills } from "./sessionPillLayout";
-import { useRootFontPx } from "./useRootFontPx";
 
 type Props = {
   bands: readonly SessionBand[];
@@ -28,7 +28,8 @@ export const SessionBandLayer = memo(function SessionBandLayer({
   width,
   pxPerSecond,
 }: Props) {
-  const rootPx = useRootFontPx();
+  const host = useRef<HTMLDivElement>(null);
+  const rootPx = useRem(host);
   const selectedIds = selectedClipIdsOf(useDawStore((s) => s.selection));
   const select = useCallback((band: SessionBand) => {
     void seekTransport(band.start);
@@ -46,7 +47,7 @@ export const SessionBandLayer = memo(function SessionBandLayer({
     rootPx,
   );
   return (
-    <div className="timeline-ruler-sessions">
+    <div ref={host} className="timeline-ruler-sessions">
       {placements.map(({ band, left }) => {
         const selected = bandSelected(band, selectedIds);
         return (

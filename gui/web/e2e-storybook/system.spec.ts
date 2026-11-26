@@ -4210,15 +4210,18 @@ test("Stages/Edit/Timeline a clip and a remote selection stand at the x and in t
   expect(Math.abs(lanes[0].y - (ruler.y + 48))).toBeLessThanOrEqual(0.5);
 });
 
-test("Stages/Edit/Timeline a remote playhead runs from the ruler to the last lane, its 16 px flag sits on the ruler beside it, and neither takes the pointer", async ({
+test("Stages/Edit/Timeline a remote playhead runs from the ruler to the last lane, its 16 px flag sits on the ruler beside it, and the line takes no pointer", async ({
   page,
 }) => {
   await open(page, "stages-edit-timeline--three-tracks", 1280);
   const ruler = await boxOf(page, ".sys-ruler");
   const lastLane = await boxOf(page, ".sys-lane", 2);
-  const maya = page.locator('.sys-presence-person[data-person="maya"]');
-  const line = await maya.locator(".sys-presence-line").boundingBox();
-  const flag = await maya.locator(".sys-presence-flag").boundingBox();
+  const line = await page
+    .locator('.sys-presence-person[data-person="maya"] .sys-presence-line')
+    .boundingBox();
+  const flag = await page
+    .locator('.sys-presence-flag[data-person="maya"]')
+    .boundingBox();
   if (!line || !flag) throw new Error("Maya's mark did not render");
   expect(Math.abs(line.y - ruler.y)).toBeLessThanOrEqual(0.5);
   expect(
@@ -4228,7 +4231,7 @@ test("Stages/Edit/Timeline a remote playhead runs from the ruler to the last lan
   expect(flag.y).toBeGreaterThanOrEqual(ruler.y + 4 - 0.5);
   expect(flag.y + flag.height).toBeLessThanOrEqual(ruler.y + ruler.height);
   expect(flag.x).toBeGreaterThanOrEqual(line.x + line.width);
-  // The overlay never takes the pointer: what is under a line is the lane.
+  // A line never takes the pointer: what is under it is the lane. Only a flag that can jump is a button.
   const target = await page.evaluate(
     ([x, y]) => {
       const hit = document.elementFromPoint(x, y);
@@ -4253,24 +4256,26 @@ test("Stages/Edit/Timeline on a phone the playhead stays at the middle of the ti
   expect(
     Math.abs(playhead.x + playhead.width / 2 - (column.x + column.width / 2)),
   ).toBeLessThanOrEqual(1);
-  const maya = page.locator('.sys-presence-person[data-person="maya"]');
-  const line = await maya.locator(".sys-presence-line").boundingBox();
+  const line = await page
+    .locator('.sys-presence-person[data-person="maya"] .sys-presence-line')
+    .boundingBox();
   // Maya is 1 s (24 px) right of the playhead.
   expect(
     Math.abs((line?.x ?? 0) + 0.5 - (playhead.x + 1 + 24)),
   ).toBeLessThanOrEqual(0.5);
   // Anneke is 5.5 s (132 px) right of the playhead, 4 px from the column's right edge: her flag is left of her line, inside the column.
   const anneke = page.locator('.sys-presence-person[data-person="anneke"]');
-  await expect(anneke.locator(".sys-presence-flag")).toHaveClass(
-    /sys-presence-flag--left/,
-  );
-  const flag = await anneke.locator(".sys-presence-flag").boundingBox();
+  const annekeFlag = page.locator('.sys-presence-flag[data-person="anneke"]');
+  await expect(
+    page.locator('.sys-presence-hit:has([data-person="anneke"])'),
+  ).toHaveAttribute("data-side", "left");
+  const flag = await annekeFlag.boundingBox();
   const hers = await anneke.locator(".sys-presence-line").boundingBox();
   expect(flag?.x ?? 0).toBeGreaterThanOrEqual(column.x);
   expect((flag?.x ?? 0) + (flag?.width ?? 0)).toBeLessThanOrEqual(hers?.x ?? 0);
-  await expect(maya.locator(".sys-presence-flag")).toHaveClass(
-    /sys-presence-flag--right/,
-  );
+  await expect(
+    page.locator('.sys-presence-hit:has([data-person="maya"])'),
+  ).toHaveAttribute("data-side", "right");
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(360);
