@@ -1,9 +1,9 @@
 """Host-side enrollment: get a lease from the relay, keep it fresh, remember it between launches.
 
-A host with no ``host_token`` asks the relay for a lease on first use (``POST /api/relay/enroll`` with a
-hashcash proof). The relay assigns the install id, and the host stores it beside the lease. The
-host renews the lease at half its life by presenting the old one. The install id, lease and
-per-install claim key are stored in one private file under the state root. Every failure is
+A host with no ``host_token`` asks the relay for a lease on first use (``POST /api/relay/enroll``
+with a hashcash proof). The relay assigns the install id, and the host stores it beside the
+lease. The host renews the lease at half its life by presenting the old one. The install id,
+lease and per-install claim key are stored in one private file under the state root. Every failure is
 raised as a ``TunnelError`` carrying a classified ``TunnelFailure`` with plain-words copy, so the
 tunnel's reconnect loop treats it like any other failed try.
 """

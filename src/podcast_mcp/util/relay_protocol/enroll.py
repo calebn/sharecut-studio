@@ -1,4 +1,4 @@
-"""Enrollment wire shapes and the hashcash proof a host attaches to ``POST /api/relay/enroll``.
+"""Enrollment wire shapes and the hashcash proof a host sends with ``POST /api/relay/enroll``.
 
 The proof binds a timestamp and a nonce to a ``seed`` the host picks for this one enrollment:
 ``sha256`` of the challenge must start with ``bits`` zero bits. The relay refuses a seed it has

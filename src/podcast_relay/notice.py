@@ -11,7 +11,7 @@ it: a POST from another site is refused, so a page elsewhere cannot pre-continue
 from __future__ import annotations
 
 import html
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -78,6 +78,9 @@ def safe_return_path(target: str) -> str | None:
     if not target.startswith(("/r/", "/rec/")) or "//" in path or "\\" in target:
         return None
     if any(ord(ch) < 32 or ord(ch) == 127 for ch in target):
+        return None
+    decoded = unquote(path).replace("\\", "/")
+    if any(segment in (".", "..") for segment in decoded.split("/")):
         return None
     return target
 

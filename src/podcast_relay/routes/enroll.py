@@ -1,4 +1,7 @@
-"""Enrollment: ``POST /api/relay/enroll`` mints a lease, ``POST /api/relay/enroll/renew`` swaps a live one for a fresh one.
+"""Enrollment under ``/api/relay/``.
+
+``POST /api/relay/enroll`` mints a lease and ``POST /api/relay/enroll/renew`` swaps a live one
+for a fresh one.
 
 Mounted only when the relay has a signing key, so a relay without one answers 404 and a host
 falls back to its host token.
