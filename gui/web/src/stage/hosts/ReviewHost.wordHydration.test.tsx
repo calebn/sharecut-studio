@@ -767,6 +767,15 @@ it("says why a word Hear cannot play when the project has no tracks", async () =
   });
 });
 
+it("ends follow when a word Hear starts", async () => {
+  const view = renderHook(() => useReviewQueue());
+  useDawStore.setState({ followingClientId: "other" });
+  await act(async () => {
+    await view.result.current.stageProps.onHear("word:host::2", "A");
+  });
+  expect(useDawStore.getState().followingClientId).toBeNull();
+});
+
 it.each(["pending", "failed"])(
   "does not use retained word coordinates for Hear or Open in Edit while %s",
   async (phase) => {

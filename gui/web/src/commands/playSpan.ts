@@ -24,10 +24,13 @@ export function playSpan(
   end: number,
   padSec = DEFAULT_AUDITION_PAD_SEC,
   beforeStart?: () => void,
+  opts?: { keepFollow?: boolean },
 ): ExecuteResult {
   const s = useDawStore.getState();
   const reason = playGate(s);
   if (reason) return { status: "disabled", reason };
+  // beginAudition does not break follow, and follow must be off before a hook or playback starts.
+  if (!opts?.keepFollow) s.stopFollow("local");
   beforeStart?.();
   playTimelineRange({
     start,

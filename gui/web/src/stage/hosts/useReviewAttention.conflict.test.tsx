@@ -173,6 +173,14 @@ describe("the live guest conflict row", () => {
       );
     });
 
+    it("ends follow", async () => {
+      useDawStore.setState({ followingClientId: "other" });
+      render(<Queue />);
+      await settle();
+      await click(/^Hear your cut/);
+      expect(useDawStore.getState().followingClientId).toBeNull();
+    });
+
     it("is disabled with its reason when the share cannot play audio", async () => {
       useDawStore.setState({ shareCapabilities: ["comment"] });
       render(<Queue />);
