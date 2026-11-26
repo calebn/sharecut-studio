@@ -3,11 +3,12 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.clips.social import export_social_clips
 from podcast_mcp.export.names import sanitize_export_stem
-from podcast_mcp.models import EpisodeProject, SocialClipCandidate, save_project
+from podcast_mcp.models import EpisodeProject, SocialClipCandidate, Track, save_project
 from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import ExportFilesService
+from podcast_mcp.services.document import ClipService, ExportFilesService
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.host_platform import current
 
@@ -186,3 +187,62 @@ def test_literal_backslash_filename_is_distinct_from_a_directory_reference(
         (f"clips/{name}", literal_reference)
     ]
     assert service.open(f"clips/{name}").path.is_file()
+
+
+def _exported_clip(tmp_path: Path, sample_wav: Path) -> tuple[ProjectWorkspace, ClipService, str]:
+    project = EpisodeProject.create("Clip listing", str(tmp_path))
+    project.ensure_dirs()
+    project.timeline.tracks = [Track(id="host", label="host")]
+    project.timeline.duration_sec = 2.0
+    (project.export_dir() / f"{sanitize_export_stem(project.name)}.wav").write_bytes(
+        sample_wav.read_bytes()
+    )
+    ws = ProjectWorkspace.open(save_project(project), adopt=False)
+    clips = ClipService(ws)
+    with write_grant(WriteGrantKind.DISPATCHER):
+        clip = clips.add_manual(track_id="host", start=0.2, end=1.2, title="Hook")
+        clips.approve([clip.id])
+        ws.reload()
+        export_social_clips(ws.project, {"social_clips": {"padding_ms": 0}})
+        ws.save()
+    return ws, clips, clip.id
+
+
+def _clip_rows(ws: ProjectWorkspace) -> dict[str, bool]:
+    return {
+        row.id: row.current for row in ExportFilesService(ws).list() if row.id.startswith("clips/")
+    }
+
+
+def test_retitling_or_retiming_an_exported_clip_marks_its_file_out_of_date(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    ws, clips, clip_id = _exported_clip(tmp_path, sample_wav)
+    (row_id,) = _clip_rows(ws)
+    assert _clip_rows(ws) == {row_id: True}
+
+    with write_grant(WriteGrantKind.DISPATCHER):
+        clips.update_details(clip_id, approved=True)
+        clips.update_times(clip_id, start=0.2, end=1.2)
+    ws.reload()
+    assert _clip_rows(ws) == {row_id: True}
+
+    with write_grant(WriteGrantKind.DISPATCHER):
+        clips.update_details(clip_id, title="Brand new title")
+    ws.reload()
+    assert _clip_rows(ws) == {row_id: False}
+    assert ExportFilesService(ws).open(row_id).path.is_file()
+
+    with write_grant(WriteGrantKind.DISPATCHER):
+        export_social_clips(ws.project, {"social_clips": {"padding_ms": 0}})
+        ws.save()
+    rows = _clip_rows(ws)
+    assert rows.pop(row_id) is False
+    assert list(rows.values()) == [True]
+
+    (new_id,) = rows
+    with write_grant(WriteGrantKind.DISPATCHER):
+        clips.update_times(clip_id, start=0.3, end=1.3)
+    ws.reload()
+    assert _clip_rows(ws) == {row_id: False, new_id: False}
+    assert ExportFilesService(ws).open(new_id).path.is_file()
