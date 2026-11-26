@@ -31,6 +31,7 @@ import { HostMcpDialog } from "../../stage/dialogs/HostMcpDialog";
 import { useShellAttributes } from "../../stage/frame/useShellAttributes";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
+import { BundleImportHost } from "../../system/importSheet/BundleImportHost";
 import type { ProjectCardData } from "../../system/ProjectCard";
 import { StatusLiveRegion } from "../../ui/StatusLiveRegion";
 import {
@@ -575,7 +576,11 @@ export function HomeScreen() {
   };
 
   return (
-    <>
+    <BundleImportHost
+      segments={segments}
+      kits={kits}
+      listening={showLibrary && !libraryOpen}
+    >
       <HomeView
         phase={phase}
         projects={projects}
@@ -657,6 +662,6 @@ export function HomeScreen() {
       <SettingsHost />
       <FeedbackToast />
       <StatusLiveRegion message={announcement} seq={announcementSeq} />
-    </>
+    </BundleImportHost>
   );
 }

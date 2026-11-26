@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { KitLibrary, type KitLibraryState, useKitLibrary } from "../kits";
 import { useDawStore } from "../state/dawStore";
+import { BundleImportHost } from "../system/importSheet/BundleImportHost";
 import { Sheet } from "../system/Sheet";
 import { LIBRARY_LABEL, SegmentLibraryBody } from "./SegmentLibraryBody";
 import {
@@ -31,10 +32,12 @@ export function SegmentLibrarySheetView({
       title={LIBRARY_LABEL}
       detent="full"
     >
-      <div className="kit-sheet-stack">
-        <SegmentLibraryBody library={library} layout="list" />
-        {kits ? <KitLibrary library={kits} /> : null}
-      </div>
+      <BundleImportHost segments={library} kits={kits}>
+        <div className="kit-sheet-stack">
+          <SegmentLibraryBody library={library} layout="list" />
+          {kits ? <KitLibrary library={kits} /> : null}
+        </div>
+      </BundleImportHost>
     </Sheet>
   );
 }

@@ -144,6 +144,11 @@ export type {
   DamagedKitRow,
   KitApplyReport,
   KitFileDownload,
+  KitImportEntry,
+  KitImportIncompleteBody,
+  KitImportOutcome,
+  KitImportPreview,
+  KitImportResult,
   KitListRow,
   KitOffer,
   KitOfferEntry,
@@ -152,10 +157,16 @@ export type {
 } from "./api/kits";
 export {
   applyKit,
+  cancelKitImport,
+  commitKitImport,
   downloadKitFile,
   isDamagedKit,
+  KIT_IMPORT_RETRY_CODES,
+  KIT_TOO_LARGE_MESSAGE,
   loadKitOffer,
   loadKits,
+  partialImport,
+  previewKitImport,
 } from "./api/kits";
 export {
   isDeadLinkAnswer,

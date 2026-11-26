@@ -1,17 +1,23 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { isDamagedSegment, type SegmentListRow, type SegmentRow } from "../api";
 import { useDawStore } from "../state/dawStore";
+import { BundleImportButton } from "../system/importSheet/BundleImportButton";
+import { useBundleImport } from "../system/importSheet/BundleImportContext";
+import {
+  DROP_HINT,
+  DROP_LABEL,
+  looksLikeBundle,
+  NOT_A_BUNDLE_FILE,
+  ONE_FILE_ONLY,
+} from "../system/importSheet/bundleCopy";
+import { useBundleDrop } from "../system/importSheet/useBundleDrop";
 import { Skeleton } from "../system/Skeleton";
 import { Button, InlineError } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import { stopAudition, toggleAudition, useAudition } from "./audition";
 import { exportSegmentFile } from "./exportSegment";
-import { DROP_HINT, DROP_LABEL, exportedMessage } from "./importMessages";
-import { SegmentImportButton } from "./SegmentImportButton";
-import { SegmentImportPreview } from "./SegmentImportPreview";
+import { exportedMessage } from "./importMessages";
 import { type RowLayout, SegmentRowView } from "./SegmentRowView";
-import { useSegmentDrop } from "./useSegmentDrop";
-import { useSegmentImport } from "./useSegmentImport";
 import type { SegmentLibraryState } from "./useSegmentLibrary";
 
 export const EMPTY_TEXT =
@@ -46,7 +52,7 @@ function useSpokenAudition(
 }
 
 export function SegmentLibraryBody({ library, layout }: Props) {
-  const { rows, error, reload, remove, reveal, highlightId } = library;
+  const { rows, error, reload, remove, highlightId } = library;
   const hosted = useDawStore((s) => s.guestMode === null);
   const { playingId, failedId } = useAudition();
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -59,29 +65,19 @@ export function SegmentLibraryBody({ library, layout }: Props) {
   const owner = useId();
   const mounted = useRef(true);
   const spoken = useSpokenAudition(rows ?? [], owner);
-  const picker = useRef<HTMLInputElement>(null);
-  const importButton = useRef<HTMLButtonElement>(null);
-  const wasImporting = useRef(false);
+  const imports = useBundleImport();
   const exporting = useRef(false);
 
-  const imported = useSegmentImport({
-    onDone: (id, message) => {
-      reveal(id);
-      useDawStore.getState().announceStatus(message);
-    },
-  });
-  const drop = useSegmentDrop({
-    enabled: hosted && rows !== null && imported.state.phase === "idle",
-    onFile: imported.choose,
+  const drop = useBundleDrop({
+    enabled: hosted && rows !== null && imports !== null && !imports.busy,
+    accepts: looksLikeBundle,
+    refusal: NOT_A_BUNDLE_FILE,
+    oneFileOnly: ONE_FILE_ONLY,
+    onFile: (file) => imports?.choose(file),
     onRefuse: (message) => {
       if (hosted) setFailure(message);
     },
   });
-  const importing = imported.state.phase !== "idle";
-  useEffect(() => {
-    if (wasImporting.current && !importing) importButton.current?.focus();
-    wasImporting.current = importing;
-  }, [importing]);
 
   useEffect(() => {
     if (highlightId === null) return;
@@ -197,7 +193,7 @@ export function SegmentLibraryBody({ library, layout }: Props) {
     content = (
       <div ref={emptyRef} tabIndex={-1} className="segment-library-empty">
         <p>{EMPTY_TEXT}</p>
-        {hosted ? <p>{DROP_HINT}</p> : null}
+        {hosted && imports ? <p>{DROP_HINT}</p> : null}
       </div>
     );
   } else {
@@ -252,13 +248,9 @@ export function SegmentLibraryBody({ library, layout }: Props) {
       data-drop={drop.over || undefined}
       {...drop.handlers}
     >
-      {hosted && rows !== null ? (
+      {hosted && rows !== null && imports ? (
         <div className="segment-library-toolbar">
-          <SegmentImportButton
-            onChoose={imported.choose}
-            inputRef={picker}
-            buttonRef={importButton}
-          />
+          <BundleImportButton />
         </div>
       ) : null}
       {drop.over ? (
@@ -287,14 +279,6 @@ export function SegmentLibraryBody({ library, layout }: Props) {
       <p className="sr-only" role="status">
         {spoken}
       </p>
-      {hosted ? (
-        <SegmentImportPreview
-          state={imported.state}
-          onAdd={imported.add}
-          onCancel={imported.cancel}
-          onChooseAgain={() => picker.current?.click()}
-        />
-      ) : null}
     </div>
   );
 }

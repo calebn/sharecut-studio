@@ -2,6 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api/segments";
+import { BundleImportHost } from "../system/importSheet/BundleImportHost";
 import { expectNoA11yViolations } from "../test/a11y";
 import { deferred } from "../test/deferred";
 import { ApiError } from "../utils/apiError";
@@ -22,9 +23,20 @@ vi.mock("../sessionAuth", () => ({
 const load = vi.mocked(api.loadSegments);
 const removeSegment = vi.mocked(api.removeSegment);
 
-function Section({ layout }: { layout: "table" | "list" }) {
+function Section({
+  layout,
+  withImport = false,
+}: {
+  layout: "table" | "list";
+  withImport?: boolean;
+}) {
   const library = useSegmentLibrary();
-  return <SegmentLibrary library={library} layout={layout} />;
+  const list = <SegmentLibrary library={library} layout={layout} />;
+  return withImport ? (
+    <BundleImportHost segments={library}>{list}</BundleImportHost>
+  ) : (
+    list
+  );
 }
 
 const play = vi.fn(async () => {});
@@ -98,14 +110,14 @@ describe("SegmentLibrary on a narrow Home", () => {
 describe("states", () => {
   it("shows the empty state without promising a Save button", async () => {
     load.mockResolvedValue([]);
-    const { container } = render(<Section layout="table" />);
+    const { container } = render(<Section layout="table" withImport />);
     const empty = await screen.findByText(/No saved segments yet/);
     expect(empty).toBeVisible();
     expect(empty.textContent).not.toMatch(/save from|selection/i);
     expect(
       screen.getAllByRole("button").map((button) => button.textContent),
     ).toEqual(["Import"]);
-    expect(screen.getByText(/Have a segment file/)).toBeVisible();
+    expect(screen.getByText(/Have a segment or kit file/)).toBeVisible();
     await expectNoA11yViolations(container);
   });
 

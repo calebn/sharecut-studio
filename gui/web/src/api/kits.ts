@@ -1,5 +1,8 @@
+import { ApiError } from "../utils/apiError";
 import { documentClientId } from "../utils/documentClient";
+import { cancelStaged, commitStaged, stageBundle } from "./bundleImport";
 import { apiFetch, HOST_KEY } from "./http";
+import type { SegmentKind } from "./segments";
 
 export type KitOfferReason =
   | "offer"
@@ -154,4 +157,126 @@ export async function downloadKitFile(
     blob: await res.blob(),
     filename: named?.[1] ?? `${id}.sharecutkit`,
   };
+}
+
+export type KitImportOutcome = "added" | "new_version" | "unchanged";
+
+/** One segment of a waiting kit file, in the order the kit applies it. */
+export interface KitImportEntry {
+  position: number;
+  name: string;
+  kind: SegmentKind;
+  duration_sec: number;
+  at: "start" | "end" | number;
+  note: string | null;
+  /** What adding this entry's segment would do to the segment library. */
+  outcome: KitImportOutcome;
+  version: number;
+}
+
+/** A checked kit upload that waits for Add: what it is and what adding it would do. */
+export interface KitImportPreview {
+  token: string;
+  name: string;
+  kit_id: string;
+  outcome: KitImportOutcome;
+  version: number;
+  entry_count: number;
+  counts: Record<KitImportOutcome, number>;
+  entries: KitImportEntry[];
+}
+
+export interface KitImportStatus {
+  status: KitImportOutcome | "skipped";
+  id: string;
+  version: number;
+}
+
+export interface KitImportResult {
+  kit: KitImportStatus;
+  segments: KitImportStatus[];
+}
+
+/** The body of a commit that failed after some segments landed. */
+export interface KitImportIncompleteBody {
+  detail: string;
+  segments_added: KitImportStatus[];
+  segments_total: number;
+}
+
+/** Codes after which the server keeps the staged file, so adding again is safe. */
+export const KIT_IMPORT_RETRY_CODES: ReadonlySet<string | null> = new Set([
+  "kit_busy",
+  "kit_no_room",
+  "kit_write_failed",
+]);
+
+export const KIT_TOO_LARGE_MESSAGE = "That file is too large to import here.";
+
+const KIT_IMPORT = "/api/kits/import";
+
+/**
+ * A reverse proxy or tunnel in front of the host may refuse a large body with its own 413
+ * or cut the connection; neither carries a kit code.
+ */
+function isTooLarge(failure: unknown): boolean {
+  if (!(failure instanceof ApiError)) return false;
+  if (failure.code === "kit_upload_too_large") return false;
+  return (
+    failure.code === "payload_too_large" ||
+    failure.code === "network_error" ||
+    failure.status === 413
+  );
+}
+
+/** Sends the file as the raw body (no FormData); nothing is added to the libraries. */
+export async function previewKitImport(
+  file: File,
+  signal?: AbortSignal,
+): Promise<KitImportPreview> {
+  try {
+    return await stageBundle<KitImportPreview>(KIT_IMPORT, file, signal);
+  } catch (failure) {
+    if (isTooLarge(failure)) {
+      const known = failure as ApiError;
+      throw new ApiError(
+        KIT_TOO_LARGE_MESSAGE,
+        known.code,
+        known.status,
+        null,
+        known.body,
+      );
+    }
+    throw failure;
+  }
+}
+
+export function commitKitImport(
+  token: string,
+  signal?: AbortSignal,
+): Promise<KitImportResult> {
+  return commitStaged<KitImportResult>(KIT_IMPORT, token, signal);
+}
+
+export function cancelKitImport(token: string): Promise<void> {
+  return cancelStaged(KIT_IMPORT, token);
+}
+
+/**
+ * What a refused commit says about segments that landed before it failed: how many this
+ * call added and how many the file holds. Null when the refusal carries no such body.
+ */
+export function partialImport(
+  failure: unknown,
+): { added: number; total: number } | null {
+  if (!(failure instanceof ApiError)) return null;
+  const body = failure.body as Partial<KitImportIncompleteBody> | null;
+  if (
+    body === null ||
+    typeof body !== "object" ||
+    !Array.isArray(body.segments_added) ||
+    typeof body.segments_total !== "number"
+  )
+    return null;
+  return { added: body.segments_added.length, total: body.segments_total };
 }

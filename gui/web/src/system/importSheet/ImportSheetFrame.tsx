@@ -1,4 +1,4 @@
-import { type ReactNode, type RefObject, useRef } from "react";
+import { type ReactNode, type RefObject, useEffect, useRef } from "react";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { opensFull, useCrampedSheet } from "../../stages/edit/useCrampedSheet";
 import { Button, InlineError } from "../../ui";
@@ -101,6 +101,19 @@ export function ImportSheetFrame<P extends Staged>(props: Props<P>) {
   const cramped = useCrampedSheet();
   const pinned = !(phone && cramped);
   const footer = <Footer {...props} primaryRef={primaryRef} />;
+  // The sheet opens while the file uploads, when there is no primary button yet; focus it
+  // when the preview or the error arrives, and again when a retry brings Add back.
+  const phase = state.phase;
+  const before = useRef(phase);
+  useEffect(() => {
+    const was = before.current;
+    before.current = phase;
+    if (
+      (phase === "preview" || phase === "error") &&
+      (was === "uploading" || was === "committing")
+    )
+      primaryRef.current?.focus();
+  }, [phase]);
   let body: ReactNode = null;
   if (state.phase === "uploading") {
     body = (
