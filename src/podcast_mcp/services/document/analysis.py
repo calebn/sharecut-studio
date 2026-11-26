@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from podcast_mcp.edits.audio_quality import (
     apply_fade_recommendations,
@@ -50,6 +50,11 @@ from podcast_mcp.services.document.fade_recommendation_results import (
     applied_fade_updates,
 )
 from podcast_mcp.services.document.loudness_results import LoudnessReport, build_loudness_report
+from podcast_mcp.services.document.off_speaker_results import (
+    OffSpeakerApplied,
+    OffSpeakerPreview,
+    OffSpeakerSummary,
+)
 from podcast_mcp.services.document.retained_bleed_results import (
     RetainedBleedAlignmentApplied,
     RetainedBleedAlignmentModeResult,
@@ -591,16 +596,24 @@ class AnalysisService(AnalysisReportService):
             progress=progress,
         )
 
+    def _off_speaker_preview(
+        self, tid: str, progress: ProgressReporter | None
+    ) -> OffSpeakerPreview:
+        from podcast_mcp.edits.off_speaker_mute import plan_off_speaker_mutes
+
+        plan = plan_off_speaker_mutes(
+            self.ws.project, tid, progress=progress, defaults=self.ws.effective_config()
+        )
+        return cast(OffSpeakerPreview, {"dry_run": True, **plan.summary()})
+
     def preview_off_speaker_mute(
         self,
         *,
         track_id: str | None = None,
         speaker: str | None = None,
         progress: ProgressReporter | None = None,
-    ) -> dict:
-        return self.mute_off_speaker(
-            track_id=track_id, speaker=speaker, apply=False, progress=progress
-        )
+    ) -> OffSpeakerPreview:
+        return self._off_speaker_preview(self._resolve(track_id, speaker), progress)
 
     def mute_off_speaker(
         self,
@@ -610,7 +623,7 @@ class AnalysisService(AnalysisReportService):
         apply: bool = True,
         progress: ProgressReporter | None = None,
         lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
-    ) -> dict:
+    ) -> OffSpeakerPreview | OffSpeakerSummary | OffSpeakerApplied:
         """Mute a track wherever another speaker talks and its own speaker does not (#1740).
 
         Preview with ``apply=False``. Applied stretches retain separate automatic ownership.
@@ -624,10 +637,7 @@ class AnalysisService(AnalysisReportService):
 
         tid = self._resolve(track_id, speaker)
         if not apply:
-            plan = plan_off_speaker_mutes(
-                self.ws.project, tid, progress=progress, defaults=self.ws.effective_config()
-            )
-            return {"dry_run": True, **plan.summary()}
+            return self._off_speaker_preview(tid, progress)
 
         from podcast_mcp.project.merge import adopt_project_state
 
@@ -635,7 +645,7 @@ class AnalysisService(AnalysisReportService):
             plan = plan_off_speaker_mutes(
                 self.ws.project, tid, progress=progress, defaults=self.ws.effective_config()
             )
-            result = {"dry_run": False, **plan.summary()}
+            result = cast(OffSpeakerSummary, {"dry_run": False, **plan.summary()})
             if not plan.regions:
                 return result
             candidate = self.ws.project.model_copy(deep=True)
@@ -646,7 +656,7 @@ class AnalysisService(AnalysisReportService):
                     "after mute off speaker",
                     lambda p: adopt_project_state(p, candidate),
                 )
-            return {**result, **applied}
+            return cast(OffSpeakerApplied, {**result, **applied})
 
     def preview_reconcile_transcript(
         self,

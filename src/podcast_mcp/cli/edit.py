@@ -1555,8 +1555,11 @@ def edit_mute_off_speaker_cmd(
     """Mute a track wherever another speaker talks and its own speaker does not."""
     ws = ProjectWorkspace.open(project)
     params: dict[str, Any] = {"track_id": track, "speaker": speaker}
+    result: dict[str, Any]
     if dry_run:
-        result = AnalysisService(ws).preview_off_speaker_mute(**params, progress=get_progress())
+        result = dict(
+            AnalysisService(ws).preview_off_speaker_mute(**params, progress=get_progress())
+        )
     else:
         result = run_audio_edit(
             ws,
