@@ -785,8 +785,8 @@ filtered numbers, listing at most 50 segments as the host's does, with `(withhel
 is withheld. `GET …/daw/social-clips` is the
 host's list of social clip candidates (`list_social_clips`), at most 500 with `total`, filtered by
 `?approved=` and `?review_required=`; each clip carries its score, reasons, title, caption,
-excerpt, speaker and review state, and `exported` says whether the host exported it, never
-where. Free text, track ids and clip ids that name a host path are sent as null (a withheld track in
+excerpt, speaker and review state, and `exported` says whether the host has a current export of it (false once the clip is retimed or
+retitled, until it is exported again), never where. Free text, track ids and clip ids that name a host path are sent as null (a withheld track in
 the per-track seconds is keyed `(withheld)`); the answers carry no path. Both read the live
 project, as the host does, not the share's pinned review version. Both are reads (read rate bucket, no
 `PODCAST_GUEST_RENDER`, nothing recorded) and their MCP twins are `guest_edit_impact` and
