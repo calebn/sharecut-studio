@@ -680,13 +680,13 @@ def test_lint_contract_clean_on_the_real_repo() -> None:
 def test_ux_pack_gate_on_the_real_contract() -> None:
     contract = ds.load_contract(None)
 
-    def ux_pack(*files: str) -> list[str]:
+    def ux_pack(*files: str) -> list[tuple[str, str]]:
         report = ds.evaluate(contract, ds.Change(label="t", files=files))
-        return [f.rule.id for f in report.findings if f.rule.id == "ux-pack"]
+        return [(f.rule.id, f.outcome) for f in report.findings if f.rule.id == "ux-pack"]
 
-    # The relay operator doc is not a UX-facing doc: editing it alone must not fire ux-pack.
     assert ux_pack("docs/host-online-relay.md") == []
-    # The UX-facing docs and code still do.
-    assert ux_pack("docs/ui-philosophy.md") == ["ux-pack"]
-    assert ux_pack("docs/recording-session.md") == ["ux-pack"]
-    assert ux_pack("gui/web/src/keymap/keys.ts") == ["ux-pack"]
+    assert ux_pack("docs/ui-philosophy.md") == [("ux-pack", "violated")]
+    assert ux_pack("docs/recording-session.md") == [("ux-pack", "violated")]
+    assert ux_pack("gui/web/src/keymap/keys.ts") == [("ux-pack", "violated")]
+    assert ux_pack("src/podcast_relay/notice.py") == [("ux-pack", "violated")]
+    assert ux_pack("gui/web/src/stages/deliver/tunnelStatusCopy.ts") == [("ux-pack", "violated")]
