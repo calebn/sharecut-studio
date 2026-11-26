@@ -36,9 +36,9 @@ HUB_CHUNK_BYTES = 1024 * 1024
 """Bytes between Hugging Face progress updates (the library's own is 10 MiB)."""
 
 _MISSING = object()
-_hub_chunk_lock = threading.Lock()
-_hub_chunk_depth = 0
-_hub_chunk_original: object = _MISSING
+_plain_http_lock = threading.Lock()
+_plain_http_depth = 0
+_plain_http_originals: dict[str, object] = {}
 
 FileManifest = tuple[tuple[str, str], ...]
 """(path relative to the snapshot root, sha256 hex) for every pinned file."""
@@ -59,30 +59,49 @@ class PinnedSnapshot:
 
 
 @contextmanager
-def _fine_hub_chunks() -> Iterator[None]:
-    """Make huggingface_hub report bytes every 1 MiB so the bar moves and Cancel bites sooner.
+def _plain_http_hub() -> Iterator[None]:
+    """Download over plain HTTP in 1 MiB chunks so the bar moves and Cancel bites.
 
-    The chunk size is a process-wide module attribute, so overlapping downloads share it:
-    the first in saves the original and the last out restores it. A hub without it is left alone.
+    hf_xet swallows exceptions from the progress callback, so Cancel is ignored and the bar
+    only moves when the file ends; plain HTTP reports every chunk and raises propagate.
+    The settings are process-wide: the first in saves the originals, the last out restores
+    them. A hub missing an attribute logs a warning and leaves that one alone.
     """
-    global _hub_chunk_depth, _hub_chunk_original
+    global _plain_http_depth
     from huggingface_hub import constants
 
-    with _hub_chunk_lock:
-        if _hub_chunk_depth == 0:
-            _hub_chunk_original = getattr(constants, "DOWNLOAD_CHUNK_SIZE", _MISSING)
-            if _hub_chunk_original is not _MISSING:
-                constants.DOWNLOAD_CHUNK_SIZE = HUB_CHUNK_BYTES
-            else:
-                logger.warning("huggingface_hub has no DOWNLOAD_CHUNK_SIZE; progress stays coarse")
-        _hub_chunk_depth += 1
+    settings: dict[str, object] = {
+        "DOWNLOAD_CHUNK_SIZE": HUB_CHUNK_BYTES,
+        "HF_HUB_DISABLE_XET": True,
+    }
+    with _plain_http_lock:
+        if _plain_http_depth == 0:
+            _plain_http_originals.clear()
+            try:
+                for name, value in settings.items():
+                    original = getattr(constants, name, _MISSING)
+                    if original is _MISSING:
+                        logger.warning(
+                            "huggingface_hub has no %s; downloads keep its default", name
+                        )
+                        continue
+                    _plain_http_originals[name] = original
+                    setattr(constants, name, value)
+            except BaseException:
+                for name, original in _plain_http_originals.items():
+                    setattr(constants, name, original)
+                _plain_http_originals.clear()
+                raise
+        _plain_http_depth += 1
     try:
         yield
     finally:
-        with _hub_chunk_lock:
-            _hub_chunk_depth -= 1
-            if _hub_chunk_depth == 0 and _hub_chunk_original is not _MISSING:
-                constants.DOWNLOAD_CHUNK_SIZE = _hub_chunk_original  # type: ignore[assignment]
+        with _plain_http_lock:
+            _plain_http_depth -= 1
+            if _plain_http_depth == 0:
+                for name, original in _plain_http_originals.items():
+                    setattr(constants, name, original)
+                _plain_http_originals.clear()
 
 
 def manifest_files(manifest: FileManifest) -> list[str]:
@@ -272,7 +291,7 @@ def download_pinned_snapshot(
             total = _dry_run_total(pin, cache_dir, force_download)
             on_progress(DownloadProgress(0, total))
             extra["tqdm_class"] = _byte_bar(on_progress, total)
-        with _fine_hub_chunks():
+        with _plain_http_hub():
             return Path(
                 snapshot_download(
                     pin.hf_repo,
