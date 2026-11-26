@@ -44,9 +44,10 @@ function setup(props: Partial<ScrubFieldProps> = {}) {
     onCommit: vi.fn(),
     onCancel: vi.fn(),
   };
-  render(<Harness {...props} calls={calls} />);
+  const { unmount } = render(<Harness {...props} calls={calls} />);
   return {
     calls,
+    unmount,
     field: () => screen.getByRole("spinbutton", { name: "Offset" }),
   };
 }
@@ -1470,16 +1471,18 @@ describe("ScrubField drag interrupted by the page", () => {
       expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(125);
     });
 
-    it.each(["release", "interrupt"])(
+    it.each(["release", "interrupt", "unmount"])(
       "removes the interrupt listeners after %s",
       (how) => {
         const signals = watchSignals();
-        const { field } = setup();
+        const { field, unmount } = setup();
         dragAs(field(), pointerType, 25);
         const live = signals.filter((signal) => !signal.aborted);
         expect(live.length).toBeGreaterThan(0);
         if (how === "release") {
           fireEvent.pointerUp(field(), { pointerId: 1, pointerType });
+        } else if (how === "unmount") {
+          unmount();
         } else {
           interrupts.blur();
         }
