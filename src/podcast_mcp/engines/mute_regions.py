@@ -178,6 +178,20 @@ def muted_source_spans(project: EpisodeProject) -> dict[str, list[ClipMuteRegion
     }
 
 
+REGION_MATCH_SEC = 1e-3
+REGION_TOUCH_SEC = 1e-6
+
+
+def same_region_span(a_start: float, a_end: float, b_start: float, b_end: float) -> bool:
+    """True when two source spans are the same region within :data:`REGION_MATCH_SEC`."""
+    return abs(a_start - b_start) <= REGION_MATCH_SEC and abs(a_end - b_end) <= REGION_MATCH_SEC
+
+
+def spans_touch(a_start: float, a_end: float, b_start: float, b_end: float) -> bool:
+    """True when two source spans overlap or abut within :data:`REGION_TOUCH_SEC`."""
+    return a_start <= b_end + REGION_TOUCH_SEC and a_end >= b_start - REGION_TOUCH_SEC
+
+
 def source_span_is_muted(regions: Sequence[ClipMuteRegion], start: float, end: float) -> bool:
     """True when merged ``regions`` fully cover ``[start, end)`` (within 1 ms)."""
     return any(r.start_s <= start + 1e-3 and r.end_s >= end - 1e-3 for r in regions)

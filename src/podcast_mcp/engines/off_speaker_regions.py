@@ -3,6 +3,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
+from podcast_mcp.engines.mute_regions import same_region_span
 from podcast_mcp.models import Clip, ClipOffSpeakerMuteRegion, FadeCurve
 
 
@@ -45,4 +46,17 @@ def add_off_speaker_mute(clip: Clip, region: ClipOffSpeakerMuteRegion) -> bool:
         [*clip.off_speaker_mute_regions, region.model_copy(deep=True)],
         key=lambda r: (r.start_s, r.end_s, r.fade_out_ms, r.fade_in_ms),
     )
+    return True
+
+
+def remove_off_speaker_mute(clip: Clip, start_s: float, end_s: float) -> bool:
+    """Drop the region spanning ``[start_s, end_s]`` (within 1 ms); neighbours stay whole."""
+    kept = [
+        r
+        for r in clip.off_speaker_mute_regions
+        if not same_region_span(r.start_s, r.end_s, start_s, end_s)
+    ]
+    if len(kept) == len(clip.off_speaker_mute_regions):
+        return False
+    clip.off_speaker_mute_regions = kept
     return True
