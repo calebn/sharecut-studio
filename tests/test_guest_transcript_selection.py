@@ -533,6 +533,10 @@ def test_a_guest_row_text_leaves_out_the_words_the_host_struck(guest, role):
         assert row["text"] == "Um.", name
         assert row["ignored_word_indices"] == [1], name
         assert "text_without_ignored" not in row, name
+        if "words" in row:
+            assert [(word["text"], word["word_index"]) for word in row["words"]] == [("Um.", 0)], (
+                name
+            )
 
 
 def _host_and_guest_texts(ws: ProjectWorkspace) -> list[tuple[str, str]]:
@@ -620,3 +624,24 @@ def test_a_guest_row_leaves_out_only_its_struck_words(guest, words, expected):
     ws = ProjectWorkspace.open(path)
     ws.project.transcripts[0].words = words
     assert _host_and_guest_texts(ws) == expected
+
+
+@pytest.mark.parametrize("row_owns_tail", [True, False])
+def test_stale_guest_row_keeps_only_its_own_zero_length_tail(guest, row_owns_tail):
+    _client, _open_share, path = guest
+    ws = ProjectWorkspace.open(path)
+    transcript = ws.project.transcripts[0]
+    transcript.words = [_w("one", 0.2, 0.6), _w("omit", 0.8, 1.2, ignored=True)]
+    if row_owns_tail:
+        transcript.words.append(_w("now", 1.2, 1.2))
+    rebuild_combined(ws.project, defaults=ws.effective_config())
+    stale = ws.project.combined_transcript.model_dump()
+    if not row_owns_tail:
+        transcript.words.append(_w("now", 1.2, 1.2))
+    # The current run extends beyond the stored row, forcing the stale-row fallback.
+    transcript.words.append(_w("later", 1.25, 1.4))
+    mapped = map_transcript_utterances_to_timeline(ws.project, stale)
+    [host] = mapped["utterances"]
+    [shown] = guest_transcript(mapped, words=GuestWords.READING)["utterances"]
+    assert host["text"] == ("one omit now" if row_owns_tail else "one omit")
+    assert shown["text"] == ("one now" if row_owns_tail else "one")
