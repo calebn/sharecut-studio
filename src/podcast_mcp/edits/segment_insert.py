@@ -25,6 +25,7 @@ from podcast_mcp.engines.clips_ops import (
     set_track_clips,
     update_timeline_duration,
 )
+from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.engines.track_ids import slug_track_id
 from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
@@ -41,12 +42,14 @@ from podcast_mcp.segments.model import SegmentFile
 from podcast_mcp.segments.position import Placement, parse_placement
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.tracks import dialogue_track_ids
 
 # A clip may run this far past its file's probed length (container rounding).
 _DURATION_SLACK_SEC = 0.05
 _MAX_SEGMENT_SEC = 24 * 3600.0
 _MAX_FADE_MS = 3_600_000
 _MIN_CLIP_SEC = 0.001
+_EDGE_EPS_SEC = SPAN_EPS_S
 
 
 @dataclass(frozen=True)
@@ -90,6 +93,27 @@ def check_placement(segment: SegmentFile, placement: object) -> None:
             "ripple, or save it with a music, sfx, intro or outro role.",
             code="segment_placement_unsupported",
         )
+
+
+def keeps_reconciliation(
+    project: EpisodeProject, segment: SegmentFile, at: float, placement: Placement
+) -> bool:
+    """Whether a ripple insert of ``segment`` at ``at`` leaves a fresh reconciliation valid.
+
+    True only for a ripple of a non-dialogue segment that splits no dialogue clip and moves
+    no clip off the dialogue tracks. Then every dialogue track shifts by the same length, so
+    the verdicts between tracks are unchanged. Call it on the project before the insert.
+    """
+    if placement != "ripple" or segment.role is TrackRole.DIALOGUE:
+        return False
+    dialogue = set(dialogue_track_ids(project))
+    for clip in project.clips:
+        if clip.track_id in dialogue:
+            if clip.timeline_start + _EDGE_EPS_SEC < at < clip.timeline_end - _EDGE_EPS_SEC:
+                return False
+        elif clip.timeline_end > at + _EDGE_EPS_SEC:
+            return False
+    return True
 
 
 def _unique_track_id(project: EpisodeProject, preferred: str) -> str:

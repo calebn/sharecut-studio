@@ -443,30 +443,93 @@ describe("InsertSegmentCard placement", () => {
     expect(screen.queryByRole("radio")).toBeNull();
   });
 
-  it("defaults every segment to Move the rest later, with no placement sent", async () => {
+  it("defaults a music segment to Play over the episode and sends its placement", async () => {
     const handlers = handlersOf();
     render(<Anchored handlers={handlers} rows={rows} />);
     await pick(/Warm bed/);
     expect(
       screen.getByRole("group", { name: "What happens to the episode" }),
     ).toBeVisible();
-    expect(ripple()).toBeChecked();
-    expect(own()).toBeEnabled();
+    expect(own()).toBeChecked();
+    expect(ripple()).not.toBeChecked();
+    expect(ripple()).toBeEnabled();
     expect(ripple()).toHaveAccessibleName(/Later clips, chapters and comments/);
     expect(own()).toHaveAccessibleName(
       /The segment is added on new tracks of its own/,
     );
     expect(screen.queryByText(/Music under dialogue/)).toBeNull();
-    await screen.findByText(/Preview, from the saved episode/);
-    expect(handlers.loadPreview).toHaveBeenLastCalledWith(
-      { segment_id: "bed-5c1d", at: 42 },
-      expect.any(AbortSignal),
+    await waitFor(() =>
+      expect(handlers.loadPreview).toHaveBeenLastCalledWith(
+        { segment_id: "bed-5c1d", at: 42, placement: "own_lane" },
+        expect.any(AbortSignal),
+      ),
     );
+    await screen.findByText(/Preview, from the saved episode/);
     await userEvent.click(insertButton());
     expect(handlers.onInsert).toHaveBeenCalledWith({
       name: "Warm bed",
-      request: { segment_id: "bed-5c1d", at: 42, version: 1 },
+      request: {
+        segment_id: "bed-5c1d",
+        at: 42,
+        version: 1,
+        placement: "own_lane",
+      },
     });
+  });
+
+  it.each([
+    ["intro", /Cold open/, "intro-9f3a"],
+    ["outro", /Closing thanks/, "outro-1"],
+    ["sfx", /Chime/, "sfx-1"],
+  ])(
+    "defaults %s to Move the rest later, with no placement sent",
+    async (role, name, id) => {
+      const handlers = handlersOf();
+      const row = segment({
+        id,
+        name: String(name).slice(1, -1),
+        kind: role === "intro" ? "intro" : role === "outro" ? "outro" : "other",
+        role: role as "intro" | "outro" | "sfx",
+      });
+      render(<Anchored handlers={handlers} rows={[row]} />);
+      await pick(name);
+      expect(ripple()).toBeChecked();
+      expect(own()).toBeEnabled();
+      expect(own()).not.toBeChecked();
+      await screen.findByText(/Preview, from the saved episode/);
+      expect(handlers.loadPreview).toHaveBeenLastCalledWith(
+        { segment_id: id, at: expect.anything() },
+        expect.any(AbortSignal),
+      );
+      await userEvent.click(insertButton());
+      const call = vi.mocked(handlers.onInsert).mock.calls[0]![0];
+      expect(call.request).not.toHaveProperty("placement");
+    },
+  );
+
+  it("defaults a dialogue segment to Move the rest later with own lane disabled", async () => {
+    const handlers = handlersOf();
+    render(<Anchored handlers={handlers} rows={rows} />);
+    await pick(/Host read/);
+    expect(ripple()).toBeChecked();
+    expect(own()).toBeDisabled();
+    await screen.findByText(/Preview, from the saved episode/);
+    await userEvent.click(insertButton());
+    expect(handlers.onInsert).toHaveBeenCalledWith({
+      name: "Host read",
+      request: { segment_id: "read-3e8b", at: 42, version: 1 },
+    });
+  });
+
+  it("lets a pick win over the default and resets it when another segment is picked", async () => {
+    render(<Anchored handlers={handlersOf()} rows={rows} />);
+    await pick(/Warm bed/);
+    await userEvent.click(ripple());
+    expect(ripple()).toBeChecked();
+    await pick(/Cold open/);
+    expect(ripple()).toBeChecked();
+    await pick(/Warm bed/);
+    expect(own()).toBeChecked();
   });
 
   it("previews and inserts with placement own_lane only when chosen", async () => {
@@ -552,7 +615,7 @@ describe("InsertSegmentCard placement", () => {
       ),
     });
     render(<Anchored handlers={handlers} rows={rows} />);
-    await pick(/Warm bed/);
+    await pick(/Cold open/);
     await act(async () => pending[0]!.resolve(insertPreview({ at: 42 })));
     await screen.findByText("Adds 0:22 at 0:42.");
     expect(insertButton()).toBeEnabled();
@@ -576,9 +639,9 @@ describe("InsertSegmentCard placement", () => {
       "It plays at full level over the voices. Ducking is a separate step (podcast edit duck).",
     ],
     [
-      "not saved to duck",
+      "music not saved to duck",
       false,
-      "It plays at full level. It was not saved to duck under dialogue.",
+      "It plays at full level until you run ducking (podcast edit duck), which lowers music under speech.",
     ],
   ])(
     "words the own-lane preview truthfully (%s)",
@@ -592,7 +655,6 @@ describe("InsertSegmentCard placement", () => {
       });
       render(<Anchored handlers={handlersOf()} rows={[row]} />);
       await pick(/Warm bed/);
-      await choose();
       expect(await screen.findByText(line)).toBeVisible();
       expect(
         screen.getByText("Adds 0:22 at 0:42 on a new track."),
@@ -606,6 +668,24 @@ describe("InsertSegmentCard placement", () => {
       ).toBeNull();
     },
   );
+
+  it("keeps the not-saved-to-duck line for an own-lane sfx", async () => {
+    const row = segment({
+      id: "chime-1",
+      name: "Chime",
+      kind: "other",
+      role: "sfx",
+      duck_under_dialogue: false,
+    });
+    render(<Anchored handlers={handlersOf()} rows={[row]} />);
+    await pick(/Chime/);
+    await choose();
+    expect(
+      await screen.findByText(
+        "It plays at full level. It was not saved to duck under dialogue.",
+      ),
+    ).toBeVisible();
+  });
 
   it.each([
     [
@@ -625,7 +705,7 @@ describe("InsertSegmentCard placement", () => {
     render(
       <Anchored handlers={handlersOf({ loadPreview, onInsert })} rows={rows} />,
     );
-    await pick(/Warm bed/);
+    await pick(/Cold open/);
     expect(await screen.findByText(message)).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     await screen.findByText(/Preview, from the saved episode/);

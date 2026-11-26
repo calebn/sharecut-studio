@@ -18,6 +18,7 @@ import {
 import {
   DIALOGUE_OWN_LANE_HINT,
   defaultInsertPosition,
+  defaultPlacement,
   INSERT_POSITIONS,
   type InsertPosition,
   insertAtOf,
@@ -136,7 +137,7 @@ function useInsertForm(
   const at = selected ? insertAtOf(position, playheadSec, timelineEnd) : null;
   const placement: SegmentPlacement = isDialogueSegment(selected)
     ? "ripple"
-    : (pickedPlacement ?? "ripple");
+    : (pickedPlacement ?? defaultPlacement(selected));
   const key = selected
     ? `${selected.id}|${String(at)}|${placement}|${round}`
     : null;

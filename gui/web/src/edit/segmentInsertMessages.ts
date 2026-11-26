@@ -82,6 +82,10 @@ export function defaultInsertPosition(kind: string): InsertPosition {
   return "playhead";
 }
 
+export function defaultPlacement(row: SegmentRow | null): SegmentPlacement {
+  return row?.role === "music" ? "own_lane" : "ripple";
+}
+
 export function insertAtOf(
   position: InsertPosition,
   playheadSec: number,
@@ -102,7 +106,9 @@ const laterText = (n: number, one: string, many: string) =>
 const duckingLine = (row: SegmentRow | null): string =>
   row?.duck_under_dialogue === true
     ? "It plays at full level over the voices. Ducking is a separate step (podcast edit duck)."
-    : "It plays at full level. It was not saved to duck under dialogue.";
+    : row?.role === "music"
+      ? "It plays at full level until you run ducking (podcast edit duck), which lowers music under speech."
+      : "It plays at full level. It was not saved to duck under dialogue.";
 
 function ownLanePreviewLines(
   preview: SegmentInsertPreview,

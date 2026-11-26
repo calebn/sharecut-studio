@@ -17,6 +17,7 @@ from podcast_mcp.engines.play_audit import (
 from podcast_mcp.engines.reconciliation_state import (
     audio_state_fingerprint,
     mark_reconciliation_stale,
+    reconciliation_is_stale,
 )
 from podcast_mcp.engines.render_invalidations import record_after_audio_mutation
 from podcast_mcp.engines.transcript_sync import (
@@ -79,6 +80,7 @@ def run_mutation(
     operation: str | None = None,
     params: dict | None = None,
     on_failure: Callable[[RollbackOutcome], None] | None = None,
+    keeps_reconciliation: Callable[[EpisodeProject], bool] | None = None,
 ) -> T:
     with project_state_lock(project):
         return _run_mutation_locked(
@@ -92,6 +94,7 @@ def run_mutation(
             operation=operation,
             params=params,
             on_failure=on_failure,
+            keeps_reconciliation=keeps_reconciliation,
         )
 
 
@@ -107,10 +110,16 @@ def _run_mutation_locked(
     operation: str | None,
     params: dict | None,
     on_failure: Callable[[RollbackOutcome], None] | None,
+    keeps_reconciliation: Callable[[EpisodeProject], bool] | None = None,
 ) -> T:
     mgr = HistoryManager(store)
     track_hashes_before = dialogue_render_hashes(project, defaults=defaults)
     fingerprint_before = audio_state_fingerprint(project, track_hashes_before, defaults=defaults)
+    keep_fresh = (
+        keeps_reconciliation is not None
+        and not reconciliation_is_stale(project, fingerprint_before, defaults=defaults)
+        and keeps_reconciliation(project)
+    )
     log_len_before = len(project.editorial.edit_log)
     pre_mutate = _PreMutateState.capture(project)
     with project_commit_lock(project):
@@ -141,6 +150,7 @@ def _run_mutation_locked(
             log_len_before=log_len_before,
             operation=operation,
             defaults=defaults,
+            keep_fresh=keep_fresh,
         )
         rebuild_combined_if_inputs_moved(project, inputs_before, defaults=defaults)
         # record() and commit() each take the re-entrant lock; this outer hold makes
@@ -160,12 +170,18 @@ def _record_audio_changes(
     log_len_before: int,
     operation: str | None,
     defaults: EffectiveConfig,
+    keep_fresh: bool = False,
 ) -> None:
     hashes_after = dialogue_render_hashes(project, defaults=defaults)
-    if audio_state_fingerprint(project, hashes_after, defaults=defaults) == fingerprint_before:
+    fingerprint_after = audio_state_fingerprint(project, hashes_after, defaults=defaults)
+    if fingerprint_after == fingerprint_before:
         return
     retire_unplayed_pending(project)
-    mark_reconciliation_stale(project)
+    if keep_fresh:
+        project.last_reconciliation_hash = fingerprint_after
+        project.reconciliation_stale = False
+    else:
+        mark_reconciliation_stale(project)
     changed_tracks = changed_render_hashes(track_hashes_before, hashes_after)
     record_after_audio_mutation(
         project,

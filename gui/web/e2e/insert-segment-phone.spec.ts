@@ -263,8 +263,8 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
         .check({ force: true });
       const rest = sheet.getByRole("radio", { name: /Move the rest later/ });
       const over = sheet.getByRole("radio", { name: /Play over the episode/ });
-      await expect(rest).toBeChecked();
-      await over.check({ force: true });
+      await expect(over).toBeChecked();
+      await expect(rest).not.toBeChecked();
       await expect(
         sheet.getByText("Adds 0:22 at 0:00 on a new track."),
       ).toBeVisible();
