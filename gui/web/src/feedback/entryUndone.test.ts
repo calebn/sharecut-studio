@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { minimalProject } from "../test/fixtures";
-import type { HistoryEntryId, ProjectView } from "../types/project";
+import type {
+  HistoryEntryId,
+  HistoryEntryView,
+  ProjectView,
+} from "../types/project";
 import { entryUndone } from "./entryUndone";
 
 const id = (v: string) => v as HistoryEntryId;
@@ -41,5 +45,50 @@ describe("entryUndone", () => {
   it("is false when no group names the entry", () => {
     expect(entryUndone(history("e0", []), id("e1"))).toBe(false);
     expect(entryUndone(history("e0", groups), id("zz"))).toBe(false);
+  });
+});
+
+/** The live /api/project shape: ordered `entries`, snapshot-kind groups with `id` and `index` only. */
+function realHistory(head: string, ids: string[]): ProjectView["history"] {
+  const entries: HistoryEntryView[] = ids.map((entryId, index) => ({
+    index,
+    id: id(entryId),
+    label: `step ${index}`,
+    current: entryId === head,
+  }));
+  return {
+    ...minimalProject().history,
+    head_id: id(head),
+    entries,
+    groups: entries.map((e) => ({
+      kind: "snapshot",
+      index: e.index,
+      id: e.id,
+      label: e.label,
+    })),
+  };
+}
+
+describe("entryUndone on the real history shape", () => {
+  const ids = ["s0", "s1", "render", "approve"];
+
+  it("is true when the head sits before the entry in entries", () => {
+    expect(entryUndone(realHistory("render", ids), id("approve"))).toBe(true);
+    expect(entryUndone(realHistory("s0", ids), id("approve"))).toBe(true);
+  });
+
+  it("is false at the entry itself or past it", () => {
+    expect(entryUndone(realHistory("approve", ids), id("approve"))).toBe(false);
+    expect(entryUndone(realHistory("approve", ids), id("render"))).toBe(false);
+  });
+
+  it("is false when the entry is not among the entries", () => {
+    expect(entryUndone(realHistory("render", ids), id("gone"))).toBe(false);
+  });
+
+  it("is false when the head is not among the entries", () => {
+    expect(entryUndone(realHistory("elsewhere", ids), id("approve"))).toBe(
+      false,
+    );
   });
 });
