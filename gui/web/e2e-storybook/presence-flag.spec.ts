@@ -2,6 +2,15 @@ import { devices, expect, type Page, test } from "@playwright/test";
 import { emit } from "./storyChannel";
 import { storyUrl } from "./storyUrl";
 
+async function settled(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => done())),
+      ),
+  );
+}
+
 /**
  * The remote playhead's flag on the ruler (#2919): a pill with the person's
  * initial that fades the ruler label it touches, merges with its neighbours
@@ -381,7 +390,7 @@ function suite(name: string, width: number, touch: boolean) {
       await expect(menu).toBeVisible();
       await page.mouse.click(hit.x + 2, hit.y + hit.height - 2);
       await expect(menu).toBeHidden();
-      await page.waitForTimeout(300);
+      await settled(page);
       await expect(menu).toBeHidden();
     });
 
@@ -393,7 +402,7 @@ function suite(name: string, width: number, touch: boolean) {
         document.documentElement.style.fontSize = "32px";
         window.dispatchEvent(new Event("resize"));
       });
-      await page.waitForTimeout(200);
+      await settled(page);
       const found = await box(pills(page));
       const ruler = await box(page.locator(".sys-ruler"));
       const lane = await box(page.locator(".sys-lane").first());
@@ -529,7 +538,7 @@ test.describe("phone gestures", () => {
       { x: found.x + found.width / 2, y: found.y + found.height / 2 },
       -90,
     );
-    await page.waitForTimeout(400);
+    await settled(page);
     expect(await went(page)).toBe("");
   });
 });
