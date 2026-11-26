@@ -35,7 +35,7 @@ def run_audio_edit(
     service = AnalysisService(ws)
     result: dict[str, Any]
     if op == "apply_bleed_mute":
-        result = service.apply_bleed_mute(**kwargs)
+        result = dict(service.apply_bleed_mute(**kwargs))
     elif op == "align_retained_bleed":
         result = service.align_retained_bleed(**kwargs).model_dump()
     else:
