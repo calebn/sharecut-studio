@@ -682,7 +682,8 @@ def download_pinned_snapshot(
     refetch starts again at zero. It may raise to stop the download.
 
     ``on_notice`` gets ``FALLBACK_NOTICE`` once, when a Xet failure moves the download to plain
-    HTTP (a refetch in the same call does not repeat it). It must be thread-safe.
+    HTTP (a refetch in the same call does not repeat it). It is called on the caller's thread,
+    before the plain download starts, never from the fallback worker.
     """
     from huggingface_hub import snapshot_download
 
