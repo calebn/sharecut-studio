@@ -89,6 +89,19 @@ describe("fetchHostMcpActivity", () => {
     await read;
   });
 
+  it("keeps the read pending until the full timeout has passed", async () => {
+    vi.useFakeTimers();
+    const spy = hangUntilAborted();
+    const read = fetchHostMcpActivity();
+    const settled = vi.fn();
+    read.catch(settled);
+    await vi.advanceTimersByTimeAsync(ACTIVITY_TIMEOUT_MS - 1);
+    expect(settled).not.toHaveBeenCalled();
+    expect(spy.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(settled).toHaveBeenCalledOnce();
+  });
+
   it("lets the caller cancel at once, without waiting for the timeout", async () => {
     vi.useFakeTimers();
     const controller = new AbortController();

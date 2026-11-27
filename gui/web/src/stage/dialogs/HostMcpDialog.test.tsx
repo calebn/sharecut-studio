@@ -692,7 +692,7 @@ describe("HostMcpDialog last-used line", () => {
     expect(activityMock.mock.calls.length).toBeGreaterThan(2);
   });
 
-  it("keeps the last line and keeps checking when a read times out", async () => {
+  it("treats a timed-out read as a failed check: it keeps the last line and keeps checking", async () => {
     activityMock.mockResolvedValueOnce(used(5));
     activityMock.mockRejectedValueOnce(
       new DOMException("The host didn't answer.", "TimeoutError"),
