@@ -16,6 +16,7 @@ from tests.test_hf_fetch_child import PIN, _payload_pin, _stub
 from podcast_mcp.services.pipeline.install_failure import classify
 from podcast_mcp.util import hf_fetch_child, model_manifest, process
 from podcast_mcp.util.asset_sources import DownloadProgress
+from podcast_mcp.util.host_platform import LINUX, MACOS, WINDOWS, HostPlatform, using
 from podcast_mcp.util.model_manifest import (
     HubChildError,
     PinnedSnapshot,
@@ -749,21 +750,203 @@ NETWORK_TEXT = "Couldn't reach the download server. Check your internet connecti
 DISK_FULL_TEXT = "There isn't enough free disk space to save the test model."
 
 
-@pytest.mark.parametrize(
-    ("message", "expected"),
-    [
-        (XET_DISK_FULL, errno.ENOSPC),
-        ("Task error: There is not enough space on the disk. (os error 112)", errno.ENOSPC),
-        ("Task error: Permission denied (os error 13)", errno.EACCES),
-        ("Task error: Read-only file system (os error 30)", errno.EROFS),
-        ("Task error: weird failure, disk full (os error 5)", errno.ENOSPC),
-    ],
-    ids=["linux-28", "windows-112", "eacces", "erofs", "marker-with-other-number"],
-)
-def test_describe_reports_the_os_error_of_a_xet_disk_message(message: str, expected: int) -> None:
-    line = hf_fetch_child.describe(RuntimeError(message))
+def _describe(message: str, row: HostPlatform = LINUX) -> dict[str, Any]:
+    with using(row):
+        return hf_fetch_child.describe(RuntimeError(message))
+
+
+def _task(*parts: str) -> str:
+    return "Task error: " + ": ".join(parts)
+
+
+_STRONG_POSIX = [
+    (errno.ENOSPC, errno.ENOSPC),
+    (errno.EDQUOT, errno.EDQUOT),
+    (errno.EROFS, errno.EROFS),
+]
+_STRONG_WINDOWS = [(112, errno.ENOSPC), (39, errno.ENOSPC), (1295, errno.EDQUOT), (19, errno.EROFS)]
+_TRANSPORT_WORDS = [
+    "http status",
+    "request error",
+    "connection",
+    "connect error",
+    "tcp connect",
+    "dns error",
+    "timed out",
+    "timeout",
+]
+
+
+@pytest.mark.parametrize("row", [LINUX, MACOS], ids=["linux", "macos"])
+@pytest.mark.parametrize(("number", "expected"), _STRONG_POSIX)
+def test_a_posix_strong_code_is_a_disk_error(row: HostPlatform, number: int, expected: int) -> None:
+    line = _describe(_task(f"write failed (os error {number})"), row)
 
     assert (line["kind"], line["errno"]) == ("disk", expected)
+
+
+@pytest.mark.parametrize(("number", "expected"), _STRONG_WINDOWS)
+def test_a_windows_strong_code_is_a_disk_error(number: int, expected: int) -> None:
+    line = _describe(_task(f"write failed (os error {number})"), WINDOWS)
+
+    assert (line["kind"], line["errno"]) == ("disk", expected)
+
+
+@pytest.mark.parametrize("row", [LINUX, MACOS], ids=["linux", "macos"])
+def test_a_posix_eacces_alone_is_a_disk_error(row: HostPlatform) -> None:
+    line = _describe(_task(f"Permission denied (os error {errno.EACCES})"), row)
+
+    assert (line["kind"], line["errno"]) == ("disk", errno.EACCES)
+
+
+def test_a_windows_access_denied_alone_is_a_disk_error() -> None:
+    line = _describe(_task("Access is denied. (os error 5)"), WINDOWS)
+
+    assert (line["kind"], line["errno"]) == ("disk", errno.EACCES)
+
+
+@pytest.mark.parametrize("number", [112, 39, 1295, 5, 2])
+def test_a_number_that_is_not_a_posix_disk_code_is_neutral_on_linux(number: int) -> None:
+    line = _describe(_task(f"Host is down (os error {number})"), LINUX)
+
+    assert (line["kind"], line["xet"], line["errno"]) == ("network", True, None)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Task error: Host is down (os error 112)",
+        "Task error: Request error: tcp connect error: Permission denied (os error 13)",
+        "Task error: Request error: HTTP status server error (507) disk full",
+    ],
+)
+def test_a_network_failure_that_looks_like_disk_is_network_on_linux(message: str) -> None:
+    line = _describe(message, LINUX)
+
+    assert (line["kind"], line["xet"], line["errno"]) == ("network", True, None)
+
+
+@pytest.mark.parametrize("number", [13, 30])
+def test_windows_13_and_30_are_neutral(number: int) -> None:
+    line = _describe(_task(f"The data is invalid (os error {number})"), WINDOWS)
+
+    assert (line["kind"], line["xet"], line["errno"]) == ("network", True, None)
+
+
+def test_windows_access_denied_on_connect_wording_is_network() -> None:
+    line = _describe(_task("Request error: tcp connect error: Access denied (os error 5)"), WINDOWS)
+
+    assert (line["kind"], line["xet"], line["errno"]) == ("network", True, None)
+
+
+def test_a_full_disk_followed_by_a_cleanup_failure_stays_enospc() -> None:
+    line = _describe(_task("write failed (os error 28): cleanup failed (os error 2)"))
+
+    assert (line["kind"], line["errno"]) == ("disk", errno.ENOSPC)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        _task("write failed (os error 28): cleanup failed (os error 2)"),
+        _task("cleanup failed (os error 2): write failed (os error 28)"),
+        _task("Request error: connection reset (os error 104): write failed (os error 28)"),
+        _task("Request error: write failed (os error 28): timed out (os error 110)"),
+    ],
+    ids=["first", "last", "with-transport-after", "with-transport-before"],
+)
+def test_a_full_disk_anywhere_in_the_chain_is_disk(message: str) -> None:
+    line = _describe(message)
+
+    assert (line["kind"], line["errno"]) == ("disk", errno.ENOSPC)
+
+
+def test_the_last_strong_code_wins() -> None:
+    line = _describe(_task(f"a (os error {errno.ENOSPC}): b (os error {errno.EROFS})"))
+
+    assert line["errno"] == errno.EROFS
+
+
+def test_the_last_weak_code_wins() -> None:
+    line = _describe(
+        _task(f"a (os error {errno.EACCES}): b (os error 2): c (os error {errno.EACCES})")
+    )
+
+    assert line["errno"] == errno.EACCES
+
+
+def test_a_weak_code_beats_a_text_marker() -> None:
+    line = _describe(_task(f"disk full (os error {errno.EACCES})"))
+
+    assert (line["kind"], line["errno"]) == ("disk", errno.EACCES)
+
+
+def test_a_quota_error_is_edquot() -> None:
+    line = _describe(_task(f"Disk quota exceeded (os error {errno.EDQUOT})"), LINUX)
+
+    assert (line["kind"], line["errno"]) == ("disk", errno.EDQUOT)
+
+
+def test_the_posix_table_keys_come_from_errno() -> None:
+    assert set(hf_fetch_child._POSIX_STRONG) == {errno.ENOSPC, errno.EDQUOT, errno.EROFS}
+
+
+@pytest.mark.parametrize("number", [28, 122])
+def test_windows_posix_numbers_are_neutral(number: int) -> None:
+    line = _describe(_task(f"write failed (os error {number})"), WINDOWS)
+
+    assert (line["kind"], line["xet"], line["errno"]) == ("network", True, None)
+
+
+@pytest.mark.parametrize("marker", ["No space left on device", "ENOSPC"])
+@pytest.mark.parametrize("order", ["transport-first", "marker-first"])
+def test_a_strong_text_marker_beats_a_transport_word(marker: str, order: str) -> None:
+    parts = ["connection reset", marker]
+    message = _task(*(parts if order == "transport-first" else parts[::-1]))
+
+    line = _describe(message)
+
+    assert (line["kind"], line["errno"]) == ("disk", errno.ENOSPC)
+
+
+def test_reqwest_wording_keeps_a_permission_denied_connect_failure_network() -> None:
+    message = _task(
+        "error sending request for url (https://cas): error trying to connect: "
+        "Permission denied (os error 13)"
+    )
+
+    line = _describe(message, LINUX)
+
+    assert (line["kind"], line["xet"], line["errno"]) == ("network", True, None)
+
+
+@pytest.mark.parametrize("phrase", ["error sending request", "error trying to connect"])
+def test_reqwest_wording_keeps_a_disk_full_marker_message_network(phrase: str) -> None:
+    line = _describe(_task(f"{phrase}: disk full"))
+
+    assert (line["kind"], line["xet"], line["errno"]) == ("network", True, None)
+
+
+@pytest.mark.parametrize("word", _TRANSPORT_WORDS)
+def test_a_transport_word_keeps_a_disk_full_marker_message_network(word: str) -> None:
+    line = _describe(_task(f"{word} failed: disk full"))
+
+    assert (line["kind"], line["xet"], line["errno"]) == ("network", True, None)
+
+
+def test_a_marker_alone_is_a_full_disk() -> None:
+    line = _describe(_task("shard write: disk full"))
+
+    assert (line["kind"], line["errno"]) == ("disk", errno.ENOSPC)
+
+
+def test_a_direct_oserror_is_not_read_by_the_xet_rule() -> None:
+    with using(LINUX):
+        assert hf_fetch_child._xet_disk_errno(OSError("Task error: x (os error 28)")) is None
+        line = hf_fetch_child.describe(OSError("Task error: write failed (os error 28)"))
+
+    assert line["errno"] is None
+    assert line["kind"] != "disk"
 
 
 @pytest.mark.parametrize(
@@ -1003,3 +1186,26 @@ def test_the_final_progress_after_a_mid_way_fallback_is_the_total(
 
     assert max(e.bytes for e in events[:-1]) < 100
     assert events[-1] == DownloadProgress(100, 100)
+
+
+def test_a_host_down_xet_error_falls_back_to_plain_http_once(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _hub(monkeypatch, tmp_path / "snap")
+    child = (
+        "import json, sys\n"
+        "from podcast_mcp.util import hf_fetch_child\n"
+        "from podcast_mcp.util.host_platform import LINUX, using\n"
+        "with using(LINUX):\n"
+        "    line = hf_fetch_child.describe(RuntimeError('Task error: Host is down (os error 112)'))\n"
+        "print(json.dumps(line)); sys.exit(1)\n"
+    )
+    _stub(monkeypatch, child)
+
+    path, mismatch = download_pinned_snapshot(
+        _payload_pin(), tmp_path / "hub", on_progress=lambda _p: None
+    )
+
+    assert mismatch is None
+    assert path == tmp_path / "snap"
+    assert len(calls) == 1

@@ -28,6 +28,8 @@ import sys
 import threading
 from typing import Any, TextIO
 
+from podcast_mcp.util import host_platform
+
 _DISK_ERRNOS = frozenset({errno.ENOSPC, errno.EDQUOT, errno.EACCES, errno.EROFS})
 _MAX_MESSAGE = 500
 
@@ -87,10 +89,12 @@ Error: Request error: HTTP status client error (401 Unauthorized), domain: https
 (seen with huggingface_hub 2.4.0 and hf_xet when the Xet token is refused)."""
 
 
-_DISK_MESSAGE_MARKERS = ("no space left", "enospc", "disk full")
+_STRONG_TEXT_MARKERS = ("no space left", "enospc")
+_WEAK_TEXT_MARKERS = ("disk full",)
 """How a full disk reads inside an hf_xet error that carries no ``errno``: its Rust core wraps
 the OS error in a plain ``RuntimeError`` (``... File reconstruction error: No space left on
-device (os error 28)``), which would otherwise match the Xet prefixes and fall back."""
+device (os error 28)``), which would otherwise match the Xet prefixes and fall back. The weak
+marker is also what a server's 507 body says, so a transport word outranks it."""
 
 
 def _is_xet(exc: BaseException) -> bool:
@@ -106,27 +110,60 @@ def _is_xet(exc: BaseException) -> bool:
 
 
 _OS_ERROR = re.compile(r"\(os error (\d+)\)")
-_WINDOWS_DISK_FULL = 112  # ERROR_DISK_FULL, how Rust prints a full disk on Windows
+_POSIX_STRONG = {
+    errno.ENOSPC: errno.ENOSPC,
+    errno.EDQUOT: errno.EDQUOT,
+    errno.EROFS: errno.EROFS,
+}
+_POSIX_WEAK = {errno.EACCES: errno.EACCES}
+_WINDOWS_STRONG = {
+    112: errno.ENOSPC,  # ERROR_DISK_FULL
+    39: errno.ENOSPC,  # ERROR_HANDLE_DISK_FULL
+    1295: errno.EDQUOT,  # ERROR_DISK_QUOTA_EXCEEDED
+    19: errno.EROFS,  # ERROR_WRITE_PROTECT
+}
+_WINDOWS_WEAK = {5: errno.EACCES}  # ERROR_ACCESS_DENIED
+_TRANSPORT_WORDS = (
+    "http status",
+    "request error",
+    "connection",
+    "connect error",
+    "tcp connect",
+    "dns error",
+    "timed out",
+    "timeout",
+    "error sending request",
+    "error trying to connect",
+)
 
 
 def _xet_disk_errno(exc: BaseException) -> int | None:
     """The OS error behind an hf_xet failure that reports a full or unwritable disk, else None.
 
-    Only an hf_xet-shaped error is read, so a CAS 507 body or a network error that merely says
-    "disk full" keeps its own kind. The Rust core words the OS error as ``(os error N)``; a
-    marker with no number means a full disk.
+    Only an hf_xet-shaped error is read. Its ``(os error N)`` numbers are read with the host
+    OS's table (Win32 codes on Windows, errno elsewhere). A strong disk code or a "no space left"
+    / "enospc" text wins; otherwise a transport-worded message is network; otherwise a weak code
+    (access denied) or a "disk full" text means disk.
     """
     if isinstance(exc, OSError) or not _is_xet(exc):
         return None
     text = str(exc)
-    found = _OS_ERROR.search(text)
-    if found is not None:
-        number = int(found.group(1))
-        if number == _WINDOWS_DISK_FULL:
-            return errno.ENOSPC
-        if number in _DISK_ERRNOS:
-            return number
-    if any(marker in text.lower() for marker in _DISK_MESSAGE_MARKERS):
+    windows = host_platform.current().kernel == "nt"
+    strong = _WINDOWS_STRONG if windows else _POSIX_STRONG
+    weak = _WINDOWS_WEAK if windows else _POSIX_WEAK
+    numbers = [int(n) for n in _OS_ERROR.findall(text)]
+    strong_codes = [strong[n] for n in numbers if n in strong]
+    if strong_codes:
+        return strong_codes[-1]
+    lowered = text.lower()
+    if any(marker in lowered for marker in _STRONG_TEXT_MARKERS):
+        return errno.ENOSPC
+    if any(word in lowered for word in _TRANSPORT_WORDS):
+        return None
+    weak_codes = [weak[n] for n in numbers if n in weak]
+    if weak_codes:
+        return weak_codes[-1]
+    if any(marker in lowered for marker in _WEAK_TEXT_MARKERS):
         return errno.ENOSPC
     return None
 
