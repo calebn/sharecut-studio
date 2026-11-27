@@ -788,6 +788,21 @@ describe("Shift+. across keyboard layouts", () => {
       { key: ":", code: "Period", shiftKey: true },
       [SPEED],
     ],
+    [
+      "JIS Shift+Period types > and cycles",
+      { key: ">", code: "Period", shiftKey: true },
+      [SPEED],
+    ],
+    [
+      "ISO Shift+< (IntlBackslash types >) does not cycle",
+      { key: ">", code: "IntlBackslash", shiftKey: true },
+      [],
+    ],
+    [
+      "a code-less synthetic Shift+> still cycles",
+      { key: ">", code: "", shiftKey: true },
+      [SPEED],
+    ],
   ])("%s", (_name, e, expected) => {
     const got = ids(e);
     if (expected[0] === "help.shortcuts") {
