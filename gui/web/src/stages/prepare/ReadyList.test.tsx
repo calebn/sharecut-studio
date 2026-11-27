@@ -33,6 +33,24 @@ function settle(
 }
 
 describe("ReadyList", () => {
+  it("opens the engine text of a done row behind its Details button", async () => {
+    const rows: ReadyRowData[] = [
+      {
+        id: "clean",
+        state: "done",
+        title: "Clean and level",
+        detail: "Cleaned and levelled both tracks",
+        details: "Clean · highpass on 2 dialogue tracks",
+      },
+    ];
+    render(<ReadyList rows={rows} onAction={vi.fn()} />);
+    expect(screen.queryByText(/highpass/)).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Details for Clean and level" }),
+    );
+    expect(screen.getByText(/highpass on 2/)).toBeVisible();
+  });
+
   it("lists the five rows in a named list", () => {
     render(<ReadyList rows={ROWS.queued} onAction={vi.fn()} />);
     const list = screen.getByRole("list", { name: "Getting ready" });

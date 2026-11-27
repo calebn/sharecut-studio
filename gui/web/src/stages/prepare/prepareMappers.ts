@@ -9,6 +9,13 @@ import type {
 import type { TrackView } from "../../types/project";
 import { getByPath, setByPath } from "../../utils/configPath";
 import { plainError } from "../../utils/plainError";
+import {
+  ownerRow,
+  ROW_ACTIVITY,
+  ROW_ORDER,
+  ROW_STEPS,
+  RUN_WINDOW_ROW,
+} from "../../utils/prepareRows";
 import { formatTimeShort } from "../../utils/time";
 import type { CleanupSettings } from "./PrepareView";
 import type { PreparePhase } from "./prepareAnnouncement";
@@ -20,39 +27,8 @@ import { languageName } from "./whisperLanguages";
 export const TIGHTEN_INTENSITY_PATH = "tighten.intensity";
 const MASTER_LUFS_PATH = "master.integrated_lufs";
 
-/** The row each pipeline step belongs to (spec INT-PREPARE-RUN). */
-const ROW_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
-  add: ["ingest_tracks"],
-  transcribe: ["transcribe_tracks"],
-  align: [
-    "align_tracks",
-    "require_align_accept",
-    "merge_transcript",
-    "render_dialogue_stems",
-    "reconcile_transcript",
-    "precorrect_transcript",
-  ],
-  clean: [
-    "extract_room_tone_beds",
-    "fill_gate_holes",
-    "clean_audio",
-    "compress_tracks",
-    "balance_tracks",
-    "assemble_timeline",
-  ],
-  suggest: ["analyze_fillers_pauses", "apply_sound_actions"],
-};
-
-const RUN_WINDOW_ROW: Readonly<Record<string, ReadyRowId>> = {
-  extract_room_tone_beds: "align",
-};
-
 function reportsInRow(row: ReadyRowId, step: string): boolean {
   return ROW_STEPS[row].includes(step) && !(step in RUN_WINDOW_ROW);
-}
-
-function ownerRow(step: string): ReadyRowId | undefined {
-  return ROW_ORDER.find((id) => ROW_STEPS[id].includes(step));
 }
 
 function windowRow(
@@ -79,7 +55,6 @@ type PlanOperation = {
 const SOUND_OPERATION: PlanOperation = {
   step: "apply_sound_actions",
   label: "Apply sound actions",
-  plain: "lowered sounds",
   enabledPath: "tighten.apply_non_speech",
 };
 
@@ -170,14 +145,6 @@ export function oneRunSkipSteps(
   );
 }
 
-const ROW_ORDER: readonly ReadyRowId[] = [
-  "add",
-  "transcribe",
-  "align",
-  "clean",
-  "suggest",
-];
-
 const ROW_TITLE: Record<ReadyRowId, string> = {
   add: "Add audio",
   transcribe: "Transcribe",
@@ -185,20 +152,6 @@ const ROW_TITLE: Record<ReadyRowId, string> = {
   clean: "Clean and level",
   suggest: "Find suggestions",
 };
-
-const ROW_ACTIVITY: Record<ReadyRowId, string> = {
-  add: "Adding audio",
-  transcribe: "Transcribing",
-  align: "Lining up tracks",
-  clean: "Cleaning",
-  suggest: "Finding suggestions",
-};
-
-/** What the row a step belongs to is doing, for lines that must not name the step. */
-export function stepActivity(step: string): string | undefined {
-  const row = ownerRow(step);
-  return row === undefined || row === "add" ? undefined : ROW_ACTIVITY[row];
-}
 
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
@@ -669,7 +622,7 @@ function terminalRowResult(
   };
 }
 
-function plainRowSentence(row: "align" | "clean", sourceCount: number) {
+function plainRowSentence(row: "align" | "clean", sourceCount: number): string {
   if (row === "align") {
     if (sourceCount === 1) return "One track, nothing to line up";
     return sourceCount === 2

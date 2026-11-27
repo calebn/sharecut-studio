@@ -60,6 +60,23 @@ export const Done: Story = {
   args: { state: "done", title: "Transcript ready", detail: "52:10" },
   play: named("Done"),
 };
+export const DoneWithDetails: Story = {
+  args: {
+    state: "done",
+    title: "Clean and level",
+    detail: "Cleaned and levelled both tracks",
+    details: "Clean · highpass on 2 dialogue tracks",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const details = canvas.getByRole("button", {
+      name: "Details for Clean and level",
+    });
+    await expect(details).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(details);
+    await expect(canvas.getByText(/highpass on 2/)).toBeVisible();
+  },
+};
 export const NeedsYou: Story = {
   args: {
     state: "needs-you",
