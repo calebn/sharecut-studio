@@ -35,7 +35,8 @@ podcast pipeline run --project episode.sharecut --only mix_with_music
 
 Run `apply_ducking_tool` (`podcast edit duck --project episode.sharecut`). It reads the transcript, so transcribe first. Preview with `dry_run=true`, then pass the reply's `plan_token` as `expected_plan_token` to apply exactly that plan. One call is one undo step for every track.
 
-- Omit `track_ids` to duck every unmuted music track, including a music segment lane inserted from the library (no flag needed); name tracks to duck an intro, outro or sound track. A dialogue track is refused.
+- Omit `track_ids` to duck every unmuted music track, including a music segment lane inserted from the library (no flag needed), and every other non-dialogue track that holds a library segment saved with `duck_under_dialogue`; name tracks to duck an intro, outro or sound track that has no such flag. A dialogue track is refused.
+- A segment inserted with `own_lane` plays at full level until it is ducked, so insert it first and then run this. How a segment lane is mixed: [docs/segments.md § Mixing](../../../docs/segments.md#mixing). Insert and the show kit: [docs/segments.md](../../../docs/segments.md#insert). In Studio the same step is the track inspector row "Duck music under speech".
 - `depth_db` omitted is `mix.music_under_vo_db`. Other knobs: `attack_sec`, `hold_sec`, `release_sec`, `min_gap_sec`, `min_speech_sec`. There is no threshold.
 - Fades and your own points are only ever lowered, never raised. Run it again after changing the cut or the settings: earlier generated points are replaced.
 - `pipeline run --only mix_with_music` refreshes a segment lane's stale stem, so it applies a dip made since the last render (the summary says `1 segment lane stem refreshed` or `N segment lane stems refreshed`).
