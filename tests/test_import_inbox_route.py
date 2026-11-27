@@ -80,8 +80,8 @@ def test_delete_is_one_shot(inbox: Path, client: TestClient) -> None:
         "not-a-uuid",
         "A" * 8 + "-0000-4000-8000-000000000000",
         "12345678-1234-1234-1234-123456789abc",
-        str(uuid.uuid4()).upper(),
-        str(uuid.uuid4()) + "x",
+        "4DE57C6A-98B3-4EE0-A203-5B8829A60452",
+        "4de57c6a-98b3-4ee0-a203-5b8829a60452x",
         "%00",
     ],
 )
