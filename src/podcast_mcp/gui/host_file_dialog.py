@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.models.episode import PROJECT_FILE_EXTENSION
 from podcast_mcp.project.io import EPISODE_PROJECT_FILENAME, resolve_project_path
 from podcast_mcp.util import host_platform, process
 
@@ -102,7 +103,7 @@ def _pick_macos() -> HostPickResult:
     script = f"""
 try
   set theFile to choose file with prompt "Open {EPISODE_PROJECT_FILENAME}" ¬
-    of type {{"sharecut"}}
+    of type {{"{PROJECT_FILE_EXTENSION}"}}
   return POSIX path of theFile
 on error number -128
   return ""
@@ -126,7 +127,7 @@ def _pick_windows() -> HostPickResult:
     ps = f"""
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
 $d = New-Object System.Windows.Forms.OpenFileDialog
-$d.Filter = 'Episode project|{EPISODE_PROJECT_FILENAME}|ShareCut project (*.sharecut)|*.sharecut'
+$d.Filter = 'Episode project|{EPISODE_PROJECT_FILENAME}|ShareCut project (*.{PROJECT_FILE_EXTENSION})|*.{PROJECT_FILE_EXTENSION}'
 $d.Title = 'Open episode project'
 $d.FileName = '{EPISODE_PROJECT_FILENAME}'
 $d.CheckFileExists = $true
@@ -161,7 +162,7 @@ def _pick_linux() -> HostPickResult:
                 "--file-selection",
                 "--title=Open episode project",
                 f"--file-filter={EPISODE_PROJECT_FILENAME} | {EPISODE_PROJECT_FILENAME}",
-                "--file-filter=ShareCut project | *.sharecut",
+                f"--file-filter=ShareCut project | *.{PROJECT_FILE_EXTENSION}",
             ]
         )
     kdialog = shutil.which("kdialog")
@@ -171,7 +172,7 @@ def _pick_linux() -> HostPickResult:
                 kdialog,
                 "--getopenfilename",
                 ".",
-                f"{EPISODE_PROJECT_FILENAME}|*.sharecut",
+                f"{EPISODE_PROJECT_FILENAME}|*.{PROJECT_FILE_EXTENSION}",
             ]
         )
     return HostPickResult(

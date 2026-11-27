@@ -769,3 +769,69 @@ def test_schema_requires_updater_fields_to_be_both_set_or_both_null() -> None:
     ):
         with pytest.raises(jsonschema.ValidationError):
             jsonschema.validate(base | fields, schema)
+
+
+def _merge_patch(base: dict[str, object], patch: dict[str, object]) -> dict[str, object]:
+    merged = dict(base)
+    for key, value in patch.items():
+        current = merged.get(key)
+        if isinstance(value, dict) and isinstance(current, dict):
+            merged[key] = _merge_patch(current, value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def test_project_file_association_defaults_off_and_dev_profile_emits_no_bundle() -> None:
+    assert distribution_profile_from_mapping(_valid_profile()).project_file_association is False
+    dev = load_distribution_profile()
+    assert dev.project_file_association is False
+    assert "project_file_association" not in json.loads(
+        (ROOT / "config" / "distribution.dev.json").read_text()
+    )
+    assert "bundle" not in tauri_distribution_overlay(dev)
+    off = _valid_profile() | {"project_file_association": False}
+    assert "bundle" not in tauri_distribution_overlay(distribution_profile_from_mapping(off))
+
+
+def test_project_file_association_adds_the_file_association_to_the_overlay() -> None:
+    raw = _valid_profile() | {"project_file_association": True}
+    overlay = tauri_distribution_overlay(distribution_profile_from_mapping(raw))
+    assert set(overlay["bundle"]) == {"fileAssociations"}
+    assert overlay["bundle"]["fileAssociations"] == [
+        {
+            "ext": ["sharecut"],
+            "name": "ShareCut project",
+            "description": "ShareCut Studio episode",
+            "role": "Editor",
+            "mimeType": "application/vnd.sharecut.project+json",
+            "exportedType": {
+                "identifier": "test.example.studio.project",
+                "conformsTo": ["public.json"],
+            },
+        }
+    ]
+
+
+def test_project_file_association_overlay_keeps_the_base_bundle_keys() -> None:
+    base = json.loads((ROOT / "gui" / "desktop" / "src-tauri" / "tauri.conf.json").read_text())
+    raw = _valid_profile() | {"project_file_association": True}
+    merged = _merge_patch(base, tauri_distribution_overlay(distribution_profile_from_mapping(raw)))
+    assert merged["bundle"]["macOS"] == base["bundle"]["macOS"]
+    assert merged["bundle"]["targets"] == base["bundle"]["targets"]
+    assert merged["bundle"]["fileAssociations"][0]["ext"] == ["sharecut"]
+
+
+@pytest.mark.parametrize("value", ["true", 1, None, "yes"])
+def test_project_file_association_must_be_a_boolean(value: object) -> None:
+    raw = _valid_profile() | {"project_file_association": value}
+    with pytest.raises(DistributionProfileError, match="project_file_association must be"):
+        distribution_profile_from_mapping(raw)
+
+
+def test_schema_accepts_a_boolean_project_file_association_and_rejects_other_types() -> None:
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = json.loads((ROOT / "contracts" / "distribution-profile.schema.json").read_text())
+    jsonschema.validate(_valid_profile() | {"project_file_association": True}, schema)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(_valid_profile() | {"project_file_association": "true"}, schema)

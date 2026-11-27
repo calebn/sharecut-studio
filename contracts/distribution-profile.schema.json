@@ -43,6 +43,11 @@
       "pattern": "^[^\\u0000-\\u001F\\u007F]+$",
       "description": "Optional. The name under the iOS icon; the iOS release uses it as the product name."
     },
+    "project_file_association": {
+      "type": "boolean",
+      "default": false,
+      "description": "Optional. When true the desktop build registers .sharecut project files so double-clicking one opens it. Leave it off for development builds."
+    },
     "bundle_identifier": {
       "type": "string",
       "pattern": "^[A-Za-z][A-Za-z0-9-]*(\\.[A-Za-z0-9-]+)+$"
