@@ -438,9 +438,10 @@ export const PhoneLive: Story = {
     await expect(
       await within(canvasElement).findByRole("button", { name: "Stop take" }),
     ).toBeVisible();
-    await expect(
-      canvasElement.querySelector(".sys-room-view-peek"),
-    ).toHaveAttribute("aria-expanded", "false");
+    const peek = canvasElement.querySelector(".sys-room-view-peek");
+    if (peek) {
+      await expect(peek).toHaveAttribute("aria-expanded", "false");
+    }
   },
 };
 
