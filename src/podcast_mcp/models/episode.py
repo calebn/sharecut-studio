@@ -34,10 +34,10 @@ from podcast_mcp.util.batch_scope import scoped
 from podcast_mcp.util.coded_error import CodedError, CodedFileNotFoundError
 from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.media_identity import same_recording
+from podcast_mcp.util.project_file_extension import PROJECT_FILE_EXTENSION
 
 logger = logging.getLogger(__name__)
 
-PROJECT_FILE_EXTENSION = "sharecut"
 EPISODE_PROJECT_FILENAME = f"episode.{PROJECT_FILE_EXTENSION}"
 _T = TypeVar("_T")
 # Track volume fader range (dB), on top of the pipeline's staging gain_db.

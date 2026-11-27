@@ -25,8 +25,8 @@ from podcast_mcp.config.distribution import (
     tauri_distribution_overlay,
 )
 from podcast_mcp.config.runtime import load_host_runtime_config
-from podcast_mcp.models.episode import PROJECT_FILE_EXTENSION
 from podcast_mcp.services.support.config_check import ConfigMode, run_config_checks
+from podcast_mcp.util.project_file_extension import PROJECT_FILE_EXTENSION
 
 ROOT = Path(__file__).resolve().parents[1]
 
