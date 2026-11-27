@@ -444,7 +444,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 ### Recording
 
 **41. Record button**
-- A 64 px round button with two faces. Idle or paused: a filled record-red circle (start or resume). Live: a square in a ring, hold 600 ms to stop, with the ring filling. Keyboard and assistive tech: Enter opens a Confirm-in-place with Keep recording (focused) and Stop take.
+- A 64 px round button with two faces. Idle or paused: a filled record-red circle (start or resume). Live: a square in a ring, hold 600 ms to stop, with the ring filling, a small "Hold to stop" caption under it while live (bold and primary colour for 2 s with a short shake after a tap). Keyboard and assistive tech: Enter opens a Confirm-in-place with Keep recording (focused) and Stop take.
 - Record red is reserved for recording app-wide.
 - Used: DLG-RECORD, CMP-REC-STOP, INT-REC-START, INT-REC-STOP.
 - Replaces: the record spec's three faces (the paused "resume notch" face is dropped) and the 72 px size.
