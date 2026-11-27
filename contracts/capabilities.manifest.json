@@ -629,6 +629,36 @@
       }
     },
     {
+      "id": "daw.track.duckUnderSpeech",
+      "label": "Duck music under speech",
+      "effect": "project",
+      "service": "PipelineService / ApplyDucking document command",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "command": "track.duckUnderSpeech",
+        "gui": [
+          "trackInspector"
+        ],
+        "mcp": [
+          "apply_ducking_tool"
+        ],
+        "cli": "podcast edit duck",
+        "skill": "podcast-mix-music"
+      },
+      "omit": {
+        "keyboard_reason": "Host action in the track inspector; also the command palette, MCP and CLI",
+        "guest": true
+      },
+      "tooltip": "Lower every music track while people speak",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.track.reorder",
       "label": "Reorder track",
       "effect": "project",
@@ -2878,27 +2908,6 @@
         ],
         "cli": "podcast pipeline",
         "skill": "podcast-pipeline-run"
-      },
-      "omit": {
-        "keyboard_reason": "agent-primary workflow",
-        "guest": true
-      }
-    },
-    {
-      "id": "agent.ducking",
-      "label": "Duck music under dialogue",
-      "effect": "project",
-      "service": "PipelineService / ApplyDucking document command",
-      "industry_standard_key": false,
-      "gates": [
-        "host"
-      ],
-      "surfaces": {
-        "mcp": [
-          "apply_ducking_tool"
-        ],
-        "cli": "podcast edit duck",
-        "skill": "podcast-mix-music"
       },
       "omit": {
         "keyboard_reason": "agent-primary workflow",

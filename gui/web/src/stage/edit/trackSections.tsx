@@ -1,5 +1,6 @@
 import { useEffect, useId } from "react";
 import { setEffectBypass } from "../../api";
+import { duckingBlocker } from "../../commands/ducking";
 import { executePointerCommand } from "../../commands/pointer";
 import { roomToneBedBlocker } from "../../commands/roomToneBed";
 import { useTrackMetaMutation } from "../../hooks/useTrackMetaMutation";
@@ -26,12 +27,14 @@ import {
 } from "../../utils/audio";
 import { formatEffectParams } from "../../utils/effectParams";
 import { splitSpeakersBlocker } from "../../utils/speakerSplit";
+import { duckingRows } from "./duckingRows";
 import { note } from "./sheetNote";
 import { TrackKindControl } from "./TrackKindControl";
 import { TrackLevelNote } from "./TrackLevelNote";
 import { AddTrackPerson, TrackPerson } from "./TrackPerson";
 import { kindOf, roleForKind, TRACK_KINDS } from "./trackKind";
 import { personId, useEpisodePeople } from "./trackPeople";
+import { useDuckingPreview } from "./useDuckingPreview";
 
 function roomToneRows(track: TrackView, disabledReason: string | undefined) {
   if (track.room_tone_kind === "recorded")
@@ -103,6 +106,14 @@ export function useTrackSections(
     setError(null);
   }, [track?.id, track?.speaker, setError]);
   const people = useEpisodePeople(project?.tracks ?? []);
+  const duckable =
+    track !== undefined &&
+    kindOf(track.role) !== "voice" &&
+    duckingBlocker(
+      canManageProjects(projectPath),
+      canEditMix(projectPath, guestMode, shareCapabilities),
+    ) === null;
+  const duckPreview = useDuckingPreview(duckable);
   if (trackId === null) return null;
   if (rangeArmed && selection?.kind === "track") return [];
   if (!track)
@@ -322,6 +333,7 @@ export function useTrackSections(
         ...(voice && hostCanSplit && track.media_path
           ? roomToneRows(track, busyReason ?? bedBlocker ?? undefined)
           : []),
+        ...(duckable ? duckingRows(duckPreview, busyReason) : []),
         ...(error
           ? [
               {

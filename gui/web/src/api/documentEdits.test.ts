@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../services/commandQueue", () => ({
   submitQueuedDocumentCommand: vi.fn(async () => ({})),
 }));
+vi.mock("./documentTransport", () => ({
+  postHostDocumentCommand: vi.fn(),
+}));
 vi.mock("../state/dawStore", () => ({
   useDawStore: { getState: vi.fn(() => ({})) },
 }));
@@ -21,12 +24,14 @@ import { clipRow } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
 import {
   acceptSessionSuggestionCommand,
+  applyDuckingCommand,
   applySuggestedActions,
   approveEdits,
   clipFadeBaseline,
   correctTranscriptPhrase,
   correctTranscriptWord,
   moveClips,
+  previewDucking,
   restoreAppliedEdit,
   selectSessionTakeCommand,
   setClipFade,
@@ -39,6 +44,7 @@ import {
   skipSessionSuggestionCommand,
   updatePendingEdit,
 } from "./documentEdits";
+import { postHostDocumentCommand } from "./documentTransport";
 import { loadDocumentState } from "./project";
 
 beforeEach(() => {
@@ -744,5 +750,136 @@ describe("session suggestion commands", () => {
       { suggestion_id: "ss-1", take_index: 2 },
       undefined,
     );
+  });
+});
+
+const DUCK_RESULT = {
+  plan_token: "tok",
+  depth_db: -18,
+  dialogue_track_ids: ["host"],
+  tracks: [
+    {
+      track_id: "m1",
+      changed: true,
+      regions: 3,
+      points: 12,
+      replaced_generated: 2,
+      coarsened: true,
+    },
+    { track_id: "m2", changed: false },
+    { nope: true },
+  ],
+};
+
+describe("previewDucking", () => {
+  beforeEach(() => {
+    vi.mocked(postHostDocumentCommand).mockReset();
+  });
+
+  it("sends a dry run straight to the host, with no queue and no sequence", async () => {
+    vi.mocked(postHostDocumentCommand).mockResolvedValue({
+      ok: true,
+      data: { command: { payload: { dry_run: true, result: DUCK_RESULT } } },
+    });
+    const plan = await previewDucking("/tmp/ep");
+    const [path, body] = vi.mocked(postHostDocumentCommand).mock.calls[0] ?? [];
+    expect(path).toBe("/tmp/ep");
+    expect(body).toMatchObject({
+      type: "ApplyDucking",
+      payload: { dry_run: true },
+    });
+    expect(body).not.toHaveProperty("client_seq");
+    expect(typeof body?.client_id).toBe("string");
+    expect(typeof body?.command_id).toBe("string");
+    expect(submitQueuedDocumentCommand).not.toHaveBeenCalled();
+    expect(plan).toEqual({
+      planToken: "tok",
+      depthDb: -18,
+      tracks: [
+        {
+          trackId: "m1",
+          changed: true,
+          replacedEarlierDips: 2,
+          simplified: true,
+        },
+        {
+          trackId: "m2",
+          changed: false,
+          replacedEarlierDips: 0,
+          simplified: false,
+        },
+      ],
+    });
+  });
+
+  it("throws the host's refusal with its code", async () => {
+    const failure = new ApiError("No music", "ducking_no_targets", 400);
+    vi.mocked(postHostDocumentCommand).mockResolvedValue({
+      ok: false,
+      status: 400,
+      failure,
+    });
+    await expect(previewDucking("/tmp/ep")).rejects.toBe(failure);
+  });
+
+  it("refuses a reply with no plan", async () => {
+    vi.mocked(postHostDocumentCommand).mockResolvedValue({
+      ok: true,
+      data: {},
+    });
+    await expect(previewDucking("/tmp/ep")).rejects.toThrow(
+      "The ducking reply is missing its plan.",
+    );
+  });
+});
+
+describe("applyDuckingCommand", () => {
+  it("sends the plan token it was given and reads the entry the host left", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce({
+      history_head_id: "hist_9",
+      command: { payload: { result: { ...DUCK_RESULT, applied: true } } },
+    });
+    const outcome = await applyDuckingCommand("/tmp/ep", "tok");
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "ApplyDucking",
+      { expected_plan_token: "tok" },
+      undefined,
+    );
+    expect(outcome).toMatchObject({
+      applied: true,
+      queued: false,
+      historyHead: "hist_9",
+      planToken: "tok",
+    });
+  });
+
+  it("sends an empty payload without a token, and reads a no-op as not applied", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce({
+      history_head_id: null,
+      command: { payload: { result: { ...DUCK_RESULT, applied: false } } },
+    });
+    const outcome = await applyDuckingCommand("/tmp/ep");
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "ApplyDucking",
+      {},
+      undefined,
+    );
+    expect(outcome).toMatchObject({ applied: false, historyHead: null });
+  });
+
+  it("reports a queued send without a plan or an entry to undo", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce({
+      queued: true,
+    });
+    expect(await applyDuckingCommand("/tmp/ep", "tok")).toEqual({
+      planToken: "tok",
+      depthDb: 0,
+      tracks: [],
+      applied: false,
+      historyHead: null,
+      queued: true,
+    });
   });
 });

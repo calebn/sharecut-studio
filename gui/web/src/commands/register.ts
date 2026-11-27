@@ -3,6 +3,7 @@ import { registerAfterCutCommands } from "./afterCut";
 import { registerChapterCommands } from "./chapters";
 import { registerClipBleedCommands } from "./clipBleed";
 import { registerCommentCommands } from "./comments";
+import { registerDuckingCommands } from "./ducking";
 import {
   registerClipboardCommands,
   registerClipMoveCommands,
@@ -40,6 +41,7 @@ export function registerDawCommands(): void {
   registerAfterCutCommands();
   registerSpeakerMoveLaneSpanCommands();
   registerRoomToneBedCommands();
+  registerDuckingCommands();
   registerNavigationCommands();
   registerStageHandoffCommand();
   registerPrimaryEditingCommands();

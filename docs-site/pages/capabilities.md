@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**162** capabilities · **126** ShareCut Studio commands · **66** keyed · **221** MCP tools · **18** skills on rows (+ **19** hub skills).
+**162** capabilities · **127** ShareCut Studio commands · **66** keyed · **221** MCP tools · **18** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -54,6 +54,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Split speakers… | project | `track.splitSpeakers` | — (opens Prepare at the track's split prompt, which asks for the speaker count; reached from the track inspector and the command palette) | — | `SourceCard`, `trackInspector` | `speaker_split_tool` | `podcast speaker split` | `podcast-speaker-attribution` | — | none · none |
 | Extract room tone | project | `track.extractRoomTone` | — (Host action in the track inspector; also the command palette, MCP and CLI) | — | `trackInspector` | `extract_room_tone_bed_tool` | `podcast track room-tone extract` | `podcast-audio-cleanup` | — | none · none |
 | Remove extracted room tone | project | `track.clearRoomTone` | — (Host action in the track inspector; also the command palette, MCP and CLI) | — | `trackInspector` | `clear_extracted_room_tone_bed_tool` | `podcast track room-tone clear` | `podcast-audio-cleanup` | — | none · none |
+| Duck music under speech | project | `track.duckUnderSpeech` | — (Host action in the track inspector; also the command palette, MCP and CLI) | — | `trackInspector` | `apply_ducking_tool` | `podcast edit duck` | `podcast-mix-music` | yes | none · none |
 | Reorder track | project | `track.reorder` | — (drag headers or move up/down keys) | — | `trackHeader`, `SourceCard` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | anchor · none |
 | Move track up | project | `track.moveUp` | `ArrowUp` | — | `trackInspector` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
 | Move track down | project | `track.moveDown` | `ArrowDown` | — | `trackInspector` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
@@ -182,7 +183,6 @@ Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transc
 | Timeline comments | project | `add_comment_tool`, `list_comments_tool`, `get_comment_tool`, `update_comment_tool`, `resolve_comment_tool`, `add_comment_action_tool`, +3 | `podcast comment` | `podcast-timeline-comments` | — |
 | Review versions / share | project | `publish_review_version_tool`, `list_review_versions_tool`, `set_active_review_version_tool`, `create_review_share_tool`, `revoke_record_room_tool` | `podcast review` | `podcast-timeline-comments` | yes |
 | Pipeline / master / bounce | project | `pipeline_run`, `pipeline_get_config_tool`, `pipeline_set_config_tool`, `pipeline_analyze_tool`, `set_envelope`, `render_final` | `podcast pipeline` | `podcast-pipeline-run` | yes |
-| Duck music under dialogue | project | `apply_ducking_tool` | `podcast edit duck` | `podcast-mix-music` | yes |
 | History | project | `history_list`, `history_status_tool`, `history_goto_tool`, `history_diff_tool`, `history_record` | `podcast history` | `podcast-history` | yes |
 | Play / audition | session | `play_transcript_query_tool`, `audition_context_tool`, `play_compose_tool`, `play_ab_tool`, `play_ab_wavs_tool`, `play_pending_preview_tool` | `podcast play` | `podcast-play-audition` | yes |
 | DAW session sync | session | `get_session_state_tool`, `set_session_selection_tool`, `set_session_mode_tool`, `set_session_region_tool` | `podcast session` | `podcast-open-gui` | yes |
