@@ -12,13 +12,6 @@ export function playbackSpeedAvailable(projectPath: string): boolean {
   return !(isShareProjectKey(projectPath) && !isFrozenReviewKey(projectPath));
 }
 
-// Presence shares only a scan: followers must not inherit the host's personal speed.
-export function scanRate(
-  s: Pick<DawState, "playbackRate" | "chosenPlaybackRate" | "projectPath">,
-): number {
-  return s.playbackRate === effectiveChosen(s) ? 1 : s.playbackRate;
-}
-
 // Why the speed cannot change now, else undefined; following wins because the leader's rate is theirs.
 export function playbackSpeedRefusal(
   s: Pick<DawState, "followingClientId" | "projectPath">,

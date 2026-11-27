@@ -250,7 +250,7 @@ describe("usePresencePublisher", () => {
     expect(last.transport.playhead_sec).toBe(5);
   });
 
-  it("publishes the scan rate only, never the chosen speed", async () => {
+  it("publishes the rate it actually plays at, so a follower stays in sync with a chosen speed", async () => {
     useDawStore.getState().setPlaybackSpeed(1.5);
     useDawStore.setState({
       followingClientId: null,
@@ -259,54 +259,13 @@ describe("usePresencePublisher", () => {
     });
     const sent: Record<string, unknown>[] = [];
     renderHook(() => usePresencePublisher((frame) => sent.push(frame), "Host"));
-    const rates = () =>
-      sent
-        .map((f) => (f.meta as { transport?: { rate: number } }).transport)
-        .flatMap((t) => (t ? [t.rate] : []));
-    expect(rates().length).toBeGreaterThan(0);
-    expect(new Set(rates())).toEqual(new Set([1]));
-    sent.length = 0;
-    act(() => {
-      useDawStore.setState({ playbackRate: 2 });
-    });
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 250));
     });
-    expect(rates().at(-1)).toBe(2);
-    sent.length = 0;
-    act(() => {
-      useDawStore.getState().setIsPlaying(false);
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    });
-    expect(useDawStore.getState().playbackRate).toBe(1.5);
-    expect(rates().at(-1)).toBe(1);
-    useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
-    localStorage.clear();
-  });
-
-  it("does not republish transport when only the chosen speed changes", async () => {
-    useDawStore.setState({
-      followingClientId: null,
-      isPlaying: false,
-      playheadSec: 3,
-    });
-    const sent: Record<string, unknown>[] = [];
-    renderHook(() => usePresencePublisher((frame) => sent.push(frame), "Host"));
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    });
-    sent.length = 0;
-    act(() => {
-      useDawStore.getState().setPlaybackSpeed(1.25);
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    });
-    expect(
-      sent.filter((f) => (f.meta as { transport?: unknown }).transport != null),
-    ).toHaveLength(0);
+    const rates = sent
+      .map((f) => (f.meta as { transport?: { rate: number } }).transport)
+      .flatMap((t) => (t ? [t.rate] : []));
+    expect(rates.at(-1)).toBe(1.5);
     useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
     localStorage.clear();
   });

@@ -9,11 +9,7 @@ import { shareProjectKey } from "../shareMode";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { PLAYBACK_SPEED_STORAGE_KEY } from "../utils/playbackSpeedPref";
 import { useDawStore } from "./dawStore";
-import {
-  effectiveChosen,
-  playbackSpeedAvailable,
-  scanRate,
-} from "./playbackSpeed";
+import { effectiveChosen, playbackSpeedAvailable } from "./playbackSpeed";
 
 const s = () => useDawStore.getState();
 const HOST = "/tmp/p.json";
@@ -226,14 +222,7 @@ describe("shuttle from a chosen speed", () => {
   });
 });
 
-describe("scanRate and effectiveChosen", () => {
-  it("shows only a rate that is not the chosen one", () => {
-    const base = { projectPath: HOST, chosenPlaybackRate: 1.5 as const };
-    expect(scanRate({ ...base, playbackRate: 1.5 })).toBe(1);
-    expect(scanRate({ ...base, playbackRate: 4 })).toBe(4);
-    expect(scanRate({ ...base, playbackRate: 1 })).toBe(1);
-  });
-
+describe("effectiveChosen", () => {
   it("is 1x on a live link", () => {
     expect(
       effectiveChosen({
