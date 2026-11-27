@@ -761,6 +761,41 @@ describe("one sheet at a time, from either side", () => {
     expect(previewKit).not.toHaveBeenCalled();
     await act(async () => pending.resolve(waiting()));
   });
+
+  it("refuses a second file in the same commit the sheet opens", async () => {
+    const pending = deferred<segmentsApi.SegmentImportPreview>();
+    previewSegment.mockReturnValueOnce(pending.promise);
+    const state = libraries();
+    render(<Mounted state={state} />);
+    let dropped = false;
+    const observer = new MutationObserver((records) => {
+      if (dropped) return;
+      const opened = records.some((record) =>
+        Array.from(record.addedNodes).some(
+          (node) =>
+            node instanceof HTMLElement &&
+            (node.matches('[role="dialog"]') ||
+              node.querySelector('[role="dialog"]') !== null ||
+              node.textContent?.includes("Import a segment")),
+        ),
+      );
+      if (!opened) return;
+      dropped = true;
+      dropOn(document.body, [KIT_FILE()]);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    try {
+      dropOn(document.body, [SEGMENT_FILE()]);
+      await waitFor(() =>
+        expect(announced()).toMatch(/Wait for the library to finish/),
+      );
+      expect(dropped).toBe(true);
+      expect(previewKit).not.toHaveBeenCalled();
+    } finally {
+      observer.disconnect();
+      await act(async () => pending.resolve(waiting()));
+    }
+  });
 });
 
 describe("what the host listens to", () => {
