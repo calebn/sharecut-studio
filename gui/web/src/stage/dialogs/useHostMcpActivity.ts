@@ -43,11 +43,12 @@ export function useHostMcpActivity({
       setActivity(activityFromResponse(answer, at));
       return answer.mounted ? undefined : "stop";
     },
-    // A failed check keeps what the dialog already shows. A refusal will not change, so stop asking.
-    onError: (error) =>
-      error instanceof ApiError && STOP_STATUSES.includes(error.status)
-        ? "stop"
-        : undefined,
+    onError: (error) => {
+      if (error instanceof ApiError && STOP_STATUSES.includes(error.status)) {
+        setActivity(UNKNOWN);
+        return "stop";
+      }
+    },
   });
   // Count the minutes up between answers; it also catches up after a hidden tab.
   usePollWhileVisible({

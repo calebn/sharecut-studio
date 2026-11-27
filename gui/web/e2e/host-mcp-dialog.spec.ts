@@ -286,6 +286,30 @@ for (const shell of SHELLS) {
       await expect(dialog.locator(".host-mcp-activity-live")).toHaveText(
         UNAVAILABLE_MESSAGE,
       );
+      await expect(dialog.locator(".host-mcp-unavailable")).toContainText(
+        "See the Setup guide for other ways to connect.",
+      );
+    });
+
+    test("clears last-used activity after a not-found response", async ({
+      page,
+    }) => {
+      let available = true;
+      await page.route(ACTIVITY_ROUTE, (route) =>
+        available
+          ? route.fulfill({ json: USED_4S })
+          : route.fulfill({ status: 404, json: { detail: "Not found" } }),
+      );
+      await page.clock.install();
+      const dialog = await openConnectAgent(page);
+      const lastUsed = dialog.locator(".host-mcp-activity");
+      await expect(lastUsed).toHaveText(ACTIVITY_LINE);
+      available = false;
+      await page.clock.runFor(3100);
+      await expect(lastUsed).toBeEmpty();
+      await expect(
+        dialog.getByRole("button", { name: "Copy address" }),
+      ).toBeVisible();
     });
 
     test("the disclosure and the setup link are touch-sized and the address field keeps its place", async ({

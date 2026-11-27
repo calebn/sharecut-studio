@@ -722,6 +722,23 @@ describe("HostMcpDialog last-used line", () => {
     expect(line()).toBe("");
   });
 
+  it.each([401, 403, 404])(
+    "clears the old activity reading and stops asking after a %i",
+    async (status) => {
+      activityMock.mockResolvedValueOnce(used(5));
+      activityMock.mockRejectedValueOnce(new ApiError("no", null, status));
+      await openDialog();
+      expect(line()).toBe("An app used this address just now.");
+      await advance(ACTIVITY_POLL_MS);
+      expect(line()).toBe("");
+      expect(live().textContent).toBe("");
+      const calls = activityMock.mock.calls.length;
+      await advance(120_000);
+      expect(activityMock.mock.calls.length).toBe(calls);
+      expect(line()).toBe("");
+    },
+  );
+
   describe("when the host cannot accept connections", () => {
     beforeEach(() => {
       activityMock.mockResolvedValue({
