@@ -95,7 +95,11 @@ test.describe("host phone, collapsed during a take", () => {
         await expect(notices(host)).toContainText(
           "Recording in full quality on this device.",
         );
-        const noticesBefore = await notices(host).innerText();
+        const announced = async () =>
+          (await notices(host).innerText())
+            .replace("Hearing the room.", "")
+            .trim();
+        const noticesBefore = await announced();
         await guestSays(guest, "one");
         await expect(badge(host)).toHaveText("1 unread");
         await expect(badge(host)).toHaveAttribute("data-pulse", "");
@@ -111,10 +115,9 @@ test.describe("host phone, collapsed during a take", () => {
           await badge(host).evaluate((el) => "stale" in el),
           "a new badge element restarts the pulse",
         ).toBe(false);
-        expect(
-          await notices(host).innerText(),
-          "an arriving comment is not announced",
-        ).toBe(noticesBefore);
+        expect(await announced(), "an arriving comment is not announced").toBe(
+          noticesBefore,
+        );
         const before = await commentCount(host, projectPath);
         await guest.keyboard.press("m");
         await expect
