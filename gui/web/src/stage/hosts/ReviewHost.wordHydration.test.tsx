@@ -28,7 +28,11 @@ import type { CombinedUtterance } from "../../types/project";
 import { ReviewHost } from "./ReviewHost";
 import { useReviewQueue } from "./useReviewQueue";
 
-const wire = vi.hoisted(() => ({ detail: vi.fn(), correct: vi.fn() }));
+const wire = vi.hoisted(() => ({
+  detail: vi.fn(),
+  correct: vi.fn(),
+  approve: vi.fn(),
+}));
 vi.mock("../../services/offlineQueue/offlineAttention", () => ({
   useOfflineAttention: () => ({
     pending: 0,
@@ -49,6 +53,7 @@ vi.mock("../../api", async (original) => ({
   ...(await original<typeof import("../../api")>()),
   loadTranscriptCheck: async () => null,
   correctTranscriptWord: wire.correct,
+  approveEdits: wire.approve,
 }));
 
 let path = "";
@@ -862,3 +867,42 @@ it.each(["pending", "failed"])(
     }
   },
 );
+
+it("releases a held cut when the same pending edit clears its unsure words", async () => {
+  wire.approve.mockResolvedValueOnce({
+    queued: false,
+    count: 0,
+    historyHead: null,
+    held: [{ id: "p1", label: "Proposal", reason: "unsure_word" }],
+  });
+  const view = renderHook(() => useReviewQueue());
+  const why = () => {
+    const { items, content } = view.result.current.stageProps;
+    const row = items.find((item) => item.id === "edit:p1");
+    if (!row) throw new Error("Expected the pending proposal");
+    return content(row).card.why;
+  };
+  const original = why();
+
+  await act(async () => {
+    await view.result.current.stageProps.onDecide({
+      ids: ["edit:p1"],
+      result: "applied",
+    });
+  });
+  expect(wire.approve).toHaveBeenCalledOnce();
+  expect(why()).toBe(
+    "It has a word we're not sure of. Check the word first, then cut.",
+  );
+
+  const resolved = project();
+  resolved.pending_edits = resolved.pending_edits?.map((edit) => ({
+    ...edit,
+    unsure_words: [],
+  }));
+  publish(resolved, 2);
+  expect(why()).toEqual(original);
+
+  publish(project(), 3);
+  expect(why()).toEqual(original);
+});
