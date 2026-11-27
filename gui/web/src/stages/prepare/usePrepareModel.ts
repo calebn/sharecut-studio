@@ -126,8 +126,8 @@ export function usePrepareModel(): PrepareModel {
   const waitingForSetup = setupWaiting && !running;
 
   const { transcribed, voices } = useMemo(
-    () => transcriptIndex(project?.transcript?.utterances),
-    [project?.transcript],
+    () => transcriptIndex(project?.transcript?.utterances, allTracks),
+    [project?.transcript, allTracks],
   );
   const workingSet = usePipelineWorkingSet(projectPath, true);
   const languageStatus = useLanguageStatus(

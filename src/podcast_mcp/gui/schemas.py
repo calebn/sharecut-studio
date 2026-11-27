@@ -596,6 +596,8 @@ class TrackView(BaseModel):
     fx_count: int = 0
     stem_is_fresh: bool | None = None
     has_source_audio: bool = False
+    # A transcript record exists for the media as it is now, even one with no words.
+    transcribed: bool = False
     media_path: str | None = None
     # Id of the speaker split this track is a lane of (editorial.speaker_splits), else null.
     speaker_split_id: str | None = None

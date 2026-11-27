@@ -909,3 +909,34 @@ it("does not announce the prior stopped run while a new selected attempt starts"
     accept(pipelineJobSnapshot({ id: "j-retry", status: "running" })),
   );
 });
+
+describe("a track the server says was transcribed but heard no speech", () => {
+  const silent = (flag: boolean | undefined) =>
+    project(
+      [
+        ANNEKE,
+        sampleTrack({ id: "priya", speaker: "Priya", transcribed: flag }),
+      ],
+      ["anneke"],
+    );
+
+  it("is not new audio on a fresh tab, and the plan does not wait", () => {
+    useDawStore.setState({ project: silent(true) });
+    const { result } = render();
+    expect(result.current.view.phase).not.toBe("new-audio");
+    expect(result.current.view.readyNote).toBeUndefined();
+  });
+
+  it("is new audio when the server says it was not transcribed", () => {
+    useDawStore.setState({ project: silent(false) });
+    const { result } = render();
+    expect(result.current.view.phase).toBe("new-audio");
+    expect(result.current.view.readyNote).toMatch(/Priya.s audio is new/);
+  });
+
+  it("falls back to the utterance test when the server does not send the flag", () => {
+    useDawStore.setState({ project: silent(undefined) });
+    const { result } = render();
+    expect(result.current.view.phase).toBe("new-audio");
+  });
+});
