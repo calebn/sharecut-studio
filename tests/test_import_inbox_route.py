@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 from fastapi.testclient import TestClient
@@ -36,6 +37,11 @@ def _receive(inbox: Path, name: str = "My Clip.sharecutseg", data: bytes = b"PK-
     return inbox_id
 
 
+def _receive_as(inbox: Path, folder: str) -> None:
+    (inbox / folder).mkdir()
+    (inbox / folder / "My Clip.sharecutseg").write_bytes(b"PK-bytes")
+
+
 def test_the_file_streams_with_its_name_and_is_never_cached(
     inbox: Path, client: TestClient
 ) -> None:
@@ -56,6 +62,27 @@ def test_a_non_ascii_name_is_encoded_in_the_disposition(inbox: Path, client: Tes
 
     assert res.status_code == 200
     assert "filename*=utf-8''Caf%C3%A9.sharecutkit" in res.headers["content-disposition"]
+
+
+def test_the_content_type_is_an_opaque_download(inbox: Path, client: TestClient) -> None:
+    inbox_id = _receive(inbox)
+
+    res = client.get(f"/api/import/inbox/{inbox_id}")
+
+    assert res.headers["content-type"] == "application/octet-stream"
+
+
+def test_a_quote_in_the_name_is_percent_encoded_not_left_raw(
+    inbox: Path, client: TestClient
+) -> None:
+    inbox_id = _receive(inbox, name='My "Clip" Café.sharecutseg')
+
+    res = client.get(f"/api/import/inbox/{inbox_id}")
+
+    assert res.status_code == 200
+    disposition = res.headers["content-disposition"]
+    assert disposition == "attachment; filename*=utf-8''My%20%22Clip%22%20Caf%C3%A9.sharecutseg"
+    assert '"' not in disposition
 
 
 def test_delete_is_one_shot(inbox: Path, client: TestClient) -> None:
@@ -93,6 +120,39 @@ def test_a_malformed_id_is_refused_as_missing(inbox: Path, client: TestClient, b
         assert res.status_code in {404, 405}
         assert b"secret" not in res.content
     assert (inbox.parent / "secret.sharecutseg").exists()
+
+
+@pytest.mark.parametrize(
+    "folder",
+    [
+        "4de57c6a-98b3-4ee0-a203-5b8829a60452\n",
+        "4de57c6a-98b3-4ee0-a203-5b8829a60452\nx",
+        "4de57c6a-98b3-1ee0-a203-5b8829a60452",
+        "4de57c6a-98b3-7ee0-a203-5b8829a60452",
+        "4DE57C6A-98B3-4EE0-A203-5B8829A60452",
+    ],
+    ids=["trailing-newline", "newline-and-text", "version-1", "version-7", "uppercase"],
+)
+def test_an_id_that_is_not_exactly_a_lowercase_v4_is_never_served(
+    inbox: Path, client: TestClient, folder: str
+) -> None:
+    """The folder really exists under that literal name, so only the id check can refuse it."""
+    _receive_as(inbox, folder)
+    url_id = quote(folder, safe="")
+
+    assert client.get(f"/api/import/inbox/{url_id}").status_code == 404
+    assert client.delete(f"/api/import/inbox/{url_id}").status_code == 404
+    assert (inbox / folder / "My Clip.sharecutseg").exists()
+
+
+def test_a_directory_as_the_only_member_is_not_served(inbox: Path, client: TestClient) -> None:
+    inbox_id = "4de57c6a-98b3-4ee0-a203-5b8829a60452"
+    (inbox / inbox_id / "nested.sharecutseg").mkdir(parents=True)
+
+    res = client.get(f"/api/import/inbox/{inbox_id}")
+
+    assert res.status_code == 404
+    assert res.headers[CODE] == "import_inbox_unknown"
 
 
 def test_a_symlinked_entry_is_not_followed(inbox: Path, client: TestClient, tmp_path: Path) -> None:
