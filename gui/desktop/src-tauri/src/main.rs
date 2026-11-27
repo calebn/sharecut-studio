@@ -37,6 +37,8 @@ struct EnginePortState(Arc<Mutex<Option<u16>>>);
 
 struct LastOpenedShare(Mutex<Option<(String, Instant)>>);
 
+struct PendingProjectFile(Mutex<sharecut::project_file::ProjectFileSlot>);
+
 /// State kept only by the native host while a confirmation dialog is visible.
 /// The loopback renderer can request a guard, but can never invoke this state.
 struct CloseGuardState(Mutex<CloseGuardStatus>);
@@ -685,12 +687,48 @@ fn show_sidecar_error(app: &tauri::AppHandle, detail: &str) {
     }
 }
 
+fn take_pending_project_file(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let state = app.try_state::<PendingProjectFile>()?;
+    let mut slot = state.0.lock().ok()?;
+    slot.take_for_navigation()
+}
+
 fn open_engine_window(app: &tauri::AppHandle, port: u16) {
+    let project = take_pending_project_file(app);
     if let Some(win) = app.get_webview_window("main") {
-        eval_js(
-            &win,
-            &format!("window.location.replace('http://127.0.0.1:{port}/')"),
-        );
+        let url = sharecut::project_file::engine_url(port, project.as_deref());
+        let target = serde_json::to_string(&url).unwrap_or_else(|_| "\"about:blank\"".into());
+        eval_js(&win, &format!("window.location.replace({target})"));
+    }
+}
+
+/// Push a project file to the page, or hold it until the engine page loads.
+fn forward_project_file(app: &tauri::AppHandle, path: PathBuf) {
+    let Some(state) = app.try_state::<PendingProjectFile>() else {
+        return;
+    };
+    let push_now = match state.0.lock() {
+        Ok(mut slot) => slot.offer(path.clone()),
+        Err(_) => return,
+    };
+    if !push_now {
+        return;
+    }
+    let (Some(win), Some(text)) = (app.get_webview_window("main"), path.to_str()) else {
+        return;
+    };
+    if let Ok(json) = serde_json::to_string(text) {
+        eval_js(&win, &sharecut::project_file::open_project_script(&json));
+    }
+}
+
+fn forward_project_file_from_args(
+    app: &tauri::AppHandle,
+    args: impl IntoIterator<Item = std::ffi::OsString>,
+    cwd: &std::path::Path,
+) {
+    if let Some(path) = sharecut::project_file::project_file_from_args(args, cwd) {
+        forward_project_file(app, path);
     }
 }
 
@@ -760,7 +798,7 @@ fn setup_deep_links(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> 
     let start_handle = app.handle().clone();
     match app.deep_link().get_current() {
         Ok(Some(urls)) => {
-            for url in urls {
+            for url in urls.into_iter().filter(|url| url.scheme() != "file") {
                 if let Err(err) = open_allowed_share(&start_handle, url.as_str()) {
                     eprintln!("Sharecut Studio: deep link open failed: {err}");
                 }
@@ -774,7 +812,11 @@ fn setup_deep_links(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> 
 
     let warm_handle = app.handle().clone();
     app.deep_link().on_open_url(move |event| {
-        for url in event.urls() {
+        for url in event
+            .urls()
+            .into_iter()
+            .filter(|url| url.scheme() != "file")
+        {
             if let Err(err) = open_allowed_share(&warm_handle, url.as_str()) {
                 eprintln!("Sharecut Studio: deep link open failed: {err}");
             }
@@ -807,6 +849,11 @@ fn start_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
 fn respawn_engine(app: &tauri::AppHandle) -> Result<(), String> {
     let port_slot = app.state::<EnginePortState>();
     sharecut::clear_engine_port(&port_slot.0);
+    if let Some(state) = app.try_state::<PendingProjectFile>() {
+        if let Ok(mut slot) = state.0.lock() {
+            slot.reset();
+        }
+    }
     start_sidecar(app)?;
     let port = wait_for_engine(app, Duration::from_secs(45))?;
     if let Ok(mut slot) = port_slot.0.lock() {
@@ -865,8 +912,13 @@ fn main() {
         updater::inject_config(context.config_mut(), updater_config);
     }
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             focus_main_window(app);
+            forward_project_file_from_args(
+                app,
+                argv.into_iter().skip(1).map(std::ffi::OsString::from),
+                std::path::Path::new(&cwd),
+            );
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -914,6 +966,9 @@ fn main() {
         .manage(SidecarState(Mutex::new(None)))
         .manage(EnginePortState(engine_port.clone()))
         .manage(LastOpenedShare(Mutex::new(None)))
+        .manage(PendingProjectFile(Mutex::new(
+            sharecut::project_file::ProjectFileSlot::default(),
+        )))
         .manage(CloseGuardState(Mutex::new(CloseGuardStatus::default())))
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -942,6 +997,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![open_share_url])
         .setup(move |app| {
             setup_deep_links(app)?;
+            if let Ok(cwd) = std::env::current_dir() {
+                forward_project_file_from_args(app.handle(), std::env::args_os().skip(1), &cwd);
+            }
             if let Some(win) = app.get_webview_window("main") {
                 media_capture::install_engine_microphone_handler(&win, engine_port.clone());
             }
@@ -1017,6 +1075,16 @@ fn main() {
                     shutdown_sidecar(app_handle);
                     if updater::take_restart_on_exit() {
                         tauri::process::restart(&app_handle.env());
+                    }
+                }
+                #[cfg(target_os = "macos")]
+                RunEvent::Opened { urls } => {
+                    for path in urls
+                        .iter()
+                        .filter_map(sharecut::project_file::project_file_from_file_url)
+                    {
+                        focus_main_window(app_handle);
+                        forward_project_file(app_handle, path);
                     }
                 }
                 _ => {}
