@@ -1,5 +1,6 @@
 import type { CSSProperties, PointerEvent } from "react";
 import { useRef } from "react";
+import { useDragInterruptWatch } from "../hooks/useDragInterruptWatch";
 import type { HandleEdge } from "./scriptSelection";
 
 /** Where a handle's caret sits inside the scrolling text: its left edge, its top and the line's height, in pixels. */
@@ -70,6 +71,14 @@ export function SelectionHandles({
   onRelease,
 }: SelectionHandlesProps) {
   const grab = useRef<Grab | null>(null);
+  const watch = useDragInterruptWatch();
+
+  const cancelGrab = () => {
+    watch.stop();
+    if (!grab.current) return;
+    grab.current = null;
+    onRelease?.();
+  };
 
   const onDown = (event: PointerEvent<HTMLElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -88,6 +97,7 @@ export function SelectionHandles({
       // A synthetic pointer has nothing to capture.
     }
     event.preventDefault();
+    watch.start(cancelGrab);
     onGrab?.();
   };
   const onMove = (edge: HandleEdge) => (event: PointerEvent<HTMLElement>) => {
@@ -107,6 +117,7 @@ export function SelectionHandles({
     const held = grab.current;
     if (!held || held.pointerId !== event.pointerId) return;
     grab.current = null;
+    watch.stop();
     onRelease?.();
     if (held.moved || event.type === "pointercancel") return;
     const under = event.currentTarget.ownerDocument.elementsFromPoint?.(
@@ -135,6 +146,7 @@ export function SelectionHandles({
     const held = grab.current;
     if (!held || held.pointerId !== event.pointerId) return;
     grab.current = null;
+    watch.stop();
     onRelease?.();
   };
 
