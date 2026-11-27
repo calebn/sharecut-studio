@@ -1207,8 +1207,8 @@ export function matchKeymapCommands(
     const keys = effectiveKeys(cmd);
     const pool = cmd.requireAlt ? altCandidates : candidates;
     if (cmd.shiftedGlyph && !getKeymapOverride(cmd.id)) {
-      // An ISO "<>" key (IntlBackslash) also types ">" on Shift; only the Period key, or an event with no code, is the speed key.
-      if (e.key === cmd.shiftedGlyph && (!e.code || e.code === "Period")) {
+      // An ISO "<>" key (IntlBackslash) also types ">" on Shift; that key is not the speed key. Any other key that types ">" is (Dvorak, German, US).
+      if (e.key === cmd.shiftedGlyph && e.code !== "IntlBackslash") {
         out.push(cmd);
       }
       continue;
