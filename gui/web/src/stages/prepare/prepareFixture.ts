@@ -136,6 +136,19 @@ export const ROWS = {
     CLEAN,
     SUGGEST,
   ],
+  notStarted: [
+    ADD_DONE,
+    {
+      id: "transcribe",
+      state: "queued",
+      title: "Transcribe",
+      detail: "Not started",
+      action: { label: "Start", run: "try-again" },
+    },
+    ALIGN,
+    CLEAN,
+    SUGGEST,
+  ],
   importing: [
     {
       id: "add",

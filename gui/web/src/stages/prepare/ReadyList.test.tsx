@@ -33,6 +33,19 @@ function settle(
 }
 
 describe("ReadyList", () => {
+  it("draws the idle Start as the filled primary and every other row action outlined", () => {
+    render(<ReadyList rows={ROWS.notStarted} onAction={vi.fn()} />);
+    expect(
+      screen.getByRole("button", { name: "Start, Transcribe" }),
+    ).toHaveClass("primary");
+    render(<ReadyList rows={ROWS.plan} onAction={vi.fn()} />, {
+      container: document.body.appendChild(document.createElement("div")),
+    });
+    for (const button of screen.getAllByRole("button", { name: /^Skip/ })) {
+      expect(button).not.toHaveClass("primary");
+    }
+  });
+
   it("opens the engine text of a done row behind its Details button", async () => {
     const rows: ReadyRowData[] = [
       {

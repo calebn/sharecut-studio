@@ -173,8 +173,9 @@ export function PrepareView({
 }: PrepareViewProps) {
   // On a phone the rows fold behind the summary, but a row that needs you or
   // failed has a button the person must reach, so the summary opens when one
-  // is there at the start or turns up later. Closing it by hand sticks until
-  // another row needs attention.
+  // is there at the start or turns up later. A run that has not started opens
+  // it too, at mount only, so Start is in reach. Closing it by hand sticks
+  // until another row needs attention.
   const attention = rows
     .filter((row) => row.state === "failed" || row.state === "needs-you")
     .map((row) => row.id);
@@ -189,7 +190,12 @@ export function PrepareView({
     }
     onRowAction(...args);
   };
-  const [readyOpen, setReadyOpen] = useState(attention.length > 0);
+  const idle =
+    phase === "not-started" &&
+    rows.some(
+      (row) => row.state === "queued" && row.action?.run === "try-again",
+    );
+  const [readyOpen, setReadyOpen] = useState(attention.length > 0 || idle);
   const [seen, setSeen] = useState(attention);
   if (attention.join() !== seen.join()) {
     setSeen(attention);

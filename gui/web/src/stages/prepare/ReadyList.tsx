@@ -174,6 +174,8 @@ export function ReadyList({ rows, onAction }: ReadyListProps) {
                     name: `${action.label}, ${row.title}`,
                     icon: action.icon,
                     onAction: () => onAction(row.id, action.run),
+                    primary:
+                      row.state === "queued" && action.run === "try-again",
                   }
                 : undefined
             }
