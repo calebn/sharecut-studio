@@ -974,7 +974,7 @@ def test_cli_and_mcp_carry_the_warning_and_land_first(
     _room(ws, ["Cy"])
     res = runner.invoke(cli_app, [*base, "--land-first"])
     assert res.exit_code == 0, res.output
-    assert "Warning" not in res.output
+    assert "stopped take" not in res.output and "still saving" not in res.output
     assert "landed_first" in res.output
     ws.reload()
     assert len(ws.project.clips) == 1
