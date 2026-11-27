@@ -1,77 +1,5 @@
 # Set up local ShareCut Studio MCP
 
-ShareCut Studio can run as a local MCP server with no account, API key, or
-network connection. `podcast-mcp` communicates over standard input and output.
-
-## Verify the install
-
-```bash
-podcast-mcp --version
-podcast-mcp --help
-```
-
-The command accepts no server arguments. Your MCP client launches it and sends
-the MCP protocol over stdio.
-
-## Configure an MCP client
-
-Use the absolute path to the virtual-environment executable when the client does
-not inherit your shell `PATH`:
-
-```text
-/path/to/sharecut-studio/.venv/bin/podcast-mcp
-```
-
-For a JSON MCP configuration, use:
-
-```json
-{
-  "mcpServers": {
-    "sharecut": {
-      "command": "/path/to/sharecut-studio/.venv/bin/podcast-mcp"
-    }
-  }
-}
-```
-
-### Select a default episode
-
-Tools that accept `project_path` can use a default set on the stdio server:
-
-```json
-{
-  "mcpServers": {
-    "sharecut": {
-      "command": "/path/to/sharecut-studio/.venv/bin/podcast-mcp",
-      "env": {
-        "PODCAST_MCP_PROJECT": "/absolute/path/to/episode.sharecut"
-      }
-    }
-  }
-}
-```
-
-An explicit non-empty `project_path` wins. A missing (`null`/`None`) or empty
-path falls back to `PODCAST_MCP_PROJECT`. If there is no explicit path and no
-default, the tool returns an error explaining how to configure one.
-
-For Claude Code, run:
-
-```bash
-claude mcp add sharecut -- /path/to/sharecut-studio/.venv/bin/podcast-mcp
-```
-
-For a shell-configured client, set the same environment variable before the
-client command:
-
-```bash
-PODCAST_MCP_PROJECT=/absolute/path/to/episode.sharecut \
-  claude mcp add sharecut -- /path/to/sharecut-studio/.venv/bin/podcast-mcp
-```
-
-The same command path works for Claude Desktop, Cursor, Windsurf, and Cline.
-Restart or reload the MCP client after updating its configuration.
-
 ## Co-edit with the desktop GUI
 
 When ShareCut Studio is open, **Menu > Connect agent...** shows a connection
@@ -109,6 +37,80 @@ only the time of the latest successful request until Studio restarts. Any local
 program that sends a valid request counts, not only an AI app. If this Studio
 cannot accept connections from other apps, the dialog says so and shows no
 address.
+
+## Set up a local command-line server
+
+ShareCut Studio can run as a local MCP server with no account, API key, or
+network connection. `podcast-mcp` communicates over standard input and output.
+
+### Verify the install
+
+```bash
+podcast-mcp --version
+podcast-mcp --help
+```
+
+The command accepts no server arguments. Your MCP client launches it and sends
+the MCP protocol over stdio.
+
+### Configure an MCP client
+
+Use the absolute path to the virtual-environment executable when the client does
+not inherit your shell `PATH`:
+
+```text
+/path/to/sharecut-studio/.venv/bin/podcast-mcp
+```
+
+For a JSON MCP configuration, use:
+
+```json
+{
+  "mcpServers": {
+    "sharecut": {
+      "command": "/path/to/sharecut-studio/.venv/bin/podcast-mcp"
+    }
+  }
+}
+```
+
+#### Select a default episode
+
+Tools that accept `project_path` can use a default set on the stdio server:
+
+```json
+{
+  "mcpServers": {
+    "sharecut": {
+      "command": "/path/to/sharecut-studio/.venv/bin/podcast-mcp",
+      "env": {
+        "PODCAST_MCP_PROJECT": "/absolute/path/to/episode.sharecut"
+      }
+    }
+  }
+}
+```
+
+An explicit non-empty `project_path` wins. A missing (`null`/`None`) or empty
+path falls back to `PODCAST_MCP_PROJECT`. If there is no explicit path and no
+default, the tool returns an error explaining how to configure one.
+
+For Claude Code, run:
+
+```bash
+claude mcp add sharecut -- /path/to/sharecut-studio/.venv/bin/podcast-mcp
+```
+
+For a shell-configured client, set the same environment variable before the
+client command:
+
+```bash
+PODCAST_MCP_PROJECT=/absolute/path/to/episode.sharecut \
+  claude mcp add sharecut -- /path/to/sharecut-studio/.venv/bin/podcast-mcp
+```
+
+The same command path works for Claude Desktop, Cursor, Windsurf, and Cline.
+Restart or reload the MCP client after updating its configuration.
 
 ## Troubleshooting
 
