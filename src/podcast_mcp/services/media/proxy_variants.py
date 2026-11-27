@@ -7,6 +7,7 @@ import os
 import re
 import tempfile
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ from podcast_mcp.engines.source_proxy_audio import (
     validate_source_proxy_inputs,
 )
 from podcast_mcp.models.episode import (
+    Clip,
     EpisodeProject,
     ProxyClipBasis,
     ProxyManifestGeneration,
@@ -104,7 +106,7 @@ def project_basis(project: EpisodeProject, defaults: EffectiveConfig) -> ProxyPr
     left to the artifacts' own input hashes.
     """
     origin = origin_resolver(project)
-    selection = select_manifest(project)
+    selection = select_manifest(project, origin=origin)
     restored = set(selection.restored)
     restored_by = {clip.id: origin(clip) for clip in project.clips if clip.id in restored}
     return ProxyProjectBasis(
@@ -151,13 +153,18 @@ class ManifestSelection:
     track_ids: tuple[str, ...]
 
 
-def select_manifest(project: EpisodeProject) -> ManifestSelection:
+def select_manifest(
+    project: EpisodeProject, *, origin: Callable[[Clip], str] | None = None
+) -> ManifestSelection:
     """The selection for ``project``; a read-only block shares it between its readers."""
-    return frozen(("proxy_manifest", id(project)), lambda: _select(project), keep=project)
+    return frozen(
+        ("proxy_manifest", id(project)),
+        lambda: _select(project, origin if origin is not None else origin_resolver(project)),
+        keep=project,
+    )
 
 
-def _select(project: EpisodeProject) -> ManifestSelection:
-    origin = origin_resolver(project)
+def _select(project: EpisodeProject, origin: Callable[[Clip], str]) -> ManifestSelection:
     legacy = tuple(dialogue_track_ids(project))
     restored: list[str] = []
     recordings: dict[str, tuple[str, str]] = {}

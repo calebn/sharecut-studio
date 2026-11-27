@@ -96,6 +96,38 @@ def _bootstrap(ws, monkeypatch):
     return imported
 
 
+def test_basis_read_reuses_origin_resolution_for_recording_selection(workspace, monkeypatch):
+    ws = workspace
+    project = ws.project
+    project.sources = [SourceRecording(id="take", path="raw/take.wav")]
+    clip = Clip(
+        id="selected",
+        track_id="host",
+        source_id="take",
+        source_start=0.0,
+        source_end=1.0,
+        timeline_start=0.0,
+    )
+    project.clips = [clip]
+    make_resolver = pv.origin_resolver
+    resolver_calls = []
+
+    def observe(project):
+        resolver_calls.append(project)
+        return make_resolver(project)
+
+    monkeypatch.setattr(pv, "origin_resolver", observe)
+    defaults = ws.effective_config()
+    first = pv.project_basis(project, defaults)
+    assert resolver_calls == [project]
+    assert first.clips[clip.id].origin_track_id == "host"
+
+    clip.source_id = None
+    second = pv.project_basis(project, defaults)
+    assert resolver_calls == [project, project]
+    assert second.render_hashes != first.render_hashes
+
+
 def test_project_basis_tracks_selected_secondary_recording(workspace, monkeypatch):
     project = workspace.project
     project.sources = [
