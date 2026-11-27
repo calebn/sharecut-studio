@@ -150,8 +150,28 @@ describe("StatusRow failed", () => {
       />,
     );
     expect(screen.queryByRole("button", { name: /Details/ })).toBeNull();
-    rerender(<StatusRow state="done" title="Transcribe" details="x" />);
+    rerender(<StatusRow state="done" title="Transcribe" />);
     expect(screen.queryByRole("button", { name: /Details/ })).toBeNull();
+  });
+
+  it("opens technical details on a done row behind a neutral Details button", async () => {
+    render(
+      <StatusRow
+        state="done"
+        title="Line up tracks"
+        detail="Both tracks lined up"
+        details="2 clips; all near identity (ref=host)"
+      />,
+    );
+    const button = screen.getByRole("button", {
+      name: "Details for Line up tracks",
+    });
+    expect(button.textContent).toBe("Details");
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    await userEvent.click(button);
+    expect(
+      screen.getByText("2 clips; all near identity (ref=host)"),
+    ).toBeTruthy();
   });
 
   it("separates the hidden state from the title", () => {
@@ -189,7 +209,7 @@ describe("StatusGlyph progress", () => {
     expect(screen.queryByRole("button", { name: /^Details/ })).toBeNull();
   });
 
-  it("trims the cause and closes Details when the row leaves failed", async () => {
+  it("trims the cause and closes Details when the row loses its details", async () => {
     const user = userEvent.setup();
     const { rerender } = render(
       <StatusRow
@@ -202,13 +222,7 @@ describe("StatusGlyph progress", () => {
       screen.getByRole("button", { name: "Details for Transcribe" }),
     );
     expect(screen.getByText("Out of memory").textContent).toBe("Out of memory");
-    rerender(
-      <StatusRow
-        state="running"
-        title="Transcribe"
-        details="  Out of memory  "
-      />,
-    );
+    rerender(<StatusRow state="running" title="Transcribe" />);
     rerender(
       <StatusRow
         state="failed"

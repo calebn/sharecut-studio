@@ -1510,9 +1510,16 @@ describe("what a run reused", () => {
     expect(done.map((r) => r.detail)).toEqual([
       "4 files",
       "1 new · 3 reused",
+      "Partly done: lined up tracks",
+      "Partly done: cleaned · 1 new · 3 reused",
+      "Find suggestions · None to decide yet",
+    ]);
+    expect(done.map((r) => r.details)).toEqual([
+      undefined,
+      undefined,
       "Line up tracks · No moves needed",
       "Clean · 1 new · 3 reused",
-      "Find suggestions · None to decide yet",
+      undefined,
     ]);
   });
 
@@ -1526,7 +1533,10 @@ describe("what a run reused", () => {
     });
     const done = readyRows({ ...base, sourceCount: 4, transcribed: true, job });
     expect(done[1].detail).toBe("4 speakers");
-    expect(done[3].detail).toBe("Clean");
+    expect(done[3]).toMatchObject({
+      detail: "Partly done: cleaned",
+      details: "Clean",
+    });
     expect(reuseNote(job)).toBeUndefined();
   });
 
@@ -1614,7 +1624,8 @@ describe("successful selected work", () => {
     });
     expect(rows[3]).toMatchObject({
       state: "done",
-      detail: "Clean · highpass on 3 dialogue tracks",
+      detail: "Partly done: cleaned",
+      details: "Clean · highpass on 3 dialogue tracks",
     });
     expect(rows[4]).toMatchObject({
       state: "queued",
@@ -1693,15 +1704,24 @@ describe("successful selected work", () => {
     [
       "require_align_accept",
       "align",
+      "Partly done: checked the lineup",
       "Check alignment · checked existing alignment",
     ],
-    ["balance_tracks", "clean", "Balance · checked existing alignment"],
-  ] as const)("names only the actual %s operation", (name, row, detail) => {
-    const result = rowsFor(
-      selected([step(name, "ok", { summary: "checked existing alignment" })]),
-    ).find((candidate) => candidate.id === row);
-    expect(result).toMatchObject({ state: "done", detail });
-  });
+    [
+      "balance_tracks",
+      "clean",
+      "Partly done: levelled",
+      "Balance · checked existing alignment",
+    ],
+  ] as const)(
+    "names only the actual %s operation",
+    (name, row, detail, raw) => {
+      const result = rowsFor(
+        selected([step(name, "ok", { summary: "checked existing alignment" })]),
+      ).find((candidate) => candidate.id === row);
+      expect(result).toMatchObject({ state: "done", detail, details: raw });
+    },
+  );
 
   it("keeps actual sound action success when suggestion analysis did not run", () => {
     const rows = rowsFor(
@@ -1939,11 +1959,13 @@ describe("successful selected work", () => {
     );
     expect(rows.every((row) => row.state === "done")).toBe(true);
     expect(rows[2]).toMatchObject({
-      detail: "Line up tracks",
+      detail: "Partly done: lined up tracks",
+      details: "Line up tracks",
       runDisposition: "partial",
     });
     expect(rows[3]).toMatchObject({
-      detail: "Clean",
+      detail: "Partly done: cleaned",
+      details: "Clean",
       runDisposition: "partial",
     });
     expect(readySummary(rows)).toBe("Getting ready: selected work finished");
@@ -1964,7 +1986,8 @@ describe("successful selected work", () => {
       ]),
       { approximateTiming: null },
     );
-    expect(rows[3].detail).toBe("4 holes filled");
+    expect(rows[3].detail).toBe("Cleaned and levelled all 3 tracks");
+    expect(rows[3].details).toBe("4 holes filled");
   });
 
   it("does not count a no-op bed as Clean work", () => {
@@ -2135,5 +2158,107 @@ describe("successful selected work", () => {
       detail: "3 speakers",
     });
     expect(phaseFor(transcribed, { stoppedRun }).phase).toBe("failed");
+  });
+});
+
+describe("a finished row speaks plainly and keeps the engine text behind Details", () => {
+  const finished = (steps: unknown[], extra = {}) =>
+    pipelineJobSnapshot({ status: "ok", steps: steps as never, ...extra });
+  const align = (job: ReturnType<typeof finished>, sourceCount: number) =>
+    readyRows({ ...base, sourceCount, transcribed: true, job }).find(
+      (row) => row.id === "align",
+    );
+  const clean = (job: ReturnType<typeof finished>, sourceCount: number) =>
+    readyRows({ ...base, sourceCount, transcribed: true, job }).find(
+      (row) => row.id === "clean",
+    );
+  const rawAlign = "2 clips; all near identity (ref=host)";
+  const rawClean = "host -20 LUFS (+6.4 dB, ungated)";
+  const fullAlign = [
+    step("align_tracks", "ok", { summary: rawAlign }),
+    step("require_align_accept", "ok", { summary: "locked" }),
+  ];
+  const fullClean = [
+    step("fill_gate_holes", "ok", { summary: "filled 2 holes" }),
+    step("clean_audio", "ok", { summary: "highpass on 2 dialogue tracks" }),
+    step("compress_tracks", "ok", { summary: "2 compressed" }),
+    step("balance_tracks", "ok", { summary: rawClean }),
+  ];
+
+  it("lines up with a sentence sized to the tracks and keeps the raw join", () => {
+    const job = finished(fullAlign);
+    expect(align(job, 2)).toMatchObject({
+      state: "done",
+      detail: "Both tracks lined up",
+      details: `${rawAlign} · locked`,
+    });
+    expect(align(job, 4)?.detail).toBe("All 4 tracks lined up");
+    expect(align(finished(fullAlign), 1)?.detail).toBe(
+      "One track, nothing to line up",
+    );
+  });
+
+  it("cleans with a sentence and keeps the raw join", () => {
+    const job = finished(fullClean);
+    expect(clean(job, 2)).toMatchObject({
+      state: "done",
+      detail: "Cleaned and levelled both tracks",
+      details:
+        "filled 2 holes · highpass on 2 dialogue tracks · 2 compressed · " +
+        rawClean,
+    });
+    expect(clean(job, 3)?.detail).toBe("Cleaned and levelled all 3 tracks");
+    expect(clean(job, 1)?.detail).toBe("Cleaned and levelled the track");
+  });
+
+  it("has no details when the engine said nothing", () => {
+    const job = finished([
+      step("align_tracks", "ok"),
+      step("require_align_accept", "ok"),
+    ]);
+    const row = align(job, 2);
+    expect(row?.detail).toBe("Both tracks lined up");
+    expect(row?.details).toBeUndefined();
+  });
+
+  it("appends the reuse count to a partial row", () => {
+    const job = finished([
+      step("clean_audio", "ok", {
+        summary: "highpass on 3 dialogue tracks",
+        reuse: { reused: 3, recomputed: 1 },
+      }),
+      step("balance_tracks", "ok", { summary: rawClean }),
+    ]);
+    expect(clean(job, 4)).toMatchObject({
+      detail: "Partly done: cleaned, levelled · 1 new · 3 reused",
+      runDisposition: "partial",
+    });
+  });
+
+  it("speaks plainly while a later step still runs, raw text behind Details", () => {
+    const job = pipelineJobSnapshot({
+      status: "running",
+      steps: [
+        step("align_tracks", "ok", { summary: rawAlign }),
+        step("require_align_accept", "ok", { summary: "locked" }),
+        step("clean_audio", "running"),
+      ] as never,
+    });
+    const rows = readyRows({ ...base, sourceCount: 2, transcribed: true, job });
+    expect(rows.find((r) => r.id === "align")).toMatchObject({
+      state: "done",
+      detail: "Both tracks lined up",
+      details: rawAlign,
+    });
+  });
+
+  it("speaks plainly with no job at all", () => {
+    const rows = readyRows({ ...base, sourceCount: 3, transcribed: true });
+    expect(rows.find((r) => r.id === "align")).toMatchObject({
+      detail: "All 3 tracks lined up",
+    });
+    expect(rows.find((r) => r.id === "clean")?.detail).toBe(
+      "Cleaned and levelled all 3 tracks",
+    );
   });
 });

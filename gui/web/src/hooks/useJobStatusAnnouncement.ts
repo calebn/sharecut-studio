@@ -4,7 +4,7 @@ import type { JobChipObservation } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import { modelNeededOfJob, notDownloadedLine } from "../utils/apiError";
 import { isTerminalJobStatus } from "../utils/pipeline";
-import { pipelineStateSentence } from "../utils/pipelineProgress";
+import { jobHeadline, pipelineStateSentence } from "../utils/pipelineProgress";
 import { plainError } from "../utils/plainError";
 
 export function useJobStatusAnnouncement(): void {
@@ -32,7 +32,7 @@ export function useJobStatusAnnouncement(): void {
   const modelFailed = chipModel !== null;
   const jobMessage = chipModel
     ? notDownloadedLine(chipModel)
-    : chipJob?.message || chipJob?.label;
+    : chipJob && jobHeadline(chipJob);
   const jobKind = chipJob?.kind;
   const chipTerminal = jobStatus != null && isTerminalJobStatus(jobStatus);
 

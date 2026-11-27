@@ -1,3 +1,4 @@
+import { stepActivity } from "../stages/prepare/prepareMappers";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { modelNeededOfJob, notDownloadedLine } from "./apiError";
 import { isAnalyzeJob, isPipelineKindJob } from "./pipeline";
@@ -78,6 +79,34 @@ export function pipelineStateSentence(
   }
 }
 
+const RUNNING_STEP = /^Running (\w+)$/;
+const COMPLETED_STEP = /^Completed \w+:/;
+
+/**
+ * A running or finished pipeline job's message without the engine's step ids
+ * and summaries: "Running <id>" becomes the row's activity or nothing, and
+ * "Completed <id>: <summary>" goes. Other jobs and messages are unchanged.
+ */
+export function plainJobMessage(
+  job: Pick<PipelineJobSnapshot, "kind" | "status">,
+  message: string | null | undefined,
+): string {
+  const text = message ?? "";
+  if (!isPipelineKindJob(job) || job.status === "error") return text;
+  const running = RUNNING_STEP.exec(text);
+  if (running) return stepActivity(running[1]!) ?? "";
+  return COMPLETED_STEP.test(text) ? "" : text;
+}
+
+/** The job's message (or label when it has none), safe to show or speak. */
+export function jobHeadline(
+  job: Pick<PipelineJobSnapshot, "kind" | "status" | "message" | "label">,
+): string | undefined {
+  return job.message
+    ? plainJobMessage(job, job.message)
+    : (job.label ?? undefined);
+}
+
 /** Chip prefix: "Pipeline" only for pipeline jobs; "Activity" otherwise. */
 export function pipelineKindLabel(
   kind: PipelineJobSnapshot["kind"] | undefined,
@@ -96,7 +125,7 @@ export function pipelineChromeLabel(
   const parts = [pipelineStateSentence(job)];
   if (job.status === "cancelled") return parts[0]!;
   const model = modelNeededOfJob(job);
-  const text = model ? notDownloadedLine(model) : job.message || job.label;
+  const text = model ? notDownloadedLine(model) : jobHeadline(job);
   const headline = truncateHeadline(
     text && job.status === "error" && !model ? plainError(text) : text,
     options?.headlineMax ?? 48,

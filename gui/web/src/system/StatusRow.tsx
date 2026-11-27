@@ -39,7 +39,7 @@ export type StatusRowProps = {
   };
   /** A third action after the main one, for a row the spec gives three verbs (guest conflict: Drop it). */
   tertiaryAction?: { label: string; name?: string; onAction: () => void };
-  /** The technical cause of a failed row, behind a Details button. */
+  /** The technical text behind a Details button: a failed row's cause, or the engine's own words for a finished one. */
   details?: string;
   /** `list` 48, `alert` 44, `inline` 32. */
   density?: "list" | "alert" | "inline";
@@ -72,7 +72,7 @@ export function StatusRow({
   const reason = useDisabledReasonNote(action?.disabledReason);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const cause = details?.trim();
-  const showDetails = state === "failed" && Boolean(cause);
+  const showDetails = Boolean(cause);
   if (!showDetails && detailsOpen) setDetailsOpen(false);
   const expandable = Boolean(children);
   const text = (

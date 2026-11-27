@@ -460,7 +460,7 @@ for (const profile of [
         await expect(alignResult).toContainText(
           /Skipped this run|Not run this time/,
         );
-        await expect(alignResult).not.toContainText("Lined up");
+        await expect(alignResult).not.toContainText(/lined up/i);
         if (profile.name === "phone") {
           await expect(summary).toBeVisible();
           await expect(summary.locator(".sys-prepare-summary-text")).toHaveText(

@@ -71,6 +71,7 @@ function windowRow(
 type PlanOperation = {
   step: string;
   label: string;
+  plain?: string;
   enabledPath?: string;
   optional?: boolean;
 };
@@ -78,6 +79,7 @@ type PlanOperation = {
 const SOUND_OPERATION: PlanOperation = {
   step: "apply_sound_actions",
   label: "Apply sound actions",
+  plain: "lowered sounds",
   enabledPath: "tighten.apply_non_speech",
 };
 
@@ -86,8 +88,16 @@ const PLAN_OPERATIONS: Readonly<Record<ReadyRowId, readonly PlanOperation[]>> =
     add: [],
     transcribe: [{ step: "transcribe_tracks", label: "Transcribe" }],
     align: [
-      { step: "align_tracks", label: "Line up tracks" },
-      { step: "require_align_accept", label: "Check alignment" },
+      {
+        step: "align_tracks",
+        label: "Line up tracks",
+        plain: "lined up tracks",
+      },
+      {
+        step: "require_align_accept",
+        label: "Check alignment",
+        plain: "checked the lineup",
+      },
     ],
     clean: [
       {
@@ -96,10 +106,18 @@ const PLAN_OPERATIONS: Readonly<Record<ReadyRowId, readonly PlanOperation[]>> =
         enabledPath: "room_tone.extract_bed",
         optional: true,
       },
-      { step: "fill_gate_holes", label: "Fill gate holes" },
-      { step: "clean_audio", label: "Clean" },
-      { step: "compress_tracks", label: "Compress" },
-      { step: "balance_tracks", label: "Balance" },
+      {
+        step: "fill_gate_holes",
+        label: "Fill gate holes",
+        plain: "filled gaps",
+      },
+      { step: "clean_audio", label: "Clean", plain: "cleaned" },
+      {
+        step: "compress_tracks",
+        label: "Compress",
+        plain: "evened out loudness",
+      },
+      { step: "balance_tracks", label: "Balance", plain: "levelled" },
     ],
     suggest: [
       {
@@ -175,6 +193,12 @@ const ROW_ACTIVITY: Record<ReadyRowId, string> = {
   clean: "Cleaning",
   suggest: "Finding suggestions",
 };
+
+/** What the row a step belongs to is doing, for lines that must not name the step. */
+export function stepActivity(step: string): string | undefined {
+  const row = ownerRow(step);
+  return row === undefined || row === "add" ? undefined : ROW_ACTIVITY[row];
+}
 
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
@@ -645,12 +669,29 @@ function terminalRowResult(
   };
 }
 
+function plainRowSentence(row: "align" | "clean", sourceCount: number) {
+  if (row === "align") {
+    if (sourceCount === 1) return "One track, nothing to line up";
+    return sourceCount === 2
+      ? "Both tracks lined up"
+      : `All ${sourceCount} tracks lined up`;
+  }
+  if (sourceCount === 1) return "Cleaned and levelled the track";
+  return sourceCount === 2
+    ? "Cleaned and levelled both tracks"
+    : `Cleaned and levelled all ${sourceCount} tracks`;
+}
+
+type TerminalWorkDetail = { detail: string; details?: string };
+
 function terminalWorkDetail(
   result: Extract<TerminalRowResult, { kind: "performed" }>,
+  row: ReadyRowId,
   fallback: string,
-): string {
+): TerminalWorkDetail {
+  const reuse = reuseFromSteps(result.work.map(({ timing }) => timing));
   if (result.partial) {
-    return result.work
+    const raw = result.work
       .map(({ operation, timing }) => {
         const detail =
           reuseFromSteps([timing]) ??
@@ -659,16 +700,25 @@ function terminalWorkDetail(
         return detail ? `${operation.label} · ${detail}` : operation.label;
       })
       .join(" · ");
+    if (row === "suggest") return { detail: raw };
+    const verbs = result.work.flatMap(({ operation }) =>
+      operation.plain ? [operation.plain] : [],
+    );
+    const plain = verbs.length
+      ? `Partly done: ${verbs.join(", ")}`
+      : "Partly done";
+    return {
+      detail: reuse ? `${plain} · ${reuse}` : plain,
+      details: raw,
+    };
   }
-  return (
-    reuseFromSteps(result.work.map(({ timing }) => timing)) ??
-    (result.work
-      .filter(({ operation }) => !operation.optional)
-      .map(({ timing }) => timing.summary)
-      .filter(Boolean)
-      .join(" · ") ||
-      fallback)
-  );
+  const raw = result.work
+    .filter(({ operation }) => !operation.optional)
+    .map(({ timing }) => timing.summary)
+    .filter(Boolean)
+    .join(" · ");
+  if (row === "suggest") return { detail: reuse ?? (raw || fallback) };
+  return { detail: reuse ?? fallback, details: raw || undefined };
 }
 
 function spokenDuration(seconds: number): string {
@@ -957,19 +1007,16 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
   }
 
   const fallback: Record<"align" | "clean" | "suggest", string> = {
-    align:
-      input.sourceCount === 1 ? "One track, nothing to line up" : "Lined up",
-    clean: "Noise, volume, balance",
+    align: plainRowSentence("align", input.sourceCount),
+    clean: plainRowSentence("clean", input.sourceCount),
     suggest:
       input.pendingSuggestions > 0
         ? plural(input.pendingSuggestions, "suggestion", "suggestions")
         : "None to decide yet",
   };
   const tail = {
-    align:
-      reuseDetail(job, "align") ?? stepSummary(job, "align") ?? fallback.align,
-    clean:
-      reuseDetail(job, "clean") ?? stepSummary(job, "clean") ?? fallback.clean,
+    align: reuseDetail(job, "align") ?? fallback.align,
+    clean: reuseDetail(job, "clean") ?? fallback.clean,
     suggest: fallback.suggest,
   };
   for (const id of ["align", "clean", "suggest"] as const) {
@@ -1004,7 +1051,7 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
         id,
         state: "done",
         title: ROW_TITLE[id],
-        detail: terminalWorkDetail(terminal, fallback[id]),
+        ...terminalWorkDetail(terminal, id, fallback[id]),
         ...(terminal.partial ? { runDisposition: "partial" as const } : {}),
       });
     } else if (outcome?.state === "done" || settled) {
@@ -1013,6 +1060,7 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
         state: "done",
         title: ROW_TITLE[id],
         detail: tail[id],
+        ...(id === "suggest" ? {} : { details: stepSummary(job, id) }),
       });
     } else {
       rows.push({ id, state: "queued", title: ROW_TITLE[id] });
