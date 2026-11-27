@@ -1,5 +1,4 @@
 import { parse } from "@babel/parser";
-import traverse from "@babel/traverse";
 import * as t from "@babel/types";
 import { act, fireEvent, render, renderHook } from "@testing-library/react";
 import {
@@ -17,43 +16,81 @@ import {
 } from "../test/stableCallbackGovernance";
 import { useStableCallback } from "./useStableCallback";
 
-function stableDeclarationMutations(
-  source: SourceInput,
-): Array<{ source: SourceInput; callback: string; line: number }> {
-  if (!source.text.includes("useStableCallback")) return [];
+type FileMutation = {
+  source: SourceInput;
+  callbacks: string[];
+  expected: Array<{
+    file: string;
+    line: number;
+    column: number;
+    callback: string;
+  }>;
+};
+
+let pristineScan:
+  | { stable: readonly SourceInput[]; sources: readonly SourceInput[] }
+  | undefined;
+
+function pristineProduction() {
+  if (pristineScan) return pristineScan;
+  const sources = Object.freeze(
+    [...sourceFiles()]
+      .filter(
+        ({ rel }) =>
+          !rel.includes(".test.") &&
+          !rel.startsWith("test/") &&
+          !rel.includes(".stories."),
+      )
+      .map(({ rel, text }) => Object.freeze({ rel, text })),
+  );
+  pristineScan = {
+    sources,
+    stable: Object.freeze(
+      sources.filter(({ text }) => text.includes("useStableCallback")),
+    ),
+  };
+  return pristineScan;
+}
+
+function stableDeclarationMutation(source: SourceInput): FileMutation | null {
   const ast = parse(source.text, {
     sourceType: "unambiguous",
     plugins: ["typescript", "jsx"],
   });
-  const mutations: Array<{
-    source: SourceInput;
-    callback: string;
-    line: number;
-  }> = [];
-  traverse(ast, {
-    VariableDeclarator(path) {
-      const { id, init } = path.node;
-      const end = path.parentPath.node.end;
+  const insertions: Array<{ end: number; callback: string; line: number }> = [];
+  t.traverseFast(ast, (node) => {
+    if (!t.isVariableDeclaration(node) || node.end == null) return;
+    const end = node.end;
+    for (const { id, init } of node.declarations) {
       if (
         t.isIdentifier(id) &&
         t.isCallExpression(init) &&
-        t.isIdentifier(init.callee, { name: "useStableCallback" }) &&
-        path.parentPath.isVariableDeclaration() &&
-        end != null
+        t.isIdentifier(init.callee, { name: "useStableCallback" })
       ) {
-        const prefix = source.text.slice(0, end);
-        mutations.push({
-          source: {
-            rel: source.rel,
-            text: `${prefix}\n    ${id.name}();${source.text.slice(end)}`,
-          },
+        insertions.push({
+          end,
           callback: id.name,
-          line: prefix.split("\n").length + 1,
+          line: source.text.slice(0, end).split("\n").length + 1,
         });
       }
-    },
+    }
   });
-  return mutations;
+  if (insertions.length === 0) return null;
+  insertions.sort((a, b) => a.end - b.end);
+  let text = source.text;
+  for (const { end, callback } of [...insertions].reverse()) {
+    text = `${text.slice(0, end)}\n    ${callback}();${text.slice(end)}`;
+  }
+  return {
+    source: { rel: source.rel, text },
+    callbacks: insertions.map(({ callback }) => callback),
+    expected: insertions.map(({ callback, line }, earlier) => ({
+      file: source.rel,
+      line: line + earlier,
+      column: 5,
+      callback,
+    })),
+  };
 }
 
 describe("useStableCallback", () => {
@@ -299,16 +336,14 @@ describe("stable callback source governance", () => {
   });
 
   it("rejects every current stable callback declaration after an in-memory mutation", () => {
-    const owners = [...sourceFiles()].filter(
-      ({ rel }) =>
-        !rel.includes(".test.") &&
-        !rel.startsWith("test/") &&
-        !rel.includes(".stories."),
-    );
-    const mutations = owners.flatMap(stableDeclarationMutations);
+    const mutations = pristineProduction()
+      .stable.map(stableDeclarationMutation)
+      .filter((mutation): mutation is FileMutation => mutation !== null);
     expect(
       mutations
-        .map(({ source, callback }) => `${source.rel}:${callback}`)
+        .flatMap(({ source, callbacks }) =>
+          callbacks.map((callback) => `${source.rel}:${callback}`),
+        )
         .sort(),
     ).toEqual([
       "home/HelpDialog.tsx:acceptsSession",
@@ -443,28 +478,16 @@ describe("stable callback source governance", () => {
       "ui/useAnchoredPanel.ts:place",
       "ui/useDialogModal.ts:close",
     ]);
-    for (const mutation of mutations) {
-      expect(findStableCallbackRenderCalls(mutation.source)).toEqual([
-        {
-          file: mutation.source.rel,
-          line: mutation.line,
-          column: 5,
-          callback: mutation.callback,
-        },
-      ]);
+    for (const { source, expected } of mutations) {
+      expect(findStableCallbackRenderCalls(source), source.rel).toEqual(
+        expected,
+      );
     }
   });
 
-  it("automatically scans all production source files and excludes tests and support", () => {
-    for (const source of sourceFiles()) {
-      if (
-        source.rel.includes(".test.") ||
-        source.rel.startsWith("test/") ||
-        source.rel.includes(".stories.")
-      ) {
-        continue;
-      }
+  it("finds no render-time call of a stable callback in production sources that use useStableCallback", () => {
+    for (const source of pristineProduction().stable) {
       expect(findStableCallbackRenderCalls(source), source.rel).toEqual([]);
     }
-  }, 30_000);
+  });
 });
