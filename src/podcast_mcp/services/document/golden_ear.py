@@ -12,8 +12,9 @@ import os
 import random
 import shutil
 import wave
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pydantic import ValidationError
 
@@ -31,6 +32,7 @@ from podcast_mcp.project.io import (
     rewrite_workspace_dir,
 )
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document.analysis_report_results import FfmpegAstats, MainsHum
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.fingerprint import file_stamp
@@ -39,6 +41,19 @@ from podcast_mcp.util.progress import progress_task
 from podcast_mcp.util.wav import open_wav
 
 from .edit import EditService
+from .golden_ear_results import (
+    AcceptanceRollup,
+    AudioRoleEntry,
+    BuildResult,
+    JoinMetrics,
+    JoinQualityWire,
+    PairAudioDiagnostics,
+    PairRow,
+    PerClassRollups,
+    ScoreReport,
+    SourceFingerprint,
+    WavPair,
+)
 from .play import PlayService
 from .play_compose_results import AuditionContextReport
 from .timeline import TimelineService
@@ -98,7 +113,7 @@ def min_gated_n_for(limit: int) -> int:
     return 1 if int(limit) < GATED_N_FLOOR else GATED_N_FLOOR
 
 
-def source_fingerprint(src_file: Path) -> dict[str, Any]:
+def source_fingerprint(src_file: Path) -> SourceFingerprint:
     path = src_file.resolve()
     size, mtime_ns = file_stamp(path).content
     return {"path": str(path), "mtime_ns": mtime_ns, "size": size}
@@ -150,7 +165,7 @@ def copy_relocated_project(src_project: Path, dest_workspace: Path) -> Path:
         shutil.rmtree(partial)
     copy_relocated_workspace(src_file, partial)
     _copy_premix(src_ws, partial)
-    write_json_atomic(partial / SOURCE_FP_NAME, fp)
+    write_json_atomic(partial / SOURCE_FP_NAME, dict(fp))
     os.replace(partial, dest_ws)
     return rewrite_workspace_dir(dest_file)
 
@@ -163,7 +178,7 @@ def _reason_class(reason: str | None, classes: tuple[str, ...]) -> str | None:
     return None
 
 
-def _gated(join_quality: dict[str, Any]) -> bool:
+def _gated(join_quality: JoinMetrics) -> bool:
     return str(join_quality.get("verdict") or "") == "pass"
 
 
@@ -253,7 +268,7 @@ def _render_pair_wavs(
     *,
     pad_sec: float,
     rng: random.Random,
-) -> dict[str, Any] | None:
+) -> WavPair | None:
     window = resolve_pending_preview(play.project, edit.id, pad_sec=pad_sec)
     if window.suggest_reason:
         return None
@@ -293,7 +308,7 @@ def _render_pair_wavs(
 
 
 def _pair_audition_context(
-    play: PlayService, wavs: dict[str, Any]
+    play: PlayService, wavs: WavPair
 ) -> tuple[AuditionContextReport | None, str | None]:
     """Build owner-only diagnostics, recording failures without unblinding listeners."""
     try:
@@ -310,40 +325,55 @@ def _pair_audition_context(
         return None, f"{type(exc).__name__}: {exc}"
 
 
+def _audio_role_entry(
+    engine: FFmpegEngine, filename: str, pair_dir: Path, image_path: Path, image_relative: Path
+) -> AudioRoleEntry:
+    audio_path = pair_dir / filename
+    entry: AudioRoleEntry = {"file": filename}
+    try:
+        astats = cast(FfmpegAstats, FFmpegEngine.astats(audio_path))
+        entry["astats"] = astats
+        if not any(value is not None for value in astats.values()):
+            entry["error"] = "astats unavailable: no metrics"
+        entry["hum"] = cast(MainsHum, detect_mains_hum(audio_path))
+        engine.render_showwavespic(audio_path, image_path)
+        entry["waveform_png"] = str(image_relative)
+    except JOIN_ERRORS as exc:
+        image_path.unlink(missing_ok=True)
+        entry["error"] = f"{type(exc).__name__}: {exc}"
+    return entry
+
+
 def _pair_audio_diagnostics(
-    pair_dir: Path, wavs: dict[str, Any], diagnostics_dir: Path, pair_id: str
-) -> dict[str, Any]:
+    pair_dir: Path, wavs: WavPair, diagnostics_dir: Path, pair_id: str
+) -> PairAudioDiagnostics:
     """Analyze only the two rendered WAVs; keep images outside the listen pack."""
     engine = FFmpegEngine()
-    result: dict[str, Any] = {"source": "rendered_pair_wavs"}
-    for role, file_key in (("current", "leave_file"), ("suggested", "edit_file")):
-        filename = str(wavs[file_key])
-        audio_path = pair_dir / filename
-        image_relative = Path("diagnostics") / pair_id / f"{role}.png"
-        image_path = diagnostics_dir / f"{role}.png"
-        entry: dict[str, Any] = {"file": filename}
-        try:
-            astats = FFmpegEngine.astats(audio_path)
-            entry["astats"] = astats
-            if not any(value is not None for value in astats.values()):
-                entry["error"] = "astats unavailable: no metrics"
-            entry["hum"] = detect_mains_hum(audio_path)
-            engine.render_showwavespic(audio_path, image_path)
-            entry["waveform_png"] = str(image_relative)
-        except JOIN_ERRORS as exc:
-            image_path.unlink(missing_ok=True)
-            entry["error"] = f"{type(exc).__name__}: {exc}"
-        result[role] = entry
-    return result
+
+    def entry(role: str, filename: str) -> AudioRoleEntry:
+        return _audio_role_entry(
+            engine,
+            str(filename),
+            pair_dir,
+            diagnostics_dir / f"{role}.png",
+            Path("diagnostics") / pair_id / f"{role}.png",
+        )
+
+    return {
+        "source": "rendered_pair_wavs",
+        "current": entry("current", wavs["leave_file"]),
+        "suggested": entry("suggested", wavs["edit_file"]),
+    }
 
 
 def _join_metrics(
     edit_svc: EditService,
     edit: EditDecision,
     audio_caches: dict[str, TrackAudioCache] | None,
-) -> dict[str, Any]:
+) -> JoinMetrics:
     try:
-        return (
+        return cast(
+            JoinQualityWire,
             TimelineService(edit_svc.ws)
             .join_quality(
                 track_id=edit.track_id,
@@ -352,7 +382,7 @@ def _join_metrics(
                 timebase="source",
                 audio_caches=audio_caches,
             )
-            .model_dump()
+            .model_dump(),
         )
     except ValidationError:
         raise
@@ -417,7 +447,7 @@ def build_golden_ear(
     pad_sec: float = DEFAULT_PAD_SEC,
     force: bool = False,
     intensity: str | None = None,
-) -> dict[str, Any]:
+) -> BuildResult:
     """Propose (no apply) on a relocated copy and write blinded A/B pairs.
 
     ``intensity`` (light/medium/aggressive) picks the tighten preset to evaluate;
@@ -454,7 +484,7 @@ def build_golden_ear(
     listen_root.mkdir(parents=True, exist_ok=True)
     track_ids = {edit.track_id for edit in candidates}
     audio_caches = build_track_audio_caches(ws.project, track_ids) if track_ids else {}
-    pairs: list[dict[str, Any]] = []
+    pairs: list[PairRow] = []
     skipped = 0
     with progress_task("golden-ear-build", "Golden-ear pairs", total=cap) as task:
         task.set_phase("render", "Render leave-in and edited windows")
@@ -474,26 +504,29 @@ def build_golden_ear(
                 pair_dir, wavs, staging / "diagnostics" / pair_id, pair_id
             )
             pairs.append(
-                {
-                    "id": pair_id,
-                    "edit_id": edit.id,
-                    "reason": edit.reason,
-                    "class": reason_class,
-                    "track_id": edit.track_id,
-                    "start": edit.start,
-                    "end": edit.end,
-                    "gated": _gated(join_quality),
-                    "join_quality": join_quality,
-                    "audition_context": audition_context,
-                    "audition_context_source": "project_timeline_metadata_only",
-                    "pair_diagnostics": pair_diagnostics,
-                    **(
-                        {"audition_context_error": audition_context_error}
-                        if audition_context_error is not None
-                        else {}
-                    ),
-                    **wavs,
-                }
+                cast(
+                    PairRow,
+                    {
+                        "id": pair_id,
+                        "edit_id": edit.id,
+                        "reason": edit.reason,
+                        "class": reason_class,
+                        "track_id": edit.track_id,
+                        "start": edit.start,
+                        "end": edit.end,
+                        "gated": _gated(join_quality),
+                        "join_quality": join_quality,
+                        "audition_context": audition_context,
+                        "audition_context_source": "project_timeline_metadata_only",
+                        "pair_diagnostics": pair_diagnostics,
+                        **(
+                            {"audition_context_error": audition_context_error}
+                            if audition_context_error is not None
+                            else {}
+                        ),
+                        **wavs,
+                    },
+                )
             )
             task.advance(1, message=pair_id)
     key = {
@@ -541,7 +574,7 @@ def build_golden_ear(
     }
 
 
-def _normalize_prefer(raw: str, meta: dict[str, Any]) -> str | None:
+def _normalize_prefer(raw: str, meta: Mapping[str, Any]) -> str | None:
     text = raw.strip().lower().replace("_", "-").replace(" ", "")
     if not text:
         return None
@@ -566,8 +599,8 @@ def _normalize_leftover(raw: str) -> bool | None:
     return None
 
 
-def _read_answers(answers_path: Path) -> dict[str, dict[str, str]]:
-    rows: dict[str, dict[str, str]] = {}
+def _read_answers(answers_path: Path) -> Mapping[str, Mapping[str, str | None]]:
+    rows: dict[str, Mapping[str, str | None]] = {}
     with answers_path.open(encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle):
             pair_id = (row.get("pair_id") or "").strip()
@@ -577,7 +610,7 @@ def _read_answers(answers_path: Path) -> dict[str, dict[str, str]]:
     return rows
 
 
-def score_golden_ear(out_dir: Path, answers: Path) -> dict[str, Any]:
+def score_golden_ear(out_dir: Path, answers: Path) -> ScoreReport:
     """Score a filled answers CSV against ``key.json`` in ``out_dir``."""
     root = Path(out_dir).expanduser().resolve()
     key_path = root / "key.json"
@@ -640,7 +673,7 @@ def score_golden_ear(out_dir: Path, answers: Path) -> dict[str, Any]:
             return None
         return sum(1 for r in rows if r["prefer"] == "edit") / len(rows)
 
-    def _acceptance_rollup(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    def _acceptance_rollup(rows: list[dict[str, Any]]) -> AcceptanceRollup:
         answered = [row for row in rows if row["answered"]]
         return {
             "n": len(rows),
@@ -653,7 +686,7 @@ def score_golden_ear(out_dir: Path, answers: Path) -> dict[str, Any]:
         }
 
     gated_rows = [r for r in scored if r["gated"]]
-    per_class: dict[str, Any] = {}
+    per_class: dict[str, AcceptanceRollup] = {}
     for name in ALLOWED_CLASSES:
         class_rows = [r for r in scored if r["class"] == name]
         per_class[name] = {
@@ -700,7 +733,7 @@ def score_golden_ear(out_dir: Path, answers: Path) -> dict[str, Any]:
         fail_reasons.append(
             f"pair_count={pair_count} gated_n={gated_n} n_answers={len(scored) - missing_n}"
         )
-    report = {
+    report: ScoreReport = {
         "n_answers": len(scored) - missing_n,
         "gated_n": gated_n,
         "all_n": len(scored),
@@ -709,7 +742,7 @@ def score_golden_ear(out_dir: Path, answers: Path) -> dict[str, Any]:
         "min_gated_n": min_gated_n,
         "prefer_edit_all": prefer_edit_all,
         "prefer_edit_gated": prefer_edit_gated,
-        "per_class": per_class,
+        "per_class": cast(PerClassRollups, per_class),
         "per_reason": per_reason,
         "per_track": per_track,
         "leftover_consonant_fails": leftover_fails,
