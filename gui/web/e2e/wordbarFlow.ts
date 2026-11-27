@@ -3,6 +3,7 @@ import { expect, type Page } from "@playwright/test";
 import { isApplePlatform } from "../src/utils/platform";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import type { Finger } from "./finger";
 import { inspectSelectionByKey, openProject } from "./stageNav";
 import { openScript, withDocumentCommandTypes } from "./transcriptEdit";
 
@@ -18,13 +19,18 @@ function transcripts(): unknown {
   );
 }
 
-export async function checkWordbarOutsideRelease(page: Page): Promise<void> {
+async function openWordbar(page: Page) {
   await openProject(page, e2eProjectPath);
   const list = await openScript(page);
   await list.locator(".sys-script-word").first().click();
   await inspectSelectionByKey(page);
   const end = page.getByRole("spinbutton", { name: "Word end" });
   await expect(end).toBeEnabled();
+  return end;
+}
+
+export async function checkWordbarOutsideRelease(page: Page): Promise<void> {
+  await openWordbar(page);
   await expectPageAxeClean(page, ".transcript-wordbar");
   const before = transcripts();
   await withDocumentCommandTypes(page, async (commands) => {
@@ -54,5 +60,58 @@ export async function checkWordbarOutsideRelease(page: Page): Promise<void> {
       (await page.evaluate(isApplePlatform)) ? "Meta+z" : "Control+z",
     );
     await expect.poll(transcripts).toEqual(before);
+  });
+}
+
+const SAVE = "SetTranscriptWordTiming";
+
+async function endHandleCenter(page: Page) {
+  const handle = page.locator('[data-boundary="end"] .wordbar-handle');
+  await handle.scrollIntoViewIfNeeded();
+  const box = await handle.boundingBox();
+  if (!box) throw new Error("Missing word boundary handle");
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+export async function checkWordbarInterruptsEndTouchDrag(
+  page: Page,
+  finger: Finger,
+): Promise<void> {
+  const end = await openWordbar(page);
+  const saved = await end.getAttribute("aria-valuenow");
+  const before = transcripts();
+  await withDocumentCommandTypes(page, async (commands) => {
+    const saves = () => commands.filter((type) => type === SAVE).length;
+    const pull = async () => {
+      const at = await endHandleCenter(page);
+      await finger.down(at);
+      await finger.move({ x: at.x + 8, y: at.y });
+      await finger.move({ x: at.x + 24, y: at.y });
+      await expect(end).not.toHaveAttribute("aria-valuenow", saved ?? "");
+    };
+
+    await pull();
+    await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+    await expect(end).toHaveAttribute("aria-valuenow", saved ?? "");
+    await finger.up();
+
+    const size = page.viewportSize();
+    if (!size) throw new Error("Missing viewport");
+    await pull();
+    await page.setViewportSize({
+      width: size.width - 120,
+      height: size.height,
+    });
+    await expect(end).toHaveAttribute("aria-valuenow", saved ?? "");
+    await finger.up();
+    await page.setViewportSize(size);
+
+    await pull();
+    await finger.up();
+    await expect(
+      page.getByText("Timing saved. One Undo restores both boundaries."),
+    ).toBeVisible();
+    expect(saves()).toBe(1);
+    expect(transcripts()).not.toEqual(before);
   });
 }
