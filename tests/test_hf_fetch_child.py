@@ -284,7 +284,6 @@ def test_a_child_error_logs_the_stderr_tail_before_the_log_is_removed(
     "payload",
     [
         {"kind": "http", "status": "404", "message": "m", "error": "E"},
-        {"kind": "disk", "status": None, "errno": "28", "message": "m", "error": "E"},
         {"kind": 5, "status": [], "errno": {}, "message": None, "error": None},
         {"kind": "http", "status": True, "message": "m", "error": "E"},
     ],
@@ -298,6 +297,20 @@ def test_a_malformed_child_error_never_breaks_the_classifier(
         download_pinned_snapshot(PIN, tmp_path / "hub")
 
     assert classify(raised.value, label="x", fix="y") is None
+
+
+def test_a_child_disk_error_with_a_malformed_errno_is_read_as_disk_full(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    payload = {"kind": "disk", "status": None, "errno": "28", "message": "m", "error": "E"}
+    _stub(monkeypatch, f"import json,sys; print(json.dumps({payload!r})); sys.exit(1)")
+
+    with pytest.raises(HubChildError) as raised:
+        download_pinned_snapshot(PIN, tmp_path / "hub")
+
+    failure = classify(raised.value, label="x", fix="y")
+    assert failure is not None
+    assert failure.plain == "There isn't enough free disk space to save x."
 
 
 def test_progress_is_reported_on_every_poll_even_when_no_bytes_arrive(
