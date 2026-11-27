@@ -528,7 +528,7 @@ describe("HomeScreen", () => {
         const field = await screen.findByRole("textbox", {
           name: "Folder of the episode",
         });
-        expect(field).toHaveFocus();
+        await waitFor(() => expect(field).toHaveFocus());
         if (path) await user.type(field, path);
         await user.keyboard("{Enter}");
         expect(await screen.findByRole("alert")).toHaveTextContent(
