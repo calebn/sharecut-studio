@@ -252,6 +252,32 @@ describe("a page interrupt mid-drag", () => {
     expect(tracked.registered()).toBeGreaterThan(0);
   });
 
+  it("a release the busy guard refused leaves the context window and draft alone", async () => {
+    let finish!: (value: { changed: true; server_seq: number }) => void;
+    vi.mocked(saveWordTiming).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve as typeof finish;
+        }),
+    );
+    await drag();
+    const mark = () =>
+      document
+        .querySelector<HTMLElement>('[data-boundary="start"]')
+        ?.style.getPropertyValue("--wordbar-position");
+    fireEvent.pointerUp(handle("start"), { pointerId: 1 });
+    await waitFor(() => expect(saveWordTiming).toHaveBeenCalledTimes(1));
+    const placed = mark();
+    fireEvent.pointerMove(handle("start"), { pointerId: 1, clientX: 290 });
+    fireEvent.pointerUp(handle("start"), { pointerId: 1 });
+    expect(mark()).toBe(placed);
+    expect(valueNow()).toBe("2.2");
+    await act(async () =>
+      finish({ changed: true, server_seq: currentDocumentSeq() }),
+    );
+    expect(saveWordTiming).toHaveBeenCalledTimes(1);
+  });
+
   it("an interrupt after a release the busy guard refused does not revert the drag", async () => {
     let finish!: (value: { changed: true; server_seq: number }) => void;
     vi.mocked(saveWordTiming).mockImplementationOnce(

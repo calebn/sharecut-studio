@@ -143,6 +143,13 @@ describe("SuggestionWaveform and a page interrupt", () => {
     },
   );
 
+  it("pointercancel restores the range like an interrupt", () => {
+    const { onAdjust } = hold();
+    fireEvent.pointerCancel(end(), { pointerId: 1 });
+    expect(onAdjust).toHaveBeenCalledTimes(2);
+    expect(onAdjust.mock.lastCall?.[0]).toEqual({ start: 103, end: 105 });
+  });
+
   it("adjusts nothing for a press that never moved", () => {
     const { onAdjust, onAdjustStart } = setup();
     fireEvent.pointerDown(end(), { clientX: 700, pointerId: 1 });

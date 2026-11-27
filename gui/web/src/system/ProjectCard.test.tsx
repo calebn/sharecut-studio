@@ -336,7 +336,7 @@ describe("ProjectCardList actions", () => {
       };
 
       it.each(Object.entries(dragInterrupts))(
-        "%s drops the swipe without revealing, and the next click opens the row",
+        "%s drops the swipe without revealing, swallows the release click, and the next tap opens the row",
         (_name, interrupt) => {
           const { cards, onOpen, slide, row } = hold();
           expect(slide).toHaveAttribute("data-dragging", "true");
@@ -344,6 +344,10 @@ describe("ProjectCardList actions", () => {
           expect(slide).not.toHaveAttribute("data-dragging");
           fireEvent.pointerUp(slide, at(120));
           expect(row).not.toHaveAttribute("data-revealed");
+          fireEvent.click(cards[0]);
+          expect(onOpen).not.toHaveBeenCalled();
+          fireEvent.pointerDown(slide, at(200));
+          fireEvent.pointerUp(slide, at(200));
           fireEvent.click(cards[0]);
           expect(onOpen).toHaveBeenCalledOnce();
         },

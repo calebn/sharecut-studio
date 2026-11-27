@@ -51,18 +51,22 @@ export const dragInterrupts = {
 
 export function trackInterruptSignals() {
   const signals: AbortSignal[] = [];
-  const add = window.addEventListener.bind(window);
-  vi.spyOn(window, "addEventListener").mockImplementation(
-    (type: string, listener: unknown, options?: unknown) => {
-      const signal = (options as AddEventListenerOptions | undefined)?.signal;
-      if (
-        signal &&
-        ["blur", "pagehide", "resize", "orientationchange"].includes(type)
-      )
-        signals.push(signal);
-      add(type, listener as EventListener, options as AddEventListenerOptions);
-    },
-  );
+  const track = (target: Window | Document, types: string[]) => {
+    const add = target.addEventListener.bind(target);
+    vi.spyOn(target, "addEventListener").mockImplementation(
+      (type: string, listener: unknown, options?: unknown) => {
+        const signal = (options as AddEventListenerOptions | undefined)?.signal;
+        if (signal && types.includes(type)) signals.push(signal);
+        add(
+          type,
+          listener as EventListener,
+          options as AddEventListenerOptions,
+        );
+      },
+    );
+  };
+  track(window, ["blur", "pagehide", "resize", "orientationchange"]);
+  track(document, ["visibilitychange"]);
   return {
     registered: () => signals.length,
     live: () => signals.filter((signal) => !signal.aborted).length,

@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
+import { useDragInterruptWatch } from "../hooks/useDragInterruptWatch";
 import { HoverTip } from "./HoverTip";
 import { SystemIcon } from "./SystemIcon";
 import { useHoverTip } from "./useHoverTip";
@@ -95,11 +95,7 @@ function useRollGesture(roll: SeamRoll, onTap?: () => void) {
     hi: number;
   } | null>(null);
   const moved = useRef(false);
-  const watch = useRef<AbortController | null>(null);
-  const unwatch = () => {
-    watch.current?.abort();
-    watch.current = null;
-  };
+  const { start: watchInterrupts, stop: unwatch } = useDragInterruptWatch();
   const end = () => {
     drag.current = null;
     unwatch();
@@ -123,11 +119,12 @@ function useRollGesture(roll: SeamRoll, onTap?: () => void) {
       ?.querySelector<HTMLElement>(".sys-seam-hit")
       ?.focus({ preventScroll: true });
     moved.current = false;
-    unwatch();
-    watch.current = new AbortController();
-    listenForDragInterrupt(() => {
-      if (drag.current) end();
-    }, watch.current.signal);
+    watchInterrupts(() => {
+      const d = drag.current;
+      if (!d) return;
+      moved.current = d.moved;
+      end();
+    });
     drag.current = {
       id: event.pointerId,
       originX: event.clientX,
@@ -178,7 +175,6 @@ function useRollGesture(roll: SeamRoll, onTap?: () => void) {
   preview.current = roll.onPreview;
   useEffect(
     () => () => {
-      watch.current?.abort();
       if (drag.current) preview.current?.(null);
     },
     [],

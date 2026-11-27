@@ -60,7 +60,7 @@ npm --prefix gui/web run build
 npm --prefix gui/web run test:e2e -- envelope-recovery.spec.ts arrange-chrome.spec.ts pinned-ruler.spec.ts \
   fade-curves.spec.ts crossfade-length.spec.ts transitions-acceptance.spec.ts \
   contextual-range.spec.ts edit-boundary-archive.spec.ts \
-  transcript-wordbar.spec.ts \
+  transcript-wordbar.spec.ts transcript-wordbar-interrupt.spec.ts \
   pending-edge-controls.spec.ts --retries=0
 VITE_SHARECUT_E2E=1 npm --prefix gui/web run build
 npm --prefix gui/web run test:e2e -- waveform.spec.ts \
