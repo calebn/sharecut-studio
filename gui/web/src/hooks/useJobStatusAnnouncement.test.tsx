@@ -592,10 +592,39 @@ describe("owned outcome transactions", () => {
     });
     expect(st().statusAnnouncementSeq).toBe(seq + 1);
     expect(screen.getByRole("status").textContent).toBe(
-      "Pipeline is running. Running transcribe_tracks. 2 activities. " +
+      "Pipeline is running. Transcribing. 2 activities. " +
         "Export failed. The export result could not be verified. Try exporting again. " +
         "Exported 2 Broadcast audio files. " +
         "Activity finished. External complete. 3 activities",
+    );
+  });
+
+  it("never speaks a step id or an engine summary for a pipeline job", () => {
+    render(<StatusLive />);
+    const say = (message: string, status: "running" | "ok") => {
+      act(() => {
+        st().setActivityJob(
+          pipelineJobSnapshot({
+            id: `p-${message}`,
+            kind: "pipeline",
+            status,
+            message,
+          }),
+        );
+      });
+      return screen.getByRole("status").textContent;
+    };
+    expect(say("Running export_deliverables", "running")).toBe(
+      "Pipeline is running",
+    );
+    expect(say("Completed clean_audio: highpass on 2 tracks", "running")).toBe(
+      "Pipeline is running",
+    );
+    expect(say("Completed export_deliverables: 2 files", "ok")).toBe(
+      "Pipeline finished",
+    );
+    expect(say("Running align_tracks", "running")).toBe(
+      "Pipeline is running. Lining up tracks",
     );
   });
 
@@ -616,7 +645,7 @@ describe("owned outcome transactions", () => {
     });
     expect(st().feedbackToast).toBeNull();
     expect(screen.getByRole("status").textContent).toBe(
-      "Pipeline is running. Running transcribe_tracks. 2 activities. " +
+      "Pipeline is running. Transcribing. 2 activities. " +
         "Export failed. The export result could not be verified. Try exporting again.",
     );
   });

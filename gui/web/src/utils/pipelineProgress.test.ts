@@ -14,6 +14,7 @@ import {
   pipelineProgressPercent,
   pipelineUnitNoun,
   pipelineUnitsLabel,
+  plainJobMessage,
   STALE_AFTER_S,
   staleUpdateLabel,
   truncateHeadline,
@@ -209,5 +210,71 @@ describe("pipelineChromeLabel on a failure", () => {
     );
     expect(label).not.toMatch(/PODCAST/);
     expect(label).toContain("Export failed.");
+  });
+});
+
+describe("plainJobMessage", () => {
+  const pipeline = (status: PipelineJobSnapshot["status"]) =>
+    ({ kind: "pipeline", status }) as const;
+
+  it("turns Running <step> into the row's activity wording", () => {
+    expect(
+      plainJobMessage(pipeline("running"), "Running transcribe_tracks"),
+    ).toBe("Transcribing");
+    expect(plainJobMessage(pipeline("running"), "Running align_tracks")).toBe(
+      "Lining up tracks",
+    );
+    expect(plainJobMessage(pipeline("running"), "Running balance_tracks")).toBe(
+      "Cleaning",
+    );
+    expect(
+      plainJobMessage(pipeline("running"), "Running analyze_fillers_pauses"),
+    ).toBe("Finding suggestions");
+  });
+
+  it("says nothing for a step with no row", () => {
+    for (const id of ["export_deliverables", "master_loudness", "mix_music"]) {
+      expect(plainJobMessage(pipeline("running"), `Running ${id}`)).toBe("");
+    }
+  });
+
+  it("drops Completed <step>: summary on a running or finished pipeline job", () => {
+    const text = "Completed clean_audio: highpass on 2 dialogue tracks";
+    expect(plainJobMessage(pipeline("running"), text)).toBe("");
+    expect(plainJobMessage(pipeline("ok"), text)).toBe("");
+  });
+
+  it("leaves other messages, other kinds and failures unchanged", () => {
+    expect(plainJobMessage(pipeline("running"), "Writing deliverables")).toBe(
+      "Writing deliverables",
+    );
+    expect(
+      plainJobMessage({ kind: "bounce", status: "running" }, "Running x_y"),
+    ).toBe("Running x_y");
+    expect(
+      plainJobMessage(pipeline("error"), "Completed clean_audio: boom"),
+    ).toBe("Completed clean_audio: boom");
+    expect(plainJobMessage(pipeline("running"), null)).toBe("");
+  });
+
+  it("feeds the chrome label so the chip never names a step id", () => {
+    expect(
+      pipelineChromeLabel(
+        job({ status: "running", message: "Running export_deliverables" }),
+      ),
+    ).toBe("Pipeline is running");
+    expect(
+      pipelineChromeLabel(
+        job({ status: "running", message: "Running align_tracks" }),
+      ),
+    ).toBe("Pipeline is running · Lining up tracks");
+    expect(
+      pipelineChromeLabel(
+        job({
+          status: "ok",
+          message: "Completed export_deliverables: 2 files",
+        }),
+      ),
+    ).toBe("Pipeline finished");
   });
 });
