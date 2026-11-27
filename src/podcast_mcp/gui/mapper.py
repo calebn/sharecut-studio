@@ -45,7 +45,7 @@ def map_pending_edits_to_timeline(
     project: EpisodeProject,
     decisions: list[EditDecision],
     *,
-    unsure_words: Mapping[str, list[dict[str, Any]]] | None = None,
+    unsure_words: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
     """Map pending edit decisions from source clock to timeline intervals.
 
@@ -156,7 +156,7 @@ def map_pending_edits_to_timeline(
 
 
 def _unsure_fields(
-    unsure_words: Mapping[str, list[dict[str, Any]]] | None, edit_id: str
+    unsure_words: Mapping[str, Sequence[Mapping[str, Any]]] | None, edit_id: str
 ) -> dict[str, Any]:
     if unsure_words is None:
         return {}

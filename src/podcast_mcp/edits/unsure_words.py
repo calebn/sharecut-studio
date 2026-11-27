@@ -13,11 +13,21 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import Any
 
+from typing_extensions import TypedDict
+
 from podcast_mcp.edits.decisions import UNSURE_WORD_REASON, HeldEdit
 from podcast_mcp.edits.source_removals import cut_label
 from podcast_mcp.engines.session_timeline import word_source_span
 from podcast_mcp.models import EditDecision, EditDecisionType, EpisodeProject, TranscriptWord
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
+
+
+class UnsureWord(TypedDict):
+    track_id: str
+    source_id: str | None
+    word_index: int
+    text: str
+    confidence: float
 
 
 def is_unsure_word(word: TranscriptWord, threshold: float) -> bool:
@@ -39,7 +49,7 @@ def _word_span(word: TranscriptWord) -> tuple[float, float]:
 
 def unsure_words_by_edit(
     project: EpisodeProject, edits: Iterable[EditDecision], threshold: float
-) -> dict[str, list[dict[str, Any]]]:
+) -> dict[str, list[UnsureWord]]:
     """For each source-clock cut, the unsure words whose span overlaps it, in word order.
 
     One index per transcript holds only its unsure words, so the work is linear in the words
@@ -64,7 +74,7 @@ def unsure_words_by_edit(
                 indexes[key] = (transcript, unsure, spans)
         return indexes[key]
 
-    found: dict[str, list[dict[str, Any]]] = {}
+    found: dict[str, list[UnsureWord]] = {}
     for edit in edits:
         found[edit.id] = []
         if (
