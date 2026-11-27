@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
 import { HoverTip } from "./HoverTip";
 import { SystemIcon } from "./SystemIcon";
 import { useHoverTip } from "./useHoverTip";
@@ -94,8 +95,14 @@ function useRollGesture(roll: SeamRoll, onTap?: () => void) {
     hi: number;
   } | null>(null);
   const moved = useRef(false);
+  const watch = useRef<AbortController | null>(null);
+  const unwatch = () => {
+    watch.current?.abort();
+    watch.current = null;
+  };
   const end = () => {
     drag.current = null;
+    unwatch();
     setShown(null);
     roll.onPreview?.(null);
   };
@@ -116,6 +123,11 @@ function useRollGesture(roll: SeamRoll, onTap?: () => void) {
       ?.querySelector<HTMLElement>(".sys-seam-hit")
       ?.focus({ preventScroll: true });
     moved.current = false;
+    unwatch();
+    watch.current = new AbortController();
+    listenForDragInterrupt(() => {
+      if (drag.current) end();
+    }, watch.current.signal);
     drag.current = {
       id: event.pointerId,
       originX: event.clientX,
@@ -150,6 +162,7 @@ function useRollGesture(roll: SeamRoll, onTap?: () => void) {
     const d = drag.current;
     if (!d || d.id !== event.pointerId) return;
     drag.current = null;
+    unwatch();
     setShown(null);
     moved.current = d.moved;
     const ms = Math.round(d.ms / stepMs) * stepMs;
@@ -165,6 +178,7 @@ function useRollGesture(roll: SeamRoll, onTap?: () => void) {
   preview.current = roll.onPreview;
   useEffect(
     () => () => {
+      watch.current?.abort();
       if (drag.current) preview.current?.(null);
     },
     [],

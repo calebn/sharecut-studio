@@ -1,6 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  dragInterrupts,
+  pageRotations,
+  resetViewport,
+  trackInterruptSignals,
+} from "../test/pageInterrupts";
 import { QueueRow } from "./QueueRow";
 
 const swipe = (el: Element, dx: number) => {
@@ -168,5 +174,74 @@ describe("QueueRow", () => {
       screen.getByRole("button", { name: /Lift Jon.*Host and producers only/ }),
     ).toBeInTheDocument();
     expect(container.querySelector(".sys-queue-restricted")).not.toBeNull();
+  });
+});
+
+describe("QueueRow swipe and a page interrupt", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetViewport();
+  });
+
+  const setup = () => {
+    const onVerb = vi.fn();
+    const onKeep = vi.fn();
+    const onSelect = vi.fn();
+    const vibrate = vi.fn();
+    Object.defineProperty(navigator, "vibrate", {
+      configurable: true,
+      value: vibrate,
+    });
+    render(
+      <QueueRow
+        kind="filler"
+        snippet="um"
+        time="18:36"
+        onSelect={onSelect}
+        onVerb={onVerb}
+        onKeep={onKeep}
+      />,
+    );
+    const button = screen.getByRole("button");
+    fireEvent.pointerDown(button, {
+      clientX: 100,
+      clientY: 0,
+      isPrimary: true,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(button, { clientX: 190, clientY: 0, pointerId: 1 });
+    return { button, onVerb, onKeep, onSelect, vibrate };
+  };
+
+  it.each(Object.entries(dragInterrupts))(
+    "%s drops the swipe with no decision, and a later release does nothing",
+    (_name, interrupt) => {
+      const { button, onVerb, onKeep, onSelect, vibrate } = setup();
+      interrupt();
+      fireEvent.pointerUp(button, { clientX: 190, clientY: 0, pointerId: 1 });
+      expect(onVerb).not.toHaveBeenCalled();
+      expect(onKeep).not.toHaveBeenCalled();
+      expect(vibrate).not.toHaveBeenCalled();
+      fireEvent.click(button);
+      expect(onSelect).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("keeps the swipe through a height-only resize", () => {
+    const { button, onVerb } = setup();
+    pageRotations.heightResize();
+    fireEvent.pointerUp(button, { clientX: 190, clientY: 0, pointerId: 1 });
+    expect(onVerb).toHaveBeenCalledOnce();
+  });
+
+  it("decides once on a normal release and leaves no live listeners", () => {
+    const tracked = trackInterruptSignals();
+    const { button, onVerb } = setup();
+    expect(tracked.registered()).toBeGreaterThan(0);
+    fireEvent.pointerUp(button, { clientX: 190, clientY: 0, pointerId: 1 });
+    expect(onVerb).toHaveBeenCalledOnce();
+    expect(tracked.live()).toBe(0);
+    dragInterrupts.blur();
+    expect(onVerb).toHaveBeenCalledOnce();
   });
 });

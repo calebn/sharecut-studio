@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { TOUCH_SLOP_PX } from "../hooks/gestureConstants";
+import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
 
 type Origin = {
   id: number;
@@ -45,6 +46,27 @@ export function useSwipeReveal(
   const [offset, setOffset] = useState<number | null>(null);
   const origin = useRef<Origin | null>(null);
   const swallowClick = useRef(false);
+  const watch = useRef<AbortController | null>(null);
+  const holder = useRef<HTMLElement | null>(null);
+
+  useEffect(() => () => watch.current?.abort(), []);
+
+  const unwatch = () => {
+    watch.current?.abort();
+    watch.current = null;
+  };
+
+  const cancel = () => {
+    const start = origin.current;
+    if (!start) return;
+    origin.current = null;
+    swallowClick.current = false;
+    unwatch();
+    if (holder.current?.hasPointerCapture?.(start.id))
+      holder.current.releasePointerCapture(start.id);
+    holder.current = null;
+    setOffset(null);
+  };
 
   useEffect(() => {
     if (!revealed) return;
@@ -62,6 +84,7 @@ export function useSwipeReveal(
   const settle = (event: ReactPointerEvent<HTMLElement>) => {
     const start = origin.current;
     origin.current = null;
+    unwatch();
     if (!start?.locked) {
       setOffset(null);
       return;
@@ -96,6 +119,10 @@ export function useSwipeReveal(
           from: revealed ? -width() : 0,
           locked: false,
         };
+        holder.current = event.currentTarget;
+        unwatch();
+        watch.current = new AbortController();
+        listenForDragInterrupt(cancel, watch.current.signal);
       },
       onPointerMove: (event) => {
         const start = origin.current;
@@ -107,6 +134,7 @@ export function useSwipeReveal(
             return;
           if (Math.abs(dy) > Math.abs(dx)) {
             origin.current = null;
+            unwatch();
             return;
           }
           start.locked = true;
@@ -118,6 +146,7 @@ export function useSwipeReveal(
       onPointerUp: settle,
       onPointerCancel: () => {
         origin.current = null;
+        unwatch();
         setOffset(null);
       },
       onClickCapture: (event) => {
