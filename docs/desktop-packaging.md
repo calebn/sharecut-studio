@@ -43,6 +43,21 @@ loads build identity from `relay.yaml` or user preferences. Direct Cargo builds
 run the same Python validator before emitting those constants. This keeps the
 platform manifest and runtime allowlist in sync.
 
+The optional boolean `project_file_association` (default `false`, left out of
+`config/distribution.dev.json`) makes a release claim `.sharecut` project files, so
+double-clicking one opens it in the app. Only when it is `true` does the generated
+overlay add `bundle.fileAssociations` (extension `sharecut`, role Editor, a vendor MIME
+type, and an exported type whose identifier is the profile's `bundle_identifier` plus
+`.project`, so a fork never exports the same type as upstream). The overlay is a merge
+patch, so the base `bundle` keys stay. The shared `gui/desktop/src-tauri/Info.plist` is
+not touched, because it also ships in development builds, which must not claim the
+extension. If a Tauri release ignores `exportedType`, the fallback is a release-only
+property list written by the generator and named by an overlay `bundle.macOS.infoPlist`;
+it is not built yet. Linux association is best effort, since the bundler registers no
+shared MIME glob for the extension; the app still opens a path passed on its command
+line. Signed-build proof (cold launch, launch while running, update over an installed
+copy, Windows registry and Launch Services checks) belongs to the Mac and Windows lane.
+
 ```bash
 podcast config check --mode distributor --distribution-profile ./distribution.json
 PODCAST_DISTRIBUTION_PROFILE=./distribution.json make desktop-build
@@ -121,6 +136,8 @@ First run checks the bundled FFmpeg pair and downloads Whisper, with the recomme
 The desktop sidecar includes the locked AAF writer for editable session export in Deliver. The freeze verifies that the writer imports. Linux and macOS supply the required atomic directory publication.
 
 **Open project:** Home's **Open other…** calls `POST /api/project/pick` on the Python sidecar (OS dialog), the same API as a system browser on `http://127.0.0.1:8765`, and Mod+O opens Home. A path field replaces the dialog when no dialog tool is available. A device with no folder picker (`host.folder_picker` false in `GET /api/bootstrap/status`, the iOS app) shows neither Open other nor Find, ignores Mod+O, and tells the person to remove a moved card. The desktop `tauri-plugin-dialog` is reserved for native close confirmation; it is not used as a project picker.
+
+**Open a project file from the system:** a `.sharecut` path reaches the app from the command line at launch, from a second launch while the app runs (the single-instance callback, which always focuses the window first), and from macOS `RunEvent::Opened` (`file:` URLs only). `src/project_file.rs` filters it: no flags, no non-file URLs, no `..` components, no control characters or non-UTF-8, no network paths, a relative path resolves against the launching process's directory, and the target must be a regular file (after following symlinks) whose extension is `.sharecut`. One slot in `main.rs` keeps the latest path until the engine page loads; the page URL then carries it as `#open-project=<percent-encoded path>`, which stays out of requests to the engine. While the page is up the host runs a script that pushes the path onto `window.__sharecutOpenQueue` and fires `sharecut:open-project-file`. The web app reads and clears the fragment before it renders, listens for the event, and runs the `project.open` command with the path. A path that is already open does nothing. The engine accepts only a file named `episode.sharecut` and says so in the status line (`Open failed: ...`) for a renamed copy. File paths never reach `shell().open`, and the deep-link plugin ignores `file:` URLs. The extension is spelled once in Python (`PROJECT_FILE_EXTENSION` in `models/episode.py`) and once in `project_file.rs`; a test compares the two and the overlay.
 
 ## Closing while recording
 
