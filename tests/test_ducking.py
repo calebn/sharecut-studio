@@ -1111,3 +1111,34 @@ def test_the_cli_ducks_a_saved_music_segment_lane_by_default(
     out = json.loads(result.output)
     assert [t["track_id"] for t in out["tracks"]] == [lane]
     assert envelopes(path)[lane]
+
+
+def test_a_ripple_cut_does_not_retime_saved_dips_so_a_dry_run_reports_them_stale(
+    dispatcher_grant, duck_project, monkeypatch
+) -> None:
+    """Studio's "Ducking may be out of date" hint rests on this: a cut moves the speech
+    (the plan follows it) but leaves the saved dips where they were, so only a dry run
+    can tell the saved dips from the plan."""
+    from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
+    from podcast_mcp.models.episode import CutIntent, EditMode
+    from podcast_mcp.services.document import EditService
+
+    monkeypatch.setattr(type(REFINE_GATE), "assert_clear", lambda *a, **k: None)
+    assert duck(duck_project)["applied"] is True
+    current = duck(duck_project, dry_run=True)
+    assert [t["changed"] for t in current["tracks"]] == [False, False]
+    before = envelopes(duck_project)
+
+    EditService(ProjectWorkspace.open(duck_project)).cut_range(
+        10.0,
+        15.0,
+        mode=EditMode.RIPPLE,
+        track_ids=["host"],
+        use_inaudible_opt=False,
+        application_intent=CutIntent.HUMAN_BOUNDARIES,
+    )
+
+    assert envelopes(duck_project) == before
+    stale = duck(duck_project, dry_run=True)
+    assert [t["changed"] for t in stale["tracks"]] == [True, True]
+    assert all(t["replaced_generated"] > 0 for t in stale["tracks"])
