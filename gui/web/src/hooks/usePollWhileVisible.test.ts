@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deferred } from "../test/deferred";
 import { type PollVerdict, usePollWhileVisible } from "./usePollWhileVisible";
@@ -198,5 +199,62 @@ describe("usePollWhileVisible", () => {
     });
     expect(first).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps one live poller through the StrictMode effect replay", async () => {
+    const first = deferred<number>();
+    const second = deferred<number>();
+    const signals: AbortSignal[] = [];
+    const fetcher = vi.fn((signal: AbortSignal) => {
+      signals.push(signal);
+      return (signals.length === 1 ? first : second).promise;
+    });
+    const onResult = vi.fn(() => undefined);
+    renderHook(
+      () =>
+        usePollWhileVisible({
+          enabled: true,
+          intervalMs: 3000,
+          fetcher,
+          onResult,
+          onError: () => undefined,
+        }),
+      { wrapper: StrictMode },
+    );
+    await act(async () => {});
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals[1]?.aborted).toBe(false);
+    expect(vi.getTimerCount()).toBe(1);
+    await act(async () => {
+      first.resolve(1);
+    });
+    expect(onResult).not.toHaveBeenCalled();
+    await act(async () => {
+      second.resolve(2);
+    });
+    expect(onResult).toHaveBeenCalledTimes(1);
+    expect(onResult).toHaveBeenCalledWith(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps polling after a read times out", async () => {
+    const fetcher = vi
+      .fn<(signal: AbortSignal) => Promise<number>>()
+      .mockRejectedValueOnce(new DOMException("x", "TimeoutError"))
+      .mockResolvedValue(2);
+    const onError = vi.fn(() => undefined);
+    const onResult = vi.fn(() => undefined);
+    mount({ fetcher, onError, onResult });
+    await act(async () => {});
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onResult).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(onResult).toHaveBeenCalledWith(2);
   });
 });
