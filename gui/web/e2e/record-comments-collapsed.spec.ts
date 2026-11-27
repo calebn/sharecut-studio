@@ -92,6 +92,9 @@ test.describe("host phone, collapsed during a take", () => {
         await expectCollapsed(host);
         await expect(badge(host)).toHaveCount(0);
 
+        await expect(notices(host)).toContainText(
+          "Recording in full quality on this device.",
+        );
         const noticesBefore = await notices(host).innerText();
         await guestSays(guest, "one");
         await expect(badge(host)).toHaveText("1 unread");
