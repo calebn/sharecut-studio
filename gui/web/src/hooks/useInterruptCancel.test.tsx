@@ -104,6 +104,17 @@ describe("listenForRotation", () => {
     expect(cancel).not.toHaveBeenCalled();
   });
 
+  it("after an idle rotation a height-only resize does not cancel, and a second width change does", () => {
+    const { cancel } = listen();
+    pageRotations.widthResize();
+    expect(cancel).toHaveBeenCalledOnce();
+    cancel.mockClear();
+    pageRotations.heightResize();
+    expect(cancel).not.toHaveBeenCalled();
+    pageRotations.widthResize();
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it("measures the width from when it started listening", () => {
     pageRotations.widthResize();
     const { cancel } = listen();

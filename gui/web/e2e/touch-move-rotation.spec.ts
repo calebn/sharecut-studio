@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { newFinger } from "./finger";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { ROTATION_SIZES } from "./rotationSizes";
 import { settledBox } from "./settledBox";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
@@ -17,20 +18,7 @@ import { projectJson, watchCommands } from "./touchTimeline";
 
 test.use({ hasTouch: true });
 
-const SIZES = [
-  {
-    name: "a width that swaps the phone shell",
-    portrait: { width: 390, height: 844 },
-    landscape: { width: 844, height: 390 },
-    swapsShell: true,
-  },
-  {
-    name: "a width that keeps the phone shell",
-    portrait: { width: 375, height: 667 },
-    landscape: { width: 667, height: 375 },
-    swapsShell: false,
-  },
-] as const;
+const SIZES = ROTATION_SIZES;
 
 const starts = async (
   page: Parameters<typeof projectJson>[0],

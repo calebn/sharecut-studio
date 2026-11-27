@@ -3,6 +3,7 @@ import { postDocumentCommand } from "./documentCommand";
 import { type Finger, newFinger, type Point } from "./finger";
 import { layer } from "./lifecycleAudit";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { ROTATION_SIZES } from "./rotationSizes";
 import { settledBox } from "./settledBox";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
@@ -17,35 +18,10 @@ import {
   watchCommands,
 } from "./touchTimeline";
 
-/*
- * #1034: a fade, a trim (direct and jog pad) and an envelope point dragged by
- * a finger while the phone is rotated. A rotation must end the drag with no
- * write and leave nothing stuck, at a width that swaps the phone shell for the
- * stacked one (the timeline unmounts) and at one that keeps the phone shell
- * (nothing unmounts, so only the rotation cancel ends the drag). The proof
- * that nothing was queued is ordering, not elapsed time: after rotating back,
- * the same drag is sent through the same command queue, so once it has saved,
- * an earlier stray write would already be in the log. Chromium CDP touch;
- * automated receipts only: not physical-device proof.
- */
-
 test.use({ hasTouch: true });
 test.describe.configure({ timeout: 180_000 });
 
-const SIZES = [
-  {
-    name: "a width that swaps the phone shell",
-    portrait: { width: 390, height: 844 },
-    landscape: { width: 844, height: 390 },
-    swapsShell: true,
-  },
-  {
-    name: "a width that keeps the phone shell",
-    portrait: { width: 375, height: 667 },
-    landscape: { width: 667, height: 375 },
-    swapsShell: false,
-  },
-] as const;
+const SIZES = ROTATION_SIZES;
 type Size = (typeof SIZES)[number];
 
 const DRAGGING =
@@ -81,12 +57,20 @@ const centre = async (locator: Locator): Promise<Point> => {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 };
 
+const frames = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => done())),
+      ),
+  );
+
 const tapFirstClip = async (page: Page, finger: Finger) => {
   const at = await centre(page.locator(".clip-hit").first());
   await finger.down(at);
-  await page.waitForTimeout(60);
   await finger.up();
-  await page.waitForTimeout(400);
+  await expect(page.locator(".fade-corner.in").first()).toBeVisible();
+  await frames(page);
 };
 
 type EnvelopeJson = {
@@ -162,7 +146,7 @@ const fade: Kind = {
       .getByRole("menuitem", { name: /Fade in/ });
     anchor = await centre(chip);
     await finger.slide(anchor, 4, 16);
-    await page.waitForTimeout(250);
+    await frames(page);
     await finger.slide({ x: anchor.x + 12, y: anchor.y }, 3, 16);
   },
   async slide({ finger }, stage) {
@@ -204,9 +188,11 @@ const selectTrimClip = async (rig: Rig) => {
   const id = await lastClipId(rig.page, rig.projectPath);
   const body = await centerOf(rig.page, `${lane} [data-clip-id="${id}"]`);
   await rig.finger.down(body);
-  await rig.page.waitForTimeout(60);
   await rig.finger.up();
-  await rig.page.waitForTimeout(700);
+  await expect(
+    rig.page.locator(`${lane} [data-clip-id="${id}"] .trim-handle.out`),
+  ).toBeVisible();
+  await frames(rig.page);
 };
 
 const trimDirect: Kind = {
@@ -222,7 +208,6 @@ const trimDirect: Kind = {
   async grab(rig) {
     anchor = await trimHandle(rig);
     await rig.finger.down(anchor);
-    await rig.page.waitForTimeout(750);
     await expect(
       rig.page.locator('.precision-layer[data-mode="direct"]'),
     ).toBeVisible();
@@ -249,7 +234,6 @@ const trimJog: Kind = {
   async grab(rig) {
     const handle = await trimHandle(rig);
     await rig.finger.down(handle);
-    await rig.page.waitForTimeout(750);
     await expect(
       rig.page.locator('.precision-layer[data-mode="precision"]'),
     ).toBeVisible();
@@ -303,6 +287,10 @@ async function withRig(
 
 const rotate = async (page: Page, size: Size, to: "portrait" | "landscape") => {
   await page.setViewportSize(size[to]);
+  await expect
+    .poll(() => page.evaluate(() => window.innerWidth))
+    .toBe(size[to].width);
+  await frames(page);
   if (size.swapsShell) {
     const phone = '[data-arrangement="phone"]';
     if (to === "landscape")
@@ -394,7 +382,7 @@ for (const kind of KINDS) {
   }
 }
 
-test("fade: an orientationchange from the screen orientation also ends the drag", async ({
+test("fade: a CDP screen-orientation override (width changes too) ends the drag", async ({
   page,
   context,
   browserName,
@@ -436,6 +424,10 @@ test("a rotation with no drag in progress writes nothing", async ({
     await rotate(page, size, "landscape");
     await rotate(page, size, "portrait");
     await expect.poll(() => stuck(page)).toBe(0);
+    await expect
+      .poll(() => page.evaluate(() => window.innerWidth))
+      .toBe(size.portrait.width);
+    await frames(page);
     expect(all).toHaveLength(0);
   });
 });
