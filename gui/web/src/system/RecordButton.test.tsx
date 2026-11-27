@@ -5,6 +5,12 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ComponentProps, Profiler } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  dragInterrupts,
+  pageRotations,
+  resetViewport,
+  trackInterruptSignals,
+} from "../test/pageInterrupts";
 import { HOLD_TO_STOP_MS, RecordButton } from "./RecordButton";
 
 /** The visible "Hold to stop" caption under a live Stop button. */
@@ -405,5 +411,111 @@ describe("hold-to-stop motion token", () => {
       "utf8",
     );
     expect(tokens).toContain(`--motion-hold-to-stop: ${HOLD_TO_STOP_MS}ms;`);
+  });
+});
+
+describe("RecordButton hold and a page interrupt", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    resetViewport();
+  });
+
+  function live() {
+    const onStop = vi.fn();
+    const view = render(
+      <RecordButton face="live" onStart={vi.fn()} onStop={onStop} />,
+    );
+    const button = screen.getByRole("button", { name: "Stop take" });
+    return { ...view, button, onStop };
+  }
+  const pass = (ms: number) => {
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+  };
+
+  it.each(Object.entries(dragInterrupts))(
+    "%s mid-hold ends the hold and never stops the take",
+    (_name, interrupt) => {
+      const { button, onStop, container } = live();
+      fireEvent.pointerDown(button, { button: 0 });
+      expect(button).toHaveAttribute("data-holding");
+      act(() => {
+        interrupt();
+      });
+      expect(button).not.toHaveAttribute("data-holding");
+      pass(HOLD_TO_STOP_MS * 2);
+      fireEvent.pointerUp(button);
+      pass(HOLD_TO_STOP_MS);
+      expect(onStop).not.toHaveBeenCalled();
+      expect(
+        container.querySelector(".sys-record-hint")?.hasAttribute("data-nudge"),
+      ).toBe(false);
+    },
+  );
+
+  it("a fresh hold after an interrupt stops once", () => {
+    const { button, onStop } = live();
+    fireEvent.pointerDown(button, { button: 0 });
+    act(() => {
+      dragInterrupts.blur();
+    });
+    fireEvent.pointerUp(button);
+    fireEvent.pointerDown(button, { button: 0 });
+    pass(HOLD_TO_STOP_MS);
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("a height-only resize keeps the hold, which stops once", () => {
+    const { button, onStop } = live();
+    fireEvent.pointerDown(button, { button: 0 });
+    act(() => {
+      pageRotations.heightResize();
+    });
+    expect(button).toHaveAttribute("data-holding");
+    pass(HOLD_TO_STOP_MS);
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("a full hold with no interrupt stops exactly once", () => {
+    const { button, onStop } = live();
+    fireEvent.pointerDown(button, { button: 0 });
+    pass(HOLD_TO_STOP_MS * 3);
+    fireEvent.pointerUp(button);
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("an interrupt after the hold already stopped the take is a no-op", () => {
+    const { button, onStop, container } = live();
+    fireEvent.pointerDown(button, { button: 0 });
+    pass(HOLD_TO_STOP_MS);
+    act(() => {
+      dragInterrupts.blur();
+    });
+    fireEvent.pointerUp(button);
+    expect(onStop).toHaveBeenCalledTimes(1);
+    expect(
+      container.querySelector(".sys-record-hint")?.hasAttribute("data-nudge"),
+    ).toBe(false);
+  });
+
+  it("listens only while holding and removes its listeners on release, an interrupt and unmount", () => {
+    const tracked = trackInterruptSignals();
+    const { button, unmount } = live();
+    const idle = tracked.live();
+    fireEvent.pointerDown(button, { button: 0 });
+    expect(tracked.live()).toBeGreaterThan(idle);
+    fireEvent.pointerUp(button);
+    expect(tracked.live()).toBe(idle);
+    fireEvent.pointerDown(button, { button: 0 });
+    act(() => {
+      dragInterrupts.blur();
+    });
+    expect(tracked.live()).toBe(idle);
+    fireEvent.pointerDown(button, { button: 0 });
+    unmount();
+    expect(tracked.live()).toBe(idle);
   });
 });
