@@ -479,6 +479,27 @@ export const Phone: Story = {
   },
 };
 
+export const PhoneNotStarted: Story = {
+  globals: phone,
+  args: {
+    phase: "not-started",
+    sessions: [session({ status: "done" })],
+    rows: ROWS.notStarted,
+    readySummary: "Getting ready: 1 of 5 done",
+  },
+  render: live,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Start, Transcribe" }),
+    ).toBeVisible();
+    if (canvasElement.getBoundingClientRect().width === 0) return;
+    await expect(
+      canvas.getByRole("button", { name: /Getting ready/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+  },
+};
+
 export const PhoneDone: Story = {
   globals: phone,
   args: {

@@ -10,6 +10,7 @@ import { StatusRow, type StatusRowState } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button } from "../../ui";
 import type { ReadyRowId } from "../../utils/prepareRows";
+import { isStartRow } from "./isStartRow";
 
 export type { ReadyRowId };
 
@@ -174,6 +175,7 @@ export function ReadyList({ rows, onAction }: ReadyListProps) {
                     name: `${action.label}, ${row.title}`,
                     icon: action.icon,
                     onAction: () => onAction(row.id, action.run),
+                    primary: isStartRow(row),
                   }
                 : undefined
             }

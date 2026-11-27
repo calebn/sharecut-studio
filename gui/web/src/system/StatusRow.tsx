@@ -29,6 +29,8 @@ export type StatusRowProps = {
     icon?: SystemIconName;
     onAction: () => void;
     disabledReason?: string;
+    /** Draw the action filled, for the one step to take. */
+    primary?: boolean;
   };
   /** A quieter action beside the main one, such as Save a copy next to Resume saving. */
   secondaryAction?: {
@@ -127,7 +129,9 @@ export function StatusRow({
             ) : null}
             {action ? (
               <Button
-                variant={state === "failed" ? "primary" : "default"}
+                variant={
+                  state === "failed" || action.primary ? "primary" : "default"
+                }
                 aria-label={action.name}
                 disabledReason={action.disabledReason}
                 {...reason.describedBy}

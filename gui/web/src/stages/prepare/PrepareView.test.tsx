@@ -739,6 +739,168 @@ describe("PrepareView focus", () => {
     expect(summary).toHaveAttribute("aria-expanded", "false");
   });
 
+  describe("the phone summary before the run has started", () => {
+    const idle = (over: Partial<PrepareViewProps> = {}) =>
+      props({ phase: "not-started", rows: ROWS.notStarted, ...over });
+    const list = () =>
+      screen.getByRole("list", { name: "Getting ready", hidden: true });
+
+    it("opens at mount so the Start button is in reach", () => {
+      atWidth(PHONE_WIDTH);
+      render(<PrepareView {...idle()} />);
+      expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+      expect(list().closest("[data-open]")?.getAttribute("data-open")).toBe(
+        "true",
+      );
+      expect(
+        screen.getByRole("button", { name: "Start, Transcribe" }),
+      ).toBeInTheDocument();
+    });
+
+    it("stays shut when adding turns into not started, the auto-start edge", () => {
+      atWidth(PHONE_WIDTH);
+      const { rerender } = render(
+        <PrepareView
+          {...props({ phase: "adding", addCount: 3, rows: ROWS.importing })}
+        />,
+      );
+      rerender(<PrepareView {...idle()} />);
+      expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    });
+
+    it("keeps a manual close within one visit", async () => {
+      atWidth(PHONE_WIDTH);
+      const user = userEvent.setup();
+      const { rerender } = render(<PrepareView {...idle()} />);
+      const summary = screen.getByRole("button", { name: SUMMARY });
+      await user.click(summary);
+      expect(summary).toHaveAttribute("aria-expanded", "false");
+      rerender(<PrepareView {...idle({ readySummary: "Getting ready: x" })} />);
+      expect(
+        screen.getByRole("button", { name: /Getting ready: x/ }),
+      ).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("reopens when the run then fails", async () => {
+      atWidth(PHONE_WIDTH);
+      const user = userEvent.setup();
+      const { rerender } = render(<PrepareView {...idle()} />);
+      await user.click(screen.getByRole("button", { name: SUMMARY }));
+      rerender(<PrepareView {...props({ rows: ROWS.failed })} />);
+      expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+    });
+
+    it("does not reopen a closed list when Start resolves within the same visit", async () => {
+      atWidth(PHONE_WIDTH);
+      const user = userEvent.setup();
+      const { rerender } = render(<PrepareView {...idle()} />);
+      await user.click(screen.getByRole("button", { name: SUMMARY }));
+      rerender(<PrepareView {...props({ rows: ROWS.queued })} />);
+      rerender(<PrepareView {...props({ rows: ROWS.running })} />);
+      expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    });
+
+    it("leaves a queued run with no Start button shut", () => {
+      atWidth(PHONE_WIDTH);
+      render(
+        <PrepareView {...props({ phase: "not-started", rows: ROWS.queued })} />,
+      );
+      expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    });
+
+    it("opens again on a remount, as a stage switch does", async () => {
+      atWidth(PHONE_WIDTH);
+      const user = userEvent.setup();
+      const first = render(<PrepareView {...idle()} />);
+      await user.click(screen.getByRole("button", { name: SUMMARY }));
+      first.unmount();
+      render(<PrepareView {...idle()} />);
+      expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+    });
+
+    it("leaves a busy import shut, where no row offers Start", () => {
+      atWidth(PHONE_WIDTH);
+      const rows = ROWS.notStarted.map((row) => ({
+        ...row,
+        action: undefined,
+      }));
+      render(
+        <PrepareView {...props({ phase: "adding", addCount: 3, rows })} />,
+      );
+      expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    });
+
+    it("leaves a not-started run whose only actions are Skip shut", () => {
+      atWidth(PHONE_WIDTH);
+      const rows = ROWS.notStarted.map((row) =>
+        row.id === "transcribe"
+          ? { ...row, action: { label: "Skip", run: "skip" as const } }
+          : row,
+      );
+      render(<PrepareView {...props({ phase: "not-started", rows })} />);
+      expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    });
+
+    it("leaves plan rows shut", () => {
+      atWidth(PHONE_WIDTH);
+      render(
+        <PrepareView {...props({ phase: "new-audio", rows: ROWS.plan })} />,
+      );
+      expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    });
+
+    it("has no summary at the wide layout, and Start is in the page", () => {
+      atWidth(1200);
+      render(<PrepareView {...idle()} />);
+      expect(screen.queryByRole("button", { name: SUMMARY })).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Start, Transcribe" }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("gives the Edit hand-off no new state while the run is not started", () => {
+    const onHandoff = vi.fn();
+    render(
+      <PrepareView
+        {...props({
+          phase: "not-started",
+          rows: ROWS.notStarted,
+          handoff: { label: "Edit" },
+          onHandoff,
+        })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /^Edit/ })).toBeEnabled();
+  });
+
   it("gives a name two sessions share a control name of its own", () => {
     render(
       <PrepareView
