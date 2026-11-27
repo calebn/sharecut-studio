@@ -44,7 +44,7 @@ describe("noteItems own comments", () => {
     ]);
   });
 
-  it("marks nothing as mine when the viewer is not in the participants", () => {
+  it("guard: marks nothing as mine when the viewer is not in the participants", () => {
     const items = noteItems(snapshot, "p_missing");
     expect(items.map((item) => item.mine)).toEqual([false, false, false]);
   });

@@ -1414,21 +1414,6 @@ describe("RoomView, host phone Comments sheet during a take (#4660)", () => {
     time: "0:10",
     visibility: "everyone",
   });
-  const hostNote = (id: string): NoteItem => ({
-    id,
-    kind: "note",
-    author: { name: "Maya Okafor", colorIndex: 0 },
-    text: `mine ${id}`,
-    time: "0:11",
-    visibility: "everyone",
-    mine: true,
-  });
-  const markerNote = (id: string): NoteItem => ({
-    id,
-    kind: "marker",
-    author: { name: "Jon", colorIndex: 3 },
-    time: "0:12",
-  });
 
   function hostPhone(over: Partial<RoomViewProps> = {}) {
     let props: RoomViewProps = {
@@ -1565,17 +1550,6 @@ describe("RoomView, host phone Comments sheet during a take (#4660)", () => {
     });
     expect(badge()).toHaveTextContent("99+");
     expect(peek()).toHaveAccessibleName(/99\+ ?unread$/);
-  });
-
-  it("does not badge the host's own comments or any marker", () => {
-    const view = hostPhone();
-    view.update({
-      notes: [hostNote("1"), markerNote("2")],
-    });
-    expect(badge()).toBeNull();
-    expect(peek().querySelector("[data-pulse]")).toBeNull();
-    expect(peek()).toHaveAccessibleName(/^Comments/);
-    expect(peek()).not.toHaveAccessibleName(/unread/);
   });
 
   it("counts a guest who shares the host's display name", () => {

@@ -32,7 +32,6 @@ export class UnreadStore {
 
 const BADGE_CAP = 99;
 
-/** Markers never count, and neither do the host's own. */
 function unseenOthers(
   notes: readonly NoteItem[],
   store: UnreadStore,
@@ -57,7 +56,6 @@ type UnreadInput = {
   loading: boolean;
   sheetOpen: boolean;
   commentsShowing: boolean;
-  /** Without a store nothing is counted. */
   store?: UnreadStore;
 };
 
