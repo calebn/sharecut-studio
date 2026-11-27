@@ -78,9 +78,8 @@ export const ReleasedEarly: Story = {
       { keys: "[/MouseLeft]" },
     ]);
     await expect(canvas.getByRole("status")).toHaveTextContent("Hold to stop");
-    await expect(
-      canvasElement.querySelector(".sys-record-hint"),
-    ).toHaveAttribute("data-nudge");
+    const caption = canvasElement.querySelector(".sys-record-hint");
+    await expect(caption).toHaveAttribute("data-nudge");
     await expect(args.onStop).not.toHaveBeenCalled();
   },
 };
@@ -88,29 +87,15 @@ export const ReleasedEarly: Story = {
 export const RestingCaption: Story = {
   args: { face: "live" },
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
     const caption = canvasElement.querySelector(".sys-record-hint");
     await expect(caption).toHaveTextContent("Hold to stop");
     await expect(caption).not.toHaveAttribute("data-nudge");
-    await expect(
-      within(canvasElement).getByRole("status"),
-    ).toBeEmptyDOMElement();
-  },
-};
-
-export const TapNudge: Story = {
-  args: { face: "live" },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const button = canvas.getByRole("button", { name: "Stop take" });
-    await userEvent.pointer([
-      { keys: "[MouseLeft>]", target: button },
-      { keys: "[/MouseLeft]" },
-    ]);
-    await expect(
-      canvasElement.querySelector(".sys-record-hint"),
-    ).toHaveAttribute("data-nudge");
-    await expect(canvas.getByRole("status")).toHaveTextContent("Hold to stop");
-    const describedBy = button.getAttribute("aria-describedby") ?? "";
+    await expect(canvas.getByRole("status")).toBeEmptyDOMElement();
+    const describedBy =
+      canvas
+        .getByRole("button", { name: "Stop take" })
+        .getAttribute("aria-describedby") ?? "";
     await expect(
       canvasElement.ownerDocument.getElementById(describedBy),
     ).toHaveTextContent("Enter or Space");

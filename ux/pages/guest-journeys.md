@@ -388,8 +388,9 @@ flowchart TD
    without announcing it a second time. The next record command or a project
    change clears it.
 8. Host Stop. The Record stage dock has one Record button (Record, then Stop
-   take while recording by holding it (a small "Hold to stop" caption always shows under it while recording; a tap emphasises it for 2 s), Resume recording while paused) and Pause
-   beside it (a paused take swaps Pause for **Stop take** beside Resume); **More** has no Stop. Stop asks once ("Stop
+   take while recording by holding it, Resume recording while paused) and Pause
+   beside it (a paused take swaps Pause for **Stop take** beside Resume); **More** has no Stop. A small "Hold to stop" caption always
+   shows under the Record button while recording; a tap emphasises it for 2 s. Stop asks once ("Stop
    this take? Recording ends for everyone in the room.", **Keep recording** or
    **Stop take**). There is no Land button: each saved recording lands on its
    own once its file ACK arrives, and a failed land shows **Retry** on the take's

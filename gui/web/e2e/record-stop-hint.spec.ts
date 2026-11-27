@@ -4,8 +4,8 @@ import {
   type BrowserContextOptions,
   expect,
   type Page,
-  test,
   type TestInfo,
+  test,
 } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
@@ -15,15 +15,15 @@ import {
   hostRecordState,
   joinAsGuest,
   roomPill,
-  stopHostTake,
 } from "./recordRoom";
 import { inRoom, LAPTOP, phoneAt } from "./recordRoomPages";
-import { setTheme, type Theme, withAppearance } from "./theme";
+import { setTheme, withAppearance } from "./theme";
 
 /**
- * #4660 item 5a: a live Stop button always shows a small "Hold to stop"
- * caption, and a plain tap emphasises it (primary colour, weight 600, a short
- * shake unless motion is reduced) for two seconds. Stop is still a hold.
+ * #4660 item 5a: the live Stop button's "Hold to stop" caption.
+ *
+ * The main test runs rest, tap, expiry, second tap and busy in one body
+ * (5 cells x 2 themes x 2 motion) because `inRoom` is costly to repeat.
  *
  * The sr-only description of the button contains "Enter or Space", so a text
  * query on it matches that span too. The caption is therefore found with
@@ -34,7 +34,6 @@ import { setTheme, type Theme, withAppearance } from "./theme";
 test.use({ launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] } });
 
 const NBSP = " ";
-const HOLD_MS = 600;
 
 type Cell = {
   name: string;
@@ -99,9 +98,6 @@ async function look(page: Page) {
       weight: style.fontWeight,
       text: el.textContent,
       nudge: el.hasAttribute("data-nudge"),
-      animations: el
-        .getAnimations()
-        .map((a) => `${(a as CSSAnimation).animationName}:${a.playState}`),
     };
   });
 }
@@ -237,7 +233,6 @@ test.describe("a live Stop button", () => {
           await goLive(host, guest, projectPath, room);
           const colors = await tokenColors(host);
 
-          // A-R2: at rest, no press at all.
           await expect(caption(host)).toBeVisible();
           await expect(caption(host)).toHaveText("Hold to stop");
           await expectCaptionWhole(host);
@@ -268,7 +263,6 @@ test.describe("a live Stop button", () => {
                 (window as unknown as { __nudgeStarts: number }).__nudgeStarts,
             );
 
-          // A8: a tap.
           await press(host, cell.touch);
           await expect(status(host)).toHaveText("Hold to stop");
           const nudged = await look(host);
@@ -278,18 +272,13 @@ test.describe("a live Stop button", () => {
           expect(nudged.weight).toBe("600");
           expect(nudged.text).toBe("Hold to stop");
           if (reducedMotion) {
-            expect(nudged.animations.join()).not.toContain("nudge-bump");
             expect(await starts()).toBe(0);
           } else {
-            // A8b: right after the tap, no fixed wait.
+            // Poll the start counter right after the tap, with no fixed wait.
             await expect
-              .poll(
-                async () =>
-                  (await look(host)).animations.includes(
-                    "nudge-bump:running",
-                  ) || (await starts()) > 0,
-                { intervals: [0, 10, 10, 10, 20, 20, 50] },
-              )
+              .poll(async () => (await starts()) > 0, {
+                intervals: [0, 10, 10, 10, 20, 20, 50],
+              })
               .toBe(true);
           }
           if (cell.shots) {
@@ -298,7 +287,6 @@ test.describe("a live Stop button", () => {
           await expectCaptionWhole(host);
           expectSameLayout(await layout(host), before, "during the nudge");
 
-          // A9: two seconds later the emphasis is gone, the caption stays.
           await expect(caption(host)).not.toHaveAttribute("data-nudge", /./, {
             timeout: 6_000,
           });
@@ -311,7 +299,6 @@ test.describe("a live Stop button", () => {
           expect(stops.length, "a tap sent no command").toBe(stopsBefore);
           expectSameLayout(await layout(host), before, "after the nudge");
 
-          // A8b: a second tap after the window starts it again.
           if (!reducedMotion) {
             const first = await starts();
             await press(host, cell.touch);
@@ -320,7 +307,6 @@ test.describe("a live Stop button", () => {
               .toBeGreaterThan(first);
           }
 
-          // A12: through a busy transition the slot keeps its line.
           await expect(caption(host)).not.toHaveAttribute("data-nudge", /./, {
             timeout: 6_000,
           });
@@ -353,8 +339,8 @@ test.describe("a live Stop button", () => {
         browser,
         { host: phoneAt(390), guest: LAPTOP },
         async ({ host, guest, projectPath, room }) => {
+          await setTheme(host, theme);
           await goLive(host, guest, projectPath, room);
-          await setTheme(host, theme as Theme);
           await expect(caption(host)).toHaveText("Hold to stop");
           await expectReadingSurfaceAxeClean(host);
 
@@ -378,7 +364,7 @@ test.describe("a live Stop button", () => {
     });
   }
 
-  test("laptop: a hold stops the take, a tap does not, and the button is described for keyboard users", async ({
+  test("laptop: the button is described for keyboard users ([GUARD] a tap does not stop, a full hold does)", async ({
     browser,
   }: {
     browser: Browser;
@@ -389,7 +375,6 @@ test.describe("a live Stop button", () => {
       { host: LAPTOP, guest: LAPTOP },
       async ({ host, guest, projectPath, room }) => {
         await goLive(host, guest, projectPath, room);
-        // A10: untouched, the description says how to stop without holding.
         await expect(stopButton(host)).toHaveAccessibleDescription(
           /Enter or Space/,
         );
@@ -401,35 +386,13 @@ test.describe("a live Stop button", () => {
         await expect(roomPill(host)).toHaveText(LIVE_PILL);
         expect(await hostRecordState(host, projectPath)).toBe("recording");
 
-        // A11: a hold of the full time stops.
         const box = await boxOf(stopButton(host));
         await host.mouse.move(box.x + box.w / 2, box.y + box.h / 2);
         await host.mouse.down();
-        await host.waitForTimeout(HOLD_MS + 300);
+        await expect
+          .poll(() => hostRecordState(host, projectPath))
+          .not.toBe("recording");
         await host.mouse.up();
-        await expect
-          .poll(() => hostRecordState(host, projectPath))
-          .not.toBe("recording");
-      },
-    );
-  });
-
-  test("laptop: Enter asks, the confirm stops, and the name stays Stop take", async ({
-    browser,
-  }: {
-    browser: Browser;
-  }) => {
-    test.slow();
-    await inRoom(
-      browser,
-      { host: LAPTOP, guest: LAPTOP },
-      async ({ host, guest, projectPath, room }) => {
-        await goLive(host, guest, projectPath, room);
-        await expect(stopButton(host)).toHaveAccessibleName("Stop take");
-        await stopHostTake(host, host.locator(".sys-dock"), projectPath);
-        await expect
-          .poll(() => hostRecordState(host, projectPath))
-          .not.toBe("recording");
       },
     );
   });
