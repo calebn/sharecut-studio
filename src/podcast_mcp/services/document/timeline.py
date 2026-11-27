@@ -73,6 +73,10 @@ from podcast_mcp.services.document.delete_clips_results import (
     DeleteClipsHeld,
     DeleteClipsProposal,
 )
+from podcast_mcp.services.document.fill_room_tone_results import (
+    FillRoomToneApplied,
+    FillRoomToneUnchanged,
+)
 from podcast_mcp.services.document.join_analysis import _JoinAnalysis
 from podcast_mcp.services.document.join_fade_results import CrossfadeJoinsResult, FadeJoinsResult
 from podcast_mcp.services.document.join_mode_results import SetClipJoinResult, SetJoinModeResult
@@ -128,6 +132,14 @@ def _delete_clips_result(out: dict[str, Any]) -> DeleteClipsApplied | DeleteClip
     if "needs_confirmation" in out:
         return DeleteClipsHeld(**out)
     return DeleteClipsApplied(**out)
+
+
+def _fill_room_tone_result(
+    out: dict[str, Any],
+) -> FillRoomToneApplied | FillRoomToneUnchanged:
+    if "unchanged" in out:
+        return FillRoomToneUnchanged(**out)
+    return FillRoomToneApplied(**out)
 
 
 def _shorten_word_gaps_result(
@@ -766,23 +778,25 @@ class TimelineService(CutMutatingService, _JoinAnalysis):
         track_id: str | None = None,
         speaker: str | None = None,
         within: tuple[float, float] | None = None,
-    ) -> dict:
+    ) -> FillRoomToneApplied | FillRoomToneUnchanged:
         tid = self._resolve(track_id, speaker)
         if within is None:
             with self.ws.transaction() as project:
                 if sum(clip.track_id == tid for clip in project.clips) < 2:
-                    return change_summary(
-                        project,
-                        operation="fill_with_room_tone",
-                        affected_tracks=[tid],
-                        pad_samples=[],
-                        unchanged=True,
+                    return _fill_room_tone_result(
+                        change_summary(
+                            project,
+                            operation="fill_with_room_tone",
+                            affected_tracks=[tid],
+                            pad_samples=[],
+                            unchanged=True,
+                        )
                     )
         return self.ws.mutate(
             "before fill room tone",
             "after fill room tone",
-            lambda p: fill_with_room_tone(
-                p, tid, within=within, defaults=self.ws.effective_config()
+            lambda p: _fill_room_tone_result(
+                fill_with_room_tone(p, tid, within=within, defaults=self.ws.effective_config())
             ),
         )
 

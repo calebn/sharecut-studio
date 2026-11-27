@@ -79,7 +79,7 @@ def test_manual_fill_archives_actual_tiles_once_and_empty_refill_adds_no_record(
             "source_end": pytest.approx(0.1 if bed else 0.45),
         },
     ]
-    assert summary["pad_samples"] == expected
+    assert summary.model_dump()["pad_samples"] == expected
     assert len(saved.editorial.edit_log) == 1
     record = saved.editorial.edit_log[0]
     assert record.operation == "fill_with_room_tone"
@@ -104,7 +104,7 @@ def test_manual_fill_archives_actual_tiles_once_and_empty_refill_adds_no_record(
         assert control.seconds == pytest.approx(0.55)
     _assert_private_archive(saved, tmp_path)
     second = TimelineService(ws).fill_room_tone(track_id="host")
-    assert second["pad_samples"] == []
+    assert second.pad_samples == []
     assert len(load_project(ws.path).editorial.edit_log) == 1
 
 

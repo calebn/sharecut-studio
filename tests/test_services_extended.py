@@ -1959,7 +1959,15 @@ def test_edit_split_clip_and_fill_room_tone(minimal_project, sample_wav) -> None
             }
         ],
     }
-    fill_report = {"operation": "fill_with_room_tone", "filled_sec": 0.5}
+    fill_report = {
+        "operation": "fill_with_room_tone",
+        "affected_tracks": ["host"],
+        "clip_count": 2,
+        "timeline_duration_sec": 3.5,
+        "pad_samples": [
+            {"track_id": "host", "source_id": None, "source_start": 0.35, "source_end": 0.6}
+        ],
+    }
     with patch("podcast_mcp.services.document.timeline.split_clips_at", return_value=split_report):
         out = TimelineService(ws).split_clip(at_time=1.0, speaker="Host")
     assert out.model_dump() == split_report
@@ -1967,12 +1975,12 @@ def test_edit_split_clip_and_fill_room_tone(minimal_project, sample_wav) -> None
         "podcast_mcp.services.document.timeline.fill_with_room_tone", return_value=fill_report
     ):
         out = TimelineService(ws).fill_room_tone(track_id="host", within=(0.0, 1.0))
-    assert out == fill_report
+    assert out.model_dump() == fill_report
     with patch("podcast_mcp.services.document.timeline.fill_with_room_tone") as skipped:
         out = TimelineService(ws).fill_room_tone(track_id="host")
     skipped.assert_not_called()
-    assert out["unchanged"] is True
-    assert out["operation"] == "fill_with_room_tone"
+    assert out.unchanged is True
+    assert out.operation == "fill_with_room_tone"
 
 
 def test_edit_check_loudness_prefers_mastered_export(minimal_project, sample_wav) -> None:
