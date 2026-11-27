@@ -19,6 +19,7 @@ import {
   ToggleButton,
 } from "../ui";
 import { useResizeObserver } from "../ui/useResizeObserver";
+import { formatPlaybackSpeed } from "../utils/playbackSpeedPref";
 import { SKIP_SEC } from "../utils/time";
 import { HistoryButtons, type HistoryButtonsProps } from "./HistoryButtons";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
@@ -38,6 +39,19 @@ const HEAR_MODES: readonly { id: HearMode; label: string }[] = [
   { id: "original", label: "Original" },
 ];
 
+/** The listening speed: what plays now, the next preset, and why a press does nothing. */
+export type PlayerSpeed = {
+  /** The chosen speed, a shuttle scan's rate, or a followed leader's rate. */
+  rate: number;
+  /** The preset a press moves to. */
+  next: number;
+  /** A shuttle scan above the chosen speed is playing. */
+  scan?: boolean;
+  /** Why a press does nothing; the button stays focusable and the reason shows beside it. */
+  disabledReason?: string;
+  onCycle: () => void;
+};
+
 export type PlayerProps = {
   form: "bar" | "expanded" | "dock";
   playing: boolean;
@@ -45,8 +59,8 @@ export type PlayerProps = {
   total: string;
   /** Edited-length delta, e.g. `−4:10`. */
   cuts?: string;
-  /** Shuttle rate above 1x, shown beside the time as "2×". */
-  rate?: number;
+  /** The speed button: bar, expanded card and dock. Absent where the form has none (phone bar). */
+  speed?: PlayerSpeed;
   /** Mix is re-rendering: a ring on Play and a Status pill. */
   state?: "ready" | "loading" | "mix-updating" | "error";
   /** The short label for a known playback error. */
@@ -192,15 +206,49 @@ function CutsPill({ cuts }: Pick<PlayerProps, "cuts">) {
   ) : null;
 }
 
-function RatePill({ rate }: Pick<PlayerProps, "rate">) {
-  return rate !== undefined ? (
-    <Pill className="sys-player-rate" title="Playback speed">
-      <span
-        className="sys-mono"
-        role="status"
-        aria-label={`Playback speed ${rate}×`}
-      >{`${rate}×`}</span>
-    </Pill>
+/** One button that steps 1×, 1.25×, 1.5×, 2×; a scan shows its own rate. The change is spoken by the store, not by this name. */
+function SpeedButton({
+  speed,
+  reasonId,
+}: {
+  speed: PlayerProps["speed"];
+  reasonId: string;
+}) {
+  if (!speed) return null;
+  const now = formatPlaybackSpeed(speed.rate);
+  const blocked = speed.disabledReason !== undefined;
+  return (
+    <button
+      type="button"
+      className="sys-player-speed"
+      aria-label={`Playback speed, ${now}`}
+      aria-disabled={blocked || undefined}
+      aria-describedby={blocked ? reasonId : undefined}
+      title={
+        blocked
+          ? speed.disabledReason
+          : `Playback speed ${now}. Next: ${formatPlaybackSpeed(speed.next)}`
+      }
+      data-scan={speed.scan ? "" : undefined}
+      onClick={speed.onCycle}
+    >
+      {now}
+    </button>
+  );
+}
+
+/** Why the speed button does nothing, in text beside it. */
+function SpeedReason({
+  speed,
+  id,
+}: {
+  speed: PlayerProps["speed"];
+  id: string;
+}) {
+  return speed?.disabledReason ? (
+    <span id={id} className="sys-player-speed-reason">
+      {speed.disabledReason}
+    </span>
   ) : null;
 }
 
@@ -455,7 +503,9 @@ function useDockReserve(
  * with a labelled Comment button. It never expands, so nothing is hidden a
  * tap away. The status reads as text here, not a clipped glyph.
  */
-function Dock(props: PlayerProps & { statusId: string }) {
+function Dock(
+  props: PlayerProps & { statusId: string; speedReasonId: string },
+) {
   const {
     time,
     total,
@@ -512,6 +562,7 @@ function Dock(props: PlayerProps & { statusId: string }) {
           ) : centre ? (
             <span className="sys-listen-dock-chapter">{centre}</span>
           ) : null}
+          <SpeedReason speed={props.speed} id={props.speedReasonId} />
           <StatePills {...props} />
         </div>
         {duration === undefined || duration > 0 ? (
@@ -534,6 +585,7 @@ function Dock(props: PlayerProps & { statusId: string }) {
           <div className="sys-listen-dock-cluster">
             <PlayCluster {...props} />
           </div>
+          <SpeedButton speed={props.speed} reasonId={props.speedReasonId} />
           {props.onComment ? (
             <button
               type="button"
@@ -556,6 +608,7 @@ function Dock(props: PlayerProps & { statusId: string }) {
 export function Player(props: PlayerProps) {
   const headingId = useId();
   const statusId = useId();
+  const speedReasonId = useId();
   const barToggleRef = useRef<HTMLButtonElement>(null);
   const barHostRef = useRef<HTMLDivElement>(null);
   const collapseRef = useRef<HTMLButtonElement>(null);
@@ -590,7 +643,10 @@ export function Player(props: PlayerProps) {
     });
   }, [form]);
   useBarFit(barHostRef, form === "bar", barFitKey(props));
-  if (form === "dock") return <Dock {...props} statusId={statusId} />;
+  if (form === "dock")
+    return (
+      <Dock {...props} statusId={statusId} speedReasonId={speedReasonId} />
+    );
   if (form === "bar") {
     const hasTotal = duration === undefined || duration > 0;
     const clock = hasTotal ? `${time} / ${total}` : time;
@@ -624,7 +680,8 @@ export function Player(props: PlayerProps) {
               ) : null}
             </button>
             <CutsPill cuts={props.cuts} />
-            <RatePill rate={props.rate} />
+            <SpeedButton speed={props.speed} reasonId={speedReasonId} />
+            <SpeedReason speed={props.speed} id={speedReasonId} />
           </div>
           <div className="sys-player-center">
             <PlayCluster {...props} statusId={statusId} />
@@ -697,7 +754,7 @@ export function Player(props: PlayerProps) {
           <span className="sys-player-total">{` / ${total}`}</span>
         ) : null}
         <CutsPill cuts={props.cuts} />
-        <RatePill rate={props.rate} />
+        <SpeedReason speed={props.speed} id={speedReasonId} />
         <StatusLine status={props.status} id={statusId} />
         <StatePills {...props} />
       </p>
@@ -705,6 +762,7 @@ export function Player(props: PlayerProps) {
         <PlayCluster {...props} statusId={statusId} />
       </div>
       <div className="sys-player-actions">
+        <SpeedButton speed={props.speed} reasonId={speedReasonId} />
         {guest ? null : (
           <HearOriginal
             hearOriginal={props.hearOriginal}

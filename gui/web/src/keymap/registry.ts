@@ -132,7 +132,20 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     noRepeat: true,
     when: "always",
     notes:
-      "Plays at 1×, then 2× and 4× on repeats; J, K or Space returns to 1×",
+      "Plays at your playback speed, then 2× and 4× on repeats; J, K or Space returns to it",
+  },
+  {
+    id: "transport.cyclePlaybackSpeed",
+    category: "transport",
+    label: "Playback speed",
+    keys: ["."],
+    bareKey: true,
+    requireShift: true,
+    shiftOnDefaultKey: true,
+    noRepeat: true,
+    when: "playbackSpeedAvailable",
+    notes: "Shift+.: cycles 1×, 1.25×, 1.5×, 2×",
+    collision: "Bare . opens the Action bar's More menu on the Edit stage",
   },
   {
     id: "edit.clearSelection",
@@ -634,9 +647,10 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "More",
     keys: ["."],
     bareKey: true,
+    requireShift: false,
     noRepeat: true,
     when: "editStage",
-    notes: ".: open the Action bar's More menu",
+    notes: ".: open the Action bar's More menu; Shift+. is Playback speed",
   },
   {
     id: "comment.draftAt",
@@ -1102,6 +1116,10 @@ function eventKeyCandidates(
   }
   if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
     keys.push("?");
+  }
+  // Shift+Period types ">" on a US layout and ":" on others; the physical key is what the row names.
+  if (e.shiftKey && e.code === "Period") {
+    keys.push(".");
   }
   if (e.key.length === 1) {
     keys.push(e.key.toUpperCase(), e.key.toLowerCase());

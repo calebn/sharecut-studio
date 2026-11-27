@@ -128,7 +128,7 @@ const ROOT_ATTRIBUTES = [
 interface FitProps {
   time: string;
   cuts?: string;
-  rate?: number;
+  speed?: { rate: number; disabledReason?: string };
   solo?: string;
   state?: string;
   errorLabel?: string;
@@ -149,7 +149,8 @@ export function barFitKey(props: FitProps): string {
   return [
     props.time.length,
     props.cuts,
-    props.rate,
+    props.speed?.rate,
+    props.speed?.disabledReason,
     props.solo,
     props.state,
     props.errorLabel,

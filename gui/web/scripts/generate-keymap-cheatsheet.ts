@@ -55,6 +55,8 @@ const WHEN_HINTS: Record<string, string> = {
   canFixText: "Host or an editor link, words loaded",
   hostProjectLoaded: "Loaded host project",
   following: "While following another client",
+  playbackSpeedAvailable:
+    "Host, or a review link that plays a published version",
   toastShown: "A message is showing",
 };
 

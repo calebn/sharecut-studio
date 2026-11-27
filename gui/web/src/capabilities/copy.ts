@@ -25,7 +25,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.transport.shuttleForward": {
     label: "Speed up (1×/2×/4×)",
-    tooltip: "Play at 1×, then step to 2× and 4×",
+    tooltip: "Play at your speed, then step to 2× and 4×",
+  },
+  "daw.transport.playbackSpeed": {
+    label: "Playback speed",
+    tooltip: "Cycle 1×, 1.25×, 1.5×, 2×",
   },
   "daw.transport.audition": {
     label: "Audition Full mix / Edited stems / Original",
@@ -670,6 +674,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
 
 export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.play": "daw.transport.togglePlay",
+  PlayerSpeedButton: "daw.transport.playbackSpeed",
   "transport.audition": "daw.transport.audition",
   "presence.avatarStack": "daw.presence.follow",
   "presence.goTo": "daw.presence.goTo",

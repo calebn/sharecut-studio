@@ -10,7 +10,7 @@ import {
 } from "../utils/playbackSpeedPref";
 import { clampToSession } from "../utils/time";
 import { afterStop, afterTransport } from "./composerSession";
-import { effectiveChosen, playbackSpeedAvailable } from "./playbackSpeed";
+import { effectiveChosen, playbackSpeedRefusal } from "./playbackSpeed";
 import type { DawStore } from "./types";
 
 type TransportSlice = Pick<
@@ -122,16 +122,9 @@ export const createTransportSlice: StateCreator<
       return;
     }
     const s = get();
-    if (s.followingClientId != null) {
-      s.announceStatus("Speed follows the person you're following.", {
-        toast: false,
-      });
-      return;
-    }
-    if (!playbackSpeedAvailable(s.projectPath)) {
-      s.announceStatus("Speed isn't available on Editor links yet.", {
-        toast: false,
-      });
+    const blocked = playbackSpeedRefusal(s);
+    if (blocked !== undefined) {
+      s.announceStatus(blocked, { toast: false });
       return;
     }
     writePlaybackSpeedPref(rate);

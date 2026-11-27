@@ -95,7 +95,7 @@ describe("setPlaybackSpeed", () => {
     s().setPlaybackSpeed(2);
     expect([s().chosenPlaybackRate, s().playbackRate]).toEqual([1, 1]);
     expect(localStorage.getItem(PLAYBACK_SPEED_STORAGE_KEY)).toBeNull();
-    expect(s().statusAnnouncement).toContain("Editor links");
+    expect(s().statusAnnouncement).toContain("live-episode links");
   });
 });
 
