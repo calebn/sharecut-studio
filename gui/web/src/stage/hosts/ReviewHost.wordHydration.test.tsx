@@ -22,6 +22,7 @@ import { deferred } from "../../test/deferred";
 import {
   minimalProject,
   pendingEditView,
+  sampleComment,
   sampleTrack,
   sessionSuggestionView,
 } from "../../test/fixtures";
@@ -36,6 +37,7 @@ const wire = vi.hoisted(() => ({
   approve: vi.fn(),
   acceptSession: vi.fn(),
   sessionTakes: vi.fn(),
+  resolveComment: vi.fn(),
 }));
 vi.mock("../../services/offlineQueue/offlineAttention", () => ({
   useOfflineAttention: () => ({
@@ -48,6 +50,10 @@ vi.mock("../../services/offlineQueue/offlineAttention", () => ({
   }),
   dismissAllConflicts: vi.fn(),
   refreshOfflineAttention: vi.fn(),
+}));
+vi.mock("../../comments/useCommentActions", async (original) => ({
+  ...(await original<typeof import("../../comments/useCommentActions")>()),
+  setCommentResolved: wire.resolveComment,
 }));
 vi.mock("../../api/project", async (original) => ({
   ...(await original<typeof import("../../api/project")>()),
@@ -981,4 +987,42 @@ it("drops a removed session's confirmation and take details before its id return
   expect(wire.sessionTakes).toHaveBeenCalledTimes(2);
   expect(content()?.confirm).toBeUndefined();
   expect(content()?.takes?.takes[1]?.words).toBeUndefined();
+});
+
+it("restores the earlier optimistic Reopen when a subsequent Resolve fails", async () => {
+  const response = deferred<void>();
+  wire.resolveComment
+    .mockResolvedValueOnce(undefined)
+    .mockReturnValueOnce(response.promise);
+  publish({ ...project(), comments: [sampleComment({ resolved: true })] }, 2);
+  const view = renderHook(() => useReviewQueue());
+  const comment = () => {
+    const item = view.result.current.stageProps.items.find(
+      (row) => row.id === "comment:c1",
+    );
+    if (!item) throw new Error("Expected the comment");
+    return item;
+  };
+
+  expect(comment().result).toBe("applied");
+  render(view.result.current.stageProps.thread?.(comment()));
+  await userEvent.click(screen.getByRole("button", { name: "Reopen" }));
+  expect(wire.resolveComment).toHaveBeenNthCalledWith(
+    1,
+    "c1",
+    false,
+    expect.any(String),
+  );
+  expect(comment().result).toBeUndefined();
+
+  act(() => view.result.current.stageProps.onResolve("comment:c1"));
+  expect(wire.resolveComment).toHaveBeenNthCalledWith(
+    2,
+    "c1",
+    true,
+    expect.any(String),
+  );
+  expect(comment().result).toBe("applied");
+  await act(async () => response.reject(new Error("Resolve failed")));
+  expect(comment().result).toBeUndefined();
 });
